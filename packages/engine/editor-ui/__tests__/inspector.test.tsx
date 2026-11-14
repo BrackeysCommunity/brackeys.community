@@ -628,7 +628,7 @@ describe("EditorInspector: an instance's placement", () => {
     return { session, dispatch };
   }
 
-  const section = () => screen.getByRole("region", { name: "Placement" });
+  const section = () => screen.getByRole("region", { name: "Transform" });
   const post = (session: ReturnType<typeof placed>["session"]) =>
     session.getDoc().instances!.find((i) => i.id === "post-2")!;
 
@@ -651,7 +651,7 @@ describe("EditorInspector: an instance's placement", () => {
     expect(session.store.state.history.at(-1)!.label).toBe("Turn post-2 90° clockwise");
     expect(input("rot").value).toBe("90");
 
-    fireEvent.click(within(section()).getByRole("button", { name: "Mirror horizontally" }));
+    fireEvent.click(within(section()).getByRole("button", { name: "Flip horizontally" }));
     expect(dispatch.mock.calls[1]![0].ops).toEqual([
       { op: "transform", refs: ["post-2"], flip: "x" },
     ]);
@@ -665,7 +665,7 @@ describe("EditorInspector: an instance's placement", () => {
     expect(post(session).rot).toBeUndefined();
 
     fireEvent.click(within(section()).getByRole("button", { name: "Turn 90° counterclockwise" }));
-    fireEvent.click(within(section()).getByRole("button", { name: "Mirror vertically" }));
+    fireEvent.click(within(section()).getByRole("button", { name: "Flip vertically" }));
     expect(dispatch.mock.calls.slice(2).map((c) => c[0].ops[0])).toEqual([
       { op: "transform", refs: ["post-2"], turn: -1 },
       { op: "transform", refs: ["post-2"], flip: "y" },
@@ -694,7 +694,7 @@ describe("EditorInspector: an instance's placement", () => {
       within(angleRow as HTMLElement).getByRole("button", { name: "Turn 90° clockwise" }),
     ).toBeTruthy();
     expect(
-      within(rowOf(mirror()) as HTMLElement).getByRole("button", { name: "Mirror vertically" }),
+      within(rowOf(mirror()) as HTMLElement).getByRole("button", { name: "Flip vertically" }),
     ).toBeTruthy();
   });
 
@@ -892,7 +892,7 @@ describe("EditorInspector: the Parent row", () => {
   }
 
   const identity = () => screen.getByRole("region", { name: "Identity" });
-  const placement = () => screen.getByRole("region", { name: "Placement" });
+  const placement = () => screen.getByRole("region", { name: "Transform" });
   /** An option's label, without the muted id and kind after it. */
   const labelOf = (o: HTMLElement) => o.querySelector(".je-sp-truncate")?.textContent;
   const pick = async (label: string, region = identity) => {

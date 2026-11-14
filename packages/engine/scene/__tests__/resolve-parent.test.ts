@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { pivotRegistry } from "../../__tests__/fixtures/pivot-game";
 import { createRegistry } from "../../game/define";
 import { applyOps } from "../ops";
 import { prefabLibrary } from "../prefab";
@@ -140,6 +141,36 @@ describe("a three-level chain with a turned node", () => {
       op: "add",
       entity: { type: "marker", at: [2, 0], parent: "a" },
     });
+  });
+});
+
+describe("a type based on node", () => {
+  const pivots = pivotRegistry();
+  const hub = (type: string, more: Partial<EntityDef> = {}) =>
+    scene({
+      entities: [
+        { id: "hub", type, at: [5, 5], rot: 90, ...more },
+        { id: "kid", type: "marker", at: [1, 0], parent: "hub" },
+      ],
+    });
+
+  it.each([{}, { flip: true as const }])(
+    "places its children through its rot and flip: %o",
+    (more) => {
+      const asNode = byId(resolveScene(hub("node", more), pivots));
+      const asPivot = byId(resolveScene(hub("pivot", more), pivots));
+      expect(asPivot.get("kid")!.at).toEqual(asNode.get("kid")!.at);
+      expect(asPivot.get("kid")!.at).toEqual(more.flip ? [5, 4] : [5, 6]);
+    },
+  );
+
+  it("composes W(child) = W(parent) ∘ frame(entityFrame(parent))", () => {
+    const def = hub("pivot", { flip: true });
+    const own = byId(def);
+    expect(entityFrame(pivots, own.get("hub")!)).toEqual({ at: [5, 5], rot: 90, flip: true });
+    expect(sceneFrames(def, pivots).stepsFor(own.get("kid")!)).toEqual([
+      frame(entityFrame(pivots, own.get("hub")!)),
+    ]);
   });
 });
 

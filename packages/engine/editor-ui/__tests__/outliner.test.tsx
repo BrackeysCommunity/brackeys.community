@@ -116,6 +116,7 @@ const filter = (query: string) =>
  */
 const ROW_PX = 20;
 let listPx = 2000;
+let stripY = 2000;
 beforeAll(() => {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const li = this.closest("li");
@@ -123,7 +124,7 @@ beforeAll(() => {
     if (!li && this.classList.contains("je-outliner-list"))
       return DOMRect.fromRect({ x: 0, y: 0, width: 200, height: listPx });
     if (this.classList.contains("je-outliner-root"))
-      return DOMRect.fromRect({ x: 0, y: 2000, width: 200, height: ROW_PX });
+      return DOMRect.fromRect({ x: 0, y: stripY, width: 200, height: ROW_PX });
     return DOMRect.fromRect(i < 0 ? {} : { x: 0, y: i * ROW_PX, width: 200, height: ROW_PX });
   });
 });
@@ -705,7 +706,9 @@ describe("EditorOutliner tree", () => {
     expect(dispatch).not.toHaveBeenCalled();
     expect(entry(session, "tower").parent).toBeUndefined();
     expect(row("barrel").closest("li")!.hasAttribute("data-drop-refused")).toBe(false);
-    expect(outliner().queryByText(/would make a loop/)).toBeNull();
+    expect(
+      outliner().queryByText(/would make a loop/, { selector: ".je-outliner-refusal" }),
+    ).toBeNull();
     expect(notify.error).toHaveBeenCalledOnce();
     expect(notify.error).toHaveBeenCalledWith("Couldn't put tower under barrel", {
       description: expect.stringMatching(/would make a loop/),
@@ -827,6 +830,62 @@ describe("EditorOutliner tree", () => {
     expect(outliner().queryByText("Drop here to move to the root")).toBeNull();
   });
 
+  it("takes a drop on the root strip as a root drop where the strip lies over a row", async () => {
+    const { session, dispatch } = setup(towerScene());
+    listPx = 120;
+    stripY = 85;
+    try {
+      const lamp = row("lamp").closest("li")!;
+      const strip = () => outliner().getByText("Drop here to move to the root").parentElement!;
+      await drag(row("barrel"), "strip", "middle", () => {
+        expect(strip().hasAttribute("data-drop-over")).toBe(true);
+        expect([...lamp.attributes].some((a) => a.name.startsWith("data-drop"))).toBe(false);
+      });
+    } finally {
+      listPx = 2000;
+      stripY = 2000;
+    }
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Move barrel to the root",
+      ops: [{ op: "reparent", refs: ["barrel"], parent: null }],
+    });
+    expect(entry(session, "barrel").parent).toBeUndefined();
+  });
+
+  it("gives no drop to a row scrolled out of the list's view", async () => {
+    const { dispatch } = setup(towerScene());
+    listPx = 60;
+    try {
+      await drag(row("lamp"), row("crate"), "middle", () => {
+        const crate = row("crate").closest("li")!;
+        expect([...crate.attributes].some((a) => a.name.startsWith("data-drop"))).toBe(false);
+        expect(outliner().getByRole("list").hasAttribute("data-drop-over")).toBe(false);
+      });
+    } finally {
+      listPx = 2000;
+    }
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("selects a row dragged from outside the selection once it lands", async () => {
+    const { session } = setup(towerScene());
+    act(() => session.select(["crate"]));
+    await drag(row("lamp"), row("tower"));
+    expect(session.store.state.selection).toEqual(["lamp"]);
+  });
+
+  it("tells a screen reader what a drag does in the rows' own words", async () => {
+    setup(towerScene());
+    const live = () => document.querySelector('[id^="DndLiveRegion"]')?.textContent;
+    await drag(row("lamp"), row("tower"), "middle", () => {
+      expect(live()).toBe("Put lamp under tower.");
+    });
+    expect(live()).toBe("Put lamp under tower: done.");
+    expect(document.querySelector('[id^="DndDescribedBy"]')?.textContent).toContain(
+      "Alt+Up and Alt+Down move a tree row among its siblings",
+    );
+  });
+
   it("moves a root row to the end of the root on a drop on the root", async () => {
     setup(towerScene());
     await drag(row("crate"), "strip");
@@ -851,7 +910,9 @@ describe("EditorOutliner tree", () => {
       fireEvent.focus(outliner().getByRole("button", { name: "Tree" }));
     });
     expect(
-      await screen.findByText("Rows under their parents; drag to reparent or reorder"),
+      await screen.findByText(
+        "Rows under their parents; drag to reparent or reorder, or move a row among its siblings with Alt+↑/↓",
+      ),
     ).toBeTruthy();
   });
 
@@ -913,7 +974,7 @@ describe("EditorOutliner tree", () => {
 
   it("groups and ungroups from its head, saying why it can't while it can't", async () => {
     const { session, dispatch } = setup(towerScene());
-    const groupButton = () => outliner().getByRole("button", { name: "Group under a node" });
+    const groupButton = () => outliner().getByRole("button", { name: "Group under a new node" });
     const ungroupButton = () => outliner().getByRole("button", { name: "Ungroup" });
     expect(groupButton().getAttribute("aria-disabled")).toBe("true");
     await act(async () => {
@@ -1036,6 +1097,7 @@ describe("EditorOutliner tree", () => {
 
     await drag(row("sight"), row("barrel"));
     expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Put sight under barrel in t-1",
       ops: [{ op: "reparent", refs: ["sight"], parent: "t-1/barrel" }],
     });
     expect(levels()).toEqual([
@@ -1045,6 +1107,32 @@ describe("EditorOutliner tree", () => {
     ]);
     expect(session.getDoc().entities![0]!.parent).toBe("t-1/barrel");
   });
+  it("names an instance's child by its row when it refuses a drop onto it", async () => {
+    const library = prefabLibrary([
+      {
+        kind: "prefab",
+        v: SCENE_FORMAT_VERSION,
+        id: "turret",
+        entities: [{ id: "barrel", type: "solid", shape: ["box", 0, 0, 4, 1] }],
+      },
+    ]);
+    const { dispatch, notify } = setup(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "turrets",
+        bounds: [0, 0, 100, 100],
+        entities: [{ id: "carrier", type: "node", at: [10, 10] }],
+        instances: [{ id: "t-1", prefab: "turret", at: [50, 50], parent: "carrier" }],
+      },
+      library,
+    );
+    await drag(row("carrier"), row("barrel"));
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(notify.error).toHaveBeenCalledWith("Couldn't put carrier under barrel in t-1", {
+      description: "barrel in t-1 is under carrier, so putting carrier under it would make a loop.",
+    });
+  });
+
   it("builds a turret by hand (a node, a base under it, a barrel with a collider under the base) that plays as one", async () => {
     const session = createEditorSession({
       doc: sceneToDoc(
@@ -1096,7 +1184,7 @@ describe("EditorOutliner tree", () => {
 
     act(() => void host.command("select-all"));
     await act(async () => {
-      fireEvent.click(outliner().getByRole("button", { name: "Group under a node" }));
+      fireEvent.click(outliner().getByRole("button", { name: "Group under a new node" }));
     });
     expect(levels()).toEqual([
       ["node-1", "1"],

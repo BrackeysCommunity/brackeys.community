@@ -143,7 +143,7 @@ let building: Binding | undefined;
 
 const bindingOf = (self: object): Binding => (self as { [BOUND]: Binding })[BOUND];
 
-/** What `make` constructs, bound to `b`. */
+/** Runs `make` with `b` as the binding the new script instance takes. */
 function constructBound<T>(b: Binding, make: () => T): T {
   building = b;
   try {

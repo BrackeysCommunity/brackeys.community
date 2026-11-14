@@ -41,9 +41,9 @@ import {
   InstanceSchema,
   unwrapSchema,
 } from "../scene/schema";
-import { aabb, boxCorners, convexHull, isConvex, normDeg } from "../scene/shape-geometry";
+import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry";
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
-import { composeSteps, mirrors } from "../scene/transform";
+import { composeSteps, mirrors, settleDeg } from "../scene/transform";
 import { addPt, behaviorGeometry, isPt } from "../scene/translate";
 import {
   PREFAB_MAX_DEPTH,
@@ -2538,21 +2538,15 @@ export function instanceAngleBatch(
       ok: false,
       error: `${JSON.stringify(input)} isn't an angle or a relative edit like +=15`,
     };
-  const next = roundDeg(n);
+  const next = settleDeg(n);
   const label = `Turn ${model.ref} to ${next}°`;
   if (next === model.rot) return { ok: true, batch: { label, ops: [] } };
   const mirrored = mirrors(composeSteps(sceneFrames(def, registry, prefabs).stepsFor(inst)));
-  const by = roundDeg(mirrored ? model.rot - next : next - model.rot);
+  const by = settleDeg(mirrored ? model.rot - next : next - model.rot);
   return {
     ok: true,
     batch: { label, ops: [{ op: "transform", refs: [model.ref], rotate: by }] },
   };
-}
-
-/** Degrees in [0, 360), to the micro-degree a file holds. */
-function roundDeg(deg: number): number {
-  const r = Math.round(normDeg(deg) * 1e6) / 1e6;
-  return r === 360 ? 0 : r;
 }
 
 // ─── Shape conversions ───────────────────────────────────

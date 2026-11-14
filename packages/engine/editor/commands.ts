@@ -1,4 +1,4 @@
-import { NODE_TYPE } from "../game/primitives";
+import { isNodeTypeIn, NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { parseBulkId } from "../scene/expand";
@@ -102,7 +102,7 @@ export function rotateSelectionBatch(
   prefabs?: PrefabLibrary,
 ): OpBatch | null {
   const roots = selectionRoots(def, refs);
-  const framed = roots.filter((r) => isFrameRef(def, r));
+  const framed = roots.filter((r) => isFrameRef(def, registry, r));
   const rest = roots.filter((r) => !framed.includes(r));
   const view = resolveScene(def, registry, prefabs);
   const targets = targetsOf(view, registry, rest);
@@ -253,10 +253,10 @@ export function flipBatch(
   return transformBatch(def, refs, (w) => `Flip ${w} ${dir}`, { flip: axis });
 }
 
-/** Whether `ref` is a document instance or `node`, which turn by `transform`. */
-const isFrameRef = (def: SceneDefinition, ref: Ref): boolean =>
+/** Whether `ref` is a document instance or a node, which turn by `transform`. */
+const isFrameRef = (def: SceneDefinition, registry: Registry, ref: Ref): boolean =>
   (def.instances ?? []).some((i) => i.id === ref) ||
-  (def.entities ?? []).some((e) => e.id === ref && e.type === NODE_TYPE);
+  (def.entities ?? []).some((e) => e.id === ref && isNodeTypeIn(registry, e.type));
 
 /**
  * The levels a click walks from the outermost instance holding `ref` down to

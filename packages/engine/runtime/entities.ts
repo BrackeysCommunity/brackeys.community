@@ -1,13 +1,14 @@
 import type { BehaviorName } from "../game/behaviors";
 import type { BehaviorKey, Entity, HandleOf } from "../game/entity";
 import { behaviorNameOf } from "../game/script";
-import { entityGone, type EngineContext, type SceneTree } from "../game/types";
-import { ownChildId } from "../scene/resolve";
+import { entityGone, type EngineContext } from "../game/types";
+import { CHILD_SEPARATOR, ownChildId } from "../scene/resolve";
 import { entityTags, tagFieldsOf } from "../scene/schema";
 import type { RuntimeEntity } from "../scene/types";
 import { carriedBehaviors, type BehaviorHost } from "./behaviors";
 import type { EntityTable } from "./entity-table";
 import type { Pose } from "./poses";
+import { ancestry } from "./tree";
 import type { StepEvent } from "./types";
 
 export type EntityHandleDeps = {
@@ -195,7 +196,7 @@ class EntityHandle implements Entity {
     this.#live();
     const { tree } = this.#host.ctx;
     let at = this.id;
-    for (const segment of path.split("/")) {
+    for (const segment of path.split(CHILD_SEPARATOR)) {
       const next = segment
         ? tree.children(at).find((child) => ownChildId(child) === segment)
         : undefined;
@@ -231,10 +232,6 @@ class EntityHandle implements Entity {
       | HandleOf<D>
       | undefined;
   }
-}
-
-function* ancestry(tree: SceneTree, id: string): Generator<string> {
-  for (let at: string | null = id; at !== null; at = tree.parent(at)) yield at;
 }
 
 /**

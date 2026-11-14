@@ -83,10 +83,12 @@ import {
   rowSummary,
   withArticle,
 } from "../../editor/inspector-model";
+import { engineChord, type EditorCommand } from "../../editor/keymap";
 import {
   buildTreeOutline,
   entryLabel,
   entryName,
+  joinDetail,
   selectionAfterPromotes,
   typeLabel,
 } from "../../editor/outline";
@@ -98,7 +100,7 @@ import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
 import type { PrefabLibrary } from "../../scene/index";
-import { CHILD_SEPARATOR, headOfRef } from "../../scene/resolve";
+import { enclosingInstance, headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
 import {
@@ -116,6 +118,7 @@ import {
   Icon,
   IconButton,
   Input,
+  KeyHint,
   Menu,
   MenuContent,
   MenuGroup,
@@ -805,8 +808,8 @@ function RefCombobox({
 function parentDescriber(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary) {
   const known = new Map<Ref, Described>();
   const describeAs = (label: string, detail: (string | undefined)[]): Described => {
-    const shown = detail.filter((s) => s !== undefined);
-    return shown.length > 0 ? { label, detail: shown.join(" · ") } : { label };
+    const shown = joinDetail(detail);
+    return shown ? { label, detail: shown } : { label };
   };
   for (const e of def.entities ?? [])
     known.set(
@@ -824,12 +827,11 @@ function parentDescriber(def: SceneDefinition, registry: Registry, prefabs?: Pre
         `instance of ${i.prefab}`,
       ]),
     );
-  for (const row of buildTreeOutline(def, registry, prefabs))
-    if (row.ref !== undefined && !known.has(row.ref) && row.ref.includes(CHILD_SEPARATOR))
-      known.set(
-        row.ref,
-        describeAs(row.label, [`in ${row.ref.slice(0, row.ref.lastIndexOf(CHILD_SEPARATOR))}`]),
-      );
+  for (const { ref, label } of buildTreeOutline(def, registry, prefabs)) {
+    const holder = ref === undefined ? undefined : enclosingInstance(ref);
+    if (ref !== undefined && holder !== undefined && !known.has(ref))
+      known.set(ref, describeAs(label, [`in ${holder}`]));
+  }
   return (ref: Ref): Described => {
     if (ref === ROOT_PARENT) return { label: ref };
     return (
@@ -2299,9 +2301,9 @@ function ParamsSection({
 }
 
 /**
- * How an instance sits: its mirror flag with Flip beside it, its angle in
- * degrees with Turn beside it, each one batch about its `at`, and its `z`.
- * A nested instance shows its prefab's placement without editing it.
+ * How an instance sits: its angle in degrees with Turn beside it, its
+ * mirror flag with Flip beside it, each one batch about its `at`, and its
+ * `z`. A nested instance shows its prefab's placement without editing it.
  */
 function PlacementSection({
   session,
@@ -2319,7 +2321,12 @@ function PlacementSection({
   const angle = instanceAngleRow(model);
   const mirror = instanceFlipRow(model);
   const buttons = (
-    controls: { label: string; icon: IconSvgElement; batch: () => OpBatch | null }[],
+    controls: {
+      label: string;
+      command: EditorCommand;
+      icon: IconSvgElement;
+      batch: () => OpBatch | null;
+    }[],
   ) =>
     model.editable
       ? controls.map((c) => (
@@ -2328,41 +2335,13 @@ function PlacementSection({
             icon={c.icon}
             size="icon-xs"
             label={c.label}
+            tooltip={<KeyHint text={c.label} chord={engineChord(c.command)} />}
             onClick={() => run(c.batch())}
           />
         ))
       : null;
   return (
-    <Section id="instance:placement" title="Placement">
-      <div className="je-insp-row" data-gap="tight">
-        <div className="je-insp-grow">
-          {mirror.readonly ? (
-            <ReadonlyField
-              field={{ ...mirror, value: model.flip ? "Mirrored" : undefined }}
-              unset="Not mirrored"
-            />
-          ) : (
-            <SwitchField
-              field={mirror}
-              commit={(on) =>
-                dispatchSource(session, instanceFlipBatch(model, on === true), readOnly)
-              }
-            />
-          )}
-        </div>
-        {buttons([
-          {
-            label: "Mirror horizontally",
-            icon: FlipHorizontalIcon,
-            batch: () => flipBatch(doc, [model.ref], "x"),
-          },
-          {
-            label: "Mirror vertically",
-            icon: FlipVerticalIcon,
-            batch: () => flipBatch(doc, [model.ref], "y"),
-          },
-        ])}
-      </div>
+    <Section id="instance:placement" title={SECTION_TITLES.transform}>
       <div className="je-insp-row" data-gap="tight">
         <div className="je-insp-grow">
           {angle.readonly ? (
@@ -2384,13 +2363,46 @@ function PlacementSection({
         {buttons([
           {
             label: "Turn 90° counterclockwise",
+            command: "turn-ccw",
             icon: RotateLeft01Icon,
             batch: () => turnBatch(doc, [model.ref], -1),
           },
           {
             label: "Turn 90° clockwise",
+            command: "turn-cw",
             icon: RotateRight01Icon,
             batch: () => turnBatch(doc, [model.ref], 1),
+          },
+        ])}
+      </div>
+      <div className="je-insp-row" data-gap="tight">
+        <div className="je-insp-grow">
+          {mirror.readonly ? (
+            <ReadonlyField
+              field={{ ...mirror, value: model.flip ? "Mirrored" : undefined }}
+              unset="Not mirrored"
+            />
+          ) : (
+            <SwitchField
+              field={mirror}
+              commit={(on) =>
+                dispatchSource(session, instanceFlipBatch(model, on === true), readOnly)
+              }
+            />
+          )}
+        </div>
+        {buttons([
+          {
+            label: "Flip horizontally",
+            command: "flip-x",
+            icon: FlipHorizontalIcon,
+            batch: () => flipBatch(doc, [model.ref], "x"),
+          },
+          {
+            label: "Flip vertically",
+            command: "flip-y",
+            icon: FlipVerticalIcon,
+            batch: () => flipBatch(doc, [model.ref], "y"),
           },
         ])}
       </div>

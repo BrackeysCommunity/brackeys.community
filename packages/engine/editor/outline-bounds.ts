@@ -1,4 +1,4 @@
-import { NODE_TYPE } from "../game/primitives";
+import { isNodeTypeIn } from "../game/primitives";
 import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import type { GridCells } from "../scene/grid";
@@ -118,12 +118,14 @@ function entitiesOfRef(def: SceneDefinition, ref: Ref, tree: EditTree): EntityDe
 export function isComposite(
   def: SceneDefinition,
   ref: Ref,
-  look?: Pick<OutlineLook, "source" | "tree">,
+  look?: Partial<Pick<OutlineLook, "registry" | "source" | "tree">>,
 ): boolean {
   const tree = look?.tree?.(def) ?? editTree(def, look?.source);
   if (tree.isInstance(ref)) return tree.below([ref]).length > 0;
   const own = (def.entities ?? []).find((e) => e.id === ref);
-  return own?.type === NODE_TYPE && tree.below([ref]).length > 0;
+  return (
+    own !== undefined && isNodeTypeIn(look?.registry, own.type) && tree.below([ref]).length > 0
+  );
 }
 
 /**

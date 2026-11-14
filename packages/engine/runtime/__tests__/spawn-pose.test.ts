@@ -1,25 +1,14 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
-import { testGame } from "../../__tests__/fixtures/test-game";
-import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { angleField, pointField } from "../../game/fields";
+import { pivotGame, pivotRegistry } from "../../__tests__/fixtures/pivot-game";
+import { createRegistry } from "../../game/define";
 import type { ExpandedScene, RuntimeEntity } from "../../scene/types";
 import { createSceneRuntime } from "../runtime";
 import { currentPose, spawnPose } from "../spawn-pose";
 
 const registry = createRegistry();
 
-const PIVOT = defineEntityType({
-  type: "pivot",
-  description: "A hub based on the node primitive.",
-  base: "node",
-  fields: {
-    at: pointField("Its origin."),
-    rot: angleField("Its angle, degrees clockwise.", "deg").optional(),
-  },
-});
-const pivotGame = defineGame({ ...testGame, types: [...testGame.types, PIVOT] });
 const node = (more: Partial<RuntimeEntity> = {}): RuntimeEntity =>
   ({ id: "n", type: "node", at: [3, 4], ...more }) as RuntimeEntity;
 
@@ -34,7 +23,7 @@ describe("a node's spawn pose", () => {
   });
 
   it("stands a type based on node at its own rot too", () => {
-    const pivots = createRegistry(pivotGame);
+    const pivots = pivotRegistry();
     const e = node({ type: "pivot", rot: 90, transform: { rot: 180, flip: false } });
     expect(spawnPose(e, pivots)).toEqual({ x: 3, y: 4, rot: Math.PI / 2 });
   });

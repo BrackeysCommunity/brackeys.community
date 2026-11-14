@@ -9,6 +9,7 @@ import {
   CHILD_SEPARATOR,
   childRef,
   documentTree,
+  enclosingInstance,
   headOfRef,
   localChildren,
   resolveWith,
@@ -72,6 +73,14 @@ export function entryLabel(def: SceneDefinition, ref: Ref): string {
   return d ? entryName(d) : ref;
 }
 
+/** A row's secondary text: the parts it has, `·` between them. */
+export const joinDetail = (parts: readonly (string | undefined)[]): string =>
+  parts.filter((s) => s !== undefined).join(" · ");
+
+/** An instance row's detail: the prefab it places (or that it's missing), and whether it's off. */
+export const instanceDetail = (prefab: string, found: boolean, off?: boolean): string =>
+  joinDetail([found ? prefab : `${prefab} (missing)`, off ? "off" : undefined]);
+
 /** `solid · box · ice`: `kind` leads where no type row says it. */
 const entryDetail = (
   kind: string | undefined,
@@ -79,9 +88,12 @@ const entryDetail = (
   material?: unknown,
   off?: unknown,
 ): string =>
-  [kind, describeEntry(geometry), material, off ? "off" : undefined]
-    .filter((s) => typeof s === "string")
-    .join(" · ");
+  joinDetail([
+    kind,
+    describeEntry(geometry),
+    typeof material === "string" ? material : undefined,
+    off ? "off" : undefined,
+  ]);
 
 /** An entity's row; `kind` leads its detail where no type row says it, and `at` is the point it shows. */
 function entityRow(e: EntityDef, depth = 1, kind?: string, at: unknown = e.at): OutlineRow {
@@ -122,11 +134,6 @@ function bucketRows(key: BulkKey, values: BulkEntry[], depth = 1): OutlineRow[] 
   ];
 }
 
-const parentOf = (rel: Ref): string => {
-  const i = rel.lastIndexOf(CHILD_SEPARATOR);
-  return i < 0 ? "" : rel.slice(0, i);
-};
-
 /**
  * What the tree view adds to an instance's rows: the scene's own entities
  * parented to each child, and the geometry a child's row shows (a point in
@@ -161,9 +168,7 @@ function instanceRows(
     depth,
     kind: "entity",
     label: entryName(inst),
-    detail: [prefab ? inst.prefab : `${inst.prefab} (missing)`, inst.off ? "off" : undefined]
-      .filter((s) => s !== undefined)
-      .join(" · "),
+    detail: instanceDetail(inst.prefab, prefab !== undefined, inst.off),
     ref: inst.id,
     prefab: inst.prefab,
     overrides: keys.length,
@@ -172,7 +177,7 @@ function instanceRows(
 
   const byParent = new Map<string, LocalChild[]>();
   for (const c of localChildren(prefab, inst, registry, prefabs)) {
-    const parent = parentOf(c.child);
+    const parent = enclosingInstance(c.child) ?? "";
     byParent.set(parent, [...(byParent.get(parent) ?? []), c]);
   }
   const rows: OutlineRow[] = [head];
@@ -222,9 +227,7 @@ function instanceRows(
         depth: d,
         kind: "entity",
         label: entryName(n),
-        detail: [inner ? n.prefab : `${n.prefab} (missing)`, n.off ? "off" : undefined]
-          .filter((s) => s !== undefined)
-          .join(" · "),
+        detail: instanceDetail(n.prefab, inner !== undefined, n.off),
         ref,
         prefab: n.prefab,
         overrides: covering(at),
@@ -363,6 +366,21 @@ export function buildTreeOutline(
 }
 
 /**
+ * How the tree names `ref` to a designer: an instance's child by its row's
+ * label and the instance it is in (`base in carrier-turret`), anything else
+ * by `ref` itself.
+ */
+export function treeRefNamer(rows: readonly OutlineRow[]): (ref: Ref) => string {
+  const labels = new Map(rows.flatMap((r) => (r.ref === undefined ? [] : [[r.ref, r.label]])));
+  return (ref) => {
+    const holder = enclosingInstance(ref);
+    if (holder === undefined) return ref;
+    const own = labels.get(ref) ?? ref.slice(holder.length + CHILD_SEPARATOR.length);
+    return `${own} in ${labels.get(holder) ?? holder}`;
+  };
+}
+
+/**
  * Where a row dropped in the tree goes: under a parent (null: the root;
  * the parent it already has puts it last among its siblings), or just
  * before or just after a sibling.
@@ -490,7 +508,7 @@ export function treeDragRoots(
  * shape, a `reparent` for those whose parent changes and, beside a sibling
  * or onto the parent they all already have, a `reorder` per list (entities,
  * instances) that changes. Nothing moves in the world. Null when nothing
- * changes.
+ * changes. Its label names the parent with `name`.
  */
 export function treeDropBatch(
   given: SceneDefinition,
@@ -498,6 +516,7 @@ export function treeDropBatch(
   prefabs: PrefabLibrary | undefined,
   refs: readonly Ref[],
   drop: TreeDrop,
+  name: (ref: Ref) => string = (ref) => ref,
 ): OpBatch | null {
   const lift = liftIntoTree(given, registry, refs, prefabs);
   const def = lift.def;
@@ -548,23 +567,33 @@ export function treeDropBatch(
   let label: string;
   if (sibling) label = `Move ${what} ${sibling.after ? "after" : "before"} ${sibling.at}`;
   else if (last)
-    label = parent === null ? `Move ${what} last at the root` : `Move ${what} last under ${parent}`;
-  else label = reparentLabel(moving, parent);
+    label =
+      parent === null ? `Move ${what} last at the root` : `Move ${what} last under ${name(parent)}`;
+  else label = reparentLabel(moving, parent === null ? null : name(parent));
   return liftedBatch(given, lift, label, ops);
 }
 
-/** Why `batch` would be refused against `def`, as dispatching it would judge it; null when it applies. */
+/**
+ * Why `batch` would be refused against `def`, as dispatching it would judge
+ * it, with the parent it names put as `name` puts it; null when it applies.
+ */
 export function treeDropRefusal(
   def: SceneDefinition,
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
   batch: OpBatch,
+  name: (ref: Ref) => string = (ref) => ref,
 ): SceneIssue | null {
   const result = applyOps(def, { base: sceneHash(def), ...batch }, registry, {
     validate: "none",
     ...(prefabs ? { prefabs } : {}),
   });
-  return result.ok ? null : result.issue;
+  if (result.ok) return null;
+  const parent = batch.ops.find(
+    (op): op is Extract<SceneOp, { op: "reparent" }> => op.op === "reparent",
+  )?.parent;
+  if (parent === null || parent === undefined || name(parent) === parent) return result.issue;
+  return { ...result.issue, message: result.issue.message.replaceAll(parent, name(parent)) };
 }
 
 /** The selectable refs in outline order, for range selection. */

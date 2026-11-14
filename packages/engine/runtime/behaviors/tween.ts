@@ -8,7 +8,6 @@ import {
   type TweenValues,
 } from "../../anim/tweens";
 import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
-import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import { SPRITE } from "../../game/behaviors/sprite";
 import {
   isLookChannel,
@@ -431,25 +430,6 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       const { look, moves } = split(tweenValues(state));
       if (moves) posed.add(state.owner);
       styled(state.owner, look);
-    }
-    placeColliders();
-  }
-
-  /**
-   * Moves the colliders a fresh load built at spawn to the restored poses of
-   * tweened entities and their children. Not `ctx.setPose`: the other blocks'
-   * `posed` (a walking nav-agent's replan) never ran here in the unsaved run.
-   */
-  function placeColliders(): void {
-    const colliders = ctx.behavior<ColliderSystem>(COLLIDER.name);
-    if (!colliders?.posed) return;
-    for (const root of posed) {
-      for (const id of ctx.tree.subtree(root)) {
-        if (!colliders.has(id) || !ctx.enabled(id)) continue;
-        if (id !== root && colliders.selfMoving?.(id)) continue;
-        const p = ctx.poses.get(id);
-        if (p) colliders.posed(id, p, false);
-      }
     }
   }
 

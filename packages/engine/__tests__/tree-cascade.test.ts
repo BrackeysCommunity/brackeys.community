@@ -1,35 +1,23 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
-import { DEFAULT_ACTIONS } from "../game/defaults";
-import { createRegistry, defineGame } from "../game/define";
-import { createSceneRuntime } from "../runtime/runtime";
+import { createRegistry } from "../game/define";
 import {
   ENTITY_DESTROYED,
   ENTITY_DISABLED,
   ENTITY_ENABLED,
   ENTITY_SPAWNED,
 } from "../runtime/types";
-import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
 import {
   SCENE_FORMAT_VERSION,
   type EntityDef,
   type Prefab,
   type RuntimeEntity,
-  type SceneDefinition,
 } from "../scene/types";
-import { marker, stepEvents } from "./fixtures/tree-rig";
+import { loadTree, marker, stepEvents, treeGame } from "./fixtures/tree-rig";
 
-const game = defineGame({
-  id: "cascades",
-  types: [],
-  actions: [...DEFAULT_ACTIONS],
-  input: { players: { max: 1, join: "auto" } },
-  time: { kind: "fixed", rate: 60 },
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
-const registry = createRegistry(game);
+const registry = createRegistry(treeGame("cascades"));
 
 /** `hub` holds a lamp (which holds a bulb) and a post; `stone` stands alone. */
 const ENTITIES: EntityDef[] = [
@@ -48,28 +36,10 @@ const LANTERN: Prefab = {
   id: "lantern",
   entities: [marker("glass", [0, 0]), marker("wick", [1, 0])],
 };
+const LANTERN_LIBRARY = prefabLibrary([LANTERN]);
 
 function load() {
-  const scene: SceneDefinition = {
-    v: SCENE_FORMAT_VERSION,
-    game: "cascades",
-    name: "cascades",
-    bounds: [-60, -60, 60, 60],
-    settings: { physics: "none", gravity: [0, 0] },
-    entities: ENTITIES,
-  };
-  const expanded = expandScene(scene, registry);
-  expanded.entities = expanded.entities.map((e) =>
-    PARENTS[e.id] ? { ...e, parent: PARENTS[e.id] } : e,
-  );
-  const rt = createSceneRuntime({
-    rapier: null,
-    view: null,
-    game,
-    prefabs: prefabLibrary([LANTERN]),
-  });
-  const report = rt.load(expanded);
-  if (!report.ok) throw new Error(report.error);
+  const rt = loadTree({ registry, entities: ENTITIES, parents: PARENTS, prefabs: LANTERN_LIBRARY });
   /** One tick that runs `act` from a timer, and the entity events it raised. */
   const tickWith = (act: () => void): string[] => {
     rt.ctx.timers.after(0, act);

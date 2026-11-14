@@ -14,7 +14,15 @@ import {
   SIDES,
   tagsField,
 } from "./fields";
-import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType, Side, Style } from "./types";
+import type {
+  EntityTypeDef,
+  FieldEnv,
+  PrimitiveType,
+  RegisteredType,
+  Registry,
+  Side,
+  Style,
+} from "./types";
 
 export { DEFAULT_GRAVITY } from "./defaults";
 
@@ -24,6 +32,10 @@ export const NODE_TYPE: EntityTypeName = "node";
 /** Whether `t` is the `node` primitive or a type based on it: posed by its `at` and own `rot`. */
 export const isNodeType = (t: { type: string; base?: string | undefined } | undefined) =>
   t !== undefined && (t.base ?? t.type) === NODE_TYPE;
+
+/** Whether `type` names a node in `registry`; by its name alone when the registry doesn't know it. */
+export const isNodeTypeIn = (registry: Pick<Registry, "types"> | undefined, type: string) =>
+  isNodeType(registry?.types.get(type) ?? { type });
 
 /** The primitive whose entities hold the Play camera's framing. */
 export const CAMERA_REGION_TYPE = "camera-region";

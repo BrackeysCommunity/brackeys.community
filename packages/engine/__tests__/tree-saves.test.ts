@@ -9,7 +9,7 @@ import type { SceneRuntimeHandle } from "../runtime/types";
 import { hashText } from "../scene/hash";
 import type { ExpandedScene } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
-import { marker } from "./fixtures/tree-rig";
+import { marker, markerWith } from "./fixtures/tree-rig";
 
 const SCENE_ID = "tree-saves";
 
@@ -34,22 +34,23 @@ const SCENE: ExpandedScene = {
 /** What a run does on tick `t`, the same in the saved run and the restored one. */
 type Script = (ctx: EngineContext, t: number) => void;
 
-/** The test game with nothing of its own to save; `base` turns and drifts every tick. */
+/** The test game with nothing of its own to save; `base`, where there is one, turns and drifts every tick. */
 const game = defineGame({
   ...testGame,
   createRuntime: (ctx) => ({
     beforeStep() {
       const t = ctx.tick;
-      ctx.setPose("base", 1 + Math.sin(t * 0.05) * 3, 1 + Math.cos(t * 0.03) * 2, t * 0.021);
+      if (ctx.get("base"))
+        ctx.setPose("base", 1 + Math.sin(t * 0.05) * 3, 1 + Math.cos(t * 0.03) * 2, t * 0.021);
     },
     snapshot: () => null,
     restore: () => {},
   }),
 });
 
-function runtime(): SceneRuntimeHandle {
+function runtime(scene = SCENE): SceneRuntimeHandle {
   const rt = createSceneRuntime({ rapier: null, view: null, game });
-  expect(rt.load(SCENE, undefined, { sceneId: SCENE_ID })).toMatchObject({ ok: true });
+  expect(rt.load(scene, undefined, { sceneId: scene.name })).toMatchObject({ ok: true });
   return rt;
 }
 
@@ -69,8 +70,8 @@ function run(rt: SceneRuntimeHandle, script: Script, from: number, ticks: number
 }
 
 /** Runs to `at`, saves, runs 300 more; then restores the save's text into a fresh runtime and runs the same 300. */
-function saveAndReplay(script: Script, at = 60) {
-  const a = runtime();
+function saveAndReplay(script: Script, at = 60, scene = SCENE) {
+  const a = runtime(scene);
   run(a, script, 0, at);
   const captured = captureSave(a, { depth: "world", slot: "s", now: 1 });
   if (!captured.ok) throw new Error(captured.issue.message);
@@ -78,10 +79,10 @@ function saveAndReplay(script: Script, at = 60) {
 
   const parsed = parseSaveFile(formatSaveFile(captured.file), game);
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
-  const b = runtime();
+  const b = runtime(scene);
   const restored = restoreSave(b, parsed.file);
   if (!restored.ok) throw new Error(restored.issue.message);
-  const ids = SCENE.entities.map((e) => e.id);
+  const ids = scene.entities.map((e) => e.id);
   const restoredAt = {
     parents: Object.fromEntries(ids.map((id) => [id, b.ctx.tree.parent(id)])),
     children: Object.fromEntries(ids.map((id) => [id, [...b.ctx.tree.children(id)]])),
@@ -195,5 +196,64 @@ describe("world saves of the scene tree (geometry backend)", () => {
     expect(file.world).not.toHaveProperty("parents");
     expect(formatSaveFile(file)).not.toContain('"parents"');
     expect(replay).toBe(digest);
+  });
+});
+
+/** In the test game's `dynamic` group, which its sensors see. */
+const BOX = { shape: ["box", 0, 0, 0.5, 0.5], group: "dynamic" };
+const SENSOR = { shape: ["box", 0, 0, 1, 1], sensor: true };
+
+/** `box` and `hub`'s child `kid` carry colliders; the sensors `gate` and `ring` sit where setPose moves them. */
+const COLLIDERS: ExpandedScene = {
+  ...SCENE,
+  name: "tree-saves-colliders",
+  entities: [
+    markerWith("box", [0, 0], { collider: BOX }),
+    { id: "hub", type: "node", at: [3, 0] } as ExpandedScene["entities"][number],
+    marker("kid", [4, 0], { parent: "hub", behaviors: { collider: BOX } }),
+    markerWith("gate", [10, 10], { collider: SENSOR }),
+    markerWith("ring", [4, 8], { collider: SENSOR }),
+  ],
+};
+
+/** The entities whose colliders overlap a small circle at (x, y). */
+const hitsAt = (rt: SceneRuntimeHandle, x: number, y: number) =>
+  rt.ctx.space
+    .overlaps({ type: "circle", cx: x, cy: y, r: 0.05 })
+    .map((h) => h.tag.entityId)
+    .sort();
+
+describe("world saves of setPose-moved colliders (geometry backend)", () => {
+  const script: Script = (ctx, t) => {
+    if (t === 5) ctx.setPose("box", 10, 10, 0);
+    if (t === 6) ctx.setPose("hub", 3, 8, 0);
+    if (t === 150) ctx.setPose("hub", 3, -20, 0);
+    if (t === 220) ctx.setPose("box", 0, 0, 0);
+  };
+
+  it("puts a moved collider, and a moved parent's collider child, where the restored poses are", () => {
+    const { file, digest, replay } = saveAndReplay(script, 10, COLLIDERS);
+    expect(file.world!.poses).toMatchObject({ box: [10, 10, 0], kid: [4, 8, 0] });
+    expect(replay).toBe(digest);
+  });
+
+  it("answers space queries at the restored poses before and after the next step", () => {
+    const a = runtime(COLLIDERS);
+    run(a, script, 0, 10);
+    expect(hitsAt(a, 10, 10)).toEqual(["box"]);
+    expect(hitsAt(a, 0, 0)).toEqual([]);
+    const captured = captureSave(a, { depth: "world", slot: "s", now: 1 });
+    if (!captured.ok) throw new Error(captured.issue.message);
+
+    const b = runtime(COLLIDERS);
+    const restored = restoreSave(b, captured.file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    for (let i = 0; i < 2; i++) {
+      expect(hitsAt(b, 10, 10)).toEqual(["box"]);
+      expect(hitsAt(b, 0, 0)).toEqual([]);
+      expect(hitsAt(b, 4, 8)).toEqual(["kid"]);
+      expect(hitsAt(b, 4, 0)).toEqual([]);
+      b.step(b.ctx.time.tickMs, []);
+    }
   });
 });

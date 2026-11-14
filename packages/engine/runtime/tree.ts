@@ -12,6 +12,11 @@ import {
 
 export type { SceneTree };
 
+/** `id`, then each ancestor up to the root. */
+export function* ancestry(tree: Pick<SceneTree, "parent">, id: string): Generator<string> {
+  for (let at: string | null = id; at !== null; at = tree.parent(at)) yield at;
+}
+
 /** How a refusal names a scope: a sublevel by its label, else the main scene. */
 export const scopeName = (scope: string | null): string =>
   scope === null ? "the main scene" : `sublevel "${scope}"`;
@@ -213,6 +218,13 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     if (now) follow(now, snap);
   }
 
+  /** Places `id` at `local` in `parent`'s frame; false while the parent has no pose. */
+  function placeUnder(id: string, parent: string, local: Readonly<Pose>, snap: boolean): boolean {
+    const frame = deps.poses.get(parent);
+    if (frame) place(id, composePose(frame.x, frame.y, frame.rot, local), snap);
+    return frame !== undefined;
+  }
+
   /** Moves each enabled, driven child of `link` to where its pose puts it, depth first. */
   function follow(link: Link, snap: boolean): void {
     const list = link.kids;
@@ -314,8 +326,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
       live(id, "pose");
       const local = { x, y, rot: rot ?? link.local?.rot ?? 0 };
       link.local = local;
-      const frame = deps.poses.get(link.parent.id);
-      if (frame) place(id, composePose(frame.x, frame.y, frame.rot, local), false);
+      placeUnder(id, link.parent.id, local, false);
     },
     setParent(id, parent, opts) {
       live(id, "reparent");
@@ -336,8 +347,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
         if (link) remeasure(link);
       } else if (parent !== null && link) {
         link.local = kept;
-        const frame = deps.poses.get(parent);
-        if (frame) place(id, composePose(frame.x, frame.y, frame.rot, kept), false);
+        placeUnder(id, parent, kept, false);
       } else {
         place(id, kept, false);
       }
@@ -384,10 +394,8 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     drive(id, opts) {
       const link = links.get(id);
       const local = link?.local;
-      const frame = link?.parent ? deps.poses.get(link.parent.id) : undefined;
-      if (!frame || !local || deps.selfMoving(id)) return false;
-      place(id, composePose(frame.x, frame.y, frame.rot, local), opts?.snap === true);
-      return true;
+      if (!link?.parent || !local || deps.selfMoving(id)) return false;
+      return placeUnder(id, link.parent.id, local, opts?.snap === true);
     },
     quietly(fn) {
       quiet++;

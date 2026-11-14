@@ -1,27 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { swapped } from "../../__tests__/fixtures/live-version";
-import { testGame } from "../../__tests__/fixtures/test-game";
+import { pivotGame, pivotRegistry } from "../../__tests__/fixtures/pivot-game";
 import { expectPoseClose, steps } from "../../__tests__/fixtures/tree-rig";
-import { defineEntityType, defineGame } from "../../game/define";
-import { angleField, pointField } from "../../game/fields";
-import type { ExpandedScene, RuntimeEntity } from "../../scene/types";
+import { expandScene } from "../../scene/expand";
+import {
+  SCENE_FORMAT_VERSION,
+  type ExpandedScene,
+  type RuntimeEntity,
+  type SceneDefinition,
+} from "../../scene/types";
 import { createSceneRuntime } from "../runtime";
 import type { SceneRuntimeHandle } from "../types";
 
 /** pivot (node) ─┬─ arm ── tip (node) ── hand */
-const PIVOT = defineEntityType({
-  type: "pivot",
-  description: "A hub based on the node primitive.",
-  base: "node",
-  fields: {
-    at: pointField("Its origin."),
-    rot: angleField("Its angle, degrees clockwise.", "deg").optional(),
-  },
-});
-
-const pivotGame = defineGame({ ...testGame, types: [...testGame.types, PIVOT] });
-
 const scene = (pivot: Partial<RuntimeEntity> = {}, tip: Partial<RuntimeEntity> = {}) =>
   ({
     name: "swap-node-turn",
@@ -35,11 +27,14 @@ const scene = (pivot: Partial<RuntimeEntity> = {}, tip: Partial<RuntimeEntity> =
     ],
   }) as ExpandedScene;
 
-function started(pivot: Partial<RuntimeEntity> = {}): SceneRuntimeHandle {
+function loaded(scene: ExpandedScene): SceneRuntimeHandle {
   const rt = createSceneRuntime({ rapier: null, view: null, game: pivotGame });
-  expect(rt.load(scene(pivot), undefined, { sceneId: "swap-node-turn" })).toMatchObject({
-    ok: true,
-  });
+  expect(rt.load(scene, undefined, { sceneId: "swap-node-turn" })).toMatchObject({ ok: true });
+  return rt;
+}
+
+function started(pivot: Partial<RuntimeEntity> = {}): SceneRuntimeHandle {
+  const rt = loaded(scene(pivot));
   steps(rt, 5);
   return rt;
 }
@@ -71,5 +66,45 @@ describe("a live swap that only turns a node", () => {
     expect(report.strategy).toBe("reconcile");
     expectPoseClose(rt.ctx.poses.get("pivot"), { x: 0, y: 0, rot: quarter }, "pivot");
     expectPoseClose(rt.ctx.poses.get("arm"), { x: 0, y: 2, rot: quarter }, "arm");
+  });
+});
+
+describe("a live swap of a resolved scene that turns a node", () => {
+  const doc = (type: string, rot?: number): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "swap-node-turn",
+    bounds: [-20, -20, 20, 20],
+    settings: { gravity: [0, 0], physics: "none" },
+    entities: [
+      { id: "pivot", type, at: [0, 0], ...(rot === undefined ? {} : { rot }) },
+      { id: "arm", type: "marker", at: [2, 0], parent: "pivot" },
+      { id: "tip", type: "node", at: [3, 0], rot: 45, parent: "arm" },
+      { id: "hand", type: "marker", at: [4, 0], parent: "tip" },
+    ],
+  });
+
+  const poses = (rt: SceneRuntimeHandle) =>
+    ["pivot", "arm", "tip", "hand"].map((id) => [id, rt.ctx.poses.get(id)!] as const);
+
+  it("puts what sits under a node where a fresh load of the target does", () => {
+    const registry = pivotRegistry();
+    const target = expandScene(doc("node", 90), registry);
+    const rt = loaded(expandScene(doc("node"), registry));
+    steps(rt, 5);
+    expect(swapped(rt.swap(target, { prefabs: new Map() })).strategy).toBe("reconcile");
+    const fresh = loaded(target);
+    expectPoseClose(fresh.ctx.poses.get("arm"), { x: 0, y: 2, rot: quarter }, "fresh arm");
+    for (const [id, want] of poses(fresh)) expectPoseClose(rt.ctx.poses.get(id), want, id);
+    rt.destroy();
+    fresh.destroy();
+  });
+
+  it.each([0, 90])("frames a type based on node as a node, at rot %s", (rot) => {
+    const registry = pivotRegistry();
+    const asNode = loaded(expandScene(doc("node", rot), registry));
+    const asPivot = loaded(expandScene(doc("pivot", rot), registry));
+    for (const [id, want] of poses(asNode)) expectPoseClose(asPivot.ctx.poses.get(id), want, id);
+    asNode.destroy();
+    asPivot.destroy();
   });
 });

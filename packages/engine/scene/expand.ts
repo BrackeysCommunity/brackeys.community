@@ -11,6 +11,7 @@ import {
   CHILD_SEPARATOR,
   gridTurns,
   instanceFrame,
+  instanceLevels,
   placeInstance,
   resolveWith,
   sceneFrames,
@@ -259,13 +260,11 @@ function withOrigins(library: PrefabLibrary): PrefabLibrary {
 }
 
 /** The id of the nearest of `nodes` that encloses `id` (`room-1/door-1` for `room-1/door-1/panel`). */
-function enclosing(id: string, nodes: ReadonlySet<string>): string | undefined {
-  for (let i = id.lastIndexOf(CHILD_SEPARATOR); i > 0; i = id.lastIndexOf(CHILD_SEPARATOR, i - 1)) {
-    const at = id.slice(0, i);
-    if (nodes.has(at)) return at;
-  }
-  return undefined;
-}
+const enclosing = (id: string, nodes: ReadonlySet<string>): string | undefined =>
+  instanceLevels(id)
+    .slice(0, -1)
+    .reverse()
+    .find((at) => nodes.has(at));
 
 /**
  * One prefab instance's entities as a load expands them: its node, then
@@ -351,15 +350,10 @@ export type ExpandOptions = {
 };
 
 /**
- * What the runtime loads, as the scene's resolved view (`resolveScene`)
- * holds it: parent frames applied, each instance's nodes and children
- * through `expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
- * types that don't load are dropped, along with the editor's fields (`layer`
- * and a non-zero `z` stay), shapes become objects, behavior blocks are whole
- * (`behaviorBlocks`), a turned or flipped entity records its `transform`,
- * and settings get their defaults. Entities come in `registry.spawnGroups`
- * order: within a group, bulk entries first (in `registry.bulkKeys` order),
- * then entities in file order, instance children after the document's own.
+ * What the runtime loads: the resolved view with instances expanded
+ * (`<instance>/<child>`), bulk entries as `~key:index`, `off` entities and
+ * editor-only fields dropped, and settings defaulted; entities in
+ * `registry.spawnGroups` order.
  */
 export function expandScene(
   source: SceneDefinition,

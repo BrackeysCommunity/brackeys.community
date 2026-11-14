@@ -1,8 +1,6 @@
 import { normDeg } from "./transform";
 import type { Aabb, Pt, ShapeObj } from "./types";
 
-export { normDeg };
-
 const DEG = Math.PI / 180;
 
 /** `[x, y]` turned `deg` degrees clockwise on screen; quarter turns are exact. */
@@ -211,6 +209,22 @@ export function shapeCentre(shape: ShapeObj): GeometryPose {
       return { at: [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2] };
     }
   }
+}
+
+/** The first shape, point and path `e` sets among a type's `geometryFields`: what `geometryPose` reads. */
+export function firstGeometry(
+  fields: readonly { field: string; kind: string }[],
+  e: Readonly<Record<string, unknown>>,
+): { shape?: unknown; at?: unknown; path?: unknown } {
+  const out: { shape?: unknown; at?: unknown; path?: unknown } = {};
+  for (const { field, kind } of fields) {
+    const value = e[field];
+    if (value === undefined || value === null) continue;
+    if (kind === "shape") out.shape ??= value;
+    else if (kind === "point") out.at ??= value;
+    else if (kind === "path") out.path ??= value;
+  }
+  return out;
 }
 
 /**

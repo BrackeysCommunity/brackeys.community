@@ -3,14 +3,12 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import { createRegistry } from "../game/define";
 import type { Registry } from "../game/types";
-import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER, type SceneRuntimeHandle } from "../runtime/types";
-import { expandScene } from "../scene/expand";
-import { SCENE_FORMAT_VERSION, type EntityDef, type ExpandedScene } from "../scene/types";
+import type { EntityDef } from "../scene/types";
 import type { SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
 import { testGame } from "./fixtures/test-game";
-import { colliderOf, pose, stepEvents, withParents } from "./fixtures/tree-rig";
+import { bodyOf, colliderOf, loadTree, pose, stepEvents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -20,40 +18,21 @@ beforeAll(async () => {
 const game = createRegistry(testGame);
 const engine = createRegistry();
 
-/** The scene expanded, each id in `parents` linked under the one it names. */
-function scene(
-  entities: EntityDef[],
-  parents: Record<string, string>,
-  opts: { registry?: Registry; gravity?: [number, number] } = {},
-): ExpandedScene {
-  const registry = opts.registry ?? game;
-  const out = expandScene(
-    {
-      v: SCENE_FORMAT_VERSION,
-      ...(registry === game ? { game: testGame.id } : {}),
-      name: "tree-bodies",
-      bounds: [-20, -20, 20, 20],
-      settings: { physics: "rapier", gravity: opts.gravity ?? [0, 20] },
-      entities,
-    },
-    registry,
-  );
-  return withParents(out, parents);
-}
-
 function load(
   entities: EntityDef[],
   parents: Record<string, string>,
   opts: { registry?: Registry; gravity?: [number, number] } = {},
 ): SceneRuntimeHandle {
-  const registry = opts.registry ?? game;
-  const rt = createSceneRuntime({ rapier, view: null, registry });
-  const report = rt.load(scene(entities, parents, opts));
-  if (!report.ok) throw new Error(report.error);
-  return rt;
+  return loadTree({
+    registry: opts.registry ?? game,
+    entities,
+    parents,
+    physics: "rapier",
+    rapier,
+    settings: { gravity: opts.gravity ?? [0, 20] },
+    bounds: [-20, -20, 20, 20],
+  });
 }
-
-const bodyHandle = (rt: SceneRuntimeHandle, id: string) => colliderOf(rt, id).parent()!.handle;
 
 const floor: EntityDef = { id: "floor", type: "solid", shape: ["box", 0, 5.5, 20, 0.5] };
 
@@ -84,9 +63,9 @@ describe("colliders on the nearest body", () => {
       ],
       { shelf: "crate", lid: "crate" },
     );
-    const crate = bodyHandle(rt, "crate");
-    expect(bodyHandle(rt, "shelf")).toBe(crate);
-    expect(bodyHandle(rt, "lid")).toBe(crate);
+    const crate = bodyOf(rt, "crate");
+    expect(bodyOf(rt, "shelf")).toBe(crate);
+    expect(bodyOf(rt, "lid")).toBe(crate);
     // the floor, the crate and the two balls: the children brought no body of their own
     expect(rt.ctx.physics!.world.bodies.len()).toBe(4);
     expect(rt.ctx.tags.get(colliderOf(rt, "shelf").handle)).toMatchObject({
@@ -142,7 +121,7 @@ describe("colliders on the nearest body", () => {
       ] as EntityDef[],
       { deck: "host" },
     );
-    expect(bodyHandle(rt, "deck")).toBe(bodyHandle(rt, "host"));
+    expect(bodyOf(rt, "deck")).toBe(bodyOf(rt, "host"));
     stepEvents(rt, 30);
     const start = { crate: pose(rt, "crate").x, hero: pose(rt, "hero").x };
     const characters = rt.ctx.behavior<CharacterSystem>("character-side-view")!;
@@ -173,11 +152,11 @@ describe("colliders on the nearest body", () => {
       { gravity: [0, 0] },
     );
     const bodies = () => rt.ctx.physics!.world.bodies.len();
-    expect(bodyHandle(rt, "plate")).toBe(bodyHandle(rt, "a"));
+    expect(bodyOf(rt, "plate")).toBe(bodyOf(rt, "a"));
     expect(bodies()).toBe(2);
 
     rt.ctx.tree.setParent("plate", "b");
-    expect(bodyHandle(rt, "plate")).toBe(bodyHandle(rt, "b"));
+    expect(bodyOf(rt, "plate")).toBe(bodyOf(rt, "b"));
     expect(colliderOf(rt, "plate").translation()).toEqual({ x: 0, y: 1 });
     expect(rt.ctx.tags.get(colliderOf(rt, "plate").handle)?.carrier?.entityId).toBe("b");
     expect(rt.ctx.system<SolidSystem>("solid")!.position("plate")).toEqual({ x: 0, y: 1 });
@@ -185,7 +164,7 @@ describe("colliders on the nearest body", () => {
     rt.ctx.tree.setParent("plate", null);
     const own = colliderOf(rt, "plate").parent()!;
     expect(own.isFixed()).toBe(true);
-    expect([bodyHandle(rt, "a"), bodyHandle(rt, "b")]).not.toContain(own.handle);
+    expect([bodyOf(rt, "a"), bodyOf(rt, "b")]).not.toContain(own.handle);
     expect(colliderOf(rt, "plate").translation()).toEqual({ x: 0, y: 1 });
     expect(bodies()).toBe(3);
     rt.destroy();
@@ -217,7 +196,7 @@ describe("colliders on the nearest body", () => {
       { plank: "lift" },
     );
     const lift = colliderOf(rt, "lift").parent()!;
-    expect(bodyHandle(rt, "plank")).toBe(lift.handle);
+    expect(bodyOf(rt, "plank")).toBe(lift.handle);
     expect(rt.ctx.tree.parent("plank")).toBe("lift");
     stepEvents(rt, 60);
     const at = lift.translation();
@@ -252,7 +231,7 @@ describe("colliders on the nearest body", () => {
       { plank: "host" },
       { registry: engine, gravity: [0, 0] },
     );
-    expect(bodyHandle(rt, "plank")).toBe(bodyHandle(rt, "host"));
+    expect(bodyOf(rt, "plank")).toBe(bodyOf(rt, "host"));
     expect(colliderOf(rt, "plank").parent()!.rotation()).toBeCloseTo(Math.PI / 2, 6);
     const t = colliderOf(rt, "plank").translation();
     expect(t.x).toBeCloseTo(2, 5);

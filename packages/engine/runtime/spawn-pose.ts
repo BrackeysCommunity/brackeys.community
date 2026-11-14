@@ -2,7 +2,12 @@ import { isNodeType } from "../game/primitives";
 import type { EngineContext, RegisteredType, Registry } from "../game/types";
 import { degToRad } from "../physics";
 import { geometryFields } from "../scene/schema";
-import { geometryPose, shapeCentre, type GeometryPose } from "../scene/shape-geometry";
+import {
+  firstGeometry,
+  geometryPose,
+  shapeCentre,
+  type GeometryPose,
+} from "../scene/shape-geometry";
 import { turnRadians } from "../scene/transform";
 import type { PathDef, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Pose } from "./poses";
@@ -46,17 +51,12 @@ export const nodePose = (e: RuntimeEntity<{ at: Pt; rot?: number }>): Pose =>
 /** `spawnPose` over the type's `spawnGeometryOf`. */
 export function spawnPoseOf(e: RuntimeEntity, { node, fields }: SpawnGeometry): Pose {
   if (node) return nodePose(e as RuntimeEntity<{ at: Pt; rot?: number }>);
-  let shape: ShapeObj | undefined;
-  let at: Pt | undefined;
-  let path: PathDef | undefined;
-  for (const { field, kind } of fields) {
-    const value = e[field];
-    if (value === undefined || value === null) continue;
-    if (kind === "shape") shape ??= value as ShapeObj;
-    else if (kind === "point") at ??= value as Pt;
-    else if (kind === "path") path ??= value as PathDef;
-  }
-  const pose = geometryPose({ shape, at, path });
+  const { shape, at, path } = firstGeometry(fields, e);
+  const pose = geometryPose({
+    shape: shape as ShapeObj | undefined,
+    at: at as Pt | undefined,
+    path: path as PathDef | undefined,
+  });
   return pose ? poseOf(pose, e.transform) : { x: 0, y: 0, rot: turnRad(e.transform) };
 }
 

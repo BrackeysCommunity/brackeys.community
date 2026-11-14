@@ -4,50 +4,45 @@ import { describe, expect, it } from "vite-plus/test";
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import { createRegistry } from "../game/define";
 import { composePose } from "../runtime/poses";
-import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
-import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
-import {
-  SCENE_FORMAT_VERSION,
-  type EntityDef,
-  type ExpandedScene,
-  type Prefab,
-  type SceneDefinition,
-} from "../scene/types";
+import { SCENE_FORMAT_VERSION, type EntityDef, type Prefab } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
 import {
   expectPoseOf,
+  loadTree,
   pose,
-  quietTestGame as game,
+  quietTestGame,
   stepEvents,
-  withParents,
+  treeSource,
+  type TreeSceneOptions,
 } from "./fixtures/tree-rig";
 
-const registry = createRegistry(game);
+const registry = createRegistry(quietTestGame);
 
-function source(entities: EntityDef[], gravity: [number, number]): SceneDefinition {
-  return {
-    v: SCENE_FORMAT_VERSION,
-    game: game.id,
-    name: "tree-geometry",
-    bounds: [-30, -30, 30, 30],
-    settings: { physics: "none", gravity },
-    entities,
-  };
-}
-
-/** The scene expanded on the geometry backend, each id in `parents` linked under the one it names. */
-function scene(
+/** The scene on the geometry backend, which must ask for no physics. */
+function geometryScene(
   entities: EntityDef[],
-  parents: Record<string, string>,
+  parents: Record<string, string> = {},
   gravity: [number, number] = [0, 20],
-): ExpandedScene {
-  const def = source(entities, gravity);
-  expect(validateScene(def, registry).filter((i) => i.code === "physics-required")).toEqual([]);
-  const out = expandScene(def, registry);
-  return withParents(out, parents);
+  more: Pick<TreeSceneOptions, "instances" | "prefabs"> = {},
+): TreeSceneOptions {
+  const o: TreeSceneOptions = {
+    registry,
+    entities,
+    parents,
+    settings: { gravity },
+    bounds: [-30, -30, 30, 30],
+    ...more,
+  };
+  const issues = validateScene(
+    treeSource(o),
+    registry,
+    more.prefabs ? { prefabs: more.prefabs } : {},
+  );
+  expect(issues.filter((i) => i.code === "physics-required")).toEqual([]);
+  return o;
 }
 
 function load(
@@ -55,9 +50,7 @@ function load(
   parents: Record<string, string>,
   gravity?: [number, number],
 ): SceneRuntimeHandle {
-  const rt = createSceneRuntime({ rapier: null, view: null, game });
-  const report = rt.load(scene(entities, parents, gravity));
-  if (!report.ok) throw new Error(`${report.reason ?? ""} ${report.error}`);
+  const rt = loadTree(geometryScene(entities, parents, gravity));
   expect(rt.ctx.physics).toBeNull();
   return rt;
 }
@@ -408,16 +401,12 @@ describe("nothing asks for Rapier", () => {
   const prefabs = prefabLibrary([CART]);
 
   it("loads, instantiates and spawns children under parents with no physics world", () => {
-    const def: SceneDefinition = {
-      ...source([{ id: "yard", type: "node", at: [0, 0] }], [0, 0]),
-      instances: [{ id: "cart", prefab: "cart", at: [3, 3], rot: 90 }],
-    };
-    expect(
-      validateScene(def, registry, { prefabs }).filter((i) => i.code === "physics-required"),
-    ).toEqual([]);
-    const rt = createSceneRuntime({ rapier: null, view: null, game, prefabs });
-    const report = rt.load(expandScene(def, registry, { prefabs }));
-    if (!report.ok) throw new Error(`${report.reason ?? ""} ${report.error}`);
+    const rt = loadTree(
+      geometryScene([{ id: "yard", type: "node", at: [0, 0] }], {}, [0, 0], {
+        instances: [{ id: "cart", prefab: "cart", at: [3, 3], rot: 90 }],
+        prefabs,
+      }),
+    );
     expect(rt.ctx.tree.parent("cart/bed")).toBe("cart");
 
     const second = rt.ctx.instantiate("cart", { x: -3, y: 0 }, { id: "cart#two", parent: "yard" });

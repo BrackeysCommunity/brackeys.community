@@ -2,30 +2,18 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import type { NavAgentSystem } from "../game/behaviors/nav-agent";
-import { createRegistry, defineGame } from "../game/define";
-import { createSceneRuntime } from "../runtime/runtime";
+import { createRegistry } from "../game/define";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { expandScene } from "../scene/expand";
-import { SCENE_FORMAT_VERSION, type EntityDef } from "../scene/types";
+import type { EntityDef } from "../scene/types";
 import type { RapierModule } from "../types";
-import { steps, withParents } from "./fixtures/tree-rig";
+import { loadTree, PHYSICS_BACKENDS, steps, treeGame, type TreePhysics } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
   rapier = await import("@dimforge/rapier2d");
 });
 
-const game = defineGame({
-  id: "movers",
-  types: [],
-  actions: [],
-  time: { kind: "fixed", rate: 60 },
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
-const registry = createRegistry(game);
-
-const BACKENDS = ["none", "rapier"] as const;
-type Physics = (typeof BACKENDS)[number];
+const registry = createRegistry(treeGame("movers"));
 
 const body = { collider: { shape: ["box", 0, 0, 0.25, 0.25] } };
 
@@ -52,26 +40,15 @@ const ENTITIES: EntityDef[] = [
 ] as EntityDef[];
 const PARENTS = { lamp: "rig", walker: "rig", jumper: "rig", seeker: "rig" };
 
-function load(physics: Physics): SceneRuntimeHandle {
-  const scene = withParents(
-    expandScene(
-      {
-        v: SCENE_FORMAT_VERSION,
-        game: game.id,
-        name: "self-moving",
-        bounds: [-20, -20, 20, 20],
-        settings: { physics, gravity: [0, 0] },
-        entities: ENTITIES,
-      },
-      registry,
-    ),
-    PARENTS,
-  );
-  const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null, game });
-  const report = rt.load(scene);
-  if (!report.ok) throw new Error(report.error);
-  return rt;
-}
+const load = (physics: TreePhysics): SceneRuntimeHandle =>
+  loadTree({
+    registry,
+    entities: ENTITIES,
+    parents: PARENTS,
+    physics,
+    rapier,
+    bounds: [-20, -20, 20, 20],
+  });
 
 const at = (rt: SceneRuntimeHandle, id: string) => {
   const p = rt.ctx.poses.get(id)!;
@@ -79,7 +56,7 @@ const at = (rt: SceneRuntimeHandle, id: string) => {
 };
 
 describe("self-moving children", () => {
-  for (const physics of BACKENDS) {
+  for (const physics of PHYSICS_BACKENDS) {
     describe(`on physics: ${physics}`, () => {
       it("answer selfMoving for both characters and a nav-agent, not for a plain child", () => {
         const rt = load(physics);

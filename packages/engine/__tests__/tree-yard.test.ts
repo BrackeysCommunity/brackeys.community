@@ -18,7 +18,7 @@ import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
 import { readPrefabFiles } from "../vite/project-files";
 import { testGame } from "./fixtures/test-game";
-import { expectPoseClose, stepEvents } from "./fixtures/tree-rig";
+import { bodyOf, expectPoseClose, pose, stepEvents } from "./fixtures/tree-rig";
 
 const scenesDir = new URL("../scenes/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, scenesDir), "utf8");
@@ -55,18 +55,6 @@ function load(registry: Registry = engine): SceneRuntimeHandle {
   if (!report.ok) throw new Error(report.error);
   return rt;
 }
-
-const pose = (rt: SceneRuntimeHandle, id: string): Pose => {
-  const p = rt.ctx.poses.get(id);
-  if (!p) throw new Error(`no pose for ${id}`);
-  return { x: p.x, y: p.y, rot: p.rot };
-};
-
-const bodyOf = (rt: SceneRuntimeHandle, id: string) => {
-  const [handle] = rt.ctx.tags.handlesOf(id);
-  if (handle === undefined) throw new Error(`no collider for ${id}`);
-  return rt.ctx.physics!.world.getCollider(handle)!.parent()!.handle;
-};
 
 const TURRET_PARTS = ["base", "barrel", "sight"] as const;
 

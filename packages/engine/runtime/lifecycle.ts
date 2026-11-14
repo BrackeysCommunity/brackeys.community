@@ -1,6 +1,6 @@
 import { zodIssueText } from "../game/fields";
 import { PhysicsRequiredError } from "../game/physics-of";
-import { NODE_TYPE, needsPhysics } from "../game/primitives";
+import { isNodeTypeIn, needsPhysics } from "../game/primitives";
 import {
   parseRuntimeId,
   RUNTIME_ID_PATTERN,
@@ -20,7 +20,7 @@ import { radToDeg } from "../physics";
 import type { AssetId } from "../project/types";
 import { expandInstance, runtimeEntity } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
-import { gridTurns } from "../scene/resolve";
+import { CHILD_SEPARATOR, gridTurns } from "../scene/resolve";
 import { spawnSchemaFor } from "../scene/schema";
 import { quarterTurns } from "../scene/shape-geometry";
 import {
@@ -51,7 +51,7 @@ import { composePose, plainPose, samePose, type Pose } from "./poses";
 import type { RuntimeQueryIndex } from "./query-index";
 import { spawnGeometryOf, spawnPoseOf, type SpawnGeometry } from "./spawn-pose";
 import type { RuntimeTimers } from "./timers";
-import { createSceneTree, type RuntimeSceneTree } from "./tree";
+import { ancestry, createSceneTree, type RuntimeSceneTree } from "./tree";
 import { ENTITY_DESTROYED, ENTITY_DISABLED, ENTITY_ENABLED, ENTITY_SPAWNED } from "./types";
 
 /**
@@ -384,8 +384,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
 
   /** Whether `id`'s own switch and every ancestor's are on. */
   function switchedOn(id: string): boolean {
-    for (let at: string | null = id; at !== null; at = tree.parent(at))
-      if (off.has(at)) return false;
+    for (const at of ancestry(tree, id)) if (off.has(at)) return false;
     return true;
   }
 
@@ -889,7 +888,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
         .map(([e]) => e);
     },
     link(list) {
-      tree.link(childOrder(list));
+      tree.link(childOrder(registry, list));
       for (let i = list.length - 1; i >= 0; i--) {
         const e = list[i]!;
         if (tree.parent(e.id) !== null && !disabled.has(e.id) && !switchedOn(e.id)) {
@@ -1007,13 +1006,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
  * entities first, then its nested instances' nodes (a `node` whose id is
  * under its parent's and that holds children of its own).
  */
-function childOrder(list: readonly RuntimeEntity[]): readonly RuntimeEntity[] {
+function childOrder(registry: Registry, list: readonly RuntimeEntity[]): readonly RuntimeEntity[] {
   const holders = new Set<string>();
   for (const e of list) if (e.parent !== undefined) holders.add(e.parent);
   const instanceNode = (e: RuntimeEntity) =>
-    e.type === NODE_TYPE &&
+    isNodeTypeIn(registry, e.type) &&
     e.parent !== undefined &&
-    e.id.startsWith(`${e.parent}/`) &&
+    e.id.startsWith(e.parent + CHILD_SEPARATOR) &&
     holders.has(e.id);
   if (!list.some(instanceNode)) return list;
   return [...list.filter((e) => !instanceNode(e)), ...list.filter(instanceNode)];

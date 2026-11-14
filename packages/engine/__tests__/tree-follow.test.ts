@@ -1,15 +1,20 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { defineBehavior, type BehaviorSystem } from "../game/behaviors";
-import { DEFAULT_ACTIONS } from "../game/defaults";
-import { createRegistry, defineGame } from "../game/define";
+import { createRegistry } from "../game/define";
 import { composePose, createPoseIndex } from "../runtime/poses";
-import { createSceneRuntime } from "../runtime/runtime";
 import { createSceneTree } from "../runtime/tree";
-import { expandScene } from "../scene/expand";
-import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
+import type { EntityDef } from "../scene/types";
 import type { RapierModule } from "../types";
-import { expectPoseClose, markerWith, stepEvents, withParents } from "./fixtures/tree-rig";
+import {
+  expectPoseClose,
+  loadTree,
+  markerWith,
+  PHYSICS_BACKENDS,
+  stepEvents,
+  treeGame,
+  type TreePhysics,
+} from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -33,19 +38,7 @@ const DRIFT = defineBehavior({
   },
 });
 
-const game = defineGame({
-  id: "trees",
-  types: [],
-  behaviors: [DRIFT],
-  actions: [...DEFAULT_ACTIONS],
-  input: { players: { max: 1, join: "auto" } },
-  time: { kind: "fixed", rate: 60 },
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
-const registry = createRegistry(game);
-
-const BACKENDS = ["none", "rapier"] as const;
-type Physics = (typeof BACKENDS)[number];
+const registry = createRegistry(treeGame("trees", { behaviors: [DRIFT] }));
 const BOX = ["box", 0, 0, 0.25, 0.25];
 
 /**
@@ -61,25 +54,13 @@ const ENTITIES: EntityDef[] = [
 ];
 const PARENTS: Record<string, string> = { lamp: "hub", bulb: "lamp", post: "hub", drifter: "hub" };
 
-function load(physics: Physics) {
-  const scene: SceneDefinition = {
-    v: SCENE_FORMAT_VERSION,
-    game: "trees",
-    name: "trees",
-    bounds: [-60, -60, 60, 60],
-    settings: { physics, gravity: [0, 0] },
-    entities: ENTITIES,
-  };
-  const expanded = expandScene(scene, registry);
-  withParents(expanded, PARENTS);
-  const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null, game });
-  const report = rt.load(expanded);
-  if (!report.ok) throw new Error(report.error);
+function load(physics: TreePhysics) {
+  const rt = loadTree({ registry, entities: ENTITIES, parents: PARENTS, physics, rapier });
   const steps = (n: number) => void stepEvents(rt, n);
   return { rt, steps };
 }
 
-for (const physics of BACKENDS) {
+for (const physics of PHYSICS_BACKENDS) {
   describe(`following a parent on physics: ${physics}`, () => {
     it("moves every enabled, driven child with its parent, and leaves a self-moving one", () => {
       const { rt, steps } = load(physics);

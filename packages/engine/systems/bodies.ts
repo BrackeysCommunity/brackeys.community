@@ -533,12 +533,9 @@ export type Rider<E extends { id: string; shape: ShapeObj }> = {
 
 /**
  * Entities whose collider rides a host's body, so the host's motion carries
- * it with no per-tick sync. One the scene tree puts there rides at the pose
- * it has when it gets on. Visuals are drawn in the host's frame.
- * The riding entity's pose is the scene tree's write: one that only says
- * where the host carried it changes nothing, and any other moves the
- * collider on the host's body. A disabled host takes its riders' colliders
- * out of the world with its body.
+ * it with no per-tick sync; a disabled host takes its riders out with it.
+ * A rider's own pose write moves its collider on the host's body, except
+ * one that only says where the host carried it.
  */
 export function createRiders<
   E extends {

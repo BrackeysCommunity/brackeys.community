@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, Z_LIMIT } from "../game/fields";
-import { NODE_TYPE } from "../game/primitives";
+import { isNodeTypeIn } from "../game/primitives";
 import type { BulkKeyInfo, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { closest } from "./did-you-mean";
@@ -1713,7 +1713,7 @@ function transformOp(w: Work, op: Extract<SceneOp, { op: "transform" }>, i: numb
   const about = (p: Pt) => transformOpMatrix(op, p);
   const targets = refs.map((ref) => {
     const t = resolveNamed(w, ref);
-    if (t.kind === "entity" && t.rec.def.type !== NODE_TYPE)
+    if (t.kind === "entity" && !isNodeTypeIn(w.registry, t.rec.def.type))
       fail(
         "op-invalid",
         `${ref} is a ${t.rec.def.type}; transform turns instances and nodes. Put it under a node and turn the node.`,
@@ -2774,7 +2774,7 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
       continue;
     }
     if (plan?.exact.has(rec)) {
-      exact.push(...exactRestore(was, rec.def));
+      exact.push(...exactRestore(w.registry, was, rec.def));
       continue;
     }
     const current: EntityDef = { ...clone(rec.def), id: was.id };
@@ -2918,7 +2918,7 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   ops.push(...renameOps);
   for (const { by, refs } of moves.values()) ops.push({ op: "move", refs, by });
   for (const [z, refs] of zRestores) ops.push({ op: "setZ", refs, z });
-  for (const e of plan?.readded ?? []) exact.push(...exactRestore(e, e));
+  for (const e of plan?.readded ?? []) exact.push(...exactRestore(w.registry, e, e));
   ops.push(...updates, ...readds, ...(plan?.back ?? []), ...exact);
   ops.push(
     ...orderInverse(
@@ -2950,13 +2950,9 @@ type TreePlan = {
 };
 
 /**
- * How the inverse restores the tree, or null when neither document has a
- * parent. A changed or removed link goes to the root first and back under
- * its start parent once everything is re-added, so no step loops or nests
- * too deep; then the subtree's fields are set back so rounding can't drift.
- * Where `reparent` would refuse the start link, or an instance would have
- * to move (reparenting can knock it off its quarter turns), the entity is
- * removed and re-added as it was instead.
+ * How the inverse restores the tree, or null with no parents: links go to
+ * the root first and back under their start parent after the re-adds, so
+ * no step loops; links reparent can't restore are removed and re-added.
  */
 function treeInverse(
   start: SceneDefinition,
@@ -3062,11 +3058,11 @@ function treeInverse(
 }
 
 /** One `update` that sets back every field `was` had and unsets every other `now` has, its parent aside. */
-function exactRestore(was: EntityDef, now: EntityDef): SceneOp[] {
+function exactRestore(registry: Registry, was: EntityDef, now: EntityDef): SceneOp[] {
   const fixed = ["id", "type", "parent"];
   const set: Json = {};
   for (const [k, v] of Object.entries(was)) if (!fixed.includes(k)) set[k] = clone(v);
-  const extra = was.type === NODE_TYPE ? ["rot", "flip"] : [];
+  const extra = isNodeTypeIn(registry, was.type) ? ["rot", "flip"] : [];
   const unset = [...new Set([...Object.keys(now), ...extra])].filter(
     (k) => !fixed.includes(k) && !(k in was),
   );

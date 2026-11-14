@@ -1,6 +1,6 @@
-import { NODE_TYPE } from "../../game/primitives";
+import { isNodeTypeIn, NODE_TYPE } from "../../game/primitives";
 import type { Registry } from "../../game/types";
-import { instanceTransform } from "../../scene/resolve";
+import { entityFrame, instanceTransform } from "../../scene/resolve";
 import { aabb, aabbUnion } from "../../scene/shape-geometry";
 import { asFrame, type Frame } from "../../scene/transform";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../../scene/types";
@@ -72,13 +72,7 @@ function frameOfRef(
   const inst = source?.doc.instances?.find((i) => i.id === ref);
   if (inst) return asFrame(instanceTransform(source!.doc, inst, registry, source!.prefabs));
   const e = (view.entities ?? []).find((x) => x.id === ref);
-  if (e?.type !== NODE_TYPE) return undefined;
-  const at = Array.isArray(e.at) ? (e.at as Pt) : ([0, 0] as Pt);
-  return {
-    at: [at[0], at[1]],
-    rot: typeof e.rot === "number" ? e.rot : 0,
-    flip: e.flip === true,
-  };
+  return e && isNodeTypeIn(registry, e.type) ? entityFrame(registry, e) : undefined;
 }
 
 /** What a target adds for what sits under it: its subtree, the box over both, and the preview carrying it. */
@@ -151,7 +145,7 @@ function ownTarget(
     };
   }
   if (g.at && g.pointField) {
-    const f = g.type === NODE_TYPE ? frameOfRef(def, registry, ref, source) : undefined;
+    const f = isNodeTypeIn(registry, g.type) ? frameOfRef(def, registry, ref, source) : undefined;
     return { ...base, at: g.at, pointField: g.pointField, ...(f ? { frame: f } : {}) };
   }
   return undefined;

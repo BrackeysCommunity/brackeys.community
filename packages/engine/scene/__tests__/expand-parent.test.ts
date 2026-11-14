@@ -3,10 +3,11 @@ import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { pivotRegistry } from "../../__tests__/fixtures/pivot-game";
 import { createRegistry } from "../../game/define";
+import type { Registry } from "../../game/types";
 import { degToRad } from "../../physics";
-import { nodePose, spawnPose } from "../../runtime/spawn-pose";
-import type { NodeEntity } from "../../systems/node";
+import { spawnPose } from "../../runtime/spawn-pose";
 import { expandScene } from "../expand";
 import { prefabLibrary } from "../prefab";
 import {
@@ -20,6 +21,7 @@ import { asFrame, compose, composeFrames, IDENTITY_2D } from "../transform";
 import {
   SCENE_FORMAT_VERSION,
   type Prefab,
+  type PrefabLibrary,
   type RuntimeEntity,
   type SceneDefinition,
 } from "../types";
@@ -188,50 +190,71 @@ describe("entityFrame against spawnPose", () => {
     );
   });
 
-  for (const def of scenes) {
+  for (const def of scenes)
     it(`${def.name}: every entity's world frame is where it spawns`, () => {
-      const expanded = byId(expandScene(def, engine, { prefabs }).entities);
-      const { def: resolved, origins } = resolveSceneDetailed(def, engine, prefabs);
-      const frames = sceneFrames(def, engine, prefabs);
-      let checked = 0;
-      const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
-      const sameRad = (a: number, b: number) =>
-        near(Math.cos(a), Math.cos(b)) && near(Math.sin(a), Math.sin(b));
-      resolved.entities?.forEach((e, i) => {
-        const runtime = expanded.get(e.id);
-        if (!runtime) return;
-        const origin = origins[i]!;
-        const world = placedFrame(engine, e, origin.transform);
-        const pose = spawnPose(runtime, engine);
-        expect([pose.x, pose.y], e.id).toEqual(world.at);
-        // A node stands at its own `rot`, as its system places it; spawnPose reads only the frames above it.
-        const rot = e.type === "node" ? nodePose(runtime as NodeEntity).rot : pose.rot;
-        expect(sameRad(rot, degToRad(world.rot)), e.id).toBe(true);
-        // The same frame by the chain: the stored frame under every step above it.
-        if (origin.kind === "entity") {
-          const own = def.entities![origin.index]!;
-          const steps = frames.stepsFor(own);
-          const above = asFrame(steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D));
-          const chained = composeFrames(above, entityFrame(engine, own));
-          expect(near(chained.at[0], world.at[0]) && near(chained.at[1], world.at[1]), e.id).toBe(
-            true,
-          );
-          expect(sameRad(degToRad(chained.rot), degToRad(world.rot)), e.id).toBe(true);
-        }
-        checked++;
-      });
-      for (const inst of def.instances ?? []) {
-        const node = expanded.get(inst.id);
-        if (!node) continue;
-        const steps = frames.stepsFor(inst);
-        const above = asFrame(steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D));
-        const world = composeFrames(above, instanceFrame(inst));
-        const pose = spawnPose(node, engine);
-        expect([pose.x, pose.y], inst.id).toEqual(world.at);
-        expect(sameRad(pose.rot, degToRad(world.rot)), inst.id).toBe(true);
-        checked++;
-      }
-      expect(checked).toBeGreaterThan(0);
+      expect(spawnFramesChecked(def, engine, prefabs)).toBeGreaterThan(0);
     });
-  }
+
+  it("frames a type based on node, turned and mirrored, as a node", () => {
+    const pivots = pivotRegistry();
+    const def = (type: string) =>
+      scene({
+        entities: [
+          { id: "hub", type, at: [5, 5], rot: 90, flip: true },
+          { id: "kid", type: "marker", at: [1, 0], parent: "hub" },
+          { id: "lid", type: "solid", shape: ["box", 0, 2, 0.5, 0.5, 30], parent: "hub" },
+        ],
+      });
+    expect(spawnFramesChecked(def("pivot"), pivots)).toBe(3);
+    const asNode = byId(expandScene(def("node"), pivots).entities);
+    const asPivot = byId(expandScene(def("pivot"), pivots).entities);
+    expect(asPivot.get("kid")).toMatchObject({ at: [5, 4] });
+    for (const id of ["kid", "lid"]) expect(asPivot.get(id), id).toEqual(asNode.get(id));
+  });
 });
+
+/** Checks every entity's and instance's spawn pose against its resolved and chained frames; how many it checked. */
+function spawnFramesChecked(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs?: PrefabLibrary,
+): number {
+  const expanded = byId(expandScene(def, registry, { prefabs }).entities);
+  const { def: resolved, origins } = resolveSceneDetailed(def, registry, prefabs);
+  const frames = sceneFrames(def, registry, prefabs);
+  let checked = 0;
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  const sameRad = (a: number, b: number) =>
+    near(Math.cos(a), Math.cos(b)) && near(Math.sin(a), Math.sin(b));
+  resolved.entities?.forEach((e, i) => {
+    const runtime = expanded.get(e.id);
+    if (!runtime) return;
+    const origin = origins[i]!;
+    const world = placedFrame(registry, e, origin.transform);
+    const pose = spawnPose(runtime, registry);
+    expect([pose.x, pose.y], e.id).toEqual(world.at);
+    expect(sameRad(pose.rot, degToRad(world.rot)), e.id).toBe(true);
+    // The same frame by the chain: the stored frame under every step above it.
+    if (origin.kind === "entity") {
+      const own = def.entities![origin.index]!;
+      const steps = frames.stepsFor(own);
+      const above = asFrame(steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D));
+      const chained = composeFrames(above, entityFrame(registry, own));
+      expect(near(chained.at[0], world.at[0]) && near(chained.at[1], world.at[1]), e.id).toBe(true);
+      expect(sameRad(degToRad(chained.rot), degToRad(world.rot)), e.id).toBe(true);
+    }
+    checked++;
+  });
+  for (const inst of def.instances ?? []) {
+    const node = expanded.get(inst.id);
+    if (!node) continue;
+    const steps = frames.stepsFor(inst);
+    const above = asFrame(steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D));
+    const world = composeFrames(above, instanceFrame(inst));
+    const pose = spawnPose(node, registry);
+    expect([pose.x, pose.y], inst.id).toEqual(world.at);
+    expect(sameRad(pose.rot, degToRad(world.rot)), inst.id).toBe(true);
+    checked++;
+  }
+  return checked;
+}

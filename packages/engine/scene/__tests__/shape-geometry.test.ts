@@ -23,7 +23,6 @@ import {
   nearestPointOnShape,
   nearestSegment,
   nearestVertex,
-  normDeg,
   raycastShape,
   regionBox,
   rotateShape,
@@ -36,6 +35,7 @@ import {
   translateShape,
   turnBy,
 } from "../shape-geometry";
+import { normDeg } from "../transform";
 import type { Aabb, Pt, ShapeObj } from "../types";
 
 describe("aabb", () => {

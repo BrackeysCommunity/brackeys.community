@@ -6,13 +6,16 @@ import { scopedRef, type Registry, type Side } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { transformGrid, type GridCells } from "./grid";
 import { fieldKind, geometryFields, unwrapSchema } from "./schema";
-import { mirrorDeg, normDeg } from "./shape-geometry";
+import { mirrorDeg } from "./shape-geometry";
 import {
   applyPt,
   applyVec,
   dihedralOf,
   frameOf,
+  isUnturned,
   mirrors,
+  normDeg,
+  settleDeg,
   translation,
   type Orientation,
   type Transform2D,
@@ -57,8 +60,6 @@ export const isZeroPt = ([x, y]: Pt) => x === 0 && y === 0;
 
 const isShapeTuple = (v: unknown): v is ShapeTuple => Array.isArray(v) && typeof v[0] === "string";
 
-const isIdentityTurn = (o: Orientation) => o.rot === 0 && !o.flip;
-
 const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9;
 
 /** `t`'s angle and flip; a transform that scales or shears has none, and is refused. */
@@ -83,8 +84,8 @@ const turnAngle = (deg: number, o: Orientation) => (o.flip ? mirrorDeg(deg) : de
 
 /** A shape's `rotDeg` after `t`, kept in [0, 360). */
 const turnRotDeg = (deg: number, t: Transform2D) => {
-  const r = roundOff(normDeg(turnAngle(deg, orientationOf(t))), t);
-  return r === 360 ? 0 : r;
+  const a = turnAngle(deg, orientationOf(t));
+  return isQuarter(t) ? normDeg(a) : settleDeg(a);
 };
 
 /**
@@ -107,7 +108,7 @@ export function transformTuple(tuple: ShapeTuple, t: Transform2D): ShapeTuple {
   out[1] = cx;
   out[2] = cy;
   if (tuple[0] === "box" || tuple[0] === "capsule") {
-    if (!isIdentityTurn(orientationOf(t))) {
+    if (!isUnturned(orientationOf(t))) {
       const rotDeg = turnRotDeg(out.length > 5 ? (out[5] as number) : 0, t);
       if (rotDeg === 0) out.length = 5;
       else out[5] = rotDeg;
@@ -140,7 +141,7 @@ const isSide = (v: unknown): v is Side => SIDES.includes(v as Side);
  * it is (validation reports it).
  */
 function transformSide(value: Side | true, t: Transform2D): Side | true {
-  if (!isQuarter(t) || isIdentityTurn(orientationOf(t))) return value;
+  if (!isQuarter(t) || isUnturned(orientationOf(t))) return value;
   const [x, y] = applyVec(t, SIDE_VECTORS[value === true ? "up" : value]);
   const side = SIDES.find((s) => SIDE_VECTORS[s][0] === x && SIDE_VECTORS[s][1] === y) ?? "up";
   return value === true && side === "up" ? true : side;
@@ -175,7 +176,7 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
       if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
       // Cells turn only by quarter turns; under any other angle they stay (validation reports it).
       const d = dihedralOf(t);
-      return !d || (d.rot === 0 && !d.flip) ? value : transformGrid(value as GridCells, d);
+      return !d || isUnturned(d) ? value : transformGrid(value as GridCells, d);
     }
     default:
       return value;

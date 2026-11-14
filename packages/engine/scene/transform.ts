@@ -125,7 +125,10 @@ export function turnOf(d: { rot?: number; flip?: boolean }): Dihedral | null {
 export const inverseTurn = (d: Dihedral): Dihedral =>
   d.flip ? d : { rot: quarter(4 - d.rot), flip: false };
 
-export const isIdentityTurn = (d: Dihedral): boolean => d.rot === 0 && !d.flip;
+/** Whether `o` neither turns nor flips. */
+export const isUnturned = (o: Orientation): boolean => o.rot === 0 && !o.flip;
+
+export const isIdentityTurn: (d: Dihedral) => boolean = isUnturned;
 
 /** A pure translation by `[dx, dy]`. */
 export const translation = ([dx, dy]: Pt): Transform2D => ({ ...IDENTITY_2D, tx: dx, ty: dy });
@@ -168,7 +171,7 @@ export function halfTurnDeg(deg: number): number {
 }
 
 /** `deg` in [0, 360) to the micro-degree. */
-const settleDeg = (deg: number) => {
+export const settleDeg = (deg: number) => {
   const r = micro(normDeg(deg));
   return r === 360 ? 0 : r;
 };

@@ -1,4 +1,4 @@
-import { NODE_TYPE } from "../game/primitives";
+import { isNodeTypeIn } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { bulkOffset, lcsPairs, pairBulk } from "./diff";
 import { bulkEntries, bulkId, bulkKeysOf } from "./expand";
@@ -251,7 +251,7 @@ const PLACE_FREE_FIELDS: readonly string[] = ["name", "layer", "z", "off"];
  * of what `b` lacks, a node's `rot` and `flip` included (a turned frame
  * gives a node one).
  */
-function restoreEntity(a: EntityDef, b: EntityDef): SceneOp | null {
+function restoreEntity(a: EntityDef, b: EntityDef, registry: Registry | undefined): SceneOp | null {
   const set: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(b)) {
     if (k === "id" || k === "type" || k === "parent" || v === undefined) continue;
@@ -261,8 +261,8 @@ function restoreEntity(a: EntityDef, b: EntityDef): SceneOp | null {
   const unset = Object.keys(a).filter(
     (k) => k !== "id" && k !== "type" && k !== "parent" && a[k] !== undefined && b[k] === undefined,
   );
-  for (const k of ["rot", "flip"])
-    if (b.type === NODE_TYPE && b[k] === undefined && !unset.includes(k)) unset.push(k);
+  if (isNodeTypeIn(registry, b.type))
+    for (const k of ["rot", "flip"]) if (b[k] === undefined && !unset.includes(k)) unset.push(k);
   if (Object.keys(set).length === 0 && unset.length === 0) return null;
   return {
     op: "update",
@@ -296,22 +296,26 @@ function restoreInstance(a: InstanceDef, b: InstanceDef): SceneOp[] {
   return ops;
 }
 
-/**
- * How the parents change from `a` to `b` for the `kept` entities, given what is `removed`:
- *
- * - `restored`: those whose parent changes or sits under a removal, and everything below them;
- * - `restoreOrder`: those sorted parents first;
- * - `detach`: those directly under a removal, moved to the root before it;
- * - `removeOrder`: removals sorted children first;
- * - `attach()`: the `reparent`s after the adds, ordered so no step makes a cycle;
- *   throws when `b`'s own parents form one.
- */
+type ParentMoves = {
+  /** The kept entities whose parent changes or sits under a removal, and everything below them. */
+  restored: ReadonlySet<string>;
+  /** Kept entities directly under a removal, moved to the root before it. */
+  detach: Ref[];
+  /** Removals sorted children first. */
+  removeOrder: (refs: readonly Ref[]) => Ref[];
+  /** `items` sorted parents first by their places in `b`. */
+  restoreOrder: <T extends { id: string }>(items: readonly T[]) => T[];
+  /** The `reparent`s after the adds, ordered so no step makes a cycle; throws when `b`'s own parents form one. */
+  attach: () => SceneOp[];
+};
+
+/** How the parents change from `a` to `b` for the `kept` entities, given what is `removed`. */
 function parentMoves(
   a: SceneDefinition,
   b: SceneDefinition,
   removed: ReadonlySet<string>,
   kept: readonly string[],
-) {
+): ParentMoves {
   const parents = (def: SceneDefinition) => {
     const out = new Map<string, Ref | undefined>();
     for (const x of treeItems(def)) if (!out.has(x.id)) out.set(x.id, x.parent);
@@ -341,7 +345,6 @@ function parentMoves(
       [...chain(before, id), ...chain(after, id)].some((o) => moving.has(o)),
     ),
   ]);
-  /** `items` sorted parents first by their places in `b`. */
   const restoreOrder = <T extends { id: string }>(items: readonly T[]) =>
     items
       .map((x, k) => ({ x, k, d: chain(after, x.id).length }))
@@ -465,7 +468,7 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
       if (named.kept.has(e.id)) updates.push(...named.updates.get(e.id)!);
       continue;
     }
-    const restore = restoreEntity(added.has(e.id) ? e : aEntities.get(e.id)!, e);
+    const restore = restoreEntity(added.has(e.id) ? e : aEntities.get(e.id)!, e, registry);
     if (restore) restoring.push({ id: e.id, ops: [restore] });
   }
   for (const i of b.instances ?? []) {

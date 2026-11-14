@@ -1,4 +1,5 @@
 import { createColliderTags } from "../collider-tags";
+import { COLLIDER, type ColliderSystem } from "../game/behaviors/collider";
 import { SPRITE } from "../game/behaviors/sprite";
 import { DEFAULT_GRAVITY } from "../game/defaults";
 import { createRegistry } from "../game/define";
@@ -553,6 +554,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
   const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
+  const colliders = behaviors.system<ColliderSystem>(COLLIDER.name);
   lifecycle = createLifecycle({
     ctx,
     registry,
@@ -1360,6 +1362,22 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
   }
 
+  /**
+   * Moves each collider a fresh load built at spawn onto its entity's
+   * restored pose. Only the collider follows, not every block's `posed`: a
+   * walking nav-agent's replan never ran here in the unsaved run. A dynamic
+   * body is rebuilt by its `body` restore, and an entity that is off catches
+   * up when it is enabled.
+   */
+  function placeRestoredColliders(): void {
+    if (!colliders?.posed) return;
+    for (const id of byId.keys()) {
+      if (!colliders.has(id) || !ctx.enabled(id) || colliders.selfMoving?.(id)) continue;
+      const p = ctx.poses.get(id);
+      if (p) colliders.posed(id, p, false);
+    }
+  }
+
   function restoreWorldQuietly(
     world: WorldState,
     levels: readonly SublevelInfo[],
@@ -1426,6 +1444,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const states = systemsSaved[id];
       if (states) restoreRegistered(id, states);
     }
+    placeRestoredColliders();
     const watches = systemsSaved[SAVE_CONTACTS_KEY]?.watches;
     contacts.restore((watches ?? []) as unknown as SavedTouch[][]);
 

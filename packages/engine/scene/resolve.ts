@@ -1,5 +1,5 @@
 import { BEHAVIORS_FIELD } from "../game/behaviors";
-import { NODE_TYPE } from "../game/primitives";
+import { isNodeTypeIn } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { bulkId } from "./bulk-ref";
 import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./field-path";
@@ -8,7 +8,7 @@ import { transformCell } from "./grid";
 import { makeIssue } from "./issues";
 import { paramTargetValues } from "./prefab-params";
 import { fieldKind, geometryFields, gridFieldsOf } from "./schema";
-import { geometryPose, normDeg } from "./shape-geometry";
+import { firstGeometry, geometryPose } from "./shape-geometry";
 import { parseShape } from "./shapes";
 import {
   applyPt,
@@ -23,6 +23,8 @@ import {
   IDENTITY_2D,
   invert,
   isIdentity,
+  isUnturned,
+  normDeg,
   sameFrame,
   turns,
   type Frame,
@@ -107,8 +109,6 @@ const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(
 /** Whether `t` turns by whole quarter turns, which keep whole numbers whole. */
 const quarter = (t: Transform2D) => dihedralOf(t) !== null;
 
-const isIdentityTurn = (o: Orientation) => o.rot === 0 && !o.flip;
-
 const NO_TURN: Orientation = Object.freeze({ rot: 0, flip: false });
 
 /** `p` under `t`, rounded to the file's length precision off the quarter turns. */
@@ -135,16 +135,7 @@ export function instanceFrame(inst: Pick<InstanceDef, "at" | "rot" | "flip">): F
 /** Where an entity's geometry puts it, as `runtime/spawn-pose.ts` reads it, from stored fields. */
 function storedPose(registry: Registry | undefined, def: EntityDef): { at: Pt; rotDeg?: number } {
   const t = registry?.types.get(def.type);
-  let shape: unknown;
-  let at: unknown;
-  let path: unknown;
-  for (const { field, kind } of t ? geometryFields(t) : []) {
-    const value = def[field];
-    if (value === undefined || value === null) continue;
-    if (kind === "shape") shape ??= value;
-    else if (kind === "point") at ??= value;
-    else if (kind === "path") path ??= value;
-  }
+  const { shape, at, path } = firstGeometry(t ? geometryFields(t) : [], def);
   const parsed = shape === undefined ? null : parseShape(shape);
   const pts = (path as { pts?: unknown } | undefined)?.pts;
   const pose = geometryPose({
@@ -156,15 +147,12 @@ function storedPose(registry: Registry | undefined, def: EntityDef): { at: Pt; r
 }
 
 /**
- * An entity's own frame from its stored fields: what its children's
- * geometry is written in. A node's `at`, `rot` and `flip`; any other
- * entity's spawn pose, as `runtime/spawn-pose.ts` reads it (the shape's
- * centre, a path rider's shape placed at the path's first point, else its
- * point, else the path's first point) at its box's or capsule's `rotDeg`,
+ * An entity's own frame, which its children are written in: a node's `at`,
+ * `rot` and `flip`; any other entity's spawn pose (`runtime/spawn-pose.ts`),
  * unflipped. An entity with no geometry stands at the origin.
  */
 export function entityFrame(registry: Registry | undefined, def: EntityDef): Frame {
-  if (def.type === NODE_TYPE) {
+  if (isNodeTypeIn(registry, def.type)) {
     return {
       at: isPt(def.at) ? [def.at[0], def.at[1]] : [0, 0],
       rot: typeof def.rot === "number" ? def.rot : 0,
@@ -186,7 +174,7 @@ export function placedFrame(
   def: EntityDef,
   turn: Orientation = NO_TURN,
 ): Frame {
-  if (def.type === NODE_TYPE) return entityFrame(registry, def);
+  if (isNodeTypeIn(registry, def.type)) return entityFrame(registry, def);
   const pose = storedPose(registry, def);
   return { at: pose.at, rot: pose.rotDeg ?? turn.rot, flip: turn.flip };
 }
@@ -425,7 +413,8 @@ function transformEntity(
   cells: boolean,
 ): EntityDef {
   if (isIdentity(t)) return def;
-  if (def.type === NODE_TYPE) return turnNode(transformEntityDef(registry, def, t) ?? def, def, t);
+  if (isNodeTypeIn(registry, def.type))
+    return turnNode(transformEntityDef(registry, def, t) ?? def, def, t);
   const held =
     !cells && turns(t)
       ? gridFieldsOf(registry.types.get(def.type)).filter((f) => def[f] !== undefined)
@@ -485,7 +474,7 @@ export function reexpressEntity(
   if (isIdentity(t)) return def;
   let next = transformEntity(registry, def, t, gridTurns({ settings }));
   if (next === def) next = clone(def);
-  if (def.type === NODE_TYPE)
+  if (isNodeTypeIn(registry, def.type))
     return withOrientation(next, {
       rot: typeof next.rot === "number" ? next.rot : 0,
       flip: next.flip === true,
@@ -1043,7 +1032,7 @@ function nestedChildren(
     const child = childRef(n.id, c.child);
     const total = c.turn ? composeOrientations(own, c.turn) : own;
     const links: ChildLinks & { turn?: Orientation } = {
-      ...(isIdentityTurn(total) ? {} : { turn: total }),
+      ...(isUnturned(total) ? {} : { turn: total }),
       ...(parented ? { under: n.parent } : {}),
     };
     if (parented && !c.child.includes(CHILD_SEPARATOR)) links.nodeParent = n.parent;
@@ -1112,13 +1101,10 @@ export function instanceOverrideEntries(
 }
 
 /**
- * `prefab` with an instance's overrides of its nested instances laid over,
- * and the overrides left for its own children. A key under a nested
- * instance (`door-1/panel.path.speed`) moves last into that instance's
- * overrides, so it beats the inner level's own, and a nested instance's
- * own field (`door-1.at`) is set on it; on a variant, a head that isn't
- * the variant's own goes on to its base the same way. Values stay in the
- * frame of the prefab that holds the child.
+ * `prefab` with an instance's nested-instance overrides applied, and the
+ * overrides left for its own children. An outer override beats the inner
+ * level's own; on a variant, a head that isn't the variant's own goes on
+ * to its base.
  */
 function patchedPrefab(
   prefab: Prefab,
@@ -1266,7 +1252,7 @@ function placeUnder(
     delete next.under;
     if (p.root && next.nodeParent === c.under) delete next.nodeParent;
     const total = composeOrientations(frameOf(composeSteps(p.steps)), c.turn ?? NO_TURN);
-    if (isIdentityTurn(total)) delete next.turn;
+    if (isUnturned(total)) delete next.turn;
     else next.turn = total;
     if (next.kind === "bulk") {
       next.value = p.steps.reduce(
@@ -1557,7 +1543,7 @@ export function resolveWith(
     const steps = frames.stepsFor(e);
     const turn = frameOf(composeSteps(steps));
     origins.push(
-      isIdentityTurn(turn) ? { kind: "entity", index } : { kind: "entity", index, transform: turn },
+      isUnturned(turn) ? { kind: "entity", index } : { kind: "entity", index, transform: turn },
     );
     const placed = steps.reduce((d, t) => transformEntity(registry, d, t, cells), e);
     return !placed.off && frames.hidden(e.id) ? { ...placed, off: true } : placed;

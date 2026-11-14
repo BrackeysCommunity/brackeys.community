@@ -491,6 +491,13 @@ refs)` take the document and return `{ batch, select } | null`
 - A live swap that changes only a node's `rot` turns the node and what it
   carries, instead of putting the old pose back; a game type based on
   `node` turns the same way.
+- A game type based on `node` frames what sits under it by its own `rot`
+  and `flip` in scene files and the editor as well as at runtime:
+  `resolveScene`, `expandScene`, `entityFrame`, `placedFrame`, reparent
+  and its inverse, `diffToOps`, the `transform` op (which now turns it),
+  its frame gizmo, the rotate command and the selection box. Before, they
+  treated it as a plain point, so its children loaded where the runtime
+  didn't put them. Ungroup still removes only `node` itself.
 - `spawnPose` puts a node, or an entity of a type based on `node`, at its
   own `rot` when set, as its system places it, instead of at the angle of
   what it sits in, so `currentPose`'s fallback, a live swap's moved check

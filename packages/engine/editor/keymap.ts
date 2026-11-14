@@ -183,7 +183,10 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
       key: `Alt+${arrowKey(d)}`,
       scope: "edit",
       command: `nudge-${d}-fine`,
-      description: `Nudge ${d} one pixel`,
+      description:
+        d === "up" || d === "down"
+          ? `Nudge ${d} one pixel; on a row of the outliner's tree, move it ${d} among its siblings`
+          : `Nudge ${d} one pixel`,
     },
   ]),
   { key: "Delete", scope: "edit", command: "delete", description: "Delete the selection" },
@@ -352,7 +355,15 @@ export function createKeymap(gameKeys: readonly GameKeyBinding[] = []): Keymap {
   };
 }
 
+const engineBinding = (command: EditorCommand): EngineKeyBinding | undefined =>
+  ENGINE_KEYS.find((b) => b.command === command && b.scope !== "text-field");
+
 /** The first chord bound to an engine command, for hints; engine bindings are the same in every keymap. */
 export function engineChord(command: EditorCommand): string | undefined {
-  return ENGINE_KEYS.find((b) => b.command === command && b.scope !== "text-field")?.key;
+  return engineBinding(command)?.key;
+}
+
+/** What an engine command does, in its first binding's words, so a button for it says the same. */
+export function engineCommandText(command: EditorCommand): string | undefined {
+  return engineBinding(command)?.description;
 }

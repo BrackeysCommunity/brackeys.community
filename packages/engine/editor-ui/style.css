@@ -2521,7 +2521,9 @@
     pointer-events: none;
   }
 
-  .je-outliner-item[data-drop-over]::after {
+  .je-outliner-item[data-drop-over]::after,
+  .je-outliner-list[data-drop-over],
+  .je-outliner-root[data-drop-over] {
     background: color-mix(in srgb, var(--je-primary) 10%, transparent);
     box-shadow: inset 0 0 0 1px var(--je-primary);
   }
@@ -2569,6 +2571,10 @@
   }
 
   /* Opaque, since the strip lies over rows. */
+  .je-outliner-root[data-drop-over] {
+    background: color-mix(in srgb, var(--je-primary) 10%, var(--je-panel));
+  }
+
   .je-outliner-root[data-drop-refused] {
     background: color-mix(in srgb, var(--je-danger) 10%, var(--je-panel));
   }
@@ -3434,9 +3440,7 @@
     border-radius: var(--je-radius-sm);
   }
 
-  .je-ptree-drop[data-drop-over],
-  .je-outliner-list[data-drop-over],
-  .je-outliner-root[data-drop-over] {
+  .je-ptree-drop[data-drop-over] {
     box-shadow: 0 0 0 1px var(--je-primary);
   }
 

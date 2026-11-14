@@ -4,23 +4,23 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import type { PathFollowSystem } from "../game/behaviors/path-follow";
-import { DEFAULT_ACTIONS } from "../game/defaults";
-import { createRegistry, defineEntityType, defineGame } from "../game/define";
+import { createRegistry, defineEntityType } from "../game/define";
 import { pointField } from "../game/fields";
 import { heldProject } from "../project/runtime-view";
-import { createSceneRuntime } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { expandScene } from "../scene/expand";
-import {
-  SCENE_FORMAT_VERSION,
-  type EntityDef,
-  type SceneDefinition,
-  type SceneSettings,
-} from "../scene/types";
+import type { EntityDef, SceneSettings } from "../scene/types";
 import { createDataSystem } from "../systems/data";
 import type { RapierModule } from "../types";
 import { readHeld } from "./fixtures/held-project";
-import { engineErrorCode, markerWith, stepEvents } from "./fixtures/tree-rig";
+import {
+  engineErrorCode,
+  loadTree,
+  markerWith,
+  PHYSICS_BACKENDS,
+  stepEvents,
+  treeGame,
+  type TreePhysics,
+} from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -78,15 +78,7 @@ const SIGNPOST = defineEntityType({
   fields: { at: pointField("Where it stands.") },
 });
 
-const game = defineGame({
-  id: "posers",
-  types: [BEACON, STATUE, SIGNPOST],
-  actions: [...DEFAULT_ACTIONS],
-  input: { players: { max: 1, join: "auto" } },
-  time: { kind: "fixed", rate: 60 },
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
-const registry = createRegistry(game);
+const registry = createRegistry(treeGame("posers", { types: [BEACON, STATUE, SIGNPOST] }));
 
 /** The engine project's hero atlas and kitchen animation, for an `anim` carrier. */
 const engineArt = heldProject(
@@ -97,13 +89,10 @@ const engineArt = heldProject(
   { projectId: "p", name: "P" },
 ).runtime;
 
-const BACKENDS = ["none", "rapier"] as const;
-type Physics = (typeof BACKENDS)[number];
-
 const BOX = ["box", 0, 0, 0.25, 0.25];
 
 /** One entity per standard behavior that runs headless, each on its own row. */
-function carriers(physics: Physics): EntityDef[] {
+function carriers(physics: TreePhysics): EntityDef[] {
   const row = (i: number): [number, number] => [0, i * 2];
   return [
     { id: "floor", type: "nav", shape: ["box", 0, -2, 60, 40] } as EntityDef,
@@ -144,30 +133,8 @@ function carriers(physics: Physics): EntityDef[] {
   ].filter((e) => physics === "rapier" || e.type !== "prop");
 }
 
-function scene(
-  entities: EntityDef[],
-  physics: Physics,
-  settings: Partial<SceneSettings> = {},
-): SceneDefinition {
-  return {
-    v: SCENE_FORMAT_VERSION,
-    game: "posers",
-    name: "posers",
-    bounds: [-60, -60, 60, 60],
-    settings: { physics, gravity: [0, 0], ...settings },
-    entities,
-  };
-}
-
-function load(entities: EntityDef[], physics: Physics, settings: Partial<SceneSettings> = {}) {
-  const rt = createSceneRuntime({
-    rapier: physics === "rapier" ? rapier : null,
-    view: null,
-    game,
-    project: engineArt,
-  });
-  const report = rt.load(expandScene(scene(entities, physics, settings), registry));
-  if (!report.ok) throw new Error(report.error);
+function load(entities: EntityDef[], physics: TreePhysics, settings: Partial<SceneSettings> = {}) {
+  const rt = loadTree({ registry, entities, physics, rapier, settings, project: engineArt });
   const steps = (n: number) => void stepEvents(rt, n);
   return { rt, steps };
 }
@@ -200,7 +167,7 @@ function teleportHolds(rt: SceneRuntimeHandle, steps: (n: number) => void, ids: 
   }
 }
 
-for (const physics of BACKENDS) {
+for (const physics of PHYSICS_BACKENDS) {
   describe(`ctx.setPose on physics: ${physics}`, () => {
     it("moves an entity carrying each standard behavior, and nothing snaps back", () => {
       const entities = carriers(physics);
@@ -412,7 +379,7 @@ describe("ctx.setPose on bodies", () => {
   });
 
   it("brings a type whose system can't switch off, posed while disabled, back where it was put", () => {
-    for (const physics of BACKENDS) {
+    for (const physics of PHYSICS_BACKENDS) {
       const { rt, steps } = load(
         [
           { id: "post", type: SIGNPOST.type, at: [1, 2] } as EntityDef,
@@ -466,7 +433,7 @@ describe("ctx.setPose on bodies", () => {
   });
 
   it("keeps a kinematic collider body's velocity on both backends", () => {
-    for (const physics of BACKENDS) {
+    for (const physics of PHYSICS_BACKENDS) {
       const { rt, steps } = load(
         [markerWith("lift", [0, 0], { collider: { shape: BOX }, body: { kind: "kinematic" } })],
         physics,

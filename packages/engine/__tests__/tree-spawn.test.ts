@@ -1,30 +1,27 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { DEFAULT_ACTIONS } from "../game/defaults";
-import { createRegistry, defineGame } from "../game/define";
-import { createSceneRuntime, saveHostOf } from "../runtime/runtime";
+import { createRegistry } from "../game/define";
+import { saveHostOf } from "../runtime/runtime";
 import { ENTITY_DESTROYED, ENTITY_SPAWNED, type StepEvent } from "../runtime/types";
-import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
 import { SCENE_FORMAT_VERSION, type EntityDef, type Prefab } from "../scene/types";
 import type { RapierModule } from "../types";
-import { engineErrorCode, expectPoseOf } from "./fixtures/tree-rig";
+import {
+  engineErrorCode,
+  expectPoseOf,
+  loadTree,
+  PHYSICS_BACKENDS,
+  treeGame,
+  type TreePhysics,
+} from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
   rapier = await import("@dimforge/rapier2d");
 });
 
-const game = defineGame({
-  id: "spawning-in",
-  types: [],
-  actions: [...DEFAULT_ACTIONS],
-  input: { players: { max: 1, join: "auto" } },
-  time: { kind: "fixed", rate: 60 },
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
-const registry = createRegistry(game);
+const registry = createRegistry(treeGame("spawning-in"));
 
 const node = (id: string, at: [number, number], rot?: number) =>
   ({ id, type: "node", at, ...(rot !== undefined ? { rot } : {}) }) as EntityDef;
@@ -47,38 +44,17 @@ const LANTERN: Prefab = {
   ],
 };
 
-type Physics = "none" | "rapier";
-const BACKENDS: readonly Physics[] = ["none", "rapier"];
+const LANTERN_LIBRARY = prefabLibrary([LANTERN]);
 
-function load(physics: Physics) {
-  const expanded = expandScene(
-    {
-      v: SCENE_FORMAT_VERSION,
-      game: "spawning-in",
-      name: "spawning-in",
-      bounds: [-60, -60, 60, 60],
-      settings: { physics, gravity: [0, 0] },
-      entities: ENTITIES,
-    },
-    registry,
-  );
-  const rt = createSceneRuntime({
-    rapier: physics === "rapier" ? rapier : null,
-    view: null,
-    game,
-    prefabs: prefabLibrary([LANTERN]),
-  });
-  const report = rt.load(expanded);
-  if (!report.ok) throw new Error(report.error);
-  return { rt, expanded };
-}
+const load = (physics: TreePhysics) =>
+  loadTree({ registry, entities: ENTITIES, physics, rapier, prefabs: LANTERN_LIBRARY });
 
 const DEG30 = Math.PI / 6;
 
-for (const physics of BACKENDS) {
+for (const physics of PHYSICS_BACKENDS) {
   describe(`spawning under a parent on physics: ${physics}`, () => {
     it("takes world fields by default and follows the parent from there", () => {
-      const { rt } = load(physics);
+      const rt = load(physics);
       const e = rt.ctx.spawn({ type: "marker", at: [12, 5], parent: "cart" });
       expect(rt.ctx.tree.parent(e.id)).toBe("cart");
       expect(rt.ctx.tree.children("cart")).toEqual([e.id]);
@@ -90,7 +66,7 @@ for (const physics of BACKENDS) {
     });
 
     it("reads local fields in the parent's frame", () => {
-      const { rt } = load(physics);
+      const rt = load(physics);
       const square = rt.ctx.spawn({ type: "marker", at: [2, 0], parent: "cart", local: true });
       expectPoseOf(rt, square.id, { x: 12, y: 5, rot: 0 }, 9);
       expect(square.at).toEqual([12, 5]);
@@ -110,7 +86,7 @@ for (const physics of BACKENDS) {
     });
 
     it("places a local solid's shape in the parent's frame", () => {
-      const { rt } = load(physics);
+      const rt = load(physics);
       const wall = rt.ctx.spawn({
         type: "solid",
         shape: ["box", 0, 2, 0.5, 0.25],
@@ -125,7 +101,7 @@ for (const physics of BACKENDS) {
     });
 
     it("instantiates a prefab's node under a parent, in world or local coordinates", () => {
-      const { rt } = load(physics);
+      const rt = load(physics);
       const world = rt.ctx.instantiate("lantern", [10, 5], { parent: "cart" });
       expect(rt.ctx.tree.parent(world.id)).toBe("cart");
       expect(rt.ctx.tree.children(world.id)).toEqual(world.entities);
@@ -155,7 +131,7 @@ for (const physics of BACKENDS) {
     });
 
     it("refuses an unknown parent with parent-scope, giving out no id", () => {
-      const { rt } = load(physics);
+      const rt = load(physics);
       expect(
         engineErrorCode(() => rt.ctx.spawn({ type: "marker", at: [0, 0], parent: "nowhere" })),
       ).toBe("parent-scope");
@@ -171,7 +147,7 @@ for (const physics of BACKENDS) {
 
 describe("a spawn with no parent", () => {
   it("is a root, its record and entity as before", () => {
-    const { rt } = load("none");
+    const rt = load("none");
     const e = rt.ctx.spawn({ type: "marker", at: [3, 4] });
     expect(e.parent).toBeUndefined();
     expect(rt.ctx.tree.parent(e.id)).toBeNull();
@@ -186,14 +162,14 @@ describe("a spawn with no parent", () => {
 describe("a save's spawn records", () => {
   /** Plays a fresh load up to `world`. */
   function restored(world: ReturnType<NonNullable<ReturnType<typeof saveHostOf>>["captureWorld"]>) {
-    const { rt } = load("none");
+    const rt = load("none");
     const issue = saveHostOf(rt.ctx)!.restoreWorld(world, []);
     expect(issue).toBeNull();
     return rt;
   }
 
   it("relinks spawns and instances under their parents on restore", () => {
-    const { rt } = load("none");
+    const rt = load("none");
     const crate = rt.ctx.spawn({ type: "node", at: [4, 4] });
     const lid = rt.ctx.spawn({ type: "marker", at: [1, 0], parent: crate.id, local: true });
     const lamp = rt.ctx.instantiate("lantern", [0, 1], { parent: "turned", local: true });
@@ -218,7 +194,7 @@ describe("a save's spawn records", () => {
   });
 
   it("records a local instance under a tilted parent at its world angle", () => {
-    const { rt } = load("none");
+    const rt = load("none");
     const lamp = rt.ctx.instantiate("lantern", [1, 0], { parent: "tilted", local: true, rot: 15 });
     const [c, s] = [Math.cos(DEG30), Math.sin(DEG30)];
     const world = saveHostOf(rt.ctx)!.captureWorld();
@@ -243,7 +219,7 @@ describe("a save's spawn records", () => {
   });
 
   it("records the parent a spawn has now, and restores one whose parent is gone as a root", () => {
-    const { rt } = load("none");
+    const rt = load("none");
     const crate = rt.ctx.spawn({ type: "node", at: [4, 4] });
     const lid = rt.ctx.spawn({ type: "marker", at: [5, 4], parent: crate.id });
     const moved = rt.ctx.spawn({ type: "marker", at: [6, 4], parent: "cart" });
@@ -271,7 +247,7 @@ describe("a save's spawn records", () => {
 
 describe("a destroy queued mid-tick", () => {
   it("takes the children spawned under the parent later that tick", () => {
-    const { rt } = load("none");
+    const rt = load("none");
     let child = "";
     let lamp = "";
     rt.ctx.timers.after(0, () => {

@@ -6,11 +6,14 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  type Announcements,
   type CollisionDetection,
   type DragEndEvent,
   type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type ScreenReaderInstructions,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
   ArrowDown01Icon,
@@ -53,13 +56,14 @@ import {
   type SceneIssue,
   type SceneOp,
 } from "../../editor/index";
-import { engineChord } from "../../editor/keymap";
+import { engineChord, engineCommandText } from "../../editor/keymap";
 import {
   buildTreeOutline,
   selectionAfterPromotes,
   treeDragRoots,
   treeDropBatch,
   treeDropRefusal,
+  treeRefNamer,
   type TreeDrop,
 } from "../../editor/outline";
 import { takenIds } from "../../scene/fragment";
@@ -336,11 +340,32 @@ const ROOT_STRIP = "tree-root-strip";
 const isRootDrop = (id: unknown) => id === ROOT_DROP || id === ROOT_STRIP;
 const ROOT_DATA = { kind: "reparent", parent: null } satisfies DropData;
 
-/** The rows under the pointer, else the list around them. */
-const rowsFirst: CollisionDetection = (args) => {
+/**
+ * The root strip under the pointer, since it's drawn over the list's foot;
+ * else the rows under it within the list's scrolled view, so a row scrolled
+ * out of sight takes no drop; else the list around them.
+ */
+function treeHits(args: Parameters<CollisionDetection>[0], view: DOMRect | undefined) {
   const hits = pointerWithin(args);
-  const rows = hits.filter((h) => !isRootDrop(h.id));
-  return rows.length > 0 ? rows : hits;
+  const strip = hits.find((h) => h.id === ROOT_STRIP);
+  if (strip) return [strip];
+  const p = args.pointerCoordinates;
+  const inView =
+    !view || !p || (p.x >= view.left && p.x <= view.right && p.y >= view.top && p.y <= view.bottom);
+  const rows = inView ? hits.filter((h) => !isRootDrop(h.id)) : [];
+  return rows.length > 0 ? rows : hits.filter((h) => isRootDrop(h.id));
+}
+
+const rowButtons = (list: HTMLElement | null): HTMLElement[] =>
+  list ? [...list.querySelectorAll<HTMLElement>("[data-row-key]")] : [];
+
+const GROUP_TEXT = engineCommandText("group") ?? "Group";
+const UNGROUP_TEXT = engineCommandText("ungroup") ?? "Ungroup";
+
+const DRAG_INSTRUCTIONS: ScreenReaderInstructions = {
+  draggable:
+    "Drag a row with the pointer to put it under another row or beside one, or in the Layer view onto a layer. " +
+    "From the keyboard, Alt+Up and Alt+Down move a tree row among its siblings, and the Inspector's Parent field puts it under another.",
 };
 
 /**
@@ -350,8 +375,18 @@ const rowsFirst: CollisionDetection = (args) => {
  */
 const EDGE_BAND = 1 / 3;
 
-/** What a tree drop would do: its batch, or why it's refused. */
-type Judged = { drop: TreeDrop; batch: OpBatch | null; refused: SceneIssue | null };
+/** What a tree drop of `refs` would do: its batch, or why it's refused. */
+type Judged = {
+  refs: readonly Ref[];
+  drop: TreeDrop;
+  batch: OpBatch | null;
+  refused: SceneIssue | null;
+};
+
+const couldnt = (batch: OpBatch) => {
+  const label = batch.label ?? "Move";
+  return `Couldn't ${label[0]!.toLowerCase()}${label.slice(1)}`;
+};
 
 /** Where a tree drag would land; `above` puts the refusal over the row when one under it would leave the list. */
 type Aim = Judged & { at: string; above: boolean };
@@ -707,7 +742,11 @@ export function EditorOutliner({
   const listRef = useRef<HTMLUListElement | null>(null);
   /** The row a keyboard move should keep focused once the list re-renders. */
   const refocus = useRef<string | null>(null);
+  /** What a screen reader hears next: set by the drag handlers, which run before dnd-kit announces. */
+  const heard = useRef("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const collisions: CollisionDetection = (args) =>
+    treeHits(args, listRef.current?.getBoundingClientRect());
 
   const prefabs = useEditorPrefabs(session);
   const outline = useMemo(
@@ -738,6 +777,7 @@ export function EditorOutliner({
     [rows, peers, session],
   );
   const order = useMemo(() => outlineOrder(shown.filter(isEntityRow)), [shown]);
+  const nameOf = useMemo(() => treeRefNamer(outline), [outline]);
   const parents = useMemo(() => parentKeys(rows), [rows]);
   /** The scene's own entities and instances: the rows the tree drags and orders among. */
   const own = useMemo(() => takenIds(doc), [doc]);
@@ -753,8 +793,7 @@ export function EditorOutliner({
     const key = refocus.current;
     if (key === null) return;
     refocus.current = null;
-    const rowButtons = listRef.current?.querySelectorAll<HTMLElement>("[data-row-key]") ?? [];
-    const button = [...rowButtons].find((b) => b.dataset.rowKey === key);
+    const button = rowButtons(listRef.current).find((b) => b.dataset.rowKey === key);
     if (button && document.activeElement !== button) button.focus();
   });
 
@@ -779,7 +818,7 @@ export function EditorOutliner({
     };
     const left = refOf(focused.dataset.rowKey);
     if (left === undefined || !was.includes(left) || selection.includes(left)) return;
-    const target = [...list.querySelectorAll<HTMLElement>("[data-row-key]")].find((b) => {
+    const target = rowButtons(list).find((b) => {
       const ref = refOf(b.dataset.rowKey);
       return ref !== undefined && selection.includes(ref);
     });
@@ -842,30 +881,28 @@ export function EditorOutliner({
   const judge = (refs: readonly Ref[], drop: TreeDrop): Judged => {
     const current = session.getDoc();
     const prefabLib = session.getPrefabs();
-    const batch = treeDropBatch(current, registry, prefabLib, refs, drop);
-    const refused = batch ? treeDropRefusal(current, registry, prefabLib, batch) : null;
-    return { drop, batch, refused };
+    const batch = treeDropBatch(current, registry, prefabLib, refs, drop, nameOf);
+    const refused = batch ? treeDropRefusal(current, registry, prefabLib, batch, nameOf) : null;
+    return { refs, drop, batch, refused };
   };
 
-  const land = ({ drop, batch, refused }: Judged) => {
-    if (batch && refused) {
-      const label = batch.label ?? "Move";
-      const title = `Couldn't ${label[0]!.toLowerCase()}${label.slice(1)}`;
-      if (notify) notify.error(title, { description: refused.message });
-      else cue("error");
-      return;
-    }
+  const refuse = (level: "error" | "warning", title: string, why?: string) => {
+    if (notify) notify[level](title, why ? { description: why } : undefined);
+    else cue("error");
+  };
+
+  const land = ({ refs, drop, batch, refused }: Judged) => {
+    if (batch && refused) return refuse("error", couldnt(batch), refused.message);
     if (!batch) return;
-    const after = selectionAfterPromotes(batch, selection);
-    if (!session.dispatch(batch, after ? { selectionAfter: after } : {}).ok) return;
+    // A row moved from outside the selection becomes it, so the Inspector shows what moved.
+    const picks = refs.every((r) => selected.has(r)) ? selection : refs;
+    const after = selectionAfterPromotes(batch, picks) ?? (picks === selection ? undefined : picks);
+    if (!session.dispatch(batch, after ? { selectionAfter: [...after] } : {}).ok) return;
     if (drop.kind === "reparent" && drop.parent !== null) openTo(drop.parent);
     cue("drop");
   };
 
-  const refuseMove = (message: string, why?: string) => {
-    if (notify) notify.warning(message, why ? { description: why } : undefined);
-    else cue("error");
-  };
+  const refuseMove = (message: string, why?: string) => refuse("warning", message, why);
 
   const groupWhy = useMemo(
     () => groupRefusal(doc, registry, selection, prefabs),
@@ -977,8 +1014,24 @@ export function EditorOutliner({
     return { ...judge(dragged.current, drop), at, above };
   };
 
+  const rowName = (id: UniqueIdentifier) => shown.find((r) => r.key === id)?.label ?? String(id);
+
+  /** What dropping here would do, in words, from the tree's aim or the layer row under the pointer. */
+  const aimWords = (e: DragMoveEvent, next: Aim | null): string => {
+    const what = rowName(e.active.id);
+    const data = e.over?.data.current as DropData | undefined;
+    if (data?.kind === "place")
+      return `Over ${layerTitle(data.target.layer)}; let go to move ${what} there.`;
+    if (!next) return `${what} isn't over a place it can go.`;
+    if (!next.batch) return `Letting go here leaves ${what} where it is.`;
+    return next.refused
+      ? `${couldnt(next.batch)}: ${next.refused.message}`
+      : `${next.batch.label}.`;
+  };
+
   const onDragMove = (e: DragMoveEvent | DragOverEvent) => {
     const next = aimAt(e);
+    heard.current = aimWords(e, next);
     if (next !== aim) setAim(next);
   };
 
@@ -991,15 +1044,27 @@ export function EditorOutliner({
     endDrag();
     const ref = e.active.data.current?.ref as Ref | undefined;
     const drop = e.over?.data.current as DropData | undefined;
+    heard.current = `${rowName(e.active.id)} stays where it was.`;
     if (!ref || !drop) return;
     if (drop.kind !== "place") {
       const landed = aimAt(e);
+      if (landed?.batch)
+        heard.current = landed.refused ? aimWords(e, landed) : `${landed.batch.label}: done.`;
       if (landed) land(landed);
       return;
     }
     const moved = selected.has(ref) ? selection.filter((r) => !isBulkRef(r)) : [ref];
     const batch = dropBatch(session.getDoc(), registry, moved, drop.target);
-    if (batch && session.dispatch(batch).ok) cue("drop");
+    if (!batch || !session.dispatch(batch).ok) return;
+    heard.current = `${batch.label}: done.`;
+    cue("drop");
+  };
+
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `Picked up ${rowName(active.id)}.`,
+    onDragOver: () => heard.current,
+    onDragEnd: () => heard.current,
+    onDragCancel: ({ active }) => `Cancelled; ${rowName(active.id)} stays where it was.`,
   };
 
   const markOf = (key: string): DropMark | undefined =>
@@ -1030,10 +1095,8 @@ export function EditorOutliner({
           <IconButton
             icon={GroupItemsIcon}
             size="icon-xs"
-            label="Group under a node"
-            tooltip={
-              <KeyHint text={groupWhy ?? "Group under a node"} chord={engineChord("group")} />
-            }
+            label={GROUP_TEXT}
+            tooltip={<KeyHint text={groupWhy ?? GROUP_TEXT} chord={engineChord("group")} />}
             disabled={groupWhy !== null}
             focusableWhenDisabled
             onClick={group}
@@ -1042,7 +1105,7 @@ export function EditorOutliner({
             icon={UngroupItemsIcon}
             size="icon-xs"
             label="Ungroup"
-            tooltip={<KeyHint text={ungroupWhy ?? "Ungroup"} chord={engineChord("ungroup")} />}
+            tooltip={<KeyHint text={ungroupWhy ?? UNGROUP_TEXT} chord={engineChord("ungroup")} />}
             disabled={ungroupWhy !== null}
             focusableWhenDisabled
             onClick={ungroup}
@@ -1059,7 +1122,7 @@ export function EditorOutliner({
           >
             <SegmentedControl.Item
               value="tree"
-              tooltip="Rows under their parents; drag to reparent or reorder"
+              tooltip="Rows under their parents; drag to reparent or reorder, or move a row among its siblings with Alt+↑/↓"
             >
               Tree
             </SegmentedControl.Item>
@@ -1110,7 +1173,8 @@ export function EditorOutliner({
       </div>
       <DndContext
         sensors={sensors}
-        collisionDetection={rowsFirst}
+        collisionDetection={collisions}
+        accessibility={{ announcements, screenReaderInstructions: DRAG_INSTRUCTIONS }}
         onDragStart={onDragStart}
         onDragOver={onDragMove}
         onDragMove={onDragMove}

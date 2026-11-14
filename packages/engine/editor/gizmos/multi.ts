@@ -1,7 +1,8 @@
 import { aabbUnion, rotateShape } from "../../scene/shape-geometry";
+import { normDeg } from "../../scene/transform";
 import type { Aabb, OpBatch, Pt, SceneOp } from "../../scene/types";
 import { roundPt, snapAngle, snapMove } from "../snap";
-import { moveBatch, normDeg, shapeSet } from "./batch";
+import { moveBatch, shapeSet } from "./batch";
 import { dragAngle } from "./drag";
 import { withPreview, type DragOptions, type GizmoEdit } from "./edit";
 import { readAngle, readDelta } from "./readout";

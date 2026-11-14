@@ -847,15 +847,9 @@ function turnBoundFields(r: Registry, e: EntityDef): string[] {
 }
 
 /**
- * The tree's checks on the document: a parent that doesn't exist
- * (`dangling-ref`), one that is or sits on a type that can't be in the tree
- * (`parent-type`), a chain that comes back round (`parent-cycle`), one more
- * than `PARENT_MAX_DEPTH` levels deep (`parent-depth`), and a side or grid
- * field under a step off the quarter turns, which leaves it unturned
- * (`quarter-turn-only`). Each fix is one `reparent`: to the root for a
- * missing parent, a cycle or a type that can't be a child, else to the
- * nearest ancestor that clears the issue. A child of an instance counts one
- * level below the instance; the levels inside a prefab are judged in it.
+ * The tree's checks on the document; each fix is one `reparent`, to the root
+ * or to the nearest ancestor that clears the issue. A child of an instance
+ * counts one level below it; the levels inside a prefab are judged there.
  */
 function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, push: Push): void {
   type Item = { id: string; parent: Ref; at: (string | number)[]; type?: RegisteredType };
@@ -1244,17 +1238,7 @@ function tweenTargetOf(type: RegisteredType): TweenTarget {
   return { type: type.type, posable: posableType(type) };
 }
 
-/**
- * An entity's behavior blocks against the registry and its type's rules:
- * `behavior-unknown`, `behavior-forbidden`, `behavior-missing` (a carried
- * behavior's `requires`, counting the type's required blocks),
- * `behavior-conflict` once per carried pair that conflicts,
- * `character-body-kind` for a character on a dynamic body, a
- * `behavior-conflict` warning for a `path-follow` that can't move what it
- * carries (`pathFollowFixed`) and doesn't already conflict, `schema` for
- * a block's fields once the type's defaults are under them, and
- * `tween-target-invalid` for a tween its entity can't play.
- */
+/** An entity's behavior blocks against the registry and its type's rules. */
 function checkBehaviors(
   registry: Registry,
   type: RegisteredType,

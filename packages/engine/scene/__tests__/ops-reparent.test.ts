@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { pivotRegistry } from "../../__tests__/fixtures/pivot-game";
 import { createRegistry } from "../../game/define";
+import { isNodeTypeIn } from "../../game/primitives";
+import type { Registry } from "../../game/types";
+import { diffToOps } from "../diff-to-ops";
 import { formatScene } from "../format";
 import { sceneHash } from "../hash";
 import { applyOps } from "../ops";
@@ -41,14 +45,23 @@ function refused(result: ApplyResult): Extract<ApplyResult, { ok: false }> {
   return result;
 }
 
-const run = (def: SceneDefinition, ops: SceneOp[], prefabs?: PrefabLibrary) =>
-  applyOps(def, { ops }, engine, { prefabs });
+const run = (
+  def: SceneDefinition,
+  ops: SceneOp[],
+  prefabs?: PrefabLibrary,
+  registry: Registry = engine,
+) => applyOps(def, { ops }, registry, { prefabs });
 
 /** Applies `ops`, then the inverse, and checks the document comes back byte for byte. */
-function roundTrip(def: SceneDefinition, ops: SceneOp[], prefabs?: PrefabLibrary) {
-  const forward = ok(run(def, ops, prefabs));
+function roundTrip(
+  def: SceneDefinition,
+  ops: SceneOp[],
+  prefabs?: PrefabLibrary,
+  registry: Registry = engine,
+) {
+  const forward = ok(run(def, ops, prefabs, registry));
   const back = ok(
-    applyOps(forward.def, forward.inverse, engine, { prefabs: forward.prefabs ?? prefabs }),
+    applyOps(forward.def, forward.inverse, registry, { prefabs: forward.prefabs ?? prefabs }),
   );
   expect(text(back.def)).toBe(text(def));
   return forward;
@@ -57,10 +70,15 @@ function roundTrip(def: SceneDefinition, ops: SceneOp[], prefabs?: PrefabLibrary
 const deg = (n: number) => Math.round((((n % 360) + 360) % 360) * 1e3) / 1e3;
 
 /** Each resolved entity's world geometry, rounded to `places` decimals: boxes, points, node frames. */
-function world(def: SceneDefinition, prefabs?: PrefabLibrary, places = 4): Map<string, unknown> {
+function world(
+  def: SceneDefinition,
+  prefabs?: PrefabLibrary,
+  places = 4,
+  registry: Registry = engine,
+): Map<string, unknown> {
   const r = (n: number) => Math.round(n * 10 ** places) / 10 ** places + 0;
   const out = new Map<string, unknown>();
-  for (const e of resolveScene(def, engine, prefabs).entities ?? []) {
+  for (const e of resolveScene(def, registry, prefabs).entities ?? []) {
     const g: Record<string, unknown> = {};
     if (Array.isArray(e.at)) g.at = (e.at as number[]).map(r);
     if (e.shape !== undefined) {
@@ -69,7 +87,7 @@ function world(def: SceneDefinition, prefabs?: PrefabLibrary, places = 4): Map<s
       const box = aabb(parsed.shape);
       g.box = [box.minX, box.minY, box.maxX, box.maxY].map(r);
     }
-    if (e.type === "node") {
+    if (isNodeTypeIn(registry, e.type)) {
       g.rot = deg(typeof e.rot === "number" ? e.rot : 0);
       g.flip = e.flip === true;
     }
@@ -484,6 +502,60 @@ describe("transform", () => {
     it(`refuses ${label}`, () => {
       expect(refused(run(tree(), [op])).issue.code).toBe(code);
     });
+});
+
+describe("a type based on node", () => {
+  const pivots = pivotRegistry();
+  const nodeTree = (): SceneDefinition => ({ ...tree(), game: pivots.id });
+  const pivotTree = (): SceneDefinition => {
+    const def = nodeTree();
+    const hubs = ["pivot", "arm"];
+    return {
+      ...def,
+      entities: def.entities?.map((e) => (hubs.includes(e.id) ? { ...e, type: "pivot" } : e)),
+    };
+  };
+  const atWorld = (def: SceneDefinition) => world(def, undefined, 4, pivots);
+
+  it("places what sits under it as a node does", () => {
+    expect(atWorld(pivotTree())).toEqual(atWorld(nodeTree()));
+  });
+
+  for (const [label, op] of [
+    ["into it", { op: "reparent", refs: ["flag"], parent: "arm" }],
+    ["out of it", { op: "reparent", refs: ["eye", "lid"], parent: null }],
+    ["it under a box", { op: "reparent", refs: ["arm"], parent: "crate" }],
+  ] as [string, SceneOp][])
+    it(`reparents ${label}, keeping every world pose, with an exact inverse and diff`, () => {
+      const def = pivotTree();
+      const r = roundTrip(def, [op], undefined, pivots);
+      expect(atWorld(r.def)).toEqual(atWorld(def));
+      expect(text(ok(run(def, diffToOps(def, r.def, pivots).ops, undefined, pivots)).def)).toBe(
+        text(r.def),
+      );
+      expect(text(ok(run(r.def, diffToOps(r.def, def, pivots).ops, undefined, pivots)).def)).toBe(
+        text(def),
+      );
+    });
+
+  it("turns by transform, carrying its children, with an exact inverse", () => {
+    const def = pivotTree();
+    const r = roundTrip(
+      def,
+      [{ op: "transform", refs: ["arm"], rotate: 33.5, about: [0, 0] }],
+      undefined,
+      pivots,
+    );
+    expect(byId(r.def, "arm")).toMatchObject({ type: "pivot", rot: 56.5 });
+    expect(byId(r.def, "eye")).toEqual(byId(def, "eye"));
+    const asNode = roundTrip(
+      nodeTree(),
+      [{ op: "transform", refs: ["arm"], rotate: 33.5, about: [0, 0] }],
+      undefined,
+      pivots,
+    );
+    expect(atWorld(r.def)).toEqual(atWorld(asNode.def));
+  });
 });
 
 describe("unpack under a parent", () => {

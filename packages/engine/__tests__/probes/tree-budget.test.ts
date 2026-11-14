@@ -226,12 +226,16 @@ const BEFORE_TREE: Readonly<Record<StressScene, { ratio: number; covered: number
   };
 
 /**
- * Whether v8 coverage instruments this run: CI's test job sets
- * `TEST_COVERAGE=1` beside `--coverage`. Coverage slows the JavaScript the
- * tree carries riders with far more than Rapier's WebAssembly, so a ratio
- * taken under it is held to `covered`. Unset, the stricter `ratio` applies.
+ * Whether v8 coverage instruments this run, from vitest's worker state or
+ * `TEST_COVERAGE=1` (which CI's test job also sets). Coverage slows the
+ * JavaScript the tree carries riders with far more than Rapier's
+ * WebAssembly, so a ratio taken under it is held to `covered`; otherwise the
+ * stricter `ratio` applies.
  */
-const coverageOn = (): boolean => process.env.TEST_COVERAGE === "1";
+const coverageOn = (): boolean =>
+  process.env.TEST_COVERAGE === "1" ||
+  (globalThis as { __vitest_worker__?: { config?: { coverage?: { enabled?: boolean } } } })
+    .__vitest_worker__?.config?.coverage?.enabled === true;
 
 /**
  * The scene as it loads, and as it loaded before instances had nodes: the

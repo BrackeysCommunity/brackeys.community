@@ -1,7 +1,6 @@
 import type { Registry } from "../../game/types";
 import { translateShape } from "../../scene/shape-geometry";
 import { shapeToTuple } from "../../scene/shapes";
-import { normDeg } from "../../scene/transform";
 import type { OpBatch, Pt, Ref, SceneDefinition, SceneOp, ShapeObj } from "../../scene/types";
 import { snapToPixel } from "../../scene/units";
 import { validateScene } from "../../scene/validate";
@@ -10,7 +9,7 @@ import type { GizmoTarget } from "./target";
 
 const deg = (v: number) => Math.round(v) + 0;
 
-export { normDeg };
+export { normDeg } from "../../scene/transform";
 
 /**
  * Whole world px everywhere (metres, at `pxPerMetre`), sizes at least one
