@@ -2266,6 +2266,15 @@
     --je-ov-width: 1px;
   }
 
+  .je-ov-mark[data-node] {
+    --je-ov-width: 1.5px;
+    stroke-linecap: round;
+  }
+
+  .je-ov-mark[data-node] .je-ov-halo {
+    stroke-opacity: 0.4;
+  }
+
   .je-ov-mark[data-bounds] .je-ov-stroke {
     stroke-dasharray: 4 3;
   }
@@ -2446,16 +2455,27 @@
     min-height: 0;
   }
 
+  /* A narrow panel moves the controls under the scene's name rather than squeezing it. */
   .je-outliner-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 2px 8px;
+    height: auto;
+    min-height: var(--je-tab);
   }
 
   .je-outliner-scene {
-    flex: 1;
+    flex: 1 1 12ch;
     font-size: calc(var(--je-text) + 2px);
     font-weight: 500;
+  }
+
+  .je-outliner-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
   }
 
   .je-outliner-filter {
@@ -2630,6 +2650,11 @@
   .je-outliner-count {
     flex-shrink: 0;
     color: var(--je-muted-fg);
+  }
+
+  /* The detail gives way before the label does. */
+  .je-outliner-row .je-outliner-detail {
+    flex-shrink: 100;
   }
 
   .je-outliner-detail,

@@ -3570,10 +3570,13 @@ Refers to [`DocLayout`](#doclayout).
 _function_ in `project/ops.ts`
 
 Checks a whole batch against plain JSON; one failing op means nothing is
-written. A delete or prefab removal still named by a live asset once the
-batch has run is refused with `asset-in-use` (a scene's checks file counts
-as naming it). `changeAssetId` rewrites every referrer, so `docs` must hold
-every live doc that can hold a reference.
+written. `editAsset` judges its result by the kind's schema; `editScene`
+runs `applyOps` and hands ops that write prefabs to `env.prefabEdit`. A
+`deleteAsset` without `force`, or a prefab removal, still named by a live
+asset once the batch has run fails with `asset-in-use`; a scene's checks
+file counts as naming it and follows it through `moveAsset` and
+`renameAsset`. `changeAssetId` rewrites every referrer, so `docs` must
+hold every live doc that can hold a reference.
 
 ```ts
 declare function checkProjectBatch(state: ProjectState, docs: ReadonlyMap<AssetId, unknown>, batch: ProjectOpBatch, env: ProjectBatchEnv): ProjectBatchCheck;

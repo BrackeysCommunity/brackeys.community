@@ -83,7 +83,13 @@ import {
   rowSummary,
   withArticle,
 } from "../../editor/inspector-model";
-import { entryLabel, entryName, selectionAfterPromotes, typeLabel } from "../../editor/outline";
+import {
+  buildTreeOutline,
+  entryLabel,
+  entryName,
+  selectionAfterPromotes,
+  typeLabel,
+} from "../../editor/outline";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { capitalise } from "../../game/live";
 import { isCameraRegionType } from "../../game/primitives";
@@ -92,7 +98,7 @@ import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
 import type { PrefabLibrary } from "../../scene/index";
-import { headOfRef } from "../../scene/resolve";
+import { CHILD_SEPARATOR, headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
 import {
@@ -792,20 +798,44 @@ function RefCombobox({
   );
 }
 
-/** How the Parent row shows each ref: the outliner's label, then its id where that differs and what it is. */
-function parentDescriber(def: SceneDefinition, registry: Registry) {
-  const kinds = new Map<Ref, { label: string; what: string }>();
+/**
+ * How the Parent row shows each ref: the outliner's label, then its id where
+ * that differs and what it is; an instance's child by the instance it is in.
+ */
+function parentDescriber(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary) {
+  const known = new Map<Ref, Described>();
+  const describeAs = (label: string, detail: (string | undefined)[]): Described => {
+    const shown = detail.filter((s) => s !== undefined);
+    return shown.length > 0 ? { label, detail: shown.join(" · ") } : { label };
+  };
   for (const e of def.entities ?? [])
-    kinds.set(e.id, { label: entryName(e), what: typeLabel(registry, e.type) });
+    known.set(
+      e.id,
+      describeAs(entryName(e), [
+        entryName(e) !== e.id ? e.id : undefined,
+        typeLabel(registry, e.type),
+      ]),
+    );
   for (const i of def.instances ?? [])
-    kinds.set(i.id, { label: entryName(i), what: `instance of ${i.prefab}` });
+    known.set(
+      i.id,
+      describeAs(entryName(i), [
+        entryName(i) !== i.id ? i.id : undefined,
+        `instance of ${i.prefab}`,
+      ]),
+    );
+  for (const row of buildTreeOutline(def, registry, prefabs))
+    if (row.ref !== undefined && !known.has(row.ref) && row.ref.includes(CHILD_SEPARATOR))
+      known.set(
+        row.ref,
+        describeAs(row.label, [`in ${row.ref.slice(0, row.ref.lastIndexOf(CHILD_SEPARATOR))}`]),
+      );
   return (ref: Ref): Described => {
     if (ref === ROOT_PARENT) return { label: ref };
-    const d = kinds.get(ref);
-    const label = d?.label ?? ref;
-    const what = d?.what ?? (headOfRef(ref) !== ref ? `in ${headOfRef(ref)}` : undefined);
-    const detail = [label !== ref ? ref : undefined, what].filter((s) => s !== undefined);
-    return detail.length > 0 ? { label, detail: detail.join(" · ") } : { label };
+    return (
+      known.get(ref) ??
+      describeAs(ref, [headOfRef(ref) !== ref ? `in ${headOfRef(ref)}` : undefined])
+    );
   };
 }
 
@@ -837,7 +867,10 @@ function ParentField({
     () => parentModel(doc, session.registry, refsKey.split("\n"), prefabs),
     [doc, session.registry, refsKey, prefabs],
   );
-  const describe = useMemo(() => parentDescriber(doc, session.registry), [doc, session.registry]);
+  const describe = useMemo(
+    () => parentDescriber(doc, session.registry, prefabs),
+    [doc, session.registry, prefabs],
+  );
   // The schema's description speaks to the CLI; the editor says the same in a designer's words.
   const drawn = refs.some((r) => isBulkRef(r));
   const row = {
@@ -2319,12 +2352,12 @@ function PlacementSection({
         </div>
         {buttons([
           {
-            label: "Flip horizontally",
+            label: "Mirror horizontally",
             icon: FlipHorizontalIcon,
             batch: () => flipBatch(doc, [model.ref], "x"),
           },
           {
-            label: "Flip vertically",
+            label: "Mirror vertically",
             icon: FlipVerticalIcon,
             batch: () => flipBatch(doc, [model.ref], "y"),
           },
@@ -2364,7 +2397,7 @@ function PlacementSection({
       <FieldRow label="Z" hint="Added to the z of every child; higher draws in front.">
         {model.editable ? (
           <NumberInput
-            label="z"
+            label="Z"
             value={model.z}
             mixed={false}
             step={1}

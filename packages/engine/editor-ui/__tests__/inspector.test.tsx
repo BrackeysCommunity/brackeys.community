@@ -651,7 +651,7 @@ describe("EditorInspector: an instance's placement", () => {
     expect(session.store.state.history.at(-1)!.label).toBe("Turn post-2 90° clockwise");
     expect(input("rot").value).toBe("90");
 
-    fireEvent.click(within(section()).getByRole("button", { name: "Flip horizontally" }));
+    fireEvent.click(within(section()).getByRole("button", { name: "Mirror horizontally" }));
     expect(dispatch.mock.calls[1]![0].ops).toEqual([
       { op: "transform", refs: ["post-2"], flip: "x" },
     ]);
@@ -665,7 +665,7 @@ describe("EditorInspector: an instance's placement", () => {
     expect(post(session).rot).toBeUndefined();
 
     fireEvent.click(within(section()).getByRole("button", { name: "Turn 90° counterclockwise" }));
-    fireEvent.click(within(section()).getByRole("button", { name: "Flip vertically" }));
+    fireEvent.click(within(section()).getByRole("button", { name: "Mirror vertically" }));
     expect(dispatch.mock.calls.slice(2).map((c) => c[0].ops[0])).toEqual([
       { op: "transform", refs: ["post-2"], turn: -1 },
       { op: "transform", refs: ["post-2"], flip: "y" },
@@ -686,7 +686,7 @@ describe("EditorInspector: an instance's placement", () => {
     expect(post(session).rot).toBe(90);
   });
 
-  it("puts Turn beside the angle and Flip beside the mirror switch", () => {
+  it("puts Turn beside the angle and the mirror buttons beside the mirror switch", () => {
     placed(["post-2"]);
     const rowOf = (el: Element) => el.closest(".je-insp-grow")!.parentElement!;
     const angleRow = rowOf(input("rot"));
@@ -694,7 +694,7 @@ describe("EditorInspector: an instance's placement", () => {
       within(angleRow as HTMLElement).getByRole("button", { name: "Turn 90° clockwise" }),
     ).toBeTruthy();
     expect(
-      within(rowOf(mirror()) as HTMLElement).getByRole("button", { name: "Flip vertically" }),
+      within(rowOf(mirror()) as HTMLElement).getByRole("button", { name: "Mirror vertically" }),
     ).toBeTruthy();
   });
 
@@ -707,9 +707,9 @@ describe("EditorInspector: an instance's placement", () => {
     const { session, dispatch } = placed(["post-2"]);
     expect(within(section()).getByText("Z")).toBeTruthy();
     expect(within(section()).queryByText("z")).toBeNull();
-    expect(input("z").value).toBe("2");
-    fireEvent.change(input("z"), { target: { value: "+=3" } });
-    fireEvent.keyDown(input("z"), { key: "Enter" });
+    expect(input("Z").value).toBe("2");
+    fireEvent.change(input("Z"), { target: { value: "+=3" } });
+    fireEvent.keyDown(input("Z"), { key: "Enter" });
     expect(dispatch).toHaveBeenCalledOnce();
     expect(dispatch.mock.calls[0]![0]).toEqual({
       label: "Set post-2's z",
@@ -717,13 +717,13 @@ describe("EditorInspector: an instance's placement", () => {
     });
     expect(post(session).z).toBe(5);
 
-    fireEvent.keyDown(input("z"), { key: "ArrowDown" });
+    fireEvent.keyDown(input("Z"), { key: "ArrowDown" });
     expect(post(session).z).toBe(4);
 
-    fireEvent.change(input("z"), { target: { value: "99999" } });
-    fireEvent.keyDown(input("z"), { key: "Enter" });
+    fireEvent.change(input("Z"), { target: { value: "99999" } });
+    fireEvent.keyDown(input("Z"), { key: "Enter" });
     expect(dispatch).toHaveBeenCalledTimes(2);
-    expect(input("z").getAttribute("aria-invalid")).toBe("true");
+    expect(input("Z").getAttribute("aria-invalid")).toBe("true");
   });
 
   it("shows a nested instance's placement without the controls", () => {
@@ -733,7 +733,7 @@ describe("EditorInspector: an instance's placement", () => {
     expect(within(section()).getByText("0 (default)")).toBeTruthy();
     expect(within(section()).getByText("Not mirrored")).toBeTruthy();
     expect(within(section()).queryByRole("button")).toBeNull();
-    expect(screen.queryByLabelText("z")).toBeNull();
+    expect(screen.queryByLabelText("Z")).toBeNull();
     expect(screen.queryByLabelText("rot")).toBeNull();
   });
 
@@ -932,7 +932,7 @@ describe("EditorInspector: the Parent row", () => {
   it("offers no parent under the entity's own subtree", async () => {
     tree(["rig"]);
     const listed = await options();
-    expect(listed).toEqual(expect.arrayContaining(["ring", "post-2", "post-2/p"]));
+    expect(listed).toEqual(expect.arrayContaining(["ring", "post-2", "p"]));
     expect(listed).not.toContain("Rig");
     expect(listed).not.toContain("bolt");
   });
@@ -947,7 +947,7 @@ describe("EditorInspector: the Parent row", () => {
         ?.querySelector(".je-menu-detail")?.textContent;
     expect(detail("Rig")).toMatch(/^rig · /);
     expect(detail("post-2")).toBe("instance of post");
-    expect(detail("post-2/p")).toBe("in post-2");
+    expect(detail("p")).toBe("in post-2");
   });
 
   it("gives a drawn shape a Parent row, promoting it to an entity that stays selected", async () => {

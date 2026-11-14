@@ -1,13 +1,6 @@
 export const ENGINE_VERSION = "0.16.0";
 
-/**
- * The doc layout this engine writes, stored as `meta.layout`. A doc with no
- * `meta.layout` is layout 1, and so is a sync token with no `l` claim.
- * Layout 2 moved prefabs out of the scene doc into docs of their own;
- * layout 3 renamed the record keys to `@z` and `@bulk` and added the
- * `assets` map, nested behaviors and params, grid rows and the prefab doc's
- * `params`, `overrides` and `instances`.
- */
+/** The doc layout this engine writes (`meta.layout`); a doc or sync token without one is layout 1. */
 export const COLLAB_LAYOUT_VERSION = 3;
 
 /**

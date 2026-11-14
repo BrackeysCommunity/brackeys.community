@@ -22,6 +22,26 @@ export type EntityHandleDeps = {
   enabledSelf?: (id: string) => boolean;
 };
 
+/**
+ * The behavior handles `handleOf` gives for `ids`, in order; the first alone
+ * with `first`. Every lookup by behavior reads through here, skipping
+ * disabled entities and blocks with no handle now.
+ */
+export function behaviorHandlesOn(
+  ids: Iterable<string>,
+  first: boolean,
+  handleOf: (id: string) => object | undefined,
+): object[] {
+  const out: object[] = [];
+  for (const id of ids) {
+    const found = handleOf(id);
+    if (!found) continue;
+    out.push(found);
+    if (first) break;
+  }
+  return out;
+}
+
 /** The runtime's entity handles: `EngineContext.entity`, one per live entity. */
 export type EntityHandles = {
   entity(id: string): Entity | undefined;
@@ -66,19 +86,13 @@ class EntityHandle implements Entity {
     return id === null ? undefined : this.#host.entity(id);
   }
 
-  /** `def`'s handles on `ids` in order, only the first with `first`; disabled entities skipped, as `ctx.findBehavior` does. */
   #behaviorsOn(ids: Iterable<string>, def: BehaviorKey | BehaviorName, first: boolean): object[] {
     const name = behaviorNameOf(def);
     const { ctx, behaviors } = this.#host;
-    const out: object[] = [];
-    for (const id of ids) {
+    return behaviorHandlesOn(ids, first, (id) => {
       const e = ctx.enabled(id) ? this.#host.record(id) : undefined;
-      const found = e && behaviors.handle(e, name);
-      if (!found) continue;
-      out.push(found);
-      if (first) break;
-    }
-    return out;
+      return e && behaviors.handle(e, name);
+    });
   }
 
   get type(): RuntimeEntity["type"] {

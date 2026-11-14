@@ -5274,8 +5274,10 @@ Refers to [`ExpandedScene`](#expandedscene), [`SceneDefinition`](#scenedefinitio
 _function_ in `scene/resolve.ts`
 
 A prefab with its base and nested instances resolved; an outer override
-beats every inner one. Memoised per library and registry object (a new
-library version is a new map), so treat the result as read-only.
+beats every inner one. Fails with `prefab-unknown`, `variant-base-unknown`,
+`prefab-cycle` or `prefab-depth` (past `PREFAB_MAX_DEPTH`). Memoised per
+library and registry object (a new library version is a new map), so
+treat the result as read-only.
 
 ```ts
 declare function resolvePrefab(id: string, library: PrefabLibrary, registry: Registry, opts?: ResolveOptions): PrefabResolution;
@@ -5302,8 +5304,8 @@ _function_ in `scene/resolve.ts`
 The resolved view and where each of its entities came from. A document
 entity keeps its index, so pointers into `/entities/<i>` stay put; the
 instances' children follow, instance by instance. A stored geometry maps
-to the world through its parent chain (`sceneFrames`): `W(child) = W(parent) ∘ frame(entityFrame(parent))`, the
-innermost frame applied first. An instance's children go through its own
+to the world through its parent chain (`sceneFrames`), the innermost
+frame applied first. An instance's children go through its own
 frame, then its steps, and its `z` is added to each child's. An instance
 whose prefab is missing contributes nothing (validation reports it); an
 `off` instance's children are all `off`, and so is everything under an

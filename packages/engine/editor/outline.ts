@@ -14,6 +14,7 @@ import {
   resolveWith,
   sceneFrames,
   treeItems,
+  treeWalk,
   type LocalChild,
 } from "../scene/resolve";
 import {
@@ -71,11 +72,20 @@ export function entryLabel(def: SceneDefinition, ref: Ref): string {
   return d ? entryName(d) : ref;
 }
 
-/** An entity's row; `kind` leads its detail where no type row says it, and `at` is the point it shows. */
-function entityRow(e: EntityDef, depth = 1, kind?: string, at: unknown = e.at): OutlineRow {
-  const detail = [kind, describeEntry(e.shape ?? at), e.material, e.off ? "off" : undefined]
+/** `solid · box · ice`: `kind` leads where no type row says it. */
+const entryDetail = (
+  kind: string | undefined,
+  geometry: unknown,
+  material?: unknown,
+  off?: unknown,
+): string =>
+  [kind, describeEntry(geometry), material, off ? "off" : undefined]
     .filter((s) => typeof s === "string")
     .join(" · ");
+
+/** An entity's row; `kind` leads its detail where no type row says it, and `at` is the point it shows. */
+function entityRow(e: EntityDef, depth = 1, kind?: string, at: unknown = e.at): OutlineRow {
+  const detail = entryDetail(kind, e.shape ?? at, e.material, e.off);
   return {
     key: `ref:${e.id}`,
     depth,
@@ -117,23 +127,30 @@ const parentOf = (rel: Ref): string => {
   return i < 0 ? "" : rel.slice(0, i);
 };
 
-/** Rows a caller lists under a resolved ref: the scene's own entities parented to an instance's child. */
-type RowsUnder = (ref: Ref, depth: number) => OutlineRow[];
+/**
+ * What the tree view adds to an instance's rows: the scene's own entities
+ * parented to each child, and the geometry a child's row shows (a point in
+ * world coordinates, as the scene's own rows show theirs).
+ */
+type TreeRows = {
+  under(ref: Ref, depth: number): OutlineRow[];
+  shown(ref: Ref): unknown;
+};
 
 /**
  * An instance's row and, under it, a row per child of its prefab with its
  * resolved ref and whether it is overridden, then a row per instance nested
  * in that prefab (`room-1/door-1`) holding its own children
  * (`room-1/door-1/panel`) the same way, at every level. A child whose
- * `parent` names a sibling sits under that sibling's row. `under` adds rows
- * below each child's and nested instance's row.
+ * `parent` names a sibling sits under that sibling's row. With `tree`, a
+ * child's detail leads with its type, as no type row says it.
  */
 function instanceRows(
   inst: InstanceDef,
   prefabs: PrefabLibrary | undefined,
   registry: Registry,
   depth = 1,
-  under?: RowsUnder,
+  tree?: TreeRows,
 ): OutlineRow[] {
   const keys = Object.keys(inst.overrides ?? {});
   const covering = (rel: string) =>
@@ -170,27 +187,33 @@ function instanceRows(
       sibling(c.kind === "entity" ? c.def.parent : undefined, c.child);
     const nestedAbove = (x: (typeof nested)[number]) =>
       sibling(x.n.parent === undefined ? undefined : rel(x.n.parent), x.rel);
-    const done = new Set<string>();
     const child = (c: LocalChild, d: number) => {
-      done.add(c.child);
       const ref = childRef(inst.id, c.child);
       const type = c.kind === "entity" ? c.def.type : bulkKeyType(c.key);
       const own = c.child.slice(path ? path.length + 1 : 0);
+      const local = c.kind === "entity" ? (c.def.shape ?? c.def.at) : c.value;
+      const entity = c.kind === "entity" ? c.def : undefined;
       rows.push({
         key: `ref:${ref}`,
         depth: d,
         kind: "entity",
-        label: c.kind === "entity" ? (c.def.name ?? own) : own,
-        detail: describeEntry(c.kind === "entity" ? (c.def.shape ?? c.def.at) : c.value) ?? type,
+        label: entity ? (entity.name ?? own) : own,
+        detail: tree
+          ? entryDetail(
+              typeLabel(registry, type),
+              tree.shown(ref) ?? local,
+              entity?.material,
+              entity?.off,
+            )
+          : (describeEntry(local) ?? type),
         ref,
         type,
         overrides: keys.filter((k) => k.startsWith(`${c.child}.`)).length,
       });
       emit(c.child, d + 1);
-      if (under) rows.push(...under(ref, d + 1));
+      if (tree) rows.push(...tree.under(ref, d + 1));
     };
     const instance = ({ n, rel: at }: (typeof nested)[number], d: number) => {
-      done.add(at);
       const ref = childRef(inst.id, at);
       const inner = prefabs.get(n.prefab);
       const loops = stack.has(n.prefab) || stack.size >= PREFAB_MAX_DEPTH;
@@ -208,16 +231,20 @@ function instanceRows(
       });
       if (inner && !loops) walk(inner, at, d + 1, new Set([...stack, n.prefab]));
       emit(at, d + 1);
-      if (under) rows.push(...under(ref, d + 1));
+      if (tree) rows.push(...tree.under(ref, d + 1));
     };
+    type Entry = { c: LocalChild } | { x: (typeof nested)[number] };
+    const siblings = treeWalk<Entry>(
+      [...level.map((c) => ({ c })), ...nested.map((x) => ({ x }))],
+      (e) => ("c" in e ? childAbove(e.c) : nestedAbove(e.x)),
+    );
+    const place = (e: Entry, d: number) => ("c" in e ? child(e.c, d) : instance(e.x, d));
     const emit = (above: string | undefined, d: number) => {
-      for (const c of level) if (!done.has(c.child) && childAbove(c) === above) child(c, d);
-      for (const x of nested) if (!done.has(x.rel) && nestedAbove(x) === above) instance(x, d);
+      for (const e of siblings.take(above)) place(e, d);
     };
     emit(undefined, base);
     // Children whose parents loop among themselves sit at the instance's level.
-    for (const c of level) if (!done.has(c.child)) child(c, base);
-    for (const x of nested) if (!done.has(x.rel)) instance(x, base);
+    for (let e = siblings.rest(); e; e = siblings.rest()) place(e, base);
   };
   walk(prefab, "", depth + 1, new Set([prefab.id]));
   return rows;
@@ -309,26 +336,25 @@ export function buildTreeOutline(
     ...(def.entities ?? []).map((e, i): Item => ({ kind: "entity", def: e, at: shownAt(e, i) })),
     ...(def.instances ?? []).map((i): Item => ({ kind: "instance", def: i })),
   ];
-  const byParent = new Map<Ref, Item[]>();
-  for (const item of items) {
-    const parent = frames.parentOf(item.def.id) ?? "";
-    byParent.set(parent, [...(byParent.get(parent) ?? []), item]);
-  }
-  const done = new Set<Item>();
-  const under: RowsUnder = (parent, depth) =>
-    (byParent.get(parent) ?? []).flatMap((item) => emit(item, depth));
+  const shown = new Map<Ref, unknown>();
+  for (const inst of def.instances ?? [])
+    for (const { child, def: world } of frames.placed(inst) ?? [])
+      shown.set(childRef(inst.id, child.child), world.shape ?? rounded(world.at, decimals));
+  const walk = treeWalk(items, (item) => frames.parentOf(item.def.id));
   const emit = (item: Item, depth: number): OutlineRow[] => {
-    if (done.has(item)) return [];
-    done.add(item);
     const head =
       item.kind === "entity"
         ? [entityRow(item.def, depth, typeLabel(registry, item.def.type), item.at)]
-        : instanceRows(item.def, prefabs, registry, depth, under);
-    return [...head, ...under(item.def.id, depth + 1)];
+        : instanceRows(item.def, prefabs, registry, depth, tree);
+    return [...head, ...tree.under(item.def.id, depth + 1)];
   };
-  const rows = under("", 0);
+  const tree: TreeRows = {
+    under: (parent, depth) => walk.take(parent).flatMap((item) => emit(item, depth)),
+    shown: (ref) => shown.get(ref),
+  };
+  const rows = walk.take(undefined).flatMap((item) => emit(item, 0));
   // A parent naming an instance child the prefab doesn't have.
-  for (const item of items) rows.push(...emit(item, 0));
+  for (let item = walk.rest(); item; item = walk.rest()) rows.push(...emit(item, 0));
   for (const key of bulkKeysOf(def)) {
     const values = bulkEntries(def, key);
     if (values.length > 0) rows.push(...bucketRows(key, values, 0));

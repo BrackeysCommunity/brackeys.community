@@ -83,16 +83,10 @@ function startAt(clip: ResolvedClip, offset: number): number {
 }
 
 /**
- * The `anim` system. Not visual: it runs headless, from the clips an
- * animation doc (or an atlas's tags) resolves to at the run's tick rate.
- * Each tick, in registration order after `sprite`, it moves every playing
- * entity on by its speed in whole thousandths of a tick. Entering a frame
- * hands it to the sprite system when there is a view and raises
- * `anim:frame` once per event the frame declares. A `once` clip's end goes
- * on to its `next`, else holds its last frame and raises `anim:end`.
- * An entity's first frame is entered on the first tick after it attaches
- * or after `play` (on that same tick when `play` runs before this system's
- * step); one started `offset` in mid-frame raises nothing for it.
+ * The `anim` system: advances each playing entity by its speed in
+ * thousandths of a tick, hands entered frames to the sprite view, raises
+ * `anim:frame`/`anim:end`. Runs headless. A clip's first frame is entered
+ * on the tick after attach or `play`.
  */
 export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const runs = new Map<string, Run>();

@@ -21,6 +21,10 @@ export { DEFAULT_GRAVITY } from "./defaults";
 /** The primitive that is a pose and nothing else: the tree's plain parent. */
 export const NODE_TYPE: EntityTypeName = "node";
 
+/** Whether `t` is the `node` primitive or a type based on it: posed by its `at` and own `rot`. */
+export const isNodeType = (t: { type: string; base?: string | undefined } | undefined) =>
+  t !== undefined && (t.base ?? t.type) === NODE_TYPE;
+
 /** The primitive whose entities hold the Play camera's framing. */
 export const CAMERA_REGION_TYPE = "camera-region";
 

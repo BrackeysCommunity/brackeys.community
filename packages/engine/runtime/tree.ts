@@ -1,7 +1,14 @@
 import { EngineError, entityGone, type EngineContext, type SceneTree } from "../game/types";
 import { parentCycleMessage } from "../scene/issues";
 import type { RuntimeEntity } from "../scene/types";
-import { composePose, isWatched, relativePose, type Pose, type PoseIndex } from "./poses";
+import {
+  composePose,
+  isWatched,
+  plainPose,
+  relativePose,
+  type Pose,
+  type PoseIndex,
+} from "./poses";
 
 export type { SceneTree };
 
@@ -172,7 +179,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     const pose = deps.poses.get(id);
     if (!pose) return undefined;
     const frame = parent === undefined ? undefined : deps.poses.get(parent);
-    return frame ? relativePose(pose, frame) : { x: pose.x, y: pose.y, rot: pose.rot };
+    return frame ? relativePose(pose, frame) : plainPose(pose);
   }
 
   function remeasure(link: Link): void {

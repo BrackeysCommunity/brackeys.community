@@ -673,6 +673,41 @@ export function documentTree(
   };
 }
 
+/**
+ * A parents-first walk over `items`, each handed out once: `take(parent)`
+ * gives the items under `parent` (undefined: the root) in input order, and
+ * `rest()` the first item no `take` reached, whose parent never came up or
+ * sits in a loop, for the caller to place at the root.
+ */
+export type TreeWalk<T> = {
+  take(parent: Ref | undefined): T[];
+  rest(): T | undefined;
+};
+
+export function treeWalk<T>(
+  items: readonly T[],
+  parentOf: (item: T) => Ref | undefined,
+): TreeWalk<T> {
+  const byParent = new Map<Ref | undefined, T[]>();
+  for (const item of items) {
+    const p = parentOf(item);
+    byParent.set(p, [...(byParent.get(p) ?? []), item]);
+  }
+  const taken = new Set<T>();
+  return {
+    take(parent) {
+      const out = (byParent.get(parent) ?? []).filter((item) => !taken.has(item));
+      for (const item of out) taken.add(item);
+      return out;
+    },
+    rest() {
+      const item = items.find((i) => !taken.has(i));
+      if (item !== undefined) taken.add(item);
+      return item;
+    },
+  };
+}
+
 /** Writes `value` at a dot path, creating objects on the way; false when the path runs into a value. */
 function setAtPath(root: Record<string, unknown>, field: string, value: unknown): boolean {
   const segs = field.split(".");
@@ -791,8 +826,10 @@ const fresh = (library: PrefabLibrary, deps: Deps) =>
 
 /**
  * A prefab with its base and nested instances resolved; an outer override
- * beats every inner one. Memoised per library and registry object (a new
- * library version is a new map), so treat the result as read-only.
+ * beats every inner one. Fails with `prefab-unknown`, `variant-base-unknown`,
+ * `prefab-cycle` or `prefab-depth` (past `PREFAB_MAX_DEPTH`). Memoised per
+ * library and registry object (a new library version is a new map), so
+ * treat the result as read-only.
  */
 export function resolvePrefab(
   id: string,
@@ -1077,14 +1114,11 @@ export function instanceOverrideEntries(
 /**
  * `prefab` with an instance's overrides of its nested instances laid over,
  * and the overrides left for its own children. A key under a nested
- * instance (`door-1/panel.path.speed`, `door-1/latch.rot`) moves down into
- * that instance's overrides, last, so it beats the inner level's own and
- * lands in the frame of the prefab that holds the child; a nested
- * instance's own field (`door-1.at`, `door-1.params.speed`) is set on it.
- * On a variant, a key of that shape whose head isn't the variant's own
- * moves into the variant's overrides of its base, last, so it reaches the
- * base's nested instance the same way.
- * Override values are always in the frame of the child's own prefab.
+ * instance (`door-1/panel.path.speed`) moves last into that instance's
+ * overrides, so it beats the inner level's own, and a nested instance's
+ * own field (`door-1.at`) is set on it; on a variant, a head that isn't
+ * the variant's own goes on to its base the same way. Values stay in the
+ * frame of the prefab that holds the child.
  */
 function patchedPrefab(
   prefab: Prefab,
@@ -1493,8 +1527,8 @@ const isFlat = (def: SceneDefinition): boolean =>
  * The resolved view and where each of its entities came from. A document
  * entity keeps its index, so pointers into `/entities/<i>` stay put; the
  * instances' children follow, instance by instance. A stored geometry maps
- * to the world through its parent chain (`sceneFrames`): `W(child) = W(parent) ∘ frame(entityFrame(parent))`, the
- * innermost frame applied first. An instance's children go through its own
+ * to the world through its parent chain (`sceneFrames`), the innermost
+ * frame applied first. An instance's children go through its own
  * frame, then its steps, and its `z` is added to each child's. An instance
  * whose prefab is missing contributes nothing (validation reports it); an
  * `off` instance's children are all `off`, and so is everything under an

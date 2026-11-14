@@ -3452,16 +3452,10 @@ Refers to [`EditorToolDef`](#editortooldef).
 
 _function_ in `editor/inspector-model.ts`
 
-What the inspector shows for a selection: each registered type's schema
-walked into field descriptors, titled by `meta.title`, explained by
-`.describe()`, drawn by the widget its Zod kind (or a game's
-`meta.widget`) calls for, and sectioned by `meta.group` or, without one,
-by kind. Each behavior every target carries gets its own section,
-`behaviors:<name>`, with its fields in `inspector.order` (each with its
-`meta.group`) and a Remove batch; `addBehaviors` lists the rest the types
-allow, each adding what it requires too. With several
-targets only the fields they share are shown, and a field whose values
-differ is `mixed`. Pure: the site renders it.
+What the inspector shows for a selection: each type's schema as field
+descriptors, a section per carried behavior, and the behaviors left to
+add. Several targets show only shared fields; differing values are
+`mixed`.
 
 ```ts
 declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
@@ -4980,16 +4974,8 @@ declare function parseRelative(text: string, current: unknown): number | undefin
 
 _function_ in `editor/clipboard.ts`
 
-The batch that pastes clipboard text into `def`: the fragment's box
-centred under `at` and snapped, ids that clash renamed (`lift` →
-`lift-2`), references inside the fragment following the renames, and
-references out of it kept when their target exists in `def`, else
-cleared with a `dangling-ref` warning. The fragment's roots land under
-nothing, and what sits under them comes along. Instances keep their
-prefab, params and overrides under a fresh id when theirs is taken; one
-whose prefab isn't in `prefabs` is left out with a `prefab-unknown`
-warning. One batch of `addBulk`, `add` and `instantiate` ops; `select`
-names what it adds.
+The batch that pastes clipboard text into `def`, centred under `at` and
+snapped; placed as `placeFragment` places it. `select` names what it adds.
 
 ```ts
 declare function pasteFragment(input: SceneFragment | string, opts: PasteOptions): PasteResult;

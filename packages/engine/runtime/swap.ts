@@ -9,7 +9,7 @@ import { diffExpanded } from "../scene/expanded-diff";
 import { errorText, liveIssue } from "../scene/issues";
 import type { ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
 import type { SpawnRecord } from "./lifecycle";
-import type { Pose } from "./poses";
+import { plainPose, samePose, type Pose } from "./poses";
 import type { SaveHost } from "./runtime";
 import { captureSave, restoreLoaded, worldSaveBlockers } from "./save-state";
 import { spawnPose } from "./spawn-pose";
@@ -97,7 +97,7 @@ function bodyState(body: RigidBody): BodyState {
 function keep(host: SwapHost, e: RuntimeEntity): Kept {
   const pose = host.ctx.poses.get(e.id) ?? null;
   return {
-    pose: pose ? { x: pose.x, y: pose.y, rot: pose.rot } : null,
+    pose: pose ? plainPose(pose) : null,
     states: structuredClone(host.saveEntity(e)),
     bodies: bodiesOf(host.ctx, e.id).map(bodyState),
   };
@@ -140,12 +140,7 @@ function moved(registry: Registry, prev: RuntimeEntity, next: RuntimeEntity): bo
   if (prev.type !== next.type || (prev.parent ?? null) !== (next.parent ?? null)) return true;
   const a = spawnPose(prev, registry);
   const b = spawnPose(next, registry);
-  return (
-    a.x !== b.x ||
-    a.y !== b.y ||
-    a.rot !== b.rot ||
-    !sameValue(prev.transform ?? null, next.transform ?? null)
-  );
+  return !samePose(a, b) || !sameValue(prev.transform ?? null, next.transform ?? null);
 }
 
 /**
@@ -373,16 +368,40 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
   };
 }
 
+/** The run at world depth when nothing blocks a world save, else at progress depth. */
+function captureForReload(host: SwapHost): ReturnType<typeof capture> {
+  const depth = worldSaveBlockers(host.runtime()).length === 0 ? "world" : "progress";
+  const taken = capture(host, depth);
+  return !taken.ok && depth === "world" ? capture(host, "progress") : taken;
+}
+
 /**
- * The reload strategy: the run captured at world depth when
- * `worldSaveBlockers` names nothing, else at progress depth; `next` loaded
- * fresh with `prefabs` as its library, which runs the game's `onLoad`; then
- * the capture restored in a save restore's order, which runs its `restore`.
- * The tick carries on at every depth. A world capture goes back as
- * progress onto a scene that now runs on Rapier. `after` is a reconcile
- * that refused, with its world capture when it took one; its refusal is
- * reported when the reload fails too. On a failure the old version is
- * loaded again and the capture put back.
+ * Loads `next` fresh, which runs the game's `onLoad`, and restores `file` on
+ * the same tick. A scene that now runs on Rapier gets a world capture back as
+ * progress. On a failure the old version is loaded again with `file`.
+ */
+function restoreAfterReload(
+  host: SwapHost,
+  next: ExpandedScene,
+  prefabs: PrefabLibrary,
+  was: Previous,
+  file: SaveFile,
+): { onto: SaveFile; failed: Refusal | null } {
+  const onto =
+    file.depth === "world" && next.settings.physics === "rapier" ? asProgress(file) : file;
+  // Read before the load: a failed one unloads, which zeroes the tick.
+  const tick = host.ctx.tick;
+  const failed = loadAndRestore(host, was.loadFresh, next, prefabs, onto, tick);
+  if (!failed || host.save.mainScene() === was.version) return { onto, failed };
+  const back = loadAndRestore(host, was.loadBack, was.version, was.library, file, tick);
+  if (back) failed.cause += `; putting the old version back failed too: ${back.cause}`;
+  return { onto, failed };
+}
+
+/**
+ * Reload strategy: capture, load `next` fresh, restore; on a failure the old
+ * version comes back. `after` is a reconcile that refused, with its world
+ * capture when it took one, and its refusal leads the report if this fails too.
  */
 function reload(
   host: SwapHost,
@@ -395,9 +414,7 @@ function reload(
 ): SwapReport {
   let file = after?.file ?? null;
   if (!file) {
-    const depth = worldSaveBlockers(host.runtime()).length === 0 ? "world" : "progress";
-    let taken = capture(host, depth);
-    if (!taken.ok && depth === "world") taken = capture(host, "progress");
+    const taken = captureForReload(host);
     if (!taken.ok) {
       return refuse(`the run couldn't be captured for a reload: ${taken.issue.message}`, {
         reason: "refused",
@@ -406,23 +423,14 @@ function reload(
     file = taken.file;
   }
   const before = file;
-  const onto =
-    before.depth === "world" && next.settings.physics === "rapier" ? asProgress(before) : before;
-  // Read before the load: a failed one unloads, which zeroes the tick.
-  const tick = host.ctx.tick;
-  const failed = loadAndRestore(host, was.loadFresh, next, prefabs, onto, tick);
+  const { onto, failed } = restoreAfterReload(host, next, prefabs, was, before);
   if (failed) {
-    const back =
-      host.save.mainScene() !== was.version
-        ? loadAndRestore(host, was.loadBack, was.version, was.library, before, tick)
-        : null;
     const why: Refusal = after
       ? {
           cause: `${after.refused.cause}; reloading instead failed too: ${failed.cause}`,
           ...(after.refused.entityId !== undefined ? { entityId: after.refused.entityId } : {}),
         }
       : failed;
-    if (back) why.cause += `; putting the old version back failed too: ${back.cause}`;
     return refuse(why.cause, {
       reason: "refused",
       ...(why.entityId !== undefined ? { entityId: why.entityId } : {}),

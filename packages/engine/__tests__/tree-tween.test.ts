@@ -3,16 +3,12 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { ease } from "../anim/ease";
 import type { BehaviorSystem } from "../game/behaviors";
-import { defineGame } from "../game/define";
 import type { LibraryScene, SceneLibrary } from "../game/flow";
 import { formatSaveFile, parseSaveFile } from "../game/save-file";
 import { loadListed } from "../runtime/flow";
-import { relativePose, type Pose } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { captureSave, restoreSave } from "../runtime/save-state";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { expandScene } from "../scene/expand";
-import { hashText } from "../scene/hash";
 import { prefabLibrary } from "../scene/prefab";
 import {
   SCENE_FORMAT_VERSION,
@@ -21,13 +17,15 @@ import {
   type RuntimeEntity,
   type SceneDefinition,
 } from "../scene/types";
-import { testGame } from "./fixtures/test-game";
-import { steps } from "./fixtures/tree-rig";
-
-const game = defineGame({
-  ...testGame,
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
+import {
+  loadWithPrefabs,
+  offset,
+  pose,
+  quietTestGame as game,
+  steps,
+  traceDigest,
+  expectPoseOf,
+} from "./fixtures/tree-rig";
 
 /** Ticks of the arm's swing. */
 const SWING = 30;
@@ -67,16 +65,7 @@ function scene(): SceneDefinition {
   };
 }
 
-function load(opts?: { timeOffsetMs: number }): SceneRuntimeHandle {
-  const rt = createSceneRuntime({ rapier: null, view: null, game, prefabs: PREFABS });
-  const report = rt.load(expandScene(scene(), rt.ctx.registry, { prefabs: PREFABS }), opts);
-  if (!report.ok) throw new Error(report.error);
-  return rt;
-}
-
-/** `id`'s pose in `parent`'s frame, from the live world poses. */
-const offset = (rt: SceneRuntimeHandle, id: string, parent: string): Pose =>
-  relativePose(rt.ctx.poses.get(id)!, rt.ctx.poses.get(parent)!);
+const load = (opts?: { timeOffsetMs: number }) => loadWithPrefabs(scene(), PREFABS, opts);
 
 /** The arm's x in the rig's frame `k` ticks into a swing that started at tick 0. */
 function swingX(k: number): number {
@@ -123,10 +112,8 @@ describe("a tween on a child", () => {
     const stepped = load();
     steps(stepped, 47);
     const sought = load({ timeOffsetMs: 47 * stepped.ctx.time.tickMs });
-    const a = stepped.ctx.poses.get("rig/arm")!;
-    const b = sought.ctx.poses.get("rig/arm")!;
-    expect(b.x).toBeCloseTo(a.x, 9);
-    expect(b.y).toBeCloseTo(a.y, 9);
+    const { x, y } = pose(stepped, "rig/arm");
+    expectPoseOf(sought, "rig/arm", { x, y }, 9);
     expect(offset(sought, "rig/arm", "rig").x).toBeCloseTo(swingX(47), 9);
     stepped.destroy();
     sought.destroy();
@@ -150,26 +137,13 @@ describe("a tween on a child", () => {
       scenes: new Map<string, LibraryScene>([["tree-tween", { def: scene(), prefabs: PREFABS }]]),
     };
     const runtime = () => createSceneRuntime({ rapier: null, view: null, game, scenes: library });
-    const run = (rt: SceneRuntimeHandle, ticks: number) => {
-      const frames: unknown[] = [];
-      for (let t = 0; t < ticks; t++) {
-        const result = rt.step(rt.ctx.time.tickMs, []);
-        const poses = [...rt.ctx.poses.ids()].sort().map((id) => {
-          const p = rt.ctx.poses.get(id)!;
-          return [id, p.x, p.y, p.rot];
-        });
-        frames.push([result.tick, result.events, poses]);
-      }
-      return hashText(JSON.stringify(frames));
-    };
-
     const a = runtime();
     expect(loadListed(a, "tree-tween").ok).toBe(true);
     moveRig(a);
-    run(a, 53);
+    traceDigest(a, 53);
     const captured = captureSave(a, { depth: "world", slot: "s", now: 1 });
     if (!captured.ok) throw new Error(captured.issue.message);
-    const digest = run(a, 300);
+    const digest = traceDigest(a, 300);
 
     const parsed = parseSaveFile(formatSaveFile(captured.file), game);
     if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
@@ -177,7 +151,7 @@ describe("a tween on a child", () => {
     const restored = restoreSave(b, parsed.file);
     if (!restored.ok) throw new Error(restored.issue.message);
     expect(offset(b, "rig/arm", "rig").x).toBeCloseTo(swingX(53), 9);
-    expect(run(b, 300)).toBe(digest);
+    expect(traceDigest(b, 300)).toBe(digest);
     a.destroy();
     b.destroy();
   });

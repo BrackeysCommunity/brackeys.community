@@ -2,16 +2,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { PathFollowSystem } from "../game/behaviors/path-follow";
-import { defineGame } from "../game/define";
 import type { LibraryScene, SceneLibrary } from "../game/flow";
 import { formatSaveFile, parseSaveFile } from "../game/save-file";
 import { loadListed } from "../runtime/flow";
-import { relativePose, type Pose } from "../runtime/poses";
+import { relativePose } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { captureSave, restoreSave } from "../runtime/save-state";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { expandScene } from "../scene/expand";
-import { hashText } from "../scene/hash";
 import { prefabLibrary } from "../scene/prefab";
 import {
   SCENE_FORMAT_VERSION,
@@ -21,13 +18,16 @@ import {
   type SceneDefinition,
 } from "../scene/types";
 import type { Vec2 } from "../types";
-import { testGame } from "./fixtures/test-game";
-import { steps } from "./fixtures/tree-rig";
-
-const game = defineGame({
-  ...testGame,
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
+import {
+  expectPoseClose,
+  expectPoseOf,
+  loadWithPrefabs,
+  offset,
+  pose,
+  quietTestGame as game,
+  steps,
+  traceDigest,
+} from "./fixtures/tree-rig";
 
 const PATH = {
   pts: [
@@ -83,17 +83,10 @@ function scene(entities: EntityDef[] = [], instances: InstanceDef[] = [PLACED]):
   };
 }
 
-function load(def = scene(), opts?: { timeOffsetMs: number }): SceneRuntimeHandle {
-  const rt = createSceneRuntime({ rapier: null, view: null, game, prefabs: PREFABS });
-  const report = rt.load(expandScene(def, rt.ctx.registry, { prefabs: PREFABS }), opts);
-  if (!report.ok) throw new Error(report.error);
-  return rt;
-}
+const load = (def = scene(), opts?: { timeOffsetMs: number }) =>
+  loadWithPrefabs(def, PREFABS, opts);
 
 const step = (rt: SceneRuntimeHandle, n = 1) => void steps(rt, n);
-
-const offset = (rt: SceneRuntimeHandle, id: string, parent: string): Pose =>
-  relativePose(rt.ctx.poses.get(id)!, rt.ctx.poses.get(parent)!);
 
 /** The path as written, traced tick by tick by a root follower at the origin. */
 function reference(ticks: number): Vec2[] {
@@ -101,8 +94,8 @@ function reference(ticks: number): Vec2[] {
   const out: Vec2[] = [];
   for (let k = 0; k < ticks; k++) {
     step(rt);
-    const p = rt.ctx.poses.get("car")!;
-    out.push({ x: p.x, y: p.y });
+    const { x, y } = pose(rt, "car");
+    out.push({ x, y });
   }
   rt.destroy();
   return out;
@@ -112,11 +105,6 @@ function reference(ticks: number): Vec2[] {
 const moveTrack = (rt: SceneRuntimeHandle) =>
   rt.ctx.tweens.to("track", { to: { x: 15, rot: 1.5 }, duration: 120 });
 
-const close = (got: Pose | Vec2, want: Vec2, digits: number) => {
-  expect(got.x).toBeCloseTo(want.x, digits);
-  expect(got.y).toBeCloseTo(want.y, digits);
-};
-
 describe("path-follow under a parent", () => {
   it("traces its path in the parent's frame while the parent moves and turns", () => {
     const ref = reference(200);
@@ -125,7 +113,7 @@ describe("path-follow under a parent", () => {
     moveTrack(rt);
     for (let k = 0; k < 200; k++) {
       step(rt);
-      close(offset(rt, "track/car", "track"), ref[k]!, 9);
+      expectPoseClose(offset(rt, "track/car", "track"), ref[k]!, `car at ${k}`, 9);
     }
     expect(rt.ctx.poses.get("track")!.rot).toBe(1.5);
     rt.destroy();
@@ -139,11 +127,11 @@ describe("path-follow under a parent", () => {
       step(rt);
       // Its velocity was set before the track moved this tick: one tick of the track's motion behind.
       const before = rt.ctx.poses.prev("track")!;
-      close(relativePose(rt.ctx.poses.get("track/lift")!, before), ref[k]!, 6);
+      expectPoseClose(relativePose(pose(rt, "track/lift"), before), ref[k]!, `lift at ${k}`, 6);
     }
     for (let k = 120; k < 200; k++) {
       step(rt);
-      close(offset(rt, "track/lift", "track"), ref[k]!, 6);
+      expectPoseClose(offset(rt, "track/lift", "track"), ref[k]!, `lift at ${k}`, 6);
     }
     rt.destroy();
   });
@@ -153,7 +141,7 @@ describe("path-follow under a parent", () => {
     expect(rt.ctx.poses.get("track/car")).toMatchObject({ x: 5, y: 5 });
     step(rt);
     const ref = reference(1);
-    close(offset(rt, "track/car", "track"), ref[0]!, 9);
+    expectPoseClose(offset(rt, "track/car", "track"), ref[0]!, "car", 9);
     rt.destroy();
   });
 
@@ -162,7 +150,7 @@ describe("path-follow under a parent", () => {
     step(stepped, 137);
     const sought = load(scene(), { timeOffsetMs: 137 * stepped.ctx.time.tickMs });
     for (const id of ["track/car", "track/lift"]) {
-      close(sought.ctx.poses.get(id)!, stepped.ctx.poses.get(id)!, 9);
+      expectPoseOf(sought, id, pose(stepped, id), 9);
     }
     stepped.destroy();
     sought.destroy();
@@ -174,11 +162,11 @@ describe("path-follow under a parent", () => {
     moveTrack(rt);
     step(rt, 150);
     rt.ctx.behavior<PathFollowSystem>("path-follow")!.reset!();
-    close(offset(rt, "track/car", "track"), { x: 0, y: 0 }, 9);
-    close(offset(rt, "track/lift", "track"), { x: 0, y: 0 }, 9);
+    expectPoseClose(offset(rt, "track/car", "track"), { x: 0, y: 0 }, "car", 9);
+    expectPoseClose(offset(rt, "track/lift", "track"), { x: 0, y: 0 }, "lift", 9);
     for (let k = 0; k < 40; k++) {
       step(rt);
-      close(offset(rt, "track/car", "track"), ref[k]!, 9);
+      expectPoseClose(offset(rt, "track/car", "track"), ref[k]!, `car at ${k}`, 9);
     }
     rt.destroy();
   });
@@ -207,23 +195,10 @@ describe("path-follow under a parent", () => {
       scenes: new Map<string, LibraryScene>([["tree-path", { def: scene(), prefabs: PREFABS }]]),
     };
     const runtime = () => createSceneRuntime({ rapier: null, view: null, game, scenes: library });
-    const run = (rt: SceneRuntimeHandle, ticks: number) => {
-      const frames: unknown[] = [];
-      for (let t = 0; t < ticks; t++) {
-        const result = rt.step(rt.ctx.time.tickMs, []);
-        const poses = [...rt.ctx.poses.ids()].sort().map((id) => {
-          const p = rt.ctx.poses.get(id)!;
-          return [id, p.x, p.y, p.rot];
-        });
-        frames.push([result.tick, result.events, poses]);
-      }
-      return hashText(JSON.stringify(frames));
-    };
-
     const a = runtime();
     expect(loadListed(a, "tree-path").ok).toBe(true);
     moveTrack(a);
-    run(a, 77);
+    traceDigest(a, 77);
     const captured = captureSave(a, { depth: "world", slot: "s", now: 1 });
     if (!captured.ok) throw new Error(captured.issue.message);
     expect(captured.file.world!.systems).toMatchObject({
@@ -233,14 +208,14 @@ describe("path-follow under a parent", () => {
       "path-follow": { frame: number[] };
     };
     expect(saved["path-follow"].frame[2]).toBeCloseTo(Math.PI / 2, 12);
-    const digest = run(a, 300);
+    const digest = traceDigest(a, 300);
 
     const parsed = parseSaveFile(formatSaveFile(captured.file), game);
     if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
     const b = runtime();
     const restored = restoreSave(b, parsed.file);
     if (!restored.ok) throw new Error(restored.issue.message);
-    expect(run(b, 300)).toBe(digest);
+    expect(traceDigest(b, 300)).toBe(digest);
     a.destroy();
     b.destroy();
   });

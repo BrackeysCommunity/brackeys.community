@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { ANIM } from "../../game/behaviors/anim";
+import { NAV_AGENT, type NavAgentSystem } from "../../game/behaviors/nav-agent";
 import { TWEEN } from "../../game/behaviors/tween";
 import { defineGame } from "../../game/define";
 import { SAVE_RANDOM_KEY, type SaveFile } from "../../game/save-file";
@@ -11,7 +12,7 @@ import { SAVE_TWEENS_KEY, TWEEN_END } from "../../runtime/behaviors/tween";
 import { SAVE_INPUT_KEY } from "../../runtime/runtime";
 import { captureSave } from "../../runtime/save-state";
 import type { SceneRuntimeHandle } from "../../runtime/types";
-import { SCENE_FORMAT_VERSION, type EntityDef } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../../scene/types";
 import { probe as gridPuzzle } from "./grid-puzzle.probe";
 import {
   loadRapier,
@@ -296,6 +297,52 @@ const tweenIds: GenreProbe = {
   expect: { result: "none" },
 };
 
+/**
+ * A walker whose pose tween ends at tick 4 and whose nav-agent then follows
+ * `goal` from tick 6, planning again every 9 ticks: a save mid-walk must
+ * restore without the walk planning again where it was put back.
+ */
+const tweenThenWalk = defineGame({
+  id: "saves-audit-tween-walk",
+  types: [],
+  actions: [],
+  createRuntime: (ctx) => {
+    const nav = () => ctx.behavior<NavAgentSystem>(NAV_AGENT.name)!;
+    return {
+      snapshot: () => ({ walk: nav().save?.("walker") ?? null, at: ctx.poses.get("walker") }),
+      restore() {},
+      beforeStep() {
+        if (ctx.tick === 6) nav().setDestination("walker", "goal");
+      },
+    };
+  },
+}) as GameDefinition;
+
+const tweenThenWalkScene: SceneDefinition = {
+  v: SCENE_FORMAT_VERSION,
+  game: "saves-audit-tween-walk",
+  name: "saves-audit-tween-walk",
+  bounds: [0, 0, 12, 10],
+  settings: { physics: "none" },
+  entities: [
+    {
+      id: "floor",
+      type: "nav",
+      shape: ["poly", 0, 0, 12, 0, 12, 10, 0, 10],
+    },
+    { id: "goal", type: "marker", at: [11, 9] },
+    {
+      id: "walker",
+      type: "marker",
+      at: [1, 1],
+      behaviors: {
+        [TWEEN.name]: { tweens: [{ to: { x: 2 }, duration: 3 }] },
+        [NAV_AGENT.name]: { repathTicks: 9 },
+      },
+    },
+  ] as EntityDef[],
+};
+
 /** The grid puzzle's swap rules saved with a pointer button held continue with the uninterrupted run's ticks. */
 const HELD_POINTER_SAVES = [14, 16, 19, 21, 40, 42];
 
@@ -329,6 +376,28 @@ describe("saves audit: the gaps a save chain found", () => {
     const held = run.fromSave!.save.world?.systems[SAVE_TWEENS_KEY]?.run;
     expect(held).toMatchObject({ next: 2, tweens: [] });
     expect(run.fromSave!.digest).toBe(run.digest);
+  });
+
+  it("a nav-agent walking after its pose tween ended restores without planning again", () => {
+    const run = (continueSaved: boolean) =>
+      playFromSave({
+        rapier: null,
+        game: tweenThenWalk,
+        scene: tweenThenWalkScene,
+        script: { v: 2, scene: "saves-audit-tween-walk", steps: [{ wait: 40 }] },
+        at: 20,
+        continueSaved,
+        label: `saves-audit-tween-walk${continueSaved ? ", continued" : ""}`,
+      });
+    const continued = run(true);
+    const restored = run(false);
+    expect(continued.save.world?.systems[SAVE_TWEENS_KEY]?.run).toMatchObject({
+      tweens: [],
+      posed: ["walker"],
+    });
+    expect((continued.saved as { walk: { next?: number } }).walk.next).toBeGreaterThan(0);
+    expect(restored.final).toStrictEqual(continued.final);
+    expect(restored.digest).toBe(continued.digest);
   });
 
   it.each(HELD_POINTER_SAVES)(

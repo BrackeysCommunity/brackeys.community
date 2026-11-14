@@ -73,16 +73,11 @@ function rapierSizes(c: Collider, ShapeType: RapierModule["ShapeType"]): number[
 }
 
 /**
- * Contact starts and ends between watched entities, read after the
- * sensors each tick without a callback from the physics step. Candidates
- * come from a hash of every enabled entity's non-sensor colliders by world
- * bounds, refreshed each tick for the colliders that moved, so an entity
- * whose system builds its colliders in code is found by what it collides
- * with, not by its scene shape. Each candidate pair is then tested
- * collider by collider: `Collider.contactCollider(other, 0)` on Rapier
- * (touching at distance <= 0, `at` its `point1`), `shapesIntersect` on the
- * geometry world (`at` the centre of the boxes' overlap). Sensors and
- * colliders gated off with collision groups 0 never touch.
+ * Contact starts and ends between watched entities, read after the sensors
+ * each tick. Candidates come from a hash of every enabled entity's
+ * non-sensor colliders by world bounds, so an entity whose system builds its
+ * colliders in code is found by what it collides with, not its scene shape.
+ * Sensors and colliders gated off with collision groups 0 never touch.
  */
 export function createContacts(ctx: EngineContext): RuntimeContacts {
   const watches: Watch[] = [];

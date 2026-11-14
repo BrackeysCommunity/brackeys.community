@@ -43,26 +43,16 @@ const inverse = (dynamic: boolean, amount: number): number =>
   dynamic && Number.isFinite(amount) && amount > 0 ? 1 / amount : 0;
 
 /**
- * The `joint` behavior's system. It links the entity's body to the body of
- * the entity `to` names (Rapier's first body is `to`'s, the second this
- * one's, so limits and the motor read this body relative to `to`). Joints
- * are made in `ready`, after every body of the load exists, and follow
- * their bodies: before each physics step a joint whose end is gone or
- * disabled is removed, and one whose ends are both live again, or were
- * rebuilt, is made again, in attach order. A motor drives the relative
- * speed toward its target with at most `maxForce` each tick, through
- * `ctx.bodies`; it keeps nothing between ticks.
+ * Links the entity's body to `to`'s (Rapier's first body is `to`'s, so
+ * limits read this body relative to it). Joints are made in `ready` and
+ * remade each tick when an end comes back or was rebuilt.
  */
 export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const linked = new Map<string, Linked>();
 
   /**
-   * The body that holds `id`'s first enabled collider that isn't a sensor, in
-   * handle order: what validation's `joint-ref-type` expects of an entity
-   * with a body, a non-sensor collider, or a type that declares `ownsBody`.
-   * A collider body a character's or an agent's motion body stands in for is
-   * disabled, so the joint holds the motion body. A cached body that has
-   * since been disabled is looked up again.
+   * The body holding `id`'s first enabled non-sensor collider, which is what
+   * `joint-ref-type` validates; re-looked-up when the cached one was disabled.
    */
   function bodyOf(physics: PhysicsWorld, id: string, cached: number | null): RigidBody | null {
     if (cached !== null) {

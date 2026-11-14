@@ -427,6 +427,40 @@ describe("what a script reaches", () => {
     rt.destroy();
   });
 
+  it("keeps the other instances stepping when a live edit's rebuild throws", () => {
+    const log: string[] = [];
+    const fragile = defineScript({
+      name: "probe/fragile",
+      description: "Refuses to build broken.",
+      fields: { broken: z.boolean().default(false) },
+      create: (self) => {
+        if (self.fields.broken) throw new Error("broken");
+        return {
+          step: () => log.push(`step:${self.entity.id}`),
+          onDestroy: () => log.push(`onDestroy:${self.entity.id}`),
+        };
+      },
+    });
+    const at = (id: string, broken = false): RuntimeEntity => ({
+      id,
+      type: "node",
+      at: [0, 0],
+      behaviors: { "probe/fragile": { broken } },
+    });
+    const rt = world([at("a"), at("b")], [fragile]);
+    const refused = rt.update([at("a", true), at("b")]);
+    expect(refused).toMatchObject({ ok: false, error: "broken", entityId: "a" });
+    // The refused edit puts `a` back as it was.
+    rt.step(DT, []);
+    expect(log).toEqual(["onDestroy:a", "step:b", "step:a"]);
+    log.length = 0;
+    rt.ctx.destroy("a");
+    rt.step(DT, []);
+    rt.step(DT, []);
+    expect(log).toEqual(["onDestroy:a", "step:b", "step:b"]);
+    rt.destroy();
+  });
+
   it("stops a replaced or detached instance's emit timers, repeating ones too", () => {
     const ticker = defineScript({
       name: "probe/ticker",

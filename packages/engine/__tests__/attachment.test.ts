@@ -20,6 +20,7 @@ import { carrierDelta, type FollowerSystem } from "../systems/path-follower";
 import type { RapierModule } from "../types";
 import { readPrefabFiles } from "../vite/project-files";
 import { testGame } from "./fixtures/test-game";
+import { colliderOf } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -74,9 +75,6 @@ function loaded(def: SceneDefinition, reg = registry) {
   expect(r.ok).toBe(true);
   return rt;
 }
-
-const colliderOf = (rt: ReturnType<typeof loaded>, id: string) =>
-  rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!;
 
 describe("attachment to a path follower", () => {
   it("puts the child's collider on the follower's body at its offset from the first path point", () => {

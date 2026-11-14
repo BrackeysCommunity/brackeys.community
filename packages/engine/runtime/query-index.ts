@@ -1,6 +1,6 @@
 import type { BehaviorName } from "../game/behaviors";
 import type { EngineContext, EntityQuery, EntitySelector } from "../game/types";
-import { entityTags, geometryFields, tagFieldsOf } from "../scene/schema";
+import { entityTags, tagFieldsOf } from "../scene/schema";
 import {
   aabb,
   distanceToShape,
@@ -15,7 +15,7 @@ import type { Aabb, EntityTypeName, Pt, RuntimeEntity, ShapeObj } from "../scene
 import type { Vec2 } from "../types";
 import { carriedBehaviors } from "./behaviors";
 import { isWatched, type Pose } from "./poses";
-import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
+import { spawnGeometryOf, spawnPoseOf, type SpawnGeometry } from "./spawn-pose";
 
 /** A runtime's query index: `EngineContext.query` plus what the lifecycle tells it. */
 export type RuntimeQueryIndex = EntityQuery & {
@@ -91,7 +91,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
   const byBehavior = new Map<BehaviorName, Set<string>>();
   const none: ReadonlySet<string> = new Set();
   const hash = createSpatialHash<string>();
-  const geometry = new Map<EntityTypeName, { fields: GeometryFields; tags: string[] }>();
+  const geometry = new Map<EntityTypeName, SpawnGeometry & { tags: string[] }>();
   let nextSeq = 0;
   /** Entities to look at before the next area query; kept only while `tracking`. */
   const stale = new Set<string>();
@@ -108,7 +108,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
     let f = geometry.get(type);
     if (!f) {
       const t = ctx.registry.types.get(type);
-      f = { fields: t ? geometryFields(t) : [], tags: tagFieldsOf(t) };
+      f = { ...spawnGeometryOf(t), tags: tagFieldsOf(t) };
       geometry.set(type, f);
     }
     return f;
@@ -278,10 +278,11 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
     added(e) {
       const was = slots.get(e.id);
       if (was) unindex(was);
-      const { fields, tags: tagFields } = fieldsOf(e.type);
+      const info = fieldsOf(e.type);
+      const { fields, tags: tagFields } = info;
       const tags = entityTags(e, tagFields);
       const behaviors = new Set<BehaviorName>(carriedBehaviors(e));
-      const spawn = spawnPoseOf(e, fields);
+      const spawn = spawnPoseOf(e, info);
       let local: ShapeObj | undefined;
       for (const { field, kind } of fields) {
         const value = e[field];

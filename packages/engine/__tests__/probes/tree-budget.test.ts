@@ -17,7 +17,7 @@ import {
 } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { stressRig, type StressRig } from "../fixtures/stress-rig";
-import { withParents } from "../fixtures/tree-rig";
+import { expectPoseOf, withParents } from "../fixtures/tree-rig";
 
 /**
  * What the scene tree costs. Every comparison steps its runtimes in turn,
@@ -210,9 +210,11 @@ type StressScene = "movers" | "rooms" | "combined";
  * as `measure` races it but over 600 ticks, settling race included (the engine before the
  * tree, on the owner's machine): the cost of carrying riders, as a share
  * of the rest of the scene, which another machine's speed moves far less
- * than wall time. `covered` is `ratio` scaled by how far v8 coverage moved
- * the old engine's own ratio, raced both ways on one machine; only `movers`,
- * with thousands of riders, moved. `mean` is what
+ * than wall time. `covered` is the same ratio under v8 coverage, taken once
+ * by hand: the engine before the tree raced with and without coverage on one
+ * machine, where only `movers`, with thousands of riders, moved (1.18 to
+ * 1.22). No runtime in this process is that engine, so neither can be
+ * re-derived here; a change to the stress scenes re-takes both on it. `mean` is what
  * `scene step --timing` printed over 600 ticks then, ms per tick; it is
  * printed beside this run's numbers and never decides a result.
  */
@@ -224,19 +226,12 @@ const BEFORE_TREE: Readonly<Record<StressScene, { ratio: number; covered: number
   };
 
 /**
- * Whether v8 coverage instruments this run, as CI's test job does. It slows
- * the JavaScript the tree carries riders with far more than Rapier's
- * WebAssembly, so a ratio taken under it is held to `covered`.
+ * Whether v8 coverage instruments this run: CI's test job sets
+ * `TEST_COVERAGE=1` beside `--coverage`. Coverage slows the JavaScript the
+ * tree carries riders with far more than Rapier's WebAssembly, so a ratio
+ * taken under it is held to `covered`. Unset, the stricter `ratio` applies.
  */
-function coverageOn(): boolean {
-  const worker = (
-    globalThis as { __vitest_worker__?: { config?: { coverage?: { enabled?: boolean } } } }
-  ).__vitest_worker__;
-  const enabled = worker?.config?.coverage?.enabled;
-  if (enabled === undefined)
-    throw new Error("vitest's worker state no longer says whether coverage is on");
-  return enabled;
-}
+const coverageOn = (): boolean => process.env.TEST_COVERAGE === "1";
 
 /**
  * The scene as it loads, and as it loaded before instances had nodes: the
@@ -296,12 +291,7 @@ describe("scene tree budgets", () => {
     // The same work: every child ends where the hand-written carry put it.
     for (const id of ["child-0-0", `child-${PARENTS - 1}-${PER_PARENT - 1}`]) {
       const want = byHand.ctx.poses.get(id)!;
-      for (const rt of [tree, setPose]) {
-        const got = rt.ctx.poses.get(id)!;
-        expect(got.x, id).toBeCloseTo(want.x, 9);
-        expect(got.y, id).toBeCloseTo(want.y, 9);
-        expect(got.rot, id).toBeCloseTo(want.rot, 9);
-      }
+      for (const rt of [tree, setPose]) expectPoseOf(rt, id, want, 9);
       expect(still.ctx.poses.get(id), id).not.toStrictEqual(want);
     }
 

@@ -200,15 +200,9 @@ type LibraryOption = {
 };
 
 /**
- * Load `scene`, play scripted input for `ticks` ticks on the runtime's clock,
- * and report what happened. Every tick is simulated whatever the time model,
- * as the shell's `step(n)` does. An `EngineError` out of a step ends the run
- * as `runPlaytest`'s does: `blocked` at stage `run` with the error's code,
- * the report covering the ticks before it. A game that lists its commands
- * gets `legal` after the last tick, else at the start (`legalCommands`), as
- * `runPlaytest` does; a blocked run has none. A UI-only action in `hold` or
- * `inputs` is refused (`simActionError`). `onTick` sees each tick after
- * its step.
+ * Loads `scene`, plays scripted input for `ticks` simulated ticks and reports
+ * the run. Errors, `legal` and UI-only actions behave as in `runPlaytest`;
+ * `onTick` sees each tick after its step.
  */
 export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S> {
   const { registry, game } = resolveGame(opts);

@@ -3,7 +3,7 @@ import type { BehaviorKey, Entity, HandleOf } from "../game/entity";
 import { behaviorNameOf } from "../game/script";
 import type { EngineContext } from "../game/types";
 import type { BehaviorHost } from "./behaviors";
-import type { EntityHandles } from "./entities";
+import { behaviorHandlesOn, type EntityHandles } from "./entities";
 import type { RuntimeQueryIndex } from "./query-index";
 
 export type LookupDeps = {
@@ -24,12 +24,11 @@ export type Lookups = Pick<EngineContext, "entities" | "findBehavior" | "findBeh
 export function createLookups(deps: LookupDeps): Lookups {
   const { query, handles } = deps;
 
-  function* carrying(name: BehaviorName): Generator<object> {
-    for (const id of query.select({ behavior: name })) {
-      const found = handles.entity(id)?.getBehavior(name);
-      if (found) yield found;
-    }
-  }
+  /** The selector's default leaves disabled carriers out. */
+  const carrying = (name: BehaviorName, first: boolean) =>
+    behaviorHandlesOn(query.select({ behavior: name }), first, (id) =>
+      handles.entity(id)?.getBehavior(name),
+    );
 
   return {
     entities(sel) {
@@ -41,13 +40,10 @@ export function createLookups(deps: LookupDeps): Lookups {
       return out;
     },
     findBehavior<D extends BehaviorKey = never>(def: D | BehaviorName) {
-      const name = behaviorNameOf(def);
-      for (const found of carrying(name)) return found as HandleOf<D>;
-      return undefined;
+      return carrying(behaviorNameOf(def), true)[0] as HandleOf<D> | undefined;
     },
     findBehaviors<D extends BehaviorKey = never>(def: D | BehaviorName) {
-      const name = behaviorNameOf(def);
-      return [...carrying(name)] as HandleOf<D>[];
+      return carrying(behaviorNameOf(def), false) as HandleOf<D>[];
     },
   };
 }

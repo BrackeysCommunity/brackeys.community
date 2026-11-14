@@ -1,5 +1,5 @@
-import { NODE_TYPE } from "../game/primitives";
-import type { EngineContext, Registry } from "../game/types";
+import { isNodeType } from "../game/primitives";
+import type { EngineContext, RegisteredType, Registry } from "../game/types";
 import { degToRad } from "../physics";
 import { geometryFields } from "../scene/schema";
 import { geometryPose, shapeCentre, type GeometryPose } from "../scene/shape-geometry";
@@ -28,16 +28,24 @@ export function shapeSpawnPose(shape: ShapeObj, transform?: RuntimeEntity["trans
   return poseOf(shapeCentre(shape), transform);
 }
 
-/** Where a type's geometry puts an entity: its first shape, point and path fields. */
-export type GeometryFields = ReturnType<typeof geometryFields>;
+/**
+ * What a type's spawn pose reads, for callers that look it up once per type:
+ * whether it is a node, and its geometry fields.
+ */
+export type SpawnGeometry = { node: boolean; fields: ReturnType<typeof geometryFields> };
+
+export const spawnGeometryOf = (t: RegisteredType | undefined): SpawnGeometry => ({
+  node: isNodeType(t),
+  fields: t ? geometryFields(t) : [],
+});
 
 /** A node's pose: its `at`, at its own `rot` when set, else at the angle of what it sits in. */
 export const nodePose = (e: RuntimeEntity<{ at: Pt; rot?: number }>): Pose =>
   poseOf({ at: e.at, rotDeg: e.rot }, e.transform);
 
-/** `spawnPose` over a type's geometry fields, for callers that look them up once per type. */
-export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
-  if (e.type === NODE_TYPE) return nodePose(e as RuntimeEntity<{ at: Pt; rot?: number }>);
+/** `spawnPose` over the type's `spawnGeometryOf`. */
+export function spawnPoseOf(e: RuntimeEntity, { node, fields }: SpawnGeometry): Pose {
+  if (node) return nodePose(e as RuntimeEntity<{ at: Pt; rot?: number }>);
   let shape: ShapeObj | undefined;
   let at: Pt | undefined;
   let path: PathDef | undefined;
@@ -59,8 +67,7 @@ export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
  * else `RuntimeEntity.transform`'s angle; a node's is its own `rot`.
  */
 export function spawnPose(e: RuntimeEntity, registry: Registry): Pose {
-  const type = registry.types.get(e.type);
-  return spawnPoseOf(e, type ? geometryFields(type) : []);
+  return spawnPoseOf(e, spawnGeometryOf(registry.types.get(e.type)));
 }
 
 /** An entity's live pose, else where it spawns, else the origin when the scene has no such entity. */

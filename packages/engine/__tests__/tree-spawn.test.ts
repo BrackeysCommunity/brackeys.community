@@ -9,7 +9,7 @@ import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
 import { SCENE_FORMAT_VERSION, type EntityDef, type Prefab } from "../scene/types";
 import type { RapierModule } from "../types";
-import { engineErrorCode } from "./fixtures/tree-rig";
+import { engineErrorCode, expectPoseOf } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -73,21 +73,6 @@ function load(physics: Physics) {
   return { rt, expanded };
 }
 
-type Runtime = ReturnType<typeof load>["rt"];
-
-const pose = (rt: Runtime, id: string) => {
-  const p = rt.ctx.poses.get(id);
-  expect(p, id).toBeDefined();
-  return p!;
-};
-
-const near = (rt: Runtime, id: string, x: number, y: number, rot?: number, digits = 9) => {
-  const p = pose(rt, id);
-  expect(p.x, `${id}.x`).toBeCloseTo(x, digits);
-  expect(p.y, `${id}.y`).toBeCloseTo(y, digits);
-  if (rot !== undefined) expect(p.rot, `${id}.rot`).toBeCloseTo(rot, 9);
-};
-
 const DEG30 = Math.PI / 6;
 
 for (const physics of BACKENDS) {
@@ -97,26 +82,26 @@ for (const physics of BACKENDS) {
       const e = rt.ctx.spawn({ type: "marker", at: [12, 5], parent: "cart" });
       expect(rt.ctx.tree.parent(e.id)).toBe("cart");
       expect(rt.ctx.tree.children("cart")).toEqual([e.id]);
-      near(rt, e.id, 12, 5);
+      expectPoseOf(rt, e.id, { x: 12, y: 5 }, 9);
       expect(rt.ctx.tree.local(e.id)).toMatchObject({ x: 2, y: 0 });
       rt.ctx.setPose("cart", 20, 8);
-      near(rt, e.id, 22, 8);
+      expectPoseOf(rt, e.id, { x: 22, y: 8 }, 9);
       rt.destroy();
     });
 
     it("reads local fields in the parent's frame", () => {
       const { rt } = load(physics);
       const square = rt.ctx.spawn({ type: "marker", at: [2, 0], parent: "cart", local: true });
-      near(rt, square.id, 12, 5, 0);
+      expectPoseOf(rt, square.id, { x: 12, y: 5, rot: 0 }, 9);
       expect(square.at).toEqual([12, 5]);
 
       const quarter = rt.ctx.spawn({ type: "marker", at: [1, 0], parent: "turned", local: true });
-      near(rt, quarter.id, 0, 1, Math.PI / 2);
+      expectPoseOf(rt, quarter.id, { x: 0, y: 1, rot: Math.PI / 2 }, 9);
       expect(quarter.at).toEqual([0, 1]);
       expect(rt.ctx.tree.local(quarter.id)!.x).toBeCloseTo(1, 9);
 
       const tilted = rt.ctx.spawn({ type: "marker", at: [1, 0], parent: "tilted", local: true });
-      near(rt, tilted.id, Math.cos(DEG30), Math.sin(DEG30), DEG30);
+      expectPoseOf(rt, tilted.id, { x: Math.cos(DEG30), y: Math.sin(DEG30), rot: DEG30 }, 9);
       const local = rt.ctx.tree.local(tilted.id)!;
       expect(local.x).toBeCloseTo(1, 9);
       expect(local.y).toBeCloseTo(0, 9);
@@ -132,10 +117,10 @@ for (const physics of BACKENDS) {
         parent: "turned",
         local: true,
       });
-      near(rt, wall.id, -2, 0);
+      expectPoseOf(rt, wall.id, { x: -2, y: 0 }, 9);
       expect(rt.ctx.query.at({ x: -2, y: 0 }, { type: "solid" })).toEqual([wall.id]);
       rt.ctx.setPose("turned", 5, 0, Math.PI / 2);
-      near(rt, wall.id, 3, 0);
+      expectPoseOf(rt, wall.id, { x: 3, y: 0 }, 9);
       rt.destroy();
     });
 
@@ -144,28 +129,28 @@ for (const physics of BACKENDS) {
       const world = rt.ctx.instantiate("lantern", [10, 5], { parent: "cart" });
       expect(rt.ctx.tree.parent(world.id)).toBe("cart");
       expect(rt.ctx.tree.children(world.id)).toEqual(world.entities);
-      near(rt, `${world.id}/wick`, 11, 5);
+      expectPoseOf(rt, `${world.id}/wick`, { x: 11, y: 5 }, 9);
 
       const local = rt.ctx.instantiate("lantern", [0, 1], { parent: "cart", local: true });
-      near(rt, local.id, 10, 6, 0);
-      near(rt, `${local.id}/wick`, 11, 6);
+      expectPoseOf(rt, local.id, { x: 10, y: 6, rot: 0 }, 9);
+      expectPoseOf(rt, `${local.id}/wick`, { x: 11, y: 6 }, 9);
 
       const quarter = rt.ctx.instantiate("lantern", [1, 0], {
         parent: "turned",
         local: true,
         rot: 90,
       });
-      near(rt, quarter.id, 0, 1, Math.PI);
-      near(rt, `${quarter.id}/wick`, -1, 1);
+      expectPoseOf(rt, quarter.id, { x: 0, y: 1, rot: Math.PI }, 9);
+      expectPoseOf(rt, `${quarter.id}/wick`, { x: -1, y: 1 }, 9);
 
       // an instance off the quarter turns expands to the file's length precision
       const tilted = rt.ctx.instantiate("lantern", [1, 0], { parent: "tilted", local: true });
       const [c, s] = [Math.cos(DEG30), Math.sin(DEG30)];
-      near(rt, tilted.id, c, s, DEG30, 6);
-      near(rt, `${tilted.id}/wick`, 2 * c, 2 * s, DEG30, 6);
+      expectPoseOf(rt, tilted.id, { x: c, y: s, rot: DEG30 }, 6);
+      expectPoseOf(rt, `${tilted.id}/wick`, { x: 2 * c, y: 2 * s, rot: DEG30 }, 6);
 
       rt.ctx.setPose("cart", 0, 0);
-      near(rt, `${local.id}/wick`, 1, 1);
+      expectPoseOf(rt, `${local.id}/wick`, { x: 1, y: 1 }, 9);
       rt.destroy();
     });
 
@@ -224,10 +209,10 @@ describe("a save's spawn records", () => {
     expect(back.ctx.tree.parent(lid.id)).toBe(crate.id);
     expect(back.ctx.tree.parent(lamp.id)).toBe("turned");
     expect(back.ctx.tree.children(lamp.id)).toEqual(lamp.entities);
-    near(back, lid.id, 5, 4);
-    near(back, `${lamp.id}/wick`, -1, 1);
+    expectPoseOf(back, lid.id, { x: 5, y: 4 }, 9);
+    expectPoseOf(back, `${lamp.id}/wick`, { x: -1, y: 1 }, 9);
     back.ctx.setPose(crate.id, 0, 0);
-    near(back, lid.id, 1, 0);
+    expectPoseOf(back, lid.id, { x: 1, y: 0 }, 9);
     rt.destroy();
     back.destroy();
   });
@@ -247,7 +232,7 @@ describe("a save's spawn records", () => {
     const poses = Object.fromEntries(Object.entries(world.poses).filter(([id]) => !owned.has(id)));
     for (const back of [restored(world), restored({ ...world, poses })]) {
       expect(back.ctx.tree.parent(lamp.id)).toBe("tilted");
-      near(back, lamp.id, c, s, Math.PI / 4, 6);
+      expectPoseOf(back, lamp.id, { x: c, y: s, rot: Math.PI / 4 }, 6);
       for (const id of [lamp.id, `${lamp.id}/wick`]) {
         const [a, b] = [rt.ctx.poses.get(id)!, back.ctx.poses.get(id)!];
         expect([b.x, b.y, b.rot], id).toEqual([a.x, a.y, a.rot]);

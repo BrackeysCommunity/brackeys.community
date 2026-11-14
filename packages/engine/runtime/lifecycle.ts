@@ -21,7 +21,7 @@ import type { AssetId } from "../project/types";
 import { expandInstance, runtimeEntity } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
 import { gridTurns } from "../scene/resolve";
-import { geometryFields, spawnSchemaFor } from "../scene/schema";
+import { spawnSchemaFor } from "../scene/schema";
 import { quarterTurns } from "../scene/shape-geometry";
 import {
   applyPt,
@@ -47,9 +47,9 @@ import { tweenSystemOf } from "./behaviors/tween";
 import type { RuntimeContacts } from "./contacts";
 import type { EntityTable } from "./entity-table";
 import type { RuntimeEventBus } from "./events";
-import { composePose, samePose, type Pose } from "./poses";
+import { composePose, plainPose, samePose, type Pose } from "./poses";
 import type { RuntimeQueryIndex } from "./query-index";
-import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
+import { spawnGeometryOf, spawnPoseOf, type SpawnGeometry } from "./spawn-pose";
 import type { RuntimeTimers } from "./timers";
 import { createSceneTree, type RuntimeSceneTree } from "./tree";
 import { ENTITY_DESTROYED, ENTITY_DISABLED, ENTITY_ENABLED, ENTITY_SPAWNED } from "./types";
@@ -276,9 +276,9 @@ function framePoint(frame: Readonly<Pose>, pt: Pt): { at: Pt; turnDeg: number; e
 export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   const { ctx, registry, systems, behaviors, entities, query } = deps;
 
-  /** Each loadable type's geometry fields, for spawn poses. */
-  const geometry = new Map<EntityTypeName, GeometryFields>(
-    [...systems.keys()].map((name) => [name, geometryFields(registry.types.get(name)!)]),
+  /** Each loadable type's spawn geometry. */
+  const geometry = new Map<EntityTypeName, SpawnGeometry>(
+    [...systems.keys()].map((name) => [name, spawnGeometryOf(registry.types.get(name))]),
   );
 
   let library: PrefabLibrary = new Map();
@@ -302,7 +302,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
 
   function posed(e: RuntimeEntity): void {
     if (!ctx.poses.has(e.id)) {
-      const p = spawnPoseOf(e, geometry.get(e.type) ?? []);
+      const p = spawnPoseOf(e, geometry.get(e.type) ?? spawnGeometryOf(registry.types.get(e.type)));
       ctx.poses.set(e.id, p.x, p.y, p.rot, { snap: true });
     }
   }
@@ -327,7 +327,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   function disable(e: RuntimeEntity, announce = true): void {
     disabled.add(e.id);
     const at = ctx.poses.get(e.id);
-    if (at) offPoses.set(e.id, { x: at.x, y: at.y, rot: at.rot });
+    if (at) offPoses.set(e.id, plainPose(at));
     behaviors.disable(e);
     const system = systems.get(e.type)!;
     if (system.disable) system.disable(e.id);
@@ -348,7 +348,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   function enable(e: RuntimeEntity): void {
     const system = systems.get(e.type)!;
     const held = ctx.poses.get(e.id);
-    const kept = held && { x: held.x, y: held.y, rot: held.rot };
+    const kept = held && plainPose(held);
     if (system.disable) system.enable?.(e.id);
     else {
       tree.quietly(() => {
@@ -475,7 +475,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     const type = registry.types.get(def.type)!;
     const local = spawnPoseOf(
       runtimeEntity(registry, def, type, NO_TURN),
-      geometry.get(def.type) ?? [],
+      geometry.get(def.type) ?? spawnGeometryOf(type),
     );
     const [x, y] = framePoint(frame, [local.x, local.y]).at;
     const moved = transformEntityDef(registry, def, translation([x - local.x, y - local.y])) ?? def;

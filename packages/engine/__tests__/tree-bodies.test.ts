@@ -1,4 +1,3 @@
-import type { Collider } from "@dimforge/rapier2d";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
@@ -11,7 +10,7 @@ import { SCENE_FORMAT_VERSION, type EntityDef, type ExpandedScene } from "../sce
 import type { SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
 import { testGame } from "./fixtures/test-game";
-import { stepEvents, withParents } from "./fixtures/tree-rig";
+import { colliderOf, pose, stepEvents, withParents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -54,10 +53,7 @@ function load(
   return rt;
 }
 
-const colliderOf = (rt: SceneRuntimeHandle, id: string): Collider =>
-  rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!;
 const bodyHandle = (rt: SceneRuntimeHandle, id: string) => colliderOf(rt, id).parent()!.handle;
-const pose = (rt: SceneRuntimeHandle, id: string) => rt.ctx.poses.get(id)!;
 
 const floor: EntityDef = { id: "floor", type: "solid", shape: ["box", 0, 5.5, 20, 0.5] };
 

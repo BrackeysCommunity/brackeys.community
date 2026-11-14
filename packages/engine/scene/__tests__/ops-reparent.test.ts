@@ -364,6 +364,30 @@ describe("add and instantiate under a parent", () => {
     expect(w.get("pin")).toEqual({ at: [100, 60] });
     expect(w.get("post-1/top")).toEqual({ at: [140, 50] });
   });
+
+  it("keep a parent the tree refuses, which validation reports, so an undo can put one back", () => {
+    const def = scene({
+      entities: [
+        { id: "lost", type: "marker", at: [5, 5], parent: "gone" },
+        { id: "home", type: "node", at: [100, 0] },
+        { id: "memo", type: "note", at: [0, 0], text: "hi", parent: "home" },
+      ],
+    });
+    for (const op of [
+      { op: "reparent", refs: ["lost"], parent: "home" },
+      { op: "remove", refs: ["home"] },
+    ] as SceneOp[])
+      expect(roundTrip(def, [op]).inverse.ops.map((o) => o.op)).toContain("add");
+    const added = ok(
+      run(scene({ entities: [{ id: "hub", type: "node", at: [0, 0] }] }), [
+        { op: "add", entity: { id: "a", type: "marker", at: [0, 0], parent: "nope" } },
+        { op: "add", entity: { id: "b", type: "note", at: [0, 0], text: "hi", parent: "hub" } },
+      ]),
+    );
+    expect(added.issues.map((i) => i.code)).toEqual(
+      expect.arrayContaining(["dangling-ref", "parent-type"]),
+    );
+  });
 });
 
 describe("remove", () => {

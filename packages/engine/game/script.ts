@@ -321,10 +321,15 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
 
     function build(id: string, fields: BehaviorBlock): { binding: Binding; target: Hooks } {
       const binding: Binding = { id, ctx, def, fields, entity: undefined, timers: new Set() };
-      const target = make(binding);
-      const problem = hooksProblem(def, target);
-      if (problem) throw new Error(problem);
-      return { binding, target };
+      try {
+        const target = make(binding);
+        const problem = hooksProblem(def, target);
+        if (problem) throw new Error(problem);
+        return { binding, target };
+      } catch (err) {
+        stopTimers(binding);
+        throw err;
+      }
     }
 
     function count(target: Hooks, by: 1 | -1): void {
@@ -408,7 +413,14 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
     function replace(inst: Instance, fields: BehaviorBlock): void {
       inst.target.onDestroy?.();
       end(inst);
-      const made = build(inst.id, fields);
+      let made: ReturnType<typeof build>;
+      try {
+        made = build(inst.id, fields);
+      } catch (err) {
+        // The old instance is already torn down: the host's detach must not end it twice.
+        instances.delete(inst.id);
+        throw err;
+      }
       inst.binding = made.binding;
       inst.target = made.target;
       inst.firstTick = ctx.tick + (stepping() ? 1 : 0);

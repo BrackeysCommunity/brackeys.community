@@ -8,6 +8,7 @@ import {
   type TweenValues,
 } from "../../anim/tweens";
 import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
+import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import { SPRITE } from "../../game/behaviors/sprite";
 import {
   isLookChannel,
@@ -286,25 +287,33 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     return e ? spriteLook(ctx, e)[channel as keyof SpriteLook] : 0;
   }
 
-  function apply(id: string, values: TweenValues): void {
-    const e = ctx.get(id);
-    if (!e) return;
+  function split(values: TweenValues): { look: SpriteLook; moves: boolean } {
     let moves = false;
     const look: SpriteLook = {};
     for (const [channel, v] of Object.entries(values)) {
       if (isPoseChannel(channel)) moves = true;
       else look[channel as keyof SpriteLook] = v;
     }
+    return { look, moves };
+  }
+
+  function styled(id: string, look: SpriteLook): void {
+    if (Object.keys(look).length === 0) return;
+    looks.set(id, { ...looks.get(id), ...look });
+    ctx.behavior<SpriteSystem>(SPRITE.name)?.style(id, look);
+  }
+
+  function apply(id: string, values: TweenValues): void {
+    const e = ctx.get(id);
+    if (!e) return;
+    const { look, moves } = split(values);
     const owner = ctx.system<SceneSystem>(e.type);
     if (moves && owner?.setPose) {
       const p = localPose(id);
       ctx.tree.setLocal(id, values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot);
       posed.add(id);
     }
-    if (Object.keys(look).length > 0) {
-      looks.set(id, { ...looks.get(id), ...look });
-      ctx.behavior<SpriteSystem>(SPRITE.name)?.style(id, look);
-    }
+    styled(id, look);
   }
 
   function ended(run: Running, quiet: boolean): void {
@@ -417,13 +426,31 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     posed.clear();
     for (const id of Array.isArray(got.posed) ? got.posed : [])
       if (typeof id === "string" && ctx.get(id)) posed.add(id);
-    // A fresh load built what each entity carries where it spawned.
-    for (const id of posed) {
-      const p = ctx.poses.get(id);
-      if (p) ctx.setPose(id, p.x, p.y, p.rot);
+    for (const { state } of tweens.values()) {
+      if (state.owner === undefined || !tweenStarted(state)) continue;
+      const { look, moves } = split(tweenValues(state));
+      if (moves) posed.add(state.owner);
+      styled(state.owner, look);
     }
-    for (const { state } of tweens.values())
-      if (state.owner !== undefined && tweenStarted(state)) apply(state.owner, tweenValues(state));
+    placeColliders();
+  }
+
+  /**
+   * Moves the colliders a fresh load built at spawn to the restored poses of
+   * tweened entities and their children. Not `ctx.setPose`: the other blocks'
+   * `posed` (a walking nav-agent's replan) never ran here in the unsaved run.
+   */
+  function placeColliders(): void {
+    const colliders = ctx.behavior<ColliderSystem>(COLLIDER.name);
+    if (!colliders?.posed) return;
+    for (const root of posed) {
+      for (const id of ctx.tree.subtree(root)) {
+        if (!colliders.has(id) || !ctx.enabled(id)) continue;
+        if (id !== root && colliders.selfMoving?.(id)) continue;
+        const p = ctx.poses.get(id);
+        if (p) colliders.posed(id, p, false);
+      }
+    }
   }
 
   /**

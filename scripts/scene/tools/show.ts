@@ -34,6 +34,7 @@ import {
   type Pt,
   type Registry,
   type SceneDefinition,
+  type SceneFrames,
   type ShapeObj,
   type ShapeTuple,
 } from "@jams/engine/scene";
@@ -124,9 +125,6 @@ export type GridSummary = {
 
 /** World points of rows whose stored `at` is in a parent's frame. */
 const WORLD_AT = new WeakMap<ShownEntity, Pt>();
-
-/** The row each row sits under in `--tree`, as the resolver places it. */
-const TREE_PARENT = new WeakMap<ShownEntity, string>();
 
 export function gridSummary(grid: GridCells): GridSummary {
   let cells = 0;
@@ -252,7 +250,6 @@ function sceneRowsOf(
       if (world.aabb) row.aabb = world.aabb;
       if (world.top) row.top = world.top;
       if (world.at) WORLD_AT.set(row, world.at);
-      if (row.parent !== undefined) TREE_PARENT.set(row, row.parent);
     }
     rows.push(row);
   });
@@ -270,7 +267,6 @@ function sceneRowsOf(
       nested.set(o.instance, ids);
     }
     if (turns(o.transform)) row.transform = o.transform;
-    TREE_PARENT.set(row, row.instance);
     children.set(o.instance, [...(children.get(o.instance) ?? []), row]);
   });
   def.instances.forEach((inst, i) => {
@@ -280,7 +276,6 @@ function sceneRowsOf(
     if (parent !== undefined) row.parent = parent;
     row.prefab = prefab;
     row.at = [roundLength(t.tx), roundLength(t.ty)];
-    if (parent !== undefined && frames.stepsFor(inst).length > 0) TREE_PARENT.set(row, parent);
     if (typeof z === "number" && z !== 0) row.z = z;
     const turn = frameOf(t);
     if (turns(turn)) row.transform = turn;
@@ -330,15 +325,19 @@ function distanceTo(row: ShownEntity, [x, y]: Pt): number {
 
 /**
  * `rows` depth first under their parents, each given its `depth`: roots in
- * row order, each followed by its children in row order. A row sits under
- * the parent the resolver places it by; an instance's child under its
- * parent in the prefab, else its instance.
+ * row order, each followed by its children in row order, and what sits in
+ * a loop last. A row sits under the parent `frames` settles it under; an
+ * instance's child under its parent in the prefab, else its instance.
  */
-export function treeRows(rows: readonly ShownEntity[]): ShownEntity[] {
+export function treeRows(rows: readonly ShownEntity[], frames: SceneFrames): ShownEntity[] {
   const known = new Set(rows.map((r) => r.ref));
   const parentOf = (r: ShownEntity): string | undefined => {
-    if (r.instance !== undefined && r.parent !== undefined && known.has(r.parent)) return r.parent;
-    const p = TREE_PARENT.get(r);
+    const p =
+      r.instance === undefined
+        ? frames.parentOf(r.ref)
+        : r.parent !== undefined && known.has(r.parent)
+          ? r.parent
+          : r.instance;
     return p !== undefined && known.has(p) ? p : undefined;
   };
   const kids = new Map<string, ShownEntity[]>();
@@ -432,7 +431,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   }
 
   const flat = sceneRows(def, registry, prefabs, await sceneProjectView(loaded.project));
-  const all = input.tree ? treeRows(flat) : flat;
+  const all = input.tree ? treeRows(flat, sceneFrames(def, registry, prefabs)) : flat;
   const engine = await projectEngine(loaded.project, registry);
   const { kind, rate, catchUp, wakeOnPointerMove } = resolveTime({
     project: engine,

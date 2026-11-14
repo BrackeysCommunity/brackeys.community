@@ -1,9 +1,10 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import type { Aabb, GizmoHandle, OverlayTone, Pt, ToolOverlay } from "../../../editor/index";
 import { cssHex } from "../../../game/color";
 import type { Style } from "../../../game/index";
 import { aabb } from "../../../scene/index";
+import { useIsomorphicLayoutEffect } from "../../kit/ssr";
 import {
   num,
   POINT_RADIUS_PX,
@@ -311,43 +312,126 @@ export function ToolOverlayMarks({
   );
 }
 
-/** Places a tag at a world point, nudged by screen px. */
-const placed = (view: View, at: Pt, dx: number, dy: number, centred = false) => {
-  const [x, y] = toScreen(view, at);
-  return {
-    transform: `translate(${num(x + dx)}px, ${num(y + dy)}px)${centred ? " translateX(-50%)" : ""}`,
-  };
-};
+/** Screen px a tag keeps from the edges of the canvas the chrome leaves visible. */
+const TAG_MARGIN_PX = 8;
+/** How long a readout's text holds before it is announced, so a drag's changing numbers aren't read on every move. */
+const ANNOUNCE_SETTLE_MS = 300;
 
-/** Text over the canvas: the drag readout beside the cursor and why a ghost can't be placed. */
+type Insets = { left: number; right: number; top: number; bottom: number };
+const NO_INSETS: Insets = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/** What the editor's chrome covers of the canvas: the safe area the frame gives a game's HUD; none outside a frame. */
+function chromeInsets(el: Element): Insets {
+  const doc = el.closest(".je-frame")?.querySelector(":scope > [data-je-document]");
+  if (!doc) return NO_INSETS;
+  const style = getComputedStyle(doc);
+  const px = (side: keyof Insets) =>
+    Number.parseFloat(style.getPropertyValue(`--jams-ui-safe-${side}`)) || 0;
+  return { left: px("left"), right: px("right"), top: px("top"), bottom: px("bottom") };
+}
+
+/** `v` moved into [lo, hi]; to `lo` when the range is empty. */
+const within = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
+
+/**
+ * A tag at a world point, nudged by screen px (centred on it when `centred`)
+ * and kept inside the visible canvas, so text about a selection that runs
+ * off screen or under a panel still shows.
+ */
+function CanvasTag({
+  view,
+  at,
+  dx,
+  dy,
+  centred = false,
+  ...attrs
+}: {
+  view: View;
+  at: Pt;
+  dx: number;
+  dy: number;
+  centred?: boolean;
+  className: string;
+  children: ReactNode;
+  [data: `data-${string}`]: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [sx, sy] = toScreen(view, at);
+  useIsomorphicLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { offsetWidth: w, offsetHeight: h } = el;
+    const inset = chromeInsets(el);
+    const x = within(
+      sx + dx - (centred ? w / 2 : 0),
+      inset.left + TAG_MARGIN_PX,
+      view.width - inset.right - TAG_MARGIN_PX - w,
+    );
+    const y = within(
+      sy + dy,
+      inset.top + TAG_MARGIN_PX,
+      view.height - inset.bottom - TAG_MARGIN_PX - h,
+    );
+    el.style.transform = `translate(${num(x)}px, ${num(y)}px)`;
+  });
+  return <span ref={ref} {...attrs} />;
+}
+
+/** `text` once it has held still for a moment; empty while there is none. */
+function useSettled(text: string | undefined): string {
+  const [settled, setSettled] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (text === undefined) return;
+    const timer = setTimeout(() => setSettled(text), ANNOUNCE_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [text]);
+  return text !== undefined && settled === text ? text : "";
+}
+
+/**
+ * Text over the canvas: the drag readout beside the cursor and why a ghost
+ * can't be placed. The readout is also announced, since it carries why a
+ * command did nothing.
+ */
 export function ToolOverlayLabels({ overlay, view }: { overlay: ToolOverlay; view: View }) {
+  const announced = useSettled(overlay.readout?.text);
   return (
     <>
       {overlay.ghosts?.map((g, i) => {
         if (g.valid || !g.reason) return null;
         const box = aabb(g.shape);
         return (
-          <span
+          <CanvasTag
             key={`reason-${i}`}
+            view={view}
+            at={[(box.minX + box.maxX) / 2, box.minY]}
+            dx={0}
+            dy={-24}
+            centred
             data-ghost-reason=""
             className="je-canvas-tag"
             data-tone="danger"
-            style={placed(view, [(box.minX + box.maxX) / 2, box.minY], 0, -24, true)}
           >
             {g.reason}
-          </span>
+          </CanvasTag>
         );
       })}
       {overlay.readout ? (
-        <span
+        <CanvasTag
+          view={view}
+          at={overlay.readout.at}
+          dx={14}
+          dy={14}
           data-readout=""
           className="je-canvas-tag"
           data-tone="readout"
-          style={placed(view, overlay.readout.at, 14, 14)}
         >
           {overlay.readout.text}
-        </span>
+        </CanvasTag>
       ) : null}
+      <span role="status" aria-live="polite" aria-atomic="true" className="je-sr-only">
+        {announced}
+      </span>
     </>
   );
 }

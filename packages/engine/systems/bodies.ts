@@ -811,13 +811,9 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
   /** `gateOneWaySides` for the `"up"` solids alone, by the actor's bottom edge; other sides are left as they are. */
   gateOneWay(actorBottomY: number, dropping: boolean): void;
   /**
-   * Gates the one-way entities for the actor `actorId` alone: each holds it
-   * while it is on that solid's one-way side, and `passing` (rising, or
-   * dropping through) lets it through the `"up"` solids alone, as
-   * `gateOneWay` does; a `"down"`, `"left"` or `"right"` solid goes by side
-   * only. The colliders it passes go into `oneWayPasses(ctx, actorId)` for
-   * its own sweeps to skip, and the world is left as it is, so every other
-   * actor and body still meets them.
+   * As `gateOneWaySides`, for `actorId` alone, with `passing` reaching only
+   * the `"up"` solids: passes go to `oneWayPasses(ctx, actorId)` and the
+   * world is left unchanged, so other actors still meet them.
    */
   passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
   isHidden(id: string): boolean;

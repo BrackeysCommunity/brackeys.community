@@ -108,7 +108,8 @@ test:
     - npm i -g bun
     - bun install --frozen-lockfile
   script:
-    - npm run test -- --coverage
+    # TEST_COVERAGE tells timing probes their baseline must be the one taken under coverage.
+    - TEST_COVERAGE=1 npm run test -- --coverage
   coverage: '/All files[^\|]*\|[^\|]*\s+([\d\.]+)/'
   artifacts:
     paths:

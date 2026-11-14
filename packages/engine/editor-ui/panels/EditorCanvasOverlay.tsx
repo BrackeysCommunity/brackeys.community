@@ -1,5 +1,5 @@
 import type { Store } from "@tanstack/store";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
 
 import {
   lookupRef,
@@ -7,15 +7,20 @@ import {
   type PeerPresence,
   type Pt,
   type Ref,
+  type Registry,
   type SceneDefinition,
 } from "../../editor/index";
+import { cssHex } from "../../game/color";
+import { isNodeType } from "../../game/primitives";
+import { styleOf } from "../../game/style";
 import type { GameStoreState } from "../../index";
 import { parseShape } from "../../scene/index";
-import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
+import { useEditorDoc, useEditorResolved, useEditorStore } from "../session/use-editor-store";
 import {
   num,
   POINT_RADIUS_PX,
   shapePath,
+  toScreen,
   useView,
   worldNum,
   worldPx,
@@ -82,6 +87,56 @@ function Marks({
   );
 }
 
+type NodeMark = { id: string; at: Pt; rot: number; flip: boolean; tone: string | undefined };
+
+/** A node draws as a bare point like a marker, so the editor adds its axis: where its +x points. */
+function nodeMarks(def: SceneDefinition, registry: Registry): NodeMark[] {
+  const out: NodeMark[] = [];
+  for (const e of def.entities ?? []) {
+    const type = registry.types.get(e.type);
+    if (!type || !isNodeType(type) || !isPoint(e.at)) continue;
+    const style = styleOf({ registry }, type, undefined);
+    const tone = style?.stroke ?? style?.fill;
+    out.push({
+      id: e.id,
+      at: e.at,
+      rot: typeof e.rot === "number" ? e.rot : 0,
+      flip: e.flip === true,
+      tone: tone === undefined ? undefined : cssHex(tone),
+    });
+  }
+  return out;
+}
+
+/** Screen px from a node's origin to its axis's tip, past the point's ring. */
+const NODE_AXIS_PX = POINT_RADIUS_PX + 8;
+const NODE_ARM_PX = 4;
+/** In the node's frame, unturned: a cross at the origin and an arrow along +x. */
+const NODE_GLYPH = `M${-NODE_ARM_PX} 0H${NODE_AXIS_PX}M0 ${-NODE_ARM_PX}V${NODE_ARM_PX}M${NODE_AXIS_PX - 4} -3L${NODE_AXIS_PX} 0L${NODE_AXIS_PX - 4} 3`;
+
+/** Each node's axis at a constant screen size, turned by its `rot` and mirrored by its `flip`. */
+function NodeGlyphs({ nodes, view }: { nodes: NodeMark[]; view: View }) {
+  return (
+    <g>
+      {nodes.map((n) => {
+        const [x, y] = toScreen(view, n.at);
+        return (
+          <g
+            key={n.id}
+            className="je-ov-mark"
+            data-node={n.id}
+            transform={`translate(${num(x)} ${num(y)}) rotate(${n.rot})${n.flip ? " scale(-1 1)" : ""}`}
+            style={n.tone ? ({ "--je-ov-tone": n.tone } as CSSProperties) : undefined}
+          >
+            <path className="je-ov-halo" d={NODE_GLYPH} />
+            <path className="je-ov-stroke" d={NODE_GLYPH} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 /** Clears this tab's published pointer once it leaves the game's canvas; the tool host publishes it over the canvas. */
 function useClearCursorOffCanvas(session: EditorSession) {
   useEffect(() => {
@@ -100,9 +155,8 @@ function useClearCursorOffCanvas(session: EditorSession) {
 }
 
 /**
- * Everyone else over the game canvas, in their colours: their selections,
- * the drags they have in progress and their cursors. Yours is the tool
- * host's overlay.
+ * Under the tool host's overlay: each node's axis, then everyone else's
+ * selections, drags in progress and cursors, in their colours.
  */
 export function EditorCanvasOverlay({
   session,
@@ -112,6 +166,8 @@ export function EditorCanvasOverlay({
   store: Store<GameStoreState>;
 }) {
   const def = useEditorDoc(session);
+  const resolved = useEditorResolved(session);
+  const nodes = useMemo(() => nodeMarks(resolved, session.registry), [resolved, session.registry]);
   const peers = useEditorStore(session, (s) => s.peers);
   const view = useView(store);
   const peerColor = usePeerColor();
@@ -138,11 +194,12 @@ export function EditorCanvasOverlay({
     (p): p is PeerPresence & { cursor: Pt } => p.mode === "edit" && isPoint(p.cursor),
   );
 
-  if (theirs.length === 0 && cursors.length === 0) return null;
+  if (nodes.length === 0 && theirs.length === 0 && cursors.length === 0) return null;
 
   return (
     <div aria-hidden className="je-canvas-layer">
       <svg width={view.width} height={view.height} className="je-canvas-svg">
+        <NodeGlyphs nodes={nodes} view={view} />
         <g transform={worldTransform(view)}>
           {theirs.map(({ peer, marks, ghost }) => {
             const { name, color } = peerLook(peer, peerColor);

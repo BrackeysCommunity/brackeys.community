@@ -153,16 +153,13 @@ function tagsOf(view: DocView): EntryTags {
 }
 
 /**
- * Applies a batch to the live doc. The batch is checked exactly as
- * `applyOps` checks it, against the doc as it is now, so a `~` bulk ref
- * means the entry at that index now and a live batch needs no `base` (one
- * it brings is still checked). A failed batch writes nothing; a good one is
- * one `doc.transact(fn, origin)` that writes only the fields that changed,
- * plus its `log` entry. Instances resolve against `opts.prefabs`; the ops
- * that read or write prefabs go through `opts.prefabWriter` (one more
- * transaction per prefab doc) and are refused without one. On a prefab doc
- * the scene-only ops, a write to the prefab itself and
- * an instance that makes the prefab contain itself are refused.
+ * Applies a batch to the live doc, checked as `applyOps` checks it against
+ * the doc as it is now. A good batch is one `doc.transact(fn, origin)`
+ * writing only the changed fields and its `log` entry. Ops that write
+ * prefabs go through `opts.prefabWriter`, one transaction per prefab doc,
+ * and are refused without one. On a prefab doc the scene-only ops, writes
+ * to the prefab itself and an instance that makes it contain itself are
+ * refused.
  */
 export function applyOpsToDoc(
   doc: Y.Doc,

@@ -348,6 +348,15 @@ describe("buildTreeOutline", () => {
     expect(rows.find((r) => r.ref === "lost")?.detail).toMatch(/· 0, 0$/);
   });
 
+  it("details an instance's children as the scene's own rows: type first, points in the world", () => {
+    const detail = (ref: string) => rows.find((r) => r.ref === ref)?.detail;
+    expect(detail("t-2/base")).toBe("solid · box");
+    expect(detail("t-2/barrel")).toBe("marker · 51, 0");
+    expect(detail("t-2/lock-1/bolt")).toBe("marker · 50, 1");
+    const grouped = buildOutline(scene, reg, library);
+    expect(grouped.find((r) => r.ref === "t-2/barrel")?.detail).toBe("1, 0");
+  });
+
   it("puts an entity whose parents loop at the root, with what sits under it", () => {
     const loop = buildTreeOutline(
       {

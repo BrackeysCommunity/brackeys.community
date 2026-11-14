@@ -1199,6 +1199,8 @@ function subtreeTargets(w: Work, targets: readonly Target[]): Target[] {
 function applyOp(w: Work, op: SceneOp, i: number): void {
   switch (op.op) {
     case "add": {
+      // `add` and `instantiate` leave `parent` to validation rather than reparent's rule: an undo
+      // re-adds what reparent can't restore, and that includes a parent the tree refuses.
       const input = clone(op.entity) as Json;
       const givenId = input.id as string | undefined;
       if (givenId !== undefined) checkNewId(w, givenId);

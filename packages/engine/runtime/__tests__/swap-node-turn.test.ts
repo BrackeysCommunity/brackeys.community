@@ -3,11 +3,25 @@ import { describe, expect, it } from "vite-plus/test";
 import { swapped } from "../../__tests__/fixtures/live-version";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { expectPoseClose, steps } from "../../__tests__/fixtures/tree-rig";
+import { defineEntityType, defineGame } from "../../game/define";
+import { angleField, pointField } from "../../game/fields";
 import type { ExpandedScene, RuntimeEntity } from "../../scene/types";
 import { createSceneRuntime } from "../runtime";
 import type { SceneRuntimeHandle } from "../types";
 
 /** pivot (node) ─┬─ arm ── tip (node) ── hand */
+const PIVOT = defineEntityType({
+  type: "pivot",
+  description: "A hub based on the node primitive.",
+  base: "node",
+  fields: {
+    at: pointField("Its origin."),
+    rot: angleField("Its angle, degrees clockwise.", "deg").optional(),
+  },
+});
+
+const pivotGame = defineGame({ ...testGame, types: [...testGame.types, PIVOT] });
+
 const scene = (pivot: Partial<RuntimeEntity> = {}, tip: Partial<RuntimeEntity> = {}) =>
   ({
     name: "swap-node-turn",
@@ -21,9 +35,11 @@ const scene = (pivot: Partial<RuntimeEntity> = {}, tip: Partial<RuntimeEntity> =
     ],
   }) as ExpandedScene;
 
-function started(): SceneRuntimeHandle {
-  const rt = createSceneRuntime({ rapier: null, view: null, game: testGame });
-  expect(rt.load(scene(), undefined, { sceneId: "swap-node-turn" })).toMatchObject({ ok: true });
+function started(pivot: Partial<RuntimeEntity> = {}): SceneRuntimeHandle {
+  const rt = createSceneRuntime({ rapier: null, view: null, game: pivotGame });
+  expect(rt.load(scene(pivot), undefined, { sceneId: "swap-node-turn" })).toMatchObject({
+    ok: true,
+  });
   steps(rt, 5);
   return rt;
 }
@@ -47,5 +63,13 @@ describe("a live swap that only turns a node", () => {
     expectPoseClose(rt.ctx.poses.get("tip"), { x: 3, y: 0, rot: quarter }, "tip");
     expectPoseClose(rt.ctx.poses.get("hand"), { x: 3, y: 1, rot: quarter }, "hand");
     expectPoseClose(rt.ctx.poses.get("arm"), { x: 2, y: 0, rot: 0 }, "arm");
+  });
+
+  it("turns a game type based on node the same way", () => {
+    const rt = started({ type: "pivot" });
+    const report = swapped(rt.swap(scene({ type: "pivot", rot: 90 }), { prefabs: new Map() }));
+    expect(report.strategy).toBe("reconcile");
+    expectPoseClose(rt.ctx.poses.get("pivot"), { x: 0, y: 0, rot: quarter }, "pivot");
+    expectPoseClose(rt.ctx.poses.get("arm"), { x: 0, y: 2, rot: quarter }, "arm");
   });
 });

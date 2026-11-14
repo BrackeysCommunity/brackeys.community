@@ -103,6 +103,9 @@ export function lerpPose(prev: Readonly<Pose>, cur: Readonly<Pose>, alpha: numbe
   };
 }
 
+/** A pose index entry copied to a plain, writable pose. */
+export const plainPose = (p: Readonly<Pose>): Pose => ({ x: p.x, y: p.y, rot: p.rot });
+
 /** Whether two poses are exactly equal. */
 export const samePose = (a: Readonly<Pose>, b: Readonly<Pose>): boolean =>
   a.x === b.x && a.y === b.y && a.rot === b.rot;

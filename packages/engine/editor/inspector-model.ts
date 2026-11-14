@@ -1785,16 +1785,10 @@ function inTree(registry: Registry, target: RefTarget, fields: ModelField[]): Mo
 }
 
 /**
- * What the inspector shows for a selection: each registered type's schema
- * walked into field descriptors, titled by `meta.title`, explained by
- * `.describe()`, drawn by the widget its Zod kind (or a game's
- * `meta.widget`) calls for, and sectioned by `meta.group` or, without one,
- * by kind. Each behavior every target carries gets its own section,
- * `behaviors:<name>`, with its fields in `inspector.order` (each with its
- * `meta.group`) and a Remove batch; `addBehaviors` lists the rest the types
- * allow, each adding what it requires too. With several
- * targets only the fields they share are shown, and a field whose values
- * differ is `mixed`. Pure: the site renders it.
+ * What the inspector shows for a selection: each type's schema as field
+ * descriptors, a section per carried behavior, and the behaviors left to
+ * add. Several targets show only shared fields; differing values are
+ * `mixed`.
  */
 export function buildInspectorModel(
   registry: Registry,

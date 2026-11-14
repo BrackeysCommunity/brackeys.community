@@ -82,12 +82,17 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
   /**
    * Whether spawn `key` still holds its slot. A prefab instance's node at
    * `key` holds nothing by itself: the instance holds until the last entity
-   * under it that isn't a node goes.
+   * under it that isn't a node, or of a type based on one, goes.
    */
   function holds(s: Spawner, key: string): boolean {
     if (!ctx.exists(key)) return false;
     if (s.block.prefab === undefined) return true;
-    return ctx.tree.subtree(key).some((id) => ctx.exists(id) && ctx.get(id)?.type !== NODE_TYPE);
+    return ctx.tree.subtree(key).some((id) => {
+      const e = ctx.exists(id) ? ctx.get(id) : undefined;
+      if (!e) return false;
+      const t = ctx.registry.types.get(e.type);
+      return (t?.base ?? e.type) !== NODE_TYPE;
+    });
   }
 
   /** Frees `key`'s slot once it holds nothing, and destroys the node an emptied instance leaves. */

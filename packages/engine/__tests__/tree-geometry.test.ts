@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
-import { createRegistry, defineGame } from "../game/define";
+import { createRegistry } from "../game/define";
 import { composePose } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
@@ -17,14 +17,14 @@ import {
 } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
-import { testGame } from "./fixtures/test-game";
-import { expectPoseClose, stepEvents, withParents } from "./fixtures/tree-rig";
+import {
+  expectPoseOf,
+  pose,
+  quietTestGame as game,
+  stepEvents,
+  withParents,
+} from "./fixtures/tree-rig";
 
-/** The test game, without its Rapier-driven avatar, so sensors fire and nothing else needs physics. */
-const game = defineGame({
-  ...testGame,
-  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
-});
 const registry = createRegistry(game);
 
 function source(entities: EntityDef[], gravity: [number, number]): SceneDefinition {
@@ -61,8 +61,6 @@ function load(
   expect(rt.ctx.physics).toBeNull();
   return rt;
 }
-
-const pose = (rt: SceneRuntimeHandle, id: string) => rt.ctx.poses.get(id)!;
 
 /** Who the geometry world has at (x, y), any group. */
 const at = (rt: SceneRuntimeHandle, x: number, y: number) =>
@@ -106,8 +104,8 @@ describe("geometry colliders under a parent follow it by pose", () => {
     const events = stepEvents(rt, 2);
     const shelf = composePose(5, 5, Math.PI / 2, { x: 2, y: 0, rot: 0 });
     const lid = composePose(5, 5, Math.PI / 2, { x: 0, y: -2, rot: 0 });
-    expectPoseClose(pose(rt, "shelf"), shelf, "shelf");
-    expectPoseClose(pose(rt, "lid"), lid, "lid");
+    expectPoseOf(rt, "shelf", shelf);
+    expectPoseOf(rt, "lid", lid);
     expect(at(rt, shelf.x, shelf.y)).toEqual(["shelf"]);
     expect(at(rt, lid.x, lid.y)).toEqual(["lid"]);
     expect(at(rt, 2, 0)).toEqual([]);
@@ -252,7 +250,7 @@ describe("geometry colliders under a parent follow it by pose", () => {
       [0, 0],
     );
     stepEvents(rt, 1);
-    expectPoseClose(pose(rt, "plank"), { x: 2, y: 0, rot: 0 }, "plank");
+    expectPoseOf(rt, "plank", { x: 2, y: 0, rot: 0 });
     const solids = rt.ctx.system<SolidSystem>("solid")!;
     solids.gateOneWaySides({ minX: 1.8, minY: -0.9, maxX: 2.2, maxY: -0.1 }, false);
     expect(solids.isHidden("plank")).toBe(false);

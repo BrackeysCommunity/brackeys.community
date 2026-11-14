@@ -489,11 +489,14 @@ refs)` take the document and return `{ batch, select } | null`
   spawn made after it, and its place among that parent's children: a
   restore spawns in record order, so the save's `parents` holds the link.
 - A live swap that changes only a node's `rot` turns the node and what it
-  carries, instead of putting the old pose back.
-- `spawnPose` puts a node at its own `rot` when set, as its system places
-  it, instead of at the angle of what it sits in, so `currentPose`'s
-  fallback, a live swap's moved check and the other spawn-pose readers
-  agree with the node's pose.
+  carries, instead of putting the old pose back; a game type based on
+  `node` turns the same way.
+- `spawnPose` puts a node, or an entity of a type based on `node`, at its
+  own `rot` when set, as its system places it, instead of at the angle of
+  what it sits in, so `currentPose`'s fallback, a live swap's moved check
+  and the other spawn-pose readers agree with the node's pose.
+- A spawned prefab instance frees its spawner's slot once only nodes are
+  left under it, counting entities of a type based on `node` as nodes.
 - An entity whose type system has `setPose` but no `disable`, posed while
   disabled, comes back where it was put when enabled, not at its spawn
   pose.
@@ -522,7 +525,10 @@ refs)` take the document and return `{ batch, select } | null`
   rewritten at v5 by `vp run scene fmt`; each expands entity for entity
   and pose for pose as its v4 text did, but for the nodes that replaced
   its groups (`format-5-migration.test.ts`, over a gzipped corpus of the
-  v4 texts and their v4 expansions).
+  v4 texts and their v4 expansions). Kitchen-sink's corpus digest moved
+  (`85de729eca13947d` to `e334a7afc2571640`) for `spawnPose` reading a
+  node's own `rot` alone: its `pivot` node starts at 30° instead of 0°,
+  and with the old node pose the old digest comes back.
 - Pins that moved, each for the format number inside a `sceneHash` alone:
   the fuzz probe's button-only rollout digests (`54358566f81d2ff2` to
   `d6933996a797f077`, `c702eae74c4df8a2` to `9cbdbfa1442a4e50`: putting

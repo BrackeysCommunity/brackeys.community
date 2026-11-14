@@ -140,12 +140,7 @@ type BindableRuntime = {
 
 _const_ in `version.ts`
 
-The doc layout this engine writes, stored as `meta.layout`. A doc with no
-`meta.layout` is layout 1, and so is a sync token with no `l` claim.
-Layout 2 moved prefabs out of the scene doc into docs of their own;
-layout 3 renamed the record keys to `@z` and `@bulk` and added the
-`assets` map, nested behaviors and params, grid rows and the prefab doc's
-`params`, `overrides` and `instances`.
+The doc layout this engine writes (`meta.layout`); a doc or sync token without one is layout 1.
 
 ```ts
 declare const COLLAB_LAYOUT_VERSION = 3;
@@ -1859,16 +1854,13 @@ Refers to [`BindableRuntime`](#bindableruntime).
 
 _function_ in `collab/apply.ts`
 
-Applies a batch to the live doc. The batch is checked exactly as
-`applyOps` checks it, against the doc as it is now, so a `~` bulk ref
-means the entry at that index now and a live batch needs no `base` (one
-it brings is still checked). A failed batch writes nothing; a good one is
-one `doc.transact(fn, origin)` that writes only the fields that changed,
-plus its `log` entry. Instances resolve against `opts.prefabs`; the ops
-that read or write prefabs go through `opts.prefabWriter` (one more
-transaction per prefab doc) and are refused without one. On a prefab doc
-the scene-only ops, a write to the prefab itself and
-an instance that makes the prefab contain itself are refused.
+Applies a batch to the live doc, checked as `applyOps` checks it against
+the doc as it is now. A good batch is one `doc.transact(fn, origin)`
+writing only the changed fields and its `log` entry. Ops that write
+prefabs go through `opts.prefabWriter`, one transaction per prefab doc,
+and are refused without one. On a prefab doc the scene-only ops, writes
+to the prefab itself and an instance that makes it contain itself are
+refused.
 
 ```ts
 declare function applyOpsToDoc(doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, registry: Registry, opts?: DocApplyOptions): DocApplyResult;

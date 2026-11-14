@@ -641,7 +641,9 @@ function EntityItem({
           </Badge>
         ) : null}
         <RowPeers own={selectedBy} inside={expanded === false ? insideBy : undefined} />
-        {row.detail ? <span className="je-outliner-detail">{row.detail}</span> : null}
+        {row.detail ? (
+          <span className="je-sp-truncate je-outliner-detail">{row.detail}</span>
+        ) : null}
       </button>
       {prefab && ref && onOpenPrefab ? (
         <Button
@@ -755,6 +757,34 @@ export function EditorOutliner({
     const button = [...rowButtons].find((b) => b.dataset.rowKey === key);
     if (button && document.activeElement !== button) button.focus();
   });
+
+  /** Set while a row's own click picks the selection, so focus stays on the row clicked. */
+  const pickedHere = useRef(false);
+  const lastSelection = useRef(selection);
+  // A command that moves the selection off the focused row ([ and ], group, ungroup) takes the
+  // focus with it, so Alt+Up/Down then moves what is selected.
+  useEffect(() => {
+    const was = lastSelection.current;
+    lastSelection.current = selection;
+    if (pickedHere.current) {
+      pickedHere.current = false;
+      return;
+    }
+    const focused = document.activeElement;
+    const list = listRef.current;
+    if (!list || !(focused instanceof HTMLElement) || !list.contains(focused)) return;
+    const refOf = (key: string | undefined) => {
+      const row = shown.find((r) => r.key === key);
+      return row && isEntityRow(row) ? row.ref : undefined;
+    };
+    const left = refOf(focused.dataset.rowKey);
+    if (left === undefined || !was.includes(left) || selection.includes(left)) return;
+    const target = [...list.querySelectorAll<HTMLElement>("[data-row-key]")].find((b) => {
+      const ref = refOf(b.dataset.rowKey);
+      return ref !== undefined && selection.includes(ref);
+    });
+    target?.focus();
+  }, [selection, shown]);
 
   const hoverRow = (ref: Ref | null) => {
     setHover(session.store, ref);
@@ -996,50 +1026,54 @@ export function EditorOutliner({
     >
       <div className="je-panel-toolbar je-outliner-head">
         <span className="je-sp-truncate je-outliner-scene">{sceneName}</span>
-        <IconButton
-          icon={GroupItemsIcon}
-          size="icon-xs"
-          label="Group under a node"
-          tooltip={<KeyHint text={groupWhy ?? "Group under a node"} chord={engineChord("group")} />}
-          disabled={groupWhy !== null}
-          focusableWhenDisabled
-          onClick={group}
-        />
-        <IconButton
-          icon={UngroupItemsIcon}
-          size="icon-xs"
-          label="Ungroup"
-          tooltip={<KeyHint text={ungroupWhy ?? "Ungroup"} chord={engineChord("ungroup")} />}
-          disabled={ungroupWhy !== null}
-          focusableWhenDisabled
-          onClick={ungroup}
-        />
-        <SegmentedControl
-          size="xs"
-          aria-label="Outline view"
-          value={view}
-          onChange={(v) => {
-            if (!isView(v)) return;
-            setView(v);
-            writeStored(storage, VIEW_KEY, v);
-          }}
-        >
-          <SegmentedControl.Item
-            value="tree"
-            tooltip="Rows under their parents; drag to reparent or reorder"
+        <div className="je-outliner-tools">
+          <IconButton
+            icon={GroupItemsIcon}
+            size="icon-xs"
+            label="Group under a node"
+            tooltip={
+              <KeyHint text={groupWhy ?? "Group under a node"} chord={engineChord("group")} />
+            }
+            disabled={groupWhy !== null}
+            focusableWhenDisabled
+            onClick={group}
+          />
+          <IconButton
+            icon={UngroupItemsIcon}
+            size="icon-xs"
+            label="Ungroup"
+            tooltip={<KeyHint text={ungroupWhy ?? "Ungroup"} chord={engineChord("ungroup")} />}
+            disabled={ungroupWhy !== null}
+            focusableWhenDisabled
+            onClick={ungroup}
+          />
+          <SegmentedControl
+            size="xs"
+            aria-label="Outline view"
+            value={view}
+            onChange={(v) => {
+              if (!isView(v)) return;
+              setView(v);
+              writeStored(storage, VIEW_KEY, v);
+            }}
           >
-            Tree
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="type" tooltip="Rows by entity type">
-            Type
-          </SegmentedControl.Item>
-          <SegmentedControl.Item
-            value="layer"
-            tooltip="Rows by layer; drag rows onto one to move them"
-          >
-            Layer
-          </SegmentedControl.Item>
-        </SegmentedControl>
+            <SegmentedControl.Item
+              value="tree"
+              tooltip="Rows under their parents; drag to reparent or reorder"
+            >
+              Tree
+            </SegmentedControl.Item>
+            <SegmentedControl.Item value="type" tooltip="Rows by entity type">
+              Type
+            </SegmentedControl.Item>
+            <SegmentedControl.Item
+              value="layer"
+              tooltip="Rows by layer; drag rows onto one to move them"
+            >
+              Layer
+            </SegmentedControl.Item>
+          </SegmentedControl>
+        </div>
       </div>
       <div className="je-outliner-filter">
         <Hint content={FILTER_SYNTAX} side="bottom">
@@ -1120,7 +1154,9 @@ export function EditorOutliner({
                   twistyAt={gutter - TWISTY_PX}
                   onSelect={(mode) => {
                     if (!ref) return;
+                    const before = session.store.state.selection;
                     session.select([ref], mode, order);
+                    pickedHere.current = session.store.state.selection !== before;
                     if (session.store.state.selection.includes(ref)) reveal?.([ref]);
                   }}
                   onHover={hoverRow}

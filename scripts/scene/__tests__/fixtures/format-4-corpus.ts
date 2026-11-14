@@ -12,6 +12,8 @@ import type { Registry, RuntimeEntity } from "@jams/engine/scene";
  * one instance of it at the origin. A game's own field renames since then
  * are applied to its v4 text (tactics' stair `sublevel` is `opens`, since
  * `sublevel` became a reserved spawn key), as they don't touch the format.
+ * Kitchen-sink's digest is re-pinned for `spawnPose` reading a node's own
+ * `rot` (its `pivot` node starts at 30°, not 0°); no other row moved.
  */
 export type Format4Corpus = {
   files: Record<string, string>;
