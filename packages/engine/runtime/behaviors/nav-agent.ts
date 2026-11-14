@@ -68,6 +68,7 @@ type Agent = {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** Local rather than game/time's: this behavior builds only on what a game can import. */
 const isCount = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0;
 
 function readPoint(v: unknown): Vec2 | null {

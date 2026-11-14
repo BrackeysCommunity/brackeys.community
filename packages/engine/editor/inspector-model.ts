@@ -43,6 +43,7 @@ import {
 } from "../scene/schema";
 import { aabb, boxCorners, convexHull, isConvex, normDeg } from "../scene/shape-geometry";
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
+import { composeSteps, mirrors } from "../scene/transform";
 import { addPt, behaviorGeometry, isPt } from "../scene/translate";
 import {
   PREFAB_MAX_DEPTH,
@@ -1171,17 +1172,9 @@ function carried(
 }
 
 /**
- * What writing `next` to the behavior field at `path` on `entity` takes
- * for the block to stay valid; null when `path` isn't a registered
- * behavior's field. A field under an object the block lacks (a joint's
- * `motor.velocity`) writes the whole object, its other required fields
- * seeded. Changing a field other fields' `meta.when` keys on (a `kind`)
- * unsets those that no longer apply. When the behavior's `refine` still
- * refuses the block, it seeds the applicable fields that fix it, from a
- * value the switch dropped in the same unit (a force's length as a
- * strength), the template, else `seedValue`, and failing that unsets the
- * other written fields that fix it (a spawner's `prefab` once `type` is
- * set). A refusal it can't fix is left for the op to report.
+ * The update that writing `next` at a behavior field path needs to keep the
+ * block valid; null when `path` isn't a behavior field. It seeds or unsets
+ * dependent fields; a refusal it can't fix is left for the op to report.
  */
 export function behaviorFieldEdit(
   registry: Registry,
@@ -2554,9 +2547,7 @@ export function instanceAngleBatch(
   const next = roundDeg(n);
   const label = `Turn ${model.ref} to ${next}°`;
   if (next === model.rot) return { ok: true, batch: { label, ops: [] } };
-  const mirrored = sceneFrames(def, registry, prefabs)
-    .stepsFor(inst)
-    .reduce((odd, t) => (t.a * t.d - t.b * t.c < 0 ? !odd : odd), false);
+  const mirrored = mirrors(composeSteps(sceneFrames(def, registry, prefabs).stepsFor(inst)));
   const by = roundDeg(mirrored ? model.rot - next : next - model.rot);
   return {
     ok: true,

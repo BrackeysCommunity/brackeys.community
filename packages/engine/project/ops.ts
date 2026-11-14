@@ -1174,17 +1174,10 @@ class BatchWork {
   }
 
   /**
-   * Replays the delegated `editScene`s the way `applyProjectBatch` writes
-   * them: after every other write, in op order, each one's ops on what the
-   * batch left its scene or prefab, against the prefab library the earlier
-   * delegated ops leave. Fails an op whose ops don't apply there, or that
-   * defines or changes a prefab an earlier op removed (the prefab writer
-   * would patch a trashed doc). Records what they leave each scene and
-   * prefab, and each prefab they remove, for `trashedInUse`. A scene whose
-   * value wasn't given can't be replayed: its removed prefabs are still
-   * judged, against every referrer but that scene, and it is refused when
-   * an earlier op changes the library it would read, or when a later
-   * op's library would depend on what it does.
+   * Replays delegated `editScene`s after every other write, in op order, as
+   * `applyProjectBatch` writes them, so each sees the library earlier ops
+   * leave. Records what each leaves, and the prefabs it removes, for
+   * `trashedInUse`.
    */
   settleDelegated(): void {
     const removedAt = new Map(this.deletedAt);
@@ -1221,6 +1214,8 @@ class BatchWork {
       if (!isScene) earlier(d.entry.id);
       const { own, ownPrefab } = this.ownOf(d, library, this.leaves);
       if (own === undefined) {
+        // A scene whose value wasn't given can't be replayed: its prefab removals are
+        // still judged, but it's refused when the library it would read has changed.
         if (!isScene) {
           unknownBy ??= d.index;
           continue;
@@ -2161,18 +2156,10 @@ function sceneRewrites(
 }
 
 /**
- * Checks a whole batch against plain JSON: the project state and the
- * current values of the docs it touches (by asset id). A failing op means
- * nothing anywhere is written. `editAsset` applies its edits through the
- * kind's layout and judges the result by the kind's schema; `editScene`
- * runs `applyOps` on a scene and hands ops that write prefabs to
- * `env.prefabEdit`. `deleteAsset` without `force`, and an `editScene` whose
- * `definePrefab` null removes a prefab, are refused with `asset-in-use`
- * while a live asset among those given still names the asset once the
- * whole batch has run; a scene's checks file (`<stem>.checks.json` beside
- * it) counts as naming it, and follows it through `moveAsset` and
- * `renameAsset`. `changeAssetId`
- * rewrites every referrer (see `BatchWork.changeAssetId`), so it needs
+ * Checks a whole batch against plain JSON; one failing op means nothing is
+ * written. A delete or prefab removal still named by a live asset once the
+ * batch has run is refused with `asset-in-use` (a scene's checks file counts
+ * as naming it). `changeAssetId` rewrites every referrer, so `docs` must hold
  * every live doc that can hold a reference.
  */
 export function checkProjectBatch(

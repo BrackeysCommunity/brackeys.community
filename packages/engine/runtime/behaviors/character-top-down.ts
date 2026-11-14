@@ -45,15 +45,10 @@ function bodyKindOf(e: RuntimeEntity): string | null {
 }
 
 /**
- * The `character-top-down` behavior's system: a kinematic motion body of
- * the entity's collider shape, walked by a top-down controller from its
- * seat's move action, or from `setIntent` when it carries no
- * `player-input`. A force area it stands in adds its acceleration, which
- * its `decel` works against while idle (see `ForceAreaSystem.sample`), and with
- * `pushDynamic` it shoves the dynamic bodies it runs into. The motion body
- * stands in for the collider system's own body, which it takes out of the
- * world while the character is attached. Play from here starts seat 0's
- * character at the chosen point.
+ * A top-down kinematic controller for the entity's collider shape, driven by
+ * its seat or `setIntent`. A force area adds to its walk, which `decel` works
+ * against while idle. Its motion body replaces the collider system's body while
+ * attached.
  */
 export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const characters = new Map<string, Character>();

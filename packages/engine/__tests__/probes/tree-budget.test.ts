@@ -28,8 +28,8 @@ import { withParents } from "../fixtures/tree-rig";
 
 const WARM_TICKS = 30;
 const MEASURED_TICKS = 300;
-/** The stress scenes are timed over as many ticks as `scene step --timing` runs. */
-const STRESS_TICKS = 600;
+/** Ticks each stress race times; the median over rounds, not a longer race, is what steadies a ratio. */
+const STRESS_TICKS = 300;
 /** How much slower a tree-carried child may be than the same move written by hand through `ctx.setPose`. */
 const FOLLOW_BUDGET = 2;
 /** How much the scene tree may add to the movers' and combined stress scenes' tick. */
@@ -39,9 +39,11 @@ const STRESS_BUDGET = 1.1;
  * their median. One race's ratio spreads by ±0.06 between runs of the same
  * code, more than half the budget's margin, so a single race can't decide it.
  * A budgeted scene stops racing once a majority of the rounds falls on one
- * side of its budget, since the rest can't move the median across it.
+ * side of its budget, since the rest can't move the median across it; a
+ * scene that is only reported races that majority.
  */
 const STRESS_ROUNDS = 5;
+const MAJORITY = (STRESS_ROUNDS >> 1) + 1;
 /**
  * The first runtimes a process steps run the engine's hot paths 5–10%
  * faster than later ones, and more so on the side with more to carry, so
@@ -205,18 +207,36 @@ type StressScene = "movers" | "rooms" | "combined";
 /**
  * Each stress scene before the scene tree existed. `ratio` is its median
  * tick time over the same scene with its riders' `attach` dropped, raced
- * as `measure` races it, settling race included (the engine before the
+ * as `measure` races it but over 600 ticks, settling race included (the engine before the
  * tree, on the owner's machine): the cost of carrying riders, as a share
  * of the rest of the scene, which another machine's speed moves far less
- * than wall time. `mean` is what `scene step --timing` printed over 600
- * ticks then, ms per tick; it is printed beside this run's numbers and
- * never decides a result.
+ * than wall time. `covered` is `ratio` scaled by how far v8 coverage moved
+ * the old engine's own ratio, raced both ways on one machine; only `movers`,
+ * with thousands of riders, moved. `mean` is what
+ * `scene step --timing` printed over 600 ticks then, ms per tick; it is
+ * printed beside this run's numbers and never decides a result.
  */
-const BEFORE_TREE: Readonly<Record<StressScene, { ratio: number; mean: number }>> = {
-  movers: { ratio: 1.18, mean: 4.746 },
-  rooms: { ratio: 1.01, mean: 1.963 },
-  combined: { ratio: 1.03, mean: 5.049 },
-};
+const BEFORE_TREE: Readonly<Record<StressScene, { ratio: number; covered: number; mean: number }>> =
+  {
+    movers: { ratio: 1.18, covered: 1.22, mean: 4.746 },
+    rooms: { ratio: 1.01, covered: 1.01, mean: 1.963 },
+    combined: { ratio: 1.03, covered: 1.03, mean: 5.049 },
+  };
+
+/**
+ * Whether v8 coverage instruments this run, as CI's test job does. It slows
+ * the JavaScript the tree carries riders with far more than Rapier's
+ * WebAssembly, so a ratio taken under it is held to `covered`.
+ */
+function coverageOn(): boolean {
+  const worker = (
+    globalThis as { __vitest_worker__?: { config?: { coverage?: { enabled?: boolean } } } }
+  ).__vitest_worker__;
+  const enabled = worker?.config?.coverage?.enabled;
+  if (enabled === undefined)
+    throw new Error("vitest's worker state no longer says whether coverage is on");
+  return enabled;
+}
 
 /**
  * The scene as it loads, and as it loaded before instances had nodes: the
@@ -315,16 +335,19 @@ describe("scene tree budgets", () => {
      * times after a settling race; prints each against the scene's numbers
      * from before the tree. The ratios are to the riderless scene's tick,
      * the median of the rounds'. With a `budget` (a multiple of the ratio
-     * before the tree) the rounds stop once a majority of them decides it.
+     * before the tree) the rounds stop once a majority of them decides it;
+     * without one, after that majority.
      */
     function measure(name: StressScene, budget?: number) {
-      const before = BEFORE_TREE[name];
-      const limit = budget === undefined ? undefined : before.ratio * budget;
-      const majority = (STRESS_ROUNDS >> 1) + 1;
+      const covered = coverageOn();
+      const { mean, ...baselines } = BEFORE_TREE[name];
+      const before = covered ? baselines.covered : baselines.ratio;
+      const limit = budget === undefined ? undefined : before * budget;
       const decided = (ratios: readonly number[]) =>
-        limit !== undefined &&
-        (ratios.filter((r) => r <= limit).length >= majority ||
-          ratios.filter((r) => r > limit).length >= majority);
+        limit === undefined
+          ? ratios.length >= MAJORITY
+          : ratios.filter((r) => r <= limit).length >= MAJORITY ||
+            ratios.filter((r) => r > limit).length >= MAJORITY;
       const scene = rig.expand(name);
       const nodes = scene.entities.filter((e) => e.type === "node").length;
       const parented = scene.entities.filter((e) => e.parent !== undefined).length;
@@ -361,8 +384,8 @@ describe("scene tree budgets", () => {
             ? ""
             : `, without nodes ${ms(nodelessMs)} (as loaded / without nodes ${(loadedMs / nodelessMs).toFixed(3)})`) +
           `; as loaded / without riders ${ratio.toFixed(3)} (rounds ${ratios.map((r) => r.toFixed(3)).join(", ")}), ` +
-          `before the tree ${before.ratio.toFixed(3)} (${((ratio / before.ratio - 1) * 100).toFixed(1)}%); ` +
-          `scene step before the tree, mean ${ms(before.mean)} ms/tick`,
+          `before the tree ${before.toFixed(3)}${covered ? " under coverage" : ""} (${((ratio / before - 1) * 100).toFixed(1)}%); ` +
+          `scene step before the tree, mean ${ms(mean)} ms/tick`,
       );
       return { ratio, nodes, limit };
     }

@@ -4021,9 +4021,10 @@ Refers to [`DragOptions`](#dragoptions), [`GizmoEdit`](#gizmoedit), [`GizmoTarge
 _function_ in `editor/builtin/draw.ts`
 
 The one `add` that puts a drawn shape in the document: an entry of the
-type's own shape bulk key when the registry has one, else an entity of
-`type` with a fresh id and the shape in its first shape field. `select`
-names what it adds. `null` when `type` has no shape field.
+type's own shape bulk key when the registry has one (it has no id until
+the tree promotes it), else an entity of `type` with a fresh id and the
+shape in its first shape field. `select` names what it adds. `null` when
+`type` has no shape field.
 
 ```ts
 declare function drawBatch(def: SceneDefinition, registry: Registry, type: string, shape: ShapeObj, label?: string): null | {
@@ -4327,9 +4328,9 @@ _function_ in `editor/commands.ts`
 Grouping the selection (`def` is the document): one batch that adds a
 `node` at the centre of the selection's bounds, under the selection's
 common parent, and puts the selection's roots under it, so nothing moves
-in the world. Bulk entries, instances' children and types that can't be in
-the tree are left out; `null` when nothing is left or the game has no
-`node`. Selects the node.
+in the world. Drawn shapes are promoted to entities first; instances'
+children and types that can't be in the tree are left out. `null` when
+nothing is left or the game has no `node`. Selects the node.
 
 ```ts
 declare function groupBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): SelectingBatch | null;
@@ -4434,7 +4435,7 @@ Refers to [`InstanceTransformModel`](#instancetransformmodel), [`OpBatch`](#opba
 
 _function_ in `editor/inspector-model.ts`
 
-The instance's angle as the placement panel's angle field draws it: degrees, unset at 0.
+The instance's angle as the placement panel's angle field draws it: degrees, unset (its default, 0) at 0.
 
 ```ts
 declare function instanceAngleRow(model: InstanceTransformModel): InspectorRow;
@@ -4900,7 +4901,8 @@ Refers to [`InstanceParamsModel`](#instanceparamsmodel), [`ModelField`](#modelfi
 _function_ in `editor/inspector-model.ts`
 
 The batch putting `model`'s refs under `parent` (null: the root), each
-keeping its world pose: one `reparent`, of the refs not already there.
+keeping its world pose: one `reparent`, of the refs not already there,
+after a `promote` for each drawn shape among them.
 
 ```ts
 declare function parentBatch(model: ParentModel, parent: Ref | null, def: SceneDefinition): {
@@ -4936,10 +4938,10 @@ _function_ in `editor/inspector-model.ts`
 
 The Parent row for `refs` in `def` (the document): each one's parent,
 and what they can be put under. A document entity of a type the tree
-takes, or a scene instance, can be reparented; an instance's child or
-nested instance stays under its instance, and nav areas, camera regions
-and notes stay at the root. Null when a ref isn't in `def` or names a
-bulk entry.
+takes, a drawn shape (promoted on the way in), or a scene instance can
+be reparented; an instance's child or nested instance stays under its
+instance, and nav areas, camera regions and notes stay at the root. Null
+when a ref isn't in `def`.
 
 ```ts
 declare function parentModel(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): ParentModel | null;

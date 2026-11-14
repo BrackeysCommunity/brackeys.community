@@ -2093,6 +2093,7 @@ SceneChange
 SceneCheck
 SceneDefinition
 SceneFragment
+SceneFrames
 SceneHash
 SceneIssue
 SceneLabels
@@ -2152,6 +2153,7 @@ compose
 composeDihedral
 composeFrames
 composeOrientations
+composeSteps
 containedInRect
 containsPoint
 convexHull
@@ -2274,6 +2276,7 @@ runRecordingSchema
 runRecordingV1Schema
 sceneAsciiMap
 sceneBody
+sceneFrames
 sceneGameOf
 sceneHash
 sceneHashWith
@@ -14990,6 +14993,10 @@ type PlacedChild = {
     child: LocalChild;
     def: EntityDef;
 };
+type PlacedInstanceChild = PlacedChild & {
+    nodeParent?: Ref;
+    transform: Orientation;
+};
 type PrefabResolution = {
     issue: SceneIssue;
     ok: false;
@@ -15021,6 +15028,13 @@ type ResolvedScene = {
     def: SceneDefinition;
     origins: ResolvedOrigin[];
 };
+type SceneFrames = {
+    hidden(id: string): boolean;
+    parentOf(id: string): Ref | undefined;
+    placed(inst: InstanceDef): PlacedInstanceChild[] | null;
+    stepsFor(item: Pick<EntityDef, "id" | "parent">): readonly Transform2D[];
+    under(parent: Ref | undefined): readonly Transform2D[];
+};
 type SourceBatchResult = {
     batch: OpBatch;
     ok: true;
@@ -15046,6 +15060,7 @@ declare function placedFrame(registry: Registry | undefined, def: EntityDef, tur
 declare function resolvePrefab(id: string, library: PrefabLibrary, registry: Registry, opts?: ResolveOptions): PrefabResolution;
 declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): SceneDefinition;
 declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
+declare function sceneFrames(def: SceneDefinition, registry?: Registry, prefabs?: PrefabLibrary): SceneFrames;
 
 ## scene/schema.ts
 type FieldKind = "angle" | "grid" | "mirror" | "path" | "point" | "shape" | "side" | "tags" | "value" | "vector";
@@ -15229,6 +15244,7 @@ declare function compose(outer: Transform2D, inner: Transform2D): Transform2D;
 declare function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral;
 declare function composeFrames(outer: Frame, inner: Frame): Frame;
 declare function composeOrientations(outer: Orientation, inner: Orientation): Orientation;
+declare const composeSteps: (steps: readonly Transform2D[]) => Transform2D;
 declare function dihedral(d: Dihedral, at: Pt): Transform2D;
 declare function dihedralOf(t: Transform2D): Dihedral | null;
 declare function flipWorld(d: Dihedral, axis: "x" | "y"): Dihedral;

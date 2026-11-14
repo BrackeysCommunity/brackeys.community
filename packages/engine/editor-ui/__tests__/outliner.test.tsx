@@ -947,6 +947,49 @@ describe("EditorOutliner tree", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("takes Alt+Up/Down on tree rows it can't reorder, saying why instead of letting it nudge", () => {
+    const library = prefabLibrary([
+      {
+        kind: "prefab",
+        v: SCENE_FORMAT_VERSION,
+        id: "turret",
+        entities: [
+          { id: "base", type: "solid", shape: ["box", 0, 0, 4, 1] },
+          { id: "barrel", type: "solid", shape: ["box", 0, 2, 4, 1] },
+        ],
+      },
+    ]);
+    const { session, dispatch, notify } = setup(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "turrets",
+        bounds: [0, 0, 100, 100],
+        solid: [["box", 5, 5, 1, 1]],
+        instances: [{ id: "t-1", prefab: "turret", at: [50, 50] }],
+      },
+      library,
+    );
+    fireEvent.click(outliner().getByRole("button", { name: /^solid/, expanded: false }));
+    const before = session.getDoc();
+    for (const name of ["base", "~solid:0"]) {
+      const press = new KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => void row(name).dispatchEvent(press));
+      expect(press.defaultPrevented).toBe(true);
+      expect(row(name).hasAttribute("aria-keyshortcuts")).toBe(false);
+    }
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(session.getDoc()).toEqual(before);
+    expect(notify.warning.mock.calls.map((c) => c[0])).toEqual([
+      "base belongs to prefab turret; open the prefab to reorder it.",
+      "~solid:0 is a drawn shape; drag it onto a row to put it in the tree.",
+    ]);
+  });
+
   it("dragging a selected row drags the selection's roots", async () => {
     const { session, dispatch } = setup(towerScene());
     act(() => session.select(["base", "barrel", "lamp", "~solid:0"]));

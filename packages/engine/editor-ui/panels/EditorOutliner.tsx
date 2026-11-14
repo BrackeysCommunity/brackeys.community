@@ -30,7 +30,13 @@ import {
 } from "react";
 
 import { selectionsByKey } from "../../collab/index";
-import { groupEdit, groupRefusal, ungroupBatch, ungroupRefusal } from "../../editor/commands";
+import {
+  groupEdit,
+  groupLeftNote,
+  groupRefusal,
+  ungroupBatch,
+  ungroupRefusal,
+} from "../../editor/commands";
 import {
   buildOutline,
   geometryOfRef,
@@ -47,10 +53,10 @@ import {
   type SceneIssue,
   type SceneOp,
 } from "../../editor/index";
-import { ENGINE_KEYS } from "../../editor/keymap";
+import { engineChord } from "../../editor/keymap";
 import {
   buildTreeOutline,
-  promotedRefs,
+  selectionAfterPromotes,
   treeDragRoots,
   treeDropBatch,
   treeDropRefusal,
@@ -58,7 +64,6 @@ import {
 } from "../../editor/outline";
 import { takenIds } from "../../scene/fragment";
 import { defaultLayer } from "../../scene/index";
-import { plural } from "../../scene/plural";
 import { canBeInTree } from "../../scene/validate";
 import { useCanvasReveal } from "../frame/EditorFrame";
 import { STORAGE_PREFIX, type EditorNotify } from "../host";
@@ -320,9 +325,9 @@ type DropData = { kind: "place"; target: DropTarget } | TreeDrop;
 
 /** A row twisty's width; it sits just before the row's label. */
 const TWISTY_PX = 16;
-
-const GROUP_CHORD = ENGINE_KEYS.find((b) => b.command === "group")?.key;
-const UNGROUP_CHORD = ENGINE_KEYS.find((b) => b.command === "ungroup")?.key;
+/** How much further in each level of the outline starts. */
+const INDENT_PX = 12;
+const indentAt = (depth: number, extra: number) => `${depth * INDENT_PX + extra}px`;
 
 /** The empty space below the tree's rows: a drop there puts rows at the root. */
 const ROOT_DROP = "tree-root";
@@ -521,6 +526,7 @@ function EntityItem({
   refusal,
   refusalAbove,
   onMove,
+  reorders,
   expanded,
   onToggle,
   selected,
@@ -550,10 +556,11 @@ function EntityItem({
   /** Why a drop aimed at this row is refused. */
   refusal?: string | undefined;
   refusalAbove?: boolean;
-  /** Set on a tree row the keyboard can move among its siblings: -1 up, 1 down. */
+  /** Set on a tree row to take Alt+Up/Down: -1 up, 1 down. */
   onMove?: ((step: -1 | 1) => void) | undefined;
+  /** Whether those keys move the row among its siblings, rather than only saying why they can't. */
+  reorders?: boolean;
   indent: CSSProperties;
-  /** Where the row's twisty sits, from its depth's indent. */
   twistyAt: number;
   onSelect: (mode: "replace" | "range" | "toggle") => void;
   onHover: (ref: Ref | null) => void;
@@ -594,7 +601,7 @@ function EntityItem({
           aria-label={`${expanded ? "Collapse" : "Expand"} ${row.label}`}
           onClick={onToggle}
           className="je-outliner-twisty"
-          style={{ left: `${row.depth * 12 + twistyAt}px` }}
+          style={{ left: indentAt(row.depth, twistyAt) }}
         >
           <Icon icon={expanded ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
         </button>
@@ -606,7 +613,7 @@ function EntityItem({
         aria-pressed={ref ? selected : undefined}
         {...listeners}
         onKeyDownCapture={onMove ? onMoveKey : undefined}
-        aria-keyshortcuts={onMove ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+        aria-keyshortcuts={onMove && reorders ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
         data-row-key={row.key}
         onClick={(e) => {
           if (!ref) return;
@@ -819,33 +826,30 @@ export function EditorOutliner({
       return;
     }
     if (!batch) return;
-    // A drawn shape is promoted on the way into the tree; the selection follows it to its new id.
-    const promoted = batch.ops.some((op) => op.op === "promote");
-    const opts = promoted ? { selectionAfter: promotedRefs(batch, selection) } : {};
-    if (!session.dispatch(batch, opts).ok) return;
+    const after = selectionAfterPromotes(batch, selection);
+    if (!session.dispatch(batch, after ? { selectionAfter: after } : {}).ok) return;
     if (drop.kind === "reparent" && drop.parent !== null) openTo(drop.parent);
     cue("drop");
   };
 
-  const refuseMove = (message: string) => {
-    if (notify) notify.warning(message);
+  const refuseMove = (message: string, why?: string) => {
+    if (notify) notify.warning(message, why ? { description: why } : undefined);
     else cue("error");
   };
 
   const groupWhy = useMemo(
-    () => groupRefusal(doc, registry, selection),
-    [doc, registry, selection],
+    () => groupRefusal(doc, registry, selection, prefabs),
+    [doc, registry, selection, prefabs],
   );
   const ungroupWhy = useMemo(() => ungroupRefusal(doc, selection), [doc, selection]);
 
   const group = () => {
-    const { edit, grouped, left } = groupEdit(session.getDoc(), registry, selection, prefabs);
-    if (!edit) return refuseMove(left[0]?.why ?? "Nothing selected can go under a node.");
-    if (!session.dispatch(edit.batch, { resolved: true, selectionAfter: edit.select }).ok) return;
-    if (left.length > 0)
-      notify?.warning(`Grouped ${grouped.length}; ${plural(left.length, "item")} left out.`, {
-        description: left[0]!.why,
-      });
+    const grouping = groupEdit(session.getDoc(), registry, selection, session.getPrefabs());
+    const { edit } = grouping;
+    if (edit && !session.dispatch(edit.batch, { resolved: true, selectionAfter: edit.select }).ok)
+      return;
+    const note = groupLeftNote(grouping);
+    if (note) refuseMove(note.title, note.why);
   };
 
   const ungroup = () => {
@@ -870,9 +874,31 @@ export function EditorOutliner({
     return undefined;
   };
 
+  /** The prefab the tree row at `i` comes from: the nearest instance row above it. */
+  const prefabAbove = (i: number): string | undefined => {
+    for (let j = i - 1, depth = rows[i]!.depth; j >= 0; j--) {
+      const r = rows[j]!;
+      if (r.depth >= depth) continue;
+      if (isEntityRow(r) && r.prefab) return r.prefab;
+      depth = r.depth;
+    }
+    return undefined;
+  };
+
+  /** Why a tree row that isn't the scene's own can't move among its siblings. */
+  const fixedWhy = (row: EntityRow): string => {
+    if (row.ref && isBulkRef(row.ref))
+      return `${row.label} is a drawn shape; drag it onto a row to put it in the tree.`;
+    const prefab = prefabAbove(rows.findIndex((r) => r.key === row.key));
+    return prefab
+      ? `${row.label} belongs to prefab ${prefab}; open the prefab to reorder it.`
+      : `${row.label} can't be reordered here.`;
+  };
+
   const moveAmongSiblings = (row: EntityRow, step: -1 | 1) => {
     const ref = row.ref;
     if (!ref) return;
+    if (!own.has(ref)) return refuseMove(fixedWhy(row));
     const i = rows.findIndex((r) => r.key === row.key);
     const sibling = siblingOf(i, step);
     if (!sibling) {
@@ -974,7 +1000,7 @@ export function EditorOutliner({
           icon={GroupItemsIcon}
           size="icon-xs"
           label="Group under a node"
-          tooltip={<KeyHint text={groupWhy ?? "Group under a node"} chord={GROUP_CHORD} />}
+          tooltip={<KeyHint text={groupWhy ?? "Group under a node"} chord={engineChord("group")} />}
           disabled={groupWhy !== null}
           focusableWhenDisabled
           onClick={group}
@@ -983,7 +1009,7 @@ export function EditorOutliner({
           icon={UngroupItemsIcon}
           size="icon-xs"
           label="Ungroup"
-          tooltip={<KeyHint text={ungroupWhy ?? "Ungroup"} chord={UNGROUP_CHORD} />}
+          tooltip={<KeyHint text={ungroupWhy ?? "Ungroup"} chord={engineChord("ungroup")} />}
           disabled={ungroupWhy !== null}
           focusableWhenDisabled
           onClick={ungroup}
@@ -1062,7 +1088,7 @@ export function EditorOutliner({
             <li className="je-outliner-none">Nothing matches.</li>
           ) : null}
           {shown.map((row) => {
-            const indent = { paddingLeft: `${row.depth * 12 + gutter}px` };
+            const indent = { paddingLeft: indentAt(row.depth, gutter) };
             if (isEntityRow(row)) {
               const ref = row.ref;
               const opens = !filtering && parents.has(row.key);
@@ -1078,7 +1104,8 @@ export function EditorOutliner({
                   mark={markOf(row.key)}
                   refusal={refusalAt(row.key)}
                   refusalAbove={aim?.above}
-                  onMove={tree && mine ? (step) => moveAmongSiblings(row, step) : undefined}
+                  onMove={tree && ref ? (step) => moveAmongSiblings(row, step) : undefined}
+                  reorders={mine}
                   {...(opens
                     ? {
                         expanded: !(collapsed[row.key] ?? collapsedByDefault(row)),
@@ -1109,8 +1136,8 @@ export function EditorOutliner({
                 aria-expanded={open}
                 onClick={() => toggle(row)}
                 className="je-outliner-row je-outliner-container"
-                // In the tree, a bucket's chevron takes the twisty's column, so its label lines up with its siblings'.
-                style={tree ? { paddingLeft: `${row.depth * 12 + gutter - TWISTY_PX}px` } : indent}
+                // Chevron in the twisty column.
+                style={tree ? { paddingLeft: indentAt(row.depth, gutter - TWISTY_PX) } : indent}
               >
                 <Icon
                   icon={open ? ArrowDown01Icon : ArrowRight01Icon}

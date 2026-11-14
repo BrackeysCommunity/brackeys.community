@@ -459,18 +459,11 @@ export function docPrefabs(doc: Y.Doc): PrefabLibrary {
 }
 
 /**
- * Reads a doc. Deterministic: two docs holding the same state give the same
- * definition, so converged clients agree on `formatScene` text and
- * `sceneHash`. Entries sort by bucket, then `@z`, then key; a record with
- * no geometry or no id can't be written to disk and is skipped. Grid
- * fields come back from their rows, canonical, and only the layout's
- * `@`-keys are dropped. A prefab doc reads as a scene of its children and
- * instances (`kind: "prefab"`), named after the prefab, with bounds from
- * `prefabSceneBounds` that are never written; its base, params and
- * overrides are in `prefab`. Those bounds hold nested instances' children
- * when `prefabs` is given, so an edit to a nested prefab can change a
- * prefab doc's `sceneHash`: every reader that hashes a prefab doc passes
- * the same library, and a base taken before such an edit is stale.
+ * Reads a doc deterministically, so converged clients agree on `formatScene`
+ * and `sceneHash`; a record with no geometry or id can't be written to disk
+ * and is skipped. A prefab doc reads as a scene of its children. Its bounds
+ * include nested children when `prefabs` is given, so every reader hashing a
+ * prefab doc must pass the same library.
  */
 export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   const meta = metaMap(doc);

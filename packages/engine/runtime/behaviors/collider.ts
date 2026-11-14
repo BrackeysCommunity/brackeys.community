@@ -103,16 +103,10 @@ function shapeOf(block: ColliderBlock, entityId: string): ShapeObj {
 }
 
 /**
- * The `collider` behavior's system. It owns the entity's physics body and
- * collider for its `collider` and `body` blocks both: a fixed body without
- * `body` (or with a static one), a kinematic body moved by the velocity
- * code gives it through `ctx.bodies`, or a dynamic body that writes the
- * entity's pose after each step. The shape is local to the entity's pose.
- * Without physics, fixed and kinematic colliders go to the geometry world
- * and a dynamic body is `physics-required`. A sensor collider raises
- * `sensor:enter` and `sensor:exit` as the `sensor` type does. A kinematic
- * or dynamic body offers itself for colliders to ride; a fixed collider
- * under such a body rides it instead of having one of its own.
+ * Owns each entity's physics body and collider for its `collider` and `body`
+ * blocks. Without physics, fixed and kinematic colliders go to the geometry
+ * world and a dynamic body is `physics-required`. A fixed collider under a
+ * moving body rides that body instead of having its own.
  */
 export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const built = new Map<string, Built>();

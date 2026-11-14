@@ -472,17 +472,11 @@ function applyActions(held: readonly string[], actions: readonly InputAction[]):
 }
 
 /**
- * Steps `runtime` until the game's outcome, a flow request (`flow`, the
- * request on `RunEnd.request`; a tick whose outcome ends the run ends it
- * even with a request pending), `stuck`, the input running out, `maxTicks`
- * simulated ticks or `maxSlots` slots. A turns or event game
- * skips a slot nothing wakes (`tickWakes`) while it isn't busy; that slot's
- * actions and seat changes are played, in order, with the next simulated
- * tick, and its pointer stands until a later one replaces it. Each tick's
- * input is merged (system first, then seats in order) and its actions
- * stamped with the tick, as a replay of it is. `live` runs before each
- * simulated tick and after each one that neither ends the run nor requests
- * a scene, so a swap lands between ticks as the shell's does.
+ * Steps `runtime` until an outcome, a flow request, `stuck`, the input
+ * running out, or `maxTicks`/`maxSlots`. Turn and event games skip slots
+ * nothing wakes, folding that slot's input into the next tick. Input is
+ * merged and stamped as a replay of the run is. `live` runs between ticks,
+ * so a swap lands where the shell's would.
  */
 export function runLoop(opts: RunLoopOptions): RunEnd {
   const { runtime, input, maxTicks } = opts;

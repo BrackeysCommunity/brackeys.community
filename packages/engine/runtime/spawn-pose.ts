@@ -1,3 +1,4 @@
+import { NODE_TYPE } from "../game/primitives";
 import type { EngineContext, Registry } from "../game/types";
 import { degToRad } from "../physics";
 import { geometryFields } from "../scene/schema";
@@ -36,6 +37,7 @@ export const nodePose = (e: RuntimeEntity<{ at: Pt; rot?: number }>): Pose =>
 
 /** `spawnPose` over a type's geometry fields, for callers that look them up once per type. */
 export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
+  if (e.type === NODE_TYPE) return nodePose(e as RuntimeEntity<{ at: Pt; rot?: number }>);
   let shape: ShapeObj | undefined;
   let at: Pt | undefined;
   let path: PathDef | undefined;
@@ -54,7 +56,7 @@ export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
  * Where an entity starts, from its type's geometry: a shape's centre (a
  * path rider's shape placed at the path's first point), else its point
  * field, else its path's first point. The angle is the shape's `rotDeg`,
- * else `RuntimeEntity.transform`'s angle.
+ * else `RuntimeEntity.transform`'s angle; a node's is its own `rot`.
  */
 export function spawnPose(e: RuntimeEntity, registry: Registry): Pose {
   const type = registry.types.get(e.type);

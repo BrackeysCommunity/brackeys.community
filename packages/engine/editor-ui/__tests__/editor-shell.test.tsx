@@ -247,6 +247,26 @@ describe("editorChrome", () => {
     expect(screen.getByText("2 selected")).toBeTruthy();
   });
 
+  it("reports a refused outliner move through the host's notify, and never nudges for it", () => {
+    const { a } = setup();
+    const zone = outliner().getByRole("button", { name: /^zone/ });
+    fireEvent.click(zone);
+    zone.focus();
+    fireEvent.keyDown(zone, { key: "ArrowUp", altKey: true });
+    expect(toasts.warning).toHaveBeenCalledWith("zone is already first at the root.", undefined);
+
+    fireEvent.click(outliner().getByRole("button", { name: /^solid/, expanded: false }));
+    const drawn = outliner().getByRole("button", { name: /~solid:0/ });
+    fireEvent.click(drawn);
+    const before = a.getDoc();
+    fireEvent.keyDown(drawn, { key: "ArrowDown", altKey: true });
+    expect(a.getDoc()).toEqual(before);
+    expect(toasts.warning).toHaveBeenLastCalledWith(
+      "~solid:0 is a drawn shape; drag it onto a row to put it in the tree.",
+      undefined,
+    );
+  });
+
   it("groups rows by registered type and keeps bulk arrays closed until opened", () => {
     setup();
     fireEvent.click(outliner().getByRole("button", { name: "Type" }));

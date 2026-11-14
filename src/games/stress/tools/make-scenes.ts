@@ -1,20 +1,10 @@
 /**
- * Generates the stress project's scenes as scene op batches and applies them
- * through the scene CLI: one scene per subsystem (`pile`, `movers`, `field`,
- * `wall`, `rooms`, `terrain`, `churn`, `crowd`) and `combined`, which holds a
- * smaller share of each. A scene is rows of four 24 × 16 m bays; a
- * subsystem's load is how many bays of it the scene has (`LOADS`,
- * `COMBINED`), a fraction being a bay with fewer rows. The same loads and
- * scale always give the same batches, so a rebuild at the committed scale
- * changes no file.
+ * Generates the stress project's scenes as op batches and applies them through the scene CLI.
  *
  *   bun src/games/stress/tools/make-scenes.ts [--scale n] [--only pile,crowd] [--dry-run]
  *
- * `--scale` multiplies every load. An existing scene is emptied and filled
- * again in one batch; a missing scene, checks file or prefab is created
- * first (a prefab that exists is left as it is), and without `--only` the
- * scene list is set to every scene. It runs under Bun only: game code
- * imports no Node built-ins, so it starts the CLI through `Bun.spawnSync`.
+ * Deterministic: the same loads and scale give the same batches, so a rebuild at the
+ * committed scale changes no file. Runs under Bun (game code imports no Node built-ins).
  */
 
 type Op = Record<string, unknown>;

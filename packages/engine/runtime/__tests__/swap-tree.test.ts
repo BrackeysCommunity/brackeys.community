@@ -2,13 +2,11 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { swapped } from "../../__tests__/fixtures/live-version";
 import { testGame } from "../../__tests__/fixtures/test-game";
+import { expectPoseClose, marker } from "../../__tests__/fixtures/tree-rig";
 import { defineGame } from "../../game/define";
 import type { ExpandedScene, RuntimeEntity } from "../../scene/types";
 import { createSceneRuntime } from "../runtime";
 import type { SceneRuntimeHandle } from "../types";
-
-const marker = (id: string, at: [number, number], extra: Partial<RuntimeEntity> = {}) =>
-  ({ id, type: "marker", at, ...extra }) as RuntimeEntity;
 
 /**
  * base ─┬─ arm ── hand
@@ -56,10 +54,7 @@ function started(ticks = 30): SceneRuntimeHandle {
   return rt;
 }
 
-const poseOf = (rt: SceneRuntimeHandle, id: string) => {
-  const p = rt.ctx.poses.get(id)!;
-  return { x: p.x, y: p.y, rot: p.rot };
-};
+const poseOf = (rt: SceneRuntimeHandle, id: string) => rt.ctx.poses.get(id)!;
 
 describe("a live swap in the scene tree", () => {
   it("that reparents an entity takes its authored pose under the new parent", () => {
@@ -72,7 +67,7 @@ describe("a live swap in the scene tree", () => {
     expect(rt.ctx.tree.parent("arm")).toBe("loose");
     expect(rt.ctx.tree.children("base")).toEqual(["leg"]);
     expect(rt.ctx.tree.children("arm")).toEqual(["hand"]);
-    expect(poseOf(rt, "arm")).toEqual({ x: 3, y: 1, rot: 0 });
+    expectPoseClose(poseOf(rt, "arm"), { x: 3, y: 1, rot: 0 });
 
     rt.ctx.setPose("loose", -4, -5, 0);
     expect(poseOf(rt, "arm").x).toBeCloseTo(4);
@@ -81,11 +76,11 @@ describe("a live swap in the scene tree", () => {
 
   it("that leaves the parent alone keeps the live pose", () => {
     const rt = started();
-    const live = poseOf(rt, "arm");
+    const live = { ...poseOf(rt, "arm") };
     swapped(rt.swap(scene(edited("arm", { tags: ["lit"] })), { prefabs: new Map() }));
     expect(rt.ctx.tree.parent("arm")).toBe("base");
     expect(rt.ctx.tree.children("base")).toEqual(["arm", "leg"]);
-    expect(poseOf(rt, "arm")).toEqual(live);
+    expectPoseClose(poseOf(rt, "arm"), live);
 
     const offset = rt.ctx.tree.local("arm")!;
     rt.step(rt.ctx.time.tickMs, []);
@@ -106,7 +101,7 @@ describe("a live swap in the scene tree", () => {
     );
     expect(rt.ctx.tree.parent("arm")).toBeNull();
     expect(rt.ctx.tree.parent("hand")).toBe("arm");
-    expect(poseOf(rt, "arm")).toEqual({ x: 3, y: 1, rot: 0 });
+    expectPoseClose(poseOf(rt, "arm"), { x: 3, y: 1, rot: 0 });
   });
 });
 

@@ -348,7 +348,11 @@ export function createKeymap(gameKeys: readonly GameKeyBinding[] = []): Keymap {
     resolve,
     bindings: [...ENGINE_KEYS, ...game.map((g) => g.binding)],
     shadowed,
-    chordOf: (command) =>
-      ENGINE_KEYS.find((b) => b.command === command && b.scope !== "text-field")?.key,
+    chordOf: engineChord,
   };
+}
+
+/** The first chord bound to an engine command, for hints; engine bindings are the same in every keymap. */
+export function engineChord(command: EditorCommand): string | undefined {
+  return ENGINE_KEYS.find((b) => b.command === command && b.scope !== "text-field")?.key;
 }

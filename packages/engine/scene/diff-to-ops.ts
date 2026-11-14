@@ -297,21 +297,14 @@ function restoreInstance(a: InstanceDef, b: InstanceDef): SceneOp[] {
 }
 
 /**
- * How the parents change from `a` to `b` for the entities and instances
- * that stay (`kept`, by id), given what is `removed`:
+ * How the parents change from `a` to `b` for the `kept` entities, given what is `removed`:
  *
- * - `restored`: those whose `parent` changes, those directly under
- *   something removed, since `remove` takes a subtree with it, and
- *   everything below either, added ones included, whose stored geometry a
- *   `reparent` may rewrite to keep it in place;
- * - `restoreOrder`: what gets restored sorted parents first;
- * - `detach`: the ones directly under something removed, which go to the
- *   root before the `remove` with what sits under them;
+ * - `restored`: those whose parent changes or sits under a removal, and everything below them;
+ * - `restoreOrder`: those sorted parents first;
+ * - `detach`: those directly under a removal, moved to the root before it;
  * - `removeOrder`: removals sorted children first;
- * - `attach()`: the `reparent`s, after the adds, that put each moving one
- *   under its parent in `b`, in an order that never makes a cycle on the
- *   way (one that can't go yet goes to the root first). Throws when `b`'s
- *   own parents form a cycle, since no op makes one.
+ * - `attach()`: the `reparent`s after the adds, ordered so no step makes a cycle;
+ *   throws when `b`'s own parents form one.
  */
 function parentMoves(
   a: SceneDefinition,

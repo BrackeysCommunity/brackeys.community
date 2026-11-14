@@ -32,7 +32,7 @@ import {
 import { isPlainObject } from "../../project/kinds/define";
 import type { RuntimeEntity } from "../../scene/types";
 import { plainJsonProblem } from "../persist";
-import { relativePose, type Pose } from "../poses";
+import type { Pose } from "../poses";
 import { currentPose } from "../spawn-pose";
 import { spriteLook, type SpriteLook, type SpriteSystem } from "./sprite";
 
@@ -124,15 +124,10 @@ function parsedSpec(spec: unknown, entityId?: string): TweenSpec {
 }
 
 /**
- * The `tween` system. Each tick, at its place in registration order, every
- * live tween whose owner is enabled moves on one whole tick. Pose channels
- * go through `ctx.setPose`, so what the entity carries moves with it; for
- * an entity with a parent they are its pose in the parent's frame and go
- * through `ctx.tree.setLocal`, so it keeps its offset as the parent moves.
- * Visual channels through the sprite system's `style` when there is a
- * view, and both are read back from the run, so a later tween starts
- * where an earlier one left off. The end of a tween
- * raises its `emit`, else `tween:end`.
+ * Steps each live tween of an enabled owner one tick. Pose channels go through
+ * `ctx.tree.setLocal`, so a child keeps its offset as its parent moves; visual
+ * channels through the sprite's `style`. Values are read back, so a later
+ * tween starts where the last left off. The end raises `emit`, else `tween:end`.
  */
 export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const tweens = new Map<number, Running>();
@@ -280,17 +275,11 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     blocks.delete(id);
   }
 
-  /** The pose a tween's pose channels read and write: in the parent's frame for a child, else the world pose. */
-  function tweenPose(id: string): { parent: string | null; pose: Pose } {
-    const parent = ctx.tree.parent(id);
-    if (parent === null) return { parent, pose: currentPose(ctx, id) };
-    const local =
-      ctx.tree.local(id) ?? relativePose(currentPose(ctx, id), currentPose(ctx, parent));
-    return { parent, pose: local };
-  }
+  /** A pose channel's frame: the parent's for a child, else the world. */
+  const localPose = (id: string): Readonly<Pose> => ctx.tree.local(id) ?? currentPose(ctx, id);
 
   function current(id: string, channel: string): number {
-    if (channel === "x" || channel === "y" || channel === "rot") return tweenPose(id).pose[channel];
+    if (channel === "x" || channel === "y" || channel === "rot") return localPose(id)[channel];
     const held = looks.get(id)?.[channel as keyof SpriteLook];
     if (held !== undefined) return held;
     const e = ctx.get(id);
@@ -308,10 +297,8 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     }
     const owner = ctx.system<SceneSystem>(e.type);
     if (moves && owner?.setPose) {
-      const { parent, pose: p } = tweenPose(id);
-      const [x, y, rot] = [values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot];
-      if (parent === null) ctx.setPose(id, x, y, rot);
-      else ctx.tree.setLocal(id, x, y, rot);
+      const p = localPose(id);
+      ctx.tree.setLocal(id, values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot);
       posed.add(id);
     }
     if (Object.keys(look).length > 0) {

@@ -71,6 +71,8 @@ export function compose(outer: Transform2D, inner: Transform2D): Transform2D {
 export const composeSteps = (steps: readonly Transform2D[]): Transform2D =>
   steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
 
+export const mirrors = (t: Transform2D): boolean => t.a * t.d - t.b * t.c < 0;
+
 export function invert(t: Transform2D): Transform2D {
   const det = t.a * t.d - t.b * t.c;
   if (det === 0 || !Number.isFinite(det)) throw new Error("the transform has no inverse");
@@ -205,7 +207,7 @@ export function frame(f: Frame): Transform2D {
 export function frameOf(t: Transform2D): Orientation {
   const d = dihedralOf(t);
   if (d) return { rot: d.rot * 90, flip: d.flip };
-  const flip = t.a * t.d - t.b * t.c < 0;
+  const flip = mirrors(t);
   // A flip mirrors x first, so the turn is read from the image of [-1, 0].
   const deg = (Math.atan2(flip ? -t.b : t.b, flip ? -t.a : t.a) * 180) / Math.PI;
   return { rot: settleDeg(deg), flip };

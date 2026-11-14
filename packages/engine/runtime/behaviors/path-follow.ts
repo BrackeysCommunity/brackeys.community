@@ -33,7 +33,7 @@ type Rider = PathPlace & {
 
 const ZERO: Vec2 = { x: 0, y: 0 };
 
-/** A standard behavior imports only what a game can, so it keeps this copy of the runtime's `samePose`. */
+/** A standard behavior imports only what `./game` exports, and that doesn't include the runtime's `samePose`. */
 const samePose = (a: Readonly<Pose>, b: Readonly<Pose>) =>
   a.x === b.x && a.y === b.y && a.rot === b.rot;
 
@@ -49,15 +49,8 @@ function savedFrame(state: JsonValue): { parent: string; frame: Pose } | null {
 }
 
 /**
- * The `path-follow` behavior's system: moves each entity along its `path`
- * with the follower type's waypoint rules, its rotation kept.
- *
- * An entity with a kinematic or dynamic `body` is driven by that body's
- * velocity rather than by writing its pose, so what stands on it is carried
- * and `carrierDelta` answers for it. A parented entity's path is in its
- * parent's frame, so it traces the path wherever the parent goes; one that
- * moves a body is self-moving, the parent's motion reaching it through that
- * velocity rather than through the tree.
+ * Moves each entity along its path. A body-driven rider moves by velocity, so
+ * what stands on it is carried; a child's path is in its parent's frame.
  */
 export const createPathFollowSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const riders = new Map<string, Rider>();

@@ -11,12 +11,11 @@ import {
   documentTree,
   headOfRef,
   localChildren,
+  resolveWith,
   sceneFrames,
   treeItems,
   type LocalChild,
-  type SceneFrames,
 } from "../scene/resolve";
-import { applyPt, composeSteps } from "../scene/transform";
 import {
   PREFAB_MAX_DEPTH,
   type BulkEntry,
@@ -27,7 +26,6 @@ import {
   type OpBatch,
   type Prefab,
   type PrefabLibrary,
-  type Pt,
   type Ref,
   type SceneDefinition,
   type SceneIssue,
@@ -60,12 +58,21 @@ export const INSTANCES_ROW = "instances";
 const describeEntry = (v: unknown): string | undefined =>
   Array.isArray(v) ? (typeof v[0] === "string" ? v[0] : `${v[0]}, ${v[1]}`) : undefined;
 
-/** How a parented entity's point is shown: in world coordinates to the inspector's decimals. */
-type WorldView = { frames: SceneFrames; decimals: number };
+/** A type as the editor names it: its inspector label, else the type itself. */
+export const typeLabel = (registry: Registry, type: EntityTypeName): string =>
+  registry.types.get(type)?.inspector?.label ?? type;
 
-/** An entity's row; `kind` leads its detail where no type row says it. */
-function entityRow(e: EntityDef, depth = 1, kind?: string, world?: WorldView): OutlineRow {
-  const at = world && e.shape === undefined && e.parent !== undefined ? worldAt(e, world) : e.at;
+/** What the outliner calls an entity or instance: its name, else its id. */
+export const entryName = (d: { id: string; name?: string | undefined }): string => d.name ?? d.id;
+
+/** `entryName` of the document entry `ref` names, else `ref` itself. */
+export function entryLabel(def: SceneDefinition, ref: Ref): string {
+  const d = treeItems(def).find((item) => item.id === ref);
+  return d ? entryName(d) : ref;
+}
+
+/** An entity's row; `kind` leads its detail where no type row says it, and `at` is the point it shows. */
+function entityRow(e: EntityDef, depth = 1, kind?: string, at: unknown = e.at): OutlineRow {
   const detail = [kind, describeEntry(e.shape ?? at), e.material, e.off ? "off" : undefined]
     .filter((s) => typeof s === "string")
     .join(" · ");
@@ -73,18 +80,18 @@ function entityRow(e: EntityDef, depth = 1, kind?: string, world?: WorldView): O
     key: `ref:${e.id}`,
     depth,
     kind: "entity",
-    label: e.name ?? e.id,
+    label: entryName(e),
     ...(detail ? { detail } : {}),
     ref: e.id,
     type: e.type,
   };
 }
 
-function worldAt(e: EntityDef, { frames, decimals }: WorldView): unknown {
-  if (!Array.isArray(e.at) || typeof e.at[0] !== "number") return e.at;
-  const [x, y] = applyPt(composeSteps(frames.stepsFor(e)), e.at as Pt);
-  return [Number(x.toFixed(decimals)) + 0, Number(y.toFixed(decimals)) + 0];
-}
+/** A point to `decimals` places, as the inspector shows it; anything else as it is. */
+const rounded = (at: unknown, decimals: number): unknown =>
+  Array.isArray(at) && at.every((v) => typeof v === "number")
+    ? at.map((v: number) => Number(v.toFixed(decimals)) + 0)
+    : at;
 
 function bucketRows(key: BulkKey, values: BulkEntry[], depth = 1): OutlineRow[] {
   const type = bulkKeyType(key);
@@ -136,7 +143,7 @@ function instanceRows(
     key: `ref:${inst.id}`,
     depth,
     kind: "entity",
-    label: inst.name ?? inst.id,
+    label: entryName(inst),
     detail: [prefab ? inst.prefab : `${inst.prefab} (missing)`, inst.off ? "off" : undefined]
       .filter((s) => s !== undefined)
       .join(" · "),
@@ -191,7 +198,7 @@ function instanceRows(
         key: `ref:${ref}`,
         depth: d,
         kind: "entity",
-        label: n.name ?? n.id,
+        label: entryName(n),
         detail: [inner ? n.prefab : `${n.prefab} (missing)`, n.off ? "off" : undefined]
           .filter((s) => s !== undefined)
           .join(" · "),
@@ -249,8 +256,17 @@ export function buildOutline(
   for (const [type, children] of groups) {
     const count = counts.get(type);
     if (!count) continue;
-    const label = registry.types.get(type)?.inspector?.label ?? type;
-    rows.push({ key: `type:${type}`, depth: 0, kind: "type", label, type, count }, ...children);
+    rows.push(
+      {
+        key: `type:${type}`,
+        depth: 0,
+        kind: "type",
+        label: typeLabel(registry, type),
+        type,
+        count,
+      },
+      ...children,
+    );
   }
   const instances = def.instances ?? [];
   if (instances.length > 0) {
@@ -281,10 +297,16 @@ export function buildTreeOutline(
   prefabs?: PrefabLibrary,
 ): OutlineRow[] {
   const frames = sceneFrames(def, registry, prefabs);
-  const world: WorldView = { frames, decimals: lengthDecimals(pxPerMetreOf(registry)) };
-  type Item = { kind: "entity"; def: EntityDef } | { kind: "instance"; def: InstanceDef };
+  const decimals = lengthDecimals(pxPerMetreOf(registry));
+  const placed = resolveWith(def, registry, frames, false).def.entities ?? [];
+  // A parented entity's point shows in world coordinates, as the inspector shows it.
+  const shownAt = (e: EntityDef, i: number) =>
+    e.shape === undefined && e.parent !== undefined ? rounded(placed[i]?.at, decimals) : e.at;
+  type Item =
+    | { kind: "entity"; def: EntityDef; at: unknown }
+    | { kind: "instance"; def: InstanceDef };
   const items: Item[] = [
-    ...(def.entities ?? []).map((e): Item => ({ kind: "entity", def: e })),
+    ...(def.entities ?? []).map((e, i): Item => ({ kind: "entity", def: e, at: shownAt(e, i) })),
     ...(def.instances ?? []).map((i): Item => ({ kind: "instance", def: i })),
   ];
   const byParent = new Map<Ref, Item[]>();
@@ -293,7 +315,6 @@ export function buildTreeOutline(
     byParent.set(parent, [...(byParent.get(parent) ?? []), item]);
   }
   const done = new Set<Item>();
-  const typeLabel = (type: EntityTypeName) => registry.types.get(type)?.inspector?.label ?? type;
   const under: RowsUnder = (parent, depth) =>
     (byParent.get(parent) ?? []).flatMap((item) => emit(item, depth));
   const emit = (item: Item, depth: number): OutlineRow[] => {
@@ -301,7 +322,7 @@ export function buildTreeOutline(
     done.add(item);
     const head =
       item.kind === "entity"
-        ? [entityRow(item.def, depth, typeLabel(item.def.type), world)]
+        ? [entityRow(item.def, depth, typeLabel(registry, item.def.type), item.at)]
         : instanceRows(item.def, prefabs, registry, depth, under);
     return [...head, ...under(item.def.id, depth + 1)];
   };
@@ -398,6 +419,14 @@ export function promotedRefs(batch: OpBatch, refs: readonly Ref[]): Ref[] {
     const before = gone.filter((g) => g.key === bulk.key && g.index < bulk.index).length;
     return before > 0 ? bulkId(bulk.key, bulk.index - before) : r;
   });
+}
+
+/** The selection once `batch` applies, when its promotes move it; undefined when it has none. */
+export function selectionAfterPromotes(
+  batch: OpBatch,
+  selection: readonly Ref[],
+): Ref[] | undefined {
+  return batch.ops.some((op) => op.op === "promote") ? promotedRefs(batch, selection) : undefined;
 }
 
 /**

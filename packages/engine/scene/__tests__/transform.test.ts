@@ -17,6 +17,7 @@ import {
   invert,
   inverseTurn,
   isIdentityTurn,
+  mirrors,
   translation,
   turnOf,
   type Dihedral,
@@ -121,6 +122,24 @@ describe("dihedralOf", () => {
   it("is null for a linear part outside the group", () => {
     expect(dihedralOf({ ...IDENTITY_2D, a: 2 })).toBeNull();
     expect(dihedralOf({ a: 0.6, b: 0.8, c: -0.8, d: 0.6, tx: 0, ty: 0 })).toBeNull();
+  });
+});
+
+describe("mirrors", () => {
+  it("is true for an odd number of flips, at any turn or scale", () => {
+    for (let rot = 0; rot < 360; rot += 30) {
+      const scaled = (t: Transform2D) => ({ ...t, a: t.a * 2, b: t.b * 2 });
+      expect(mirrors(frame({ at: [3, 4], rot, flip: false }))).toBe(false);
+      expect(mirrors(scaled(frame({ at: [3, 4], rot, flip: true })))).toBe(true);
+      expect(
+        mirrors(
+          compose(
+            frame({ at: [0, 0], rot, flip: true }),
+            frame({ at: [1, 0], rot: 0, flip: true }),
+          ),
+        ),
+      ).toBe(false);
+    }
   });
 });
 

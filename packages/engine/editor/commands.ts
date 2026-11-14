@@ -295,34 +295,51 @@ export function groupBatch(
   return groupEdit(def, registry, refs, prefabs).edit;
 }
 
+type Left = { ref: Ref; why: string };
+
+export type GroupEdit = { edit: SelectingBatch | null; grouped: Ref[]; left: Left[] };
+
+const NO_NODES = "This game has no nodes to group under.";
+const NOTHING_GROUPS = "Nothing selected can go under a node.";
+
+/**
+ * The roots of `refs` a group puts under its node, once drawn shapes are
+ * promoted, and why each root it can't take stays out.
+ */
+function groupPick(
+  given: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+  prefabs?: PrefabLibrary,
+) {
+  const lift = liftIntoTree(given, registry, refs, prefabs);
+  const frames = sceneFrames(lift.def, registry, prefabs);
+  const tree = documentTree(lift.def, frames);
+  const target = parentTargets(lift.def, registry, frames);
+  const roots: Ref[] = [];
+  const left: Left[] = [];
+  for (const r of tree.roots(lift.refs)) {
+    const t = target(r);
+    if (canBeChild(t)) roots.push(r);
+    else {
+      const why = outOfTreeReason(registry, r, t.kind === "entity" ? t.what : undefined);
+      left.push({ ref: r, why: why ?? `${r} can't go under a node.` });
+    }
+  }
+  return { lift, tree, roots, left };
+}
+
 /** `groupBatch`, with the roots it groups and why each one it leaves out stays out. */
 export function groupEdit(
   given: SceneDefinition,
   registry: Registry,
   refs: readonly Ref[],
   prefabs?: PrefabLibrary,
-): { edit: SelectingBatch | null; grouped: Ref[]; left: { ref: Ref; why: string }[] } {
+): GroupEdit {
   if (!registry.types.has(NODE_TYPE))
-    return {
-      edit: null,
-      grouped: [],
-      left: refs.map((ref) => ({ ref, why: "This game has no nodes to group under." })),
-    };
-  const lift = liftIntoTree(given, registry, refs, prefabs);
+    return { edit: null, grouped: [], left: refs.map((ref) => ({ ref, why: NO_NODES })) };
+  const { lift, tree, roots, left } = groupPick(given, registry, refs, prefabs);
   const def = lift.def;
-  const frames = sceneFrames(def, registry, prefabs);
-  const tree = documentTree(def, frames);
-  const target = parentTargets(def, registry, frames);
-  const roots: Ref[] = [];
-  const left: { ref: Ref; why: string }[] = [];
-  for (const r of tree.roots(lift.refs)) {
-    if (canBeChild(target(r))) roots.push(r);
-    else {
-      const t = target(r);
-      const why = outOfTreeReason(registry, r, t.kind === "entity" ? t.what : undefined);
-      left.push({ ref: r, why: why ?? `${r} can't go under a node.` });
-    }
-  }
   if (roots.length === 0) return { edit: null, grouped: [], left };
   const lines = roots.map((r) => [...tree.ancestors(r), undefined]);
   const parent = lines[0]!.find((a) => lines.every((line) => line.includes(a)));
@@ -346,19 +363,36 @@ export function groupEdit(
 }
 
 /**
- * Why grouping `refs` would do nothing, without building the batch: the
- * first one's reason when none of them can go under a node; null when one can.
+ * What a group says beyond its batch: why it grouped nothing, or how much it
+ * left out and why the first one stays out; null when it took everything.
+ */
+export function groupLeftNote({
+  edit,
+  grouped,
+  left,
+}: GroupEdit): { title: string; why?: string } | null {
+  if (!edit) return { title: left[0]?.why ?? NOTHING_GROUPS };
+  if (left.length === 0) return null;
+  return {
+    title: `Grouped ${grouped.length}; ${plural(left.length, "item")} left out.`,
+    why: left[0]!.why,
+  };
+}
+
+/**
+ * Why grouping `refs` would do nothing, by `groupEdit`'s own rule but
+ * without building the batch; null when it would group something.
  */
 export function groupRefusal(
   def: SceneDefinition,
   registry: Registry,
   refs: readonly Ref[],
+  prefabs?: PrefabLibrary,
 ): string | null {
   if (refs.length === 0) return "Select what to group.";
-  if (!registry.types.has(NODE_TYPE)) return "This game has no nodes to group under.";
-  const types = new Map((def.entities ?? []).map((e) => [e.id, e.type] as const));
-  const why = refs.map((r) => outOfTreeReason(registry, r, types.get(r)));
-  return why.every((w) => w !== null) ? why[0]! : null;
+  if (!registry.types.has(NODE_TYPE)) return NO_NODES;
+  const { roots, left } = groupPick(def, registry, refs, prefabs);
+  return roots.length > 0 ? null : (left[0]?.why ?? NOTHING_GROUPS);
 }
 
 /** Why ungrouping `refs` would do nothing; null when one of them is a node. */

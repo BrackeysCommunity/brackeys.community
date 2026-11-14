@@ -60,6 +60,7 @@ import {
   type Pt,
   type Ref,
   type RefTarget,
+  type Registry,
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
@@ -82,7 +83,7 @@ import {
   rowSummary,
   withArticle,
 } from "../../editor/inspector-model";
-import { promotedRefs } from "../../editor/outline";
+import { entryLabel, entryName, selectionAfterPromotes, typeLabel } from "../../editor/outline";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { capitalise } from "../../game/live";
 import { isCameraRegionType } from "../../game/primitives";
@@ -91,7 +92,7 @@ import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
 import type { PrefabLibrary } from "../../scene/index";
-import { headOfRef, treeItems } from "../../scene/resolve";
+import { headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
 import {
@@ -791,21 +792,17 @@ function RefCombobox({
   );
 }
 
-/** A document entry's name (the outliner's label), else its ref. */
-function entryLabel(def: SceneDefinition, ref: Ref): string {
-  return treeItems(def).find((d) => d.id === ref)?.name ?? ref;
-}
-
 /** How the Parent row shows each ref: the outliner's label, then its id where that differs and what it is. */
-function parentDescriber(def: SceneDefinition, typeLabel: (type: string) => string) {
-  const kinds = new Map<Ref, { name?: string | undefined; what: string }>();
-  for (const e of def.entities ?? []) kinds.set(e.id, { name: e.name, what: typeLabel(e.type) });
+function parentDescriber(def: SceneDefinition, registry: Registry) {
+  const kinds = new Map<Ref, { label: string; what: string }>();
+  for (const e of def.entities ?? [])
+    kinds.set(e.id, { label: entryName(e), what: typeLabel(registry, e.type) });
   for (const i of def.instances ?? [])
-    kinds.set(i.id, { name: i.name, what: `instance of ${i.prefab}` });
+    kinds.set(i.id, { label: entryName(i), what: `instance of ${i.prefab}` });
   return (ref: Ref): Described => {
     if (ref === ROOT_PARENT) return { label: ref };
     const d = kinds.get(ref);
-    const label = d?.name ?? ref;
+    const label = d?.label ?? ref;
     const what = d?.what ?? (headOfRef(ref) !== ref ? `in ${headOfRef(ref)}` : undefined);
     const detail = [label !== ref ? ref : undefined, what].filter((s) => s !== undefined);
     return detail.length > 0 ? { label, detail: detail.join(" · ") } : { label };
@@ -840,11 +837,7 @@ function ParentField({
     () => parentModel(doc, session.registry, refsKey.split("\n"), prefabs),
     [doc, session.registry, refsKey, prefabs],
   );
-  const describe = useMemo(
-    () =>
-      parentDescriber(doc, (type) => session.registry.types.get(type)?.inspector?.label ?? type),
-    [doc, session.registry],
-  );
+  const describe = useMemo(() => parentDescriber(doc, session.registry), [doc, session.registry]);
   // The schema's description speaks to the CLI; the editor says the same in a designer's words.
   const drawn = refs.some((r) => isBulkRef(r));
   const row = {
@@ -873,8 +866,7 @@ function ParentField({
   const commit = (next: string | null) => {
     const edit = parentBatch(model, next === ROOT_PARENT ? null : next, doc);
     if (!edit.ok) return setError(edit.error);
-    const promoted = edit.batch.ops.some((op) => op.op === "promote");
-    const after = promoted ? promotedRefs(edit.batch, session.store.state.selection) : undefined;
+    const after = selectionAfterPromotes(edit.batch, session.store.state.selection);
     setError(dispatchSource(session, edit.batch, readOnly, after));
   };
   return (
@@ -2049,7 +2041,7 @@ function Inspector({
   };
   const prefabBatch = child || inPrefab ? null : createPrefabBatch(doc, selection, prefabs);
   const typeDefs = model.types.map((t) => session.registry.types.get(t));
-  const typeLabel = model.types.map((t, i) => typeDefs[i]?.inspector?.label ?? t).join(", ");
+  const typesShown = model.types.map((t) => typeLabel(session.registry, t)).join(", ");
   const scope = targets.map((t) => t.ref).join(",");
 
   return (
@@ -2061,7 +2053,7 @@ function Inspector({
           <span className="je-insp-title je-sp-truncate">{targets[0]!.ref}</span>
         )}
         <Hinted hint={targets.length === 1 ? typeDefs[0]?.description : undefined}>
-          <span className="je-insp-grow je-sp-truncate je-insp-muted">{typeLabel}</span>
+          <span className="je-insp-grow je-sp-truncate je-insp-muted">{typesShown}</span>
         </Hinted>
         {prefabBatch ? (
           <Button
@@ -2369,7 +2361,7 @@ function PlacementSection({
           },
         ])}
       </div>
-      <FieldRow label="z" hint="Added to the z of every child; higher draws in front.">
+      <FieldRow label="Z" hint="Added to the z of every child; higher draws in front.">
         {model.editable ? (
           <NumberInput
             label="z"

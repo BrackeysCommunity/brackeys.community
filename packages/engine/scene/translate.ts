@@ -12,6 +12,7 @@ import {
   applyVec,
   dihedralOf,
   frameOf,
+  mirrors,
   translation,
   type Orientation,
   type Transform2D,
@@ -99,7 +100,7 @@ export function transformTuple(tuple: ShapeTuple, t: Transform2D): ShapeTuple {
       pts.push(placePt(t, [out[i] as number, out[i + 1] as number]));
     }
     // A flip reverses the points to keep the winding, as `flipShapeX` does.
-    if (t.a * t.d - t.b * t.c < 0) pts.reverse();
+    if (mirrors(t)) pts.reverse();
     return [tuple[0], ...pts.flat()] as ShapeTuple;
   }
   const [cx, cy] = placePt(t, [out[1] as number, out[2] as number]);

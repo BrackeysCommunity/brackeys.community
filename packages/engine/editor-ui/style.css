@@ -2544,9 +2544,13 @@
     align-items: center;
     justify-content: center;
     min-height: var(--je-row);
-    border: 1px dashed var(--je-border);
     border-radius: var(--je-radius-sm);
-    background: var(--je-panel);
+    background: var(--je-muted);
+  }
+
+  /* Opaque, since the strip lies over rows. */
+  .je-outliner-root[data-drop-refused] {
+    background: color-mix(in srgb, var(--je-danger) 10%, var(--je-panel));
   }
 
   .je-outliner-root[data-idle] {
@@ -2666,6 +2670,12 @@
   .je-outliner-open:focus-visible,
   .je-outliner-open[data-busy] {
     opacity: 1;
+  }
+
+  /* The Open button lies over the detail, so the detail steps aside while it shows. */
+  .je-outliner-entity:hover:has(.je-outliner-open) .je-outliner-detail,
+  .je-outliner-entity:has(.je-outliner-open:is(:focus-visible, [data-busy])) .je-outliner-detail {
+    visibility: hidden;
   }
 
   /* Inspector */

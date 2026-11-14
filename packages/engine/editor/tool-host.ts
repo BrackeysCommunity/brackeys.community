@@ -1,6 +1,5 @@
 import { ENGINE_TOOL_IDS } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
-import { plural } from "../scene/plural";
 import type { SpriteAssetLookup } from "../scene/render-geometry";
 import type { Aabb, OpBatch, Pt, Ref } from "../scene/types";
 import { TOOL_PRIORITY, type ToolEvent, type ToolRouter } from "../tool-router";
@@ -14,6 +13,7 @@ import {
   deleteBatch,
   flipBatch,
   groupEdit,
+  groupLeftNote,
   hierarchyDown,
   hierarchyUp,
   nudgeBatch,
@@ -505,13 +505,12 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       case "select-all":
         return selectRefs(selectAllRefs(def, index, layers));
       case "group": {
-        const { edit, grouped, left } = groupEdit(doc, registry, sel, prefabs);
-        if (!edit) return left.length > 0 && refuse(left[0]!.why);
+        const grouping = groupEdit(doc, registry, sel, prefabs);
+        const note = groupLeftNote(grouping);
+        const { edit } = grouping;
+        if (!edit) return sel.length > 0 && refuse(note!.title);
         if (!apply(edit.batch, edit.select)) return false;
-        if (left.length > 0)
-          say(
-            `Grouped ${grouped.length}; ${plural(left.length, "item")} left out. ${left[0]!.why}`,
-          );
+        if (note) say(note.why ? `${note.title} ${note.why}` : note.title);
         return true;
       }
       case "ungroup": {

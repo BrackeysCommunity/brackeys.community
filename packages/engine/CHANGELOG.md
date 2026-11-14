@@ -208,7 +208,11 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
   otherwise), `frameOf`, `composeFrames`, `Orientation`,
   `composeOrientations` and `isQuarterTurn`. In `scene`: `entityFrame`
   (a node's `at`, `rot` and `flip`, else the spawn pose `spawnPose` reads),
-  `placedFrame`, `instanceFrame` and `PARENT_MAX_DEPTH` (16).
+  `placedFrame`, `instanceFrame` and `PARENT_MAX_DEPTH` (16), plus
+  `sceneFrames(def, registry?, prefabs?)` / `SceneFrames` (each entity's
+  and instance's steps to the world through its parent chain, memoised by
+  id) and `composeSteps(steps)` (those steps, innermost first, as one
+  transform).
 - `SceneOp` gains `reparent { refs, parent }` and `transform`'s `rotate`
   (degrees, about `about`), in `OP_NAMES`, the ops schema and `opRefs`.
 - `reparent { refs, parent }` puts entities and instances under another
@@ -306,16 +310,19 @@ prefabs)` beside `buildOutline`.
 - A spawner's prefab spawn still holds one slot until its last child that
   isn't a node goes; its emptied node is then destroyed.
 - `scene list` counts the instance nodes under `node`.
-- Re-pinned for node entities alone: scenes with instances gain one node
-  per instance and per nested instance, so the kitchen-sink ascii and svg
+- Re-pinned for node entities: scenes with instances gain one node per
+  instance and per nested instance, so the kitchen-sink ascii and svg
   goldens (node glyphs and labels only), the tactics level-1 recording's
-  `runHash` (715ae3af7674ba20 to f7c4c73ef9e55a13; its `end` and
-  `TACTICS_GOLDEN_DIGEST` 0d59d480ac4a58bd stay), the behavior-yard genre
-  pin (db3eec27538cd4a6 to cd34fb179bb5c640: outcome, ticks, slots,
-  end-state and trail are the same, and the events are the same once the
-  six `entity:spawned` of the spawner's crate nodes are dropped) and the
-  sublevels test's cellar ids move. Every other genre pin, the platformer
-  goldens and the determinism probe are unchanged.
+  `runHash` (715ae3af7674ba20 to 88825d427ae3a38f: the run hash reads the
+  expanded scene, now with its five instance nodes, and the prefab
+  library, whose files are also at format 5; with the prefabs held at v4
+  it is f7c4c73ef9e55a13; its `end` and `TACTICS_GOLDEN_DIGEST`
+  0d59d480ac4a58bd stay), the behavior-yard genre pin (db3eec27538cd4a6
+  to cd34fb179bb5c640: outcome, ticks, slots, end-state and trail are the
+  same, and the events are the same once the six `entity:spawned` of the
+  spawner's crate nodes are dropped) and the sublevels test's cellar ids
+  move. Every other genre pin, the platformer goldens and the determinism
+  probe are unchanged.
 - Breaking: `AttachmentHub` changes shape: `moved` and the `moved` callback of
   `attach` are gone, because the scene tree now poses riding entities. In
   `host`, `origin` is optional and defaults to where the body is.
@@ -483,6 +490,10 @@ refs)` take the document and return `{ batch, select } | null`
   restore spawns in record order, so the save's `parents` holds the link.
 - A live swap that changes only a node's `rot` turns the node and what it
   carries, instead of putting the old pose back.
+- `spawnPose` puts a node at its own `rot` when set, as its system places
+  it, instead of at the angle of what it sits in, so `currentPose`'s
+  fallback, a live swap's moved check and the other spawn-pose readers
+  agree with the node's pose.
 - An entity whose type system has `setPose` but no `disable`, posed while
   disabled, comes back where it was put when enabled, not at its spawn
   pose.
@@ -516,11 +527,16 @@ refs)` take the document and return `{ batch, select } | null`
   the fuzz probe's button-only rollout digests (`54358566f81d2ff2` to
   `d6933996a797f077`, `c702eae74c4df8a2` to `9cbdbfa1442a4e50`: putting
   engine-yard's v4 hash back gives the old digests) and the tactics
-  golden recording's `sceneHash` and `runHash` (its replay digest
-  `0d59d480ac4a58bd` is unchanged). The kitchen-sink and sprite golden
-  renders draw the nodes that replaced their groups. The platformer's
-  golden traces, the determinism probe and the engine-yard expansion are
-  unchanged.
+  golden recording's `sceneHash` (a905131b5aaff308 to 4fea84d456102e77:
+  level-1 and its knight and archer prefabs at `v: 5`; hashing them at
+  `v: 4` gives the old hash). Its `runHash` move is under Changed, and its
+  replay digest `0d59d480ac4a58bd` is unchanged. Its `configHash` moves
+  with the engine version alone (07056db81c444ecb at 0.13.0, where it was
+  recorded, to c482218f28b64ffc at 0.16.0; tactics' own config is
+  unchanged), and the golden replay ignores it. The kitchen-sink and
+  sprite golden renders draw the nodes that replaced their groups. The
+  platformer's golden traces, the determinism probe and the engine-yard
+  expansion are unchanged.
 - Save files stay `save:v1`, but a world save's instance records hold
   `rot` in degrees from engine 0.16.0; a world save an older engine wrote
   is read with its quarter turns `k` as `90 × k` degrees.

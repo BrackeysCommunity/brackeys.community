@@ -705,6 +705,8 @@ describe("EditorInspector: an instance's placement", () => {
 
   it("shows the instance's z and sets it with one setZ", () => {
     const { session, dispatch } = placed(["post-2"]);
+    expect(within(section()).getByText("Z")).toBeTruthy();
+    expect(within(section()).queryByText("z")).toBeNull();
     expect(input("z").value).toBe("2");
     fireEvent.change(input("z"), { target: { value: "+=3" } });
     fireEvent.keyDown(input("z"), { key: "Enter" });

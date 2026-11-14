@@ -7,6 +7,7 @@ export {
   composeDihedral,
   composeFrames,
   composeOrientations,
+  composeSteps,
   dihedral,
   dihedralOf,
   flipWorld,

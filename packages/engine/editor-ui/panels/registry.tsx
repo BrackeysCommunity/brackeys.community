@@ -100,16 +100,19 @@ const sameIssues = (issues: readonly SceneIssue[]) => issues;
 function OutlinerWithProblems({
   session,
   physical,
+  notify,
   onOpenPrefab,
 }: {
   session: EditorSession;
   physical: Store<readonly SceneIssue[]>;
+  notify: EditorNotify;
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
   return (
     <EditorOutliner
       session={session}
       physical={useStoreValue(physical, sameIssues, Object.is)}
+      notify={notify}
       onOpenPrefab={onOpenPrefab}
     />
   );
@@ -208,6 +211,7 @@ export const PANELS: readonly PanelDef[] = [
       <OutlinerWithProblems
         session={ctx.controls.session}
         physical={ctx.physical}
+        notify={ctx.controls.notify}
         onOpenPrefab={ctx.controls.onOpenPrefab}
       />
     ),

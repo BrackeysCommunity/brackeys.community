@@ -790,19 +790,9 @@ const fresh = (library: PrefabLibrary, deps: Deps) =>
   [...deps].every(([id, prefab]) => library.get(id) === prefab);
 
 /**
- * A prefab with its base and nested instances resolved: a variant's base's
- * children with the variant's overrides, then its own entities and bulk
- * entries, then each nested instance's children (that prefab resolved, the
- * instance's params and overrides applied, turned and flipped by its `rot`
- * and `flip` at its `at`, its `z` added, ids under `<instance>/`, its
- * `layer` and `off` inherited). At each level an override beats the
- * prefab's own value, and an outer level beats every inner one. Fails with
- * `prefab-unknown` for a missing prefab, `variant-base-unknown` for a
- * missing base, `prefab-cycle` for one that contains itself through
- * instances or bases, and `prefab-depth` past `PREFAB_MAX_DEPTH` levels (a
- * base counts as one). Params are the base's, a redeclared name replacing it.
- * Memoised per library and registry object: a library is a snapshot, and
- * a new version is a new map. Treat the result as read-only.
+ * A prefab with its base and nested instances resolved; an outer override
+ * beats every inner one. Memoised per library and registry object (a new
+ * library version is a new map), so treat the result as read-only.
  */
 export function resolvePrefab(
   id: string,
