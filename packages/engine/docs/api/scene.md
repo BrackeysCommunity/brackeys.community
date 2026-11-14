@@ -3984,11 +3984,8 @@ Refers to [`GridRow`](#gridrow).
 
 _function_ in `scene/resolve.ts`
 
-An entity's own frame from its stored fields: what its children's
-geometry is written in. A node's `at`, `rot` and `flip`; any other
-entity's spawn pose, as `runtime/spawn-pose.ts` reads it (the shape's
-centre, a path rider's shape placed at the path's first point, else its
-point, else the path's first point) at its box's or capsule's `rotDeg`,
+An entity's own frame, which its children are written in: a node's `at`,
+`rot` and `flip`; any other entity's spawn pose (`runtime/spawn-pose.ts`),
 unflipped. An entity with no geometry stands at the origin.
 
 ```ts
@@ -4061,15 +4058,10 @@ Refers to [`InstanceDef`](#instancedef), [`PrefabLibrary`](#prefablibrary), [`Re
 
 _function_ in `scene/expand.ts`
 
-What the runtime loads, as the scene's resolved view (`resolveScene`)
-holds it: parent frames applied, each instance's nodes and children
-through `expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
-types that don't load are dropped, along with the editor's fields (`layer`
-and a non-zero `z` stay), shapes become objects, behavior blocks are whole
-(`behaviorBlocks`), a turned or flipped entity records its `transform`,
-and settings get their defaults. Entities come in `registry.spawnGroups`
-order: within a group, bulk entries first (in `registry.bulkKeys` order),
-then entities in file order, instance children after the document's own.
+What the runtime loads: the resolved view with instances expanded
+(`<instance>/<child>`), bulk entries as `~key:index`, `off` entities and
+editor-only fields dropped, and settings defaulted; entities in
+`registry.spawnGroups` order.
 
 ```ts
 declare function expandScene(source: SceneDefinition, registry: Registry, opts?: ExpandOptions): ExpandedScene;

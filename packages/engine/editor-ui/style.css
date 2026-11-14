@@ -2521,9 +2521,7 @@
     pointer-events: none;
   }
 
-  .je-outliner-item[data-drop-over]::after,
-  .je-outliner-list[data-drop-over],
-  .je-outliner-root[data-drop-over] {
+  .je-outliner-item[data-drop-over]::after {
     background: color-mix(in srgb, var(--je-primary) 10%, transparent);
     box-shadow: inset 0 0 0 1px var(--je-primary);
   }
@@ -2571,10 +2569,6 @@
   }
 
   /* Opaque, since the strip lies over rows. */
-  .je-outliner-root[data-drop-over] {
-    background: color-mix(in srgb, var(--je-primary) 10%, var(--je-panel));
-  }
-
   .je-outliner-root[data-drop-refused] {
     background: color-mix(in srgb, var(--je-danger) 10%, var(--je-panel));
   }
@@ -3440,7 +3434,15 @@
     border-radius: var(--je-radius-sm);
   }
 
-  .je-ptree-drop[data-drop-over] {
+  /* Every whole-panel drop zone: the tint is an image so the root strip stays
+     opaque, and the ring sits outside, where a highlighted row can't cover it. */
+  .je-ptree-drop[data-drop-over],
+  .je-outliner-list[data-drop-over],
+  .je-outliner-root[data-drop-over] {
+    background-image: linear-gradient(
+      color-mix(in srgb, var(--je-primary) 10%, transparent),
+      color-mix(in srgb, var(--je-primary) 10%, transparent)
+    );
     box-shadow: 0 0 0 1px var(--je-primary);
   }
 
