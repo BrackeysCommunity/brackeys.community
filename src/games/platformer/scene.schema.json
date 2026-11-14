@@ -1921,6 +1921,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -3086,6 +3087,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -4489,6 +4491,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -5706,6 +5709,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -6865,6 +6869,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -8259,6 +8264,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -9669,6 +9675,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -11086,6 +11093,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -12550,6 +12558,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -13955,6 +13964,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -15120,6 +15130,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -16285,6 +16296,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -17450,6 +17462,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -18844,6 +18857,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -20259,6 +20273,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -21662,6 +21677,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": [0, 0],
                       "group": "emission",
                       "type": "array",
                       "prefixItems": [
@@ -21754,20 +21770,24 @@
             "x": {
               "description": "World x, m.",
               "unit": "m",
+              "placeholder": "not animated",
               "type": "number"
             },
             "y": {
               "description": "World y, m.",
               "unit": "m",
+              "placeholder": "not animated",
               "type": "number"
             },
             "rot": {
               "description": "Rotation, radians.",
               "unit": "rad",
+              "placeholder": "not animated",
               "type": "number"
             },
             "alpha": {
               "description": "The sprite's opacity, 0–1.",
+              "placeholder": "not animated",
               "type": "number",
               "minimum": 0,
               "maximum": 1
@@ -21775,12 +21795,14 @@
             "tint": {
               "description": "The sprite's tint, 0xRRGGBB, lerped per channel.",
               "widget": "color",
+              "placeholder": "not animated",
               "type": "integer",
               "minimum": 0,
               "maximum": 16777215
             },
             "scale": {
               "description": "Multiplies the sprite's drawn size; 1 draws it as its block sizes it.",
+              "placeholder": "not animated",
               "type": "number",
               "exclusiveMinimum": 0
             }
@@ -21794,20 +21816,24 @@
             "x": {
               "description": "World x, m.",
               "unit": "m",
+              "placeholder": "current",
               "type": "number"
             },
             "y": {
               "description": "World y, m.",
               "unit": "m",
+              "placeholder": "current",
               "type": "number"
             },
             "rot": {
               "description": "Rotation, radians.",
               "unit": "rad",
+              "placeholder": "current",
               "type": "number"
             },
             "alpha": {
               "description": "The sprite's opacity, 0–1.",
+              "placeholder": "current",
               "type": "number",
               "minimum": 0,
               "maximum": 1
@@ -21815,12 +21841,14 @@
             "tint": {
               "description": "The sprite's tint, 0xRRGGBB, lerped per channel.",
               "widget": "color",
+              "placeholder": "current",
               "type": "integer",
               "minimum": 0,
               "maximum": 16777215
             },
             "scale": {
               "description": "Multiplies the sprite's drawn size; 1 draws it as its block sizes it.",
+              "placeholder": "current",
               "type": "number",
               "exclusiveMinimum": 0
             }
