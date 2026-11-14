@@ -81,6 +81,16 @@ describe("custom ids", () => {
     expect(decodeCustomId(`c1|b|||${ID_BOUNDS.jamId + 1}||0|`)).toBeNull();
   });
 
+  test("a summary's page button carries its store token and the page", () => {
+    const state = { kind: "summary", token: "aB3_-xYz0129", page: ID_BOUNDS.page } as const;
+    const id = encodeCustomId(state);
+    expect(id).toBe(`s1|aB3_-xYz0129|${ID_BOUNDS.page}`);
+    expect(decodeCustomId(id)).toEqual(state);
+    expect(decodeCustomId("s1|too-short|0")).toBeNull();
+    expect(decodeCustomId("s1|aB3_-xYz0129|x")).toBeNull();
+    expect(decodeCustomId("s1|aB3_-xYz0129|0|extra")).toBeNull();
+  });
+
   test("truncateSearch never splits a surrogate pair", () => {
     const s = `${"a".repeat(SEARCH_MAX - 1)}😀`;
     expect(truncateSearch(s)).toBe("a".repeat(SEARCH_MAX - 1));

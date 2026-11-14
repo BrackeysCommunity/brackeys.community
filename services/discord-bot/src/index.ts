@@ -26,6 +26,7 @@ import { redis } from "./redis.ts";
 import { siteName } from "./reply.ts";
 import { createHistoryReader } from "./summarize/history.ts";
 import { createSummaryModel } from "./summarize/model.ts";
+import { createSummaryPages } from "./summarize/pages.ts";
 import { createSummarizer } from "./summarize/summarizer.ts";
 
 /**
@@ -70,11 +71,13 @@ const summarizer =
     : null;
 
 const summarize: Summarize | undefined = summarizer
-  ? async (channelId, window, { question, requesterId }) => {
-      const summary = await summarizer.summarize(channelId, window, { question, requesterId });
+  ? async (channelId, window, options) => {
+      const { question } = options;
+      const summary = await summarizer.summarize(channelId, window, options);
       if (!summary.finalCached && summary.text) {
         telemetry.capture(EVENTS.botSummaryGenerated, {
           window,
+          shared: Boolean(options.shared),
           // Whether and how much was asked, never what: the question is the
           // member's own words.
           asked: Boolean(question),
@@ -158,6 +161,7 @@ client.on(
     commandCooldowns: { [COMMAND.summarize]: summaryCooldown },
     telemetry,
     summarize,
+    summaryPages: summarizer && redis ? createSummaryPages(redis) : undefined,
     appUrl: config.APP_URL,
     hostName: config.JAM_HOST_NAME,
     shareGate: {

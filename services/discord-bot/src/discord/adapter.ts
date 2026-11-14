@@ -36,6 +36,7 @@ import type { Cooldown } from "../cooldown.ts";
 import { classifyFailure, type Failure, failureReply } from "../failure.ts";
 import type { Choice, Memo } from "../memo.ts";
 import { type Button, type Embed, httpUrl, type Reply, withNotice } from "../reply.ts";
+import type { SummaryPages } from "../summarize/pages.ts";
 
 /**
  * The one file that touches discord.js interaction objects. It turns an
@@ -50,9 +51,17 @@ export const STALE_BUTTON_LINE =
 export const COOLDOWN_LINE =
   "Easy — you're sending commands faster than the site can answer. Try again in a few seconds.";
 
-export function commandCooldownLine(retryAfterMs: number): string {
-  const minutes = Math.ceil(retryAfterMs / 60_000);
-  return `You've used this a lot just now. Try again in ${minutes === 1 ? "a minute" : `${minutes} minutes`}.`;
+const minutes = (ms: number, one: string) => {
+  const n = Math.ceil(ms / 60_000);
+  return n === 1 ? one : `${n} minutes`;
+};
+
+/** Says the rule as well as the wait: the limit is on uses, not on what was asked. */
+export function commandCooldownLine(
+  retryAfterMs: number,
+  { limit, windowMs }: Pick<Cooldown, "limit" | "windowMs">,
+): string {
+  return `That's the limit of ${limit} uses per ${minutes(windowMs, "minute")}. Try again in ${minutes(retryAfterMs, "a minute")}.`;
 }
 
 export interface AdapterOptions {
@@ -66,6 +75,7 @@ export interface AdapterOptions {
   hostName: string;
   shareGate: ShareGateConfig;
   summarize?: Summarize;
+  summaryPages?: SummaryPages;
   now?: () => Date;
   log?: (line: string) => void;
 }
@@ -81,6 +91,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     hostName,
     shareGate,
     summarize,
+    summaryPages,
     now = () => new Date(),
     log = console.log,
   } = options;
@@ -91,6 +102,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     hostName,
     names: { skill: memo.skillName, role: memo.roleName },
     summarize,
+    summaryPages,
   });
 
   async function onChatInput(interaction: ChatInputCommandInteraction) {
@@ -142,7 +154,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     const own = commandCooldowns[inv.command];
     const gate = (own ?? cooldown).check(interaction.user.id);
     if (!gate.allowed) {
-      const content = own ? commandCooldownLine(gate.retryAfterMs) : COOLDOWN_LINE;
+      const content = own ? commandCooldownLine(gate.retryAfterMs, own) : COOLDOWN_LINE;
       await interaction.reply({ content, flags: MessageFlags.Ephemeral });
       telemetry.capture(EVENTS.botCommandFailed, {
         ...props,
@@ -157,7 +169,7 @@ export function createInteractionHandler(options: AdapterOptions) {
       await interaction.deferReply(
         visibility === "ephemeral" ? { flags: MessageFlags.Ephemeral } : {},
       );
-      const answer = await runInvocation(api, inv, context());
+      const answer = await runInvocation(api, inv, context(), decision);
       const reply = decision.denied ? withNotice(answer, decision.notice) : answer;
       await interaction.editReply(toMessage(reply));
       telemetry.capture(EVENTS.botCommandInvoked, {
@@ -271,8 +283,9 @@ export function createInteractionHandler(options: AdapterOptions) {
     } catch (error) {
       const failure = classifyFailure(error);
       log(`[button] ${state.kind} failed (${failure.kind} ${failure.code}): ${describe(error)}`);
-      if (!(error instanceof ApiUnavailableError))
+      if (!(error instanceof ApiUnavailableError || error instanceof SummaryUnavailableError)) {
         telemetry.captureException(error, { ...props, scope: "button" });
+      }
       telemetry.capture(EVENTS.botCommandFailed, {
         ...props,
         api_outcome: failure.kind,
@@ -334,6 +347,8 @@ export function toInvocation(interaction: ChatInputCommandInteraction): Invocati
     actorRoleIds: actorRoleIds(interaction),
     channelId: interaction.channelId,
     actorId: interaction.user.id,
+    // The same pick the transcript makes, so the two names match.
+    actorName: interaction.user.globalName || interaction.user.username,
   };
   let list: readonly CommandInteractionOption[] = interaction.options.data;
   const head = list[0];

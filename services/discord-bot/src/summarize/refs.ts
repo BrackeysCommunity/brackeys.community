@@ -68,26 +68,3 @@ function tidy(text: string): string {
     .replace(/ +([.,;:])/g, "$1")
     .replace(/ {2,}/g, " ");
 }
-
-const URL_LINK = /\[([^\]\n]+)\]\((https?:[^)\s]+)\)/g;
-
-/**
- * Under `max` characters without cutting words or landing mid-link. Bare
- * citations go first, from the end, removed outright: unlinked they'd read
- * as a stray "message". Then other links are unlinked from the end, keeping
- * their words.
- */
-export function fitLinks(text: string, max: number): string {
-  let fitted = text;
-  while (fitted.length > max) {
-    const last = [...fitted.matchAll(URL_LINK)].filter((m) => m[1] === BARE_LABEL).at(-1);
-    if (!last) break;
-    fitted = tidy(fitted.slice(0, last.index) + fitted.slice(last.index + last[0].length));
-  }
-  while (fitted.length > max) {
-    const last = [...fitted.matchAll(URL_LINK)].at(-1);
-    if (!last) break;
-    fitted = fitted.slice(0, last.index) + last[1] + fitted.slice(last.index + last[0].length);
-  }
-  return fitted;
-}

@@ -1,3 +1,4 @@
+import type { SummaryPages } from "../summarize/pages.ts";
 import type { Summarize } from "./summarize.ts";
 
 /** What every command gets besides its input. `now` is injected so the jam
@@ -16,4 +17,6 @@ export interface CommandContext {
   };
   /** Present only when the bot has Redis and an Anthropic key. */
   summarize?: Summarize;
+  /** Where a summary too long for one message keeps its later pages. */
+  summaryPages?: SummaryPages;
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { DiscordApiMessage } from "./history.ts";
-import { formatLines, toTranscript } from "./transcript.ts";
+import { formatLines, resolveTimes, toTranscript } from "./transcript.ts";
 
 const base: DiscordApiMessage = {
   id: "1300000000000000000",
@@ -53,4 +53,26 @@ describe("toTranscript", () => {
 test("formatLines stamps each line in UTC", () => {
   const line = toTranscript({ ...base, content: "hi" })!;
   expect(formatLines([line])).toBe("[10-26 15:04] Jo: hi");
+});
+
+describe("resolveTimes", () => {
+  const unix = (iso: string) => Date.parse(iso) / 1000;
+  const now = Date.parse("2026-10-26T15:30:00Z");
+
+  test("the last day shows the time alone, further back the date with it", () => {
+    expect(resolveTimes("at {10-26 15:04}, after {10-21 09:00}", now)).toBe(
+      `at <t:${unix("2026-10-26T15:04:00Z")}:t>, after <t:${unix("2026-10-21T09:00:00Z")}:f>`,
+    );
+  });
+
+  test("a stamp from before the new year is not read as next December", () => {
+    const january = Date.parse("2027-01-02T08:00:00Z");
+    expect(resolveTimes("{12-30 22:15}", january)).toBe(`<t:${unix("2026-12-30T22:15:00Z")}:f>`);
+  });
+
+  test("a stamp that is no real time stays readable, and other braces are left alone", () => {
+    expect(resolveTimes("{13-40 25:61} and {not a stamp}", now)).toBe(
+      "13-40 25:61 UTC and {not a stamp}",
+    );
+  });
 });

@@ -5,16 +5,20 @@ import Anthropic from "@anthropic-ai/sdk";
 import { DiscordBackoffError } from "../../../../src/lib/discord-guard.ts";
 import { ctx, fakeApi } from "../../test/fake-api.ts";
 import { classifyFailure, failureEmbed } from "../failure.ts";
+import { EMBED_TOTAL_MAX, embedLength } from "../reply.ts";
 import { ChannelUnreadableError } from "../summarize/history.ts";
 import { SummaryRefusedError } from "../summarize/model.ts";
+import type { PageSet, SummaryPages } from "../summarize/pages.ts";
 import type { Summary } from "../summarize/summarizer.ts";
-import { runInvocation } from "./dispatch.ts";
+import { decodeCustomId } from "./custom-id.ts";
+import { runInvocation, runPage } from "./dispatch.ts";
 import { buildManifest, manifestOptions } from "./manifest.ts";
+import type { ShareDecision } from "./share-gate.ts";
 import {
   type Summarize,
   SummaryUnavailableError,
-  splitSummary,
   summarizeChannel,
+  summaryPageTurn,
 } from "./summarize.ts";
 
 const NOW = Date.parse("2026-10-26T15:30:00Z");
@@ -55,22 +59,82 @@ describe("summarizeChannel", () => {
     expect(reply.embeds[0].footer).toStartWith("Newest 3,000 messages only");
   });
 
-  test("a summary past one embed's limit continues in a second, footer on the last", async () => {
-    const line = `- ${"word ".repeat(60)}[a link](https://discord.com/channels/1/2/3)`;
-    const text = Array.from({ length: 14 }, () => line).join("\n");
-    expect(text.length).toBeGreaterThan(4096);
-    const reply = await summarizeChannel(async () => summary({ text }), input);
-    expect(reply.embeds).toHaveLength(2);
+  const longText = Array.from(
+    { length: 40 },
+    (_, i) => `- point ${i} ${"word ".repeat(60)}[a link](https://discord.com/channels/1/2/3)`,
+  ).join("\n");
+
+  function memoryPages(): SummaryPages & { sets: Map<string, PageSet> } {
+    const sets = new Map<string, PageSet>();
+    return {
+      sets,
+      save: async (set) => {
+        const token = `token${String(sets.size).padStart(7, "0")}`;
+        sets.set(token, set);
+        return token;
+      },
+      load: async (token) => sets.get(token) ?? null,
+    };
+  }
+
+  test("a summary past one message is shown a page at a time, with buttons to turn them", async () => {
+    const pages = memoryPages();
+    const reply = await summarizeChannel(async () => summary({ text: longText }), input, { pages });
+    const count = [...pages.sets.values()][0].pages.length;
+    expect(count).toBeGreaterThan(2);
+    expect(reply.embeds).toHaveLength(1);
+    expect(embedLength(reply.embeds[0])).toBeLessThanOrEqual(EMBED_TOTAL_MAX);
     expect(reply.embeds[0].title).toBe("Catch-up: the last 24h");
-    expect(reply.embeds[0].footer).toBeUndefined();
-    expect(reply.embeds[1].footer).toContain("AI summary");
-    expect(reply.embeds.map((e) => e.description).join("\n")).toBe(text);
-    for (const e of reply.embeds) expect(e.description!.length).toBeLessThanOrEqual(4096);
+    expect(reply.embeds[0].footer).toStartWith(`Page 1/${count} · 812 messages`);
+    const [prev, next] = reply.buttons;
+    expect(prev).toMatchObject({ kind: "page", disabled: true });
+    expect(next).toMatchObject({ kind: "page", disabled: false });
+
+    const state = decodeCustomId((next as { customId: string }).customId);
+    expect(state).toMatchObject({ kind: "summary", page: 1 });
+    const second = await runPage(fakeApi({}), state!, { ...ctx, summaryPages: pages }, true);
+    expect(second.embeds[0].footer).toStartWith(`Page 2/${count} · `);
+    expect(second.embeds[0].description).not.toBe(reply.embeds[0].description);
+    expect(second.ephemeral).toBe(true);
+
+    const last = await summaryPageTurn(pages, { ...state!, page: count - 1 } as never, false);
+    expect(last.buttons[1]).toMatchObject({ disabled: true });
+    expect(last.ephemeral).toBe(false);
   });
 
-  test("splitSummary cuts at a line break", () => {
-    expect(splitSummary("aaa\nbbb\nccc", 8)).toEqual(["aaa\nbbb", "ccc"]);
-    expect(splitSummary("short", 8)).toEqual(["short"]);
+  test("a short summary has no pages, buttons or stored copy", async () => {
+    const pages = memoryPages();
+    const reply = await summarizeChannel(async () => summary(), input, { pages });
+    expect(reply.buttons).toEqual([]);
+    expect(reply.embeds[0].footer).toStartWith("812 messages");
+    expect(pages.sets.size).toBe(0);
+  });
+
+  test("with nowhere to keep the rest it shows the first page and says so", async () => {
+    const reply = await summarizeChannel(async () => summary({ text: longText }), input);
+    expect(reply.embeds).toHaveLength(1);
+    expect(reply.buttons).toEqual([]);
+    expect(reply.embeds[0].footer).toContain("the rest couldn't be kept");
+  });
+
+  test("a page turn on a copy that is gone asks for a fresh run", async () => {
+    await expect(
+      summaryPageTurn(memoryPages(), { token: "missing00000", page: 1 }, true),
+    ).rejects.toMatchObject({ reason: "expired" });
+    await expect(
+      summaryPageTurn(undefined, { token: "missing00000", page: 1 }, true),
+    ).rejects.toMatchObject({ reason: "expired" });
+  });
+
+  test("the ceiling follows where the reply goes", async () => {
+    const seen: (boolean | undefined)[] = [];
+    const summarize: Summarize = async (_c, _w, { shared }) => {
+      seen.push(shared);
+      return summary();
+    };
+    await summarizeChannel(summarize, input);
+    await summarizeChannel(summarize, { ...input, share: true });
+    expect(seen).toEqual([false, true]);
   });
 
   test("a question becomes the title and is passed through", async () => {
@@ -147,7 +211,9 @@ describe("summarizeChannel", () => {
 
   test("gives up waiting after the timeout", async () => {
     const never: Summarize = () => new Promise(() => {});
-    await expect(summarizeChannel(never, input, 5)).rejects.toMatchObject({ reason: "slow" });
+    await expect(summarizeChannel(never, input, { timeoutMs: 5 })).rejects.toMatchObject({
+      reason: "slow",
+    });
   });
 
   test("the failure embed shows the summary's own line", () => {
@@ -181,7 +247,13 @@ describe("dispatch", () => {
     let seen: unknown;
     await runInvocation(
       fakeApi({}),
-      { command: "summarize", options: { since: "mine" }, channelId: "42", actorId: "7" },
+      {
+        command: "summarize",
+        options: { since: "mine" },
+        channelId: "42",
+        actorId: "7",
+        actorName: "Jo",
+      },
       {
         ...ctx,
         summarize: async (_c, window, options) => {
@@ -190,7 +262,33 @@ describe("dispatch", () => {
         },
       },
     );
-    expect(seen).toEqual({ window: "mine", question: undefined, requesterId: "7" });
+    expect(seen).toEqual({
+      window: "mine",
+      question: undefined,
+      requesterId: "7",
+      requesterName: "Jo",
+      shared: false,
+    });
+  });
+
+  test("a share the gate refused is private, so it gets the private ceiling", async () => {
+    const seen: (boolean | undefined)[] = [];
+    const run = (decision?: ShareDecision) =>
+      runInvocation(
+        fakeApi({}),
+        { command: "summarize", options: { share: true }, channelId: "42" },
+        {
+          ...ctx,
+          summarize: async (_c, _w, { shared }) => {
+            seen.push(shared);
+            return summary();
+          },
+        },
+        decision,
+      );
+    await run({ shared: true, denied: false });
+    await run({ shared: false, denied: true, notice: "Sharing is for #bot." });
+    expect(seen).toEqual([true, false]);
   });
 
   test("passes a trimmed question, and none for a blank one", async () => {

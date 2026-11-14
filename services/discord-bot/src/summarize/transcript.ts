@@ -1,3 +1,4 @@
+import { ts } from "../reply.ts";
 import type { DiscordApiMessage } from "./history.ts";
 import type { RefTable } from "./refs.ts";
 
@@ -42,6 +43,28 @@ export function toTranscript(message: DiscordApiMessage): TranscriptMessage | nu
 
 export function formatStamp(ms: number): string {
   return new Date(ms).toISOString().slice(5, 16).replace("T", " ");
+}
+
+const STAMP_TOKEN = /\{(\d{2})-(\d{2}) (\d{2}):(\d{2})\}/g;
+const DAY_MS = 86_400_000;
+
+/**
+ * The model's `{MM-DD HH:MM}` stamps, UTC as it read them, as Discord
+ * timestamps each reader sees in their own zone: the time alone within the
+ * last day, the date with it further back. A stamp carries no year, so one
+ * that would land after `now` belongs to the year before.
+ */
+export function resolveTimes(text: string, now: number): string {
+  return text.replace(STAMP_TOKEN, (_, mo: string, d: string, h: string, mi: string) => {
+    const [month, day, hour, minute] = [mo, d, h, mi].map(Number);
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) {
+      return `${mo}-${d} ${h}:${mi} UTC`;
+    }
+    const year = new Date(now).getUTCFullYear();
+    let at = Date.UTC(year, month - 1, day, hour, minute);
+    if (at > now + DAY_MS) at = Date.UTC(year - 1, month - 1, day, hour, minute);
+    return ts(new Date(at), now - at < DAY_MS ? "t" : "f");
+  });
 }
 
 /** One line per message, numbered for citation when a table is given. */

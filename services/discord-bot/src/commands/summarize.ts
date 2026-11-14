@@ -1,50 +1,37 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { DiscordBackoffError } from "../../../../src/lib/discord-guard.ts";
-import {
-  clampEmbed,
-  EMBED_DESCRIPTION_MAX,
-  EMBED_TITLE_MAX,
-  notFound,
-  plural,
-  type Reply,
-  truncate,
-} from "../reply.ts";
+import { clampEmbed, EMBED_TITLE_MAX, notFound, plural, type Reply, truncate } from "../reply.ts";
 import { SINCE_MINE, type SummaryWindow } from "../summarize/buckets.ts";
 import { ChannelUnreadableError } from "../summarize/history.ts";
 import { SummaryRefusedError } from "../summarize/model.ts";
-import type { Summary } from "../summarize/summarizer.ts";
+import { type PageSet, paginate, type SummaryPages } from "../summarize/pages.ts";
+import type { Summary, SummaryOptions } from "../summarize/summarizer.ts";
 import { formatStamp } from "../summarize/transcript.ts";
+import { pagerButtons } from "./format.ts";
 
 export type Summarize = (
   channelId: string,
   window: SummaryWindow,
-  options: { question?: string; requesterId?: string },
+  options: Pick<SummaryOptions, "question" | "requesterId" | "requesterName" | "shared">,
 ) => Promise<Summary>;
 
 /** Discord's option cap; also keeps the question a question rather than a prompt dump. */
 export const QUESTION_MAX = 300;
 
-/** Past this the member gets an answer, not a spinner; the work finishes into the cache. */
-export const SUMMARY_TIMEOUT_MS = 60_000;
+/**
+ * Past this the member gets an answer, not a spinner; the work finishes
+ * into the cache. Discord stops taking the reply 15 minutes after the
+ * command, and a private answer at its full length needs most of that.
+ */
+export const SUMMARY_TIMEOUT_MS = 12 * 60_000;
 
 const SUMMARY_COLOR = 0x5865f2;
 
-/**
- * A long summary as one or two embed descriptions, split at the last line
- * break that fits, so a cut never lands inside a bullet or a link.
- */
 /** What the window covered: "the last 24h", or for since-I-last-posted the
  *  longest window, which it falls back to when the caller hadn't posted. */
 function coveredSpan(window: SummaryWindow): string {
   return `the last ${window === SINCE_MINE ? "7 days" : window}`;
-}
-
-export function splitSummary(text: string, max = EMBED_DESCRIPTION_MAX): string[] {
-  if (text.length <= max) return [text];
-  const cut = text.lastIndexOf("\n", max);
-  const at = cut > 0 ? cut : max;
-  return [text.slice(0, at).trimEnd(), ...splitSummary(text.slice(at).trimStart(), max)];
 }
 
 /**
@@ -54,7 +41,7 @@ export function splitSummary(text: string, max = EMBED_DESCRIPTION_MAX): string[
  */
 export class SummaryUnavailableError extends Error {
   constructor(
-    readonly reason: "unreadable" | "busy" | "refused" | "slow",
+    readonly reason: "unreadable" | "busy" | "refused" | "slow" | "expired",
     readonly userMessage: string,
   ) {
     super(`summary unavailable: ${reason}`);
@@ -113,8 +100,9 @@ export async function summarizeChannel(
     share: boolean;
     question?: string;
     requesterId?: string;
+    requesterName?: string;
   },
-  timeoutMs = SUMMARY_TIMEOUT_MS,
+  { pages, timeoutMs = SUMMARY_TIMEOUT_MS }: { pages?: SummaryPages; timeoutMs?: number } = {},
 ): Promise<Reply> {
   let summary: Summary;
   try {
@@ -122,6 +110,8 @@ export async function summarizeChannel(
       summarize(input.channelId, input.window, {
         question: input.question,
         requesterId: input.requesterId,
+        requesterName: input.requesterName,
+        shared: input.share,
       }),
       timeoutMs,
     );
@@ -146,18 +136,58 @@ export async function summarizeChannel(
   const title = input.question
     ? truncate(`“${input.question}”`, EMBED_TITLE_MAX)
     : `Catch-up: ${summary.sinceLastPost ? "since you last posted" : coveredSpan(input.window)}`;
-  const pages = splitSummary(summary.text);
+  const set: PageSet = {
+    channelId: input.channelId,
+    title,
+    footer: `${footer} · AI summary, may miss things`,
+    pages: paginate(summary.text),
+  };
+  const token = set.pages.length > 1 ? ((await pages?.save(set)) ?? null) : null;
+  return summaryPage(set, 0, token, !input.share);
+}
+
+/**
+ * One page of a summary. A reply never carries more than one: Discord
+ * rejects a message whose embeds pass 6000 characters between them.
+ * Without a token the rest couldn't be kept, and the footer says so
+ * rather than offering buttons that would go nowhere.
+ */
+function summaryPage(set: PageSet, page: number, token: string | null, ephemeral: boolean): Reply {
+  const count = set.pages.length;
+  const at = Math.min(Math.max(page, 0), count - 1);
+  const position =
+    count === 1
+      ? ""
+      : token
+        ? `Page ${at + 1}/${count} · `
+        : `Page 1/${count}, the rest couldn't be kept: run it again · `;
   return {
-    embeds: pages.map((description, i) =>
+    embeds: [
       clampEmbed({
-        title: i === 0 ? title : undefined,
-        description,
+        title: set.title,
+        description: set.pages[at],
         color: SUMMARY_COLOR,
-        footer: i === pages.length - 1 ? `${footer} · AI summary, may miss things` : undefined,
+        footer: `${position}${set.footer}`,
       }),
-    ),
-    buttons: [],
-    ephemeral: !input.share,
+    ],
+    buttons: token ? pagerButtons({ kind: "summary", token, page: at }, count) : [],
+    ephemeral,
     outcome: "hit",
   };
+}
+
+/** A press on a summary's page buttons. */
+export async function summaryPageTurn(
+  pages: SummaryPages | undefined,
+  state: { token: string; page: number },
+  ephemeral: boolean,
+): Promise<Reply> {
+  const set = await pages?.load(state.token);
+  if (!set) {
+    throw new SummaryUnavailableError(
+      "expired",
+      "The rest of this one is no longer kept. Run the command again for a fresh copy.",
+    );
+  }
+  return summaryPage(set, state.page, state.token, ephemeral);
 }
