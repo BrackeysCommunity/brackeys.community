@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { projectView, type ProjectView } from "@jams/engine/project";
+import { projectView, type ProjectRuntimeView, type ProjectView } from "@jams/engine/project";
 import { expandScene, sceneHash, validateScene } from "@jams/engine/scene";
 import type { ProjectScan } from "@jams/engine/vite";
 
@@ -25,15 +25,19 @@ export const list: Tool<ListInput> = async (_input, ctx) => {
     if (!scan) scans.set(project, (scan = scanProject(project)));
     return scan;
   };
-  /** The project as `validate` judges against it: its assets and its engine block. */
-  const views = new Map<ProjectHandle, Promise<ProjectView>>();
+  /** The project as `validate` judges against it: its assets, its engine block and its runtime docs. */
+  type Judged = { view: ProjectView; runtime: ProjectRuntimeView };
+  const views = new Map<ProjectHandle, Promise<Judged>>();
   const viewOf = (project: ProjectHandle) => {
     let view = views.get(project);
     if (!view) {
-      view = scanOf(project).then(async (scan) => ({
-        ...projectView(scan.state, project.kinds),
-        engine: (await projectRuntime(project, project.registry, scan)).engine,
-      }));
+      view = scanOf(project).then(async (scan) => {
+        const runtime = await projectRuntime(project, project.registry, scan);
+        return {
+          view: { ...projectView(scan.state, project.kinds), engine: runtime.engine },
+          runtime,
+        };
+      });
       views.set(project, view);
     }
     return view;
@@ -50,8 +54,8 @@ export const list: Tool<ListInput> = async (_input, ctx) => {
       if (!parsed.ok) return failed(parsed.issues.length);
       const def = parsed.def;
       const issues = { error: 0, warn: 0, info: 0 };
-      const view = await viewOf(project);
-      for (const i of validateScene(def, judged.registry, { prefabs, project: view }))
+      const { view, runtime } = await viewOf(project);
+      for (const i of validateScene(def, judged.registry, { prefabs, project: view, runtime }))
         issues[i.severity]++;
       return {
         name,

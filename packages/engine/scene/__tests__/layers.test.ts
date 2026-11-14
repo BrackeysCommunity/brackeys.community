@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
-import { DEFAULT_LAYERS, defaultLayer, type SceneLayerDef } from "../layers";
+import { DEFAULT_LAYERS, defaultLayer, editorLayerOf, type SceneLayerDef } from "../layers";
 
 const registry = createRegistry();
 const note = registry.types.get("note");
@@ -62,5 +62,14 @@ describe("defaultLayer", () => {
     expect(defaultLayer(solid, true, layers)).toBe("floor");
     expect(defaultLayer(solid, false, layers)).toBe("gameplay");
     expect(defaultLayer(note, false, layers)).toBe("gameplay");
+  });
+});
+
+describe("editorLayerOf", () => {
+  it("gives the editor-only layer's draw order, or undefined without one", () => {
+    expect(editorLayerOf(DEFAULT_LAYERS)).toBe(60);
+    expect(editorLayerOf([layer("back", 0), { ...layer("notes", 40), editorOnly: true }])).toBe(40);
+    expect(editorLayerOf([layer("back", 0), layer("front", 10)])).toBeUndefined();
+    expect(editorLayerOf([])).toBeUndefined();
   });
 });

@@ -15,6 +15,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type MouseEvent,
   type ReactNode,
 } from "react";
@@ -67,10 +68,12 @@ import {
   lengthStep,
   overlappingKeys,
   paramOverriddenBy,
+  rowSummary,
   withArticle,
 } from "../../editor/inspector-model";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
-import { ticksFor } from "../../game/time";
+import { capitalise } from "../../game/live";
+import { ticksIn } from "../../game/time";
 import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
@@ -330,10 +333,41 @@ function titleWidth(t: HTMLElement): number {
   return Math.max(t.scrollWidth, range.getBoundingClientRect?.().width ?? 0);
 }
 
+/** Where an element's content starts, px from the viewport's left: inside its border and padding. */
+function contentLeft(e: HTMLElement): number {
+  const padding = parseFloat(e.ownerDocument.defaultView?.getComputedStyle(e).paddingLeft ?? "");
+  return e.getBoundingClientRect().left + e.clientLeft + (Number.isFinite(padding) ? padding : 0);
+}
+
+/** A nested field list narrower than this px keeps it, out of line rather than unreadable. */
+const NESTED_LABEL_MIN = 32;
+
+/**
+ * Sizes the label column from the element's width and its longest title,
+ * and narrows it inside each nested field list by how far that list is
+ * indented, so every value column starts at the same x.
+ */
 function fitLabelColumn(el: HTMLElement) {
+  const indents = new Map<Element, number>();
+  for (const nested of el.querySelectorAll<HTMLElement>(".je-insp-nested")) {
+    const holder = nested.parentElement;
+    const outer = holder?.parentElement?.closest(".je-insp-nested");
+    const step = holder ? contentLeft(nested) - holder.getBoundingClientRect().left : 0;
+    indents.set(nested, (outer ? (indents.get(outer) ?? 0) : 0) + Math.max(0, step));
+  }
+  const indentOf = (e: Element) => {
+    const nested = e.closest(".je-insp-nested");
+    return nested ? (indents.get(nested) ?? 0) : 0;
+  };
   let longest = 0;
-  for (const t of fieldTitles(el)) longest = Math.max(longest, titleWidth(t));
-  el.style.setProperty("--je-label-col", `${labelColumnPx(el.clientWidth, longest)}px`);
+  for (const t of fieldTitles(el)) longest = Math.max(longest, titleWidth(t) + indentOf(t));
+  const column = labelColumnPx(el.clientWidth, longest);
+  el.style.setProperty("--je-label-col", `${column}px`);
+  for (const [nested, indent] of indents)
+    (nested as HTMLElement).style.setProperty(
+      "--je-label-col",
+      `${Math.max(NESTED_LABEL_MIN, column - indent)}px`,
+    );
 }
 
 /**
@@ -856,9 +890,17 @@ function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 }
 
 /** Path mode, speed, pause and points, or any object's fields, nested under its title. */
-function NestedFields({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+function NestedFields({
+  field,
+  ctx,
+  collapse,
+}: {
+  field: ModelField;
+  ctx: Ctx;
+  collapse?: ComponentProps<typeof NestedField>["collapse"];
+}) {
   return (
-    <NestedField field={field}>
+    <NestedField field={field} collapse={collapse}>
       {(field.children ?? []).map((child) => (
         <FieldView key={child.path} field={child} ctx={ctx} />
       ))}
@@ -870,17 +912,36 @@ function NestedFields({ field, ctx }: { field: ModelField; ctx: Ctx }) {
  * A list of objects: each item's fields under its title with a Remove, then
  * an Add that copies the last item (or the list's seed), within the list's
  * bounds. A field edits its own item; Add and Remove set the whole list.
+ * Each item folds by its title to a one-line summary; a lone item starts
+ * open, several start folded, and an added one opens.
  */
 function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "list" }>;
   const [error, setError] = useState<string | null>(null);
   const items = Array.isArray(field.value) ? (field.value as unknown[]) : [];
+  const [open, setOpen] = useState<ReadonlySet<number>>(
+    () => new Set(items.length === 1 ? [0] : []),
+  );
   const set = (next: unknown[]) => setError(commitField(ctx, field, next));
   const last = items.at(-1) ?? w.seed;
   const noun = w.item.toLowerCase();
   // A button disabled for a bound stays hoverable, so its hint can say why.
   const atLeast = items.length <= (w.min ?? 0);
   const full = w.max !== undefined && items.length >= w.max;
+  const toggle = (i: number) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(i)) next.add(i);
+      return next;
+    });
+  const remove = (i: number) => {
+    set(items.filter((_, j) => j !== i));
+    setOpen((was) => new Set([...was].filter((j) => j !== i).map((j) => (j > i ? j - 1 : j))));
+  };
+  const add = () => {
+    set([...items, structuredClone(last)]);
+    setOpen((was) => new Set([...was, items.length]));
+  };
   if (field.mixed)
     return (
       <FieldRow field={field}>
@@ -892,7 +953,11 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       {(field.children ?? []).map((item, i) => (
         <div key={item.path} className="je-insp-row" data-gap="tight" data-align="start">
           <div className="je-insp-grow">
-            <FieldView field={item} ctx={ctx} />
+            <NestedFields
+              field={item}
+              ctx={ctx}
+              collapse={{ open: open.has(i), onToggle: () => toggle(i), summary: rowSummary(item) }}
+            />
           </div>
           <IconButton
             icon={Cancel01Icon}
@@ -901,7 +966,7 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             tooltip={atLeast ? `Keeps at least ${w.min}` : `Remove ${noun}`}
             disabled={atLeast}
             focusableWhenDisabled={atLeast}
-            onClick={() => set(items.filter((_, j) => j !== i))}
+            onClick={() => remove(i)}
           />
         </div>
       ))}
@@ -912,7 +977,7 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         disabled={last === undefined || full}
         focusableWhenDisabled={full}
         {...(full ? { tooltip: `Holds at most ${w.max}` } : {})}
-        onClick={() => set([...items, structuredClone(last)])}
+        onClick={add}
       >
         Add {noun}
       </Button>
@@ -936,9 +1001,34 @@ function delayParts(value: unknown): { form: DelayForm; n: number } | undefined 
   return undefined;
 }
 
+const unitWord = (form: DelayForm, n: number) => (form === "ticks" && n === 1 ? "tick" : form);
+
+/**
+ * `held` in the other form at `rate` ticks per second, when it converts to
+ * a whole number of it, and what the switch says about it either way.
+ */
+function delaySwitch(
+  held: { form: DelayForm; n: number },
+  rate: number,
+): { value?: number | { ms: number }; note: string } {
+  const to: DelayForm = held.form === "ms" ? "ticks" : "ms";
+  const n = held.form === "ms" ? ticksIn(held.n, { rate }) : (held.n * 1000) / rate;
+  const is = `${held.n} ${unitWord(held.form, held.n)} is`;
+  if (!Number.isInteger(n))
+    return {
+      note: `${is} ${Math.round(n * 100) / 100} ${to} at ${rate} Hz: switching needs a whole number of ${to}.`,
+    };
+  return {
+    value: to === "ms" ? { ms: n } : n,
+    note: `${is} ${n} ${unitWord(to, n)} at ${rate} Hz.`,
+  };
+}
+
 /**
  * A `Delay`: one number in the form the value holds (ms when unset) and a
- * ms/ticks switch, which converts a set value at the game's tick rate.
+ * ms/ticks switch. The switch converts a set value at the game's tick rate
+ * only when it comes to a whole number in the other form, so switching back
+ * and forth never moves the timing.
  */
 function DelayField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "delay" }>;
@@ -946,7 +1036,9 @@ function DelayField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const [error, setError] = useState<string | null>(null);
   const held = field.mixed ? undefined : delayParts(field.value);
   const form = held?.form ?? unsetForm;
+  const other = held ? delaySwitch(held, w.rate) : undefined;
   const commit = (text: string) => {
+    setError(null);
     if (text.trim() === "" && field.optional) return commitField(ctx, field, undefined);
     const n = resolveNumber(text, held?.n, { integer: form === "ticks", min: w.min });
     if (n instanceof EditError) return n.message;
@@ -954,14 +1046,8 @@ function DelayField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   };
   const switchTo = (next: string) => {
     if (next === form || !(DELAY_FORMS as readonly string[]).includes(next)) return;
-    if (!held) return setUnsetForm(next as DelayForm);
-    const converted =
-      next === "ms"
-        ? { ms: Math.max(w.min, Math.round((held.n * 1000) / w.rate)) }
-        : held.n === 0
-          ? 0
-          : Math.max(w.min, ticksFor(held.n, w));
-    setError(commitField(ctx, field, converted));
+    if (!other) return setUnsetForm(next as DelayForm);
+    setError(other.value === undefined ? other.note : commitField(ctx, field, other.value));
   };
   return (
     <FieldRow field={field} error={error}>
@@ -982,7 +1068,11 @@ function DelayField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           onChange={switchTo}
         >
           {DELAY_FORMS.map((f) => (
-            <SegmentedControl.Item key={f} value={f}>
+            <SegmentedControl.Item
+              key={f}
+              value={f}
+              {...(other && f !== form ? { tooltip: other.note } : {})}
+            >
               {f}
             </SegmentedControl.Item>
           ))}
@@ -1567,9 +1657,23 @@ function menuGroups(options: InspectorModel["addBehaviors"]) {
   return groups.filter((g) => g.items.length > 0);
 }
 
-/** What an Add behavior item says it picks and brings along: "Uses sparks. Also adds Sprite." */
+type AssetUse = NonNullable<InspectorModel["addBehaviors"][number]["uses"]>[number];
+
+/** One asset an added behavior names, by its role: "plays hero's idle clip", "draws with the hero atlas". */
+const useText = (u: AssetUse) =>
+  u.role === "plays"
+    ? `plays ${u.asset}'s ${u.clip} clip`
+    : `${u.role === "draws" ? "draws with" : "uses"} ${u.kind ? `the ${u.asset} ${u.kind}` : u.asset}`;
+
+/**
+ * What an Add behavior item says it picks and brings along: "Plays
+ * kitchen-animation's idle clip; draws with the hero atlas. Also adds Sprite."
+ */
 const addNote = (o: InspectorModel["addBehaviors"][number]) =>
-  [o.uses && `Uses ${o.uses.join(", ")}.`, o.adds && `Also adds ${o.adds.join(", ")}.`]
+  [
+    o.uses && `${capitalise(o.uses.map(useText).join("; "))}.`,
+    o.adds && `Also adds ${o.adds.join(", ")}.`,
+  ]
     .filter(Boolean)
     .join(" ");
 

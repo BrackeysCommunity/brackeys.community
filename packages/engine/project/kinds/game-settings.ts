@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { rgbSchema } from "../../game/color";
 import { MAX_TICK_RATE, MIN_TICK_RATE, tickRateProblem } from "../../game/time";
 import type { GameWorldDef, Registry } from "../../game/types";
 import { pxPerMetreOf, scaleLengths } from "../../game/units";
@@ -75,13 +76,7 @@ const resolutionFields = {
     .boolean()
     .optional()
     .describe("Round camera and visual positions to whole canvas pixels."),
-  bars: z
-    .number()
-    .int()
-    .min(0)
-    .max(0xffffff)
-    .optional()
-    .describe("Bar colour, 0xRRGGBB as a number; default the background."),
+  bars: rgbSchema.optional().describe("Bar colour, 0xRRGGBB as a number; default the background."),
 };
 
 const ResolutionSchema = z

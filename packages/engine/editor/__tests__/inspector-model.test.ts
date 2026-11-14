@@ -1333,6 +1333,59 @@ describe("standard behavior fields", () => {
     expect(out && !out.ok && out.issue.message).toContain("limits: low must not exceed high");
   });
 
+  it("reads an ease by its label alone when it names its id in other words", () => {
+    const tweens = blockField(
+      at({ tween: { tweens: [{ to: { y: 1 }, duration: 10 }] } }),
+      "behaviors.tween.tweens",
+    );
+    const ease = tweens.children![0]!.children!.find((f) => f.name === "ease")!;
+    const labels = (ease.widget as { options: { label: string }[] }).options.map((o) => o.label);
+    expect(labels.slice(0, 4)).toEqual(["Linear", "Quad in", "Quad out", "Quad in-out"]);
+    expect(labels.some((l) => l.includes("("))).toBe(false);
+    expect(ease.defaultValue).toBe("linear");
+  });
+
+  it("groups Animation's and Emitter's fields past their assets", () => {
+    const groups = (def: SceneDefinition, behavior: string) =>
+      Object.fromEntries(
+        buildInspectorModel(engine, [lookupRef(def, "hero")!], { def })
+          .sections.find((s) => s.id === `behaviors:${behavior}`)!
+          .fields.map((f) => [f.name, f.group]),
+      );
+    expect(
+      groups(at({ sprite: { asset: "hero" }, anim: { source: "hero", clip: "idle" } }), "anim"),
+    ).toEqual({
+      source: "assets",
+      clip: "assets",
+      speed: "playback",
+      playing: "playback",
+      offset: "playback",
+    });
+    expect(groups(at({ emitter: { preset: "sparks" } }), "emitter")).toEqual({
+      preset: "assets",
+      emitting: "emission",
+      offset: "emission",
+      rate: "emission",
+    });
+  });
+
+  it("shows a camera region's ease in ms and writes it back in seconds", () => {
+    const def: SceneDefinition = {
+      ...at({}),
+      entities: [{ id: "framing", type: "camera-region", shape: ["box", 10, 10, 4, 4], ease: 0.5 }],
+    };
+    const ref = lookupRef(def, "framing")!;
+    const ease = fields(buildInspectorModel(engine, [ref], { def })).find(
+      (f) => f.path === "ease",
+    )!;
+    expect(ease.widget).toMatchObject({ kind: "number", unit: "ms", scale: 1000, step: 1 });
+    expect(ease.value).toBe(500);
+    expect(ease.defaultValue).toBe(400);
+    const edit = modelBatch(ease, "650", [ref], def, engine);
+    const out = edit.ok ? applyOps(def, edit.batch, engine) : null;
+    expect(out?.ok && out.def.entities?.[0]).toMatchObject({ ease: 0.65 });
+  });
+
   it("labels a joint's kinds by what they do, with each one's description", () => {
     const kind = blockField(
       at({ ...body, joint: { kind: "revolute", to: "crate" } }),

@@ -372,6 +372,21 @@ describe("moveScenePointer", () => {
 
       expect(await rollbackScene()).toEqual({ from: 3, to: 1 });
     });
+
+    it("does not stop on the current version after walking past one that no longer exists", async () => {
+      await publish(await edited("hall", 4));
+      await publish(await edited("hall", 5));
+      await publish(await edited("hall", 6));
+      for (const number of [1, 3, 2, 3]) {
+        await move({ scene: "hall", channel: "production", to: { number } });
+      }
+      await db
+        .delete(engineSceneVersions)
+        .where(eq(engineSceneVersions.id, await versionId("hall", 2)));
+
+      expect(await rollbackScene()).toEqual({ from: 3, to: 1 });
+      expect(await rollbackScene()).toEqual({ from: 1, to: 3 });
+    });
   });
 
   it("keeps a pointer's time when only its timing changes, for the breaker's window", async () => {

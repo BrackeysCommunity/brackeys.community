@@ -1,5 +1,6 @@
 import type { CheckEnv, CheckVerdict, PlayState, Registry } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { ProjectView } from "../project/types";
 import {
   gridMissingIssue,
   gridPlace,
@@ -74,8 +75,15 @@ export type RunChecksOptions = {
   readFile: (path: string) => string;
   /** The project's `engine` block, which the scene's settings resolve through when validated. */
   engine?: Readonly<Record<string, unknown>>;
-  /** The project's data, for the checks that play the scene (`reaches`, `touches`); its `engine` block stands in for `engine` when that is omitted. */
+  /**
+   * The project's data, for the checks that play the scene (`reaches`,
+   * `touches`); its `engine` block stands in for `engine` when that is
+   * omitted, and with `view` a `valid` check reads `anim` blocks'
+   * animation sources through it.
+   */
   project?: ProjectRuntimeView | null;
+  /** The project's assets: with it, a `valid` check judges asset ids as `validateScene`'s `project` does. */
+  view?: ProjectView;
 };
 
 /** A check's env with the run's prefab library, for the checks that play the scene. */
@@ -102,11 +110,14 @@ function runValid(
   check: ValidCheck,
   env: RunEnv,
   engine: Readonly<Record<string, unknown>> | undefined,
+  judge: Pick<RunChecksOptions, "project" | "view">,
 ): CheckVerdict {
   const issues = [
     ...validateScene(env.def, env.registry, {
       prefabs: env.prefabs,
       ...(engine ? { engine } : {}),
+      ...(judge.view ? { project: judge.view } : {}),
+      ...(judge.project ? { runtime: judge.project } : {}),
     }),
     ...(check.physical
       ? validatePhysical({
@@ -359,10 +370,11 @@ function runOne(
   env: RunEnv,
   engine: Readonly<Record<string, unknown>> | undefined,
   project: ProjectRuntimeView | null,
+  view: ProjectView | undefined,
 ): CheckVerdict {
   switch (check.kind) {
     case "valid":
-      return runValid(check as ValidCheck, env, engine);
+      return runValid(check as ValidCheck, env, engine, { project, view });
     case "reaches":
       return runReaches(check as ReachesCheck, env, project);
     case "touches":
@@ -401,7 +413,7 @@ export function runChecks(opts: RunChecksOptions): ChecksReport {
       return { id, kind, pass: true, skipped: check.skip, message: `skipped: ${check.skip}` };
     let verdict: CheckVerdict;
     try {
-      verdict = runOne(check, env, engine, opts.project ?? null);
+      verdict = runOne(check, env, engine, opts.project ?? null, opts.view);
     } catch (error) {
       verdict = { pass: false, message: error instanceof Error ? error.message : String(error) };
     }

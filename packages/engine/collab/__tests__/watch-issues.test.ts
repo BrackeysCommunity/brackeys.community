@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vite-plus/test";
+import * as Y from "yjs";
 
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { gridField, pointField } from "../../game/fields";
+import type { DocLayout } from "../../project/kinds";
+import { animationKind, type AnimationFile } from "../../project/kinds/animation";
+import type { AssetEntry, ProjectState } from "../../project/types";
+import { projectView } from "../../project/view";
 import { engine } from "../../scene/__tests__/fixtures/fake-game";
 import type { Prefab } from "../../scene/types";
 import { sceneToDoc } from "../convert";
+import { layoutPatch, layoutToDoc } from "../layout";
 import { docToPrefab, prefabPatch, prefabToDoc } from "../prefab-doc";
 import { localPrefabSource, staticPrefabSource } from "../prefab-source";
-import { validateDoc, watchIssues } from "../watch-issues";
+import type { ProjectSessionEvent } from "../project-session";
+import { issueRuntime, validateDoc, watchIssues, type IssueProject } from "../watch-issues";
 import { ada } from "./helpers";
 
 const lamp = { id: "lamp", type: "marker", at: [0, 0] as [number, number] };
@@ -138,5 +145,127 @@ describe("watchIssues", () => {
     edit(prefabs, "room");
     expect(w.pending()).toBe(false);
     w.watch.stop();
+  });
+});
+
+describe("anim blocks in a doc's issues", () => {
+  const LAYOUT = animationKind.layout as DocLayout;
+  const frame = (x: number) => ({ x, y: 0, w: 16, h: 16 });
+  const atlas = (key: string, frames: string[]): AssetEntry => ({
+    key,
+    id: key,
+    kind: "atlas",
+    path: `${key}.json`,
+    created: { at: 0, by: "t" },
+    sha256: key[0]!.repeat(64),
+    meta: {
+      tool: "aseprite",
+      frames: Object.fromEntries(frames.map((f, i) => [f, frame(16 * i)])),
+      tags: [],
+      slices: [],
+      order: frames,
+    },
+  });
+  const MOVES: AssetEntry = {
+    key: "mv",
+    id: "moves",
+    kind: "animation",
+    path: "moves.animation.json",
+    created: { at: 0, by: "t" },
+  };
+  const state: ProjectState = {
+    meta: { projectId: "p", layout: 2, name: "P" },
+    assets: {
+      hero: atlas("hero", ["idle-0", "run-0"]),
+      knight: atlas("knight", ["idle-0"]),
+      mv: MOVES,
+    },
+    history: {},
+    code: {},
+    build: {},
+  };
+  const moves = (clips: AnimationFile["clips"]): AnimationFile => ({
+    kind: "animation",
+    v: 1,
+    atlas: "hero",
+    clips,
+  });
+  const JAB = { name: "jab", frames: [{ frame: "idle-0" }] };
+  const KICK = { name: "kick", frames: [{ frame: "run-0" }] };
+
+  /** A project as a `ProjectSession` holds it: the animation doc opens when `open()` is called. */
+  function sessionLike() {
+    const doc = layoutToDoc(new Y.Doc(), LAYOUT, moves([JAB, KICK]));
+    let isOpen = false;
+    const listeners = new Set<(e: ProjectSessionEvent) => void>();
+    const project: IssueProject = {
+      view: () => projectView(state),
+      docNameFor: (entry) => (entry.key === "mv" ? "doc:mv" : null),
+      get: (name) => (isOpen && name === "doc:mv" ? { doc, layout: LAYOUT } : undefined),
+      subscribe: (l) => (listeners.add(l), () => listeners.delete(l)),
+    };
+    const open = () => {
+      isOpen = true;
+      for (const l of listeners) l({ type: "open", doc: "doc:mv" });
+    };
+    return { doc, project, open };
+  }
+  const pic = (asset: string, clip: string) =>
+    sceneToDoc({
+      v: 1,
+      name: "t",
+      bounds: [0, 0, 1000, 1000],
+      entities: [
+        {
+          id: "pic",
+          type: "marker",
+          at: [10, 10],
+          behaviors: { sprite: { asset, frame: "idle-0" }, anim: { source: "moves", clip } },
+        },
+      ],
+    });
+  const codes = (issues: readonly { code: string }[]) => issues.map((i) => i.code);
+
+  it("reads an animation source from its open doc: a clip it lacks, a sprite missing its frames", () => {
+    const { project, open } = sessionLike();
+    expect(issueRuntime(project, engine)).toBeUndefined();
+    expect(codes(validateDoc(pic("hero", "jabb"), engine, { project }))).toEqual([]);
+    open();
+    const unknown = validateDoc(pic("hero", "jabb"), engine, { project });
+    expect(unknown).toEqual([
+      expect.objectContaining({ code: "anim-clip-unknown", got: "jabb", expected: "jab | kick" }),
+    ]);
+    expect(validateDoc(pic("knight", "jab"), engine, { project })).toEqual([
+      expect.objectContaining({ code: "anim-atlas-mismatch", got: "knight", expected: "hero" }),
+    ]);
+    expect(validateDoc(pic("hero", "kick"), engine, { project })).toEqual([]);
+  });
+
+  it("revalidates when the animation doc opens and when it changes", () => {
+    const { doc: animation, project, open } = sessionLike();
+    const seen: string[][] = [];
+    let pending: (() => void) | null = null;
+    const watch = watchIssues(pic("hero", "kick"), engine, (i) => seen.push(codes(i)), {
+      project,
+      setTimer: (fn) => (pending = fn),
+      clearTimer: () => (pending = null),
+    });
+    expect(watch.flush()).toEqual([]);
+
+    open();
+    expect(pending).not.toBeNull();
+    pending!();
+    expect(seen.at(-1)).toEqual([]);
+
+    layoutPatch(animation, LAYOUT, moves([JAB]));
+    expect(pending).not.toBeNull();
+    pending!();
+    expect(seen.at(-1)).toEqual(["anim-clip-unknown"]);
+
+    watch.stop();
+    layoutPatch(animation, LAYOUT, moves([JAB, KICK]));
+    pending = null;
+    open();
+    expect(pending).toBeNull();
   });
 });

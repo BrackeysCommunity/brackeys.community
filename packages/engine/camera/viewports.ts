@@ -1,7 +1,10 @@
 /** Viewports: split screen and minimaps drawn from one world. View-side; nothing here reads the simulation. */
+import { z } from "zod";
+
 import { boxCentre, clampZoom, zoomToFit } from "../camera";
-import type { CameraRigDef } from "../game/primitives";
-import { cameraRigProblem, type CameraFrame } from "./rig";
+import { rgbSchema } from "../game/color";
+import { CAMERA_RIG_SCHEMA, type CameraRigDef } from "../game/primitives";
+import type { CameraFrame } from "./rig";
 
 /** One viewport over the canvas. */
 export type ViewportDef = {
@@ -27,18 +30,47 @@ export function defaultViewports(): ViewportDef[] {
   return [{ rect: [0, 0, 1, 1], frame: "main" }];
 }
 
-const fraction = (n: number) => Number.isFinite(n) && n >= 0 && n <= 1;
+const RECT = "must be [x, y, w, h]";
+const rectPart = z.number({ error: "must be a fraction 0–1" });
+const fraction = (n: number) => n >= 0 && n <= 1;
 
-/** Whether `frame` is one a viewport can frame: `ViewportDef["frame"]` checked at run time. */
-function knownFrame(frame: unknown): boolean {
-  if (frame === "main" || frame === "scene") return true;
-  if (typeof frame !== "object" || frame === null || Array.isArray(frame)) return false;
-  const keys = Object.keys(frame);
-  if (keys.length !== 1) return false;
-  const f = frame as Record<string, unknown>;
-  if (keys[0] === "player") return Number.isInteger(f.player) && (f.player as number) >= 0;
-  if (keys[0] === "entity") return typeof f.entity === "string" && f.entity.length > 0;
-  return false;
+/** `ViewportDef` checked at run time; its output is a `ViewportDef`. */
+const VIEWPORT_SCHEMA = z.strictObject({
+  rect: z
+    .tuple([rectPart, rectPart, rectPart, rectPart], { error: RECT })
+    .refine(
+      ([x, y, w, h]) =>
+        [x, y, w, h].every(fraction) && w > 0 && h > 0 && x + w <= 1 + 1e-9 && y + h <= 1 + 1e-9,
+      {
+        error: (issue) =>
+          `[${(issue.input as number[]).join(", ")}] isn't a non-empty part of the canvas in 0–1 fractions`,
+      },
+    ),
+  frame: z.union(
+    [
+      z.literal(["main", "scene"]),
+      z.strictObject({ player: z.number().int().min(0) }),
+      z.strictObject({ entity: z.string().min(1) }),
+    ],
+    {
+      error: (issue) =>
+        `${JSON.stringify(issue.input)} isn't "main", "scene", { player: n ≥ 0 } or { entity: id }`,
+    },
+  ),
+  layers: z
+    .array(z.string({ error: "must be a layer name" }), { error: "must be a list of layer names" })
+    .optional(),
+  rig: CAMERA_RIG_SCHEMA.optional(),
+  border: z.strictObject({ width: z.number().min(0), color: rgbSchema }).optional(),
+}) satisfies z.ZodType<ViewportDef>;
+
+/** A viewport's first issue: `frame "minimap" isn't …`, `rig damping: Too small …`. */
+function issueText(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "invalid";
+  const [key, ...rest] = issue.path;
+  if (key === undefined) return issue.message;
+  return `${String(key)} ${rest.length > 0 ? `${rest.join(".")}: ` : ""}${issue.message}`;
 }
 
 /** Why `defs` can't be a canvas's viewports, or null when they can. */
@@ -46,27 +78,8 @@ export function viewportsProblem(defs: readonly ViewportDef[]): string | null {
   if (defs.length < 1 || defs.length > MAX_VIEWPORTS)
     return `a canvas has 1–${MAX_VIEWPORTS} viewports, not ${defs.length}`;
   for (const [i, def] of defs.entries()) {
-    if (!Array.isArray(def.rect) || def.rect.length !== 4)
-      return `viewport ${i}: rect must be [x, y, w, h]`;
-    const [x, y, w, h] = def.rect;
-    if (![x, y, w, h].every(fraction) || !(w > 0 && h > 0) || x + w > 1 + 1e-9 || y + h > 1 + 1e-9)
-      return `viewport ${i}: rect [${def.rect.join(", ")}] isn't a non-empty part of the canvas in 0–1 fractions`;
-    if (!knownFrame(def.frame))
-      return `viewport ${i}: frame ${JSON.stringify(def.frame)} isn't "main", "scene", { player: n ≥ 0 } or { entity: id }`;
-    if (
-      def.layers !== undefined &&
-      !(Array.isArray(def.layers) && def.layers.every((l) => typeof l === "string"))
-    )
-      return `viewport ${i}: layers must be a list of layer names`;
-    if (def.border) {
-      const { width, color } = def.border;
-      if (!(Number.isFinite(width) && width >= 0))
-        return `viewport ${i}: border width must be a finite number ≥ 0`;
-      if (!(Number.isInteger(color) && color >= 0 && color <= 0xffffff))
-        return `viewport ${i}: border color must be 0xRRGGBB`;
-    }
-    const rig = def.rig === undefined ? null : cameraRigProblem(def.rig);
-    if (rig) return `viewport ${i}: rig ${rig}`;
+    const parsed = VIEWPORT_SCHEMA.safeParse(def);
+    if (!parsed.success) return `viewport ${i}: ${issueText(parsed.error)}`;
   }
   return null;
 }

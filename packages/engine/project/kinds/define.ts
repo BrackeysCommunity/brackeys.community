@@ -193,7 +193,7 @@ export type BlobKindDef<M = unknown, S = unknown> = KindBase & {
   /** Pure and deterministic: the same bytes and settings give the same meta everywhere, from headers alone. */
   inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
   refs?(entry: AssetEntry): readonly RefSite[];
-  /** Bumped when `inspect` learns more; sidecars inspected under an older version are re-inspected. */
+  /** Bumped when `inspect` learns more. Sidecars don't record it yet, so nothing re-inspects by it. */
   metaVersion?: number;
 };
 

@@ -1,9 +1,9 @@
-import { CAMERA_REGION_TYPE } from "../game/primitives";
 import {
   aabb,
   containedInRect,
   containsPoint,
   intersectsRect,
+  rectsOverlap,
   regionBox,
 } from "../scene/shape-geometry";
 import type { Aabb, Pt, Ref, ShapeObj } from "../scene/types";
@@ -30,12 +30,6 @@ const pickable = (e: IndexEntry, layers: PickLayers | undefined) =>
 
 const isPoint = (g: IndexEntry["geometry"]): g is Pt => Array.isArray(g);
 
-/**
- * A camera region draws only the outline of the box it frames, so it picks
- * by that outline: what's inside it stays clickable.
- */
-const isRegion = (e: IndexEntry) => e.type === CAMERA_REGION_TYPE;
-
 /** Whether `p` is within `tol` of the edges of the box region `g` frames. */
 function onRegionOutline(g: ShapeObj, p: Pt, tol: number): boolean {
   const b = aabb(regionBox(g));
@@ -48,11 +42,9 @@ function onRegionOutline(g: ShapeObj, p: Pt, tol: number): boolean {
 /** Whether `rect` crosses the edges of the box region `g` frames, rather than lying clear of it or wholly inside. */
 function touchesRegionOutline(g: ShapeObj, rect: Aabb): boolean {
   const b = aabb(regionBox(g));
-  const overlaps =
-    rect.minX <= b.maxX && rect.maxX >= b.minX && rect.minY <= b.maxY && rect.maxY >= b.minY;
   const inside =
     rect.minX > b.minX && rect.maxX < b.maxX && rect.minY > b.minY && rect.maxY < b.maxY;
-  return overlaps && !inside;
+  return rectsOverlap(rect, b) && !inside;
 }
 
 /**
@@ -74,7 +66,7 @@ export function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntr
     const { geometry: g, sprite } = e;
     if (sprite && containsPoint(sprite, p, tol)) return true;
     if (isPoint(g)) return Math.hypot(p[0] - g[0], p[1] - g[1]) <= radius;
-    return isRegion(e) ? onRegionOutline(g, p, tol) : containsPoint(g, p, tol);
+    return e.region ? onRegionOutline(g, p, tol) : containsPoint(g, p, tol);
   });
 }
 
@@ -105,7 +97,7 @@ export function marqueeSelect(
       if (opts.touch && sprite && intersectsRect(sprite, rect)) return true;
       if (isPoint(g))
         return g[0] >= rect.minX && g[0] <= rect.maxX && g[1] >= rect.minY && g[1] <= rect.maxY;
-      if (isRegion(e))
+      if (e.region)
         return opts.touch ? touchesRegionOutline(g, rect) : containedInRect(regionBox(g), rect);
       return opts.touch ? intersectsRect(g, rect) : containedInRect(g, rect);
     })

@@ -1,4 +1,3 @@
-import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import {
   gridCellsIn,
@@ -12,7 +11,7 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, containsPoint, regionBox } from "./shape-geometry";
+import { aabb, containsPoint, isCameraRegionType, regionBox } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline } from "./shape-outline";
 import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 
@@ -107,7 +106,7 @@ function markOf(
 }
 
 /** A camera region: an area the camera frames, drawn as the outline of the box it frames only. */
-const isRegion = (d: DrawnEntity) => d.base === CAMERA_REGION_TYPE;
+const isRegion = (d: DrawnEntity) => isCameraRegionType(d.type);
 
 /** `shape`'s outline as polylines, arcs flattened to at most `step` world px per segment. */
 function outlinePolylines(shape: ShapeObj, step: number): Pt[][] {

@@ -483,7 +483,7 @@ type BlobKindDef<M = unknown, S = unknown> = KindBase & {
     inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
     maxBytes: number;
     meta: z.ZodType<M>;
-    /** Bumped when `inspect` learns more; sidecars inspected under an older version are re-inspected. */
+    /** Bumped when `inspect` learns more. Sidecars don't record it yet, so nothing re-inspects by it. */
     metaVersion?: number;
     refs?(entry: AssetEntry): readonly RefSite[];
     /** Import settings: every field optional with a default, so `{}` is valid. */

@@ -4,12 +4,19 @@ import type { EmitterBlock } from "../../game/behaviors/emitter";
 import { spriteOffset } from "../../game/behaviors/sprite";
 import type { EngineContext, Style } from "../../game/types";
 import { EMITTER_KIND, type EmitterFile } from "../../project/kinds/emitter";
+import { editorLayerOf } from "../../scene/layers";
 import type { RuntimeEntity, ShapeObj } from "../../scene/types";
 import { entityHomeLayer } from "../../systems/bodies";
 import { lerpPose, type Pose } from "../poses";
 import { spawnPose } from "../spawn-pose";
 
-type Attached = { entity: RuntimeEntity; block: EmitterBlock; layer: ViewLayer };
+type Attached = {
+  entity: RuntimeEntity;
+  block: EmitterBlock;
+  layer: ViewLayer;
+  /** The preset doc it last started from: another one restarts it. */
+  started?: EmitterFile | undefined;
+};
 
 /** The view id of the glyph marking an emitter while editing. */
 export const emitterGlyphId = (entityId: string): string => `${entityId}#emitter`;
@@ -38,16 +45,18 @@ export const emitterPreset = (
  * entity's draw layer, at its pose plus the block's offset, interpolated
  * between the last two ticks on each rendered frame. `emitting: false`
  * stops it, its particles living out their life; a block without a preset
- * the project has emits nothing. While editing, a spark glyph on the
- * registry's editor-only layer marks the point it emits from, whatever its
- * preset; a registry without that layer draws none.
+ * the project has emits nothing. A block update restarts it only when its
+ * preset (the id or the doc) changes or it starts emitting again; a new
+ * `rate`, `offset` or layer carries on from where it was. While editing,
+ * a spark glyph on the registry's editor-only layer marks the point it
+ * emits from, whatever its preset; a registry without that layer draws none.
  */
 export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   if (ctx.view === null)
     throw new Error("the emitter system draws through a view; headless runs build none");
   const view = ctx.view;
   /** Where the glyphs draw; a view that can't order visuals can't hide them in Play, so it draws none. */
-  const glyphLayer = view.depth ? ctx.registry.layers.find((l) => l.editorOnly)?.draw : undefined;
+  const glyphLayer = view.depth ? editorLayerOf(ctx.registry.layers) : undefined;
   const attached = new Map<string, Attached>();
   /** Each entity's pose as the last rendered frame placed it. */
   const framed = new Map<string, Pose>();
@@ -71,27 +80,37 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
     view.pose(emitterGlyphId(id), p.x, p.y, p.rot, true);
   }
 
-  function start(id: string, a: Attached): void {
+  /** Runs `a`'s emitter: from its start when `restart` or its preset changed, else retuned as it runs. */
+  function start(id: string, a: Attached, restart: boolean): void {
     const layer = view.particles?.();
     if (!layer) return;
     const preset = emitterPreset(ctx, a.block.preset);
+    const fresh = restart || preset !== a.started;
+    a.started = preset;
     if (!preset || a.block.emitting === false) {
       layer.remove(id);
       return;
     }
     const rate = a.block.rate;
-    layer.emitter(id, rate === undefined ? preset : { ...preset, rate }, () => at(id), a.layer);
+    const tuned = rate === undefined ? preset : { ...preset, rate };
+    if (!fresh && layer.retune(id, tuned, a.layer)) return;
+    layer.emitter(id, tuned, () => at(id), a.layer);
   }
 
-  function show(id: string, block: EmitterBlock, entity: RuntimeEntity): void {
-    const a: Attached = { entity, block, layer: entityHomeLayer(ctx, id, entity) };
+  function show(id: string, block: EmitterBlock, entity: RuntimeEntity, restart: boolean): void {
+    const a: Attached = {
+      entity,
+      block,
+      layer: entityHomeLayer(ctx, id, entity),
+      started: attached.get(id)?.started,
+    };
     attached.set(id, a);
     if (glyphLayer !== undefined) {
       view.draw(emitterGlyphId(id), GLYPH, GLYPH_STYLE, glyphLayer);
       view.depth?.(emitterGlyphId(id), entity.z ?? 0);
       placeGlyph(id, a);
     }
-    start(id, a);
+    start(id, a, restart);
   }
 
   function hide(id: string): void {
@@ -102,8 +121,8 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   }
 
   const system: BehaviorSystem<EmitterBlock> = {
-    attach: show,
-    update: (id, block, _prev, entity) => show(id, block, entity),
+    attach: (id, block, entity) => show(id, block, entity, true),
+    update: (id, block, _prev, entity) => show(id, block, entity, false),
     detach: hide,
     render(alpha) {
       for (const [id, a] of attached) {
@@ -114,7 +133,7 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
       }
     },
     reset() {
-      for (const [id, a] of attached) start(id, a);
+      for (const [id, a] of attached) start(id, a, true);
     },
     clear() {
       for (const id of [...attached.keys()]) hide(id);

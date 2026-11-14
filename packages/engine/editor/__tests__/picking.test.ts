@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
+import { primitiveFields } from "../../game/primitives";
 import type { Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import kitchenSink from "../../scenes/kitchen-sink.json";
@@ -242,5 +243,34 @@ describe("camera regions", () => {
     expect(marqueeSelect(regionIndex, aroundHall, { touch: false })).toEqual(["hall"]);
     const aroundTurned = { minX: 12, minY: 0.2, maxX: 18, maxY: 4.8 };
     expect(marqueeSelect(regionIndex, aroundTurned, { touch: false })).toEqual([]);
+  });
+
+  it("picks and marquees a type based on camera-region by its outline too", () => {
+    const room = defineEntityType({
+      type: "room",
+      base: "camera-region",
+      description: "A room the camera frames.",
+      fields: (env) => primitiveFields("camera-region", env),
+    });
+    const rooms = createRegistry(
+      defineGame({
+        id: "rooms",
+        types: [room],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const based = structuredClone(scene);
+    based.entities![1] = { id: "room", type: "room", shape: ["box", 5, 2.5, 3, 2] };
+    const roomIndex = createSpatialIndex();
+    roomIndex.rebuild(based, rooms);
+    const at = (p: Pt) => pickAt(roomIndex, p, { tolPx: 4, scale: 100 }).map((e) => e.ref);
+    expect(at([4, 2])).toEqual([]);
+    expect(at([5.15, 3.15])).toEqual(["crate"]);
+    expect(at([2.03, 2.5])).toEqual(["room"]);
+    const inside = { minX: 4, minY: 2, maxX: 6, maxY: 3.5 };
+    expect(marqueeSelect(roomIndex, inside, { touch: true })).toEqual(["crate"]);
+    const crossing = { minX: 7.5, minY: 2, maxX: 8.5, maxY: 3 };
+    expect(marqueeSelect(roomIndex, crossing, { touch: true })).toEqual(["room"]);
   });
 });

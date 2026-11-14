@@ -586,6 +586,35 @@ describe("the particle layer", () => {
     expect(container.children).toEqual([sprite]);
   });
 
+  it("retunes a running emitter without restarting it: no burst fires again and its duration runs on", () => {
+    const { layer } = layerOf();
+    expect(layer.retune("e", file({ rate: 40 }))).toBe(false);
+    expect(layer.stats()).toEqual({ emitters: 0, particles: 0 });
+
+    const bursts = [
+      { atMs: 0, count: 5 },
+      { atMs: 300, count: 7 },
+    ];
+    layer.emitter("e", file({ durationMs: 500, bursts }), () => still);
+    run(layer, 100, 100);
+    expect(layer.stats().particles).toBe(5);
+    expect(layer.retune("e", file({ rate: 40, durationMs: 500, bursts }))).toBe(true);
+    run(layer, 100, 100);
+    expect(layer.stats().particles).toBe(5 + 4);
+    run(layer, 100, 100);
+    expect(layer.stats().particles).toBe(5 + 8 + 7);
+    run(layer, 1000, 100);
+    expect(layer.stats().particles).toBe(5 + 16 + 7);
+    expect(layer.stats().emitters).toBe(1);
+
+    // Retuned before its first frame, a burst at 0 is still to come.
+    const fresh = layerOf();
+    fresh.layer.emitter("e", file({ bursts }), () => still);
+    fresh.layer.retune("e", file({ rate: 0, bursts }));
+    run(fresh.layer, 100, 100);
+    expect(fresh.layer.stats().particles).toBe(5);
+  });
+
   it("keeps a stopped emitter's world particles to the end of their life, and clear drops all", () => {
     const { layer } = layerOf();
     layer.emitter("w", file({ bursts: [{ atMs: 0, count: 2 }] }), () => still);
@@ -672,7 +701,11 @@ const fountain: ExpandedScene = {
   entities: [emitting()],
 };
 
-function viewedRuntime(entities = fountain.entities, editing?: () => boolean) {
+function viewedRuntime(
+  entities = fountain.entities,
+  editing?: () => boolean,
+  projectView: ProjectRuntimeView = project,
+) {
   const container = new Container();
   const view = createPixiView(container, {
     particles: { reducedMotion: false, seed: "fountain" },
@@ -683,7 +716,7 @@ function viewedRuntime(entities = fountain.entities, editing?: () => boolean) {
     rapier: null,
     view,
     game: counting as GameDefinition,
-    project,
+    project: projectView,
   });
   const report = rt.load({ ...fountain, entities });
   expect(report.ok, JSON.stringify(report)).toBe(true);
@@ -728,6 +761,39 @@ describe("the emitter behavior", () => {
     rt.ctx.destroy("fast");
     rt.step(rt.ctx.time.tickMs, []);
     expect(layer.stats().emitters).toBe(0);
+    rt.destroy();
+    view.destroy();
+  });
+
+  it("carries on through a block update of rate or offset, and restarts only for a new preset or emitting again", () => {
+    const once = file({ bursts: [{ atMs: 0, count: 4 }], lifeMs: [5000, 5000] });
+    const docs: Record<string, EmitterFile> = { spray: SPRAY, once, again: { ...once } };
+    const { rt, view } = viewedRuntime([emitting({ preset: "once" })], undefined, {
+      ...project,
+      doc: <T>(kind: string, id: string) => (kind === "emitter" ? (docs[id] as T) : undefined),
+    });
+    const layer = view.particles!()!;
+    const tick = () => {
+      rt.render(1);
+      layer.update(FRAME_MS);
+    };
+    const set = (behaviors: Record<string, unknown>) =>
+      expect(rt.update([emitting(behaviors)]).ok).toBe(true);
+    tick();
+    expect(layer.stats().particles).toBe(4);
+    set({ preset: "once", rate: 0, offset: [1, 0] });
+    tick();
+    set({ preset: "once", rate: 0, offset: [2, 0] });
+    tick();
+    expect(layer.stats().particles).toBe(4);
+    set({ preset: "again" });
+    tick();
+    expect(layer.stats().particles).toBe(8);
+    set({ preset: "again", emitting: false });
+    tick();
+    set({ preset: "again" });
+    tick();
+    expect(layer.stats().particles).toBe(12);
     rt.destroy();
     view.destroy();
   });

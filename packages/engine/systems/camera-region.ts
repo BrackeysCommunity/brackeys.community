@@ -1,6 +1,7 @@
 import { outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
+import { editorLayerOf } from "../scene/layers";
 import { regionBox } from "../scene/shape-geometry";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
 
@@ -23,7 +24,7 @@ export function createCameraRegionSystem(
   type: RegisteredType,
 ): SceneSystem<CameraRegionEntity> {
   const live = new Set<string>();
-  const editorLayer = ctx.registry.layers.find((l) => l.editorOnly)?.draw;
+  const editorLayer = editorLayerOf(ctx.registry.layers);
   const style = styleOf(ctx, type, undefined);
   const outline = style ? outlineOnly(style) : undefined;
 

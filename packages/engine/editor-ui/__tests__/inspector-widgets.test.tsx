@@ -504,8 +504,41 @@ describe("the inspector's motion behaviors", () => {
     expect(tweens()[0]).toEqual({ ...SPIN, to: { y: 5, alpha: 0.5 } });
 
     fireEvent.click(screen.getByRole("combobox", { name: "behaviors.tween.tweens.0.ease" }));
-    choose(await screen.findByRole("option", { name: "Quad in (quadIn)" }));
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent).slice(0, 3)).toEqual([
+      "Linear (default)",
+      "Quad in",
+      "Quad out",
+    ]);
+    choose(options.find((o) => o.textContent === "Quad in")!);
     expect(tweens()[0]!.ease).toBe("quadIn");
+
+    fireEvent.click(screen.getByRole("combobox", { name: "behaviors.tween.tweens.0.ease" }));
+    choose(await screen.findByRole("option", { name: "Linear (default)" }));
+    expect(tweens()[0]!.ease).toBeUndefined();
+    expect(
+      screen.getByRole("combobox", { name: "behaviors.tween.tweens.0.ease" }).textContent,
+    ).toBe("Linear (default)");
+  });
+
+  it("folds each tween to a summary by its title; a lone one starts open, an added one opens", () => {
+    const { session } = open();
+    show(session, "lamp");
+    const toggle = (n: number) => screen.getByRole("button", { name: new RegExp(`^Tween ${n}`) });
+    expect(toggle(1).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle(1));
+    expect(toggle(1).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByLabelText("behaviors.tween.tweens.0.to.y")).toBeNull();
+    expect(toggle(1).textContent).toBe(
+      "Tween 1To y 4.6 m, alpha 0.5 · Duration 800 ms · Ease Sine in-out · Repeat forever · Yoyo on",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add tween" }));
+    expect(toggle(1).getAttribute("aria-expanded")).toBe("false");
+    expect(toggle(2).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByLabelText("behaviors.tween.tweens.1.to.y")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Tween 1" }));
+    expect(toggle(1).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByLabelText("behaviors.tween.tweens.0.to.y")).toBeTruthy();
   });
 
   it("adds a copy of the last tween and removes one, keeping at least one", () => {
@@ -520,7 +553,44 @@ describe("the inspector's motion behaviors", () => {
     expect(tweens()).toEqual([{ ...SPIN, to: { y: 4.6, alpha: 1 } }]);
   });
 
-  it("takes a duration in ms or ticks, converting at the tick rate on the switch", () => {
+  it("narrows the label column inside each nested list by its indent, so values line up", () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(320);
+    const depth = (e: Element) => {
+      let n = 0;
+      for (let p = e.parentElement?.closest(".je-insp-nested"); p; ) {
+        n += 1;
+        p = p.parentElement?.closest(".je-insp-nested");
+      }
+      return n + (e.classList.contains("je-insp-nested") ? 1 : 0);
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        return { left: 9 * depth(this) } as DOMRect;
+      },
+    );
+    const { session } = open();
+    show(session, "lamp");
+    const column = (path: string) =>
+      (
+        screen.getByLabelText(path).closest(".je-insp-nested") as HTMLElement
+      ).style.getPropertyValue("--je-label-col");
+    expect(screen.getByLabelText("Inspector").style.getPropertyValue("--je-label-col")).toBe(
+      "96px",
+    );
+    expect(column("behaviors.tween.tweens.0.duration")).toBe("78px");
+    expect(column("behaviors.tween.tweens.0.to.y")).toBe("69px");
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("takes a duration in ms or ticks, switching only when the value converts exactly", () => {
     const { session, tweens } = open();
     show(session, "lamp");
     const duration = "behaviors.tween.tweens.0.duration";
@@ -530,7 +600,18 @@ describe("the inspector's motion behaviors", () => {
     type(duration, "+=2");
     expect(tweens()[0]!.duration).toBe(50);
     fireEvent.click(within(rowOf(duration)).getByRole("button", { name: "ms" }));
-    expect(tweens()[0]!.duration).toEqual({ ms: 833 });
+    expect(tweens()[0]!.duration).toBe(50);
+    expect(
+      within(rowOf(duration)).getByText(
+        "50 ticks is 833.33 ms at 60 Hz: switching needs a whole number of ms.",
+      ),
+    ).toBeTruthy();
+    type(duration, "51");
+    expect(within(rowOf(duration)).queryByText(/switching needs/)).toBeNull();
+    fireEvent.click(within(rowOf(duration)).getByRole("button", { name: "ms" }));
+    expect(tweens()[0]!.duration).toEqual({ ms: 850 });
+    fireEvent.click(within(rowOf(duration)).getByRole("button", { name: "ticks" }));
+    expect(tweens()[0]!.duration).toBe(51);
   });
 
   it("writes an anim offset typed while unset in ms, or in ticks once switched", () => {

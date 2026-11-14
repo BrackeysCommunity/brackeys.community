@@ -10,6 +10,7 @@ import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { turnBy } from "../../scene/shape-geometry";
 import type { Pt, RuntimeEntity, ShapeObj } from "../../scene/types";
 import { defineBehavior } from "../behaviors";
+import { rgbSchema } from "../color";
 import { BLEND_MODES, DEFAULT_LENGTH_UNIT } from "../defaults";
 import { assetField, mirrorField, vectorField } from "../fields";
 import type { FieldEnv } from "../types";
@@ -58,11 +59,7 @@ const spriteFields = (env: FieldEnv) => ({
   )
     .optional()
     .meta({ group: "placement" }),
-  tint: z
-    .number()
-    .int()
-    .min(0)
-    .max(0xffffff)
+  tint: rgbSchema
     .optional()
     .describe("0xRRGGBB multiplied into the texture; default the material's, else none.")
     .meta({ widget: "color", group: "look" }),

@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 
 import type { Registry } from "@jams/engine/game";
 import { runChecks, type CheckResult } from "@jams/engine/headless";
+import { projectView, type ProjectRuntimeView, type ProjectView } from "@jams/engine/project";
 import {
   checksPathOf,
   closest,
@@ -24,7 +25,7 @@ import {
   type ToolContext,
   type ToolResult,
 } from "../context";
-import { projectRuntime } from "../projects";
+import { projectRuntime, scanProject } from "../projects";
 import { shownPath } from "./game-manifest";
 import { rapierFor } from "./step";
 
@@ -79,10 +80,17 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
     }
   }
 
-  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
+  let project: ProjectRuntimeView | null = null;
+  let view: ProjectView | undefined;
+  if (loaded.project) {
+    const scan = await scanProject(loaded.project);
+    project = await projectRuntime(loaded.project, registry, scan);
+    view = projectView(scan.state, loaded.project.kinds);
+  }
   const report = runChecks({
     rapier: await rapierFor(ctx, def, registry, project?.engine),
     project,
+    ...(view ? { view } : {}),
     scene: def,
     prefabs: loaded.prefabs,
     registry,

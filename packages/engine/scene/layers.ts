@@ -28,6 +28,10 @@ export const DEFAULT_LAYERS: readonly SceneLayerDef[] = Object.freeze([
   },
 ]);
 
+/** The draw order of the first editor-only layer in `layers`; undefined when none is. */
+export const editorLayerOf = (layers: readonly SceneLayerDef[]): number | undefined =>
+  layers.find((l) => l.editorOnly)?.draw;
+
 /**
  * The layer an entity without `layer` sits on: types that never load
  * (notes) on `editor`, bulk entries on `terrain`, other entities on

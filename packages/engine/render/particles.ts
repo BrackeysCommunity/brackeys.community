@@ -10,7 +10,7 @@ import { layerOrder, type SpriteVisual, type ViewLayer } from "../context";
 import { spriteAssets } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
-import { lerpRgb } from "../math";
+import { lerp, lerpRgb } from "../math";
 import { degToRad } from "../physics";
 import {
   EMITTER_MAX_CAP,
@@ -34,6 +34,13 @@ export interface ParticleLayer {
    * it emits nothing. A restart keeps the particles it has alive.
    */
   emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+  /**
+   * Moves the running emitter `id` onto `preset` and `layer` without
+   * restarting it: it keeps its clock, its point and its particles, and a
+   * burst due by its clock stays passed. False, changing nothing, when no
+   * emitter `id` runs.
+   */
+  retune(id: string, preset: EmitterFile, layer?: ViewLayer): boolean;
   /** Stops the emitter `id`: what it put in world space lives out its life, what it put in local space goes. */
   remove(id: string): void;
   /**
@@ -104,21 +111,26 @@ function keysAround(curve: EmitterCurve, t: number): [CurveKey, CurveKey] {
   return [before, before];
 }
 
-/** The value of a `[t, value]` curve at `t`, linear between keys; `fallback` without one. */
-export function curveAt(curve: EmitterCurve | undefined, t: number, fallback: number): number {
+/** A `[t, value]` curve at `t`, mixed by `mix` between keys; `fallback` without one. */
+function sampleCurve(
+  curve: EmitterCurve | undefined,
+  t: number,
+  fallback: number,
+  mix: (a: number, b: number, k: number) => number,
+): number {
   if (!curve || curve.length === 0) return fallback;
   const [a, b] = keysAround(curve, t);
   const span = b[0] - a[0];
-  return span > 0 ? a[1] + ((b[1] - a[1]) * (t - a[0])) / span : b[1];
+  return span > 0 ? mix(a[1], b[1], (t - a[0]) / span) : b[1];
 }
 
+/** The value of a `[t, value]` curve at `t`, linear between keys; `fallback` without one. */
+export const curveAt = (curve: EmitterCurve | undefined, t: number, fallback: number): number =>
+  sampleCurve(curve, t, fallback, lerp);
+
 /** A tint curve at `t`, blended per channel. */
-export function tintAt(curve: EmitterCurve | undefined, t: number): number {
-  if (!curve || curve.length === 0) return 0xffffff;
-  const [a, b] = keysAround(curve, t);
-  const span = b[0] - a[0];
-  return lerpRgb(a[1], b[1], span > 0 ? (t - a[0]) / span : 1);
-}
+export const tintAt = (curve: EmitterCurve | undefined, t: number): number =>
+  sampleCurve(curve, t, 0xffffff, lerpRgb);
 
 type Bucket = {
   key: string;
@@ -383,24 +395,54 @@ export function createParticleLayer(
   const capOf = (preset: EmitterFile) =>
     Math.min(EMITTER_MAX_CAP, Math.max(1, Math.floor(preset.max ?? EMITTER_MAX_DEFAULT)));
 
+  type Source = NonNullable<Group["source"]>;
+
+  /** Runs the emitter `id` on `preset` and `layer` from `source`, keeping what it has alive. */
+  function place(
+    id: string,
+    preset: EmitterFile,
+    layer: ViewLayer | undefined,
+    source: (bursts: Source["bursts"]) => Source,
+  ): void {
+    const before = emitters.get(id);
+    const local = preset.space === "local";
+    const keep = before && before.local === local ? before.particles : null;
+    if (before && !keep) stop(before);
+    const bursts = [...(preset.bursts ?? [])].sort((a, b) => a.atMs - b.atMs);
+    emitters.set(id, {
+      preset,
+      layer: layer ?? null,
+      local,
+      cap: capOf(preset),
+      particles: keep ?? [],
+      held: hold(preset, layer ?? null),
+      source: source(bursts),
+    });
+    // After the new hold, so a restart on the same bucket keeps it in place.
+    release(before?.held ?? null);
+  }
+
   return {
     emitter(id, preset, at, layer) {
-      const before = emitters.get(id);
-      const local = preset.space === "local";
-      const keep = before && before.local === local ? before.particles : null;
-      if (before && !keep) stop(before);
-      const bursts = [...(preset.bursts ?? [])].sort((a, b) => a.atMs - b.atMs);
-      emitters.set(id, {
-        preset,
-        layer: layer ?? null,
-        local,
-        cap: capOf(preset),
-        particles: keep ?? [],
-        held: hold(preset, layer ?? null),
-        source: { at, owed: 0, elapsedMs: 0, nextBurst: 0, bursts, origin: at() ?? null },
+      place(id, preset, layer, (bursts) => ({
+        at,
+        owed: 0,
+        elapsedMs: 0,
+        nextBurst: 0,
+        bursts,
+        origin: at() ?? null,
+      }));
+    },
+    retune(id, preset, layer) {
+      const running = emitters.get(id)?.source;
+      if (!running) return false;
+      // Nothing has fired before its first emitting frame, so a burst at 0 stays due.
+      const passed = running.elapsedMs > 0 ? running.elapsedMs : -Infinity;
+      place(id, preset, layer, (bursts) => {
+        const next = bursts.findIndex((b) => b.atMs > passed);
+        return { ...running, bursts, nextBurst: next === -1 ? bursts.length : next };
       });
-      // After the new hold, so a restart on the same bucket keeps it in place.
-      release(before?.held ?? null);
+      return true;
     },
     remove(id) {
       const g = emitters.get(id);

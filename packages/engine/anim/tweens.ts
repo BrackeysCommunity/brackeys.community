@@ -10,6 +10,7 @@ import { isCount } from "../game/time";
 import type { JsonValue } from "../game/types";
 import { lerp, lerpRgb } from "../math";
 import { isPlainObject } from "../project/kinds/define";
+import { plainJsonProblem } from "../runtime/persist";
 import { ease, EASE_NAMES } from "./ease";
 
 export type { TweenChannel, TweenSpec } from "../game/behaviors/tween";
@@ -134,6 +135,12 @@ export function isTweenState(value: unknown): value is TweenState {
   // `given` names only channels of `to`; a fixed `from` holds every one.
   const given = (v: unknown) => values(v) && Object.keys(v).every((c) => channels.includes(c));
   const from = (v: unknown) => given(v) && channels.every((c) => Object.hasOwn(v as object, c));
+  // What its end raises as a step event: a named type and plain JSON data.
+  const emit = (v: unknown) =>
+    isPlainObject(v) &&
+    typeof v.type === "string" &&
+    v.type.length > 0 &&
+    (v.data === undefined || plainJsonProblem({ data: v.data }) === null);
   return (
     isCount(s.id, 1) &&
     (s.owner === undefined || typeof s.owner === "string") &&
@@ -148,6 +155,7 @@ export function isTweenState(value: unknown): value is TweenState {
     typeof s.yoyo === "boolean" &&
     isCount(s.play) &&
     isCount(s.tick) &&
-    (s.tick as number) <= (s.duration as number)
+    (s.tick as number) <= (s.duration as number) &&
+    (s.emit === undefined || emit(s.emit))
   );
 }

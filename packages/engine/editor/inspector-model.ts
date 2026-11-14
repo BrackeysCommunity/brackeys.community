@@ -8,6 +8,7 @@ import {
 } from "../game/behaviors";
 import { ANIM } from "../game/behaviors/anim";
 import { SPRITE } from "../game/behaviors/sprite";
+import { cssHex } from "../game/color";
 import { DEFAULT_LENGTH_UNIT, DEFAULT_TIME } from "../game/defaults";
 import { behaviorsConflict } from "../game/define";
 import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
@@ -287,11 +288,20 @@ export type BehaviorOption = {
   batch: OpBatch;
   /** The required behaviors `batch` adds alongside it, by label. */
   adds?: string[];
-  /** The project assets `batch` names, each with the clip it picked (`hero (idle)`). */
-  uses?: string[];
+  /**
+   * The project assets `batch` names, and what for: what it plays, with the
+   * clip it picked; what a sprite draws with; any other it uses.
+   */
+  uses?: (
+    | { role: "plays"; asset: AssetId; clip: string }
+    | { role: "draws" | "uses"; asset: AssetId; kind?: AssetKindName }
+  )[];
   /** Why it can't be added yet (a reference with nothing in the scene to name); `batch` would fail. */
   unavailable?: string;
 };
+
+/** A project asset an added behavior names, and what for. */
+type AssetUse = NonNullable<BehaviorOption["uses"]>[number];
 
 export type InspectorModel = {
   refs: Ref[];
@@ -317,6 +327,8 @@ type FieldMeta = {
   options?: unknown;
   enum?: unknown;
   named?: unknown;
+  /** The unit the inspector shows a field in when it isn't the stored one: an `s` field as `ms`. */
+  showIn?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -348,10 +360,14 @@ const optionLabel = (v: string | number) =>
 /** One value's `meta.options` entry: `{ revolute: { label: "Hinge", description: "…" } }`. */
 type OptionMeta = { label?: unknown; description?: unknown };
 
+/** A label or value with case and separators dropped: "Sine in-out" and `sineInOut` read the same. */
+const bare = (text: string) => text.toLowerCase().replace(/[\s_-]+/g, "");
+
 /**
  * A choice among `values`: segmented for up to four, else a select. A
  * value `meta.options` names reads by its label, the value after it when
- * they differ ("Hinge (revolute)"), with its description as the tooltip.
+ * they differ in more than case and separators ("Hinge (revolute)"), with
+ * its description as the tooltip.
  */
 function choice(values: readonly (string | number)[], meta?: unknown): FieldWidget {
   const named = meta !== null && typeof meta === "object" ? (meta as Record<string, unknown>) : {};
@@ -361,10 +377,7 @@ function choice(values: readonly (string | number)[], meta?: unknown): FieldWidg
     const label = typeof entry?.label === "string" ? entry.label : undefined;
     return {
       value,
-      label:
-        label && label.toLowerCase() !== plain.toLowerCase()
-          ? `${label} (${plain})`
-          : (label ?? plain),
+      label: label && bare(label) !== bare(plain) ? `${label} (${plain})` : (label ?? plain),
       ...(typeof entry?.description === "string" ? { description: entry.description } : {}),
     };
   });
@@ -439,10 +452,14 @@ function unitOf(meta: FieldMeta, ctx: Ctx): string | undefined {
   return typeof meta.unit === "string" ? meta.unit : undefined;
 }
 
-/** The unit a field shows in, and the factor from stored to shown: radians show as degrees. */
-function shownUnit(unit: string | undefined): { unit?: string; scale?: number } {
+/**
+ * The unit a field shows in, and the factor from stored to shown: radians
+ * show as degrees, and seconds as ms where `meta.showIn` asks.
+ */
+function shownUnit(unit: string | undefined, showIn: unknown): { unit?: string; scale?: number } {
   if (unit === "rad") return { unit: "°", scale: 180 / Math.PI };
   if (unit === "rad/s") return { unit: "°/s", scale: 180 / Math.PI };
+  if (unit === "s" && showIn === "ms") return { unit: "ms", scale: 1000 };
   return unit === undefined ? {} : { unit };
 }
 
@@ -524,7 +541,7 @@ function widgetFor(
       : undefined;
   if (accepts) return { kind: "entity-ref", accepts, multiple: inner instanceof z.ZodArray };
   if (isChildRef(inner)) return { kind: "entity-ref", accepts: [], multiple: false, any: true };
-  const { unit, scale } = shownUnit(declared);
+  const { unit, scale } = shownUnit(declared, meta.showIn);
   if (isNumberPair(schema, inner)) {
     if (meta.widget !== "range") return point(false);
     const length = isLengthUnit(unit) ? lengthStep(unit, ctx.ppm) : undefined;
@@ -747,6 +764,54 @@ export function describeRow(
     }));
   }
   return row;
+}
+
+/** A set value as a summary words it: by its option's label or name, with its unit; undefined when unset. */
+function valueText(row: InspectorRow): string | undefined {
+  const { widget, value } = row;
+  if (row.mixed) return "—";
+  if (widget.kind === "object" || widget.kind === "path") {
+    const parts = (row.children ?? []).flatMap((c) => {
+      const text = valueText(c);
+      return text === undefined ? [] : [`${c.title.toLowerCase()} ${text}`];
+    });
+    return parts.length > 0 ? parts.join(", ") : undefined;
+  }
+  if (value === undefined) return undefined;
+  if (widget.kind === "segmented" || widget.kind === "select")
+    return widget.options.find((o) => o.value === value)?.label ?? JSON.stringify(value);
+  if (widget.kind === "switch") return value ? "on" : "off";
+  if (widget.kind === "list") return Array.isArray(value) ? String(value.length) : undefined;
+  if (widget.kind === "color" && typeof value === "number") return cssHex(value);
+  if (widget.kind === "delay") {
+    if (typeof value === "number") return `${value} ${value === 1 ? "tick" : "ticks"}`;
+    const ms = (value as { ms?: unknown }).ms;
+    return typeof ms === "number" ? `${ms} ms` : undefined;
+  }
+  if (widget.kind === "number" && typeof value === "number") {
+    const named = widget.named?.find((n) => n.value === value);
+    if (named) return named.label;
+    const n = widget.decimals === undefined ? value : Number(value.toFixed(widget.decimals));
+    return widget.unit === undefined
+      ? String(n)
+      : widget.unit === "°"
+        ? `${n}°`
+        : `${n} ${widget.unit}`;
+  }
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/**
+ * An object row's set fields in one line, for a folded list item:
+ * "To y 4.8 m, alpha 0.5 · Duration 800 ms · Ease Sine in-out".
+ */
+export function rowSummary(row: InspectorRow): string {
+  return (row.children ?? [])
+    .flatMap((c) => {
+      const text = valueText(c);
+      return text === undefined ? [] : [`${c.title} ${text}`];
+    })
+    .join(" · ");
 }
 
 /** `row` and its children in their sections: `forced`, else the field's group, the parent's, or its kind's. */
@@ -1331,7 +1396,7 @@ function addedBlocks(
   /** Fields of a carried block it sets too (`behaviors.sprite.asset`), by dot path. */
   also: Record<string, unknown>;
   unavailable?: string;
-  uses: string[];
+  uses: AssetUse[];
 } {
   const clipsOf = (id: AssetId) => (sources ? sourceClipsIn(sources, id) : null);
   const blocks: Record<BehaviorName, Record<string, unknown>> = {};
@@ -1353,7 +1418,7 @@ function addedBlocks(
       if (other) extra.push(other);
     }
   }
-  const uses: string[] = [];
+  const uses: AssetUse[] = [];
   for (const n of Object.keys(blocks)) {
     const title = behaviorLabel(registry, n);
     const block = blocks[n]!;
@@ -1378,7 +1443,7 @@ function addedBlocks(
         if (picked) {
           block[field] = picked[0];
           block[clip] = picked[1];
-          uses.push(`${picked[0]} (${picked[1]})`);
+          uses.push({ role: "plays", asset: picked[0], clip: picked[1]! });
           continue;
         }
         unavailable ??= sources
@@ -1389,7 +1454,7 @@ function addedBlocks(
       const [first] = choices;
       if (first !== undefined) {
         block[field] = first;
-        uses.push(first);
+        uses.push({ role: n === SPRITE.name ? "draws" : "uses", asset: first });
         continue;
       }
       unavailable ??= kinds
@@ -1413,7 +1478,7 @@ function animSpriteSeed(
   s: BehaviorState,
   blocks: Record<BehaviorName, Record<string, unknown>>,
   sources: ClipSourceLookup,
-  uses: string[],
+  uses: AssetUse[],
 ): Record<string, unknown> {
   const anim = blocks[ANIM.name];
   if (typeof anim?.source !== "string") return {};
@@ -1424,7 +1489,8 @@ function animSpriteSeed(
   const clip = typeof anim.clip === "string" ? anim.clip : undefined;
   const needs = animSpriteOf(sources, anim.source, clip, drawn);
   if (!needs || (drawn !== undefined && needs.missing.length === 0)) return {};
-  if (needs.atlas !== anim.source) uses.push(needs.atlas);
+  if (needs.atlas !== anim.source)
+    uses.push({ role: "draws", asset: needs.atlas, kind: ATLAS_KIND });
   const look = { asset: needs.atlas, ...(needs.frame !== undefined ? { frame: needs.frame } : {}) };
   if (added) {
     Object.assign(added, look);
@@ -1561,12 +1627,12 @@ function addOptions(
     if (lacking.length === 0) continue;
     const label = b.inspector?.label ?? name;
     const adds = new Set<string>();
-    const uses = new Set<string>();
+    const uses = new Map<string, AssetUse>();
     let unavailable: string | undefined;
     const ops: SceneOp[] = lacking.map((s) => {
       const added = addedBlocks(registry, s, name, def, sources);
       unavailable ??= added.unavailable;
-      for (const u of added.uses) uses.add(u);
+      for (const u of added.uses) uses.set(JSON.stringify(u), u);
       for (const n of Object.keys(added.blocks))
         if (n !== name) adds.add(behaviorLabel(registry, n));
       const set = {
@@ -1585,7 +1651,7 @@ function addOptions(
       ...(b.inspector?.category ? { category: b.inspector.category } : {}),
       batch: { label: `Add ${label} to ${who}`, ops },
       ...(adds.size > 0 ? { adds: [...adds] } : {}),
-      ...(uses.size > 0 && !unavailable ? { uses: [...uses] } : {}),
+      ...(uses.size > 0 && !unavailable ? { uses: [...uses.values()] } : {}),
       ...(unavailable ? { unavailable } : {}),
     });
   }

@@ -351,6 +351,18 @@ describe("tweens", () => {
     expect(isTweenState({ ...state, given: { y: 2 } })).toBe(false);
     expect(isTweenState({ ...state, from: undefined, given: undefined })).toBe(true);
     expect(isTweenState({ ...state, to: { x: Number.NaN } })).toBe(false);
+    expect(isTweenState({ ...state, emit: { type: "door:open", data: { at: [1, 2] } } })).toBe(
+      true,
+    );
+    for (const emit of [
+      "door:open",
+      { type: 42 },
+      { type: "" },
+      { data: 1 },
+      { type: "door:open", data: Number.NaN },
+      { type: "door:open", data: new Map() },
+    ])
+      expect(isTweenState({ ...state, emit }), JSON.stringify(emit)).toBe(false);
   });
 
   it("repeat, with yoyo playing every other play backwards, and -1 forever", () => {
@@ -904,6 +916,42 @@ describe("tweens replay and save", () => {
     });
     expect(rest(second, b.live)).toEqual(looks);
     second.destroy();
+  });
+
+  it("a pending value tween makes a world save save-unsupported", () => {
+    const rt = tweening(entities());
+    rt.ctx.tweens.value(0, 1, { duration: 3, onUpdate: () => {} });
+    const r = captureSave(rt, { depth: "world", slot: "s", now: 0 });
+    expect(r.ok ? null : r.issue.code).toBe("save-unsupported");
+    expect(r.ok ? [] : (r.issue.detail as { causes: { cause: string }[] }).causes).toEqual([
+      expect.objectContaining({ cause: "tween" }),
+    ]);
+    stepFor(rt, 3);
+    expect(captureSave(rt, { depth: "world", slot: "s", now: 0 }).ok).toBe(true);
+    rt.destroy();
+  });
+
+  it("a world save drops a tween whose emit was edited out of shape, raising nothing for it", () => {
+    const a = tweening(entities());
+    play(a, 0, 20);
+    const captured = captureSave(a, { depth: "world", slot: "s", now: 0 });
+    if (!captured.ok) throw new Error(captured.issue.message);
+    a.destroy();
+    const run = captured.file.world!.systems["@tweens"]!.run as {
+      tweens: { owner: string; emit?: unknown }[];
+    };
+    const flag = run.tweens.find((t) => t.owner === "flag")!;
+    expect(flag.emit).toEqual({ type: "flag:up" });
+    flag.emit = { type: 42 };
+
+    const b = tweening(entities());
+    const restored = restoreSave(b, captured.file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    expect(b.ctx.tweens.size).toBe(3);
+    const events = stepFor(b, 40);
+    expect(events.every((e) => typeof e.type === "string")).toBe(true);
+    expect(events.filter((e) => e.entityId === "flag")).toEqual([]);
+    b.destroy();
   });
 
   it("a save after tweens ended keeps them ended", () => {

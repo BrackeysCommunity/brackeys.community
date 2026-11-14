@@ -149,7 +149,16 @@ describe("viewports", () => {
     expect(one({ layers: [1] })).toMatch(/^viewport 0: layers /);
     expect(one({ border: { width: 2, color: 0xffffff } })).toBeNull();
     for (const color of [-1, 0x1000000, 0.5, NaN, "#fff", undefined])
-      expect(one({ border: { width: 2, color } })).toMatch(/^viewport 0: border color /);
+      expect(one({ border: { width: 2, color } })).toMatch(
+        /^viewport 0: border color: Invalid colour/,
+      );
+    expect(one({ border: { width: -1, color: 0 } })).toMatch(/^viewport 0: border width: /);
+    expect(one({ border: { width: 2, color: 0, colour: 0 } })).toMatch(/^viewport 0: border /);
+    expect(viewportsProblem([{ ...SPLIT[0]!, layer: "world" } as ViewportDef])).toMatch(
+      /^viewport 0: Unrecognized key: "layer"/,
+    );
+    expect(one({ rect: [0, 0, 1] })).toMatch(/^viewport 0: rect /);
+    expect(one({ rect: [0, 0, NaN, 1] })).toMatch(/^viewport 0: rect /);
     expect(one({ rect: "full" })).toMatch(/^viewport 0: rect /);
     // The topmost wins where they overlap.
     const minimap: ViewportDef[] = [

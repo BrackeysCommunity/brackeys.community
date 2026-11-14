@@ -127,7 +127,7 @@ import {
   type SpotAnchor,
 } from "./types";
 import { snapToPixel } from "./units";
-import { validateScene } from "./validate";
+import { validateScene, type ValidateOptions } from "./validate";
 
 /** A bulk entry with identity, so references keep pointing at it while indices shift. */
 type Slot = { value: BulkEntry; orig: number | null; demotedFrom?: string; tag?: string };
@@ -217,13 +217,14 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
  * document the batch started from, and the result carries the inverse batch,
  * the diff and (unless `validate: "none"`) the structural issues of the new
  * document. Types, bulk keys and settings come from the registry the scene's
- * `game` picks out of `given` (`sceneRegistry`), as `validateScene` judges it.
+ * `game` picks out of `given` (`sceneRegistry`), as `validateScene` judges it,
+ * with `opts.project` and `opts.runtime` as its options of those names.
  */
 export function applyOps(
   def: SceneDefinition,
   batch: OpBatch,
   given: Registry,
-  opts: ApplyOptions = {},
+  opts: ApplyOptions & Pick<ValidateOptions, "runtime"> = {},
 ): ApplyResult {
   return applyOpsTracked(def, batch, given, opts).result;
 }
@@ -245,7 +246,7 @@ export function applyOpsTracked(
   def: SceneDefinition,
   batch: OpBatch,
   given: Registry,
-  opts: ApplyOptions = {},
+  opts: ApplyOptions & Pick<ValidateOptions, "runtime"> = {},
   tags?: EntryTags,
 ): { result: ApplyResult; tags?: EntryTags } {
   const result = run(def, batch, given, opts, tags);
@@ -272,7 +273,7 @@ function run(
   def: SceneDefinition,
   batch: OpBatch,
   given: Registry,
-  opts: ApplyOptions,
+  opts: ApplyOptions & Pick<ValidateOptions, "runtime">,
   tags: EntryTags | undefined,
 ): ApplyResult | (Extract<ApplyResult, { ok: true }> & { work: Work }) {
   const startHash = sceneHash(def);
@@ -360,6 +361,7 @@ function run(
             prefabs,
             ...(opts.prefab !== undefined ? { prefab: opts.prefab } : {}),
             ...(opts.project ? { project: opts.project } : {}),
+            ...(opts.runtime ? { runtime: opts.runtime } : {}),
           }),
     ...(w.prefabsChanged.size > 0
       ? { prefabs: w.prefabs, prefabsChanged: [...w.prefabsChanged].sort() }

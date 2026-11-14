@@ -6,7 +6,7 @@ import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "..
 import { defaultLayer } from "../scene/layers";
 import { spriteBoxOf, type DrawnSprite, type SpriteAssetLookup } from "../scene/render-geometry";
 import { geometryFields } from "../scene/schema";
-import { aabb, aabbUnion, translateShape } from "../scene/shape-geometry";
+import { aabb, aabbUnion, isCameraRegionType, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
@@ -218,6 +218,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       z: 0,
       geometry: g.shape ?? sprite?.shape ?? own,
       ...(sprite ? { sprite: sprite.shape } : {}),
+      ...(isCameraRegionType(registry.types.get(type)) ? { region: true as const } : {}),
     };
   }
 

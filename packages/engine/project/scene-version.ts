@@ -24,7 +24,7 @@ import {
   type SceneHash,
   type SceneIssue,
 } from "../scene/types";
-import { validateScene } from "../scene/validate";
+import { validateScene, type ValidateOptions } from "../scene/validate";
 import { ENGINE_VERSION } from "../version";
 import { namedPrefabs, sceneBundle, unsizedIds } from "./bundle";
 import { ownValue, stableJson } from "./canonical";
@@ -57,7 +57,7 @@ import {
   releaseSceneEntry,
   utf8Bytes,
 } from "./release-assets";
-import { runtimeView } from "./runtime-view";
+import { runtimeView, type ProjectRuntimeView } from "./runtime-view";
 import {
   jsonValues,
   PROJECT_SNAPSHOT_VERSION,
@@ -683,8 +683,10 @@ export function findSceneVersion<V extends { id: Sha256; version: SceneVersion }
 /**
  * The last half of a read, shared by the build and `readSceneVersion`:
  * validates the parsed scene against `view` with `prefabs` and expands it,
- * as Play does. `issues` holds what the read found before; an error there
- * or in the validation stops it.
+ * as Play does, its settings through `judge.engine`; the build's
+ * `judge.runtime` reads `anim` blocks' animation sources too. `issues`
+ * holds what the read found before; an error there or in the validation
+ * stops it.
  */
 function settleScene(
   id: AssetId,
@@ -693,20 +695,20 @@ function settleScene(
   prefabs: PrefabLibrary,
   registry: Registry,
   view: ProjectView,
-  engine: Readonly<Record<string, unknown>> | undefined,
+  judge: Pick<ValidateOptions, "engine" | "runtime">,
   issues: SceneIssue[],
 ): SceneVersionRead {
   if (issues.some(isErrorIssue)) return { ok: false, issues };
   const validated = validateScene(def, registry, {
+    ...judge,
     prefabs,
-    engine,
     project: view,
     lines: pointerLines(text),
   });
   issues.push(...validated);
   if (validated.some(isErrorIssue)) return { ok: false, issues };
   try {
-    const scene = expandScene(def, registry, { prefabs, engine });
+    const scene = expandScene(def, registry, { prefabs, engine: judge.engine });
     return { ok: true, def, scene, prefabs, issues };
   } catch (error) {
     return {
@@ -792,7 +794,7 @@ export function readSceneVersion(
     prefabs.read,
     registry,
     view,
-    opts.engine,
+    { engine: opts.engine },
     issues,
   );
   return read.ok ? withNamedPrefabs(read, registry, prefabs.get) : read;
@@ -834,11 +836,15 @@ export function readReleaseScene(
 
 // ─── Building one ────────────────────────────────────────
 
-/** The scene `opts.scene` as Play reads it from the project, its prefabs read from `opts.texts` as instances reach them. */
+/**
+ * The scene `opts.scene` as Play reads it from the project, its prefabs read
+ * from `opts.texts` as instances reach them, judged against the project's
+ * runtime view (its engine block and runtime docs).
+ */
 function readProjectScene(
   opts: BuildSceneVersionOptions,
   text: string,
-  engine: Readonly<Record<string, unknown>>,
+  runtime: ProjectRuntimeView,
 ): SceneVersionRead {
   const { registry, view, scene: id } = opts;
   const parsed = parseScene(text, registry);
@@ -856,7 +862,19 @@ function readProjectScene(
     },
   });
   prefabs.library(parsed.def);
-  const read = settleScene(id, parsed.def, text, prefabs.read, registry, view, engine, issues);
+  const read = settleScene(
+    id,
+    parsed.def,
+    text,
+    prefabs.read,
+    registry,
+    view,
+    {
+      engine: runtime.engine,
+      runtime,
+    },
+    issues,
+  );
   return read.ok ? withNamedPrefabs(read, registry, prefabs.get) : read;
 }
 
@@ -919,7 +937,7 @@ export async function buildSceneVersion(
   const values = jsonValues(opts.texts);
   const kinds = createKindRegistry(registry.game);
   const projectData = runtimeView(view, values, registry, kinds);
-  const read = readProjectScene(opts, text, projectData.engine);
+  const read = readProjectScene(opts, text, projectData);
   if (!read.ok) return read;
   const issues = [...read.issues];
 

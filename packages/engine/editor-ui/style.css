@@ -2831,6 +2831,38 @@
     color: var(--je-muted-fg);
   }
 
+  .je-insp-nested-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    height: var(--je-row);
+    margin-left: -2px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: var(--je-radius-sm);
+    background: none;
+    color: var(--je-muted-fg);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .je-insp-nested-toggle:hover {
+    background: var(--je-muted);
+  }
+
+  .je-insp-nested-toggle .je-insp-nested-title {
+    flex-shrink: 0;
+    color: var(--je-panel-fg);
+  }
+
+  .je-insp-nested-summary {
+    min-width: 0;
+    margin-left: 4px;
+    color: var(--je-muted-fg);
+  }
+
   .je-insp-nested {
     padding-left: 8px;
     border-left: 1px solid var(--je-border);

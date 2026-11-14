@@ -678,7 +678,9 @@ async function previousPointer(
     const resolve = await resolver(names);
     for (const name of names) {
       const before = resolve(name);
-      if (before !== GONE && before !== after) return before;
+      // `after` stays on the last version that exists, so a move back to it still reads as no change.
+      if (before === GONE) continue;
+      if (before !== after) return before;
       after = before;
     }
     if (rows.length < HISTORY_PAGE) return nothing();

@@ -255,8 +255,10 @@ export const PRIMITIVES = {
         .number()
         .min(0)
         .optional()
-        .describe(`Seconds to move into the region's framing; default ${DEFAULT_REGION_EASE}.`)
-        .meta({ title: "Ease time", unit: "s", default: DEFAULT_REGION_EASE }),
+        .describe(
+          `Seconds to move into the region's framing (the inspector shows ms); default ${DEFAULT_REGION_EASE}.`,
+        )
+        .meta({ title: "Ease time", unit: "s", showIn: "ms", default: DEFAULT_REGION_EASE }),
     },
     style: { stroke: 0xff9966, alpha: 0.9, strokeWidth: 2 },
     ascii: "c",

@@ -1,8 +1,7 @@
 /** Camera regions: areas that hold the camera's framing while a target is inside. */
 import { DEFAULT_REGION_EASE } from "../game/defaults";
-import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
-import { aabb, regionBox } from "../scene/shape-geometry";
+import { aabb, isCameraRegionType, regionBox } from "../scene/shape-geometry";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 
@@ -54,8 +53,7 @@ export function cameraRegionsOf(
 ): CameraRegion[] {
   const out: CameraRegion[] = [];
   for (const e of entities) {
-    const type = registry.types.get(e.type);
-    if (!type || (type.base ?? type.type) !== CAMERA_REGION_TYPE) continue;
+    if (!isCameraRegionType(registry.types.get(e.type))) continue;
     const shape = e.shape as ShapeObj | undefined;
     if (!shape) continue;
     const box = aabb(regionBox(shape));

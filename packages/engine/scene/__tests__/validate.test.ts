@@ -1285,6 +1285,24 @@ describe("anim blocks", () => {
     expect(missing.map((i) => i.code)).toContain("asset-missing");
     expect(missing.map((i) => i.code)).not.toContain("anim-clip-unknown");
   });
+
+  it("judge an applied batch's animation source through applyOps' runtime view", () => {
+    const batch: OpBatch = {
+      ops: [{ op: "update", ref: "pic", set: { "behaviors.anim.clip": "jabb" } }],
+    };
+    const applied = (withRuntime: boolean) => {
+      const result = applyOps(
+        animScene({ source: "moves", clip: "jab" }),
+        batch,
+        engine,
+        withRuntime ? { project, runtime } : { project },
+      );
+      if (!result.ok) throw new Error(result.issue.message);
+      return result.issues.map((i) => i.code);
+    };
+    expect(applied(true)).toContain("anim-clip-unknown");
+    expect(applied(false)).not.toContain("anim-clip-unknown");
+  });
 });
 
 describe("grid fields", () => {

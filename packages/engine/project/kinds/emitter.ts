@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { BlendMode } from "../../context";
+import { rgbSchema } from "../../game/color";
 import { BLEND_MODES } from "../../game/defaults";
 import { ID_PATTERN } from "../../game/fields";
 import type { SceneIssue } from "../../scene/types";
@@ -156,10 +157,10 @@ const emitterSchema: z.ZodType<EmitterFile> = z
     alpha: curve(z.number().min(0).max(1), "Alpha, 0–1.")
       .optional()
       .describe("Alpha over a particle's life: [t, alpha] keys sorted by t in 0–1; default 1."),
-    tint: curve(z.number().int().min(0).max(0xffffff), "Colour as a number, 0xrrggbb.")
+    tint: curve(rgbSchema, "A colour, 0xRRGGBB as a number.")
       .optional()
       .describe(
-        "Tint over a particle's life: [t, 0xrrggbb] keys sorted by t in 0–1, blended per channel; default white.",
+        "Tint over a particle's life: [t, 0xRRGGBB] keys sorted by t in 0–1, blended per channel; default white.",
       ),
     shape: shapeSchema.optional(),
     space: z

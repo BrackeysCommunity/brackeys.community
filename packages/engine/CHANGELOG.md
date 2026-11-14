@@ -111,15 +111,16 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
 - Runtime doc kinds: `DocKindDef.runtime` (`"sim" | "view"`),
   `crossValidate` with `DocLookup` (`ids(kind)`: every live asset id of a
   kind in path order, blobs too; `read(kind, id)`: a doc's parsed,
-  migrated value), `bundleRefs`, and
-  `BlobKindDef.metaVersion`. `game-settings`, `data-table`, `input-map`
+  migrated value), `bundleRefs`, and `BlobKindDef.metaVersion` (declared
+  for kinds to state; nothing re-inspects sidecars by it yet). `game-settings`, `data-table`, `input-map`
   and `scene-list` are `sim`. `isRuntimeKind` and `runtimeKindNames` are
   the one rule the runtime view, the export, the scene CLI and the editor
   read runtime kinds by. `ProjectRuntimeView.doc(kind, id)` and
   `docs(kind)` give every runtime kind's docs, parsed, migrated and
   frozen; `runtimeView` takes the kind registry as an optional fourth
   argument; `doc` and `docs` are a `DocLookup`'s `read` and `ids` over the
-  runtime docs that parse. `validateProject(view, texts, kinds, env)` runs every doc's
+  runtime docs that parse. `validateProject(view, texts, kinds, env)`, the entry point a host
+  calls (no host does yet), runs every doc's
   checks, then every kind's `crossValidate` over the other docs, and never
   throws (a check that throws reports as a `schema` error on its doc).
   `@jams/engine/project` exports `validateProject` and the `AnimationFile`,
@@ -293,6 +294,8 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   widget carries `named?` (`meta.named`, `{ "-1": "forever" }`): those
   values show, and are typed, as the word; a tween's `repeat` of -1 reads
   "forever".
+- `@jams/engine/game` exports `rotate(v, angle)` with its other vector
+  helpers, so behaviors and games turn a vector with the engine's own.
 
 ### Changed
 
@@ -373,10 +376,12 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   no emit does.
 - Genre pins: `grid-puzzle`'s `default`, `gravity-zero`,
   `gravity-sideways` and `saved-mid-push` move (8df0c7714f456fd0 →
-  9ffe5388c1a4b159): each push tweens the crate's picture over 8 ticks,
-  adding `tween:end` events, the pictures' positions and the tween wait to
-  the run's events and end state, and its scene moved from the legacy px
-  format to metres with 1 m cells. Every other probe's pins hold.
+  9ffe5388c1a4b159): each crate gains a `decor` look entity
+  (`<crate>-look`) whose picture a push tweens over 8 ticks, adding
+  `tween:end` events and the tween wait to the run; the snapshot gains
+  `rules` and `looks` (the pictures' positions; the swap board is only in
+  the swap variants'); and its scene moved from the legacy px format to
+  metres with 1 m cells. Every other probe's pins hold.
 
 ### Removed
 

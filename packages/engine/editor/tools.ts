@@ -40,6 +40,8 @@ export type IndexEntry = {
   geometry: ShapeObj | Pt;
   /** The world box the entity's sprite draws, when it has one. */
   sprite?: ShapeObj;
+  /** A camera region, or a type based on one: it picks by the outline of the box it frames. */
+  region?: true;
 };
 
 /** The uniform grid of AABBs picking and marquee query. */

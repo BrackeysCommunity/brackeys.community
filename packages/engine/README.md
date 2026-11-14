@@ -4520,8 +4520,9 @@ events and hitboxes are written:
   closest name. A doc is at most 256 KiB and 512 clips.
 - `animationIssues(file, atlas)` (`./project`) is that check, the one
   the kind's validation, `resolveClips` and `assets info` all call;
-  `validateProject(view, texts, kinds, env)` runs every doc's own checks,
-  then the checks across docs, as a project batch does.
+  `validateProject(view, texts, kinds, env)` is the entry point a host
+  calls to run every doc's own checks, then each kind's `crossValidate`
+  across docs.
 
 **Ticks.** Durations become whole ticks once, when a clip is resolved:
 `ms` through the game's rate, at least one tick. A clip then lands on the
@@ -7639,9 +7640,9 @@ An area that holds the camera: inside it, the view stays within its box and may 
 | Field       | Type                      | Required | Description                                                                                                                                                               |
 | ----------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shape`     | #/$defs/CameraRegionShape | yes      | The region, axis-aligned: a turned box frames its bounding box. Absolute world metres; y is down.                                                                         |
-| `zoom`      | number                    |          | The camera's zoom while it frames this region; omitted keeps the rig's own.                                                                                               |
+| `zoom`      | number (×)                |          | The camera's zoom while it frames this region (2 draws the world twice as large); omitted keeps the rig's own.                                                            |
 | `clamp`     | boolean                   |          | Keep the view inside the box; default true.                                                                                                                               |
-| `ease`      | number (s)                |          | Seconds to move into the region's framing; default 0.4.                                                                                                                   |
+| `ease`      | number (s)                |          | Seconds to move into the region's framing (the inspector shows ms); default 0.4.                                                                                          |
 | `behaviors` | object                    |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `note`

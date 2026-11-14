@@ -50,13 +50,14 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
       const lines = pointerLines(text);
       const project =
         source.project && scan ? projectView(scan.state, source.project.kinds) : undefined;
-      const engine =
+      const runtime =
         source.project && scan
-          ? (await projectRuntime(source.project, judged.registry, scan)).engine
+          ? await projectRuntime(source.project, judged.registry, scan)
           : undefined;
+      const engine = runtime?.engine;
       issues = [
         ...parsed.issues,
-        ...validateScene(def, judged.registry, { lines, prefabs, project, engine }),
+        ...validateScene(def, judged.registry, { lines, prefabs, project, runtime, engine }),
       ];
       if (input.physical) {
         const rapier = await rapierFor(ctx, def, judged.registry, engine);

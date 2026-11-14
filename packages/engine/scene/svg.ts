@@ -1,5 +1,5 @@
 import { cssHex } from "../game/color";
-import { CAMERA_REGION_TYPE, outlineOnly } from "../game/primitives";
+import { outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
 import {
@@ -17,7 +17,7 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, regionBox, translateShape } from "./shape-geometry";
+import { aabb, isCameraRegionType, regionBox, translateShape } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
 import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 import { pxToMetres } from "./units";
@@ -232,7 +232,7 @@ export function renderSceneSvg(
     if (!d.shape) continue;
     const style = styleOf({ registry }, d.type, materialOf(d)) ?? FALLBACK_STYLE;
     // A camera region is an area the camera frames, not a surface: the box it frames, dashed and unfilled.
-    const region = d.base === CAMERA_REGION_TYPE;
+    const region = isCameraRegionType(d.type);
     out.push(
       shapeElement(
         region ? regionBox(d.shape) : d.shape,

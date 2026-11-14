@@ -18,21 +18,25 @@ const animFields = (env: FieldEnv) => ({
     [ANIMATION_KIND, ATLAS_KIND],
     "The clips: an animation, or an atlas whose tags are clips.",
   ),
-  clip: z.string().min(1).describe("The clip playing at spawn."),
+  clip: z.string().min(1).describe("The clip playing at spawn.").meta({ group: "assets" }),
   speed: z
     .number()
     .positive()
     .max(16)
     .optional()
     .describe("Multiplies the clip's speed; default 1.")
-    .meta({ default: 1 }),
-  playing: z.boolean().optional().describe("Default true.").meta({ default: true }),
+    .meta({ default: 1, group: "playback" }),
+  playing: z
+    .boolean()
+    .optional()
+    .describe("Default true.")
+    .meta({ default: true, group: "playback" }),
   offset: delayField(
     "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0.",
     0,
   )
     .optional()
-    .meta({ title: "Start offset", default: 0 }),
+    .meta({ title: "Start offset", default: 0, group: "playback" }),
 });
 
 /** An `anim` block as an entity carries it. */

@@ -1,10 +1,9 @@
-import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import type { GridCells } from "../scene/grid";
 import { growOverGrid, type SpriteAssetLookup } from "../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../scene/resolve";
 import { gridFieldsOf } from "../scene/schema";
-import { aabb, aabbBox, aabbUnion, regionBox } from "../scene/shape-geometry";
+import { aabb, aabbBox, aabbUnion, isCameraRegionType, regionBox } from "../scene/shape-geometry";
 import type { Aabb, EntityDef, GridSettings, Pt, Ref, SceneDefinition } from "../scene/types";
 import { pathFollowPath } from "./gizmos/behavior-marks";
 import { editSpriteBox, entityGeometry, geometryOfRef, type EditGeometry } from "./spatial-index";
@@ -65,8 +64,7 @@ function geometryMarks(
   look: OutlineLook,
 ): void {
   if (g.shape) {
-    const t = look.registry.types.get(type);
-    const region = t !== undefined && (t.base ?? t.type) === CAMERA_REGION_TYPE;
+    const region = isCameraRegionType(look.registry.types.get(type));
     out.outlines.push({ shape: region ? regionBox(g.shape) : g.shape, tone, ref: owner });
   }
   const sprite = editSpriteBox(look.registry, type, g, entity?.behaviors, look.asset);

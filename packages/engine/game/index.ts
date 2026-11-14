@@ -400,7 +400,7 @@ export type { BodyEntry, BodyStandIn, KinematicMotion } from "../runtime/bodies-
 export { parseShape } from "../scene/shapes";
 export type { ParseShapeResult } from "../scene/shapes";
 export { drawShape, traceShape } from "../render/draw-shape";
-export { clamp, clampVec2, distanceVec2, lerp, lerpVec2 } from "../math";
+export { clamp, clampVec2, distanceVec2, lerp, lerpVec2, rotate } from "../math";
 export type {
   LoadFailureReason,
   SceneRuntimeHandle,

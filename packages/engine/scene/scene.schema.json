@@ -1705,11 +1705,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -1717,11 +1719,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -1785,9 +1789,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1808,6 +1814,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -2863,11 +2870,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -2875,11 +2884,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -2943,9 +2954,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2966,6 +2979,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -4258,11 +4272,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -4270,11 +4286,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -4338,9 +4356,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4361,6 +4381,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -5467,11 +5488,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -5479,11 +5502,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -5547,9 +5572,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -5570,6 +5597,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -6618,11 +6646,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -6630,11 +6660,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -6698,9 +6730,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6721,6 +6755,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -8004,11 +8039,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -8016,11 +8053,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -8084,9 +8123,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -8107,6 +8148,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -9406,11 +9448,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -9418,11 +9462,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -9486,9 +9532,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -9509,6 +9557,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }
@@ -9604,9 +9653,10 @@
               "type": "boolean"
             },
             "ease": {
-              "description": "Seconds to move into the region's framing; default 0.4.",
+              "description": "Seconds to move into the region's framing (the inspector shows ms); default 0.4.",
               "title": "Ease time",
               "unit": "s",
+              "showIn": "ms",
               "default": 0.4,
               "type": "number",
               "minimum": 0
@@ -10814,11 +10864,13 @@
                     "clip": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "The clip playing at spawn."
+                      "description": "The clip playing at spawn.",
+                      "group": "assets"
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
                       "default": 1,
+                      "group": "playback",
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
@@ -10826,11 +10878,13 @@
                     "playing": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "playback",
                       "type": "boolean"
                     },
                     "offset": {
                       "title": "Start offset",
                       "default": 0,
+                      "group": "playback",
                       "anyOf": [
                         {
                           "type": "integer",
@@ -10894,9 +10948,11 @@
                     "emitting": {
                       "description": "Default true.",
                       "default": true,
+                      "group": "emission",
                       "type": "boolean"
                     },
                     "offset": {
+                      "group": "emission",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -10917,6 +10973,7 @@
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
                       "placeholder": "from preset",
+                      "group": "emission",
                       "type": "number",
                       "minimum": 0
                     }

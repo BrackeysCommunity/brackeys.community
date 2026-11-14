@@ -12,14 +12,20 @@ import type { FieldEnv } from "../types";
 
 const emitterFields = (env: FieldEnv) => ({
   preset: assetField(env, [EMITTER_KIND], "The emitter preset."),
-  emitting: z.boolean().optional().describe("Default true.").meta({ default: true }),
-  offset: vectorField("World metres from the pose; turns and flips with the instance.").optional(),
+  emitting: z
+    .boolean()
+    .optional()
+    .describe("Default true.")
+    .meta({ default: true, group: "emission" }),
+  offset: vectorField("World metres from the pose; turns and flips with the instance.")
+    .optional()
+    .meta({ group: "emission" }),
   rate: z
     .number()
     .min(0)
     .optional()
     .describe("Particles per second; overrides the preset's rate.")
-    .meta({ unit: "/s", placeholder: "from preset" }),
+    .meta({ unit: "/s", placeholder: "from preset", group: "emission" }),
 });
 
 /** An `emitter` block as an entity carries it. */

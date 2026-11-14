@@ -4,6 +4,7 @@ import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors
 import type { JointBlock, JointSystem } from "../../game/behaviors/joint";
 import { physicsOf } from "../../game/physics-of";
 import { EngineError, scopedRef, type EngineContext, type JsonValue } from "../../game/types";
+import { rotate } from "../../math";
 import type { PhysicsWorld } from "../../physics";
 import { composePose, relativePose, type Pose } from "../poses";
 
@@ -32,14 +33,6 @@ type Linked = {
 };
 
 const ZERO: Pose = { x: 0, y: 0, rot: 0 };
-
-/** Behaviors import only what a game can; `math.ts`'s `rotate` isn't on the game entry. */
-const rotate = (v: Vec, rot: number): Vec => {
-  if (rot === 0) return { x: v.x, y: v.y };
-  const c = Math.cos(rot);
-  const s = Math.sin(rot);
-  return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
-};
 
 /** `to` as the entity it names (`scopedRef`): a load already scoped an instance's own, so this covers a block written live. */
 const targetOf = (ctx: EngineContext, id: string, to: string): string =>

@@ -1,3 +1,4 @@
+import { ArrowDown01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import {
   useEffect,
   useRef,
@@ -15,6 +16,7 @@ import { LENGTH_UNITS, roundLength, type LengthUnitName } from "../../../scene/u
 import { formatQuantity } from "../../kit/format";
 import {
   Hint,
+  Icon,
   Input,
   SegmentedControl,
   Select,
@@ -372,15 +374,34 @@ const placeholderOf = (field: InspectorRow, unset: string | undefined) =>
 
 // ─── Widgets ─────────────────────────────────────────────
 
-/** A text draft committed on Enter or blur; empty unsets an optional field. */
-export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
+/** A draft's value, or why it can't be one. */
+type Parsed = { ok: true; value: unknown } | { ok: false; error: string };
+
+/**
+ * A typed draft committed on Enter or blur once `parse` takes it; empty
+ * unsets an optional field, Escape drops the draft.
+ */
+function DraftField({
+  field,
+  commit,
+  scope,
+  shown,
+  placeholder,
+  parse,
+}: Pick<FieldWidgetProps, "field" | "commit" | "scope"> & {
+  /** The stored value as text. */
+  shown: string;
+  placeholder: string | undefined;
+  parse: (text: string) => Parsed;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const value = typeof field.value === "string" ? field.value : "";
   const run = () => {
     if (draft === null) return;
-    const input = draft.trim() === "" && field.optional ? undefined : draft;
-    settle(commit(input), (problem) => {
+    const parsed: Parsed =
+      draft.trim() === "" && field.optional ? { ok: true, value: undefined } : parse(draft);
+    if (!parsed.ok) return setError(parsed.error);
+    settle(commit(parsed.value), (problem) => {
       setError(problem);
       if (!problem) setDraft(null);
     });
@@ -390,9 +411,9 @@ export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
       <Input
         aria-label={field.path}
         aria-invalid={error ? true : undefined}
-        placeholder={placeholderOf(field, unset)}
+        placeholder={placeholder}
         maxLength={field.widget.kind === "text" ? field.widget.maxLength : undefined}
-        value={draft ?? (field.mixed ? "" : value)}
+        value={draft ?? (field.mixed ? "" : shown)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={run}
         onKeyDown={(e) => {
@@ -407,52 +428,50 @@ export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
   );
 }
 
+const asText = (text: string): Parsed => ({ ok: true, value: text });
+
+/** A text draft committed on Enter or blur; empty unsets an optional field. */
+export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
+  return (
+    <DraftField
+      field={field}
+      commit={commit}
+      scope={scope}
+      shown={typeof field.value === "string" ? field.value : ""}
+      placeholder={placeholderOf(field, unset)}
+      parse={asText}
+    />
+  );
+}
+
+function asJson(text: string): Parsed {
+  try {
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return {
+      ok: false,
+      error: 'Enter JSON: a number, "text" in quotes, true, an [array] or an {object}.',
+    };
+  }
+}
+
 /**
  * Plain JSON typed as text, committed on Enter or blur once it parses;
  * empty unsets an optional field.
  */
 export function JsonField({ field, commit, unset, scope }: FieldWidgetProps) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const value = field.mixed || field.value === undefined ? "" : JSON.stringify(field.value);
-  const run = () => {
-    if (draft === null) return;
-    let input: unknown;
-    if (draft.trim() === "" && field.optional) input = undefined;
-    else {
-      try {
-        input = JSON.parse(draft);
-      } catch {
-        setError('Enter JSON: a number, "text" in quotes, true, an [array] or an {object}.');
-        return;
-      }
-    }
-    settle(commit(input), (problem) => {
-      setError(problem);
-      if (!problem) setDraft(null);
-    });
-  };
   return (
-    <FieldRow field={field} error={error} scope={scope}>
-      <Input
-        aria-label={field.path}
-        aria-invalid={error ? true : undefined}
-        placeholder={placeholderOf(
-          field,
-          unset ?? (field.defaultValue === undefined ? "unset (JSON)" : undefined),
-        )}
-        value={draft ?? value}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={run}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") run();
-          if (e.key === "Escape") {
-            setDraft(null);
-            setError(null);
-          }
-        }}
-      />
-    </FieldRow>
+    <DraftField
+      field={field}
+      commit={commit}
+      scope={scope}
+      shown={field.value === undefined ? "" : JSON.stringify(field.value)}
+      placeholder={placeholderOf(
+        field,
+        unset ?? (field.defaultValue === undefined ? "unset (JSON)" : undefined),
+      )}
+      parse={asJson}
+    />
   );
 }
 
@@ -642,18 +661,32 @@ export function OptionsField({
       </FieldRow>
     );
   }
-  const label = options.find((o) => String(o.value) === current)?.label;
+  // An optional field whose default is an option lists that option once, as
+  // "Linear (default)", for its unset state: picking it unsets the field.
+  const byDefault = field.optional
+    ? options.find((o) => o.value === field.defaultValue)
+    : undefined;
+  const shown = current === "" && byDefault && !field.mixed ? String(byDefault.value) : current;
+  const labelOf = (o: FieldOption) => (o === byDefault ? `${o.label} (default)` : o.label);
+  const picked = options.find((o) => String(o.value) === shown);
   return (
     <FieldRow field={field} error={error} scope={scope}>
-      <Select value={current} onValueChange={(v) => pick(typeof v === "string" ? v : "")}>
+      <Select
+        value={shown}
+        onValueChange={(v) => {
+          const key = typeof v === "string" ? v : "";
+          if (!byDefault || key !== String(byDefault.value)) pick(key);
+          else if (set || field.mixed) write(undefined);
+        }}
+      >
         <SelectTrigger size="sm" aria-label={field.path}>
-          <SelectValue>{label ?? note ?? "unset"}</SelectValue>
+          <SelectValue>{(picked && labelOf(picked)) ?? note ?? "unset"}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
-          {field.optional ? <SelectItem value="">unset</SelectItem> : null}
+          {field.optional && !byDefault ? <SelectItem value="">unset</SelectItem> : null}
           {options.map((o) => (
             <SelectItem key={String(o.value)} value={String(o.value)}>
-              {o.label}
+              {labelOf(o)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -783,14 +816,42 @@ export function ReadonlyField({
   );
 }
 
-/** An object's fields, nested under its title. */
-export function NestedField({ field, children }: { field: InspectorRow; children: ReactNode }) {
+/**
+ * An object's fields, nested under its title. With `collapse`, the title
+ * folds them away and a folded one reads its `summary` instead, in full as
+ * its hint.
+ */
+export function NestedField({
+  field,
+  children,
+  collapse,
+}: {
+  field: InspectorRow;
+  children: ReactNode;
+  collapse?: { open: boolean; onToggle: () => void; summary?: string };
+}) {
+  const folded = collapse !== undefined && !collapse.open;
   return (
     <div className="je-insp-stack">
-      <Hinted hint={field.description}>
-        <span className="je-insp-nested-title">{field.title}</span>
+      <Hinted hint={folded && collapse.summary ? collapse.summary : field.description}>
+        {collapse ? (
+          <button
+            type="button"
+            className="je-insp-nested-toggle"
+            aria-expanded={collapse.open}
+            onClick={collapse.onToggle}
+          >
+            <Icon icon={collapse.open ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
+            <span className="je-insp-nested-title">{field.title}</span>
+            {folded && collapse.summary ? (
+              <span className="je-insp-nested-summary je-sp-truncate">{collapse.summary}</span>
+            ) : null}
+          </button>
+        ) : (
+          <span className="je-insp-nested-title">{field.title}</span>
+        )}
       </Hinted>
-      <div className="je-insp-stack je-insp-nested">{children}</div>
+      {folded ? null : <div className="je-insp-stack je-insp-nested">{children}</div>}
     </div>
   );
 }

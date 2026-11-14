@@ -961,6 +961,7 @@
       "resolveClips",
       "resolveTime",
       "restoreOverlaps",
+      "rotate",
       "runtimeId",
       "sameCell",
       "saveFileBytes",

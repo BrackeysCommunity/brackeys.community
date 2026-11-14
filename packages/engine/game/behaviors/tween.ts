@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { defineBehavior } from "../behaviors";
+import { rgbSchema } from "../color";
 import { delayField } from "../delay-field";
 import { isAttachField } from "../fields";
 import { ENGINE_REGISTRY_ID, type EntityTypeDef, type RegisteredType } from "../types";
@@ -195,11 +196,7 @@ const channels = (description: string) =>
       y: z.number().optional().describe("World y, m.").meta({ unit: "m" }),
       rot: z.number().optional().describe("Rotation, radians.").meta({ unit: "rad" }),
       alpha: z.number().min(0).max(1).optional().describe("The sprite's opacity, 0–1."),
-      tint: z
-        .number()
-        .int()
-        .min(0)
-        .max(0xffffff)
+      tint: rgbSchema
         .optional()
         .describe("The sprite's tint, 0xRRGGBB, lerped per channel.")
         .meta({ widget: "color" }),

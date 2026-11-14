@@ -176,7 +176,7 @@
       }
     },
     "tint": {
-      "description": "Tint over a particle's life: [t, 0xrrggbb] keys sorted by t in 0–1, blended per channel; default white.",
+      "description": "Tint over a particle's life: [t, 0xRRGGBB] keys sorted by t in 0–1, blended per channel; default white.",
       "minItems": 1,
       "type": "array",
       "items": {
@@ -192,7 +192,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 16777215,
-            "description": "Colour as a number, 0xrrggbb."
+            "description": "A colour, 0xRRGGBB as a number."
           }
         ]
       }

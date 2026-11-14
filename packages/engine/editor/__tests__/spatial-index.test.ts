@@ -162,6 +162,18 @@ describe("createSpatialIndex", () => {
     ]);
   });
 
+  it("marks camera regions, and only them", () => {
+    const index = createSpatialIndex();
+    index.rebuild(structuredClone(sink) as unknown as SceneDefinition, registry);
+    expect(index.get("framing")?.region).toBe(true);
+    expect(
+      index
+        .entries()
+        .filter((e) => e.region)
+        .map((e) => e.ref),
+    ).toEqual(["framing"]);
+  });
+
   it("keeps disabled entities and skips shapes that don't parse", () => {
     const def = crowdedYard();
     def.entities!.push({ id: "broken", type: "solid", shape: ["box", 0, 0] });

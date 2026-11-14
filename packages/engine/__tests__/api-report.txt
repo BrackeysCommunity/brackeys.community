@@ -1323,6 +1323,7 @@ releaseRollbackMessage
 resolveClips
 resolveTime
 restoreOverlaps
+rotate
 runtimeId
 sameCell
 saveFileBytes
@@ -8620,6 +8621,7 @@ declare function clampVec2(v: Vec2, min: Vec2, max: Vec2): Vec2;
 declare function distanceVec2(a: Vec2, b: Vec2): number;
 declare function lerp(a: number, b: number, t: number): number;
 declare function lerpVec2(a: Vec2, b: Vec2, t: number): Vec2;
+declare function rotate(v: Vec2, angle: number): Vec2;
 
 ## motion/body.ts
 interface MotionBody {
