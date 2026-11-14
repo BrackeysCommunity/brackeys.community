@@ -5,9 +5,14 @@ import {
   applyVec,
   compose,
   composeDihedral,
+  composeFrames,
+  composeOrientations,
   dihedral,
   dihedralOf,
   flipWorld,
+  frame,
+  frameOf,
+  isQuarterTurn,
   IDENTITY_2D,
   invert,
   inverseTurn,
@@ -15,6 +20,7 @@ import {
   translation,
   turnOf,
   type Dihedral,
+  type Frame,
   type Transform2D,
 } from "../transform";
 
@@ -181,10 +187,12 @@ describe("flipWorld", () => {
 });
 
 describe("turn helpers", () => {
-  it("turnOf reads rot and flip, treating anything but a quarter turn as none", () => {
+  it("turnOf reads rot in degrees and flip, null off the quarter turns", () => {
     expect(turnOf({})).toEqual({ rot: 0, flip: false });
-    expect(turnOf({ rot: 3, flip: true })).toEqual({ rot: 3, flip: true });
-    expect(turnOf({ rot: 4 })).toEqual({ rot: 0, flip: false });
+    expect(turnOf({ rot: 270, flip: true })).toEqual({ rot: 3, flip: true });
+    expect(turnOf({ rot: 360 })).toEqual({ rot: 0, flip: false });
+    expect(turnOf({ rot: -90 })).toEqual({ rot: 3, flip: false });
+    expect(turnOf({ rot: 30 })).toBeNull();
   });
 
   it("inverseTurn undoes every element", () => {
@@ -198,5 +206,70 @@ describe("turn helpers", () => {
   it("translation only moves", () => {
     expect(translation([3, -4])).toEqual({ ...IDENTITY_2D, tx: 3, ty: -4 });
     expect(applyPt(translation([3, -4]), [1, 1])).toEqual([4, -3]);
+  });
+});
+
+describe("rigid frames", () => {
+  it("builds quarter turns from integers, the same transforms as dihedral", () => {
+    for (const d of ELEMENTS) {
+      for (const at of randomPts(20, 3 + d.rot)) {
+        const f: Frame = { at, rot: 90 * d.rot, flip: d.flip };
+        expect(frame(f)).toEqual(dihedral(d, at));
+        expect(frame({ ...f, rot: f.rot - 360 })).toEqual(dihedral(d, at));
+        expect(frameOf(frame(f))).toEqual({ rot: 90 * d.rot, flip: d.flip });
+      }
+    }
+  });
+
+  it("turns clockwise on screen at any angle, mirroring x first", () => {
+    const t = frame({ at: [10, 20], rot: 30, flip: false });
+    const [x, y] = applyPt(t, [1, 0]);
+    expect(x).toBeCloseTo(10 + Math.cos(Math.PI / 6), 12);
+    expect(y).toBeCloseTo(20 + Math.sin(Math.PI / 6), 12);
+    const [fx, fy] = applyPt(frame({ at: [0, 0], rot: 30, flip: true }), [1, 0]);
+    expect(fx).toBeCloseTo(-Math.cos(Math.PI / 6), 12);
+    expect(fy).toBeCloseTo(-Math.sin(Math.PI / 6), 12);
+  });
+
+  it("reads back the angle and flip of random frames to the file's precision", () => {
+    const next = rng(11);
+    for (let i = 0; i < 500; i++) {
+      const rot = (next() % 360_000_000) / 1e6;
+      const flip = next() % 2 === 1;
+      const at: Pt = [
+        ((next() % 2_000_001) - 1_000_000) / 1e3,
+        ((next() % 2_000_001) - 1_000_000) / 1e3,
+      ];
+      expect(frameOf(frame({ at, rot, flip }))).toEqual({ rot, flip });
+    }
+  });
+
+  it("composes frames as their transforms compose", () => {
+    const next = rng(5);
+    const deg = () => (next() % 3600) / 10;
+    for (let i = 0; i < 200; i++) {
+      const outer: Frame = { at: [next() % 100, next() % 100], rot: deg(), flip: next() % 2 === 1 };
+      const inner: Frame = { at: [next() % 100, next() % 100], rot: deg(), flip: next() % 2 === 1 };
+      const want = compose(frame(outer), frame(inner));
+      const got = frame(composeFrames(outer, inner));
+      for (const k of ["a", "b", "c", "d", "tx", "ty"] as const)
+        expect(got[k]).toBeCloseTo(want[k], 5);
+      expect(composeFrames(outer, inner)).toMatchObject(composeOrientations(outer, inner));
+    }
+  });
+
+  it("keeps quarter turns of integer frames on integers", () => {
+    for (const a of ELEMENTS)
+      for (const b of ELEMENTS) {
+        const f = composeFrames(
+          { at: [3, -7], rot: 90 * a.rot, flip: a.flip },
+          { at: [11, 5], rot: 90 * b.rot, flip: b.flip },
+        );
+        expect(f.at.every(Number.isInteger)).toBe(true);
+        expect({ rot: f.rot / 90, flip: f.flip }).toEqual(composeDihedral(a, b));
+        expect(isQuarterTurn(f.rot)).toBe(true);
+      }
+    expect(isQuarterTurn(-90)).toBe(true);
+    expect(isQuarterTurn(135)).toBe(false);
   });
 });

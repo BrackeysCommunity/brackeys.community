@@ -295,23 +295,6 @@ export function refField(description: string): z.ZodType<string> {
   return z.string().regex(CHILD_REF_PATTERN).describe(description).meta({ title: "Reference" });
 }
 
-const AttachSchema = z.string().regex(CHILD_REF_PATTERN);
-
-/**
- * `attach`: the id of a path follower whose body this entity's collider
- * rides (an instance's child by its resolved ref, `gate-2/lift`), at its offset from the follower's first path point. Its shape
- * stays in world metres, as placed with the follower at that point. A type
- * with this field gets the reference to `follower` without declaring it.
- */
-export function attachField(description: string) {
-  return AttachSchema.optional()
-    .describe(description)
-    .meta({ title: "Attached to", group: "motion" });
-}
-
-/** Whether a field is an `attachField`. */
-export const isAttachField = (schema: z.core.$ZodType) => derivesFrom(schema, AttachSchema);
-
 /** Free-form labels a game reads, e.g. `["spawn"]`. */
 export function tagsField(description: string) {
   return z
@@ -345,14 +328,14 @@ export const BASE_FIELDS = {
       "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
     )
     .meta({ title: "Layer", group: "identity" }),
-  group: z
+  parent: z
     .string()
-    .regex(ID_PATTERN)
+    .regex(CHILD_REF_PATTERN)
     .optional()
     .describe(
-      "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+      "What this sits under: an entity or instance in the same scene or prefab, or an instance's child by its resolved ref (`room-1/door-1/panel`). Its geometry is stored in the parent's frame, so it moves, turns, hides and is destroyed with the parent. Change it with the `reparent` op, which keeps the world pose.",
     )
-    .meta({ title: "Group", group: "identity" }),
+    .meta({ title: "Parent", group: "identity" }),
   off: z
     .boolean()
     .optional()

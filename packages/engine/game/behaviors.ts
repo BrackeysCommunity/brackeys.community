@@ -6,6 +6,7 @@
  */
 import type { z } from "zod";
 
+import type { Pose } from "../runtime/poses";
 import type { RuntimeEntity } from "../scene/types";
 import type { EngineContext, FieldEnv, JsonValue } from "./types";
 
@@ -18,7 +19,13 @@ export const BEHAVIORS_FIELD = "behaviors";
 /** One behavior's fields on one entity, defaults applied. */
 export type BehaviorBlock = Readonly<Record<string, unknown>>;
 
-export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
+declare const HANDLE: unique symbol;
+/** Type only: carries what `Entity.getBehavior` returns for a definition. */
+export type HandleType<H> = { readonly [HANDLE]?: H };
+/** The `handle` of a definition: `handle: handleType<BodyHandle>()`. Nothing reads it at runtime. */
+export const handleType = <H>(): HandleType<H> => Object.freeze({});
+
+export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape, H = unknown> = {
   name: BehaviorName;
   /** One sentence for the JSON Schema, `codes`, `show` and the inspector. */
   description: string;
@@ -52,6 +59,17 @@ export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
    * seeded; default `{}`. Give one when `{}` fails `refine`.
    */
   template?: BehaviorBlock;
+  /** Never read at runtime. `handle: handleType<BodyHandle>()`. */
+  handle?: HandleType<H>;
+};
+
+/** The block a definition's fields give, defaults applied. */
+export type BlockOf<D> =
+  D extends BehaviorDef<infer F, unknown> ? z.infer<z.ZodObject<F>> : BehaviorBlock;
+
+/** A method of a by-id system with the id already given. */
+export type Bound<S, K extends keyof S> = {
+  [P in K]: S[P] extends (id: string, ...rest: infer A) => infer R ? (...rest: A) => R : never;
 };
 
 export type BehaviorCategory = NonNullable<NonNullable<BehaviorDef["inspector"]>["category"]>;
@@ -65,7 +83,9 @@ export const BEHAVIOR_CATEGORIES: readonly BehaviorCategory[] = Object.freeze([
 ]);
 
 /** Identity at runtime; types the definition. Names and rules are checked when a registry is built. */
-export function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F> {
+export function defineBehavior<F extends z.ZodRawShape, H = unknown>(
+  def: BehaviorDef<F, H>,
+): BehaviorDef<F, H> {
   return def;
 }
 
@@ -84,8 +104,11 @@ export interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
   attach(entityId: string, block: B, entity: RuntimeEntity): void;
   /** Before the type system despawns it, in reverse order. Idempotent. */
   detach(entityId: string): void;
-  /** The block changed; without it the host detaches and attaches. */
-  update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void;
+  /**
+   * The block changed; without it the host detaches and attaches. True when
+   * it built the entity's handle object anew, so the host asks `handle` again.
+   */
+  update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void | boolean;
   /** Each tick, after the game's `beforeStep`, before the type systems' `beforePhysics`. */
   beforeStep?(dtMs: number): void;
   /**
@@ -111,6 +134,20 @@ export interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
   save?(entityId: string): JsonValue | undefined;
   /** Puts back what `save` returned, after the block was attached again. */
   restore?(entityId: string, state: JsonValue): void;
+  /**
+   * The per-entity object for `Entity.getBehavior`. Asked once per attach;
+   * the host caches it until detach and adds `fields`.
+   */
+  handle?(entityId: string): object | undefined;
+  /** `ctx.setPose` moved the entity: bring any position this system keeps of its own to `pose`. */
+  posed?(entityId: string, pose: Readonly<Pose>, snap: boolean): void;
+  /** True while this behavior moves the entity in world space, so a parent's movement doesn't carry it. */
+  selfMoving?(entityId: string): boolean;
+  /**
+   * The tree found a body above this entity (`host`), or none any more
+   * (null): put its collider on that body at its offset, or back on its own.
+   */
+  ride?(entityId: string, host: string | null): void;
 }
 
 export type BehaviorSystemFactory = (ctx: EngineContext, def: RegisteredBehavior) => BehaviorSystem;

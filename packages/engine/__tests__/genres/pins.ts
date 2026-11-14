@@ -6,7 +6,7 @@
  */
 export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "behavior-yard": {
-    default: "db3eec27538cd4a6",
+    default: "cd34fb179bb5c640",
   },
   "grid-puzzle": {
     default: "9ffe5388c1a4b159",
@@ -67,6 +67,9 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
   "tower-defense": {
     default: "b039a55159fd6798",
     "saved-mid-wave": "b039a55159fd6798",
+  },
+  "tree-yard": {
+    default: "148f898ba90d43c6",
   },
   "turn-tactics": {
     default: "355be025a7f4aeda",

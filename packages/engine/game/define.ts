@@ -42,7 +42,7 @@ import { SPRITE } from "./behaviors/sprite";
 import { TWEEN } from "./behaviors/tween";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 import { DEFAULT_ACTIONS, DEFAULT_TIME } from "./defaults";
-import { ID_PATTERN, isAttachField, RESERVED_FIELDS, SIDES } from "./fields";
+import { ID_PATTERN, RESERVED_FIELDS, SIDES } from "./fields";
 import {
   ACTION_KINDS,
   bindingProblems,
@@ -57,6 +57,7 @@ import {
   PRIMITIVES,
   resolveFields,
 } from "./primitives";
+import { definitionOf, scriptProblem } from "./script";
 import { tickRateProblem, type TimeKind, type TimeModel } from "./time";
 import {
   ENGINE_CHECK_KINDS,
@@ -485,7 +486,7 @@ export function createRegistry(
   const behaviorDefaults = new Map<BehaviorName, BehaviorBlock>();
   const behaviorDefs: { def: BehaviorDef; origin: string }[] = [
     ...ENGINE_BEHAVIORS.map((def) => ({ def, origin: ENGINE_REGISTRY_ID })),
-    ...(game?.behaviors ?? []).map((def) => ({ def, origin: id })),
+    ...(game?.behaviors ?? []).map((entry) => ({ def: definitionOf(entry), origin: id })),
   ];
   for (const { def, origin } of behaviorDefs) {
     const name = def.name;
@@ -506,6 +507,8 @@ export function createRegistry(
     const defaults = Object.freeze(shapeDefaults(shape));
     const templateProblem = behaviorTemplateProblem(def, shape, defaults);
     if (templateProblem) problem(`behavior "${name}" template: ${templateProblem}`);
+    const scriptIssue = scriptProblem(def);
+    if (scriptIssue) problem(scriptIssue);
     behaviors.set(name, { ...def, origin, shape, index: behaviors.size });
     behaviorDefaults.set(name, defaults);
   }
@@ -589,17 +592,7 @@ export function createRegistry(
       }
       if (RESERVED_SCENE_KEYS.includes(name)) problem(`bulk key "${name}" is a reserved scene key`);
     }
-    const attach = Object.entries(shape)
-      .filter(
-        ([field, schema]) => isAttachField(schema) && !def.refs?.some((r) => r.field === field),
-      )
-      .map(([field]) => ({ field, targets: ["follower"] as const }));
-    types.set(name, {
-      ...def,
-      origin,
-      shape,
-      ...(attach.length > 0 ? { refs: [...(def.refs ?? []), ...attach] } : {}),
-    });
+    types.set(name, { ...def, origin, shape });
   }
 
   for (const t of types.values()) {

@@ -173,6 +173,8 @@ export type SaveRun = {
   at: number;
   /** The save, as read back from its canonical text. */
   save: SaveFile;
+  /** With `SaveRunOptions.again`: each later save, in order, captured from the runtime the one before it was restored into. */
+  again?: SaveFile[];
   /** The game's snapshot when the save was captured. */
   saved: unknown;
   outcome: PlaytestReport["outcome"];
@@ -518,6 +520,12 @@ export type SaveRunOptions = Omit<TickRunOptions, "ticks"> & {
   ticks?: readonly TickInput[];
   /** The tick to capture the world save after. */
   at: number;
+  /**
+   * Later ticks, each after the one before, to save at again from the
+   * runtime the last save was restored into (or played on in, with
+   * `continueSaved`), each save restored into a fresh runtime in turn.
+   */
+  again?: readonly number[];
   /** Names the run in errors. */
   label?: string;
   /**
@@ -533,10 +541,11 @@ export type SaveRunOptions = Omit<TickRunOptions, "ticks"> & {
  * Plays a run in two runtimes: the first to tick `at`, where it captures a
  * world save (written to its canonical text and parsed back); the second
  * loaded fresh, restored from that save and played on with the rest of the
- * input, from the same script or ticks, until the run ends. With
- * `continueSaved` the first runtime plays on instead, after the capture. The parts the
- * digest reads are kept across both, so a save that continues the run digests
- * as the uninterrupted run does. Throws when the run ends before `at`, or when
+ * input, from the same script or ticks, until the run ends. Each tick of
+ * `again` saves once more and restores into another fresh runtime. With
+ * `continueSaved` the first runtime plays on instead, after each capture. The parts the
+ * digest reads are kept across every runtime, so a save that continues the run digests
+ * as the uninterrupted run does. Throws when the run ends before a save point, or when
  * anything refuses: the script, the load, the capture, the text or the restore.
  */
 export function playFromSave(opts: SaveRunOptions): SaveRun {
@@ -612,35 +621,54 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
     });
   };
 
-  let save: SaveFile;
-  let saved: unknown;
-  const first = start();
-  let keep = false;
-  try {
-    const end = leg(first, opts.at + 1);
-    if (end.result !== "timeout" || end.ticks !== opts.at + 1)
-      fail(`the run ended before tick ${opts.at}`, { result: end.result, tick: end.tick });
-    saved = first.snapshot();
-    const captured = captureSave(first, { depth: "world", slot: "probe", now: 0 });
+  const capture = (runtime: SceneRuntimeHandle, tick: number) => {
+    const end = leg(runtime, tick + 1 - base.ticks);
+    if (end.result !== "timeout" || end.ticks !== tick + 1 - base.ticks)
+      fail(`the run ended before tick ${tick}`, {
+        result: end.result,
+        tick: base.ticks + end.tick,
+      });
+    const snapshot = runtime.snapshot();
+    const captured = captureSave(runtime, { depth: "world", slot: "probe", now: 0 });
     if (!captured.ok) return fail("the capture", captured.issue);
     const parsed = parseSaveFile(formatSaveFile(captured.file), game ?? undefined);
     if (!parsed.ok) return fail("the save's text", parsed.issues);
-    save = parsed.file;
     base.ticks += end.ticks;
     base.slots += end.slots;
-    keep = opts.continueSaved === true;
-  } finally {
-    if (!keep) first.destroy();
-  }
+    return { file: parsed.file, snapshot };
+  };
+  const keep = opts.continueSaved === true;
+  const points = [opts.at, ...(opts.again ?? [])];
+  for (let i = 1; i < points.length; i++)
+    if (!(points[i]! > points[i - 1]!))
+      fail("each save point must come after the one before", points);
 
-  const second = keep ? first : start();
-  try {
-    if (!keep) {
-      const restored = restoreSave(second, save);
-      if (!restored.ok) return fail("the restore", restored.issue);
+  const saves: SaveFile[] = [];
+  let saved: unknown;
+  let current = start();
+  for (const [i, tick] of points.entries()) {
+    let carried = false;
+    try {
+      const { file, snapshot } = capture(current, tick);
+      if (i === 0) saved = snapshot;
+      saves.push(file);
+      carried = keep;
+    } finally {
+      if (!carried) current.destroy();
     }
-    const end = leg(second, maxTicks - base.ticks);
-    const final = second.snapshot();
+    if (keep) continue;
+    current = start();
+    const restored = restoreSave(current, saves[i]!);
+    if (!restored.ok) {
+      current.destroy();
+      return fail("the restore", restored.issue);
+    }
+  }
+  const [save, ...again] = saves as [SaveFile, ...SaveFile[]];
+
+  try {
+    const end = leg(current, maxTicks - base.ticks);
+    const final = current.snapshot();
     const focus = game?.play?.focus && final !== null ? game.play.focus(final) : null;
     const outcome: PlaytestReport["outcome"] = {
       result: end.result,
@@ -660,10 +688,11 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
       trail: pts,
     });
     const run: SaveRun = { at: opts.at, save, saved, outcome, ticks, slots, final, digest };
-    if (opts.observe) run.observed = opts.observe(second);
+    if (again.length > 0) run.again = again;
+    if (opts.observe) run.observed = opts.observe(current);
     return run;
   } finally {
-    second.destroy();
+    current.destroy();
   }
 }
 

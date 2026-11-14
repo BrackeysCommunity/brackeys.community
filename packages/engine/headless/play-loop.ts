@@ -494,7 +494,10 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
   const subTick = opts.game?.input?.subTick === true;
   let carried: TickInput | null = opts.carry ?? null;
   let held: readonly string[] = carried ? applyActions([], carried.actions) : [];
+  // A restored runtime already holds each seat's pointer: a slot repeating it wakes nothing.
   const sent: (PointerState | undefined)[] = [];
+  for (const { index } of runtime.ctx.input.players())
+    sent[index] = runtime.ctx.input.pointer(index) ?? undefined;
   let tick = 0;
   const world = playWorld(runtime.ctx);
 

@@ -1,6 +1,6 @@
 {
   "$schema": "../scene/scene.schema.json",
-  "v": 4,
+  "v": 5,
   "name": "grid-annex",
   "bounds": [0, 0, 3.2, 1.92],
   "settings": { "grid": { "cell": [0.32, 0.32], "kind": "square" }, "physics": "none" },

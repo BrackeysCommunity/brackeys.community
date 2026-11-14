@@ -1,7 +1,13 @@
 import { acceptedTimingsWords, type SwapTiming } from "../game/live";
 import type { AssetId } from "../project/types";
 import type { MigrationRefusal } from "./migrate";
-import type { EngineIssueCode, IssueCode, IssueCodeInfo, SceneIssue } from "./types";
+import {
+  PARENT_MAX_DEPTH,
+  type EngineIssueCode,
+  type IssueCode,
+  type IssueCodeInfo,
+  type SceneIssue,
+} from "./types";
 
 export type { IssueCodeInfo } from "./types";
 
@@ -211,8 +217,8 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "physics-required": {
     severity: "error",
     summary:
-      'An entity needs physics (its type requires it, it carries a dynamic `body` or a `joint`, or it rides a follower with `attach`), but the scene\'s resolved physics is `"none"`.',
-    hint: "Set `settings.physics` to `\"rapier\"` (or drop it so the project's or game's default applies), or remove the entity or its `attach`, make its `body` kinematic, or remove its `joint`.",
+      'An entity needs physics (its type requires it, or it carries a dynamic `body` or a `joint`), but the scene\'s resolved physics is `"none"`.',
+    hint: "Set `settings.physics` to `\"rapier\"` (or drop it so the project's or game's default applies), or remove the entity, make its `body` kinematic, or remove its `joint`.",
     fixable: true,
   },
   "physics-skipped": {
@@ -247,6 +253,26 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary: "A joint's `to` names the entity that carries it.",
     hint: "Point `to` at the other entity the joint links to.",
     fixable: false,
+  },
+  "parent-depth": {
+    severity: "error",
+    summary: `An entity sits more than ${PARENT_MAX_DEPTH} \`parent\` levels below its root.`,
+    hint: `Reparent part of the chain higher up, so no entity is more than ${PARENT_MAX_DEPTH} levels deep.`,
+    fixable: true,
+  },
+  "parent-type": {
+    severity: "error",
+    summary:
+      "A `parent` link names or sits on something that can't be in the tree: a nav area, a camera region, a note or a bulk entry.",
+    hint: "Parent the entity to a node, an instance or another entity that has a pose, or remove its `parent`; promote a bulk entry to an entity first.",
+    fixable: true,
+  },
+  "quarter-turn-only": {
+    severity: "error",
+    summary:
+      "A side or grid field sits under a parent turned by an angle that isn't a whole quarter turn, and a side or a grid's cells can only turn by quarters.",
+    hint: "Turn the parent by a multiple of 90°, or move the entity out from under it with a reparent.",
+    fixable: true,
   },
   "follower-hits-solid": {
     severity: "warn",
@@ -458,6 +484,34 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary:
       "A `ctx.bodies` write went to a body that doesn't take it: a force, torque or impulse to a kinematic or static body, a velocity to a static body or a follower (its path sets it), or an angular velocity to a kinematic body.",
     hint: 'Check `ctx.bodies.kind(id)` first. Push only a dynamic body (set its `kind` to "dynamic"); move a kinematic body with `setVelocity`, a follower through its path, and a static one not at all.',
+    fixable: false,
+  },
+  "entity-gone": {
+    severity: "error",
+    summary:
+      "An entity handle was used after its entity was destroyed; only its `id` and `alive` still answer.",
+    hint: "Check `entity.alive` before using a handle you kept across ticks, or look the entity up again with `ctx.entity(id)`.",
+    fixable: false,
+  },
+  "pose-not-settable": {
+    severity: "error",
+    summary:
+      "`ctx.setPose` was asked to move an entity whose type nothing can pose: a follower (its path owns its pose), a nav area, a camera region, or a game type whose system has no `setPose`.",
+    hint: "Move a follower through its path, and give a game type's system a `setPose` (or build it on `createDataSystem`) before moving its entities.",
+    fixable: false,
+  },
+  "parent-cycle": {
+    severity: "error",
+    summary:
+      "An entity is under itself: its `parent` chain comes back round, or a reparent would put it under one of its own descendants. A file read with a cycle treats the entity whose id sorts last as a root.",
+    hint: "Reparent one entity of the loop to a parent outside it (or to the root with `parent: null`), or pick a parent outside the entity's subtree.",
+    fixable: true,
+  },
+  "parent-scope": {
+    severity: "error",
+    summary:
+      "An entity was given a parent it can't have: one that isn't live, or one in another sublevel.",
+    hint: "Parent an entity only to a live entity of its own scene or sublevel.",
     fixable: false,
   },
   "spawn-id-invalid": {

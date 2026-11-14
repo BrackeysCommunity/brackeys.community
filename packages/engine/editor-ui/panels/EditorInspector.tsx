@@ -64,6 +64,10 @@ import {
 import {
   animSourceEdits,
   articled,
+  instanceAngleBatch,
+  instanceAngleRow,
+  parentBatch,
+  parentModel,
   delayParts,
   delayText,
   type DelayForm,
@@ -696,32 +700,130 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           </ComboboxContent>
         </Combobox>
       ) : (
-        <Combobox
+        <RefCombobox
+          label={field.path}
           items={candidates}
           value={values[0] ?? null}
-          onValueChange={(next: string | null) =>
-            set(next ?? (field.optional ? undefined : values[0]))
-          }
-        >
-          <ComboboxInput
-            aria-label={field.path}
-            aria-invalid={problem ? true : undefined}
-            placeholder={field.mixed ? MIXED : `Pick ${accepts}`}
-            showClear={field.optional}
-          />
-          <ComboboxContent>
-            <ComboboxList>
-              {(id: string) => (
-                <ComboboxItem key={id} value={id}>
-                  {id}
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-            <ComboboxEmpty>No {accepts} in this scene</ComboboxEmpty>
-          </ComboboxContent>
-        </Combobox>
+          onChange={(next) => set(next ?? (field.optional ? undefined : values[0]))}
+          invalid={!!problem}
+          placeholder={field.mixed ? MIXED : `Pick ${accepts}`}
+          clearable={field.optional}
+          empty={`No ${accepts} in this scene`}
+        />
       )}
     </FieldRow>
+  );
+}
+
+/** A combobox picking one id of `items`; cleared, it reports null. */
+function RefCombobox({
+  label,
+  items,
+  value,
+  onChange,
+  invalid,
+  placeholder,
+  clearable,
+  empty,
+}: {
+  label: string;
+  items: readonly string[];
+  value: string | null;
+  onChange: (next: string | null) => void;
+  invalid: boolean;
+  placeholder: string;
+  clearable: boolean;
+  empty: string;
+}) {
+  return (
+    <Combobox items={items} value={value} onValueChange={onChange}>
+      <ComboboxInput
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        placeholder={placeholder}
+        showClear={clearable}
+      />
+      <ComboboxContent>
+        <ComboboxList>
+          {(id: string) => (
+            <ComboboxItem key={id} value={id}>
+              {id}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+        <ComboboxEmpty>{empty}</ComboboxEmpty>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+
+/**
+ * The Parent row: what `refs` sit under, picked from `parentModel`'s
+ * candidates; a pick is one `reparent`, which keeps them where they are in
+ * the world, and clearing it moves them to the root. Read-only, with why,
+ * where the parent can't change here.
+ */
+function ParentField({
+  session,
+  doc,
+  refs,
+  field,
+}: {
+  session: EditorSession;
+  doc: SceneDefinition;
+  refs: readonly Ref[];
+  /** The `parent` field the row stands for; without one it's titled Parent. */
+  field?: Pick<ModelField, "title" | "description">;
+}) {
+  const readOnly = useContext(ReadOnlyContext);
+  const prefabs = useEditorPrefabs(session);
+  const [error, setError] = useState<string | null>(null);
+  const model = parentModel(doc, session.registry, refs, prefabs);
+  if (!model) return null;
+  const row = field ?? { title: "Parent", description: PARENT_HINT };
+  if (model.fixed !== undefined)
+    return (
+      <FieldRow field={row} hint={model.fixed}>
+        <span className="je-insp-line je-sp-truncate">
+          {model.mixed ? MIXED : (model.value ?? "None (root)")}
+        </span>
+      </FieldRow>
+    );
+  const commit = (next: string | null) => {
+    const edit = parentBatch(model, next, doc);
+    setError(edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error);
+  };
+  return (
+    <FieldRow field={row} error={error}>
+      <RefCombobox
+        label="parent"
+        items={model.candidates}
+        value={model.value ?? null}
+        onChange={commit}
+        invalid={!!error}
+        placeholder={model.mixed ? MIXED : "None (root)"}
+        clearable={!model.mixed && model.value !== null}
+        empty="Nothing here can be a parent"
+      />
+    </FieldRow>
+  );
+}
+
+const PARENT_HINT =
+  "What this sits under: it moves, turns, hides and is destroyed with its parent. Changing it keeps it where it is in the world.";
+
+/** One note for a section whose geometry fields show world values that the file stores in a parent's frame. */
+function storedInNote(fields: readonly ModelField[]): ReactNode {
+  const marked = fields.filter((f) => f.storedIn !== undefined);
+  if (marked.length === 0) return null;
+  const parents = new Set(marked.map((f) => f.storedIn));
+  const only = parents.size === 1 ? marked[0]!.storedIn : null;
+  return (
+    <p className="je-insp-note" data-stored-in={only ?? ""}>
+      {only
+        ? `World values; the file stores them in ${only}'s frame.`
+        : "World values; the file stores each in its parent's frame."}
+    </p>
   );
 }
 
@@ -1477,7 +1579,16 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     case "tags":
       return <TagsField field={field} ctx={ctx} />;
     case "entity-ref":
-      return <RefField field={field} ctx={ctx} />;
+      return w.parent ? (
+        <ParentField
+          session={ctx.session}
+          doc={ctx.def}
+          refs={ctx.targets.map((t) => t.ref)}
+          field={field}
+        />
+      ) : (
+        <RefField field={field} ctx={ctx} />
+      );
     case "shape":
       return <ShapeField field={field} ctx={ctx} />;
     case "path":
@@ -1886,12 +1997,15 @@ function Inspector({
           <FieldView key={`${scope}:${field.path}`} field={field} ctx={ctx} />
         );
         const fields = section.fields.map(fieldView);
+        const note = storedInNote(section.fields);
         return section.behavior ? (
           <BehaviorSection key={`${scope}:${section.id}`} section={section} ctx={ctx}>
+            {note}
             {groupedFields(section, fieldView)}
           </BehaviorSection>
         ) : (
           <Section key={section.id} id={section.id} title={section.title}>
+            {note}
             {fields}
           </Section>
         );
@@ -2063,11 +2177,12 @@ function ParamsSection({
 }
 
 const placementText = ({ rot, flip }: InstanceTransformModel) =>
-  [rot > 0 ? `Turned ${rot * 90}°` : "Not turned", ...(flip ? ["flipped"] : [])].join(", ");
+  [rot > 0 ? `Turned ${rot}°` : "Not turned", ...(flip ? ["flipped"] : [])].join(", ");
 
 /**
- * How an instance sits: Turn and Flip, each one batch about its `at`, and
- * its `z`. A nested instance shows its prefab's placement without editing it.
+ * How an instance sits: Turn and Flip and its angle in degrees, each one
+ * batch about its `at`, and its `z`. A nested instance shows its prefab's
+ * placement without editing it.
  */
 function PlacementSection({
   session,
@@ -2080,6 +2195,7 @@ function PlacementSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const readOnly = useContext(ReadOnlyContext);
+  const prefabs = useEditorPrefabs(session);
   const run = (batch: OpBatch | null) => setError(dispatchSource(session, batch, readOnly));
   const controls = [
     {
@@ -2119,6 +2235,16 @@ function PlacementSection({
             ))
           : null}
       </div>
+      {model.editable ? (
+        <AngleField
+          field={instanceAngleRow(model)}
+          disabled={readOnly}
+          commit={(input) => {
+            const edit = instanceAngleBatch(doc, model, input, session.registry, prefabs);
+            return edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error;
+          }}
+        />
+      ) : null}
       <FieldRow label="z" hint="Added to the z of every child; higher draws in front.">
         {model.editable ? (
           <NumberInput
@@ -2188,6 +2314,9 @@ function InstancePanel({
           {nested ? ` in ${nested.holder}` : ""}
         </span>
       </header>
+      <Section id="instance:identity" title="Identity">
+        <ParentField key={id} session={session} doc={doc} refs={[id]} />
+      </Section>
       {placement ? (
         <PlacementSection key={id} session={session} doc={doc} model={placement} />
       ) : null}

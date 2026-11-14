@@ -1,0 +1,4 @@
+{
+  "label": "Put the crate under the tower, where it stands",
+  "ops": [{ "op": "reparent", "refs": ["crate"], "parent": "tower" }]
+}

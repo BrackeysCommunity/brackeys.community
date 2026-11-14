@@ -52,7 +52,7 @@ function yard(): SceneDefinition {
     game: registry.game!.id,
     name: "one-way-yard",
     bounds: [0, 0, 2000, 1200],
-    instances: [{ id: "turned", prefab: "ledge", at: [600, 300], rot: 1 }],
+    instances: [{ id: "turned", prefab: "ledge", at: [600, 300], rot: 90 }],
     entities: [
       { id: "cloud", type: "solid", shape: ["box", 100, 100, 50, 10], oneWay: true },
       { id: "wall", type: "solid", shape: ["box", 300, 100, 10, 50], oneWay: "left" },

@@ -7,7 +7,7 @@ import type { CameraRigDef } from "../game/primitives";
  */
 
 /** Lengths are metres from v4; a game's `world.lengthUnit` (px per metre) draws them. */
-export const SCENE_FORMAT_VERSION = 4;
+export const SCENE_FORMAT_VERSION = 5;
 
 /** A point in world metres; y is down. */
 export type Pt = [x: number, y: number];
@@ -39,7 +39,6 @@ export const SCENE_HEADER_KEYS = [
   "bounds",
   "settings",
   "assets",
-  "groups",
   "instances",
 ] as const;
 /** Top-level keys no bulk key may take. */
@@ -81,7 +80,11 @@ export type EntityBase = {
   layer?: string;
   /** Draw order within the layer: an integer, default 0. */
   z?: number;
-  group?: string;
+  /**
+   * An entity, an instance, or an instance's child by resolved ref; the
+   * entity's geometry is stored in its frame.
+   */
+  parent?: Ref;
   off?: boolean;
 };
 
@@ -100,23 +103,16 @@ export type BulkEntry = ShapeTuple | Pt;
 export type BulkKey = string;
 
 /**
- * A group: members store their geometry relative to `at`, so moving the
- * group is one edit to `at`. `rot` is quarter turns clockwise (y down) and
- * `flip` mirrors x before turning; absent is the identity.
- */
-export type GroupDef = { at: Pt; rot?: 1 | 2 | 3; flip?: true; name?: string };
-
-/**
  * One placement of a prefab. Its children load as entities with ids
- * `<id>/<childId>` (bulk children `<id>/~key:index`), translated by `at`
- * and then by the instance's group.
+ * `<id>/<childId>` (bulk children `<id>/~key:index`), placed by `at`,
+ * `rot` and `flip` and then by the frames of its parent chain.
  */
 export type InstanceDef = {
   id: string;
   prefab: string;
   at: Pt;
-  /** Quarter turns clockwise (y down); absent is 0. */
-  rot?: 1 | 2 | 3;
+  /** Degrees clockwise (y down), in (0, 360); absent is 0. */
+  rot?: number;
   /** Mirror x in the prefab's frame, before `rot`. */
   flip?: true;
   /** Added to every child's `z`. */
@@ -131,9 +127,13 @@ export type InstanceDef = {
   overrides?: Record<OverridePath, unknown>;
   name?: string;
   layer?: string;
-  group?: string;
+  /** What the instance sits under, as an entity's `parent`; its `at` is in that frame. */
+  parent?: Ref;
   off?: boolean;
 };
+
+/** How deep `parent` links may nest below a root. */
+export const PARENT_MAX_DEPTH = 16;
 
 /**
  * The scene's one cell grid, in metres, each length a whole number of px at
@@ -180,8 +180,6 @@ export type SceneDefinition = {
   settings?: SceneSettings;
   /** Assets only game code names, sorted and unique. */
   assets?: AssetId[];
-  /** Declared groups by id. A member of a group stores geometry local to the group's `at`. */
-  groups?: Record<string, GroupDef>;
   instances?: InstanceDef[];
   entities?: EntityDef[];
   [bulkKey: BulkKey]: unknown;
@@ -205,8 +203,13 @@ export type RuntimeEntity<F extends object = { [field: string]: unknown }> = {
   z?: number;
   /** The entity's layer after instance inheritance; present only when set. */
   layer?: string;
-  /** The turns and flips of the instances and groups above it; present only when not the identity. */
-  transform?: { turn: 0 | 1 | 2 | 3; flip: boolean };
+  /**
+   * The angle (degrees clockwise) and flip of the instances and parents
+   * above it; present only when not the identity.
+   */
+  transform?: { rot: number; flip: boolean };
+  /** The live entity it sits under at runtime; present only when it has one. */
+  parent?: string;
 } & RuntimeFields<F>;
 
 /** The engine's settings with defaults applied, plus the game's as given. */
@@ -273,6 +276,9 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "nav-missing",
   "joint-ref-type",
   "joint-self",
+  "parent-depth",
+  "parent-type",
+  "quarter-turn-only",
   // physical
   "follower-hits-solid",
   "solid-overlap",
@@ -314,6 +320,10 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "prefab-not-spawnable",
   "body-missing",
   "body-not-dynamic",
+  "entity-gone",
+  "pose-not-settable",
+  "parent-cycle",
+  "parent-scope",
   // replay
   "recording-other-platform",
   // flow
@@ -448,18 +458,6 @@ export type SceneOp =
   /** Moves entities or instances to `index` within their list, counted without them. */
   | { op: "reorder"; refs: Ref[]; index: number }
   | { op: "instantiate"; instance: InstanceInput; index?: number }
-  /** Declares a group or changes it; `remove` drops a group no entity or instance is in. */
-  | {
-      op: "setGroup";
-      id: string;
-      at?: Pt;
-      /** Absolute; 0 is written as absent. */
-      rot?: 0 | 1 | 2 | 3;
-      /** Absolute; false is written as absent. */
-      flip?: boolean;
-      name?: string | null;
-      remove?: boolean;
-    }
   /**
    * Sets an instance's overrides; with no `ref`, in a prefab's own document,
    * the prefab's own overrides of its variant base's children.
@@ -484,15 +482,24 @@ export type SceneOp =
   | { op: "createPrefab"; refs: Ref[]; id: string; at?: Pt; instance?: string }
   /** Sets a prefab in the library, or deletes it with `null`. */
   | { op: "definePrefab"; id: string; prefab: PrefabBody | null }
-  /** Turns and flips instances (by id) and groups (by id), composing onto what they have, about `about` (default each one's `at`). */
+  /**
+   * Turns and flips instances and nodes (by id), composing onto what they
+   * have, about `about` (default each one's `at`): by quarter turns
+   * (`turn`) or by any angle in degrees clockwise (`rotate`).
+   */
   | {
       op: "transform";
-      refs?: string[];
-      groups?: string[];
+      refs: string[];
       turn?: 1 | 2 | 3 | -1;
       flip?: "x" | "y";
+      rotate?: number;
       about?: Pt;
     }
+  /**
+   * Puts entities and instances under `parent` (null: at the root),
+   * rewriting their geometry into its frame so nothing moves in the world.
+   */
+  | { op: "reparent"; refs: Ref[]; parent: Ref | null }
   /** Sets or shifts `z` on entities and instances; bulk entries refuse (promote first). */
   | { op: "setZ"; refs: Ref[]; z?: number; by?: number }
   /** Adds and removes ids in the scene's or prefab's `assets` header. */
@@ -518,8 +525,8 @@ export const OP_NAMES = [
   "setScene",
   "setSettings",
   "reorder",
+  "reparent",
   "instantiate",
-  "setGroup",
   "override",
   "revertOverride",
   "applyToPrefab",
@@ -546,14 +553,7 @@ export type SceneChange =
   | { kind: "resized"; ref: Ref; from: BulkEntry; to: BulkEntry }
   | {
       kind: "scene";
-      field:
-        | "name"
-        | "bounds"
-        | "v"
-        | "game"
-        | "assets"
-        | `settings.${string}`
-        | `groups.${string}`;
+      field: "name" | "bounds" | "v" | "game" | "assets" | `settings.${string}`;
       from: unknown;
       to: unknown;
     };

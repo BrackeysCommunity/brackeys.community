@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:stress:v2",
-  "x-agent-surface": 21,
+  "x-agent-surface": 22,
   "title": "jams engine input script for stress, format v2",
   "type": "object",
   "properties": {
@@ -630,6 +630,7 @@
     "EntityType": {
       "type": "string",
       "enum": [
+        "node",
         "solid",
         "sensor",
         "marker",
@@ -643,7 +644,7 @@
         "pellet",
         "agent"
       ],
-      "description": "An entity type: solid, sensor, marker, prop, follower, decor, nav, camera-region, note, spawner, pellet, agent."
+      "description": "An entity type: node, solid, sensor, marker, prop, follower, decor, nav, camera-region, note, spawner, pellet, agent."
     },
     "NearMatch": {
       "type": "object",

@@ -1,7 +1,7 @@
 {
   "v": 2,
   "engine": {
-    "version": "0.13.0",
+    "version": "0.15.0",
     "physics": null
   },
   "platform": {
@@ -11,10 +11,10 @@
   },
   "game": "tactics",
   "scene": "level-1",
-  "sceneHash": "a905131b5aaff308",
-  "runHash": "715ae3af7674ba20",
+  "sceneHash": "4fea84d456102e77",
+  "runHash": "88825d427ae3a38f",
   "project": null,
-  "configHash": "07056db81c444ecb",
+  "configHash": "5c3d010acc03242d",
   "time": {
     "kind": "turns",
     "rate": 60

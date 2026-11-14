@@ -1,11 +1,11 @@
 /**
- * Affine transforms and the dihedral group of quarter turns and flips that
- * instances and groups use. No imports, so `./scene`, `./collab` and
+ * Affine transforms, the dihedral group of quarter turns and flips, and
+ * rigid frames at any angle. No imports, so `./scene`, `./collab` and
  * `math.ts` can all share it.
  *
- * Quarter turns are clockwise on screen (y down): one turn takes `[1, 0]`
- * to `[0, 1]`. The matrices are built from integers, never trig, so integer
- * inputs give integer outputs exactly.
+ * Turns are clockwise on screen (y down): one quarter turn takes `[1, 0]`
+ * to `[0, 1]`. Quarter turns are built from integers, never trig, so integer
+ * inputs give integer outputs exactly; other angles use sine and cosine.
  */
 
 type Pt = [x: number, y: number];
@@ -90,11 +90,14 @@ export function dihedralOf(t: Transform2D): Dihedral | null {
   return null;
 }
 
-/** The dihedral element an instance's or group's `rot` and `flip` spell. */
-export const turnOf = (d: { rot?: number; flip?: boolean }): Dihedral => ({
-  rot: d.rot === 1 || d.rot === 2 || d.rot === 3 ? d.rot : 0,
-  flip: d.flip === true,
-});
+/**
+ * The dihedral element an instance's or node's `rot` (degrees, absent 0)
+ * and `flip` spell; null when `rot` is off the quarter turns.
+ */
+export function turnOf(d: { rot?: number; flip?: boolean }): Dihedral | null {
+  const deg = typeof d.rot === "number" ? wrapDeg(d.rot) : 0;
+  return deg % 90 === 0 ? { rot: quarter(deg / 90), flip: d.flip === true } : null;
+}
 
 /** The inverse element: what undoes `d`. */
 export const inverseTurn = (d: Dihedral): Dihedral =>
@@ -118,3 +121,83 @@ export function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral {
 export function flipWorld(d: Dihedral, axis: "x" | "y"): Dihedral {
   return composeDihedral({ rot: axis === "x" ? 0 : 2, flip: true }, d);
 }
+
+/** An angle and a flip without an origin: what a frame does to directions. */
+export type Orientation = { rot: number; flip: boolean };
+
+/** Mirror x when `flip`, turn `rot` degrees clockwise (y down), move to `at`. */
+export type Frame = { at: Pt; rot: number } & Orientation;
+
+/** Micro-units, no -0: how a frame's off-quarter numbers are kept, so two machines agree. */
+const micro = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
+
+/** `deg` in [0, 360), never `-0`. */
+const wrapDeg = (deg: number) => {
+  const r = deg % 360;
+  return r < 0 ? r + 360 : r + 0;
+};
+
+/** `deg` in [0, 360) to the micro-degree. */
+const settleDeg = (deg: number) => {
+  const r = micro(wrapDeg(deg));
+  return r === 360 ? 0 : r;
+};
+
+/** Whether `deg` is a whole number of quarter turns. */
+export const isQuarterTurn = (deg: number): boolean => wrapDeg(deg) % 90 === 0;
+
+/** `deg` in radians; a whole number of quarter turns is k·π/2 for k in 0..3, the same bits every time. */
+export function turnRadians(deg: number): number {
+  const wrapped = wrapDeg(deg);
+  return wrapped % 90 === 0 ? ((wrapped / 90) * Math.PI) / 2 : (deg * Math.PI) / 180;
+}
+
+/**
+ * Built from integers when `rot` is a multiple of 90, so quarter turns stay
+ * exact; from sine and cosine otherwise.
+ */
+export function frame(f: Frame): Transform2D {
+  const deg = wrapDeg(f.rot);
+  if (deg % 90 === 0) return dihedral({ rot: quarter(deg / 90), flip: f.flip }, f.at);
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const sx = f.flip ? -1 : 1;
+  return {
+    a: z(sx * cos),
+    b: z(sx * sin),
+    c: z(0 - sin),
+    d: z(cos),
+    tx: z(f.at[0]),
+    ty: z(f.at[1]),
+  };
+}
+
+/** The angle in [0, 360) and the flip of a rigid transform; exact for quarter turns. */
+export function frameOf(t: Transform2D): Orientation {
+  const d = dihedralOf(t);
+  if (d) return { rot: d.rot * 90, flip: d.flip };
+  const flip = t.a * t.d - t.b * t.c < 0;
+  // A flip mirrors x first, so the turn is read from the image of [-1, 0].
+  const deg = (Math.atan2(flip ? -t.b : t.b, flip ? -t.a : t.a) * 180) / Math.PI;
+  return { rot: settleDeg(deg), flip };
+}
+
+/** `outer ∘ inner` on orientations: a flip reverses the turn it is applied after. */
+export function composeOrientations(outer: Orientation, inner: Orientation): Orientation {
+  return {
+    rot: settleDeg(outer.flip ? outer.rot - inner.rot : outer.rot + inner.rot),
+    flip: outer.flip !== inner.flip,
+  };
+}
+
+export function composeFrames(outer: Frame, inner: Frame): Frame {
+  const [x, y] = applyPt(frame(outer), inner.at);
+  return {
+    at: isQuarterTurn(outer.rot) ? [x, y] : [micro(x), micro(y)],
+    ...composeOrientations(outer, inner),
+  };
+}
+
+/** The frame a rigid transform is: its translation, angle and flip. */
+export const asFrame = (t: Transform2D): Frame => ({ at: [t.tx, t.ty], ...frameOf(t) });

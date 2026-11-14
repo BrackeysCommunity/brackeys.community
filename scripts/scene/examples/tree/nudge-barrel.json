@@ -1,0 +1,4 @@
+{
+  "label": "Slide the barrel 0.2 m along its parent's x",
+  "ops": [{ "op": "move", "refs": ["tower-barrel"], "by": [0.2, 0] }]
+}

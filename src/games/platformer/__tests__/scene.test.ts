@@ -86,7 +86,7 @@ describe("scene.schema.json", () => {
   });
 
   it("has the platformer's URN id", () => {
-    expect(sceneJsonSchema(registry).$id).toBe("urn:jams-engine:scene:platformer:v4");
+    expect(sceneJsonSchema(registry).$id).toBe("urn:jams-engine:scene:platformer:v5");
   });
 });
 

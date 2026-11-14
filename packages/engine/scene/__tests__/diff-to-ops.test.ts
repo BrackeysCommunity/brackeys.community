@@ -8,7 +8,15 @@ import { formatScene } from "../format";
 import { sceneHash } from "../hash";
 import { applyOps } from "../ops";
 import { prefabLibrary } from "../prefab";
-import type { OpBatch, Prefab, SceneDefinition, ShapeTuple } from "../types";
+import type {
+  EntityDef,
+  InstanceDef,
+  OpBatch,
+  Prefab,
+  SceneDefinition,
+  SceneOp,
+  ShapeTuple,
+} from "../types";
 import {
   engine,
   engineYard,
@@ -226,7 +234,14 @@ describe("diffToOps", () => {
     const a = engineYard();
     const b = engineYard();
     b.instances![0] = { ...b.instances![0]!, rot: 1, flip: true, params: { speed: 3 } };
-    b.instances!.push({ id: "gate-2", prefab: "gate", at: [0, 0], rot: 3, z: 2, params: { a: 1 } });
+    b.instances!.push({
+      id: "gate-2",
+      prefab: "gate",
+      at: [0, 0],
+      rot: 270,
+      z: 2,
+      params: { a: 1 },
+    });
     const batch = roundTrip(engine, a, b);
     expect(batch.ops).toEqual([
       { op: "update", ref: "gate-1", set: { rot: 1, flip: true } },
@@ -254,15 +269,16 @@ describe("diffToOps", () => {
     expect(roundTrip(engine, b, z).ops).toEqual([{ op: "setZ", refs: ["gate-1"], z: 4 }]);
   });
 
-  it("writes a group's turn and flip through setGroup, back to 0 and false", () => {
+  it("writes a node's turn and flip through update, and back", () => {
     const a = engineYard();
     const b = engineYard();
-    b.groups!.raised = { at: [40, -20], rot: 2, flip: true, name: "Raised" };
+    const raised = b.entities!.findIndex((e) => e.id === "raised");
+    b.entities![raised] = { ...b.entities![raised]!, rot: 180, flip: true };
     expect(roundTrip(engine, a, b).ops).toEqual([
-      { op: "setGroup", id: "raised", at: [40, -20], rot: 2, flip: true, name: "Raised" },
+      { op: "update", ref: "raised", set: { rot: 180, flip: true } },
     ]);
     expect(roundTrip(engine, b, a).ops).toEqual([
-      { op: "setGroup", id: "raised", at: [40, -20], rot: 0, flip: false, name: "Raised" },
+      { op: "update", ref: "raised", unset: ["rot", "flip"] },
     ]);
   });
 
@@ -329,7 +345,7 @@ describe("diffToOps", () => {
 
     it("writes a disk edit of a prefab's nested instances as ops on its view", () => {
       const before = room([
-        { id: "door-1", prefab: "door", at: [10, 0], rot: 1 },
+        { id: "door-1", prefab: "door", at: [10, 0], rot: 90 },
         { id: "door-2", prefab: "door", at: [60, 0], overrides: { "knob.at": [2, 2] } },
         { id: "door-3", prefab: "door", at: [90, 0] },
       ]);
@@ -403,4 +419,269 @@ describe("diffToOps", () => {
   it("refuses scenes that differ in what no op can change", () => {
     expect(() => diffToOps(engineYard(), fakeYard())).toThrow(/"game"/);
   });
+});
+
+/**
+ * A scene of nodes, markers, sensors and posts, each under an earlier one or
+ * at the root. With `anyAngle`, nodes turn by any multiple of 15° and there
+ * are no posts, since an instance turns only by quarter turns.
+ */
+function randomTree(rand: () => number, anyAngle = false): SceneDefinition {
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const entities: EntityDef[] = [];
+  const instances: InstanceDef[] = [];
+  const parents: string[] = [];
+  const under = () =>
+    parents.length > 0 && rand() < 0.7 ? { parent: parents[int(0, parents.length - 1)]! } : {};
+  for (let k = 0; k < int(4, 12); k++) {
+    const roll = rand();
+    const id = `e${k}`;
+    if (roll < 0.35) {
+      entities.push({
+        id,
+        type: "node",
+        at: [int(-200, 200), int(-200, 200)],
+        ...(rand() < 0.6 ? { rot: anyAngle ? 15 * int(1, 23) : 90 * int(1, 3) } : {}),
+        ...(rand() < 0.3 ? { flip: true } : {}),
+        ...under(),
+      });
+      parents.push(id);
+    } else if (roll < 0.6) {
+      entities.push({ id, type: "marker", at: [int(-200, 200), int(-200, 200)], ...under() });
+      parents.push(id);
+    } else if (roll < 0.8 || anyAngle) {
+      entities.push({
+        id,
+        type: "sensor",
+        shape: ["circle", int(0, 90), int(0, 90), 8],
+        ...under(),
+      });
+    } else {
+      instances.push({
+        id: `post-${k}`,
+        prefab: "post",
+        at: [int(0, 400), int(0, 400)],
+        ...(rand() < 0.5 ? { rot: int(1, 3) as 1 | 2 | 3 } : {}),
+        ...under(),
+      });
+      parents.push(`post-${k}`, `post-${k}/top`);
+    }
+  }
+  return {
+    v: 4,
+    name: "tree",
+    bounds: [0, 0, 1000, 1000],
+    entities,
+    ...(instances.length > 0 ? { instances } : {}),
+  };
+}
+
+const ownerOf = (ref: string) => ref.split("/")[0]!;
+
+/** `def` with parents moved, items removed, added, retyped, moved and shuffled, its parents still a tree. */
+function mutateTree(def: SceneDefinition, rand: () => number): SceneDefinition {
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const out = structuredClone(def);
+  let entities = out.entities ?? [];
+  let instances = out.instances ?? [];
+  const all = () => [...entities, ...instances];
+  const parentOf = () => new Map(all().map((x) => [x.id, x.parent]));
+  const below = (id: string, ref: string) => {
+    const map = parentOf();
+    for (let o: string | undefined = ownerOf(ref), n = 0; o !== undefined && n < 64; n++) {
+      if (o === id) return true;
+      const p = map.get(o);
+      o = p === undefined ? undefined : ownerOf(p);
+    }
+    return false;
+  };
+  const targets = () => [
+    ...entities.filter((e) => e.type !== "sensor").map((e) => e.id),
+    ...instances.flatMap((i) => [i.id, `${i.id}/top`]),
+  ];
+  for (const x of all()) {
+    if (rand() < 0.35) {
+      const pick = targets().filter((t) => !below(x.id, t));
+      const to = rand() < 0.25 || pick.length === 0 ? undefined : pick[int(0, pick.length - 1)];
+      if (to === undefined) delete x.parent;
+      else x.parent = to;
+    }
+    if (rand() < 0.3 && "at" in x && Array.isArray(x.at)) x.at = [int(-200, 200), int(-200, 200)];
+  }
+  const gone = new Set(
+    all()
+      .filter(() => rand() < 0.15)
+      .map((x) => x.id),
+  );
+  entities = entities.filter((e) => !gone.has(e.id));
+  instances = instances.filter((i) => !gone.has(i.id));
+  entities = entities.map((e) =>
+    e.type === "node" && rand() < 0.15
+      ? { id: e.id, type: "marker", at: e.at, ...(e.parent ? { parent: e.parent } : {}) }
+      : e,
+  );
+  for (let k = 0; k < int(0, 3); k++) {
+    const pick = targets();
+    entities.splice(int(0, entities.length), 0, {
+      id: `new-${k}`,
+      type: rand() < 0.5 ? "node" : "marker",
+      at: [int(-200, 200), int(-200, 200)],
+      ...(pick.length > 0 && rand() < 0.7 ? { parent: pick[int(0, pick.length - 1)]! } : {}),
+    });
+  }
+  if (rand() < 0.3) entities.reverse();
+  const live = new Set(targets());
+  for (const x of all()) if (x.parent !== undefined && !live.has(x.parent)) delete x.parent;
+  // A removed parent's leftovers may now close a loop through a retargeted parent; break any.
+  for (const x of all()) if (x.parent !== undefined && below(x.id, x.parent)) delete x.parent;
+  out.entities = entities;
+  if (instances.length > 0) out.instances = instances;
+  else delete out.instances;
+  return out;
+}
+
+const opsOf = (batch: OpBatch, name: SceneOp["op"]) => batch.ops.filter((op) => op.op === name);
+
+describe("diffToOps: parents", () => {
+  const prefabs = yardPrefabs();
+  const base = (): SceneDefinition => ({
+    v: 4,
+    name: "tree",
+    bounds: [0, 0, 1000, 1000],
+    entities: [
+      { id: "pen", type: "node", at: [100, 100], rot: 90 },
+      { id: "rack", type: "node", at: [400, 100], flip: true },
+      { id: "peg", type: "marker", at: [10, 0], parent: "pen" },
+      { id: "pip", type: "marker", at: [0, 10], parent: "peg" },
+    ],
+    instances: [{ id: "post-1", prefab: "post", at: [20, 0], parent: "rack" }],
+  });
+  const roundTripTree = (a: SceneDefinition, b: SceneDefinition) => {
+    const batch = diffToOps(a, b, engine);
+    const r = applyOps(a, batch, engine, { validate: "none", prefabs });
+    if (!r.ok) throw new Error(`${r.issue.code}: ${r.issue.message}\n${JSON.stringify(batch)}`);
+    expect(text(r.def)).toBe(text(b));
+    return batch;
+  };
+  const neverUpdatesParent = (batch: OpBatch) => {
+    for (const op of batch.ops) {
+      if (op.op !== "update") continue;
+      expect(Object.keys(op.set ?? {}), JSON.stringify(op)).not.toContain("parent");
+      expect(op.unset ?? [], JSON.stringify(op)).not.toContain("parent");
+    }
+  };
+
+  it("emits a reparent for a parent change, never an update of it", () => {
+    const b = base();
+    b.entities![2] = { ...b.entities![2]!, parent: "rack", at: [5, 5] };
+    const batch = diffToOps(base(), b, engine);
+    neverUpdatesParent(batch);
+    expect(batch.ops).toEqual([
+      { op: "reparent", refs: ["peg"], parent: "rack" },
+      { op: "update", ref: "peg", set: { at: [5, 5] } },
+      // What sits under peg is put back too: the reparent may rewrite it to keep it in place.
+      { op: "update", ref: "pip", set: { at: [0, 10] } },
+    ]);
+    roundTripTree(base(), b);
+  });
+
+  it("puts the stored geometry back after a reparent, even where a and b agree", () => {
+    const b = base();
+    b.instances = [{ id: "post-1", prefab: "post", at: [20, 0] }];
+    const batch = roundTripTree(base(), b);
+    expect(batch.ops).toEqual([
+      { op: "reparent", refs: ["post-1"], parent: null },
+      { op: "update", ref: "post-1", set: { at: [20, 0], rot: 0, flip: false } },
+    ]);
+    const c = base();
+    c.entities![3] = { id: "pip", type: "marker", at: [0, 10] };
+    roundTripTree(base(), c);
+  });
+
+  it("removes children before their parents", () => {
+    const b = base();
+    b.entities = b.entities!.filter((e) => e.id === "rack");
+    const batch = roundTripTree(base(), b);
+    expect(opsOf(batch, "remove")).toEqual([{ op: "remove", refs: ["pip", "peg", "pen"] }]);
+  });
+
+  it("adds a parent before what sits under it, at the index each has", () => {
+    const b = base();
+    b.entities = [
+      { id: "kid", type: "marker", at: [1, 1], parent: "box" },
+      ...b.entities!,
+      { id: "box", type: "node", at: [7, 7], parent: "post-2/top" },
+    ];
+    b.instances!.push({ id: "post-2", prefab: "post", at: [50, 50] });
+    const batch = roundTripTree(base(), b);
+    expect(
+      batch.ops.map((op) => [
+        op.op,
+        op.op === "add" ? op.entity.id : op.op === "instantiate" ? op.instance.id : "",
+      ]),
+    ).toEqual([
+      ["instantiate", "post-2"],
+      ["add", "box"],
+      ["add", "kid"],
+    ]);
+  });
+
+  it("takes what stays out from under a removed parent first, and back after", () => {
+    const b = base();
+    // pen becomes a marker: removed and added again, while peg stays under it.
+    b.entities![0] = { id: "pen", type: "marker", at: [100, 100] };
+    const batch = roundTripTree(base(), b);
+    neverUpdatesParent(batch);
+    expect(batch.ops.map((op) => op.op)).toEqual([
+      "reparent",
+      "remove",
+      "add",
+      "reparent",
+      "update",
+      "update",
+    ]);
+    expect(batch.ops[0]).toEqual({ op: "reparent", refs: ["peg"], parent: null });
+    expect(batch.ops[1]).toEqual({ op: "remove", refs: ["pen"] });
+    expect(batch.ops[3]).toEqual({ op: "reparent", refs: ["peg"], parent: "pen" });
+    expect(batch.ops.slice(4).map((op) => op.op === "update" && op.ref)).toEqual(["peg", "pip"]);
+  });
+
+  it("swaps a parent and its child without making a cycle on the way", () => {
+    const b = base();
+    b.entities = [
+      { id: "pen", type: "node", at: [100, 100], rot: 90, parent: "pip" },
+      b.entities![1]!,
+      { id: "peg", type: "marker", at: [10, 0] },
+      { id: "pip", type: "marker", at: [0, 10], parent: "peg" },
+    ];
+    const batch = roundTripTree(base(), b);
+    neverUpdatesParent(batch);
+    expect(opsOf(batch, "reparent").length).toBeGreaterThan(0);
+  });
+
+  it("refuses a target whose parents form a cycle", () => {
+    const b = base();
+    b.entities![0] = { ...b.entities![0]!, parent: "pip" };
+    expect(() => diffToOps(base(), b, engine)).toThrow(/cycle/);
+  });
+
+  it("turns one tree into another for random pairs", () => {
+    const rand = rng(0x7ee5);
+    for (let i = 0; i < 200; i++) {
+      const a = randomTree(rand);
+      const b = rand() < 0.8 ? mutateTree(a, rand) : randomTree(rand);
+      neverUpdatesParent(roundTripTree(a, b));
+      neverUpdatesParent(roundTripTree(b, a));
+    }
+  }, 60_000);
+
+  it("turns one tree into another for random pairs at any angle", () => {
+    const rand = rng(0xa49e);
+    for (let i = 0; i < 200; i++) {
+      const a = randomTree(rand, true);
+      const b = rand() < 0.8 ? mutateTree(a, rand) : randomTree(rand, true);
+      neverUpdatesParent(roundTripTree(a, b));
+      neverUpdatesParent(roundTripTree(b, a));
+    }
+  }, 60_000);
 });

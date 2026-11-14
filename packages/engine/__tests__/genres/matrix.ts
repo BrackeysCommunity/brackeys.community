@@ -15,7 +15,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   platformer: {
     genre: "Platformer",
     deliveredBy: "M13, M14, M22, M23, M25",
-    probes: ["behavior-yard", "side-view-behaviors"],
+    probes: ["behavior-yard", "side-view-behaviors", "tree-yard"],
   },
   "top-down": {
     genre: "Top-down action / RPG",
@@ -109,6 +109,7 @@ export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
   30: "0.14.4",
   31: "0.14.5",
   22: "0.15.0",
+  43: "0.16.0",
 };
 
 /** `a` against `b` as semver release triples: negative, zero or positive. */

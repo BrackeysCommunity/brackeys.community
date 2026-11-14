@@ -15,10 +15,10 @@ import {
   worldToPose,
   type BehaviorGizmo,
 } from "./behavior-target";
-import { shapeEdit, snapDraggedPoint, type DragOptions, type GizmoEdit } from "./edit";
+import { shapeEdit, snapDraggedPoint, withPreview, type DragOptions, type GizmoEdit } from "./edit";
 import { dirSigns, RESIZE_DIRS, shapePivot, type ResizeDir } from "./handles";
 import { readAngle, readDelta, readPoint, readRadius, readLength } from "./readout";
-import { targetBox, type GizmoTarget } from "./target";
+import { treeBox, type GizmoTarget } from "./target";
 import { dragInsertVertex, dragVertex } from "./vertices";
 import { dragInsertWaypoint, dragWaypoint, rebasePath } from "./waypoints";
 
@@ -134,19 +134,20 @@ export function radiusTo(
 }
 
 /**
- * Moving one target by its move handle or body: the drag snaps (the box
- * edge nearest the grab) and becomes one `move`, which carries a path with
- * it. With Alt, a target on a path re-bases waypoint 0 instead.
+ * Moving one target by its move handle or body: the drag snaps (the edge of
+ * the box over it and its subtree nearest the grab) and becomes one `move`,
+ * which carries a path, and in the document everything under it, with it.
+ * With Alt, a target on a path re-bases waypoint 0 instead.
  */
 export function moveTarget(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit {
-  if (opts.mods.alt && t.path) return rebasePath(t, from, to, opts)!;
+  if (opts.mods.alt && t.path) return withPreview(rebasePath(t, from, to, opts)!, [t]);
   const r = snapMove({
-    aabb: targetBox(t),
+    aabb: treeBox(t),
     grab: from,
     delta: [to[0] - from[0], to[1] - from[1]],
     settings: opts.snap,
     index: opts.index,
-    exclude: [t.ref],
+    exclude: [t.ref, ...(t.subtree ?? [])],
     scale: opts.scale,
     pxPerMetre: opts.pxPerMetre,
     bypass: opts.mods.mod,
@@ -160,7 +161,40 @@ export function moveTarget(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions):
   if (t.shape) edit.shape = translateShape(roundShape(t.shape, opts.pxPerMetre), by);
   if (t.at) edit.at = [t.at[0] + by[0], t.at[1] + by[1]];
   if (t.path) edit.pts = t.path.pts.map(([x, y]) => [x + by[0], y + by[1]] as Pt);
-  return edit;
+  return withPreview(edit, [t]);
+}
+
+/** `deg` in (-180, 180]. */
+function halfTurn(deg: number): number {
+  let d = deg % 360;
+  if (d > 180) d -= 360;
+  if (d <= -180) d += 360;
+  return d + 0;
+}
+
+/**
+ * A node or an instance turned by its rotate handle about its origin: the
+ * world angle snaps to the step (Shift: free, to whole degrees) and the turn
+ * becomes one `transform` with `rotate`, which turns what sits under it too.
+ */
+export function rotateFrame(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null {
+  const f = t.frame;
+  if (!f) return null;
+  const was = normDeg(f.rot);
+  const now = normDeg(
+    Math.round(snapAngle(was + dragAngle(f.at, from, to), opts.snap, opts.mods.shift)),
+  );
+  const by = halfTurn(now - was);
+  return withPreview(
+    {
+      batch:
+        by === 0
+          ? null
+          : { label: `Rotate ${t.ref}`, ops: [{ op: "transform", refs: [t.ref], rotate: by }] },
+      readout: readAngle(now),
+    },
+    [t],
+  );
 }
 
 const splitId = (id: string): [string, string | undefined] => {
@@ -182,13 +216,23 @@ export function dragHandle(
   opts: DragOptions,
 ): GizmoEdit | null {
   if (isBehaviorHandle(handleId)) return dragBehaviorHandle(t, handleId, from, to, opts);
+  if (handleId === "move") return moveTarget(t, from, to, opts);
+  if (handleId === "rotate" && t.frame) return rotateFrame(t, from, to, opts);
+  return withPreview(shapeHandle(t, handleId, from, to, opts), [t]);
+}
+
+function shapeHandle(
+  t: GizmoTarget,
+  handleId: string,
+  from: Pt,
+  to: Pt,
+  opts: DragOptions,
+): GizmoEdit | null {
   const [kind, arg] = splitId(handleId);
   const n = arg === undefined ? NaN : Number(arg);
   const s = t.shape;
   const ppm = opts.pxPerMetre;
   switch (kind) {
-    case "move":
-      return moveTarget(t, from, to, opts);
     case "resize": {
       if (s?.type !== "box" || !(RESIZE_DIRS as readonly string[]).includes(arg ?? "")) return null;
       const next = resizeBox(s, arg as ResizeDir, to, {

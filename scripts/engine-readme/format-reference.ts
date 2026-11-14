@@ -35,8 +35,7 @@ const REF_NAMES: Record<string, string> = {
   Polygon: "[polygon](#shapes)",
   Path: "[path](#paths)",
   Entity: "[entity](#entity-types)",
-  Group: "[group](#groups-and-prefabs)",
-  Instance: "[instance](#groups-and-prefabs)",
+  Instance: "[instance](#parents-and-prefabs)",
 };
 
 /** Fields the engine adds to every entity type. */

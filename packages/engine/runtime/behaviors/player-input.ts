@@ -1,5 +1,5 @@
 import type { BehaviorSystemFactory } from "../../game/behaviors";
-import type { PlayerInputBlock } from "../../game/behaviors/player-input";
+import type { PlayerInputBlock, PlayerInputHandle } from "../../game/behaviors/player-input";
 import type { PlayerInputSystem, SeatInput } from "../../game/input-for";
 import type { EngineContext } from "../../game/types";
 
@@ -79,6 +79,14 @@ export const createPlayerInputSystem: BehaviorSystemFactory = (ctx: EngineContex
       }
       return view;
     },
+    handle: (id): PlayerInputHandle => ({
+      get seat() {
+        return system.seatOf(id);
+      },
+      get input() {
+        return system.inputFor(id) ?? viewOf(id);
+      },
+    }),
   };
   return system;
 };

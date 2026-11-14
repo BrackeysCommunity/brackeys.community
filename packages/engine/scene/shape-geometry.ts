@@ -169,10 +169,10 @@ export function centroid(pts: readonly Pt[]): Pt {
 const QUARTER = Math.PI / 2;
 
 /** How many quarter turns (0–3) `rad` is, within float error; null for any other angle. */
-function quarterTurns(rad: number): number | null {
+export function quarterTurns(rad: number): 0 | 1 | 2 | 3 | null {
   if (rad === 0) return 0;
   const q = Math.round(rad / QUARTER);
-  return Math.abs(rad - q * QUARTER) < 1e-12 ? ((q % 4) + 4) % 4 : null;
+  return Math.abs(rad - q * QUARTER) < 1e-12 ? ((((q % 4) + 4) % 4) as 0 | 1 | 2 | 3) : null;
 }
 
 /** `[x, y]` turned `rad` radians clockwise on screen; within float error of a quarter turn, exact. */

@@ -240,3 +240,35 @@ describe("diffScenes: assets and z", () => {
     ]);
   });
 });
+
+describe("diffScenes: parents", () => {
+  const tree = (pegParent?: string, postParent?: string): SceneDefinition =>
+    scene({
+      entities: [
+        { id: "pen", type: "node", at: [10, 10], rot: 90 },
+        { id: "rack", type: "node", at: [50, 10] },
+        { id: "peg", type: "marker", at: [5, 0], ...(pegParent ? { parent: pegParent } : {}) },
+      ],
+      instances: [
+        { id: "post-1", prefab: "post", at: [0, 0], ...(postParent ? { parent: postParent } : {}) },
+      ],
+    });
+
+  it("reports a parent change as a modified parent", () => {
+    expect(diffScenes(tree("pen"), tree("rack"))).toEqual([
+      { kind: "modified", ref: "peg", field: "parent", from: "pen", to: "rack" },
+    ]);
+    expect(diffScenes(tree(), tree("pen"))).toEqual([
+      { kind: "modified", ref: "peg", field: "parent", from: undefined, to: "pen" },
+    ]);
+    expect(diffScenes(tree("pen/x"), tree()).map(describeChange)).toEqual([
+      'peg.parent: "pen/x" -> (unset)',
+    ]);
+  });
+
+  it("reports an instance's parent the same way", () => {
+    expect(diffScenes(tree(undefined, "pen"), tree(undefined, "rack"))).toEqual([
+      { kind: "modified", ref: "post-1", field: "parent", from: "pen", to: "rack" },
+    ]);
+  });
+});

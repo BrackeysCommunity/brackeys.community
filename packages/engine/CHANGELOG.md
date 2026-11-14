@@ -7,6 +7,535 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.16.0] — unreleased
+
+Entity handles, scripts and the scene tree: one way to move any entity,
+a handle per live entity with typed behavior handles, scripts written as a
+class or as a function returning hooks, lookups by behavior, and parents
+and children at runtime, in scene files and in the editor. Scene files
+move to format 5: groups become `node` entities and `attach` becomes
+`parent` (`vp run scene fmt` migrates them). A scene with no instances,
+no parents and no scripts runs exactly as before.
+
+### Added
+
+- The `node` primitive: a pose and nothing else (`at`, `rot` in degrees),
+  on the data system plus `setPose`, first in spawn order. A game type
+  based on it must have `at`.
+- `EngineContext.setPose(id, x, y, rot?, { snap? })`, the one way to move
+  any entity: the type system's `setPose`, then the snap write, then each
+  attached behavior's `posed` in registration order; a disabled entity
+  takes the pose index write alone. A type whose system has no `setPose`
+  throws `EngineError("pose-not-settable")`.
+- `EngineContext.entity(id)`, `entities(sel?)`, `findBehavior(def)`,
+  `findBehaviors(def)` and `tree` (`SceneTree`: `parent`, `children`,
+  `subtree`, `root`, `isUnder`, `local`, `setLocal`, `setParent`).
+- `Entity` and `HandleOf` in `@jams/engine/game`: a view of one live
+  entity by id, with `getBehavior(def | name)` typed from the definition.
+- `BehaviorDef` takes a second type parameter naming its handle, set with
+  `handle: handleType<H>()`; `BlockOf<D>`, `Bound<S, K>` and `HandleType`
+  type it. The standard behaviors carry their handle types: `BodyHandle`,
+  `ColliderHandle`, `CharacterHandle`, `PlayerInputHandle`,
+  `NavAgentHandle`, `PathFollowHandle`, `SpawnerHandle`, `JointHandle`,
+  `AnimHandle`, `TweenHandle`, and `SpriteHandle`, `EmitterHandle`,
+  `LifetimeHandle`, `CameraTargetHandle`, `ForceAreaHandle` and
+  `OccupantHandle` with nothing beside `fields` yet.
+- `BehaviorSystem` gains optional `handle(entityId)`, `posed(entityId,
+pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
+  `SceneSystem` gains optional `selfMoving(id)`, `ride(id, host)` and
+  `carried(id, parent, pose, snap)`, which writes only the pose of a child
+  whose collider rides the body of the parent that just moved it.
+- `EntitySelector.behavior` and `under`; `SpawnInput.parent` and `local`;
+  `InstantiateOptions.parent` and `local`; `RuntimeEntity.parent`.
+- `ctx.setPose` moves any posable entity and what it carries: a `prop`
+  (keeps its velocity, wakes), a game type on `createDataSystem` (pose
+  index), `collider`/`body` blocks (the body moves, fixed, kinematic or
+  dynamic, keeping velocity), both character behaviors and `nav-agent`
+  (their motion body teleports; a walking agent plans again from there),
+  `path-follow` (the pose becomes its last position). An entity posed while
+  disabled comes back where it was put when enabled.
+- `DataSystem.setPose`; `MotionBody.teleport(x, y, opts?)` takes
+  `{ snap?: boolean }` (default true).
+- `moveBodyNow` and `OwnedBody` exported from `./game`.
+- `ctx.entity(id)`: one `Entity` handle per live entity (the same object
+  each time, `undefined` for an id that isn't live). Once its entity is
+  destroyed or unloaded, `alive` is false and every member but `id` throws
+  `EngineError("entity-gone")`. A new entity spawned under the same id gets
+  a new handle.
+- `Entity.getBehavior(def)` returns a per-entity handle typed from the
+  definition: `body` (kind, velocity, setVelocity, angularVelocity,
+  setAngularVelocity, applyImpulse, applyForce, applyTorque, mass, wake),
+  `player-input` (seat, input), `spawner` (live), `joint` (joined), `anim`
+  (play, stop, state, shapes), `collider` (rebuild),
+  `character-top-down`/`character-side-view` (grounded, launch, setIntent,
+  velocity), `nav-agent` (path, setDestination, stop), `path-follow`
+  (position, frameDelta), `tween` (to, cancelAll), plus `fields` on every
+  behavior.
+- Scripts: `Script(def)` (a class: `class Thruster extends Script({ ... })
+{ step() { ... } }`, registered as the class or `Thruster.behavior`) and
+  `defineScript(def)` (a function whose `create(self)` returns the hooks).
+  Both are an ordinary behavior over one generated system, with hooks
+  awake, start, beforeStep, beforePhysics, step, render (visualOnly only),
+  onEnable, onDisable, onDestroy, onContactStart/End, onSensorEnter/Exit,
+  onFieldsChanged, save and restore. `this`/`self` gives entity, fields,
+  ctx, input, ref(field), after, every, run, cancel and emit; timers and
+  coroutines are owned by the entity. A world save keeps only what save()
+  returns, and dev warns once for a script class that has instance
+  properties and no save. A script class that defines render without
+  visualOnly, or a visualOnly one with a tick hook, is refused at registry
+  build. `ScriptDef`, `ScriptSelf`, `ScriptHooks` and `ScriptClass` type
+  them, and `defineGame`'s `behaviors` takes a script class beside plain
+  definitions.
+- `BehaviorSystem.update` may return true when it built the entity's
+  handle object anew, so `getBehavior` asks `handle` again.
+- `EntitySelector.behavior` narrows `ctx.query` (select, count, inArea, at,
+  nearest) to entities carrying a behavior; `ctx.entities(sel?)` returns
+  handles in spawn order; `ctx.findBehavior(def)` / `ctx.findBehaviors(def)`
+  find the first / every enabled carrier in spawn order, by definition,
+  script class or name.
+- `ctx.tree` live: parents and children, local poses, following (a
+  driven child moves with its parent, children in child order) and
+  `setParent(id, parent, { keepWorld? })`, which refuses with
+  `parent-cycle` or `parent-scope`. A parent's children are its own
+  entities first, then its nested instances' nodes.
+- Every prefab instance now loads as a `node` at its id, posed at the
+  instance's origin and angle (`rot` in degrees), with one more
+  `node` per nested instance (`room-1/door-1`). Each child's `parent` is
+  the nearest enclosing instance's node; an `off` instance loads nothing.
+  A sublevel's instance nodes take its label like its other ids.
+- `Entity.parent`, `children`, `root`, `localPose`, `setLocalPose`,
+  `setParent`, `find`, `getBehaviorInChildren`, `getBehaviorsInChildren`,
+  `getBehaviorInParent` and `enabledSelf` now work through `ctx.tree`.
+  `find(path)` walks children by their own id, which is the last `/`
+  segment, so `room.find("door-1/panel")` reaches `room-1/door-1/panel`.
+  The InChildren and InParent lookups start at the entity itself and skip
+  disabled entities.
+- Colliders on the nearest body. A solid, a sensor or a fixed `collider`
+  behavior whose parent (or a parent further up) has a kinematic or
+  dynamic body rides that body: one body, several colliders, and they
+  collide as part of it. `setParent` moves the collider between bodies, or
+  back onto a fixed body of its own. When a tween or game code moves a
+  riding entity, its collider moves on the host's body. `prop` and
+  `follower` answer `selfMoving`, and so does a `collider` with a dynamic
+  `body`. One-way gating of a riding solid uses the host's rotation.
+  `carrierDelta` reports a kinematic host's velocity over the tick for a
+  collider riding it, so a character standing on a child of a moving
+  kinematic body is carried.
+- `ctx.spawn({ …, parent, local })` and `ctx.instantiate(prefab, at,
+{ parent, local })` spawn under a live entity. Fields (or `at`) are world
+  coordinates by default and in the parent's frame with `local: true`. An
+  unknown parent, or one in another sublevel, throws
+  `EngineError("parent-scope")`. A destroy of a parent queued mid-tick
+  takes the children spawned under it later that tick.
+- `EntitySelector.under` limits `query.select`, `count`, `inArea`, `at`,
+  `nearest` and `ctx.entities` to an entity's descendants, not the entity
+  itself.
+- A world save's spawn records carry each spawn's current parent, and a
+  restore relinks it, or spawns it as a root when that parent isn't live.
+- `WorldState.parents` (optional): a world save writes each live entity's
+  parent where it differs from the one its load or spawn gave it, and
+  restore relinks them before switching entities on and writing poses;
+  `SAVE_VERSION` stays 1. The save schema's spawn input and instance
+  entries take `parent` and `local`. A live swap that changes an entity's
+  `parent` takes its authored pose; the edit world's `add`, `update` and
+  `remove` relink what they touch, and a removed parent's remaining
+  children become roots.
+- `tree-yard`, the engine project's scene-tree proof scene (listed in its
+  scene list), with a `turret` prefab: a prefab instance's parts move with
+  its node; a turret instantiated under a tweening marker swings with it;
+  a sensor under a dynamic prop rides the prop's body; a character
+  stands on a deck under a follower and is carried; a spawned room's
+  nested prefabs go with its node when its `lifeMs` ends. Its checks and
+  input script play it to a `near` headless, and a `tree-yard` genre
+  probe pins the run. The yard also holds a turret built from plain
+  entities (the tower node, a base solid under it and a barrel marker with
+  a collider under the base), a node at 30° carrying a turret instance
+  (tilt, tilt-turret), and a three-level chain swinging on a tween (arm,
+  forearm, hand), with a plain-tree check.
+- kitchen-sink adds `pivot` (a node at 30°), hook (a quarter-turned node
+  with a child, hook-mark) and cap-flag (a child of post-1/cap, an
+  instance's child), with a parented check, and its notes speak of nodes
+  and parents instead of groups and attachments. Its ASCII and SVG
+  goldens gain the new marks (`*` for a node).
+- `__tests__/probes/tree-budget.test.ts` measures the tree. Following
+  costs about 0.2 µs a child, 1.3× the same moves through `ctx.setPose`.
+  The stress scenes' tick, over the same scene without riders, is held to
+  its before-the-tree ratio +10%: movers 1.12–1.17 (budget 1.21),
+  combined 1.04–1.08 (budget 1.133). A child 4 m from a parent turning
+  360°/s is drawn 5.48 mm (0.55 px at 100 px/m) off its arc at 60 ticks/s.
+- Tests: Live in Play takes a reparent (into a node, out to the root, a
+  whole subtree) without a reload; two clients' concurrent reparents (a
+  two- and three-way cycle, a reparent under a deleted entity, a reparent
+  against a move of the old parent) converge on one tree and one issue
+  list, each fixed by its issue's one reparent.
+- `ProbeOptions.onTick(tick, ctx)`: called after each tick's step inside
+  `runProbe`'s own run, to read state the report doesn't carry;
+  `scene step --anim` reads the clip through it.
+- `parent` in a scene or prefab file, a base field on every entity and on
+  instances: an entity, an instance, or an instance's child by resolved ref
+  (`room-1/door-1/panel`). The child's geometry is stored in the parent's
+  frame, and the resolver places it by the chain,
+  `W(child) = W(parent) ∘ frame(entityFrame(parent))`, innermost first,
+  memoised by id. A prefab may hold its own tree: an instance's override of
+  a parent's geometry carries its children, and a nested instance with a
+  `parent` puts its node under it. A cycle (its id that sorts last becomes
+  a root) or a missing parent reads leniently as a root, the same in a file
+  and a collab doc; an `off` parent takes its subtree out of the load and
+  marks it `off` in the resolved view. Edits on the resolved view map back
+  through the chain. Nodes, plain entities and instances take any angle.
+- The `node` type gains `flip` (`true` or absent), mirroring x before its
+  `rot`.
+- Rigid frames at any angle in `@jams/engine/scene` and `math`: `Frame`,
+  `frame` (built from integers for quarter turns, from sine and cosine
+  otherwise), `frameOf`, `composeFrames`, `Orientation`,
+  `composeOrientations` and `isQuarterTurn`. In `scene`: `entityFrame`
+  (a node's `at`, `rot` and `flip`, else the spawn pose `spawnPose` reads),
+  `placedFrame`, `instanceFrame` and `PARENT_MAX_DEPTH` (16).
+- `SceneOp` gains `reparent { refs, parent }` and `transform`'s `rotate`
+  (degrees, about `about`), in `OP_NAMES`, the ops schema and `opRefs`.
+- `reparent { refs, parent }` puts entities and instances under another
+  parent, or at the root with `parent: null`. Their geometry is rewritten
+  into the new frame (fields through the type's transformable kinds,
+  behavior points and paths, a node's `rot` and `flip`), so nothing moves
+  in the world, and whatever sits under a moved entity that can't carry the
+  old frame (a flip, or a circle's or point's missing angle) is rewritten
+  too. Refused: a bulk entry (`parent-type`), an instance's child
+  (`op-invalid`), a loop (`parent-cycle`), more than 16 levels
+  (`parent-depth`), a nav area, camera region or note on either end
+  (`parent-type`), a missing parent (`ref-not-found`), and an instance that
+  would need an angle off the quarter turns. A current parent that is
+  missing or in a loop counts as the identity. The inverse is a reparent
+  back followed by updates that put the stored geometry back exactly.
+- `transform` takes nodes as well as instances in `refs`, and `rotate` in
+  degrees clockwise about `about`, composed onto what each has. Instances
+  take only multiples of 90.
+- Fragments carry subtrees. Copying a parent brings everything under it
+  (and whatever sits under a copied instance's children). A fragment's
+  roots travel in world coordinates under no parent. What sits under them
+  keeps its `parent` and its stored geometry, which is rewritten only where
+  a root's own fields can't carry the turn or flip it stood in. Pasting
+  follows renames in `parent`, places a parent before its children, and
+  moves only the roots. A `parent` that points outside the fragment is kept
+  when the scene has the target, otherwise it is cleared with a
+  `dangling-ref` warning. `PlacedFragment` gains `ids`.
+- Collab: `parent` is stored as one atomic value on the doc record, so
+  there is no layout change. `applyOpsToDoc` writes a `reparent` as only
+  the changed fields of the moved records. Prefab docs accept `parent`
+  between their children. Reverting or undoing a
+  logged `reparent` puts the exact stored geometry back.
+- The outliner's Tree view, now the default: entities and instances under
+  their parents (a parent's entities, then its instances), instance
+  children below their instance, bulk buckets last; a viewer who picked
+  Type or Layer keeps that choice. `buildTreeOutline(def, registry,
+prefabs)` beside `buildOutline`.
+- Drag to reparent in the Tree view: a drop onto a row reparents, a drop
+  on a row's top edge reorders before it (reparenting first when the
+  parent differs), and a drop on the empty space below moves to the root.
+  Each is one batch (one undo) and nothing moves in the world. A drop the
+  scene would refuse (a loop, a parent that can't be one) shows as refused
+  before release, with the reason. Dragging a selected row drags the
+  selection's roots, and instance children can't be dragged out.
+- Editor: a click selects the outermost instance holding the hit; with a
+  level of that chain selected, a click selects the next level toward the
+  hit (on release, so a press-drag still moves the selected level), and
+  the hit once no level remains; a double-click steps in at once and
+  enters point editing once the shape itself is selected. Alt-click still
+  cycles exact hits. `instanceLevels(ref)`, `selectionRoots(def, refs)`.
+- Editor: instances and nodes get a move handle at their origin and a
+  free-rotate handle on a stalk. The rotate handle writes one `transform`
+  with `rotate` at the snap angle (Shift: free). Moving or turning a parent
+  writes one op and previews its whole subtree (`GizmoTarget.frame`,
+  `subtree`, `preview`; `carryPreview`; `gizmoTarget` takes the document
+  as `source`).
+- Editor: the spatial index has an entry per instance over its subtree
+  and names the instances a prefab child sits in (`IndexEntry.instance`,
+  `instances`). `update` re-indexes each touched ref with its subtree and
+  takes the document as `source`; the tool host's index always updates
+  incrementally on an edit.
+- The inspector's Parent row in Identity on entities and instances: a
+  picker of what can be a parent (not the selection's own subtree, nor nav
+  areas, camera regions or notes) that commits one `reparent`; read-only
+  on an instance's child. The instance panel's angle in degrees beside
+  Turn and Flip (one `transform` with `rotate`). A node's at, rotation and
+  mirror under Transform. A child's geometry fields show world values with
+  a note naming the parent frame the file stores them in. `parentModel`,
+  `parentCandidates`, `parentBatch`, `instanceAngleRow`,
+  `instanceAngleBatch`.
+
+### Changed
+
+- `POSED_PRIMITIVES` lists `node` and `prop`, so a `tween` may move a
+  node's or a prop's pose. The tween system's pose channels go through
+  `ctx.setPose`, which moves a tweened entity's collider body instead of
+  rebuilding it.
+- `game new`'s `top-down` and `side-view` presets write `goal.ts`, a `Goal`
+  script class on the goal sensor that declares the win and drops the
+  hero's seat; their `runtime.ts` no longer checks sensor events and reads
+  the win from the `REACHED` event.
+- `ctx.destroy`, `ctx.setEnabled`, `ctx.enabled` and `ctx.exists` on an
+  instance id act on its node and its subtree through the scene tree;
+  `ctx.enabled` is the effective state (own switch and every ancestor's).
+  Destroying or disabling a parent takes its subtree, children first, and
+  enabling brings back only what was on by its own switch. A world save's
+  `enabled` holds own switches. `{ entity }` event subscriptions match
+  what `ctx.tree` puts under the entity, not an id prefix.
+- `InstantiateResult.entities` still lists the prefab's children only
+  (no instance node, nested ones included), while the node gets its own
+  `entity:spawned` first and its `entity:destroyed` last.
+- `expandInstance` returns the instance's nodes first and counts them in a
+  new `nodes` field; the children follow in spawn-group order, each with
+  its `parent`.
+- A spawner's prefab spawn still holds one slot until its last child that
+  isn't a node goes; its emptied node is then destroyed.
+- `scene list` counts the instance nodes under `node`.
+- Re-pinned for node entities alone: scenes with instances gain one node
+  per instance and per nested instance, so the kitchen-sink ascii and svg
+  goldens (node glyphs and labels only), the tactics level-1 recording's
+  `runHash` (715ae3af7674ba20 to f7c4c73ef9e55a13; its `end` and
+  `TACTICS_GOLDEN_DIGEST` 0d59d480ac4a58bd stay), the behavior-yard genre
+  pin (db3eec27538cd4a6 to cd34fb179bb5c640: outcome, ticks, slots,
+  end-state and trail are the same, and the events are the same once the
+  six `entity:spawned` of the spawner's crate nodes are dropped) and the
+  sublevels test's cellar ids move. Every other genre pin, the platformer
+  goldens and the determinism probe are unchanged.
+- Breaking: `AttachmentHub` changes shape: `moved` and the `moved` callback of
+  `attach` are gone, because the scene tree now poses riding entities. In
+  `host`, `origin` is optional and defaults to where the body is.
+  `hosted(hostId)` is new, and `Attachment` gains `follow(pose, offset,
+frame)`, which moves a riding collider on its host's body when its entity
+  is posed somewhere the body didn't carry it. Hosts are now followers,
+  props, and `collider` behaviors with a kinematic or dynamic `body`.
+- A tween's `x`, `y` and `rot` on an entity with a parent are its pose in
+  the parent's frame (read from `ctx.tree.local`, written through
+  `ctx.tree.setLocal`), so it keeps its offset while the parent moves and
+  turns; a root's tween writes the world pose as before.
+- A tween on the pose of a solid or sensor riding a host is no longer
+  refused with `tween-target-invalid`; it moves the rider in the host's
+  frame like any child.
+- `path-follow` on an entity with a parent traces its path in the parent's
+  frame: the points are re-expressed against the parent's pose when the
+  entity is linked (and again after a reparent), and each step goes to the
+  parent's pose composed with the point. One moving a kinematic or dynamic
+  body sets its velocity toward that world point and answers
+  `selfMoving`. A child's saved path place also keeps its `parent` and
+  `frame`.
+- Transforms act at any angle (`transformFieldValue`, `transformEntityDef`
+  and the resolver): a box's or capsule's `rotDeg` and an angle field add
+  the angle, points, paths and vectors turn and are rounded to the
+  micrometre off the quarter turns (angles to the micro-degree), a mirror
+  toggles under a flip, and a side or grid field turns only by quarter
+  turns, staying as it is under any other angle. Quarter turns keep their
+  exact integer path. A transform that scales or shears is refused.
+- Breaking: `RuntimeEntity.transform` is `{ rot, flip }`, `rot` in degrees
+  (it was quarter turns in `turn`); what read it (spawn poses, nodes,
+  sprite offsets, render geometry, edit poses) reads quarter turns as
+  exactly as before. `runtimeEntity` takes the angle in degrees.
+  `ResolvedOrigin.transform`, `PlacedInstanceChild.transform` and
+  `LocalChild.turn` are `{ rot, flip }` in degrees (were quarter turns).
+- `expandInstance` takes `steps` (the frames above the instance) and
+  `parent` (its node's parent); `instanceSteps`, `instanceTransform` and
+  `instanceOrigin` take an optional registry and library to follow a
+  parent chain.
+- `remove` also removes every entity and instance under each ref, and an
+  applied batch's `touched` now lists what it removed, under the ids they
+  had. `update` refuses to set or unset `parent` (`op-invalid`, with a hint
+  naming `reparent`). `rename` rewrites every `parent` that names the old
+  id or starts with `<old>/`. `add` and `instantiate` take `parent`, with
+  geometry in the parent's frame. `unpack` puts the children under the
+  instance's parent, keeps the links between them, and leaves entries that
+  sat under the instance or one of its children in place under what
+  replaced it. `createPrefab` brings everything under the picked entries,
+  takes the picked roots to the world through their whole parent chain,
+  and puts the new instance
+  under the parent they all share, if they share one. `demote` refuses an
+  entity that has children.
+- `diffScenes` reports a parent change as a `modified` on `parent`.
+  `diffToOps` never writes `parent` through `update`. A parent change
+  becomes a `reparent` after the adds, followed by `update`s that put back
+  exact stored geometry on the moved item and everything below it. Kept
+  items sitting directly under a removed item go to the root before the
+  `remove`. Removals list children before parents, adds place parents
+  before children, and a target whose parents form a cycle throws.
+- Editor clipboard: cut removes the selection's subtrees, children first,
+  including scene entities parented under a cut instance child. Duplicate
+  copies subtrees and puts each copied root back under its original's
+  parent with a trailing `reparent`.
+- `expandLenient` (and so `bindSceneDoc`'s edit world) now expands the
+  document as `expandScene` does, so every instance brings its `node` and
+  the edit world matches what Play loads. Children of a parent are no
+  longer moved through the parent's frame twice. When a merge leaves a
+  broken entry, the one-at-a-time fallback expands each entry inside its
+  parent chain, so the others keep their parent, frame and `transform`. A
+  parent cycle or a missing parent left by a merge is read leniently, the
+  same as the resolver reads it.
+- Breaking: instance `rot` counts degrees clockwise, any angle in (0, 360), where it
+  counted quarter turns: in scenes, prefab files, fragments, overrides
+  keyed `<instance>.rot`, `InstanceDef`, the `instantiate` op and
+  `InstantiateOptions.rot` (a breaking change to a public type). `transform`,
+  `reparent`, `unpack` and `createPrefab` no longer refuse an instance off
+  the quarter turns; an instance whose own angle is off them over side or
+  grid fields is `quarter-turn-only`.
+- `turnOf` reads `rot` in degrees and returns null off the quarter turns.
+  `InstanceTransformModel.rot` is degrees.
+- The `transform` op takes `refs` (required): instances and nodes.
+- A solid or sensor under a follower is its child: it rides the follower's
+  body, is destroyed with it (where an `attach` rider waited for a new
+  host), and loads without physics, following by pose (where `attach`
+  was `physics-required`). A child that spawns before its host waits for
+  the host's body instead of being made on a body of its own first.
+- A `parent` naming a child an instance's prefab doesn't have is
+  `ref-child-unknown`, with a did-you-mean, as a ref field's is.
+- `validatePhysical` expands the scene document, so a parented entity
+  goes through its parent's frame once.
+- `quarterTurnTargets` returns instances and the rest. The outliner's
+  layer view lists no group rows and takes no attach or detach drops.
+- Collab: `readDoc` reads a format 4 doc's `groups` map only so
+  `migrateDoc` can lift its groups to nodes, and the migration empties it;
+  `revertEntry` refuses a log entry that changed a group.
+- An inverse in a scene with parents restores a change of `z` alone with
+  `setZ` again.
+- `non-integer` judges an entity under a frame off the quarter turns by
+  its stored shape, point and path values, and its fix snaps those; a
+  prefab's children there are left to the prefab's own validation.
+- `groupBatch(def, registry, refs, prefabs?)` and `ungroupBatch(def,
+refs)` take the document and return `{ batch, select } | null`
+  (`SelectingBatch`): group adds a `node` at the centre of the selection's
+  bounds under its common parent and reparents the selection's roots to
+  it; ungroup reparents a selected node's children to the node's parent
+  and removes it; one batch, so one undo, each.
+- `hierarchyUp(def, sel)` (no registry) selects each selected ref's parent
+  by the tree, a prefab child's being its instance, and a root bulk entry
+  its bucket; `hierarchyDown(def, registry, sel, prefabs?)` selects one
+  ref's first child (an instance's next level first, then what sits under
+  it by `parent`), and from several still narrows to the first in outline
+  order.
+- `rotateSelectionBatch(def, registry, refs, deg, prefabs?)` takes the
+  document: selected instances and nodes turn by one `transform` with
+  `rotate` (about their own origin alone, else the selection's centre),
+  everything else by its fields, and only the selection's roots are
+  written. `rotationPivot` of one target is its own pivot (a node's or an
+  instance's origin, a shape's pivot).
+- `q` and `e` rotate everything by the snap angle ("Rotate
+  counterclockwise by the snap angle" / "Rotate clockwise by the snap
+  angle"); `turn-cw` and `turn-ccw` have no key and stay as commands for
+  the inspector's buttons.
+- Editor: nudges write only the selection's roots. A marquee takes an
+  instance in place of its children, and picking never hits an instance's
+  own entry. `outlineBounds`, `outlinesOfRef` and `frameBounds` go by the
+  tree: a parent counts with everything under it, and `outlineLook` and
+  `isComposite` take the document. A multi-selection's move and rotate
+  write only the selection's roots, and turn nodes and instances by one
+  `transform`.
+- `FieldWidget`'s entity-ref gains `parent?: true`; `ModelField` gains
+  `storedIn?: Ref | null`; an optional `z.literal(true)` field is drawn as
+  a switch (off unsets it) instead of read-only text.
+- A batch on the editor's resolved view may update an instance's child:
+  the entity schema checks it under its own child id.
+
+### Removed
+
+- `EntityTable.hasUnder`: what sits under an entity is `ctx.tree`'s to
+  say.
+- Groups: the `groups` header key, `GroupDef`, `GroupSchema`, the `group`
+  base field, `SceneChange`'s `groups.<id>`, `groupOrigin`,
+  `groupTransform`, `instanceStepsIn`, the `setGroup` op, `transform`'s
+  `groups`, `nextGroupName`, `patchGroup` and `groupMap`.
+- `attach`: the field on `solid` and `sensor`, `attachField`,
+  `isAttachField`, `ridingHost`, `TweenTarget.riding`, `attachBatch`,
+  `attachFieldOf` and `isFollowerType`. A `parent` does what it did.
+- `scene show` prints no group or attach.
+- `KeyContext.quarterTurns` and the `quarterTurns` field of
+  `ToolHost.keyContext()`.
+
+### Fixed
+
+- A world save taken after every tween has ended keeps the id the next
+  tween gets, so `tween:end` ids after a restore match the unsaved run.
+- A fork of `ctx.random` restored from a world save and not yet forked
+  again is kept in the next world save: save, restore, save, restore no
+  longer resets a spawner's spread stream.
+- The headless run loop compares a slot's pointer with the one the
+  runtime already holds: an event or turns run restored from a save with
+  a pointer button held wakes on its release as the unsaved run does
+  (playtests and replays from a save included).
+
+### Format
+
+- Scene, prefab and fragment format 5. The v4 → v5 migration needs the
+  registry (`migration-unresolved` without it) and, in order: turns an
+  instance's quarter turns `k` into `90 × k` degrees (in scenes, prefab
+  files' nested instances, overrides keyed `<instance>.rot` and
+  fragments); makes each group a `node` at the front of `entities` (its
+  id, or the next free `<id>-<n>`, its `at`, turn, flip and name) and each
+  `group` naming one a `parent`, dropping one that names none; makes
+  `attach: f` on a solid or sensor `parent: f`, its geometry taken into
+  `f`'s frame through the frames above it (an `f` inside an instance
+  placed through the project's prefabs). Every scene and prefab file is
+  rewritten at v5 by `vp run scene fmt`; each expands entity for entity
+  and pose for pose as its v4 text did, but for the nodes that replaced
+  its groups (`format-5-migration.test.ts`, over a gzipped corpus of the
+  v4 texts and their v4 expansions).
+- Pins that moved, each for the format number inside a `sceneHash` alone:
+  the fuzz probe's button-only rollout digests (`54358566f81d2ff2` to
+  `d6933996a797f077`, `c702eae74c4df8a2` to `9cbdbfa1442a4e50`: putting
+  engine-yard's v4 hash back gives the old digests) and the tactics
+  golden recording's `sceneHash` and `runHash` (its replay digest
+  `0d59d480ac4a58bd` is unchanged). The kitchen-sink and sprite golden
+  renders draw the nodes that replaced their groups. The platformer's
+  golden traces, the determinism probe and the engine-yard expansion are
+  unchanged.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 22, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- The `node` primitive in every scene, prefab and fragment schema, and in
+  the ops and input-script schemas' type enums.
+- New issue codes, all errors, thrown as `EngineError`s at runtime and
+  listed by `codes`: `entity-gone`, `pose-not-settable`, `parent-cycle`
+  and `parent-scope`.
+- `parent` in every scene, prefab and fragment schema (entities and
+  instances), `node.flip`, and the `reparent` op and `transform`'s `rotate`
+  in the ops schema and `OP_NAMES`.
+- New scene issue codes `parent-depth`, `parent-type` and
+  `quarter-turn-only`, all fixable with one `reparent`; `parent-cycle` also
+  names a file's cycle and is fixable.
+- `scene show` / `scene_show` print `parent` on every row that names one,
+  and the frame a row's geometry is stored in (`origin`, `transform` as
+  `{ rot, flip }` in degrees clockwise, replacing the quarter-turn
+  `{ rot: 0-3, flip }`; text ` in x,y m rot 90 flip` replaces
+  ` turn 1 flip`). World AABBs and `--near` follow the parent chain.
+  `--tree` (MCP `tree`) lists rows depth first under their parents with
+  `depth`. `scene textconv` lists a child after its parent. The MCP
+  op-batch description names `reparent` and `transform`'s `rotate`.
+- Format 5 in every scene, prefab, fragment and ops schema (`$id`s end
+  `:v5`): no `groups` key, no `group` base field, no `attach` on `solid`
+  and `sensor`, instance `rot` a number of degrees in (0, 360); no
+  `setGroup` op, and `transform` takes `refs` alone.
+- `physics-required`'s summary and hint no longer name `attach`.
+
+### Docs
+
+- README: "Scripts" (both forms, the lifecycle, timers and the save rule
+  for function timers, entity handles, the lookups) and "Coming from
+  Unity", a table of Unity names beside the engine's.
+- README: "The scene tree", with a tested example (`scene-tree.ts`).
+- The scene CLI README has a "Format v5: the scene tree" section. It
+  covers `parent`, frames, `node`, instance `rot` in degrees, what left
+  the format (`groups`, `group`, `setGroup`, `attach`), the ops in v5
+  (`reparent`, `transform` with `rotate`, `update` refusing `parent`,
+  `remove` taking subtrees, `rename`, `unpack`, `createPrefab`),
+  `show --tree`, the four tree codes with batches that reproduce them, and
+  the v4 → v5 migration. Its group and attach passages now describe
+  parents.
+- The engine README's "Groups and prefabs" is now "Parents and prefabs".
+  Transforms covers frames at any angle and `quarter-turn-only`,
+  `RuntimeEntity.transform` is `{ rot, flip }` and `InstantiateOptions.rot`
+  is in degrees. A new "Issue codes added in v5" table lists
+  `parent-cycle`, `parent-depth`, `parent-type` and `quarter-turn-only`.
+  The doc-layout note marks the `groups` map as read only to lift a
+  format 4 doc.
+
 ## [0.15.0] — unreleased
 
 Animation, cameras and effects: sprite animation with frame events and

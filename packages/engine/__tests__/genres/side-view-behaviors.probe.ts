@@ -311,7 +311,7 @@ function yardPrefabs() {
   const dir = new URL("prefabs/", scenesDir);
   const prefabs: Prefab[] = [];
   for (const name of readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
+    .filter((f) => f.endsWith(".json") && !f.endsWith(".asset.json"))
     .sort()) {
     const parsed = parsePrefab(readFileSync(new URL(name, dir), "utf8"), registry);
     if (!parsed.ok) throw new Error(`${name}: ${JSON.stringify(parsed.issues)}`);

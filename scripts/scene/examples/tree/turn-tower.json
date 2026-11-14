@@ -1,0 +1,4 @@
+{
+  "label": "Turn the tower 30 degrees clockwise, everything under it with it",
+  "ops": [{ "op": "transform", "refs": ["tower"], "rotate": 30 }]
+}

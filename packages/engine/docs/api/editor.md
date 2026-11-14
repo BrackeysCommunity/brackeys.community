@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`Aabb`](#aabb) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetDrop`](#assetdrop) · [`BehaviorGizmo`](#behaviorgizmo) · [`BehaviorMarks`](#behaviormarks) · [`BehaviorOption`](#behavioroption) · [`BehaviorSectionId`](#behaviorsectionid) · [`BehaviorSectionInfo`](#behaviorsectioninfo) · [`BulkEntry`](#bulkentry) · [`BulkKey`](#bulkkey) · [`CLOSE_PX`](#close_px) · [`COARSE_NUDGE_STEPS`](#coarse_nudge_steps) · [`CreateVariant`](#createvariant) · [`DEFAULT_CELL`](#default_cell) · [`DEFAULT_DRAW_TYPE`](#default_draw_type) · [`DEFAULT_SNAP`](#default_snap) · [`DRAG_THRESHOLD_PX`](#drag_threshold_px) · [`DRAW_TYPE_COMMAND`](#draw_type_command) · [`DispatchOptions`](#dispatchoptions) · [`DocApplyResult`](#docapplyresult) · [`DragOptions`](#dragoptions) · [`DrawToolKind`](#drawtoolkind) · [`DrawToolOptions`](#drawtooloptions) · [`DrawTypeOption`](#drawtypeoption) · [`DropOptions`](#dropoptions) · [`DropPreview`](#droppreview) · [`ENGINE_KEYS`](#engine_keys) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`EditGeometry`](#editgeometry) · [`EditPose`](#editpose) · [`EditableSpatialIndex`](#editablespatialindex) · [`EditorCommand`](#editorcommand) · [`EditorKeyEvent`](#editorkeyevent) · [`EditorMode`](#editormode) · [`EditorSession`](#editorsession) · [`EditorSessionEvent`](#editorsessionevent) · [`EditorSessionOptions`](#editorsessionoptions) · [`EditorStoreState`](#editorstorestate) · [`EditorTool`](#editortool) · [`EditorToolContext`](#editortoolcontext) · [`EditorToolDef`](#editortooldef) · [`EngineKeyBinding`](#enginekeybinding) · [`EngineToolId`](#enginetoolid) · [`EntityDef`](#entitydef) · [`EntityTypeName`](#entitytypename) · [`EnumOption`](#enumoption) · [`FORCE_PX`](#force_px) · [`FieldWidget`](#fieldwidget) · [`GameEditorDef`](#gameeditordef) · [`GameKeyBinding`](#gamekeybinding) · [`GesturePreview`](#gesturepreview) · [`GesturePreviewOptions`](#gesturepreviewoptions) · [`GizmoEdit`](#gizmoedit) · [`GizmoHandle`](#gizmohandle) · [`GizmoTarget`](#gizmotarget) · [`HANDLE_HIT_PX`](#handle_hit_px) · [`HANDLE_PX`](#handle_px) · [`HandleKind`](#handlekind) · [`History`](#history) · [`HistoryEntry`](#historyentry) · [`HistoryOptions`](#historyoptions) · [`INSPECTOR_SECTIONS`](#inspector_sections) · [`INSTANCES_ROW`](#instances_row) · [`IndexEntry`](#indexentry) · [`InspectorField`](#inspectorfield) · [`InspectorModel`](#inspectormodel) · [`InspectorRow`](#inspectorrow) · [`InspectorSectionId`](#inspectorsectionid) · [`InspectorSectionModel`](#inspectorsectionmodel) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstanceParamsModel`](#instanceparamsmodel) · [`InstanceTransformModel`](#instancetransformmodel) · [`KeyContext`](#keycontext) · [`KeyMatch`](#keymatch) · [`KeyScope`](#keyscope) · [`Keymap`](#keymap) · [`LogEntry`](#logentry) · [`MIN_POINTS`](#min_points) · [`MIN_WAYPOINTS`](#min_waypoints) · [`MULTI_CLICK_MS`](#multi_click_ms) · [`MULTI_CLICK_PX`](#multi_click_px) · [`ModelEdit`](#modeledit) · [`ModelField`](#modelfield) · [`ModelSectionId`](#modelsectionid) · [`NumberBounds`](#numberbounds) · [`OpBatch`](#opbatch) · [`OutlineRow`](#outlinerow) · [`OverlayTone`](#overlaytone) · [`PICK_TOL_PX`](#pick_tol_px) · [`POINT_PICK_PX`](#point_pick_px) · [`ParamModel`](#parammodel) · [`ParseFragmentResult`](#parsefragmentresult) · [`PasteOptions`](#pasteoptions) · [`PasteResult`](#pasteresult) · [`PeerPresence`](#peerpresence) · [`PickLayers`](#picklayers) · [`PickOptions`](#pickoptions) · [`PlacedTemplate`](#placedtemplate) · [`PlacementCheck`](#placementcheck) · [`PlacementEditorToolOptions`](#placementeditortooloptions) · [`PlacementTemplate`](#placementtemplate) · [`PointShape`](#pointshape) · [`PrefabIsolation`](#prefabisolation) · [`PrefabIsolationOptions`](#prefabisolationoptions) · [`PreviewRuntime`](#previewruntime) · [`Pt`](#pt) · [`QuarterTurnTargets`](#quarterturntargets) · [`RESIZE_DIRS`](#resize_dirs) · [`Ref`](#ref) · [`RefTarget`](#reftarget) · [`Registry`](#registry) · [`ResizeDir`](#resizedir) · [`RevertResult`](#revertresult) · [`SECTION_TITLES`](#section_titles) · [`SNAP_PX`](#snap_px) · [`SNAP_REACH_PX`](#snap_reach_px) · [`SNAP_STEPS`](#snap_steps) · [`STALK_PX`](#stalk_px) · [`SceneChange`](#scenechange) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneOp`](#sceneop) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SelectMode`](#selectmode) · [`SessionHistory`](#sessionhistory) · [`SettingsRowsOptions`](#settingsrowsoptions) · [`SettingsSection`](#settingssection) · [`ShapeConversion`](#shapeconversion) · [`ShapeObj`](#shapeobj) · [`ShapeSlot`](#shapeslot) · [`ShapeTuple`](#shapetuple) · [`SnapGuide`](#snapguide) · [`SnapMoveInput`](#snapmoveinput) · [`SnapMoveResult`](#snapmoveresult) · [`SnapSettings`](#snapsettings) · [`SnapTarget`](#snaptarget) · [`SpatialIndex`](#spatialindex) · [`SpatialIndexOptions`](#spatialindexoptions) · [`StrokeFit`](#strokefit) · [`ToolHost`](#toolhost) · [`ToolHostOptions`](#toolhostoptions) · [`ToolKeyEvent`](#toolkeyevent) · [`ToolLayers`](#toollayers) · [`ToolModifiers`](#toolmodifiers) · [`ToolOption`](#tooloption) · [`ToolOverlay`](#tooloverlay) · [`ToolPointerEvent`](#toolpointerevent) · [`VELOCITY_PX`](#velocity_px) · [`WHEEL_ZOOM`](#wheel_zoom) · [`applyLevels`](#applylevels) · [`applyToPrefabBatch`](#applytoprefabbatch) · [`asProjectBatch`](#asprojectbatch) · [`attachBatch`](#attachbatch) · [`attachFieldOf`](#attachfieldof) · [`behaviorGizmo`](#behaviorgizmo-1) · [`behaviorHandles`](#behaviorhandles) · [`behaviorMarks`](#behaviormarks-1) · [`boundsCheck`](#boundscheck) · [`boxTool`](#boxtool) · [`buildInspectorModel`](#buildinspectormodel) · [`buildOutline`](#buildoutline) · [`builtinTools`](#builtintools) · [`bulkGeometry`](#bulkgeometry) · [`capsuleLength`](#capsulelength) · [`childOverrides`](#childoverrides) · [`circleTool`](#circletool) · [`convertToChainFix`](#converttochainfix) · [`copySelection`](#copyselection) · [`createDrawTool`](#createdrawtool) · [`createEditorSession`](#createeditorsession) · [`createEditorStore`](#createeditorstore) · [`createGesturePreview`](#creategesturepreview) · [`createHistory`](#createhistory) · [`createKeymap`](#createkeymap) · [`createPenTool`](#createpentool) · [`createPrefabBatch`](#createprefabbatch) · [`createSpatialIndex`](#createspatialindex) · [`createToolHost`](#createtoolhost) · [`createVariantBatch`](#createvariantbatch) · [`cutSelection`](#cutselection) · [`cycleHit`](#cyclehit) · [`defaultLayer`](#defaultlayer) · [`defineEditorTool`](#defineeditortool) · [`deleteBatch`](#deletebatch) · [`deleteVertices`](#deletevertices) · [`dirSigns`](#dirsigns) · [`docRefs`](#docrefs) · [`dragAngle`](#dragangle) · [`dragBehaviorHandle`](#dragbehaviorhandle) · [`dragHandle`](#draghandle) · [`dragInsertVertex`](#draginsertvertex) · [`dragInsertWaypoint`](#draginsertwaypoint) · [`dragSelection`](#dragselection) · [`dragVertex`](#dragvertex) · [`dragWaypoint`](#dragwaypoint) · [`drawBatch`](#drawbatch) · [`drawTypeOptions`](#drawtypeoptions) · [`drawnShape`](#drawnshape) · [`dropBatch`](#dropbatch) · [`dropFragment`](#dropfragment) · [`dropPreview`](#droppreview-1) · [`duplicateSelection`](#duplicateselection) · [`entityGeometry`](#entitygeometry) · [`expandRefs`](#expandrefs) · [`fieldOp`](#fieldop) · [`flipBatch`](#flipbatch) · [`formatMetres`](#formatmetres) · [`fragmentBounds`](#fragmentbounds) · [`fragmentOf`](#fragmentof) · [`geometryOfRef`](#geometryofref) · [`gizmoTarget`](#gizmotarget-1) · [`groupBatch`](#groupbatch) · [`hierarchyDown`](#hierarchydown) · [`hierarchyUp`](#hierarchyup) · [`hitHandle`](#hithandle) · [`insertVertex`](#insertvertex) · [`inspectorFields`](#inspectorfields) · [`instanceOfRef`](#instanceofref) · [`instanceParamsModel`](#instanceparamsmodel-1) · [`instanceTransformModel`](#instancetransformmodel-1) · [`instanceZBatch`](#instancezbatch) · [`instancesOf`](#instancesof) · [`isBulkRef`](#isbulkref) · [`isFollowerType`](#isfollowertype) · [`isolationBounds`](#isolationbounds) · [`judgeConcave`](#judgeconcave) · [`keyChord`](#keychord) · [`labelFor`](#labelfor) · [`lock45`](#lock45) · [`lookupRef`](#lookupref) · [`marqueeSelect`](#marqueeselect) · [`modelBatch`](#modelbatch) · [`modelOps`](#modelops) · [`moveBatch`](#movebatch) · [`moveTarget`](#movetarget) · [`moveVertex`](#movevertex) · [`nestedInstanceOf`](#nestedinstanceof) · [`nextFreeId`](#nextfreeid) · [`nextGroupName`](#nextgroupname) · [`normDeg`](#normdeg) · [`normalizeChord`](#normalizechord) · [`nudgeBatch`](#nudgebatch) · [`nudgeDelta`](#nudgedelta) · [`numberBounds`](#numberbounds-1) · [`onePixel`](#onepixel) · [`openPrefabIsolation`](#openprefabisolation) · [`outlineOrder`](#outlineorder) · [`overridePathsOf`](#overridepathsof) · [`panTool`](#pantool) · [`paramBatch`](#parambatch) · [`parseFragment`](#parsefragment) · [`parseRelative`](#parserelative) · [`pasteFragment`](#pastefragment) · [`pathBatch`](#pathbatch) · [`penTool`](#pentool) · [`pickAt`](#pickat) · [`pixelSize`](#pixelsize) · [`placedShape`](#placedshape) · [`placementEditorTool`](#placementeditortool) · [`pointBatch`](#pointbatch) · [`projectHistory`](#projecthistory) · [`prune`](#prune) · [`quarterTurnTargets`](#quarterturntargets-1) · [`radiusTo`](#radiusto) · [`readAngle`](#readangle) · [`readDelta`](#readdelta) · [`readLength`](#readlength) · [`readPoint`](#readpoint) · [`readRadius`](#readradius) · [`readShapeSize`](#readshapesize) · [`readSize`](#readsize) · [`rebasePath`](#rebasepath) · [`refCandidates`](#refcandidates) · [`referableEntities`](#referableentities) · [`remap`](#remap) · [`removeVertices`](#removevertices) · [`removeWaypoints`](#removewaypoints) · [`resizeBox`](#resizebox) · [`resizeCursor`](#resizecursor) · [`revertAllBatch`](#revertallbatch) · [`revertFieldBatch`](#revertfieldbatch) · [`rotateByHandle`](#rotatebyhandle) · [`rotateSelectionBatch`](#rotateselectionbatch) · [`rotateTargetsBatch`](#rotatetargetsbatch) · [`rotateTool`](#rotatetool) · [`rotationPivot`](#rotationpivot) · [`roundPt`](#roundpt) · [`roundShape`](#roundshape) · [`select`](#select) · [`selectAllRefs`](#selectallrefs) · [`selectTool`](#selecttool) · [`selectionBounds`](#selectionbounds) · [`selectionBox`](#selectionbox) · [`selectionHandles`](#selectionhandles) · [`setHover`](#sethover) · [`settingsEdit`](#settingsedit) · [`settingsRows`](#settingsrows) · [`settingsValue`](#settingsvalue) · [`shapeBatch`](#shapebatch) · [`shapeConversions`](#shapeconversions) · [`shapeEdit`](#shapeedit) · [`shapeHandles`](#shapehandles) · [`shapePivot`](#shapepivot) · [`shapeSet`](#shapeset) · [`shapeSlots`](#shapeslots) · [`snapAngle`](#snapangle) · [`snapDraggedPoint`](#snapdraggedpoint) · [`snapMove`](#snapmove) · [`snapPoint`](#snappoint) · [`snapToGrid`](#snaptogrid) · [`strokeFit`](#strokefit-1) · [`strokeShape`](#strokeshape) · [`takesConcave`](#takesconcave) · [`targetBox`](#targetbox) · [`targetHandles`](#targethandles) · [`targetsOf`](#targetsof) · [`toolKeyEventOf`](#toolkeyeventof) · [`turnBatch`](#turnbatch) · [`ungroupBatch`](#ungroupbatch) · [`unpackBatch`](#unpackbatch) · [`vertexHandles`](#vertexhandles) · [`waypointHandles`](#waypointhandles) · [`waypointsTool`](#waypointstool) · [`withShapeSlot`](#withshapeslot) · [`zOrderBatch`](#zorderbatch)
+[`Aabb`](#aabb) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetDrop`](#assetdrop) · [`BehaviorGizmo`](#behaviorgizmo) · [`BehaviorMarks`](#behaviormarks) · [`BehaviorOption`](#behavioroption) · [`BehaviorSectionId`](#behaviorsectionid) · [`BehaviorSectionInfo`](#behaviorsectioninfo) · [`BulkEntry`](#bulkentry) · [`BulkKey`](#bulkkey) · [`CLOSE_PX`](#close_px) · [`COARSE_NUDGE_STEPS`](#coarse_nudge_steps) · [`CarryContext`](#carrycontext) · [`CreateVariant`](#createvariant) · [`DEFAULT_CELL`](#default_cell) · [`DEFAULT_DRAW_TYPE`](#default_draw_type) · [`DEFAULT_SNAP`](#default_snap) · [`DRAG_THRESHOLD_PX`](#drag_threshold_px) · [`DRAW_TYPE_COMMAND`](#draw_type_command) · [`DispatchOptions`](#dispatchoptions) · [`DocApplyResult`](#docapplyresult) · [`DragOptions`](#dragoptions) · [`DrawToolKind`](#drawtoolkind) · [`DrawToolOptions`](#drawtooloptions) · [`DrawTypeOption`](#drawtypeoption) · [`DropOptions`](#dropoptions) · [`DropPreview`](#droppreview) · [`ENGINE_KEYS`](#engine_keys) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`EditGeometry`](#editgeometry) · [`EditPose`](#editpose) · [`EditSource`](#editsource) · [`EditTree`](#edittree) · [`EditableSpatialIndex`](#editablespatialindex) · [`EditorCommand`](#editorcommand) · [`EditorKeyEvent`](#editorkeyevent) · [`EditorMode`](#editormode) · [`EditorSession`](#editorsession) · [`EditorSessionEvent`](#editorsessionevent) · [`EditorSessionOptions`](#editorsessionoptions) · [`EditorStoreState`](#editorstorestate) · [`EditorTool`](#editortool) · [`EditorToolContext`](#editortoolcontext) · [`EditorToolDef`](#editortooldef) · [`EngineKeyBinding`](#enginekeybinding) · [`EngineToolId`](#enginetoolid) · [`EntityDef`](#entitydef) · [`EntityTypeName`](#entitytypename) · [`EnumOption`](#enumoption) · [`FORCE_PX`](#force_px) · [`FieldWidget`](#fieldwidget) · [`GameEditorDef`](#gameeditordef) · [`GameKeyBinding`](#gamekeybinding) · [`GesturePreview`](#gesturepreview) · [`GesturePreviewOptions`](#gesturepreviewoptions) · [`GizmoEdit`](#gizmoedit) · [`GizmoHandle`](#gizmohandle) · [`GizmoTarget`](#gizmotarget) · [`HANDLE_HIT_PX`](#handle_hit_px) · [`HANDLE_PX`](#handle_px) · [`HandleKind`](#handlekind) · [`History`](#history) · [`HistoryEntry`](#historyentry) · [`HistoryOptions`](#historyoptions) · [`INSPECTOR_SECTIONS`](#inspector_sections) · [`INSTANCES_ROW`](#instances_row) · [`IndexEntry`](#indexentry) · [`InspectorField`](#inspectorfield) · [`InspectorModel`](#inspectormodel) · [`InspectorRow`](#inspectorrow) · [`InspectorSectionId`](#inspectorsectionid) · [`InspectorSectionModel`](#inspectorsectionmodel) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstanceParamsModel`](#instanceparamsmodel) · [`InstanceTransformModel`](#instancetransformmodel) · [`KeyContext`](#keycontext) · [`KeyMatch`](#keymatch) · [`KeyScope`](#keyscope) · [`Keymap`](#keymap) · [`LogEntry`](#logentry) · [`MIN_POINTS`](#min_points) · [`MIN_WAYPOINTS`](#min_waypoints) · [`MULTI_CLICK_MS`](#multi_click_ms) · [`MULTI_CLICK_PX`](#multi_click_px) · [`ModelEdit`](#modeledit) · [`ModelField`](#modelfield) · [`ModelSectionId`](#modelsectionid) · [`NumberBounds`](#numberbounds) · [`OpBatch`](#opbatch) · [`OutlineRow`](#outlinerow) · [`OverlayTone`](#overlaytone) · [`PICK_TOL_PX`](#pick_tol_px) · [`POINT_PICK_PX`](#point_pick_px) · [`ParamModel`](#parammodel) · [`ParentModel`](#parentmodel) · [`ParseFragmentResult`](#parsefragmentresult) · [`PasteOptions`](#pasteoptions) · [`PasteResult`](#pasteresult) · [`PeerPresence`](#peerpresence) · [`PickLayers`](#picklayers) · [`PickOptions`](#pickoptions) · [`PlacedTemplate`](#placedtemplate) · [`PlacementCheck`](#placementcheck) · [`PlacementEditorToolOptions`](#placementeditortooloptions) · [`PlacementTemplate`](#placementtemplate) · [`PointShape`](#pointshape) · [`PrefabIsolation`](#prefabisolation) · [`PrefabIsolationOptions`](#prefabisolationoptions) · [`PreviewRuntime`](#previewruntime) · [`Pt`](#pt) · [`QuarterTurnTargets`](#quarterturntargets) · [`RESIZE_DIRS`](#resize_dirs) · [`Ref`](#ref) · [`RefTarget`](#reftarget) · [`Registry`](#registry) · [`ResizeDir`](#resizedir) · [`RevertResult`](#revertresult) · [`SECTION_TITLES`](#section_titles) · [`SNAP_PX`](#snap_px) · [`SNAP_REACH_PX`](#snap_reach_px) · [`SNAP_STEPS`](#snap_steps) · [`STALK_PX`](#stalk_px) · [`SceneChange`](#scenechange) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneOp`](#sceneop) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SelectMode`](#selectmode) · [`SelectingBatch`](#selectingbatch) · [`SessionHistory`](#sessionhistory) · [`SettingsRowsOptions`](#settingsrowsoptions) · [`SettingsSection`](#settingssection) · [`ShapeConversion`](#shapeconversion) · [`ShapeObj`](#shapeobj) · [`ShapeSlot`](#shapeslot) · [`ShapeTuple`](#shapetuple) · [`SnapGuide`](#snapguide) · [`SnapMoveInput`](#snapmoveinput) · [`SnapMoveResult`](#snapmoveresult) · [`SnapSettings`](#snapsettings) · [`SnapTarget`](#snaptarget) · [`SpatialIndex`](#spatialindex) · [`SpatialIndexOptions`](#spatialindexoptions) · [`StrokeFit`](#strokefit) · [`ToolHost`](#toolhost) · [`ToolHostOptions`](#toolhostoptions) · [`ToolKeyEvent`](#toolkeyevent) · [`ToolLayers`](#toollayers) · [`ToolModifiers`](#toolmodifiers) · [`ToolOption`](#tooloption) · [`ToolOverlay`](#tooloverlay) · [`ToolPointerEvent`](#toolpointerevent) · [`VELOCITY_PX`](#velocity_px) · [`WHEEL_ZOOM`](#wheel_zoom) · [`applyLevels`](#applylevels) · [`applyToPrefabBatch`](#applytoprefabbatch) · [`asProjectBatch`](#asprojectbatch) · [`behaviorGizmo`](#behaviorgizmo-1) · [`behaviorHandles`](#behaviorhandles) · [`behaviorMarks`](#behaviormarks-1) · [`boundsCheck`](#boundscheck) · [`boxTool`](#boxtool) · [`buildInspectorModel`](#buildinspectormodel) · [`buildOutline`](#buildoutline) · [`buildTreeOutline`](#buildtreeoutline) · [`builtinTools`](#builtintools) · [`bulkGeometry`](#bulkgeometry) · [`capsuleLength`](#capsulelength) · [`carryPreview`](#carrypreview) · [`childOverrides`](#childoverrides) · [`circleTool`](#circletool) · [`convertToChainFix`](#converttochainfix) · [`copySelection`](#copyselection) · [`createDrawTool`](#createdrawtool) · [`createEditorSession`](#createeditorsession) · [`createEditorStore`](#createeditorstore) · [`createGesturePreview`](#creategesturepreview) · [`createHistory`](#createhistory) · [`createKeymap`](#createkeymap) · [`createPenTool`](#createpentool) · [`createPrefabBatch`](#createprefabbatch) · [`createSpatialIndex`](#createspatialindex) · [`createToolHost`](#createtoolhost) · [`createVariantBatch`](#createvariantbatch) · [`cutSelection`](#cutselection) · [`cycleHit`](#cyclehit) · [`defaultLayer`](#defaultlayer) · [`defineEditorTool`](#defineeditortool) · [`deleteBatch`](#deletebatch) · [`deleteVertices`](#deletevertices) · [`dirSigns`](#dirsigns) · [`docRefs`](#docrefs) · [`dragAngle`](#dragangle) · [`dragBehaviorHandle`](#dragbehaviorhandle) · [`dragHandle`](#draghandle) · [`dragInsertVertex`](#draginsertvertex) · [`dragInsertWaypoint`](#draginsertwaypoint) · [`dragSelection`](#dragselection) · [`dragVertex`](#dragvertex) · [`dragWaypoint`](#dragwaypoint) · [`drawBatch`](#drawbatch) · [`drawTypeOptions`](#drawtypeoptions) · [`drawnShape`](#drawnshape) · [`dropBatch`](#dropbatch) · [`dropFragment`](#dropfragment) · [`dropPreview`](#droppreview-1) · [`duplicateSelection`](#duplicateselection) · [`editTree`](#edittree-1) · [`enclosingInstances`](#enclosinginstances) · [`entityGeometry`](#entitygeometry) · [`expandRefs`](#expandrefs) · [`fieldOp`](#fieldop) · [`flipBatch`](#flipbatch) · [`formatMetres`](#formatmetres) · [`fragmentBounds`](#fragmentbounds) · [`fragmentOf`](#fragmentof) · [`frameHandles`](#framehandles) · [`geometryOfRef`](#geometryofref) · [`gizmoTarget`](#gizmotarget-1) · [`groupBatch`](#groupbatch) · [`hierarchyDown`](#hierarchydown) · [`hierarchyUp`](#hierarchyup) · [`hitHandle`](#hithandle) · [`insertVertex`](#insertvertex) · [`inspectorFields`](#inspectorfields) · [`instanceAngleBatch`](#instanceanglebatch) · [`instanceAngleRow`](#instanceanglerow) · [`instanceLevels`](#instancelevels) · [`instanceOfRef`](#instanceofref) · [`instanceParamsModel`](#instanceparamsmodel-1) · [`instanceTransformModel`](#instancetransformmodel-1) · [`instanceZBatch`](#instancezbatch) · [`instancesOf`](#instancesof) · [`isBulkRef`](#isbulkref) · [`isolationBounds`](#isolationbounds) · [`judgeConcave`](#judgeconcave) · [`keyChord`](#keychord) · [`labelFor`](#labelfor) · [`lock45`](#lock45) · [`lookupRef`](#lookupref) · [`marqueeSelect`](#marqueeselect) · [`modelBatch`](#modelbatch) · [`modelOps`](#modelops) · [`moveBatch`](#movebatch) · [`moveTarget`](#movetarget) · [`moveVertex`](#movevertex) · [`nestedInstanceOf`](#nestedinstanceof) · [`nextFreeId`](#nextfreeid) · [`normDeg`](#normdeg) · [`normalizeChord`](#normalizechord) · [`nudgeBatch`](#nudgebatch) · [`nudgeDelta`](#nudgedelta) · [`numberBounds`](#numberbounds-1) · [`onePixel`](#onepixel) · [`openPrefabIsolation`](#openprefabisolation) · [`outlineOrder`](#outlineorder) · [`overridePathsOf`](#overridepathsof) · [`panTool`](#pantool) · [`paramBatch`](#parambatch) · [`parentBatch`](#parentbatch) · [`parentCandidates`](#parentcandidates) · [`parentModel`](#parentmodel-1) · [`parseFragment`](#parsefragment) · [`parseRelative`](#parserelative) · [`pasteFragment`](#pastefragment) · [`pathBatch`](#pathbatch) · [`penTool`](#pentool) · [`pickAt`](#pickat) · [`pixelSize`](#pixelsize) · [`placedShape`](#placedshape) · [`placementEditorTool`](#placementeditortool) · [`pointBatch`](#pointbatch) · [`projectHistory`](#projecthistory) · [`prune`](#prune) · [`quarterTurnTargets`](#quarterturntargets-1) · [`radiusTo`](#radiusto) · [`readAngle`](#readangle) · [`readDelta`](#readdelta) · [`readLength`](#readlength) · [`readPoint`](#readpoint) · [`readRadius`](#readradius) · [`readShapeSize`](#readshapesize) · [`readSize`](#readsize) · [`rebasePath`](#rebasepath) · [`refCandidates`](#refcandidates) · [`referableEntities`](#referableentities) · [`remap`](#remap) · [`removeVertices`](#removevertices) · [`removeWaypoints`](#removewaypoints) · [`resizeBox`](#resizebox) · [`resizeCursor`](#resizecursor) · [`revertAllBatch`](#revertallbatch) · [`revertFieldBatch`](#revertfieldbatch) · [`rootTargets`](#roottargets) · [`rotateByHandle`](#rotatebyhandle) · [`rotateFrame`](#rotateframe) · [`rotateSelectionBatch`](#rotateselectionbatch) · [`rotateTargetsBatch`](#rotatetargetsbatch) · [`rotateTool`](#rotatetool) · [`rotationPivot`](#rotationpivot) · [`roundPt`](#roundpt) · [`roundShape`](#roundshape) · [`select`](#select) · [`selectAllRefs`](#selectallrefs) · [`selectTool`](#selecttool) · [`selectionBounds`](#selectionbounds) · [`selectionBox`](#selectionbox) · [`selectionHandles`](#selectionhandles) · [`selectionRoots`](#selectionroots) · [`setHover`](#sethover) · [`settingsEdit`](#settingsedit) · [`settingsRows`](#settingsrows) · [`settingsValue`](#settingsvalue) · [`shapeBatch`](#shapebatch) · [`shapeConversions`](#shapeconversions) · [`shapeEdit`](#shapeedit) · [`shapeHandles`](#shapehandles) · [`shapePivot`](#shapepivot) · [`shapeSet`](#shapeset) · [`shapeSlots`](#shapeslots) · [`snapAngle`](#snapangle) · [`snapDraggedPoint`](#snapdraggedpoint) · [`snapMove`](#snapmove) · [`snapPoint`](#snappoint) · [`snapToGrid`](#snaptogrid) · [`strokeFit`](#strokefit-1) · [`strokeShape`](#strokeshape) · [`takesConcave`](#takesconcave) · [`targetBox`](#targetbox) · [`targetHandles`](#targethandles) · [`targetPivot`](#targetpivot) · [`targetsOf`](#targetsof) · [`toolKeyEventOf`](#toolkeyeventof) · [`treeBox`](#treebox) · [`turnBatch`](#turnbatch) · [`ungroupBatch`](#ungroupbatch) · [`unpackBatch`](#unpackbatch) · [`vertexHandles`](#vertexhandles) · [`waypointHandles`](#waypointhandles) · [`waypointsTool`](#waypointstool) · [`withPreview`](#withpreview) · [`withShapeSlot`](#withshapeslot) · [`zOrderBatch`](#zorderbatch)
 
 ## `Aabb`
 
@@ -270,6 +270,22 @@ World px a coarse (Shift) nudge moves.
 declare const COARSE_NUDGE_STEPS = 10;
 ```
 
+## `CarryContext`
+
+_type_ in `editor/gizmos/carry.ts`
+
+```ts
+type CarryContext = {
+    /** A node's or instance's frame in the world, where a `transform` without `about` turns it. */
+    frameOf(ref: Ref): Frame | undefined;
+    registry: Registry;
+    tree: EditTree;
+    view: SceneDefinition;
+};
+```
+
+Refers to [`EditTree`](#edittree), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
 ## `CreateVariant`
 
 _type_ in `editor/prefab-commands.ts`
@@ -534,25 +550,74 @@ type EditPose = {
 
 Refers to [`Pt`](#pt).
 
+## `EditSource`
+
+_type_ in `editor/gizmos/tree.ts`
+
+The document behind a resolved view, where instances and the tree are read
+from: the view inlines instances and drops their ids, and loses which
+instances sit under a parent.
+
+```ts
+type EditSource = {
+    doc: SceneDefinition;
+    prefabs?: PrefabLibrary;
+};
+```
+
+Refers to [`SceneDefinition`](#scenedefinition).
+
+## `EditTree`
+
+_type_ in `editor/gizmos/tree.ts`
+
+The tree as a resolved view's refs see it.
+
+```ts
+type EditTree = {
+    /**
+     * The view's entities below each of `refs`, `refs` left out: children by
+     * `parent`, an instance's children, and what sits under those. Instance
+     * ids, which the view holds no entity for, are walked through, never
+     * returned.
+     */
+    below(refs: Iterable<Ref>): Ref[];
+    /** The document's instance ids, in document order. */
+    instances(): readonly Ref[];
+    /** Whether `ref` names an instance of the document (top level), which the view has no entity for. */
+    isInstance(ref: Ref): boolean;
+};
+```
+
+Refers to [`Ref`](#ref).
+
 ## `EditableSpatialIndex`
 
 _type_ in `editor/spatial-index.ts`
 
 ```ts
 type EditableSpatialIndex = SpatialIndex & {
-    /** Indexes `def` from scratch. */
-    rebuild(def: SceneDefinition, registry: Registry): void;
     /**
-     * Brings the index up to `def` after a change to `touched` (refs of the new
-     * document, as `applyOps` and `EditorSession` report them). An empty list
-     * rebuilds. A bulk key whose entries changed is re-indexed whole, since its
-     * indices shift; entities missing from `def` are dropped.
+     * Indexes `def` (a resolved view, or a scene with neither instances nor
+     * parents) from scratch. `source` is the document behind a resolved view,
+     * which says what sits under a parent the view can't show: an instance
+     * under a node.
      */
-    update(def: SceneDefinition, registry: Registry, touched: readonly Ref[]): void;
+    rebuild(def: SceneDefinition, registry: Registry, source?: EditSource): void;
+    /**
+     * Brings the index up to `def` after a change to `touched` (refs of the
+     * document, as `applyOps` and `EditorSession` report them, or of the
+     * view). Each touched ref is re-indexed with its subtree, which a moved or
+     * turned parent carries in the world: an instance's id with its children.
+     * An empty list rebuilds. A bulk key whose entries changed is re-indexed
+     * whole, since its indices shift; entities missing from `def` are dropped,
+     * and every instance's entry is redrawn over its subtree.
+     */
+    update(def: SceneDefinition, registry: Registry, touched: readonly Ref[], source?: EditSource): void;
 };
 ```
 
-Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SpatialIndex`](#spatialindex).
+Refers to [`EditSource`](#editsource), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SpatialIndex`](#spatialindex).
 
 ## `EditorCommand`
 
@@ -800,10 +865,15 @@ type EditorToolContext = {
         keys: string[];
     }): void;
     snap(): SnapSettings;
+    /**
+     * The document behind `getDoc()`'s resolved view, where instances and the
+     * tree are read from; absent on a host that edits a view with neither.
+     */
+    source?(): EditSource;
 };
 ```
 
-Refers to [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectMode`](#selectmode), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex).
+Refers to [`EditSource`](#editsource), [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectMode`](#selectmode), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex).
 
 ## `EditorToolDef`
 
@@ -910,6 +980,7 @@ type FieldWidget = {
     either?: true;
     kind: "entity-ref";
     multiple: boolean;
+    parent?: true;
 } | {
     bigStep: number;
     /** Decimals to show: for an `m` field, the ones one world px needs (`lengthDecimals`). */
@@ -1110,6 +1181,12 @@ type GizmoEdit = {
      */
     concave?: boolean;
     guides?: SnapGuide[];
+    /**
+     * What the resolved view previews while dragging, when it isn't `batch`:
+     * a parent's subtree carried with it, an instance's children for an
+     * instance (`GizmoTarget.preview`). Commit `batch` all the same.
+     */
+    preview?: OpBatch;
     /** A path's waypoints as the batch commits them. */
     pts?: Pt[];
     /** The drag readout: `Δ 0.64, 0 m`, `W 1.6 H 0.16 m`, `37°`. */
@@ -1136,6 +1213,8 @@ type GizmoHandle = {
     /** Stable within one gizmo: `resize:nw`, `rotate`, `vertex:3`, `insert:2`, `waypoint:1`. */
     id: string;
     kind: HandleKind;
+    /** Where a rotate handle's stalk starts: the point it turns about, drawn as a line to the handle. */
+    stalk?: Pt;
 };
 ```
 
@@ -1145,15 +1224,22 @@ Refers to [`HandleKind`](#handlekind), [`Pt`](#pt).
 
 _type_ in `editor/gizmos/target.ts`
 
-One selected entity as the gizmos edit it, read from the document.
+One selected entity or instance as the gizmos edit it, read from the resolved view.
 
 ```ts
 type GizmoTarget = {
-    /** A point entity's position, when it has no shape. */
+    /** A point entity's position, when it has no shape; a node's or an instance's origin. */
     at?: Pt;
     /** Its collider, joint, force area and spawner, when it carries any. */
     behaviors?: BehaviorGizmo;
+    /** The box over it and its subtree, when it has one: what snapping and a selection's box go by. */
+    box?: Aabb;
     bulk: boolean;
+    /**
+     * A node's or an instance's frame in the world: its origin, angle and
+     * flip. Its rotate handle turns it about the origin with a `transform`.
+     */
+    frame?: Frame;
     /** The shape as the document holds it: local to the path's first point when there is a path. */
     local?: ShapeObj;
     /** The path the shape rides, waypoints in world metres. */
@@ -1162,16 +1248,29 @@ type GizmoTarget = {
         loop: boolean;
         pts: Pt[];
     };
+    /** Where `at` is written; an instance has none, since a `move` places it. */
     pointField?: string;
+    /** An instance's prefab. */
+    prefab?: string;
+    /**
+     * The batch the resolved view previews for `batch`, an edit of this target
+     * or of a selection holding it, when that isn't `batch` itself: what sits
+     * under a moved or turned parent carried along (`carryPreview`). Absent
+     * when nothing is under it.
+     */
+    preview?: (batch: OpBatch) => OpBatch | null;
     ref: Ref;
     /** The shape in world metres; on a path, placed at the path's first point. */
     shape?: ShapeObj;
     shapeField?: string;
+    /** The view's entities under it, which move and turn with it; absent when none is. */
+    subtree?: Ref[];
+    /** The entity's type; `node` for an instance, which the runtime places as one. */
     type: string;
 };
 ```
 
-Refers to [`BehaviorGizmo`](#behaviorgizmo), [`Pt`](#pt), [`Ref`](#ref), [`ShapeObj`](#shapeobj).
+Refers to [`Aabb`](#aabb), [`BehaviorGizmo`](#behaviorgizmo), [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`ShapeObj`](#shapeobj).
 
 ## `HANDLE_HIT_PX`
 
@@ -1300,6 +1399,18 @@ type IndexEntry = {
     aabb: Aabb;
     /** The entity's geometry: a shape, or a point for point entities. */
     geometry: Pt | ShapeObj;
+    /**
+     * An instance's entry: `aabb` covers its subtree and `geometry` is that
+     * box. Picking never hits it, only the entries under it; a marquee takes
+     * it in their place.
+     */
+    instance?: true;
+    /**
+     * The instances a prefab child sits in, outermost first (`["room-1",
+     * "room-1/door-1"]` for `room-1/door-1/panel`): the levels a click steps
+     * through.
+     */
+    instances?: Ref[];
     /** The doc key, which stays put while bulk refs shift; the ref for a plain definition. */
     key: string;
     /** A registry layer's name. */
@@ -1484,7 +1595,7 @@ Refers to [`ParamModel`](#parammodel), [`Ref`](#ref), [`RefTarget`](#reftarget).
 
 _type_ in `editor/inspector-model.ts`
 
-How an instance sits: its quarter turns, mirror and `z`, as the instance panel shows them.
+How an instance sits: its angle, mirror and `z`, as the instance panel shows them.
 
 ```ts
 type InstanceTransformModel = {
@@ -1492,8 +1603,8 @@ type InstanceTransformModel = {
     editable: boolean;
     flip: boolean;
     ref: Ref;
-    /** Quarter turns clockwise, 0–3. */
-    rot: 0 | 1 | 2 | 3;
+    /** Degrees clockwise, in [0, 360). */
+    rot: number;
     /** The instance's `z`; 0 when it sets none. */
     z: number;
 };
@@ -1518,8 +1629,6 @@ type KeyContext = {
     /** A prefab is open on its own, so Escape can leave it. */
     inPrefab?: boolean;
     mode: EditorMode;
-    /** Everything selected is prefab instances or whole groups, which turn by quarter turns. */
-    quarterTurns?: boolean;
     /** A shape's points are being edited. */
     subObject?: boolean;
     /** The active tool; anything but `select` is cleared by Escape. */
@@ -1677,10 +1786,16 @@ type ModelField = Omit<InspectorRow, "children"> & {
     /** A behavior field's `meta.group` (`jump`, `surface`): the sub-heading the inspector puts it under. */
     group?: string;
     section: ModelSectionId;
+    /**
+     * On a geometry field of an entity with a parent: the value is the world
+     * one, and the file stores it in this parent's frame; null when the
+     * targets have different parents.
+     */
+    storedIn?: Ref | null;
 };
 ```
 
-Refers to [`InspectorRow`](#inspectorrow), [`ModelSectionId`](#modelsectionid).
+Refers to [`InspectorRow`](#inspectorrow), [`ModelSectionId`](#modelsectionid), [`Ref`](#ref).
 
 ## `ModelSectionId`
 
@@ -1798,6 +1913,27 @@ type ParamModel = {
 ```
 
 Refers to [`ModelField`](#modelfield).
+
+## `ParentModel`
+
+_type_ in `editor/inspector-model.ts`
+
+What the Parent row shows and offers for a selection.
+
+```ts
+type ParentModel = {
+    /** What `parentBatch` may put the refs under; empty when `fixed`. */
+    candidates: Ref[];
+    /** Why the parent can't be changed here; absent when it can. */
+    fixed?: string;
+    mixed: boolean;
+    refs: Ref[];
+    /** The parent every ref shares; null for the root; undefined when `mixed`. */
+    value: Ref | null | undefined;
+};
+```
+
+Refers to [`Ref`](#ref).
 
 ## `ParseFragmentResult`
 
@@ -2054,11 +2190,9 @@ _type_ in `editor/commands.ts`
 
 ```ts
 type QuarterTurnTargets = {
-    /** Declared groups every member of which is selected, in declaration order. */
-    groups: string[];
-    /** Selected instances (by id, or through a child) outside the groups below, in selection order. */
+    /** Selected instances (by id, or through a child), in selection order. */
     instances: string[];
-    /** What neither covers: plain entities and bulk entries. */
+    /** What isn't an instance: plain entities and bulk entries. */
     rest: Ref[];
 };
 ```
@@ -2274,7 +2408,7 @@ type SceneChange = {
     kind: "moved";
     ref: Ref;
 } | {
-    field: "assets" | "bounds" | "game" | "name" | "v" | `groups.${string}` | `settings.${string}`;
+    field: "assets" | "bounds" | "game" | "name" | "v" | `settings.${string}`;
     from: unknown;
     kind: "scene";
     to: unknown;
@@ -2323,8 +2457,6 @@ type SceneDefinition = {
     entities?: EntityDef[];
     /** The game whose registry validates this file; omitted means engine primitives only. */
     game?: string;
-    /** Declared groups by id. A member of a group stores geometry local to the group's `at`. */
-    groups?: Record<string, GroupDef>;
     instances?: InstanceDef[];
     name: string;
     settings?: SceneSettings;
@@ -2405,9 +2537,9 @@ _type_ in `scene/types.ts`
 type SceneOp = {
     about?: Pt;
     flip?: "x" | "y";
-    groups?: string[];
     op: "transform";
-    refs?: string[];
+    refs: string[];
+    rotate?: number;
     turn?: -1 | 1 | 2 | 3;
 } | {
     add?: AssetId[];
@@ -2418,16 +2550,6 @@ type SceneOp = {
     at: Pt;
     op: "place";
     ref: Ref;
-} | {
-    at?: Pt;
-    /** Absolute; false is written as absent. */
-    flip?: boolean;
-    id: string;
-    name?: null | string;
-    op: "setGroup";
-    remove?: boolean;
-    /** Absolute; 0 is written as absent. */
-    rot?: 0 | 1 | 2 | 3;
 } | {
     at?: Pt;
     id: string;
@@ -2511,6 +2633,10 @@ type SceneOp = {
     op: "remove";
     refs: Ref[];
 } | {
+    op: "reparent";
+    parent: Ref | null;
+    refs: Ref[];
+} | {
     op: "revertOverride";
     paths?: OverridePath[];
     ref?: Ref;
@@ -2581,6 +2707,21 @@ _type_ in `editor/selection.ts`
 ```ts
 type SelectMode = "add" | "range" | "replace" | "toggle";
 ```
+
+## `SelectingBatch`
+
+_type_ in `editor/commands.ts`
+
+A batch with what the editor selects once it applies.
+
+```ts
+type SelectingBatch = {
+    batch: OpBatch;
+    select: Ref[];
+};
+```
+
+Refers to [`OpBatch`](#opbatch), [`Ref`](#ref).
 
 ## `SessionHistory`
 
@@ -2932,7 +3073,7 @@ type ToolHost = {
      */
     key(e: ToolKeyEvent): boolean;
     /** The parts of the keymap's context the host knows. */
-    keyContext(): Pick<KeyContext, "gesture" | "hasSelection" | "quarterTurns" | "subObject" | "tool">;
+    keyContext(): Pick<KeyContext, "gesture" | "hasSelection" | "subObject" | "tool">;
     layers(): ToolLayers;
     /** The active tool's setting (`overlay().option`), without building the selection's outlines. */
     option(): ToolOption | undefined;
@@ -3235,37 +3376,6 @@ declare function asProjectBatch(scene: AssetId, batch: OpBatch): ProjectOpBatch;
 
 Refers to [`OpBatch`](#opbatch).
 
-## `attachBatch`
-
-_function_ in `editor/attach.ts`
-
-One `update` pointing `ref`'s `attachField` at `follower`, or clearing it
-when `follower` is null. A follower may be an instance's child by its
-resolved ref (`gate-2/lift`), found through `prefabs`. Null when `ref`
-isn't one of the document's entities, its type has no `attachField`, the
-follower isn't a type that field may name, or nothing would change.
-
-```ts
-declare function attachBatch(def: SceneDefinition, ref: Ref, follower: Ref | null, registry: Registry, prefabs?: PrefabLibrary): OpBatch | null;
-```
-
-Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
-
-## `attachFieldOf`
-
-_function_ in `editor/attach.ts`
-
-A placeable type's `attachField` and the types it may ride, or null when it has none.
-
-```ts
-declare function attachFieldOf(registry: Registry, type: EntityTypeName): null | {
-    field: string;
-    targets: readonly EntityTypeName[];
-};
-```
-
-Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
-
 ## `behaviorGizmo`
 
 _function_ in `editor/gizmos/behavior-target.ts`
@@ -3386,6 +3496,24 @@ declare function buildOutline(def: SceneDefinition, registry: Registry, prefabs?
 
 Refers to [`OutlineRow`](#outlinerow), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
+## `buildTreeOutline`
+
+_function_ in `editor/outline.ts`
+
+The outliner's rows as the scene's tree: each root entity and instance
+with its children below it a level deeper each, a parent's entities in
+`entities` order and then its instances in `instances` order. An
+instance's prefab children come first under it, each with the scene's
+entities parented to it, then the scene's own children of the instance.
+A parent that doesn't resolve, or closes a loop, leaves its child at the
+root, as the scene loads it. Bulk buckets follow as root rows.
+
+```ts
+declare function buildTreeOutline(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): OutlineRow[];
+```
+
+Refers to [`OutlineRow`](#outlinerow), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
 ## `builtinTools`
 
 _function_ in `editor/tool-host.ts`
@@ -3421,6 +3549,26 @@ declare function capsuleLength(c: Capsule, to: Pt, pxPerMetre: number): Capsule;
 ```
 
 Refers to [`Pt`](#pt).
+
+## `carryPreview`
+
+_function_ in `editor/gizmos/carry.ts`
+
+`batch`, a gizmo edit written for the document, as the resolved view
+previews it: what sits under each thing it moves or turns is carried with
+it, since the document stores children in their parent's frame and the
+view places them in the world. A `move` takes the subtree along; a
+`transform` turns a node and its subtree by updates (the view's nodes
+already sit in the world, so the op itself would turn them twice); an
+`update` that moves its entity's frame carries the subtree by the same
+change. An instance has no entity in the view, so only its subtree shows.
+`null` when the batch is its own preview.
+
+```ts
+declare function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null;
+```
+
+Refers to [`CarryContext`](#carrycontext), [`OpBatch`](#opbatch).
 
 ## `childOverrides`
 
@@ -3611,9 +3759,12 @@ _function_ in `editor/spatial-index.ts`
 
 The uniform grid of AABBs picking, marquee and snapping query. Entries
 cover every bulk entry and every entity with a shape or point, `off`
-entities and notes included; an entity on a path is indexed at the
-path's first point. An entity carrying a sprite is also hit by the box
-the sprite draws; a point entity's sprite box is its geometry.
+entities, notes and nodes (at their origin) included; an entity on a path
+is indexed at the path's first point. An entity carrying a sprite is also
+hit by the box the sprite draws; a point entity's sprite box is its
+geometry. Each instance has an entry over its subtree, stacked with the
+topmost entry under it, and a prefab child's entry names the instances
+it sits in.
 
 ```ts
 declare function createSpatialIndex(opts?: SpatialIndexOptions): EditableSpatialIndex;
@@ -3661,8 +3812,9 @@ Refers to [`CreateVariant`](#createvariant).
 _function_ in `editor/clipboard.ts`
 
 The clipboard text for the selection and the batch that removes it,
-instances included. An instance's child (`gate-2/door`) can't be removed
-from its prefab, so the batch turns it off on that instance with an
+instances and what sits under the selection included, each child before
+its parent. An instance's child (`gate-2/door`) can't be removed from
+its prefab, so the batch turns it off on that instance with an
 `<child>.off` override; one whose instance is cut as well is left to it.
 
 ```ts
@@ -3978,8 +4130,10 @@ Refers to [`AssetDrop`](#assetdrop), [`DropOptions`](#dropoptions), [`DropPrevie
 _function_ in `editor/clipboard.ts`
 
 The selection copied and pasted one grid `step` (metres) down and to the right
-(Mod+D), instances included. `from` is the scene the selection is read
-from when it differs from `def`.
+(Mod+D), instances and what sits under the selection included. Each copy
+of an entity or instance with a parent goes back under that parent, where
+a `reparent` keeps it next to its original. `from` is the scene the
+selection is read from when it differs from `def`.
 
 ```ts
 declare function duplicateSelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry, step: number, opts?: {
@@ -3989,6 +4143,35 @@ declare function duplicateSelection(def: SceneDefinition, refs: readonly Ref[], 
 ```
 
 Refers to [`PasteResult`](#pasteresult), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
+## `editTree`
+
+_function_ in `editor/gizmos/tree.ts`
+
+The tree of `view`, a resolved view. With `source`, parents are read from
+the document as the resolver settles them (a missing parent or the last
+link of a cycle is a root) and instances under a parent are found;
+without it, from the view's own `parent` fields and child refs.
+
+```ts
+declare function editTree(view: SceneDefinition, source?: EditSource): EditTree;
+```
+
+Refers to [`EditSource`](#editsource), [`EditTree`](#edittree), [`SceneDefinition`](#scenedefinition).
+
+## `enclosingInstances`
+
+_function_ in `editor/gizmos/tree.ts`
+
+The instances a prefab child sits in, outermost first: `["room-1",
+"room-1/door-1"]` for `room-1/door-1/panel`; none for a ref of the
+document itself.
+
+```ts
+declare function enclosingInstances(ref: Ref): Ref[];
+```
+
+Refers to [`Ref`](#ref).
 
 ## `entityGeometry`
 
@@ -4035,9 +4218,9 @@ Refers to [`Ref`](#ref), [`SceneOp`](#sceneop).
 
 _function_ in `editor/commands.ts`
 
-One batch mirroring the selected instances and whole groups across the
-world axis: `x` flips left and right, `y` up and down, each about its own
-`at`. `null` when the selection holds neither.
+One batch mirroring the selected instances across the world axis: `x`
+flips left and right, `y` up and down, each about its own `at`. `null`
+when the selection holds none.
 
 ```ts
 declare function flipBatch(def: SceneDefinition, refs: readonly Ref[], axis: "x" | "y"): OpBatch | null;
@@ -4061,8 +4244,9 @@ declare function formatMetres(m: number, pxPerMetre: number): string;
 _function_ in `scene/fragment.ts`
 
 The world box around everything in the fragment; `null` when nothing in
-it has a position. Its instances count with `prefabs`: the box around
-each one's resolved children (a variant's base and nested instances'
+it has a position. What sits under a parent in it counts where the
+parent puts it. Its instances count with `prefabs`: the box around each
+one's resolved children (a variant's base and nested instances'
 children included), turned and flipped with it; one whose prefab isn't
 there is skipped.
 
@@ -4077,16 +4261,37 @@ Refers to [`Aabb`](#aabb), [`Registry`](#registry), [`SceneFragment`](#scenefrag
 _function_ in `scene/fragment.ts`
 
 The entities, instances and bulk entries `refs` name, in document order,
-as the resolved view holds them (world coordinates); refs that don't
-resolve are skipped. An instance travels as itself, its prefab by id; a
-child of an instance (`gate-2/door`, resolved through `prefabs`) travels
-as a plain entity, unless its instance is copied too.
+with everything below them (`withSubtrees`); refs that don't resolve are
+skipped. The fragment's roots (what has no parent in it) stand where the
+resolved view puts them, in world coordinates, under nothing; what sits
+under one of them keeps its `parent` and its stored geometry, rewritten
+only where a root's own fields can't carry the turn or flip it stood in.
+An instance travels as itself, its prefab by id; a child of an instance
+(`gate-2/door`, resolved through `prefabs`) travels as a plain root
+entity, unless its instance is copied too.
 
 ```ts
 declare function fragmentOf(def: SceneDefinition, refs: readonly Ref[], registry: Registry, prefabs?: PrefabLibrary): SceneFragment;
 ```
 
 Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SceneFragment`](#scenefragment).
+
+## `frameHandles`
+
+_function_ in `editor/gizmos/handles.ts`
+
+A node's or an instance's handles: move at its origin, and rotate on a
+stalk from the origin along the frame's up (its local -y), out past the
+box over what sits under it so the handle clears its children.
+
+```ts
+declare function frameHandles(f: {
+    at: Pt;
+    rot: number;
+}, box: Aabb | undefined, scale: number): GizmoHandle[];
+```
+
+Refers to [`Aabb`](#aabb), [`GizmoHandle`](#gizmohandle), [`Pt`](#pt).
 
 ## `geometryOfRef`
 
@@ -4107,36 +4312,46 @@ Refers to [`EditGeometry`](#editgeometry), [`Ref`](#ref), [`Registry`](#registry
 
 _function_ in `editor/gizmos/target.ts`
 
-`ref`'s editable geometry in `def`; `undefined` when it isn't there or has no shape or point.
+`ref`'s editable geometry in `def`, the resolved view; `undefined` when it
+isn't there or has no shape or point. A node is a point target with its
+frame. With `source`, the document behind the view, an instance's id is a
+point target too, at its origin with its frame, and the subtree under an
+instance's parent is found.
 
 ```ts
-declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref): GizmoTarget | undefined;
+declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref, source?: EditSource): GizmoTarget | undefined;
 ```
 
-Refers to [`GizmoTarget`](#gizmotarget), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+Refers to [`EditSource`](#editsource), [`GizmoTarget`](#gizmotarget), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
 ## `groupBatch`
 
 _function_ in `editor/commands.ts`
 
-One batch putting the selected entities in a group (their `group` field),
-a new one unless `name` is given. Bulk entries have no fields, so they are
-left out; `null` when no entity is selected or all are already in it.
+Grouping the selection (`def` is the document): one batch that adds a
+`node` at the centre of the selection's bounds, under the selection's
+common parent, and puts the selection's roots under it, so nothing moves
+in the world. Bulk entries, instances' children and types that can't be in
+the tree are left out; `null` when nothing is left or the game has no
+`node`. Selects the node.
 
 ```ts
-declare function groupBatch(def: SceneDefinition, refs: readonly Ref[], name?: string): OpBatch | null;
+declare function groupBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): SelectingBatch | null;
 ```
 
-Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
+Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectingBatch`](#selectingbatch).
 
 ## `hierarchyDown`
 
 _function_ in `editor/commands.ts`
 
-`]`: from a selection of several, its first ref in outline order; `null` for one or none.
+`]`: one ref's first child in `def` (the document): an instance's first
+level of children (a nested instance before what it holds), then what sits
+under it by `parent`, entities before instances. From a selection of
+several, its first ref in outline order. `null` when there's nothing below.
 
 ```ts
-declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
+declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[], prefabs?: PrefabLibrary): Ref[] | null;
 ```
 
 Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
@@ -4145,16 +4360,15 @@ Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefi
 
 _function_ in `editor/commands.ts`
 
-`[`: the selection's parent. Inside a group not wholly selected, the whole
-group; otherwise everything under the first selected ref's outline row
-(its bulk key, or its type), climbing past rows that hold exactly the
-selection. `null` at the top.
+`[`: what the selection sits under in `def` (the document): each selected
+ref's parent, a prefab's child's being its instance. A bulk entry at the
+root climbs to its whole bucket. `null` when nothing climbs.
 
 ```ts
-declare function hierarchyUp(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
+declare function hierarchyUp(def: SceneDefinition, sel: readonly Ref[]): Ref[] | null;
 ```
 
-Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+Refers to [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
 
 ## `hitHandle`
 
@@ -4197,6 +4411,54 @@ declare function inspectorFields(registry: Registry, target: RefTarget): Inspect
 ```
 
 Refers to [`InspectorField`](#inspectorfield), [`RefTarget`](#reftarget), [`Registry`](#registry).
+
+## `instanceAngleBatch`
+
+_function_ in `editor/inspector-model.ts`
+
+The batch turning a scene instance to `input` degrees clockwise (a
+number, typed text, or a relative edit like `+=15`) about its `at`: one
+`transform` by the difference, which composes onto its angle in the
+world, so under a mirrored parent the turn runs the other way. No ops
+when the angle doesn't change.
+
+```ts
+declare function instanceAngleBatch(def: SceneDefinition, model: InstanceTransformModel, input: unknown, registry?: Registry, prefabs?: PrefabLibrary): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
+```
+
+Refers to [`InstanceTransformModel`](#instancetransformmodel), [`OpBatch`](#opbatch), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
+## `instanceAngleRow`
+
+_function_ in `editor/inspector-model.ts`
+
+The instance's angle as the placement panel's angle field draws it: degrees, unset at 0.
+
+```ts
+declare function instanceAngleRow(model: InstanceTransformModel): InspectorRow;
+```
+
+Refers to [`InspectorRow`](#inspectorrow), [`InstanceTransformModel`](#instancetransformmodel).
+
+## `instanceLevels`
+
+_function_ in `editor/commands.ts`
+
+The levels a click walks from the outermost instance holding `ref` down to
+`ref` itself: `["room-1", "room-1/door-1", "room-1/door-1/panel"]`; just
+`[ref]` for anything that isn't an instance's child.
+
+```ts
+declare function instanceLevels(ref: Ref): Ref[];
+```
+
+Refers to [`Ref`](#ref).
 
 ## `instanceOfRef`
 
@@ -4283,18 +4545,6 @@ declare function isBulkRef(ref: Ref): boolean;
 
 Refers to [`Ref`](#ref).
 
-## `isFollowerType`
-
-_function_ in `editor/attach.ts`
-
-Whether entities of placeable `type` can be named by some placeable type's `attachField`.
-
-```ts
-declare function isFollowerType(registry: Registry, type: EntityTypeName): boolean;
-```
-
-Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
-
 ## `isolationBounds`
 
 _function_ in `editor/isolation.ts`
@@ -4372,7 +4622,9 @@ _function_ in `editor/picking.ts`
 
 What a marquee over `rect` selects, topmost first: entries wholly inside
 it, or with `touch` (Alt) any it or its sprite's box touches (a camera
-region's outline, not its inside). Hidden and locked layers are skipped.
+region's outline, not its inside). A prefab child is never taken on its
+own: its outermost instance is, in its place, once the marquee takes
+all of it (with `touch`, any of it). Hidden and locked layers are skipped.
 
 ```ts
 declare function marqueeSelect(index: SpatialIndex, rect: Aabb, opts: {
@@ -4436,9 +4688,10 @@ Refers to [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref).
 
 _function_ in `editor/gizmos/drag.ts`
 
-Moving one target by its move handle or body: the drag snaps (the box
-edge nearest the grab) and becomes one `move`, which carries a path with
-it. With Alt, a target on a path re-bases waypoint 0 instead.
+Moving one target by its move handle or body: the drag snaps (the edge of
+the box over it and its subtree nearest the grab) and becomes one `move`,
+which carries a path, and in the document everything under it, with it.
+With Alt, a target on a path re-bases waypoint 0 instead.
 
 ```ts
 declare function moveTarget(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit;
@@ -4487,18 +4740,6 @@ _function_ in `scene/fragment.ts`
 ```ts
 declare function nextFreeId(id: string, taken: ReadonlySet<string>): string;
 ```
-
-## `nextGroupName`
-
-_function_ in `editor/commands.ts`
-
-The first `group-<n>` no entity uses.
-
-```ts
-declare function nextGroupName(def: SceneDefinition): string;
-```
-
-Refers to [`SceneDefinition`](#scenedefinition).
 
 ## `normDeg`
 
@@ -4579,8 +4820,8 @@ follows and collaborators in the prefab see each other. The instances
 it holds show resolved like a scene's, their children by `door-1/panel`;
 an edit to one is an override in this prefab, and an instance that
 would contain the prefab itself is refused with `prefab-cycle`. Ops that
-only mean something in a scene, and children joining a group, are
-refused with `op-invalid`. Null when the source has no such prefab to open.
+only mean something in a scene are refused with `op-invalid`. Null when
+the source has no such prefab to open.
 
 ```ts
 declare function openPrefabIsolation(scene: EditorSession, prefab: string, opts?: PrefabIsolationOptions): Promise<PrefabIsolation | null>;
@@ -4658,6 +4899,57 @@ declare function paramBatch(model: InstanceParamsModel, param: ParamModel, input
 
 Refers to [`InstanceParamsModel`](#instanceparamsmodel), [`ModelField`](#modelfield), [`OpBatch`](#opbatch), [`ParamModel`](#parammodel).
 
+## `parentBatch`
+
+_function_ in `editor/inspector-model.ts`
+
+The batch putting `model`'s refs under `parent` (null: the root), each
+keeping its world pose: one `reparent`, of the refs not already there.
+
+```ts
+declare function parentBatch(model: ParentModel, parent: Ref | null, def: SceneDefinition): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
+```
+
+Refers to [`OpBatch`](#opbatch), [`ParentModel`](#parentmodel), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
+
+## `parentCandidates`
+
+_function_ in `editor/inspector-model.ts`
+
+What `refs` can be put under: the document's entities whose type can be
+a parent, its instances, and its instances' children and nested
+instances by resolved ref, in that order, without the refs themselves or
+anything under one of them.
+
+```ts
+declare function parentCandidates(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): Ref[];
+```
+
+Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
+## `parentModel`
+
+_function_ in `editor/inspector-model.ts`
+
+The Parent row for `refs` in `def` (the document): each one's parent,
+and what they can be put under. A document entity of a type the tree
+takes, or a scene instance, can be reparented; an instance's child or
+nested instance stays under its instance, and nav areas, camera regions
+and notes stay at the root. Null when a ref isn't in `def` or names a
+bulk entry.
+
+```ts
+declare function parentModel(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): ParentModel | null;
+```
+
+Refers to [`ParentModel`](#parentmodel), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
 ## `parseFragment`
 
 _function_ in `scene/fragment.ts`
@@ -4693,11 +4985,12 @@ The batch that pastes clipboard text into `def`: the fragment's box
 centred under `at` and snapped, ids that clash renamed (`lift` →
 `lift-2`), references inside the fragment following the renames, and
 references out of it kept when their target exists in `def`, else
-cleared with a `dangling-ref` warning. Instances keep their prefab,
-params and overrides under a fresh id when theirs is taken; one whose
-prefab isn't in `prefabs` is left out with a `prefab-unknown` warning.
-One batch of `addBulk`, `add` and `instantiate` ops; `select` names what
-it adds.
+cleared with a `dangling-ref` warning. The fragment's roots land under
+nothing, and what sits under them comes along. Instances keep their
+prefab, params and overrides under a fresh id when theirs is taken; one
+whose prefab isn't in `prefabs` is left out with a `prefab-unknown`
+warning. One batch of `addBulk`, `add` and `instantiate` ops; `select`
+names what it adds.
 
 ```ts
 declare function pasteFragment(input: SceneFragment | string, opts: PasteOptions): PasteResult;
@@ -4747,7 +5040,9 @@ Refers to [`EditorCommand`](#editorcommand), [`EditorToolContext`](#editortoolco
 _function_ in `editor/picking.ts`
 
 Every entry under `p` (its geometry, a camera region's outline, or the box
-its sprite draws), topmost first, skipping hidden and locked layers.
+its sprite draws), topmost first, skipping hidden and locked layers. An
+instance's own entry is never hit: what draws under it is, and names the
+instances it sits in (`IndexEntry.instances`).
 
 ```ts
 declare function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntry[];
@@ -4842,8 +5137,7 @@ Refers to [`Ref`](#ref).
 _function_ in `editor/commands.ts`
 
 What a turn or flip of `refs` acts on in `def` (the document, not the
-resolved view): instances and whole groups, which turn by quarter turns
-and flip exactly.
+resolved view): instances, which turn and flip exactly.
 
 ```ts
 declare function quarterTurnTargets(def: SceneDefinition, refs: readonly Ref[]): QuarterTurnTargets;
@@ -5077,6 +5371,18 @@ declare function revertFieldBatch(def: SceneDefinition, ref: Ref, field: string)
 
 Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
 
+## `rootTargets`
+
+_function_ in `editor/gizmos/multi.ts`
+
+The targets no other target holds in its subtree: what a move or turn writes, since the rest follows.
+
+```ts
+declare function rootTargets(targets: readonly GizmoTarget[]): GizmoTarget[];
+```
+
+Refers to [`GizmoTarget`](#gizmotarget).
+
 ## `rotateByHandle`
 
 _function_ in `editor/gizmos/drag.ts`
@@ -5094,14 +5400,32 @@ declare function rotateByHandle(s: ShapeObj, from: Pt, to: Pt, snap: SnapSetting
 
 Refers to [`Pt`](#pt), [`ShapeObj`](#shapeobj), [`SnapSettings`](#snapsettings).
 
+## `rotateFrame`
+
+_function_ in `editor/gizmos/drag.ts`
+
+A node or an instance turned by its rotate handle about its origin: the
+world angle snaps to the step (Shift: free, to whole degrees) and the turn
+becomes one `transform` with `rotate`, which turns what sits under it too.
+
+```ts
+declare function rotateFrame(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+```
+
+Refers to [`DragOptions`](#dragoptions), [`GizmoEdit`](#gizmoedit), [`GizmoTarget`](#gizmotarget), [`Pt`](#pt).
+
 ## `rotateSelectionBatch`
 
 _function_ in `editor/commands.ts`
 
-One batch turning the selection `deg` degrees (clockwise on screen) about its pivot.
+One batch turning the selection `deg` degrees (clockwise on screen) about
+its pivot. `def` is the document: selected instances and nodes turn by
+one `transform`, everything else by its fields in the resolved view; what
+sits under something else selected turns with it. One instance or node
+on its own turns about its own origin.
 
 ```ts
-declare function rotateSelectionBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], deg: number): OpBatch | null;
+declare function rotateSelectionBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], deg: number, prefabs?: PrefabLibrary): OpBatch | null;
 ```
 
 Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
@@ -5110,10 +5434,12 @@ Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`Registry`](#registry), [`Scene
 
 _function_ in `editor/gizmos/multi.ts`
 
-One batch turning every target `deg` degrees about `about`: shapes turn
-about it (boxes and capsules also turn their `rotDeg`), points orbit it,
-and a target on a path has its waypoints orbit and its local shape turn
-with them. `null` when rounding leaves everything as it was.
+One batch turning every target `deg` degrees about `about`: nodes and
+instances by one `transform` with `rotate` (what sits under them turns
+with them), shapes about it (boxes and capsules also turn their
+`rotDeg`), points orbit it, and a target on a path has its waypoints orbit
+and its local shape turn with them. Targets under another one are left
+to it. `null` when rounding leaves everything as it was.
 
 ```ts
 declare function rotateTargetsBatch(targets: readonly GizmoTarget[], about: Pt, deg: number, pxPerMetre: number, label?: string): OpBatch | null;
@@ -5150,7 +5476,8 @@ Refers to [`EditorToolContext`](#editortoolcontext), [`ToolOverlay`](#tooloverla
 
 _function_ in `editor/commands.ts`
 
-What a selection turns about: one shape's pivot, else the centre of the box around all of it.
+What a selection turns about: one target's own pivot (a node's or an
+instance's origin, a shape's pivot), else the centre of the box around all of it.
 
 ```ts
 declare function rotationPivot(targets: readonly GizmoTarget[]): Pt | null;
@@ -5260,7 +5587,7 @@ Refers to [`Aabb`](#aabb), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefini
 
 _function_ in `editor/gizmos/multi.ts`
 
-The box around every target, which a multi-selection's gizmo frames.
+The box around every target and what sits under it, which a multi-selection's gizmo frames.
 
 ```ts
 declare function selectionBox(targets: readonly GizmoTarget[]): Aabb;
@@ -5279,6 +5606,19 @@ declare function selectionHandles(box: Aabb, scale: number): GizmoHandle[];
 ```
 
 Refers to [`Aabb`](#aabb), [`GizmoHandle`](#gizmohandle).
+
+## `selectionRoots`
+
+_function_ in `editor/commands.ts`
+
+The selected refs nothing else selected sits over, in selection order:
+what a move or turn of the selection writes, since the rest follows.
+
+```ts
+declare function selectionRoots(def: SceneDefinition, refs: readonly Ref[]): Ref[];
+```
+
+Refers to [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
 
 ## `setHover`
 
@@ -5553,7 +5893,7 @@ Refers to [`GizmoTarget`](#gizmotarget), [`Registry`](#registry).
 
 _function_ in `editor/gizmos/target.ts`
 
-A target's world box: its shape's, or its point's.
+A target's own world box: its shape's, or its point's.
 
 ```ts
 declare function targetBox(t: GizmoTarget): Aabb;
@@ -5580,6 +5920,18 @@ declare function targetHandles(t: GizmoTarget, opts: {
 
 Refers to [`GizmoHandle`](#gizmohandle), [`GizmoTarget`](#gizmotarget).
 
+## `targetPivot`
+
+_function_ in `editor/gizmos/target.ts`
+
+What a target turns about: a node's or an instance's origin, a shape's pivot, else its point.
+
+```ts
+declare function targetPivot(t: GizmoTarget): Pt;
+```
+
+Refers to [`GizmoTarget`](#gizmotarget), [`Pt`](#pt).
+
 ## `targetsOf`
 
 _function_ in `editor/commands.ts`
@@ -5587,10 +5939,10 @@ _function_ in `editor/commands.ts`
 The selection's editable targets, in selection order; refs without geometry are left out.
 
 ```ts
-declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): GizmoTarget[];
+declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[], source?: EditSource): GizmoTarget[];
 ```
 
-Refers to [`GizmoTarget`](#gizmotarget), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+Refers to [`EditSource`](#editsource), [`GizmoTarget`](#gizmotarget), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
 ## `toolKeyEventOf`
 
@@ -5606,14 +5958,26 @@ declare function toolKeyEventOf(e: Extract<ToolEvent, {
 
 Refers to [`ToolKeyEvent`](#toolkeyevent).
 
+## `treeBox`
+
+_const_ in `editor/gizmos/target.ts`
+
+The box over a target and what sits under it.
+
+```ts
+declare const treeBox: (t: GizmoTarget) => Aabb;
+```
+
+Refers to [`Aabb`](#aabb), [`GizmoTarget`](#gizmotarget).
+
 ## `turnBatch`
 
 _function_ in `editor/commands.ts`
 
-One batch turning the selected instances and whole groups a quarter turn
-(`turn` 1 clockwise on screen, -1 counter-clockwise), each about its own
-`at`. Plain entities in the selection are left out; `null` when nothing
-is left.
+One batch turning the selected instances a quarter turn (`turn` 1
+clockwise on screen, -1 counter-clockwise), each about its own `at`.
+Plain entities in the selection are left out; `null` when nothing is
+left.
 
 ```ts
 declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 | 1): OpBatch | null;
@@ -5625,13 +5989,17 @@ Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefini
 
 _function_ in `editor/commands.ts`
 
-One batch taking the selected entities out of their groups; `null` when none is in one.
+Ungrouping the selected nodes (`def` is the document): one batch that puts
+each node's children under the node's parent, keeping them where they
+are in the world, and removes the node. A node under another selected
+node hands its children on to the nearest one that stays. `null` when the
+selection holds no node. Selects the children it moved.
 
 ```ts
-declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): OpBatch | null;
+declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): SelectingBatch | null;
 ```
 
-Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
+Refers to [`Ref`](#ref), [`SceneDefinition`](#scenedefinition), [`SelectingBatch`](#selectingbatch).
 
 ## `unpackBatch`
 
@@ -5689,6 +6057,18 @@ declare const waypointsTool: {
 ```
 
 Refers to [`EditorTool`](#editortool), [`EditorToolContext`](#editortoolcontext).
+
+## `withPreview`
+
+_function_ in `editor/gizmos/edit.ts`
+
+`edit` with the preview `targets` give its batch, when one does.
+
+```ts
+declare function withPreview<E extends GizmoEdit | null>(edit: E, targets: readonly GizmoTarget[]): E;
+```
+
+Refers to [`GizmoEdit`](#gizmoedit), [`GizmoTarget`](#gizmotarget).
 
 ## `withShapeSlot`
 

@@ -482,8 +482,8 @@ describe("a snapshot's materials", () => {
       [
         "schema",
         "kitchen-sink",
-        "/entities/0/material",
-        '/entities/0/material: unknown material "bouncy": this project and game define no materials',
+        "/entities/2/material",
+        '/entities/2/material: unknown material "bouncy": this project and game define no materials',
       ],
     ]);
     const error = await snapshotScene(snap, "kitchen-sink", store, registry).catch(

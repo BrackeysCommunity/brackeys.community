@@ -1,7 +1,7 @@
 import type { ImpulseJoint, RigidBody, UnitImpulseJoint } from "@dimforge/rapier2d";
 
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
-import type { JointBlock, JointSystem } from "../../game/behaviors/joint";
+import type { JointBlock, JointHandle, JointSystem } from "../../game/behaviors/joint";
 import { physicsOf } from "../../game/physics-of";
 import { EngineError, scopedRef, type EngineContext, type JsonValue } from "../../game/types";
 import { rotate } from "../../math";
@@ -285,6 +285,7 @@ export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       l.disabled = false;
       sync(id, l);
     },
+    handle: (id): JointHandle => ({ joined: () => system.joined(id) }),
     joined(id) {
       const l = linked.get(id);
       const physics = ctx.physics;

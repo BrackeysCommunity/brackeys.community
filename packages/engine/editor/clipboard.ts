@@ -5,11 +5,12 @@ import {
   fragmentOf,
   parseFragment,
   placeFragment,
+  withSubtrees,
   type SceneFragment,
 } from "../scene/fragment";
 import { sceneHash } from "../scene/hash";
 import { makeIssue } from "../scene/issues";
-import { parseChildRef } from "../scene/resolve";
+import { parseChildRef, sceneFrames } from "../scene/resolve";
 import type {
   OpBatch,
   PrefabLibrary,
@@ -67,13 +68,24 @@ function snapDelta(d: number, snap: SnapSettings | undefined, pxPerMetre: number
  * centred under `at` and snapped, ids that clash renamed (`lift` →
  * `lift-2`), references inside the fragment following the renames, and
  * references out of it kept when their target exists in `def`, else
- * cleared with a `dangling-ref` warning. Instances keep their prefab,
- * params and overrides under a fresh id when theirs is taken; one whose
- * prefab isn't in `prefabs` is left out with a `prefab-unknown` warning.
- * One batch of `addBulk`, `add` and `instantiate` ops; `select` names what
- * it adds.
+ * cleared with a `dangling-ref` warning. The fragment's roots land under
+ * nothing, and what sits under them comes along. Instances keep their
+ * prefab, params and overrides under a fresh id when theirs is taken; one
+ * whose prefab isn't in `prefabs` is left out with a `prefab-unknown`
+ * warning. One batch of `addBulk`, `add` and `instantiate` ops; `select`
+ * names what it adds.
  */
 export function pasteFragment(input: string | SceneFragment, opts: PasteOptions): PasteResult {
+  const pasted = pasteWithIds(input, opts);
+  if (!pasted.ok) return pasted;
+  const { ids: _ids, ...result } = pasted;
+  return result;
+}
+
+function pasteWithIds(
+  input: string | SceneFragment,
+  opts: PasteOptions,
+): (PasteResult & { ok: false }) | (PasteResult & { ok: true; ids: Record<string, Ref> }) {
   const { def, registry, prefabs } = opts;
   const ppm = pxPerMetreOf(registry);
   const parsed = parseFragment(input, registry);
@@ -98,21 +110,24 @@ export function pasteFragment(input: string | SceneFragment, opts: PasteOptions)
   if (opts.offset)
     by = [snapToPixel(by[0] + opts.offset[0], ppm), snapToPixel(by[1] + opts.offset[1], ppm)];
 
-  const { ops, select, issues } = placeFragment(fragment, def, registry, by, prefabs);
+  const { ops, select, ids, issues } = placeFragment(fragment, def, registry, by, prefabs);
   if (ops.length === 0) return { ok: false, issues };
   const count = select.length;
   return {
     ok: true,
     batch: { label: count === 1 ? "Paste" : `Paste ${count} items`, ops },
     select,
+    ids,
     issues,
   };
 }
 
 /**
  * The selection copied and pasted one grid `step` (metres) down and to the right
- * (Mod+D), instances included. `from` is the scene the selection is read
- * from when it differs from `def`.
+ * (Mod+D), instances and what sits under the selection included. Each copy
+ * of an entity or instance with a parent goes back under that parent, where
+ * a `reparent` keeps it next to its original. `from` is the scene the
+ * selection is read from when it differs from `def`.
  */
 export function duplicateSelection(
   def: SceneDefinition,
@@ -122,19 +137,42 @@ export function duplicateSelection(
   opts: { from?: SceneDefinition; prefabs?: PrefabLibrary } = {},
 ): PasteResult {
   const { prefabs } = opts;
-  const result = pasteFragment(fragmentOf(opts.from ?? def, refs, registry, prefabs), {
+  const from = opts.from ?? def;
+  const fragment = fragmentOf(from, refs, registry, prefabs);
+  const result = pasteWithIds(fragment, {
     def,
     registry,
     ...(prefabs ? { prefabs } : {}),
     offset: [step, step],
   });
-  return result.ok ? { ...result, batch: { ...result.batch, label: "Duplicate" } } : result;
+  if (!result.ok) return result;
+  const { ids, ...pasted } = result;
+  const frames = sceneFrames(from, registry, prefabs);
+  const copied = new Set(withSubtrees(from, refs, registry, prefabs).map((e) => e.ref));
+  const here = new Set([...(def.entities ?? []), ...(def.instances ?? [])].map((x) => x.id));
+  const under = new Map<Ref, Ref[]>();
+  for (const root of [...fragment.entities, ...(fragment.instances ?? [])]) {
+    if (root.parent !== undefined || !copied.has(root.id)) continue;
+    const copy = ids[root.id];
+    const parent = frames.parentOf(root.id);
+    if (copy === undefined || parent === undefined) continue;
+    if (!here.has(parseChildRef(parent)?.instance ?? parent)) continue;
+    under.set(parent, [...(under.get(parent) ?? []), copy]);
+  }
+  const reparents = [...under].map(
+    ([parent, refs]) => ({ op: "reparent", refs, parent }) satisfies SceneOp,
+  );
+  return {
+    ...pasted,
+    batch: { ...pasted.batch, label: "Duplicate", ops: [...pasted.batch.ops, ...reparents] },
+  };
 }
 
 /**
  * The clipboard text for the selection and the batch that removes it,
- * instances included. An instance's child (`gate-2/door`) can't be removed
- * from its prefab, so the batch turns it off on that instance with an
+ * instances and what sits under the selection included, each child before
+ * its parent. An instance's child (`gate-2/door`) can't be removed from
+ * its prefab, so the batch turns it off on that instance with an
  * `<child>.off` override; one whose instance is cut as well is left to it.
  */
 export function cutSelection(
@@ -143,11 +181,14 @@ export function cutSelection(
   registry: Registry,
   prefabs?: PrefabLibrary,
 ): { text: string; batch: OpBatch } {
-  const unique = [...new Set(refs)];
-  const own = unique.filter((r) => !parseChildRef(r));
+  const tree = withSubtrees(def, [...new Set(refs)], registry, prefabs);
+  const own = tree
+    .filter(({ ref }) => !parseChildRef(ref))
+    .sort((a, b) => b.depth - a.depth)
+    .map(({ ref }) => ref);
   const removed = new Set(own);
   const offs = new Map<string, Record<string, unknown>>();
-  for (const ref of unique) {
+  for (const { ref } of tree) {
     const child = parseChildRef(ref);
     if (!child || removed.has(child.instance)) continue;
     offs.set(child.instance, { ...offs.get(child.instance), [`${child.child}.off`]: true });

@@ -1448,44 +1448,52 @@ The SVG's longest side is capped at 1600px; pass `region`, or `around` a ref
 with a `margin`, to look closer, and `overlay` a playtest report to draw its
 trail, events and outcome.
 
-### Groups and prefabs
+### Parents and prefabs
 
-A scene can declare **groups** and place **prefabs**:
+Any entity or instance may name a **parent**, and a scene places
+**prefabs**:
 
 ```json
 {
-  "v": 4,
+  "v": 5,
   "name": "gates",
   "bounds": [0, 0, 20, 10],
-  "groups": {
-    "east": { "at": [12, 0], "rot": 2, "flip": true }
-  },
   "instances": [
     { "id": "gate-1", "prefab": "gate", "at": [6, 9] },
     {
       "id": "gate-2",
       "prefab": "red-gate",
-      "group": "east",
+      "parent": "east",
       "z": 5,
       "at": [2, 9],
-      "rot": 1,
+      "rot": 90,
       "params": { "speed": 1.2 },
       "overrides": { "trigger.tags": ["gate", "east"] }
     }
   ],
   "entities": [
-    { "id": "east-post", "type": "solid", "group": "east", "shape": ["box", 5, 9, 0.1, 0.6] }
+    { "id": "east", "type": "node", "at": [12, 0], "rot": 180, "flip": true },
+    { "id": "east-post", "type": "solid", "parent": "east", "shape": ["box", 5, 9, 0.1, 0.6] }
   ]
 }
 ```
 
-- A group's members store their geometry relative to its `at`, so moving
-  the group is one edit. A group may turn and flip its members
-  ([Transforms](#transforms)); there is no scale.
+- A child stores its geometry in its parent's frame, so moving or turning
+  the parent is one edit and its subtree follows. A `node` is the engine
+  type with a pose and nothing else (`at`, `rot`, `flip`), to hang things
+  on; any other entity can be a parent too
+  ([Transforms](#transforms) has the frames). `parent` names an entity or
+  instance in the same document, or an instance's child by its resolved
+  ref (`room-1/door-1/panel`). A chain is at most 16 levels
+  (`PARENT_MAX_DEPTH`); a nav area, a camera region, a note and a bulk
+  entry can't be in it. Only `reparent { refs, parent | null }` changes a
+  parent, rewriting the geometry so nothing moves in the world; `update`
+  refuses `parent`, `remove` takes the subtree with it, and `add` and
+  `instantiate` take `parent` with geometry in its frame.
 - A prefab is an asset of kind `prefab` (a `.json` with `"kind": "prefab"`
-  anywhere in the project): `{ "kind": "prefab", "v": 4, "id",
+  anywhere in the project): `{ "kind": "prefab", "v": 5, "id",
 "entities", "bulk"?, "instances"? }` around a local origin. An instance
-  puts that origin at `at` (inside its group's frame), turned and flipped
+  puts that origin at `at` (inside its parent's frame), turned and flipped
   by its own `rot` and `flip`; its children load as `gate-1/door` (bulk
   children `gate-1/~solid:0`), and references between them follow.
 - `overrides` hold the fields one instance changes, keyed
@@ -1496,9 +1504,10 @@ A scene can declare **groups** and place **prefabs**:
 - Hosts load the library: `expandScene(def, registry, { prefabs })`, and
   the same `prefabs` option on `validateScene`, `applyOps`, the headless
   runs and the renders. `resolveScene` gives the scene with instances
-  inlined and groups applied; that view is what tools pick and draw, and
-  `toSourceBatch` maps an edit made on it back onto the document, through
-  the inverse of any turn or flip above it.
+  inlined and every child taken to the world through its parent chain;
+  that view is what tools pick and draw, and `toSourceBatch` maps an edit
+  made on it back onto the document, through the inverse of every frame
+  above it.
 - Prefabs are docs of their own (`prefabToDoc`/`docToPrefab`, `./collab`);
   a scene's session reads them through a `PrefabSource`
   (`sessionPrefabSource(projectSession, { scene })` live,
@@ -1510,16 +1519,29 @@ A scene can declare **groups** and place **prefabs**:
   `isolation.session.doc` while it's open and call `close()` (or press
   Escape with nothing selected) to go back. Without a project, Apply to
   prefab, Create prefab and Unpack are refused.
-- `attach: "<follower id>"` on a solid or sensor puts its collider on that
-  follower's body, so it rides along; riders on it move by the follower's
-  `frameDelta` (`carrierDelta`). The follower may be an instance's child
-  (`"attach": "lift-1/car"`).
+- A solid or sensor whose `parent` is a follower rides it: its collider
+  goes on the follower's body, stored in the follower's frame (its first
+  path point), and it is destroyed and disabled with the follower; riders
+  on it move by the follower's `frameDelta` (`carrierDelta`). The
+  follower may be an instance's child (`"parent": "lift-1/car"`). Any
+  solid, sensor or `collider` behavior with no body of its own rides the
+  nearest body above it in the tree (a prop, a follower, or a kinematic
+  or dynamic `collider`); without Rapier it follows by pose, so a child
+  never needs physics.
+- **From format v4.** The v4 → v5 step turns each of a scene's `groups`
+  into a `node` at the front of `entities` (its id, or the next free
+  `<id>-<n>`, with its `at`, name, turn and flip), each `group` into
+  `parent`, and each `attach` into `parent` with the shape re-expressed
+  in the follower's frame; an instance's `rot` of `k` quarter turns
+  becomes `90 × k` degrees. World poses don't move. It needs the game's
+  registry, so without one it is `migration-unresolved`.
 
 ## Scene format v3
 
-Format v3 added these keys, and format v4 is v3 with every length in
-metres (see [Units](#units)). Each addition is optional, and leaving it
-out keeps v2's behaviour:
+Format v3 added these keys, format v4 is v3 with every length in
+metres (see [Units](#units)), and format v5 adds the tree
+([Parents and prefabs](#parents-and-prefabs)). Each addition is optional,
+and leaving it out keeps v2's behaviour:
 
 | Key or field                               | Where                      | Meaning                                                                         | Default             |
 | ------------------------------------------ | -------------------------- | ------------------------------------------------------------------------------- | ------------------- |
@@ -1527,7 +1549,7 @@ out keeps v2's behaviour:
 | `settings.physics`                         | scene settings             | `"rapier"` or `"none"`                                                          | resolved, `rapier`  |
 | `settings.grid`                            | scene settings             | the scene's one cell grid                                                       | none                |
 | `settings.view`                            | scene settings             | `{ "projection": "orthogonal" }`, reserved for other projections                | orthogonal          |
-| `rot`, `flip`                              | instances, groups          | quarter turns clockwise, and a mirror in x before turning                       | identity            |
+| `rot`, `flip`                              | instances, nodes           | degrees clockwise, and a mirror in x before turning                             | identity            |
 | `z`                                        | entities, instances        | integer draw order within the layer; on an instance, an offset for its children | 0                   |
 | `params`                                   | instances                  | values for the prefab's exposed parameters                                      | none                |
 | `behaviors`                                | entities                   | behavior blocks by name                                                         | the type's required |
@@ -1535,12 +1557,12 @@ out keeps v2's behaviour:
 | `instances`, `base`, `params`, `overrides` | prefab files               | nested instances, a variant's base and its overrides, exposed parameters        | none                |
 | `instances`                                | fragments                  | copied instances; their prefabs travel by id                                    | none                |
 | grid fields                                | entities of types with one | cells in chunks of run-length rows                                              | empty               |
-| ref fields                                 | `refField`, `attachField`  | an id, or `<instance>/<child>` at any depth                                     | —                   |
+| ref fields                                 | `refField`, `parent`       | an id, or `<instance>/<child>` at any depth                                     | —                   |
 
 ```json
 {
   "$schema": "../scene/scene.schema.json",
-  "v": 4,
+  "v": 5,
   "name": "yard",
   "bounds": [0, 0, 40, 20],
   "settings": {
@@ -1549,9 +1571,6 @@ out keeps v2's behaviour:
     "physics": "rapier"
   },
   "assets": ["boom"],
-  "groups": {
-    "left-wing": { "name": "Left wing", "at": [4, 0], "rot": 2, "flip": true }
-  },
   "instances": [
     { "id": "gate-1", "prefab": "gate", "at": [8, 9] },
     {
@@ -1559,7 +1578,7 @@ out keeps v2's behaviour:
       "prefab": "red-gate",
       "z": 5,
       "at": [16, 9],
-      "rot": 1,
+      "rot": 90,
       "flip": true,
       "params": { "speed": 1.2 }
     },
@@ -1573,6 +1592,14 @@ out keeps v2's behaviour:
   "solid": [["box", 20, 19.8, 20, 0.2]],
   "entities": [
     {
+      "id": "left-wing",
+      "type": "node",
+      "name": "Left wing",
+      "at": [4, 0],
+      "rot": 180,
+      "flip": true
+    },
+    {
       "id": "lever",
       "type": "sensor",
       "z": 2,
@@ -1582,15 +1609,15 @@ out keeps v2's behaviour:
     {
       "id": "lift",
       "type": "solid",
-      "shape": ["box", 24, 6.4, 0.4, 0.08],
-      "attach": "room-1/door-1/panel"
+      "shape": ["box", 0, -0.1, 0.4, 0.08],
+      "parent": "room-1/door-1/panel"
     }
   ]
 }
 ```
 
-The schemas' `$id`s are `urn:jams-engine:scene:v4`, `prefab:v4`,
-`fragment:v4` and `ops:v4` (and `<game>:scene:v4` for a game's).
+The schemas' `$id`s are `urn:jams-engine:scene:v5`, `prefab:v5`,
+`fragment:v5` and `ops:v5` (and `<game>:scene:v5` for a game's).
 
 **The migration.** v2 → v3 changes only `v`, on scenes, prefabs and
 fragments alike; `parseScene` and `parsePrefab` run it on load and `vp run
@@ -1784,13 +1811,21 @@ interpolated y, first draw)`; a `scroll` layer is offset by the camera
 
 ### Transforms
 
-Instances and groups turn and flip: `rot` is 1, 2 or 3 quarter turns
-clockwise on screen (absent is 0), and `flip: true` mirrors x in the
-prefab's or group's frame before turning. The eight combinations are every
-rotation and reflection that keeps a square grid on itself, each with one
-spelling, so integer geometry stays exact and diffs stay clean. A child's
-world transform is its group's, then its instance's, then each nested
-instance's, down to its own fields.
+Instances and nodes turn and flip: `rot` is degrees clockwise on screen,
+any angle (absent is 0), and `flip: true` mirrors x in the prefab's or
+node's frame before turning. A quarter turn is built from integers, so
+the eight quarter turns and flips keep integer geometry exact and diffs
+clean; any other angle goes through sine and cosine, rounded to the
+file's micrometre.
+
+A **frame** is an origin, an angle and a flip (`Frame`). A node's or an
+instance's is its `at`, `rot` and `flip`; any other entity's is its spawn
+pose: its shape's centre (a follower's shape at its path's first point),
+else its point, else its path's first point, with a box's or capsule's
+`rotDeg`. A child's world transform is its parents' frames composed down
+the chain, innermost first, then each enclosing instance's, down to its
+own fields. `frame`, `frameOf`, `composeFrames` and `entityFrame` are in
+`./scene`.
 
 What a transform does depends on what a field is, so a game declares its
 fields with the builders:
@@ -1798,28 +1833,36 @@ fields with the builders:
 | Field                     | Under a turn                  | Under a flip                  |
 | ------------------------- | ----------------------------- | ----------------------------- |
 | shapes, points, paths     | positions turn about the `at` | positions mirror              |
-| `box`, `capsule`          | `rotDeg` gains 90° per turn   | `rotDeg` negated              |
+| `box`, `capsule`          | `rotDeg` gains the angle      | `rotDeg` negated              |
 | `poly`, `chain`           | points turn                   | points mirror, order reversed |
 | `vectorField`             | turns (never translated)      | mirrors                       |
-| `angleField(desc, "deg")` | gains 90° per turn            | negated                       |
+| `angleField(desc, "deg")` | gains the angle               | negated                       |
 | `mirrorField("x", desc)`  | unchanged                     | toggled                       |
-| `sideField(desc)`         | the side turns by the turn    | the side mirrors              |
-| grid fields               | cells remap (square only)     | cells remap (square only)     |
+| `sideField(desc)`         | quarter turns only            | the side mirrors              |
+| grid fields               | quarter turns, square only    | cells remap (square only)     |
 | any other value           | unchanged                     | unchanged                     |
 
 One-way sides (`sideField`, a solid's `oneWay`) turn and flip with the
-instance; `true` stays `true` while the side still faces up. The resolved
-entity carries the transform it ended up with
-(`RuntimeEntity.transform: { turn, flip }`). `Transform2D`, `dihedral`,
+instance; `true` stays `true` while the side still faces up. A side or
+grid field under a frame off the quarter turns stays unturned, and
+validation reports it as `quarter-turn-only`. The resolved entity carries
+the transform it ended up with (`RuntimeEntity.transform: { rot, flip }`,
+`rot` in degrees), and `InstantiateOptions.rot` is degrees too.
+`Transform2D`, `dihedral`,
 `compose`, `invert`, `applyPt`, `applyVec`, `composeDihedral` and
 `flipWorld` are in `./scene` and the root entry.
 
-- `transform { refs?, groups?, turn?: 1 | 2 | 3 | -1, flip?: "x" | "y",
-about? }` turns and flips instances and groups in world terms, composed
+- `transform { refs, turn?: 1 | 2 | 3 | -1, rotate?, flip?: "x" | "y",
+about? }` turns and flips instances and nodes in world terms, composed
   onto what they have, about each one's `at` unless `about` is given.
-- `setGroup` takes absolute `rot` and `flip`; `instantiate` takes `rot`,
-  `flip`, `z` and `params`.
-- `unpack` bakes the transform into the entities it writes. An edit made
+- `update` sets a node's `rot` and `flip` absolutely; `instantiate` takes
+  `rot` (degrees), `flip`, `z` and `params`.
+- `reparent { refs, parent | null }` moves entities and instances under
+  another parent, or to the root, rewriting their geometry into the new
+  frame so their world poses stay; its inverse puts the exact stored
+  values back.
+- `unpack` bakes the transform into the entities it writes, and gives
+  them the instance's parent. An edit made
   on a turned child in the resolved view maps back through the inverse (a
   world `move` of a flipped child becomes a mirrored override).
 
@@ -1835,7 +1878,7 @@ A type holds cells with `gridField(description, { values?, max? })`;
 values are integers up to 65535 (or `values.length`), 0 is empty, and
 `values` names 1..n for the schema and the inspector. The type must also
 have a point field `at`: cells are local to it and sized by
-`settings.grid.cell`, so moving `at` (a group, an instance, `move`)
+`settings.grid.cell`, so moving `at` (a parent, an instance, `move`)
 moves the whole tilemap exactly.
 
 ```json
@@ -1860,7 +1903,8 @@ c1, r1, value][] }` paints (value 0 erases), at most 65,536 cells per
 - `grid-invalid` covers a bad setting, row, key, count or value, a grid
   field in a scene without `settings.grid`, an override naming a grid
   field (paint the prefab instead), and a turned or flipped instance or
-  group over a grid whose cells aren't square.
+  node over a grid whose cells aren't square. A grid under a parent at an
+  angle off the quarter turns is `quarter-turn-only`.
 
 ### Settings
 
@@ -1885,7 +1929,7 @@ and may expose parameters:
 ```json
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "room",
   "instances": [
     { "id": "gate-1", "prefab": "gate", "at": [-2, 0] },
@@ -1893,7 +1937,7 @@ and may expose parameters:
       "id": "gate-2",
       "prefab": "gate",
       "at": [2, 0],
-      "rot": 2,
+      "rot": 180,
       "flip": true,
       "overrides": { "door.path.speed": 0.9 }
     },
@@ -1912,7 +1956,7 @@ and may expose parameters:
 ```json
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "red-gate",
   "base": "gate",
   "params": {
@@ -1958,7 +2002,7 @@ and may expose parameters:
   one its prefab lacks is `param-unknown`. Ops: `exposeParam { name,
 param | null }` (prefab docs only) and `setParam { ref, name, value |
 null }`.
-- **Child refs.** Reference fields (`refField`, `attachField`) accept
+- **Child refs.** Reference fields (`refField`, and `parent`) accept
   `<instance>/<child>` at any depth (`room-1/door-1/panel`), matching
   `CHILD_REF_PATTERN`; every other id keeps `ID_PATTERN`. A missing
   instance is `dangling-ref`, a missing child `ref-child-unknown` (with a
@@ -1975,9 +2019,8 @@ null }`.
   in; load, the doc, the editor and checks share it. A scene's hash
   covers every prefab it reaches, through nesting and bases.
 
-In the editor, the outliner shows nested children as a tree, dragging an
-entity row onto a follower row attaches it (dropping it on its type's row
-detaches), and the inspector has Turn and Flip on an instance.
+In the editor, the outliner shows nested children as a tree, and the
+inspector has Turn and Flip on an instance.
 
 ### Issue codes added in v3
 
@@ -1998,6 +2041,22 @@ All are errors; `ISSUE_CODES` has each one's hint.
 
 `asset-missing` and `asset-kind` cover asset fields, `dup-id` a variant's
 id clash, and `prefab-unknown` nested and pasted instances.
+
+### Issue codes added in v5
+
+All are errors, and each fix is one `reparent`: to the root, or to the
+nearest ancestor that clears the issue. `reparent` refuses the same cases
+with the same codes.
+
+| Code                | When                                                                                        | Fix                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `parent-cycle`      | A `parent` chain comes back round to an entity in it.                                       | `reparent` the named entity to the root              |
+| `parent-depth`      | An entity sits more than 16 levels below its root.                                          | `reparent` part of the chain higher up               |
+| `parent-type`       | A nav area, a camera region, a note or a bulk entry has, or is, a parent.                   | `reparent` to the root                               |
+| `quarter-turn-only` | A side or grid field sits under a frame turned off the quarter turns, so it stays unturned. | `reparent` higher up, or turn the parent by quarters |
+
+A `parent` that names nothing is `dangling-ref`, and one naming a child
+an instance's prefab doesn't have is `ref-child-unknown`.
 
 ## Projects and assets
 
@@ -2342,9 +2401,9 @@ the message; a hosted project picks up new art when a scene next loads.
 holds every loaded entity's pose `{ x, y, rot }` (radians) from the moment
 it spawns: the runtime sets `spawnPose` (a shape's centre, a point field,
 or a follower's first path point; the angle from `rotDeg`, else the
-entity's quarter turns), snapped, before its behaviors attach, and removes
+entity's `transform.rot`), snapped, before its behaviors attach, and removes
 it after they detach. The system that moves an entity writes it: bodies
-after the physics step (a body's angle plus its quarter turns for shapes
+after the physics step (a body's angle plus its `transform.rot` for shapes
 without `rotDeg`), followers along their path; markers and static solids
 and sensors are written once. `get(id)` is the pose after the last tick,
 `prev(id)` the pose a tick earlier (the same when it didn't move), and
@@ -2761,7 +2820,7 @@ order and casts by time of impact, then handle.
 | `follower`               | kinematic body       | a kinematic collider whose pose follows the path              |
 | `marker`, `decor`, `nav` | nothing              | nothing                                                       |
 | `prop`                   | dynamic body         | `physics-required`                                            |
-| `attach`                 | rides the follower   | `physics-required`                                            |
+| a child of a follower    | rides the follower   | follows it by pose                                            |
 
 A type that can't work without Rapier says `physics: "required"` (the
 default is its base primitive's, else `"optional"`): `validateScene`
@@ -3280,7 +3339,7 @@ a stronger one carries the character at the difference.
 
 A behavior's points and paths are world metres, and its entity references
 name entities: a `path-follow` path moves, turns and flips with its entity
-in a prefab instance, a group and an editor move, as a follower's path
+in a prefab instance, under a parent and in an editor move, as a follower's path
 does, and a `joint` or `nav-agent` `to` inside a prefab names a child of
 the same instance (`door` in prefab `gate` placed as `gate-1` is
 `gate-1/door`), the innermost instance first, else the scene's own entity
@@ -3632,6 +3691,237 @@ Destroying a motion body forgets its `oneWayPasses`; a controller that
 gates one-way solids with no motion body of its own calls
 `forgetOneWayActor(ctx, id)` when it lets the entity go.
 
+## Scripts
+
+A script is a behavior with one instance per entity, written the way a
+Unity `MonoBehaviour` is: state on the instance, hooks as methods. Write it
+as a class or as a function that returns its hooks; both give an ordinary
+behavior definition, so scenes, the inspector, overrides, prefab
+parameters and validation see nothing new, and one game can mix them with
+plain behaviors. The thruster from [Moving bodies](#moving-bodies-ctxbodies)
+as a class:
+
+```ts thruster-script.ts
+import { BODY, Script } from "@jams/engine/game";
+import { z } from "zod";
+
+/** The thruster as a script class: one instance per ship, pushing its body along its seat's move action. */
+export class Thruster extends Script({
+  name: "thruster-game/thruster",
+  description: "Pushes the entity's dynamic body along its seat's move action.",
+  fields: {
+    force: z.number().positive().default(2).describe("Force at full stick, N; default 2."),
+  },
+  requires: ["body"],
+}) {
+  // Before the physics step, which takes the force and drops it after.
+  beforeStep() {
+    const move = this.input.vector("move");
+    if (move.x === 0 && move.y === 0) return;
+    const { force } = this.fields;
+    this.entity.getBehavior(BODY)!.applyForce({ x: move.x * force, y: move.y * force });
+  }
+}
+```
+
+And as a function: `defineScript` takes the same definition plus
+`create(self)`, which runs once per entity and returns the hooks. State
+lives in variables `create` closes over.
+
+```ts thruster-hooks.ts
+import { BODY, defineScript } from "@jams/engine/game";
+import { z } from "zod";
+
+/** The thruster as a function script: `create` runs once per ship and returns its hooks. */
+export const thruster = defineScript({
+  name: "thruster-game/thruster",
+  description: "Pushes the entity's dynamic body along its seat's move action.",
+  fields: {
+    force: z.number().positive().default(2).describe("Force at full stick, N; default 2."),
+  },
+  requires: ["body"],
+  create(self) {
+    return {
+      // Before the physics step, which takes the force and drops it after.
+      beforeStep() {
+        const move = self.input.vector("move");
+        if (move.x === 0 && move.y === 0) return;
+        const { force } = self.fields;
+        self.entity.getBehavior(BODY)!.applyForce({ x: move.x * force, y: move.y * force });
+      },
+    };
+  },
+});
+```
+
+All three forms of the thruster, the system one included, replay the
+same input to the same digest. Register a script in `defineGame`'s
+`behaviors` beside plain definitions: the class itself (`behaviors:
+[Thruster]`; `Thruster.behavior` is its definition) or what
+`defineScript` returns. A scene carries it by name like any behavior:
+`"thruster-game/thruster": { "force": 3 }`.
+
+### What a script reaches
+
+A class's `this` and a function's `self` have the same members:
+
+- `entity`, the entity's handle (see [Entity handles](#entity-handles)),
+  and `ctx`, the engine context.
+- `fields`, the block, typed from the definition's `fields`.
+- `input`, the entity's seat, as `inputFor(ctx, id)` gives it.
+- `ref(field)`, a `refField` of the script resolved to a handle (an
+  instance's child refs are resolved within the instance), or undefined.
+- `after(delay, action)`, `every(period, action, times?)`, `run(co)` and
+  `cancel(id)`: timers and coroutines owned by the entity, cancelled when
+  it is destroyed and paused while it is disabled.
+- `emit(type, data?)`, a step event about the entity, at its pose.
+
+What other code sees is the script itself: `entity.getBehavior(Thruster)`
+and `ctx.findBehavior(Thruster)` return the class instance, or the object
+`create` returned with `entity` and `fields` added, so a script's other
+methods are its public surface (`other.getBehavior(Health)?.damage(1)`).
+Both take a script class, a definition or a name.
+
+### The lifecycle
+
+| Hook                                        | When                                                                                                             |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `awake()`                                   | At attach, once the instance exists (a class is constructed, `create` runs, then `awake`).                       |
+| `start()`                                   | Once, after the load's or the spawn's entities have all attached; for a disabled entity, at its first enable.    |
+| `beforeStep(dtMs)`                          | Each tick, before physics.                                                                                       |
+| `beforePhysics()`                           | Each tick, after every `beforeStep`, just before the physics step.                                               |
+| `step(dtMs)`                                | Each tick, after physics.                                                                                        |
+| `render(alpha)`                             | Each rendered frame, for a `visualOnly` script only.                                                             |
+| `onEnable()` / `onDisable()`                | When the entity is enabled or disabled. A disabled script keeps its instance and runs no tick hooks.             |
+| `onDestroy()`                               | When the block detaches: the entity is destroyed, unloaded or loses the block.                                   |
+| `onContactStart(other, e)` / `onContactEnd` | A contact of this entity's begins or ends; `other` is the other entity's handle.                                 |
+| `onSensorEnter(other, e)` / `onSensorExit`  | A sensor event with this entity on either side; `other` is the other side.                                       |
+| `onFieldsChanged(prev)`                     | An edit changed the block. Without it the instance is rebuilt: `onDestroy`, a new instance, `awake` and `start`. |
+| `save()` / `restore(state)`                 | A world save and its load: see below.                                                                            |
+
+- **The tick is the only clock.** There is no per-frame update in
+  simulation code: `dtMs` is the same every tick, which is what keeps
+  replays, saves and online play exact. A script that only draws sets
+  `visualOnly`, gets `render(alpha)` and no tick hooks, and can't change
+  state. A script that defines `render` without `visualOnly` is refused:
+  a script class when the registry is built, a function script at attach,
+  since its hooks exist only once `create` runs.
+- **Order.** Scripts run in registration order, and each script's
+  instances in attach order; there is no execution-order setting. An
+  instance made during a tick first runs on the next one, so a script on
+  an entity a `spawner` makes in its `beforeStep` starts a tick later than
+  a behavior system's loop over its map would.
+- **Costs.** A script with no tick hook costs nothing per tick. Contacts
+  are watched (`ctx.contacts.watch`) only for a script that defines a
+  contact hook, and sensor events are delivered only to one that defines a
+  sensor hook. Thousands of instances stepping cost little more than the
+  same loop written as one behavior system.
+
+### Timers and saves
+
+A world save keeps what a script's `save()` returns, as JSON, and hands it
+to `restore(state)` on load; a script without `save` comes back with
+only what `awake` gives it. Keep other entities as ids, or find them again in `start()`: a
+handle is not JSON. In dev, a world save warns once per script class that
+has instance properties and no `save`. A function script's closure can't
+be inspected, so nothing warns for it: a function script that holds state
+writes `save()` and `restore()` itself.
+
+A pending function timer (`this.after(30, () => ...)`) or coroutine
+(`this.run`) keeps a world save from being taken, the rule every timer
+has: a function can't be written down. The emit form saves:
+`this.after(30, { emit: "bell:rang" })` raises `bell:rang` about the
+script's entity (unless the action names another `entityId`) when it
+falls due, and a handler on that event does the work. A script that must
+save mid-wait counts ticks in `step` and keeps the count in `save()`.
+
+### Entity handles
+
+`ctx.entity(id)` returns one `Entity` per live entity, the same object
+every time, so `===` works. It holds the id and nothing else: every member
+reads the runtime's tables, so a handle costs nothing to keep and has
+nothing to save.
+
+- `id`, `type`, `record` (the fields, as `ctx.get(id)`), `pose` (the world
+  pose, metres and radians) and `hasTag(tag)`.
+- `setPose(x, y, rot?, { snap? })` moves the entity through whoever owns
+  its position, as `ctx.setPose` does: the type's system (a `prop` keeps
+  its velocity and wakes; a game type on `createDataSystem` writes the
+  pose), then each attached behavior that holds a position (a `collider`'s
+  body, both characters' and a `nav-agent`'s motion body, `path-follow`).
+  A `follower`, `nav` or `camera-region` throws
+  `EngineError("pose-not-settable")`: its path or shape owns it.
+- `enabled`, `enabledSelf` and `setEnabled(on)`; `destroy()`.
+- `getBehavior(def)` returns the behavior's handle, typed from its
+  definition: `fields`, plus the members its system binds by id
+  (`getBehavior(BODY)` has `velocity`, `applyForce`, `applyImpulse`, `wake`
+  and the rest of `ctx.bodies` for this entity; `NAV_AGENT`'s has
+  `setDestination` and `stop`; `ANIM`'s has `play` and `stop`), or the
+  script itself. Undefined when the entity doesn't carry it. `behaviors()`
+  lists the names it carries.
+- `on(type, handler)` subscribes to step events about the entity; the
+  subscription ends with it.
+- The tree: `parent`, `children`, `root`, `localPose`, `setLocalPose`,
+  `setParent(parent, { keepWorld? })`, `find("door/panel")`, and
+  `getBehaviorInChildren`, `getBehaviorsInChildren` and
+  `getBehaviorInParent`.
+
+Once the entity is destroyed or unloaded, `alive` is false, `id` still
+answers and every other member throws `EngineError("entity-gone")`. A new
+entity spawned under the same id gets a new handle.
+
+**Lookups.** `ctx.entities(sel?)` returns handles in spawn order for an
+`EntitySelector`, which takes `behavior` (only entities carrying it) and
+`under` (only an entity's descendants) beside `type`, `tag` and
+`enabled`; `ctx.query` takes the same selector and answers with ids.
+`ctx.findBehavior(def)` and `ctx.findBehaviors(def)` return the first, or
+every, enabled carrier's handle in spawn order.
+
+## Coming from Unity
+
+The engine says "entity" and "behavior" everywhere, in the inspector, the
+scene file and the CLI, so the names are its own; the method shapes follow
+Unity's so they can be guessed.
+
+| Unity                                                  | The engine                                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `GameObject`                                           | `Entity`, from `ctx.entity(id)`                                                                  |
+| `MonoBehaviour`                                        | a script: `class X extends Script({ … })`, or `defineScript({ … create })`                       |
+| `Component`                                            | a behavior: a block on the entity, run by its behavior's system                                  |
+| serialized fields, `[SerializeField]`                  | `fields`, the behavior block (`this.fields`)                                                     |
+| a field holding another `GameObject`                   | a `refField`, read with `this.ref(name)`                                                         |
+| `GetComponent<T>()`                                    | `entity.getBehavior(def)`                                                                        |
+| `GetComponentInChildren` / `GetComponentsInChildren`   | `getBehaviorInChildren(def)` / `getBehaviorsInChildren(def)`                                     |
+| `GetComponentInParent`                                 | `getBehaviorInParent(def)`                                                                       |
+| `FindObjectOfType` / `FindObjectsOfType`               | `ctx.findBehavior(def)` / `ctx.findBehaviors(def)`                                               |
+| `GameObject.Find(name)`                                | `ctx.entity(id)`                                                                                 |
+| `GameObject.FindGameObjectsWithTag` / `CompareTag`     | `ctx.entities({ tag })` / `entity.hasTag(tag)`                                                   |
+| `transform.position`, `transform.rotation`             | `entity.pose` (world, metres and radians); `entity.setPose(x, y, rot?)`, or `ctx.setPose(id, …)` |
+| `transform.localPosition`                              | `entity.localPose`, `entity.setLocalPose(x, y, rot?)`                                            |
+| `transform.parent`, `SetParent(p, worldPositionStays)` | `entity.parent`, `entity.setParent(p, { keepWorld })`                                            |
+| `transform.root`, iterating `transform`                | `entity.root`, `entity.children`                                                                 |
+| `transform.Find("a/b")`                                | `entity.find("a/b")`                                                                             |
+| `activeSelf` / `activeInHierarchy` / `SetActive`       | `enabledSelf` / `enabled` / `setEnabled`                                                         |
+| `Destroy(gameObject)`                                  | `entity.destroy()`                                                                               |
+| `Instantiate(prefab)`                                  | `ctx.instantiate(prefab, at)`, or `ctx.spawn({ type, … })` for one entity                        |
+| `Rigidbody2D.AddForce`, `velocity`                     | `entity.getBehavior(BODY).applyForce(f)`, `.velocity()`                                          |
+| `Input.GetAxis`                                        | `this.input.vector("move")`, the entity's seat                                                   |
+| `Awake`                                                | `awake()`, at attach                                                                             |
+| `Start`                                                | `start()`, at ready                                                                              |
+| `FixedUpdate`                                          | `beforeStep(dtMs)`, before physics                                                               |
+| `Update`                                               | `step(dtMs)`, after physics, once per tick                                                       |
+| rendering in `Update` / `LateUpdate`                   | `render(alpha)`, `visualOnly` scripts only                                                       |
+| `Time.fixedDeltaTime`, `Time.deltaTime`                | `dtMs`, the same every tick                                                                      |
+| `OnEnable` / `OnDisable`                               | `onEnable()` / `onDisable()`                                                                     |
+| `OnDestroy`                                            | `onDestroy()`, at detach                                                                         |
+| `OnCollisionEnter2D` / `OnCollisionExit2D`             | `onContactStart(other, e)` / `onContactEnd`, over `contact:start` / `contact:end`                |
+| `OnTriggerEnter2D` / `OnTriggerExit2D`                 | `onSensorEnter(other, e)` / `onSensorExit`, over `sensor:enter` / `sensor:exit`                  |
+| `OnValidate`                                           | `onFieldsChanged(prev)`; without it the instance is rebuilt                                      |
+| `StartCoroutine`, `Invoke`, `InvokeRepeating`          | `this.run(co)`, `this.after(delay, fn)`, `this.every(period, fn)`                                |
+| `SendMessage`, `UnityEvent`                            | `this.emit(type, data)`, and `entity.on(type, handler)` or `ctx.events.on`                       |
+| Script Execution Order                                 | none: scripts in registration order, instances in attach order                                   |
+| (none)                                                 | `save()` / `restore(state)`, what a world save keeps                                             |
+
 ## Entity lifecycle
 
 A scene's entities are only where a run starts: game code spawns,
@@ -3851,7 +4141,8 @@ next physics step.
   `expandScene`): `rot`, `flip`, `z`, `layer`, `params` and `overrides` as
   an instance takes them, and `id` as a spawn does. The instance id is
   `<prefab>#<n>` and its children are `<id>/<child>`, refs between them
-  remapped; each child raises its own `entity:spawned`. The prefabs it
+  remapped; the instance's node raises `entity:spawned` first, then each
+  child its own. The prefabs it
   resolves are the run's library, read once per load: the shell passes
   its `setPrefabs` library, the editor's Play the project's, and headless
   entries `library` (every prefab the game may place; it defaults to
@@ -4087,7 +4378,8 @@ export function spillTwice() {
 ```
 
 `pourTwice()` ends `dry` with 24 drops fallen; the first ids it spawns are
-`twin-spout#1/left`, `twin-spout#1/right`, `drop#1`, `drop#2`; the same
+the instance's node `twin-spout#1`, then `twin-spout#1/left`,
+`twin-spout#1/right` and `drop#1`; the same
 seed gives the same end digest, another seed other jitter, and the
 replay matches. `spillTwice()` is `{ stage: "run", codes:
 ["spawn-id-invalid"] }`. The scene CLI runs the same game:
@@ -4358,6 +4650,309 @@ export function shuttle(rapier: RapierModule | null) {
 Both backends give the same sixteen bumps in five seconds (`start west`,
 `end west`, `start east`, …), two sparks spawned, two bumps refused
 while both were lit, and the same `nearest` and `west`.
+
+## The scene tree
+
+Every live entity has at most one parent, and a parent moves, hides,
+finds and destroys what sits under it. In a scene file a parent comes
+from a prefab instance or `parent`; at run time from `ctx.spawn` and
+`ctx.instantiate` with `parent`, or from `setParent`. A scene with no
+parents runs exactly as it did without the tree.
+
+- **A prefab instance is a live entity.** Each instance spawns a `node`
+  at its own id, posed at the instance's origin and angle, and its
+  children sit under it; a nested instance's node sits under its
+  enclosing instance's, so `room-1/door-1/panel` is under `room-1/door-1`,
+  which is under `room-1`. Ids don't change. `ctx.setEnabled`,
+  `ctx.destroy` and `ctx.entity` take an instance id like any other.
+- **`node`** is an engine type with a pose and nothing else (`at`,
+  `rot`): a pivot to move, turn, hide or destroy a group as one thing.
+- **A solid or sensor under a follower** rides its body: riding is the
+  tree's job, so a rider is destroyed and disabled with its host, and
+  found under it.
+
+The tree is `ctx.tree` by id (`parent`, `children`, `subtree`, `root`,
+`isUnder`, `local`, `setLocal`, `setParent`) and the handle's tree
+members (see [Entity handles](#entity-handles), and
+[Coming from Unity](#coming-from-unity) for the Unity names).
+
+### What a parent is at runtime
+
+Poses stay in world space: `ctx.poses`, `entity.pose`, queries and
+contacts all read world poses, and each system keeps the world pose it
+always kept. The tree adds a local pose per child, its pose in the
+parent's frame (`entity.localPose`, `ctx.tree.local`).
+
+When an entity with children has its pose written, by whatever moved it
+(its system, a tween, `setPose`, the physics step), the tree moves each
+of its driven descendants to the parent's pose composed with the child's
+local one, at once, parents first and siblings in child order. A read is
+therefore always current and nothing has to be flushed. When a child's
+own pose is written by anything but the tree, its local pose is measured
+again, so `child.setPose(x, y)` puts it there in the world and it keeps
+that place in its parent's frame. `entity.setLocalPose(x, y, rot?)` and
+`ctx.tree.setLocal` write in the parent's frame instead.
+
+### Driven or self-moving
+
+A child is driven unless something on it moves it in world space:
+
+| The child has                                         | It is       | So                                                                          |
+| ----------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| nothing that moves it                                 | driven      | follows the parent rigidly                                                  |
+| a `tween` on pose channels, or `path-follow`          | driven      | the tween's `x`, `y`, `rot` and the path's points are in the parent's frame |
+| a dynamic `body`, a character behavior, a `nav-agent` | self-moving | moves in the world as before; its local pose is derived when read           |
+| the `follower` type                                   | self-moving | its path stays in world space                                               |
+
+A self-moving child still dies, hides and is found with its parent. To
+make a dynamic body go where its parent goes, link the two with a
+`joint`, as in Unity. What is self-moving is declared, not guessed: an
+entity type's system or a behavior system answers `selfMoving(id)`, so a
+game's own controller can say so too (a `prop` always does).
+
+### Colliders ride the nearest body
+
+A collider belongs to the nearest body at or above it, Unity's compound
+collider rule:
+
+1. the entity has its own body (a `prop`, a `follower`, a `body`
+   behavior): the collider is on it;
+2. else the nearest ancestor with a body (a `prop`, a `follower`, or a
+   `collider` with a kinematic or dynamic `body`): the collider is made
+   on that body at the child's offset, and the physics engine carries it;
+3. else its own fixed body, as without the tree, moved by the tree when
+   an ancestor moves.
+
+Take a turret prefab: a `base` solid, a `barrel` and a `sight` sensor.
+
+```json
+{
+  "kind": "prefab",
+  "v": 4,
+  "id": "turret",
+  "entities": [
+    { "id": "base", "type": "solid", "shape": ["box", 0, 0, 0.4, 0.4] },
+    { "id": "barrel", "type": "marker", "at": [0.5, 0] },
+    { "id": "sight", "type": "sensor", "shape": ["box", 1.5, 0, 0.5, 0.1] }
+  ]
+}
+```
+
+Placed on the ground, nothing above the base and the sight has a body,
+so each keeps its own fixed collider (case 3), moved with the instance's
+node. Spawned under a dynamic `prop` crate
+(`ctx.instantiate("turret", [0, -0.5], { parent: "crate", local: true })`),
+both become colliders on the crate's body (case 2): the crate falls,
+tips and collides as one compound shape, and the sight reports what
+touches it from wherever the crate has rolled. Under a `follower` they
+ride its body, and a character standing on the base is carried as one
+standing on the follower is. `setParent` moves a collider onto its new
+parent's body, or back onto its own. With `physics: "none"` there are no
+dynamic bodies and nothing asks for Rapier: the geometry world's
+colliders follow by pose in every case, a follower's riders and what
+stands on them included.
+
+### Destroy and enabled
+
+- **Destroy** takes the subtree: `ctx.destroy(id)` or `entity.destroy()`
+  destroys the entity's descendants first, in reverse child order, then
+  the entity, at the same end-of-tick point as any destroy (at once
+  outside a step). Destroying a child alone takes its own subtree and
+  leaves its parent. A destroy of a parent queued mid-tick takes the
+  children spawned under it later that tick.
+- **Enabled** is the entity's own switch and every ancestor's:
+  `entity.enabled` and `ctx.enabled(id)` give that, `entity.enabledSelf`
+  the own switch (Unity's `activeInHierarchy` and `activeSelf`).
+  Switching a parent off disables its subtree, children first; switching
+  it on enables only what was on by its own switch, parents first, and
+  puts each driven child where its parent now holds it. A child that
+  joins a parent that is off starts off.
+- **Events** subscribed with `{ entity: id }` (and `entity.on`) match the
+  entity's whole subtree.
+
+### Spawning into the tree
+
+`SpawnInput` and `InstantiateOptions` take `parent`, a live entity's id.
+The geometry fields (`at`, a shape) are in world space unless
+`local: true` puts them in the parent's frame:
+
+- `ctx.spawn({ type: "marker", at: [12, 5], parent: "cart" })` lands at
+  (12, 5) and keeps that offset from the cart from then on;
+- `ctx.instantiate("turret", [-1, 0], { parent: "cart", local: true })`
+  puts the instance's node one metre behind the cart, turned with it.
+
+`ctx.instantiate` returns the node's id as `id`, and `entities` lists
+the children only. A parent that isn't live, or lives in another
+sublevel than the spawn, throws `EngineError("parent-scope")`, and no id
+is used up. `entity.setParent(parent, { keepWorld })` (null for a root)
+keeps the world pose by default, or with `keepWorld: false` keeps the
+local one; a parent in the entity's own subtree throws `parent-cycle`
+and one in another sublevel `parent-scope`.
+
+### Finding things
+
+- `entity.find("door/panel")` walks down by child ids: each segment is a
+  child's own id, the last `/` segment of its full id, so a prefab
+  child answers to the id the prefab gave it.
+- `getBehaviorInChildren(def)` looks at the entity, then its descendants
+  depth first in child order; `getBehaviorsInChildren(def)` returns
+  every match in that order; `getBehaviorInParent(def)` looks at the
+  entity, then each ancestor up to the root. All three skip disabled
+  entities.
+- `ctx.entities({ under: id })` and `ctx.query` with `under` keep only
+  the entity's descendants (not the entity itself), beside `type`,
+  `tag`, `enabled` and `behavior`. `count`, `inArea`, `at` and `nearest`
+  take it too. `ctx.tree.subtree(id)` is the entity and its
+  descendants, depth first.
+
+### What a save holds
+
+A world save keeps world poses as before. It adds `world.parents`, only
+for live entities whose parent differs from the one their load or spawn
+gave them (the new parent's id, or null for a root), so a run that never
+reparents saves what it saved before. `world.enabled` keeps own
+switches: a child that is off only because its parent is off has no
+line there. Restoring relinks first, then writes the poses, then derives
+the local poses, so a restored run follows exactly as the saved one
+did. In a live edit, an entity whose parent the edit changed takes its
+authored pose under the new parent; one whose parent stayed keeps its
+live pose.
+
+### Drawing, and no scale
+
+Drawing doesn't change: each entity pushes its own world pose to the
+view, which interpolates it per entity. There are no display containers
+per parent, so between two ticks a child of a turning parent is drawn
+along the chord rather than the arc: 4 m from a parent turning once a
+second, at 60 ticks a second, that is about 5 mm at the middle of the
+tick, well under a pixel at ordinary zooms.
+
+A transform is a position and an angle. Nothing scales a subtree:
+resizing a shape edits its parameters. An instance's `flip` keeps
+working as before, applied once when the scene loads.
+
+### A cart with turrets
+
+A gameless yard: a scene's turret instance is put on a `cart` node, a
+second turret is spawned straight onto it, and a script sweeps each
+barrel in its parent's frame while the cart drives and turns.
+
+```ts scene-tree.ts
+import { createRegistry, defineGame, defineScript } from "@jams/engine/game";
+import { createHeadlessRuntime } from "@jams/engine/headless";
+import { expandScene, prefabLibrary, type Prefab, type SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+/** Sweeps its entity back and forth in its parent's frame: the angle it writes is local. */
+const sweep = defineScript({
+  name: "yard/sweep",
+  description: "Turns the entity to and fro about its parent.",
+  fields: { arc: z.number().positive().default(0.5).describe("Half the sweep, rad.") },
+  create(self) {
+    let t = 0;
+    return {
+      step() {
+        t++;
+        const { x, y } = self.entity.localPose;
+        self.entity.setLocalPose(x, y, Math.sin(t / 30) * self.fields.arc);
+      },
+    };
+  },
+});
+
+const yard = defineGame({
+  id: "yard",
+  types: [],
+  behaviors: [sweep],
+  actions: [],
+  world: { physics: "none" },
+  createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
+});
+
+/** A base, a barrel that sweeps, and a sensor ahead of them. */
+const turret: Prefab = {
+  kind: "prefab",
+  v: 4,
+  game: "yard",
+  id: "turret",
+  entities: [
+    { id: "base", type: "solid", shape: ["box", 0, 0, 0.4, 0.4] },
+    { id: "barrel", type: "marker", at: [0.5, 0], behaviors: { "yard/sweep": {} } },
+    { id: "sight", type: "sensor", shape: ["box", 1.5, 0, 0.5, 0.1] },
+  ],
+};
+
+/** A cart with one turret on it, placed by the scene. */
+const lot: SceneDefinition = {
+  v: 4,
+  game: "yard",
+  name: "lot",
+  bounds: [0, 0, 12, 8],
+  entities: [{ id: "cart", type: "node", at: [2, 4] }],
+  instances: [{ id: "front", prefab: "turret", at: [3, 4] }],
+};
+
+const round = (n: number) => Math.round(n * 1000) / 1000;
+
+/** Moves a cart with turrets on it, then switches it off, saves and tears it down. */
+export function cartRun() {
+  const registry = createRegistry(yard);
+  const prefabs = prefabLibrary([turret]);
+  const rt = createHeadlessRuntime({
+    game: yard,
+    registry,
+    scene: expandScene(lot, registry, { prefabs }),
+    prefabs,
+  });
+  const { ctx } = rt;
+  const cart = ctx.entity("cart")!;
+
+  // The scene's instance is a live node over its children; put it on the cart.
+  const front = ctx.entity("front")!;
+  front.setParent(cart);
+  // A spawned one goes straight under the cart, one metre behind it.
+  const rear = ctx.instantiate("turret", [-1, 0], { parent: "cart", local: true });
+
+  // Move and turn the cart: everything under it follows, sweeps included.
+  for (let i = 0; i < 60; i++) {
+    cart.setPose(2 + i * 0.05, 4, (i / 60) * (Math.PI / 2));
+    rt.step(ctx.time.tickMs, []);
+  }
+  const barrel = front.find("barrel")!;
+  const moved = {
+    rear: rear.id,
+    root: barrel.root.id,
+    front: { x: round(front.pose.x), y: round(front.pose.y) },
+    under: ctx.entities({ under: "cart" }).map((e) => e.id),
+    // The barrel sits where the prefab put it on the base, whatever the cart did.
+    barrel: { x: round(barrel.localPose.x), y: round(barrel.localPose.y) },
+    sweeps: cart.getBehaviorsInChildren(sweep).length,
+  };
+
+  // Off with the cart: the turrets are off too, though their own switches are on.
+  cart.setEnabled(false);
+  const off = { enabled: barrel.enabled, enabledSelf: barrel.enabledSelf };
+  cart.setEnabled(true);
+
+  // A world save keeps only the links the load didn't make: here, front's.
+  const saved = rt.save({ depth: "world", slot: "lot", now: 0 });
+  const parents = saved.ok ? saved.file.world?.parents : undefined;
+
+  // Destroying the cart destroys both turrets with it, children first.
+  cart.destroy();
+  const left = ctx.query.count();
+  rt.destroy();
+  return { ...moved, off, parents, left, barrelAlive: barrel.alive };
+}
+```
+
+After 60 ticks the front turret's node is at about (4.98, 5.00), a
+quarter turn round the cart; `under: "cart"` lists both turrets' nodes
+and children; each barrel's local position is still (0.5, 0) and both
+sweeps are found from the cart. With the cart off the barrel is off but
+`enabledSelf` stays true; the save's `parents` is `{ "front": "cart" }`
+(the spawned turret's link is its spawn's); and destroying the cart
+leaves nothing.
 
 ## Presentation
 
@@ -4749,9 +5344,8 @@ functions aren't guaranteed to, so a tweened puzzle replays everywhere.
 - **What can be tweened.** A pose channel needs a type that can be posed:
   `marker`, `decor`, `solid` and `sensor`, and game types whose system
   implements `SceneSystem.setPose` (or that sit on one of those bases with
-  no system of their own). `prop` and `follower` can't, and neither can a
-  `solid` or `sensor` whose `attach` names a host, live or not, which goes
-  where the host's body takes it. A visual channel
+  no system of their own). `prop` and `follower` can't; a `solid` or
+  `sensor` under a host moves in the host's frame. A visual channel
   needs a `sprite`. Anything else is `tween-target-invalid`: an error in a
   scene's validation for a `tween` block, and an `EngineError` thrown from
   `ctx.tweens.to`.
@@ -6202,7 +6796,7 @@ meta        kind, schemaVersion 3, layout 3, project, key, game?, $schema?
 scene       name, bounds
 settings    one atomic value per top-level key: gravity, physics, grid, view, the game's
 assets      asset id → true
-groups      id → { at, rot?, flip?, name? }
+groups      id → { at, rot?, flip?, name? }: a format 4 doc's, read only to lift it
 instances   key → { @z, id, prefab, at, rot?, flip?, z?, params: map, overrides: map, … }
 entities    key → { @z, @bulk?, id, type, …fields, path: map, behaviors: map of maps, "<grid>@<cx>,<cy>/<row>": row }
 log
@@ -7527,29 +8121,39 @@ primitives); a game's schema adds its types and settings.
 | Field       | Type                                                 | Required | Description                                                                                                                        |
 | ----------- | ---------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `$schema`   | string                                               |          | Path or URI of this file's JSON Schema, for editors. Ignored by the engine.                                                        |
-| `v`         | `4`                                                  | yes      | Scene format version. Files are migrated up on load and always saved at the current version.                                       |
+| `v`         | `5`                                                  | yes      | Scene format version. Files are migrated up on load and always saved at the current version.                                       |
 | `name`      | string                                               | yes      | Scene name, same rules as an id; matches the file name without .json.                                                              |
 | `bounds`    | [number (m), number (m), number (m), number (m)] (m) | yes      | World rectangle [minX, minY, maxX, maxY] in metres; y is down. Limits the camera; anything outside it is flagged.                  |
 | `settings`  | object                                               |          | Scene-wide settings: the engine's, then the game's.                                                                                |
 | `assets`    | string[]                                             |          | Asset ids only game code names, so they count as used: sorted, each once.                                                          |
-| `groups`    | { id: [group](#groups-and-prefabs) }                 |          | Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.                      |
-| `instances` | [instance](#groups-and-prefabs)[]                    |          | Prefab instances, each a copy of a prefab file placed at `at`.                                                                     |
+| `instances` | [instance](#parents-and-prefabs)[]                   |          | Prefab instances, each a copy of a prefab file placed at `at`.                                                                     |
 | `solid`     | [shape](#shapes)[]                                   |          | Static ground shapes, absolute metres; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>. |
 | `entities`  | [entity](#entity-types)[]                            |          | Entities with stable ids: anything that moves, has parameters, or is referenced.                                                   |
 
 ### Fields every entity has
 
-| Field   | Type                                                   | Required | Description                                                                                                                                                                                                                             |
-| ------- | ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`    | string                                                 | yes      | Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.                                                                  |
-| `type`  | string                                                 | yes      | The entity's type: one of the types below.                                                                                                                                                                                              |
-| `name`  | string                                                 |          | Display label for the editor's outliner. No runtime effect.                                                                                                                                                                             |
-| `layer` | `"terrain"` \| `"decor"` \| `"gameplay"` \| `"editor"` |          | Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses. |
-| `group` | string                                                 |          | The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.                                                                                     |
-| `off`   | boolean                                                |          | When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.                                                                                                                                     |
-| `z`     | integer                                                |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.                                                                         |
+| Field    | Type                                                   | Required | Description                                                                                                                                                                                                                                                                                                          |
+| -------- | ------------------------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`     | string                                                 | yes      | Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.                                                                                                                                               |
+| `type`   | string                                                 | yes      | The entity's type: one of the types below.                                                                                                                                                                                                                                                                           |
+| `name`   | string                                                 |          | Display label for the editor's outliner. No runtime effect.                                                                                                                                                                                                                                                          |
+| `layer`  | `"terrain"` \| `"decor"` \| `"gameplay"` \| `"editor"` |          | Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.                                                                              |
+| `parent` | string                                                 |          | What this sits under: an entity or instance in the same scene or prefab, or an instance's child by its resolved ref (`room-1/door-1/panel`). Its geometry is stored in the parent's frame, so it moves, turns, hides and is destroyed with the parent. Change it with the `reparent` op, which keeps the world pose. |
+| `off`    | boolean                                                |          | When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.                                                                                                                                                                                                                  |
+| `z`      | integer                                                |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.                                                                                                                                                      |
 
 ### Entity types
+
+#### `node`
+
+A pose and nothing else: a parent to move, turn, hide or destroy what sits under it as one thing.
+
+| Field       | Type             | Required | Description                                                                                                                                                               |
+| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `at`        | [point](#points) | yes      | The node's origin. Absolute world metres; y is down.                                                                                                                      |
+| `rot`       | number (deg)     |          | Its angle, degrees clockwise; default 0.                                                                                                                                  |
+| `flip`      | `true`           |          | Mirror x in the node's frame, before `rot`; omitted means not mirrored.                                                                                                   |
+| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `solid`
 
@@ -7560,7 +8164,6 @@ Static ground, walls and platforms: collides from every side, or from above only
 | `shape`     | [shape](#shapes)                                      | yes      | Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.                                                                                  |
 | `material`  | none registered                                       |          | Surface material.                                                                                                                                                         |
 | `oneWay`    | `true` or `"up"` \| `"right"` \| `"down"` \| `"left"` |          | The one side actors collide with: they pass through from every other side and land on this one. `true` is "up": they pass up through it and land on top.                  |
-| `attach`    | string                                                |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
 | `behaviors` | object                                                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `sensor`
@@ -7571,7 +8174,6 @@ Trigger volume with no collision response; raises sensor:enter and sensor:exit w
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shape`     | [shape](#shapes) | yes      | Trigger shape. Absolute world metres; y is down.                                                                                                                          |
 | `tags`      | string[]         |          | Labels a game reads off the sensor's events.                                                                                                                              |
-| `attach`    | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
 | `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `marker`

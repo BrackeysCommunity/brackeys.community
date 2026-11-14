@@ -5,20 +5,21 @@ import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./fie
 import { transformCell } from "./grid";
 import { makeIssue } from "./issues";
 import { paramTargetValues } from "./prefab-params";
-import { fieldKind, gridFieldsOf } from "./schema";
+import { fieldKind, geometryFields, gridFieldsOf } from "./schema";
+import { geometryPose, normDeg } from "./shape-geometry";
+import { parseShape } from "./shapes";
 import {
   applyPt,
   applyVec,
   compose,
-  composeDihedral,
-  dihedral,
+  composeOrientations,
   dihedralOf,
+  frame,
+  frameOf,
   IDENTITY_2D,
   invert,
-  inverseTurn,
-  isIdentityTurn,
-  turnOf,
-  type Dihedral,
+  type Frame,
+  type Orientation,
   type Transform2D,
 } from "./transform";
 import {
@@ -33,7 +34,6 @@ import {
   PREFAB_MAX_DEPTH,
   type BulkEntry,
   type EntityDef,
-  type GroupDef,
   type InstanceDef,
   type OpBatch,
   type OverridePath,
@@ -47,10 +47,11 @@ import {
   type SceneOp,
   type SpotAnchor,
 } from "./types";
+import { roundLength } from "./units";
 
 /**
- * The resolved view: one scene with every instance inlined and every group
- * transform applied, in the shape of a scene without groups or instances. Every
+ * The resolved view: one scene with every instance inlined and every
+ * parent frame applied, in the shape of a scene without instances. Every
  * consumer of world geometry (the runtime, picking, gizmos, renders,
  * physical checks) reads this, never the raw document; an edit made on it
  * maps back through `toSourceBatch`.
@@ -74,55 +75,307 @@ export { splitChildRef, splitOverridePath };
 
 const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
 
-/** A group's origin; `[0, 0]` for no group or one that isn't declared. */
-export function groupOrigin(def: SceneDefinition, group: string | undefined): Pt {
-  const at = group === undefined ? undefined : def.groups?.[group]?.at;
-  return at ? [at[0], at[1]] : [0, 0];
-}
-
 const isIdentity = (t: Transform2D) =>
   t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
 
 /** Whether `t` turns or flips, rather than only moving. */
 const turns = (t: Transform2D) => !(t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1);
 
-/** The turn and flip part of a scene transform (always quarter turns and flips). */
-const turnPart = (t: Transform2D): Dihedral => dihedralOf(t) ?? { rot: 0, flip: false };
+/** Whether `t` turns by whole quarter turns, which keep whole numbers whole. */
+const quarter = (t: Transform2D) => dihedralOf(t) !== null;
 
-/** A group's transform: its turn and flip about its `at`, the identity for no group or one that isn't declared. */
-export function groupTransform(def: SceneDefinition, group: string | undefined): Transform2D {
-  const g = group === undefined ? undefined : def.groups?.[group];
-  return g?.at ? dihedral(turnOf(g), g.at) : IDENTITY_2D;
+const isIdentityTurn = (o: Orientation) => o.rot === 0 && !o.flip;
+
+const NO_TURN: Orientation = Object.freeze({ rot: 0, flip: false });
+
+/** `p` under `t`, rounded to the file's length precision off the quarter turns. */
+function placePoint(t: Transform2D, p: Pt): Pt {
+  const [x, y] = applyPt(t, p);
+  return quarter(t) ? [x, y] : [roundLength(x), roundLength(y)];
+}
+
+/** `v` under `t`'s linear part, rounded to the file's length precision off the quarter turns. */
+function placeVector(t: Transform2D, v: Pt): Pt {
+  const [x, y] = applyVec(t, v);
+  return quarter(t) ? [x, y] : [roundLength(x), roundLength(y)];
+}
+
+const NODE = "node";
+
+/** An instance's own frame: its `at`, its angle in degrees and its flip. */
+export function instanceFrame(inst: Pick<InstanceDef, "at" | "rot" | "flip">): Frame {
+  return {
+    at: [inst.at[0], inst.at[1]],
+    rot: typeof inst.rot === "number" ? inst.rot : 0,
+    flip: inst.flip === true,
+  };
+}
+
+/** Where an entity's geometry puts it, as `runtime/spawn-pose.ts` reads it, from stored fields. */
+function storedPose(registry: Registry | undefined, def: EntityDef): { at: Pt; rotDeg?: number } {
+  const t = registry?.types.get(def.type);
+  let shape: unknown;
+  let at: unknown;
+  let path: unknown;
+  for (const { field, kind } of t ? geometryFields(t) : []) {
+    const value = def[field];
+    if (value === undefined || value === null) continue;
+    if (kind === "shape") shape ??= value;
+    else if (kind === "point") at ??= value;
+    else if (kind === "path") path ??= value;
+  }
+  const parsed = shape === undefined ? null : parseShape(shape);
+  const pts = (path as { pts?: unknown } | undefined)?.pts;
+  const pose = geometryPose({
+    ...(parsed?.ok ? { shape: parsed.shape } : {}),
+    ...(isPt(at) ? { at } : {}),
+    ...(Array.isArray(pts) && pts.every(isPt) ? { path: { pts } } : {}),
+  });
+  return pose ?? { at: [0, 0] };
+}
+
+/**
+ * An entity's own frame from its stored fields: what its children's
+ * geometry is written in. A node's `at`, `rot` and `flip`; any other
+ * entity's spawn pose, as `runtime/spawn-pose.ts` reads it (the shape's
+ * centre, a path rider's shape placed at the path's first point, else its
+ * point, else the path's first point) at its box's or capsule's `rotDeg`,
+ * unflipped. An entity with no geometry stands at the origin.
+ */
+export function entityFrame(registry: Registry | undefined, def: EntityDef): Frame {
+  if (def.type === NODE) {
+    return {
+      at: isPt(def.at) ? [def.at[0], def.at[1]] : [0, 0],
+      rot: typeof def.rot === "number" ? def.rot : 0,
+      flip: def.flip === true,
+    };
+  }
+  const pose = storedPose(registry, def);
+  return { at: pose.at, rot: pose.rotDeg ?? 0, flip: false };
+}
+
+/**
+ * The frame of an entity already placed by `turn` (the angle and flip of
+ * what is above it, as a resolved entity's origin carries): a node's from
+ * its fields, which placing turns; any other entity's spawn point, at its
+ * box's or capsule's `rotDeg`, else at `turn`'s angle, with `turn`'s flip.
+ */
+export function placedFrame(
+  registry: Registry | undefined,
+  def: EntityDef,
+  turn: Orientation = NO_TURN,
+): Frame {
+  if (def.type === NODE) return entityFrame(registry, def);
+  const pose = storedPose(registry, def);
+  return { at: pose.at, rot: pose.rotDeg ?? turn.rot, flip: turn.flip };
+}
+
+/** A node's `rot` and `flip` after `t`: written whatever they were, so an absent angle still turns. */
+function turnNode(def: EntityDef, own: EntityDef, t: Transform2D): EntityDef {
+  const o = composeOrientations(frameOf(t), {
+    rot: typeof own.rot === "number" ? normDeg(own.rot) : 0,
+    flip: own.flip === true,
+  });
+  const out: EntityDef = { ...def };
+  delete out.rot;
+  delete out.flip;
+  if (o.rot !== 0) out.rot = o.rot;
+  if (o.flip) out.flip = true;
+  return out;
 }
 
 /**
  * The transforms that place an instance's children, innermost first: its
- * own turn and flip at its `at`, then its group's. Each is applied in turn,
- * so a child resolves exactly as it would after `unpack` into the group.
+ * own angle and flip at its `at`, then its parent chain's.
+ * Each is applied in turn, so a child resolves exactly as it would after
+ * `unpack` into the parent. Without `registry`, a parent that is
+ * neither a node nor an instance counts as the identity.
  */
-export function instanceSteps(def: SceneDefinition, inst: InstanceDef): Transform2D[] {
-  return instanceStepsIn(inst, inst.group === undefined ? undefined : def.groups?.[inst.group]);
+export function instanceSteps(
+  def: SceneDefinition,
+  inst: InstanceDef,
+  registry?: Registry,
+  prefabs?: PrefabLibrary,
+): Transform2D[] {
+  return [frame(instanceFrame(inst)), ...sceneFrames(def, registry, prefabs).stepsFor(inst)];
 }
 
-/** `instanceSteps` with the instance's group given directly; none, or one without `at`, adds the identity. */
-export function instanceStepsIn(inst: InstanceDef, group: GroupDef | undefined): Transform2D[] {
-  return [
-    dihedral(turnOf(inst), inst.at),
-    group?.at ? dihedral(turnOf(group), group.at) : IDENTITY_2D,
-  ];
-}
-
-/** An instance's world transform: its group's after its own turn and flip at its `at`. */
-export function instanceTransform(def: SceneDefinition, inst: InstanceDef): Transform2D {
-  return composeSteps(instanceSteps(def, inst));
+/** An instance's world transform: its parent chain's after its own angle and flip at its `at`. */
+export function instanceTransform(
+  def: SceneDefinition,
+  inst: InstanceDef,
+  registry?: Registry,
+  prefabs?: PrefabLibrary,
+): Transform2D {
+  return composeSteps(instanceSteps(def, inst, registry, prefabs));
 }
 
 const composeSteps = (steps: readonly Transform2D[]): Transform2D =>
   steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
 
 /** Where an instance's prefab origin lands in the world. */
-export function instanceOrigin(def: SceneDefinition, inst: InstanceDef): Pt {
-  return applyPt(groupTransform(def, inst.group), inst.at);
+export function instanceOrigin(
+  def: SceneDefinition,
+  inst: InstanceDef,
+  registry?: Registry,
+  prefabs?: PrefabLibrary,
+): Pt {
+  return placePoint(composeSteps(sceneFrames(def, registry, prefabs).stepsFor(inst)), inst.at);
+}
+
+const headOf = (ref: Ref): string => {
+  const i = ref.indexOf(CHILD_SEPARATOR);
+  return i < 0 ? ref : ref.slice(0, i);
+};
+
+/**
+ * The parent each id resolves under, read leniently so a file and a doc
+ * read alike: none for a root or a parent that doesn't exist, and none for
+ * the id that sorts last in each cycle (a parent naming an instance's child
+ * depends on that instance). `declared` maps each id to the parent it
+ * names.
+ */
+function settledParents(
+  declared: ReadonlyMap<string, Ref | undefined>,
+  exists: (ref: Ref) => boolean,
+): Map<string, Ref | undefined> {
+  const out = new Map<string, Ref | undefined>();
+  for (const [id, p] of declared) out.set(id, p !== undefined && exists(p) ? p : undefined);
+  const next = (id: string): string | undefined => {
+    const p = out.get(id);
+    return p === undefined || !declared.has(headOf(p)) ? undefined : headOf(p);
+  };
+  const state = new Map<string, "open" | "done">();
+  for (const start of declared.keys()) {
+    const path: string[] = [];
+    let id: string | undefined = start;
+    while (id !== undefined && !state.has(id)) {
+      state.set(id, "open");
+      path.push(id);
+      id = next(id);
+    }
+    if (id !== undefined && state.get(id) === "open") {
+      const loop = path.slice(path.indexOf(id));
+      out.set(
+        loop.reduce((a, b) => (b > a ? b : a)),
+        undefined,
+      );
+    }
+    for (const p of path) state.set(p, "done");
+  }
+  return out;
+}
+
+/** The frames of a scene document's entities and instances, by their parent chain. */
+export type SceneFrames = {
+  /**
+   * The transforms that take an entity's or instance's stored geometry to
+   * the world, innermost first: its parent's frame and then the parent's
+   * own steps; none for a root. An item not in the document
+   * (an entity about to be added) is placed by the parent it names.
+   */
+  stepsFor(item: Pick<EntityDef, "id" | "parent">): readonly Transform2D[];
+  /** The steps a child of `parent` goes through: the parent's own frame, then its steps. */
+  under(parent: Ref | undefined): readonly Transform2D[];
+  /** The parent an entity or instance resolves under, read leniently; none for a root. */
+  parentOf(id: string): Ref | undefined;
+  /** Whether an entity or instance is `off`, or under one that is. */
+  hidden(id: string): boolean;
+  /** An instance's children placed in the world (its frame and steps applied), or null when its prefab doesn't resolve. */
+  placed(inst: InstanceDef): PlacedInstanceChild[] | null;
+};
+
+/**
+ * The frames of `def`'s entities and instances, memoised by id. A parent
+ * names an entity or an instance of `def`, or an instance's child by its
+ * resolved ref; a parent that doesn't exist, and the last id of a cycle,
+ * count as roots. Without `registry`, a parent that is neither a node nor
+ * an instance counts as the identity.
+ */
+export function sceneFrames(
+  def: SceneDefinition,
+  registry?: Registry,
+  prefabs?: PrefabLibrary,
+): SceneFrames {
+  const entities = new Map((def.entities ?? []).map((e) => [e.id, e]));
+  const instances = new Map((def.instances ?? []).map((i) => [i.id, i]));
+  const cells = gridTurns(def);
+  const declared = new Map<string, Ref | undefined>();
+  for (const item of [...entities.values(), ...instances.values()])
+    declared.set(item.id, item.parent);
+  const exists = (ref: Ref) => entities.has(ref) || instances.has(headOf(ref));
+  const settled = settledParents(declared, exists);
+  const steps = new Map<string, readonly Transform2D[]>();
+  const unders = new Map<Ref, readonly Transform2D[]>();
+  const hiddenIds = new Map<string, boolean>();
+  const placedByInst = new Map<InstanceDef, PlacedInstanceChild[] | null>();
+
+  const own = (item: Pick<EntityDef, "id" | "parent">): readonly Transform2D[] => {
+    const known = declared.has(item.id);
+    const parent = known ? settled.get(item.id) : item.parent;
+    return parent !== undefined && (known || exists(parent)) ? under(parent) : [];
+  };
+  const stepsOf = (id: string): readonly Transform2D[] => {
+    let out = steps.get(id);
+    if (!out) {
+      const item = entities.get(id) ?? instances.get(id);
+      steps.set(id, (out = item ? own(item) : []));
+    }
+    return out;
+  };
+  const under = (ref: Ref | undefined): readonly Transform2D[] => {
+    if (ref === undefined) return [];
+    let out = unders.get(ref);
+    if (out) return out;
+    const e = entities.get(ref);
+    const inst = e ? undefined : instances.get(ref);
+    if (e) out = [frame(entityFrame(registry, e)), ...stepsOf(ref)];
+    else if (inst) out = [frame(instanceFrame(inst)), ...stepsOf(ref)];
+    else {
+      const child = childOf(ref);
+      out = child ? [frame(placedFrame(registry, child.def, child.transform))] : [];
+    }
+    unders.set(ref, out);
+    return out;
+  };
+  const hiddenRef = (ref: Ref): boolean => {
+    if (entities.has(ref) || instances.has(ref)) return hidden(ref);
+    return childOf(ref)?.def.off === true;
+  };
+  const hidden = (id: string): boolean => {
+    let out = hiddenIds.get(id);
+    if (out === undefined) {
+      const item = entities.get(id) ?? instances.get(id);
+      const parent = settled.get(id);
+      out = item?.off === true || (parent !== undefined && hiddenRef(parent));
+      hiddenIds.set(id, out);
+    }
+    return out;
+  };
+  const placed = (inst: InstanceDef): PlacedInstanceChild[] | null => {
+    if (placedByInst.has(inst)) return placedByInst.get(inst)!;
+    const prefab = prefabs?.get(inst.prefab);
+    let out: PlacedInstanceChild[] | null = null;
+    if (prefab && registry) {
+      const at = hidden(inst.id) && !inst.off ? { ...inst, off: true as const } : inst;
+      const steps = [frame(instanceFrame(inst)), ...own(inst)];
+      const res = placeInstance(prefab, at, registry, steps, cells, prefabs);
+      if (res.ok) out = res.children;
+    }
+    placedByInst.set(inst, out);
+    return out;
+  };
+  const childOf = (ref: Ref): PlacedInstanceChild | undefined => {
+    const inst = instances.get(headOf(ref));
+    return inst ? placed(inst)?.find((c) => c.def.id === ref) : undefined;
+  };
+  return {
+    stepsFor: own,
+    under,
+    parentOf: (id) => settled.get(id),
+    hidden,
+    placed,
+  };
 }
 
 /**
@@ -135,7 +388,11 @@ export function gridTurns(def: Pick<SceneDefinition, "settings">): boolean {
   return grid?.kind === "square" && grid.cell[0] === grid.cell[1];
 }
 
-/** `def` under `t`, field by field; grid cells stay put when `cells` is false and `t` turns. */
+/**
+ * `def` under `t`, field by field; grid cells stay put when `cells` is
+ * false and `t` turns. A node's `rot` and `flip` take `t`'s angle and flip
+ * even when it writes neither.
+ */
 function transformEntity(
   registry: Registry,
   def: EntityDef,
@@ -143,6 +400,7 @@ function transformEntity(
   cells: boolean,
 ): EntityDef {
   if (isIdentity(t)) return def;
+  if (def.type === NODE) return turnNode(transformEntityDef(registry, def, t) ?? def, def, t);
   const held =
     !cells && turns(t)
       ? gridFieldsOf(registry.types.get(def.type)).filter((f) => def[f] !== undefined)
@@ -187,25 +445,40 @@ export function valueAtPath(root: unknown, field: string): unknown {
 /** What a bulk entry of a nested instance takes from the instances above it, as an entity would. */
 export type BulkPlacement = { z?: number; layer?: string; off?: boolean };
 
+/** What a child carries about the parents above it inside its prefab. */
+type ChildLinks = {
+  /**
+   * A parent in the prefab whose frame the child is still written in: its
+   * own `parent`, or the `parent` of the nested instance it came through.
+   * Placing it (at the end of resolving the prefab with its overrides)
+   * applies that parent's chain and clears it.
+   */
+  under?: Ref;
+  /** On a direct child of a nested instance: that instance's `parent`, relative to the prefab, which its node sits under. */
+  nodeParent?: Ref;
+};
+
 /**
  * A child in a prefab's own frame, overrides applied. `child` is its ref
  * relative to the prefab: its own id, or under the nested instances it is
  * in (`door-1/panel`, `door-1/~solid:0`); an entity's `def.id` stays its id
- * in its own prefab. `turn` is the turn and flip of the nested instances
- * above it, and a nested bulk entry's `placed` the z, layer and `off` they
- * give it.
+ * in its own prefab. `turn` is the angle and flip of the nested instances
+ * and parents above it, and a nested bulk entry's `placed` the z, layer
+ * and `off` they give it.
  */
-export type LocalChild =
-  | { kind: "entity"; child: Ref; def: EntityDef; turn?: Dihedral }
-  | {
-      kind: "bulk";
-      child: Ref;
-      key: string;
-      index: number;
-      value: BulkEntry;
-      turn?: Dihedral;
-      placed?: BulkPlacement;
-    };
+export type LocalChild = ChildLinks &
+  (
+    | { kind: "entity"; child: Ref; def: EntityDef; turn?: Orientation }
+    | {
+        kind: "bulk";
+        child: Ref;
+        key: string;
+        index: number;
+        value: BulkEntry;
+        turn?: Orientation;
+        placed?: BulkPlacement;
+      }
+  );
 
 /** A prefab's children in its own frame: nested instances expanded, ids relative ("door-1/panel"). */
 export type ResolvedPrefab = {
@@ -367,6 +640,7 @@ function ownChildren(prefab: Prefab, after: readonly LocalChild[] = []): LocalCh
     kind: "entity",
     child: e.id,
     def: clone(e),
+    ...(e.parent !== undefined ? { under: e.parent } : {}),
   }));
   for (const [key, entries] of Object.entries(prefab.bulk ?? {})) {
     const offset = after.filter(
@@ -414,7 +688,8 @@ function baseChildren(
   }
   const resolved = resolveGiven(base, ctx);
   if (!resolved.ok) return resolved;
-  return overlaid(base, resolved, Object.entries(prefab.overrides ?? {}), ctx);
+  // The base's children stay in their parents' frames: the variant places them with its own.
+  return overlaid(base, resolved, Object.entries(prefab.overrides ?? {}), ctx, false);
 }
 
 function resolveBody(prefab: Prefab, ctx: Ctx): Outcome {
@@ -472,13 +747,20 @@ function nestedChildren(
   }
   const local = instanceLocal(prefab, n, ctx);
   if (!local.ok) return local;
-  const t = dihedral(turnOf(n), n.at);
-  const turn = turnOf(n);
+  const placing = instanceFrame(n);
+  const t = frame(placing);
+  const own: Orientation = { rot: placing.rot, flip: placing.flip };
   const siblings = new Set(local.children.map((c) => c.child));
+  const parented = n.parent !== undefined;
   const children = local.children.map((c): LocalChild => {
     const child = childRef(n.id, c.child);
-    const total = c.turn ? composeDihedral(turn, c.turn) : turn;
-    const turned = isIdentityTurn(total) ? {} : { turn: total };
+    const total = c.turn ? composeOrientations(own, c.turn) : own;
+    const links: ChildLinks & { turn?: Orientation } = {
+      ...(isIdentityTurn(total) ? {} : { turn: total }),
+      ...(parented ? { under: n.parent } : {}),
+    };
+    if (parented && !c.child.includes(CHILD_SEPARATOR)) links.nodeParent = n.parent;
+    else if (c.nodeParent !== undefined) links.nodeParent = remapRef(c.nodeParent, n.id, siblings);
     if (c.kind === "bulk") {
       const placed: BulkPlacement = { ...c.placed };
       inherit(placed, n);
@@ -488,14 +770,14 @@ function nestedChildren(
         key: c.key,
         index: c.index,
         value: transformBulkValue(c.value, t) as BulkEntry,
-        ...turned,
+        ...links,
         ...(Object.keys(placed).length > 0 ? { placed } : {}),
       };
     }
     const def: EntityDef = { ...transformEntity(ctx.registry, c.def, t, ctx.cells) };
     inherit(def, n);
     remapChildRefs(def, n.id, siblings, ctx.registry);
-    return { kind: "entity", child, def, ...turned };
+    return { kind: "entity", child, def, ...links };
   });
   return { ok: true, children, uses: local.prefab.uses, depth: local.depth };
 }
@@ -643,15 +925,28 @@ function applyOverrides(
 }
 
 type Overlaid =
-  | { ok: true; prefab: ResolvedPrefab; children: LocalChild[]; depth: number }
+  | {
+      ok: true;
+      prefab: ResolvedPrefab;
+      children: LocalChild[];
+      depth: number;
+      /** The prefab with the overrides of its nested instances laid over. */
+      patched: Prefab;
+    }
   | { ok: false; issue: SceneIssue };
 
-/** `prefab`'s children (`base` is it resolved) with `entries` laid over in order, later beating earlier. */
+/**
+ * `prefab`'s children (`base` is it resolved) with `entries` laid over in
+ * order, later beating earlier, then (unless `place` is false) each one
+ * still in a parent's frame placed in the prefab's (`placeUnder`), so an
+ * override of a parent's geometry carries its children.
+ */
 function overlaid(
   prefab: Prefab,
   base: Extract<Outcome, { ok: true }>,
   entries: readonly [OverridePath, unknown][],
   ctx: Ctx,
+  place = true,
 ): Overlaid {
   const { prefab: patched, rest } = patchedPrefab(prefab, entries);
   const own = ctx.library?.get(prefab.id) === prefab;
@@ -659,12 +954,53 @@ function overlaid(
   if (!resolved.ok) return resolved;
   const children = resolved.value.prefab.children.map(clone);
   applyOverrides(children, rest, ctx.registry);
+  if (place) placeUnder(children, parentSteps(children, patched, ctx), ctx);
   return {
     ok: true,
     prefab: resolved.value.prefab,
     children,
     depth: resolved.value.depth,
+    patched,
   };
+}
+
+/**
+ * Places each child `pending` names by its parent chain, in place: its
+ * geometry and turn, `off` when the chain is, and, for one whose parent
+ * counts as a root (missing or in a cycle), its `parent` dropped so the
+ * runtime doesn't link it either.
+ */
+function placeUnder(
+  children: LocalChild[],
+  pending: ReadonlyMap<LocalChild, PendingPlacement>,
+  ctx: Ctx,
+): void {
+  children.forEach((c, i) => {
+    const p = pending.get(c);
+    if (!p) return;
+    const next: LocalChild = { ...c };
+    delete next.under;
+    if (p.root && next.nodeParent === c.under) delete next.nodeParent;
+    const total = composeOrientations(frameOf(composeSteps(p.steps)), c.turn ?? NO_TURN);
+    if (isIdentityTurn(total)) delete next.turn;
+    else next.turn = total;
+    if (next.kind === "bulk") {
+      next.value = p.steps.reduce(
+        (v, t) => transformBulkValue(v, t),
+        next.value as unknown,
+      ) as BulkEntry;
+      if (p.off) next.placed = { ...next.placed, off: true };
+    } else {
+      let def = p.steps.reduce((d, t) => transformEntity(ctx.registry, d, t, ctx.cells), next.def);
+      if (p.root && def.parent === c.under) {
+        def = { ...def };
+        delete def.parent;
+      }
+      if (p.off && !def.off) def = { ...def, off: true };
+      next.def = def;
+    }
+    children[i] = next;
+  });
 }
 
 /** An instance's children in its prefab's frame: the prefab resolved, then the instance's params, then its overrides. */
@@ -676,6 +1012,66 @@ function instanceLocal(
   const base = resolveGiven(prefab, ctx);
   if (!base.ok) return base;
   return overlaid(prefab, base, instanceOverrideEntries(base.value.prefab.params, inst), ctx);
+}
+
+/** What placing one child under its parent chain does: the steps, innermost first, and whether that chain is off. */
+type PendingPlacement = { steps: Transform2D[]; off: boolean; root: boolean };
+
+/**
+ * For each child still in a parent's frame (`under`), the parent chain
+ * that places it in the prefab's frame, read leniently as a scene is: a
+ * parent that doesn't exist, and the last id of a cycle, count as roots. A
+ * parent names an entity of the prefab (its own or its base's), a nested
+ * instance, or a nested instance's child (`door-1/panel`).
+ */
+function parentSteps(
+  children: readonly LocalChild[],
+  prefab: Prefab,
+  ctx: Ctx,
+): Map<LocalChild, PendingPlacement> {
+  const out = new Map<LocalChild, PendingPlacement>();
+  if (!children.some((c) => c.under !== undefined)) return out;
+  const byRef = new Map(children.map((c) => [c.child, c]));
+  const nested = (id: string) => nestedThrough(prefab, [], id, ctx.library);
+  const declared = new Map<string, Ref | undefined>();
+  for (const c of children) {
+    const nestedChild = c.child.includes(CHILD_SEPARATOR);
+    if (!nestedChild && c.kind === "entity") declared.set(c.child, c.under);
+    else if (nestedChild && !declared.has(headOf(c.child))) declared.set(headOf(c.child), c.under);
+  }
+  const exists = (ref: Ref) =>
+    byRef.get(ref)?.kind === "entity" ||
+    (!ref.includes(CHILD_SEPARATOR) && nested(ref) !== undefined);
+  const settled = settledParents(declared, exists);
+  const chains = new Map<Ref, { steps: Transform2D[]; off: boolean }>();
+  const chain = (ref: Ref | undefined): { steps: Transform2D[]; off: boolean } => {
+    if (ref === undefined) return { steps: [], off: false };
+    const hit = chains.get(ref);
+    if (hit) return hit;
+    const c = byRef.get(ref);
+    const n = c ? undefined : nested(ref);
+    let found = { steps: [] as Transform2D[], off: false };
+    if (c?.kind === "entity") {
+      // The parent's own frame is in the frame its def is written in, which its chain places.
+      const above = chain(settled.get(headOf(ref)));
+      const own = frame(placedFrame(ctx.registry, c.def, c.turn));
+      found = { steps: [own, ...above.steps], off: c.def.off === true || above.off };
+    } else if (n) {
+      const above = chain(settled.get(ref));
+      found = {
+        steps: [frame(instanceFrame(n)), ...above.steps],
+        off: n.off === true || above.off,
+      };
+    }
+    chains.set(ref, found);
+    return found;
+  };
+  for (const c of children) {
+    if (c.under === undefined) continue;
+    const parent = settled.get(headOf(c.child));
+    out.set(c, { ...chain(parent), root: parent === undefined });
+  }
+  return out;
 }
 
 function localCtx(
@@ -733,23 +1129,27 @@ export function childEntity(c: LocalChild, registry: Registry): EntityDef | null
   return def;
 }
 
-/** Rewrites a child's reference fields that name a sibling or a nested child to its resolved ref. */
+/** `ref` under `instance` when it names a sibling or a nested child, else as given. */
+const remapRef = (ref: Ref, instance: string, siblings: ReadonlySet<string>): Ref =>
+  siblings.has(ref) ? childRef(instance, ref) : ref;
+
+/** Rewrites a child's `parent` and reference fields that name a sibling or a nested child to its resolved ref. */
 function remapChildRefs(
   def: EntityDef,
   instance: string,
   siblings: ReadonlySet<string>,
   registry: Registry,
 ): void {
+  if (typeof def.parent === "string") def.parent = remapRef(def.parent, instance, siblings);
   for (const { field } of registry.types.get(def.type)?.refs ?? []) {
     const value = valueAtPath(def, field);
-    const map = (v: unknown) =>
-      typeof v === "string" && siblings.has(v) ? childRef(instance, v) : v;
+    const map = (v: unknown) => (typeof v === "string" ? remapRef(v, instance, siblings) : v);
     if (Array.isArray(value)) setAtPath(def, field, value.map(map));
     else if (value !== undefined) setAtPath(def, field, map(value));
   }
 }
 
-/** An instance child as the entity the resolved view holds: its resolved ref, the instance's transform, `z`, layer, group and `off` applied. */
+/** An instance child as the entity the resolved view holds: its resolved ref, the instance's transform, `z`, layer and `off` applied. */
 export type PlacedChild = { child: LocalChild; def: EntityDef };
 
 /**
@@ -772,8 +1172,13 @@ export function placeChildren(
   return out.ok ? out.children : [];
 }
 
-/** A placed child with the accumulated turn and flip of its instances and group. */
-export type PlacedInstanceChild = PlacedChild & { transform: Dihedral };
+/**
+ * A placed child with the accumulated angle and flip of its instances,
+ * and parents; on a direct child of a nested instance with a
+ * `parent`, that parent's resolved ref, which the nested instance's node
+ * sits under.
+ */
+export type PlacedInstanceChild = PlacedChild & { transform: Orientation; nodeParent?: Ref };
 
 /**
  * `placeChildren`, with each child's accumulated turn and flip, or the issue
@@ -793,7 +1198,7 @@ export function placeInstance(
   const each: readonly Transform2D[] = Array.isArray(steps) ? steps : [steps];
   const local = instanceLocal(prefab, inst, localCtx(registry, library, { cells }));
   if (!local.ok) return local;
-  const outer = turnPart(composeSteps(each));
+  const outer = frameOf(composeSteps(each));
   const siblings = new Set(local.children.map((c) => c.child));
   const children: PlacedInstanceChild[] = [];
   for (const c of local.children) {
@@ -801,26 +1206,26 @@ export function placeInstance(
     if (!entity) continue;
     const placed = each.reduce((e, t) => transformEntity(registry, e, t, cells), entity);
     const def: EntityDef = { ...placed, id: childRef(inst.id, c.child) };
-    delete def.group;
-    if (inst.group !== undefined) def.group = inst.group;
     inherit(def, inst);
     remapChildRefs(def, inst.id, siblings, registry);
-    children.push({ child: c, def, transform: c.turn ? composeDihedral(outer, c.turn) : outer });
+    const transform = c.turn ? composeOrientations(outer, c.turn) : outer;
+    const nodeParent = c.nodeParent && remapRef(c.nodeParent, inst.id, siblings);
+    children.push({ child: c, def, transform, ...(nodeParent ? { nodeParent } : {}) });
   }
   return { ok: true, children };
 }
 
-/** Where a resolved entity came from, and the turn and flip it was placed with (absent: none). */
+/** Where a resolved entity came from, and the angle and flip it was placed with (absent: none). */
 export type ResolvedOrigin =
-  | { kind: "entity"; index: number; transform?: Dihedral }
+  | { kind: "entity"; index: number; transform?: Orientation }
   | {
       kind: "child";
       instance: number;
       child: Ref;
       /** The instance ids from the scene down to the child's own instance: `["room-1", "door-1"]`. */
       path: string[];
-      /** The accumulated turn and flip of its instances and group. */
-      transform: Dihedral;
+      /** The accumulated angle (degrees clockwise) and flip of its instances and parents. */
+      transform: Orientation;
     };
 
 export type ResolvedScene = {
@@ -829,14 +1234,20 @@ export type ResolvedScene = {
   origins: ResolvedOrigin[];
 };
 
+/** Whether a document places anything through an instance or a parent. */
+const isFlat = (def: SceneDefinition): boolean =>
+  (def.instances ?? []).length === 0 && !(def.entities ?? []).some((e) => e.parent !== undefined);
+
 /**
  * The resolved view and where each of its entities came from. A document
  * entity keeps its index, so pointers into `/entities/<i>` stay put; the
- * instances' children follow, instance by instance. A child's world
- * transform is its group's, then its instance's, each a turn and flip at
- * its `at` (`instanceTransform`), and an instance's `z` is added to each
- * child's. An instance whose prefab is missing contributes nothing
- * (validation reports it); an `off` instance's children are all `off`.
+ * instances' children follow, instance by instance. A stored geometry maps
+ * to the world through its parent chain (`sceneFrames`): `W(child) = W(parent) ∘ frame(entityFrame(parent))`, the
+ * innermost frame applied first. An instance's children go through its own
+ * frame, then its steps, and its `z` is added to each child's. An instance
+ * whose prefab is missing contributes nothing (validation reports it); an
+ * `off` instance's children are all `off`, and so is everything under an
+ * `off` parent.
  */
 export function resolveSceneDetailed(
   def: SceneDefinition,
@@ -844,45 +1255,49 @@ export function resolveSceneDetailed(
   prefabs?: PrefabLibrary,
 ): ResolvedScene {
   const own = def.entities ?? [];
-  const hasGroups = def.groups !== undefined && Object.keys(def.groups).length > 0;
-  if (!hasGroups && (def.instances ?? []).length === 0)
-    return { def, origins: own.map((_, index) => ({ kind: "entity", index })) };
+  if (isFlat(def)) return { def, origins: own.map((_, index) => ({ kind: "entity", index })) };
+  return resolveWith(def, registry, sceneFrames(def, registry, prefabs), true);
+}
 
+/** `resolveSceneDetailed` over given frames; without `children`, instances add nothing. */
+export function resolveWith(
+  def: SceneDefinition,
+  registry: Registry,
+  frames: SceneFrames,
+  children: boolean,
+): ResolvedScene {
   const cells = gridTurns(def);
   const origins: ResolvedOrigin[] = [];
-  const entities: EntityDef[] = own.map((e, index) => {
-    const t = groupTransform(def, e.group);
-    const turn = turnPart(t);
+  const entities: EntityDef[] = (def.entities ?? []).map((e, index) => {
+    const steps = frames.stepsFor(e);
+    const turn = frameOf(composeSteps(steps));
     origins.push(
       isIdentityTurn(turn) ? { kind: "entity", index } : { kind: "entity", index, transform: turn },
     );
-    return transformEntity(registry, e, t, cells);
+    const placed = steps.reduce((d, t) => transformEntity(registry, d, t, cells), e);
+    return !placed.off && frames.hidden(e.id) ? { ...placed, off: true } : placed;
   });
-  (def.instances ?? []).forEach((inst, i) => {
-    const prefab = prefabs?.get(inst.prefab);
-    if (!prefab) return;
-    const placed = placeInstance(prefab, inst, registry, instanceSteps(def, inst), cells, prefabs);
-    if (!placed.ok) return;
-    for (const { child, def: entity, transform } of placed.children) {
-      entities.push(entity);
-      const nested = child.child.split(CHILD_SEPARATOR).slice(0, -1);
-      origins.push({
-        kind: "child",
-        instance: i,
-        child: child.child,
-        path: [inst.id, ...nested],
-        transform,
-      });
-    }
-  });
+  if (children)
+    (def.instances ?? []).forEach((inst, i) => {
+      for (const { child, def: entity, transform } of frames.placed(inst) ?? []) {
+        entities.push(entity);
+        const nested = child.child.split(CHILD_SEPARATOR).slice(0, -1);
+        origins.push({
+          kind: "child",
+          instance: i,
+          child: child.child,
+          path: [inst.id, ...nested],
+          transform,
+        });
+      }
+    });
   const out: SceneDefinition = { ...def, entities };
-  delete out.groups;
   delete out.instances;
   if (entities.length === 0) delete out.entities;
   return { def: out, origins };
 }
 
-/** The resolved view of a scene (see `resolveSceneDetailed`). Returns `def` itself when it has no groups or instances. */
+/** The resolved view of a scene (see `resolveSceneDetailed`). Returns `def` itself when it has no instances or parents. */
 export function resolveScene(
   def: SceneDefinition,
   registry: Registry,
@@ -917,9 +1332,9 @@ const refuse = (message: string, ref: Ref): never => {
  *   moved back to its value without the override drops the override
  *   instead); a `setZ` on one becomes an override of its `z`, less what
  *   its instances add;
- * - a group member's geometry and moves, an instance's `at`, an added
- *   entity or instance, and a paint of a member's cells go through the
- *   inverse of the group's transform the same way;
+ * - a parented entity's geometry and moves, an instance's `at`, an added
+ *   entity or instance, and a paint of a child's cells go through the
+ *   inverse of its parent chain's transform the same way;
  * - removing, renaming or painting a child is refused, since a child only
  *   exists through its instance.
  *
@@ -935,7 +1350,8 @@ export function mapResolvedBatch(
   apply: ChildApply,
 ): SourceBatchResult {
   try {
-    const ops = batch.ops.flatMap((op) => mapOp(def, op, registry, prefabs, apply));
+    const frames = sceneFrames(def, registry, prefabs);
+    const ops = batch.ops.flatMap((op) => mapOp(def, op, registry, prefabs, apply, frames));
     return { ok: true, batch: { ...batch, ops } };
   } catch (err) {
     if (err instanceof MapFailure) return { ok: false, issue: err.issue };
@@ -967,6 +1383,7 @@ function childTarget(
   ref: Ref,
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
+  frames: SceneFrames,
 ) {
   const split = parseChildRef(ref);
   if (!split) return null;
@@ -979,16 +1396,18 @@ function childTarget(
   if (!own) return refuse(`Prefab "${inst.prefab}" has no child "${split.child}".`, ref);
   const bare = { ...inst, overrides: {} };
   const base = ownFrameChild(prefab, bare, split.child, registry, prefabs, cells)!.child;
-  const steps = [...own.steps, ...instanceSteps(def, inst)];
+  const steps = [...own.steps, frame(instanceFrame(inst)), ...frames.stepsFor(inst)];
   const z = (inst.z ?? 0) + own.z;
   return { inst, child: own.child, base, steps, z, toLocal: invert(composeSteps(steps)) };
 }
 
 /**
- * An instance's child in the frame of its own prefab, the overrides of
- * every level above applied, with the nested instances' transforms that
- * place it in `prefab`'s frame (innermost first) and the z they add. Its
- * `child` is its ref relative to `prefab`, so overrides of it key right.
+ * An instance's child in the frame it is written in (its own prefab's, or
+ * its parent's there), the overrides of every level above applied, with
+ * the transforms that place it in `prefab`'s frame (innermost first: its
+ * parent chain, then each nested instance's frame and that instance's
+ * parent chain) and the z the nested instances add. Its `child` is its ref
+ * relative to `prefab`, so overrides of it key right.
  */
 function ownFrameChild(
   prefab: Prefab,
@@ -1000,36 +1419,42 @@ function ownFrameChild(
 ): { child: LocalChild; steps: Transform2D[]; z: number } | null {
   const segs = splitChildRef(ref);
   if (!segs) return null;
+  const ctx = localCtx(registry, library, { cells });
   const steps: Transform2D[] = [];
   let z = 0;
   let p = prefab;
   let at = inst;
   for (const seg of segs.slice(0, -1)) {
-    const n = nestedThrough(p, instanceEntries(p, at, registry, library, cells), seg, library);
+    const level = unplacedChildren(p, at, ctx);
+    if (!level.ok) return null;
+    const n = nestedThrough(level.patched, [], seg, library);
     const next = n && library?.get(n.prefab);
     if (!n || !next) return null;
-    steps.unshift(dihedral(turnOf(n), n.at));
+    const under = level.children.find((c) => headOf(c.child) === seg && c.child !== seg);
+    const chain = (under && level.pending.get(under)?.steps) ?? [];
+    steps.unshift(frame(instanceFrame(n)), ...chain);
     z += n.z ?? 0;
     p = next;
     at = n;
   }
   const leaf = segs[segs.length - 1]!;
-  const child = localChild(p, at, leaf, registry, library, { cells });
-  return child ? { child: { ...child, child: ref }, steps, z } : null;
+  const level = unplacedChildren(p, at, ctx);
+  const child = level.ok ? level.children.find((c) => c.child === leaf) : undefined;
+  if (!level.ok || !child) return null;
+  steps.unshift(...(level.pending.get(child)?.steps ?? []));
+  const own: LocalChild = { ...child, child: ref };
+  delete own.under;
+  return { child: own, steps, z };
 }
 
-/** `instanceOverrideEntries`, or only the instance's overrides when its prefab doesn't resolve. */
-function instanceEntries(
-  prefab: Prefab,
-  inst: InstanceDef,
-  registry: Registry,
-  library: PrefabLibrary | undefined,
-  cells: boolean,
-): [OverridePath, unknown][] {
-  const res = library && resolveGiven(prefab, localCtx(registry, library, { cells }));
-  return res?.ok
-    ? instanceOverrideEntries(res.value.prefab.params, inst)
-    : Object.entries(inst.overrides ?? {});
+/** An instance's children with its overrides applied, those with a parent in the prefab still in that parent's frame, and the chains that place them. */
+function unplacedChildren(prefab: Prefab, inst: InstanceDef, ctx: Ctx) {
+  const base = resolveGiven(prefab, ctx);
+  if (!base.ok) return base;
+  const entries = instanceOverrideEntries(base.value.prefab.params, inst);
+  const out = overlaid(prefab, base, entries, ctx, false);
+  if (!out.ok) return out;
+  return { ...out, pending: parentSteps(out.children, out.patched, ctx) };
 }
 
 /**
@@ -1154,8 +1579,8 @@ function transformSetValue(
   }
   if (kind === "path" && segs[1] === "pts") {
     if (segs.length === 2 && Array.isArray(value))
-      return value.map((q) => (isPt(q) ? applyPt(t, q) : q));
-    if (segs.length === 3 && isPt(value)) return applyPt(t, value);
+      return value.map((q) => (isPt(q) ? placePoint(t, q) : q));
+    if (segs.length === 3 && isPt(value)) return placePoint(t, value);
   }
   const acted = kind === "path" ? segs[1] === "pts" : turnedKind(kind);
   if (acted && turns(t))
@@ -1172,8 +1597,8 @@ function transformSetValue(
  * exact inverse rather than the angle `toLocal` itself turns `deg` to.
  */
 function angleFromWorld(deg: number, toLocal: Transform2D): number {
-  const world = inverseTurn(turnPart(toLocal));
-  const local = deg - 90 * world.rot;
+  const world = frameOf(invert(toLocal));
+  const local = quarter(toLocal) ? deg - world.rot : roundLength(deg - world.rot);
   return world.flip ? 0 - local : local;
 }
 
@@ -1223,7 +1648,7 @@ function transformAnchor(anchor: SpotAnchor | undefined, t: Transform2D): SpotAn
   return ANCHOR_DIRS.find(([, d]) => d[0] === x && d[1] === y)?.[0] ?? anchor;
 }
 
-/** A paint of a group member's cells, taken from the world's cells into its own. */
+/** A paint of a parented entity's cells, taken from the world's cells into its own. */
 function transformPaint(
   op: Extract<SceneOp, { op: "paintCells" }>,
   t: Transform2D,
@@ -1247,19 +1672,19 @@ function mapOp(
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
   apply: ChildApply,
+  frames: SceneFrames,
 ): SceneOp[] {
   const cells = gridTurns(def);
   const onChild = (ref: Ref, local: (t: ChildTarget) => SceneOp): SceneOp[] | null => {
-    const t = childTarget(def, ref, registry, prefabs);
+    const t = childTarget(def, ref, registry, prefabs, frames);
     if (!t) return null;
     const after = apply(t.child, local(t));
     return overrideOps(t.inst, t.base, t.child, after, registry);
   };
-  /** The inverse of the transform of the group `ref` (an entity or instance) is in. */
-  const toGroup = (ref: Ref): Transform2D => {
-    const group = entityOf(def, ref)?.group ?? instanceOf(def, ref)?.group;
-    return invert(groupTransform(def, group));
-  };
+  /** What takes world geometry into the frame an item (an entity or instance, or one about to be added) stores it in. */
+  const toFrame = (item: Pick<EntityDef, "id" | "parent"> | undefined): Transform2D =>
+    item ? invert(composeSteps(frames.stepsFor(item))) : IDENTITY_2D;
+  const toParent = (ref: Ref): Transform2D => toFrame(entityOf(def, ref) ?? instanceOf(def, ref));
 
   switch (op.op) {
     case "update": {
@@ -1287,7 +1712,7 @@ function mapOp(
       if (child) return child;
       const e = entityOf(def, op.ref);
       if (e && op.set) {
-        const inv = toGroup(op.ref);
+        const inv = toParent(op.ref);
         if (isIdentity(inv)) return [op];
         const set: Record<string, unknown> = {};
         for (const [path, value] of Object.entries(op.set))
@@ -1296,7 +1721,7 @@ function mapOp(
       }
       const inst = instanceOf(def, op.ref);
       if (inst && op.set && isPt(op.set.at)) {
-        const at = applyPt(toGroup(op.ref), op.set.at);
+        const at = placePoint(toParent(op.ref), op.set.at);
         return [{ ...op, set: { ...op.set, at } }];
       }
       return [op];
@@ -1311,12 +1736,12 @@ function mapOp(
           children.push(r);
           continue;
         }
-        const inv = toGroup(r);
+        const inv = toParent(r);
         if (!turns(inv)) {
           plain.push(r);
           continue;
         }
-        const by = applyVec(inv, op.by);
+        const by = placeVector(inv, op.by);
         const key = by.join(",");
         const entry = turned.get(key) ?? { by, refs: [] };
         entry.refs.push(r);
@@ -1330,7 +1755,7 @@ function mapOp(
           ...onChild(r, (t) => ({
             op: "move",
             refs: [scratchRef(t.child)],
-            by: applyVec(t.toLocal, op.by),
+            by: placeVector(t.toLocal, op.by),
           }))!,
         );
       return out;
@@ -1338,11 +1763,11 @@ function mapOp(
     case "place": {
       const placed = (inv: Transform2D): SceneOp => {
         const anchor = transformAnchor(op.anchor, inv);
-        return { ...op, at: applyPt(inv, op.at), ...(anchor !== undefined ? { anchor } : {}) };
+        return { ...op, at: placePoint(inv, op.at), ...(anchor !== undefined ? { anchor } : {}) };
       };
       const child = onChild(op.ref, (t) => ({ ...placed(t.toLocal), ref: scratchRef(t.child) }));
       if (child) return child;
-      const inv = toGroup(op.ref);
+      const inv = toParent(op.ref);
       return isIdentity(inv) ? [op] : [placed(inv)];
     }
     case "setZ": {
@@ -1351,7 +1776,7 @@ function mapOp(
       const rest = op.refs.filter((r) => !parseChildRef(r));
       const out: SceneOp[] = rest.length > 0 ? [{ ...op, refs: rest }] : [];
       for (const r of new Set(children)) {
-        const t = childTarget(def, r, registry, prefabs)!;
+        const t = childTarget(def, r, registry, prefabs, frames)!;
         out.push(...childZOps(r, t, op));
       }
       return out;
@@ -1363,21 +1788,27 @@ function mapOp(
       return [op];
     }
     case "add": {
-      const inv = invert(groupTransform(def, op.entity.group));
+      const inv = toFrame({ ...op.entity, id: op.entity.id ?? "" });
       if (isIdentity(inv)) return [op];
       const entity = entityFromWorld(registry, op.entity as EntityDef, inv, cells);
       return [{ ...op, entity: entity as typeof op.entity }];
     }
     case "instantiate": {
-      const g = groupTransform(def, op.instance.group);
-      if (isIdentity(g)) return [op];
-      const inv = invert(g);
-      const instance = { ...op.instance, at: applyPt(inv, op.instance.at) };
-      if (turns(g)) {
-        const local = composeDihedral(inverseTurn(turnPart(g)), turnOf(op.instance));
+      const inv = toFrame({ ...op.instance, id: op.instance.id ?? "" });
+      if (isIdentity(inv)) return [op];
+      const instance = { ...op.instance, at: placePoint(inv, op.instance.at) };
+      if (turns(inv)) {
+        const local = composeOrientations(frameOf(inv), instanceFrame(op.instance));
+        if (local.rot % 90 !== 0)
+          throw new MapFailure(
+            makeIssue("quarter-turn-only", {
+              message: `An instance turns only by quarter turns, and its parent's frame turns it ${local.rot}°.`,
+              got: String(local.rot),
+            }),
+          );
         delete instance.rot;
         delete instance.flip;
-        if (local.rot !== 0) instance.rot = local.rot;
+        if (local.rot !== 0) instance.rot = (local.rot / 90) as 1 | 2 | 3;
         if (local.flip) instance.flip = true;
       }
       return [{ ...op, instance }];
@@ -1385,8 +1816,8 @@ function mapOp(
     case "paintCells": {
       if (parseChildRef(op.ref))
         refuse(`${op.ref} belongs to an instance; open its prefab to paint its cells.`, op.ref);
-      const inv = toGroup(op.ref);
-      return cells && turns(inv) ? [transformPaint(op, inv)] : [op];
+      const inv = toParent(op.ref);
+      return cells && turns(inv) && quarter(inv) ? [transformPaint(op, inv)] : [op];
     }
     case "rename":
       if (parseChildRef(op.from))
@@ -1423,17 +1854,14 @@ function childZOps(
  * Maps an issue found on the resolved view back onto the document: a
  * pointer into an instance child points at the instance, and a fix goes
  * through `mapBatch` (one it can't map is dropped). The identity when the
- * document has no groups or instances.
+ * document has no instances or parents.
  */
 export function issueOnSource(
   source: SceneDefinition,
   origins: readonly ResolvedOrigin[],
   mapBatch: (batch: OpBatch) => SourceBatchResult,
 ): (issue: SceneIssue) => SceneIssue {
-  const plain =
-    (source.instances ?? []).length === 0 &&
-    (source.groups === undefined || Object.keys(source.groups).length === 0);
-  if (plain) return (issue) => issue;
+  if (isFlat(source)) return (issue) => issue;
   return (issue) => {
     let out = issue;
     const m = issue.path === undefined ? null : /^\/entities\/(\d+)/.exec(issue.path);

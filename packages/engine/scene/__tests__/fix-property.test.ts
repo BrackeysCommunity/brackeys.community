@@ -117,6 +117,56 @@ describe("validator fixes", () => {
     );
   });
 
+  it("clear tree issues with one reparent each, on randomly broken trees", () => {
+    const base: SceneDefinition = {
+      v: 4,
+      name: "tree",
+      bounds: [0, 0, 1000, 1000],
+      entities: [
+        { id: "hub", type: "node", at: [100, 100], rot: 30 },
+        { id: "arm", type: "node", at: [10, 0], parent: "hub" },
+        { id: "eye", type: "marker", at: [1, 1], parent: "arm" },
+        { id: "lid", type: "solid", shape: ["box", 0, 0, 4, 2], parent: "arm" },
+        { id: "area", type: "nav", shape: ["poly", 0, 0, 50, 0, 50, 50] },
+        { id: "memo", type: "note", at: [5, 5], text: "A note." },
+      ],
+    };
+    const byId = (def: SceneDefinition, id: string) => entities(def).find((e) => e.id === id)!;
+    const BREAKS: Mutation[] = [
+      (def, r) => {
+        byId(def, r.pick(["eye", "lid", "arm"])).parent = r.pick(["gone", "nobody/child"]);
+      },
+      (def, r) => {
+        byId(def, "hub").parent = r.pick(["eye", "lid", "arm"]);
+      },
+      (def, r) => {
+        byId(def, r.pick(["eye", "lid"])).parent = r.pick(["area", "memo"]);
+      },
+      (def) => {
+        byId(def, "area").parent = "hub";
+      },
+      (def) => {
+        let parent = "lid";
+        for (let k = 0; k < 16; k++) {
+          const id = freshId(def, "link");
+          entities(def).push({ id, type: "node", at: [1, 0], parent } as EntityDef);
+          parent = id;
+        }
+      },
+    ];
+    const fixed = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      const r = rng(seed);
+      const def = structuredClone(base);
+      for (let k = 0; k < 1 + r.int(2); k++) r.pick(BREAKS)(def, r);
+      for (const issue of checkFixes(def, engine, `tree seed ${seed}`))
+        if (issue.fix?.ops.some((op) => op.op === "reparent")) fixed.add(issue.code);
+    }
+    expect([...fixed].sort()).toEqual(
+      ["dangling-ref", "parent-cycle", "parent-depth", "parent-type"].sort(),
+    );
+  });
+
   it("clear reference issues in a game's scene", () => {
     const def: SceneDefinition = {
       v: 1,

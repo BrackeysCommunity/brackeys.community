@@ -6,7 +6,7 @@
 import type { z } from "zod";
 
 import type { Vec2 } from "../../types";
-import { defineBehavior, type BehaviorSystem } from "../behaviors";
+import { type BehaviorSystem, type Bound, defineBehavior, handleType } from "../behaviors";
 import { PathSchema } from "../fields";
 
 const pathFollowFields = {
@@ -23,8 +23,12 @@ export type PathFollowSystem = BehaviorSystem<PathFollowBlock> & {
   frameDelta(entityId: string): Vec2 | null;
 };
 
+/** What `getBehavior(PATH_FOLLOW)` adds beside `fields`. */
+export type PathFollowHandle = Bound<PathFollowSystem, "position" | "frameDelta">;
+
 export const PATH_FOLLOW = defineBehavior({
   name: "path-follow",
+  handle: handleType<PathFollowHandle>(),
   description:
     "Moves the entity along a waypoint path; with a kinematic body it carries what stands on it.",
   fields: pathFollowFields,

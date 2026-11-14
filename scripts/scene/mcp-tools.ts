@@ -177,7 +177,7 @@ const opBatch = z
     base: z.string().optional(),
   })
   .describe(
-    `An OpBatch at format v${SCENE_FORMAT_VERSION}, lengths in metres; \`scene_schema\` with which \`ops\` gives its full schema.`,
+    `An OpBatch at format v${SCENE_FORMAT_VERSION}, lengths in metres; \`scene_schema\` with which \`ops\` gives its full schema. A child's geometry is stored in its parent's frame: \`reparent\` moves entities and instances under a parent (\`null\` for the scene root) and keeps their world geometry, and \`update\` refuses \`parent\`; \`transform\` with \`rotate\` turns instances and nodes by any angle (degrees clockwise) about \`about\`.`,
   );
 const jsonOrPath = (what: string) =>
   z.union([z.string(), z.record(z.string(), z.unknown())]).describe(`${what}, or a path to one.`);
@@ -419,7 +419,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_show",
     title: "Show a scene",
     description:
-      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash, with `time` (its clock as Play resolves it: kind, rate, catch-up) and `physics` (`rapier`, or `none`: no wasm loads): instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). Every length is metres (speeds m/s); `pxPerMetre` is the game's px per metre. Filter by ref, type or a circle.",
+      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash, with `time` (its clock as Play resolves it: kind, rate, catch-up) and `physics` (`rapier`, or `none`: no wasm loads): instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world angle (degrees clockwise) and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). A row with a parent names it as `parent`; a group member's or child's `shape` and `at` are in the frame its geometry is stored in, `origin` and `transform` (`{ rot, flip }`), while its AABB and the near filter are in the world. `tree` lists rows depth first under their parents, each with its `depth`. Every length is metres (speeds m/s); `pxPerMetre` is the game's px per metre. Filter by ref, type or a circle.",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -429,11 +429,21 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .tuple([z.number(), z.number(), z.number()])
         .optional()
         .describe("[x, y, r] in metres: only entities within r of (x, y)."),
+      tree: z.boolean().optional().describe("Rows depth first under their parents, with `depth`."),
       ...liveFields,
     },
     run: (i, ctx) =>
       withSource(i, ctx, (scene, c) =>
-        show({ scene, ref: i.ref, type: i.type, near: opt(i.near, (n) => n.join(",")) }, c),
+        show(
+          {
+            scene,
+            ref: i.ref,
+            type: i.type,
+            near: opt(i.near, (n) => n.join(",")),
+            tree: i.tree,
+          },
+          c,
+        ),
       ),
   }),
   defineTool({

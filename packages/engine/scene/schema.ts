@@ -341,28 +341,18 @@ const MetrePt = z
   .meta({ unit: "m" });
 
 const RotSchema = z
-  .literal([1, 2, 3])
+  .number()
+  .gt(0)
+  .lt(360)
   .optional()
-  .describe("Quarter turns clockwise (y down), applied after `flip`. Omitted means 0.")
-  .meta({ title: "Rotation", group: "geometry" });
+  .describe("Degrees clockwise (y down), in (0, 360), applied after `flip`. Omitted means 0.")
+  .meta({ kind: "angle", unit: "deg", title: "Rotation", group: "geometry" });
 
 const FlipSchema = z
   .literal(true)
   .optional()
   .describe("Mirror x in the local frame, before `rot`. Omitted means not mirrored.")
   .meta({ title: "Mirror", group: "geometry" });
-
-export const GroupSchema = z
-  .strictObject({
-    at: MetrePt.describe(
-      "The group's origin in world metres. Members store their geometry relative to it, so moving the group is one edit here.",
-    ).meta({ title: "Origin", unit: "m", group: "geometry" }),
-    rot: RotSchema,
-    flip: FlipSchema,
-    name: BASE_FIELDS.name,
-  })
-  .describe("A group of entities and instances that move together around a local origin.")
-  .meta({ id: "Group" });
 
 const OVERRIDE_ID = ID_PATTERN.source.slice(1, -1);
 const OVERRIDE_BULK = `~${OVERRIDE_ID}(?::${OVERRIDE_ID})?:(?:0|[1-9][0-9]*)`;
@@ -390,7 +380,7 @@ export const InstanceSchema = z
       `Added to the z of every child, an integer in [-${Z_LIMIT}, ${Z_LIMIT}]. Omitted means 0.`,
     ),
     at: MetrePt.describe(
-      "Where the prefab's origin lands, in world metres (relative to the group's origin when in a group).",
+      "Where the prefab's origin lands, in world metres (in its parent's frame when it has one).",
     ).meta({ title: "Position", unit: "m", group: "geometry" }),
     rot: RotSchema,
     flip: FlipSchema,
@@ -475,12 +465,6 @@ function buildSceneSchema(registry: Registry): z.ZodObject {
         .optional()
         .describe("Asset ids only game code names, so they count as used: sorted, each once.")
         .meta({ title: "Assets" }),
-      groups: z
-        .record(z.string().regex(ID_PATTERN), GroupSchema)
-        .optional()
-        .describe(
-          "Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.",
-        ),
       instances: z
         .array(InstanceSchema)
         .optional()

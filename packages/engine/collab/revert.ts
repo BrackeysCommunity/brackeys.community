@@ -2,12 +2,9 @@ import * as Y from "yjs";
 
 import type { DocLayout } from "../project/kinds";
 import { makeIssue } from "../scene/issues";
-import type { GroupDef, SceneIssue } from "../scene/types";
-import { patchGroup } from "./apply";
+import type { SceneIssue } from "../scene/types";
 import {
   entitiesMap,
-  groupMap,
-  groupsMap,
   instancesMap,
   paramsMap,
   patchMap,
@@ -60,18 +57,12 @@ export type RevertOptions = {
 function slotOf(
   doc: Y.Doc,
   key: string,
-): { map: Y.Map<unknown>; key: string; kind: "record" | "group" | "value" } {
+): { map: Y.Map<unknown>; key: string; kind: "record" | "value" } {
   if (key.startsWith(INSTANCE_KEY_PREFIX))
     return {
       map: instancesMap(doc) as Y.Map<unknown>,
       key: key.slice(INSTANCE_KEY_PREFIX.length),
       kind: "record",
-    };
-  if (key.startsWith(GROUP_KEY_PREFIX))
-    return {
-      map: groupsMap(doc) as Y.Map<unknown>,
-      key: key.slice(GROUP_KEY_PREFIX.length),
-      kind: "group",
     };
   if (key.startsWith(PREFAB_KEY_PREFIX))
     return { map: prefabsMap(doc), key: key.slice(PREFAB_KEY_PREFIX.length), kind: "value" };
@@ -151,6 +142,10 @@ export function revertProblem(
     return makeIssue("op-invalid", {
       message: `"${entry.label}" was too large to keep its inverse, so it can't be reverted.`,
     });
+  if (entry.keys.some((k) => k.startsWith(GROUP_KEY_PREFIX)))
+    return makeIssue("op-invalid", {
+      message: `"${entry.label}" changed a group, which format 5 turned into a node, so it can't be reverted.`,
+    });
   if (!opts.layout && entry.keys.some((k) => k.startsWith(CONTENT_KEY_PREFIX)))
     return makeIssue("op-invalid", {
       message: `"${entry.label}" changed an asset's content; reverting it needs the asset kind's layout.`,
@@ -202,9 +197,6 @@ function writeRevert(
         const slot = slotOf(doc, key);
         const current = slot.map.get(slot.key);
         if (prev === null) slot.map.delete(slot.key);
-        else if (slot.kind === "group" && current instanceof Y.Map)
-          patchGroup(current, currentOf(doc, key, opts) as GroupDef | undefined, prev as GroupDef);
-        else if (slot.kind === "group") slot.map.set(slot.key, groupMap(prev as GroupDef));
         else if (slot.kind === "value") slot.map.set(slot.key, structuredClone(prev));
         else if (current instanceof Y.Map)
           patchRecord(current, recordOf(current), prev as EntityRecord);

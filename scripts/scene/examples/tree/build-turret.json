@@ -1,0 +1,25 @@
+{
+  "label": "Build a turret from plain entities: a node, a base under it, a barrel under the base",
+  "ops": [
+    { "op": "add", "entity": { "id": "tower", "type": "node", "name": "Tower", "at": [8, 5] } },
+    {
+      "op": "add",
+      "entity": {
+        "id": "tower-base",
+        "type": "solid",
+        "parent": "tower",
+        "shape": ["box", 0, -0.2, 0.4, 0.2]
+      }
+    },
+    {
+      "op": "add",
+      "entity": {
+        "id": "tower-barrel",
+        "type": "marker",
+        "parent": "tower-base",
+        "at": [0.5, -0.35],
+        "behaviors": { "collider": { "shape": ["box", 0, 0, 0.5, 0.08] } }
+      }
+    }
+  ]
+}

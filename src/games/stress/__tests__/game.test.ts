@@ -39,7 +39,7 @@ const prefabs = prefabLibrary(
 function filled(scene: StressScene): SceneDefinition {
   const empty = {
     $schema: "../scene.schema.json",
-    v: 4,
+    v: 5,
     game: "stress",
     name: scene.id,
     bounds: scene.bounds,

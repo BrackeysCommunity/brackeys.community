@@ -27,6 +27,15 @@ const BATCHES = {
   script: join(EXAMPLES, "run-to-crate.json"),
 };
 
+/** The skill's tree batches, run in order on `TREE_YARD`. */
+const TREE_EXAMPLES = fileURLToPath(new URL("../examples/tree/", import.meta.url));
+const TREE = {
+  build: join(TREE_EXAMPLES, "build-turret.json"),
+  reparent: join(TREE_EXAMPLES, "reparent-crate.json"),
+  turn: join(TREE_EXAMPLES, "turn-tower.json"),
+  nudge: join(TREE_EXAMPLES, "nudge-barrel.json"),
+};
+
 /** The floor's top: a hero 0.8 m tall stands at y 4.6, a 0.5 m crate at 4.75. */
 const floor = { id: "floor", type: "solid", shape: ["box", 6, 5.2, 6, 0.2] };
 const room = (name: string, entities: unknown[]): SceneDefinition =>
@@ -45,6 +54,8 @@ const YARD = room("yard", [
   { id: "flag", type: "marker", at: [7, 4.75] },
 ]);
 const LANE = room("lane", []);
+/** What the tree batches start from: a crate marker left of where the tower goes. */
+const TREE_YARD = room("tree", [{ id: "crate", type: "marker", at: [6, 4.75] }]);
 const RUNNER: Prefab = {
   kind: "prefab",
   v: SCENE_FORMAT_VERSION,
@@ -85,6 +96,7 @@ beforeAll(async () => {
   await mkdir(join(dir, "prefabs"), { recursive: true });
   await writeFile(join(dir, "yard.json"), formatScene(YARD).text);
   await writeFile(join(dir, "lane.json"), formatScene(LANE).text);
+  await writeFile(join(dir, "tree.json"), formatScene(TREE_YARD).text);
   await writeFile(join(dir, "prefabs", "runner.json"), formatPrefab(RUNNER));
   ctx = { projects: [await tempProject(dir, { id: "skill-yard" })], loadRapier: loadCompatRapier };
 });
@@ -171,5 +183,96 @@ describe("the scene-editing skill's behavior batches", () => {
     const quick = await playtest("lane", script);
     expect(quick.steps[0]).toMatchObject({ end: "until" });
     expect(quick.ticks).toBeLessThan(slow.ticks / 2);
+  });
+});
+
+type Row = {
+  ref: string;
+  parent?: string;
+  at?: [number, number];
+  origin?: [number, number];
+  transform?: { rot: number; flip: boolean };
+  extra?: { rot?: number };
+};
+
+/** `show`'s rows by ref. */
+async function rows(scene: string): Promise<Map<string, Row>> {
+  const shown = await cli(["show", scene]);
+  return new Map((shown.entities as Row[]).map((r) => [r.ref, r]));
+}
+
+/** A point entity's world position: its stored `at` placed by its row's frame. */
+function world(row: Row): [number, number] {
+  const [x, y] = row.at!;
+  const [ox, oy] = row.origin ?? [0, 0];
+  const turn = ((row.transform?.rot ?? 0) * Math.PI) / 180;
+  return [
+    ox + x * Math.cos(turn) - y * Math.sin(turn),
+    oy + x * Math.sin(turn) + y * Math.cos(turn),
+  ];
+}
+
+function expectNear(actual: [number, number], expected: [number, number]) {
+  expect(actual[0]).toBeCloseTo(expected[0], 5);
+  expect(actual[1]).toBeCloseTo(expected[1], 5);
+}
+
+describe("the scene-editing skill's tree batches", () => {
+  const apply = async (file: string) => {
+    const dry = await cli(["apply", "tree", "--ops", file, "--dry-run"]);
+    expect(dry.exitCode, JSON.stringify(dry)).toBe(0);
+    const done = await cli(["apply", "tree", "--ops", file]);
+    expect(done.exitCode, JSON.stringify(done)).toBe(0);
+    expect((await cli(["validate", "tree"])).exitCode).toBe(0);
+  };
+
+  it("are the files this test runs, every one", async () => {
+    expect((await readdir(TREE_EXAMPLES)).sort()).toEqual(
+      Object.values(TREE)
+        .map((p) => p.slice(TREE_EXAMPLES.length))
+        .sort(),
+    );
+  });
+
+  it("build a turret from a node, a base under it and a barrel with a collider under the base", async () => {
+    await apply(TREE.build);
+    const r = await rows("tree");
+    expect(r.get("tower")).toMatchObject({ at: [8, 5] });
+    expect(r.get("tower")?.parent).toBeUndefined();
+    expect(r.get("tower-base")).toMatchObject({ parent: "tower", origin: [8, 5] });
+    expect(r.get("tower-barrel")).toMatchObject({ parent: "tower-base", at: [0.5, -0.35] });
+    expectNear(world(r.get("tower-barrel")!), [8.5, 4.45]);
+    const step = await cli(["step", "tree", "--ticks", "30"]);
+    expect(step.exitCode, JSON.stringify(step)).toBe(0);
+  });
+
+  it("reparent the crate under the tower without moving it in the world", async () => {
+    await apply(TREE.reparent);
+    const r = await rows("tree");
+    expect(r.get("crate")).toMatchObject({ parent: "tower", at: [-2, -0.25] });
+    expectNear(world(r.get("crate")!), [6, 4.75]);
+  });
+
+  it("turn the tower by any angle with transform's rotate, what sits under it turning about its origin", async () => {
+    await apply(TREE.turn);
+    const r = await rows("tree");
+    expect(r.get("tower")).toMatchObject({ at: [8, 5], extra: { rot: 30 } });
+    expect(r.get("crate")).toMatchObject({ at: [-2, -0.25], transform: { rot: 30 } });
+    const turn = Math.PI / 6;
+    expectNear(world(r.get("crate")!), [
+      8 - 2 * Math.cos(turn) + 0.25 * Math.sin(turn),
+      5 - 2 * Math.sin(turn) - 0.25 * Math.cos(turn),
+    ]);
+  });
+
+  it("move the barrel in its stored coordinates: along the turned parent's x, not the world's", async () => {
+    const before = (await rows("tree")).get("tower-barrel")!;
+    await apply(TREE.nudge);
+    const after = (await rows("tree")).get("tower-barrel")!;
+    expect(after.at).toEqual([0.7, -0.35]);
+    const [x0, y0] = world(before);
+    const [x1, y1] = world(after);
+    expect(x1 - x0).toBeCloseTo(0.2 * Math.cos(Math.PI / 6), 5);
+    expect(y1 - y0).toBeCloseTo(0.2 * Math.sin(Math.PI / 6), 5);
   });
 });

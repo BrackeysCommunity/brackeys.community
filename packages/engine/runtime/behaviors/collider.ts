@@ -1,4 +1,4 @@
-import type { Collider, RigidBody, RigidBodyDesc } from "@dimforge/rapier2d";
+import type { Collider, ColliderDesc, RigidBody, RigidBodyDesc } from "@dimforge/rapier2d";
 
 import { createSensorCollider } from "../../collisions";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
@@ -14,8 +14,10 @@ import {
 import { shapeColliderDesc, shapePose } from "../../physics";
 import { parseShape } from "../../scene/shapes";
 import type { RuntimeEntity, ShapeObj } from "../../scene/types";
+import type { Attachment } from "../../systems/attachments";
 import {
   createOverlapTracker,
+  moveBodyNow,
   restoreOverlaps,
   saveOverlaps,
   type Overlaps,
@@ -44,6 +46,12 @@ type Built = {
   sensor: boolean;
   body: RigidBody | null;
   collider: Collider | null;
+  /** Its seat on the body above it, when a fixed collider rides one instead of a body of its own. */
+  attachment: Attachment | null;
+  /** The host it rides. */
+  riding: string | null;
+  /** The entity's pose in the host body's frame, once its collider is on it. */
+  rideOffset: Pose | null;
   /** The geometry world's collider, while the scene has no physics. */
   handle: number | null;
   /** The entity's pose in its Rapier body's frame. */
@@ -78,6 +86,10 @@ const moving = (b: Built) => b.v.x !== 0 || b.v.y !== 0 || b.w !== 0;
 /** Out of the world: disabled, or stood in for. */
 const off = (b: Built) => b.disabled || b.stood;
 
+/** The collider it built: its own, or the one on the body it rides (null while that has no body). */
+const colliderOf = (b: Built): Collider | null =>
+  b.attachment ? b.attachment.collider() : b.collider;
+
 const kindOf = (body: Partial<BodyBlock> | undefined): Kind => {
   if (!body) return "fixed";
   const kind = body.kind ?? "dynamic";
@@ -98,10 +110,14 @@ function shapeOf(block: ColliderBlock, entityId: string): ShapeObj {
  * entity's pose after each step. The shape is local to the entity's pose.
  * Without physics, fixed and kinematic colliders go to the geometry world
  * and a dynamic body is `physics-required`. A sensor collider raises
- * `sensor:enter` and `sensor:exit` as the `sensor` type does.
+ * `sensor:enter` and `sensor:exit` as the `sensor` type does. A kinematic
+ * or dynamic body offers itself for colliders to ride; a fixed collider
+ * under such a body rides it instead of having one of its own.
  */
 export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const built = new Map<string, Built>();
+  /** The body above each entity the tree said carries its collider. */
+  const rides = new Map<string, string | null>();
   const overlaps = createOverlapTracker(ctx);
   const tickSeconds = () => ctx.time.tickMs / 1000;
 
@@ -175,9 +191,43 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       ctx.tags.delete(b.handle);
       ctx.geometry?.remove(b.handle);
     }
+    b.attachment?.detach();
     if (b.collider) ctx.tags.delete(b.collider.handle);
-    if (b.body) physicsOf(ctx, "a collider", id).physics.removeRigidBody(b.body);
+    if (b.body) {
+      if (b.kind !== "fixed") ctx.attachments.unhost(id);
+      physicsOf(ctx, "a collider", id).physics.removeRigidBody(b.body);
+    }
     return b;
+  }
+
+  /** The host a fixed collider on `id` rides: the one the tree named, while it offers a body. */
+  function hostFor(id: string): string | null {
+    const host = rides.get(id);
+    return host != null && ctx.attachments.hosted(host) ? host : null;
+  }
+
+  /** The collider for `block` on `body`, tagged `tag`. */
+  function colliderOn(
+    body: RigidBody,
+    desc: ColliderDesc,
+    block: ColliderBlock,
+    sensor: boolean,
+    group: string,
+    tag: ColliderTag,
+  ): Collider {
+    let collider: Collider;
+    if (sensor) {
+      collider = createSensorCollider(ctx, body, desc);
+      if (group !== "sensor") collider.setCollisionGroups(ctx.registry.collisionGroups(group));
+    } else {
+      const surface = surfaceOf(block);
+      desc.setCollisionGroups(ctx.registry.collisionGroups(group)).setDensity(block.density ?? 1);
+      if (surface.friction !== undefined) desc.setFriction(surface.friction);
+      if (surface.restitution !== undefined) desc.setRestitution(surface.restitution);
+      collider = physicsOf(ctx, "a collider").physics.addCollider(desc, body);
+    }
+    ctx.tags.set(collider.handle, tag);
+    return collider;
   }
 
   /** The body and collider for `e`'s blocks at its pose now, replacing any it had; unless `force`, kept when those are unchanged. */
@@ -221,6 +271,9 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       sensor,
       body: null,
       collider: null,
+      attachment: null,
+      riding: null,
+      rideOffset: null,
       handle: null,
       offset: ZERO,
       frame: ZERO,
@@ -251,6 +304,28 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       const { rapier, physics } = physicsOf(ctx, "a collider", e.id);
       const centre = shapePose(shape);
       const frame: Pose = { x: centre.x, y: centre.y, rot: centre.rotation };
+      b.frame = frame;
+      const host = kind === "fixed" ? hostFor(e.id) : null;
+      if (host !== null) {
+        b.riding = host;
+        b.attachment = ctx.attachments.attach(e.id, host, (h) => {
+          const t = h.body.translation();
+          const offset = relativePose(b.pose, { x: t.x, y: t.y, rot: h.body.rotation() });
+          b.rideOffset = offset;
+          const at = composePose(offset.x, offset.y, offset.rot, frame);
+          const desc = shapeColliderDesc(rapier, shape)
+            .setTranslation(at.x, at.y)
+            .setRotation(at.rot);
+          const collider = colliderOn(h.body, desc, block, sensor, group, {
+            ...tag,
+            carrier: { entityId: h.id, type: h.type },
+          });
+          if (off(b)) collider.setEnabled(false);
+          return collider;
+        });
+        built.set(e.id, b);
+        return;
+      }
       const at = composePose(pose.x, pose.y, pose.rot, frame);
       const desc =
         kind === "dynamic"
@@ -259,25 +334,17 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
             ? rapier.RigidBodyDesc.kinematicPositionBased()
             : rapier.RigidBodyDesc.fixed();
       const body = physics.addRigidBody(bodyDesc(desc, bodyBlock ?? {}, at));
-      const colliderDesc = shapeColliderDesc(rapier, shape);
-      let collider: Collider;
-      if (sensor) {
-        collider = createSensorCollider(ctx, body, colliderDesc);
-        if (group !== "sensor") collider.setCollisionGroups(ctx.registry.collisionGroups(group));
-      } else {
-        const surface = surfaceOf(block);
-        colliderDesc
-          .setCollisionGroups(ctx.registry.collisionGroups(group))
-          .setDensity(block.density ?? 1);
-        if (surface.friction !== undefined) colliderDesc.setFriction(surface.friction);
-        if (surface.restitution !== undefined) colliderDesc.setRestitution(surface.restitution);
-        collider = physics.addCollider(colliderDesc, body);
-      }
-      ctx.tags.set(collider.handle, tag);
+      const collider = colliderOn(
+        body,
+        shapeColliderDesc(rapier, shape),
+        block,
+        sensor,
+        group,
+        tag,
+      );
       b.body = body;
       b.collider = collider;
       b.offset = relativePose(pose, at);
-      b.frame = frame;
       if (kind === "dynamic" && (carried.v.x !== 0 || carried.v.y !== 0 || carried.w !== 0)) {
         body.setLinvel(carried.v, true);
         body.setAngvel(carried.w, true);
@@ -291,6 +358,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     if (!b.stood && (ctx.physics || kind === "kinematic")) {
       b.unregister = registerBody(ctx, e.id, entryOf(b));
     }
+    if (b.body && kind !== "fixed") ctx.attachments.host(e.id, e.type, b.body);
   }
 
   function writePose(b: Built, x: number, y: number, rot: number): void {
@@ -395,16 +463,19 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     for (const [id, b] of built) {
       if (!b.sensor || off(b)) continue;
       settle(b);
-      if (b.collider) {
+      const collider = colliderOf(b);
+      if (collider) {
         const { physics } = physicsOf(ctx, "a sensor collider", id);
         colliders ??= physics.world.colliders.getAll();
         const now: Overlaps = new Map();
         for (const other of colliders) {
-          if (other !== b.collider && physics.world.intersectionPair(b.collider, other))
+          if (other !== collider && physics.world.intersectionPair(collider, other))
             now.set(other.handle, ctx.tags.get(other.handle)?.entityId);
         }
         overlaps.diff(id, b.inside, now, (handle) => {
-          const t = (physics.world.getCollider(handle)?.parent() ?? b.body)?.translation();
+          const t = (
+            physics.world.getCollider(handle)?.parent() ?? collider.parent()
+          )?.translation();
           return t ? { x: t.x, y: t.y } : { x: 0, y: 0 };
         });
         b.inside = now;
@@ -425,7 +496,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
   /** Puts `b`'s body and collider in or out of the world. */
   function place(b: Built, on: boolean): void {
     b.body?.setEnabled(on);
-    b.collider?.setEnabled(on);
+    colliderOf(b)?.setEnabled(on);
     if (b.handle !== null) ctx.geometry?.setEnabled(b.handle, on);
   }
 
@@ -438,12 +509,39 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     },
     detach(id) {
       remove(id);
+      rides.delete(id);
     },
     has: (id) => built.has(id),
     rebuild(id) {
       const b = built.get(id);
       const block = b ? blockOf(b.entity) : undefined;
       if (b && block) build(b.entity, block);
+    },
+    handle: (id) => ({ rebuild: () => system.rebuild(id) }),
+    /** Moves the body it built there, whatever its kind; a moving one keeps its velocity. */
+    posed(id, pose) {
+      const b = built.get(id);
+      if (!b) return;
+      b.pose = { x: pose.x, y: pose.y, rot: pose.rot };
+      b.rested = undefined;
+      if (b.handle !== null) ctx.geometry?.setPose(b.handle, pose.x, pose.y, pose.rot);
+      if (b.body && b.collider) {
+        const at = composePose(pose.x, pose.y, pose.rot, b.frame);
+        moveBodyNow(ctx, id, { body: b.body, collider: b.collider }, at);
+      }
+      if (!b.attachment || !b.rideOffset) return;
+      b.rideOffset = b.attachment.follow(pose, b.rideOffset, b.frame) ?? b.rideOffset;
+    },
+    /** A dynamic body moves it in the world: a parent's movement doesn't carry it. */
+    selfMoving: (id) => built.get(id)?.kind === "dynamic",
+    /** A fixed collider moves onto `host`'s body where the entity is now, or back onto a body of its own. */
+    ride(id, host) {
+      rides.set(id, host);
+      const b = built.get(id);
+      if (!b || !ctx.physics || b.kind !== "fixed" || b.stood) return;
+      if (hostFor(id) === b.riding) return;
+      const block = blockOf(b.entity);
+      if (block) build(b.entity, block, true);
     },
     /** A geometry sensor that just arrived takes what overlaps it now, as the `sensor` type does at the next step's start. */
     ready(ids) {
@@ -500,6 +598,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     },
     clear() {
       for (const id of [...built.keys()]) remove(id);
+      rides.clear();
     },
     size: () => built.size,
     /** What overlaps a sensor collider since the last step, so a restore raises no enter for it again. */

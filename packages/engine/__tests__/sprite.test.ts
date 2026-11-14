@@ -361,9 +361,9 @@ describe("transforms", () => {
       marker(
         "flip",
         { asset: "crate", offset: [0.1, -0.04] },
-        { transform: { turn: 0, flip: true } },
+        { transform: { rot: 0, flip: true } },
       ),
-      marker("both", { asset: "crate", flipX: true }, { transform: { turn: 0, flip: true } }),
+      marker("both", { asset: "crate", flipX: true }, { transform: { rot: 0, flip: true } }),
       marker("plain", { asset: "crate", offset: [0.1, -0.04], anchor: [0, 0] }),
     ]);
     const xyr = (id: string) => {
@@ -382,7 +382,7 @@ describe("transforms", () => {
       id: "wall",
       type: "solid",
       shape: { type: "box", cx: 0.5, cy: 0.6, hw: 0.1, hh: 0.2, rotDeg: 90 },
-      transform: { turn: 1, flip: false },
+      transform: { rot: 90, flip: false },
       behaviors: { sprite: { asset: "crate", offset: [0.1, 0] } },
     };
     const { live } = loaded([turned]);
@@ -397,7 +397,7 @@ describe("transforms", () => {
       marker(
         "up",
         { asset: "crate", offset: [0.1, 0], turn: false },
-        { transform: { turn: 1, flip: false } },
+        { transform: { rot: 90, flip: false } },
       ),
     ]);
     const up = live.get(spriteViewId("up"))!.pose;
@@ -562,10 +562,10 @@ describe("spriteAssets", () => {
 describe("spriteOffset", () => {
   it("mirrors with the flip, then turns with the pose, else with the quarter turns only", () => {
     expect(spriteOffset([3, 4], undefined, 0)).toEqual([3, 4]);
-    expect(spriteOffset([3, 4], { turn: 0, flip: true }, 0)).toEqual([-3, 4]);
+    expect(spriteOffset([3, 4], { rot: 0, flip: true }, 0)).toEqual([-3, 4]);
     expect(spriteOffset([3, 4], undefined, Math.PI / 2)).toEqual([-4, 3]);
-    expect(spriteOffset([3, 4], { turn: 1, flip: false }, null)).toEqual([-4, 3]);
-    expect(spriteOffset([3, 4], { turn: 2, flip: true }, null)).toEqual([3, -4]);
+    expect(spriteOffset([3, 4], { rot: 90, flip: false }, null)).toEqual([-4, 3]);
+    expect(spriteOffset([3, 4], { rot: 180, flip: true }, null)).toEqual([3, -4]);
     const [x, y] = spriteOffset([10, 0], undefined, Math.PI / 6);
     expect(x).toBeCloseTo(10 * Math.cos(Math.PI / 6));
     expect(y).toBeCloseTo(5);

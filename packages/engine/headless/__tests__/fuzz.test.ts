@@ -408,10 +408,10 @@ describe("fuzz", () => {
       const opts = { seed: 5, rollouts: 8, ticks: 300 };
       const plain = { ...testGame, play: { ...testGame.play, macro: undefined } };
       expect(digest(testGame, report(fuzz({ rapier, game: testGame, scene: yard, ...opts })))).toBe(
-        "54358566f81d2ff2",
+        "d6933996a797f077",
       );
       expect(digest(plain, report(fuzz({ rapier, game: plain, scene: yard, ...opts })))).toBe(
-        "c702eae74c4df8a2",
+        "9cbdbfa1442a4e50",
       );
 
       const a = Rng.from(9);

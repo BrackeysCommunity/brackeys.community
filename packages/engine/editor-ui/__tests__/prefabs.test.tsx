@@ -59,12 +59,12 @@ function scene(): SceneDefinition {
     v: SCENE_FORMAT_VERSION,
     name: "posts",
     bounds: [0, 0, 2000, 1200],
-    groups: { east: { at: [1000, 0] } },
     instances: [
       { id: "post-1", prefab: "post", at: [100, 900], overrides: { "top.at": [0, -60] } },
       { id: "post-2", prefab: "post", at: [300, 900] },
-      { id: "post-3", prefab: "post", at: [100, 900], group: "east" },
+      { id: "post-3", prefab: "post", at: [100, 900], parent: "east" },
     ],
+    entities: [{ id: "east", type: "node", at: [1000, 0] }],
   };
 }
 
@@ -176,7 +176,10 @@ describe("prefabs in the editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unpack" }));
     const def = session.getDoc();
     expect(def.instances!.map((i) => i.id)).toEqual(["post-1", "post-2"]);
-    expect(def.entities).toEqual([{ id: "top", type: "marker", group: "east", at: [100, 860] }]);
+    expect(def.entities).toEqual([
+      { id: "east", type: "node", at: [1000, 0] },
+      { id: "top", type: "marker", parent: "east", at: [100, 860] },
+    ]);
     expect(def.solid).toEqual([["box", 1100, 900, 6, 40]]);
     project.destroy();
   });

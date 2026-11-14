@@ -1,0 +1,22 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "id": "door",
+  "instances": [{ "id": "latch", "prefab": "gate", "at": [40, 0] }],
+  "entities": [
+    {
+      "id": "panel",
+      "type": "follower",
+      "shape": ["box", 0, 0, 10, 40],
+      "path": {
+        "pts": [
+          [0, 0],
+          [0, -60]
+        ],
+        "mode": "ping_pong",
+        "speed": 40
+      }
+    },
+    { "id": "frame", "type": "sensor", "shape": ["box", 0, 0, 30, 50], "tags": ["door"] }
+  ]
+}

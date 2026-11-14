@@ -1243,7 +1243,10 @@ export function openLiveEditor({
     binding.destroy();
     binding = bind(target, isolated);
     const view = project?.view();
-    const look = outlineLook(target.registry, view ? projectSpriteAssets(view) : undefined);
+    const look = outlineLook(target.registry, view ? projectSpriteAssets(view) : undefined, {
+      doc: target.getDoc(),
+      prefabs: target.getPrefabs(),
+    });
     const box = frameBounds(target.getResolved(), refs, look);
     if (box) frameInView(game, box);
   }

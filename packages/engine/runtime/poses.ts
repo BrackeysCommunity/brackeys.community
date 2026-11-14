@@ -25,8 +25,14 @@ export interface PoseIndex {
   readonly size: number;
 }
 
-/** A pose index that tells its watchers each id it writes or removes, so an index over it refreshes only what moved. */
-export type WatchedPoseIndex = PoseIndex & { watch(fn: (id: string) => void): void };
+/**
+ * A pose index that tells its watchers each id it writes or removes, so an
+ * index over it refreshes only what moved; `snap` is the write's own flag
+ * (false for a removal).
+ */
+export type WatchedPoseIndex = PoseIndex & {
+  watch(fn: (id: string, snap: boolean) => void): void;
+};
 
 export const isWatched = (poses: PoseIndex): poses is WatchedPoseIndex =>
   typeof (poses as Partial<WatchedPoseIndex>).watch === "function";
@@ -40,11 +46,11 @@ type Entry = { cur: Readonly<Pose>; prev: Readonly<Pose>; at: number };
  */
 export function createPoseIndex(tick: () => number): WatchedPoseIndex {
   const entries = new Map<string, Entry>();
-  const watchers: ((id: string) => void)[] = [];
-  const wrote = (id: string) => {
-    for (const fn of watchers) fn(id);
+  const watchers: ((id: string, snap: boolean) => void)[] = [];
+  const wrote = (id: string, snap: boolean) => {
+    for (const fn of watchers) fn(id, snap);
   };
-  return {
+  const index: Omit<WatchedPoseIndex, "size"> = {
     watch(fn) {
       watchers.push(fn);
     },
@@ -65,17 +71,19 @@ export function createPoseIndex(tick: () => number): WatchedPoseIndex {
         entry.cur = pose;
         entry.at = t;
       }
-      wrote(id);
+      wrote(id, opts?.snap === true);
     },
     remove(id) {
-      if (entries.delete(id)) wrote(id);
+      if (entries.delete(id)) wrote(id, false);
     },
     has: (id) => entries.has(id),
     ids: () => entries.keys(),
-    get size() {
-      return entries.size;
-    },
   };
+  // An accessor in the literal would put the index, read on every pose write, in V8's slow dictionary mode.
+  return Object.defineProperty(index, "size", {
+    get: () => entries.size,
+    enumerable: true,
+  }) as WatchedPoseIndex;
 }
 
 const TAU = Math.PI * 2;

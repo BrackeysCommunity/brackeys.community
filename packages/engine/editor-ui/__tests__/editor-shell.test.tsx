@@ -249,6 +249,7 @@ describe("editorChrome", () => {
 
   it("groups rows by registered type and keeps bulk arrays closed until opened", () => {
     setup();
+    fireEvent.click(outliner().getByRole("button", { name: "Type" }));
     expect(outliner().getByRole("button", { name: /^sensor/, expanded: true })).toBeTruthy();
     expect(outliner().queryByRole("button", { name: /~solid:0/ })).toBeNull();
     fireEvent.click(outliner().getByRole("button", { name: /^solid/, expanded: false }));

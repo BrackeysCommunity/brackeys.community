@@ -72,22 +72,27 @@ describe("edit scope", () => {
     expect(keymap.chordOf("send-backward")).toBe("Mod+[");
   });
 
-  it("turns instances a quarter on q and e, rotates anything else 15°, and flips on Shift+H and Shift+V", () => {
-    expect(command(key("e"), { ...edit, quarterTurns: true })).toBe("turn-cw");
-    expect(command(key("e"), { ...edit, quarterTurns: false })).toBe("rotate-cw");
-    expect(command(key("q"), { ...edit, quarterTurns: true })).toBe("turn-ccw");
-    expect(command(key("q"), { ...edit, quarterTurns: false })).toBe("rotate-ccw");
+  it("rotates everything by the snap angle on q and e, and flips on Shift+H and Shift+V", () => {
+    expect(command(key("e"), edit)).toBe("rotate-cw");
     expect(command(key("q"), edit)).toBe("rotate-ccw");
+    expect(keymap.bindings.find((b) => b.key === "e")?.description).toBe(
+      "Rotate clockwise by the snap angle",
+    );
+    expect(keymap.bindings.find((b) => b.key === "q")?.description).toBe(
+      "Rotate counterclockwise by the snap angle",
+    );
     expect(command(key("H", { shiftKey: true }), edit)).toBe("flip-x");
     expect(command(key("V", { shiftKey: true }), edit)).toBe("flip-y");
     expect(command(key("h"), edit)).toBe("tool:pan");
     expect(command(key("v"), edit)).toBe("tool:select");
     expect(command(key("H", { shiftKey: true }), play)).toBeNull();
-    const at = (c: string) => ENGINE_KEYS.findIndex((b) => b.command === c);
-    expect(at("turn-cw")).toBeLessThan(at("rotate-cw"));
-    expect(at("turn-ccw")).toBeLessThan(at("rotate-ccw"));
-    expect(keymap.chordOf("turn-cw")).toBe("e");
-    expect(keymap.chordOf("turn-ccw")).toBe("q");
+    // The quarter turns stay commands for the inspector's buttons, with no key of their own.
+    expect(ENGINE_KEYS.some((b) => b.command === "turn-cw" || b.command === "turn-ccw")).toBe(
+      false,
+    );
+    expect(keymap.chordOf("turn-cw")).toBeUndefined();
+    expect(keymap.chordOf("rotate-cw")).toBe("e");
+    expect(keymap.chordOf("rotate-ccw")).toBe("q");
     expect(keymap.chordOf("flip-x")).toBe("Shift+h");
   });
 
@@ -248,18 +253,16 @@ describe("game bindings", () => {
     });
   });
 
-  it("shadows a game binding on the turn and flip chords in edit", () => {
+  it("shadows a game binding on the rotate and flip chords in edit", () => {
     const t = createKeymap([
-      { key: "e", scope: "edit", command: "game:e", description: "Collides with turn" },
-      { key: "q", scope: "edit", command: "game:q", description: "Collides with turn" },
+      { key: "e", scope: "edit", command: "game:e", description: "Collides with rotate" },
+      { key: "q", scope: "edit", command: "game:q", description: "Collides with rotate" },
       { key: "shift+H", scope: "edit", command: "game:flip", description: "Collides with flip" },
       { key: "Shift+v", scope: "edit", command: "game:v", description: "Collides with flip" },
       { key: "Shift+h", scope: "play", command: "game:hop", description: "Play is free" },
     ]);
     expect(t.shadowed.map((b) => b.command)).toEqual(["game:e", "game:q", "game:flip", "game:v"]);
-    for (const quarterTurns of [true, false])
-      for (const k of ["e", "q"])
-        expect(t.resolve(key(k), { ...edit, quarterTurns })?.source).toBe("engine");
+    for (const k of ["e", "q"]) expect(t.resolve(key(k), edit)?.source).toBe("engine");
     expect(t.resolve(key("H", { shiftKey: true }), play)).toMatchObject({
       source: "game",
       command: "game:hop",

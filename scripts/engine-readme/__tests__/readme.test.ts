@@ -164,7 +164,12 @@ describe("the entity lifecycle examples run", () => {
     expect(r.result).toBe("dry");
     expect(r.final).toMatchObject({ fell: 24, live: 0, dry: true });
     expect(r.steps).toEqual(["done", "until", "until"]);
-    expect(r.spawned).toEqual(["twin-spout#1/left", "twin-spout#1/right", "drop#1", "drop#2"]);
+    expect(r.spawned).toEqual([
+      "twin-spout#1",
+      "twin-spout#1/left",
+      "twin-spout#1/right",
+      "drop#1",
+    ]);
     expect(r.allRuntime).toBe(true);
     expect(r.sameSeedSameRun).toBe(true);
     expect(r.otherSeedJitter).not.toBe(r.final?.jitter);
@@ -186,6 +191,33 @@ describe("the entity lifecycle examples run", () => {
     expect(geometry).toMatchObject({ sparks: 2, refused: 2, lit: 2, nearest: "east" });
     expect(geometry.west).toEqual(["west", "spark#1"]);
     expect(shuttle(await loadCompatRapier())).toEqual(geometry);
+  });
+});
+
+describe("the scene tree example runs", () => {
+  it("scene-tree.ts carries both turrets on the cart, cascades enabled and destroy, and saves only the changed link", async () => {
+    const { cartRun } = await import("../examples/scene-tree");
+    expect(cartRun()).toEqual({
+      rear: "turret#1",
+      root: "cart",
+      front: { x: 4.976, y: 5 },
+      under: [
+        "front",
+        "front/base",
+        "front/sight",
+        "front/barrel",
+        "turret#1",
+        "turret#1/base",
+        "turret#1/sight",
+        "turret#1/barrel",
+      ],
+      barrel: { x: 0.5, y: 0 },
+      sweeps: 2,
+      off: { enabled: false, enabledSelf: true },
+      parents: { front: "cart" },
+      left: 0,
+      barrelAlive: false,
+    });
   });
 });
 

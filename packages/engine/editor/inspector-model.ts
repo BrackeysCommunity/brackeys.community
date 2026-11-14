@@ -23,11 +23,24 @@ import { bulkKeysOf } from "../scene/expand";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
 import { plural } from "../scene/plural";
-import { CHILD_SEPARATOR, childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
-import { entitySchemaFor, fieldKind, InstanceSchema, unwrapSchema } from "../scene/schema";
-import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry";
+import {
+  CHILD_SEPARATOR,
+  childEntity,
+  resolvePrefab,
+  resolveScene,
+  sceneFrames,
+  splitOverridePath,
+} from "../scene/resolve";
+import {
+  entitySchemaFor,
+  fieldKind,
+  geometryFields,
+  InstanceSchema,
+  unwrapSchema,
+} from "../scene/schema";
+import { aabb, boxCorners, convexHull, isConvex, normDeg } from "../scene/shape-geometry";
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
-import { addPt, isPt } from "../scene/translate";
+import { addPt, behaviorGeometry, isPt } from "../scene/translate";
 import {
   PREFAB_MAX_DEPTH,
   type EntityDef,
@@ -52,7 +65,7 @@ import {
   snapToPixel,
   type LengthUnitName,
 } from "../scene/units";
-import { validateScene } from "../scene/validate";
+import { canBeInTree, validateScene } from "../scene/validate";
 import { editPose } from "./gizmos/behavior-target";
 import { numberBounds } from "./inspector";
 import { nestedInstanceOf, prefabInstances } from "./prefab-commands";
@@ -181,6 +194,8 @@ export type FieldWidget =
    * behavior's reference, which names no types (`accepts` is empty).
    * `either`: the field takes a point or an entity (`nav-agent.to`), and
    * this widget is the form its value holds; the other is a switch away.
+   * `parent`: an entity's `parent`, which lists `parentModel`'s candidates
+   * and commits a `parentBatch`.
    */
   | {
       kind: "entity-ref";
@@ -188,6 +203,7 @@ export type FieldWidget =
       multiple: boolean;
       any?: true;
       either?: true;
+      parent?: true;
     }
   /** A tag switcher over `types`; `shapeConversions` says which switches are lossless. */
   | { kind: "shape"; types: ShapeType[] }
@@ -258,6 +274,12 @@ export type ModelField = Omit<InspectorRow, "children"> & {
   section: ModelSectionId;
   /** A behavior field's `meta.group` (`jump`, `surface`): the sub-heading the inspector puts it under. */
   group?: string;
+  /**
+   * On a geometry field of an entity with a parent: the value is the world
+   * one, and the file stores it in this parent's frame; null when the
+   * targets have different parents.
+   */
+  storedIn?: Ref | null;
   children?: ModelField[];
 };
 
@@ -521,6 +543,8 @@ function widgetFor(
   if (assetKinds) return { kind: "asset", kinds: [...assetKinds] };
   if (top && ctx.entity && ctx.registry && name === "layer")
     return choice(ctx.registry.layers.map((l) => l.name));
+  if (top && ctx.entity && name === "parent")
+    return { kind: "entity-ref", accepts: [], multiple: false, any: true, parent: true };
   const kind = fieldKind(schema);
   if (kind === "shape") return { kind: "shape", types: shapeTypesOf(schema) };
   const declared = unitOf(meta, ctx);
@@ -584,7 +608,8 @@ function widgetFor(
     return choice(inner.options as (string | number)[], meta.options);
   }
   if (inner instanceof z.ZodBoolean) return { kind: "switch" };
-  if (inner instanceof z.ZodLiteral) return { kind: "readonly", format: "text" };
+  if (inner instanceof z.ZodLiteral)
+    return isTrueLiteral(inner) ? { kind: "switch" } : { kind: "readonly", format: "text" };
   if (inner instanceof z.ZodString) {
     const json = z.toJSONSchema(inner) as { pattern?: string; maxLength?: number };
     return {
@@ -634,6 +659,10 @@ function widgetFor(
   }
   return { kind: "readonly", format: "json" };
 }
+
+/** `true` as the one value a literal takes: a flag the file writes only when set. */
+const isTrueLiteral = (inner: z.core.$ZodType): boolean =>
+  inner instanceof z.ZodLiteral && inner.values.size === 1 && inner.values.has(true);
 
 /** A number field's `meta.named` (`{ "-1": "forever" }`) as its widget lists it. */
 function namedNumbers(named: unknown): { named?: { value: number; label: string }[] } {
@@ -844,7 +873,8 @@ export function rowSummary(row: InspectorRow): string {
 function placeRow(row: InspectorRow, place: Placement): ModelField {
   const { path, name, title, description, children, ...rest } = row;
   const group = fieldMeta(row.schema).group;
-  const byKind = defaultSection(row.widget);
+  // A mirror flag turns the frame, like the angle beside it.
+  const byKind = fieldKind(row.schema) === "mirror" ? "transform" : defaultSection(row.widget);
   const section =
     place.forced ??
     (typeof group === "string" ? GROUP_SECTIONS[group] : undefined) ??
@@ -1706,13 +1736,49 @@ function shared(lists: readonly ModelField[][]): ModelField[] {
       continue;
     const all = [f, ...(others as ModelField[])];
     const mixed = all.some((g) => g.mixed || !same(g.value, f.value));
-    const merged: ModelField = { ...f, value: mixed ? undefined : f.value, mixed };
+    const merged: ModelField = {
+      ...f,
+      value: mixed ? undefined : f.value,
+      mixed,
+      readonly: all.some((g) => g.readonly),
+    };
+    if (all.some((g) => g.storedIn !== f.storedIn)) merged.storedIn = null;
     if (all.some((g) => !same(g.defaultValue, f.defaultValue))) delete merged.defaultValue;
     if (all.some((g) => g.placeholder !== f.placeholder)) delete merged.placeholder;
     if (f.children) merged.children = shared(all.map((g) => g.children ?? []));
     out.push(merged);
   }
   return out;
+}
+
+/**
+ * `fields` of `target` as the tree places it: the Parent row read-only on
+ * an instance's child (which stays under its instance, the value it shows
+ * when it names no parent) and on a type the tree doesn't take (dropped
+ * when unset), and, under a parent, each geometry field marked with the
+ * frame the file stores it in.
+ */
+function inTree(registry: Registry, target: RefTarget, fields: ModelField[]): ModelField[] {
+  if (target.kind !== "entity") return fields;
+  const type = registry.types.get(target.entity.type);
+  const holder = enclosingInstance(target.ref);
+  const inTree = canBeInTree(type);
+  const declared = typeof target.entity.parent === "string" ? target.entity.parent : undefined;
+  const parent = declared ?? holder;
+  const geometry = new Set([
+    ...(type ? geometryFields(type).map((f) => f.field) : []),
+    ...behaviorGeometry(registry, target.entity).map(
+      (g) => `${BEHAVIORS_FIELD}.${g.behavior}.${g.field}`,
+    ),
+  ]);
+  return fields.flatMap((f): ModelField[] => {
+    if (f.path === "parent") {
+      if (!inTree && parent === undefined) return [];
+      if (holder === undefined && inTree) return [f];
+      return [{ ...f, value: parent, readonly: true }];
+    }
+    return parent !== undefined && geometry.has(f.path) ? [{ ...f, storedIn: parent }] : [f];
+  });
 }
 
 /**
@@ -1750,7 +1816,10 @@ export function buildInspectorModel(
   const fields = shared(
     per.map((p, i) => {
       const s = states[i];
-      return s ? [...p.fields, ...common.flatMap((n) => behaviorFields(registry, s, n))] : p.fields;
+      const all = s
+        ? [...p.fields, ...common.flatMap((n) => behaviorFields(registry, s, n))]
+        : p.fields;
+      return inTree(registry, targets[i]!, all);
     }),
   );
   const fixed: InspectorSectionModel[] = INSPECTOR_SECTIONS.map((id) => ({
@@ -1856,6 +1925,8 @@ export function typedValue(
     if (row.widget.kind !== "number" || row.widget.integer) next = Math.round(next as number);
   }
   if (scale) next = scaled(next, (n) => n / scale);
+  // A flag stored only as `true` is unset to turn it off.
+  if (next === false && isTrueLiteral(unwrapSchema(row.schema))) next = undefined;
   return { ok: true, value: roundMetric(row.widget, next) };
 }
 
@@ -1949,6 +2020,156 @@ export function refCandidates(
       return accepts.includes(e.type) || (base !== undefined && accepts.includes(base));
     })
     .map((e) => e.id);
+}
+
+// ─── Parent ──────────────────────────────────────────────
+
+/** The instance an instance child or nested instance sits in: `room-1/door-1/panel` gives `room-1/door-1`. */
+const enclosingInstance = (ref: Ref): Ref | undefined => {
+  const i = ref.lastIndexOf(CHILD_SEPARATOR);
+  return i > 0 && !ref.startsWith("~") ? ref.slice(0, i) : undefined;
+};
+
+/** The scene instance a resolved ref starts with, or the ref itself. */
+const headOfRef = (ref: Ref): Ref => {
+  const i = ref.indexOf(CHILD_SEPARATOR);
+  return i > 0 ? ref.slice(0, i) : ref;
+};
+
+/** What the Parent row shows and offers for a selection. */
+export type ParentModel = {
+  refs: Ref[];
+  /** The parent every ref shares; null for the root; undefined when `mixed`. */
+  value: Ref | null | undefined;
+  mixed: boolean;
+  /** Why the parent can't be changed here; absent when it can. */
+  fixed?: string;
+  /** What `parentBatch` may put the refs under; empty when `fixed`. */
+  candidates: Ref[];
+};
+
+/**
+ * The Parent row for `refs` in `def` (the document): each one's parent,
+ * and what they can be put under. A document entity of a type the tree
+ * takes, or a scene instance, can be reparented; an instance's child or
+ * nested instance stays under its instance, and nav areas, camera regions
+ * and notes stay at the root. Null when a ref isn't in `def` or names a
+ * bulk entry.
+ */
+export function parentModel(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+  prefabs?: PrefabLibrary,
+): ParentModel | null {
+  if (refs.length === 0) return null;
+  let view: SceneDefinition | undefined;
+  const parents: (Ref | null)[] = [];
+  let fixed: string | undefined;
+  for (const ref of refs) {
+    if (ref.startsWith("~")) return null;
+    const entity = def.entities?.find((e) => e.id === ref);
+    const inst = entity ? undefined : def.instances?.find((i) => i.id === ref);
+    if (entity) {
+      parents.push(entity.parent ?? null);
+      if (!canBeInTree(registry.types.get(entity.type)))
+        fixed ??= `A ${entity.type} can't be in the tree, so it stays at the root.`;
+      continue;
+    }
+    if (inst) {
+      parents.push(inst.parent ?? null);
+      continue;
+    }
+    const holder = enclosingInstance(ref);
+    if (holder === undefined) return null;
+    const nested = prefabs ? nestedInstanceOf(def, ref, prefabs) : null;
+    let parent: Ref | undefined;
+    if (nested) {
+      parent = nested.instance.parent;
+    } else {
+      view ??= resolveScene(def, registry, prefabs);
+      const child = view.entities?.find((e) => e.id === ref);
+      if (!child) return null;
+      parent = child.parent;
+    }
+    // A nested instance's own `parent` is written relative to the prefab that places it.
+    parents.push(
+      parent === undefined ? holder : nested ? `${holder}${CHILD_SEPARATOR}${parent}` : parent,
+    );
+    fixed ??= `In ${headOfRef(ref)}; unpack the instance to move it.`;
+  }
+  const first = parents[0]!;
+  const mixed = parents.some((p) => p !== first);
+  return {
+    refs: [...refs],
+    value: mixed ? undefined : first,
+    mixed,
+    ...(fixed !== undefined ? { fixed } : {}),
+    candidates: fixed === undefined ? parentCandidates(def, registry, refs, prefabs) : [],
+  };
+}
+
+/**
+ * What `refs` can be put under: the document's entities whose type can be
+ * a parent, its instances, and its instances' children and nested
+ * instances by resolved ref, in that order, without the refs themselves or
+ * anything under one of them.
+ */
+export function parentCandidates(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+  prefabs?: PrefabLibrary,
+): Ref[] {
+  const frames = sceneFrames(def, registry, prefabs);
+  const moving = new Set(refs);
+  const underMoving = (ref: Ref): boolean => {
+    const seen = new Set<Ref>();
+    for (let at: Ref | undefined = headOfRef(ref); at !== undefined; at = frames.parentOf(at)) {
+      if (moving.has(at)) return true;
+      if (seen.has(at)) return false;
+      seen.add(at);
+    }
+    return false;
+  };
+  const out: Ref[] = [];
+  for (const e of def.entities ?? []) if (canBeInTree(registry.types.get(e.type))) out.push(e.id);
+  for (const i of def.instances ?? []) out.push(i.id);
+  if (prefabs && (def.instances ?? []).length > 0) {
+    const nested = new Set<Ref>();
+    for (const e of resolveScene(def, registry, prefabs).entities ?? []) {
+      if (!e.id.includes(CHILD_SEPARATOR) || e.id.startsWith("~")) continue;
+      const segs = e.id.split(CHILD_SEPARATOR);
+      for (let k = 2; k < segs.length; k++) nested.add(segs.slice(0, k).join(CHILD_SEPARATOR));
+      if (canBeInTree(registry.types.get(e.type)) && !segs.at(-1)!.startsWith("~")) out.push(e.id);
+    }
+    out.push(...nested);
+  }
+  return [...new Set(out)].filter((ref) => !underMoving(ref));
+}
+
+/**
+ * The batch putting `model`'s refs under `parent` (null: the root), each
+ * keeping its world pose: one `reparent`, of the refs not already there.
+ */
+export function parentBatch(
+  model: ParentModel,
+  parent: Ref | null,
+  def: SceneDefinition,
+): { ok: true; batch: OpBatch } | { ok: false; error: string } {
+  if (model.fixed !== undefined) return { ok: false, error: model.fixed };
+  if (parent !== null && !model.candidates.includes(parent))
+    return { ok: false, error: `${model.refs.join(", ")} can't go under ${parent}.` };
+  const current = (ref: Ref) =>
+    (def.entities?.find((e) => e.id === ref) ?? def.instances?.find((i) => i.id === ref))?.parent ??
+    null;
+  const refs = model.refs.filter((r) => current(r) !== parent);
+  const what = model.refs.length === 1 ? model.refs[0]! : `${model.refs.length} items`;
+  const label = parent === null ? `Move ${what} to the root` : `Reparent ${what} under ${parent}`;
+  return {
+    ok: true,
+    batch: { label, ops: refs.length > 0 ? [{ op: "reparent", refs, parent }] : [] },
+  };
 }
 
 // ─── Instance parameters ─────────────────────────────────
@@ -2223,11 +2444,11 @@ export function paramBatch(
 
 // ─── Instance placement ──────────────────────────────────
 
-/** How an instance sits: its quarter turns, mirror and `z`, as the instance panel shows them. */
+/** How an instance sits: its angle, mirror and `z`, as the instance panel shows them. */
 export type InstanceTransformModel = {
   ref: Ref;
-  /** Quarter turns clockwise, 0–3. */
-  rot: 0 | 1 | 2 | 3;
+  /** Degrees clockwise, in [0, 360). */
+  rot: number;
   flip: boolean;
   /** The instance's `z`; 0 when it sets none. */
   z: number;
@@ -2273,6 +2494,66 @@ export function instanceZBatch(
   const label = `Set ${model.ref}'s z`;
   const ops: SceneOp[] = next === model.z ? [] : [{ op: "setZ", refs: [model.ref], z: next }];
   return { ok: true, batch: { label, ops } };
+}
+
+/** The instance's angle as the placement panel's angle field draws it: degrees, unset at 0. */
+export function instanceAngleRow(model: InstanceTransformModel): InspectorRow {
+  const row = describeRow("rot", InstanceSchema.shape.rot, model.rot === 0 ? {} : model, {
+    registry: undefined,
+    type: undefined,
+    ppm: DEFAULT_LENGTH_UNIT,
+    entity: false,
+  });
+  return { ...row, readonly: row.readonly || !model.editable };
+}
+
+/**
+ * The batch turning a scene instance to `input` degrees clockwise (a
+ * number, typed text, or a relative edit like `+=15`) about its `at`: one
+ * `transform` by the difference, which composes onto its angle in the
+ * world, so under a mirrored parent the turn runs the other way. No ops
+ * when the angle doesn't change.
+ */
+export function instanceAngleBatch(
+  def: SceneDefinition,
+  model: InstanceTransformModel,
+  input: unknown,
+  registry?: Registry,
+  prefabs?: PrefabLibrary,
+): { ok: true; batch: OpBatch } | { ok: false; error: string } {
+  if (!model.editable) return { ok: false, error: `${model.ref}'s angle comes from its prefab` };
+  const inst = def.instances?.find((i) => i.id === model.ref);
+  if (!inst) return { ok: false, error: `${model.ref} isn't an instance in this scene` };
+  const n =
+    input === undefined
+      ? 0
+      : typeof input === "number"
+        ? input
+        : typeof input === "string"
+          ? parseRelative(input, model.rot)
+          : undefined;
+  if (n === undefined || !Number.isFinite(n))
+    return {
+      ok: false,
+      error: `${JSON.stringify(input)} isn't an angle or a relative edit like +=15`,
+    };
+  const next = roundDeg(n);
+  const label = `Turn ${model.ref} to ${next}°`;
+  if (next === model.rot) return { ok: true, batch: { label, ops: [] } };
+  const mirrored = sceneFrames(def, registry, prefabs)
+    .stepsFor(inst)
+    .reduce((odd, t) => (t.a * t.d - t.b * t.c < 0 ? !odd : odd), false);
+  const by = roundDeg(mirrored ? model.rot - next : next - model.rot);
+  return {
+    ok: true,
+    batch: { label, ops: [{ op: "transform", refs: [model.ref], rotate: by }] },
+  };
+}
+
+/** Degrees in [0, 360), to the micro-degree a file holds. */
+function roundDeg(deg: number): number {
+  const r = Math.round(normDeg(deg) * 1e6) / 1e6;
+  return r === 360 ? 0 : r;
 }
 
 // ─── Shape conversions ───────────────────────────────────

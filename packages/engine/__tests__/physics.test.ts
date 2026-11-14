@@ -975,7 +975,7 @@ describe("disabling and enabling bodies on Rapier", () => {
       id: "rail",
       type: "solid",
       shape: box(0, -0.1, 0.3, 0.02),
-      attach: "lift",
+      parent: "lift",
     };
     const railBox = box(0, -0.1, 0.2, 0.01);
 
@@ -992,12 +992,12 @@ describe("disabling and enabling bodies on Rapier", () => {
       rt.destroy();
     });
 
-    it("disabling the carrier takes its riders' colliders with it; the riders stay enabled", () => {
+    it("disabling the carrier disables its riders, colliders and all", () => {
       const { rt, steps, hits } = load([lift, rail], { gravity: [0, 0] });
       steps(1);
       rt.ctx.setEnabled("lift", false);
       steps(1);
-      expect(rt.ctx.enabled("rail")).toBe(true);
+      expect(rt.ctx.enabled("rail")).toBe(false);
       expect(hits(railBox)).toEqual([]);
       rt.ctx.setEnabled("lift", true);
       steps(1);

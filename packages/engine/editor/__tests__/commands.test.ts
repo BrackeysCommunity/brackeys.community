@@ -4,6 +4,7 @@ import { createRegistry } from "../../game/define";
 import { applyOps } from "../../scene/ops";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { prefabLibrary } from "../../scene/prefab";
+import { resolveScene } from "../../scene/resolve";
 import { SCENE_FORMAT_VERSION, type OpBatch, type SceneDefinition } from "../../scene/types";
 import { isWholePixel, roundLength } from "../../scene/units";
 import {
@@ -12,13 +13,14 @@ import {
   groupBatch,
   hierarchyDown,
   hierarchyUp,
-  nextGroupName,
   nudgeBatch,
   nudgeDelta,
   quarterTurnTargets,
+  instanceLevels,
   rotateSelectionBatch,
   selectAllRefs,
   selectionBounds,
+  selectionRoots,
   turnBatch,
   ungroupBatch,
   zOrderBatch,
@@ -96,35 +98,199 @@ describe("rotateSelectionBatch", () => {
   });
 });
 
-describe("groups", () => {
-  it("puts entities in a fresh group and takes them out again, leaving bulk entries alone", () => {
-    expect(nextGroupName(doc)).toBe("group-1");
-    const grouped = run(groupBatch(doc, ["crate", "avatar", "~solid:0"]));
-    expect(entity(grouped, "crate").group).toBe("group-1");
-    expect(nextGroupName(grouped)).toBe("group-2");
-    expect(groupBatch(grouped, ["crate"], "group-1")).toBeNull();
-    const ungrouped = run(ungroupBatch(grouped, ["crate"]), grouped);
-    expect(entity(ungrouped, "crate").group).toBeUndefined();
-    expect(entity(ungrouped, "avatar").group).toBe("group-1");
-    expect(ungroupBatch(doc, ["crate"])).toBeNull();
+describe("the tree commands", () => {
+  const prefabs = prefabLibrary([
+    {
+      kind: "prefab",
+      v: doc.v,
+      id: "post",
+      entities: [
+        { id: "top", type: "marker", at: [0, -1] },
+        { id: "foot", type: "marker", at: [0, 1] },
+      ],
+    },
+    {
+      kind: "prefab",
+      v: doc.v,
+      id: "yard",
+      instances: [{ id: "post-a", prefab: "post", at: [1, 0] }],
+      entities: [{ id: "gate", type: "marker", at: [-1, 0] }],
+    },
+  ]);
+  const tree: SceneDefinition = {
+    ...structuredClone(doc),
+    instances: [
+      { id: "post-1", prefab: "post", at: [5, 5] },
+      { id: "yard-1", prefab: "yard", at: [10, 5], parent: "base" },
+    ],
+    entities: [
+      ...structuredClone(doc.entities!),
+      { id: "base", type: "node", at: [8, 2] },
+      { id: "lamp", type: "marker", at: [1, 1], parent: "base" },
+      { id: "flag", type: "marker", at: [0, -0.5], parent: "post-1/top" },
+    ],
+  };
+  const apply = (def: SceneDefinition, batch: OpBatch) => {
+    const r = applyOps(def, batch, registry, { prefabs });
+    if (!r.ok) throw new Error(r.issue.message);
+    return r;
+  };
+  const world = (def: SceneDefinition, id: string) =>
+    resolveScene(def, registry, prefabs).entities!.find((e) => e.id === id)!;
+
+  it("groups the selection under a node at its centre, under their common parent, in one undo", () => {
+    const edit = groupBatch(tree, registry, ["lamp", "yard-1"], prefabs)!;
+    expect(edit.select).toEqual(["node-1"]);
+    expect(edit.batch.label).toBe("Group 2 entities");
+    const r = apply(tree, edit.batch);
+    const node = entity(r.def, "node-1");
+    expect(node).toMatchObject({ type: "node", parent: "base" });
+    expect(entity(r.def, "lamp").parent).toBe("node-1");
+    expect(r.def.instances!.find((i) => i.id === "yard-1")!.parent).toBe("node-1");
+    // The node sits at the centre of what the two outline, and nothing moved in the world.
+    const box = selectionBounds(resolveScene(tree, registry, prefabs), registry, [
+      "lamp",
+      "yard-1",
+    ])!;
+    expect(world(r.def, "node-1").at).toEqual([
+      roundLength((box.minX + box.maxX) / 2),
+      roundLength((box.minY + box.maxY) / 2),
+    ]);
+    for (const id of ["lamp", "yard-1/gate", "yard-1/post-a/top"])
+      expect(world(r.def, id).at).toEqual(world(tree, id).at);
+    // One batch, so one inverse takes it all back.
+    expect(apply(r.def, r.inverse).def).toEqual(tree);
   });
 
-  it("walk up to the group, then to the outline row, and down to the first", () => {
-    const grouped = run(groupBatch(doc, ["crate", "ledge"], "pair"));
-    expect(hierarchyUp(grouped, registry, ["crate"])).toEqual(["ledge", "crate"]);
-    // The whole group is selected: up goes to the first ref's outline row, the props.
-    expect(hierarchyUp(grouped, registry, ["crate", "ledge"])).toEqual(["avatar", "crate"]);
-    expect(hierarchyUp(grouped, registry, ["avatar", "crate"])).toBeNull();
-    expect(hierarchyUp(doc, registry, ["readme"])).toBeNull();
-    expect(hierarchyUp(doc, registry, ["~solid:1"])).toEqual(["~solid:0", "~solid:1", "~solid:2"]);
-    expect(hierarchyUp(doc, registry, ["~solid:0", "~solid:1", "~solid:2"])).toEqual([
-      "~solid:0",
-      "~solid:1",
-      "~solid:2",
-      "ledge",
+  it("groups roots only, at the root when the selection shares no parent but the scene", () => {
+    const edit = groupBatch(tree, registry, ["crate", "lamp", "base", "post-1/top"], prefabs)!;
+    const ops = edit.batch.ops;
+    expect(ops.find((o) => o.op === "reparent" && o.refs.includes("node-1"))).toBeUndefined();
+    expect(ops.at(-1)).toEqual({ op: "reparent", refs: ["crate", "base"], parent: "node-1" });
+    const r = apply(tree, edit.batch);
+    expect(entity(r.def, "node-1").parent).toBeUndefined();
+    expect(entity(r.def, "lamp").parent).toBe("base");
+    expect(world(r.def, "lamp").at).toEqual(world(tree, "lamp").at);
+  });
+
+  it("makes no group from what can't be in the tree, or without a node type", () => {
+    expect(groupBatch(tree, registry, ["~solid:0", "post-1/top"], prefabs)).toBeNull();
+    expect(groupBatch(tree, registry, [], prefabs)).toBeNull();
+    const bare = {
+      ...registry,
+      types: new Map([...registry.types].filter(([type]) => type !== "node")),
+    };
+    expect(groupBatch(tree, bare, ["crate"], prefabs)).toBeNull();
+  });
+
+  it("ungroups a node into its parent and removes it, in one undo", () => {
+    const edit = ungroupBatch(tree, ["base"])!;
+    expect(edit).toEqual({
+      batch: {
+        label: "Ungroup base",
+        ops: [
+          { op: "reparent", refs: ["lamp", "yard-1"], parent: null },
+          { op: "remove", refs: ["base"] },
+        ],
+      },
+      select: ["lamp", "yard-1"],
+    });
+    const r = apply(tree, edit.batch);
+    expect(r.def.entities!.some((e) => e.id === "base")).toBe(false);
+    expect(entity(r.def, "lamp").parent).toBeUndefined();
+    for (const id of ["lamp", "yard-1/gate"])
+      expect(world(r.def, id).at).toEqual(world(tree, id).at);
+    expect(apply(r.def, r.inverse).def).toEqual(tree);
+    expect(ungroupBatch(tree, ["lamp", "post-1"])).toBeNull();
+  });
+
+  it("round-trips a group through ungroup", () => {
+    const grouped = apply(
+      tree,
+      groupBatch(tree, registry, ["crate", "avatar"], prefabs)!.batch,
+    ).def;
+    const back = apply(grouped, ungroupBatch(grouped, ["node-1"])!.batch).def;
+    for (const id of ["crate", "avatar"]) expect(entity(back, id)).toEqual(entity(tree, id));
+  });
+
+  it("hands a nested node's children to the nearest node that stays", () => {
+    const nested = apply(tree, groupBatch(tree, registry, ["lamp"], prefabs)!.batch).def;
+    expect(entity(nested, "lamp").parent).toBe("node-1");
+    const ops = ungroupBatch(nested, ["base", "node-1"])!.batch.ops;
+    expect(ops).toEqual([
+      { op: "reparent", refs: ["lamp", "yard-1"], parent: null },
+      { op: "remove", refs: ["base", "node-1"] },
     ]);
+  });
+
+  it("walks up by the tree, a prefab's child to its instance, across instance boundaries", () => {
+    expect(hierarchyUp(tree, ["lamp"])).toEqual(["base"]);
+    expect(hierarchyUp(tree, ["yard-1"])).toEqual(["base"]);
+    expect(hierarchyUp(tree, ["post-1/top"])).toEqual(["post-1"]);
+    expect(hierarchyUp(tree, ["yard-1/post-a/top"])).toEqual(["yard-1/post-a"]);
+    expect(hierarchyUp(tree, ["yard-1/post-a"])).toEqual(["yard-1"]);
+    expect(hierarchyUp(tree, ["flag"])).toEqual(["post-1/top"]);
+    expect(hierarchyUp(tree, ["lamp", "yard-1", "flag"])).toEqual(["base", "post-1/top"]);
+    expect(hierarchyUp(tree, ["base"])).toBeNull();
+    expect(hierarchyUp(tree, ["crate"])).toBeNull();
+    // A bulk entry at the root climbs to its bucket.
+    expect(hierarchyUp(tree, ["~solid:1"])).toEqual(["~solid:0", "~solid:1", "~solid:2"]);
+    expect(hierarchyUp(tree, ["~solid:0", "~solid:1", "~solid:2"])).toBeNull();
+  });
+
+  it("walks down to the first child, one instance level at a time", () => {
+    expect(hierarchyDown(tree, registry, ["base"], prefabs)).toEqual(["lamp"]);
+    expect(hierarchyDown(tree, registry, ["post-1"], prefabs)).toEqual(["post-1/top"]);
+    expect(hierarchyDown(tree, registry, ["post-1/top"], prefabs)).toEqual(["flag"]);
+    expect(hierarchyDown(tree, registry, ["yard-1"], prefabs)).toEqual(["yard-1/gate"]);
+    expect(hierarchyDown(tree, registry, ["yard-1/post-a"], prefabs)).toEqual([
+      "yard-1/post-a/top",
+    ]);
+    expect(hierarchyDown(tree, registry, ["crate"], prefabs)).toBeNull();
+    expect(hierarchyDown(tree, registry, [], prefabs)).toBeNull();
+    // From several, the first in outline order.
     expect(hierarchyDown(doc, registry, ["ledge", "~solid:2", "~solid:1"])).toEqual(["~solid:1"]);
-    expect(hierarchyDown(doc, registry, ["ledge"])).toBeNull();
+  });
+
+  it("names the levels a click walks into an instance", () => {
+    expect(instanceLevels("room-1/door-1/panel")).toEqual([
+      "room-1",
+      "room-1/door-1",
+      "room-1/door-1/panel",
+    ]);
+    expect(instanceLevels("crate")).toEqual(["crate"]);
+  });
+
+  it("keeps only the selection's roots", () => {
+    expect(selectionRoots(tree, ["lamp", "base", "post-1/top", "flag", "crate"])).toEqual([
+      "base",
+      "post-1/top",
+      "crate",
+    ]);
+    expect(selectionRoots(tree, ["post-1", "post-1/top", "yard-1/post-a/top"])).toEqual([
+      "post-1",
+      "yard-1/post-a/top",
+    ]);
+  });
+
+  it("rotates instances and nodes by one transform, and what's under them with them", () => {
+    expect(rotateSelectionBatch(tree, registry, ["post-1"], 15, prefabs)).toEqual({
+      label: "Rotate post-1",
+      ops: [{ op: "transform", refs: ["post-1"], rotate: 15 }],
+    });
+    expect(rotateSelectionBatch(tree, registry, ["base", "lamp"], -15, prefabs)?.ops).toEqual([
+      { op: "transform", refs: ["base"], rotate: -15 },
+    ]);
+    const mixed = rotateSelectionBatch(tree, registry, ["post-1", "crate"], 90, prefabs)!;
+    const box = selectionBounds(resolveScene(tree, registry, prefabs), registry, [
+      "post-1",
+      "crate",
+    ])!;
+    const about = [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2];
+    expect(mixed.ops[0]).toEqual({ op: "transform", refs: ["post-1"], rotate: 90, about });
+    expect(mixed.ops[1]).toMatchObject({ op: "update", ref: "crate" });
+    const r = apply(tree, mixed);
+    expect(r.def.instances![0]!.rot).toBe(90);
   });
 });
 
@@ -209,31 +375,28 @@ describe("turn and flip", () => {
   ]);
   const placed: SceneDefinition = {
     ...structuredClone(doc),
-    groups: { pair: { at: [400, 800] } },
     instances: [
       { id: "post-1", prefab: "post", at: [100, 900] },
-      { id: "post-2", prefab: "post", at: [200, 900], group: "pair" },
+      { id: "post-2", prefab: "post", at: [200, 900], parent: "pair" },
     ],
     entities: [
       ...structuredClone(doc.entities!),
-      { id: "pin", type: "marker", at: [0, 0], group: "pair" },
+      { id: "pair", type: "node", at: [400, 800] },
+      { id: "pin", type: "marker", at: [0, 0], parent: "pair" },
     ],
   };
 
-  it("finds instances by id or child, whole groups, and what's left", () => {
+  it("finds instances by id or child, and what's left", () => {
     expect(quarterTurnTargets(placed, ["post-1/top", "post-1", "crate"])).toEqual({
       instances: ["post-1"],
-      groups: [],
       rest: ["crate"],
     });
     expect(quarterTurnTargets(placed, ["pin", "post-2/top", "post-1"])).toEqual({
-      instances: ["post-1"],
-      groups: ["pair"],
-      rest: [],
+      instances: ["post-2", "post-1"],
+      rest: ["pin"],
     });
     expect(quarterTurnTargets(placed, ["pin", "~solid:0"])).toEqual({
       instances: [],
-      groups: [],
       rest: ["pin", "~solid:0"],
     });
   });
@@ -245,11 +408,11 @@ describe("turn and flip", () => {
     });
     expect(turnBatch(placed, ["pin", "post-2", "post-1"], -1)).toEqual({
       label: "Turn 2 items counter-clockwise",
-      ops: [{ op: "transform", refs: ["post-1"], groups: ["pair"], turn: -1 }],
+      ops: [{ op: "transform", refs: ["post-2", "post-1"], turn: -1 }],
     });
     expect(flipBatch(placed, ["pin", "post-2"], "x")).toEqual({
-      label: "Flip pair horizontally",
-      ops: [{ op: "transform", groups: ["pair"], flip: "x" }],
+      label: "Flip post-2 horizontally",
+      ops: [{ op: "transform", refs: ["post-2"], flip: "x" }],
     });
     expect(flipBatch(placed, ["post-1"], "y")?.label).toBe("Flip post-1 vertically");
     expect(turnBatch(placed, ["crate", "~solid:0"], 1)).toBeNull();
@@ -263,13 +426,13 @@ describe("turn and flip", () => {
       id: "post-1",
       prefab: "post",
       at: [100, 900],
-      rot: 1,
+      rot: 90,
     });
     const flipped = applyOps(turned.def, flipBatch(turned.def, ["post-1"], "x")!, registry, {
       prefabs,
     });
     if (!flipped.ok) throw new Error(flipped.issue.message);
-    expect(flipped.def.instances![0]).toMatchObject({ rot: 3, flip: true });
+    expect(flipped.def.instances![0]).toMatchObject({ rot: 270, flip: true });
     const back = applyOps(turned.def, turned.inverse, registry, { prefabs });
     if (!back.ok) throw new Error(back.issue.message);
     expect(back.def).toEqual(placed);

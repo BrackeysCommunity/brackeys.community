@@ -1,6 +1,12 @@
 import type { SceneLibrary } from "../game/flow";
 import type { SaveDepth, SaveFile } from "../game/save-file";
-import type { GameCommand, GameDefinition, GameOutcome, Registry } from "../game/types";
+import type {
+  EngineContext,
+  GameCommand,
+  GameDefinition,
+  GameOutcome,
+  Registry,
+} from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, RuntimeStats, SceneRuntimeHandle, StepEvent } from "../runtime/types";
@@ -75,6 +81,12 @@ export type ProbeOptions<S = unknown> = ProbeInput & {
    * the same input don't share. Without it the report holds no timing.
    */
   timing?: RunTiming;
+  /**
+   * Called after each tick's step that didn't throw, with the tick and the
+   * runtime's context, to read state the report doesn't carry (an entity's
+   * clip, say) inside the probe's own run. It must not change the run.
+   */
+  onTick?: (tick: number, ctx: EngineContext) => void;
 };
 
 export type ProbeReport<S = unknown> = {

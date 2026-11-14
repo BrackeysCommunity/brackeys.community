@@ -121,7 +121,7 @@ describe("oneWayEdge", () => {
             id: "i",
             prefab: "ledge",
             at,
-            ...(rot ? { rot } : {}),
+            ...(rot ? { rot: 90 * rot } : {}),
             ...(flip ? { flip: true as const } : {}),
           },
         ],
@@ -137,7 +137,7 @@ describe("oneWayEdge", () => {
       );
     });
 
-    it("composes a group's turn onto the instance's", () => {
+    it("composes a parent node's turn onto the instance's", () => {
       const prefabs = prefabLibrary([
         {
           kind: "prefab",
@@ -147,9 +147,9 @@ describe("oneWayEdge", () => {
         },
       ]);
       const def = scene({
-        groups: { g: { at: [0, 0], rot: 1 } },
-        instances: [{ id: "i", prefab: "ledge", at, rot: 1, group: "g" }],
-      } as Partial<SceneDefinition>);
+        instances: [{ id: "i", prefab: "ledge", at, rot: 90, parent: "g" }],
+        entities: [{ id: "g", type: "node", at: [0, 0], rot: 90 }],
+      });
       expect(edgesOf(def, prefabs).map((e) => e.side)).toEqual(["down"]);
     });
   });
@@ -232,7 +232,7 @@ describe("type-wide one-way", () => {
   });
 
   it("keeps a type-wide side unturned in a turned instance, as the solid system judges it", () => {
-    expect(edges([], [{ id: "i", prefab: "p", at: [0, 0], rot: 1 }])).toMatchObject({
+    expect(edges([], [{ id: "i", prefab: "p", at: [0, 0], rot: 90 }])).toMatchObject({
       "i/bar": { side: "up" },
     });
   });

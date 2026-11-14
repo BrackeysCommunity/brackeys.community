@@ -52,12 +52,12 @@ function scene(): SceneDefinition {
     v: SCENE_FORMAT_VERSION,
     name: "posts",
     bounds: [0, 0, 2000, 1200],
-    groups: { east: { at: [1000, 0] } },
     instances: [
       { id: "post-1", prefab: "post", at: [100, 900] },
       { id: "post-2", prefab: "post", at: [300, 900] },
-      { id: "post-3", prefab: "post", at: [100, 900], group: "east" },
+      { id: "post-3", prefab: "post", at: [100, 900], parent: "east" },
     ],
+    entities: [{ id: "east", type: "node", at: [1000, 0] }],
   };
 }
 
@@ -412,7 +412,7 @@ describe("Create variant", () => {
         .world()!
         .entities.map((e) => e.id)
         .sort();
-    expect(ids()).toEqual(["post/top", "post/~solid:0"]);
+    expect(ids()).toEqual(["post", "post/top", "post/~solid:0"]);
     expect(worldAt(fake, "post/top")).toEqual([0, -40]);
     // The variant's doc holds none of them, so they stay out of its outline and picking.
     expect(live.prefab.state!.isolation.session.getResolved().entities ?? []).toEqual([]);
@@ -447,7 +447,7 @@ describe("Create variant", () => {
         ops: [{ op: "definePrefab", id: "post", prefab: { ...POST, bulk: {} } }],
       });
     });
-    expect(ids()).toEqual(["cap", "post/top"]);
+    expect(ids()).toEqual(["cap", "post", "post/top"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(worldAt(fake, "post/top")).toBeUndefined();
@@ -503,6 +503,7 @@ describe("Create variant", () => {
     const last = fake.loadScene.mock.calls.at(-1)![0] as { entities: { id: string }[] };
     expect(last.entities.map((e) => e.id).sort()).toEqual([
       "cap",
+      "post",
       "post/foot",
       "post/top",
       "post/~solid:0",

@@ -858,15 +858,11 @@ describe("physics per load", () => {
     rt.destroy();
   });
 
-  it("fails a load with physics-required on an attach in a scene without physics", () => {
+  it("loads a child of a follower in a scene without physics, the tree carrying it", () => {
     const rt = createSceneRuntime({ rapier: null, view: null, game: null });
-    const rider: RuntimeEntity = { ...zone, attach: "lift" };
-    expect(rt.load(free([lift, rider]))).toMatchObject({
-      ok: false,
-      reason: "physics-required",
-      entityId: "zone",
-    });
-    expect(rt.ctx.poses.size).toBe(0);
+    const rider: RuntimeEntity = { ...zone, parent: "lift" };
+    expect(rt.load(free([lift, rider])).ok).toBe(true);
+    expect(rt.ctx.tree.parent("zone")).toBe("lift");
     rt.destroy();
   });
 
@@ -1001,7 +997,7 @@ describe("a disabled follower", () => {
     id: "rider",
     type: "sensor",
     shape: box(0, 90, 10, 4),
-    attach: "lift",
+    parent: "lift",
   };
   const withPhysics = (physics: "rapier" | "none", entities: RuntimeEntity[]): ExpandedScene => ({
     ...scene(entities),
@@ -1043,13 +1039,13 @@ describe("a disabled follower", () => {
     });
   }
 
-  it("switches its riders' colliders off with its body and back on with it", () => {
+  it("switches its riders off with it and back on with it", () => {
     const rt = runtime(null);
     expect(rt.load(withPhysics("rapier", [lift, rider])).ok).toBe(true);
     const zone = () => hits(rt, rt.ctx.poses.get("rider")!).filter((id) => id === "rider");
     expect(zone()).toEqual(["rider"]);
     rt.ctx.setEnabled("lift", false);
-    expect(rt.ctx.enabled("rider")).toBe(true);
+    expect(rt.ctx.enabled("rider")).toBe(false);
     expect(zone()).toEqual([]);
     steps(rt, 30);
     rt.ctx.setEnabled("lift", true);

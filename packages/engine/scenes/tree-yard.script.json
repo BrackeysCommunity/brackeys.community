@@ -1,0 +1,9 @@
+{
+  "$schema": "../scene/input-script.schema.json",
+  "v": 2,
+  "scene": "tree-yard",
+  "maxTicks": 600,
+  "steps": [
+    { "hold": [], "max": 600, "until": { "near": { "id": "rider/hero", "to": "lift-stop", "within": 0.3 } } }
+  ]
+}

@@ -534,6 +534,18 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       if (!a?.path || (a.to === null && a.target === null)) return null;
       return a.path.slice(a.next);
     },
+    handle: (id) => ({
+      path: () => system.path(id),
+      setDestination: (to: Vec2 | string) => system.setDestination(id, to),
+      stop: () => system.stop(id),
+    }),
+    /** Its motion body goes there too, and a walk under way plans again from there. */
+    posed(id, pose, snap) {
+      const a = agents.get(id);
+      if (!a) return;
+      a.body?.teleport(pose.x, pose.y, { snap });
+      if (a.path && (a.to !== null || a.target !== null)) plan(a);
+    },
     clear() {
       for (const a of agents.values()) a.body?.destroy();
       agents.clear();

@@ -20,7 +20,7 @@ import {
 import { expandScene } from "../scene/expand";
 import { parseSceneOrThrow } from "../scene/parse";
 import { containsPoint, translateShape } from "../scene/shape-geometry";
-import type { Pt, SceneDefinition, ShapeObj } from "../scene/types";
+import { SCENE_FORMAT_VERSION, type Pt, type SceneDefinition, type ShapeObj } from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
 
 let rapier: RapierModule;
@@ -455,7 +455,7 @@ describe("the geometry world", () => {
 describe("space queries over disabled bodies", () => {
   /** A prop and a lift carrying a plank, apart from each other. */
   const DISABLED: SceneDefinition = {
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     name: "disabled",
     bounds: [0, 0, 40, 20],
     entities: [
@@ -473,7 +473,7 @@ describe("space queries over disabled bodies", () => {
           speed: 1,
         },
       },
-      { id: "plank", type: "solid", attach: "lift", shape: ["box", 20, 4, 3, 0.25] },
+      { id: "plank", type: "solid", parent: "lift", shape: ["box", 0, -1, 3, 0.25] },
     ],
   };
 

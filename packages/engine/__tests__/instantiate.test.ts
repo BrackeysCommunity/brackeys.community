@@ -83,7 +83,7 @@ const library = (...more: Prefab[]): PrefabLibrary =>
         { id: "deep", type: "lever", at: [40, 0], target: "g/door" },
         { id: "away", type: "lever", at: [60, 0], target: "elsewhere" },
       ],
-      instances: [{ id: "g", prefab: "gate", at: [100, 0], rot: 2 }],
+      instances: [{ id: "g", prefab: "gate", at: [100, 0], rot: 180 }],
     }),
     prefab("crates", {
       entities: [
@@ -171,7 +171,7 @@ function setup(lib: PrefabLibrary = library(), settings: SceneSettings = SETTING
   return { rt, log, during, lib };
 }
 
-/** `expandScene`'s children of the instance `from`, renamed under `to`. */
+/** `expandScene`'s children of the instance `from`, its nodes aside, renamed under `to`. */
 function loadedAs(
   inst: InstanceDef,
   to: string,
@@ -182,12 +182,13 @@ function loadedAs(
   const rt = createSceneRuntime({ rapier: undefined, view: null, game });
   const entities = expandScene(sceneDef([inst], settings), rt.ctx.registry, {
     prefabs: lib,
-  }).entities.filter((e) => e.id.startsWith(`${inst.id}/`));
+  }).entities.filter((e) => e.id.startsWith(`${inst.id}/`) && e.type !== "node");
   const rename = (v: unknown): unknown =>
     typeof v === "string" && v.startsWith(`${inst.id}/`) ? `${to}${v.slice(inst.id.length)}` : v;
   return entities.map((e) => {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(e)) out[k] = rename(v);
+    for (const [k, v] of Object.entries(e))
+      out[k] = k === "parent" && v === inst.id ? to : rename(v);
     return out as RuntimeEntity;
   });
 }
@@ -248,7 +249,7 @@ describe("ctx.instantiate equals load-time expansion", () => {
   it("turns children by grid cells when the scene's grid is square", () => {
     const settings: SceneSettings = { physics: "none", grid: { kind: "square", cell: [32, 32] } };
     const { rt, lib } = setup(library(), settings);
-    const inst: InstanceDef = { id: "panel-1", prefab: "panel", at: [64, 64], rot: 1, flip: true };
+    const inst: InstanceDef = { id: "panel-1", prefab: "panel", at: [64, 64], rot: 90, flip: true };
     const out = rt.ctx.instantiate("panel", [64, 64], optionsOf(inst, "panel#x"));
     expect(out.entities.map((id) => rt.ctx.get(id))).toEqual(
       loadedAs(inst, "panel#x", lib, settings),
@@ -296,7 +297,7 @@ describe("ctx.instantiate ids, ready and events", () => {
     );
   });
 
-  it("raises one entity:spawned per child inside a step, none outside", () => {
+  it("raises one entity:spawned for the node and per child inside a step, none outside", () => {
     const { rt, during } = setup();
     const outside = rt.ctx.instantiate("crates", [0, 0]);
     expect(rt.step(DT, []).events.filter((e) => e.type === ENTITY_SPAWNED)).toEqual([]);
@@ -305,7 +306,7 @@ describe("ctx.instantiate ids, ready and events", () => {
     let ids: readonly string[] = [];
     during.run = (ctx) => void (ids = ctx.instantiate("crates", [100, 0]).entities);
     const spawned = rt.step(DT, []).events.filter((e) => e.type === ENTITY_SPAWNED);
-    expect(spawned.map((e: StepEvent) => e.entityId)).toEqual(ids);
+    expect(spawned.map((e: StepEvent) => e.entityId)).toEqual(["crates#2", ...ids]);
     expect(spawned.find((e) => e.entityId === "crates#2/a")).toMatchObject({
       at: { x: 100, y: 0 },
       data: { type: "crate" },
@@ -358,7 +359,7 @@ describe("prefab-not-spawnable", () => {
     });
   });
 
-  it("names a child that needs physics, or rides another, in a scene without physics", () => {
+  it("names a child that needs physics in a scene without physics, and spawns one under a follower", () => {
     const { rt } = setup(
       library(
         prefab("box", {
@@ -382,7 +383,7 @@ describe("prefab-not-spawnable", () => {
                 speed: 5,
               },
             },
-            { id: "rail", type: "solid", attach: "deck", shape: ["box", 0, -4, 40, 2] },
+            { id: "rail", type: "solid", parent: "deck", shape: ["box", 0, -4, 40, 2] },
           ],
         }),
       ),
@@ -391,12 +392,10 @@ describe("prefab-not-spawnable", () => {
       code: "physics-required",
       entityId: "box#1/lid",
     });
-    expect(causeOf(() => rt.ctx.instantiate("raft", [0, 0]))).toMatchObject({
-      code: "physics-required",
-      entityId: "raft#1/rail",
-    });
     expect(rt.stats().entities).toBe(1);
     expect(rt.ctx.exists("box#1/pin")).toBe(false);
+    const raft = rt.ctx.instantiate("raft", [0, 0]);
+    expect(rt.ctx.tree.parent(`${raft.id}/rail`)).toBe(`${raft.id}/deck`);
   });
 
   it("rolls back every child when one throws on spawn", () => {
@@ -424,18 +423,19 @@ describe("destroy by instance id", () => {
     const kept = rt.ctx.instantiate("room", [0, 0]);
     const gone = rt.ctx.instantiate("room", [500, 0]);
     rt.ctx.destroy(gone.id);
+    expect(rt.ctx.exists(gone.id)).toBe(false);
     for (const id of gone.entities) expect(rt.ctx.exists(id)).toBe(false);
     for (const id of kept.entities) expect(rt.ctx.exists(id)).toBe(true);
-    expect(rt.stats().entities).toBe(1 + kept.entities.length);
+    expect(rt.stats().entities).toBe(1 + rt.ctx.tree.subtree(kept.id).length);
   });
 
-  it("destroys the children at the end of the tick, in reverse spawn order", () => {
+  it("destroys the children at the end of the tick, in reverse spawn order, then the node", () => {
     const { rt, during, log } = setup();
     const out = rt.ctx.instantiate("crates", [0, 0]);
     log.length = 0;
     during.run = (ctx) => ctx.destroy(out.id);
     const destroyed = rt.step(DT, []).events.filter((e) => e.type === ENTITY_DESTROYED);
-    expect(destroyed.map((e) => e.entityId)).toEqual([...out.entities].reverse());
+    expect(destroyed.map((e) => e.entityId)).toEqual([...out.entities].reverse().concat(out.id));
     expect(log).toEqual(["despawn crates#1/b", "despawn crates#1/a"]);
   });
 });

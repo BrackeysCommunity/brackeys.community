@@ -263,6 +263,7 @@ function placedEntities(
   const moving = at[0] !== 0 || at[1] !== 0;
   return scene.entities.map((src) => {
     const e: RuntimeEntity = { ...src, id: sublevelId(label, src.id) };
+    if (e.parent !== undefined) e.parent = rename(e.parent) as string;
     const type = registry.types.get(e.type);
     if (!type) return e;
     for (const { field } of type.refs ?? []) {

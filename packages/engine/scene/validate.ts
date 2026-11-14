@@ -15,7 +15,6 @@ import { SPAWNER } from "../game/behaviors/spawner";
 import { SPRITE } from "../game/behaviors/sprite";
 import {
   posableType,
-  ridingHost,
   TWEEN,
   tweenBlockProblems,
   type TweenBlock,
@@ -24,7 +23,7 @@ import {
 import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
-import { physicsNeeds } from "../game/primitives";
+import { isCameraRegionType, needsPhysics } from "../game/primitives";
 import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo, atlasFrameIssue } from "../project/asset-info";
@@ -35,6 +34,7 @@ import type { SceneListEntry } from "../project/kinds/scene-list";
 import { kindsLabel, schemaRefSites, siteFits, type RefSite } from "../project/refs";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
+import { parseBulkId } from "./bulk-ref";
 import { closest, didYouMean, meantText } from "./did-you-mean";
 import {
   behaviorBlocks,
@@ -62,6 +62,8 @@ import {
   resolvePrefab,
   resolveScene,
   resolveSceneDetailed,
+  sceneFrames,
+  type SceneFrames,
   splitOverridePath,
 } from "./resolve";
 import {
@@ -85,7 +87,14 @@ import {
   type WalkPolygon,
 } from "./shape-geometry";
 import { parseShape } from "./shapes";
-import { composeDihedral, isIdentityTurn, turnOf, type Dihedral } from "./transform";
+import {
+  composeDihedral,
+  dihedralOf,
+  isIdentityTurn,
+  turnOf,
+  type Dihedral,
+  type Transform2D,
+} from "./transform";
 import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
@@ -95,6 +104,7 @@ import {
   type InstanceDef,
   type IssueCode,
   type OpBatch,
+  PARENT_MAX_DEPTH,
   type PathDef,
   type Prefab,
   type PrefabLibrary,
@@ -163,6 +173,8 @@ type Located<T> = { field: string; pointer: string; value: T };
 type Item = {
   ref: Ref;
   pointer: string;
+  /** Its index in `def.entities`; absent for a bulk entry. */
+  index?: number;
   type: RegisteredType;
   shapes: (Located<ShapeTuple> & { schema: z.core.$ZodType })[];
   points: Located<Pt>[];
@@ -193,7 +205,7 @@ function items(def: SceneDefinition, registry: Registry): Item[] {
     const type = registry.types.get(e.type);
     if (!type) return;
     const pointer = jsonPointer(["entities", i]);
-    const item: Item = { ref: e.id, pointer, type, shapes: [], points: [], paths: [] };
+    const item: Item = { ref: e.id, pointer, index: i, type, shapes: [], points: [], paths: [] };
     for (const { field, kind } of geometryFields(type)) {
       const value = e[field];
       if (!geometryShaped(kind, value)) continue;
@@ -319,13 +331,13 @@ function extent(
  * Structural checks over a parsed scene, judged by the registry its `game`
  * picks (`sceneRegistry`). On the document itself: ids (entities and
  * instances share them), layers, `settings.grid`, the `assets` header,
- * groups, instances (their prefabs resolved through nesting and variant
+ * instances (their prefabs resolved through nesting and variant
  * bases by `resolvePrefab`, every variant's base known and sharing no
  * child id with it), their params (each one the prefab exposes) and
  * overrides (never of a grid field), a prefab view's params (each target
  * naming a child), and grids
- * under a turned or flipped instance or group (square cells only). On its resolved view
- * (`resolveScene`, so instance children and group members are checked
+ * under a turned or flipped instance or parent (square cells only). On its resolved view
+ * (`resolveScene`, so instance children and parented entities are checked
  * where they land): spawn-only types, which game code alone may make
  * (`unknown-type`), references (each type's `refs`; a child ref
  * `<instance>/<child>` is `ref-child-unknown` when the instance's prefab
@@ -371,14 +383,13 @@ export function validateScene(
     sources,
   );
 
-  validateSource(
-    source,
-    r,
-    opts.prefabs,
-    opts.prefab,
-    (code, fields) => issues.push(withLine(makeIssue(code, fields))),
-    grid,
+  const pushSource: Push = (code, fields) => issues.push(withLine(makeIssue(code, fields)));
+  const parented = [...(source.entities ?? []), ...(source.instances ?? [])].some(
+    (item) => item.parent !== undefined,
   );
+  const frames = parented ? sceneFrames(source, r, opts.prefabs) : undefined;
+  validateSource(source, r, opts.prefabs, opts.prefab, pushSource, grid, frames);
+  if (frames) checkParents(source, r, frames, pushSource);
 
   const resolved = resolveSceneDetailed(source, r, opts.prefabs);
   const def = resolved.def;
@@ -557,6 +568,47 @@ export function validateScene(
     });
   }
 
+  let storedItems: Map<number, Item> | undefined;
+  const storedItem = (index: number) =>
+    (storedItems ??= new Map(
+      items(source, r).flatMap((it) => (it.index === undefined ? [] : [[it.index, it]])),
+    )).get(index);
+
+  const wholePixels = (item: Item, report: Push) => {
+    const { ref } = item;
+    const set: Record<string, unknown> = {};
+    let firstBad: string | undefined;
+    const flag = (field: string, bad: string, value: unknown) => {
+      firstBad ??= bad;
+      set[field] = value;
+    };
+    for (const { field, pointer: at, value } of item.shapes) {
+      const k = value.findIndex((_, i) => offGrid(value, i, ppm));
+      if (k > 0) flag(field, `${at}/${k}`, snapTuple(value, ppm));
+    }
+    for (const { field, pointer: at, value } of item.points) {
+      if (!onPixels(value, ppm))
+        flag(field, `${at}/${isWholePixel(value[0], ppm) ? 1 : 0}`, snapPt(value, ppm));
+    }
+    for (const { field, pointer: at, value } of item.paths) {
+      const k = value.pts.findIndex((p) => !onPixels(p, ppm));
+      if (k >= 0)
+        flag(
+          `${field}.pts`,
+          `${at}/pts/${k}`,
+          value.pts.map((p) => snapPt(p, ppm)),
+        );
+    }
+    if (firstBad !== undefined) {
+      report("non-integer", {
+        message: `${ref} has a length that isn't a whole world pixel at ${ppm} px per metre (${Object.keys(set).join(", ")})`,
+        path: firstBad,
+        entityIds: [ref],
+        fix: batch(`Snap ${ref} to whole pixels`, [{ op: "update", ref, set }], [ref]),
+      });
+    }
+  };
+
   // geometry
   for (const item of items(def, r)) {
     const { ref, pointer, type } = item;
@@ -653,37 +705,12 @@ export function validateScene(
       }
     }
 
-    // whole world pixels
-    const set: Record<string, unknown> = {};
-    let firstBad: string | undefined;
-    const flag = (field: string, bad: string, value: unknown) => {
-      firstBad ??= bad;
-      set[field] = value;
-    };
-    for (const { field, pointer: at, value } of item.shapes) {
-      const k = value.findIndex((_, i) => offGrid(value, i, ppm));
-      if (k > 0) flag(field, `${at}/${k}`, snapTuple(value, ppm));
-    }
-    for (const { field, pointer: at, value } of item.points) {
-      if (!onPixels(value, ppm))
-        flag(field, `${at}/${isWholePixel(value[0], ppm) ? 1 : 0}`, snapPt(value, ppm));
-    }
-    for (const { field, pointer: at, value } of item.paths) {
-      const k = value.pts.findIndex((p) => !onPixels(p, ppm));
-      if (k >= 0)
-        flag(
-          `${field}.pts`,
-          `${at}/pts/${k}`,
-          value.pts.map((p) => snapPt(p, ppm)),
-        );
-    }
-    if (firstBad !== undefined) {
-      push("non-integer", {
-        message: `${ref} has a length that isn't a whole world pixel at ${ppm} px per metre (${Object.keys(set).join(", ")})`,
-        path: firstBad,
-        entityIds: [ref],
-        fix: batch(`Snap ${ref} to whole pixels`, [{ op: "update", ref, set }], [ref]),
-      });
+    // whole world pixels, judged on the stored values under a frame off the quarter turns
+    const origin = item.index === undefined ? undefined : resolved.origins[item.index];
+    if (!origin?.transform || origin.transform.rot % 90 === 0) wholePixels(item, push);
+    else if (origin.kind === "entity") {
+      const stored = storedItem(origin.index);
+      if (stored) wholePixels(stored, pushSource);
     }
 
     // bounds
@@ -749,13 +776,303 @@ export function validateScene(
 
 type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string }) => void;
 
-/** `physics-required` on each loadable entry whose type needs physics, and each rider, in a scene whose physics is "none". */
+/**
+ * Whether entities of `type` can be in the tree, as a parent or a child:
+ * nav areas, camera regions and types that never load (notes) can't. An
+ * unregistered type is reported as such, not here.
+ */
+export function canBeInTree(type: RegisteredType | undefined): boolean {
+  return (
+    type === undefined || !(type.loads === false || isNavType(type) || isCameraRegionType(type))
+  );
+}
+
+/** What a `parent` link names: a document entity or instance, an instance's child or nested instance, a bulk entry, nothing, or a child of an instance whose prefab doesn't resolve (reported as such). */
+type ParentTarget =
+  | { kind: "entity" | "child"; type: RegisteredType | undefined; what: string }
+  | { kind: "instance" | "bulk" | "missing" | "unresolved" };
+
+const isTurnBound = (kind: string) => kind === "side" || kind === "grid";
+
+/** The side and grid fields `e` sets: what turns only by quarter turns. */
+function turnBoundFields(r: Registry, e: EntityDef): string[] {
+  const shape = r.types.get(e.type)?.shape ?? {};
+  return Object.keys(shape).filter((f) => e[f] !== undefined && isTurnBound(fieldKind(shape[f]!)));
+}
+
+/**
+ * The tree's checks on the document: a parent that doesn't exist
+ * (`dangling-ref`), one that is or sits on a type that can't be in the tree
+ * (`parent-type`), a chain that comes back round (`parent-cycle`), one more
+ * than `PARENT_MAX_DEPTH` levels deep (`parent-depth`), and a side or grid
+ * field under a step off the quarter turns, which leaves it unturned
+ * (`quarter-turn-only`). Each fix is one `reparent`: to the root for a
+ * missing parent, a cycle or a type that can't be a child, else to the
+ * nearest ancestor that clears the issue. A child of an instance counts one
+ * level below the instance; the levels inside a prefab are judged in it.
+ */
+function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, push: Push): void {
+  type Item = { id: string; parent: Ref; at: (string | number)[]; type?: RegisteredType };
+  const entities = new Map<string, EntityDef>();
+  const instances = new Map<string, InstanceDef>();
+  for (const e of def.entities ?? []) if (!entities.has(e.id)) entities.set(e.id, e);
+  for (const n of def.instances ?? []) if (!instances.has(n.id)) instances.set(n.id, n);
+  const items: Item[] = [];
+  (def.entities ?? []).forEach((e, i) => {
+    if (typeof e.parent === "string")
+      items.push({ id: e.id, parent: e.parent, at: ["entities", i], type: r.types.get(e.type) });
+  });
+  (def.instances ?? []).forEach((n, i) => {
+    if (typeof n.parent === "string")
+      items.push({ id: n.id, parent: n.parent, at: ["instances", i] });
+  });
+
+  const target = (ref: Ref): ParentTarget => {
+    const e = entities.get(ref);
+    if (e) return { kind: "entity", type: r.types.get(e.type), what: e.type };
+    if (instances.has(ref)) return { kind: "instance" };
+    if (parseBulkId(ref.slice(ref.lastIndexOf(CHILD_SEPARATOR) + 1))) return { kind: "bulk" };
+    const split = parseChildRef(ref);
+    const inst = split && instances.get(split.instance);
+    if (!inst) return { kind: "missing" };
+    const placed = frames.placed(inst);
+    if (!placed) return { kind: "unresolved" };
+    const child = placed.find((c) => c.def.id === ref);
+    if (child) return { kind: "child", type: r.types.get(child.def.type), what: child.def.type };
+    const nested = nestedInstanceRefs(placed.map((c) => c.def.id));
+    return nested.has(ref) ? { kind: "instance" } : { kind: "missing" };
+  };
+  /** Why `t` can't be a parent: the type it is, or "bulk entry"; undefined when it can. */
+  const cantParent = (t: ParentTarget): string | undefined =>
+    t.kind === "bulk"
+      ? "bulk entry"
+      : (t.kind === "entity" || t.kind === "child") && !canBeInTree(t.type)
+        ? t.what
+        : undefined;
+  const canParent = (t: ParentTarget) =>
+    t.kind !== "missing" && t.kind !== "unresolved" && cantParent(t) === undefined;
+  /** The next link up: an instance's child sits under its instance. */
+  const up = (ref: Ref): Ref | undefined =>
+    entities.has(ref) || instances.has(ref) ? frames.parentOf(ref) : parseChildRef(ref)?.instance;
+  const ancestors = function* (ref: Ref | undefined) {
+    for (let at = ref; at !== undefined; at = up(at)) yield at;
+  };
+  const reparent = (id: string, parent: Ref | null): OpBatch => ({
+    label: parent === null ? `Move ${id} to the root` : `Reparent ${id} under ${parent}`,
+    ops: [{ op: "reparent", refs: [id], parent }],
+  });
+  const pointer = (item: Item) => jsonPointer([...item.at, "parent"]);
+
+  // the link itself: something to point at, of a type the tree takes
+  const linked = new Map<string, Ref>();
+  for (const item of items) {
+    const { id, parent } = item;
+    if (!canBeInTree(item.type)) {
+      push("parent-type", {
+        message: `${id} is a ${item.type!.type}, which can't be in the tree, but its parent is ${parent}`,
+        path: pointer(item),
+        entityIds: [id],
+        got: item.type!.type,
+        fix: reparent(id, null),
+      });
+      continue;
+    }
+    const t = target(parent);
+    if (t.kind === "unresolved") continue;
+    if (t.kind === "missing") {
+      const split = parseChildRef(parent);
+      const inst = split && instances.get(split.instance);
+      const placed = inst && frames.placed(inst);
+      if (inst && placed) {
+        const candidates = placed.map((c) => c.def.id).filter((c) => canParent(target(c)));
+        const guess = closest(parent, candidates);
+        push("ref-child-unknown", {
+          message: `${id}.parent names "${parent}", but prefab "${inst.prefab}" of ${inst.id} has no such child${meantText(guess)}`,
+          path: pointer(item),
+          entityIds: [id],
+          got: parent,
+          ...(candidates.length > 0 ? { expected: candidates.join(" | ") } : {}),
+          fix: reparent(id, guess ?? null),
+        });
+        continue;
+      }
+      push("dangling-ref", {
+        message: `${id}.parent names "${parent}", which doesn't exist`,
+        path: pointer(item),
+        entityIds: [id],
+        hint: `Reparent ${id} under an existing entity or instance, or to the root.`,
+        fix: reparent(id, null),
+      });
+      continue;
+    }
+    const bad = cantParent(t);
+    if (bad !== undefined) {
+      let to: Ref | null = null;
+      for (const a of ancestors(t.kind === "bulk" ? undefined : up(parent)))
+        if (canParent(target(a))) {
+          to = a;
+          break;
+        }
+      push("parent-type", {
+        message: `${id}.parent names ${parent}, ${bad === "bulk entry" ? "a bulk entry" : `a ${bad}`}, which can't be a parent`,
+        path: pointer(item),
+        entityIds: [id, parent],
+        got: bad,
+        fix: reparent(id, to),
+      });
+      continue;
+    }
+    linked.set(id, parent);
+  }
+
+  // cycles, each reported once on the id the lenient read takes as a root
+  const next = (id: string): string | undefined => {
+    const p = linked.get(id);
+    return p === undefined ? undefined : (parseChildRef(p)?.instance ?? p);
+  };
+  const state = new Map<string, "open" | "done">();
+  const inCycle = new Set<string>();
+  for (const start of linked.keys()) {
+    const path: string[] = [];
+    let id: string | undefined = start;
+    while (id !== undefined && !state.has(id)) {
+      state.set(id, "open");
+      path.push(id);
+      id = next(id);
+    }
+    if (id !== undefined && state.get(id) === "open") {
+      const loop = path.slice(path.indexOf(id));
+      const root = loop.reduce((a, b) => (b > a ? b : a));
+      const k = loop.indexOf(root);
+      const chain = [...loop.slice(k), ...loop.slice(0, k)];
+      for (const c of chain) inCycle.add(c);
+      const item = items.find((x) => x.id === root)!;
+      push("parent-cycle", {
+        message: `${root} is under itself: ${[...chain, root].join(" → ")}`,
+        path: pointer(item),
+        entityIds: chain,
+        fix: reparent(root, null),
+      });
+    }
+    for (const p of path) state.set(p, "done");
+  }
+
+  // depth, counted through the links the lenient read keeps
+  const depths = new Map<Ref, number>();
+  const depthOf = (ref: Ref): number => {
+    const chain: Ref[] = [];
+    let at: Ref | undefined = ref;
+    let base = -1;
+    while (at !== undefined) {
+      const known = depths.get(at);
+      if (known !== undefined) {
+        base = known;
+        break;
+      }
+      chain.push(at);
+      at = up(at);
+    }
+    for (let i = chain.length - 1; i >= 0; i--) depths.set(chain[i]!, ++base);
+    return depths.get(ref)!;
+  };
+  // each run past the limit is reported once, on its shallowest entity
+  const itemOf = new Map(items.map((item) => [item.id, item]));
+  const tooDeep = new Map<string, { item: Item; deepest: number }>();
+  for (const item of items) {
+    if (!linked.has(item.id) || inCycle.has(item.id)) continue;
+    const d = depthOf(item.id);
+    if (d <= PARENT_MAX_DEPTH) continue;
+    let top = item;
+    for (const a of ancestors(up(item.id))) {
+      const above = itemOf.get(a);
+      if (above && depthOf(a) > PARENT_MAX_DEPTH) top = above;
+    }
+    const hit = tooDeep.get(top.id);
+    if (hit) hit.deepest = Math.max(hit.deepest, d);
+    else tooDeep.set(top.id, { item: top, deepest: d });
+  }
+  for (const [id, { item, deepest }] of tooDeep) {
+    const depth = depthOf(id);
+    const wanted = Math.max(0, PARENT_MAX_DEPTH - (deepest - depth));
+    let to: Ref | null = null;
+    for (const a of ancestors(up(id)))
+      if (depthOf(a) === wanted - 1) {
+        to = a;
+        break;
+      }
+    push("parent-depth", {
+      message: `${id} sits ${depth} parent levels below its root; at most ${PARENT_MAX_DEPTH} are allowed`,
+      path: pointer(item),
+      entityIds: [id],
+      got: String(depth),
+      expected: `<= ${PARENT_MAX_DEPTH}`,
+      fix: reparent(id, to),
+    });
+  }
+
+  // side and grid fields turn only by quarter turns
+  const quarterUnder = (ref: Ref) => quarterChain(frames.under(ref)) !== null;
+  // Reparenting keeps an instance's world angle, so an instance gets no fix.
+  const offQuarter = (item: Item, fields: readonly string[], what: string, fixable = true) => {
+    let to: Ref | null = null;
+    for (const a of ancestors(up(item.parent)))
+      if (quarterUnder(a)) {
+        to = a;
+        break;
+      }
+    push("quarter-turn-only", {
+      message: `${what} under ${item.parent}, whose frame turns off the quarter turns, so ${fields.length === 1 ? "it stays" : "they stay"} unturned (${fields.join(", ")})`,
+      path: pointer(item),
+      entityIds: [item.id],
+      ...(fixable ? { fix: reparent(item.id, to) } : {}),
+    });
+  };
+  for (const item of items) {
+    if (!linked.has(item.id) || inCycle.has(item.id) || quarterUnder(item.parent)) continue;
+    const e = entities.get(item.id);
+    const inst = e ? undefined : instances.get(item.id);
+    if (e) {
+      const fields = turnBoundFields(r, e);
+      if (fields.length > 0)
+        offQuarter(
+          item,
+          fields,
+          `${item.id} has ${fields.length === 1 ? "a side or grid field" : "side or grid fields"}, and sits`,
+        );
+    } else if (inst) {
+      const fields = (frames.placed(inst) ?? []).flatMap((c) =>
+        turnBoundFields(r, c.def).map((f) => `${c.def.id}.${f}`),
+      );
+      if (fields.length > 0)
+        offQuarter(
+          item,
+          fields,
+          `${item.id}'s children have side or grid fields, and it sits`,
+          false,
+        );
+    }
+  }
+  (def.instances ?? []).forEach((inst, i) => {
+    if (turnOf(inst)) return;
+    const fields = (frames.placed(inst) ?? []).flatMap((c) =>
+      turnBoundFields(r, c.def).map((f) => `${c.def.id}.${f}`),
+    );
+    if (fields.length > 0)
+      push("quarter-turn-only", {
+        message: `${inst.id} turns ${String(inst.rot)}°, off the quarter turns, and its children have side or grid fields, so ${fields.length === 1 ? "it stays" : "they stay"} unturned (${fields.join(", ")})`,
+        path: jsonPointer(["instances", i, "rot"]),
+        entityIds: [inst.id],
+      });
+  });
+}
+
+/** `physics-required` on each loadable entry whose type needs physics, in a scene whose physics is "none". */
 function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => OpBatch): void {
   const message = (what: string) => `${what}, but the scene's physics resolves to "none"`;
   for (const b of r.bulkKeys) {
     const rows = def[b.key];
     const type = r.types.get(b.type);
-    if (!Array.isArray(rows) || !type || physicsNeeds(type, {}).length === 0) continue;
+    if (!Array.isArray(rows) || !type || !needsPhysics(type)) continue;
     rows.forEach((_, i) => {
       const ref = bulkId(b.key, i);
       push("physics-required", {
@@ -783,18 +1100,13 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => 
         fix: fix(),
       });
     }
-    for (const { field } of physicsNeeds(type, e)) {
+    if (needsPhysics(type))
       push("physics-required", {
-        message: message(
-          field === undefined
-            ? `${e.id} is a ${e.type}, which needs physics`
-            : `${e.id}.${field} rides ${JSON.stringify(e[field])}, which needs physics`,
-        ),
-        path: jsonPointer(field === undefined ? ["entities", i] : ["entities", i, field]),
+        message: message(`${e.id} is a ${e.type}, which needs physics`),
+        path: jsonPointer(["entities", i]),
         entityIds: [e.id],
         fix: fix(),
       });
-    }
   });
 }
 
@@ -956,14 +1268,9 @@ const showValue = (v: unknown): string => (v === undefined ? "missing" : JSON.st
 
 type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
 
-/** What an entity of `type` is to a tween: whether the type can be posed, and the host it rides. */
-function tweenTargetOf(type: RegisteredType, e: EntityDef): TweenTarget {
-  const host = ridingHost(type, e);
-  return {
-    type: type.type,
-    posable: posableType(type),
-    ...(host !== undefined ? { riding: host } : {}),
-  };
+/** What an entity of `type` is to a tween: whether the type can be posed. */
+function tweenTargetOf(type: RegisteredType): TweenTarget {
+  return { type: type.type, posable: posableType(type) };
 }
 
 /**
@@ -1216,7 +1523,7 @@ function checkBehaviors(
     if (result.success) {
       if (name === TWEEN.name) {
         const tweens = (result.data as TweenBlock).tweens;
-        const target = tweenTargetOf(type, e);
+        const target = tweenTargetOf(type);
         for (const { index, message } of tweenBlockProblems(
           e.id,
           tweens,
@@ -1447,9 +1754,9 @@ function validateGrid(grid: Record<string, unknown>, push: Push, ppm: number): v
   });
 }
 
-const RESERVED_OVERRIDE_FIELDS = ["id", "type", "group"];
+const RESERVED_OVERRIDE_FIELDS = ["id", "type", "parent"];
 
-/** Checks on the document itself: ids, groups, instances, overrides and turned or flipped grids. */
+/** Checks on the document itself: ids, instances, overrides and turned or flipped grids. */
 function validateSource(
   def: SceneDefinition,
   registry: Registry,
@@ -1457,6 +1764,7 @@ function validateSource(
   self: string | undefined,
   push: Push,
   grid: unknown,
+  frames: SceneFrames | undefined,
 ): void {
   const entities = def.entities ?? [];
   const instances = def.instances ?? [];
@@ -1523,34 +1831,6 @@ function validateSource(
       hint: "List each asset id once: the header is sorted and unique.",
     });
   });
-
-  // groups
-  const declared = new Set(Object.keys(def.groups ?? {}));
-  const members: { id: string; group: string; path: string }[] = [
-    ...entities.flatMap((e, i) =>
-      typeof e.group === "string"
-        ? [{ id: e.id, group: e.group, path: jsonPointer(["entities", i, "group"]) }]
-        : [],
-    ),
-    ...instances.flatMap((e, i) =>
-      typeof e.group === "string"
-        ? [{ id: e.id, group: e.group, path: jsonPointer(["instances", i, "group"]) }]
-        : [],
-    ),
-  ];
-  for (const { id, group, path } of members) {
-    if (declared.has(group)) continue;
-    push("dangling-ref", {
-      message: `${id}.group names "${group}", which isn't declared in groups`,
-      path,
-      entityIds: [id],
-      hint: `Declare it: { "op": "setGroup", "id": "${group}", "at": [0, 0] }.`,
-      fix: {
-        label: `Declare group ${group}`,
-        ops: [{ op: "setGroup", id: group, at: [0, 0] }],
-      },
-    });
-  }
 
   // instances and overrides
   if (self !== undefined && prefabs) validateView(def, registry, prefabs, self, push);
@@ -1688,6 +1968,7 @@ function validateSource(
     def,
     registry,
     prefabs,
+    frames,
     grid,
     self === undefined ? "the scene's grid" : "the game's grid",
     push,
@@ -1968,7 +2249,7 @@ const IDENTITY: Dihedral = { rot: 0, flip: false };
 
 /**
  * The grid children of prefab `id` that end up turned or flipped under `d`
- * (the instance's transform and its group's), through nested instances and
+ * (the instance's transform and its parent chain's), through nested instances and
  * a variant's base; refs relative to the instance.
  */
 function turnedGridChildren(
@@ -1986,7 +2267,9 @@ function turnedGridChildren(
     for (const e of prefab.entities)
       if (gridFields(registry, e.type).some((f) => e[f] !== undefined)) out.push(e.id);
   for (const nested of prefab.instances ?? []) {
-    const inner = composeDihedral(d, turnOf(nested));
+    const own = turnOf(nested);
+    if (!own) continue;
+    const inner = composeDihedral(d, own);
     for (const ref of turnedGridChildren(nested.prefab, inner, registry, prefabs, inside))
       out.push(`${nested.id}/${ref}`);
   }
@@ -1996,13 +2279,15 @@ function turnedGridChildren(
 }
 
 /**
- * A turned or flipped instance or group over an entity with a grid field
- * remaps its cells, which only a square grid with square cells can do.
+ * A turned or flipped instance or parent chain over an entity with a
+ * grid field remaps its cells, which only a square grid with square cells
+ * can do. A chain off the quarter turns is `quarter-turn-only` instead.
  */
 function validateGridTransforms(
   def: SceneDefinition,
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
+  frames: SceneFrames | undefined,
   grid: unknown,
   whose: string,
   push: Push,
@@ -2024,35 +2309,43 @@ function validateGridTransforms(
   const transformPointer = (base: (string | number)[], t: Dihedral) =>
     jsonPointer([...base, t.rot !== 0 ? "rot" : "flip"]);
 
-  const groups = def.groups ?? {};
-  for (const [id, group] of Object.entries(groups)) {
-    const d = turnOf(group);
-    if (isIdentityTurn(d)) continue;
-    const members = (def.entities ?? []).filter(
-      (e) => e.group === id && gridFields(registry, e.type).some((f) => e[f] !== undefined),
-    );
-    if (members.length > 0)
-      report(
-        transformPointer(["groups", id], d),
-        id,
-        members.map((e) => e.id),
-      );
-  }
+  const chainTurn = (item: EntityDef | InstanceDef): Dihedral =>
+    (frames && quarterChain(frames.stepsFor(item))) || IDENTITY;
+
+  (def.entities ?? []).forEach((e, i) => {
+    const owner = frames?.parentOf(e.id);
+    if (owner === undefined || isIdentityTurn(chainTurn(e))) return;
+    if (gridFields(registry, e.type).some((f) => e[f] !== undefined))
+      report(jsonPointer(["entities", i, "parent"]), owner, [e.id]);
+  });
 
   (def.instances ?? []).forEach((inst, i) => {
     const own = turnOf(inst);
-    const groupD = inst.group === undefined ? IDENTITY : turnOf(groups[inst.group] ?? {});
-    const total = composeDihedral(groupD, own);
+    if (!own) return;
+    const total = composeDihedral(chainTurn(inst), own);
     const children = turnedGridChildren(inst.prefab, total, registry, prefabs, new Set());
     if (children.length === 0) return;
     report(
       !isIdentityTurn(own)
         ? transformPointer(["instances", i], own)
-        : jsonPointer(["instances", i]),
+        : inst.parent !== undefined
+          ? jsonPointer(["instances", i, "parent"])
+          : jsonPointer(["instances", i]),
       inst.id,
       children.map((c) => `${inst.id}/${c}`),
     );
   });
+}
+
+/** The turn and flip a chain of steps applies, innermost first, or null when a step turns off the quarter turns. */
+function quarterChain(steps: readonly Transform2D[]): Dihedral | null {
+  let out = IDENTITY;
+  for (const t of steps) {
+    const d = dihedralOf(t);
+    if (!d) return null;
+    out = composeDihedral(d, out);
+  }
+  return out;
 }
 
 /** What `sublevelIssue` reads of a scene: its resolved settings. */

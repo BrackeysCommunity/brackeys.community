@@ -8,8 +8,9 @@ import { z } from "zod";
 import type { AssetInfo } from "../../project/asset-info";
 import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { turnBy } from "../../scene/shape-geometry";
+import { turnRadians } from "../../scene/transform";
 import type { Pt, RuntimeEntity, ShapeObj } from "../../scene/types";
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
 import { rgbSchema } from "../color";
 import { BLEND_MODES, DEFAULT_LENGTH_UNIT } from "../defaults";
 import { assetField, mirrorField, vectorField } from "../fields";
@@ -100,8 +101,12 @@ const spriteFields = (env: FieldEnv) => ({
 /** A `sprite` block as an entity carries it. */
 export type SpriteBlock = z.infer<z.ZodObject<ReturnType<typeof spriteFields>>>;
 
+/** Nothing beside `fields` yet. */
+export type SpriteHandle = Record<never, never>;
+
 export const SPRITE = defineBehavior({
   name: "sprite",
+  handle: handleType<SpriteHandle>(),
   description: "Draws a texture or an atlas frame at the entity's pose.",
   visualOnly: true,
   fields: spriteFields,
@@ -202,8 +207,8 @@ export function spriteAssets(
 /**
  * Where a block's `offset` puts the anchor from the pose, world metres:
  * mirrored by the entity's flip, then turned `rot` radians for a sprite
- * that turns with its pose, else (`rot` null) by the entity's quarter
- * turns only.
+ * that turns with its pose, else (`rot` null) by the angle of what the
+ * entity sits in only.
  */
 export function spriteOffset(
   offset: Pt,
@@ -211,5 +216,5 @@ export function spriteOffset(
   rot: number | null,
 ): Pt {
   const mirrored: Pt = transform?.flip ? [0 - offset[0], offset[1]] : [offset[0], offset[1]];
-  return turnBy(mirrored, rot ?? ((transform?.turn ?? 0) * Math.PI) / 2);
+  return turnBy(mirrored, rot ?? turnRadians(transform?.rot ?? 0));
 }

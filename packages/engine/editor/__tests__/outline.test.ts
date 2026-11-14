@@ -8,7 +8,14 @@ import {
   type PrefabLibrary,
   type SceneDefinition,
 } from "../../scene/types";
-import { buildOutline, outlineOrder } from "../outline";
+import {
+  buildOutline,
+  buildTreeOutline,
+  outlineOrder,
+  treeDragRoots,
+  treeDropBatch,
+  treeDropRefusal,
+} from "../outline";
 
 const registry = createRegistry(
   defineGame({
@@ -255,5 +262,212 @@ describe("buildOutline over nested prefabs", () => {
       loop,
     );
     expect(out.filter((r) => r.ref).map((r) => r.ref)).toEqual(["a-9", "a-9/b-1", "a-9/b-1/a-1"]);
+  });
+});
+
+describe("buildTreeOutline", () => {
+  const prefab = (id: string, body: Partial<Prefab>): Prefab => ({
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    id,
+    entities: [],
+    ...body,
+  });
+  const library: PrefabLibrary = new Map([
+    ["lock", prefab("lock", { entities: [{ id: "bolt", type: "marker", at: [0, 0] }] })],
+    [
+      "turret",
+      prefab("turret", {
+        entities: [
+          { id: "base", type: "solid", shape: ["box", 0, 0, 2, 1] },
+          { id: "barrel", type: "marker", parent: "base", at: [1, 0] },
+        ],
+        instances: [{ id: "lock-1", prefab: "lock", at: [0, 1] }],
+      }),
+    ],
+  ]);
+  const reg = createRegistry();
+  const scene: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "tree",
+    bounds: [0, 0, 100, 100],
+    solid: [["box", 0, 0, 1, 1]],
+    instances: [
+      { id: "t-1", prefab: "turret", parent: "tower", at: [0, 0] },
+      { id: "t-2", prefab: "turret", at: [50, 0] },
+    ],
+    entities: [
+      { id: "tower", type: "node", name: "Tower", at: [10, 10] },
+      { id: "flag", type: "marker", parent: "t-2/barrel", at: [0, -1] },
+      { id: "plate", type: "solid", parent: "t-2", shape: ["box", 0, 2, 1, 1] },
+      { id: "stand", type: "solid", parent: "tower", shape: ["box", 0, 1, 1, 1] },
+      { id: "lost", type: "marker", parent: "gone", at: [0, 0] },
+      { id: "odd", type: "marker", parent: "t-2/nothing", at: [0, 0] },
+    ],
+  };
+  const rows = buildTreeOutline(scene, reg, library);
+  const tree = rows.map((r) => [r.key, r.depth]);
+
+  it("lists each parent's entities in entities order, then its instances, a level deeper each", () => {
+    expect(tree).toEqual([
+      ["ref:tower", 0],
+      ["ref:stand", 1],
+      ["ref:t-1", 1],
+      ["ref:t-1/base", 2],
+      ["ref:t-1/barrel", 3],
+      ["ref:t-1/lock-1", 2],
+      ["ref:t-1/lock-1/bolt", 3],
+      ["ref:lost", 0],
+      ["ref:t-2", 0],
+      ["ref:t-2/base", 1],
+      ["ref:t-2/barrel", 2],
+      ["ref:flag", 3],
+      ["ref:t-2/lock-1", 1],
+      ["ref:t-2/lock-1/bolt", 2],
+      ["ref:plate", 1],
+      ["ref:odd", 0],
+      ["bucket:solid", 0],
+      ["ref:~solid:0", 1],
+    ]);
+  });
+
+  it("details an entity by its type, since no type row says it", () => {
+    expect(rows.find((r) => r.ref === "tower")).toMatchObject({
+      label: "Tower",
+      detail: "node · 10, 10",
+      type: "node",
+    });
+    expect(rows.find((r) => r.ref === "t-2")).toMatchObject({ prefab: "turret", detail: "turret" });
+    expect(rows.find((r) => r.key === "bucket:solid")).toMatchObject({ kind: "bucket", count: 1 });
+  });
+
+  it("puts an entity whose parents loop at the root, with what sits under it", () => {
+    const loop = buildTreeOutline(
+      {
+        ...scene,
+        instances: [],
+        solid: [],
+        entities: [
+          { id: "a", type: "node", parent: "b", at: [0, 0] },
+          { id: "b", type: "node", parent: "a", at: [0, 0] },
+        ],
+      },
+      reg,
+    );
+    expect(loop.map((r) => [r.ref, r.depth])).toEqual([
+      ["b", 0],
+      ["a", 1],
+    ]);
+  });
+
+  it("has unique keys and the same keys as the type view, so collapse state carries over", () => {
+    expect(new Set(rows.map((r) => r.key)).size).toBe(rows.length);
+    const byType = new Set(buildOutline(scene, reg, library).map((r) => r.key));
+    expect(rows.every((r) => byType.has(r.key))).toBe(true);
+  });
+});
+
+describe("tree drops", () => {
+  const reg = createRegistry();
+  const scene: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "drops",
+    bounds: [0, 0, 100, 100],
+    solid: [["box", 0, 0, 1, 1]],
+    instances: [
+      { id: "i-1", prefab: "p", at: [0, 0] },
+      { id: "i-2", prefab: "p", parent: "tower", at: [0, 0] },
+    ],
+    entities: [
+      { id: "tower", type: "node", at: [10, 10] },
+      { id: "base", type: "solid", parent: "tower", shape: ["box", 0, 0, 1, 1] },
+      { id: "barrel", type: "marker", parent: "base", at: [1, 0] },
+      { id: "lamp", type: "marker", at: [5, 5] },
+      { id: "nav", type: "marker", at: [6, 6] },
+    ],
+  };
+  const library: PrefabLibrary = new Map([
+    [
+      "p",
+      {
+        kind: "prefab",
+        v: SCENE_FORMAT_VERSION,
+        id: "p",
+        entities: [{ id: "x", type: "marker", at: [0, 0] }],
+      },
+    ],
+  ]);
+  const batch = (refs: string[], drop: Parameters<typeof treeDropBatch>[4]) =>
+    treeDropBatch(scene, reg, library, refs, drop);
+
+  it("drags a selection's own entities and instances, without any under another of them", () => {
+    expect(
+      treeDragRoots(scene, reg, library, ["barrel", "tower", "lamp", "i-2", "i-1/x", "~solid:0"]),
+    ).toEqual(["tower", "lamp"]);
+    expect(treeDragRoots(scene, reg, library, ["base", "lamp"])).toEqual(["base", "lamp"]);
+  });
+
+  it("reparents only what changes parent, and is null when nothing does", () => {
+    expect(batch(["lamp", "base"], { kind: "reparent", parent: "tower" })).toEqual({
+      label: "Put 2 items under tower",
+      ops: [{ op: "reparent", refs: ["lamp"], parent: "tower" }],
+    });
+    expect(batch(["base"], { kind: "reparent", parent: "tower" })).toBeNull();
+    expect(batch(["barrel"], { kind: "reparent", parent: null })).toMatchObject({
+      label: "Move barrel to the root",
+      ops: [{ op: "reparent", refs: ["barrel"], parent: null }],
+    });
+    expect(batch(["i-1/x"], { kind: "reparent", parent: null })).toBeNull();
+  });
+
+  it("reorders before a sibling in its own list, reparenting first when the parent differs", () => {
+    expect(batch(["lamp"], { kind: "reorder", before: "barrel" })).toEqual({
+      label: "Move lamp before barrel",
+      ops: [
+        { op: "reparent", refs: ["lamp"], parent: "base" },
+        { op: "reorder", refs: ["lamp"], index: 2 },
+      ],
+    });
+    expect(batch(["nav"], { kind: "reorder", before: "lamp" })).toEqual({
+      label: "Move nav before lamp",
+      ops: [{ op: "reorder", refs: ["nav"], index: 3 }],
+    });
+    expect(batch(["lamp"], { kind: "reorder", before: "nav" })).toBeNull();
+    expect(batch(["lamp"], { kind: "reorder", before: "lamp" })).toBeNull();
+  });
+
+  it("puts an entity dropped before an instance after its sibling entities, and an instance before an entity first among its sibling instances", () => {
+    expect(batch(["lamp"], { kind: "reorder", before: "i-2" })).toEqual({
+      label: "Move lamp before i-2",
+      ops: [{ op: "reparent", refs: ["lamp"], parent: "tower" }],
+    });
+    expect(batch(["tower"], { kind: "reorder", before: "i-1" })).toEqual({
+      label: "Move tower before i-1",
+      ops: [{ op: "reorder", refs: ["tower"], index: 4 }],
+    });
+    expect(batch(["i-1"], { kind: "reorder", before: "base" })).toEqual({
+      label: "Move i-1 before base",
+      ops: [{ op: "reparent", refs: ["i-1"], parent: "tower" }],
+    });
+  });
+
+  it("splits a mixed drag into one reorder per list", () => {
+    expect(batch(["i-1", "lamp"], { kind: "reorder", before: "tower" })?.ops).toEqual([
+      { op: "reorder", refs: ["lamp"], index: 0 },
+    ]);
+    expect(batch(["i-2", "nav"], { kind: "reorder", before: "tower" })?.ops).toEqual([
+      { op: "reparent", refs: ["i-2"], parent: null },
+      { op: "reorder", refs: ["nav"], index: 0 },
+      { op: "reorder", refs: ["i-2"], index: 0 },
+    ]);
+  });
+
+  it("names why the scene would refuse a drop: a loop, a parent that can't be one", () => {
+    const loop = batch(["tower"], { kind: "reparent", parent: "barrel" })!;
+    expect(treeDropRefusal(scene, reg, library, loop)).toMatchObject({ code: "parent-cycle" });
+    const bulk = batch(["lamp"], { kind: "reparent", parent: "~solid:0" })!;
+    expect(treeDropRefusal(scene, reg, library, bulk)).toMatchObject({ code: "parent-type" });
+    const fine = batch(["lamp"], { kind: "reparent", parent: "i-1/x" })!;
+    expect(treeDropRefusal(scene, reg, library, fine)).toBeNull();
   });
 });

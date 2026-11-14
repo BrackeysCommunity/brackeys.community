@@ -3,7 +3,7 @@ import { defineEntityType, pointField } from "@jams/engine/game";
 
 export const GAME_ID = "demo";
 
-/** Raised when the hero enters a sensor tagged `goal`: the run is won. */
+/** Raised when the hero enters a goal: the run is won. */
 export const REACHED = `${GAME_ID}:reached`;
 
 /** The tag on the sensors the hero must reach: a goal is a plain `sensor` with it. */

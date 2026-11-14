@@ -7,13 +7,16 @@ import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "..
 import { defaultLayer } from "../scene/layers";
 import { spriteBoxOf, type DrawnSprite, type SpriteAssetLookup } from "../scene/render-geometry";
 import { geometryFields } from "../scene/schema";
-import { aabb, aabbUnion, translateShape } from "../scene/shape-geometry";
+import { aabb, aabbBox, aabbUnion, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
+import { editTree, enclosingInstances, type EditSource, type EditTree } from "./gizmos/tree";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
 export const DEFAULT_CELL = 2.56;
+
+const NODE = "node";
 
 /** Where an entity's geometry lives in the document, and what it is in the world. */
 export type EditGeometry = {
@@ -163,23 +166,39 @@ export type SpatialIndexOptions = {
 };
 
 export type EditableSpatialIndex = SpatialIndex & {
-  /** Indexes `def` from scratch. */
-  rebuild(def: SceneDefinition, registry: Registry): void;
   /**
-   * Brings the index up to `def` after a change to `touched` (refs of the new
-   * document, as `applyOps` and `EditorSession` report them). An empty list
-   * rebuilds. A bulk key whose entries changed is re-indexed whole, since its
-   * indices shift; entities missing from `def` are dropped.
+   * Indexes `def` (a resolved view, or a scene with neither instances nor
+   * parents) from scratch. `source` is the document behind a resolved view,
+   * which says what sits under a parent the view can't show: an instance
+   * under a node.
    */
-  update(def: SceneDefinition, registry: Registry, touched: readonly Ref[]): void;
+  rebuild(def: SceneDefinition, registry: Registry, source?: EditSource): void;
+  /**
+   * Brings the index up to `def` after a change to `touched` (refs of the
+   * document, as `applyOps` and `EditorSession` report them, or of the
+   * view). Each touched ref is re-indexed with its subtree, which a moved or
+   * turned parent carries in the world: an instance's id with its children.
+   * An empty list rebuilds. A bulk key whose entries changed is re-indexed
+   * whole, since its indices shift; entities missing from `def` are dropped,
+   * and every instance's entry is redrawn over its subtree.
+   */
+  update(
+    def: SceneDefinition,
+    registry: Registry,
+    touched: readonly Ref[],
+    source?: EditSource,
+  ): void;
 };
 
 /**
  * The uniform grid of AABBs picking, marquee and snapping query. Entries
  * cover every bulk entry and every entity with a shape or point, `off`
- * entities and notes included; an entity on a path is indexed at the
- * path's first point. An entity carrying a sprite is also hit by the box
- * the sprite draws; a point entity's sprite box is its geometry.
+ * entities, notes and nodes (at their origin) included; an entity on a path
+ * is indexed at the path's first point. An entity carrying a sprite is also
+ * hit by the box the sprite draws; a point entity's sprite box is its
+ * geometry. Each instance has an entry over its subtree, stacked with the
+ * topmost entry under it, and a prefab child's entry names the instances
+ * it sits in.
  */
 export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpatialIndex {
   const keyOf = (ref: Ref) => opts.keyOf?.(ref) ?? ref;
@@ -210,6 +229,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     if (!g || !own) return undefined;
     const sprite = editSpriteBox(registry, type, g, written, opts.asset);
     const box = g.shape ? aabb(g.shape) : pointBox(g.at!);
+    const instances = enclosingInstances(ref);
     return {
       ref,
       key: keyOf(ref),
@@ -220,7 +240,37 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       geometry: g.shape ?? sprite?.shape ?? own,
       ...(sprite ? { sprite: sprite.shape } : {}),
       ...(isCameraRegionType(registry.types.get(type)) ? { region: true as const } : {}),
+      ...(instances.length > 0 ? { instances } : {}),
     };
+  }
+
+  /** The instances' entries, each over the entries of its subtree; an instance with none drawn has none. */
+  const instanceRefs = new Set<Ref>();
+  function indexInstances(tree: EditTree) {
+    for (const ref of instanceRefs) drop(ref);
+    instanceRefs.clear();
+    for (const ref of tree.instances()) {
+      let top: IndexEntry | undefined;
+      let box: Aabb | undefined;
+      for (const r of tree.below([ref])) {
+        const e = entries.get(r);
+        if (!e || e.instance) continue;
+        box = box ? aabbUnion(box, e.aabb) : e.aabb;
+        if (!top || e.z > top.z) top = e;
+      }
+      if (!box || !top) continue;
+      insert({
+        ref,
+        key: keyOf(ref),
+        type: NODE,
+        layer: top.layer,
+        aabb: box,
+        z: top.z,
+        geometry: aabbBox(box),
+        instance: true,
+      });
+      instanceRefs.add(ref);
+    }
   }
 
   function indexBucket(def: SceneDefinition, registry: Registry, key: BulkKey) {
@@ -280,10 +330,11 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     entries.clear();
     hash.clear();
     buckets.clear();
+    instanceRefs.clear();
   }
 
   const index: EditableSpatialIndex = {
-    rebuild(def, registry) {
+    rebuild(def, registry, source) {
       clear();
       for (const key of bulkKeysOf(def)) {
         indexBucket(def, registry, key);
@@ -295,10 +346,12 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
         if (entry) insert(entry);
       }
       restack(def, registry, ents);
+      indexInstances(editTree(def, source));
     },
 
-    update(def, registry, touched) {
-      if (touched.length === 0) return index.rebuild(def, registry);
+    update(def, registry, touched, source) {
+      if (touched.length === 0) return index.rebuild(def, registry, source);
+      const tree = editTree(def, source);
       const touchedKeys = new Set<BulkKey>();
       const touchedIds = new Set<string>();
       for (const ref of touched) {
@@ -306,6 +359,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
         if (bulk) touchedKeys.add(bulk.key);
         else touchedIds.add(ref);
       }
+      for (const ref of tree.below(touchedIds)) touchedIds.add(ref);
 
       for (const key of new Set([...buckets.keys(), ...bulkKeysOf(def)])) {
         const sig = bucketSig(def, key);
@@ -318,6 +372,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
 
       const ents = entityMap(def);
       for (const ref of [...entries.keys()]) {
+        if (instanceRefs.has(ref)) continue;
         if (!parseBulkId(ref) && (!ents.has(ref) || touchedIds.has(ref))) drop(ref);
       }
       for (const id of touchedIds) {
@@ -326,6 +381,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
         if (entry) insert(entry);
       }
       restack(def, registry, ents);
+      indexInstances(tree);
     },
 
     query: (rect) =>

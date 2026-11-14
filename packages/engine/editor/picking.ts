@@ -49,7 +49,9 @@ function touchesRegionOutline(g: ShapeObj, rect: Aabb): boolean {
 
 /**
  * Every entry under `p` (its geometry, a camera region's outline, or the box
- * its sprite draws), topmost first, skipping hidden and locked layers.
+ * its sprite draws), topmost first, skipping hidden and locked layers. An
+ * instance's own entry is never hit: what draws under it is, and names the
+ * instances it sits in (`IndexEntry.instances`).
  */
 export function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntry[] {
   const tol = opts.tolPx / opts.scale;
@@ -62,7 +64,7 @@ export function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntr
     maxY: p[1] + reach,
   });
   return near.filter((e) => {
-    if (!pickable(e, opts.layers)) return false;
+    if (e.instance || !pickable(e, opts.layers)) return false;
     const { geometry: g, sprite } = e;
     if (sprite && containsPoint(sprite, p, tol)) return true;
     if (isPoint(g)) return Math.hypot(p[0] - g[0], p[1] - g[1]) <= radius;
@@ -79,27 +81,40 @@ export function cycleHit(hits: readonly IndexEntry[], current?: Ref): Ref | unde
   return hits[at < 0 ? 0 : (at + 1) % hits.length]?.ref;
 }
 
+/** Whether a marquee over `rect` takes entry `e` on its own. */
+function inMarquee(e: IndexEntry, rect: Aabb, touch: boolean): boolean {
+  const { geometry: g, sprite } = e;
+  if (touch && sprite && intersectsRect(sprite, rect)) return true;
+  if (isPoint(g))
+    return g[0] >= rect.minX && g[0] <= rect.maxX && g[1] >= rect.minY && g[1] <= rect.maxY;
+  if (e.region) return touch ? touchesRegionOutline(g, rect) : containedInRect(regionBox(g), rect);
+  return touch ? intersectsRect(g, rect) : containedInRect(g, rect);
+}
+
 /**
  * What a marquee over `rect` selects, topmost first: entries wholly inside
  * it, or with `touch` (Alt) any it or its sprite's box touches (a camera
- * region's outline, not its inside). Hidden and locked layers are skipped.
+ * region's outline, not its inside). A prefab child is never taken on its
+ * own: its outermost instance is, in its place, once the marquee takes
+ * all of it (with `touch`, any of it). Hidden and locked layers are skipped.
  */
 export function marqueeSelect(
   index: SpatialIndex,
   rect: Aabb,
   opts: { touch: boolean; layers?: PickLayers },
 ): Ref[] {
-  return index
-    .query(rect)
-    .filter((e) => {
-      if (!pickable(e, opts.layers)) return false;
-      const { geometry: g, sprite } = e;
-      if (opts.touch && sprite && intersectsRect(sprite, rect)) return true;
-      if (isPoint(g))
-        return g[0] >= rect.minX && g[0] <= rect.maxX && g[1] >= rect.minY && g[1] <= rect.maxY;
-      if (e.region)
-        return opts.touch ? touchesRegionOutline(g, rect) : containedInRect(regionBox(g), rect);
-      return opts.touch ? intersectsRect(g, rect) : containedInRect(g, rect);
-    })
-    .map((e) => e.ref);
+  const out: Ref[] = [];
+  const instances = new Set<Ref>();
+  for (const e of index.query(rect)) {
+    if (e.instance || !pickable(e, opts.layers) || !inMarquee(e, rect, opts.touch)) continue;
+    const outer = e.instances?.[0];
+    if (outer === undefined) out.push(e.ref);
+    else if (!instances.has(outer)) {
+      instances.add(outer);
+      const whole = index.get(outer);
+      if (opts.touch || (whole && containedInRect(whole.geometry as ShapeObj, rect)))
+        out.push(outer);
+    }
+  }
+  return out;
 }

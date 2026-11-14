@@ -94,7 +94,7 @@ describe("nested prefabs: ids", () => {
     expect(r.prefab.uses).toEqual(["top", "mid", "leaf"]);
   });
 
-  it("gives expandScene and the resolved view the same a/b/c ids", () => {
+  it("gives expandScene and the resolved view the same a/b/c ids, nodes aside", () => {
     const lib = fixtures();
     const def = scene([{ id: "r", prefab: "room", at: [0, 0] }]);
     const view = resolveSceneDetailed(def, engine, lib);
@@ -103,7 +103,10 @@ describe("nested prefabs: ids", () => {
     expect(viewIds).toContain("r/door-1/panel");
     expect(viewIds).toContain("r/gate-2/~solid:0");
     expect(
-      [...expandScene(def, engine, { prefabs: lib }).entities.map((e) => e.id)].sort(),
+      expandScene(def, engine, { prefabs: lib })
+        .entities.filter((e) => e.type !== "node")
+        .map((e) => e.id)
+        .sort(),
     ).toEqual([...viewIds].sort());
     const i = viewIds.indexOf("r/door-1/latch/door");
     expect(view.origins[i]).toMatchObject({
@@ -147,8 +150,8 @@ describe("nested prefabs: placement", () => {
   });
 
   it("turns and flips through every level and records the composed transform", () => {
-    const lib = nest({ mid: { rot: 1 }, top: { flip: true } });
-    const def = scene([{ id: "t", prefab: "top", at: [10, 20], rot: 2 }]);
+    const lib = nest({ mid: { rot: 90 }, top: { flip: true } });
+    const def = scene([{ id: "t", prefab: "top", at: [10, 20], rot: 180 }]);
     const view = resolveSceneDetailed(def, engine, lib);
     const i = view.def.entities!.findIndex((e) => e.id === "t/m/l/pin");
     const expected = applyPt(
@@ -162,16 +165,16 @@ describe("nested prefabs: placement", () => {
     const pin = expandScene(def, engine, { prefabs: lib }).entities.find(
       (e) => e.id === "t/m/l/pin",
     );
-    expect(pin?.transform).toEqual({ turn: 1, flip: true });
+    expect(pin?.transform).toEqual({ rot: 90, flip: true });
   });
 
   it("records the composed transform on a bulk child of a turned nested instance", () => {
-    const lib = nest({ mid: { rot: 1 }, top: { flip: true } });
-    const def = scene([{ id: "t", prefab: "top", at: [10, 20], rot: 2 }]);
+    const lib = nest({ mid: { rot: 90 }, top: { flip: true } });
+    const def = scene([{ id: "t", prefab: "top", at: [10, 20], rot: 180 }]);
     const view = resolveSceneDetailed(def, engine, lib);
     const origin = (id: string) => view.origins[view.def.entities!.findIndex((e) => e.id === id)];
     const pin = origin("t/m/l/pin");
-    expect(pin).toMatchObject({ kind: "child", transform: { rot: 1, flip: true } });
+    expect(pin).toMatchObject({ kind: "child", transform: { rot: 90, flip: true } });
     expect(origin("t/m/l/~solid:0")).toEqual({
       kind: "child",
       instance: 0,
@@ -224,14 +227,14 @@ describe("nested prefabs: precedence", () => {
       layer: "x",
     });
     expect(resolved(nest(), { overrides: { "m.off": true } }).get("t/m/l/pin")?.off).toBe(true);
-    expect(resolved(nest(), { overrides: { "m/l.rot": 2 } }).get("t/m/l/pin")?.at).toEqual([
+    expect(resolved(nest(), { overrides: { "m/l.rot": 180 } }).get("t/m/l/pin")?.at).toEqual([
       10 + 100 - 1,
       20 + 1000 - 2,
     ]);
   });
 
   it("takes an override's value in the frame of the child's own prefab", () => {
-    const e = resolved(nest({ top: { rot: 2 } }), {
+    const e = resolved(nest({ top: { rot: 180 } }), {
       overrides: { "m/l/~solid:0.shape": ["box", 0, 0, 1, 1], "m/l/pin.at": [5, 0] },
     });
     expect(e.get("t/m/l/~solid:0")).toMatchObject({
@@ -258,7 +261,7 @@ describe("nested prefabs: precedence", () => {
   });
 
   it("keeps a nested bulk entry a bulk child, with what its instances give it", () => {
-    const lib = nest({ mid: { z: 2, layer: "inner" }, top: { off: true, rot: 2 } });
+    const lib = nest({ mid: { z: 2, layer: "inner" }, top: { off: true, rot: 180 } });
     const inst: InstanceDef = { id: "t", prefab: "top", at: [0, 0] };
     expect(localChild(lib.get("top")!, inst, "m/l/~solid:0", engine, lib)).toEqual({
       kind: "bulk",
@@ -266,7 +269,7 @@ describe("nested prefabs: precedence", () => {
       key: "solid",
       index: 0,
       value: ["box", -100, 980, 8, 2, 180],
-      turn: { rot: 2, flip: false },
+      turn: { rot: 180, flip: false },
       placed: { z: 2, layer: "inner", off: true },
     });
   });
@@ -330,9 +333,9 @@ describe("nested prefabs: depth", () => {
   it("loads nothing for an instance of a prefab nested too deep", () => {
     const def = scene([{ id: "s", prefab: "p1", at: [0, 0] }]);
     expect(expandScene(def, engine, { prefabs: chain(PREFAB_MAX_DEPTH + 1) }).entities).toEqual([]);
-    expect(expandScene(def, engine, { prefabs: chain(PREFAB_MAX_DEPTH) }).entities).toHaveLength(
-      PREFAB_MAX_DEPTH,
-    );
+    const loaded = expandScene(def, engine, { prefabs: chain(PREFAB_MAX_DEPTH) }).entities;
+    expect(loaded.filter((e) => e.type === "node")).toHaveLength(PREFAB_MAX_DEPTH);
+    expect(loaded.filter((e) => e.type !== "node")).toHaveLength(PREFAB_MAX_DEPTH);
   });
 });
 

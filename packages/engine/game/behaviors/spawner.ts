@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-import { defineBehavior, type BehaviorSystem } from "../behaviors";
+import { type BehaviorSystem, type Bound, defineBehavior, handleType } from "../behaviors";
 import { assetField, ID_PATTERN } from "../fields";
 import type { FieldEnv } from "../types";
 
@@ -86,8 +86,12 @@ export type SpawnerSystem = BehaviorSystem<SpawnerBlock> & {
 /** What a spawn's id, type and sublevel come from: the spawner, never its `fields`. */
 const SPAWN_OWN_KEYS = Object.freeze(["id", "type", "sublevel"] as const);
 
+/** What `getBehavior(SPAWNER)` adds beside `fields`. */
+export type SpawnerHandle = Bound<SpawnerSystem, "live">;
+
 export const SPAWNER = defineBehavior({
   name: "spawner",
+  handle: handleType<SpawnerHandle>(),
   description:
     "Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones; raises spawner:spawned for each.",
   fields: spawnerFields,

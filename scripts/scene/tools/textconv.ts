@@ -24,6 +24,40 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
 /** A bulk entry the way `scene diff` prints one: `[box 100 0 10 10]`. */
 const entry = (v: unknown) => (Array.isArray(v) ? `[${v.join(" ")}]` : canonical(v));
 
+/**
+ * `entities` in file order, except that an entity whose parent is an entity
+ * listed after it waits and follows that parent, with its own waiting
+ * children after it. What a parent cycle leaves waiting comes last, in file
+ * order.
+ */
+function parentsFirst(entities: readonly unknown[]): unknown[] {
+  const idOf = (e: unknown) => (isObject(e) ? e.id : undefined);
+  const ids = new Set(entities.map(idOf));
+  const waiting = new Map<unknown, unknown[]>();
+  const out: unknown[] = [];
+  const done = new Set<unknown>();
+  const listedIds = new Set<unknown>();
+  const emit = (e: unknown) => {
+    if (done.has(e)) return;
+    done.add(e);
+    out.push(e);
+    const id = idOf(e);
+    if (id === undefined) return;
+    listedIds.add(id);
+    const kids = waiting.get(id);
+    waiting.delete(id);
+    for (const k of kids ?? []) emit(k);
+  };
+  for (const e of entities) {
+    const parent = isObject(e) ? e.parent : undefined;
+    if (parent !== undefined && parent !== idOf(e) && ids.has(parent) && !listedIds.has(parent))
+      waiting.set(parent, [...(waiting.get(parent) ?? []), e]);
+    else emit(e);
+  }
+  for (const e of entities) emit(e);
+  return out;
+}
+
 function listing(def: SceneDefinition): string {
   const doc = def as Record<string, unknown>;
   const lines: string[] = [];
@@ -46,7 +80,7 @@ function listing(def: SceneDefinition): string {
     if (entities !== undefined) lines.push(`entities: ${canonical(entities)}`);
     return lines.join("\n");
   }
-  for (const e of entities) {
+  for (const e of parentsFirst(entities)) {
     if (!isObject(e)) {
       lines.push(canonical(e));
       continue;
@@ -61,7 +95,8 @@ function listing(def: SceneDefinition): string {
 /**
  * git's `diff.scene.textconv`: a scene file as one line per header field,
  * settings key, bulk entry (by its `~key:index` ref) and entity (id, type,
- * then its fields in canonical order), so `git diff` reads by entry. git
+ * then its fields in canonical order; a child after its parent), so
+ * `git diff` reads by entry. git
  * passes a temporary copy, which needn't be valid: text that isn't a JSON
  * object with a numeric `v` comes back as it is.
  */

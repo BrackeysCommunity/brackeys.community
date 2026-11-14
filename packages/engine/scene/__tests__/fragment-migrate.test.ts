@@ -51,7 +51,7 @@ const v3 = {
 
 describe("a fragment with a stale v", () => {
   it("is lifted by the scene migrations", () => {
-    expect(SCENE_FORMAT_VERSION).toBe(4);
+    expect(SCENE_FORMAT_VERSION).toBe(5);
     expect(parseFragment(JSON.stringify(stale), fake)).toEqual({
       ok: true,
       fragment: lifted,

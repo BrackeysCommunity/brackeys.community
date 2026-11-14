@@ -5,6 +5,7 @@ import type { SceneDefinition } from "../../scene/types";
 import { drawBatch, drawnShape, boxTool } from "../builtin/draw";
 import { lock45, strokeShape } from "../builtin/polyline";
 import { selectTool } from "../builtin/select";
+import { createSpatialIndex } from "../spatial-index";
 import { DEFAULT_SNAP } from "../tools";
 
 const doc = (): SceneDefinition => ({ v: 1, name: "t", bounds: [0, 0, 10, 10], entities: [] });
@@ -142,5 +143,59 @@ describe("the select tool on a bare context", () => {
     tool.pointer!(pointer("up", [0.05, 0.05]));
     expect(ctx.selected).toEqual([[]]);
     expect(ctx.commits).toEqual([]);
+  });
+});
+
+describe("the select tool's click into instances", () => {
+  /** A resolved view: a room instance holding a lid and a nested post with a top. */
+  const view = (): SceneDefinition => ({
+    ...doc(),
+    entities: [
+      { id: "room-1/lid", type: "sensor", shape: ["box", 2, 2, 0.5, 0.5, 0] },
+      { id: "room-1/post-a/top", type: "sensor", shape: ["box", 6, 2, 0.5, 0.5, 0] },
+      { id: "crate", type: "sensor", shape: ["box", 6, 6, 0.5, 0.5, 0] },
+    ],
+  });
+  function rig() {
+    const ctx = fakeToolContext(toolRegistry, view());
+    const index = createSpatialIndex();
+    index.rebuild(ctx.doc, toolRegistry);
+    ctx.index = () => index;
+    ctx.scale = () => PPM;
+    const tool = selectTool.create(ctx);
+    const click = (at: [number, number], rest: Parameters<typeof pointer>[2] = {}) => {
+      tool.pointer!(pointer("down", at, rest));
+      tool.pointer!(pointer("up", at, rest));
+      return ctx.selection();
+    };
+    return { ctx, tool, click };
+  }
+
+  it("selects the outermost instance, then the next level, then the hit", () => {
+    const { click } = rig();
+    expect(click([6, 2])).toEqual(["room-1"]);
+    expect(click([6, 2])).toEqual(["room-1/post-a"]);
+    expect(click([6, 2])).toEqual(["room-1/post-a/top"]);
+    expect(click([6, 2])).toEqual(["room-1/post-a/top"]);
+    expect(click([2, 2])).toEqual(["room-1"]);
+    expect(click([2, 2])).toEqual(["room-1/lid"]);
+    expect(click([6, 6])).toEqual(["crate"]);
+  });
+
+  it("keeps the selected level on the press, so a drag moves it, and steps in on the release", () => {
+    const { ctx, tool, click } = rig();
+    click([6, 2]);
+    tool.pointer!(pointer("down", [6, 2]));
+    expect(ctx.selection()).toEqual(["room-1"]);
+    tool.pointer!(pointer("up", [6, 2]));
+    expect(ctx.selection()).toEqual(["room-1/post-a"]);
+  });
+
+  it("steps in at once on a double-click, and cycles exact hits with Alt", () => {
+    const { click } = rig();
+    expect(click([6, 2])).toEqual(["room-1"]);
+    expect(click([6, 2], { clicks: 2 })).toEqual(["room-1/post-a"]);
+    expect(click([6, 2], { clicks: 2 })).toEqual(["room-1/post-a/top"]);
+    expect(click([2, 2], { alt: true })).toEqual(["room-1/lid"]);
   });
 });

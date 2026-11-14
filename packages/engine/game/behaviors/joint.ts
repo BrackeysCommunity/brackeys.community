@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 
-import { defineBehavior, type BehaviorSystem } from "../behaviors";
+import { type BehaviorSystem, type Bound, defineBehavior, handleType } from "../behaviors";
 import { refField, vectorField } from "../fields";
 
 /** Rapier's joint constructors, by what they do. */
@@ -105,8 +105,12 @@ export type JointSystem = BehaviorSystem<JointBlock> & {
   joined(entityId: string): boolean;
 };
 
+/** What `getBehavior(JOINT)` adds beside `fields`. */
+export type JointHandle = Bound<JointSystem, "joined">;
+
 export const JOINT = defineBehavior({
   name: "joint",
+  handle: handleType<JointHandle>(),
   description:
     "Links the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring. Needs physics.",
   fields: jointFields,

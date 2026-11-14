@@ -250,7 +250,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.15.0";
+declare const ENGINE_VERSION = "0.16.0";
 ```
 
 ## `EffectLayer`
@@ -501,8 +501,11 @@ type GameDefinition<S = unknown, G = unknown> = {
     assetKinds?: readonly AssetKindDef[];
     /** Play-mode tools in the browser shell, attached after each load. */
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
-    /** The game's behaviors, after the engine's in registration order; names are `<id>/<name>`. */
-    behaviors?: readonly BehaviorDef[];
+    /**
+     * The game's behaviors, after the engine's in registration order; names are
+     * `<id>/<name>`. A script class registers its `behavior`.
+     */
+    behaviors?: readonly (BehaviorDef | ScriptClass)[];
     /** How the camera follows in Play; a scene's `settings.camera` wins over it. */
     camera?: CameraRigDef;
     /** `.checks.json` kinds, keyed `<id>/<kind>`. */
@@ -1687,10 +1690,15 @@ type RuntimeEntity<F extends object = {
     id: string;
     /** The entity's layer after instance inheritance; present only when set. */
     layer?: string;
-    /** The turns and flips of the instances and groups above it; present only when not the identity. */
+    /** The live entity it sits under at runtime; present only when it has one. */
+    parent?: string;
+    /**
+     * The angle (degrees clockwise) and flip of the instances and parents
+     * above it; present only when not the identity.
+     */
     transform?: {
         flip: boolean;
-        turn: 0 | 1 | 2 | 3;
+        rot: number;
     };
     type: EntityTypeName;
     /** Draw order within the layer; present only when non-zero. */
@@ -1734,7 +1742,7 @@ declare const SPRITE: BehaviorDef<{
     tile: z.ZodOptional<z.ZodBoolean>;
     tint: z.ZodOptional<z.ZodNumber>;
     turn: z.ZodOptional<z.ZodBoolean>;
-}>;
+}, SpriteHandle>;
 ```
 
 ## `SPRITE_FALLBACK_SIZE`

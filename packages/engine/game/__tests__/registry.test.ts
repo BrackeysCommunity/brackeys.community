@@ -286,8 +286,9 @@ describe("createRegistry", () => {
     const r = createRegistry();
     expect(r.id).toBe("engine");
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES]);
-    expect(r.schemaId).toBe("urn:jams-engine:scene:v4");
+    expect(r.schemaId).toBe("urn:jams-engine:scene:v5");
     expect(r.spawnGroups).toEqual([
+      ["node"],
       ["solid"],
       ["sensor"],
       ["marker"],
@@ -306,7 +307,7 @@ describe("createRegistry", () => {
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES, "crate", "flag"]);
     expect(r.types.get("crate")).toMatchObject({ origin: "fake", base: "prop" });
     expect(r.types.get("solid")?.origin).toBe("engine");
-    expect(r.schemaId).toBe("urn:jams-engine:scene:fake:v4");
+    expect(r.schemaId).toBe("urn:jams-engine:scene:fake:v5");
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
     expect(r.bulkKey("solid:mud")).toEqual({
       key: "solid:mud",
@@ -374,7 +375,7 @@ describe("createRegistry", () => {
         ],
       }),
     );
-    expect(r.spawnGroups.slice(0, 3)).toEqual([["decor"], ["nav"], ["camera-region"]]);
+    expect(r.spawnGroups.slice(0, 4)).toEqual([["node"], ["decor"], ["nav"], ["camera-region"]]);
     const without = createRegistry(
       game({ spawnOrder: ["solid", "sensor", "crate", "prop", "flag", "marker", "follower"] }),
     );
@@ -386,6 +387,7 @@ describe("createRegistry", () => {
       game({ spawnOrder: ["solid", ["flag", "sensor"], "crate", "prop", "marker", "follower"] }),
     );
     expect(r.spawnGroups).toEqual([
+      ["node"],
       ["solid"],
       ["flag", "sensor"],
       ["crate"],
@@ -402,6 +404,7 @@ describe("createRegistry", () => {
   it("spawns the primitives a spawn order leaves out first, in primitive order", () => {
     const r = createRegistry(game({ spawnOrder: ["flag", ["crate", "prop"]] }));
     expect(r.spawnGroups).toEqual([
+      ["node"],
       ["solid"],
       ["sensor"],
       ["marker"],
@@ -1223,7 +1226,8 @@ describe("spawn-only types", () => {
       problems(() => createRegistry(game({ types: [crate, flag, bolt], spawnOrder: order }))),
     ).toEqual(['spawnOrder misses type "bolt"']);
     const r = createRegistry(game({ types: [crate, flag, bolt], spawnOrder: [...order, "bolt"] }));
-    expect(r.spawnGroupOf("bolt")).toBe(order.length);
+    // After the unlisted `node`, which spawns before every listed group.
+    expect(r.spawnGroupOf("bolt")).toBe(order.length + 1);
   });
 
   it("are refused when they never load or have a bulk form", () => {

@@ -1,6 +1,7 @@
 import { pxPerMetreOf } from "../../game/units";
+import { CHILD_SEPARATOR } from "../../scene/resolve";
 import type { OpBatch, Pt, Ref, SceneDefinition } from "../../scene/types";
-import { targetsOf } from "../commands";
+import { instanceLevels, targetsOf } from "../commands";
 import { convertToChainFix } from "../gizmos/batch";
 import { dragHandle, moveTarget } from "../gizmos/drag";
 import { judgeConcave, type DragOptions, type GizmoEdit } from "../gizmos/edit";
@@ -24,8 +25,11 @@ import { PICK_TOL_PX } from "./polyline";
 export const DRAG_THRESHOLD_PX = 3;
 
 type Drag =
-  /** A press on an entity that hasn't moved far enough to drag yet. */
-  | { kind: "press"; from: Pt; ref: Ref; wasSelected: boolean; plain: boolean }
+  /**
+   * A press on an entity that hasn't moved far enough to drag yet; released
+   * where it was, it selects `stepTo`, the next level into an instance.
+   */
+  | { kind: "press"; from: Pt; ref: Ref; wasSelected: boolean; plain: boolean; stepTo?: Ref }
   | { kind: "move"; from: Pt; targets: GizmoTarget[]; edit: GizmoEdit | null }
   | {
       kind: "handle";
@@ -34,6 +38,8 @@ type Drag =
       targets: GizmoTarget[];
       multi: boolean;
       edit: GizmoEdit | null;
+      /** On an instance's or a node's move handle over its child: released where it was, it steps in as a click does. */
+      stepTo?: Ref;
     }
   | { kind: "marquee"; from: Pt; to: Pt; touch: boolean; mode: SelectMode; hits: Ref[] };
 
@@ -41,6 +47,35 @@ type Drag =
 const hasPoints = (t: GizmoTarget | undefined): t is GizmoTarget =>
   t !== undefined &&
   (t.path !== undefined || t.shape?.type === "poly" || t.shape?.type === "chain");
+
+/**
+ * The hit a click goes by: the topmost pick that no other pick sits inside,
+ * so an instance's own entry never hides the child under the pointer.
+ */
+function deepestHit(picks: readonly { ref: Ref }[]): Ref | undefined {
+  const inside = (outer: Ref) => picks.some((p) => p.ref.startsWith(`${outer}${CHILD_SEPARATOR}`));
+  return (picks.find((p) => !inside(p.ref)) ?? picks[0])?.ref;
+}
+
+/**
+ * Where a click on `hit` lands, walking from the outermost instance holding
+ * it toward the hit: `held` is the deepest level already selected, if any,
+ * and `next` the level a click selects: the outermost when none is
+ * selected, the one below `held` otherwise, and the hit itself once no
+ * level remains.
+ */
+function clickLevels(hit: Ref, sel: readonly Ref[]): { held: Ref | undefined; next: Ref } {
+  const levels = instanceLevels(hit);
+  let at = -1;
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (sel.includes(levels[i]!)) {
+      at = i;
+      break;
+    }
+  }
+  const held = at >= 0 ? levels[at] : undefined;
+  return { held, next: levels[Math.min(at + 1, levels.length - 1)]! };
+}
 
 const rectOf = (a: Pt, b: Pt) => ({
   minX: Math.min(a[0], b[0]),
@@ -81,9 +116,10 @@ export const selectTool = defineEditorTool({
       pxPerMetre: pxPerMetreOf(ctx.registry),
       index: ctx.index(),
     });
-    const selectedTargets = (doc = ctx.getDoc()) => targetsOf(doc, ctx.registry, ctx.selection());
+    const selectedTargets = (doc = ctx.getDoc()) =>
+      targetsOf(doc, ctx.registry, ctx.selection(), ctx.source?.());
     const subTarget = (doc = ctx.getDoc()) =>
-      sub ? gizmoTarget(doc, ctx.registry, sub.ref) : undefined;
+      sub ? gizmoTarget(doc, ctx.registry, sub.ref, ctx.source?.()) : undefined;
 
     function setSub(next: typeof sub) {
       sub = next;
@@ -131,7 +167,10 @@ export const selectTool = defineEditorTool({
 
     function enterSub(): boolean {
       const sel = ctx.selection();
-      const t = sel.length === 1 ? gizmoTarget(ctx.getDoc(), ctx.registry, sel[0]!) : undefined;
+      const t =
+        sel.length === 1
+          ? gizmoTarget(ctx.getDoc(), ctx.registry, sel[0]!, ctx.source?.())
+          : undefined;
       if (!hasPoints(t)) return false;
       setSub({ ref: t.ref, points: [] });
       return true;
@@ -176,11 +215,23 @@ export const selectTool = defineEditorTool({
 
       const picks = pickAt(ctx.index(), world, pickOpts());
       const sel = ctx.selection();
-      if (e.clicks >= 2 && sel.length === 1 && picks.some((p) => p.ref === sel[0]) && enterSub()) {
-        return true;
-      }
+      const hitRef = deepestHit(picks);
+      if (e.clicks >= 2 && sel.length === 1 && hitRef === sel[0] && enterSub()) return true;
       if (hit && !(e.alt && hit.kind !== "move")) {
-        drag = { kind: "handle", from: world, handle: hit, targets, multi, edit: null };
+        let stepTo: Ref | undefined;
+        if (hit.kind === "move" && !multi && hitRef !== undefined && !e.mod && !e.shift) {
+          const { held, next } = clickLevels(hitRef, sel);
+          if (held !== undefined && held === targets[0]?.ref && next !== held) stepTo = next;
+        }
+        drag = {
+          kind: "handle",
+          from: world,
+          handle: hit,
+          targets,
+          multi,
+          edit: null,
+          ...(stepTo !== undefined ? { stepTo } : {}),
+        };
         ctx.invalidate();
         return true;
       }
@@ -189,13 +240,24 @@ export const selectTool = defineEditorTool({
         if (next !== undefined) ctx.select([next]);
         return true;
       }
-      const top = picks[0]?.ref;
-      if (top !== undefined) {
-        const wasSelected = sel.includes(top);
-        if (e.mod) ctx.select([top], "toggle");
-        else if (e.shift) ctx.select([top], "add");
-        else if (!wasSelected) ctx.select([top]);
-        drag = { kind: "press", from: world, ref: top, wasSelected, plain: !e.mod && !e.shift };
+      if (hitRef !== undefined) {
+        const { held, next } = clickLevels(hitRef, sel);
+        const plain = !e.mod && !e.shift;
+        // A double-click steps in at once; a single click on a selected level steps in on release, so a press there still drags it.
+        const now = held === undefined || (plain && e.clicks >= 2) ? next : held;
+        const wasSelected = sel.includes(now);
+        if (e.mod) ctx.select([now], "toggle");
+        else if (e.shift) ctx.select([now], "add");
+        else if (!wasSelected) ctx.select([now]);
+        const stepTo = plain && now === held && next !== held ? next : undefined;
+        drag = {
+          kind: "press",
+          from: world,
+          ref: now,
+          wasSelected,
+          plain,
+          ...(stepTo !== undefined ? { stepTo } : {}),
+        };
         return true;
       }
       const mode: SelectMode = e.shift ? "add" : e.mod ? "toggle" : "replace";
@@ -251,7 +313,7 @@ export const selectTool = defineEditorTool({
       }
       drag.edit = judgeConcave(edit, ctx.registry, only);
       const batch = drag.edit?.batch ?? null;
-      ctx.preview(batch);
+      ctx.preview(drag.edit?.preview ?? batch);
       const by = moveBy(batch);
       const keys = targets.flatMap((t) => {
         const key = ctx.index().get(t.ref)?.key;
@@ -267,7 +329,8 @@ export const selectTool = defineEditorTool({
       if (!d) return false;
       if (d.kind === "press") {
         drag = null;
-        if (d.plain && d.wasSelected && ctx.selection().length > 1) ctx.select([d.ref]);
+        if (d.stepTo !== undefined) ctx.select([d.stepTo]);
+        else if (d.plain && d.wasSelected && ctx.selection().length > 1) ctx.select([d.ref]);
         return true;
       }
       if (d.kind === "marquee") {
@@ -287,6 +350,13 @@ export const selectTool = defineEditorTool({
       }
       const edit = d.edit;
       dropDrag();
+      if (d.kind === "handle" && d.stepTo !== undefined) {
+        const far = Math.hypot(e.world[0] - d.from[0], e.world[1] - d.from[1]);
+        if (far * ctx.scale() < DRAG_THRESHOLD_PX) {
+          ctx.select([d.stepTo]);
+          return true;
+        }
+      }
       if (!edit?.batch) return true;
       const ok = ctx.commit(edit.batch);
       if (ok && sub && d.kind === "handle" && d.handle.kind === "insert") sub.points = [];

@@ -9,7 +9,7 @@ import type { AssetEntry, AssetId } from "../../project/types";
 import { projectView } from "../../project/view";
 import { formatPrefab, formatScene } from "../../scene/format";
 import { sceneHashWith } from "../../scene/prefab";
-import type { Prefab, SceneDefinition } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import { loadHeadless, type HeadlessLoad } from "../load";
 import { runPlaytest } from "../playtest";
 import type { PlaytestReport } from "../playtest-types";
@@ -34,7 +34,7 @@ const registry = createRegistry(game);
 
 const prefab = (id: string, x: number): Prefab => ({
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   id,
   entities: [{ id: "pin", type: "marker", at: [x, 0] }],
 });
@@ -42,7 +42,7 @@ const used = prefab("used", 0);
 const spare = prefab("spare", 5);
 
 const def: SceneDefinition = {
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "spares",
   bounds: [-100, -100, 100, 100],
   settings: { physics: "none" },

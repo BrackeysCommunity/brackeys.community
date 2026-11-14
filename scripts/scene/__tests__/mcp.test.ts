@@ -528,9 +528,9 @@ describe("scene MCP server", () => {
         ops: [
           { op: "useAssets", add: ["dot"] },
           { op: "setZ", refs: ["zone"], z: 3 },
-          { op: "setGroup", id: "west", at: [2, 0] },
-          { op: "update", ref: "start", set: { group: "west" } },
-          { op: "transform", groups: ["west"], flip: "x" },
+          { op: "add", entity: { id: "west", type: "node", at: [2, 0] } },
+          { op: "reparent", refs: ["start"], parent: "west" },
+          { op: "transform", refs: ["west"], flip: "x" },
         ],
       };
       const wrote = await call("scene_apply_ops", { scene: "z-yard", ops: batch, dryRun: false });
@@ -540,7 +540,10 @@ describe("scene MCP server", () => {
       });
       const saved = JSON.parse(await readFile(file, "utf8"));
       expect(saved.assets).toEqual(["dot"]);
-      expect(saved.groups.west).toMatchObject({ at: [2, 0], flip: true });
+      expect(saved.entities.find((e: { id: string }) => e.id === "west")).toMatchObject({
+        at: [2, 0],
+        flip: true,
+      });
 
       const zone = await call("scene_show", { scene: "z-yard", ref: "zone" });
       expect(zone.structuredContent.entities).toEqual([expect.objectContaining({ z: 3 })]);

@@ -40,7 +40,7 @@ const entityKeys = (state: Uint8Array) => [...docOf(state).getMap("entities").ke
 
 describe("prefab doc format version at load", () => {
   it("leaves a doc whose next step needs its game at its version, with no snapshot", async () => {
-    expect(SCENE_FORMAT_VERSION).toBe(4);
+    expect(SCENE_FORMAT_VERSION).toBe(5);
     const old = storedAs({ schemaVersion: SCENE_FORMAT_VERSION - 1 });
     expect(migrateAssetLayoutState(old)).toBeNull();
     expect(prefabDocValue(old)?.v).toBe(SCENE_FORMAT_VERSION - 1);
@@ -49,12 +49,13 @@ describe("prefab doc format version at load", () => {
   });
 
   it("lifts an older doc as far as this side can, writing only meta", async () => {
-    const old = storedAs({ schemaVersion: SCENE_FORMAT_VERSION - 2 });
+    // v2 to v3 needs nothing; v3 to v4 needs the game
+    const old = storedAs({ schemaVersion: 2 });
     const lifted = migrateAssetLayoutState(old)!;
     expect(lifted).not.toBeNull();
-    expect(assetSchemaVersion(lifted)).toBe(SCENE_FORMAT_VERSION - 1);
+    expect(assetSchemaVersion(lifted)).toBe(3);
     expect(entityKeys(lifted)).toEqual(entityKeys(old));
-    expect(prefabDocValue(lifted)).toEqual({ ...CRATE, v: SCENE_FORMAT_VERSION - 1 });
+    expect(prefabDocValue(lifted)).toEqual({ ...CRATE, v: 3 });
     expect(await assetSnapshot(lifted)).toBeNull();
     expect(migrateAssetLayoutState(lifted)).toBeNull();
   });
@@ -67,11 +68,11 @@ describe("prefab doc format version at load", () => {
 
   it("lifts the layout and the format version of an older doc together", () => {
     const lifted = migrateAssetLayoutState(
-      storedAs({ schemaVersion: SCENE_FORMAT_VERSION - 2, layout: COLLAB_LAYOUT_VERSION - 1 }),
+      storedAs({ schemaVersion: 2, layout: COLLAB_LAYOUT_VERSION - 1 }),
     )!;
     const meta = docOf(lifted).getMap("meta");
     expect(meta.get("layout")).toBe(COLLAB_LAYOUT_VERSION);
-    expect(meta.get("schemaVersion")).toBe(SCENE_FORMAT_VERSION - 1);
+    expect(meta.get("schemaVersion")).toBe(3);
   });
 
   it("leaves a doc from a newer engine's format as stored", () => {

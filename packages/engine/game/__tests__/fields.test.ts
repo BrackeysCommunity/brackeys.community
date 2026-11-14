@@ -7,13 +7,11 @@ import {
   AssetIdSchema,
   assetField,
   assetKindsOf,
-  attachField,
   BASE_FIELDS,
   CHILD_REF_PATTERN,
   gridField,
   gridFieldInfo,
   ID_PATTERN,
-  isAttachField,
   materialField,
   mirrorField,
   pointField,
@@ -143,7 +141,7 @@ describe("BASE_FIELDS", () => {
       "id",
       "name",
       "layer",
-      "group",
+      "parent",
       "off",
       "z",
       "behaviors",
@@ -231,17 +229,16 @@ describe("child refs", () => {
     expect((z.toJSONSchema(f) as { pattern?: string }).pattern).toBe(CHILD_REF_PATTERN.source);
   });
 
-  it("lets attach name a follower inside an instance, and still knows an attach field", () => {
-    const f = attachField("The follower it rides.");
+  it("lets parent name an entity inside an instance", () => {
+    const f = BASE_FIELDS.parent;
     expect(f.parse("gate-2/lift")).toBe("gate-2/lift");
     expect(f.parse(undefined)).toBeUndefined();
     expect(f.safeParse("gate-2/lift/").success).toBe(false);
-    expect(isAttachField(f)).toBe(true);
-    expect(isAttachField(refField("Not an attach."))).toBe(false);
+    expect("group" in BASE_FIELDS).toBe(false);
   });
 
   it("keeps every other id on ID_PATTERN", () => {
-    for (const schema of [BASE_FIELDS.id, BASE_FIELDS.layer, BASE_FIELDS.group, AssetIdSchema])
+    for (const schema of [BASE_FIELDS.id, BASE_FIELDS.layer, AssetIdSchema])
       expect(schema.safeParse("gate-2/door").success).toBe(false);
     expect(tagsField("Tags.").safeParse(["gate-2/door"]).success).toBe(false);
     expect(ID_PATTERN.test("gate-2/door")).toBe(false);

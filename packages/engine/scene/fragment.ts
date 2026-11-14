@@ -6,12 +6,13 @@ import { jsonPointer, makeIssue } from "./issues";
 import { migrate } from "./migrate";
 import { migrateEnvOf, parseScene, type ParseOptions } from "./parse";
 import {
-  childEntity,
   childRef,
-  groupTransform,
-  localChildren,
+  instanceFrame,
   parseChildRef,
   resolveScene,
+  resolveWith,
+  sceneFrames,
+  type SceneFrames,
 } from "./resolve";
 import {
   builtFor,
@@ -23,9 +24,18 @@ import {
 } from "./schema";
 import { aabb, aabbUnion, translateShape } from "./shape-geometry";
 import { parseShape } from "./shapes";
-import { applyPt, composeDihedral, dihedral, turnOf, type Transform2D } from "./transform";
+import {
+  compose,
+  frame,
+  frameOf,
+  IDENTITY_2D,
+  invert,
+  isQuarterTurn,
+  type Transform2D,
+} from "./transform";
 import { isZeroPt, translateBulkEntry, translateEntityDef } from "./translate";
 import {
+  PARENT_MAX_DEPTH,
   RESERVED_SCENE_KEYS,
   SCENE_FORMAT_VERSION,
   type Aabb,
@@ -43,6 +53,7 @@ import {
   type ShapeInput,
   type ShapeObj,
 } from "./types";
+import { roundLength } from "./units";
 
 export const FRAGMENT_KIND = "scene-fragment";
 
@@ -65,26 +76,161 @@ export type SceneFragment = {
 
 const clone = <T>(v: T): T => structuredClone(v);
 
-/** An instance with its group's turn and offset folded in: where it stands in the world. */
-function worldInstance(def: SceneDefinition, inst: InstanceDef): InstanceDef {
+/** `inst` with the steps above it, innermost first, folded into its `at`, angle and flip. */
+function placedInstance(inst: InstanceDef, steps: readonly Transform2D[]): InstanceDef {
   const out = clone(inst);
-  const g = inst.group === undefined ? undefined : def.groups?.[inst.group];
-  if (!g?.at) return out;
-  out.at = applyPt(groupTransform(def, inst.group), inst.at);
-  const d = composeDihedral(turnOf(g), turnOf(inst));
+  if (steps.length === 0) return out;
+  const t = steps.reduce((acc, s) => compose(s, acc), frame(instanceFrame(inst)));
+  const { rot, flip } = frameOf(t);
+  out.at = isQuarterTurn(rot) ? [t.tx, t.ty] : [roundLength(t.tx), roundLength(t.ty)];
   delete out.rot;
   delete out.flip;
-  if (d.rot !== 0) out.rot = d.rot;
-  if (d.flip) out.flip = true;
+  if (rot !== 0) out.rot = rot;
+  if (flip) out.flip = true;
   return out;
+}
+
+/** An entity's stored fields under `t`, exactly as resolving places a child. */
+function placedEntity(
+  def: SceneDefinition,
+  registry: Registry,
+  e: EntityDef,
+  t: Transform2D,
+): EntityDef {
+  const one: SceneFrames = {
+    stepsFor: () => [t],
+    under: () => [],
+    parentOf: () => undefined,
+    hidden: () => false,
+    placed: () => null,
+  };
+  const scratch = fragmentScene({ kind: FRAGMENT_KIND, v: def.v, entities: [e] });
+  if (def.settings) scratch.settings = def.settings;
+  return resolveWith(scratch, registry, one, false).def.entities?.[0] ?? e;
+}
+
+const composeAll = (steps: readonly Transform2D[]): Transform2D =>
+  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
+
+const sameTransform = (x: Transform2D, y: Transform2D) =>
+  (["a", "b", "c", "d", "tx", "ty"] as const).every((k) => Math.abs(x[k] - y[k]) < 1e-9);
+
+/**
+ * Rewrites, level by level below the roots, what sits under a parent whose
+ * frame its new place changed (an entity whose frame comes from its
+ * geometry carries no flip, and a point no angle), so each keeps the world
+ * pose `frames` gives it. `entities` and `instances` are the fragment's,
+ * rewritten in place.
+ */
+function keepInPlace(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  frames: SceneFrames,
+  entities: EntityDef[],
+  instances: InstanceDef[],
+): void {
+  let level = new Set(
+    [...entities, ...instances].filter((x) => x.parent === undefined).map((x) => x.id),
+  );
+  for (let guard = 0; level.size > 0 && guard <= PARENT_MAX_DEPTH + 1; guard++) {
+    const scene = fragmentScene({ kind: FRAGMENT_KIND, v: def.v, entities, instances });
+    if (def.settings) scene.settings = def.settings;
+    const now = sceneFrames(scene, registry, prefabs);
+    const next = new Set<string>();
+    const shift = (x: { id: string; parent?: Ref }): Transform2D | null => {
+      const p = x.parent;
+      if (p === undefined || !(level.has(p) || level.has(parseChildRef(p)?.instance ?? p)))
+        return null;
+      next.add(x.id);
+      return compose(invert(composeAll(now.under(p))), composeAll(frames.under(p)));
+    };
+    entities.forEach((e, i) => {
+      const t = shift(e);
+      if (t && !sameTransform(t, IDENTITY_2D)) entities[i] = placedEntity(def, registry, e, t);
+    });
+    instances.forEach((inst, i) => {
+      const t = shift(inst);
+      if (t && !sameTransform(t, IDENTITY_2D)) instances[i] = placedInstance(inst, [t]);
+    });
+    level = next;
+  }
+}
+
+/** A ref with its depth below the scene's root: 0 for a root, 1 for a root's child, and so on. */
+export type SubtreeEntry = { ref: Ref; depth: number };
+
+/**
+ * `refs` and everything below them in `def`, each once: `refs` in their
+ * order, then the entities and instances whose parent chain, read
+ * leniently, reaches one of them. What sits under an instance's children
+ * (`gate-2/door`) is below the instance. Refs that aren't entities or
+ * instances of `def` (bulk entries, instance children, missing ids) stay
+ * as given, with nothing below them but what names them as a parent.
+ */
+export function withSubtrees(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  registry: Registry,
+  prefabs?: PrefabLibrary,
+): SubtreeEntry[] {
+  return subtreeIn(def, refs, sceneFrames(def, registry, prefabs));
+}
+
+function subtreeIn(def: SceneDefinition, refs: readonly Ref[], frames: SceneFrames) {
+  const byParent = new Map<Ref, string[]>();
+  const byInstance = new Map<string, string[]>();
+  const push = (map: Map<string, string[]>, key: string, id: string) => {
+    const list = map.get(key);
+    if (list) list.push(id);
+    else map.set(key, [id]);
+  };
+  const items = [...(def.entities ?? []), ...(def.instances ?? [])];
+  for (const { id } of items) {
+    const parent = frames.parentOf(id);
+    if (parent === undefined) continue;
+    push(byParent, parent, id);
+    const child = parseChildRef(parent);
+    if (child) push(byInstance, child.instance, id);
+  }
+  const instances = new Set((def.instances ?? []).map((i) => i.id));
+  const depths = new Map<string, number>();
+  const depthOf = (ref: Ref): number => {
+    const child = parseChildRef(ref);
+    if (child) return depthOf(child.instance) + 1;
+    let d = depths.get(ref);
+    if (d === undefined) {
+      const parent = frames.parentOf(ref);
+      depths.set(ref, (d = parent === undefined ? 0 : depthOf(parent) + 1));
+    }
+    return d;
+  };
+  const out: Ref[] = [];
+  const seen = new Set<Ref>();
+  const visit = (ref: Ref) => {
+    if (seen.has(ref)) return;
+    seen.add(ref);
+    out.push(ref);
+  };
+  refs.forEach(visit);
+  for (let i = 0; i < out.length; i++) {
+    const ref = out[i]!;
+    byParent.get(ref)?.forEach(visit);
+    if (instances.has(ref)) byInstance.get(ref)?.forEach(visit);
+  }
+  return out.map((ref) => ({ ref, depth: parseBulkId(ref) ? 0 : depthOf(ref) }));
 }
 
 /**
  * The entities, instances and bulk entries `refs` name, in document order,
- * as the resolved view holds them (world coordinates); refs that don't
- * resolve are skipped. An instance travels as itself, its prefab by id; a
- * child of an instance (`gate-2/door`, resolved through `prefabs`) travels
- * as a plain entity, unless its instance is copied too.
+ * with everything below them (`withSubtrees`); refs that don't resolve are
+ * skipped. The fragment's roots (what has no parent in it) stand where the
+ * resolved view puts them, in world coordinates, under nothing; what sits
+ * under one of them keeps its `parent` and its stored geometry, rewritten
+ * only where a root's own fields can't carry the turn or flip it stood in.
+ * An instance travels as itself, its prefab by id; a child of an instance
+ * (`gate-2/door`, resolved through `prefabs`) travels as a plain root
+ * entity, unless its instance is copied too.
  */
 export function fragmentOf(
   def: SceneDefinition,
@@ -92,14 +238,16 @@ export function fragmentOf(
   registry: Registry,
   prefabs?: PrefabLibrary,
 ): SceneFragment {
-  const ids = new Set<string>();
+  const named: Ref[] = [];
   const picked = new Map<BulkKey, Set<number>>();
   for (const ref of refs) {
     const p = parseBulkId(ref);
-    if (!p) ids.add(ref);
+    if (!p) named.push(ref);
     else if (registry.bulkKey(p.key))
       picked.set(p.key, (picked.get(p.key) ?? new Set()).add(p.index));
   }
+  const frames = sceneFrames(def, registry, prefabs);
+  const ids = new Set(subtreeIn(def, named, frames).map((e) => e.ref));
   const view = resolveScene(def, registry, prefabs);
   const bulk: Record<BulkKey, BulkEntry[]> = {};
   for (const key of bulkKeysOf(view)) {
@@ -108,15 +256,34 @@ export function fragmentOf(
     const entries = bulkEntries(view, key).filter((_, i) => want.has(i));
     if (entries.length > 0) bulk[key] = clone(entries);
   }
-  const instances = (def.instances ?? [])
-    .filter((i) => ids.has(i.id))
-    .map((i) => worldInstance(def, i));
-  const copied = new Set(instances.map((i) => i.id));
+  const copied = new Set((def.instances ?? []).filter((i) => ids.has(i.id)).map((i) => i.id));
   const inCopied = (id: string) => {
     const child = parseChildRef(id);
     return child !== null && copied.has(child.instance);
   };
-  const entities = clone((view.entities ?? []).filter((e) => ids.has(e.id) && !inCopied(e.id)));
+  const inside = (parent: Ref | undefined) =>
+    parent !== undefined && (ids.has(parent) || inCopied(parent));
+  const instances = (def.instances ?? [])
+    .filter((i) => ids.has(i.id))
+    .map((i) => {
+      if (inside(frames.parentOf(i.id))) return clone(i);
+      const out = placedInstance(i, frames.stepsFor(i));
+      delete out.parent;
+      return out;
+    });
+  const own = new Map((def.entities ?? []).map((e) => [e.id, e]));
+  const entities = (view.entities ?? [])
+    .filter((e) => ids.has(e.id) && !inCopied(e.id))
+    .map((e) => {
+      const stored = own.get(e.id);
+      if (stored && inside(frames.parentOf(e.id))) return clone(stored);
+      const out = clone(e);
+      delete out.parent;
+      // The resolved view hides what sits under an `off` parent; a root keeps only its own `off`.
+      if (stored && stored.off !== true) delete out.off;
+      return out;
+    });
+  keepInPlace(def, registry, prefabs, frames, entities, instances);
   // A copied child becomes a plain entity under its own id, and refs to it in the fragment follow.
   const taken = new Set([...entities.map((e) => e.id), ...copied]);
   const renamed = new Map<string, string>();
@@ -132,6 +299,7 @@ export function fragmentOf(
         const follow = (id: unknown) => renamed.get(id as string) ?? id;
         setAt(e, segs, Array.isArray(value) ? value.map(follow) : follow(value));
       }
+      if (e.parent !== undefined) e.parent = renamed.get(e.parent) ?? e.parent;
       e.id = renamed.get(e.id) ?? e.id;
     }
   return {
@@ -206,7 +374,7 @@ export type ParseFragmentResult =
 
 const FRAGMENT_KEYS = ["kind", "v", "game", "entities", "bulk", "instances"];
 const SCRATCH_NAME = "fragment";
-const SCRATCH_BOUNDS = [0, 0, 1, 1];
+const SCRATCH_BOUNDS: SceneDefinition["bounds"] = [0, 0, 1, 1];
 
 const schemaIssue = (message: string, path = "", extra: Partial<SceneIssue> = {}) =>
   makeIssue("schema", { message, path, ...extra });
@@ -394,22 +562,22 @@ function entityBox(e: EntityDef, registry: Registry): Aabb | undefined {
   return boxes.reduce<Aabb | undefined>((acc, b) => (acc ? aabbUnion(acc, b) : b), undefined);
 }
 
-/** A box under a quarter-turn transform, exactly: such a transform takes a box to a box. */
-function transformBox(box: Aabb, t: Transform2D): Aabb {
-  const [x0, y0] = applyPt(t, [box.minX, box.minY]);
-  const [x1, y1] = applyPt(t, [box.maxX, box.maxY]);
+/** The fragment as a scene document with its entities and instances, which is how frames read it. */
+function fragmentScene(fragment: SceneFragment): SceneDefinition {
   return {
-    minX: Math.min(x0, x1),
-    minY: Math.min(y0, y1),
-    maxX: Math.max(x0, x1),
-    maxY: Math.max(y0, y1),
+    v: fragment.v,
+    name: SCRATCH_NAME,
+    bounds: SCRATCH_BOUNDS,
+    entities: fragment.entities,
+    ...(fragment.instances ? { instances: fragment.instances } : {}),
   };
 }
 
 /**
  * The world box around everything in the fragment; `null` when nothing in
- * it has a position. Its instances count with `prefabs`: the box around
- * each one's resolved children (a variant's base and nested instances'
+ * it has a position. What sits under a parent in it counts where the
+ * parent puts it. Its instances count with `prefabs`: the box around each
+ * one's resolved children (a variant's base and nested instances'
  * children included), turned and flipped with it; one whose prefab isn't
  * there is skipped.
  */
@@ -422,18 +590,9 @@ export function fragmentBounds(
   const add = (b: Aabb | undefined) => {
     if (b) box = box ? aabbUnion(box, b) : b;
   };
-  for (const e of fragment.entities) add(entityBox(e, registry));
-  for (const inst of fragment.instances ?? []) {
-    const prefab = prefabs?.get(inst.prefab);
-    if (!prefab) continue;
-    let local: Aabb | undefined;
-    for (const c of localChildren(prefab, inst, registry, prefabs)) {
-      const e = childEntity(c, registry);
-      const b = e && entityBox(e, registry);
-      if (b) local = local ? aabbUnion(local, b) : b;
-    }
-    if (local) add(transformBox(local, dihedral(turnOf(inst), inst.at)));
-  }
+  const scene = fragmentScene(fragment);
+  const placed = resolveWith(scene, registry, sceneFrames(scene, registry, prefabs), true).def;
+  for (const e of placed.entities ?? []) add(entityBox(e, registry));
   for (const [key, entries] of Object.entries(fragment.bulk ?? {})) {
     const info = registry.bulkKey(key);
     if (!info) continue;
@@ -489,12 +648,58 @@ function setAt(root: object, segs: string[], value: unknown): void {
 }
 
 export type PlacedFragment = {
-  /** `addBulk` ops, then one `add` per entity, then one `instantiate` per instance. */
+  /**
+   * `addBulk` ops, then one `add` per entity, then one `instantiate` per
+   * instance, except that anything placed under a parent from the fragment
+   * comes after that parent.
+   */
   ops: SceneOp[];
   /** The refs the ops create, bulk entries at the indices they will have. */
   select: Ref[];
+  /** Each placed entity's and instance's id, by its id in the fragment. */
+  ids: Record<string, Ref>;
   issues: SceneIssue[];
 };
+
+/** One `add` or `instantiate` waiting for its place in the batch. */
+type Placing = {
+  op: SceneOp;
+  id: string;
+  /** The entity or instance of the fragment it sits under, which must be placed first. */
+  after?: string;
+  issues: ((index: number) => SceneIssue)[];
+};
+
+/**
+ * `items` in order, except that one whose `owner` is another item comes
+ * after that item, so a parent is placed before what sits under it; a
+ * cycle keeps its order.
+ */
+export function parentsFirst<T>(
+  items: readonly T[],
+  id: (item: T) => string,
+  owner: (item: T) => string | undefined,
+): T[] {
+  const ids = new Set(items.map(id));
+  const done = new Set<string>();
+  const out: T[] = [];
+  let left = [...items];
+  while (left.length > 0) {
+    const next = left.filter((item) => {
+      const o = owner(item);
+      if (o !== undefined && o !== id(item) && ids.has(o) && !done.has(o)) return true;
+      out.push(item);
+      done.add(id(item));
+      return false;
+    });
+    if (next.length === left.length) {
+      out.push(...next);
+      break;
+    }
+    left = next;
+  }
+  return out;
+}
 
 /**
  * The ops that put a fragment into `def`, moved by `by`: ids that clash
@@ -502,9 +707,11 @@ export type PlacedFragment = {
  * → `gate-3`), references inside the fragment following the renames (a
  * child ref `gate-2/door` with its instance), and references out of it
  * kept when their target exists in `def`, else cleared with a
- * `dangling-ref` warning. An instance whose prefab isn't in `prefabs`
- * places nothing and warns `prefab-unknown`. Paste and unpack both place
- * fragments this way.
+ * `dangling-ref` warning. `parent` is a reference like the others: what
+ * sits under a parent from the fragment keeps its stored geometry, which
+ * is in that parent's frame, and moves with it; everything else moves by
+ * `by`. An instance whose prefab isn't in `prefabs` places nothing and
+ * warns `prefab-unknown`. Paste and unpack both place fragments this way.
  */
 export function placeFragment(
   fragment: SceneFragment,
@@ -565,14 +772,43 @@ export function placeFragment(
     const to = child ? instanceRenamed.get(child.instance) : undefined;
     return child && to !== undefined ? childRef(to, child.child) : (instanceRenamed.get(id) ?? id);
   };
+  /** The placed entity or instance a followed ref lands on, when the fragment places it. */
+  const placedOwner = (id: unknown): string | undefined => {
+    if (typeof id !== "string") return undefined;
+    if (internal.has(id) || placedInstances.has(id)) return id;
+    const child = parseChildRef(id);
+    return child && placedInstances.has(child.instance) ? child.instance : undefined;
+  };
   const keep = (id: unknown): boolean => {
     if (typeof id !== "string") return false;
-    if (internal.has(id) || existing.has(id) || placedInstances.has(id)) return true;
+    if (placedOwner(id) !== undefined || existing.has(id)) return true;
     const child = parseChildRef(id);
-    return (
-      child !== null &&
-      (placedInstances.has(child.instance) || existingInstances.has(child.instance))
-    );
+    return child !== null && existingInstances.has(child.instance);
+  };
+  const dangling =
+    (from: string, field: string, dropped: unknown[], at: string, id: string) => (index: number) =>
+      makeIssue("dangling-ref", {
+        severity: "warn",
+        message: `${from}.${field} named ${dropped.map((d) => `"${String(d)}"`).join(", ")}, which isn't in this scene, so the placed copy doesn't`,
+        path: `/ops/${index}/${at}`,
+        entityIds: [id],
+      });
+  /** The followed `parent`, kept or cleared with a warning; whether it is one the fragment places. */
+  const placeParent = (
+    from: { id: string; parent?: Ref },
+    out: { id: string; parent?: Ref },
+    kind: "entity" | "instance",
+    pending: Placing["issues"],
+  ): string | undefined => {
+    if (from.parent === undefined) return undefined;
+    const parent = follow(from.parent) as string;
+    if (keep(parent)) {
+      out.parent = parent;
+      return placedOwner(parent);
+    }
+    delete out.parent;
+    pending.push(dangling(from.id, "parent", [parent], `${kind}/parent`, out.id));
+    return undefined;
   };
 
   for (const [key, entries] of Object.entries(fragment.bulk ?? {})) {
@@ -588,36 +824,47 @@ export function placeFragment(
     moved.forEach((_, k) => select.push(bulkId(key, start + k)));
   }
 
+  const ids: Record<string, Ref> = {};
+  const items: Placing[] = [];
   for (const entity of fragment.entities) {
-    const moved = isZeroPt(by)
-      ? clone(entity)
-      : (translateEntityDef(registry, entity, by) ?? clone(entity));
-    const out = { ...moved, id: renamed.get(entity.id) ?? entity.id } as Record<string, unknown>;
+    const id = renamed.get(entity.id) ?? entity.id;
+    const pending: Placing["issues"] = [];
+    const out = { ...clone(entity), id } as EntityDef;
+    const after = placeParent(entity, out, "entity", pending);
+    const moved =
+      after !== undefined || isZeroPt(by)
+        ? out
+        : { ...(translateEntityDef(registry, out, by) ?? out), id };
     for (const { field, segs, value } of refFields(registry, entity)) {
       const next = (Array.isArray(value) ? value : [value]).map(follow);
-      const dropped = next.filter((id) => !keep(id));
+      const dropped = next.filter((ref) => !keep(ref));
       const kept = next.filter(keep);
-      setAt(out, segs, Array.isArray(value) ? kept : kept[0]);
-      if (dropped.length === 0) continue;
-      issues.push(
-        makeIssue("dangling-ref", {
-          severity: "warn",
-          message: `${entity.id}.${field} named ${dropped.map((d) => `"${String(d)}"`).join(", ")}, which isn't in this scene, so the placed copy doesn't`,
-          path: `/ops/${ops.length}/entity/${segs.join("/")}`,
-          entityIds: [String(out.id)],
-        }),
-      );
+      setAt(moved, segs, Array.isArray(value) ? kept : kept[0]);
+      if (dropped.length > 0)
+        pending.push(dangling(entity.id, field, dropped, `entity/${segs.join("/")}`, id));
     }
-    ops.push({ op: "add", entity: out as EntityDef });
-    select.push(String(out.id));
+    ids[entity.id] = id;
+    items.push({ op: { op: "add", entity: moved }, id, after, issues: pending });
   }
 
   for (const inst of placing) {
-    const out = clone(inst);
-    out.id = instanceRenamed.get(inst.id) ?? inst.id;
-    if (!isZeroPt(by)) out.at = [inst.at[0] + by[0], inst.at[1] + by[1]];
-    ops.push({ op: "instantiate", instance: out });
-    select.push(out.id);
+    const id = instanceRenamed.get(inst.id) ?? inst.id;
+    const pending: Placing["issues"] = [];
+    const out = { ...clone(inst), id };
+    const after = placeParent(inst, out, "instance", pending);
+    if (after === undefined && !isZeroPt(by)) out.at = [inst.at[0] + by[0], inst.at[1] + by[1]];
+    ids[inst.id] = id;
+    items.push({ op: { op: "instantiate", instance: out }, id, after, issues: pending });
   }
-  return { ops, select, issues };
+
+  for (const item of parentsFirst(
+    items,
+    (p) => p.id,
+    (p) => p.after,
+  )) {
+    for (const issue of item.issues) issues.push(issue(ops.length));
+    ops.push(item.op);
+    select.push(item.id);
+  }
+  return { ops, select, ids, issues };
 }

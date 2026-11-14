@@ -199,7 +199,7 @@ describe("runtime ids", () => {
     expect(lifecycle.claimId("crate")).toBe("crate#2");
     expect(lifecycle.spawn({ type: "crate", at: [0, 0] }).id).toBe("crate#3");
     expect(lifecycle.claimId("gate")).toBe("gate#1");
-    entities.set("gate#east/door", { id: "gate#east/door", type: "crate" });
+    entities.set("gate#east", { id: "gate#east", type: "crate" });
     expect(refusal(() => lifecycle.claimId("gate", "gate#east")).message).toContain("already live");
     expect(lifecycle.claimId("gate", "gate#west")).toBe("gate#west");
     rt.destroy();
@@ -245,10 +245,11 @@ describe("runtime ids", () => {
     rt.destroy();
   });
 
-  it("skip a live counter id however it arrived, and an instance's children", () => {
+  it("skip a live counter id however it arrived, and an instance's node", () => {
     const { rt } = setup([
       { id: "crate#2", type: "crate", at: [0, 0] },
-      { id: "crate#3/lid", type: "crate", at: [0, 0] },
+      { id: "crate#3", type: "node", at: [0, 0] },
+      { id: "crate#3/lid", type: "crate", at: [0, 0], parent: "crate#3" },
     ]);
     const ids = [0, 1].map(() => rt.ctx.spawn({ type: "crate", at: [0, 0] }).id);
     expect(ids).toEqual(["crate#1", "crate#4"]);
@@ -394,11 +395,12 @@ describe("ctx.destroy", () => {
     rt.destroy();
   });
 
-  it("an instance id destroys its live children in reverse spawn order", () => {
+  it("an instance id destroys its node's subtree, children first in reverse child order", () => {
     const { rt, log, during } = setup([
-      ghostAt("gate/frame"),
-      ghostAt("gate/door"),
-      ghostAt("gate/door/knob"),
+      { id: "gate", type: "node", at: [0, 0] },
+      { ...ghostAt("gate/frame"), parent: "gate" },
+      { ...ghostAt("gate/door"), parent: "gate" },
+      { ...ghostAt("gate/door/knob"), parent: "gate/door" },
       ghostAt("gatehouse"),
     ]);
     rt.ctx.destroy("gate/door/knob");
@@ -409,23 +411,32 @@ describe("ctx.destroy", () => {
       "despawn ghost gate/door",
       "despawn ghost gate/frame",
     ]);
-    expect(events.map((e) => e.entityId)).toEqual(["gate/door", "gate/frame"]);
+    expect(events.map((e) => e.entityId)).toEqual(["gate/door", "gate/frame", "gate"]);
     expect(rt.ctx.exists("gatehouse")).toBe(true);
     rt.destroy();
   });
 
-  it("exists and enabled answer for an instance id through its live children", () => {
-    const { rt } = setup([ghostAt("gate/frame"), ghostAt("gate/door"), ghostAt("gatehouse")]);
+  it("exists and enabled answer for an instance id through its node", () => {
+    const { rt } = setup([
+      { id: "gate", type: "node", at: [0, 0] },
+      { ...ghostAt("gate/frame"), parent: "gate" },
+      { ...ghostAt("gate/door"), parent: "gate" },
+      ghostAt("gatehouse"),
+    ]);
     const { ctx } = rt;
     expect(ctx.exists("gate")).toBe(true);
     expect(ctx.enabled("gate")).toBe(true);
     ctx.setEnabled("gate/frame", false);
     expect(ctx.enabled("gate")).toBe(true);
-    ctx.setEnabled("gate/door", false);
-    expect(ctx.exists("gate")).toBe(true);
+    ctx.setEnabled("gate", false);
     expect(ctx.enabled("gate")).toBe(false);
+    expect(ctx.enabled("gate/door")).toBe(false);
+    ctx.setEnabled("gate", true);
+    expect(ctx.enabled("gate/door")).toBe(true);
+    expect(ctx.enabled("gate/frame")).toBe(false);
     ctx.destroy("gate");
     expect(ctx.exists("gate")).toBe(false);
+    expect(ctx.exists("gate/door")).toBe(false);
     expect(ctx.exists("gatehouse")).toBe(true);
     expect(ctx.exists("gat")).toBe(false);
     rt.destroy();

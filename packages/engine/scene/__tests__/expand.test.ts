@@ -148,7 +148,6 @@ describe("expandScene", () => {
           type: "solid",
           name: "Late",
           layer: "terrain",
-          group: "g",
           shape: ["box", 1, 1, 1, 1],
         },
         { id: "gone", type: "solid", off: true, shape: ["box", 2, 2, 1, 1] },
@@ -510,7 +509,7 @@ describe("expandScene: nested prefabs", () => {
       id: "row",
       instances: [
         { id: "c1", prefab: "cell", at: [0, 0], layer: "decor" },
-        { id: "c2", prefab: "cell", at: [100, 0], rot: 1, z: 2 },
+        { id: "c2", prefab: "cell", at: [100, 0], rot: 90, z: 2 },
       ],
       entities: [],
     },
@@ -532,19 +531,36 @@ describe("expandScene: nested prefabs", () => {
   it("loads three levels under a/b/c ids with each level's z, layer and transform", () => {
     const out = byId(expandScene(def, engine, { prefabs }).entities);
     expect(Object.keys(out).sort()).toEqual([
+      "b",
       "b/base",
+      "b/r",
+      "b/r/c1",
       "b/r/c1/post",
       "b/r/c1/~solid:0",
+      "b/r/c2",
       "b/r/c2/post",
       "b/r/c2/~solid:0",
     ]);
+    expect(out["b"]).toEqual({ id: "b", type: "node", at: [300, 300], z: 10 });
+    expect(out["b/r"]).toMatchObject({ type: "node", at: [300, 350], parent: "b" });
+    expect(out["b/r/c1"]).toMatchObject({ at: [300, 350], layer: "decor", z: 10, parent: "b/r" });
+    expect(out["b/r/c2"]).toMatchObject({
+      at: [200, 350],
+      rot: 270,
+      z: 12,
+      transform: { rot: 270, flip: true },
+      parent: "b/r",
+    });
+    expect(out["b/base"]!.parent).toBe("b");
+    expect(out["b/r/c1/post"]!.parent).toBe("b/r/c1");
+    expect(out["b/r/c2/~solid:0"]!.parent).toBe("b/r/c2");
     expect(out["b/r/c1/post"]).toMatchObject({
       z: 11,
       layer: "decor",
-      transform: { turn: 0, flip: true },
+      transform: { rot: 0, flip: true },
     });
     expect(out["b/r/c1/post"]!.shape).toMatchObject({ type: "box", cx: 290, cy: 350 });
-    expect(out["b/r/c2/post"]).toMatchObject({ z: 13, transform: { turn: 3, flip: true } });
+    expect(out["b/r/c2/post"]).toMatchObject({ z: 13, transform: { rot: 270, flip: true } });
     expect(out["b/r/c2/~solid:0"]).toMatchObject({ type: "solid", z: 12 });
     expect(out["b/base"]).toMatchObject({ z: 10 });
     expect(out["b/base"]).not.toHaveProperty("transform");
@@ -563,7 +579,9 @@ describe("expandScene: nested prefabs", () => {
     const out = byId(expandScene(over, engine, { prefabs }).entities);
     expect(out["b/r/c1/post"]).toMatchObject({ z: 10 });
     expect(out["b/r/c2/post"]).toBeUndefined();
+    expect(out["b/r/c2"]).toBeUndefined();
     expect(out["b/r/c1/~solid:0"]).toBeDefined();
+    expect(out["b/r/c1"]).toBeDefined();
   });
 });
 
@@ -588,7 +606,7 @@ describe("expandScene: child refs", () => {
       id: "gate",
       entities: [
         lift("door"),
-        { id: "plank", type: "solid", attach: "door", shape: ["box", 0, -10, 20, 2] },
+        { id: "plank", type: "solid", parent: "door", shape: ["box", 0, -10, 20, 2] },
       ],
     },
     {
@@ -597,7 +615,7 @@ describe("expandScene: child refs", () => {
       id: "room",
       instances: [{ id: "gate-1", prefab: "gate", at: [0, 0] }],
       entities: [
-        { id: "beam", type: "solid", attach: "gate-1/door", shape: ["box", 0, 20, 20, 2] },
+        { id: "beam", type: "solid", parent: "gate-1/door", shape: ["box", 0, 20, 20, 2] },
       ],
     },
   ]);
@@ -610,8 +628,8 @@ describe("expandScene: child refs", () => {
       { id: "room-1", prefab: "room", at: [400, 100] },
     ],
     entities: [
-      { id: "shelf", type: "solid", attach: "gate-2/door", shape: ["box", 100, 80, 10, 2] },
-      { id: "ledge", type: "solid", attach: "room-1/gate-1/door", shape: ["box", 400, 80, 10, 2] },
+      { id: "shelf", type: "solid", parent: "gate-2/door", shape: ["box", 0, -20, 10, 2] },
+      { id: "ledge", type: "solid", parent: "room-1/gate-1/door", shape: ["box", 0, -20, 10, 2] },
     ],
   };
 
@@ -620,15 +638,15 @@ describe("expandScene: child refs", () => {
     const out = byId(expandScene(parsed, engine, { prefabs }).entities);
     expect(out["gate-2/door"]).toMatchObject({ type: "follower" });
     expect(out["room-1/gate-1/door"]).toMatchObject({ type: "follower" });
-    expect(out.shelf!.attach).toBe("gate-2/door");
-    expect(out.ledge!.attach).toBe("room-1/gate-1/door");
+    expect(out.shelf!.parent).toBe("gate-2/door");
+    expect(out.ledge!.parent).toBe("room-1/gate-1/door");
   });
 
   it("rewrites a prefab's own refs to its children's runtime ids", () => {
     const out = byId(expandScene(def, engine, { prefabs }).entities);
-    expect(out["gate-2/plank"]!.attach).toBe("gate-2/door");
-    expect(out["room-1/beam"]!.attach).toBe("room-1/gate-1/door");
-    expect(out["room-1/gate-1/plank"]!.attach).toBe("room-1/gate-1/door");
+    expect(out["gate-2/plank"]!.parent).toBe("gate-2/door");
+    expect(out["room-1/beam"]!.parent).toBe("room-1/gate-1/door");
+    expect(out["room-1/gate-1/plank"]!.parent).toBe("room-1/gate-1/door");
   });
 });
 
@@ -690,7 +708,7 @@ describe("expandScene: transforms", () => {
           id: "k",
           prefab: "kite",
           at: AT,
-          ...(d.rot !== 0 ? { rot: d.rot } : {}),
+          ...(d.rot !== 0 ? { rot: 90 * d.rot } : {}),
           ...(d.flip ? { flip: true as const } : {}),
         },
       ],
@@ -719,7 +737,7 @@ describe("expandScene: transforms", () => {
       expect([wing.pts, gun.at, gun.dir, (lift.path as PathDef).pts].every(ints)).toBe(true);
       for (const e of Object.values(out)) {
         if (d.rot === 0 && !d.flip) expect(e).not.toHaveProperty("transform");
-        else expect(e.transform).toEqual({ turn: d.rot, flip: d.flip });
+        else expect(e.transform).toEqual({ rot: 90 * d.rot, flip: d.flip });
       }
     }
   });
@@ -743,15 +761,15 @@ describe("expandScene: transforms", () => {
     }
   });
 
-  it("records a turned group's transform on its members", () => {
+  it("records a turned parent node's transform on what sits under it", () => {
     const def: SceneDefinition = {
       v: 4,
       game: "mg",
       name: "x",
       bounds: [0, 0, 1000, 1000],
-      groups: { wing: { at: [100, 100], rot: 2 } },
       entities: [
-        { id: "in", type: "launcher", group: "wing", at: [10, 0], dir: [1, 0] },
+        { id: "wing", type: "node", at: [100, 100], rot: 180 },
+        { id: "in", type: "launcher", parent: "wing", at: [10, 0], dir: [1, 0] },
         { id: "out", type: "launcher", at: [10, 0], dir: [1, 0] },
       ],
     };
@@ -759,7 +777,7 @@ describe("expandScene: transforms", () => {
     expect(out.in).toMatchObject({
       at: [90, 100],
       dir: [-1, 0],
-      transform: { turn: 2, flip: false },
+      transform: { rot: 180, flip: false },
     });
     expect(out.out).not.toHaveProperty("transform");
   });
@@ -820,12 +838,14 @@ describe("expandScene: instance by instance", () => {
     ...(game !== undefined ? { game } : {}),
     name: "rooms",
     bounds: [-2000, -2000, 2000, 2000],
-    groups: { wing: { at: [300, -100], rot: 1, flip: true } },
-    entities: [{ id: "own", type: "solid", shape: ["box", 0, 0, 10, 10], group: "wing" }],
+    entities: [
+      { id: "wing", type: "node", at: [300, -100], rot: 90, flip: true },
+      { id: "own", type: "solid", shape: ["box", 0, 0, 10, 10], parent: "wing" },
+    ],
     instances: [
       { id: "r", prefab: "room", at: [0, 0] },
-      { id: "t", prefab: "room", at: [500, 200], rot: 3, flip: true, z: 4, layer: "decor" },
-      { id: "w", prefab: "room", at: [-400, 300], rot: 2, group: "wing" },
+      { id: "t", prefab: "room", at: [500, 200], rot: 270, flip: true, z: 4, layer: "decor" },
+      { id: "w", prefab: "room", at: [-400, 300], rot: 180, parent: "wing" },
       { id: "o", prefab: "room", at: [0, 900], off: true },
       { id: "m", prefab: "missing", at: [0, 0] },
     ],
@@ -883,7 +903,22 @@ describe("expandScene: instance by instance", () => {
 
   it.each(FIXTURES)("loads %s exactly as the resolved view does", (_, def, registry, prefabs) => {
     const out = expandScene(def, registry, prefabs ? { prefabs } : {});
-    expect(out.entities).toEqual(throughResolvedView(def, registry, prefabs));
+    const resolved = throughResolvedView(def, registry, prefabs);
+    const viewIds = new Set(resolved.map((e) => e.id));
+    const loaded = out.entities.filter((e) => viewIds.has(e.id));
+    const unlinked = (list: RuntimeEntity[]) => list.map(({ parent: _, ...e }) => e);
+    expect(unlinked(loaded)).toEqual(unlinked(resolved));
+    // the rest are the instances' nodes, each over what it holds
+    const nodes = out.entities.filter((e) => !viewIds.has(e.id));
+    expect(nodes.every((e) => e.type === "node")).toBe(true);
+    const nodeIds = new Set(nodes.map((e) => e.id));
+    for (const inst of def.instances ?? []) {
+      const loads = prefabs !== undefined && loaded.some((e) => e.id.startsWith(`${inst.id}/`));
+      expect(nodeIds.has(inst.id)).toBe(loads);
+    }
+    const ids = new Set(out.entities.map((e) => e.id));
+    for (const e of out.entities) if (e.parent !== undefined) expect(ids.has(e.parent)).toBe(true);
+    for (const e of loaded) if (e.id.includes("/")) expect(e.parent).toBeDefined();
     if ((def.instances ?? []).length > 0 && prefabs)
       expect(out.entities.some((e) => e.id.includes("/"))).toBe(true);
   });

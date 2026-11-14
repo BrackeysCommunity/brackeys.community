@@ -31,7 +31,6 @@ import { contentLogKey } from "./revert";
 import {
   ASSETS_KEY,
   DOC_MAPS,
-  GROUP_KEY_PREFIX,
   INSTANCE_KEY_PREFIX,
   PARAM_KEY_PREFIX,
   PREFAB_KEY_PREFIX,
@@ -257,8 +256,6 @@ function logKeyOf(root: string, key: string): string | null {
       return key;
     case DOC_MAPS.instances:
       return `${INSTANCE_KEY_PREFIX}${key}`;
-    case DOC_MAPS.groups:
-      return `${GROUP_KEY_PREFIX}${key}`;
     case DOC_MAPS.prefabs:
       return `${PREFAB_KEY_PREFIX}${key}`;
     case DOC_MAPS.settings:

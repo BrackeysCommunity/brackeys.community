@@ -113,7 +113,7 @@ const UpdateOp = z
           "On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. " +
           "On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. " +
           "A grid field is set whole, never below the field: paint its cells with paintCells. " +
-          "`id` and `type` can't be set: use rename, or remove and add.",
+          "`id` and `type` can't be set: use rename, or remove and add. `parent` can't be set or unset: use reparent, which keeps the entity where it is.",
       ),
     unset: PathsSchema.optional().describe(
       "Field paths to delete, e.g. `behaviors.<behavior>` to remove a block. An array item is spliced out.",
@@ -154,7 +154,9 @@ const RemoveOp = z
     op: opName("remove"),
     refs: z.array(RefSchema).min(1).describe("What to remove."),
   })
-  .describe("Remove entities or bulk entries.");
+  .describe(
+    "Remove entities, instances or bulk entries, each with every entity and instance under it.",
+  );
 
 const RenameOp = z
   .strictObject({
@@ -162,7 +164,9 @@ const RenameOp = z
     from: IdSchema.describe("The current id."),
     to: IdSchema.describe("The new id; must be free."),
   })
-  .describe("Change an entity's id and rewrite every reference to it.");
+  .describe(
+    "Change an entity's or instance's id and rewrite every reference to it, and every `parent` that names it or one of its children.",
+  );
 
 const PromoteOp = z
   .strictObject({
@@ -220,34 +224,6 @@ const ReorderOp = z
   })
   .describe("Move entities or instances to a new place in their list, keeping their order.");
 
-const SetGroupOp = z
-  .strictObject({
-    op: opName("setGroup"),
-    id: IdSchema.describe(
-      "The group's id; a new id declares a group (at [0, 0] unless `at` says).",
-    ),
-    at: PtSchema.optional().describe(
-      "The group's origin. Members store geometry relative to it, so changing it moves every member.",
-    ),
-    rot: z
-      .literal([0, 1, 2, 3])
-      .optional()
-      .describe("Quarter turns clockwise (y down), absolute; 0 is written as absent."),
-    flip: z
-      .boolean()
-      .optional()
-      .describe("Mirror x before turning, absolute; false is written as absent."),
-    name: z
-      .union([z.string().min(1).max(80), z.null()])
-      .optional()
-      .describe("Display label; null clears it."),
-    remove: z
-      .boolean()
-      .optional()
-      .describe("Delete the group's declaration; refused while an entity or instance is in it."),
-  })
-  .describe("Declare a group, move its origin, rename it, or delete it.");
-
 const OverrideOp = z
   .strictObject({
     op: opName("override"),
@@ -301,7 +277,7 @@ const UnpackOp = z
     ref: IdSchema.describe("The instance."),
   })
   .describe(
-    "Replace an instance with its own children where they stand, one level: its entities and bulk entries become plain entries, its nested instances become instances, and its turn and flip are baked in. Ids that clash get a suffix.",
+    "Replace an instance with its own children where they stand, one level: its entities and bulk entries become plain entries, its nested instances become instances, and its turn and flip are baked in. They sit under the instance's parent, links between them kept; what sat under the instance or one of its children stays put under what took its place. Ids that clash get a suffix.",
   );
 
 const CreatePrefabOp = z
@@ -311,7 +287,7 @@ const CreatePrefabOp = z
       .array(RefSchema)
       .min(1)
       .describe(
-        "Entities, bulk entries and instances to move into the prefab; instances become nested instances.",
+        "Entities, bulk entries and instances to move into the prefab, with everything under them; instances become nested instances.",
       ),
     id: IdSchema.describe("The new prefab's id; it becomes prefabs/<id>.json."),
     at: PtSchema.optional().describe(
@@ -322,14 +298,13 @@ const CreatePrefabOp = z
     ),
   })
   .describe(
-    "Turn entries into a prefab: they leave the scene, the prefab holds them around the origin, and one instance puts them back where they were.",
+    "Turn entries into a prefab: they leave the scene, the prefab holds them around the origin, and one instance puts them back where they were, under the parent they all share if they share one.",
   );
 
 const TransformOp = z
   .strictObject({
     op: opName("transform"),
-    refs: z.array(IdSchema).optional().describe("Instances to turn or flip, by id."),
-    groups: z.array(IdSchema).optional().describe("Groups to turn or flip, by id."),
+    refs: z.array(IdSchema).min(1).describe("Instances and nodes to turn or flip, by id."),
     turn: z
       .literal([1, 2, 3, -1])
       .optional()
@@ -338,12 +313,39 @@ const TransformOp = z
       .enum(["x", "y"])
       .optional()
       .describe("A mirror in world terms: `x` swaps left and right, `y` swaps up and down."),
+    rotate: z
+      .number()
+      .optional()
+      .describe("Any angle, degrees clockwise on screen (y down); give this or `turn`, not both.")
+      .meta({ unit: "deg" }),
     about: PtSchema.optional().describe(
-      "The point to turn and flip about; omitted, each instance's or group's own `at`.",
+      "The point to turn and flip about; omitted, each instance's or node's own `at`.",
     ),
   })
   .describe(
-    "Turn and flip instances and groups, composing onto what they already have. Turns and flips about a whole-pixel point keep whole-pixel geometry exact.",
+    "Turn and flip instances and nodes, composing onto what they already have; what sits under a node or an instance turns with it. Quarter turns and flips about a whole-pixel point keep whole-pixel geometry exact.",
+  );
+
+const ReparentOp = z
+  .strictObject({
+    op: opName("reparent"),
+    refs: z
+      .array(IdSchema)
+      .min(1)
+      .describe(
+        "Entities and instances to move under `parent`, by id; bulk entries and an instance's children refuse.",
+      ),
+    parent: z
+      .union([
+        IdSchema.describe(
+          "An entity or instance, or an instance's child by its resolved ref (`room-1/door-1/panel`).",
+        ),
+        z.null(),
+      ])
+      .describe("The new parent, or null for the root."),
+  })
+  .describe(
+    "Put entities and instances under another parent. Their geometry is rewritten into the new parent's frame, so nothing moves in the world. Refused for a loop, a chain deeper than 16 levels, and a nav area, camera region or note on either end.",
   );
 
 const SetZOp = z
@@ -493,7 +495,8 @@ function buildOpSchemas(registry: Registry) {
         })
         .describe(
           "An entity as in the scene file, with `id` optional and `shape` accepting any shape form. " +
-            "A type with a `path` has its `shape` local to the path point; every other position is absolute.",
+            "A type with a `path` has its `shape` local to the path point; every other position is absolute, " +
+            "or in its `parent`'s frame when it has one.",
         ),
       index: IndexSchema.optional(),
     })
@@ -556,11 +559,15 @@ function buildOpSchemas(registry: Registry) {
         .looseObject({
           prefab: IdSchema.describe("The prefab to place."),
           id: IdSchema.optional().describe("Optional; without one it is `<prefab>-<n>`."),
-          at: PtSchema.describe("Where the prefab's origin lands."),
+          at: PtSchema.describe(
+            "Where the prefab's origin lands, in its `parent`'s frame when it has one.",
+          ),
           rot: z
-            .literal([1, 2, 3])
+            .number()
+            .gt(0)
+            .lt(360)
             .optional()
-            .describe("Quarter turns clockwise (y down); omitted is 0."),
+            .describe("Degrees clockwise (y down), in (0, 360); omitted is 0."),
           flip: z
             .literal(true)
             .optional()
@@ -572,7 +579,7 @@ function buildOpSchemas(registry: Registry) {
             .describe("Values of the prefab's exposed parameters, by name."),
         })
         .describe(
-          "An instance as in the scene file: `prefab`, `at`, and optionally `id`, `rot`, `flip`, `z`, `params`, `overrides`, `name`, `layer`, `group`, `off`.",
+          "An instance as in the scene file: `prefab`, `at`, and optionally `id`, `rot`, `flip`, `z`, `params`, `overrides`, `name`, `layer`, `parent`, `off`.",
         ),
       index: IndexSchema.optional(),
     })
@@ -632,8 +639,8 @@ function buildOpSchemas(registry: Registry) {
         SetSceneOp,
         SetSettingsOp,
         ReorderOp,
+        ReparentOp,
         InstantiateOp,
-        SetGroupOp,
         OverrideOp,
         RevertOverrideOp,
         ApplyToPrefabOp,
@@ -734,6 +741,8 @@ export function opRefs(op: SceneOp): Ref[] {
       return op.refs;
     case "transform":
       return op.refs ?? [];
+    case "reparent":
+      return op.parent === null ? op.refs : [...op.refs, op.parent];
     default:
       return [];
   }

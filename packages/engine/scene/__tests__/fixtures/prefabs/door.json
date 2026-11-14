@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "door",
   "instances": [
     { "id": "latch", "prefab": "gate", "at": [40, 0] }

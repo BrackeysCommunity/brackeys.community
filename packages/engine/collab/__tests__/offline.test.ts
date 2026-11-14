@@ -31,17 +31,17 @@ function gameYard(): SceneDefinition {
     bounds: [0, 0, 1000, 1000],
     settings: { grid: { kind: "square", cell: [32, 32] } },
     assets: ["boom"],
-    groups: { g: { at: [100, 100] } },
     instances: [{ id: "room-1", prefab: "room", at: [200, 200], params: { tint: 1 } }],
     entities: [
       {
         id: "lamp",
         type: "lamp",
         at: [10, 0],
-        group: "g",
+        parent: "g",
         behaviors: { "test-game/glow": { intensity: 3 } },
       },
       { id: "floor", type: "paint", at: [0, 640], cells: { "0,0": ["1*4"] } },
+      { id: "g", type: "node", at: [100, 100] },
     ],
   };
 }
@@ -95,13 +95,13 @@ describe("offline", () => {
     expect(text(a)).toBe(text(b));
   });
 
-  it("offline edits to assets, group and instance transforms, params, behaviors and paint merge", () => {
+  it("offline edits to assets, node and instance transforms, params, behaviors and paint merge", () => {
     const [a, b] = pair(gameYard());
     const paint = (cells: [number, number, number][]): OpBatch => ({
       ops: [{ op: "paintCells", ref: "floor", field: "cells", cells }],
     });
     edit(a, { ops: [{ op: "useAssets", add: ["hud"] }] }, ada);
-    edit(a, { ops: [{ op: "setGroup", id: "g", rot: 1 }] }, ada);
+    edit(a, { ops: [{ op: "update", ref: "g", set: { rot: 90 } }] }, ada);
     edit(a, { ops: [{ op: "update", ref: "room-1", set: { "params.tint": 2 } }] }, ada);
     edit(
       a,
@@ -111,7 +111,7 @@ describe("offline", () => {
     edit(a, paint([[0, 1, 3]]), ada);
 
     edit(b, { ops: [{ op: "useAssets", add: ["music"], remove: ["boom"] }] }, bo);
-    edit(b, { ops: [{ op: "setGroup", id: "g", at: [50, 50] }] }, bo);
+    edit(b, { ops: [{ op: "update", ref: "g", set: { at: [50, 50] } }] }, bo);
     edit(b, { ops: [{ op: "update", ref: "room-1", set: { "params.speed": 7 } }] }, bo);
     edit(b, { ops: [{ op: "transform", refs: ["room-1"], flip: "x" }] }, bo);
     edit(b, { ops: [{ op: "setZ", refs: ["room-1"], z: -2 }] }, bo);
@@ -135,7 +135,7 @@ describe("offline", () => {
     expect(text(a)).toBe(text(b));
     const def = docToScene(a);
     expect(def.assets).toEqual(["hud", "music"]);
-    expect(def.groups).toEqual({ g: { at: [50, 50], rot: 1 } });
+    expect(entity(a, "g")).toEqual({ id: "g", type: "node", at: [50, 50], rot: 90 });
     expect(def.instances![0]).toMatchObject({ flip: true, z: -2, params: { tint: 2, speed: 7 } });
     expect(entity(a, "lamp")!.behaviors).toEqual({
       "test-game/glow": { intensity: 5, color: "#00ff00" },

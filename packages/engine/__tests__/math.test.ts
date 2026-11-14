@@ -14,6 +14,7 @@ import {
   rotate,
   scaleVec2,
 } from "../math";
+import * as scene from "../scene";
 import * as transform from "../scene/transform";
 
 describe("lerp", () => {
@@ -109,7 +110,7 @@ describe("scaleVec2", () => {
 
 describe("transform re-exports", () => {
   it("re-exports the scene's transform math", () => {
-    for (const name of Object.keys(transform)) {
+    for (const name of Object.keys(transform).filter((n) => n in scene)) {
       expect(math[name as keyof typeof math], name).toBe(transform[name as keyof typeof transform]);
     }
     expect(math.applyPt(math.dihedral({ rot: 1, flip: false }, [10, 0]), [1, 0])).toEqual([10, 1]);

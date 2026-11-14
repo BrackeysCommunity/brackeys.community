@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
 
 const lifetimeFields = {
   ticks: z.number().int().min(1).optional().describe("Ticks until it goes; give this or `ms`."),
@@ -23,8 +23,12 @@ const lifetimeFields = {
 /** A `lifetime` block as an entity carries it. */
 export type LifetimeBlock = z.infer<z.ZodObject<typeof lifetimeFields>>;
 
+/** Nothing beside `fields` yet. */
+export type LifetimeHandle = Record<never, never>;
+
 export const LIFETIME = defineBehavior({
   name: "lifetime",
+  handle: handleType<LifetimeHandle>(),
   description: "Destroys or disables the entity a time after it spawns or is enabled.",
   fields: lifetimeFields,
   template: { ticks: 60 },

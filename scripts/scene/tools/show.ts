@@ -5,14 +5,14 @@ import {
   aabb,
   bulkEntries,
   closest,
+  compose,
   decodeRow,
-  dihedralOf,
   expandScene,
+  frameOf,
   geometryFields,
   gridCellBounds,
-  groupOrigin,
-  instanceOrigin,
-  instanceTransform,
+  IDENTITY_2D,
+  instanceSteps,
   isGridValue,
   parseShape,
   resolvePrefab,
@@ -25,10 +25,11 @@ import {
   topSpan,
   translateShape,
   type Aabb,
-  type Dihedral,
   type EntityDef,
   type GridCells,
   type ExpandedScene,
+  type InstanceDef,
+  type Orientation,
   type PathDef,
   type PrefabLibrary,
   type Pt,
@@ -36,15 +37,21 @@ import {
   type SceneDefinition,
   type ShapeObj,
   type ShapeTuple,
+  type Transform2D,
 } from "@jams/engine/scene";
 
 import { openScene, usage, type Tool } from "../context";
 import { roundBox, sceneProjectView } from "./render";
 import { projectEngine } from "./step";
 
-const addPt = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
-
-export type ShowInput = { scene?: string; ref?: string; type?: string; near?: string };
+export type ShowInput = {
+  scene?: string;
+  ref?: string;
+  type?: string;
+  near?: string;
+  /** Rows under their parents, depth first, each with its `depth`. */
+  tree?: boolean;
+};
 
 /** Rows past this are left out and the report says `truncated`; filters narrow it. */
 export const MAX_ROWS = 200;
@@ -62,6 +69,8 @@ export type ShownEntity = {
   aabb?: Aabb;
   /** `[x0, x1, y]`, the walkable top edge, metres. */
   top?: [number, number, number];
+  /** The parent it names: an entity's or instance's own, an instance child's remapped under its instance. */
+  parent?: string;
   /** On an instance: the prefab it places. */
   prefab?: string;
   /** On an instance's child (`gate-3/door`, world coordinates): its instance. */
@@ -70,12 +79,21 @@ export type ShownEntity = {
   instancePath?: string[];
   /** On an instance: the instances nested in it at any depth, by ref below it (`door-1`, `door-1/latch`). */
   nested?: string[];
-  /** On a group member: the group's origin; `shape` and `at` are relative to it, the AABB isn't. */
+  /**
+   * On a parented entity or a child: where the frame its geometry is stored in
+   * stands in the world; `shape` and `at` are in that frame, the AABB isn't.
+   */
   origin?: Pt;
   /** Draw order: an entity's own, a child's with its instances' added, an instance's offset. */
   z?: number;
-  /** The world turn and flip its group and instances place it with; absent when there is none. */
-  transform?: Dihedral;
+  /**
+   * The world angle (degrees clockwise) and flip of the frame its geometry
+   * is stored in: its parent chain's; on an instance or an
+   * instance's child, the one it is placed with. Absent when there is none.
+   */
+  transform?: Orientation;
+  /** With `--tree`: how many parents are above it. */
+  depth?: number;
   /** On an instance: the parameter values it sets. */
   params?: Record<string, unknown>;
   /** On an instance: the parameters its prefab exposes, sorted. */
@@ -106,8 +124,11 @@ export type GridSummary = {
   bounds: { c0: number; r0: number; c1: number; r1: number } | null;
 };
 
-/** World points of rows whose stored `at` plus `origin` isn't one (members of a turned group). */
+/** World points of rows whose stored `at` is in a parent's frame. */
 const WORLD_AT = new WeakMap<ShownEntity, Pt>();
+
+/** The row each row sits under in `--tree`, as the resolver places it. */
+const TREE_PARENT = new WeakMap<ShownEntity, string>();
 
 export function gridSummary(grid: GridCells): GridSummary {
   let cells = 0;
@@ -116,7 +137,27 @@ export function gridSummary(grid: GridCells): GridSummary {
   return { cells, chunks: Object.keys(grid).length, bounds: gridCellBounds(grid) };
 }
 
-const isIdentity = (d: Dihedral | null | undefined): boolean => !d || (d.rot === 0 && !d.flip);
+const turns = (o: Orientation | undefined): o is Orientation => !!o && (o.rot !== 0 || o.flip);
+
+const composeSteps = (steps: readonly Transform2D[]): Transform2D =>
+  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
+
+/**
+ * The transforms that take an entity's stored geometry to the world,
+ * innermost first: its parent chain's read leniently as the
+ * resolver reads it (none for a root, a missing parent or the id a cycle
+ * drops).
+ */
+function storedSteps(
+  def: SceneDefinition,
+  e: EntityDef,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+): Transform2D[] {
+  if (e.parent === undefined) return [];
+  const item: InstanceDef = { id: e.id, prefab: "", at: [0, 0], parent: e.parent };
+  return instanceSteps(def, item, registry, prefabs).slice(1);
+}
 
 export function countEntities(scene: ExpandedScene): Record<string, number> {
   const counts: Record<string, number> = {};
@@ -133,11 +174,11 @@ function geometry(tuple: ShapeTuple, offset?: Pt): Pick<ShownEntity, "aabb" | "t
 }
 
 /** An entity's first shape, point and path fields come out as `shape`, `at` and the AABB; every other field is `extra`. */
-function entityRow(e: EntityDef, registry: Registry, origin?: Pt): ShownEntity {
-  const { id, type, material, z, behaviors, ...fields } = e;
+function entityRow(e: EntityDef, registry: Registry): ShownEntity {
+  const { id, type, material, z, behaviors, parent, ...fields } = e;
   const row: ShownEntity = { ref: id, type };
+  if (typeof parent === "string") row.parent = parent;
   if (typeof material === "string") row.material = material;
-  if (origin) row.origin = origin;
   if (typeof z === "number" && z !== 0) row.z = z;
   if (behaviors && typeof behaviors === "object" && Object.keys(behaviors).length > 0)
     row.behaviors = behaviors as Record<string, unknown>;
@@ -160,9 +201,7 @@ function entityRow(e: EntityDef, registry: Registry, origin?: Pt): ShownEntity {
   if (shapeField !== undefined) {
     row.shape = fields[shapeField] as ShapeTuple;
     delete fields[shapeField];
-    const first = path?.pts[0];
-    const offset = origin && first ? addPt(origin, first) : (origin ?? first);
-    Object.assign(row, geometry(row.shape, offset));
+    Object.assign(row, geometry(row.shape, path?.pts[0]));
   }
   if (Object.keys(fields).length > 0) row.extra = fields;
   return row;
@@ -221,14 +260,20 @@ function sceneRowsOf(
   }
   const resolved = resolveSceneDetailed(def, registry, prefabs);
   (def.entities ?? []).forEach((e, i) => {
-    const row = entityRow(e, registry, e.group ? groupOrigin(def, e.group) : undefined);
-    const origin = resolved.origins[i];
-    if (origin?.kind === "entity" && !isIdentity(origin.transform)) {
-      row.transform = origin.transform;
+    const row = entityRow(e, registry);
+    const steps = storedSteps(def, e, registry, prefabs);
+    if (steps.length > 0) {
+      const t = composeSteps(steps);
+      row.origin = [roundLength(t.tx), roundLength(t.ty)];
+      const turn = frameOf(t);
+      if (turns(turn)) row.transform = turn;
       const world = entityRow(resolved.def.entities![i]!, registry);
+      delete row.aabb;
+      delete row.top;
       if (world.aabb) row.aabb = world.aabb;
       if (world.top) row.top = world.top;
       if (world.at) WORLD_AT.set(row, world.at);
+      if (row.parent !== undefined) TREE_PARENT.set(row, row.parent);
     }
     rows.push(row);
   });
@@ -245,15 +290,22 @@ function sceneRowsOf(
       for (let n = 2; n <= o.path.length; n++) ids.add(o.path.slice(1, n).join("/"));
       nested.set(o.instance, ids);
     }
-    if (!isIdentity(o.transform)) row.transform = o.transform;
+    if (turns(o.transform)) row.transform = o.transform;
+    TREE_PARENT.set(row, row.instance);
     children.set(o.instance, [...(children.get(o.instance) ?? []), row]);
   });
   def.instances.forEach((inst, i) => {
-    const { id, prefab, at: _at, rot: _rot, flip: _flip, z, params, ...rest } = inst;
-    const row: ShownEntity = { ref: id, type: "instance", prefab, at: instanceOrigin(def, inst) };
+    const { id, prefab, at: _at, rot: _rot, flip: _flip, z, params, parent, ...rest } = inst;
+    const steps = instanceSteps(def, inst, registry, prefabs);
+    const t = composeSteps(steps);
+    const row: ShownEntity = { ref: id, type: "instance" };
+    if (parent !== undefined) row.parent = parent;
+    row.prefab = prefab;
+    row.at = [roundLength(t.tx), roundLength(t.ty)];
+    if (parent !== undefined && steps.length > 1) TREE_PARENT.set(row, parent);
     if (typeof z === "number" && z !== 0) row.z = z;
-    const turn = dihedralOf(instanceTransform(def, inst));
-    if (!isIdentity(turn)) row.transform = turn!;
+    const turn = frameOf(t);
+    if (turns(turn)) row.transform = turn;
     if (params && Object.keys(params).length > 0) row.params = params;
     const resolvedPrefab = prefabs ? resolvePrefab(prefab, prefabs, registry) : null;
     const exposed = resolvedPrefab?.ok ? Object.keys(resolvedPrefab.prefab.params) : [];
@@ -294,13 +346,42 @@ function distanceTo(row: ShownEntity, [x, y]: Pt): number {
     const dy = Math.max(row.aabb.minY - y, 0, y - row.aabb.maxY);
     return Math.hypot(dx, dy);
   }
-  const world = WORLD_AT.get(row);
-  if (world) return Math.hypot(world[0] - x, world[1] - y);
-  if (row.at) {
-    const [ox, oy] = row.origin ?? [0, 0];
-    return Math.hypot(row.at[0] + ox - x, row.at[1] + oy - y);
+  const at = WORLD_AT.get(row) ?? (row.origin ? undefined : row.at);
+  return at ? Math.hypot(at[0] - x, at[1] - y) : Infinity;
+}
+
+/**
+ * `rows` depth first under their parents, each given its `depth`: roots in
+ * row order, each followed by its children in row order. A row sits under
+ * the parent the resolver places it by; an instance's child under its
+ * parent in the prefab, else its instance.
+ */
+export function treeRows(rows: readonly ShownEntity[]): ShownEntity[] {
+  const known = new Set(rows.map((r) => r.ref));
+  const parentOf = (r: ShownEntity): string | undefined => {
+    if (r.instance !== undefined && r.parent !== undefined && known.has(r.parent)) return r.parent;
+    const p = TREE_PARENT.get(r);
+    return p !== undefined && known.has(p) ? p : undefined;
+  };
+  const kids = new Map<string, ShownEntity[]>();
+  const roots: ShownEntity[] = [];
+  for (const r of rows) {
+    const p = parentOf(r);
+    if (p === undefined) roots.push(r);
+    else kids.set(p, [...(kids.get(p) ?? []), r]);
   }
-  return Infinity;
+  const out: ShownEntity[] = [];
+  const seen = new Set<string>();
+  const visit = (r: ShownEntity, depth: number) => {
+    if (seen.has(r.ref)) return;
+    seen.add(r.ref);
+    r.depth = depth;
+    out.push(r);
+    for (const k of kids.get(r.ref) ?? []) visit(k, depth + 1);
+  };
+  for (const r of roots) visit(r, 0);
+  for (const r of rows) visit(r, 0);
+  return out;
 }
 
 /** `x0,y0..x1,y1 m`. */
@@ -338,7 +419,9 @@ function rowLine(r: ShownEntity): string {
   const shape = r.shape ? ` ${JSON.stringify(r.shape)}` : "";
   const mat = r.material ? `:${r.material}` : "";
   const of = r.prefab ? ` of ${r.prefab}` : "";
-  const turn = r.transform ? ` turn ${r.transform.rot}${r.transform.flip ? " flip" : ""}` : "";
+  const parent = r.parent !== undefined ? ` parent ${r.parent}` : "";
+  const origin = r.origin ? ` in ${r.origin.join(",")} m` : "";
+  const turn = r.transform ? ` rot ${r.transform.rot}${r.transform.flip ? " flip" : ""}` : "";
   const z = r.z !== undefined ? ` z ${r.z}` : "";
   const params = r.params ? ` params ${JSON.stringify(r.params)}` : "";
   const exposes = r.exposes ? ` exposes ${r.exposes.join(",")}` : "";
@@ -352,8 +435,9 @@ function rowLine(r: ShownEntity): string {
       return ` ${field} ${cells} cells${span}`;
     })
     .join("");
-  const geometry = `${shape}${at}${turn}${z}${box}${top}`;
-  return `${r.ref}  ${r.type}${of}${mat}${geometry}${params}${exposes}${nested}${behaviors}${sprite}${grids}`;
+  const geometry = `${shape}${at}${origin}${turn}${z}${box}${top}`;
+  const indent = "  ".repeat(r.depth ?? 0);
+  return `${indent}${r.ref}  ${r.type}${of}${mat}${parent}${geometry}${params}${exposes}${nested}${behaviors}${sprite}${grids}`;
 }
 
 export const show: Tool<ShowInput> = async (input, ctx) => {
@@ -369,7 +453,8 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     );
   }
 
-  const all = sceneRows(def, registry, prefabs, await sceneProjectView(loaded.project));
+  const flat = sceneRows(def, registry, prefabs, await sceneProjectView(loaded.project));
+  const all = input.tree ? treeRows(flat) : flat;
   const engine = await projectEngine(loaded.project, registry);
   const { kind, rate, catchUp, wakeOnPointerMove } = resolveTime({
     project: engine,

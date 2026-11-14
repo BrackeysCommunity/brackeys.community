@@ -15,13 +15,26 @@ export type { EntityOf } from "./define";
 export {
   BEHAVIOR_NAME_PATTERN,
   defineBehavior,
+  handleType,
   type BehaviorBlock,
   type BehaviorDef,
   type BehaviorName,
   type BehaviorSystem,
   type BehaviorSystemFactory,
+  type BlockOf,
+  type Bound,
+  type HandleType,
   type RegisteredBehavior,
 } from "./behaviors";
+export type { BehaviorKey, Entity, HandleOf } from "./entity";
+export {
+  defineScript,
+  Script,
+  type ScriptClass,
+  type ScriptDef,
+  type ScriptHooks,
+  type ScriptSelf,
+} from "./script";
 export {
   SPRITE,
   SPRITE_FALLBACK_SIZE,
@@ -30,21 +43,36 @@ export {
   type SpriteAssetInfo,
   type SpriteBlock,
   type SpriteGeometry,
+  type SpriteHandle,
 } from "./behaviors/sprite";
-export { OCCUPANT, type OccupantBlock } from "./behaviors/occupant";
-export { LIFETIME, type LifetimeBlock } from "./behaviors/lifetime";
-export { COLLIDER, type ColliderBlock, type ColliderSystem } from "./behaviors/collider";
-export { BODY, BODY_KINDS, type BodyBlock, type BodyKind } from "./behaviors/body";
-export { PLAYER_INPUT, type PlayerInputBlock } from "./behaviors/player-input";
+export { OCCUPANT, type OccupantBlock, type OccupantHandle } from "./behaviors/occupant";
+export { LIFETIME, type LifetimeBlock, type LifetimeHandle } from "./behaviors/lifetime";
+export {
+  COLLIDER,
+  type ColliderBlock,
+  type ColliderHandle,
+  type ColliderSystem,
+} from "./behaviors/collider";
+export { BODY, BODY_KINDS, type BodyBlock, type BodyHandle, type BodyKind } from "./behaviors/body";
+export {
+  PLAYER_INPUT,
+  type PlayerInputBlock,
+  type PlayerInputHandle,
+} from "./behaviors/player-input";
 export {
   CHARACTER_TOP_DOWN,
+  type CharacterHandle,
   type CharacterIntent,
   type CharacterSystem,
   type CharacterTopDownBlock,
 } from "./behaviors/character-top-down";
 export { CHARACTER_SIDE_VIEW, type CharacterSideViewBlock } from "./behaviors/character-side-view";
-export { CAMERA_TARGET, type CameraTargetBlock } from "./behaviors/camera-target";
-export { ANIM, type AnimBlock } from "./behaviors/anim";
+export {
+  CAMERA_TARGET,
+  type CameraTargetBlock,
+  type CameraTargetHandle,
+} from "./behaviors/camera-target";
+export { ANIM, type AnimBlock, type AnimHandle } from "./behaviors/anim";
 export {
   EASE_NAMES,
   TWEEN,
@@ -52,9 +80,10 @@ export {
   type EaseName,
   type TweenBlock,
   type TweenChannel,
+  type TweenHandle,
   type TweenSpec,
 } from "./behaviors/tween";
-export { EMITTER, type EmitterBlock } from "./behaviors/emitter";
+export { EMITTER, type EmitterBlock, type EmitterHandle } from "./behaviors/emitter";
 export { ease } from "../anim/ease";
 export { overlapFrameShapes } from "../anim/shapes";
 export { clipFrameAt, resolveClips, type ClipSource, type ResolvedClip } from "../anim/clips";
@@ -75,14 +104,35 @@ export type {
   PresentedRequest,
   PresentRequest,
 } from "../runtime/present";
-export { SPAWNER, type SpawnerBlock, type SpawnerSystem } from "./behaviors/spawner";
-export { NAV_AGENT, type NavAgentBlock, type NavAgentSystem } from "./behaviors/nav-agent";
-export { PATH_FOLLOW, type PathFollowBlock, type PathFollowSystem } from "./behaviors/path-follow";
-export { FORCE_AREA, type ForceAreaBlock, type ForceAreaSystem } from "./behaviors/force-area";
+export {
+  SPAWNER,
+  type SpawnerBlock,
+  type SpawnerHandle,
+  type SpawnerSystem,
+} from "./behaviors/spawner";
+export {
+  NAV_AGENT,
+  type NavAgentBlock,
+  type NavAgentHandle,
+  type NavAgentSystem,
+} from "./behaviors/nav-agent";
+export {
+  PATH_FOLLOW,
+  type PathFollowBlock,
+  type PathFollowHandle,
+  type PathFollowSystem,
+} from "./behaviors/path-follow";
+export {
+  FORCE_AREA,
+  type ForceAreaBlock,
+  type ForceAreaHandle,
+  type ForceAreaSystem,
+} from "./behaviors/force-area";
 export {
   JOINT,
   JOINT_KINDS,
   type JointBlock,
+  type JointHandle,
   type JointKind,
   type JointSystem,
 } from "./behaviors/joint";
@@ -299,6 +349,7 @@ export type {
   Registry,
   RunResult,
   SceneSystem,
+  SceneTree,
   ScriptPredicate,
   SceneTemplate,
   SceneValidator,
@@ -382,6 +433,7 @@ export {
   createSolidSystem,
   drawEntity,
   forgetOneWayActor,
+  moveBodyNow,
   oneWayPasses,
   restoreOverlaps,
   saveOverlaps,
@@ -390,6 +442,7 @@ export {
 export type {
   OverlapTracker,
   Overlaps,
+  OwnedBody,
   SensorSystem,
   SolidOptions,
   SolidSystem,

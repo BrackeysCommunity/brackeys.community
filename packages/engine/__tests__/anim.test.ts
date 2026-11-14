@@ -839,7 +839,7 @@ describe("frame shapes", () => {
         { clip: "stance" },
         { flipX: true },
         {
-          transform: { turn: 0, flip: true },
+          transform: { rot: 0, flip: true },
         },
       ),
       brawler("lifted", [2, 1], { clip: "stance" }, { offset: [0, -0.5] }),

@@ -22,6 +22,12 @@ export const TEMPLATE: SceneTemplate = {
         "camera-target": {},
       },
     },
-    { id: "goal", type: "sensor", shape: ["box", 6.75, 3.5, 0.5, 0.5], tags: ["goal"] },
+    {
+      id: "goal",
+      type: "sensor",
+      shape: ["box", 6.75, 3.5, 0.5, 0.5],
+      tags: ["goal"],
+      behaviors: { "demo/goal": {} },
+    },
   ],
 };

@@ -15,7 +15,7 @@ import {
 } from "../../game/fields";
 import type { Registry, Side } from "../../game/types";
 import { transformGrid } from "../grid";
-import { applyPt, applyVec, dihedral, IDENTITY_2D, type Dihedral } from "../transform";
+import { applyPt, applyVec, dihedral, frame, IDENTITY_2D, type Dihedral } from "../transform";
 import {
   transformBulkEntry,
   transformEntityDef,
@@ -132,6 +132,67 @@ describe("transformFieldValue: each kind under each element", () => {
     const scale = { ...IDENTITY_2D, a: 2 };
     expect(transformFieldValue(schemas.point, [1, 1], scale)).toEqual([2, 1]);
     expect(() => transformFieldValue(schemas.angle, 0, scale)).toThrow(/quarter turns/);
+  });
+});
+
+describe("transformFieldValue: each kind at any angle", () => {
+  const micro = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
+  const placed = (t: ReturnType<typeof frame>, p: Pt): Pt => applyPt(t, p).map(micro) as Pt;
+  for (const rot of [30, 90, 135]) {
+    for (const flip of [false, true]) {
+      const t = frame({ at: AT, rot, flip });
+      const quarter = rot % 90 === 0;
+      it(`${rot}°${flip ? " flipped" : ""}`, () => {
+        expect(transformFieldValue(schemas.point, [3, 4], t)).toEqual(placed(t, [3, 4]));
+        const path = { pts: [[0, 0] as Pt, [10, 5] as Pt], mode: "loop", speed: 2 };
+        expect(transformFieldValue(schemas.path, path, t)).toEqual({
+          ...path,
+          pts: path.pts.map((p) => placed(t, p)),
+        });
+        expect(transformFieldValue(schemas.vector, [3, 4], t)).toEqual(
+          applyVec(t, [3, 4]).map(micro),
+        );
+        expect(transformFieldValue(schemas.angle, 10, t)).toBe(micro((flip ? -10 : 10) + rot));
+        expect(transformFieldValue(schemas.mirror, false, t)).toBe(flip);
+        const box: ShapeTuple = ["box", 3, 4, 2, 1, 10];
+        const [cx, cy] = placed(t, [3, 4]);
+        expect(transformFieldValue(schemas.shape, box, t)).toEqual([
+          "box",
+          cx,
+          cy,
+          2,
+          1,
+          micro(((((flip ? -10 : 10) + rot) % 360) + 360) % 360),
+        ]);
+        expect(transformFieldValue(schemas.shape, ["circle", 3, 4, 1], t)).toEqual([
+          "circle",
+          cx,
+          cy,
+          1,
+        ]);
+        // sides and grids turn by quarter turns only
+        const side = transformFieldValue(schemas.side, "up", t);
+        expect(side).toBe(quarter ? "right" : "up");
+        vi.mocked(transformGrid).mockClear();
+        const grid = { "0,0": ["1"] };
+        const out = transformFieldValue(schemas.grid, grid, t);
+        if (quarter) expect(transformGrid).toHaveBeenCalledOnce();
+        else {
+          expect(out).toBe(grid);
+          expect(transformGrid).not.toHaveBeenCalled();
+        }
+      });
+    }
+  }
+
+  it("rounds off the quarter turns, so the same file places the same numbers", () => {
+    const t = frame({ at: [0.1, 0.2], rot: 30, flip: false });
+    const [x, y] = transformFieldValue(schemas.point, [1.3, 2.7], t) as Pt;
+    expect([micro(x), micro(y)]).toEqual([x, y]);
+    expect(x).not.toBe(applyPt(t, [1.3, 2.7])[0]);
+    expect(
+      transformFieldValue(schemas.angle, 0.1, frame({ at: [0, 0], rot: 1 / 3, flip: false })),
+    ).toBe(micro(0.1 + 1 / 3));
   });
 });
 

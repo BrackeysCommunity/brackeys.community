@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
 import { seatField } from "./player-input";
 
 const cameraTargetFields = {
@@ -28,8 +28,12 @@ const cameraTargetFields = {
 /** A `camera-target` block as an entity carries it, defaults applied. */
 export type CameraTargetBlock = z.infer<z.ZodObject<typeof cameraTargetFields>>;
 
+/** Nothing beside `fields` yet. */
+export type CameraTargetHandle = Record<never, never>;
+
 export const CAMERA_TARGET = defineBehavior({
   name: "camera-target",
+  handle: handleType<CameraTargetHandle>(),
   description:
     "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
   fields: cameraTargetFields,

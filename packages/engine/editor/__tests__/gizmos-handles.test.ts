@@ -4,6 +4,7 @@ import { createRegistry } from "../../game/define";
 import type { EntityDef, Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import {
+  frameHandles,
   gizmoTarget,
   HANDLE_HIT_PX,
   HANDLE_PX,
@@ -14,6 +15,7 @@ import {
   STALK_PX,
   targetHandles,
 } from "../gizmos";
+import * as tree from "../gizmos/__tests__/tree-fixture";
 import type { GizmoHandle } from "../tools";
 
 const registry = createRegistry();
@@ -194,5 +196,33 @@ describe("selectionHandles", () => {
       ["move", [50, 25]],
       ["rotate", [50, -STALK_PX]],
     ]);
+  });
+});
+
+describe("frame handles", () => {
+  const frameTarget = (ref: string) => gizmoTarget(tree.view, tree.registry, ref, tree.source)!;
+
+  it("gives an instance and a node a move handle at the origin and a rotate stalk", () => {
+    for (const ref of ["turret-a", "tilt"]) {
+      const t = frameTarget(ref);
+      const hs = targetHandles(t, { scale: S });
+      expect(ids(hs)).toEqual(["move", "rotate"]);
+      expect(hs[0]!.at).toEqual(t.frame!.at);
+      expect(hs[1]).toMatchObject({ kind: "rotate", cursor: "grab", stalk: t.frame!.at });
+      // The stalk clears the box over the subtree by the stalk's length, straight up.
+      expectAt(hs[1]!.at, [t.frame!.at[0], t.box!.minY - STALK_PX / S]);
+    }
+  });
+
+  it("points the stalk along the frame's up, out past what sits under it", () => {
+    const hs = frameHandles({ at: [0, 0], rot: 90 }, { minX: -1, minY: -1, maxX: 2, maxY: 1 }, S);
+    // Turned a quarter clockwise, the frame's up is world +x.
+    expectAt(hs[1]!.at, [2 + STALK_PX / S, 0]);
+    expect(hs[1]!.stalk).toEqual([0, 0]);
+  });
+
+  it("puts a lone node's rotate handle one stalk above it", () => {
+    const hs = frameHandles({ at: [3, 3], rot: 0 }, undefined, S);
+    expectAt(hs[1]!.at, [3, 3 - STALK_PX / S]);
   });
 });

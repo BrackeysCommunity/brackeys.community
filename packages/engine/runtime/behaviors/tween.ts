@@ -8,12 +8,10 @@ import {
   type TweenValues,
 } from "../../anim/tweens";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
-import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import { SPRITE } from "../../game/behaviors/sprite";
 import {
   isLookChannel,
   isPoseChannel,
-  ridingHost,
   TWEEN,
   tweenBlockProblems,
   tweenChannels,
@@ -34,6 +32,7 @@ import {
 import { isPlainObject } from "../../project/kinds/define";
 import type { RuntimeEntity } from "../../scene/types";
 import { plainJsonProblem } from "../persist";
+import { relativePose, type Pose } from "../poses";
 import { currentPose } from "../spawn-pose";
 import { spriteLook, type SpriteLook, type SpriteSystem } from "./sprite";
 
@@ -127,10 +126,12 @@ function parsedSpec(spec: unknown, entityId?: string): TweenSpec {
 /**
  * The `tween` system. Each tick, at its place in registration order, every
  * live tween whose owner is enabled moves on one whole tick. Pose channels
- * go through the owner type's `setPose` (a `collider` block it carries is
- * rebuilt where it now is), visual channels through the sprite system's
- * `style` when there is a view, and both are read back from the run, so a
- * later tween starts where an earlier one left off. The end of a tween
+ * go through `ctx.setPose`, so what the entity carries moves with it; for
+ * an entity with a parent they are its pose in the parent's frame and go
+ * through `ctx.tree.setLocal`, so it keeps its offset as the parent moves.
+ * Visual channels through the sprite system's `style` when there is a
+ * view, and both are read back from the run, so a later tween starts
+ * where an earlier one left off. The end of a tween
  * raises its `emit`, else `tween:end`.
  */
 export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
@@ -140,7 +141,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
   const paused = new Set<string>();
   /** Visual channel values tweens wrote, by entity: held headless too. */
   const looks = new Map<string, SpriteLook>();
-  /** The entities whose pose tweens wrote, so a restore rebuilds their `collider` blocks there. */
+  /** The entities whose pose tweens wrote, so a restore moves what they carry there. */
   const posed = new Set<string>();
   let next = 1;
 
@@ -200,15 +201,10 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     return add({ state: stateOf(spec, defined(spec.to)!, defined(spec.from), owner, index) });
   }
 
-  /** What `e` is to a tween: posable when its type's system has `setPose`, riding the host its attach field names. */
+  /** What `e` is to a tween: posable when its type's system has `setPose`. */
   function targetOf(e: RuntimeEntity): TweenTarget {
     const system = ctx.system<SceneSystem>(e.type);
-    const host = ridingHost(ctx.registry.types.get(e.type), e);
-    return {
-      type: e.type,
-      posable: typeof system?.setPose === "function",
-      ...(host !== undefined ? { riding: host } : {}),
-    };
+    return { type: e.type, posable: typeof system?.setPose === "function" };
   }
 
   const sprited = (e: RuntimeEntity) => SPRITE.name in (e.behaviors ?? {});
@@ -284,19 +280,21 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     blocks.delete(id);
   }
 
+  /** The pose a tween's pose channels read and write: in the parent's frame for a child, else the world pose. */
+  function tweenPose(id: string): { parent: string | null; pose: Pose } {
+    const parent = ctx.tree.parent(id);
+    if (parent === null) return { parent, pose: currentPose(ctx, id) };
+    const local =
+      ctx.tree.local(id) ?? relativePose(currentPose(ctx, id), currentPose(ctx, parent));
+    return { parent, pose: local };
+  }
+
   function current(id: string, channel: string): number {
-    if (channel === "x" || channel === "y" || channel === "rot")
-      return currentPose(ctx, id)[channel];
+    if (channel === "x" || channel === "y" || channel === "rot") return tweenPose(id).pose[channel];
     const held = looks.get(id)?.[channel as keyof SpriteLook];
     if (held !== undefined) return held;
     const e = ctx.get(id);
     return e ? spriteLook(ctx, e)[channel as keyof SpriteLook] : 0;
-  }
-
-  /** Rebuilds the `collider` block `id` carries where the entity is now. */
-  function rebuildCollider(id: string): void {
-    const colliders = ctx.behavior<ColliderSystem>(COLLIDER.name);
-    if (colliders?.has(id)) colliders.rebuild(id);
   }
 
   function apply(id: string, values: TweenValues): void {
@@ -310,10 +308,11 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     }
     const owner = ctx.system<SceneSystem>(e.type);
     if (moves && owner?.setPose) {
-      const p = currentPose(ctx, id);
-      owner.setPose(id, values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot);
+      const { parent, pose: p } = tweenPose(id);
+      const [x, y, rot] = [values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot];
+      if (parent === null) ctx.setPose(id, x, y, rot);
+      else ctx.tree.setLocal(id, x, y, rot);
       posed.add(id);
-      rebuildCollider(id);
     }
     if (Object.keys(look).length > 0) {
       looks.set(id, { ...looks.get(id), ...look });
@@ -366,7 +365,8 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     for (const [id, look] of looks) if (ctx.get(id)) held[id] = { ...look };
     const anyLook = Object.keys(held).length > 0;
     const moved = [...posed].filter((id) => ctx.get(id));
-    if (states.length === 0 && blocks.size === 0 && !anyLook && moved.length === 0)
+    // Once a tween has started, `next` alone keeps later tween ids matching the unsaved run's.
+    if (states.length === 0 && blocks.size === 0 && !anyLook && moved.length === 0 && next <= 1)
       return undefined;
     return {
       next,
@@ -430,8 +430,11 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     posed.clear();
     for (const id of Array.isArray(got.posed) ? got.posed : [])
       if (typeof id === "string" && ctx.get(id)) posed.add(id);
-    // A fresh load built each collider block where its entity spawned.
-    for (const id of posed) rebuildCollider(id);
+    // A fresh load built what each entity carries where it spawned.
+    for (const id of posed) {
+      const p = ctx.poses.get(id);
+      if (p) ctx.setPose(id, p.x, p.y, p.rot);
+    }
     for (const { state } of tweens.values())
       if (state.owner !== undefined && tweenStarted(state)) apply(state.owner, tweenValues(state));
   }
@@ -512,6 +515,10 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     cancelAll(entityId) {
       for (const [id, r] of tweens) if (r.state.owner === entityId) tweens.delete(id);
     },
+    handle: (id) => ({
+      to: (spec: TweenSpec) => system.to(id, spec),
+      cancelAll: () => system.cancelAll(id),
+    }),
     pending: () => tweens.size,
     ownerDestroyed(entityId) {
       system.cancelAll(entityId);

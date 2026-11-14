@@ -8,6 +8,7 @@
     { "scene": "kitchen-sink", "title": "Kitchen sink" },
     { "scene": "grid-yard", "title": "Grid yard" },
     { "scene": "behavior-yard", "title": "Behavior yard" },
-    { "scene": "grid-annex", "sublevel": true, "title": "Grid annex" }
+    { "scene": "grid-annex", "sublevel": true, "title": "Grid annex" },
+    { "scene": "tree-yard", "title": "Tree yard" }
   ]
 }

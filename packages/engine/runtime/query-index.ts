@@ -1,3 +1,4 @@
+import type { BehaviorName } from "../game/behaviors";
 import type { EngineContext, EntityQuery, EntitySelector } from "../game/types";
 import { geometryFields, tagFieldsOf } from "../scene/schema";
 import {
@@ -31,6 +32,8 @@ type Slot = {
   seq: number;
   enabled: boolean;
   tags: ReadonlySet<string>;
+  /** The behaviors whose blocks the record carries. */
+  behaviors: ReadonlySet<BehaviorName>;
   spawn: Pose;
   /** The entity's shape where it spawned, in world px; none for an entity without one. */
   shape: ShapeObj | undefined;
@@ -73,7 +76,7 @@ const isConcave = (s: ShapeObj | undefined) =>
   s?.type === "poly" && s.pts.length >= 3 && !isConvex(s.pts);
 
 /**
- * Entities by type, tag, area, point and nearness, over the pose index and
+ * Entities by type, tag, behavior, ancestor, area, point and nearness, over the pose index and
  * each entity's shape: never the physics or geometry world, so both
  * backends answer alike. Extents refresh lazily, for the entities whose
  * pose changed since they were last computed: from the first area query
@@ -84,6 +87,8 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
   const slots = new Map<string, Slot>();
   const byType = new Map<EntityTypeName, Set<string>>();
   const byTag = new Map<string, Set<string>>();
+  const byBehavior = new Map<BehaviorName, Set<string>>();
+  const none: ReadonlySet<string> = new Set();
   const hash = createSpatialHash<string>();
   const geometry = new Map<EntityTypeName, { fields: GeometryFields; tags: string[] }>();
   let nextSeq = 0;
@@ -122,6 +127,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
   function unindex(slot: Slot): void {
     leave(byType, slot.type, slot.id);
     for (const tag of slot.tags) leave(byTag, tag, slot.id);
+    for (const name of slot.behaviors) leave(byBehavior, name, slot.id);
   }
 
   /** The shape at spawn moved rigidly by the pose's change since: translated, and turned about the spawn pose. */
@@ -169,7 +175,18 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
     if (type !== undefined) {
       if (typeof type === "string" ? slot.type !== type : !type.includes(slot.type)) return false;
     }
-    return sel?.tag === undefined || slot.tags.has(sel.tag);
+    if (sel?.behavior !== undefined && !slot.behaviors.has(sel.behavior)) return false;
+    if (sel?.tag !== undefined && !slot.tags.has(sel.tag)) return false;
+    return sel?.under === undefined || below(slot.id, sel.under);
+  }
+
+  /** Whether `id` is one of `ancestor`'s descendants. */
+  const below = (id: string, ancestor: string) => id !== ancestor && ctx.tree.isUnder(id, ancestor);
+
+  /** `ancestor`'s descendants; none for an id that isn't live. */
+  function descendants(ancestor: string): ReadonlySet<string> {
+    const ids = ctx.tree.subtree(ancestor);
+    return ids.length > 1 ? new Set(ids.slice(1)) : none;
   }
 
   /** The slots of `ids` that match, in spawn order. */
@@ -182,10 +199,18 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
     return out.sort((a, b) => a.seq - b.seq);
   }
 
+  /** The smallest index set the selector names, or every slot when it names none. */
   function candidates(sel: EntitySelector | undefined): Iterable<string> {
-    if (sel?.tag !== undefined) return byTag.get(sel.tag) ?? [];
-    if (typeof sel?.type === "string") return byType.get(sel.type) ?? [];
-    return slots.keys();
+    let best: ReadonlySet<string> | undefined;
+    const narrow = (set: ReadonlySet<string> | undefined) => {
+      const s = set ?? none;
+      if (!best || s.size < best.size) best = s;
+    };
+    if (sel?.tag !== undefined) narrow(byTag.get(sel.tag));
+    if (sel?.behavior !== undefined) narrow(byBehavior.get(sel.behavior));
+    if (typeof sel?.type === "string") narrow(byType.get(sel.type));
+    if (sel?.under !== undefined) narrow(descendants(sel.under));
+    return best ?? slots.keys();
   }
 
   const ids = (list: Slot[]) => list.map((s) => s.id);
@@ -258,6 +283,8 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
         const value = e[field];
         if (Array.isArray(value)) for (const t of value) if (typeof t === "string") tags.add(t);
       }
+      const behaviors = new Set<BehaviorName>();
+      for (const [name, block] of Object.entries(e.behaviors ?? {})) if (block) behaviors.add(name);
       const spawn = spawnPoseOf(e, fields);
       let local: ShapeObj | undefined;
       for (const { field, kind } of fields) {
@@ -279,6 +306,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
         seq: was?.seq ?? nextSeq++,
         enabled: was?.enabled ?? true,
         tags,
+        behaviors,
         spawn,
         shape,
         concave: isConcave(shape),
@@ -289,6 +317,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       if (tracking) stale.add(e.id);
       join(byType, e.type, e.id);
       for (const tag of tags) join(byTag, tag, e.id);
+      for (const name of behaviors) join(byBehavior, name, e.id);
     },
     removed(id) {
       const slot = slots.get(id);
@@ -306,6 +335,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       slots.clear();
       byType.clear();
       byTag.clear();
+      byBehavior.clear();
       hash.clear();
       geometry.clear();
       stale.clear();

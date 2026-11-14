@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
+import type { Registry } from "../../game/types";
 import { engineHomeRegistry } from "../../project/__tests__/fixtures/engine-home";
 import { PREFAB_SCENE_OPS } from "../../project/ops";
 import {
@@ -19,13 +20,31 @@ import {
 } from "../../scene/__tests__/fixtures/random-ops";
 import { formatScene } from "../../scene/format";
 import { sceneHash } from "../../scene/hash";
+import { sceneFrames } from "../../scene/resolve";
 import type { EntityDef, PrefabLibrary, SceneDefinition, SceneOp } from "../../scene/types";
 import { readPrefabFiles } from "../../vite/project-files";
 import { applyOpsToDoc } from "../apply";
 import { docLayout, docPrefabs, docToScene, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
+import { staticPrefabSource } from "../prefab-source";
 import { COLLAB_LAYOUT_VERSION, type SceneOrigin } from "../types";
+import { validateDoc } from "../watch-issues";
 import { SimNetwork } from "./sim-network";
+
+/** Each entity and instance's parent as the resolver reads it, only where it has one. */
+function treeOf(
+  def: SceneDefinition,
+  reg: Registry,
+  prefabs: PrefabLibrary,
+): Record<string, string> {
+  const frames = sceneFrames(def, reg, prefabs);
+  const out: Record<string, string> = {};
+  for (const { id } of [...(def.entities ?? []), ...(def.instances ?? [])]) {
+    const parent = frames.parentOf(id);
+    if (parent !== undefined) out[id] = parent;
+  }
+  return out;
+}
 
 /**
  * What a counted op is: its name; `decor` for an add of one; `sprite` for an
@@ -41,6 +60,7 @@ function opKind(op: SceneOp): string {
 
 const SPRITE_KINDS = ["sprite", "decor"];
 const V3_KINDS = ["transform", "setZ", "useAssets", "paintCells", "behavior", "setParam"];
+const TREE_KINDS = ["reparent"];
 
 const scenesDir = new URL("../../scenes/", import.meta.url);
 const sinkRegistry = engineHomeRegistry();
@@ -70,28 +90,35 @@ describe("convergence fuzz", () => {
       "engine-yard",
       engine,
       engineYard,
-      ["transform", "setZ", "useAssets", "setParam", ...SPRITE_KINDS],
+      ["transform", "setZ", "useAssets", "setParam", ...SPRITE_KINDS, ...TREE_KINDS],
       yards,
     ],
     [
       "the fake game's yard",
       fake,
       fakeYard,
-      ["transform", "setZ", "useAssets", "setParam", ...SPRITE_KINDS],
+      ["transform", "setZ", "useAssets", "setParam", ...SPRITE_KINDS, ...TREE_KINDS],
       yards,
     ],
-    ["the test game's yard", testGameRegistry, testGameYard, [...V3_KINDS, ...SPRITE_KINDS], yards],
+    [
+      "the test game's yard",
+      testGameRegistry,
+      testGameYard,
+      [...V3_KINDS, ...SPRITE_KINDS, ...TREE_KINDS],
+      yards,
+    ],
     [
       "the kitchen sink",
       sinkRegistry,
       sink,
-      ["transform", "setZ", "useAssets", "setParam", ...SPRITE_KINDS],
+      ["transform", "setZ", "useAssets", "setParam", ...SPRITE_KINDS, ...TREE_KINDS],
       () => sinkPrefabs,
     ],
   ] as const) {
     // Prefab ops write prefab docs of their own; prefab-doc.test.ts covers how those merge.
     it(`random batches, delivery order, partitions and reconnects converge: ${label}`, () => {
       let batches = 0;
+      let parented = 0;
       const landed = new Map<string, number>();
       for (let seed = 1; seed <= 24; seed++) {
         const rand = rng(seed * 7919);
@@ -100,7 +127,7 @@ describe("convergence fuzz", () => {
         const prefabs = prefabsOf(yard().game);
         const sceneOp = (def: ReturnType<typeof docToScene>): SceneOp => {
           for (;;) {
-            const op = randomOp(reg, def, rand, prefabs, { v3: true });
+            const op = randomOp(reg, def, rand, prefabs, { v3: true, tree: true });
             if (!PREFAB_SCENE_OPS.includes(op.op)) return op;
           }
         };
@@ -136,12 +163,21 @@ describe("convergence fuzz", () => {
         }
         const texts = net.docs.map((d) => formatScene(docToScene(d)).text);
         const hashes = net.docs.map((d) => sceneHash(docToScene(d)));
+        const trees = net.docs.map((d) => treeOf(docToScene(d), reg, prefabs));
+        const issues = net.docs.map((d) =>
+          validateDoc(d, reg, { prefabs: staticPrefabSource(prefabs) }),
+        );
         for (let i = 1; i < clients; i++) {
           expect(texts[i], `seed ${seed}, client ${i}`).toBe(texts[0]);
           expect(hashes[i]).toBe(hashes[0]);
+          expect(trees[i], `seed ${seed}, client ${i}: the tree`).toEqual(trees[0]);
+          expect(issues[i], `seed ${seed}, client ${i}: the issues`).toEqual(issues[0]);
         }
+        const linked = Object.keys(trees[0]!).length;
+        if (linked > 0) parented++;
       }
       expect(batches).toBeGreaterThan(400);
+      expect(parented, "seeds that settle with a parent link").toBeGreaterThan(0);
       for (const kind of kinds)
         expect(landed.get(kind) ?? 0, `${kind} ops that landed`).toBeGreaterThan(10);
     }, 300_000);

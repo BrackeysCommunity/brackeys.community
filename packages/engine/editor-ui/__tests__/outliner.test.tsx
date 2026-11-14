@@ -15,13 +15,7 @@ import {
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
 import { createEditorSession, type SceneDefinition, type SceneIssue } from "../../editor/index";
-import {
-  createRegistry,
-  defineEntityType,
-  defineGame,
-  shapeField,
-  type Registry,
-} from "../../game/index";
+import { createRegistry, defineGame, type Registry } from "../../game/index";
 import type { AssetKey } from "../../project/index";
 import { prefabLibrary, SCENE_FORMAT_VERSION, type PrefabLibrary } from "../../scene/index";
 import { EditorFrame } from "../frame/EditorFrame";
@@ -41,7 +35,7 @@ function scene(): SceneDefinition {
     solid: [["box", 500, 1040, 500, 20]],
     entities: [
       { id: "zone", type: "sensor", shape: ["circle", 900, 600, 12], tags: ["goal"] },
-      { id: "gate", type: "sensor", shape: ["box", 300, 600, 20, 40], group: "doors" },
+      { id: "gate", type: "sensor", shape: ["box", 300, 600, 20, 40] },
       { id: "pad", type: "marker", at: [1000.005, 1010] },
     ],
   };
@@ -96,6 +90,8 @@ const rowNames = () =>
         ? text.replace(/\d+$/, "")
         : text;
     });
+const showView = (name: "Tree" | "Type" | "Layer") =>
+  fireEvent.click(outliner().getByRole("button", { name }));
 const filter = (query: string) =>
   fireEvent.change(outliner().getByLabelText("Filter rows"), { target: { value: query } });
 
@@ -108,16 +104,33 @@ beforeAll(() => {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const li = this.closest("li");
     const i = li ? [...(li.parentElement?.children ?? [])].indexOf(li) : -1;
+    if (!li && this.classList.contains("je-outliner-list"))
+      return DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 2000 });
     return DOMRect.fromRect(i < 0 ? {} : { x: 0, y: i * ROW_PX, width: 200, height: ROW_PX });
   });
 });
 afterAll(() => vi.restoreAllMocks());
 
-/** Drags `from` (a row button) onto the row named `to`, pointer-first as a mouse does it. */
-async function drag(from: HTMLElement, to: HTMLElement) {
+/**
+ * Drags `from` (a row button) onto the row `to`, pointer-first as a mouse
+ * does it: to its middle, its top edge, or (`to` null) the empty space
+ * below every row. `beforeRelease` sees the drag still held over its target.
+ */
+async function drag(
+  from: HTMLElement,
+  to: HTMLElement | null,
+  where: "middle" | "top" = "middle",
+  beforeRelease?: () => void,
+) {
   const a = from.getBoundingClientRect();
-  const b = to.getBoundingClientRect();
-  const at = (r: DOMRect) => ({ clientX: r.x + 50, clientY: r.y + r.height / 2 });
+  const rows = outliner().getAllByRole("listitem").length;
+  const b = to
+    ? to.getBoundingClientRect()
+    : DOMRect.fromRect({ x: 0, y: rows * ROW_PX + 40, width: 200, height: ROW_PX });
+  const at = (r: DOMRect) => ({
+    clientX: r.x + 50,
+    clientY: r.y + (where === "top" && r !== a ? 2 : r.height / 2),
+  });
   await act(async () => {
     fireEvent.pointerDown(from, { ...at(a), button: 0, isPrimary: true, pointerId: 1 });
   });
@@ -127,6 +140,7 @@ async function drag(from: HTMLElement, to: HTMLElement) {
   await act(async () => {
     fireEvent.pointerMove(document, { ...at(b), pointerId: 1 });
   });
+  beforeRelease?.();
   await act(async () => {
     fireEvent.pointerUp(document, { ...at(b), pointerId: 1 });
   });
@@ -146,6 +160,7 @@ afterEach(cleanup);
 describe("EditorOutliner", () => {
   it("filters by type:, shape:, has:problems and free text, with removable chips", () => {
     setup();
+    showView("Type");
     filter("type:sensor");
     expect(rowNames()).toEqual(["sensor", "zonecircle", "gatebox"]);
     expect(outliner().getByRole("button", { name: "Remove filter type:sensor" })).toBeTruthy();
@@ -227,7 +242,7 @@ describe("EditorOutliner", () => {
     session.destroy();
   });
 
-  it("lists rows by layer and group, and a drop onto a layer row moves the dragged rows in one batch", async () => {
+  it("lists rows by layer, and a drop onto a layer row moves the dragged rows in one batch", async () => {
     const { session, dispatch } = setup();
     fireEvent.click(outliner().getByRole("button", { name: "Layer" }));
     expect(rowNames()).toEqual([
@@ -235,9 +250,8 @@ describe("EditorOutliner", () => {
       "solid",
       "Decor",
       "Gameplay",
-      "doors",
-      "gatebox",
       "zonecircle",
+      "gatebox",
       "pad1000.005, 1010",
       "Editor",
     ]);
@@ -313,184 +327,9 @@ describe("EditorOutliner", () => {
     });
     expect(session.getDoc().entities!.find((e) => e.id === "stray")?.layer).toBe("ground");
   });
-
-  it("a drop onto a group row puts the row in that group", async () => {
-    const { session, dispatch } = setup();
-    fireEvent.click(outliner().getByRole("button", { name: "Layer" }));
-    await drag(
-      outliner().getByRole("button", { name: /^zone/ }),
-      outliner().getByRole("button", { name: /^doors/ }),
-    );
-    expect(dispatch).toHaveBeenCalledOnce();
-    expect(session.getDoc().entities![0]).toMatchObject({ id: "zone", group: "doors" });
-    expect(session.store.state.selection).toEqual([]);
-  });
-
-  it("a drop moves a prefab instance into a group", async () => {
-    const def: SceneDefinition = {
-      ...scene(),
-      v: SCENE_FORMAT_VERSION,
-      groups: { doors: { at: [0, 0] } },
-      instances: [{ id: "post-1", prefab: "post", at: [100, 900] }],
-    };
-    const posts = prefabLibrary([
-      {
-        kind: "prefab",
-        v: SCENE_FORMAT_VERSION,
-        id: "post",
-        entities: [{ id: "top", type: "marker", at: [0, 0] }],
-      },
-    ]);
-    const { session, dispatch } = setup(def, posts);
-    fireEvent.click(outliner().getByRole("button", { name: "Layer" }));
-    await drag(
-      outliner().getByRole("button", { name: /^post-1/ }),
-      outliner().getByRole("button", { name: /^doors/ }),
-    );
-    expect(dispatch).toHaveBeenCalledOnce();
-    expect(dispatch.mock.calls[0]![0]).toMatchObject({ label: "Group post-1 into doors" });
-    expect(session.getDoc().instances![0]).toMatchObject({ id: "post-1", group: "doors" });
-  });
 });
 
-describe("EditorOutliner attaching and nesting", () => {
-  const ride = (id: string, x: number) => ({
-    id,
-    type: "follower",
-    shape: ["box", x, 0, 10, 2] as const,
-    path: {
-      pts: [
-        [0, 0],
-        [50, 0],
-      ] as [number, number][],
-      mode: "loop" as const,
-      speed: 10,
-    },
-  });
-  const rides = (): SceneDefinition => ({
-    v: SCENE_FORMAT_VERSION,
-    name: "rides",
-    bounds: [0, 0, 1000, 1000],
-    entities: [
-      { id: "deck", type: "solid", shape: ["box", 100, 100, 20, 4] },
-      { id: "trip", type: "sensor", shape: ["box", 200, 100, 8, 8], attach: "lift" },
-      { ...ride("lift", 100), shape: ["box", 100, 0, 10, 2] },
-    ],
-    instances: [{ id: "gate-2", prefab: "gate", at: [500, 500] }],
-  });
-  const gates = prefabLibrary([
-    {
-      kind: "prefab",
-      v: SCENE_FORMAT_VERSION,
-      id: "gate",
-      entities: [
-        { ...ride("lift", 0), shape: ["box", 0, 0, 10, 2] },
-        { id: "post", type: "marker", at: [0, 0] },
-      ],
-    },
-  ]);
-
-  it("attaches a row dropped on a follower's row, in one batch", async () => {
-    const { session, dispatch, cue } = setup(rides(), gates);
-    await drag(
-      outliner().getByRole("button", { name: /^deck/ }),
-      outliner().getAllByRole("button", { name: /^lift/ })[0]!,
-    );
-    expect(dispatch).toHaveBeenCalledOnce();
-    expect(cue.mock.calls.filter(([c]) => c === "drop")).toHaveLength(1);
-    expect(dispatch.mock.calls[0]![0]).toEqual({
-      label: "Attach deck to lift",
-      ops: [{ op: "update", ref: "deck", set: { attach: "lift" } }],
-    });
-    expect(session.getDoc().entities![0]).toMatchObject({ id: "deck", attach: "lift" });
-    expect(session.store.state.history.at(-1)).toMatchObject({ label: "Attach deck to lift" });
-  });
-
-  it("attaches to an instance's child follower by its resolved ref", async () => {
-    const { session } = setup(rides(), gates);
-    const [, child] = outliner().getAllByRole("button", { name: /^lift/ });
-    await drag(outliner().getByRole("button", { name: /^deck/ }), child!);
-    expect(session.getDoc().entities![0]).toMatchObject({ id: "deck", attach: "gate-2/lift" });
-  });
-
-  it("detaches a row dropped on its type's row", async () => {
-    const { session, dispatch } = setup(rides(), gates);
-    await drag(
-      outliner().getByRole("button", { name: /^trip/ }),
-      outliner().getByRole("button", { name: /^sensor/ }),
-    );
-    expect(dispatch).toHaveBeenCalledOnce();
-    expect(dispatch.mock.calls[0]![0]).toEqual({
-      label: "Detach trip",
-      ops: [{ op: "update", ref: "trip", unset: ["attach"] }],
-    });
-    expect(session.getDoc().entities![1]!.attach).toBeUndefined();
-    act(() => {
-      session.undo();
-    });
-    expect(session.getDoc().entities![1]!.attach).toBe("lift");
-  });
-
-  it("changes nothing for a drop on a row that isn't a follower or the dragged row's type", async () => {
-    const { dispatch, cue } = setup(rides(), gates);
-    await drag(
-      outliner().getByRole("button", { name: /^deck/ }),
-      outliner().getByRole("button", { name: /^trip/ }),
-    );
-    await drag(
-      outliner().getByRole("button", { name: /^trip/ }),
-      outliner().getByRole("button", { name: /^solid/ }),
-    );
-    expect(dispatch).not.toHaveBeenCalled();
-    expect(cue).not.toHaveBeenCalledWith("drop");
-  });
-
-  it("never offers a stray spawn-only entity's row as an attach target", async () => {
-    const shooter = createRegistry(
-      defineGame({
-        id: "shooter",
-        types: [
-          defineEntityType({
-            type: "drone",
-            base: "follower",
-            description: "A moving body game code launches.",
-            spawnOnly: true,
-            fields: registry.types.get("follower")!.shape,
-          }),
-          defineEntityType({
-            type: "player",
-            base: "solid",
-            description: "The body the input drives, spawned at Play.",
-            spawnOnly: true,
-            fields: { shape: shapeField("Body.") },
-          }),
-        ],
-        actions: [],
-        createRuntime: () => ({ snapshot: () => null }),
-      }),
-    );
-    const { dispatch } = setup(
-      {
-        v: SCENE_FORMAT_VERSION,
-        name: "strays",
-        bounds: [0, 0, 1000, 1000],
-        entities: [
-          { id: "deck", type: "solid", shape: ["box", 100, 100, 20, 4] },
-          { ...ride("d", 300), type: "drone" },
-          { id: "hero", type: "player", shape: ["box", 0, 0, 1, 1] },
-        ],
-      },
-      undefined,
-      shooter,
-    );
-    expect(rowNames()).toEqual(["solid", "deckbox", "drone", "dbox", "player", "herobox"]);
-    await drag(
-      outliner().getByRole("button", { name: /^deck/ }),
-      outliner().getByRole("button", { name: /^d\s*box/ }),
-    );
-    expect(dispatch).not.toHaveBeenCalled();
-  });
-
+describe("EditorOutliner nesting", () => {
   it("shows nested instances' children as a tree that opens and closes", () => {
     const library = prefabLibrary([
       {
@@ -522,10 +361,10 @@ describe("EditorOutliner attaching and nesting", () => {
         .map((li) => [li.querySelector("[aria-pressed] span")?.textContent, li.ariaLevel])
         .filter(([name]) => name);
     expect(levels()).toEqual([
-      ["room-1", "2"],
-      ["floor", "3"],
-      ["door-1", "3"],
-      ["Panel", "4"],
+      ["room-1", "1"],
+      ["floor", "2"],
+      ["door-1", "2"],
+      ["Panel", "3"],
     ]);
 
     fireEvent.click(outliner().getByRole("button", { name: "Collapse door-1", expanded: true }));
@@ -558,9 +397,8 @@ describe("EditorOutliner attaching and nesting", () => {
         v: SCENE_FORMAT_VERSION,
         name: "rooms",
         bounds: [0, 0, 100, 100],
-        groups: { hall: { at: [0, 0] } },
         instances: [
-          { id: "room-1", prefab: "room", at: [50, 50], group: "hall" },
+          { id: "room-1", prefab: "room", at: [50, 50] },
           { id: "room-2", prefab: "room", at: [20, 20] },
         ],
       },
@@ -576,13 +414,12 @@ describe("EditorOutliner attaching and nesting", () => {
           li.ariaLevel,
         ]);
     const gameplay = levels().slice(levels().findIndex(([n]) => n === "Gameplay"));
-    expect(gameplay.slice(0, 11)).toEqual([
+    expect(gameplay.slice(0, 10)).toEqual([
       ["Gameplay", "1"],
-      ["hall", "2"],
-      ["room-1", "3"],
-      ["floor", "4"],
-      ["door-1", "4"],
-      ["Panel", "5"],
+      ["room-1", "2"],
+      ["floor", "3"],
+      ["door-1", "3"],
+      ["Panel", "4"],
       ["room-2", "2"],
       ["floor", "3"],
       ["door-1", "3"],
@@ -606,9 +443,10 @@ describe("EditorOutliner attaching and nesting", () => {
       set: (key, value) => void stored.set(key, value),
     };
     const first = renderWithStorage(storage);
-    expect(outliner().getByRole("button", { name: "Type" }).getAttribute("aria-pressed")).toBe(
+    expect(outliner().getByRole("button", { name: "Tree" }).getAttribute("aria-pressed")).toBe(
       "true",
     );
+    showView("Type");
     expect(rowNames()).toContain("zonecircle");
 
     fireEvent.click(outliner().getByRole("button", { name: /^sensor/ }));
@@ -640,6 +478,7 @@ describe("EditorOutliner attaching and nesting", () => {
     };
     for (const storage of [throwing, null]) {
       const view = renderWithStorage(storage);
+      showView("Type");
       expect(rowNames()).toContain("zonecircle");
       filter("type:sensor");
       expect(rowNames()).toEqual(["sensor", "zonecircle", "gatebox"]);
@@ -652,5 +491,235 @@ describe("EditorOutliner attaching and nesting", () => {
       );
       view.unmount();
     }
+  });
+});
+
+describe("EditorOutliner tree", () => {
+  function towerScene(): SceneDefinition {
+    return {
+      v: SCENE_FORMAT_VERSION,
+      name: "tree",
+      bounds: [0, 0, 2000, 1200],
+      solid: [["box", 500, 1040, 500, 20]],
+      entities: [
+        { id: "tower", type: "node", at: [100, 100], rot: 90 },
+        { id: "base", type: "solid", parent: "tower", shape: ["box", 0, -10, 20, 10] },
+        { id: "barrel", type: "marker", parent: "base", at: [10, -20] },
+        { id: "crate", type: "solid", shape: ["box", 300, 300, 10, 10] },
+        { id: "lamp", type: "marker", at: [50, 50] },
+      ],
+    };
+  }
+  const row = (name: string) => outliner().getByRole("button", { name: new RegExp(`^${name}`) });
+  const levels = () =>
+    outliner()
+      .getAllByRole("listitem")
+      .map((li) => [li.querySelector("[aria-pressed] span")?.textContent, li.ariaLevel])
+      .filter(([name]) => name);
+  const worldOf = (session: ReturnType<typeof setup>["session"], id: string) =>
+    session.getResolved().entities!.find((e) => e.id === id)!;
+  const entry = (session: ReturnType<typeof setup>["session"], id: string) =>
+    session.getDoc().entities!.find((e) => e.id === id)!;
+
+  it("is the default view, lists entities under their parents and bulk buckets last", () => {
+    setup(towerScene());
+    expect(outliner().getByRole("button", { name: "Tree" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(levels()).toEqual([
+      ["tower", "1"],
+      ["base", "2"],
+      ["barrel", "3"],
+      ["crate", "1"],
+      ["lamp", "1"],
+    ]);
+    expect(rowNames().at(-1)).toBe("solid");
+  });
+
+  it("keeps another view a viewer chose, and comes back to the tree when asked", () => {
+    const stored = new Map([["jams-editor:outline-view", JSON.stringify("type")]]);
+    const storage: EditorStorage = {
+      get: (key) => stored.get(key) ?? null,
+      set: (key, value) => void stored.set(key, value),
+    };
+    const first = renderWithStorage(storage);
+    expect(outliner().getByRole("button", { name: "Type" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    showView("Tree");
+    expect(stored.get("jams-editor:outline-view")).toBe(JSON.stringify("tree"));
+    first.unmount();
+    renderWithStorage(storage);
+    expect(outliner().getByRole("button", { name: "Tree" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  it("opens and closes a parent's rows, and a filter keeps the parents above a match", () => {
+    setup(towerScene());
+    fireEvent.click(outliner().getByRole("button", { name: "Collapse tower", expanded: true }));
+    expect(levels().map(([n]) => n)).toEqual(["tower", "crate", "lamp"]);
+    fireEvent.click(outliner().getByRole("button", { name: "Expand tower", expanded: false }));
+    filter("barrel");
+    expect(levels().map(([n]) => n)).toEqual(["tower", "base", "barrel"]);
+  });
+
+  it("shows who has something selected inside a closed parent", () => {
+    const { session } = setup(towerScene());
+    fireEvent.click(outliner().getByRole("button", { name: "Collapse tower", expanded: true }));
+    act(() =>
+      session.store.setState((s) => ({
+        ...s,
+        peers: [
+          {
+            clientId: 7,
+            user: { id: "bo", name: "Bo", color: "#f00" },
+            selection: [session.keyOf("barrel")!],
+            mode: "edit",
+          },
+        ],
+      })),
+    );
+    expect(within(row("tower")).getByLabelText(/Selected inside by/)).toBeTruthy();
+  });
+
+  it("a drop on a row reparents onto it, keeps the world pose, and undoes in one step", async () => {
+    const { session, dispatch, cue } = setup(towerScene());
+    const before = worldOf(session, "lamp").at;
+    await drag(row("lamp"), row("crate"));
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Put lamp under crate",
+      ops: [{ op: "reparent", refs: ["lamp"], parent: "crate" }],
+    });
+    expect(cue).toHaveBeenCalledWith("drop");
+    expect(entry(session, "lamp").parent).toBe("crate");
+    expect(worldOf(session, "lamp").at).toEqual(before);
+    expect(levels().slice(3)).toEqual([
+      ["crate", "1"],
+      ["lamp", "2"],
+    ]);
+    act(() => void session.undo());
+    expect(entry(session, "lamp").parent).toBeUndefined();
+    expect(entry(session, "lamp").at).toEqual([50, 50]);
+  });
+
+  it("a drop on a row's top edge reorders before it, reparenting first when the parent differs", async () => {
+    const { session, dispatch } = setup(towerScene());
+    await drag(row("lamp"), row("barrel"), "top");
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Move lamp before barrel",
+      ops: [
+        { op: "reparent", refs: ["lamp"], parent: "base" },
+        { op: "reorder", refs: ["lamp"], index: 2 },
+      ],
+    });
+    expect(levels().map(([n]) => n)).toEqual(["tower", "base", "lamp", "barrel", "crate"]);
+    act(() => void session.undo());
+    expect(session.getDoc().entities!.map((e) => e.id)).toEqual([
+      "tower",
+      "base",
+      "barrel",
+      "crate",
+      "lamp",
+    ]);
+    expect(entry(session, "lamp").parent).toBeUndefined();
+
+    dispatch.mockClear();
+    await drag(row("lamp"), row("crate"), "top");
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      ops: [{ op: "reorder", refs: ["lamp"], index: 3 }],
+    });
+  });
+
+  it("a drop on the empty space below the rows puts a row at the root", async () => {
+    const { session, dispatch } = setup(towerScene());
+    await drag(row("barrel"), null);
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Move barrel to the root",
+      ops: [{ op: "reparent", refs: ["barrel"], parent: null }],
+    });
+    expect(entry(session, "barrel").parent).toBeUndefined();
+  });
+
+  it("shows a drop that would make a loop as refused before release, and dispatches nothing", async () => {
+    const { session, dispatch, cue } = setup(towerScene());
+    await drag(row("tower"), row("barrel"), "middle", () => {
+      const li = row("barrel").closest("li")!;
+      expect(li.hasAttribute("data-drop-refused")).toBe(true);
+      expect(li.hasAttribute("data-drop-over")).toBe(false);
+      expect(
+        outliner()
+          .getByText(/would make a loop/)
+          .getAttribute("role"),
+      ).toBe("status");
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(cue).toHaveBeenCalledWith("error");
+    expect(entry(session, "tower").parent).toBeUndefined();
+    expect(outliner().queryByText(/would make a loop/)).toBeNull();
+    expect(row("barrel").closest("li")!.hasAttribute("data-drop-refused")).toBe(false);
+  });
+
+  it("marks an accepted drop on the row it would land on", async () => {
+    setup(towerScene());
+    await drag(row("lamp"), row("crate"), "middle", () => {
+      expect(row("crate").closest("li")!.hasAttribute("data-drop-over")).toBe(true);
+    });
+    await drag(row("lamp"), row("crate"), "top", () => {
+      expect(row("crate").closest("li")!.hasAttribute("data-drop-before")).toBe(true);
+    });
+  });
+
+  it("dragging a selected row drags the selection's roots", async () => {
+    const { session, dispatch } = setup(towerScene());
+    act(() => session.select(["base", "barrel", "lamp", "~solid:0"]));
+    await drag(row("lamp"), row("crate"));
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Put 2 items under crate",
+      ops: [{ op: "reparent", refs: ["base", "lamp"], parent: "crate" }],
+    });
+    expect(entry(session, "barrel").parent).toBe("base");
+    expect(entry(session, "base").parent).toBe("crate");
+  });
+
+  it("keeps an instance's children as rows that take drops but can't be dragged out", async () => {
+    const library = prefabLibrary([
+      {
+        kind: "prefab",
+        v: SCENE_FORMAT_VERSION,
+        id: "turret",
+        entities: [{ id: "barrel", type: "solid", shape: ["box", 0, 0, 4, 1] }],
+      },
+    ]);
+    const { session, dispatch } = setup(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "turrets",
+        bounds: [0, 0, 100, 100],
+        instances: [{ id: "t-1", prefab: "turret", at: [50, 50] }],
+        entities: [{ id: "sight", type: "sensor", shape: ["box", 10, 10, 2, 2] }],
+      },
+      library,
+    );
+    expect(levels()).toEqual([
+      ["sight", "1"],
+      ["t-1", "1"],
+      ["barrel", "2"],
+    ]);
+    await drag(row("barrel"), row("sight"));
+    expect(dispatch).not.toHaveBeenCalled();
+
+    await drag(row("sight"), row("barrel"));
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      ops: [{ op: "reparent", refs: ["sight"], parent: "t-1/barrel" }],
+    });
+    expect(levels()).toEqual([
+      ["t-1", "1"],
+      ["barrel", "2"],
+      ["sight", "3"],
+    ]);
+    expect(session.getDoc().entities![0]!.parent).toBe("t-1/barrel");
   });
 });

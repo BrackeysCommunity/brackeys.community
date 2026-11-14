@@ -1,6 +1,6 @@
 {
   "$schema": "../scene.schema.json",
-  "v": 4,
+  "v": 5,
   "game": "tactics",
   "name": "level-1",
   "bounds": [0, 0, 12, 8],

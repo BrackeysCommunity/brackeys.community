@@ -1,6 +1,6 @@
 {
   "$schema": "../scene/scene.schema.json",
-  "v": 4,
+  "v": 5,
   "name": "engine-yard",
   "bounds": [0, 0, 20, 10],
   "settings": { "gravity": [0, 12] },

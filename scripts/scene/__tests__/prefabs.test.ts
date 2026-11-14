@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { RapierModule } from "@jams/engine/headless";
-import { formatPrefab, formatScene, type Prefab, type SceneDefinition } from "@jams/engine/scene";
+import {
+  formatPrefab,
+  formatScene,
+  SCENE_FORMAT_VERSION,
+  type Prefab,
+  type SceneDefinition,
+} from "@jams/engine/scene";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { runCli } from "../commands";
@@ -18,7 +24,7 @@ import { tempProject } from "./fixtures";
 
 const GATE: Prefab = {
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   id: "gate",
   entities: [
     {
@@ -34,22 +40,24 @@ const GATE: Prefab = {
         speed: 60,
       },
     },
-    { id: "plank", type: "solid", attach: "door", shape: ["box", 30, -40, 20, 4] },
+    { id: "plank", type: "solid", parent: "door", shape: ["box", 30, -40, 20, 4] },
   ],
   bulk: { solid: [["box", 0, 50, 40, 6]] },
 };
 
 const SCENE: SceneDefinition = {
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "gates",
   bounds: [0, 0, 2000, 1000],
-  groups: { east: { at: [1000, 0] } },
   instances: [
     { id: "gate-1", prefab: "gate", at: [300, 800] },
-    { id: "gate-2", prefab: "gate", group: "east", at: [300, 800] },
+    { id: "gate-2", prefab: "gate", parent: "east", at: [300, 800] },
   ],
   solid: [["box", 1000, 980, 1000, 20]],
-  entities: [{ id: "start", type: "marker", at: [100, 900], group: "east" }],
+  entities: [
+    { id: "east", type: "node", at: [1000, 0] },
+    { id: "start", type: "marker", at: [100, 900], parent: "east" },
+  ],
 };
 
 /** Holds the project and, beside it, its dev cache. */
@@ -86,7 +94,7 @@ describe("scenes with prefabs", () => {
   it("lists instance children in the counts and renders them", async () => {
     const r = await list({}, ctx);
     const [scene] = (r.data as { scenes: { counts: Record<string, number> }[] }).scenes;
-    expect(scene!.counts).toEqual({ solid: 5, follower: 2, marker: 1 });
+    expect(scene!.counts).toEqual({ node: 3, solid: 5, follower: 2, marker: 1 });
     const svg = await render({ scene: "gates" }, ctx);
     expect(svg.exitCode).toBe(0);
     expect(svg.text).toContain("gate-2/door");
@@ -101,8 +109,8 @@ describe("scenes with prefabs", () => {
       ref: "gate-2",
       type: "instance",
       prefab: "gate",
+      parent: "east",
       at: [1300, 800],
-      extra: { group: "east" },
     });
     expect(rows.slice(at + 1).map((row) => row.ref)).toEqual([
       "gate-2/door",
@@ -150,12 +158,16 @@ describe("scenes with prefabs", () => {
     expect(scene.instances!.at(-1)).toEqual({
       id: "spawn-pad-1",
       prefab: "spawn-pad",
-      at: [1100, 900],
+      parent: "east",
+      at: [100, 900],
     });
     await writeFile(ops, JSON.stringify({ ops: [{ op: "unpack", ref: "spawn-pad-1" }] }));
     expect((await apply({ scene: "gates", ops }, ctx)).exitCode).toBe(0);
     const back = JSON.parse(await readFile(join(root, "gates.json"), "utf8")) as SceneDefinition;
-    expect(back.entities).toEqual([{ id: "start", type: "marker", at: [1100, 900] }]);
+    expect(back.entities).toEqual([
+      { id: "east", type: "node", at: [1000, 0] },
+      { id: "start", type: "marker", parent: "east", at: [100, 900] },
+    ]);
   });
 
   it("reaches the v3 prefab ops from the CLI: params, variants, turns and z", async () => {
@@ -211,7 +223,13 @@ describe("scenes with prefabs", () => {
     expect(JSON.stringify(header.data)).not.toContain("param-unknown");
     expect(
       JSON.parse(await readFile(join(root, "prefabs", "dark-blue-gate.json"), "utf8")),
-    ).toEqual({ kind: "prefab", v: 4, id: "dark-blue-gate", base: "blue-gate", entities: [] });
+    ).toEqual({
+      kind: "prefab",
+      v: SCENE_FORMAT_VERSION,
+      id: "dark-blue-gate",
+      base: "blue-gate",
+      entities: [],
+    });
     expect(
       (JSON.parse(await readFile(join(root, "prefabs", "blue-gate.json"), "utf8")) as Prefab).id,
     ).toBe("blue-gate");
@@ -244,11 +262,11 @@ describe("scenes with prefabs", () => {
     expect(row("gate-1")).toMatchObject({
       params: { speed: 150 },
       exposes: ["speed"],
-      transform: { rot: 1, flip: false },
+      transform: { rot: 90, flip: false },
       z: 2,
     });
     expect(row("gate-1/door")).toMatchObject({
-      transform: { rot: 1, flip: false },
+      transform: { rot: 90, flip: false },
       z: 2,
       extra: expect.objectContaining({ path: expect.objectContaining({ speed: 150 }) }),
     });

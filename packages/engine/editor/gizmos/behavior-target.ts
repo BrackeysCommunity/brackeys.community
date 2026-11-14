@@ -95,8 +95,8 @@ export const ringHandle = (b: BehaviorGizmo, r: number, scale: number): Pt => [
 /**
  * Where the runtime starts an entity with geometry `g`: its shape's centre
  * (on a path, placed at the first point), else its point, else the path's
- * first point; turned by a box's or capsule's `rotDeg`, else by the entity's
- * quarter turns.
+ * first point; turned by a box's or capsule's `rotDeg`, else by the angle
+ * of what the entity sits in.
  */
 export function editPose(g: EditGeometry, entity?: EntityDef): EditPose {
   const p = geometryPose({
@@ -104,8 +104,8 @@ export function editPose(g: EditGeometry, entity?: EntityDef): EditPose {
     ...(g.at ? { at: g.at } : {}),
     ...(g.pts ? { path: { pts: g.pts } } : {}),
   });
-  const transform = entity?.transform as { turn?: unknown } | undefined;
-  const turn = (typeof transform?.turn === "number" ? transform.turn : 0) * 90;
+  const transform = entity?.transform as { rot?: unknown } | undefined;
+  const turn = typeof transform?.rot === "number" ? transform.rot : 0;
   return { at: p?.at ?? [0, 0], rotDeg: p?.rotDeg ?? turn };
 }
 

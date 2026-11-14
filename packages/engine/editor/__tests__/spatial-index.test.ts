@@ -8,6 +8,7 @@ import { roundLength } from "../../scene/units";
 import yard from "../../scenes/engine-yard.json";
 import sink from "../../scenes/kitchen-sink.json";
 import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
+import * as tree from "../gizmos/__tests__/tree-fixture";
 import { pickAt } from "../picking";
 import { createSpatialIndex, type EditableSpatialIndex } from "../spatial-index";
 
@@ -370,5 +371,76 @@ describe("the kitchen sink's sprites", () => {
     const entry = index.get(placed.select[0]!);
     expect(entry?.sprite).toBeDefined();
     expect(preview.ghosts.map((g) => g.shape)).toEqual([entry!.sprite]);
+  });
+});
+
+describe("the index by the tree", () => {
+  const { registry: reg, doc, source, view, viewOf } = tree;
+  const indexed = (def = view, src = source) => {
+    const index = createSpatialIndex();
+    index.rebuild(def, reg, src);
+    return index;
+  };
+  const moved = (refs: string[], by: [number, number]) => {
+    const result = applyOps(doc, { ops: [{ op: "move", refs, by }] }, reg, {
+      prefabs: tree.prefabs,
+    });
+    if (!result.ok) throw new Error(result.issue.message);
+    return result.def;
+  };
+
+  it("indexes a node as a point at its origin", () => {
+    expect(indexed().get("tilt")).toMatchObject({
+      type: "node",
+      geometry: [10, 5],
+      aabb: { minX: 10, minY: 5, maxX: 10, maxY: 5 },
+    });
+  });
+
+  it("gives each instance an entry over its subtree, and its children the instances they sit in", () => {
+    const index = indexed();
+    const inst = index.get("turret-a")!;
+    expect(inst).toMatchObject({ instance: true, type: "node", layer: "gameplay" });
+    // Its two parts, and the document's flag under its barrel.
+    expect(inst.aabb).toEqual({ minX: 1.6, minY: 5.2, maxX: 3, maxY: 6 });
+    expect(index.get("turret-a/base")!.instances).toEqual(["turret-a"]);
+    expect(index.get("flag")!.instances).toBeUndefined();
+    expect(index.get("lone")!.instances).toBeUndefined();
+    // Under the node, with the document; without it the view can't tell.
+    expect(index.get("tilt-turret")!.aabb).toEqual({ minX: 10.6, minY: 4.4, maxX: 12, maxY: 5 });
+    expect(indexed(view, undefined).get("tilt-turret")).toBeDefined();
+  });
+
+  it("stacks an instance's entry with the topmost entry under it", () => {
+    const index = indexed();
+    const zs = ["turret-a/base", "turret-a/barrel", "flag"].map((r) => index.get(r)!.z);
+    expect(index.get("turret-a")!.z).toBe(Math.max(...zs));
+  });
+
+  it("re-indexes a touched parent with its subtree, and the instances' entries over it", () => {
+    for (const [refs, by] of [
+      [["tilt"], [1, 0]],
+      [["turret-a"], [0, -1]],
+      [["tilt-board"], [0.5, 0.5]],
+    ] as const) {
+      const index = indexed();
+      const next = moved([...refs], [...by] as [number, number]);
+      const src = { ...source, doc: next };
+      index.update(viewOf(next), reg, [...refs], src);
+      expect(snapshot(index)).toEqual(snapshot(indexed(viewOf(next), src)));
+    }
+  });
+
+  it("drops an instance's entries with it", () => {
+    const index = indexed();
+    const result = applyOps(doc, { ops: [{ op: "remove", refs: ["turret-a"] }] }, reg, {
+      prefabs: tree.prefabs,
+    });
+    if (!result.ok) throw new Error(result.issue.message);
+    const src = { ...source, doc: result.def };
+    index.update(viewOf(result.def), reg, ["turret-a"], src);
+    expect(index.get("turret-a")).toBeUndefined();
+    expect(index.get("turret-a/base")).toBeUndefined();
+    expect(snapshot(index)).toEqual(snapshot(indexed(viewOf(result.def), src)));
   });
 });

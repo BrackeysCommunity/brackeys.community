@@ -60,7 +60,7 @@ const gate = () =>
         shape: ["box", 0, 0, 10, 40],
         path: { pts: [[0, 0]], mode: "loop", speed: 60 },
       },
-      { id: "trigger", type: "sensor", shape: ["box", 60, 20, 20, 20], attach: "door" },
+      { id: "trigger", type: "sensor", parent: "door", shape: ["box", 60, 20, 20, 20] },
     ],
     bulk: { solid: [["box", 0, 50, 40, 6]] },
   });
@@ -110,7 +110,7 @@ describe("variants: the base folds in", () => {
       ["r/door", "r/lamp", "r/trigger", "r/~solid:0", "r/~solid:1"].sort(),
     );
     expect(out.get("r/door")?.path).toMatchObject({ speed: 120 });
-    expect(out.get("r/trigger")?.attach).toBe("r/door");
+    expect(out.get("r/trigger")?.parent).toBe("r/door");
     expect(out.get("r/lamp")?.at).toEqual([105, -10]);
   });
 
@@ -215,7 +215,7 @@ describe("variants: of a prefab with nested instances", () => {
     library([
       gate(),
       prefab("pair", {
-        instances: [{ id: "g", prefab: "gate", at: [100, 0], rot: 1 }],
+        instances: [{ id: "g", prefab: "gate", at: [100, 0], rot: 90 }],
       }),
       prefab("pair-v", {
         base: "pair",
@@ -227,7 +227,7 @@ describe("variants: of a prefab with nested instances", () => {
     const p = resolved(lib(), "pair-v");
     expect(refs(p.children)).toEqual(["g/door", "g/trigger", "g/~solid:0"]);
     expect(entity(p.children, "g/door")?.path).toMatchObject({ speed: 5 });
-    expect(entity(p.children, "g/trigger")?.attach).toBe("g/door");
+    expect(entity(p.children, "g/trigger")?.parent).toBe("g/door");
     const plain = entity(resolved(lib(), "pair").children, "g/trigger")!.shape as unknown[];
     const moved = entity(p.children, "g/trigger")!.shape as unknown[];
     expect(moved[1]).toBe((plain[1] as number) + 200);

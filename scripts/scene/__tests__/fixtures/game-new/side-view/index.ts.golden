@@ -1,6 +1,7 @@
 import { defineGame } from "@jams/engine/game";
 
 import { ACTIONS } from "./actions";
+import { Goal } from "./goal";
 import { PLAY } from "./play";
 import { createRuntime } from "./runtime";
 import { TEMPLATE } from "./template";
@@ -11,6 +12,7 @@ export const demoGame = defineGame<Snapshot>({
   id: GAME_ID,
   types: [heroType],
   actions: ACTIONS,
+  behaviors: [Goal],
   // The hero's body moves into sensors.
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
   // Metres in the simulation, 100 px per metre on screen.

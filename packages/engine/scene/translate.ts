@@ -11,9 +11,9 @@ import {
   applyPt,
   applyVec,
   dihedralOf,
-  isIdentityTurn,
+  frameOf,
   translation,
-  type Dihedral,
+  type Orientation,
   type Transform2D,
 } from "./transform";
 import type { BulkEntry, EntityDef, PathDef, Pt, ShapeTuple } from "./types";
@@ -56,17 +56,35 @@ export const isZeroPt = ([x, y]: Pt) => x === 0 && y === 0;
 
 const isShapeTuple = (v: unknown): v is ShapeTuple => Array.isArray(v) && typeof v[0] === "string";
 
-function quarterTurns(t: Transform2D): Dihedral {
-  const d = dihedralOf(t);
-  if (!d) throw new Error("a scene transform must be quarter turns and flips");
-  return d;
+const isIdentityTurn = (o: Orientation) => o.rot === 0 && !o.flip;
+
+const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9;
+
+/** `t`'s angle and flip; a transform that scales or shears has none, and is refused. */
+function orientationOf(t: Transform2D): Orientation {
+  const rigid =
+    near(t.a * t.a + t.b * t.b, 1) &&
+    near(t.c * t.c + t.d * t.d, 1) &&
+    near(t.a * t.c + t.b * t.d, 0);
+  if (!rigid)
+    throw new Error("a scene transform must be turns and flips: quarter turns or any angle");
+  return frameOf(t);
 }
 
-/** An angle in degrees after `d`: negated by a flip, then plus 90° per turn. */
-const turnAngle = (deg: number, d: Dihedral) => (d.flip ? mirrorDeg(deg) : deg) + 90 * d.rot;
+/** Whether `t`'s linear part is quarter turns and flips, which keep whole numbers whole. */
+const isQuarter = (t: Transform2D) => dihedralOf(t) !== null;
 
-/** A shape's `rotDeg` after `d`, kept in [0, 360). */
-const turnRotDeg = (deg: number, d: Dihedral) => normDeg(turnAngle(deg, d));
+/** Off the quarter turns, an angle is kept to the micro-degree, as lengths are to the micrometre. */
+const roundOff = (deg: number, t: Transform2D) => (isQuarter(t) ? deg : roundLength(deg));
+
+/** An angle in degrees after `o`: negated by a flip, then plus the turn (not wrapped). */
+const turnAngle = (deg: number, o: Orientation) => (o.flip ? mirrorDeg(deg) : deg) + o.rot;
+
+/** A shape's `rotDeg` after `t`, kept in [0, 360). */
+const turnRotDeg = (deg: number, t: Transform2D) => {
+  const r = roundOff(normDeg(turnAngle(deg, orientationOf(t))), t);
+  return r === 360 ? 0 : r;
+};
 
 /**
  * A shape tuple under `t`. Boxes and capsules keep their extents and turn
@@ -88,9 +106,8 @@ export function transformTuple(tuple: ShapeTuple, t: Transform2D): ShapeTuple {
   out[1] = cx;
   out[2] = cy;
   if (tuple[0] === "box" || tuple[0] === "capsule") {
-    const d = quarterTurns(t);
-    if (!isIdentityTurn(d)) {
-      const rotDeg = turnRotDeg(out.length > 5 ? (out[5] as number) : 0, d);
+    if (!isIdentityTurn(orientationOf(t))) {
+      const rotDeg = turnRotDeg(out.length > 5 ? (out[5] as number) : 0, t);
       if (rotDeg === 0) out.length = 5;
       else out[5] = rotDeg;
     }
@@ -116,10 +133,13 @@ const SIDE_VECTORS: Record<Side, Pt> = { up: [0, -1], right: [1, 0], down: [0, 1
 
 const isSide = (v: unknown): v is Side => SIDES.includes(v as Side);
 
-/** A side under `t`; `true` (`"up"`) stays `true` while it still faces up. */
+/**
+ * A side under `t`; `true` (`"up"`) stays `true` while it still faces up.
+ * A side turns only by quarter turns: under any other angle it is left as
+ * it is (validation reports it).
+ */
 function transformSide(value: Side | true, t: Transform2D): Side | true {
-  const d = quarterTurns(t);
-  if (isIdentityTurn(d)) return value;
+  if (!isQuarter(t) || isIdentityTurn(orientationOf(t))) return value;
   const [x, y] = applyVec(t, SIDE_VECTORS[value === true ? "up" : value]);
   const side = SIDES.find((s) => SIDE_VECTORS[s][0] === x && SIDE_VECTORS[s][1] === y) ?? "up";
   return value === true && side === "up" ? true : side;
@@ -139,18 +159,22 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
       return value !== null && typeof value === "object" && "pts" in value
         ? transformPath(value as PathDef, t)
         : value;
-    case "vector":
-      return isPt(value) ? applyVec(t, value) : value;
+    case "vector": {
+      if (!isPt(value)) return value;
+      const v = applyVec(t, value);
+      return isQuarter(t) ? v : [roundLength(v[0]), roundLength(v[1])];
+    }
     case "angle":
-      return typeof value === "number" ? turnAngle(value, quarterTurns(t)) : value;
+      return typeof value === "number" ? roundOff(turnAngle(value, orientationOf(t)), t) : value;
     case "mirror":
-      return typeof value === "boolean" && quarterTurns(t).flip ? !value : value;
+      return typeof value === "boolean" && orientationOf(t).flip ? !value : value;
     case "side":
       return value === true || isSide(value) ? transformSide(value, t) : value;
     case "grid": {
       if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
-      const d = quarterTurns(t);
-      return isIdentityTurn(d) ? value : transformGrid(value as GridCells, d);
+      // Cells turn only by quarter turns; under any other angle they stay (validation reports it).
+      const d = dihedralOf(t);
+      return !d || (d.rot === 0 && !d.flip) ? value : transformGrid(value as GridCells, d);
     }
     default:
       return value;
@@ -158,11 +182,13 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
 }
 
 /**
- * One whole field value under `t`, by what its schema says it holds:
- * shapes, points and paths move; vectors turn and flip but never move;
- * angles gain 90° per turn and negate under a flip; mirror booleans toggle
- * under a flip; sides turn and flip as directions; grids remap their cells.
- * Anything else, and any value not shaped like its kind, comes back as given.
+ * One whole field value under `t`, a rigid transform at any angle, by what
+ * its schema says it holds: shapes, points and paths move; vectors turn and
+ * flip but never move; angles gain the turn and negate under a flip; mirror
+ * booleans toggle under a flip; sides and grids turn and flip only by
+ * quarter turns and stay as they are under any other angle. Off the quarter
+ * turns, lengths and angles are rounded to the file's precision. Anything
+ * else, and any value not shaped like its kind, comes back as given.
  */
 export function transformFieldValue(
   schema: z.core.$ZodType,

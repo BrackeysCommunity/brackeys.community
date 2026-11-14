@@ -1,0 +1,32 @@
+{
+  "$schema": "../scene/scene.schema.json",
+  "v": 5,
+  "name": "tree-yard",
+  "bounds": [0, 0, 32, 12],
+  "settings": { "gravity": [0, 20] },
+  "instances": [
+    { "id": "turret-a", "prefab": "turret", "at": [2.5, 11] },
+    { "id": "rider", "prefab": "hero-side", "at": [18, 8.7] },
+    { "id": "tilt-turret", "prefab": "turret", "parent": "tilt", "at": [0, 0] }
+  ],
+  "entities": [
+    { "id": "floor", "type": "solid", "shape": ["box", 16, 11.5, 16, 0.5] },
+    { "id": "wall-left", "type": "solid", "shape": ["box", 0.2, 6, 0.2, 5] },
+    { "id": "wall-right", "type": "solid", "shape": ["box", 31.8, 6, 0.2, 5] },
+    { "id": "carrier", "type": "marker", "at": [7, 5], "behaviors": { "sprite": { "asset": "crates", "frame": "crate-0", "size": [0.4, 0.4] }, "tween": { "tweens": [{ "duration": { "ms": 2000 }, "ease": "sineInOut", "repeat": -1, "to": { "rot": 0.6, "x": 10 }, "yoyo": true }] } } },
+    { "id": "crate", "type": "prop", "shape": ["box", 14, 9, 0.4, 0.4], "density": 1, "restitution": 0 },
+    { "id": "crate-eye", "type": "sensor", "parent": "crate", "shape": ["box", 0, -0.7, 0.4, 0.2], "tags": ["eye"] },
+    { "id": "lift", "type": "follower", "shape": ["box", 0, 0, 0.3, 0.05], "path": { "pts": [[18, 9.5], [27, 9.5]], "mode": "ping_pong", "speed": 1.5, "pauseMs": 1500 } },
+    { "id": "deck", "type": "solid", "parent": "lift", "shape": ["box", 0, -0.2, 1.2, 0.1] },
+    { "id": "lift-stop", "type": "marker", "at": [27, 8.8] },
+    { "id": "room-drop", "type": "marker", "at": [24, 4.4], "behaviors": { "spawner": { "burst": 1, "cap": 1, "lifeMs": 2000, "prefab": "room", "rate": 0.25 } } },
+    { "id": "about", "type": "note", "at": [1, 0.6], "text": "Tree yard: parents and children at runtime. Left, turret-a is a turret prefab (base, barrel and a sight sensor) whose parts sit under the instance's node and move with it; tower is the same turret built from plain entities, a node with a base solid under it and a barrel marker with a collider under the base. carrier is a marker on a turning yoyo tween: game code that instantiates a turret under it (parent: carrier) gets one that swings with it. tilt is a node at 30 degrees carrying tilt-turret, a second turret instance, leaning with it. crate is a dynamic prop; crate-eye, its child, is a second collider on the crate's body. lift is a follower carrying deck, a child solid, and rider (hero-side) stands on the deck and is carried to lift-stop. room-drop's spawner places a room, whose doorway and latches are nested prefabs; when its lifeMs ends the room's node goes and takes them with it, and the spawner places another. Right, arm, forearm and hand are a three-level chain: arm swings on a tween and the two below it follow, each turned 30 degrees further." },
+    { "id": "tower", "type": "node", "name": "Tower", "at": [6.5, 11] },
+    { "id": "tower-base", "type": "solid", "parent": "tower", "shape": ["box", 0, -0.2, 0.4, 0.2] },
+    { "id": "tower-barrel", "type": "marker", "parent": "tower-base", "at": [0.5, -0.35], "behaviors": { "collider": { "shape": ["box", 0, 0, 0.5, 0.08] } } },
+    { "id": "tilt", "type": "node", "name": "Tilt", "at": [12.5, 3], "rot": 30 },
+    { "id": "arm", "type": "node", "name": "Arm", "at": [28.5, 2], "rot": 30, "behaviors": { "tween": { "tweens": [{ "duration": { "ms": 1500 }, "ease": "sineInOut", "repeat": -1, "to": { "rot": 0.9 }, "yoyo": true }] } } },
+    { "id": "forearm", "type": "node", "name": "Forearm", "parent": "arm", "at": [1, 0], "rot": 30 },
+    { "id": "hand", "type": "marker", "parent": "forearm", "at": [1, 0], "tags": ["hand"] }
+  ]
+}

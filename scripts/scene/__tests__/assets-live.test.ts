@@ -437,7 +437,10 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
     await landsInDoc(
       "tiles-room",
       () =>
-        cell(0, 0) === 1 && cell(31, 1) === 2 && cell(33, 0) === 2 && instance("post-a")?.rot === 1,
+        cell(0, 0) === 1 &&
+        cell(31, 1) === 2 &&
+        cell(33, 0) === 2 &&
+        instance("post-a")?.rot === 90,
       CLI_AGENT,
       "the CLI's paintCells and transform",
     );
@@ -467,7 +470,7 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
       "the MCP paintCells and transform",
     );
     expect(cell(32, 1)).toBe(2);
-    expect(instance("post-a")?.rot).toBe(1);
+    expect(instance("post-a")?.rot).toBe(90);
   });
 
   it("prefab: editScene with exposeParam", { timeout: 60_000 }, async () => {

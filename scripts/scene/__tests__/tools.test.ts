@@ -333,13 +333,13 @@ describe("show", () => {
     expect(miss.text).toContain("did you mean elevator?");
   });
 
-  it("places a group member's AABB and --near in world space, keeping its stored geometry", async () => {
+  it("places a parented entity's AABB and --near in world space, keeping its stored geometry", async () => {
     const yard = JSON.parse(await engineYardText());
     yard.name = "grouped";
-    yard.groups = { shelf: { at: [10, 5] } };
     yard.entities.push(
-      { id: "board", type: "solid", group: "shelf", shape: ["box", 0, 0, 1, 0.1] },
-      { id: "pin", type: "marker", group: "shelf", at: [0.4, -0.2] },
+      { id: "shelf", type: "node", at: [10, 5] },
+      { id: "board", type: "solid", parent: "shelf", shape: ["box", 0, 0, 1, 0.1] },
+      { id: "pin", type: "marker", parent: "shelf", at: [0.4, -0.2] },
     );
     await writeFile(join(avatarDir, "grouped.json"), JSON.stringify(yard));
     const data = (await show({ scene: "grouped", ref: "board" }, ctx)).data as Rows;
@@ -391,7 +391,7 @@ describe("show", () => {
       extra: expect.objectContaining({ path: expect.objectContaining({ speed: 0.5 }) }),
     });
     expect(byRef("room-1/gate-2/door")).toMatchObject({
-      transform: { rot: 2, flip: true },
+      transform: { rot: 180, flip: true },
       z: 1,
       extra: expect.objectContaining({ path: expect.objectContaining({ speed: 0.9 }) }),
     });
@@ -414,8 +414,8 @@ describe("show", () => {
     expect(refs(one.data)).toEqual(["room-1/door-1/latch/door"]);
     expect(r.text).toContain("room-1  instance of room at 10,4 m z 1");
     expect(r.text).toContain("nests gate-1,gate-2,door-1,door-1/latch");
-    expect(r.text).toMatch(/^red-1 {2}instance of red-gate at 4,4 m turn 0 flip .*exposes speed/m);
-    expect(r.text).toMatch(/^room-1\/gate-2\/door .* turn 2 flip z 1/m);
+    expect(r.text).toMatch(/^red-1 {2}instance of red-gate at 4,4 m rot 0 flip .*exposes speed/m);
+    expect(r.text).toMatch(/^room-1\/gate-2\/door .* rot 180 flip z 1/m);
   });
 
   it("summarises grid fields and lists behaviors and z, after paintCells and setZ", async () => {
@@ -976,7 +976,7 @@ describe("fmt", () => {
     expect(again.data).not.toHaveProperty("migratedFrom");
   });
 
-  it("moves a v3 scene to v4 in metres, through the project's prefabs, and says so", async () => {
+  it("moves a v3 scene to the current version in metres, through the project's prefabs, and says so", async () => {
     await mkdir(join(avatarDir, "prefabs"));
     await copyFile(join(PREFAB_FIXTURES, "gate.json"), join(avatarDir, "prefabs", "gate.json"));
     const yard = JSON.parse(await readFile(ENGINE_YARD_V3, "utf8"));
@@ -989,16 +989,22 @@ describe("fmt", () => {
     const checked = await fmt({ scene: "px-yard", check: true }, ctx);
     expect(checked.exitCode, checked.text).toBe(1);
     expect(checked.text).toBe(
-      "px-yard: not canonical (from v3 to v4); run vp run scene fmt px-yard",
+      `px-yard: not canonical (from v3 to v${SCENE_FORMAT_VERSION}); run vp run scene fmt px-yard`,
     );
     const all = await fmt({ check: true }, ctx);
-    expect(all.text).toContain("px-yard (scene): not canonical (from v3 to v4)");
+    expect(all.text).toContain(
+      `px-yard (scene): not canonical (from v3 to v${SCENE_FORMAT_VERSION})`,
+    );
 
     const written = await fmt({ scene: "px-yard" }, ctx);
-    expect(written.text).toBe("px-yard: formatted (from v3 to v4)");
-    const v4 = JSON.parse(await readFile(join(avatarDir, "px-yard.json"), "utf8"));
-    expect(v4).toMatchObject({ v: 4, bounds: [0, 0, 20, 10], settings: { gravity: [0, 12] } });
-    expect(v4.instances).toEqual([
+    expect(written.text).toBe(`px-yard: formatted (from v3 to v${SCENE_FORMAT_VERSION})`);
+    const lifted = JSON.parse(await readFile(join(avatarDir, "px-yard.json"), "utf8"));
+    expect(lifted).toMatchObject({
+      v: SCENE_FORMAT_VERSION,
+      bounds: [0, 0, 20, 10],
+      settings: { gravity: [0, 12] },
+    });
+    expect(lifted.instances).toEqual([
       { id: "gate-1", prefab: "gate", at: [4, 9], overrides: { "door.path.speed": 1.2 } },
     ]);
     const shown = await show({ scene: "px-yard", ref: "gate-1/door" }, ctx);
@@ -3272,13 +3278,14 @@ describe("scene flow", { timeout: 60_000 }, () => {
       "grid-yard",
       "behavior-yard",
       "grid-annex",
+      "tree-yard",
     ]);
     expect(rows["engine-yard"]).toMatchObject({ start: true, physics: "rapier" });
     expect(rows["grid-yard"]).toMatchObject({ start: false, physics: "none" });
     expect(rows["kitchen-sink"]!.bundle!.bytes).toBeGreaterThan(0);
     for (const row of engine!.scenes) expect(row.bundle?.bytes).toEqual(expect.any(Number));
     expect(r.text.split("\n")[0]).toBe(
-      "engine: scene list scene-list.json, start engine-yard, 5 listed",
+      "engine: scene list scene-list.json, start engine-yard, 6 listed",
     );
     expect(r.text).toMatch(
       /^ {2}engine-yard {2}start {2}physics rapier {2}bundle \d+ blobs? \d+ B/m,
@@ -3303,7 +3310,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
     const r = await flow({}, engineCtx);
     expect(r.exitCode).toBe(1);
     const [engine] = (r.data as Flowed).projects;
-    expect(engine!.unlisted).toEqual(["behavior-yard", "grid-annex", "kitchen-sink"]);
+    expect(engine!.unlisted).toEqual(["behavior-yard", "grid-annex", "kitchen-sink", "tree-yard"]);
     expect(engine!.scenes.find((s) => s.scene === "ghost")).toMatchObject({
       physics: null,
       bundle: null,
@@ -3313,7 +3320,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
     expect(codes).toContain("error start-scene-missing");
     expect(codes).toContain("error asset-missing");
     expect(codes).toContain("warn scene-unlisted");
-    expect(r.text).toContain("not listed: behavior-yard, grid-annex, kitchen-sink");
+    expect(r.text).toContain("not listed: behavior-yard, grid-annex, kitchen-sink, tree-yard");
     expect(r.text).toMatch(/^ {2}ghost {2}doesn't open$/m);
   });
 

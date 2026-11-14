@@ -51,10 +51,10 @@ describe("scene.schema.json", () => {
 
   it("has the registry's URN id and no domain", () => {
     const schema = sceneJsonSchema(engine);
-    expect(schema.$id).toBe(`${SCHEMA_ID_BASE}scene:v4`);
+    expect(schema.$id).toBe(`${SCHEMA_ID_BASE}scene:v5`);
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(JSON.stringify(schema)).not.toMatch(/brackeys\.(community|dev)/);
-    expect(sceneJsonSchema(fake).$id).toBe(`${SCHEMA_ID_BASE}scene:fake:v4`);
+    expect(sceneJsonSchema(fake).$id).toBe(`${SCHEMA_ID_BASE}scene:fake:v5`);
   });
 
   it("lists registered types and bulk keys only", () => {
@@ -66,7 +66,6 @@ describe("scene.schema.json", () => {
       "bounds",
       "settings",
       "assets",
-      "groups",
       "instances",
       "solid",
       "entities",

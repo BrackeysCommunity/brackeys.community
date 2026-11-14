@@ -896,7 +896,10 @@ export function editorChrome(
   const pickedAsset = new Store<AssetKey | null>(null);
   const tools = createToolHostCell();
   const look = () =>
-    outlineLook(session.registry, tools.state ? hostAsset(tools.state) : undefined);
+    outlineLook(session.registry, tools.state ? hostAsset(tools.state) : undefined, {
+      doc: session.getDoc(),
+      prefabs: session.getPrefabs(),
+    });
   const controls: EditorControls = {
     ...props,
     rapier: props.rapier ?? null,

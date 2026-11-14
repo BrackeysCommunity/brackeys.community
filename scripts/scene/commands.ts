@@ -125,14 +125,23 @@ const DEFINITIONS = {
     run: (_a, ctx) => list({}, ctx),
   },
   show: {
-    usage: "show <scene|file|-> [--ref id] [--type t] [--near x,y,r]",
+    usage: "show <scene|file|-> [--ref id] [--type t] [--near x,y,r] [--tree]",
     summary:
-      "entities and bulk entries with refs, AABB and top span, the scene hash, the time model and physics backend, and the camera regions as the camera rig reads them (box, zoom, clamp, ease)",
+      "entities and bulk entries with refs, AABB and top span, the scene hash, the time model and physics backend, and the camera regions as the camera rig reads them (box, zoom, clamp, ease), each row's parent and the frame its geometry is stored in (origin, transform { rot, flip }); --tree lists rows depth first under their parents",
     values: ["ref", "type", "near"],
-    switches: [],
+    switches: ["tree"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
-      show({ scene, ref: str(flags.ref), type: str(flags.type), near: str(flags.near) }, ctx),
+      show(
+        {
+          scene,
+          ref: str(flags.ref),
+          type: str(flags.type),
+          near: str(flags.near),
+          tree: flags.tree === true,
+        },
+        ctx,
+      ),
   },
   schema: {
     usage: `schema [${SCHEMA_NAMES.join("|")}|<doc kind>] [--game id]`,

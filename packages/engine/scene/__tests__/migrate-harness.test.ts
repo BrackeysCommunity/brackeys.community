@@ -6,7 +6,13 @@ import { createRegistry } from "../../game/define";
 import type { Registry } from "../../game/types";
 import { pxPerMetreOf, scaleLengths } from "../../game/units";
 import { sceneSchemaFor } from "../schema";
-import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../types";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type InstanceDef,
+  type Pt,
+  type SceneDefinition,
+} from "../types";
 import { pxToMetres } from "../units";
 import { engine, prefabFixture } from "./fixtures/fake-game";
 import { migrationHarness } from "./fixtures/migration-harness";
@@ -23,7 +29,7 @@ const registryOf = (text: string): Registry => {
  * v4 they are sources like the rest.
  */
 const SINKS: Record<string, SceneDefinition> = {
-  "kitchen-sink.json": {
+  "kitchen-sink.json": <SceneDefinition>(<unknown>{
     v: 3,
     name: "kitchen-sink",
     bounds: [0, 0, 4000, 2000],
@@ -86,7 +92,7 @@ const SINKS: Record<string, SceneDefinition> = {
         tags: ["shelf"],
       },
     ],
-  },
+  }),
   "test-game-sink.json": {
     v: 3,
     game: "test-game",
@@ -121,17 +127,43 @@ const SINKS: Record<string, SceneDefinition> = {
   },
 };
 
+type V3Group = { at: Pt; rot?: number; flip?: true; name?: string };
+
 /**
- * A v3 sink at v4: every length under the scene schema's units in metres,
- * and the param the schema can't see scaled through its prefab's target
- * (`door.path.speed`, m/s).
+ * A v3 sink at the current version: every length under the scene schema's
+ * units in metres, and the param the schema can't see scaled through its
+ * prefab's target (`door.path.speed`, m/s); instance turns in degrees; each
+ * group a node at the front of `entities`, its members under it.
  */
 function current(def: SceneDefinition, registry: Registry): SceneDefinition {
   const ppm = pxPerMetreOf(registry);
-  const out = scaleLengths(def, sceneSchemaFor(registry), ppm) as SceneDefinition;
-  for (const inst of out.instances ?? [])
-    if (typeof inst.params?.speed === "number")
-      inst.params.speed = pxToMetres(inst.params.speed, ppm);
+  const { groups = {}, ...rest } = def as SceneDefinition & { groups?: Record<string, V3Group> };
+  const out = scaleLengths(rest, sceneSchemaFor(registry), ppm) as SceneDefinition;
+  const lift = <T extends { group?: unknown; parent?: string }>(item: T): T => {
+    const { group, ...kept } = item;
+    return (typeof group === "string" ? { ...kept, parent: group } : kept) as T;
+  };
+  out.instances = out.instances?.map((inst) => {
+    const next = lift(inst as InstanceDef & { group?: string });
+    if (typeof next.rot === "number") next.rot *= 90;
+    if (typeof next.params?.speed === "number")
+      next.params.speed = pxToMetres(next.params.speed, ppm);
+    return next;
+  });
+  const nodes: EntityDef[] = Object.keys(groups)
+    .sort()
+    .map((id) => {
+      const g = groups[id]!;
+      return {
+        id,
+        type: "node",
+        ...(g.name !== undefined ? { name: g.name } : {}),
+        at: [pxToMetres(g.at[0], ppm), pxToMetres(g.at[1], ppm)],
+        ...(g.rot ? { rot: 90 * g.rot } : {}),
+        ...(g.flip ? { flip: true } : {}),
+      };
+    });
+  out.entities = [...nodes, ...(out.entities ?? []).map(lift)];
   return { ...out, v: SCENE_FORMAT_VERSION };
 }
 

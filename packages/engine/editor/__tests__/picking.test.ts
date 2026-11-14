@@ -6,6 +6,7 @@ import { primitiveFields } from "../../game/primitives";
 import type { Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import kitchenSink from "../../scenes/kitchen-sink.json";
+import * as tree from "../gizmos/__tests__/tree-fixture";
 import { cycleHit, marqueeSelect, pickAt } from "../picking";
 import { createSpatialIndex } from "../spatial-index";
 
@@ -272,5 +273,35 @@ describe("camera regions", () => {
     expect(marqueeSelect(roomIndex, inside, { touch: true })).toEqual(["crate"]);
     const crossing = { minX: 7.5, minY: 2, maxX: 8.5, maxY: 3 };
     expect(marqueeSelect(roomIndex, crossing, { touch: true })).toEqual(["room"]);
+  });
+});
+
+describe("picking by the tree", () => {
+  const index = createSpatialIndex();
+  index.rebuild(tree.view, tree.registry, tree.source);
+  const opts = { tolPx: 4, scale: 100 };
+
+  it("never hits an instance's own entry, only what draws under it", () => {
+    // Inside the instance's box, clear of its parts.
+    expect(pickAt(index, [1.65, 5.45], opts)).toEqual([]);
+    expect(pickAt(index, [2, 5.9], opts).map((e) => e.ref)).toEqual(["turret-a/base"]);
+  });
+
+  it("picks a child inside a selected instance, naming the levels a click steps through", () => {
+    const [hit] = pickAt(index, [2.5, 5.5], opts);
+    expect(hit).toMatchObject({ ref: "turret-a/barrel", instances: ["turret-a"] });
+    // A document entity under an instance's child is its own pick.
+    const [flag] = pickAt(index, [2.5, 5.2], opts);
+    expect(flag).toMatchObject({ ref: "flag" });
+    expect(flag!.instances).toBeUndefined();
+  });
+
+  it("takes an instance in its children's place in a marquee", () => {
+    const all = { minX: 1, minY: 4, maxX: 4, maxY: 7 };
+    expect(marqueeSelect(index, all, { touch: false })).toEqual(["turret-a", "flag"]);
+    // Containing only part of it takes none of it; touching any of it takes it.
+    const part = { minX: 1.5, minY: 5.5, maxX: 2.5, maxY: 6.1 };
+    expect(marqueeSelect(index, part, { touch: false })).toEqual([]);
+    expect(marqueeSelect(index, part, { touch: true })).toEqual(["turret-a"]);
   });
 });

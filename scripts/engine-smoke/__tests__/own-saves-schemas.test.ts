@@ -22,7 +22,7 @@ describe("the own-saves fixture's committed schemas", () => {
     const fresh = sceneJsonSchema(registry);
     if (process.env.UPDATE_SCHEMAS) writeFileSync(SCHEMA, `${JSON.stringify(fresh, null, 2)}\n`);
     expect(JSON.parse(readFileSync(SCHEMA, "utf8"))).toEqual(fresh);
-    expect(fresh.$id).toBe("urn:jams-engine:scene:own-saves:v4");
+    expect(fresh.$id).toBe("urn:jams-engine:scene:own-saves:v5");
     expect(fresh["x-agent-surface"]).toBe(AGENT_SURFACE_VERSION);
   });
 

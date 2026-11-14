@@ -8,6 +8,7 @@ import {
   placeFragment,
   type SceneFragment,
 } from "../fragment";
+import { applyOps } from "../ops";
 import { prefabLibrary } from "../prefab";
 import { resolveScene } from "../resolve";
 import type { InstanceDef, Prefab, Pt, SceneDefinition } from "../types";
@@ -18,7 +19,7 @@ import room from "./fixtures/prefabs/room.json";
 import { fake as yardFake, engine as yardEngine, yardPrefabs } from "./fixtures/random-ops";
 
 const def: SceneDefinition = {
-  v: 4,
+  v: 5,
   game: "fake",
   name: "f",
   bounds: [0, 0, 1000, 1000],
@@ -54,7 +55,7 @@ describe("fragmentOf", () => {
     const f = fragmentOf(def, ["btn", "~solid:1", "door", "~flag:0", "nope", "~nope:0"], fake);
     expect(f).toEqual({
       kind: "scene-fragment",
-      v: 4,
+      v: 5,
       game: "fake",
       entities: [def.entities![0], def.entities![1]],
       bulk: { flag: [[10, 10]], solid: [["box", 300, 100, 50, 10]] },
@@ -66,7 +67,7 @@ describe("fragmentOf", () => {
   it("leaves out empty parts", () => {
     expect(fragmentOf({ ...def, game: undefined }, ["lift"], fake)).toEqual({
       kind: "scene-fragment",
-      v: 4,
+      v: 5,
       entities: [def.entities![2]],
     });
   });
@@ -75,7 +76,7 @@ describe("fragmentOf", () => {
 describe("fragmentSchemaFor", () => {
   it("checks entities and bulk entries against the registry", () => {
     const schema = fragmentSchemaFor(fake);
-    const base = { kind: "scene-fragment", v: 4 };
+    const base = { kind: "scene-fragment", v: 5 };
     expect(schema.safeParse({ ...base, entities: [] }).success).toBe(true);
     expect(schema.safeParse({ ...base, bulk: { pad: [["box", 0, 0, 1, 1]] } }).success).toBe(true);
     expect(schema.safeParse({ ...base, bulk: { pad: [["circle", 0, 0, 1]] } }).success).toBe(false);
@@ -109,7 +110,7 @@ describe("parseFragment", () => {
   it("maps schema problems to scene issues pointing into the fragment", () => {
     const bad = {
       kind: "scene-fragment",
-      v: 4,
+      v: 5,
       entities: [{ id: "door", type: "door", shape: ["box", 0, 0, 1, 1], speed: 1, sped: 2 }],
       bulk: { flag: [[1, "x"]] },
     };
@@ -151,18 +152,18 @@ describe("fragmentBounds", () => {
       for (const rot of [0, 1, 2, 3] as const) {
         const inst = { id: "gate-1", prefab: "gate", at: [100, 200] as Pt, ...turn(rot, flip) };
         const box = fragmentBounds(
-          { kind: "scene-fragment", v: 4, entities: [], instances: [inst] },
+          { kind: "scene-fragment", v: 5, entities: [], instances: [inst] },
           yardEngine,
           prefabs,
         )!;
         for (const n of Object.values(box)) expect(Number.isInteger(n)).toBe(true);
         const resolved = resolveScene(
-          { v: 4, name: "g", bounds: [0, 0, 1000, 1000], instances: [inst] },
+          { v: 5, name: "g", bounds: [0, 0, 1000, 1000], instances: [inst] },
           yardEngine,
           prefabs,
         );
         const reference = fragmentBounds(
-          { kind: "scene-fragment", v: 4, entities: resolved.entities ?? [] },
+          { kind: "scene-fragment", v: 5, entities: resolved.entities ?? [] },
           yardEngine,
         )!;
         for (const k of ["minX", "minY", "maxX", "maxY"] as const)
@@ -171,7 +172,7 @@ describe("fragmentBounds", () => {
     const flipped = fragmentBounds(
       {
         kind: "scene-fragment",
-        v: 4,
+        v: 5,
         entities: [],
         instances: [{ id: "g", prefab: "gate", at: [0, 0], flip: true }],
       },
@@ -184,22 +185,22 @@ describe("fragmentBounds", () => {
   it("boxes a variant's base and nested instances' children", () => {
     const lib = prefabLibrary([
       ...yardPrefabs().values(),
-      { kind: "prefab", v: 4, id: "tall-post", base: "post", entities: [] },
+      { kind: "prefab", v: 5, id: "tall-post", base: "post", entities: [] },
       {
         kind: "prefab",
-        v: 4,
+        v: 5,
         id: "pair",
         entities: [],
         instances: [
           { id: "p1", prefab: "post", at: [-100, 0] },
-          { id: "p2", prefab: "tall-post", at: [100, 0], rot: 1 },
+          { id: "p2", prefab: "tall-post", at: [100, 0], rot: 90 },
         ],
       },
       ...([room, door, gate] as unknown as Prefab[]),
     ]);
     const boxOf = (inst: InstanceDef) =>
       fragmentBounds(
-        { kind: "scene-fragment", v: 4, entities: [], instances: [inst] },
+        { kind: "scene-fragment", v: 5, entities: [], instances: [inst] },
         yardEngine,
         lib,
       );
@@ -207,10 +208,10 @@ describe("fragmentBounds", () => {
       fragmentBounds(
         {
           kind: "scene-fragment",
-          v: 4,
+          v: 5,
           entities:
             resolveScene(
-              { v: 4, name: "r", bounds: [0, 0, 1, 1], instances: [inst] },
+              { v: 5, name: "r", bounds: [0, 0, 1, 1], instances: [inst] },
               yardEngine,
               lib,
             ).entities ?? [],
@@ -221,9 +222,9 @@ describe("fragmentBounds", () => {
     expect(boxOf(variant)).toEqual({ minX: 94, minY: 160, maxX: 106, maxY: 240 });
     const pair: InstanceDef = { id: "n", prefab: "pair", at: [500, 500], flip: true };
     expect(boxOf(pair)).toEqual({ minX: 360, minY: 460, maxX: 606, maxY: 540 });
-    const room1: InstanceDef = { id: "room-1", prefab: "room", at: [0, 0], rot: 3 };
+    const room1: InstanceDef = { id: "room-1", prefab: "room", at: [0, 0], rot: 270 };
     const own = fragmentBounds(
-      { kind: "scene-fragment", v: 4, entities: [], instances: [room1] },
+      { kind: "scene-fragment", v: 5, entities: [], instances: [room1] },
       yardEngine,
       prefabLibrary([{ ...(room as unknown as Prefab), instances: [] }]),
     );
@@ -234,7 +235,7 @@ describe("fragmentBounds", () => {
   it("skips an instance whose prefab isn't given", () => {
     const f = {
       kind: "scene-fragment" as const,
-      v: 4,
+      v: 5,
       entities: [],
       instances: [{ id: "g", prefab: "gate", at: [0, 0] as Pt }],
     };
@@ -244,18 +245,17 @@ describe("fragmentBounds", () => {
 });
 
 const turn = (rot: 0 | 1 | 2 | 3, flip: boolean) => ({
-  ...(rot !== 0 ? { rot } : {}),
+  ...(rot !== 0 ? { rot: 90 * rot } : {}),
   ...(flip ? { flip: true as const } : {}),
 });
 
 describe("fragments with instances", () => {
   const prefabs = yardPrefabs("fake");
   const yard: SceneDefinition = {
-    v: 4,
+    v: 5,
     game: "fake",
     name: "y",
     bounds: [0, 0, 2000, 1000],
-    groups: { raised: { at: [40, -20], rot: 1 } },
     instances: [
       {
         id: "gate-2",
@@ -266,9 +266,12 @@ describe("fragments with instances", () => {
         params: { speed: 90 },
         overrides: { "door.path.speed": 120 },
       },
-      { id: "post-1", prefab: "post", at: [600, 900], group: "raised" },
+      { id: "post-1", prefab: "post", at: [600, 900], parent: "raised" },
     ],
-    entities: [{ id: "lever", type: "lever", at: [10, 20], target: "gate-2/door" }],
+    entities: [
+      { id: "lever", type: "lever", at: [10, 20], target: "gate-2/door" },
+      { id: "raised", type: "node", at: [40, -20], rot: 90 },
+    ],
   };
 
   it("copies an instance as itself and an instance's child as a plain entity", () => {
@@ -296,12 +299,10 @@ describe("fragments with instances", () => {
     expect(f.instances?.map((i) => i.id)).toEqual(["gate-2"]);
   });
 
-  it("copies a grouped instance where it stands in the world", () => {
+  it("copies an instance under a node where it stands in the world", () => {
     const f = fragmentOf(yard, ["post-1"], yardFake, prefabs);
-    // A quarter turn takes (600, 900) to (-900, 600), then the group's origin adds (40, -20).
-    expect(f.instances).toEqual([
-      { id: "post-1", prefab: "post", at: [-860, 580], group: "raised", rot: 1 },
-    ]);
+    // A quarter turn takes (600, 900) to (-900, 600), then the node's origin adds (40, -20).
+    expect(f.instances).toEqual([{ id: "post-1", prefab: "post", at: [-860, 580], rot: 90 }]);
   });
 
   it("parses instances back and refuses one whose id an entity holds", () => {
@@ -335,7 +336,7 @@ describe("fragments with instances", () => {
   it("keeps a child ref into an instance the scene has, and drops one into nothing", () => {
     const lever = (target: string): SceneFragment => ({
       kind: "scene-fragment",
-      v: 4,
+      v: 5,
       entities: [{ id: "l", type: "lever", at: [0, 0], target }],
     });
     const kept = placeFragment(lever("gate-2/door"), yard, yardFake, [0, 0], prefabs);
@@ -349,7 +350,7 @@ describe("fragments with instances", () => {
   it("places nothing for an instance whose prefab the project lacks", () => {
     const f: SceneFragment = {
       kind: "scene-fragment",
-      v: 4,
+      v: 5,
       entities: [{ id: "lever", type: "lever", at: [0, 0], target: "arch-1/door" }],
       instances: [
         { id: "arch-1", prefab: "arch", at: [0, 0] },
@@ -369,5 +370,158 @@ describe("fragments with instances", () => {
     expect(placed.ops.map((o) => o.op)).toEqual(["add", "instantiate"]);
     expect(placed.select).toEqual(["lever", "gate-9"]);
     expect(placeFragment(f, yard, yardFake, [0, 0]).select).toEqual(["lever-2"]);
+  });
+});
+
+describe("fragments of a tree", () => {
+  const prefabs = yardPrefabs();
+  const tree: SceneDefinition = {
+    v: 5,
+    name: "t",
+    bounds: [0, 0, 2000, 1000],
+    entities: [
+      { id: "pen", type: "node", at: [100, 100], rot: 90 },
+      { id: "peg", type: "marker", at: [10, 0], parent: "pen" },
+      { id: "pip", type: "marker", at: [0, 10], parent: "peg" },
+      { id: "lamp", type: "marker", at: [0, -5], parent: "post-1/top" },
+      { id: "far", type: "marker", at: [900, 900] },
+    ],
+    instances: [{ id: "post-1", prefab: "post", at: [20, 0], parent: "pen" }],
+  };
+  const world = (def: SceneDefinition, id: string) =>
+    resolveScene(def, yardEngine, prefabs).entities!.find((e) => e.id === id)!;
+  const apply = (def: SceneDefinition, ops: PlacedOps) => {
+    const r = applyOps(def, { ops }, yardEngine, { prefabs, validate: "none" });
+    if (!r.ok) throw new Error(`${r.issue.code}: ${r.issue.message}`);
+    return r.def;
+  };
+  type PlacedOps = ReturnType<typeof placeFragment>["ops"];
+
+  it("brings a parent's subtree, children in their parents' frames", () => {
+    const f = fragmentOf(tree, ["pen"], yardEngine, prefabs);
+    expect(f.entities).toEqual(tree.entities!.slice(0, 4));
+    expect(f.instances).toEqual(tree.instances);
+  });
+
+  it("copies a child alone where it stands in the world, under nothing", () => {
+    const f = fragmentOf(tree, ["peg"], yardEngine, prefabs);
+    const { parent: _parent, ...peg } = world(tree, "peg");
+    expect(f.entities[0]).toEqual(peg);
+    expect(f.entities[0]!.at).toEqual([100, 110]);
+    // A marker's frame carries no turn, so what sits under it is rewritten to stay where it was.
+    expect(f.entities[1]).toEqual({ id: "pip", type: "marker", at: [-10, 0], parent: "peg" });
+    const pasted = apply(tree, placeFragment(f, tree, yardEngine, [0, 0], prefabs).ops);
+    expect(world(pasted, "pip-2").at).toEqual(world(tree, "pip").at);
+  });
+
+  it("copies an instance under a parent in world coordinates, with what sits under its children", () => {
+    const f = fragmentOf(tree, ["post-1"], yardEngine, prefabs);
+    expect(f.instances).toEqual([{ id: "post-1", prefab: "post", at: [100, 120], rot: 90 }]);
+    expect(f.entities).toEqual([tree.entities![3]]);
+    const box = fragmentBounds(f, yardEngine, prefabs)!;
+    const view = resolveScene(tree, yardEngine, prefabs).entities!;
+    for (const id of ["lamp", "post-1/top"]) {
+      const [x, y] = view.find((e) => e.id === id)!.at as Pt;
+      expect([box.minX <= x && x <= box.maxX, box.minY <= y && y <= box.maxY], id).toEqual([
+        true,
+        true,
+      ]);
+    }
+  });
+
+  it("brings what sits under a copied instance child, its parent renamed with it", () => {
+    const f = fragmentOf(tree, ["post-1/top"], yardEngine, prefabs);
+    expect(f.entities.map((e) => [e.id, e.parent])).toEqual([
+      ["lamp", "top"],
+      ["top", undefined],
+    ]);
+  });
+
+  it("keeps a root's own off, not the one it hides under", () => {
+    const hidden = structuredClone(tree);
+    hidden.entities![0]!.off = true;
+    const f = fragmentOf(hidden, ["peg"], yardEngine, prefabs);
+    expect(f.entities[0]!.off).toBeUndefined();
+    expect(fragmentOf(hidden, ["pen"], yardEngine, prefabs).entities[0]!.off).toBe(true);
+  });
+
+  it("boxes a child where its parent puts it", () => {
+    const f = fragmentOf(tree, ["pen"], yardEngine, prefabs);
+    const box = fragmentBounds(f, yardEngine, prefabs)!;
+    const [x, y] = world(tree, "pip").at as Pt;
+    expect(box.minX).toBeLessThanOrEqual(x);
+    expect(box.maxY).toBeGreaterThanOrEqual(y);
+    expect(
+      fragmentBounds({ ...f, entities: [f.entities[0]!, f.entities[2]!] }, yardEngine),
+    ).toEqual({ minX: 0, minY: 10, maxX: 100, maxY: 100 });
+  });
+
+  it("pastes with renames, the links following and only the roots moving", () => {
+    const f = fragmentOf(tree, ["pen"], yardEngine, prefabs);
+    const placed = placeFragment(f, tree, yardEngine, [5, 5], prefabs);
+    expect(placed.issues).toEqual([]);
+    expect(placed.ops).toEqual([
+      { op: "add", entity: { id: "pen-2", type: "node", at: [105, 105], rot: 90 } },
+      { op: "add", entity: { id: "peg-2", type: "marker", at: [10, 0], parent: "pen-2" } },
+      { op: "add", entity: { id: "pip-2", type: "marker", at: [0, 10], parent: "peg-2" } },
+      {
+        op: "instantiate",
+        instance: { id: "post-2", prefab: "post", at: [20, 0], parent: "pen-2" },
+      },
+      { op: "add", entity: { id: "lamp-2", type: "marker", at: [0, -5], parent: "post-2/top" } },
+    ]);
+    expect(placed.ids).toEqual({
+      pen: "pen-2",
+      peg: "peg-2",
+      pip: "pip-2",
+      lamp: "lamp-2",
+      "post-1": "post-2",
+    });
+    const after = apply(tree, placed.ops);
+    for (const [from, to] of Object.entries(placed.ids)) {
+      if (!after.entities!.some((e) => e.id === to)) continue;
+      const [x, y] = world(tree, from).at as Pt;
+      expect(world(after, to).at, to).toEqual([x + 5, y + 5]);
+    }
+  });
+
+  it("places a parent before what sits under it", () => {
+    const f: SceneFragment = {
+      kind: "scene-fragment",
+      v: 5,
+      entities: [
+        { id: "kid", type: "marker", at: [1, 1], parent: "box" },
+        { id: "box", type: "node", at: [7, 7], parent: "post-9/top" },
+      ],
+      instances: [{ id: "post-9", prefab: "post", at: [50, 50] }],
+    };
+    const placed = placeFragment(f, tree, yardEngine, [0, 0], prefabs);
+    expect(placed.select).toEqual(["post-9", "box", "kid"]);
+    expect(placed.issues).toEqual([]);
+  });
+
+  it("keeps a parent the scene has and clears one into nothing, with a warning", () => {
+    const f = (parent: string): SceneFragment => ({
+      kind: "scene-fragment",
+      v: 5,
+      entities: [{ id: "m", type: "marker", at: [1, 1], parent }],
+    });
+    expect(placeFragment(f("pen"), tree, yardEngine, [0, 0], prefabs).ops).toEqual([
+      { op: "add", entity: { id: "m", type: "marker", at: [1, 1], parent: "pen" } },
+    ]);
+    const dropped = placeFragment(f("gone"), tree, yardEngine, [2, 2], prefabs);
+    expect(dropped.ops).toEqual([{ op: "add", entity: { id: "m", type: "marker", at: [3, 3] } }]);
+    expect(dropped.issues).toMatchObject([
+      { code: "dangling-ref", path: "/ops/0/entity/parent", entityIds: ["m"] },
+    ]);
+  });
+
+  it("round-trips a tree through clipboard text", () => {
+    const f = fragmentOf(tree, ["pen", "far"], yardEngine, prefabs);
+    expect(parseFragment(JSON.stringify(f), yardEngine)).toEqual({
+      ok: true,
+      fragment: f,
+      issues: [],
+    });
   });
 });

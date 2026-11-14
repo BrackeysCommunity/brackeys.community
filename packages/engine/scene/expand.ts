@@ -7,10 +7,18 @@ import { ENGINE_SETTING_KEYS, ENGINE_SETTINGS } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { bulkId } from "./bulk-ref";
-import { gridTurns, instanceStepsIn, placeInstance, resolveSceneDetailed } from "./resolve";
+import {
+  CHILD_SEPARATOR,
+  gridTurns,
+  instanceFrame,
+  placeInstance,
+  resolveWith,
+  sceneFrames,
+  type PlacedInstanceChild,
+} from "./resolve";
 import { fieldKind } from "./schema";
 import { parseShape } from "./shapes";
-import type { Dihedral } from "./transform";
+import { frame, type Orientation, type Transform2D } from "./transform";
 import { scopeBehaviorRefs } from "./translate";
 import {
   RESERVED_SCENE_KEYS,
@@ -19,8 +27,8 @@ import {
   type EntityDef,
   type EntityTypeName,
   type ExpandedScene,
-  type GroupDef,
   type InstanceDef,
+  type Prefab,
   type PrefabLibrary,
   type Pt,
   type ResolvedSettings,
@@ -179,18 +187,20 @@ export function behaviorBlocks(
   return out;
 }
 
-const IDENTITY: Dihedral = { rot: 0, flip: false };
+const IDENTITY: Orientation = { rot: 0, flip: false };
 
 /**
  * What the runtime loads for one scene entity of type `t`: the editor's
  * fields dropped (`layer` and a non-zero `z` kept), shapes as objects, whole
- * behavior blocks, and `transform` when `transform` turns or flips it.
+ * behavior blocks, `transform` when `transform` (degrees clockwise, and a
+ * flip) turns or flips it, and `parent` when one is given.
  */
 export function runtimeEntity(
   registry: Registry,
   e: EntityDef,
   t: RegisteredType,
-  transform: Dihedral,
+  transform: Orientation,
+  parent?: string,
 ): RuntimeEntity {
   const out: Record<string, unknown> = { id: e.id, type: e.type };
   if (e.layer !== undefined) out.layer = e.layer;
@@ -207,48 +217,135 @@ export function runtimeEntity(
   const behaviors = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD]);
   if (Object.keys(behaviors).length > 0) out.behaviors = behaviors;
   if (transform.rot !== 0 || transform.flip)
-    out.transform = { turn: transform.rot, flip: transform.flip };
+    out.transform = { rot: transform.rot, flip: transform.flip };
+  if (parent !== undefined) out.parent = parent;
   return out as RuntimeEntity;
 }
 
+/** The id each prefab gains in `withOrigins`: no entity id can take it, and it names no bulk entry. */
+const ORIGIN = "~origin";
+const ORIGIN_SUFFIX = `${CHILD_SEPARATOR}${ORIGIN}`;
+const NODE: EntityTypeName = "node";
+
+type Origins = { source: Map<string, Prefab>; marked: Map<string, Prefab> };
+/** Per library, its prefabs each with an origin child; kept in step with the library's entries. */
+const ORIGINS = new WeakMap<PrefabLibrary, Origins>();
+
 /**
- * One prefab instance's entities as a load expands them: ids
- * `<instance>/<child>` (refs between its children remapped to them, the
- * behavior blocks' entity refs by `scopeBehaviorRefs`), fields,
- * behaviors, `z`, layers and `transform`, in spawn-group order, `off`
- * children and types that don't load dropped. `group` is the instance's
- * group; `cells` says the scene's turns are grid turns (`gridTurns`). An
- * issue when the prefab is missing, cyclic or too deep; a child of an
+ * `library` with a `node` child at each prefab's origin, so the resolver
+ * places it as it places every child: under each instance's params,
+ * overrides, turns, variant bases and `off`, it lands where that
+ * instance's node goes. The same map comes back for the same library, so
+ * resolved prefabs stay cached.
+ */
+function withOrigins(library: PrefabLibrary): PrefabLibrary {
+  let o = ORIGINS.get(library);
+  if (!o) ORIGINS.set(library, (o = { source: new Map(), marked: new Map() }));
+  for (const [id, prefab] of library) {
+    if (o.source.get(id) === prefab) continue;
+    o.source.set(id, prefab);
+    o.marked.set(id, {
+      ...prefab,
+      entities: [...prefab.entities, { id: ORIGIN, type: NODE, at: [0, 0] }],
+    });
+  }
+  if (o.source.size !== library.size) {
+    for (const id of [...o.source.keys()]) {
+      if (library.has(id)) continue;
+      o.source.delete(id);
+      o.marked.delete(id);
+    }
+  }
+  return o.marked;
+}
+
+/** The id of the nearest of `nodes` that encloses `id` (`room-1/door-1` for `room-1/door-1/panel`). */
+function enclosing(id: string, nodes: ReadonlySet<string>): string | undefined {
+  for (let i = id.lastIndexOf(CHILD_SEPARATOR); i > 0; i = id.lastIndexOf(CHILD_SEPARATOR, i - 1)) {
+    const at = id.slice(0, i);
+    if (nodes.has(at)) return at;
+  }
+  return undefined;
+}
+
+/**
+ * One prefab instance's entities as a load expands them. First a `node`
+ * at the instance's id, at its world origin and turned by its angle (`rot`
+ * in degrees), under `parent` when one is given; then one for each nested
+ * instance (`<instance>/<nested>`), each under the nested instance's
+ * `parent` if it has one, else under the one that holds it, with its layer
+ * and summed `z`. Then the children, ids `<instance>/<child>` (refs
+ * between its children remapped to them, the behavior blocks' entity refs
+ * by `scopeBehaviorRefs`), fields, behaviors, `z`, layers and `transform`,
+ * in spawn-group order, each under its own `parent` in the prefab, else
+ * under the nearest enclosing instance's node; `nodes` counts the leading
+ * nodes, the rest being the prefab's children. `off` children and types
+ * that don't load are dropped; an `off` instance gives nothing. `steps` are
+ * the frames above the instance, innermost first (default none);
+ * `cells` says the scene's turns are grid turns (`gridTurns`). An issue
+ * when the prefab is missing, cyclic or too deep; a child of an
  * unregistered type throws, as a load does.
  */
 export function expandInstance(
   inst: InstanceDef,
   library: PrefabLibrary,
   registry: Registry,
-  opts: { group?: GroupDef; cells?: boolean } = {},
-): { ok: true; entities: RuntimeEntity[] } | { ok: false; issue: SceneIssue } {
+  opts: {
+    steps?: readonly Transform2D[];
+    parent?: string;
+    cells?: boolean;
+  } = {},
+): { ok: true; entities: RuntimeEntity[]; nodes: number } | { ok: false; issue: SceneIssue } {
+  const marked = withOrigins(library);
   const placed = placeInstance(
-    library.get(inst.prefab),
+    marked.get(inst.prefab),
     inst,
     registry,
-    instanceStepsIn(inst, opts.group),
+    [frame(instanceFrame(inst)), ...(opts.steps ?? [])],
     opts.cells === true,
-    library,
+    marked,
   );
   if (!placed.ok) return placed;
-  const groups: RuntimeEntity[][] = registry.spawnGroups.map(() => []);
-  const ids = new Set(placed.children.map((c) => c.def.id));
-  const has = (id: string) => ids.has(id);
+  const origins: { id: string; child: PlacedInstanceChild }[] = [];
+  const nodeIds = new Set<string>();
+  const rest: PlacedInstanceChild[] = [];
   for (const child of placed.children) {
+    const origin = child.child.child === ORIGIN || child.child.child.endsWith(ORIGIN_SUFFIX);
+    if (!origin) rest.push(child);
+    else if (!child.def.off) {
+      const id = child.def.id.slice(0, -ORIGIN_SUFFIX.length);
+      // a variant carries its base's origin and its own, at the same place
+      if (nodeIds.has(id)) continue;
+      nodeIds.add(id);
+      origins.push({ id, child });
+    }
+  }
+  const nodeType = registry.types.get(NODE);
+  if (!nodeType) throw new Error(`expandInstance: the registry has no "${NODE}" type`);
+  const ids = new Set(rest.filter((c) => !c.def.off).map((c) => c.def.id));
+  const linked = (parent: unknown) =>
+    typeof parent === "string" && (ids.has(parent) || nodeIds.has(parent)) ? parent : undefined;
+  const nodes = origins.map(({ id, child: { def, transform, nodeParent } }) => {
+    const node: EntityDef = { id, type: NODE, at: def.at as Pt };
+    if (transform.rot !== 0) node.rot = transform.rot;
+    if (def.layer !== undefined) node.layer = def.layer;
+    if (def.z !== undefined) node.z = def.z;
+    const parent = id === inst.id ? opts.parent : (linked(nodeParent) ?? enclosing(id, nodeIds));
+    return runtimeEntity(registry, node, nodeType, transform, parent);
+  });
+  const groups: RuntimeEntity[][] = registry.spawnGroups.map(() => []);
+  const has = (id: string) => ids.has(id);
+  for (const child of rest) {
     if (child.def.off) continue;
     const def = scopeBehaviorRefs(registry, child.def, has);
     const t = registry.types.get(def.type);
     if (!t) throw new Error(`expandInstance: ${def.id} has unregistered type "${def.type}"`);
     const group = registry.spawnGroupOf(def.type);
     if (group === undefined) continue;
-    groups[group]?.push(runtimeEntity(registry, def, t, child.transform));
+    const parent = linked(def.parent) ?? enclosing(def.id, nodeIds);
+    groups[group]?.push(runtimeEntity(registry, def, t, child.transform, parent));
   }
-  return { ok: true, entities: groups.flat() };
+  return { ok: true, entities: [...nodes, ...groups.flat()], nodes: nodes.length };
 }
 
 /** Whether `scene` is already expanded: an `ExpandedScene` has an `entities` list and, unlike a document, no `v`. */
@@ -265,8 +362,8 @@ export type ExpandOptions = {
 
 /**
  * What the runtime loads, as the scene's resolved view (`resolveScene`)
- * holds it: group transforms applied, each instance's children through
- * `expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
+ * holds it: parent frames applied, each instance's nodes and children
+ * through `expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
  * types that don't load are dropped, along with the editor's fields (`layer`
  * and a non-zero `z` stay), shapes become objects, behavior blocks are whole
  * (`behaviorBlocks`), a turned or flipped entity records its `transform`,
@@ -279,8 +376,10 @@ export function expandScene(
   registry: Registry,
   opts: ExpandOptions = {},
 ): ExpandedScene {
-  // the document's own entities with their groups applied; instances expand one by one below
-  const { def, origins } = resolveSceneDetailed({ ...source, instances: [] }, registry);
+  const library = opts.prefabs;
+  const frames = sceneFrames(source, registry, library);
+  // the document's own entities in the world; instances expand one by one below
+  const { def, origins } = resolveWith(source, registry, frames, false);
   if (def.game !== undefined && def.game !== registry.id) {
     throw new Error(
       `expandScene: scene "${def.name}" is for game "${def.game}", not "${registry.id}"`,
@@ -308,6 +407,8 @@ export function expandScene(
     });
   }
 
+  // a `parent` link to something that doesn't load (a note, a missing child) is dropped below
+  const linked: RuntimeEntity[] = [];
   (def.entities ?? []).forEach((e, i) => {
     if (e.off) return;
     const t = registry.types.get(e.type);
@@ -315,20 +416,31 @@ export function expandScene(
     const group = registry.spawnGroupOf(e.type);
     if (group === undefined) return;
     const transform = origins[i]?.transform ?? IDENTITY;
-    groups[group]?.push(runtimeEntity(registry, e, t, transform));
+    const parent = frames.parentOf(e.id);
+    const out = runtimeEntity(registry, e, t, transform, parent);
+    if (parent !== undefined) linked.push(out);
+    groups[group]?.push(out);
   });
 
-  const library = opts.prefabs;
   const cells = gridTurns(source);
   for (const inst of source.instances ?? []) {
     if (!library) break;
-    const group = inst.group === undefined ? undefined : source.groups?.[inst.group];
-    const out = expandInstance(inst, library, registry, { group, cells });
+    if (frames.hidden(inst.id)) continue;
+    const parent = frames.parentOf(inst.id);
+    const steps = frames.stepsFor(inst);
+    const out = expandInstance(inst, library, registry, { steps, cells, parent });
     if (!out.ok) continue;
     for (const e of out.entities) {
       const at = registry.spawnGroupOf(e.type);
       if (at !== undefined) groups[at]?.push(e);
+      if (parent !== undefined && e.id === inst.id) linked.push(e);
     }
+  }
+
+  const entities = groups.flat();
+  if (linked.length > 0) {
+    const ids = new Set(entities.map((e) => e.id));
+    for (const e of linked) if (e.parent !== undefined && !ids.has(e.parent)) delete e.parent;
   }
 
   return {
@@ -336,6 +448,6 @@ export function expandScene(
     ...(def.game !== undefined ? { game: def.game } : {}),
     bounds: [def.bounds[0], def.bounds[1], def.bounds[2], def.bounds[3]],
     settings: resolveSettings(def.settings, settingsSources(registry, opts.engine)),
-    entities: groups.flat(),
+    entities,
   };
 }

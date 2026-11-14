@@ -172,7 +172,7 @@ describe("loading a stored doc", () => {
 
 describe("a stored doc whose next step needs its game", () => {
   it("stays at its version, unresolved, its bytes untouched", () => {
-    expect(V).toBe(4);
+    expect(V).toBe(5);
     const state = seedState("test.bytes", { ...SCENE, v: V - 1 });
     const prepared = prepareLoadedState("test.bytes", state, null);
     expect(prepared).toMatchObject({
@@ -186,12 +186,13 @@ describe("a stored doc whose next step needs its game", () => {
   });
 
   it("lifts an older doc as far as this side can, keeping its keys", () => {
-    const state = seedState("test.bytes", { ...SCENE, v: V - 2 });
+    // v2 to v3 needs nothing; v3 to v4 needs the game
+    const state = seedState("test.bytes", { ...SCENE, v: 2 });
     const keys = [...docOf(state).getMap("entities").keys()].sort();
     const prepared = prepareLoadedState("test.bytes", state, null);
-    expect(prepared).toMatchObject({ schemaVersion: V - 1, migratedFrom: V - 2 });
+    expect(prepared).toMatchObject({ schemaVersion: 3, migratedFrom: 2 });
     expect(prepared.unresolved?.code).toBe("migration-unresolved");
-    expect(stateSchemaVersion(prepared.state)).toBe(V - 1);
+    expect(stateSchemaVersion(prepared.state)).toBe(3);
     expect([...docOf(prepared.state).getMap("entities").keys()].sort()).toEqual(keys);
   });
 

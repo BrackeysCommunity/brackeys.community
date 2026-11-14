@@ -16,7 +16,6 @@ import {
   type BulkEntry,
   type BulkKey,
   type EntityDef,
-  type GroupDef,
   type InstanceDef,
   type OverridePath,
   type Prefab,
@@ -422,9 +421,12 @@ export function prefabSceneBounds(
   return out;
 }
 
-/** The doc's groups by id; one without a usable `at` is skipped. */
-function readGroups(doc: Y.Doc): Record<string, GroupDef> | undefined {
-  const out: Record<string, GroupDef> = {};
+/**
+ * A format 4 doc's groups by id, as that format wrote them, so `migrateDoc`
+ * can lift them to nodes; one without a usable `at` is skipped.
+ */
+function readLegacyGroups(doc: Y.Doc): Record<string, unknown> | undefined {
+  const out: Record<string, unknown> = {};
   for (const id of [...groupsMap(doc).keys()].sort()) {
     const map = groupsMap(doc).get(id);
     if (!(map instanceof Y.Map)) continue;
@@ -442,6 +444,9 @@ function readGroups(doc: Y.Doc): Record<string, GroupDef> | undefined {
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }
+
+/** The last format whose docs hold a `groups` map. */
+const GROUPS_FORMAT = 4;
 
 /** The prefabs a layout-1 doc holds in its `prefabs` map, by id; empty for layout 2. */
 export function docPrefabs(doc: Y.Doc): PrefabLibrary {
@@ -495,7 +500,10 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   if (!prefab && settingsMap(doc).size > 0) out.settings = settingsMap(doc).toJSON();
   const assets = readAssets(doc);
   if (assets.length > 0) out.assets = assets;
-  const groups = prefab ? undefined : readGroups(doc);
+  const groups =
+    prefab || typeof out.v !== "number" || out.v > GROUPS_FORMAT
+      ? undefined
+      : readLegacyGroups(doc);
   if (groups) out.groups = groups;
 
   const instanceRecords = new Map<string, EntityRecord>();
@@ -655,16 +663,6 @@ export function instanceRecord(def: InstanceDef, z: string): EntityRecord {
   return { ...cloneJson(def), [Z_FIELD]: z } as unknown as EntityRecord;
 }
 
-/** A new `Y.Map` holding a group. */
-export function groupMap(group: GroupDef): Y.Map<unknown> {
-  const map = new Y.Map<unknown>();
-  map.set("at", cloneJson(group.at));
-  if (group.rot !== undefined) map.set("rot", group.rot);
-  if (group.flip !== undefined) map.set("flip", group.flip);
-  if (group.name !== undefined) map.set("name", group.name);
-  return map;
-}
-
 /**
  * Seeds a doc with a scene, in one transaction, at this engine's layout.
  * The scene's prefabs are docs of their own (`prefabToDoc`). Only a server
@@ -707,8 +705,6 @@ export function sceneToDoc(def: SceneDefinition, opts: SceneToDocOptions = {}): 
       key,
     );
 
-    for (const [id, group] of Object.entries(def.groups ?? {}))
-      groupsMap(doc).set(id, groupMap(group));
     const placed = def.instances ?? [];
     const izs = initialZ(placed.length);
     placed.forEach((inst, i) =>

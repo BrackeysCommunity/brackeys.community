@@ -400,7 +400,7 @@ describe("file → doc → file, per kind", () => {
 
   const PAINTED = lines(
     "{",
-    '  "v": 4,',
+    '  "v": 5,',
     '  "game": "test-game",',
     '  "name": "paint-yard",',
     '  "bounds": [0, 0, 4096, 4096],',

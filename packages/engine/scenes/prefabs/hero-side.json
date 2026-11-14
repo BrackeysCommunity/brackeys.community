@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "hero-side",
   "params": {
     "jumpHeight": { "description": "How high a full jump rises, m.", "targets": ["hero.behaviors.character-side-view.jumpHeight"] },

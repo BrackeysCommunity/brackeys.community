@@ -7,9 +7,12 @@ import { createRegistry, defineEntityType, defineGame, ENGINE_BEHAVIORS } from "
 import { assetField, pointField, shapeField, tagsField } from "../../game/fields";
 import { applyOps } from "../../scene/ops";
 import { prefabLibrary } from "../../scene/prefab";
+import { resolveScene } from "../../scene/resolve";
 import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import {
   buildInspectorModel,
+  instanceAngleBatch,
+  instanceAngleRow,
   instanceParamsModel,
   instanceTransformModel,
   instanceZBatch,
@@ -19,6 +22,9 @@ import {
   overlappingKeys,
   paramBatch,
   paramOverriddenBy,
+  parentBatch,
+  parentCandidates,
+  parentModel,
   parseRelative,
   refCandidates,
   shapeConversions,
@@ -210,7 +216,7 @@ describe("buildInspectorModel", () => {
 
   it("sections fields by meta.group, else by kind, in the fixed section order", () => {
     expect(m.sections.map((s) => [s.title, s.fields.map((f) => f.path)])).toEqual([
-      ["Identity", ["id", "type", "name", "layer", "group", "off", "z"]],
+      ["Identity", ["id", "type", "name", "layer", "parent", "off", "z"]],
       ["Transform", ["turn"]],
       ["Shape", ["shape"]],
       ["Gameplay", ["mode", "power", "ratio", "color", "armed", "target", "tags"]],
@@ -333,7 +339,7 @@ describe("buildInspectorModel", () => {
       "type",
       "name",
       "layer",
-      "group",
+      "parent",
       "off",
       "z",
       "shape",
@@ -589,13 +595,13 @@ describe("instance parameters", () => {
 describe("instance placement", () => {
   const turned: SceneDefinition = {
     ...placed,
-    instances: [{ ...placed.instances![0]!, rot: 1, flip: true, z: 3 }, placed.instances![1]!],
+    instances: [{ ...placed.instances![0]!, rot: 90, flip: true, z: 3 }, placed.instances![1]!],
   };
 
   it("reads a scene instance's turns, mirror and z, and a nested one's without editing", () => {
     expect(instanceTransformModel(turned, "gate-2", prefabs)).toEqual({
       ref: "gate-2",
-      rot: 1,
+      rot: 90,
       flip: true,
       z: 3,
       editable: true,
@@ -1672,5 +1678,245 @@ describe("the field rule the settings model shares", () => {
     const m = buildInspectorModel(pt, [lookupRef(doc, "s")!]);
     const at = m.sections.flatMap((s) => s.fields).find((f) => f.path === "at");
     expect(at?.widget).toMatchObject({ kind: "point", pick: true });
+  });
+});
+
+describe("the tree", () => {
+  const tree = createRegistry(testGame);
+  const DOOR: Prefab = {
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    game: testGame.id,
+    id: "door",
+    entities: [
+      { id: "hinge", type: "node", at: [1, 0] },
+      { id: "panel", type: "solid", shape: ["box", 0, 0, 1, 1, 0], parent: "hinge" },
+    ],
+  };
+  const HALL: Prefab = {
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    game: testGame.id,
+    id: "hall",
+    entities: [{ id: "post", type: "node", at: [0, 0] }],
+    instances: [{ id: "door-1", prefab: "door", at: [4, 0], parent: "post" }],
+  };
+  const library = prefabLibrary([DOOR, HALL]);
+  const scene: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    game: testGame.id,
+    name: "tree",
+    bounds: [0, 0, 100, 100],
+    entities: [
+      { id: "rig", type: "node", at: [10, 0], rot: 90 },
+      { id: "arm", type: "node", at: [2, 0], parent: "rig" },
+      { id: "block", type: "solid", shape: ["box", 1, 0, 1, 1, 0], parent: "arm" },
+      { id: "floor", type: "solid", shape: ["box", 50, 90, 50, 1, 0] },
+      { id: "walk", type: "nav", shape: ["poly", 0, 0, 10, 0, 10, 10] },
+      { id: "memo", type: "note", at: [1, 1], text: "hi" },
+    ],
+    instances: [
+      { id: "door-2", prefab: "door", at: [30, 0], parent: "rig" },
+      { id: "hall-1", prefab: "hall", at: [60, 0] },
+    ],
+  };
+  const view = resolveScene(scene, tree, library);
+  const treeModel = (...refs: string[]) =>
+    buildInspectorModel(
+      tree,
+      refs.map((r) => lookupRef(view, r)!),
+      { def: view },
+    );
+
+  it("offers every possible parent but the refs' own subtrees and types outside the tree", () => {
+    expect(parentCandidates(scene, tree, ["arm"], library)).toEqual([
+      "rig",
+      "floor",
+      "door-2",
+      "hall-1",
+      "door-2/hinge",
+      "door-2/panel",
+      "hall-1/post",
+      "hall-1/door-1/hinge",
+      "hall-1/door-1/panel",
+      "hall-1/door-1",
+    ]);
+    const all = parentCandidates(scene, tree, ["rig"], library);
+    expect(all).not.toContain("rig");
+    expect(all).not.toContain("arm");
+    expect(all).not.toContain("block");
+    expect(all).not.toContain("door-2");
+    expect(all).not.toContain("door-2/hinge");
+    expect(all).not.toContain("walk");
+    expect(all).not.toContain("memo");
+    expect(all).toEqual(expect.arrayContaining(["floor", "hall-1", "hall-1/door-1"]));
+  });
+
+  it("reads each ref's parent, and fixes it for instance children and types outside the tree", () => {
+    expect(parentModel(scene, tree, ["block"], library)).toMatchObject({
+      value: "arm",
+      mixed: false,
+    });
+    expect(parentModel(scene, tree, ["block", "floor"], library)).toMatchObject({
+      value: undefined,
+      mixed: true,
+    });
+    expect(parentModel(scene, tree, ["door-2"], library)).toMatchObject({ value: "rig" });
+    expect(parentModel(scene, tree, ["hall-1"], library)).toMatchObject({ value: null });
+    const panel = parentModel(scene, tree, ["door-2/panel"], library)!;
+    expect(panel).toMatchObject({ value: "door-2/hinge", candidates: [] });
+    expect(panel.fixed).toMatch(/In door-2; unpack/);
+    expect(parentModel(scene, tree, ["door-2/hinge"], library)!.value).toBe("door-2");
+    expect(parentModel(scene, tree, ["hall-1/door-1"], library)).toMatchObject({
+      value: "hall-1/post",
+      fixed: expect.any(String),
+    });
+    expect(parentModel(scene, tree, ["walk"], library)!.fixed).toMatch(/can't be in the tree/);
+    expect(parentModel(scene, tree, ["~solid:0"], library)).toBeNull();
+    expect(parentModel(scene, tree, ["nope"], library)).toBeNull();
+  });
+
+  it("commits one reparent of the refs not already there, which keeps the world pose", () => {
+    const m = parentModel(scene, tree, ["block", "floor"], library)!;
+    const r = parentBatch(m, "rig", scene);
+    expect(r).toEqual({
+      ok: true,
+      batch: {
+        label: "Reparent 2 items under rig",
+        ops: [{ op: "reparent", refs: ["block", "floor"], parent: "rig" }],
+      },
+    });
+    if (!r.ok) throw new Error(r.error);
+    const out = applyOps(scene, r.batch, tree, { prefabs: library });
+    if (!out.ok) throw new Error(out.issue.message);
+    const before = view.entities!.find((e) => e.id === "block")!.shape;
+    const after = resolveScene(out.def, tree, library).entities!.find((e) => e.id === "block")!;
+    expect(after.shape).toEqual(before);
+    expect(out.def.entities!.find((e) => e.id === "floor")!.parent).toBe("rig");
+
+    const one = parentModel(scene, tree, ["block"], library)!;
+    expect(parentBatch(one, null, scene)).toEqual({
+      ok: true,
+      batch: {
+        label: "Move block to the root",
+        ops: [{ op: "reparent", refs: ["block"], parent: null }],
+      },
+    });
+    expect(parentBatch(one, "arm", scene)).toMatchObject({ ok: true, batch: { ops: [] } });
+    expect(parentBatch(one, "block", scene).ok).toBe(false);
+    const fixed = parentModel(scene, tree, ["door-2/panel"], library)!;
+    expect(parentBatch(fixed, null, scene).ok).toBe(false);
+  });
+
+  it("draws the Parent row as the parent picker, read-only on an instance child", () => {
+    expect(field(treeModel("block"), "parent")).toMatchObject({
+      section: "identity",
+      widget: { kind: "entity-ref", parent: true },
+      value: "arm",
+      readonly: false,
+    });
+    expect(field(treeModel("door-2/hinge"), "parent")).toMatchObject({
+      value: "door-2",
+      readonly: true,
+    });
+    expect(field(treeModel("door-2/panel"), "parent")).toMatchObject({
+      value: "door-2/hinge",
+      readonly: true,
+    });
+    expect(() => field(treeModel("walk"), "parent")).toThrow();
+  });
+
+  it("gives a node its at, rotation and mirror under Transform", () => {
+    const m = treeModel("rig");
+    expect(m.sections.find((s) => s.id === "transform")!.fields.map((f) => f.path)).toEqual([
+      "at",
+      "rot",
+      "flip",
+    ]);
+    expect(field(m, "rot")).toMatchObject({ widget: { kind: "angle" }, value: 90 });
+    const flip = field(m, "flip");
+    expect(flip).toMatchObject({ widget: { kind: "switch" }, title: "Mirror" });
+    const rig = [lookupRef(view, "rig")!];
+    expect(modelOps(flip, true, rig)).toEqual({
+      ok: true,
+      ops: [{ op: "update", ref: "rig", set: { flip: true } }],
+    });
+    const flipped = lookupRef(
+      { ...view, entities: [{ ...view.entities![0]!, flip: true }] },
+      "rig",
+    )!;
+    expect(modelOps(flip, false, [flipped])).toEqual({
+      ok: true,
+      ops: [{ op: "update", ref: "rig", unset: ["flip"] }],
+    });
+  });
+
+  it("shows a child's geometry in world values and names the frame the file stores it in", () => {
+    const block = treeModel("block");
+    expect(field(block, "shape")).toMatchObject({
+      value: view.entities!.find((e) => e.id === "block")!.shape,
+      storedIn: "arm",
+    });
+    expect(field(block, "shape").value).not.toEqual(scene.entities![2]!.shape);
+    expect(field(block, "parent").storedIn).toBeUndefined();
+    expect(field(treeModel("floor"), "shape").storedIn).toBeUndefined();
+    expect(field(treeModel("arm"), "at").storedIn).toBe("rig");
+    expect(field(treeModel("arm"), "rot").storedIn).toBe("rig");
+    expect(field(treeModel("door-2/panel"), "shape").storedIn).toBe("door-2/hinge");
+    expect(field(treeModel("block", "arm"), "parent").mixed).toBe(true);
+    expect(field(treeModel("block", "floor"), "shape").storedIn).toBeNull();
+  });
+
+  it("sets an instance's angle in degrees with one transform, relative edits too", () => {
+    const at = (def: SceneDefinition) => instanceTransformModel(def, "hall-1", library)!;
+    const m = at(scene);
+    expect(instanceAngleRow(m)).toMatchObject({
+      path: "rot",
+      widget: { kind: "angle" },
+      title: "Rotation",
+      readonly: false,
+    });
+    expect(instanceAngleRow(m).value).toBeUndefined();
+    const r = instanceAngleBatch(scene, m, "45", tree, library);
+    expect(r).toEqual({
+      ok: true,
+      batch: {
+        label: "Turn hall-1 to 45°",
+        ops: [{ op: "transform", refs: ["hall-1"], rotate: 45 }],
+      },
+    });
+    if (!r.ok) throw new Error(r.error);
+    const out = applyOps(scene, r.batch, tree, { prefabs: library });
+    if (!out.ok) throw new Error(out.issue.message);
+    const turned = at(out.def);
+    expect(turned.rot).toBe(45);
+    expect(out.def.instances![1]!.at).toEqual([60, 0]);
+    expect(instanceAngleRow(turned).value).toBe(45);
+    const back = instanceAngleBatch(out.def, turned, "-=45", tree, library);
+    if (!back.ok) throw new Error(back.error);
+    const zero = applyOps(out.def, back.batch, tree, { prefabs: library });
+    expect(zero.ok && zero.def.instances![1]!.rot).toBeUndefined();
+    expect(instanceAngleBatch(scene, m, 360, tree, library)).toMatchObject({
+      ok: true,
+      batch: { ops: [] },
+    });
+    expect(instanceAngleBatch(scene, m, "steep", tree, library).ok).toBe(false);
+    const nested = instanceTransformModel(scene, "hall-1/door-1", library)!;
+    expect(instanceAngleBatch(scene, nested, "10", tree, library).ok).toBe(false);
+    expect(instanceAngleRow(nested).readonly).toBe(true);
+  });
+
+  it("turns an instance under a mirrored parent to the angle typed", () => {
+    const mirrored: SceneDefinition = {
+      ...scene,
+      entities: scene.entities!.map((e) => (e.id === "rig" ? { ...e, flip: true } : e)),
+    };
+    const m = instanceTransformModel(mirrored, "door-2", library)!;
+    const r = instanceAngleBatch(mirrored, m, "30", tree, library);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.batch.ops).toEqual([{ op: "transform", refs: ["door-2"], rotate: 330 }]);
+    const out = applyOps(mirrored, r.batch, tree, { prefabs: library });
+    if (!out.ok) throw new Error(out.issue.message);
+    expect(out.def.instances![0]!.rot).toBe(30);
   });
 });

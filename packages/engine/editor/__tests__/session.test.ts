@@ -639,7 +639,7 @@ describe("a prefab doc's session", () => {
     id: "wrap",
     entities: [],
     bulk: { solid: [["box", 0, 0, 4, 4]] },
-    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 1 }],
+    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 90 }],
   };
 
   function mutableSource(start: PrefabLibrary) {

@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "room",
   "params": {
     "doorSpeed": { "description": "How fast the doorway's panel slides, in m/s.", "targets": ["door-1/panel.path.speed"] }

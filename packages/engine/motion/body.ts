@@ -67,8 +67,12 @@ export interface MotionBody {
   position(): Vec2;
   /** Moves by `delta`, sliding along what it hits (at most 4 iterations); writes the pose index. */
   move(delta: Vec2, opts?: { slide?: boolean }): MotionResult;
-  /** Puts it at (x, y) with no sweep; the pose snaps. */
-  teleport(x: number, y: number): void;
+  /**
+   * Puts it at (x, y) with no sweep, keeping its velocity; the pose snaps
+   * unless `opts.snap` is false (`ctx.setPose` without a snap, which the
+   * view eases).
+   */
+  teleport(x: number, y: number, opts?: { snap?: boolean }): void;
   /**
    * Whether its last move ended against something facing its controller's
    * `up`: on Rapier, `PhysicsWorld.isGrounded` for its controller; without
@@ -345,12 +349,14 @@ export function createMotionBody(
       ctx.poses.set(entity.id, pos.x, pos.y);
       return { moved, hits, blocked: lostTravel(delta, moved) };
     },
-    teleport(x, y) {
+    teleport(x, y, teleportOpts) {
       live("teleport");
       pos = { x, y };
       grounded = false;
       backend.place(pos, true);
-      ctx.poses.set(entity.id, x, y, undefined, { snap: true });
+      ctx.poses.set(entity.id, x, y, undefined, {
+        snap: teleportOpts?.snap !== false,
+      });
     },
     setEnabled(next) {
       live("setEnabled");

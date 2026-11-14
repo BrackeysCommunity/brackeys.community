@@ -132,7 +132,7 @@ describe("spawnPose", () => {
         shape: circle(40, 60, 8),
         density: 1,
         restitution: 0,
-        transform: { turn: 1, flip: false },
+        transform: { rot: 90, flip: false },
       }),
     ).toEqual({ x: 40, y: 60, rot: Math.PI / 2 });
     const poly = pose({
@@ -146,7 +146,7 @@ describe("spawnPose", () => {
           [0, 10],
         ],
       },
-      transform: { turn: 2, flip: true },
+      transform: { rot: 180, flip: true },
     });
     expect(poly).toEqual({ x: 10, y: 5, rot: Math.PI });
     const chain = pose({
@@ -165,7 +165,7 @@ describe("spawnPose", () => {
 
   it("puts a marker at its point, turned by its transform", () => {
     expect(pose({ type: "marker", at: [12, 34] })).toEqual({ x: 12, y: 34, rot: 0 });
-    expect(pose({ type: "marker", at: [1, 2], transform: { turn: 3, flip: false } })).toEqual({
+    expect(pose({ type: "marker", at: [1, 2], transform: { rot: 270, flip: false } })).toEqual({
       x: 1,
       y: 2,
       rot: (3 * Math.PI) / 2,
@@ -183,7 +183,7 @@ describe("spawnPose", () => {
         type: "decor",
         at: [7, 9],
         behaviors: { sprite: {} },
-        transform: { turn: 1, flip: false },
+        transform: { rot: 90, flip: false },
       }),
     ).toEqual({ x: 7, y: 9, rot: Math.PI / 2 });
   });
@@ -260,7 +260,7 @@ describe("the runtime's pose index", () => {
         shape: circle(100, 0, 10),
         density: 1,
         restitution: 0,
-        transform: { turn: 1, flip: false },
+        transform: { rot: 90, flip: false },
       },
     ]);
     expect(rt.ctx.poses.get("wheel")).toEqual({ x: 100, y: 0, rot: Math.PI / 2 });
@@ -301,8 +301,8 @@ describe("the runtime's pose index", () => {
   it("a follower and what rides it move together each tick; seek snaps them", () => {
     const entities: RuntimeEntity[] = [
       { id: "lift", type: "follower", shape: box(5, 0, 40, 8), path: path([400, 600], [800, 600]) },
-      { id: "plank", type: "solid", attach: "lift", shape: box(500, 590, 60, 4) },
-      { id: "gate", type: "sensor", attach: "lift", shape: box(330, 560, 10, 30) },
+      { id: "plank", type: "solid", parent: "lift", shape: box(500, 590, 60, 4) },
+      { id: "gate", type: "sensor", parent: "lift", shape: box(330, 560, 10, 30) },
     ];
     const rt = loaded(entities);
     expect(rt.ctx.poses.get("lift")).toEqual({ x: 405, y: 600, rot: 0 });
@@ -358,31 +358,36 @@ describe("the runtime's pose index", () => {
     rt.destroy();
   });
 
-  it("riders take their host's pose from the read the host passes on", () => {
+  it("riders follow their host's pose through the scene tree", () => {
     const rt = loaded([
       { id: "lift", type: "follower", shape: box(0, 0, 40, 8), path: path([400, 600], [800, 600]) },
-      { id: "plank", type: "solid", attach: "lift", shape: box(500, 590, 60, 4) },
+      { id: "plank", type: "solid", parent: "lift", shape: box(500, 590, 60, 4) },
     ]);
-    rt.ctx.attachments.moved("lift", false, { x: 10, y: 20, rot: 0 });
+    expect(rt.ctx.tree.parent("plank")).toBe("lift");
+    rt.ctx.poses.set("lift", 10, 20, 0);
     expect(rt.ctx.poses.get("plank")).toEqual({ x: 110, y: 10, rot: 0 });
-    rt.ctx.attachments.moved("lift");
+    rt.ctx.poses.set("lift", 400, 600, 0);
     expect(rt.ctx.poses.get("plank")).toEqual({ x: 500, y: 590, rot: 0 });
     rt.destroy();
   });
 
-  it("an attached entity added mid-run starts where its host has carried it", () => {
+  it("a child added mid-run rides its host from where it is added", () => {
     const rt = loaded([
       { id: "lift", type: "follower", shape: box(0, 0, 40, 8), path: path([400, 600], [800, 600]) },
     ]);
     for (let i = 0; i < 30; i++) rt.step(DT, []);
-    const host = rt.ctx.poses.get("lift")!;
     expect(
-      rt.add([{ id: "plank", type: "solid", attach: "lift", shape: box(500, 590, 60, 4) }]).ok,
+      rt.add([{ id: "plank", type: "solid", parent: "lift", shape: box(500, 590, 60, 4) }]).ok,
     ).toBe(true);
+    expect(rt.ctx.tree.parent("plank")).toBe("lift");
     const plank = rt.ctx.poses.get("plank")!;
-    expect(plank.x).toBeCloseTo(host.x + 100, 3);
-    expect(plank.y).toBeCloseTo(host.y - 10, 3);
-    expect(rt.ctx.poses.prev("plank")).toEqual(plank);
+    expect(plank).toEqual({ x: 500, y: 590, rot: 0 });
+    const host = rt.ctx.poses.get("lift")!;
+    for (let i = 0; i < 10; i++) rt.step(DT, []);
+    const moved = rt.ctx.poses.get("lift")!;
+    expect(moved.x).toBeGreaterThan(host.x);
+    expect(rt.ctx.poses.get("plank")!.x).toBeCloseTo(500 + moved.x - host.x, 3);
+    expect(rt.ctx.poses.get("plank")!.y).toBeCloseTo(590 + moved.y - host.y, 3);
     rt.destroy();
   });
 

@@ -419,10 +419,10 @@ export const step: Tool<StepInput> = async (input, ctx) => {
   const animId = input.anim;
   const trace: AnimTick[] = [];
   let animSeen = animId !== undefined && scene.entities.some((e) => e.id === animId);
-  const observe =
+  const onTick =
     animId === undefined
       ? undefined
-      : (run: EngineContext, tick: number) => {
+      : (tick: number, run: EngineContext) => {
           const state = run.anim.state(animId);
           if (!animSeen && run.get(animId)) animSeen = true;
           trace.push(state ? { tick, ...state } : { tick, clip: null });
@@ -439,7 +439,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     inputs,
     commands,
     ...(input.timing ? { timing: wallTiming() } : {}),
-    ...(observe ? { observe } : {}),
+    ...(onTick ? { onTick } : {}),
   });
   if (animId !== undefined && report.load.ok && !report.blocked && !animSeen) {
     return usage(

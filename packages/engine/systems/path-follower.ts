@@ -254,9 +254,10 @@ const hasFrameDelta = (system: unknown): system is { frameDelta(id: string): Vec
 
 /**
  * How far the body carrying a collider moved in the last step: its
- * follower's `frameDelta` (an attached collider's carrier, else its own
- * entity's), or the `path-follow` behavior's for a body it moves; null when
- * neither moves it.
+ * follower's `frameDelta` (a riding collider's carrier, else its own
+ * entity's), the `path-follow` behavior's for a body it moves, or, for a
+ * riding collider whose carrier is another kinematic body, its velocity
+ * over the tick; null when none of those moves it.
  */
 export function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null {
   const tag = ctx.tags.get(handle);
@@ -265,7 +266,17 @@ export function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null {
   const system = ctx.system(carrier.type);
   if (hasFrameDelta(system)) return system.frameDelta(carrier.entityId);
   const riding = typeof ctx.behavior === "function" ? ctx.behavior(PATH_FOLLOW.name) : undefined;
-  return hasFrameDelta(riding) ? riding.frameDelta(carrier.entityId) : null;
+  const delta = hasFrameDelta(riding) ? riding.frameDelta(carrier.entityId) : null;
+  if (!delta && !tag.carrier && !ctx.physics && ctx.tree.parent(tag.entityId) !== null) {
+    // A child collider in a geometry scene has no carrier; it moves with its parent's pose.
+    const now = ctx.poses.get(tag.entityId);
+    const was = ctx.poses.prev(tag.entityId);
+    return now && was ? { x: now.x - was.x, y: now.y - was.y } : null;
+  }
+  if (delta || !tag.carrier || ctx.bodies.kind(carrier.entityId) !== "kinematic") return delta;
+  const v = ctx.bodies.velocity(carrier.entityId);
+  const dt = ctx.time.tickMs / 1000;
+  return { x: v.x * dt, y: v.y * dt };
 }
 
 /** Where a follower is on its path. */
@@ -286,8 +297,8 @@ type BodilessFollower = Motion & { handle: number | null };
 
 /**
  * Kinematic bodies that follow their `path`, advanced in `beforeStep`;
- * poses and visuals follow in `afterStep`, and so do the entities attached
- * to them. In a scene without physics a follower has no body: its pose,
+ * poses and visuals follow in `afterStep`, and the scene tree carries their
+ * children from those poses. Each offers its body for colliders to ride. In a scene without physics a follower has no body: its pose,
  * and its geometry collider, follow the path all the same.
  *
  * A disabled follower's path clock keeps running, but it has no collider
@@ -333,20 +344,16 @@ export function createFollowerSystem(
     if (drawn) ctx.view?.pose(f.entity.id, at.x, at.y, 0);
   }
 
-  /**
-   * Writes a follower's pose from its body, to the pose index and its
-   * visual, then re-poses what rides it from the same read.
-   */
+  /** Writes a follower's pose from its body, to the pose index and its visual; the scene tree carries its children from there. */
   function poseBody(f: Follower, snap: boolean): void {
     const t = f.body.translation();
     const at = { x: t.x, y: t.y, rot: f.body.rotation() };
     const p = composePose(at.x, at.y, at.rot, f.offset);
     ctx.poses.set(f.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
     table.poseAt(f.entity.id, at);
-    ctx.attachments.moved(f.entity.id, snap, at);
   }
 
-  /** Poses every enabled follower and what rides it; `snap` after a jump (reset, seek). */
+  /** Poses every enabled follower, and through the tree its children; `snap` after a jump (reset, seek). */
   const follow = (snap = false) => {
     for (const f of table.owned.values()) if (!disabled.has(f.entity.id)) poseBody(f, snap);
     for (const f of bodiless.values()) if (!disabled.has(f.entity.id)) poseBodiless(f, snap);
@@ -542,6 +549,8 @@ export function createFollowerSystem(
       }
     },
     afterStep: () => follow(),
+    /** Its path moves it in the world: a parent's movement doesn't carry it. */
+    selfMoving: () => true,
     frameDelta(id) {
       const f = table.owned.get(id) ?? bodiless.get(id);
       return f ? { ...f.frameDelta } : null;

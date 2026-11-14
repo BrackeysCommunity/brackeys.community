@@ -5,7 +5,7 @@ import type {
   BehaviorSystemFactory,
   RegisteredBehavior,
 } from "../../game/behaviors";
-import type { SpawnerBlock, SpawnerSystem } from "../../game/behaviors/spawner";
+import type { SpawnerBlock, SpawnerHandle, SpawnerSystem } from "../../game/behaviors/spawner";
 import { ticksFor, wholeTicksIn } from "../../game/time";
 import type { EngineContext, JsonValue, SpawnInput } from "../../game/types";
 import { translateEntityDef } from "../../scene/translate";
@@ -13,6 +13,7 @@ import type { EntityDef } from "../../scene/types";
 import { ENTITY_DESTROYED, SPAWNER_SPAWNED, type StepEvent } from "../types";
 
 const U32 = 0x1_0000_0000;
+const NODE = "node";
 
 type Spawner = {
   id: string;
@@ -41,9 +42,9 @@ const isCount = (n: unknown): n is number => typeof n === "number" && Number.isI
  * spawns a second while active, and spawns one at its pose (plus a random
  * offset within `spread`) for each it owes while under `cap`. Its live
  * spawns are counted back from `entity:destroyed`; a prefab instance counts
- * once, until its last child goes. A world save holds what it owes, its
- * live ids and whether the burst is still to come; its random stream is
- * saved with `ctx.random`'s forks.
+ * once, until its last child goes, and then its node goes too. A world
+ * save holds what it owes, its live ids and whether the burst is still to
+ * come; its random stream is saved with `ctx.random`'s forks.
  */
 export const createSpawnerSystem: BehaviorSystemFactory = (
   ctx: EngineContext,
@@ -77,16 +78,33 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
     return undefined;
   }
 
+  /**
+   * Whether spawn `key` still holds its slot. A prefab instance's node at
+   * `key` holds nothing by itself: the instance holds until the last entity
+   * under it that isn't a node goes, as it did before instances had nodes.
+   */
+  function holds(s: Spawner, key: string): boolean {
+    if (!ctx.exists(key)) return false;
+    if (s.block.prefab === undefined) return true;
+    return ctx.tree.subtree(key).some((id) => ctx.exists(id) && ctx.get(id)?.type !== NODE);
+  }
+
+  /** Frees `key`'s slot once it holds nothing, and destroys the node an emptied instance leaves. */
+  function release(s: Spawner, key: string): void {
+    if (holds(s, key)) return;
+    forget(s, key);
+    if (ctx.exists(key)) ctx.destroy(key);
+  }
+
   function onDestroyed(e: StepEvent): void {
     if (e.entityId === undefined) return;
     const key = spawnOf(e.entityId);
-    if (key === undefined || ctx.exists(key)) return;
-    forget(owner.get(key)!, key);
+    if (key !== undefined) release(owner.get(key)!, key);
   }
 
   /** Drops spawns that went without an event (outside a step, none is raised). */
   function settle(s: Spawner): void {
-    for (const key of s.live) if (!ctx.exists(key)) forget(s, key);
+    for (const key of s.live) release(s, key);
   }
 
   function offset(s: Spawner): [number, number] {
@@ -331,6 +349,7 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
     },
     size: () => spawners.size,
     live: (id) => [...(spawners.get(id)?.live ?? [])],
+    handle: (id): SpawnerHandle => ({ live: () => system.live(id) }),
   };
   return system as BehaviorSystem;
 };

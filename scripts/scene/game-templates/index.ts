@@ -3,6 +3,7 @@ import { dirname, join, relative, sep } from "node:path";
 import type { TimeKind } from "@jams/engine/game";
 
 import { actionsFile, indexFile, playFile, templateFile, typesFile } from "./game";
+import { goalFile } from "./goal";
 import { gameSettingsFile, inputMapFile, projectFile, sceneListFile } from "./project";
 import { runtimeFile } from "./runtime";
 import { checksFile, scriptFile, sceneTemplateOf } from "./scene";
@@ -12,7 +13,7 @@ import { hudFile, uiIndexFile } from "./ui";
 export const GAME_PRESETS = ["top-down", "side-view", "grid", "turns"] as const;
 export type GamePreset = (typeof GAME_PRESETS)[number];
 
-/** The presets whose hero is built from the engine's standard behaviors, with no movement code. */
+/** The presets whose hero walks on the engine's standard behaviors and whose goal is a script. */
 export const BEHAVIOR_PRESETS: readonly GamePreset[] = ["top-down", "side-view"];
 export const onBehaviors = (options: Pick<GameOptions, "preset">): boolean =>
   BEHAVIOR_PRESETS.includes(options.preset);
@@ -186,8 +187,9 @@ export const GENERATED_FILES = [
 
 /**
  * Every file of the game except `GENERATED_FILES`, sorted by path: the
- * project file, the game and UI modules, the scene's checks and its winning
- * input script, the scene list, the game-settings and input-map docs, and the test.
+ * project file, the game and UI modules (a behavior preset's goal script
+ * among them), the scene's checks and its winning input script, the scene
+ * list, the game-settings and input-map docs, and the test.
  */
 export function renderSources(options: GameOptions, paths: RenderPaths): GameFile[] {
   const names = gameNames(options.id);
@@ -212,6 +214,7 @@ export function renderSources(options: GameOptions, paths: RenderPaths): GameFil
     },
     { path: "index.ts", text: indexFile(options, names) },
     { path: "types.ts", text: typesFile(options, names) },
+    ...(onBehaviors(options) ? [{ path: "goal.ts", text: goalFile() }] : []),
     { path: "actions.ts", text: actionsFile(options) },
     { path: "runtime.ts", text: runtimeFile(options) },
     { path: "play.ts", text: playFile(options) },

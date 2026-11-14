@@ -142,6 +142,46 @@ describe("formatSaveFile and parseSaveFile", () => {
     expect(codes(parseSaveFile(text(badSeat)))).toEqual(["schema"]);
   });
 
+  it("takes the tree's parents, and refuses a bad one", () => {
+    const text = (v: unknown) => JSON.stringify(v);
+    const withParents = (parents: unknown) => {
+      const file = worldSave();
+      return { ...file, world: { ...file.world!, parents } };
+    };
+    const linked = withParents({ "knight-1": "unit#4", "unit#4": null }) as SaveFile;
+    const formatted = formatSaveFile(linked);
+    expect(formatted).toContain('"parents": {');
+    const parsed = parseSaveFile(formatted);
+    expect(parsed.ok && parsed.file.world?.parents).toEqual({
+      "knight-1": "unit#4",
+      "unit#4": null,
+    });
+    if (parsed.ok) expect(formatSaveFile(parsed.file)).toBe(formatted);
+    expect(formatSaveFile(worldSave())).not.toContain('"parents"');
+
+    for (const bad of [{ "knight-1": 3 }, { "knight-1": "" }, ["knight-1"], "knight-1"]) {
+      expect(codes(parseSaveFile(text(withParents(bad))))).toEqual(["schema"]);
+    }
+    const own = parseSaveFile(text(withParents({ "knight-1": "knight-1" })));
+    expect(own.ok).toBe(false);
+    if (!own.ok)
+      expect(own.issues[0]).toMatchObject({ code: "schema", path: "/world/parents/knight-1" });
+  });
+
+  it("takes a spawn and an instance made under a parent", () => {
+    const file = worldSave();
+    const spawned = [
+      { id: "unit#5", input: { type: "unit", at: [1, 0], parent: "unit#4", local: true } },
+      {
+        id: "lamp#1",
+        input: { type: "lamp", at: [0, 0] },
+        instance: { prefab: "lamp", parent: "knight-1", local: false },
+      },
+    ];
+    const parsed = parseSaveFile(JSON.stringify({ ...file, world: { ...file.world!, spawned } }));
+    expect(parsed.ok && parsed.file.world?.spawned).toEqual(spawned);
+  });
+
   it("refuses a save another game wrote", () => {
     const r = parseSaveFile(formatSaveFile(worldSave()), {
       id: "platformer",

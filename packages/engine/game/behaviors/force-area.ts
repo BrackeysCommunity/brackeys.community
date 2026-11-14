@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import type { Vec2 } from "../../types";
-import { defineBehavior, type BehaviorSystem } from "../behaviors";
+import { type BehaviorSystem, defineBehavior, handleType } from "../behaviors";
 import { ID_PATTERN } from "../fields";
 
 const names = (description: string) =>
@@ -84,8 +84,12 @@ export function forceAreaSensorMessage(entityId: string): string {
   return `${entityId}'s force-area needs its collider to be a sensor (sensor: true)`;
 }
 
+/** Nothing beside `fields` yet. */
+export type ForceAreaHandle = Record<never, never>;
+
 export const FORCE_AREA = defineBehavior({
   name: "force-area",
+  handle: handleType<ForceAreaHandle>(),
   description:
     "Pushes the dynamic bodies inside the entity's sensor collider: one way, or toward or away from a point.",
   fields: forceAreaFields,

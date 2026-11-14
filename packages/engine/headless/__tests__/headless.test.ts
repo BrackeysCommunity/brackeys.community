@@ -10,6 +10,7 @@ import {
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineGame } from "../../game/define";
 import type { GameCommand, PlayState } from "../../game/types";
+import type { TickInput } from "../../input/stream";
 import { SENSOR_ENTER } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
 import { prefabLibrary } from "../../scene/prefab";
@@ -519,5 +520,84 @@ describe("createHeadlessRuntime with flow and save requests", () => {
     } finally {
       rt.destroy();
     }
+  });
+});
+
+describe("runProbe's onTick", () => {
+  it("reads each tick inside the probe's own run, after its step, and changes nothing", () => {
+    const opts = { rapier, game: testGame, scene: engineYard(), ticks: 6, hold: ["right"] };
+    const seen: { tick: number; at: number; x: number }[] = [];
+    const report = runProbe({
+      ...opts,
+      onTick: (tick, ctx) => seen.push({ tick, at: ctx.tick, x: ctx.poses.get("avatar")!.x }),
+    });
+    expect(seen.map((s) => s.tick)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(seen.map((s) => s.at)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(seen.at(-1)!.x).toBeGreaterThan(seen[0]!.x);
+    expect(seen.at(-1)!.x).toBe(report.final?.position.x);
+    expect(report).toEqual(runProbe(opts));
+  });
+
+  it("isn't called for a step that throws", () => {
+    const game = beaconGame([]);
+    const ticks: number[] = [];
+    const report = runProbe({
+      rapier,
+      game,
+      registry: createRegistry(game),
+      scene: engineYard(),
+      ticks: 10,
+      commands: [[4, { name: PLACE }]],
+      onTick: (tick) => ticks.push(tick),
+    });
+    expect(report.blocked).toBeDefined();
+    expect(ticks).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("runLoop and the pointer a runtime already holds", () => {
+  const event = { ...testGame, time: { kind: "event" as const } };
+  const AT = { x: 1, y: 1, over: true };
+  const input = (slot: number, buttons?: number): TickInput => ({
+    tick: slot,
+    actions: [],
+    commands: [],
+    pointers: buttons === undefined ? [] : [{ ...AT, buttons }],
+    joins: [],
+  });
+
+  /** Steps a press on the runtime first, as a restored save leaves one held, then loops over `slots`. */
+  function loop(slots: (number | undefined)[]): number[] {
+    const registry = createRegistry(event);
+    const started = startRun({ rapier, game: event, registry, scene: engineYard(), play: {} });
+    if (!started.ok) throw new Error(started.load.ok ? "" : started.load.error);
+    const rt = started.runtime;
+    const stepped: number[] = [];
+    try {
+      rt.step(rt.ctx.time.tickMs, input(0, 1));
+      expect(rt.ctx.input.pointer()).toMatchObject({ buttons: 1 });
+      let at = 0;
+      runLoop({
+        runtime: rt,
+        game: event,
+        maxTicks: 10,
+        input: {
+          done: () => at >= slots.length,
+          tick: (slot) => input(slot, slots[at++]),
+        },
+        onTick: () => stepped.push(at - 1),
+      });
+    } finally {
+      rt.destroy();
+    }
+    return stepped;
+  }
+
+  it("wakes on the release of a press it never sent", () => {
+    expect(loop([undefined, 0, undefined])).toEqual([1]);
+  });
+
+  it("doesn't wake on a slot repeating the pointer the runtime holds", () => {
+    expect(loop([1, undefined, 0])).toEqual([2]);
   });
 });

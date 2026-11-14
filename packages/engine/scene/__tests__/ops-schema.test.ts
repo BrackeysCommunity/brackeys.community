@@ -44,8 +44,8 @@ describe("ops JSON Schema", () => {
   });
 
   it("carries a URN id beside the registry's scene schema and draft 2020-12", () => {
-    expect(opsJsonSchema(engine).$id).toBe("urn:jams-engine:ops:v4");
-    expect(opsSchemaId(game)).toBe("urn:jams-engine:ops:pegs:v4");
+    expect(opsJsonSchema(engine).$id).toBe("urn:jams-engine:ops:v5");
+    expect(opsSchemaId(game)).toBe("urn:jams-engine:ops:pegs:v5");
     expect(opsJsonSchema(engine).$schema).toBe("https://json-schema.org/draft/2020-12/schema");
   });
 
@@ -110,9 +110,9 @@ describe("opBatchSchemaFor", () => {
         { op: "reorder", refs: ["lift"], index: 0 },
         {
           op: "instantiate",
-          instance: { prefab: "gate", at: [8, 8], rot: 1, flip: true, z: 2, params: { speed: 3 } },
+          instance: { prefab: "gate", at: [8, 8], rot: 90, flip: true, z: 2, params: { speed: 3 } },
         },
-        { op: "setGroup", id: "wing", at: [4, 4], rot: 2, flip: true, name: "Wing" },
+        { op: "reparent", refs: ["lift"], parent: "wing" },
         { op: "override", ref: "gate-1", set: { "door.path.speed": 60 } },
         { op: "revertOverride", ref: "gate-1", paths: ["door.path.speed"] },
         { op: "applyToPrefab", ref: "gate-1", to: "gate" },
@@ -123,7 +123,7 @@ describe("opBatchSchemaFor", () => {
           id: "gate",
           prefab: { entities: [], base: "door", assets: ["boom"] },
         },
-        { op: "transform", refs: ["gate-1"], groups: ["wing"], turn: -1, flip: "x", about: [0, 0] },
+        { op: "transform", refs: ["gate-1", "wing"], turn: -1, flip: "x", about: [0, 0] },
         { op: "setZ", refs: ["lift", "gate-1"], z: 5 },
         { op: "setZ", refs: ["lift"], by: -1 },
         { op: "useAssets", add: ["boom"], remove: ["hud-font"] },
@@ -154,7 +154,7 @@ describe("opBatchSchemaFor", () => {
     const parses = (op: unknown) => schema.safeParse({ ops: [op] }).success;
     expect(parses({ op: "transform", refs: ["a"], turn: 4 })).toBe(false);
     expect(parses({ op: "transform", refs: ["a"], flip: "z" })).toBe(false);
-    expect(parses({ op: "setGroup", id: "g", rot: 4 })).toBe(false);
+    expect(parses({ op: "transform", turn: 1 })).toBe(false);
     expect(parses({ op: "setZ", refs: ["a"], z: 10001 })).toBe(false);
     expect(parses({ op: "setZ", refs: ["a"], z: 1.5 })).toBe(false);
     expect(parses({ op: "useAssets", add: ["Not An Id"] })).toBe(false);
@@ -199,7 +199,7 @@ describe("opBatchSchemaFor", () => {
     }
   });
 
-  it("stores instantiate's rot, flip, z and params and setGroup's rot and flip", () => {
+  it("stores instantiate's rot, flip, z and params", () => {
     const gate: Prefab = {
       kind: "prefab",
       v: 3,
@@ -216,13 +216,12 @@ describe("opBatchSchemaFor", () => {
               id: "g1",
               prefab: "gate",
               at: [10, 10],
-              rot: 1,
+              rot: 90,
               flip: true,
               z: 3,
               params: { a: 1 },
             },
           },
-          { op: "setGroup", id: "wing", at: [5, 5], rot: 2, flip: true },
         ],
       },
       engine,
@@ -231,9 +230,8 @@ describe("opBatchSchemaFor", () => {
     expect(result.ok, JSON.stringify(result)).toBe(true);
     if (!result.ok) return;
     expect(result.def.instances).toEqual([
-      { id: "g1", prefab: "gate", at: [10, 10], rot: 1, flip: true, z: 3, params: { a: 1 } },
+      { id: "g1", prefab: "gate", at: [10, 10], rot: 90, flip: true, z: 3, params: { a: 1 } },
     ]);
-    expect(result.def.groups).toEqual({ wing: { at: [5, 5], rot: 2, flip: true } });
   });
 
   it("names an unknown op and suggests the nearest one", () => {

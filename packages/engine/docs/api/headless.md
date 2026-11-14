@@ -1384,6 +1384,12 @@ _type_ in `headless/types.ts`
 ```ts
 type ProbeOptions<S = unknown> = ProbeInput & {
     game?: GameDefinition<S> | null;
+    /**
+     * Called after each tick's step that didn't throw, with the tick and the
+     * runtime's context, to read state the report doesn't carry (an entity's
+     * clip, say) inside the probe's own run. It must not change the run.
+     */
+    onTick?: (tick: number, ctx: EngineContext) => void;
     /** The project the scene runs in: its `engine.tickRate` sets the clock before the game's. */
     project?: ProjectRuntimeView | null;
     /** Needed for a scene that runs on Rapier; a scene without physics loads with none. */
@@ -3257,11 +3263,11 @@ as `runPlaytest`'s does: `blocked` at stage `run` with the error's code,
 the report covering the ticks before it. A game that lists its commands
 gets `legal` after the last tick, else at the start (`legalCommands`), as
 `runPlaytest` does; a blocked run has none. A UI-only action in `hold` or
-`inputs` is refused (`simActionError`). `observe` sees each tick after
+`inputs` is refused (`simActionError`). `onTick` sees each tick after
 its step.
 
 ```ts
-declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption & ObserveOption): ProbeReport<S>;
+declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
 ```
 
 Refers to [`ProbeOptions`](#probeoptions), [`ProbeReport`](#probereport).
@@ -3369,7 +3375,7 @@ _function_ in `headless/validate-physical.ts`
 Loads `scene` into a headless world that is never stepped and runs the
 physical checks over it: on Rapier, or on the geometry backend when the
 scene runs without physics. The checks see the resolved view (instances
-inlined, groups applied); their issues come back pointing into the
+inlined, parent frames applied); their issues come back pointing into the
 document, with fixes mapped onto it. A scene for another game, or one
 that doesn't expand or load, has none: `validateScene` reports why.
 

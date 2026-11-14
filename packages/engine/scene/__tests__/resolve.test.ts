@@ -11,15 +11,7 @@ import { aabb } from "../shape-geometry";
 import { parseShape } from "../shapes";
 import { compose, dihedral, dihedralOf, type Dihedral } from "../transform";
 import { transformEntityDef, translateEntityDef } from "../translate";
-import type {
-  EntityDef,
-  GroupDef,
-  InstanceDef,
-  OpBatch,
-  PrefabLibrary,
-  Pt,
-  SceneDefinition,
-} from "../types";
+import type { EntityDef, InstanceDef, OpBatch, PrefabLibrary, Pt, SceneDefinition } from "../types";
 import { engine, engineYard, yardPrefabs } from "./fixtures/random-ops";
 
 vi.mock("../grid", async (importOriginal) => ({
@@ -150,7 +142,7 @@ const ELEMENTS: Dihedral[] = [false, true].flatMap((flip) =>
 );
 const label = (d: Dihedral) => `rot ${d.rot}${d.flip ? " flip" : ""}`;
 const spelled = (d: Dihedral) => ({
-  ...(d.rot !== 0 ? { rot: d.rot as 1 | 2 | 3 } : {}),
+  ...(d.rot !== 0 ? { rot: 90 * d.rot } : {}),
   ...(d.flip ? { flip: true as const } : {}),
 });
 
@@ -229,17 +221,22 @@ const kitePrefabs: PrefabLibrary = prefabLibrary([
   },
 ]);
 
-function kiteScene(d: Dihedral, group?: GroupDef): SceneDefinition {
+/** A node's frame: its `at`, `rot` in degrees and `flip`. */
+type NodeFrame = { at: Pt; rot?: number; flip?: true };
+
+/** A kite instance and a free kite, both under node `g` when `node` is given. */
+function kiteScene(d: Dihedral, node?: NodeFrame): SceneDefinition {
+  const under = node ? { parent: "g" } : {};
   return {
     v: 2,
     game: "spin",
     name: "kites",
     bounds: [0, 0, 1000, 1000],
-    ...(group ? { groups: { g: group } } : {}),
-    instances: [
-      { id: "k-1", prefab: "kite", at: [100, 40], ...spelled(d), ...(group ? { group: "g" } : {}) },
+    instances: [{ id: "k-1", prefab: "kite", at: [100, 40], ...spelled(d), ...under }],
+    entities: [
+      { id: "free", type: "kite", ...pick(WING), ...under },
+      ...(node ? [{ id: "g", type: "node", ...node }] : []),
     ],
-    entities: [{ id: "free", type: "kite", ...pick(WING), ...(group ? { group: "g" } : {}) }],
   };
 }
 
@@ -281,7 +278,7 @@ const expectIntegers = (v: unknown) => {
   for (const n of numbersIn(v)) expect(Number.isInteger(n)).toBe(true);
 };
 
-const GROUP: GroupDef = { at: [7, -3], rot: 1, flip: true };
+const NODE: NodeFrame = { at: [7, -3], rot: 90, flip: true };
 
 describe("resolveSceneDetailed: transforms", () => {
   for (const d of ELEMENTS) {
@@ -298,14 +295,14 @@ describe("resolveSceneDetailed: transforms", () => {
         instance: 0,
         child: "wing",
         path: ["k-1"],
-        transform: d,
+        transform: { rot: 90 * d.rot, flip: d.flip },
       });
     });
   }
 
-  it("composes the group's turn and flip outside the instance's", () => {
+  it("composes the parent node's turn and flip outside the instance's", () => {
     for (const d of ELEMENTS) {
-      const def = kiteScene(d, GROUP);
+      const def = kiteScene(d, NODE);
       const { def: out, origins } = resolveSceneDetailed(def, spin, kitePrefabs);
       const g = dihedral({ rot: 1, flip: true }, [7, -3]);
       const wing = out.entities!.find((e) => e.id === "k-1/wing")!;
@@ -316,15 +313,15 @@ describe("resolveSceneDetailed: transforms", () => {
         transformEntityDef(spin, WING, dihedral(d, [100, 40]))!,
         g,
       )!;
-      expect(wing).toEqual({ ...twoStep, id: "k-1/wing", group: "g" });
+      expect(wing).toEqual({ ...twoStep, id: "k-1/wing" });
       // The composed transform lands on the same geometry; angles agree up to whole turns.
       const { facing, ...once } = transformEntityDef(spin, WING, composed)!;
-      expect({ ...wing, facing: 0 }).toEqual({ ...once, facing: 0, id: "k-1/wing", group: "g" });
+      expect({ ...wing, facing: 0 }).toEqual({ ...once, facing: 0, id: "k-1/wing" });
       expect((((wing.facing as number) - (facing as number)) % 360) + 0).toBe(0);
       expect(out.entities!.find((e) => e.id === "free")).toEqual({
-        ...transformEntityDef(spin, { ...WING, id: "free", group: "g" }, g),
+        ...transformEntityDef(spin, { ...WING, id: "free", parent: "g" }, g),
       });
-      expect(origins[0]).toEqual({ kind: "entity", index: 0, transform: { rot: 1, flip: true } });
+      expect(origins[0]).toEqual({ kind: "entity", index: 0, transform: { rot: 90, flip: true } });
       expectIntegers(out.entities);
     }
   });
@@ -333,7 +330,7 @@ describe("resolveSceneDetailed: transforms", () => {
     const turned = { rot: 1, flip: false } as const;
     const scene = (cell?: Pt): SceneDefinition => ({
       ...kiteScene(turned),
-      instances: [{ id: "t-1", prefab: "tiles", at: [100, 40], rot: 1 }],
+      instances: [{ id: "t-1", prefab: "tiles", at: [100, 40], rot: 90 }],
       ...(cell ? { settings: { grid: { kind: "square", cell } } } : {}),
     });
     const tiles = (def: SceneDefinition) => resolvedOf(def, "t-1/tiles").cells;
@@ -350,11 +347,11 @@ describe("resolveSceneDetailed: transforms", () => {
 
 describe("toSourceBatch: transformed children round trip", () => {
   for (const d of ELEMENTS) {
-    for (const group of [undefined, GROUP]) {
-      const name = `${label(d)}${group ? " in a turned group" : ""}`;
+    for (const node of [undefined, NODE]) {
+      const name = `${label(d)}${node ? " under a turned node" : ""}`;
 
       it(`a world move under ${name}`, () => {
-        const def = kiteScene(d, group);
+        const def = kiteScene(d, node);
         const by: Pt = [5, -2];
         for (const id of ["k-1/wing", "k-1/lift", "k-1/~solid:0", "free"]) {
           const before = resolvedOf(def, id);
@@ -365,7 +362,7 @@ describe("toSourceBatch: transformed children round trip", () => {
       });
 
       it(`world point, vector, angle, mirror and shape updates under ${name}`, () => {
-        const def = kiteScene(d, group);
+        const def = kiteScene(d, node);
         const set = {
           at: [11, 13],
           launch: [3, 7],
@@ -381,7 +378,7 @@ describe("toSourceBatch: transformed children round trip", () => {
       });
 
       it(`a path point and a place under ${name}`, () => {
-        const def = kiteScene(d, group);
+        const def = kiteScene(d, node);
         const lift = roundTrip(
           def,
           { ops: [{ op: "update", ref: "k-1/lift", set: { "path.pts.1": [300, 200] } }] },
@@ -448,15 +445,15 @@ describe("toSourceBatch: transformed children round trip", () => {
     );
   });
 
-  it("moves members of a turned group by the vector in the group's frame", () => {
-    const def = kiteScene({ rot: 0, flip: false }, GROUP);
+  it("moves what sits under a turned node by the vector in the node's frame", () => {
+    const def = kiteScene({ rot: 0, flip: false }, NODE);
     const ops = spinSource(def, { ops: [{ op: "move", refs: ["free", "k-1"], by: [5, -2] }] }).ops;
     expect(ops).toEqual([{ op: "move", refs: ["free", "k-1"], by: [2, -5] }]);
   });
 
-  it("maps an added entity and an instantiated instance into a turned group", () => {
-    const def = kiteScene({ rot: 0, flip: false }, GROUP);
-    const world: EntityDef = { ...WING, id: "new", group: "g", at: [50, 60], facing: 10 };
+  it("maps an added entity and an instantiated instance under a turned node", () => {
+    const def = kiteScene({ rot: 0, flip: false }, NODE);
+    const world: EntityDef = { ...WING, id: "new", parent: "g", at: [50, 60], facing: 10 };
     const after = spinApplied(
       def,
       spinSource(def, {
@@ -464,7 +461,7 @@ describe("toSourceBatch: transformed children round trip", () => {
           { op: "add", entity: world },
           {
             op: "instantiate",
-            instance: { id: "k-2", prefab: "kite", at: [80, 90], rot: 1, group: "g" },
+            instance: { id: "k-2", prefab: "kite", at: [80, 90], rot: 90, parent: "g" },
           },
         ],
       }),
@@ -476,12 +473,15 @@ describe("toSourceBatch: transformed children round trip", () => {
     expect([t.tx, t.ty]).toEqual([80, 90]);
   });
 
-  it("paints a turned group member's cells in its own frame", () => {
+  it("paints the cells of an entity under a turned node in its own frame", () => {
     const def = {
-      ...kiteScene({ rot: 0, flip: false }, { at: [0, 0], rot: 1 }),
+      ...kiteScene({ rot: 0, flip: false }, { at: [0, 0], rot: 90 }),
       settings: { grid: { kind: "square", cell: [16, 16] } },
     } as SceneDefinition;
-    def.entities = [{ id: "floor", type: "paint", at: [0, 0], cells: {}, group: "g" }];
+    def.entities = [
+      { id: "floor", type: "paint", at: [0, 0], cells: {}, parent: "g" },
+      { id: "g", type: "node", at: [0, 0], rot: 90 },
+    ];
     const ops = spinSource(def, {
       ops: [
         {
@@ -528,7 +528,7 @@ describe("toSourceBatch: transformed children round trip", () => {
       },
     ]) {
       const r = toSourceBatch(
-        batch.ops[0]!.ref === "free" ? kiteScene({ rot: 0, flip: false }, GROUP) : def,
+        batch.ops[0]!.ref === "free" ? kiteScene({ rot: 0, flip: false }, NODE) : def,
         batch,
         spin,
         kitePrefabs,
@@ -552,8 +552,8 @@ describe("toSourceBatch: transformed children round trip", () => {
 });
 
 describe("instanceTransform", () => {
-  it("is the group's transform after the instance's own", () => {
-    const def = kiteScene({ rot: 3, flip: true }, GROUP);
+  it("is the parent chain's transform after the instance's own", () => {
+    const def = kiteScene({ rot: 3, flip: true }, NODE);
     const inst: InstanceDef = def.instances![0]!;
     const t = instanceTransform(def, inst);
     expect(dihedralOf(t)).toEqual({ rot: 2, flip: false });
@@ -574,7 +574,7 @@ describe("nested instances on the resolved view", () => {
       v: 4,
       id: "shell",
       entities: [],
-      instances: [{ id: "l", prefab: "leaf", at: [20, 0], rot: 1 }],
+      instances: [{ id: "l", prefab: "leaf", at: [20, 0], rot: 90 }],
     },
   ]);
   const shellScene = (inst: Partial<InstanceDef> = {}): SceneDefinition => ({
@@ -594,13 +594,13 @@ describe("nested instances on the resolved view", () => {
       instance: 0,
       child: "l/pin",
       path: ["s", "l"],
-      transform: { rot: 3, flip: true },
+      transform: { rot: 270, flip: true },
     });
     expect(pinAt(shellScene({ flip: true }))).toEqual([480, 504]);
   });
 
   it("maps a world move of a nested child under turned instances to an override in its own prefab's frame", () => {
-    const def = shellScene({ rot: 2 });
+    const def = shellScene({ rot: 180 });
     const before = pinAt(def) as Pt;
     const r = toSourceBatch(
       def,

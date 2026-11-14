@@ -1,0 +1,10 @@
+{
+  "kind": "prefab",
+  "v": 5,
+  "id": "turret",
+  "entities": [
+    { "id": "base", "type": "solid", "shape": ["box", 0, -0.2, 0.4, 0.2] },
+    { "id": "barrel", "type": "solid", "shape": ["box", 0.5, -0.55, 0.5, 0.08] },
+    { "id": "sight", "type": "sensor", "shape": ["box", 2, -0.55, 1, 0.4], "tags": ["sight"] }
+  ]
+}

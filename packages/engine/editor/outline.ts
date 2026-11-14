@@ -1,7 +1,16 @@
 import { placeableTypes } from "../game/define";
 import type { Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType } from "../scene/expand";
-import { CHILD_SEPARATOR, childRef, localChildren, type LocalChild } from "../scene/resolve";
+import { sceneHash } from "../scene/hash";
+import { applyOps } from "../scene/ops";
+import {
+  CHILD_SEPARATOR,
+  childRef,
+  localChildren,
+  parseChildRef,
+  sceneFrames,
+  type LocalChild,
+} from "../scene/resolve";
 import {
   PREFAB_MAX_DEPTH,
   type BulkEntry,
@@ -9,10 +18,13 @@ import {
   type EntityDef,
   type EntityTypeName,
   type InstanceDef,
+  type OpBatch,
   type Prefab,
   type PrefabLibrary,
   type Ref,
   type SceneDefinition,
+  type SceneIssue,
+  type SceneOp,
 } from "../scene/types";
 import { prefabInstances } from "./prefab-commands";
 
@@ -39,13 +51,14 @@ export const INSTANCES_ROW = "instances";
 const describeEntry = (v: unknown): string | undefined =>
   Array.isArray(v) ? (typeof v[0] === "string" ? v[0] : `${v[0]}, ${v[1]}`) : undefined;
 
-function entityRow(e: EntityDef): OutlineRow {
-  const detail = [describeEntry(e.shape ?? e.at), e.material, e.off ? "off" : undefined]
+/** An entity's row; `kind` leads its detail where no type row says it. */
+function entityRow(e: EntityDef, depth = 1, kind?: string): OutlineRow {
+  const detail = [kind, describeEntry(e.shape ?? e.at), e.material, e.off ? "off" : undefined]
     .filter((s) => typeof s === "string")
     .join(" · ");
   return {
     key: `ref:${e.id}`,
-    depth: 1,
+    depth,
     kind: "entity",
     label: e.name ?? e.id,
     ...(detail ? { detail } : {}),
@@ -54,15 +67,15 @@ function entityRow(e: EntityDef): OutlineRow {
   };
 }
 
-function bucketRows(key: BulkKey, values: BulkEntry[]): OutlineRow[] {
+function bucketRows(key: BulkKey, values: BulkEntry[], depth = 1): OutlineRow[] {
   const type = bulkKeyType(key);
   return [
-    { key: `bucket:${key}`, depth: 1, kind: "bucket", label: key, type, count: values.length },
+    { key: `bucket:${key}`, depth, kind: "bucket", label: key, type, count: values.length },
     ...values.map((v, i): OutlineRow => {
       const ref = bulkId(key, i);
       return {
         key: `ref:${ref}`,
-        depth: 2,
+        depth: depth + 1,
         kind: "entity",
         label: ref,
         detail: describeEntry(v),
@@ -78,16 +91,23 @@ const parentOf = (rel: Ref): string => {
   return i < 0 ? "" : rel.slice(0, i);
 };
 
+/** Rows a caller lists under a resolved ref: the scene's own entities parented to an instance's child. */
+type RowsUnder = (ref: Ref, depth: number) => OutlineRow[];
+
 /**
  * An instance's row and, under it, a row per child of its prefab with its
  * resolved ref and whether it is overridden, then a row per instance nested
  * in that prefab (`room-1/door-1`) holding its own children
- * (`room-1/door-1/panel`) the same way, at every level.
+ * (`room-1/door-1/panel`) the same way, at every level. A child whose
+ * `parent` names a sibling sits under that sibling's row. `under` adds rows
+ * below each child's and nested instance's row.
  */
 function instanceRows(
   inst: InstanceDef,
   prefabs: PrefabLibrary | undefined,
   registry: Registry,
+  depth = 1,
+  under?: RowsUnder,
 ): OutlineRow[] {
   const keys = Object.keys(inst.overrides ?? {});
   const covering = (rel: string) =>
@@ -95,7 +115,7 @@ function instanceRows(
   const prefab = prefabs?.get(inst.prefab);
   const head: OutlineRow = {
     key: `ref:${inst.id}`,
-    depth: 1,
+    depth,
     kind: "entity",
     label: inst.name ?? inst.id,
     detail: [prefab ? inst.prefab : `${inst.prefab} (missing)`, inst.off ? "off" : undefined]
@@ -113,14 +133,26 @@ function instanceRows(
     byParent.set(parent, [...(byParent.get(parent) ?? []), c]);
   }
   const rows: OutlineRow[] = [head];
-  const walk = (holder: Prefab, path: string, depth: number, stack: ReadonlySet<string>) => {
-    for (const c of byParent.get(path) ?? []) {
+  const walk = (holder: Prefab, path: string, base: number, stack: ReadonlySet<string>) => {
+    const rel = (id: string) => (path ? `${path}${CHILD_SEPARATOR}${id}` : id);
+    const level = byParent.get(path) ?? [];
+    const nested = prefabInstances(holder, prefabs).map((n) => ({ n, rel: rel(n.id) }));
+    const ids = new Set([...level.map((c) => c.child), ...nested.map((x) => x.rel)]);
+    const sibling = (p: string | undefined, self: string) =>
+      p !== undefined && p !== self && ids.has(p) ? p : undefined;
+    const childAbove = (c: LocalChild) =>
+      sibling(c.kind === "entity" ? c.def.parent : undefined, c.child);
+    const nestedAbove = (x: (typeof nested)[number]) =>
+      sibling(x.n.parent === undefined ? undefined : rel(x.n.parent), x.rel);
+    const done = new Set<string>();
+    const child = (c: LocalChild, d: number) => {
+      done.add(c.child);
       const ref = childRef(inst.id, c.child);
       const type = c.kind === "entity" ? c.def.type : bulkKeyType(c.key);
       const own = c.child.slice(path ? path.length + 1 : 0);
       rows.push({
         key: `ref:${ref}`,
-        depth,
+        depth: d,
         kind: "entity",
         label: c.kind === "entity" ? (c.def.name ?? own) : own,
         detail: describeEntry(c.kind === "entity" ? (c.def.shape ?? c.def.at) : c.value) ?? type,
@@ -128,28 +160,40 @@ function instanceRows(
         type,
         overrides: keys.filter((k) => k.startsWith(`${c.child}.`)).length,
       });
-    }
-    for (const n of prefabInstances(holder, prefabs)) {
-      const rel = path ? `${path}${CHILD_SEPARATOR}${n.id}` : n.id;
-      const ref = childRef(inst.id, rel);
-      const nested = prefabs.get(n.prefab);
+      emit(c.child, d + 1);
+      if (under) rows.push(...under(ref, d + 1));
+    };
+    const instance = ({ n, rel: at }: (typeof nested)[number], d: number) => {
+      done.add(at);
+      const ref = childRef(inst.id, at);
+      const inner = prefabs.get(n.prefab);
       const loops = stack.has(n.prefab) || stack.size >= PREFAB_MAX_DEPTH;
       rows.push({
         key: `ref:${ref}`,
-        depth,
+        depth: d,
         kind: "entity",
         label: n.name ?? n.id,
-        detail: [nested ? n.prefab : `${n.prefab} (missing)`, n.off ? "off" : undefined]
+        detail: [inner ? n.prefab : `${n.prefab} (missing)`, n.off ? "off" : undefined]
           .filter((s) => s !== undefined)
           .join(" · "),
         ref,
         prefab: n.prefab,
-        overrides: covering(rel),
+        overrides: covering(at),
       });
-      if (nested && !loops) walk(nested, rel, depth + 1, new Set([...stack, n.prefab]));
-    }
+      if (inner && !loops) walk(inner, at, d + 1, new Set([...stack, n.prefab]));
+      emit(at, d + 1);
+      if (under) rows.push(...under(ref, d + 1));
+    };
+    const emit = (above: string | undefined, d: number) => {
+      for (const c of level) if (!done.has(c.child) && childAbove(c) === above) child(c, d);
+      for (const x of nested) if (!done.has(x.rel) && nestedAbove(x) === above) instance(x, d);
+    };
+    emit(undefined, base);
+    // Children whose parents loop among themselves sit at the instance's level.
+    for (const c of level) if (!done.has(c.child)) child(c, base);
+    for (const x of nested) if (!done.has(x.rel)) instance(x, base);
   };
-  walk(prefab, "", 2, new Set([prefab.id]));
+  walk(prefab, "", depth + 1, new Set([prefab.id]));
   return rows;
 }
 
@@ -201,6 +245,164 @@ export function buildOutline(
     for (const inst of instances) rows.push(...instanceRows(inst, prefabs, registry));
   }
   return rows;
+}
+
+/**
+ * The outliner's rows as the scene's tree: each root entity and instance
+ * with its children below it a level deeper each, a parent's entities in
+ * `entities` order and then its instances in `instances` order. An
+ * instance's prefab children come first under it, each with the scene's
+ * entities parented to it, then the scene's own children of the instance.
+ * A parent that doesn't resolve, or closes a loop, leaves its child at the
+ * root, as the scene loads it. Bulk buckets follow as root rows.
+ */
+export function buildTreeOutline(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs?: PrefabLibrary,
+): OutlineRow[] {
+  const frames = sceneFrames(def, registry, prefabs);
+  type Item = { kind: "entity"; def: EntityDef } | { kind: "instance"; def: InstanceDef };
+  const items: Item[] = [
+    ...(def.entities ?? []).map((e): Item => ({ kind: "entity", def: e })),
+    ...(def.instances ?? []).map((i): Item => ({ kind: "instance", def: i })),
+  ];
+  const byParent = new Map<Ref, Item[]>();
+  for (const item of items) {
+    const parent = frames.parentOf(item.def.id) ?? "";
+    byParent.set(parent, [...(byParent.get(parent) ?? []), item]);
+  }
+  const done = new Set<Item>();
+  const typeLabel = (type: EntityTypeName) => registry.types.get(type)?.inspector?.label ?? type;
+  const under: RowsUnder = (parent, depth) =>
+    (byParent.get(parent) ?? []).flatMap((item) => emit(item, depth));
+  const emit = (item: Item, depth: number): OutlineRow[] => {
+    if (done.has(item)) return [];
+    done.add(item);
+    const head =
+      item.kind === "entity"
+        ? [entityRow(item.def, depth, typeLabel(item.def.type))]
+        : instanceRows(item.def, prefabs, registry, depth, under);
+    return [...head, ...under(item.def.id, depth + 1)];
+  };
+  const rows = under("", 0);
+  // A parent naming an instance child the prefab doesn't have.
+  for (const item of items) rows.push(...emit(item, 0));
+  for (const key of bulkKeysOf(def)) {
+    const values = bulkEntries(def, key);
+    if (values.length > 0) rows.push(...bucketRows(key, values, 0));
+  }
+  return rows;
+}
+
+/** Where a row dropped in the tree goes: under a parent (null: the root), or just before a sibling. */
+export type TreeDrop = { kind: "reparent"; parent: Ref | null } | { kind: "reorder"; before: Ref };
+
+/** The ids from `ref`'s parent up to its root, as the scene loads them; an instance child's chain starts at its instance. */
+function ancestors(frames: ReturnType<typeof sceneFrames>, ref: Ref): string[] {
+  const out: string[] = [];
+  let at: Ref | undefined = frames.parentOf(ref);
+  while (at !== undefined) {
+    const id = parseChildRef(at)?.instance ?? at;
+    if (out.includes(id)) break;
+    out.push(id);
+    at = frames.parentOf(id);
+  }
+  return out;
+}
+
+/**
+ * What dragging `refs` moves in the tree: the scene's own entities and
+ * instances among them (no bulk entries, no instance children), without
+ * any that sit under another of them, since those come along.
+ */
+export function treeDragRoots(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  refs: readonly Ref[],
+): Ref[] {
+  const ids = new Set([...(def.entities ?? []), ...(def.instances ?? [])].map((d) => d.id));
+  const movable = [...new Set(refs)].filter((r) => ids.has(r));
+  if (movable.length < 2) return movable;
+  const frames = sceneFrames(def, registry, prefabs);
+  const set = new Set(movable);
+  return movable.filter((r) => !ancestors(frames, r).some((a) => set.has(a)));
+}
+
+const itemsLabel = (refs: readonly Ref[]) =>
+  refs.length === 1 ? refs[0]! : `${refs.length} items`;
+
+/**
+ * One batch for dropping `refs` in the tree: a `reparent` for those whose
+ * parent changes and, before a sibling, a `reorder` per list (entities,
+ * instances) that changes. Nothing moves in the world. Null when nothing
+ * changes.
+ */
+export function treeDropBatch(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  refs: readonly Ref[],
+  drop: TreeDrop,
+): OpBatch | null {
+  const entities = def.entities ?? [];
+  const instances = def.instances ?? [];
+  const declared = new Map<string, Ref | undefined>(
+    [...entities, ...instances].map((d) => [d.id, d.parent]),
+  );
+  const moving = [...new Set(refs)].filter((r) => declared.has(r));
+  if (moving.length === 0) return null;
+  if (drop.kind === "reorder" && moving.includes(drop.before)) return null;
+  const frames = sceneFrames(def, registry, prefabs);
+  const settled = (id: string) => frames.parentOf(id) ?? null;
+  const parent = drop.kind === "reparent" ? drop.parent : settled(drop.before);
+  const ops: SceneOp[] = [];
+  const reparenting = moving.filter((r) => (declared.get(r) ?? null) !== parent);
+  if (reparenting.length > 0) ops.push({ op: "reparent", refs: reparenting, parent });
+  if (drop.kind === "reorder") {
+    for (const list of [entities, instances]) {
+      const mine = list.filter((d) => moving.includes(d.id));
+      if (mine.length === 0) continue;
+      const rest = list.filter((d) => !moving.includes(d.id));
+      const siblings = rest.flatMap((d, i) => (settled(d.id) === parent ? [i] : []));
+      let index = rest.findIndex((d) => d.id === drop.before);
+      // `before` is in the other list: entities go after their last sibling entity, instances before their first sibling instance.
+      if (index < 0)
+        index =
+          list === entities
+            ? (siblings.at(-1) ?? rest.length - 1) + 1
+            : (siblings[0] ?? rest.length);
+      const next = [...rest.slice(0, index), ...mine, ...rest.slice(index)];
+      const sibling = (d: EntityDef | InstanceDef) => mine.includes(d) || settled(d.id) === parent;
+      const was = list.filter(sibling);
+      if (next.filter(sibling).every((d, i) => d === was[i])) continue;
+      ops.push({ op: "reorder", refs: mine.map((d) => d.id), index });
+    }
+  }
+  if (ops.length === 0) return null;
+  const what = itemsLabel(moving);
+  const label =
+    drop.kind === "reorder"
+      ? `Move ${what} before ${drop.before}`
+      : parent === null
+        ? `Move ${what} to the root`
+        : `Put ${what} under ${parent}`;
+  return { label, ops };
+}
+
+/** Why `batch` would be refused against `def`, as dispatching it would judge it; null when it applies. */
+export function treeDropRefusal(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  batch: OpBatch,
+): SceneIssue | null {
+  const result = applyOps(def, { base: sceneHash(def), ...batch }, registry, {
+    validate: "none",
+    ...(prefabs ? { prefabs } : {}),
+  });
+  return result.ok ? null : result.issue;
 }
 
 /** The selectable refs in outline order, for range selection. */

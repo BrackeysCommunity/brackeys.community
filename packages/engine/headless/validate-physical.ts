@@ -364,7 +364,7 @@ export type ValidatePhysicalOptions = PhysicalOptions & {
  * Loads `scene` into a headless world that is never stepped and runs the
  * physical checks over it: on Rapier, or on the geometry backend when the
  * scene runs without physics. The checks see the resolved view (instances
- * inlined, groups applied); their issues come back pointing into the
+ * inlined, parent frames applied); their issues come back pointing into the
  * document, with fixes mapped onto it. A scene for another game, or one
  * that doesn't expand or load, has none: `validateScene` reports why.
  */
@@ -374,7 +374,10 @@ export function validatePhysical(opts: ValidatePhysicalOptions): SceneIssue[] {
   const resolved = resolveSceneDetailed(source, registry, prefabs);
   let scene: ExpandedScene;
   try {
-    scene = expandScene(resolved.def, registry, engine ? { engine } : {});
+    scene = expandScene(source, registry, {
+      ...(prefabs ? { prefabs } : {}),
+      ...(engine ? { engine } : {}),
+    });
   } catch {
     return [];
   }

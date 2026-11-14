@@ -1,6 +1,6 @@
 {
   "$schema": "../scene.schema.json",
-  "v": 4,
+  "v": 5,
   "game": "stress",
   "name": "wall",
   "bounds": [0, 0, 96, 16],

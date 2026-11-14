@@ -64,7 +64,7 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | Command                                                                                                                                                                                                                                              | Writes                   | What it returns                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `list`                                                                                                                                                                                                                                               | no                       | every scene with its `game`, `sceneHash`, issue counts, entity counts per type and bounds, `clashes`                                                                                                                                                                                                                                                                                                                                                |
-| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                                                                                         | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                                                                                                                                                                                                                                                                                        |
+| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r] [--tree]`                                                                                                                                                                                | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                                                                                                                                                                                                                                                                                        |
 | `schema [scene\|ops\|script\|checks\|recording\|fragment\|prefab\|project\|asset-sidecar\|project-ops\|project-snapshot\|save\|material\|game-settings\|data-table\|<doc kind>] [--game id]`                                                         | no                       | a JSON Schema the engine serves (`urn:jams-engine:<kind>[:<game>]:v<n>`): a game's scene, ops, script, checks, fragment, prefab and doc kinds; the recording, project and save schemas                                                                                                                                                                                                                                                              |
 | `codes`                                                                                                                                                                                                                                              | no                       | `agentSurface` and every issue code with its severity, summary, hint and fixability, grouped by owner                                                                                                                                                                                                                                                                                                                                               |
 | `flow [--project p]`                                                                                                                                                                                                                                 | no                       | each project's scene list: its start, every listed scene's title, sublevel tag, physics and bundle bytes, the scenes it leaves out, and its issues; exit 1 on an error; see [Flow](#flow)                                                                                                                                                                                                                                                           |
@@ -120,20 +120,28 @@ Every JSON report names the scene hash `sceneHash`. `show` returns at most
 200 rows and sets `truncated: true` past that; narrow it with a filter.
 `show` rows put an entity's shape, point and the AABB first and every other
 field in `extra`; a shape that rides a path (a `follower`, the platformer's
-`mover`) is placed at its first path point. A group member's row also has
-the group's `origin`: its `shape` and `at` stay as stored, relative to it,
-while its AABB and `--near` are in world metres. Each prefab instance is a row of
+`mover`) is placed at its first path point. A child's row (an entity or
+instance with a `parent`) keeps its `shape` and `at` as stored, in its
+parent's frame, while its AABB and `--near` are in world metres. Each prefab instance is a row of
 type `instance` (its `prefab`, its world `at`, the rest in `extra`) followed by
 its children as `gate-3/door` rows in world coordinates, each naming its
 `instance`; edit those with `override`, not `update`. A nested child's row
 is `room-1/door-1/panel` with its `instancePath` (`["room-1", "door-1"]`),
 and an instance's row lists the instances `nested` in it, the `params` it
-sets and the ones its prefab `exposes`. Rows also carry `z`, `transform`
-(the world `rot` and `flip` their groups and instances give them, when not
-the identity), `behaviors`, and for each grid field a `grids` summary:
+sets and the ones its prefab `exposes`. Rows also carry `z`, `behaviors`,
+and for each grid field a `grids` summary:
 filled cells, chunks and the filled cells' bounds. A row with a sprite has
 `sprite`: its `label` (`asset[:frame]`), `asset`, `frame`, drawn `size` and
 the world `aabb` it draws, the same box `render` outlines.
+
+Each row prints `parent <ref>` when it has one. A child's stored
+geometry is printed with the frame it is stored in, as
+` in x,y m rot <deg>[ flip]` (data: `origin`, `transform: { rot, flip }`,
+`rot` in degrees clockwise). Its AABB and `--near` are in world space
+through the parent chain. `show --tree` lists rows depth first under
+their parents, indented two spaces per level, each JSON row carrying
+`depth`. An instance's child sits under its parent in the prefab, else
+under its instance. A missing parent, or the id a cycle drops, is a root.
 
 `diff` reports `{ from, to, changed, changes }`, each change a
 `SceneChange`: `added`, `removed`, `renamed` (an entity whose content is the
@@ -154,7 +162,7 @@ nothing when the name is taken in any project or the result has errors.
 `fmt` formats any doc asset through its kind's own format (a scene, a
 prefab, a `.checks.json`, a `.script.json`, a material, a table), by id;
 without one it formats every doc asset of the projects in scope. A scene or
-prefab at an older format version is migrated to the current one (v3), and
+prefab at an older format version is migrated to the current one (v5), and
 the result says `migratedFrom`.
 `schema` serves every schema the engine publishes; `schema <doc kind>`
 also gives a game's own doc kinds.
@@ -300,7 +308,7 @@ and gravity `[0, 0]`; `side-view` runs on Rapier with gravity `[0, 20]`,
 down, and puts its goal on a ledge a jump up. Each has a `hero` that
 reaches a `goal` sensor. The `top-down` and `side-view` heroes are made of
 [standard behaviors](#standard-behaviors) on the `hero` type (a marker),
-so the game writes no movement code, and each scaffold's test plays its
+so the game writes no movement code, their goal sensor carries the game's `<id>/goal` script, which declares the win, and each scaffold's test plays its
 hero to a `near` the goal.
 
 | Preset               | Clock         | Grid                        | px per metre | The hero                                                                                                      |
@@ -326,17 +334,18 @@ vp run scene game new hop --preset turns --cell 0.5 --px-per-metre 48 --dry-run 
 
 **What it writes:**
 
-| File                                               | What it holds                                                                                                            |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `jams.project.json`                                | the id, name, `game` (`./index.ts`, `<camel>Game`) and `ui` (`./ui/index.ts`, `mount<Pascal>Hud`), assets and code globs |
-| `index.ts`                                         | `defineGame`, with `world` (`physics`, `gravity`, `grid`, `lengthUnit`) and `time` (`kind`, `rate`) spelled out          |
-| `types.ts`, `actions.ts`, `template.ts`            | the `hero` type and the snapshot; the actions and their bindings; the scene template `scenes/main.json` comes from       |
-| `runtime.ts`, `play.ts`                            | `createRuntime` (`snapshot`, `storeSlice`, `busy()` on a turns clock); results, `outcome` and `commands()`               |
-| `ui/index.ts`, `ui/hud.ts`                         | a framework-free HUD through `bindText`: a status line and one button; no editor code                                    |
-| `scenes/main.json`, `.checks.json`, `.script.json` | the scene (format v4, in metres), a `reaches` check from the spawn to the goal, an input script that wins                |
-| `game-settings.json`, `input-map.json`             | the project's settings and input map docs                                                                                |
-| `scene.schema.json`, `input-script.schema.json`    | generated from the game's registry                                                                                       |
-| `__tests__/game.test.ts`                           | the schemas are current (`UPDATE_SCHEMAS=1` rewrites them), the scene validates and the script wins headless             |
+| File                                               | What it holds                                                                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `jams.project.json`                                | the id, name, `game` (`./index.ts`, `<camel>Game`) and `ui` (`./ui/index.ts`, `mount<Pascal>Hud`), assets and code globs                 |
+| `index.ts`                                         | `defineGame`, with `world` (`physics`, `gravity`, `grid`, `lengthUnit`) and `time` (`kind`, `rate`) spelled out                          |
+| `types.ts`, `actions.ts`, `template.ts`            | the `hero` type and the snapshot; the actions and their bindings; the scene template `scenes/main.json` comes from                       |
+| `runtime.ts`, `play.ts`                            | `createRuntime` (`snapshot`, `storeSlice`, `busy()` on a turns clock); results, `outcome` and `commands()`                               |
+| `goal.ts` (`top-down`, `side-view`)                | the `Goal` script class on the goal sensor: the hero entering it raises the win event once and loses its seat; it saves whether it fired |
+| `ui/index.ts`, `ui/hud.ts`                         | a framework-free HUD through `bindText`: a status line and one button; no editor code                                                    |
+| `scenes/main.json`, `.checks.json`, `.script.json` | the scene (format v5, in metres), a `reaches` check from the spawn to the goal, an input script that wins                                |
+| `game-settings.json`, `input-map.json`             | the project's settings and input map docs                                                                                                |
+| `scene.schema.json`, `input-script.schema.json`    | generated from the game's registry                                                                                                       |
+| `__tests__/game.test.ts`                           | the schemas are current (`UPDATE_SCHEMAS=1` rewrites them), the scene validates and the script wins headless                             |
 
 **Refusals** write nothing and exit 1: an id outside the project id pattern
 (up to 48 lowercase letters, digits and dashes, starting with a letter or
@@ -839,7 +848,8 @@ A scene runs without Rapier when its physics resolves to `"none"`: scene
 Rapier scene. The engine's own colliders stand in: `solid` (one-way sides
 included), `sensor` (enter and exit from overlaps) and `follower` (a
 kinematic collider on its path) work; `marker`, `decor`, `nav`,
-`camera-region` and `note` never had a body. `prop`, anything with `attach`, and a game type that
+`camera-region` and `note` never had a body; a solid or sensor under a
+follower or a prop follows it by pose. `prop` and a game type that
 declares `physics: "required"` are `physics-required`, reported before
 anything loads:
 
@@ -2656,7 +2666,10 @@ none. An edit from the last few seconds may not be stored yet.
 A hosted scene or prefab still at format v3 opens read-only, with
 `migration-unresolved`: the sync service has no game code to move it to
 metres (see [Units and format v4](#units-and-format-v4)), and a v3 client
-can't write a v4 doc. Pull the project, run `fmt` on the files, and seed
+can't write a v4 doc. A stored v4 doc is in the same place: the v4 → v5
+step places groups and attached colliders under parents through the
+game's registry (see [Format v5: the scene tree](#format-v5-the-scene-tree)).
+Pull the project, run `fmt` on the files, and seed
 the hosted project again from them (it must be reset in the site first,
 since `project push` seeds only an empty project), or reset it and start
 over.
@@ -2932,10 +2945,12 @@ changes.
   or player state. Scenes are the authored starting point.
 - **Leave remarks as `note` entities**
   (`{ "type": "note", "at": [x, y], "text": "..." }`); they never load.
-- **Groups have an origin.** An entity or instance whose `group` names one
-  of the scene's `groups` stores its geometry relative to that group's
-  `at`; moving the group is one `setGroup` with a new `at`. A new group is
-  declared with `setGroup` (at `[0, 0]` unless you say otherwise).
+- **A child is stored in its parent's frame.** An entity or instance with
+  a `parent` keeps its geometry relative to that parent, so moving or
+  turning the parent is one edit and its subtree follows. Change a parent
+  with `reparent`, which keeps everything where it is in the world; a
+  `node` is a parent with nothing else to it (see
+  [Format v5: the scene tree](#format-v5-the-scene-tree)).
 - **Prefabs are found by id.** In a project a prefab is a prefab asset at
   whatever path the registry gives it (moved to `kit/` or renamed, it still
   resolves); a new one goes to `prefabs/<id>.json` in the scene's folder.
@@ -2959,24 +2974,173 @@ changes.
   unchanged file's, so it works as `--base` for a retry. Otherwise a
   `definePrefab` with `"prefab": null` sends the prefab to the trash,
   where `assets restore` brings it back.
-- **`attach` rides a follower.** A solid or sensor with `attach:
-"<follower id>"` moves with that follower; place its shape where it
-  should be while the follower is at its first path point.
+- **A child of a follower rides it.** A solid or sensor with `parent:
+"<follower id>"` moves with that follower and is destroyed with it; its
+  shape is stored in the follower's frame, from the follower's first path
+  point.
 - **`$schema` comes first** and points at the registry's committed schema, so
   editors validate and autocomplete scene files. Scene directories are left
   out of `vp fmt`; `fmt --check` is their formatter gate.
 
+## Format v5: the scene tree
+
+Scenes, prefabs, fragments and op batches are `"v": 5` (`scene:v5`,
+`prefab:v5`, `fragment:v5`, `ops:v5`): format v4 with a tree. Any entity
+or instance may name a `parent`, the engine has a `node` type to hang
+things on, an instance's `rot` counts degrees, and groups and `attach`
+are gone.
+
+| Key or field | Where               | Meaning                                                                                                         | Absent       |
+| ------------ | ------------------- | --------------------------------------------------------------------------------------------------------------- | ------------ |
+| `parent`     | entities, instances | an entity or instance in the same document, or an instance's child by its resolved ref (`room-1/door-1/panel`)  | the root     |
+| `node`       | an entity type      | `at`, `rot` and `flip`: a pose and nothing else, to move, turn, hide or destroy what sits under it as one thing | —            |
+| `rot`        | instances, nodes    | degrees clockwise (y down), any angle                                                                           | 0            |
+| `flip: true` | instances, nodes    | mirror x in its own frame, before turning                                                                       | not mirrored |
+| `groups`     | —                   | gone: each group is a `node`                                                                                    | —            |
+| `group`      | —                   | gone: each `group` is a `parent`                                                                                | —            |
+| `attach`     | —                   | gone: a solid or sensor riding a follower names it as its `parent`                                              | —            |
+
+**Frames.** A child's geometry fields (shapes, points, paths, angles,
+mirrors and sides) are stored in its parent's frame: an origin, an angle
+and a flip. A node's or instance's frame is its `at`, `rot` and `flip`.
+Any other entity's is its spawn pose: its shape's centre (a follower's
+shape placed at its path's first point), else its point, else its path's
+first point, turned by a box's or capsule's `rotDeg`. Frames compose down
+the chain, innermost first, and a prefab's parentless child sits in its
+instance's frame. `show` prints each child with the frame it is stored in,
+and `show --tree` prints the tree:
+
+```sh
+vp run scene show kitchen-sink --tree
+```
+
+**The tree's rules.** A parent's children are its entities in `entities`
+order, then its instances in `instances` order. A chain is at most 16
+levels deep (`parent-depth`), never loops (`parent-cycle`) and names a
+parent that exists (`dangling-ref`). A nav area, a camera region, a note
+and a bulk entry can't be in the tree (`parent-type`): promote a bulk
+entry first. A side or grid field under a parent turned off the quarter
+turns is `quarter-turn-only`. An `off` parent takes its whole subtree out
+of the load. A child doesn't need physics: without Rapier a solid or
+sensor under a follower follows it by pose. At runtime a
+destroyed or disabled parent takes its subtree with it.
+
+**Ops.** A parent changes only through `reparent`, which rewrites the
+stored geometry into the new frame so nothing moves in the world:
+
+| Op                   | In v5                                                                                                                                                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reparent`           | `{ refs, parent }`: entities and instances under `parent`, or the root with `null`, where they are in the world; refuses bulk entries, an instance's children, a loop, past 16 levels and a type that can't be in the tree |
+| `transform`          | `refs` are instances and nodes; `rotate` is any angle in degrees, beside `turn` in quarters; what sits under one turns with it                                                                                             |
+| `update`             | sets a node's `at`, `rot` and `flip` absolutely; refuses `parent` (`op-invalid`, with a hint naming `reparent`)                                                                                                            |
+| `add`, `instantiate` | take `parent`, with the geometry in the parent's frame                                                                                                                                                                     |
+| `move`, `place`      | in stored coordinates, the parent's frame; moving a parent moves its subtree                                                                                                                                               |
+| `remove`             | removes every entity and instance under each ref too, and lists them in `touched`                                                                                                                                          |
+| `rename`             | rewrites every `parent` that names the old id or a child of it                                                                                                                                                             |
+| `unpack`             | bakes the instance into its own parent's frame, and gives the children its `parent`                                                                                                                                        |
+| `createPrefab`       | takes the members to the world through their whole chain, and gives the new instance the parent they all share, if they share one                                                                                          |
+| `setGroup`           | gone: `add` a `node`, `reparent` what it holds under it, and `update` or `move` the node                                                                                                                                   |
+
+On `kitchen-sink`, a crane node with a jib built in its frame, then the
+zone and the lamp hung on the `pivot` node (at 30°), the shelf's marker
+taken off it, and the pivot turned a further 15°, carrying what hangs on
+it:
+
+```json scene=kitchen-sink
+{
+  "label": "Build a crane, hang things on the pivot and turn it",
+  "ops": [
+    { "op": "add", "entity": { "id": "crane", "type": "node", "name": "Crane", "at": [5, 4] } },
+    {
+      "op": "add",
+      "entity": {
+        "id": "crane-jib",
+        "type": "solid",
+        "parent": "crane",
+        "shape": ["box", 0.6, 0, 0.6, 0.05]
+      }
+    },
+    { "op": "move", "refs": ["crane"], "by": [0.5, 0] },
+    { "op": "reparent", "refs": ["zone", "lamp"], "parent": "pivot" },
+    { "op": "reparent", "refs": ["shelf-mark"], "parent": null },
+    { "op": "transform", "refs": ["pivot"], "rotate": 15 }
+  ]
+}
+```
+
+`examples/tree/` holds the batches the `scene-editing` skill teaches,
+which its test runs in order: `build-turret.json` builds a turret from
+plain entities (a `node`, a base under it, a barrel with a collider under
+the base), `reparent-crate.json` puts a crate under the tower where it
+stands, `turn-tower.json` turns the tower 30° with everything on it, and
+`nudge-barrel.json` slides the barrel 0.2 m along its parent's x, since
+`move` is in stored coordinates. The first runs on its own:
+
+```sh
+vp run scene apply kitchen-sink --ops scripts/scene/examples/tree/build-turret.json --dry-run
+```
+
+A loop is refused:
+
+```json scene=kitchen-sink expect=parent-cycle
+{ "ops": [{ "op": "reparent", "refs": ["shelf"], "parent": "shelf-mark" }] }
+```
+
+so is a note in the tree:
+
+```json scene=kitchen-sink expect=parent-type
+{ "ops": [{ "op": "reparent", "refs": ["about"], "parent": "shelf" }] }
+```
+
+and a `parent` set through `update`, which would make the entity jump:
+
+```json scene=kitchen-sink expect=op-invalid
+{ "ops": [{ "op": "update", "ref": "zone", "set": { "parent": "shelf" } }] }
+```
+
+A one-way side under the pivot's 30° can't turn with it, so the dry run
+reports it:
+
+```json scene=kitchen-sink expect=quarter-turn-only
+{ "ops": [{ "op": "reparent", "refs": ["side-wall"], "parent": "pivot" }] }
+```
+
+**The migration.** The v4 → v5 step, which `fmt` runs:
+
+1. An instance's `rot` of `k` quarter turns becomes `90 × k` degrees: in
+   scenes, in prefabs' nested instances, in overrides keyed
+   `<instance>.rot` and in fragments.
+2. Each of a scene's `groups` becomes a `node` at the front of `entities`,
+   with the group's id (or the next free `<id>-<n>` when an entity or
+   instance holds it), `name`, `at`, turn and flip, and each `group` that
+   names it becomes `parent`. A `group` naming no declared group is
+   dropped: it placed nothing.
+3. `attach: "<f>"` on a solid or sensor becomes `parent: "<f>"`, its shape
+   re-expressed in the follower's frame; an `f` inside an instance is
+   placed through the instance's prefab.
+
+Every world pose stays where it was: a file's expanded scene is the v4
+one's, entity for entity, plus the nodes. `fmt --check` reports a v4 file
+as
+
+```text
+kitchen-sink: not canonical (from v4 to v5); run vp run scene fmt kitchen-sink
+```
+
+and `fmt` writes it at v5. The step needs the game's registry, and the
+prefabs an attached ref goes through; without them it refuses with
+`migration-unresolved` and leaves the file at v4.
+
 ## Units and format v4
 
-Scenes, prefabs, fragments and op batches are `"v": 4` (`scene:v4`,
-`prefab:v4`, `fragment:v4`, `ops:v4`): format v3 with every length in
-metres. The simulation runs in metres, and each game says how many pixels
+Format v4 is format v3 with every length in metres, and format v5 keeps
+it ([Format v5: the scene tree](#format-v5-the-scene-tree)). The simulation runs in metres, and each game says how many pixels
 a metre is drawn at, `world.lengthUnit` (default 100; the platformer
 declares 100). At 100 px per metre a whole pixel is two decimals:
 `["box", 3, 9.4, 0.2, 0.2]` is a 40 px square.
 
 - **Metres:** `bounds`, `settings.gravity` (m/s²), `settings.grid`'s
-  `cell`, `origin` and `side`, groups' and instances' `at`, shapes, points
+  `cell`, `origin` and `side`, nodes' and instances' `at`, shapes, points
   and paths, path `speed` (m/s), and every field a schema marks with a
   length unit (`m`, `m/s` or `m/s²`), a game's own fields included. `show`
   and `step` print lengths with their unit.
@@ -3023,9 +3187,9 @@ scene, and `apply` reports `out-of-bounds`:
 
 ## Format v3
 
-Format v3's additions, all still in v4, are below. Each is optional and
+Format v3's additions, all still in v5, are below. Each is optional and
 defaults to what a v2 file meant, so the v2 → v3 step changed only `v`;
-`fmt` migrates every scene and prefab it formats to v4. The
+`fmt` migrates every scene and prefab it formats to v5. The
 blocks below are op batches you can dry-run as they are: the ones on
 `engine-yard` and `kitchen-sink` (the engine project's scenes) go to
 `apply <scene> --ops <file> --dry-run`, the ones that touch a prefab's own
@@ -3044,15 +3208,15 @@ floor, a `lamp` and a `marker` called `spot`.
 | `settings.physics`                         | scene settings              | `"rapier"` or `"none"`                                  | `"rapier"`             |
 | `settings.grid`                            | scene settings              | the scene's one cell grid, square or hex                | no grid                |
 | `settings.view`                            | scene settings              | `{ "projection": "orthogonal" }`, reserved              | orthogonal             |
-| `rot`, `flip`                              | instances, groups           | quarter turns clockwise, and a mirror of x before them  | not turned, not mirror |
+| `rot`, `flip`                              | instances, nodes            | degrees clockwise, and a mirror of x before them        | not turned, not mirror |
 | `params`                                   | instances                   | values of the prefab's exposed parameters               | the prefab's defaults  |
 | `instances`, `base`, `params`, `overrides` | prefab files                | nested instances, a variant's base, exposed parameters  | none                   |
 | `instances`                                | fragments                   | copied instances, their prefabs by id                   | none                   |
 | grid fields                                | entities of a type with one | run-length cells in 32 × 32 chunks                      | empty                  |
-| ref fields (`attach`, a game's `refField`) | entities                    | an id, or a child of an instance at any depth (`a/b/c`) | —                      |
+| ref fields (`parent`, a game's `refField`) | entities                    | an id, or a child of an instance at any depth (`a/b/c`) | —                      |
 
 `schema scene`, `schema prefab`, `schema fragment` and `schema ops` serve
-`urn:jams-engine:scene:v4` and its kin, with a game's types, behaviors,
+`urn:jams-engine:scene:v5` and its kin, with a game's types, behaviors,
 layers and asset ids filled in under `--game`.
 
 ### Behaviors
@@ -3236,7 +3400,8 @@ A grid field can't be overridden per instance (paint the prefab) or
 addressed below the field by `update`. A grid setting or value that is
 wrong, a grid field in a scene without `settings.grid`, or a turned
 instance over a grid that isn't square with square cells is
-`grid-invalid`:
+`grid-invalid`; a grid under a parent turned off the quarter turns is
+`quarter-turn-only` (see [Transforms](#transforms)):
 
 ```json scene=card-table expect=grid-invalid
 { "ops": [{ "op": "setSettings", "unset": ["grid"] }] }
@@ -3244,13 +3409,17 @@ instance over a grid that isn't square with square cells is
 
 ### Transforms
 
-Instances and groups take `rot` (1, 2 or 3 quarter turns, clockwise with
-y down) and `flip: true` (mirror x in their own frame, before turning).
-The eight combinations each have one spelling, and geometry on whole
-pixels stays on them. A transform moves shapes, points and paths, turns direction and
-angle fields, and remaps grid cells. `transform` speaks world terms and
-composes onto what is there: `turn` (1, 2, 3 or -1), `flip` (`"x"` or
-`"y"`) and `about` (each one's own `at` by default).
+Instances and nodes take `rot` (degrees clockwise with y down, any angle;
+absent is 0) and `flip: true` (mirror x in their own frame, before
+turning). Quarter turns keep the exact integer path, so geometry on whole
+pixels stays on it; any other angle goes through sine and cosine,
+rounded to the micrometre. A transform moves shapes, points and paths,
+turns direction and angle fields, and remaps grid cells. A side or grid
+field can only turn by quarters, so under a parent at any other angle it
+stays unturned and is `quarter-turn-only`. `transform` speaks world terms and
+composes onto what is there: `turn` (1, 2, 3 or -1) or `rotate` (degrees),
+`flip` (`"x"` or `"y"`) and `about` (each one's own `at` by default); what
+sits under a turned node or instance turns with it.
 `examples/turn-instance.json` turns `gate-2` a quarter turn about a point
 0.6 m above its foot, so it stands on the floor:
 
@@ -3258,22 +3427,22 @@ composes onto what is there: `turn` (1, 2, 3 or -1), `flip` (`"x"` or
 vp run scene apply kitchen-sink --ops scripts/scene/examples/turn-instance.json --dry-run
 ```
 
-`setGroup` sets a group's `rot` and `flip` absolutely; `instantiate` and
-`update` take them on an instance, with `z`:
+`update` sets a node's `rot` and `flip` absolutely; `instantiate` and
+`update` take them on an instance, with `z`, `rot` in degrees:
 
 ```json scene=kitchen-sink
 {
   "label": "Mirror the shelf and stand a gate on its side",
   "ops": [
-    { "op": "transform", "groups": ["shelf"], "flip": "x" },
-    { "op": "setGroup", "id": "shelf", "rot": 2 },
+    { "op": "transform", "refs": ["shelf"], "flip": "x" },
+    { "op": "update", "ref": "shelf", "set": { "rot": 180 } },
     {
       "op": "instantiate",
       "instance": {
         "id": "gate-9",
         "prefab": "gate",
         "at": [13, 11],
-        "rot": 1,
+        "rot": 90,
         "flip": true,
         "z": 2
       }
@@ -3425,7 +3594,7 @@ Prefabs nest at most 8 levels deep; a ninth is `prefab-depth`:
 }
 ```
 
-A ref field (`attach`, or a game's `refField`) may name a child at any
+A ref (`parent`, or a game's `refField`) may name a child at any
 depth (`gate-1/bar`, `room-1/door-1/panel`). A missing instance is
 `dangling-ref`; an instance whose prefab has no such child is
 `ref-child-unknown`, with a "did you mean":
@@ -3439,7 +3608,7 @@ depth (`gate-1/bar`, `room-1/door-1/panel`). A missing instance is
         "id": "hanger",
         "type": "solid",
         "shape": ["box", 19.8, 11, 0.2, 0.04],
-        "attach": "gate-1/door"
+        "parent": "gate-1/door"
       }
     }
   ]
@@ -3626,14 +3795,13 @@ it with `setParam`:
 
 | Op               | What it does in v3                                                                                                                                                                                        |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `transform`      | turns and flips instances (`refs`) and groups (`groups`) in world terms, composing onto what they have                                                                                                    |
+| `transform`      | turns and flips instances and nodes (`refs`) in world terms, composing onto what they have; v5 adds `rotate` in degrees                                                                                   |
 | `setZ`           | sets `z`, or shifts it `by`, on entities and instances; bulk entries refuse                                                                                                                               |
 | `useAssets`      | adds and removes ids in the scene's or prefab's `assets` header                                                                                                                                           |
 | `paintCells`     | paints `cells` and `rects` of an entity's grid field; 0 erases                                                                                                                                            |
 | `setPrefabBase`  | a prefab's document only: sets or (`null`) clears its variant base                                                                                                                                        |
 | `exposeParam`    | a prefab's document only: declares, replaces or (`null`) removes a parameter                                                                                                                              |
 | `setParam`       | sets or (`null`) clears one parameter on an instance                                                                                                                                                      |
-| `setGroup`       | gains `rot` and `flip`, absolute (0 and `false` are written as absent)                                                                                                                                    |
 | `instantiate`    | takes `rot`, `flip`, `z` and `params`; nests in a prefab's document; refuses a cycle                                                                                                                      |
 | `override`       | the child part may be nested (`right/bar`) or a nested instance (`left.z`); with no `ref`, in a prefab's own document, sets the prefab's own overrides of its base (a scene refuses it with `op-invalid`) |
 | `revertOverride` | the same paths as `override`; with no `ref`, in a prefab's own document, drops the prefab's own overrides of its base (a scene refuses it with `op-invalid`)                                              |
@@ -3721,13 +3889,13 @@ Sprites add these; [Sprites](#sprites) has a batch that reports each:
 World models add these; [World models](#world-models) has an example that
 reports each:
 
-| Code                | Severity | Meaning                                                                                                    | Fix                                       |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `tick-rate-invalid` | error    | A tick rate (`engine.tickRate`, a game's `time.rate`) that isn't an integer from 1 to 240.                 | set one in range                          |
-| `physics-required`  | error    | An entity needs physics (a `prop`, an `attach`, a type that requires it) in a scene whose physics is none. | set physics to rapier (fix), or remove it |
-| `physics-skipped`   | info     | A game's physical check that needs physics was skipped in a scene without it.                              | —                                         |
-| `grid-unreachable`  | error    | A `connected` check's target has no path from its start on the grid.                                       | open a path, or drop it                   |
-| `nav-invalid`       | error    | A nav polygon crosses itself, a hole isn't inside exactly one walk area, or two walk areas overlap.        | reshape the polygons                      |
+| Code                | Severity | Meaning                                                                                                         | Fix                                       |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `tick-rate-invalid` | error    | A tick rate (`engine.tickRate`, a game's `time.rate`) that isn't an integer from 1 to 240.                      | set one in range                          |
+| `physics-required`  | error    | An entity needs physics (a `prop`, a dynamic `body`, a type that requires it) in a scene whose physics is none. | set physics to rapier (fix), or remove it |
+| `physics-skipped`   | info     | A game's physical check that needs physics was skipped in a scene without it.                                   | —                                         |
+| `grid-unreachable`  | error    | A `connected` check's target has no path from its start on the grid.                                            | open a path, or drop it                   |
+| `nav-invalid`       | error    | A nav polygon crosses itself, a hole isn't inside exactly one walk area, or two walk areas overlap.             | reshape the polygons                      |
 
 Input v2 adds these; [Input v2](#input-v2) has a batch that reports the
 first two:
@@ -3838,6 +4006,29 @@ the first five, and a running game throws the last two as an
 | `joint-self`          | error       | A joint's `to` names the entity that carries it.                                                                                                                                                                                                              | point `to` at the other entity                                                                                                    |
 | `body-missing`        | error       | `ctx.bodies` was asked about an entity id that has no body.                                                                                                                                                                                                   | give the entity a body, or check `ctx.bodies.has(id)`                                                                             |
 | `body-not-dynamic`    | error       | A `ctx.bodies` write went to a body that doesn't take it: a force, torque or impulse to a kinematic or static body, a velocity to a static body or a follower (its path sets it), or an angular velocity to a kinematic body.                                 | check `ctx.bodies.kind(id)` first; push only a dynamic body, move a kinematic one with `setVelocity`, a follower through its path |
+
+Entity handles and the scene tree add these; a running game throws each
+as an `EngineError`: `entity-gone` from a handle used after its entity was
+destroyed, `pose-not-settable` from `ctx.setPose`, and `parent-cycle` and
+`parent-scope` from a reparent or a spawn with a `parent`:
+
+| Code                | Severity | Meaning                                                                                                                                                                                | Fix                                                                           |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `entity-gone`       | error    | An entity handle was used after its entity was destroyed; only its `id` and `alive` still answer.                                                                                      | check `entity.alive` first, or look the entity up again with `ctx.entity(id)` |
+| `pose-not-settable` | error    | `ctx.setPose` was asked to move an entity whose type nothing can pose: a follower (its path owns its pose), a nav area, a camera region, or a game type whose system has no `setPose`. | move a follower through its path; give a game type's system a `setPose`       |
+| `parent-cycle`      | error    | A reparent would put an entity under itself or under one of its own descendants.                                                                                                       | pick a parent outside the entity's subtree                                    |
+| `parent-scope`      | error    | An entity was given a parent it can't have: one that isn't live, or one in another sublevel.                                                                                           | parent an entity only to a live entity of its own scene or sublevel           |
+
+`validate` and `apply` report the tree's file checks, and `reparent`
+refuses the same cases. Each fix is one `reparent`, to the root or to the
+nearest ancestor that clears the issue; `parent-cycle` also names a file's
+loop:
+
+| Code                | Severity | Meaning                                                                                      | Fix                                                                                                                |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `parent-depth`      | error    | An entity sits more than 16 `parent` levels below its root.                                  | reparent part of the chain higher up (fix)                                                                         |
+| `parent-type`       | error    | A `parent` link names or sits on a nav area, a camera region, a note or a bulk entry.        | parent it to a node, an instance or an entity with a pose (fix: to the root); promote a bulk entry first           |
+| `quarter-turn-only` | error    | A side or grid field sits under a parent turned off the quarter turns, so it stays unturned. | turn the parent by a multiple of 90°, or reparent the entity (fix); an instance under such a parent has no fix yet |
 
 ## The agent surface version
 

@@ -513,12 +513,12 @@ describe("grid fields", () => {
       entities: [{ id: "floor", type: PAINT.type, at: [0, 0], cells: { "0,0": ["1*2"] } }],
     };
     const prefabs = new Map([[prefab.id, prefab]]);
-    const scene = (inst: { rot?: 1 | 2 | 3; flip?: true }): SceneDefinition =>
+    const scene = (inst: { rot?: number; flip?: true }): SceneDefinition =>
       paintScene({}, square, {
         entities: [],
         instances: [{ id: "a", prefab: "strip", at: [3.2, 3.2], ...inst }],
       });
-    const turned = renderSceneSvg(scene({ rot: 1 }), { registry: game, prefabs });
+    const turned = renderSceneSvg(scene({ rot: 90 }), { registry: game, prefabs });
     expect(turned).toContain(`data-ref="a/floor"`);
     expect(cellsOf(turned)).toEqual([
       [-1, 0],

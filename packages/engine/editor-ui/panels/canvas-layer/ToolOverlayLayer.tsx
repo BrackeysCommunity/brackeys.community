@@ -51,6 +51,21 @@ function Handle({ handle, view }: { handle: GizmoHandle; view: View }) {
   return <circle {...common} cx={num(x)} cy={num(y)} r={HANDLE_PX / 2 + 0.5} fill={fill} />;
 }
 
+/** The line from the point a rotate handle turns about out to the handle, under the handles. */
+function Stalk({ handle, view }: { handle: GizmoHandle; view: View }) {
+  const [x0, y0] = toScreen(view, handle.stalk!);
+  const [x1, y1] = toScreen(view, handle.at);
+  return (
+    <path
+      data-stalk={handle.id}
+      d={`M${num(x0)} ${num(y0)}L${num(x1)} ${num(y1)}`}
+      stroke="var(--je-primary)"
+      strokeWidth={1.5}
+      fill="none"
+    />
+  );
+}
+
 /** A game template's colour for its ghost: its stroke, else its fill. */
 function styleTone(style: Style | undefined): string | undefined {
   const c = style?.stroke ?? style?.fill;
@@ -265,6 +280,9 @@ function ScreenMarks({ overlay, view }: { overlay: ToolOverlay; view: View }) {
           })}
         </g>
       ))}
+      {overlay.handles?.map((h) =>
+        h.stalk ? <Stalk key={`stalk-${h.id}`} handle={h} view={view} /> : null,
+      )}
       {overlay.handles?.map((h) => (
         <Handle key={h.id} handle={h} view={view} />
       ))}

@@ -85,7 +85,13 @@ export type WorldState = {
   random: RngState;
   /** Pending emit-form timers. */
   timers: readonly SavedTimer[];
+  /** Entities whose own switch is off, by id; one under a disabled parent is off without a line here. */
   enabled: Readonly<Record<string, false>>;
+  /**
+   * Each live entity whose parent differs from the one its load or spawn
+   * gave it: the parent's id, or null for a root. Absent when none differs.
+   */
+  parents?: Readonly<Record<string, string | null>>;
   /** Scene entities destroyed since the load. */
   destroyed: readonly string[];
   spawned: readonly {
@@ -200,16 +206,17 @@ const spawnInputSchema = z
     type: z.string().min(1).describe("The entity type."),
     id: z.string().optional().describe("The id it asked for."),
     sublevel: z.string().optional().describe("The sublevel it belongs to."),
+    parent: z.string().min(1).optional().describe("The live entity it spawned under."),
+    local: z.boolean().optional().describe("Its geometry fields are in the parent's frame."),
   })
   .describe("The spawn's input, the type's own fields beside these.");
 
 const instanceSchema = z
   .strictObject({
     prefab: assetId.describe("The prefab instantiated."),
-    rot: z
-      .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)])
-      .optional()
-      .describe("Quarter turns."),
+    rot: z.number().optional().describe("Degrees clockwise."),
+    parent: z.string().min(1).optional().describe("The live entity its node spawned under."),
+    local: z.boolean().optional().describe("`at` is in the parent's frame."),
     flip: z.boolean().optional().describe("Mirrored on x."),
     z: z.number().optional().describe("Draw order."),
     layer: z.string().optional().describe("The layer it was placed on."),
@@ -224,7 +231,16 @@ const worldSchema = z
     counters: z.record(z.string(), count).describe("Runtime id counters by name."),
     random: z.tuple([uint32, uint32, uint32, uint32]).describe("`ctx.random`'s state."),
     timers: z.array(timerSchema).describe("Pending emit-form timers."),
-    enabled: z.record(z.string(), z.literal(false)).describe("Entities disabled, by id."),
+    enabled: z
+      .record(z.string(), z.literal(false))
+      .describe("Entities whose own switch is off, by id."),
+    parents: z
+      .record(
+        z.string(),
+        z.string().min(1).nullable().describe("The parent's id, or null for a root."),
+      )
+      .optional()
+      .describe("Entities whose parent differs from the one their load or spawn gave them, by id."),
     destroyed: z.array(z.string()).describe("Scene entities destroyed since the load."),
     spawned: z
       .array(
@@ -306,6 +322,14 @@ export const saveFileSchema: z.ZodType<SaveFile> = z
   .superRefine((file, ctx) => {
     if (file.depth === "world" && file.world === undefined)
       ctx.addIssue({ code: "custom", path: ["world"], message: "a world save holds `world`" });
+    for (const [id, parent] of Object.entries(file.world?.parents ?? {})) {
+      if (parent === id)
+        ctx.addIssue({
+          code: "custom",
+          path: ["world", "parents", id],
+          message: `"${id}" can't be its own parent`,
+        });
+    }
     if (file.depth === "progress" && file.world !== undefined)
       ctx.addIssue({
         code: "custom",
@@ -354,6 +378,7 @@ const SAVE_TEXT_LAYOUT: DocLayout = {
         random: { as: "atomic" },
         timers: LIST,
         enabled: OPEN_MAP,
+        parents: OPEN_MAP,
         destroyed: { as: "atomic" },
         spawned: LIST,
         poses: OPEN_MAP,

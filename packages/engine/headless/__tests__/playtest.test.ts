@@ -726,7 +726,7 @@ describe("runPlaytest's world predicates", () => {
     expect(lastTicks(r)).toEqual([5]);
   });
 
-  it("exists takes the id an instantiate returned, while any of its children lives", () => {
+  it("exists takes the id an instantiate returned, through its node", () => {
     const beacon: Prefab = {
       kind: "prefab",
       v: 3,
@@ -747,7 +747,7 @@ describe("runPlaytest's world predicates", () => {
             base.afterStep?.(dtMs, events);
             if (tick === 2) expect(ctx.instantiate("beacon", [0, 0]).id).toBe("beacon#1");
             if (tick === 4) ctx.setEnabled("beacon#1/left", false);
-            if (tick === 6) ctx.setEnabled("beacon#1/right", false);
+            if (tick === 6) ctx.setEnabled("beacon#1", false);
             if (tick === 8) ctx.destroy("beacon#1");
             tick++;
           },
@@ -774,7 +774,7 @@ describe("runPlaytest's world predicates", () => {
         },
       }) as PlaytestRun<TestGameSnapshot>,
     );
-    // Live from 2; still enabled at 5 with one child off; off at 6 with both; gone at 8.
+    // Live from 2; still enabled at 5 with one child off; off at 6 with the node; gone at 8.
     expect(lastTicks(r)).toEqual([2, "done", 5, "max", 7, "max"]);
   });
 

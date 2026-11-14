@@ -45,7 +45,7 @@ const pathOf = (e: RuntimeEntity | undefined) =>
 const navTo = (e: RuntimeEntity | undefined) =>
   (e?.behaviors?.["nav-agent"] as { to?: unknown } | undefined)?.to;
 
-describe("behavior geometry and refs under instances, groups and moves", () => {
+describe("behavior geometry and refs under instances, parents and moves", () => {
   it("places a path-follow path with its instance and scopes nav-agent refs to siblings", () => {
     const out = expandScene(
       scene({ instances: [{ id: "i", prefab: "yard", at: [20, 10] }] }),
@@ -64,7 +64,7 @@ describe("behavior geometry and refs under instances, groups and moves", () => {
 
   it("turns a behavior path with a turned instance", () => {
     const out = expandScene(
-      scene({ instances: [{ id: "i", prefab: "yard", at: [20, 10], rot: 1 }] }),
+      scene({ instances: [{ id: "i", prefab: "yard", at: [20, 10], rot: 90 }] }),
       engine,
       { prefabs: prefabLibrary([prefab]) },
     );
@@ -74,9 +74,14 @@ describe("behavior geometry and refs under instances, groups and moves", () => {
     ]);
   });
 
-  it("moves a behavior path with its group", () => {
+  it("moves a behavior path with its parent node", () => {
     const out = expandScene(
-      scene({ groups: { g: { at: [5, 5] } }, entities: [{ ...rider("p"), group: "g" }] }),
+      scene({
+        entities: [
+          { id: "g", type: "node", at: [5, 5] },
+          { ...rider("p"), parent: "g" },
+        ],
+      }),
       engine,
     );
     expect(pathOf(byId(out.entities).get("p"))).toEqual([
@@ -104,7 +109,7 @@ describe("behavior geometry and refs under instances, groups and moves", () => {
   });
 
   it("places a nav-agent point with its instance, turned and flipped, as a path is", () => {
-    const placed = (inst: { rot?: 1 | 2 | 3; flip?: true }) => {
+    const placed = (inst: { rot?: number; flip?: true }) => {
       const out = expandScene(
         scene({ instances: [{ id: "i", prefab: "yard", at: [20, 10], ...inst }] }),
         engine,
@@ -114,11 +119,7 @@ describe("behavior geometry and refs under instances, groups and moves", () => {
       return { to: navTo(got.get("i/walker")), path: pathOf(got.get("i/p")) as number[][] };
     };
     expect(placed({}).to).toEqual([22, 10]);
-    for (const inst of [
-      { rot: 1 as const },
-      { flip: true as const },
-      { rot: 3 as const, flip: true as const },
-    ]) {
+    for (const inst of [{ rot: 90 }, { flip: true as const }, { rot: 270, flip: true as const }]) {
       const { to, path } = placed(inst);
       expect(to).toEqual(path[1]);
       expect(to).not.toEqual([2, 0]);

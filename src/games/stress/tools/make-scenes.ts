@@ -219,8 +219,8 @@ const movers: Part = {
           add({
             id: `${p}-lip-${n}`,
             type: "solid",
-            shape: ["box", r2(px + 0.39), r2(py - 0.11), 0.06, 0.06],
-            attach: `${p}-f-${n}`,
+            parent: `${p}-f-${n}`,
+            shape: ["box", 0.39, -0.11, 0.06, 0.06],
           }),
           add({
             id: `${p}-rider-${n}`,
@@ -287,8 +287,8 @@ const field: Part = {
         add({
           id: `${p}-reach-${i}`,
           type: "sensor",
-          shape: ["box", x, r2(oy + 13.8), 1.2, 0.3],
-          attach: `${p}-piston-${i}`,
+          parent: `${p}-piston-${i}`,
+          shape: ["box", 0, -0.4, 1.2, 0.3],
           tags: ["riding"],
         }),
       );
@@ -454,7 +454,7 @@ const rooms: Part = {
               at: [ox + 8, y],
               ...(row % 4 === 0 ? { params: { mark: "peak" } } : {}),
             }
-          : { id: `${p}-gate-${row}`, prefab: "stress-gate", at: [ox + 8, r2(y - 0.8)], rot: 1 };
+          : { id: `${p}-gate-${row}`, prefab: "stress-gate", at: [ox + 8, r2(y - 0.8)], rot: 90 };
       const east =
         row % 2 === 0
           ? { id: `${p}-door-${row}`, prefab: "stress-doorway", at: [r2(ox + 15.7), y], z: 3 }
@@ -682,7 +682,7 @@ const marker = (id: string, at: [number, number], tags: string[]) => ({
 export const PREFABS: readonly PrefabDoc[] = [
   {
     kind: "prefab",
-    v: 4,
+    v: 5,
     game: "stress",
     id: "stress-latch",
     entities: [
@@ -692,7 +692,7 @@ export const PREFABS: readonly PrefabDoc[] = [
   },
   {
     kind: "prefab",
-    v: 4,
+    v: 5,
     game: "stress",
     id: "stress-one-way-latch",
     base: "stress-latch",
@@ -701,7 +701,7 @@ export const PREFABS: readonly PrefabDoc[] = [
   },
   {
     kind: "prefab",
-    v: 4,
+    v: 5,
     game: "stress",
     id: "stress-doorway",
     params: {
@@ -731,7 +731,7 @@ export const PREFABS: readonly PrefabDoc[] = [
   },
   {
     kind: "prefab",
-    v: 4,
+    v: 5,
     game: "stress",
     id: "stress-gate",
     entities: [
@@ -741,7 +741,7 @@ export const PREFABS: readonly PrefabDoc[] = [
   },
   {
     kind: "prefab",
-    v: 4,
+    v: 5,
     game: "stress",
     id: "stress-post",
     params: {
@@ -758,7 +758,7 @@ export const PREFABS: readonly PrefabDoc[] = [
   },
   {
     kind: "prefab",
-    v: 4,
+    v: 5,
     game: "stress",
     id: "stress-room",
     params: {
@@ -964,7 +964,7 @@ async function main(bun: BunApi, argv: readonly string[]): Promise<number> {
         path: `scenes/${s.id}.json`,
         content: {
           $schema: "../scene.schema.json",
-          v: 4,
+          v: 5,
           game: PROJECT,
           name: s.id,
           bounds: s.bounds,

@@ -182,7 +182,7 @@ describe("the sensor system's candidates", () => {
             speed: 300,
           },
         },
-        { id: "gate", type: "sensor", attach: "lift", shape: box(-400, 320, 30, 30) },
+        { id: "gate", type: "sensor", parent: "lift", shape: box(-400, 320, 30, 30) },
         ...sensors,
         ...balls,
       ],

@@ -1,3 +1,7 @@
+// @vitest-environment node
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineGame } from "../game/define";
@@ -14,6 +18,7 @@ import { validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
 import { carrierDelta, type FollowerSystem } from "../systems/path-follower";
 import type { RapierModule } from "../types";
+import { readPrefabFiles } from "../vite/project-files";
 import { testGame } from "./fixtures/test-game";
 
 let rapier: RapierModule;
@@ -34,10 +39,10 @@ const sensing = createRegistry(
 );
 const DT = 1000 / 60;
 
-/** A lift on a loop with a plank and a trigger attached, a prop riding the plank. */
+/** A lift on a loop with a plank and a trigger under it, in its frame (its first path point). */
 function yard(more: SceneDefinition["entities"] = []): SceneDefinition {
   return {
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     name: "attached",
     bounds: [-500, -500, 2000, 1500],
     solid: [["box", 500, 1000, 1000, 20]],
@@ -56,8 +61,8 @@ function yard(more: SceneDefinition["entities"] = []): SceneDefinition {
           speed: 120,
         },
       },
-      { id: "plank", type: "solid", attach: "lift", shape: ["box", 500, 590, 60, 4] },
-      { id: "gate", type: "sensor", attach: "lift", shape: ["box", 330, 560, 10, 30] },
+      { id: "plank", type: "solid", parent: "lift", shape: ["box", 100, -10, 60, 4] },
+      { id: "gate", type: "sensor", parent: "lift", shape: ["box", -70, -40, 10, 30] },
       ...more,
     ],
   };
@@ -117,6 +122,30 @@ describe("attachment to a path follower", () => {
     expect(carrierDelta(rt.ctx, colliderOf(rt, "lift").handle)).toEqual(
       followers.frameDelta("lift"),
     );
+    rt.destroy();
+  });
+
+  it("is the parent of what rides it, which the tree poses and which goes when it goes", () => {
+    const rt = loaded(yard());
+    expect(rt.ctx.tree.parent("plank")).toBe("lift");
+    expect(rt.ctx.tree.children("lift")).toEqual(["plank", "gate"]);
+    for (let i = 0; i < 30; i++) rt.step(DT, []);
+    const lift = rt.ctx.poses.get("lift")!;
+    expect(rt.ctx.poses.get("plank")!.x - lift.x).toBeCloseTo(100, 3);
+    expect(rt.ctx.poses.get("plank")!.y - lift.y).toBeCloseTo(-10, 3);
+
+    rt.ctx.setEnabled("lift", false);
+    expect(rt.ctx.enabled("plank")).toBe(false);
+    expect(colliderOf(rt, "plank").isEnabled()).toBe(false);
+    rt.ctx.setEnabled("lift", true);
+    expect(rt.ctx.enabled("gate")).toBe(true);
+    expect(colliderOf(rt, "gate").isEnabled()).toBe(true);
+
+    rt.ctx.destroy("lift");
+    rt.step(DT, []);
+    expect(rt.ctx.get("plank")).toBeUndefined();
+    expect(rt.ctx.get("gate")).toBeUndefined();
+    expect(rt.ctx.tags.handlesOf("plank")).toEqual([]);
     rt.destroy();
   });
 
@@ -182,10 +211,10 @@ describe("attachment to a path follower", () => {
     rt.destroy();
   });
 
-  it("refuses an attach on props and markers, and one that names no follower", () => {
+  it("refuses an attach field, and a parent that names nothing", () => {
     const bad = parseScene(
       {
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         name: "bad",
         bounds: [0, 0, 100, 100],
         entities: [
@@ -204,9 +233,9 @@ describe("attachment to a path follower", () => {
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.issues[0]!.code).toBe("unknown-key");
     const def = yard();
-    (def.entities![1] as Record<string, unknown>).attach = "gate";
+    (def.entities![1] as Record<string, unknown>).parent = "gone";
     const issues = validateScene(def, registry);
-    expect(issues.find((i) => i.entityIds.includes("plank"))?.code).toBe("ref-type");
+    expect(issues.find((i) => i.entityIds.includes("plank"))?.code).toBe("dangling-ref");
     expect(validateScene(yard(), registry).filter((i) => i.severity === "error")).toEqual([]);
   });
 
@@ -234,10 +263,16 @@ describe("attachment to a path follower", () => {
 });
 
 describe("attachment without physics", () => {
-  it("throws PhysicsRequiredError from the hub, and fails the load on the rider", () => {
+  it("follows the follower by pose, and throws PhysicsRequiredError from the hub", () => {
     const rt = createSceneRuntime({ rapier: null, view: null, registry });
     const report = rt.load(expandScene({ ...yard(), settings: { physics: "none" } }, registry));
-    expect(report).toMatchObject({ ok: false, reason: "physics-required", entityId: "plank" });
+    expect(report.ok).toBe(true);
+    expect(rt.ctx.tree.parent("plank")).toBe("lift");
+    for (let i = 0; i < 30; i++) rt.step(DT, []);
+    const lift = rt.ctx.poses.get("lift")!;
+    expect(lift.x).not.toBe(400);
+    expect(rt.ctx.poses.get("plank")!.x - lift.x).toBeCloseTo(100, 3);
+    expect(rt.ctx.poses.get("plank")!.y - lift.y).toBeCloseTo(-10, 3);
     let thrown: unknown;
     try {
       rt.ctx.attachments.attach("plank", "lift", () => {
@@ -283,7 +318,7 @@ describe("attachment to a follower inside an instance", () => {
     bounds: [-500, -500, 2000, 1500],
     instances: [{ id: "gate-2", prefab: "gate", at: [400, 600] }],
     entities: [
-      { id: "plank", type: "solid", attach: "gate-2/lift", shape: ["box", 500, 590, 60, 4] },
+      { id: "plank", type: "solid", parent: "gate-2/lift", shape: ["box", 100, -10, 60, 4] },
     ],
   };
 
@@ -313,9 +348,60 @@ describe("attachment to a follower inside an instance", () => {
   });
 
   it("reports a ref to an instance that doesn't exist as dangling", () => {
-    const lost = { ...scene, entities: [{ ...scene.entities![0]!, attach: "gate-9/lift" }] };
+    const lost = { ...scene, entities: [{ ...scene.entities![0]!, parent: "gate-9/lift" }] };
     const issues = validateScene(lost, game, { prefabs });
     expect(issues.find((i) => i.entityIds.includes("plank"))?.code).toBe("dangling-ref");
+  });
+});
+
+describe("the kitchen sink's riders", () => {
+  it("ride their followers as before, and go when the follower goes", async () => {
+    const scenes = new URL("../scenes/", import.meta.url);
+    const raw = JSON.parse(readFileSync(new URL("kitchen-sink.json", scenes), "utf8")) as {
+      entities: { material?: string }[];
+    };
+    // the one entity naming a project material, which this bare registry doesn't hold
+    raw.entities = raw.entities.filter((e) => e.material === undefined);
+    const parsed = parseScene(raw, registry);
+    if (!parsed.ok) throw new Error(parsed.issues.map((i) => i.message).join("\n"));
+    const def = parsed.def;
+    const { prefabs } = await readPrefabFiles(fileURLToPath(scenes), registry);
+    const rt = createSceneRuntime({ rapier, view: null, registry });
+    expect(rt.load(expandScene(def, registry, { prefabs })).ok).toBe(true);
+    const riding = [
+      ["deck", "carrier"],
+      ["deck-zone", "carrier"],
+      ["rider", "room-1/door-1/panel"],
+    ] as const;
+    for (const [id, host] of riding) {
+      expect(rt.ctx.tree.parent(id)).toBe(host);
+      expect(colliderOf(rt, id).parent()!.handle).toBe(colliderOf(rt, host).parent()!.handle);
+    }
+    const offsets = riding.map(([id, host]) => {
+      const a = colliderOf(rt, id).translation();
+      const b = colliderOf(rt, host).parent()!.translation();
+      return [a.x - b.x, a.y - b.y];
+    });
+    for (let i = 0; i < 240; i++) rt.step(DT, []);
+    riding.forEach(([id, host], i) => {
+      const a = colliderOf(rt, id).translation();
+      const b = colliderOf(rt, host).parent()!.translation();
+      expect(a.x - b.x).toBeCloseTo(offsets[i]![0]!, 4);
+      expect(a.y - b.y).toBeCloseTo(offsets[i]![1]!, 4);
+      const pose = rt.ctx.poses.get(id)!;
+      expect(pose.x).toBeCloseTo(a.x, 4);
+    });
+    expect(colliderOf(rt, "carrier").parent()!.translation().x).not.toBeCloseTo(7.6, 1);
+
+    rt.ctx.destroy("carrier");
+    rt.step(DT, []);
+    expect(rt.ctx.get("deck")).toBeUndefined();
+    expect(rt.ctx.get("deck-zone")).toBeUndefined();
+    expect(rt.ctx.get("rider")).toBeDefined();
+    rt.ctx.destroy("room-1/door-1/panel");
+    rt.step(DT, []);
+    expect(rt.ctx.get("rider")).toBeUndefined();
+    rt.destroy();
   });
 });
 

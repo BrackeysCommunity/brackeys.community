@@ -4,7 +4,7 @@ import * as Y from "yjs";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { createSceneRuntime } from "../../runtime/runtime";
-import { engine, engineYard } from "../../scene/__tests__/fixtures/random-ops";
+import { engine, engineYard, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
 import { expandScene } from "../../scene/expand";
 import { prefabLibrary } from "../../scene/prefab";
 import type {
@@ -181,6 +181,93 @@ describe("bindSceneDoc", () => {
     expect(scene).toMatchObject({ name: "", bounds: [0, 0, 0, 0], entities: [] });
   });
 
+  describe("a merge that leaves a parent cycle or a missing parent", () => {
+    const merged = (): SceneDefinition => ({
+      v: 4,
+      name: "tree",
+      bounds: [0, 0, 400, 400],
+      entities: [
+        { id: "p", type: "node", at: [10, 0], parent: "q" },
+        { id: "q", type: "node", at: [20, 0], parent: "p" },
+        { id: "eye", type: "marker", at: [1, 1], parent: "p" },
+        { id: "orphan", type: "marker", at: [50, 50], parent: "gone" },
+      ],
+    });
+
+    it("expands every entity, the cycle's last id and the orphan as roots, with no errors", () => {
+      const { scene, errors } = expandLenient(merged(), engine);
+      expect(errors).toEqual([]);
+      const byId = new Map(scene.entities.map((e) => [e.id, e]));
+      expect([...byId.keys()].sort()).toEqual(["eye", "orphan", "p", "q"]);
+      expect(byId.get("q")).toMatchObject({ at: [20, 0] });
+      expect(byId.get("q")).not.toHaveProperty("parent");
+      expect(byId.get("p")).toMatchObject({ at: [30, 0], parent: "q" });
+      expect(byId.get("eye")).toMatchObject({ at: [31, 1], parent: "p" });
+      expect(byId.get("orphan")).toMatchObject({ at: [50, 50] });
+      expect(byId.get("orphan")).not.toHaveProperty("parent");
+    });
+
+    it("leaves out a broken entry and keeps the others in their parents' frames", () => {
+      const def = merged();
+      def.entities!.push(
+        { id: "hub", type: "node", at: [100, 100], rot: 90 },
+        { id: "spoke", type: "marker", at: [10, 0], parent: "hub" },
+        { id: "bad", type: "solid", shape: ["box", 1, 1] as never, parent: "hub" },
+      );
+      const clean = expandLenient(merged(), engine).scene.entities;
+      const { scene, errors } = expandLenient(def, engine);
+      expect(errors).toHaveLength(1);
+      const byId = new Map(scene.entities.map((e) => [e.id, e]));
+      expect(byId.has("bad")).toBe(false);
+      expect(byId.get("spoke")).toMatchObject({
+        at: [100, 110],
+        parent: "hub",
+        transform: { rot: 90 },
+      });
+      for (const e of clean) expect(byId.get(e.id)).toEqual(e);
+    });
+
+    it("expands the same whatever order the merge left the entities in", () => {
+      const def = merged();
+      const reversed = { ...def, entities: [...def.entities!].reverse() };
+      const sorted = (s: ExpandedScene) => [...s.entities].sort((x, y) => (x.id < y.id ? -1 : 1));
+      expect(sorted(expandLenient(reversed, engine).scene)).toEqual(
+        sorted(expandLenient(def, engine).scene),
+      );
+    });
+
+    it("follows a remote reparent into the edit world, the moved entity's children with it", () => {
+      const [a, b] = pair(merged());
+      const unlink = link(a, b);
+      const rt = spyRuntime();
+      const binding = bindSceneDoc(a, rt, engine);
+      apply(b, { ops: [{ op: "reparent", refs: ["p"], parent: null }] }, bo, engine, {
+        validate: "none",
+      });
+      expect(rt.load).toHaveBeenCalledTimes(1);
+      const fresh = expandLenient(docToScene(a), engine).scene;
+      expect(binding.scene()).toEqual(fresh);
+      const updated = rt.update.mock.calls.flatMap((c) => c[0].map((e) => e.id)).sort();
+      expect(updated).toContain("p");
+      binding.destroy();
+      unlink();
+    });
+  });
+
+  it("expands instances as expandScene does, each with its node", () => {
+    const prefabs = yardPrefabs();
+    const ids = (s: ExpandedScene) => s.entities.map((e) => e.id).sort();
+    const expanded = expandScene(engineYard(), engine, { prefabs });
+    expect(ids(expandLenient(engineYard(), engine, prefabs).scene)).toEqual(ids(expanded));
+    expect(ids(expanded)).toEqual(expect.arrayContaining(["gate-1", "post-1"]));
+    const [a] = pair(engineYard());
+    const binding = bindSceneDoc(a, spyRuntime(), engine, {
+      prefabs: localPrefabSource(prefabs),
+    });
+    expect(binding.scene()).toEqual(expanded);
+    binding.destroy();
+  });
+
   it("follows remote writes to the layout 3 maps: assets, group turns, instance transforms, params and paint", () => {
     const game = createRegistry(testGame);
     const [a, b] = pair({
@@ -189,11 +276,11 @@ describe("bindSceneDoc", () => {
       name: "game-yard",
       bounds: [0, 0, 1000, 1000],
       settings: { grid: { kind: "square", cell: [32, 32] } },
-      groups: { g: { at: [100, 100] } },
       instances: [{ id: "room-1", prefab: "room", at: [200, 200] }],
       entities: [
-        { id: "lamp", type: "lamp", at: [10, 0], group: "g" },
+        { id: "lamp", type: "lamp", at: [10, 0], parent: "g" },
         { id: "floor", type: "paint", at: [0, 640], cells: { "0,0": ["1*4"] } },
+        { id: "g", type: "node", at: [100, 100] },
       ],
     });
     const prefabs = localPrefabSource(
@@ -222,14 +309,14 @@ describe("bindSceneDoc", () => {
     remote({ ops: [{ op: "paintCells", ref: "floor", field: "cells", cells: [[2, 3, 2]] }] });
     expect(updated()).toEqual(["floor"]);
 
-    remote({ ops: [{ op: "setGroup", id: "g", rot: 1 }] });
-    expect(updated()).toEqual(["lamp"]);
+    remote({ ops: [{ op: "update", ref: "g", set: { rot: 90 } }] });
+    expect(updated()).toEqual(["g", "lamp"]);
     expect(binding.scene().entities.find((e) => e.id === "lamp")!.at).toEqual([100, 110]);
 
     const updates = rt.update.mock.calls.length;
     remote({ ops: [{ op: "transform", refs: ["room-1"], flip: "x" }] });
     expect(rt.update.mock.calls.length).toBe(updates + 1);
-    expect(updated()).toEqual(["room-1/light"]);
+    expect(updated()).toEqual(["room-1", "room-1/light"]);
 
     expect(rt.load).toHaveBeenCalledTimes(1);
     expect(rt.add).not.toHaveBeenCalled();

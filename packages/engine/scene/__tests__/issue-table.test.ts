@@ -41,6 +41,7 @@ import { applyOps } from "../ops";
 import { locatePointer, parseScene } from "../parse";
 import {
   ENGINE_ISSUE_CODE_LIST,
+  PARENT_MAX_DEPTH,
   PREFAB_MAX_DEPTH,
   type EngineIssueCode,
   type EntityDef,
@@ -678,6 +679,39 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
         },
       ]),
     ),
+  "parent-depth": () =>
+    validated(
+      scene(
+        {},
+        Array.from({ length: PARENT_MAX_DEPTH + 2 }, (_, i) => ({
+          id: `n${String(i).padStart(2, "0")}`,
+          type: "node",
+          at: [1, 0],
+          ...(i > 0 ? { parent: `n${String(i - 1).padStart(2, "0")}` } : {}),
+        })),
+      ),
+    ),
+  "parent-type": () =>
+    validated(
+      scene({}, [
+        { id: "a", type: "node", at: [0, 0] },
+        { id: "memo", type: "note", at: [1, 1], text: "hi", parent: "a" },
+      ]),
+    ),
+  "quarter-turn-only": () =>
+    validated(
+      scene({}, [
+        { id: "tilt", type: "node", at: [0, 0], rot: 30 },
+        { id: "ledge", type: "solid", shape: ["box", 1, 0, 2, 0.5], oneWay: true, parent: "tilt" },
+      ]),
+    ),
+  "parent-cycle": () =>
+    validated(
+      scene({}, [
+        { id: "a", type: "node", at: [0, 0], parent: "b" },
+        { id: "b", type: "node", at: [1, 0], parent: "a" },
+      ]),
+    ),
   "grid-unreachable": () => {
     const def = scene(
       {
@@ -735,6 +769,10 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
   // Thrown as `EngineError`s by `ctx.bodies`, not reported by the scene tools.
   "body-missing": null,
   "body-not-dynamic": null,
+  // Thrown as `EngineError`s by entity handles, `ctx.setPose` and the scene tree.
+  "entity-gone": null,
+  "pose-not-settable": null,
+  "parent-scope": null,
   "scene-unlisted": () => {
     const checks = {
       v: 3,

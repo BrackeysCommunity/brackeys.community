@@ -509,7 +509,7 @@ describe("prefabSceneBounds", () => {
     v: 4,
     id: "wrap",
     entities: [],
-    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 1 }],
+    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 90 }],
   };
 
   it("holds a nested instance's resolved children when given the library", () => {

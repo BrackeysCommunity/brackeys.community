@@ -110,6 +110,7 @@ describe("the content plan over the engine project", () => {
       "grid-yard",
       "behavior-yard",
       "grid-annex",
+      "tree-yard",
     ]);
     expect(plan.scenes.find((s) => s.id === "grid-annex")?.sublevel).toBe(true);
     expect(plan.scenes.find((s) => s.id === "grid-yard")?.physics).toBe("none");

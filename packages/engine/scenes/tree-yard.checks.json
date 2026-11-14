@@ -1,0 +1,10 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid", "physical": true },
+    { "id": "rider-carried", "kind": "reaches", "expect": { "exists": "turret-a/sight", "near": { "id": "rider/hero", "to": "lift-stop", "within": 0.3 } }, "result": "script-end", "script": "tree-yard.script.json" },
+    { "id": "room-stands", "kind": "reaches", "expect": { "count": { "eq": 2, "tag": "latch" }, "exists": "room#1/door-1/latch/trigger" }, "result": "script-end", "script": { "scene": "tree-yard", "steps": [{ "wait": 60 }], "v": 2 } },
+    { "id": "room-expires", "kind": "reaches", "expect": { "count": { "eq": 0, "tag": "latch" }, "exists": "room-drop" }, "result": "script-end", "script": { "scene": "tree-yard", "steps": [{ "wait": 180 }], "v": 2 } },
+    { "id": "plain-tree", "kind": "reaches", "expect": { "count": { "eq": 1, "tag": "hand" }, "exists": "tilt-turret/sight", "near": { "id": "tower-barrel", "to": [7, 10.45], "within": 0.01 } }, "result": "script-end", "script": { "scene": "tree-yard", "steps": [{ "wait": 60 }], "v": 2 } }
+  ]
+}

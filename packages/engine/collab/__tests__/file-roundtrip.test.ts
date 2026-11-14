@@ -20,15 +20,14 @@ const jsonIn = (rel: string) =>
     .map((f) => [`${rel}${f}`, readFileSync(dir(`${rel}${f}`), "utf8")] as const)
     .filter(([, text]) => !("kind" in (JSON.parse(text) as object)));
 
-const V4 = "../../scene/__tests__/fixtures/v4/";
+const CURRENT = `../../scene/__tests__/fixtures/v${SCENE_FORMAT_VERSION}/`;
 
-/** Every scene file and frozen fixture the engine owns (other project files name their kind); the platformer checks its own. */
-const FILES = [
-  ...jsonIn("../../scenes/"),
-  ...jsonIn("../../scene/__tests__/fixtures/v1/"),
-  ...jsonIn("../../scene/__tests__/fixtures/v3/"),
-  ...jsonIn(V4),
-];
+/**
+ * Every scene file and current-version frozen fixture the engine owns (other
+ * project files name their kind); the platformer checks its own. An older
+ * doc is lifted by `migrateDoc` before it is read as a file.
+ */
+const FILES = [...jsonIn("../../scenes/"), ...jsonIn(CURRENT)];
 
 describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
   it("covers the engine yard, the frozen fixtures and both current sinks", () => {
@@ -37,8 +36,8 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
       expect.arrayContaining([
         "../../scenes/engine-yard.json",
         "../../scenes/kitchen-sink.json",
-        `${V4}kitchen-sink.json`,
-        `${V4}test-game-sink.json`,
+        `${CURRENT}kitchen-sink.json`,
+        `${CURRENT}test-game-sink.json`,
       ]),
     );
   });
@@ -54,9 +53,11 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
     expect(sprites.some((e) => e.type !== "decor")).toBe(true);
   });
 
-  it("reads the v4 sinks as the current format", () => {
+  it("reads the sinks as the current format", () => {
     for (const name of ["kitchen-sink", "test-game-sink"]) {
-      const def = JSON.parse(readFileSync(dir(`${V4}${name}.json`), "utf8")) as SceneDefinition;
+      const def = JSON.parse(
+        readFileSync(dir(`${CURRENT}${name}.json`), "utf8"),
+      ) as SceneDefinition;
       expect(def.v).toBe(SCENE_FORMAT_VERSION);
     }
   });

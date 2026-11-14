@@ -651,7 +651,7 @@ const DEG = Math.PI / 180;
 /** The pose the runtime spawns an entity at, from its world geometry: its angle in degrees. */
 function spritePose(src: SpritePoseSource): { at: Pt; deg: number } | null {
   const pose = src.shape ? shapeCentre(src.shape) : geometryPose({ at: src.at, path: src.path });
-  return pose && { at: pose.at, deg: pose.rotDeg ?? (src.transform?.turn ?? 0) * 90 };
+  return pose && { at: pose.at, deg: pose.rotDeg ?? src.transform?.rot ?? 0 };
 }
 
 /**
@@ -660,7 +660,7 @@ function spritePose(src: SpritePoseSource): { at: Pt; deg: number } | null {
  * toggled by the entity's) and its asset's info from `assets`, its asset's
  * px over `pxPerMetre`, at the pose plus the offset. The offset mirrors
  * with the entity's flip and turns with the pose, or with `turn: false`
- * with the quarter turns only. Undefined for a value that isn't a block or
+ * with the angle of what it sits in only. Undefined for a value that isn't a block or
  * an entity with no pose.
  */
 export function spriteBoxOf(

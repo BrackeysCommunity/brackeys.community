@@ -326,7 +326,32 @@ export function targetHandles(
   const path = t.path ? waypointHandles(t.path.pts, { inserts: false }) : [];
   const behaviors = t.behaviors ? behaviorHandles(t.behaviors, opts.scale) : [];
   if (t.shape) return [...behaviors, ...path, ...shapeHandles(t.shape, opts.scale)];
+  if (t.frame) return [...behaviors, ...frameHandles(t.frame, t.box, opts.scale)];
   return t.at ? [...behaviors, handle("move", "move", t.at, "move")] : behaviors;
+}
+
+/**
+ * A node's or an instance's handles: move at its origin, and rotate on a
+ * stalk from the origin along the frame's up (its local -y), out past the
+ * box over what sits under it so the handle clears its children.
+ */
+export function frameHandles(
+  f: { at: Pt; rot: number },
+  box: Aabb | undefined,
+  scale: number,
+): GizmoHandle[] {
+  const up = turn([0, -1], f.rot);
+  let reach = 0;
+  if (box)
+    for (const x of [box.minX, box.maxX])
+      for (const y of [box.minY, box.maxY])
+        reach = Math.max(reach, (x - f.at[0]) * up[0] + (y - f.at[1]) * up[1]);
+  const len = reach + STALK_PX / scale;
+  const at: Pt = [f.at[0] + up[0] * len, f.at[1] + up[1] * len];
+  return [
+    handle("move", "move", [f.at[0], f.at[1]], "move"),
+    { ...handle("rotate", "rotate", at, "grab"), stalk: [f.at[0], f.at[1]] },
+  ];
 }
 
 /** A multi-selection's one gizmo: move at the box's centre and a rotate stalk above it. No resize. */

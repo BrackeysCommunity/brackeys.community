@@ -52,7 +52,7 @@ function yard(): SceneDefinition {
     settings: { grid: { kind: "square", cell: [16, 16] } },
     solid: [["box", 100, 100, 50, 10]],
     instances: [
-      { id: "post-t", prefab: "post", at: [600, 600], rot: 1, flip: true },
+      { id: "post-t", prefab: "post", at: [600, 600], rot: 90, flip: true },
       { id: "frame-1", prefab: "frame", at: [1200, 600] },
     ],
     entities: [

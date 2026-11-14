@@ -220,7 +220,6 @@ const V3_OPS = [
   "setPrefabBase",
   "exposeParam",
   "setParam",
-  "setGroup",
   "instantiate",
   "override",
   "applyToPrefab",
@@ -303,6 +302,9 @@ const ANIM_CODES = [
   "frame-shape-invalid",
   "tween-target-invalid",
 ];
+/** The scene tree's file codes, each listed in the issue table; a doc batch reproduces all but `parent-depth`. */
+const TREE_CODES = ["parent-cycle", "parent-type", "quarter-turn-only"];
+const TREE_LISTED = [...TREE_CODES, "parent-depth"];
 const LIFECYCLE_EVENTS = [
   "entity:spawned",
   "entity:destroyed",
@@ -768,6 +770,46 @@ describe("op batches in the docs", () => {
     expect(ANIM_CODES.filter((code) => !expected.has(code))).toEqual([]);
     for (const code of ANIM_CODES)
       expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("reproduces the scene tree's codes, and lists each in the issue table", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(TREE_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of TREE_LISTED)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("builds a node, reparents and turns one by degrees in batches that apply, and shows the tree", async () => {
+    const used = await opsInRunnableExamples();
+    expect(["reparent", "transform"].filter((op) => !used.has(op))).toEqual([]);
+    const ops = allBatches
+      .filter((b) => !b.expect && "scene" in b.target)
+      .flatMap(
+        (b) =>
+          (
+            JSON.parse(b.text) as {
+              ops: { op: string; rotate?: number; entity?: { type?: string } }[];
+            }
+          ).ops,
+      );
+    expect(ops.some((op) => op.op === "transform" && typeof op.rotate === "number")).toBe(true);
+    expect(ops.some((op) => op.op === "add" && op.entity?.type === "node")).toBe(true);
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    expect(run.some((e) => split(e.argv)[0] === "show" && e.argv.includes("--tree"))).toBe(true);
+  });
+
+  it("writes no setGroup, group or attach in a batch", () => {
+    type Op = { op: string; entity?: unknown; instance?: unknown; set?: unknown };
+    const stale = allBatches.filter((b) =>
+      ((JSON.parse(b.text) as { ops?: Op[] }).ops ?? []).some(
+        (op) =>
+          op.op === "setGroup" ||
+          [op.entity, op.instance, op.set].some(
+            (o) => typeof o === "object" && o !== null && ("group" in o || "attach" in o),
+          ),
+      ),
+    );
+    expect(stale.map((b) => `${b.doc}:${b.line}`)).toEqual([]);
   });
 
   it("edits an animation and an emitter preset, and adds a tween and a camera region, in batches that apply", () => {

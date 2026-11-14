@@ -1,13 +1,22 @@
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { parseBulkId } from "../scene/expand";
-import { CHILD_SEPARATOR, parseChildRef } from "../scene/resolve";
-import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, SceneOp } from "../scene/types";
+import { CHILD_SEPARATOR, parseChildRef, resolveScene, sceneFrames } from "../scene/resolve";
+import type {
+  Aabb,
+  OpBatch,
+  PrefabLibrary,
+  Pt,
+  Ref,
+  SceneDefinition,
+  SceneOp,
+} from "../scene/types";
 import { snapToPixel } from "../scene/units";
+import { canBeInTree } from "../scene/validate";
 import { moveBatch } from "./gizmos/batch";
-import { shapePivot } from "./gizmos/handles";
 import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
-import { gizmoTarget, type GizmoTarget } from "./gizmos/target";
+import { gizmoTarget, targetPivot, type GizmoTarget } from "./gizmos/target";
+import type { EditSource } from "./gizmos/tree";
 import { buildOutline } from "./outline";
 import { outlineBounds, outlineLook } from "./outline-bounds";
 import type { PickLayers } from "./picking";
@@ -42,17 +51,20 @@ export function targetsOf(
   def: SceneDefinition,
   registry: Registry,
   refs: readonly Ref[],
+  source?: EditSource,
 ): GizmoTarget[] {
   return refs
-    .map((r) => gizmoTarget(def, registry, r))
+    .map((r) => gizmoTarget(def, registry, r, source))
     .filter((t): t is GizmoTarget => t !== undefined);
 }
 
-/** What a selection turns about: one shape's pivot, else the centre of the box around all of it. */
+/**
+ * What a selection turns about: one target's own pivot (a node's or an
+ * instance's origin, a shape's pivot), else the centre of the box around all of it.
+ */
 export function rotationPivot(targets: readonly GizmoTarget[]): Pt | null {
   if (targets.length === 0) return null;
-  const only = targets.length === 1 ? targets[0]! : undefined;
-  if (only?.shape) return shapePivot(only.shape);
+  if (targets.length === 1) return targetPivot(targets[0]!);
   const b = selectionBox(targets);
   return [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
 }
@@ -63,16 +75,43 @@ export function nudgeBatch(refs: readonly Ref[], delta: Pt, pxPerMetre: number):
   return moveBatch(refs, delta, pxPerMetre, label);
 }
 
-/** One batch turning the selection `deg` degrees (clockwise on screen) about its pivot. */
+/**
+ * One batch turning the selection `deg` degrees (clockwise on screen) about
+ * its pivot. `def` is the document: selected instances and nodes turn by
+ * one `transform`, everything else by its fields in the resolved view; what
+ * sits under something else selected turns with it. One instance or node
+ * on its own turns about its own origin.
+ */
 export function rotateSelectionBatch(
   def: SceneDefinition,
   registry: Registry,
   refs: readonly Ref[],
   deg: number,
+  prefabs?: PrefabLibrary,
 ): OpBatch | null {
-  const targets = targetsOf(def, registry, refs);
-  const about = rotationPivot(targets);
-  return about ? rotateTargetsBatch(targets, about, deg, pxPerMetreOf(registry)) : null;
+  const roots = selectionRoots(def, refs);
+  const framed = roots.filter((r) => isFrameRef(def, r));
+  const rest = roots.filter((r) => !framed.includes(r));
+  const view = resolveScene(def, registry, prefabs);
+  const targets = targetsOf(view, registry, rest);
+  let about: Pt | null;
+  if (framed.length === 0) about = rotationPivot(targets);
+  else {
+    const box = selectionBounds(view, registry, roots);
+    about = box ? [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2] : null;
+  }
+  if (framed.length === 0) {
+    return about ? rotateTargetsBatch(targets, about, deg, pxPerMetreOf(registry)) : null;
+  }
+  const label = `Rotate ${roots.length === 1 ? roots[0] : `${roots.length} entities`}`;
+  const alone = framed.length === 1 && targets.length === 0;
+  const ops: SceneOp[] = [
+    { op: "transform", refs: framed, rotate: deg, ...(alone || !about ? {} : { about }) },
+  ];
+  if (about && targets.length > 0) {
+    ops.push(...(rotateTargetsBatch(targets, about, deg, pxPerMetreOf(registry))?.ops ?? []));
+  }
+  return { label, ops };
 }
 
 /**
@@ -131,53 +170,27 @@ export function zOrderBatch(refs: readonly Ref[], by: 1 | -1): OpBatch | null {
 }
 
 export type QuarterTurnTargets = {
-  /** Selected instances (by id, or through a child) outside the groups below, in selection order. */
+  /** Selected instances (by id, or through a child), in selection order. */
   instances: string[];
-  /** Declared groups every member of which is selected, in declaration order. */
-  groups: string[];
-  /** What neither covers: plain entities and bulk entries. */
+  /** What isn't an instance: plain entities and bulk entries. */
   rest: Ref[];
 };
 
 /**
  * What a turn or flip of `refs` acts on in `def` (the document, not the
- * resolved view): instances and whole groups, which turn by quarter turns
- * and flip exactly.
+ * resolved view): instances, which turn and flip exactly.
  */
 export function quarterTurnTargets(def: SceneDefinition, refs: readonly Ref[]): QuarterTurnTargets {
-  const instances = def.instances ?? [];
-  const known = new Set(instances.map((i) => i.id));
+  const known = new Set((def.instances ?? []).map((i) => i.id));
   const instanceOf = (r: Ref) => {
     const id = parseChildRef(r)?.instance ?? r;
     return known.has(id) ? id : undefined;
   };
-  const picked = new Set(refs.flatMap((r) => instanceOf(r) ?? []));
-  const sel = new Set(refs);
-  const entities = def.entities ?? [];
-  const groups = Object.keys(def.groups ?? {}).filter((g) => {
-    const ents = entities.filter((e) => e.group === g);
-    const insts = instances.filter((i) => i.group === g);
-    return (
-      ents.length + insts.length > 0 &&
-      ents.every((e) => sel.has(e.id)) &&
-      insts.every((i) => picked.has(i.id))
-    );
-  });
-  const whole = new Set(groups);
-  const groupOf = new Map<string, string | undefined>([
-    ...entities.map((e): [string, string | undefined] => [e.id, e.group]),
-    ...instances.map((i): [string, string | undefined] => [i.id, i.group]),
-  ]);
-  const inWhole = (id: string) => {
-    const g = groupOf.get(id);
-    return g !== undefined && whole.has(g);
-  };
-  const out: QuarterTurnTargets = { instances: [], groups, rest: [] };
+  const out: QuarterTurnTargets = { instances: [], rest: [] };
   for (const r of new Set(refs)) {
     const inst = instanceOf(r);
-    if (inst !== undefined) {
-      if (!inWhole(inst) && !out.instances.includes(inst)) out.instances.push(inst);
-    } else if (!inWhole(r)) out.rest.push(r);
+    if (inst === undefined) out.rest.push(r);
+    else if (!out.instances.includes(inst)) out.instances.push(inst);
   }
   return out;
 }
@@ -188,28 +201,17 @@ function transformBatch(
   label: (what: string) => string,
   change: { turn: 1 | -1 } | { flip: "x" | "y" },
 ): OpBatch | null {
-  const t = quarterTurnTargets(def, refs);
-  const n = t.instances.length + t.groups.length;
-  if (n === 0) return null;
-  const what = n === 1 ? (t.instances[0] ?? t.groups[0]!) : `${n} items`;
-  return {
-    label: label(what),
-    ops: [
-      {
-        op: "transform",
-        ...(t.instances.length > 0 ? { refs: t.instances } : {}),
-        ...(t.groups.length > 0 ? { groups: t.groups } : {}),
-        ...change,
-      },
-    ],
-  };
+  const { instances } = quarterTurnTargets(def, refs);
+  if (instances.length === 0) return null;
+  const what = instances.length === 1 ? instances[0]! : `${instances.length} items`;
+  return { label: label(what), ops: [{ op: "transform", refs: instances, ...change }] };
 }
 
 /**
- * One batch turning the selected instances and whole groups a quarter turn
- * (`turn` 1 clockwise on screen, -1 counter-clockwise), each about its own
- * `at`. Plain entities in the selection are left out; `null` when nothing
- * is left.
+ * One batch turning the selected instances a quarter turn (`turn` 1
+ * clockwise on screen, -1 counter-clockwise), each about its own `at`.
+ * Plain entities in the selection are left out; `null` when nothing is
+ * left.
  */
 export function turnBatch(
   def: SceneDefinition,
@@ -221,9 +223,9 @@ export function turnBatch(
 }
 
 /**
- * One batch mirroring the selected instances and whole groups across the
- * world axis: `x` flips left and right, `y` up and down, each about its own
- * `at`. `null` when the selection holds neither.
+ * One batch mirroring the selected instances across the world axis: `x`
+ * flips left and right, `y` up and down, each about its own `at`. `null`
+ * when the selection holds none.
  */
 export function flipBatch(
   def: SceneDefinition,
@@ -234,90 +236,188 @@ export function flipBatch(
   return transformBatch(def, refs, (w) => `Flip ${w} ${dir}`, { flip: axis });
 }
 
-const groupsOf = (def: SceneDefinition) =>
-  new Set((def.entities ?? []).flatMap((e) => (typeof e.group === "string" ? [e.group] : [])));
+const NODE_TYPE = "node";
 
-/** The first `group-<n>` no entity uses. */
-export function nextGroupName(def: SceneDefinition): string {
-  const taken = groupsOf(def);
-  for (let n = 1; ; n++) if (!taken.has(`group-${n}`)) return `group-${n}`;
-}
+/** The id of the document entry a ref sits in: `room-1` for `room-1/door-1/panel`. */
+const headOf = (ref: Ref): string => parseChildRef(ref)?.instance ?? ref;
 
-const entityRefs = (refs: readonly Ref[]) => refs.filter((r) => !parseBulkId(r));
+/** The instance a child ref sits in directly: `room-1/door-1` for `room-1/door-1/panel`. */
+const enclosingOf = (ref: Ref): Ref | undefined =>
+  parseChildRef(ref) ? ref.slice(0, ref.lastIndexOf(CHILD_SEPARATOR)) : undefined;
+
+/** Whether `ref` is a document instance or `node`, which turn by `transform`. */
+const isFrameRef = (def: SceneDefinition, ref: Ref): boolean =>
+  (def.instances ?? []).some((i) => i.id === ref) ||
+  (def.entities ?? []).some((e) => e.id === ref && e.type === NODE_TYPE);
 
 /**
- * One batch putting the selected entities in a group (their `group` field),
- * a new one unless `name` is given. Bulk entries have no fields, so they are
- * left out; `null` when no entity is selected or all are already in it.
+ * The levels a click walks from the outermost instance holding `ref` down to
+ * `ref` itself: `["room-1", "room-1/door-1", "room-1/door-1/panel"]`; just
+ * `[ref]` for anything that isn't an instance's child.
+ */
+export function instanceLevels(ref: Ref): Ref[] {
+  const parts = ref.split(CHILD_SEPARATOR);
+  return parts.map((_, i) => parts.slice(0, i + 1).join(CHILD_SEPARATOR));
+}
+
+/**
+ * What `ref` sits under in `def` (the document): an instance's child under
+ * its instance, anything else under its `parent` as the lenient read settles
+ * it. `undefined` at the root.
+ */
+function treeParents(def: SceneDefinition): (ref: Ref) => Ref | undefined {
+  const frames = sceneFrames(def);
+  return (ref) => enclosingOf(ref) ?? frames.parentOf(ref);
+}
+
+/** Everything `ref` sits under, nearest first, up to its root. */
+function ancestorsOf(parentOf: (ref: Ref) => Ref | undefined, ref: Ref): Ref[] {
+  const out: Ref[] = [];
+  for (let p = parentOf(ref); p !== undefined && !out.includes(p); p = parentOf(p)) out.push(p);
+  return out;
+}
+
+/**
+ * The selected refs nothing else selected sits over, in selection order:
+ * what a move or turn of the selection writes, since the rest follows.
+ */
+export function selectionRoots(def: SceneDefinition, refs: readonly Ref[]): Ref[] {
+  const parentOf = treeParents(def);
+  const sel = new Set(refs);
+  return [...sel].filter((r) => !ancestorsOf(parentOf, r).some((a) => sel.has(a)));
+}
+
+/** A batch with what the editor selects once it applies. */
+export type SelectingBatch = { batch: OpBatch; select: Ref[] };
+
+/**
+ * Grouping the selection (`def` is the document): one batch that adds a
+ * `node` at the centre of the selection's bounds, under the selection's
+ * common parent, and puts the selection's roots under it, so nothing moves
+ * in the world. Bulk entries, instances' children and types that can't be in
+ * the tree are left out; `null` when nothing is left or the game has no
+ * `node`. Selects the node.
  */
 export function groupBatch(
   def: SceneDefinition,
+  registry: Registry,
   refs: readonly Ref[],
-  name = nextGroupName(def),
-): OpBatch | null {
-  const byId = new Map((def.entities ?? []).map((e) => [e.id, e]));
-  const ops: SceneOp[] = entityRefs(refs)
-    .filter((r) => byId.has(r) && byId.get(r)!.group !== name)
-    .map((ref) => ({ op: "update", ref, set: { group: name } }));
-  return ops.length > 0 ? { label: `Group ${ops.length} as ${name}`, ops } : null;
+  prefabs?: PrefabLibrary,
+): SelectingBatch | null {
+  if (!registry.types.has(NODE_TYPE)) return null;
+  const entities = new Map((def.entities ?? []).map((e) => [e.id, e]));
+  const instances = new Set((def.instances ?? []).map((i) => i.id));
+  const groupable = (r: Ref) =>
+    instances.has(r) || (entities.has(r) && canBeInTree(registry.types.get(entities.get(r)!.type)));
+  const roots = selectionRoots(def, refs).filter(groupable);
+  if (roots.length === 0) return null;
+  const parentOf = treeParents(def);
+  const lines = roots.map((r) => [...ancestorsOf(parentOf, r), undefined]);
+  const parent = lines[0]!.find((a) => lines.every((line) => line.includes(a)));
+  const box = selectionBounds(resolveScene(def, registry, prefabs), registry, roots);
+  const ppm = pxPerMetreOf(registry);
+  const centre = box ? [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2] : [0, 0];
+  const at: Pt = [snapToPixel(centre[0]!, ppm) + 0, snapToPixel(centre[1]!, ppm) + 0];
+  const taken = new Set([...entities.keys(), ...instances]);
+  let n = 1;
+  while (taken.has(`${NODE_TYPE}-${n}`)) n++;
+  const id = `${NODE_TYPE}-${n}`;
+  const first = (def.entities ?? []).findIndex((e) => roots.includes(e.id));
+  const ops: SceneOp[] = [
+    { op: "add", entity: { id, type: NODE_TYPE, at }, ...(first >= 0 ? { index: first } : {}) },
+  ];
+  if (parent !== undefined) ops.push({ op: "reparent", refs: [id], parent });
+  ops.push({ op: "reparent", refs: roots, parent: id });
+  const what = roots.length === 1 ? roots[0]! : `${roots.length} entities`;
+  return { batch: { label: `Group ${what}`, ops }, select: [id] };
 }
 
-/** One batch taking the selected entities out of their groups; `null` when none is in one. */
-export function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): OpBatch | null {
-  const byId = new Map((def.entities ?? []).map((e) => [e.id, e]));
-  const ops: SceneOp[] = entityRefs(refs)
-    .filter((r) => byId.get(r)?.group !== undefined)
-    .map((ref) => ({ op: "update", ref, unset: ["group"] }));
-  return ops.length > 0 ? { label: `Ungroup ${ops.length}`, ops } : null;
+/**
+ * Ungrouping the selected nodes (`def` is the document): one batch that puts
+ * each node's children under the node's parent, keeping them where they
+ * are in the world, and removes the node. A node under another selected
+ * node hands its children on to the nearest one that stays. `null` when the
+ * selection holds no node. Selects the children it moved.
+ */
+export function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): SelectingBatch | null {
+  const picked = new Set(refs);
+  const nodes = (def.entities ?? [])
+    .filter((e) => e.type === NODE_TYPE && picked.has(e.id))
+    .map((e) => e.id);
+  if (nodes.length === 0) return null;
+  const parentOf = treeParents(def);
+  const gone = new Set(nodes);
+  const keeper = (id: string) => ancestorsOf(parentOf, id).find((a) => !gone.has(a)) ?? null;
+  const moves = new Map<Ref | null, Ref[]>();
+  const moved: Ref[] = [];
+  for (const item of [...(def.entities ?? []), ...(def.instances ?? [])]) {
+    const p = parentOf(item.id);
+    if (p === undefined || !gone.has(p) || gone.has(item.id)) continue;
+    const to = keeper(p);
+    moves.set(to, [...(moves.get(to) ?? []), item.id]);
+    moved.push(item.id);
+  }
+  const ops: SceneOp[] = [...moves].map(([parent, ids]) => ({ op: "reparent", refs: ids, parent }));
+  ops.push({ op: "remove", refs: nodes });
+  const what = nodes.length === 1 ? nodes[0]! : `${nodes.length} nodes`;
+  return { batch: { label: `Ungroup ${what}`, ops }, select: moved };
 }
 
 const sameSet = (a: readonly Ref[], b: readonly Ref[]) =>
   a.length === b.length && new Set([...a, ...b]).size === a.length;
 
 /**
- * `[`: the selection's parent. Inside a group not wholly selected, the whole
- * group; otherwise everything under the first selected ref's outline row
- * (its bulk key, or its type), climbing past rows that hold exactly the
- * selection. `null` at the top.
+ * `[`: what the selection sits under in `def` (the document): each selected
+ * ref's parent, a prefab's child's being its instance. A bulk entry at the
+ * root climbs to its whole bucket. `null` when nothing climbs.
  */
-export function hierarchyUp(
-  def: SceneDefinition,
-  registry: Registry,
-  sel: readonly Ref[],
-): Ref[] | null {
-  const first = sel[0];
-  if (first === undefined) return null;
-  const group = (def.entities ?? []).find((e) => e.id === first)?.group;
-  if (group !== undefined) {
-    const members = (def.entities ?? []).filter((e) => e.group === group).map((e) => e.id);
-    if (!members.every((m) => sel.includes(m))) return members;
+export function hierarchyUp(def: SceneDefinition, sel: readonly Ref[]): Ref[] | null {
+  const parentOf = treeParents(def);
+  const up: Ref[] = [];
+  for (const r of sel) {
+    const p = parentOf(r);
+    if (p !== undefined && !up.includes(p)) up.push(p);
   }
-  const rows = buildOutline(def, registry);
-  const at = rows.findIndex((r) => r.ref === first);
-  if (at < 0) return null;
-  // Climb past rows whose contents are already exactly the selection.
-  for (let row = at; ; ) {
-    let parent = row - 1;
-    while (parent >= 0 && rows[parent]!.depth >= rows[row]!.depth) parent--;
-    if (parent < 0) return null;
-    const under: Ref[] = [];
-    for (let i = parent + 1; i < rows.length && rows[i]!.depth > rows[parent]!.depth; i++) {
-      const ref = rows[i]!.ref;
-      if (ref !== undefined) under.push(ref);
-    }
-    if (!sameSet(under, sel)) return under;
-    row = parent;
-  }
+  if (up.length > 0) return up;
+  const bulk = sel[0] === undefined ? null : parseBulkId(sel[0]);
+  if (!bulk) return null;
+  const bucket = docRefs(def).filter((r) => parseBulkId(r)?.key === bulk.key);
+  return sameSet(bucket, sel) ? null : bucket;
 }
 
-/** `]`: from a selection of several, its first ref in outline order; `null` for one or none. */
+/**
+ * `]`: one ref's first child in `def` (the document): an instance's first
+ * level of children (a nested instance before what it holds), then what sits
+ * under it by `parent`, entities before instances. From a selection of
+ * several, its first ref in outline order. `null` when there's nothing below.
+ */
 export function hierarchyDown(
   def: SceneDefinition,
   registry: Registry,
   sel: readonly Ref[],
+  prefabs?: PrefabLibrary,
 ): Ref[] | null {
-  if (sel.length < 2) return null;
-  const has = new Set(sel);
-  const first = buildOutline(def, registry).find((r) => r.ref !== undefined && has.has(r.ref));
-  return [first?.ref ?? sel[0]!];
+  if (sel.length >= 2) {
+    const has = new Set(sel);
+    const first = buildOutline(def, registry).find((r) => r.ref !== undefined && has.has(r.ref));
+    return [first?.ref ?? sel[0]!];
+  }
+  const ref = sel[0];
+  if (ref === undefined) return null;
+  const inst = (def.instances ?? []).find((i) => i.id === headOf(ref));
+  if (inst) {
+    const prefix = `${ref}${CHILD_SEPARATOR}`;
+    const child = sceneFrames(def, registry, prefabs)
+      .placed(inst)
+      ?.find((c) => c.def.id.startsWith(prefix));
+    if (child) {
+      const next = child.def.id.slice(prefix.length).split(CHILD_SEPARATOR)[0]!;
+      return [`${prefix}${next}`];
+    }
+  }
+  const parentOf = treeParents(def);
+  const below = [...(def.entities ?? []), ...(def.instances ?? [])].find(
+    (item) => parentOf(item.id) === ref,
+  );
+  return below ? [below.id] : null;
 }

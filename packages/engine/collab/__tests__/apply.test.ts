@@ -26,7 +26,6 @@ import {
   assetsMap,
   docToScene,
   entitiesMap,
-  groupsMap,
   instancesMap,
   readDoc,
   sceneMap,
@@ -37,7 +36,7 @@ import { readLog } from "../log";
 import { docToPrefab, prefabPatch, prefabToDoc } from "../prefab-doc";
 import { localPrefabSource } from "../prefab-source";
 import { revertEntry } from "../revert";
-import { ASSETS_KEY, GROUP_KEY_PREFIX, INSTANCE_KEY_PREFIX, type SceneOrigin } from "../types";
+import { ASSETS_KEY, INSTANCE_KEY_PREFIX, type SceneOrigin } from "../types";
 import { createSceneUndo } from "../undo";
 import { bo, keyOf, pair, sync } from "./helpers";
 
@@ -49,17 +48,18 @@ describe("applyOpsToDoc", () => {
     ["engine-yard", engine, engineYard],
     ["the fake game's yard", fake, fakeYard],
   ] as const) {
-    it(`writes what applyOps computes, byte for byte, for random batches: ${label}`, () => {
+    it(`writes what applyOps computes, byte for byte, for random batches with tree ops: ${label}`, () => {
       const rand = rng(0xd0c);
       const doc = sceneToDoc(yard(), { key: sequentialKeys("seed") });
       const source = localPrefabSource(yardPrefabs(yard().game), { key: sequentialKeys("pf") });
       const key = sequentialKeys("new");
       let applied = 0;
+      let reparented = 0;
       for (let i = 0; i < 300; i++) {
         const before = docToScene(doc);
         const prefabs = source.library();
         const ops = Array.from({ length: 1 + Math.floor(rand() * 4) }, () =>
-          randomOp(reg, before, rand, prefabs),
+          randomOp(reg, before, rand, prefabs, { tree: true }),
         );
         const batch: OpBatch = { ops };
         const expected = applyOps(before, { ...batch, base: sceneHash(before) }, reg, {
@@ -85,6 +85,7 @@ describe("applyOpsToDoc", () => {
           continue;
         }
         applied++;
+        reparented += ops.filter((o) => o.op === "reparent").length;
         expect(transactions).toBe(1);
         expect(text(docToScene(doc))).toBe(text(expected.def));
         expect(Object.fromEntries(formatPrefabs(source.library()))).toEqual(
@@ -96,6 +97,7 @@ describe("applyOpsToDoc", () => {
             expect(got.refKeys[ref], ref).toBeDefined();
       }
       expect(applied).toBeGreaterThan(100);
+      expect(reparented).toBeGreaterThan(10);
     }, 60_000);
   }
 
@@ -196,11 +198,11 @@ function gameYard(): SceneDefinition {
     bounds: [0, 0, 1000, 1000],
     settings: { grid: { kind: "square", cell: [32, 32] } },
     assets: ["boom"],
-    groups: { g: { at: [100, 100] } },
     instances: [{ id: "room-1", prefab: "room", at: [200, 200], params: { tint: 1 } }],
     entities: [
-      { id: "lamp", type: "lamp", at: [10, 10], group: "g" },
+      { id: "lamp", type: "lamp", at: [10, 10], parent: "g" },
       { id: "floor", type: "paint", at: [0, 640], cells: { "0,0": ["1*4", "", "2"] } },
+      { id: "g", type: "node", at: [100, 100] },
     ],
   };
 }
@@ -242,7 +244,7 @@ describe("applyOpsToDoc: layout 3", () => {
     run(doc, {
       ops: [
         { op: "useAssets", add: ["hud"], remove: ["boom"] },
-        { op: "setGroup", id: "g", rot: 2, flip: true },
+        { op: "update", ref: "g", set: { rot: 180, flip: true } },
         { op: "transform", refs: ["room-1"], turn: 1 },
         { op: "setZ", refs: ["room-1"], z: 3 },
         { op: "paintCells", ref: "floor", field: "cells", cells: [[40, 0, 3]] },
@@ -250,8 +252,14 @@ describe("applyOpsToDoc: layout 3", () => {
     });
     const def = docToScene(doc);
     expect(def.assets).toEqual(["hud"]);
-    expect(def.groups).toEqual({ g: { at: [100, 100], rot: 2, flip: true } });
-    expect(def.instances![0]).toMatchObject({ id: "room-1", rot: 1, z: 3, params: { tint: 1 } });
+    expect(def.entities!.find((e) => e.id === "g")).toEqual({
+      id: "g",
+      type: "node",
+      at: [100, 100],
+      rot: 180,
+      flip: true,
+    });
+    expect(def.instances![0]).toMatchObject({ id: "room-1", rot: 90, z: 3, params: { tint: 1 } });
     expect(readCell(def.entities!.find((e) => e.id === "floor")!.cells as GridCells, 40, 0)).toBe(
       3,
     );
@@ -269,19 +277,14 @@ describe("applyOpsToDoc: layout 3", () => {
     expect(docToScene(b).assets).toEqual(["hud", "music"]);
   });
 
-  it("writes a group's rot and flip as keys of their own, merging with a concurrent move", () => {
+  it("merges a node's turn and flip with a concurrent move", () => {
     const [a, b] = pair(gameYard());
-    const g = groupsMap(a);
-    expect(
-      writes(g, () => run(a, { ops: [{ op: "setGroup", id: "g", rot: 1, flip: true }] })),
-    ).toEqual(["g/flip", "g/rot"]);
-    run(b, { ops: [{ op: "setGroup", id: "g", at: [120, 100] }] }, bo);
+    run(a, { ops: [{ op: "update", ref: "g", set: { rot: 90, flip: true } }] });
+    run(b, { ops: [{ op: "move", refs: ["g"], by: [20, 0] }] }, bo);
     sync(a, b);
-    expect(docToScene(a).groups).toEqual({ g: { at: [120, 100], rot: 1, flip: true } });
-    expect(
-      writes(g, () => run(a, { ops: [{ op: "setGroup", id: "g", rot: 0, flip: false }] })),
-    ).toEqual(["g/flip", "g/rot"]);
-    expect(docToScene(a).groups).toEqual({ g: { at: [120, 100] } });
+    const g = { id: "g", type: "node", at: [120, 100], rot: 90, flip: true };
+    expect(docToScene(a).entities!.find((e) => e.id === "g")).toEqual(g);
+    expect(docToScene(b).entities!.find((e) => e.id === "g")).toEqual(g);
   });
 
   it("writes an instance's rot, flip and z as fields and its params per key", () => {
@@ -332,14 +335,14 @@ describe("applyOpsToDoc: layout 3", () => {
     expect(formatScene(docToScene(a)).text).toBe(formatScene(docToScene(b)).text);
   });
 
-  it("logs and reverts the assets, a group's transform, an instance's params and a paint", () => {
+  it("logs and reverts the assets, a node's turn, an instance's params and a paint", () => {
     const doc = sceneToDoc(gameYard(), { key: sequentialKeys() });
     const start = text(docToScene(doc));
     const instanceKey = readDoc(doc).instanceKeys[0]!;
     const r = run(doc, {
       ops: [
         { op: "useAssets", add: ["hud"], remove: ["boom"] },
-        { op: "setGroup", id: "g", rot: 3 },
+        { op: "update", ref: "g", set: { rot: 270 } },
         { op: "update", ref: "room-1", set: { "params.tint": 9 } },
         { op: "paintCells", ref: "floor", field: "cells", rects: [[0, 0, 40, 3, 2]] },
       ],
@@ -347,7 +350,7 @@ describe("applyOpsToDoc: layout 3", () => {
     expect(r.keys).toEqual(
       expect.arrayContaining([
         ASSETS_KEY,
-        `${GROUP_KEY_PREFIX}g`,
+        keyOf(doc, "g"),
         `${INSTANCE_KEY_PREFIX}${instanceKey}`,
         keyOf(doc, "floor"),
       ]),
@@ -379,7 +382,7 @@ describe("applyOpsToDoc: layout 3", () => {
     run(doc, {
       ops: [
         { op: "useAssets", add: ["hud"] },
-        { op: "setGroup", id: "g", flip: true },
+        { op: "update", ref: "g", set: { flip: true } },
         { op: "update", ref: "room-1", set: { "params.tint": 3 } },
         { op: "paintCells", ref: "floor", field: "cells", cells: [[7, 7, 1]] },
       ],
@@ -557,23 +560,6 @@ describe("applyOpsToDoc on a prefab that nests instances", () => {
     expect(after.instances!.filter((i) => i.prefab === "gate")).toHaveLength(3);
     expect(after.entities.length).toBeGreaterThan(fixturePrefab("room").entities.length);
     expect(r.ok && r.docs).toEqual([]);
-  });
-
-  it("refuses a nested instance in a group", () => {
-    const source = nested();
-    const room = source.docs().get("room")!;
-    const r = applyOpsToDoc(
-      room,
-      {
-        ops: [
-          { op: "instantiate", instance: { id: "gate-9", prefab: "gate", at: [0, 0], group: "g" } },
-        ],
-      },
-      user,
-      engineReg,
-      { prefabs: source.library() },
-    );
-    expect(r.ok).toBe(false);
   });
 });
 

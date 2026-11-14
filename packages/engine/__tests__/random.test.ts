@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../game/define";
+import { SAVE_RANDOM_KEY, type SaveFile } from "../game/save-file";
 import { createSceneRuntime } from "../runtime/runtime";
+import { captureSave, restoreSave } from "../runtime/save-state";
 import { defaultSeed, runRandom } from "../runtime/seed";
+import type { SceneRuntimeHandle } from "../runtime/types";
 import type { ExpandedScene } from "../scene/types";
 import { Rng, seedFromString } from "../sim-kit/rng";
 import { testGame } from "./fixtures/test-game";
@@ -113,5 +116,41 @@ describe("ctx.random", () => {
     expect(withGame.load(scene("yard"))).toMatchObject({ ok: true });
     expect(draws(withGame.ctx.random)).toEqual(draws(Rng.from(defaultSeed("test-game", "yard"))));
     withGame.destroy();
+  });
+});
+
+describe("ctx.random's forks in a world save", () => {
+  const save = (rt: SceneRuntimeHandle) => {
+    const captured = captureSave(rt, { depth: "world", slot: "forks", now: 0 });
+    if (!captured.ok) throw new Error(captured.issue.message);
+    return captured.file;
+  };
+  const restored = (file: SaveFile) => {
+    const rt = createSceneRuntime({ rapier: null, view: null });
+    expect(rt.load(scene("yard"), { seed: 1 })).toMatchObject({ ok: true });
+    expect(restoreSave(rt, file)).toMatchObject({ ok: true });
+    return rt;
+  };
+
+  it("keeps a restored fork's place through save, restore, save, restore before it is forked again", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null });
+    expect(rt.load(scene("yard"), { seed: 1 })).toMatchObject({ ok: true });
+    const sparks = rt.ctx.random.fork("sparks");
+    draws(sparks, 3);
+    const first = save(rt);
+    const ahead = draws(sparks, 4);
+    rt.destroy();
+
+    // Restored, and saved again before anything forks "sparks" there.
+    const middle = restored(first);
+    const second = save(middle);
+    middle.destroy();
+    expect(second.world?.systems[SAVE_RANDOM_KEY]).toStrictEqual(
+      first.world?.systems[SAVE_RANDOM_KEY],
+    );
+
+    const last = restored(second);
+    expect(draws(last.ctx.random.fork("sparks"), 4)).toEqual(ahead);
+    last.destroy();
   });
 });

@@ -231,6 +231,12 @@ describe("game new writes a project that passes the repo's checks", () => {
           const code = await Promise.all(["runtime.ts", "types.ts", "index.ts"].map(read));
           for (const text of code)
             expect(text).not.toMatch(/createMotionBody|Controller|HERO_SIZE/);
+          // The win is the goal's script, not a check in the runtime.
+          const goal = scene.entities.find((e) => e.id === "goal");
+          expect(Object.keys(goal?.behaviors ?? {})).toEqual([`${id}/goal`]);
+          expect(await read("goal.ts")).toMatch(/class Goal extends Script\(/);
+          expect(code[0]).not.toMatch(/SENSOR_ENTER/);
+          expect(code[2]).toContain("behaviors: [Goal],");
           const script = JSON.parse(await read("scenes/main.script.json")) as {
             steps: { until?: { near?: { id: string } } }[];
           };
@@ -251,6 +257,7 @@ describe("game new writes a project that passes the repo's checks", () => {
           const script = (await read("scenes/main.script.json")) as { steps: unknown[] };
           const rapier = await loadCompatRapier();
           let seat: number | null | undefined;
+          let saved: unknown;
           const won = runPlaytest({
             rapier,
             game,
@@ -258,11 +265,15 @@ describe("game new writes a project that passes the repo's checks", () => {
             script: script as never,
             onEnd: (runtime) => {
               seat = runtime.ctx.behavior<PlayerInputSystem>("player-input")?.seatOf("hero");
+              const goal = runtime.ctx.entity("goal")?.getBehavior(`${id}/goal`);
+              saved = (goal as { save?(): unknown } | undefined)?.save?.();
             },
           });
           if (won.blocked) throw new Error(JSON.stringify(won));
           expect(won.outcome.result).toBe("won");
           expect(seat).toBeNull();
+          // The goal's script keeps in a world save that it fired.
+          expect(saved).toBe(true);
 
           // Past the win, with no verdict to end the run, the hero rests however long move is held.
           const endless = { ...game!, play: { ...game!.play, outcome: undefined } };

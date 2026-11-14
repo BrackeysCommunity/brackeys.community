@@ -9,7 +9,7 @@ import { createRegistry } from "../../game/define";
 import { pointField, PathSchema, shapeField, vectorField } from "../../game/fields";
 import type { Registry } from "../../game/types";
 import { scaleLengths, scaleLengthsAt } from "../../game/units";
-import { formatScene } from "../format";
+import { formatPrefab, formatScene } from "../format";
 import { parseFragment } from "../fragment";
 import { MIGRATIONS, migrate, type MigrateEnv } from "../migrate";
 import { parseScene } from "../parse";
@@ -39,6 +39,11 @@ const FROZEN: Record<string, string> = {
   "v4/kitchen-sink.json": "0345071c526ef562ec4267b975de24201005ca5b7c16ab34ea0eaa66229bdb30",
   "v4/prefabbed.json": "f8773c42da831c4e75e541b557946c8ea552d39d94f6aab8f41b9aa87226cd05",
   "v4/test-game-sink.json": "7f830d30776664aaca1b22fd83600f6e723d033d9057de5e22d39af7fc3164e4",
+  "v5/engine-yard.json": "3126c56cb3e3222d0d77938fa0b4b8e80fecaf7dd6fd6e00fd8600cd0f9f460c",
+  "v5/grouped.json": "89b451c19a20110090f194df182a697128346b2fa5a24311b529bf1d861ac45e",
+  "v5/kitchen-sink.json": "e00972c9e54183214380494b794426f367ecc729fb794e7db4285e00ae3f2526",
+  "v5/prefabbed.json": "a3bfd089100c0f081bd34d153bdc335fdb357f49d70983c4547e2390c644a052",
+  "v5/test-game-sink.json": "843cdf6ed21d09104cb1b16e84d77c4ed106120199b409d69c0865426db962d5",
 };
 
 const frozenText = (file: string) => readFileSync(new URL(file, FIXTURES), "utf8");
@@ -53,7 +58,7 @@ describe("migrate", () => {
   it("passes a current document through", () => {
     const raw = { v: SCENE_FORMAT_VERSION, name: "x" };
     expect(migrate(raw)).toEqual({ ok: true, raw, from: SCENE_FORMAT_VERSION });
-    expect(Object.keys(MIGRATIONS)).toEqual(["1", "2", "3"]);
+    expect(Object.keys(MIGRATIONS)).toEqual(["1", "2", "3", "4"]);
   });
 
   it("v1 to v2 declares each group a v1 entity names at [0, 0], so nothing moves", () => {
@@ -814,5 +819,207 @@ describe("scaleLengths", () => {
     expect(scaleLengthsAt(5, vectorField("v"), ["1"], 100)).toEqual({ value: 0.05 });
     expect(scaleLengthsAt(400, PathSchema, ["pauseMs"], 100)).toEqual({ value: 400 });
     expect(scaleLengthsAt(1, PathSchema, ["nope"], 100)).toBeNull();
+  });
+});
+
+describe("v4 → v5", () => {
+  const lift = (doc: Record<string, unknown>, env: MigrateEnv = withEngine) =>
+    MIGRATIONS[4]!(structuredClone(doc), env) as Record<string, unknown>;
+  const refusedBy = (doc: Record<string, unknown>, env: MigrateEnv = withEngine) =>
+    (MIGRATIONS[4]!(structuredClone(doc), env) as { refused?: { code: string; path?: string } })
+      .refused;
+  const scene = (extra: Record<string, unknown>) => ({
+    v: 4,
+    name: "s",
+    bounds: [0, 0, 40, 20],
+    ...extra,
+  });
+
+  it("counts an instance's quarter turns in degrees, in scenes, prefab files and fragments", () => {
+    const out = lift(
+      scene({
+        instances: [
+          { id: "a", prefab: "gate", at: [1, 1], rot: 1 },
+          { id: "b", prefab: "gate", at: [2, 1], rot: 3, flip: true },
+          { id: "c", prefab: "gate", at: [3, 1] },
+        ],
+      }),
+    );
+    expect((out.instances as { rot?: number }[]).map((i) => i.rot)).toEqual([90, 270, undefined]);
+    const prefab = lift({
+      kind: "prefab",
+      v: 4,
+      id: "p",
+      entities: [],
+      instances: [{ id: "g", prefab: "gate", at: [0, 0], rot: 2 }],
+    });
+    expect((prefab.instances as { rot?: number }[])[0]!.rot).toBe(180);
+    const fragment = parseFragment(
+      {
+        kind: "scene-fragment",
+        v: 4,
+        instances: [{ id: "g", prefab: "gate", at: [0, 0], rot: 1 }],
+      },
+      engine,
+    );
+    expect(fragment.ok && fragment.migratedFrom).toBe(4);
+    expect(fragment.ok && fragment.fragment.instances?.[0]?.rot).toBe(90);
+  });
+
+  it("turns `<instance>.rot` overrides into degrees and leaves a child's own `rot` alone", () => {
+    const room: Prefab = {
+      kind: "prefab",
+      v: 4,
+      id: "room",
+      instances: [{ id: "door-1", prefab: "gate", at: [0, 0] }],
+      entities: [{ id: "pivot", type: "node", at: [0, 0], rot: 2 }],
+    };
+    const out = lift(
+      scene({
+        instances: [
+          {
+            id: "r",
+            prefab: "room",
+            at: [0, 0],
+            overrides: { "door-1.rot": 1, "pivot.rot": 2 },
+          },
+        ],
+      }),
+      { registry: engine, prefab: (id) => (id === "room" ? room : prefabFixture(id)) },
+    );
+    expect((out.instances as { overrides: object }[])[0]!.overrides).toEqual({
+      "door-1.rot": 90,
+      "pivot.rot": 2,
+    });
+    const variant = lift(
+      {
+        kind: "prefab",
+        v: 4,
+        id: "red-room",
+        base: "room",
+        entities: [],
+        overrides: { "door-1.rot": 3 },
+      },
+      { registry: engine, prefab: (id) => (id === "room" ? room : undefined) },
+    );
+    expect(variant.overrides).toEqual({ "door-1.rot": 270 });
+    expect(
+      refusedBy(
+        scene({
+          instances: [{ id: "r", prefab: "room", at: [0, 0], overrides: { "door-1.rot": 1 } }],
+        }),
+      ),
+    ).toMatchObject({ code: "migration-unresolved", path: "/instances/0/overrides/door-1.rot" });
+  });
+
+  it("makes each group a node at the front, renaming one an entity holds, and its members its children", () => {
+    const out = lift(
+      scene({
+        groups: {
+          shelf: { at: [14, 7], rot: 1, name: "Shelf" },
+          wing: { at: [32, 4], rot: 3, flip: true },
+        },
+        instances: [{ id: "g", prefab: "gate", group: "wing", at: [1, 0] }],
+        entities: [
+          { id: "shelf", type: "marker", at: [0, 0] },
+          { id: "board", type: "solid", group: "shelf", shape: ["box", 0, 0, 1, 0.1] },
+          { id: "lost", type: "marker", group: "gone", at: [1, 1] },
+        ],
+      }),
+    );
+    expect(out.groups).toBeUndefined();
+    expect(out.v).toBe(5);
+    expect(out.entities).toEqual([
+      { id: "shelf-1", type: "node", name: "Shelf", at: [14, 7], rot: 90 },
+      { id: "wing", type: "node", at: [32, 4], rot: 270, flip: true },
+      { id: "shelf", type: "marker", at: [0, 0] },
+      { id: "board", type: "solid", shape: ["box", 0, 0, 1, 0.1], parent: "shelf-1" },
+      { id: "lost", type: "marker", at: [1, 1] },
+    ]);
+    expect(out.instances).toEqual([{ id: "g", prefab: "gate", at: [1, 0], parent: "wing" }]);
+  });
+
+  it("puts an attached solid or sensor under what it rode, in that frame, through its group first", () => {
+    const out = lift(
+      scene({
+        groups: { g: { at: [10, 0] } },
+        entities: [
+          {
+            id: "lift",
+            type: "follower",
+            shape: ["box", 0, 0, 1, 0.1],
+            path: {
+              pts: [
+                [18, 9.4],
+                [18, 6],
+              ],
+              mode: "ping_pong",
+              speed: 1,
+            },
+          },
+          { id: "deck", type: "solid", shape: ["box", 18, 9.3, 1.2, 0.1], attach: "lift" },
+          { id: "eye", type: "sensor", group: "g", shape: ["box", 8, 9, 0.4, 0.2], attach: "lift" },
+        ],
+      }),
+    );
+    const byId = new Map((out.entities as { id: string }[]).map((e) => [e.id, e]));
+    expect(byId.get("deck")).toEqual({
+      id: "deck",
+      type: "solid",
+      shape: ["box", 0, -0.1, 1.2, 0.1],
+      parent: "lift",
+    });
+    expect(byId.get("eye")).toEqual({
+      id: "eye",
+      type: "sensor",
+      shape: ["box", 0, -0.4, 0.4, 0.2],
+      parent: "lift",
+    });
+  });
+
+  it("places an attach target inside an instance through its prefab, and refuses one it can't find", () => {
+    const doc = scene({
+      instances: [{ id: "gate-1", prefab: "gate", at: [5, 5], rot: 2 }],
+      entities: [
+        { id: "rider", type: "sensor", shape: ["box", 5, 4.9, 0.1, 0.1], attach: "gate-1/door" },
+      ],
+    });
+    const out = lift(doc, { registry: engine, prefab: prefabFixture });
+    const rider = (out.entities as Record<string, unknown>[])[0]!;
+    expect(rider.parent).toBe("gate-1/door");
+    expect(rider.attach).toBeUndefined();
+    expect(refusedBy(doc)).toMatchObject({ code: "migration-unresolved" });
+    const missing = scene({
+      instances: [{ id: "gate-1", prefab: "gate", at: [5, 5] }],
+      entities: [
+        { id: "rider", type: "sensor", shape: ["box", 5, 5, 0.1, 0.1], attach: "gate-1/nope" },
+      ],
+    });
+    expect(refusedBy(missing, { registry: engine, prefab: prefabFixture })).toMatchObject({
+      code: "migration-unresolved",
+      path: "/entities/0/attach",
+    });
+  });
+
+  it("refuses without a registry", () => {
+    expect(refusedBy(scene({}), {})).toMatchObject({ code: "migration-unresolved", path: "/v" });
+  });
+
+  it("migrates the v4 prefab fixtures to the frozen current ones", () => {
+    const dir = new URL("prefabs-v4/", FIXTURES);
+    const raw = new Map(
+      readdirSync(dir).map((f) => {
+        const p = JSON.parse(readFileSync(new URL(f, dir), "utf8")) as Prefab;
+        return [p.id, p];
+      }),
+    );
+    for (const f of readdirSync(dir)) {
+      const parsed = parsePrefab(readFileSync(new URL(f, dir), "utf8"), engine, {
+        prefab: (id) => raw.get(id),
+      });
+      expect(parsed.ok && parsed.migratedFrom, f).toBe(4);
+      if (!parsed.ok) continue;
+      expect(formatPrefab(parsed.prefab), f).toBe(frozenText(`prefabs/${f}`));
+    }
   });
 });

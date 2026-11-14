@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
 
 const occupantFields = {
   blocks: z
@@ -17,8 +17,12 @@ const occupantFields = {
 /** An `occupant` block as an entity carries it. */
 export type OccupantBlock = z.infer<z.ZodObject<typeof occupantFields>>;
 
+/** Nothing beside `fields` yet. */
+export type OccupantHandle = Record<never, never>;
+
 export const OCCUPANT = defineBehavior({
   name: "occupant",
+  handle: handleType<OccupantHandle>(),
   description: "Stands on the grid cell under its pose, where paths and game code see it.",
   fields: occupantFields,
   inspector: { category: "world" },

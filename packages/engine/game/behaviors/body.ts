@@ -5,8 +5,9 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import { type Bound, defineBehavior, handleType } from "../behaviors";
 import { BODY_FIELDS } from "../primitives";
+import type { BodyControl } from "../types";
 
 /** What moves a body: forces and contacts, code alone, or nothing. */
 export const BODY_KINDS = ["dynamic", "kinematic", "static"] as const;
@@ -26,8 +27,24 @@ const bodyFields = {
 /** A `body` block as an entity carries it, defaults applied. */
 export type BodyBlock = z.infer<z.ZodObject<typeof bodyFields>>;
 
+/** What `getBehavior(BODY)` adds beside `fields`: `ctx.bodies` for this entity. */
+export type BodyHandle = Bound<
+  BodyControl,
+  | "kind"
+  | "velocity"
+  | "setVelocity"
+  | "angularVelocity"
+  | "setAngularVelocity"
+  | "applyImpulse"
+  | "applyForce"
+  | "applyTorque"
+  | "mass"
+  | "wake"
+>;
+
 export const BODY = defineBehavior({
   name: "body",
+  handle: handleType<BodyHandle>(),
   description:
     "Makes the entity's collider a physics body: dynamic, kinematic or static. A dynamic body needs physics.",
   fields: bodyFields,

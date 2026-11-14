@@ -135,9 +135,9 @@ function settle(ctx: EngineContext, carried: readonly Taken[]): void {
   physics.world.propagateModifiedBodyPositionsToColliders();
 }
 
-/** Whether a designer moved the entity: its type, spawn pose or transform differ. */
+/** Whether a designer moved the entity: its type, parent, spawn pose or transform differ. */
 function moved(registry: Registry, prev: RuntimeEntity, next: RuntimeEntity): boolean {
-  if (prev.type !== next.type) return true;
+  if (prev.type !== next.type || (prev.parent ?? null) !== (next.parent ?? null)) return true;
   const a = spawnPose(prev, registry);
   const b = spawnPose(next, registry);
   return (

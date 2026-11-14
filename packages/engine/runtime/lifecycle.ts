@@ -1,6 +1,6 @@
 import { zodIssueText } from "../game/fields";
 import { PhysicsRequiredError } from "../game/physics-of";
-import { physicsNeeds } from "../game/primitives";
+import { needsPhysics } from "../game/primitives";
 import {
   parseRuntimeId,
   RUNTIME_ID_PATTERN,
@@ -21,6 +21,9 @@ import { expandInstance, runtimeEntity } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
 import { gridTurns } from "../scene/resolve";
 import { geometryFields, spawnSchemaFor } from "../scene/schema";
+import { quarterTurns } from "../scene/shape-geometry";
+import { applyPt, dihedral, translation, type Dihedral } from "../scene/transform";
+import { transformEntityDef } from "../scene/translate";
 import type {
   EntityDef,
   EntityTypeName,
@@ -35,9 +38,11 @@ import { tweenSystemOf } from "./behaviors/tween";
 import type { RuntimeContacts } from "./contacts";
 import type { EntityTable } from "./entity-table";
 import type { RuntimeEventBus } from "./events";
+import { composePose, type Pose } from "./poses";
 import type { RuntimeQueryIndex } from "./query-index";
 import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
 import type { RuntimeTimers } from "./timers";
+import { createSceneTree, scopeName, type RuntimeSceneTree } from "./tree";
 import { ENTITY_DESTROYED, ENTITY_DISABLED, ENTITY_ENABLED, ENTITY_SPAWNED } from "./types";
 
 /** What the lifecycle works over: the runtime's systems, behavior host, entity table and seams. */
@@ -69,6 +74,9 @@ export type EntityRejection = { ok: false; error: string; entityId: string };
  * What a live runtime spawn came from: a `spawn`'s input, or for an
  * instance its prefab and options, with `input` holding the prefab as
  * `type` and the placement as `at`. `ids` are the entities it made.
+ * Geometry is always world: a `local` spawn is kept as the world fields it
+ * became. `parent` (on `input`, or on `instance` for an instance) is the
+ * spawn's parent now, so a restore links it where it is.
  */
 export type SpawnRecord = {
   id: string;
@@ -117,6 +125,12 @@ export type Lifecycle = {
   ) => EntityRejection | null;
   /** `entities` in spawn order: by spawn group, keeping their order inside one. */
   spawnOrder: <T extends { type: EntityTypeName }>(entities: readonly T[]) => T[];
+  /**
+   * After a batch's entities exist and before their `ready`: links each one
+   * that names a live `parent` under it, in the order given, and switches
+   * off each one whose parent is off.
+   */
+  link: (entities: readonly RuntimeEntity[]) => void;
   /** Each system's `ready` with its ids, in spawn-group order, then the behaviors'. */
   ready: (entities: readonly RuntimeEntity[]) => void;
   spawn: (input: SpawnInput) => RuntimeEntity;
@@ -136,18 +150,24 @@ export type Lifecycle = {
   holdsSublevel: (label: string) => boolean;
   destroy: (id: string) => void;
   instantiate: (prefab: AssetId, at: Pt | Vec2, opts?: InstantiateOptions) => InstantiateResult;
+  /**
+   * Flips `id`'s own switch, then enables or disables each entity of its
+   * subtree whose effective state changed: parents first on the way on,
+   * children first on the way off.
+   */
   setEnabled: (id: string, enabled: boolean) => void;
-  /** Switches off `e`, a record that just replaced a disabled one, as `setEnabled(id, false)` would. */
+  /** Switches off `e`, a record that just replaced a disabled one. */
   keepDisabled: (e: RuntimeEntity) => void;
-  /** Whether `id` is live and on; an instance id when any of its live children is. */
+  /** Whether `id` is live and on: its own switch and every ancestor's. */
   enabled: (id: string) => boolean;
-  /** Whether `id` is live; an instance id when it has a live child. */
+  /** Whether `id` is live and its own switch is on, whatever its ancestors'. */
+  enabledSelf: (id: string) => boolean;
   exists: (id: string) => boolean;
   get: (id: string) => RuntimeEntity | undefined;
   /**
-   * The end-of-tick destroys, in request order: an instance id's live
-   * children in reverse spawn order, gone ids skipped, and ids queued during
-   * the flush flushed in the same pass.
+   * The end-of-tick destroys, in request order: each id's subtree, children
+   * first, gone ids skipped, and ids queued during the flush flushed in the
+   * same pass.
    */
   flush: () => void;
   /** Whether destroys wait for the next `flush`. */
@@ -167,15 +187,18 @@ export type Lifecycle = {
   spawns: () => readonly SpawnRecord[];
   /**
    * Spawns `rec` again with its exact id, which may carry a counter label
-   * (all digits) only the counter gives out otherwise. Outside a step it
-   * raises no event.
+   * (all digits) only the counter gives out otherwise, under its `parent`
+   * when that is live and as a root when it isn't. Outside a step it raises
+   * no event.
    */
   restoreSpawn: (rec: Omit<SpawnRecord, "ids">) => void;
   /** The counters' last ids given out, by type or prefab name. */
   counters: () => Record<string, number>;
   setCounters: (next: Readonly<Record<string, number>>) => void;
-  /** The live entities switched off, in the order they were. */
+  /** The live entities whose own switch is off, in spawn order. */
   disabledIds: () => string[];
+  /** Parents and children; `EngineContext.tree`. */
+  readonly tree: RuntimeSceneTree;
   /**
    * Which load the runtime is in: it changes at every `load` and `reset`, so
    * state bound to one load (a pool, whose counter ids the next load gives
@@ -197,6 +220,21 @@ function notSpawnable(prefab: AssetId, id: string, cause: NotSpawnableCause): En
   return err;
 }
 
+const NO_TURN: Dihedral = { rot: 0, flip: false };
+
+/**
+ * A spawn's fields put in the world from a parent's frame. A parent turned
+ * by whole quarter turns transforms them exactly, as a prefab instance does
+ * its children; for any other angle they are moved so the entity's spawn
+ * point lands where the frame puts it (to the file's length precision),
+ * and `aim` holds that point exactly and the frame's angle, which the
+ * entity is put at and turned by once it exists.
+ */
+type Placed = { def: EntityDef; turn: Dihedral; aim?: Aim };
+
+/** Where a spawn placed in a turned frame goes, and the angle it turns by on top of its own. */
+type Aim = { x: number; y: number; turn: number };
+
 export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   const { ctx, registry, systems, behaviors, entities, query } = deps;
 
@@ -206,8 +244,12 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   );
 
   let library: PrefabLibrary = new Map();
-  /** Live entities switched off with `setEnabled`; every other live entity is enabled. */
+  /** Live entities whose own switch `setEnabled` turned off. */
+  const off = new Set<string>();
+  /** Live entities that are off, by their own switch or an ancestor's; every other live entity is enabled. */
   const disabled = new Set<string>();
+  /** Each disabled entity's pose when it went off, to tell whether `setPose` moved it meanwhile. */
+  const offPoses = new Map<string, { x: number; y: number; rot: number }>();
   /** Per type or prefab name, the last counter id given out this load. */
   const counters = new Map<string, number>();
   /** Destroys requested inside a step, in request order, until the flush. */
@@ -241,9 +283,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   /**
    * Behaviors first (reverse registration order), then the type system: its
    * `disable`, or without one a despawn that keeps the record and the pose.
+   * `announce` false raises no `entity:disabled`, for an entity that only
+   * now joins the world under a parent that is off.
    */
-  function disable(e: RuntimeEntity): void {
+  function disable(e: RuntimeEntity, announce = true): void {
     disabled.add(e.id);
+    const at = ctx.poses.get(e.id);
+    if (at) offPoses.set(e.id, { x: at.x, y: at.y, rot: at.rot });
     behaviors.disable(e);
     const system = systems.get(e.type)!;
     if (system.disable) system.disable(e.id);
@@ -252,47 +298,182 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     deps.timers.pauseOwner(e.id, true);
     tweenSystemOf(ctx)?.ownerEnabled(e.id, false);
     deps.contacts.forget(e.id);
-    raise(ENTITY_DISABLED, e);
+    if (announce) raise(ENTITY_DISABLED, e);
   }
 
   /**
    * The type system first: its `enable`, or without a `disable` a spawn from
    * the record at its spawn pose (state reset); then the behaviors in
-   * registration order.
+   * registration order. A driven child then goes where its parent puts it.
    */
   function enable(e: RuntimeEntity): void {
     const system = systems.get(e.type)!;
     if (system.disable) system.enable?.(e.id);
     else {
       const kept = ctx.poses.get(e.id);
-      ctx.poses.remove(e.id);
-      try {
-        system.spawn(e);
-        posed(e);
-      } catch (err) {
-        system.despawn(e.id);
+      tree.quietly(() => {
         ctx.poses.remove(e.id);
-        if (kept) ctx.poses.set(e.id, kept.x, kept.y, kept.rot, { snap: true });
-        throw err;
-      }
+        try {
+          system.spawn(e);
+          posed(e);
+        } catch (err) {
+          system.despawn(e.id);
+          ctx.poses.remove(e.id);
+          if (kept) ctx.poses.set(e.id, kept.x, kept.y, kept.rot, { snap: true });
+          throw err;
+        }
+      });
     }
     disabled.delete(e.id);
     behaviors.enable(e);
     query.enabledChanged(e.id, true);
     deps.timers.pauseOwner(e.id, false);
     tweenSystemOf(ctx)?.ownerEnabled(e.id, true);
+    // Posed while off: only the pose index moved, so the system and behaviors follow it now.
+    const was = offPoses.get(e.id);
+    offPoses.delete(e.id);
+    const pose = ctx.poses.get(e.id);
+    if (
+      !tree.drive(e.id, { snap: true }) &&
+      system.disable &&
+      system.setPose &&
+      was &&
+      pose &&
+      !samePose(was, pose)
+    )
+      ctx.setPose(e.id, pose.x, pose.y, pose.rot);
     raise(ENTITY_ENABLED, e);
   }
 
-  const live = (id: string) => entities.has(id) || entities.hasUnder(id);
+  const samePose = (a: { x: number; y: number; rot: number }, b: typeof a) =>
+    a.x === b.x && a.y === b.y && a.rot === b.rot;
 
-  /** The live entities under instance id `id` (`id/…`, at any depth), in spawn order. */
-  function childrenOf(id: string): RuntimeEntity[] {
-    const out: RuntimeEntity[] = [];
-    if (!entities.hasUnder(id)) return out;
-    const prefix = `${id}/`;
-    for (const [key, e] of entities) if (key.startsWith(prefix)) out.push(e);
-    return out;
+  const live = (id: string) => entities.has(id);
+
+  /** Whether `id`'s own switch and every ancestor's are on. */
+  function switchedOn(id: string): boolean {
+    for (let at: string | null = id; at !== null; at = tree.parent(at))
+      if (off.has(at)) return false;
+    return true;
+  }
+
+  /** Brings each entity of `id`'s subtree to what the switches say: enables parents first, then disables children first. */
+  function sync(id: string): void {
+    const ids = tree.subtree(id);
+    for (const at of ids) {
+      const e = entities.get(at);
+      if (e && disabled.has(at) && switchedOn(at)) enable(e);
+    }
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const at = ids[i]!;
+      const e = entities.get(at);
+      if (e && !disabled.has(at) && !switchedOn(at)) disable(e);
+    }
+  }
+
+  function scopeOf(id: string): string | null {
+    const label = sublevelLabelOf(id);
+    if (label !== null) return label;
+    for (const [spawned, ids] of sublevelSpawns) if (ids.has(id)) return spawned;
+    return null;
+  }
+
+  const tree: RuntimeSceneTree = createSceneTree({
+    poses: ctx.poses,
+    setPose: (id, x, y, rot, opts) => ctx.setPose(id, x, y, rot, opts),
+    exists: live,
+    enabled: (id) => entities.has(id) && !disabled.has(id),
+    selfMoving(id) {
+      const e = entities.get(id);
+      const system = e && systems.get(e.type);
+      if (!e || !system?.setPose) return true;
+      return system.selfMoving?.(id) === true || behaviors.selfMoving(e);
+    },
+    follows(id, parent, pose, snap) {
+      const e = entities.get(id);
+      if (!e || disabled.has(id)) return "still";
+      const system = systems.get(e.type);
+      if (!system?.setPose || system.selfMoving?.(id) === true || behaviors.selfMoving(e))
+        return "still";
+      if (!system.carried?.(id, parent, pose, snap)) return "pose";
+      behaviors.posed(e, pose, snap);
+      return "carried";
+    },
+    carries(id) {
+      const kind = ctx.bodies.kind(id);
+      return kind === "dynamic" || kind === "kinematic";
+    },
+    ride(id, host) {
+      const e = entities.get(id);
+      if (!e) return;
+      systems.get(e.type)?.ride?.(id, host);
+      behaviors.ride(e, host);
+    },
+    scopeOf,
+    reparented: (id) => sync(id),
+    stepping: deps.stepping,
+    tick: () => ctx.tick,
+  });
+
+  /**
+   * The pose of the live `parent` a spawn goes under. Refuses with
+   * `parent-scope` when no live entity has that id, or when it belongs to
+   * another sublevel than the spawn.
+   */
+  function parentFrame(parent: string, scope: string | null, what: string): Readonly<Pose> {
+    if (!live(parent)) {
+      throw new EngineError(
+        "parent-scope",
+        `can't ${what} under "${parent}": no live entity has that id`,
+      );
+    }
+    const theirs = scopeOf(parent);
+    if (theirs !== scope) {
+      throw new EngineError(
+        "parent-scope",
+        `can't ${what} under "${parent}": the spawn belongs to ${scopeName(scope)} and "${parent}" to ${scopeName(theirs)}`,
+        parent,
+      );
+    }
+    return ctx.poses.get(parent) ?? { x: 0, y: 0, rot: 0 };
+  }
+
+  function placeLocal(def: EntityDef, frame: Readonly<Pose>): Placed {
+    const q = quarterTurns(frame.rot);
+    if (q !== null) {
+      const turn: Dihedral = { rot: q, flip: false };
+      const t = dihedral(turn, [frame.x, frame.y]);
+      return { def: transformEntityDef(registry, def, t) ?? def, turn };
+    }
+    const type = registry.types.get(def.type)!;
+    const local = spawnPoseOf(
+      runtimeEntity(registry, def, type, NO_TURN),
+      geometry.get(def.type) ?? [],
+    );
+    const world = composePose(frame.x, frame.y, frame.rot, local);
+    const by: Pt = [world.x - local.x, world.y - local.y];
+    const moved = transformEntityDef(registry, def, translation(by)) ?? def;
+    return { def: moved, turn: NO_TURN, aim: { x: world.x, y: world.y, turn: frame.rot } };
+  }
+
+  /** Puts a just-linked spawn where `aim` says, turned by its angle, when its type can be posed. */
+  function turnPlaced(e: RuntimeEntity, aim: Aim | undefined): void {
+    const pose = ctx.poses.get(e.id);
+    if (!aim || !pose || !systems.get(e.type)?.setPose) return;
+    ctx.setPose(e.id, aim.x, aim.y, pose.rot + aim.turn, { snap: true });
+  }
+
+  /** `rec` with the parent its entity has now. */
+  function withParentNow(rec: SpawnRecord): SpawnRecord {
+    const now = tree.parent(rec.id) ?? undefined;
+    if (rec.instance) {
+      if (rec.instance.parent === now) return rec;
+      const { parent: _was, ...rest } = rec.instance;
+      return { ...rec, instance: now === undefined ? rest : { ...rest, parent: now } };
+    }
+    if (rec.input.parent === now) return rec;
+    const { parent: _was, ...rest } = rec.input;
+    return { ...rec, input: now === undefined ? rest : { ...rest, parent: now } };
   }
 
   function record(rec: SpawnRecord): void {
@@ -375,6 +556,11 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     query.removed(e.id);
     deps.contacts.forget(e.id);
     disabled.delete(e.id);
+    offPoses.delete(e.id);
+    if (!opts?.keepOwned) {
+      off.delete(e.id);
+      tree.forget(e.id);
+    }
   }
 
   const asEngineError = (err: unknown, entityId: string) =>
@@ -382,18 +568,12 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       ? err
       : new EngineError("schema", err instanceof Error ? err.message : String(err), entityId);
 
-  /** In a scene without physics, the first child whose type needs physics or that rides another. */
+  /** In a scene without physics, the first child whose type needs physics. */
   function physicsCause(children: readonly RuntimeEntity[]): EngineError | null {
     if (ctx.physics) return null;
     for (const e of children) {
       const t = registry.types.get(e.type);
-      const need = t ? physicsNeeds(t, e)[0] : undefined;
-      if (need) {
-        return new PhysicsRequiredError(
-          need.field === undefined ? `a ${e.type}` : `${e.type}.${need.field}`,
-          e.id,
-        );
-      }
+      if (t && needsPhysics(t)) return new PhysicsRequiredError(`a ${e.type}`, e.id);
     }
     return null;
   }
@@ -415,25 +595,55 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
         }),
       );
     }
+    const parent = opts.parent;
+    const frame =
+      parent === undefined ? undefined : parentFrame(parent, null, `instantiate "${prefab}"`);
+    const given: Pt = Array.isArray(at) ? [at[0], at[1]] : [at.x, at.y];
+    let where = given;
+    let rot = opts.rot ?? 0;
+    let aim: Aim | undefined;
+    if (frame && opts.local === true) {
+      const q = quarterTurns(frame.rot);
+      if (q !== null) {
+        where = applyPt(dihedral({ rot: q, flip: false }, [frame.x, frame.y]), given);
+        rot = (((rot + 90 * q) % 360) + 360) % 360;
+      } else {
+        const world = composePose(frame.x, frame.y, frame.rot, {
+          x: given[0],
+          y: given[1],
+          rot: 0,
+        });
+        where = [world.x, world.y];
+        aim = { x: world.x, y: world.y, turn: frame.rot };
+      }
+    }
     const id = exact !== undefined ? claimExact(exact) : claimId(prefab, opts.id);
     const inst: InstanceDef = {
       id,
       prefab,
-      at: Array.isArray(at) ? [at[0], at[1]] : [at.x, at.y],
-      ...(opts.rot ? { rot: opts.rot } : {}),
+      at: where,
+      ...(rot ? { rot } : {}),
       ...(opts.flip ? { flip: true as const } : {}),
       ...(opts.z !== undefined ? { z: opts.z } : {}),
       ...(opts.layer !== undefined ? { layer: opts.layer } : {}),
       ...(opts.params ? { params: structuredClone({ ...opts.params }) } : {}),
       ...(opts.overrides ? { overrides: structuredClone({ ...opts.overrides }) } : {}),
     };
+    let expanded: readonly RuntimeEntity[];
+    let nodes: number;
     let children: RuntimeEntity[];
     try {
       const out = expandInstance(inst, library, registry, {
         cells: gridTurns({ settings: { grid: ctx.settings.grid ?? undefined } }),
       });
       if (!out.ok) throw notSpawnable(prefab, id, out.issue);
-      children = lifecycle.spawnOrder(out.entities);
+      expanded = out.entities;
+      nodes = out.nodes;
+      if (parent !== undefined) {
+        const node = expanded.find((e) => e.id === id);
+        if (node) node.parent = parent;
+      }
+      children = lifecycle.spawnOrder(expanded);
     } catch (err) {
       if (err instanceof EngineError) throw err;
       const message = err instanceof Error ? err.message : String(err);
@@ -457,13 +667,20 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
         spawnEntity(e, { table: true });
         spawned.push(e);
       }
+      lifecycle.link(expanded);
+      const node = spawned.find((e) => e.id === id);
+      if (node) turnPlaced(node, aim);
       lifecycle.ready(spawned);
     } catch (err) {
       undo();
       if (err instanceof PhysicsRequiredError) throw notSpawnable(prefab, id, err);
       throw asEngineError(err, id);
     }
-    const { id: _asked, ...kept } = opts;
+    const { id: _asked, local: _local, ...kept } = opts;
+    if ((kept.rot ?? 0) !== rot) {
+      if (rot) kept.rot = rot;
+      else delete kept.rot;
+    }
     record({
       id,
       input: { type: prefab, at: [...inst.at] },
@@ -475,7 +692,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       raise(ENTITY_SPAWNED, e);
     }
     if (!deps.stepping()) deps.settled();
-    return { id, entities: spawned.map((e) => e.id) };
+    return { id, entities: expanded.slice(nodes).map((e) => e.id) };
   }
 
   /** The dev and headless check of a spawn's fields: the type's spawn schema, its id aside. */
@@ -504,17 +721,32 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
         `can't spawn "${input.type}" for sublevel "${label}": no sublevel with that label is attached`,
       );
     }
+    const parent = input.parent;
+    const frame =
+      parent === undefined
+        ? undefined
+        : parentFrame(parent, label ?? null, `spawn "${input.type}"`);
     const id = exact !== undefined ? claimExact(exact) : claimId(input.type, input.id);
-    const { id: _id, sublevel: _sublevel, ...fields } = input;
+    const { id: _id, sublevel: _sublevel, parent: _parent, local, ...fields } = input;
     if (ctx.dev || ctx.view === null) parseSpawn(input.type, fields, id);
+    let placed: Placed = { def: { ...fields, id } as EntityDef, turn: NO_TURN };
     let e: RuntimeEntity;
     try {
-      e = runtimeEntity(registry, { ...fields, id } as EntityDef, type, { rot: 0, flip: false });
+      if (frame && local === true) placed = placeLocal(placed.def, frame);
+      e = runtimeEntity(
+        registry,
+        placed.def,
+        type,
+        { rot: placed.turn.rot * 90, flip: placed.turn.flip },
+        parent,
+      );
       spawnEntity(e, { table: true });
     } catch (err) {
       throw asEngineError(err, id);
     }
     try {
+      lifecycle.link([e]);
+      turnPlaced(e, placed.aim);
       lifecycle.ready([e]);
     } catch (err) {
       despawnEntity(e);
@@ -526,7 +758,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       if (ids) ids.add(id);
       else sublevelSpawns.set(label, new Set([id]));
     }
-    record({ id, input: copied({ ...input }), ids: [id] });
+    const { id: _placedId, ...world } = placed.def;
+    const { local: _given, ...asked } = input;
+    record({
+      id,
+      input: copied(local === true && frame ? { ...asked, ...world } : asked),
+      ids: [id],
+    });
     deps.changed(e.type);
     raise(ENTITY_SPAWNED, e);
     if (!deps.stepping()) deps.settled();
@@ -545,6 +783,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
         spawned.push(e);
       }
       current = undefined;
+      lifecycle.link(list);
       lifecycle.ready(spawned);
     } catch (err) {
       for (let i = spawned.length - 1; i >= 0; i--) {
@@ -576,11 +815,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     deps.settled();
   }
 
-  /** `id` and, for an instance id, its live children in reverse spawn order; gone ids are skipped. */
+  /** `id`'s subtree, children first in reverse child order; gone ids are skipped. */
   function remove(id: string): void {
-    const own = entities.get(id);
-    for (const e of own ? [own] : childrenOf(id).reverse()) {
-      if (entities.get(e.id) !== e) continue;
+    if (!entities.has(id)) return;
+    const ids = tree.subtree(id);
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const e = entities.get(ids[i]!);
+      if (!e) continue;
       const last = poseAt(e.id);
       despawnEntity(e);
       entities.delete(e.id);
@@ -600,6 +841,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     },
     leaving(e) {
       disabled.delete(e.id);
+      offPoses.delete(e.id);
       behaviors.detach(e);
       ctx.poses.remove(e.id);
       query.removed(e.id);
@@ -630,6 +872,15 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
             registry.spawnGroupOf(a.type)! - registry.spawnGroupOf(b.type)! || i - j,
         )
         .map(([e]) => e);
+    },
+    link(list) {
+      tree.link(childOrder(list));
+      for (let i = list.length - 1; i >= 0; i--) {
+        const e = list[i]!;
+        if (tree.parent(e.id) !== null && !disabled.has(e.id) && !switchedOn(e.id)) {
+          disable(e, false);
+        }
+      }
     },
     ready(list) {
       if (list.length === 0) return;
@@ -662,18 +913,16 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     },
     instantiate: (prefab, at, opts) => instantiate(prefab, at, opts),
     setEnabled(id, on) {
-      const e = entities.get(id);
-      if (!e || disabled.has(id) !== on) return;
-      if (on) enable(e);
-      else disable(e);
+      if (!entities.has(id) || off.has(id) !== on) return;
+      if (on) off.delete(id);
+      else off.add(id);
+      sync(id);
     },
     keepDisabled(e) {
       if (entities.has(e.id) && !disabled.has(e.id)) disable(e);
     },
-    enabled: (id) =>
-      entities.has(id)
-        ? !disabled.has(id)
-        : childrenOf(id).some((child) => !disabled.has(child.id)),
+    enabled: (id) => entities.has(id) && !disabled.has(id),
+    enabledSelf: (id) => entities.has(id) && !off.has(id),
     exists: live,
     get: (id) => entities.get(id),
     flush() {
@@ -698,7 +947,10 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     },
     reset() {
       library = new Map();
+      off.clear();
       disabled.clear();
+      offPoses.clear();
+      tree.clear();
       counters.clear();
       doomed = [];
       sublevelSpawns.clear();
@@ -709,25 +961,45 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     get library() {
       return library;
     },
-    spawns: () => [...records.values()],
+    spawns: () => [...records.values()].map(withParentNow),
     restoreSpawn(rec) {
       if (rec.instance) {
-        const { prefab, ...opts } = rec.instance;
+        const { prefab, parent, ...opts } = rec.instance;
         const at = rec.input.at as Pt;
-        instantiate(prefab, [at[0], at[1]], opts, rec.id);
+        const under = parent !== undefined && live(parent) ? { parent } : {};
+        instantiate(prefab, [at[0], at[1]], { ...opts, ...under }, rec.id);
         return;
       }
-      spawn(copied(rec.input), rec.id);
+      const { parent, ...input } = copied(rec.input);
+      spawn(parent !== undefined && live(parent) ? { ...input, parent } : input, rec.id);
     },
     counters: () => Object.fromEntries(counters),
     setCounters(next) {
       counters.clear();
       for (const [name, n] of Object.entries(next)) counters.set(name, n);
     },
-    disabledIds: () => [...entities.keys()].filter((id) => disabled.has(id)),
+    disabledIds: () => [...entities.keys()].filter((id) => off.has(id)),
+    tree,
     get generation() {
       return generation;
     },
   };
   return lifecycle;
+}
+
+/**
+ * `list` in the order its entities join their parents: a parent's own
+ * entities first, then its nested instances' nodes (a `node` whose id is
+ * under its parent's and that holds children of its own).
+ */
+function childOrder(list: readonly RuntimeEntity[]): readonly RuntimeEntity[] {
+  const holders = new Set<string>();
+  for (const e of list) if (e.parent !== undefined) holders.add(e.parent);
+  const instanceNode = (e: RuntimeEntity) =>
+    e.type === "node" &&
+    e.parent !== undefined &&
+    e.id.startsWith(`${e.parent}/`) &&
+    holders.has(e.id);
+  if (!list.some(instanceNode)) return list;
+  return [...list.filter((e) => !instanceNode(e)), ...list.filter(instanceNode)];
 }

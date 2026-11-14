@@ -3,11 +3,13 @@ import type * as Y from "yjs";
 import type { Registry } from "../game/types";
 import { bulkKeysOf, expandScene } from "../scene/expand";
 import { diffEntities, headerChanged } from "../scene/expanded-diff";
-import { resolveScene } from "../scene/resolve";
+import { CHILD_SEPARATOR, parseChildRef, sceneFrames, type SceneFrames } from "../scene/resolve";
 import {
   RESERVED_SCENE_KEYS,
   type Bounds,
+  type EntityDef,
   type ExpandedScene,
+  type InstanceDef,
   type PrefabLibrary,
   type RuntimeEntity,
   type SceneDefinition,
@@ -72,7 +74,9 @@ function withHeader(
  * Expands a scene that two clients' edits may have merged into a state
  * neither wrote: an entry that can't be expanded, or a second entity with
  * an id already used, is left out rather than failing the whole scene. A
- * scene with no header expands empty-named, with zero bounds.
+ * parent cycle or a missing parent needs nothing here: the resolver reads
+ * them leniently. A scene with no header expands empty-named, with zero
+ * bounds.
  */
 export function expandLenient(
   given: SceneDefinition,
@@ -80,31 +84,61 @@ export function expandLenient(
   prefabs?: PrefabLibrary,
 ): { scene: ExpandedScene; errors: string[] } {
   const source = withHeader(given, { name: "", bounds: NO_BOUNDS });
-  let def: SceneDefinition;
-  try {
-    def = resolveScene(source, registry, prefabs);
-  } catch {
-    def = { ...source };
-    delete def.instances;
-    delete def.groups;
-  }
-  const ids = (def.entities ?? []).map((e) => e.id);
+  const opts = prefabs ? { prefabs } : {};
+  const ids = (source.entities ?? []).map((e) => e.id);
   if (new Set(ids).size === ids.length) {
     try {
-      return { scene: expandScene(def, registry), errors: [] };
+      const scene = expandScene(source, registry, opts);
+      const out = scene.entities.map((e) => e.id);
+      if (new Set(out).size === out.length) return { scene, errors: [] };
     } catch {
       // Fall back to one entry at a time.
     }
   }
   const errors: string[] = [];
-  const empty: SceneDefinition = { ...def };
+  const empty: SceneDefinition = { ...source };
   delete empty.entities;
+  delete empty.instances;
   for (const k of bulkKeysOf(empty)) delete empty[k];
-  const scene = expandScene(empty, registry);
+  let scene: ExpandedScene;
+  let frames: SceneFrames | null = null;
+  try {
+    scene = expandScene(empty, registry, opts);
+    frames = sceneFrames(source, registry, prefabs);
+  } catch (err) {
+    errors.push(err instanceof Error ? err.message : String(err));
+    delete empty.groups;
+    scene = expandScene(empty, registry, opts);
+  }
+  const byId = new Map((source.entities ?? []).map((e) => [e.id, e]));
+  const instancesById = new Map((source.instances ?? []).map((i) => [i.id, i]));
+  /** What an entry sits under, root first, so it expands in its parent chain's frame alone. */
+  const chainOf = (id: string): Pick<SceneDefinition, "entities" | "instances"> => {
+    const entities: EntityDef[] = [];
+    const instances: InstanceDef[] = [];
+    const seenRefs = new Set<string>([id]);
+    for (let ref = frames?.parentOf(id); ref !== undefined; ) {
+      const head = parseChildRef(ref)?.instance ?? ref;
+      if (seenRefs.has(head)) break;
+      seenRefs.add(head);
+      const e = byId.get(head);
+      const inst = e ? undefined : instancesById.get(head);
+      if (e) entities.unshift(e);
+      else if (inst) instances.unshift(inst);
+      else break;
+      ref = frames?.parentOf(head);
+    }
+    return { entities, instances };
+  };
   const seen = new Set<string>();
-  const take = (part: Partial<SceneDefinition>, id?: (e: RuntimeEntity) => string) => {
+  const take = (
+    part: Partial<SceneDefinition>,
+    keep: (e: RuntimeEntity) => boolean,
+    id?: (e: RuntimeEntity) => string,
+  ) => {
     try {
-      for (const e of expandScene({ ...empty, ...part }, registry).entities) {
+      for (const e of expandScene({ ...empty, ...part }, registry, opts).entities) {
+        if (!keep(e)) continue;
         const entity = id ? { ...e, id: id(e) } : e;
         if (seen.has(entity.id)) errors.push(`duplicate id "${entity.id}"`);
         else {
@@ -116,12 +150,25 @@ export function expandLenient(
       errors.push(err instanceof Error ? err.message : String(err));
     }
   };
-  for (const [k, rows] of Object.entries(def)) {
+  const all = () => true;
+  for (const [k, rows] of Object.entries(source)) {
     if (k === "entities" || RESERVED_SCENE_KEYS.includes(k) || !Array.isArray(rows)) continue;
     // A bulk entry's id is its index, so expand one row alone and renumber it.
-    rows.forEach((row, i) => take({ [k]: [row] }, (e) => e.id.replace(/:0$/, `:${i}`)));
+    rows.forEach((row, i) => take({ [k]: [row] }, all, (e) => e.id.replace(/:0$/, `:${i}`)));
   }
-  for (const e of def.entities ?? []) take({ entities: [e] });
+  for (const e of source.entities ?? []) {
+    const chain = chainOf(e.id);
+    take(
+      { entities: [...(chain.entities ?? []), e], instances: chain.instances ?? [] },
+      (x) => x.id === e.id,
+    );
+  }
+  for (const inst of source.instances ?? []) {
+    const chain = chainOf(inst.id);
+    const mine = (x: RuntimeEntity) =>
+      x.id === inst.id || x.id.startsWith(`${inst.id}${CHILD_SEPARATOR}`);
+    take({ entities: chain.entities ?? [], instances: [...(chain.instances ?? []), inst] }, mine);
+  }
   return { scene, errors };
 }
 

@@ -62,6 +62,7 @@ describe("platformerGame registry", () => {
 
   it("spawns in M1's order", () => {
     expect(registry.spawnGroups).toEqual([
+      ["node"],
       ["solid"],
       ["cloud"],
       ["sensor", "goal", "exit", "hazard"],

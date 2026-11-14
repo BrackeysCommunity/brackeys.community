@@ -4,10 +4,12 @@ import { createCameraRegionSystem } from "../systems/camera-region";
 import { createDecorSystem } from "../systems/decor";
 import { createMarkerSystem } from "../systems/marker";
 import { createNavSystem } from "../systems/nav";
+import { createNodeSystem } from "../systems/node";
 import { createFollowerSystem } from "../systems/path-follower";
 
 /** The engine's system factory for each primitive that loads. */
 export const PRIMITIVE_SYSTEMS: Readonly<Record<BasePrimitive, SystemFactory>> = {
+  node: createNodeSystem,
   solid: createSolidSystem,
   sensor: createSensorSystem,
   marker: createMarkerSystem,

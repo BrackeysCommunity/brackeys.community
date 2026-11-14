@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "post",
   "params": {
     "mark": { "description": "What the cap marks: a peak post's cap is also tagged peak.", "map": { "cap.tags": { "peak": ["top", "peak"] } }, "targets": ["cap.tags"] }

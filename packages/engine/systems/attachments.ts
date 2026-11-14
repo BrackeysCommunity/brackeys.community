@@ -2,12 +2,12 @@ import type { Collider, RigidBody } from "@dimforge/rapier2d";
 
 import type { ColliderTags } from "../game/types";
 import type { PhysicsWorld } from "../physics";
-import type { Pose } from "../runtime/poses";
+import { composePose, relativePose, type Pose } from "../runtime/poses";
 import type { Vec2 } from "../types";
 
 /**
- * What an attached collider is made on: the host's body, its origin (a
- * follower's first path point, where the offset is fixed in its frame) and
+ * What a riding collider is made on: the host's body, its origin (where
+ * the body was when it was offered: a follower's first path point) and
  * who it is.
  */
 export type AttachmentHost = { body: RigidBody; origin: Vec2; id: string; type: string };
@@ -17,34 +17,45 @@ export type Attachment = {
   collider(): Collider | null;
   /** The host while it has a body. */
   host(): AttachmentHost | null;
+  /**
+   * The riding entity is at world `pose`, and was at `offset` in the host
+   * body's frame. Unless that is where the body carried it, moves the
+   * collider on the body, now and for the steps to come, to `frame` (its
+   * pose in the entity's frame) composed onto the new offset, and returns
+   * that offset; null when the body carried it there or it has no collider.
+   */
+  follow(pose: Readonly<Pose>, offset: Readonly<Pose>, frame: Pose): Pose | null;
   /** Removes the collider (not the body) and stops waiting for the host. */
   detach(): void;
 };
 
+/** How near two offsets are, m and rad, for a riding entity's pose to count as where its host carried it. */
+const CARRIED_EPSILON = 1e-9;
+
+const carried = (a: Readonly<Pose>, b: Readonly<Pose>): boolean =>
+  Math.abs(a.x - b.x) <= CARRIED_EPSILON &&
+  Math.abs(a.y - b.y) <= CARRIED_EPSILON &&
+  Math.abs(a.rot - b.rot) <= CARRIED_EPSILON;
+
 /**
- * Colliders that ride another entity's body (`attach` on solids and
- * sensors): a host offers its body when it spawns and withdraws it before
- * the body goes; requests made before the host spawned, or across its
- * respawns, attach when it (re)appears. One per runtime. `attach` throws
- * `PhysicsRequiredError` while the runtime has no physics world.
+ * Colliders that ride another entity's body: a solid's or sensor's `attach`,
+ * and any solid, sensor or `collider` behavior with no body of its own under
+ * a parent that has one. Hosts are followers, props and `collider` behaviors
+ * with a kinematic or dynamic `body`: each offers its body when it has one
+ * and withdraws it before the body goes. Requests made before the host
+ * offered its body, or across its respawns, attach when it (re)appears. The
+ * host's body carries the colliders; the scene tree carries the riding
+ * entities' poses. One per runtime. `attach` throws `PhysicsRequiredError`
+ * while the runtime has no physics world.
  */
 export type AttachmentHub = {
-  host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
+  /** Offers `body` to ride on; `origin` defaults to where the body is now. */
+  host(hostId: string, type: string, body: RigidBody, origin?: Vec2): void;
   /** Call before removing the host's body; the colliders go with it and wait for the next `host`. */
   unhost(hostId: string): void;
-  /**
-   * Call after the host's body moved (`snap` when it jumped there): each
-   * collider riding it has `moved` called, to re-pose its entity. `at` is
-   * the body's translation and rotation when the caller has just read them,
-   * passed on so riders don't read them again.
-   */
-  moved(hostId: string, snap?: boolean, at?: Readonly<Pose>): void;
-  attach(
-    entityId: string,
-    hostId: string,
-    make: (host: AttachmentHost) => Collider,
-    moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void,
-  ): Attachment;
+  /** The host `hostId` offered, while it has a body. */
+  hosted(hostId: string): AttachmentHost | null;
+  attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider): Attachment;
   /** The ids attached to a host. */
   attachedTo(hostId: string): string[];
   clear(): void;
@@ -54,7 +65,6 @@ type Request = {
   entityId: string;
   hostId: string;
   make: (host: AttachmentHost) => Collider;
-  moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void;
   collider: Collider | null;
 };
 
@@ -76,7 +86,8 @@ export function createAttachmentHub(
 
   return {
     host(hostId, type, body, origin) {
-      hosts.set(hostId, { body, origin: { ...origin }, id: hostId, type });
+      const at = origin ?? body.translation();
+      hosts.set(hostId, { body, origin: { x: at.x, y: at.y }, id: hostId, type });
       for (const r of requests.get(hostId) ?? []) if (!r.collider) connect(r);
     },
     unhost(hostId) {
@@ -86,15 +97,10 @@ export function createAttachmentHub(
         r.collider = null;
       }
     },
-    moved(hostId, snap = false, at) {
-      const host = hosts.get(hostId);
-      if (!host) return;
-      for (const r of requests.get(hostId) ?? []) if (r.collider) r.moved?.(host, snap, at);
-    },
-    attach(entityId, hostId, make, moved) {
+    hosted: (hostId) => hosts.get(hostId) ?? null,
+    attach(entityId, hostId, make) {
       physics(entityId);
       const r: Request = { entityId, hostId, make, collider: null };
-      if (moved) r.moved = moved;
       const list = requests.get(hostId) ?? [];
       list.push(r);
       requests.set(hostId, list);
@@ -102,6 +108,24 @@ export function createAttachmentHub(
       return {
         collider: () => r.collider,
         host: () => hosts.get(r.hostId) ?? null,
+        follow(pose, offset, frame) {
+          const host = hosts.get(r.hostId);
+          const c = r.collider;
+          if (!host || !c) return null;
+          const t = host.body.translation();
+          const body = { x: t.x, y: t.y, rot: host.body.rotation() };
+          const next = relativePose(pose, body);
+          if (carried(next, offset)) return null;
+          const at = composePose(next.x, next.y, next.rot, frame);
+          c.setTranslationWrtParent({ x: at.x, y: at.y });
+          c.setRotationWrtParent(at.rot);
+          // queries before the next step must find it there too
+          const world = composePose(body.x, body.y, body.rot, at);
+          c.setTranslation({ x: world.x, y: world.y });
+          c.setRotation(world.rot);
+          physics(entityId).moved(c);
+          return next;
+        },
         detach() {
           if (r.collider) {
             tags.delete(r.collider.handle);

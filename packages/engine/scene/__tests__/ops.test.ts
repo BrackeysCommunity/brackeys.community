@@ -17,6 +17,7 @@ import { parseShape } from "../shapes";
 import { applyPt, compose, dihedral, flipWorld, IDENTITY_2D, type Dihedral } from "../transform";
 import {
   OP_NAMES,
+  SCENE_FORMAT_VERSION,
   type ApplyOptions,
   type ApplyResult,
   type EntityDef,
@@ -863,7 +864,7 @@ describe("applyOps: useAssets", () => {
     expect(r.diff).toEqual([
       { kind: "scene", field: "assets", from: undefined, to: ["boom", "hud-font", "zap"] },
     ]);
-    expect(text(r.def)).toContain('\n  "assets": ["boom", "hud-font", "zap"],\n  "groups"');
+    expect(text(r.def)).toContain('\n  "assets": ["boom", "hud-font", "zap"],\n  "instances"');
   });
 
   it("removes ids, takes adding a present id or removing an absent one as no change", () => {
@@ -900,7 +901,7 @@ const SPIN = "test-game/spin";
 /** A test-game scene on a square grid: a lamp, a painted floor and an instance of a prefab holding both. */
 function gameYard(): SceneDefinition {
   return {
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     game: "test-game",
     name: "game-yard",
     bounds: [0, 0, 1000, 1000],
@@ -916,7 +917,7 @@ function gameYard(): SceneDefinition {
 const gamePrefabs = prefabLibrary([
   {
     kind: "prefab",
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     game: "test-game",
     id: "room",
     entities: [
@@ -1167,7 +1168,12 @@ describe("applyOps: transform", () => {
     const r = yardRoundTrip(engineYard(), {
       ops: [{ op: "transform", refs: ["gate-1"], turn: -1 }],
     });
-    expect(r.def.instances![0]).toEqual({ id: "gate-1", prefab: "gate", at: [1100, 900], rot: 3 });
+    expect(r.def.instances![0]).toEqual({
+      id: "gate-1",
+      prefab: "gate",
+      at: [1100, 900],
+      rot: 270,
+    });
     expect(r.inverse.ops).toEqual([{ op: "update", ref: "gate-1", unset: ["rot"] }]);
   });
 
@@ -1200,8 +1206,10 @@ describe("applyOps: transform", () => {
     }
   });
 
-  it("conjugates an instance through its turned group, keeping its group-local at", () => {
-    let def = run(engineYard(), [{ op: "setGroup", id: "raised", rot: 1, flip: true }]).def;
+  it("conjugates an instance through its turned parent node, keeping its node-local at", () => {
+    let def = run(engineYard(), [
+      { op: "update", ref: "raised", set: { rot: 90, flip: true } },
+    ]).def;
     const top = resolved(def, "post-1/top");
     const r = ok(
       apply(
@@ -1215,17 +1223,24 @@ describe("applyOps: transform", () => {
     );
     def = r.def;
     expect(text(ok(apply(def, r.inverse, { prefabs })).def)).toBe(
-      text(run(engineYard(), [{ op: "setGroup", id: "raised", rot: 1, flip: true }]).def),
+      text(run(engineYard(), [{ op: "update", ref: "raised", set: { rot: 90, flip: true } }]).def),
     );
   });
 
-  it("turns and flips groups about a point, moving their members with them", () => {
+  it("turns and flips a node about a point, moving what sits under it with it", () => {
     const def = engineYard();
     const top = resolved(def, "post-1/top");
     const r = yardRoundTrip(def, {
-      ops: [{ op: "transform", groups: ["raised"], turn: 2, flip: "x", about: [0, 0] }],
+      ops: [{ op: "transform", refs: ["raised"], turn: 2, flip: "x", about: [0, 0] }],
     });
-    expect(r.def.groups!.raised).toEqual({ at: [40, 20], rot: 2, flip: true, name: "Raised" });
+    expect(r.def.entities!.find((e) => e.id === "raised")).toEqual({
+      id: "raised",
+      type: "node",
+      name: "Raised",
+      at: [40, 20],
+      rot: 180,
+      flip: true,
+    });
     const t = about(worldOf({ turn: 2, flip: "x" }), [0, 0]);
     const after = resolveScene(r.def, engine, prefabs).entities!.find(
       (e) => e.id === "post-1/top",
@@ -1233,18 +1248,14 @@ describe("applyOps: transform", () => {
     expect(points(after)).toEqual(points(top).map((p) => applyPt(t, p)));
   });
 
-  it("refuses nothing to transform, no turn or flip, an unknown group, an entity, and a group with its member", () => {
+  it("refuses nothing to transform, no turn or flip, an unknown ref, an entity, and a node with what is under it", () => {
     const def = engineYard();
     const bad = (op: SceneOp) => failed(apply(def, { ops: [op] }, { prefabs })).issue;
-    expect(bad({ op: "transform", turn: 1 }).code).toBe("op-invalid");
+    expect(bad({ op: "transform", refs: [], turn: 1 }).code).toBe("op-invalid");
     expect(bad({ op: "transform", refs: ["gate-1"] }).code).toBe("op-invalid");
-    const group = bad({ op: "transform", groups: ["raise"], turn: 1 });
-    expect(group.code).toBe("ref-not-found");
-    expect(group.message).toMatch(/did you mean "raised"/);
+    expect(bad({ op: "transform", refs: ["raise"], turn: 1 }).code).toBe("ref-not-found");
     expect(bad({ op: "transform", refs: ["crate"], turn: 1 }).code).toBe("op-invalid");
-    expect(bad({ op: "transform", refs: ["post-1"], groups: ["raised"], turn: 1 }).code).toBe(
-      "op-invalid",
-    );
+    expect(bad({ op: "transform", refs: ["post-1", "raised"], turn: 1 }).code).toBe("op-invalid");
   });
 
   it("restores random transform batches exactly", () => {
@@ -1255,7 +1266,7 @@ describe("applyOps: transform", () => {
       const op: SceneOp =
         rand() < 0.5
           ? { op: "transform", refs: [rand() < 0.5 ? "gate-1" : "post-1"], ...el }
-          : { op: "transform", groups: ["raised"], ...el, about: [Math.floor(rand() * 200), 0] };
+          : { op: "transform", refs: ["raised"], ...el, about: [Math.floor(rand() * 200), 0] };
       const r = ok(apply(def, { ops: [op] }, { prefabs }));
       expect(text(ok(apply(r.def, r.inverse, { prefabs })).def)).toBe(text(def));
       def = r.def;
@@ -1263,26 +1274,8 @@ describe("applyOps: transform", () => {
   });
 });
 
-describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
+describe("applyOps: instantiate and unpack with transforms", () => {
   const prefabs = yardPrefabs();
-
-  it("sets rot and flip absolutely, writing 0 and false as absent", () => {
-    const r = yardRoundTrip(engineYard(), {
-      ops: [{ op: "setGroup", id: "raised", rot: 3, flip: true }],
-    });
-    expect(r.def.groups!.raised).toEqual({ at: [40, -20], rot: 3, flip: true, name: "Raised" });
-    const back = yardRoundTrip(r.def, {
-      ops: [{ op: "setGroup", id: "raised", rot: 0, flip: false }],
-    });
-    expect(back.def.groups!.raised).toEqual({ at: [40, -20], name: "Raised" });
-    expect(back.inverse.ops).toEqual([
-      { op: "setGroup", id: "raised", at: [40, -20], rot: 3, flip: true, name: "Raised" },
-    ]);
-    expect(
-      failed(apply(engineYard(), { ops: [{ op: "setGroup", id: "raised", remove: true, rot: 1 }] }))
-        .issue.code,
-    ).toBe("op-invalid");
-  });
 
   it("stores an instance's rot, flip, z and params", () => {
     const r = ok(
@@ -1296,7 +1289,7 @@ describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
                 id: "gate-2",
                 prefab: "gate",
                 at: [0, 0],
-                rot: 2,
+                rot: 180,
                 flip: true,
                 z: 3,
                 params: { speed: 9 },
@@ -1311,7 +1304,7 @@ describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
       id: "gate-2",
       prefab: "gate",
       at: [0, 0],
-      rot: 2,
+      rot: 180,
       flip: true,
       z: 3,
       params: { speed: 9 },
@@ -1321,9 +1314,9 @@ describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
 
   it("updates an instance's rot, flip and params, writing 0 and false as absent", () => {
     const r = yardRoundTrip(engineYard(), {
-      ops: [{ op: "update", ref: "gate-1", set: { rot: 1, flip: true, "params.speed": 2 } }],
+      ops: [{ op: "update", ref: "gate-1", set: { rot: 90, flip: true, "params.speed": 2 } }],
     });
-    expect(r.def.instances![0]).toMatchObject({ rot: 1, flip: true, params: { speed: 2 } });
+    expect(r.def.instances![0]).toMatchObject({ rot: 90, flip: true, params: { speed: 2 } });
     const off = ok(
       apply(
         r.def,
@@ -1339,10 +1332,10 @@ describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
   });
 
   it("bakes a turned, flipped instance into plain entities with the resolved geometry", () => {
-    for (const [rot, flip, group] of [
-      [1, true, undefined],
-      [2, false, undefined],
-      [3, true, "raised"],
+    for (const [rot, flip, parent] of [
+      [90, true, undefined],
+      [180, false, undefined],
+      [270, true, "raised"],
     ] as const) {
       let def = engineYard();
       def = ok(
@@ -1350,12 +1343,9 @@ describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
           def,
           {
             ops: [
-              { op: "setGroup", id: "raised", rot: 1 },
-              {
-                op: "update",
-                ref: "gate-1",
-                set: { rot, ...(flip ? { flip } : {}), ...(group ? { group } : {}) },
-              },
+              { op: "update", ref: "raised", set: { rot: 90 } },
+              { op: "update", ref: "gate-1", set: { rot, ...(flip ? { flip } : {}) } },
+              ...(parent ? [{ op: "reparent" as const, refs: ["gate-1"], parent }] : []),
             ],
           },
           { prefabs },
@@ -1366,7 +1356,7 @@ describe("applyOps: setGroup, instantiate and unpack with transforms", () => {
       );
       const r = ok(apply(def, { ops: [{ op: "unpack", ref: "gate-1" }] }, { prefabs }));
       const after = resolveScene(r.def, engine, prefabs);
-      const strip = ({ id: _, ...rest }: EntityDef) => rest;
+      const strip = ({ id: _, parent: _parent, ...rest }: EntityDef) => rest;
       for (const b of before) {
         const child = b.id.slice("gate-1/".length);
         if (child.startsWith("~")) {
@@ -1387,7 +1377,7 @@ describe("applyOps: nested prefabs", () => {
     prefabLibrary([
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "door",
         entities: [
           {
@@ -1409,11 +1399,11 @@ describe("applyOps: nested prefabs", () => {
       },
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "room",
         entities: [{ id: "floor", type: "solid", shape: ["box", 0, 60, 100, 10] }],
         instances: [
-          { id: "door-1", prefab: "door", at: [10, 0], rot: 1 },
+          { id: "door-1", prefab: "door", at: [10, 0], rot: 90 },
           {
             id: "door-2",
             prefab: "door",
@@ -1425,7 +1415,7 @@ describe("applyOps: nested prefabs", () => {
       },
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "wing",
         entities: [],
         instances: [{ id: "room-1", prefab: "room", at: [0, 100] }],
@@ -1433,12 +1423,12 @@ describe("applyOps: nested prefabs", () => {
     ]);
 
   const hall = (): SceneDefinition => ({
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     name: "hall",
     bounds: [0, 0, 2000, 1000],
-    groups: { turned: { at: [500, 500], rot: 1 } },
     instances: [{ id: "room-1", prefab: "room", at: [100, 100] }],
     entities: [
+      { id: "turned", type: "node", at: [500, 500], rot: 90 },
       { id: "crate", type: "prop", shape: ["box", 400, 400, 20, 20], density: 1, restitution: 0 },
     ],
   });
@@ -1447,7 +1437,7 @@ describe("applyOps: nested prefabs", () => {
   const roomView = (prefabs: PrefabLibrary): SceneDefinition => {
     const room = prefabs.get("room")!;
     return {
-      v: 4,
+      v: SCENE_FORMAT_VERSION,
       name: "room",
       bounds: [-500, -500, 1000, 1000],
       entities: structuredClone(room.entities),
@@ -1455,14 +1445,14 @@ describe("applyOps: nested prefabs", () => {
     };
   };
 
-  /** Every resolved entity but its id and group (world geometry is resolved), keyed by the id `rename` maps it to. */
+  /** Every resolved entity but its id and parent (world geometry is resolved), keyed by the id `rename` maps it to. */
   const resolved = (
     def: SceneDefinition,
     prefabs: PrefabLibrary,
     rename: (id: string) => string = (id) => id,
   ) =>
     new Map(
-      (resolveScene(def, engine, prefabs).entities ?? []).map(({ id, group: _, ...rest }) => [
+      (resolveScene(def, engine, prefabs).entities ?? []).map(({ id, parent: _, ...rest }) => [
         rename(id),
         rest,
       ]),
@@ -1584,7 +1574,7 @@ describe("applyOps: nested prefabs", () => {
             set: {
               "door-1/panel.path.speed": 9,
               "door-2.at": [70, 0],
-              "door-2.rot": 2,
+              "door-2.rot": 180,
               "door-1/~solid:0.shape": ["box", 0, 40, 10, 8],
             },
           },
@@ -1602,7 +1592,7 @@ describe("applyOps: nested prefabs", () => {
         applyOps(hall(), { ops: [{ op: "override", ref: "room-1", set }] }, engine, { prefabs }),
       ).issue;
     expect(bad({ "door-1.prefab": "wing" }).code).toBe("op-invalid");
-    expect(bad({ "door-1.rot": 7 }).code).toBe("schema");
+    expect(bad({ "door-1.rot": 400 }).code).toBe("schema");
     expect(bad({ "door-1/panel.path.speed": "fast" }).code).toBe("schema");
   });
 
@@ -1718,7 +1708,10 @@ describe("applyOps: nested prefabs", () => {
     const prefabs = library();
     for (const [extra, label] of [
       [{}, "plain"],
-      [{ rot: 1, flip: true, z: 3, layer: "front", group: "turned" }, "turned, flipped, grouped"],
+      [
+        { rot: 90, flip: true, z: 3, layer: "front", parent: "turned" },
+        "turned, flipped, parented",
+      ],
       [{ overrides: { "door-1.at": [20, 0], "door-2/panel.path.speed": 1 } }, "overridden"],
     ] as const) {
       const def: SceneDefinition = {
@@ -1751,7 +1744,7 @@ describe("applyOps: nested prefabs", () => {
       ...hall(),
       instances: [
         { id: "room-1", prefab: "room", at: [100, 100] },
-        { id: "room-2", prefab: "room", at: [100, 300], rot: 2, group: "turned" },
+        { id: "room-2", prefab: "room", at: [100, 300], rot: 180, parent: "turned" },
       ],
     };
     const before = resolved(def, prefabs);
@@ -1764,7 +1757,7 @@ describe("applyOps: nested prefabs", () => {
     expect(r.def.instances).toEqual([{ id: "block-1", prefab: "block", at: [100, 100] }]);
     expect(block.instances).toEqual([
       { id: "room-1", prefab: "room", at: [0, 0] },
-      { id: "room-2", prefab: "room", at: [100, 500], rot: 3 },
+      { id: "room-2", prefab: "room", at: [100, 500], rot: 270 },
     ]);
     expect(resolved(r.def, r.prefabs!, (id) => id.replace(/^block-1\//, ""))).toEqual(before);
   });
@@ -1780,7 +1773,7 @@ describe("applyOps: prefab header and params", () => {
     prefabLibrary([
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "door",
         entities: [
           {
@@ -1803,14 +1796,14 @@ describe("applyOps: prefab header and params", () => {
       },
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "red-door",
         base: "door",
         entities: [{ id: "lamp", type: "marker", at: [0, -10] }],
       },
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "room",
         entities: [{ id: "floor", type: "solid", shape: ["box", 0, 60, 100, 10] }],
         instances: [{ id: "door-1", prefab: "door", at: [10, 0] }],
@@ -1821,7 +1814,7 @@ describe("applyOps: prefab header and params", () => {
   const viewOf = (prefabs: PrefabLibrary, id: string): SceneDefinition => {
     const p = prefabs.get(id)!;
     return {
-      v: 4,
+      v: SCENE_FORMAT_VERSION,
       name: id,
       bounds: [-500, -500, 1000, 1000],
       ...structuredClone(p.bulk ?? {}),
@@ -1831,7 +1824,7 @@ describe("applyOps: prefab header and params", () => {
   };
 
   const hall = (extra: Partial<InstanceDef> = {}): SceneDefinition => ({
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     name: "hall",
     bounds: [0, 0, 2000, 1000],
     instances: [{ id: "door-1", prefab: "door", at: [100, 100], ...extra }],
@@ -1962,7 +1955,7 @@ describe("applyOps: prefab header and params", () => {
       ...library().values(),
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "blue-door",
         base: "door",
         entities: [],
@@ -2129,7 +2122,7 @@ describe("applyOps: prefab header and params", () => {
   });
 });
 
-/** Ops randomOp draws only with its `v3` option (the convergence fuzz), or never: the header ops need a prefab view. */
+/** Ops randomOp draws only with its `v3` option (the convergence fuzz) or its `tree` option, or never: the header ops need a prefab view. */
 const NOT_GENERATED: readonly string[] = [
   "transform",
   "setZ",
@@ -2138,6 +2131,7 @@ const NOT_GENERATED: readonly string[] = [
   "setPrefabBase",
   "exposeParam",
   "setParam",
+  "reparent",
 ];
 
 /** mulberry32: small, seedable, good enough to pick ops. */
@@ -2199,21 +2193,64 @@ describe("applyOps: property", () => {
   }
 });
 
+describe("applyOps: property with the tree's ops", () => {
+  for (const [label, reg, yard] of [
+    ["engine-yard on the engine registry", engine, engineYard],
+    ["the fake game's yard", fake, fakeYard],
+  ] as const)
+    it(`restores random batches byte for byte, groups and parents together: ${label}`, () => {
+      const rand = rng(0x7a3e);
+      let doc = yard();
+      let prefabs = yardPrefabs(yard().game);
+      let applied = 0;
+      const kinds = new Set<string>();
+      for (let i = 0; i < 500; i++) {
+        const ops = Array.from({ length: 1 + Math.floor(rand() * 4) }, () =>
+          randomOp(reg, doc, rand, prefabs, { tree: true }),
+        );
+        const result = applyOps(doc, based(doc, ops), reg, { validate: "none", prefabs });
+        if (!result.ok) continue;
+        applied++;
+        for (const op of ops) kinds.add(op.op);
+        const after = result.prefabs ?? prefabs;
+        const back = ok(
+          applyOps(result.def, result.inverse, reg, { validate: "none", prefabs: after }),
+        );
+        expect(text(back.def), JSON.stringify(ops)).toBe(text(doc));
+        const again = ok(
+          applyOps(back.def, back.inverse, reg, {
+            validate: "none",
+            prefabs: back.prefabs ?? after,
+          }),
+        );
+        expect(text(again.def), JSON.stringify(ops)).toBe(text(result.def));
+        if (rand() < 0.7) {
+          doc = result.def;
+          prefabs = after;
+        }
+      }
+      expect(applied).toBeGreaterThan(150);
+      expect([...kinds]).toEqual(
+        expect.arrayContaining(["reparent", "transform", "unpack", "createPrefab"]),
+      );
+    }, 30_000);
+});
+
 describe("applyOps: place an instance", () => {
   const prefabs = prefabLibrary([
     {
       kind: "prefab",
-      v: 4,
+      v: SCENE_FORMAT_VERSION,
       id: "ell",
       entities: [
         { id: "arm", type: "solid", shape: ["box", 0, 0, 100, 10] },
         { id: "leg", type: "solid", shape: ["box", 90, 10, 10, 30] },
       ],
     },
-    { kind: "prefab", v: 4, id: "ell-red", base: "ell", entities: [] },
+    { kind: "prefab", v: SCENE_FORMAT_VERSION, id: "ell-red", base: "ell", entities: [] },
   ]);
   const scene = (inst: Partial<InstanceDef>): SceneDefinition => ({
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     name: "place",
     bounds: [-1000, -1000, 1000, 1000],
     instances: [{ id: "x", prefab: "ell", at: [7, 3], ...inst }],
@@ -2246,12 +2283,12 @@ describe("applyOps: place an instance", () => {
 
   const ORIENTATIONS: Partial<InstanceDef>[] = [
     {},
-    { rot: 1 },
-    { rot: 2 },
+    { rot: 90 },
+    { rot: 180 },
     { flip: true },
-    { rot: 3, flip: true },
+    { rot: 270, flip: true },
     { prefab: "ell-red" },
-    { prefab: "ell-red", rot: 1, flip: true },
+    { prefab: "ell-red", rot: 90, flip: true },
   ];
   for (const inst of ORIENTATIONS)
     for (const anchor of ["top", "bottom", "left", "right", "center"] as const)

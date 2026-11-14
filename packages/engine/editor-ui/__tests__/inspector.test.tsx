@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
@@ -643,7 +643,7 @@ describe("EditorInspector: an instance's placement", () => {
       label: "Turn post-2 clockwise",
       ops: [{ op: "transform", refs: ["post-2"], turn: 1 }],
     });
-    expect(post(session).rot).toBe(1);
+    expect(post(session).rot).toBe(90);
     expect(session.store.state.history).toHaveLength(rows + 1);
     expect(session.store.state.history.at(-1)!.label).toBe("Turn post-2 clockwise");
     expect(within(section()).getByText("Turned 90°")).toBeTruthy();
@@ -657,7 +657,7 @@ describe("EditorInspector: an instance's placement", () => {
 
     act(() => void session.undo());
     expect(post(session).flip).toBeUndefined();
-    expect(post(session).rot).toBe(1);
+    expect(post(session).rot).toBe(90);
     act(() => void session.undo());
     expect(post(session).rot).toBeUndefined();
 
@@ -809,5 +809,127 @@ describe("EditorInspector in metres", () => {
       "y",
       "m",
     ]);
+  });
+});
+
+describe("EditorInspector: the Parent row", () => {
+  const prefabs = prefabLibrary([
+    {
+      kind: "prefab",
+      v: SCENE_FORMAT_VERSION,
+      game: "panels",
+      id: "post",
+      entities: [{ id: "p", type: "sensor", shape: ["box", 0, 0, 10, 20] }],
+    },
+  ]);
+
+  function tree(selection: string[]) {
+    const def: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: "panels",
+      name: "tree",
+      bounds: [0, 0, 2000, 1200],
+      entities: [
+        { id: "rig", type: "node", at: [100, 100], rot: 90 },
+        { id: "ring", type: "sensor", shape: ["circle", 700, 600, 30] },
+        { id: "bolt", type: "sensor", shape: ["circle", 10, 0, 5], parent: "rig" },
+      ],
+      instances: [{ id: "post-2", prefab: "post", at: [300, 300] }],
+    };
+    const session = createEditorSession({
+      doc: sceneToDoc(def, { key: sequentialKeys("t") }),
+      origin: ada,
+      name: "tree",
+      registry,
+      prefabs: staticPrefabSource(prefabs),
+      issuesDebounceMs: 0,
+    });
+    session.select(selection);
+    const dispatch = vi.spyOn(session, "dispatch");
+    render(<EditorInspector session={session} />);
+    return { session, dispatch };
+  }
+
+  const identity = () => screen.getByRole("region", { name: "Identity" });
+  const pick = async (id: string) => {
+    fireEvent.click(within(identity()).getByRole("button", { name: "Show options" }));
+    const options = await waitFor(() => screen.getAllByRole("option"));
+    const option = options.find((o) => o.textContent === id)!;
+    fireEvent.mouseMove(option);
+    fireEvent.click(option);
+  };
+  const options = async () => {
+    fireEvent.click(within(identity()).getByRole("button", { name: "Show options" }));
+    return (await waitFor(() => screen.getAllByRole("option"))).map((o) => o.textContent);
+  };
+
+  it("reparents an entity with one reparent, keeps it in place, and undo restores it", async () => {
+    const { session, dispatch } = tree(["ring"]);
+    expect(within(identity()).getByRole("combobox", { name: "parent" })).toBeTruthy();
+    const world = () => session.getResolved().entities!.find((e) => e.id === "ring")!.shape;
+    const before = world();
+    const rows = session.store.state.history.length;
+    await pick("rig");
+    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+    expect(dispatch.mock.calls[0]![0]).toEqual({
+      label: "Reparent ring under rig",
+      ops: [{ op: "reparent", refs: ["ring"], parent: "rig" }],
+    });
+    expect(entity(session, "ring").parent).toBe("rig");
+    expect(world()).toEqual(before);
+    expect(session.store.state.history).toHaveLength(rows + 1);
+    expect(screen.getByText("World values; the file stores them in rig's frame.")).toBeTruthy();
+
+    act(() => void session.undo());
+    expect(entity(session, "ring").parent).toBeUndefined();
+    expect(entity(session, "ring").shape).toEqual(["circle", 700, 600, 30]);
+  });
+
+  it("offers no parent under the entity's own subtree", async () => {
+    tree(["rig"]);
+    const listed = await options();
+    expect(listed).toEqual(expect.arrayContaining(["ring", "post-2", "post-2/p"]));
+    expect(listed).not.toContain("rig");
+    expect(listed).not.toContain("bolt");
+  });
+
+  it("says which frame a child's world values are stored in", () => {
+    tree(["bolt"]);
+    expect(screen.getByText("World values; the file stores them in rig's frame.")).toBeTruthy();
+  });
+
+  it("puts the Parent row in an instance's Identity and reparents the instance", async () => {
+    const { session, dispatch } = tree(["post-2"]);
+    await pick("rig");
+    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+    expect(dispatch.mock.calls[0]![0]).toEqual({
+      label: "Reparent post-2 under rig",
+      ops: [{ op: "reparent", refs: ["post-2"], parent: "rig" }],
+    });
+    const inst = () => session.getDoc().instances!.find((i) => i.id === "post-2")!;
+    expect(inst().parent).toBe("rig");
+    act(() => void session.undo());
+    expect(inst().parent).toBeUndefined();
+    expect(inst().at).toEqual([300, 300]);
+  });
+
+  it("sets an instance's angle in degrees with one transform", () => {
+    const { session, dispatch } = tree(["post-2"]);
+    fireEvent.change(input("rot"), { target: { value: "45" } });
+    fireEvent.keyDown(input("rot"), { key: "Enter" });
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(dispatch.mock.calls[0]![0]).toEqual({
+      label: "Turn post-2 to 45°",
+      ops: [{ op: "transform", refs: ["post-2"], rotate: 45 }],
+    });
+    expect(session.getDoc().instances![0]!.rot).toBe(45);
+    expect(screen.getByText("Turned 45°")).toBeTruthy();
+  });
+
+  it("shows an instance child's parent without a picker", () => {
+    tree(["post-2/p"]);
+    expect(within(identity()).queryByRole("combobox", { name: "parent" })).toBeNull();
+    expect(within(identity()).getByText("post-2")).toBeTruthy();
+    expect(document.querySelectorAll("[title]")).toHaveLength(0);
   });
 });

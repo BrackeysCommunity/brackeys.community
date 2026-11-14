@@ -20,7 +20,7 @@ const ENTITY_KEY_ORDER = [
   "prefab",
   "name",
   "layer",
-  "group",
+  "parent",
   "off",
   "z",
   "shape",
@@ -59,7 +59,7 @@ function ordered(obj: Record<string, unknown>, plain = false): [string, unknown]
     .map((k) => [k, obj[k]]);
 }
 
-/** Top-level keys written one item per line: the bulk arrays, `instances` and `entities`; `groups` one group per line. */
+/** Top-level keys written one item per line: the bulk arrays, `instances` and `entities`. */
 const isRowKey = (key: string, value: unknown) =>
   key === "instances" ||
   (!(SCENE_HEADER_KEYS as readonly string[]).includes(key) && Array.isArray(value));
@@ -238,10 +238,10 @@ function addNested(
 /**
  * The canonical text of a scene, without a registry: header keys in
  * `SCENE_HEADER_KEYS` order, then bulk keys sorted by code unit, then
- * `entities`; one tuple, instance, entity or group per line, the `assets`
+ * `entities`; one tuple, instance or entity per line, the `assets`
  * header on one line, sorted and unique, two-space indent, trailing
  * newline. An entity holding grids spans lines: its grid fields last, one
- * chunk per line. Empty arrays, an empty `groups` or `settings` and a
+ * chunk per line. Empty arrays, an empty `settings` and a
  * row's empty nested maps (`withoutEmptyMaps`) are left out. `lines`
  * maps every JSON Pointer to its 1-based line; pointers inside a tuple or
  * entity map to that item's first line, except those inside a chunk (its
@@ -265,7 +265,7 @@ export function formatScene(def: SceneDefinition): { text: string; lines: Map<st
     if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
     members.push([key, value]);
   }
-  for (const key of ["assets", "groups", "instances", "settings"]) {
+  for (const key of ["assets", "instances", "settings"]) {
     const m = members.findIndex(([k]) => k === key);
     const value = m >= 0 ? members[m]![1] : undefined;
     const empty = Array.isArray(value)
@@ -278,18 +278,6 @@ export function formatScene(def: SceneDefinition): { text: string; lines: Map<st
     const comma = m < members.length - 1 ? "," : "";
     const pointer = jsonPointer([key]);
     const keyText = `  ${JSON.stringify(key)}: `;
-    if (key === "groups" && value !== null && typeof value === "object") {
-      const ids = Object.keys(value).sort(byCodeUnit);
-      lines.set(pointer, out.length + 1);
-      out.push(`${keyText}{`);
-      ids.forEach((id, i) => {
-        const group = (value as Record<string, unknown>)[id];
-        addNested(lines, `${pointer}${jsonPointer([id])}`, group, out.length + 1);
-        out.push(`    ${JSON.stringify(id)}: ${inline(group)}${i < ids.length - 1 ? "," : ""}`);
-      });
-      out.push(`  }${comma}`);
-      return;
-    }
     if (!isRowKey(key, value) || !Array.isArray(value)) {
       addNested(lines, pointer, value, out.length + 1);
       out.push(`${keyText}${inline(value)}${comma}`);

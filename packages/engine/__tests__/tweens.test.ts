@@ -209,16 +209,16 @@ describe.each(BACKENDS)("setPose on %s", (physics) => {
 });
 
 describe("setPose's place among the primitives", () => {
-  it("solid, sensor, marker and decor have it; prop and follower don't", () => {
+  it("solid, sensor, marker, decor and prop have it; follower doesn't", () => {
     const rt = createSceneRuntime({ rapier, view: null, game: sensing });
     const scene = engineYard();
     scene.entities.push({ id: "lamp", type: "decor", at: [1, 1] });
     const report = rt.load(scene);
     if (!report.ok) throw new Error(report.error);
     const hook = (type: string) => typeof rt.ctx.system(type)?.setPose;
-    for (const type of ["solid", "sensor", "marker", "decor"])
+    for (const type of ["solid", "sensor", "marker", "decor", "prop"])
       expect(hook(type), type).toBe("function");
-    for (const type of ["prop", "follower"]) expect(hook(type), type).toBe("undefined");
+    for (const type of ["follower"]) expect(hook(type), type).toBe("undefined");
     rt.destroy();
   });
 
@@ -491,7 +491,19 @@ describe("tweens", () => {
     const rt = createSceneRuntime({ rapier, view: null, game: sensing });
     const report = rt.load({
       ...physicsFree([
-        { id: "crate", type: "prop", shape: box(0, 0, 0.5, 0.5), density: 1, restitution: 0 },
+        {
+          id: "lift",
+          type: "follower",
+          shape: box(0, 0, 0.5, 0.1),
+          path: {
+            pts: [
+              [0, 0],
+              [4, 0],
+            ],
+            mode: "loop",
+            speed: 1,
+          },
+        },
         { id: "spot", type: "marker", at: [0, 0] },
       ]),
       settings: { ...physicsFree([]).settings, physics: "rapier" },
@@ -505,9 +517,9 @@ describe("tweens", () => {
       }
       return null;
     };
-    expect(refusal(() => rt.ctx.tweens.to("crate", { to: { x: 1 }, duration: 5 }))).toEqual([
+    expect(refusal(() => rt.ctx.tweens.to("lift", { to: { x: 1 }, duration: 5 }))).toEqual([
       "tween-target-invalid",
-      `can't tween "crate": it is a prop, which can't be posed, so a tween can't move its x`,
+      `can't tween "lift": it is a follower, which can't be posed, so a tween can't move its x`,
     ]);
     expect(refusal(() => rt.ctx.tweens.to("spot", { to: { alpha: 0 }, duration: 5 }))).toEqual([
       "tween-target-invalid",
@@ -524,11 +536,17 @@ describe("tweens", () => {
     const refused = blocked.load({
       ...physicsFree([
         {
-          id: "crate",
-          type: "prop",
-          shape: box(0, 0, 0.5, 0.5),
-          density: 1,
-          restitution: 0,
+          id: "lift",
+          type: "follower",
+          shape: box(0, 0, 0.5, 0.1),
+          path: {
+            pts: [
+              [0, 0],
+              [4, 0],
+            ],
+            mode: "loop",
+            speed: 1,
+          },
           behaviors: { tween: { tweens: [{ to: { rot: 1 }, duration: 5 }] } },
         },
       ]),
@@ -538,7 +556,7 @@ describe("tweens", () => {
     blocked.destroy();
   });
 
-  it("are refused on the pose of a solid or sensor riding a host, which its host's body places", () => {
+  it("play on the pose of a solid or sensor riding a host, which moves it in the host's frame", () => {
     const { rt } = load(
       [
         {
@@ -554,30 +572,19 @@ describe("tweens", () => {
             speed: 1,
           },
         },
-        { id: "plank", type: "solid", attach: "lift", shape: box(1, -1, 1, 0.2) },
-        { id: "gate", type: "sensor", attach: "lift", shape: box(-1, -1, 0.5, 0.5) },
+        { id: "plank", type: "solid", parent: "lift", shape: box(1, -1, 1, 0.2) },
+        { id: "gate", type: "sensor", parent: "lift", shape: box(-1, -1, 0.5, 0.5) },
         { id: "door", type: "solid", shape: box(5, 5, 1, 0.5) },
       ],
       "rapier",
     );
-    const refusal = (id: string) => {
-      try {
-        rt.ctx.tweens.to(id, { to: { y: 3 }, duration: 5 });
-      } catch (err) {
-        return err instanceof EngineError ? [err.code, err.message] : String(err);
-      }
-      return null;
-    };
-    expect(refusal("plank")).toEqual([
-      "tween-target-invalid",
-      `can't tween "plank": it is a solid riding "lift", which can't be posed, so a tween can't move its y`,
-    ]);
-    expect(refusal("gate")?.[0]).toBe("tween-target-invalid");
-    expect(refusal("door")).toBeNull();
+    for (const id of ["plank", "gate", "door"])
+      expect(rt.ctx.tweens.to(id, { to: { y: 3 }, duration: 5 })).toBeGreaterThan(0);
+    expect(rt.ctx.tweens.size).toBe(3);
     rt.destroy();
   });
 
-  it("refuse a block entry on a riding solid at load, counting entries from 1 as the validator does", () => {
+  it("load a block entry on a riding solid", () => {
     const rt = createSceneRuntime({ rapier, view: null, game: sensing });
     const report = rt.load({
       name: "riding",
@@ -605,17 +612,14 @@ describe("tweens", () => {
         {
           id: "plank",
           type: "solid",
-          attach: "lift",
+          parent: "lift",
           shape: box(1, -1, 1, 0.2),
           behaviors: { tween: { tweens: [{ to: { y: 3 }, duration: 5 }] } },
         },
       ],
     });
-    expect(report).toMatchObject({
-      ok: false,
-      entityId: "plank",
-      error: `plank's tween 1 can't play: it is a solid riding "lift", which can't be posed, so a tween can't move its y`,
-    });
+    expect(report.ok).toBe(true);
+    expect(rt.ctx.tweens.size).toBe(1);
     rt.destroy();
   });
 

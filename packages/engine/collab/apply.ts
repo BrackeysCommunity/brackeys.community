@@ -24,7 +24,6 @@ import {
   type ApplyResult,
   type Bounds,
   type BulkKey,
-  type GroupDef,
   type OpBatch,
   type OverridePath,
   type PrefabLibrary,
@@ -40,7 +39,6 @@ import {
   ENTITIES_BUCKET,
   entitiesMap,
   entityRecord,
-  groupMap,
   groupsMap,
   instanceRecord,
   instancesMap,
@@ -62,7 +60,6 @@ import { appendLog, fingerprint, sameValue as same, type LogInput } from "./log"
 import { assignZ } from "./order";
 import {
   ASSETS_KEY,
-  GROUP_KEY_PREFIX,
   INSTANCE_KEY_PREFIX,
   PARAM_KEY_PREFIX,
   SCENE_KEY,
@@ -134,7 +131,6 @@ export type DocApplyResult =
 export const SCENE_ONLY_OPS: readonly SceneOp["op"][] = [
   "setScene",
   "setSettings",
-  "setGroup",
   "definePrefab",
   "createPrefab",
 ];
@@ -165,7 +161,7 @@ function tagsOf(view: DocView): EntryTags {
  * plus its `log` entry. Instances resolve against `opts.prefabs`; the ops
  * that read or write prefabs go through `opts.prefabWriter` (one more
  * transaction per prefab doc) and are refused without one. On a prefab doc
- * the scene-only ops, grouped children, a write to the prefab itself and
+ * the scene-only ops, a write to the prefab itself and
  * an instance that makes the prefab contain itself are refused.
  */
 export function applyOpsToDoc(
@@ -270,11 +266,6 @@ export function applyOpsToDoc(
     header = headerFields(headed.header);
   }
   if (view.kind === "prefab") {
-    const grouped = [...(result.def.entities ?? []), ...(result.def.instances ?? [])].some(
-      (e) => e.group !== undefined,
-    );
-    if (grouped)
-      return refuse(0, "A prefab's children can't join a group; an instance takes its group.");
     const id = view.prefab?.id ?? "";
     if (result.prefabsChanged?.includes(id))
       return refuse(
@@ -369,7 +360,7 @@ type Written = {
  * Writes `next` over the doc that `view` was read from. `tags` names the
  * key behind each entry of `next` that already existed; others get new
  * keys. Every map is written key by key: the assets set one id at a time,
- * a group's `at`, `rot`, `flip` and `name` each on their own, and records
+ * and records
  * through `patchRecord`, so a paint writes only the grid rows it changed.
  * A prefab doc gets its entities, instances and assets. Call inside a
  * transaction.
@@ -482,7 +473,7 @@ export function writeScene(
   }
 
   nextView.instanceKeys = writeInstances(doc, view, next, tags, key, log);
-  writeGroups(doc, view.def, next, log);
+  emptyLegacyGroups(doc, next);
   writeAssetSet(doc, view.def, next, log);
 
   const scene = sceneMap(doc);
@@ -548,47 +539,11 @@ function writeInstances(
   return keys;
 }
 
-/** The keys a group's `Y.Map` holds besides `at`, each written on its own. */
-const GROUP_KEYS = ["rot", "flip", "name"] as const;
-
-/**
- * Brings a group's `Y.Map` from `prev` to `next` key by key, so concurrent
- * edits of its `at`, turn, mirror and name merge. `prev` undefined writes
- * every key.
- */
-export function patchGroup(ymap: Y.Map<unknown>, prev: GroupDef | undefined, next: GroupDef): void {
-  if (!same(prev?.at, next.at)) ymap.set("at", structuredClone(next.at));
-  for (const k of GROUP_KEYS) {
-    const value = next[k];
-    if (value === undefined) {
-      if (ymap.has(k)) ymap.delete(k);
-    } else if (!same(ymap.get(k), value)) ymap.set(k, value);
-  }
-}
-
-/** Groups by id, each key of a group its own entry, so concurrent edits of its parts merge. */
-function writeGroups(
-  doc: Y.Doc,
-  prev: SceneDefinition,
-  next: SceneDefinition,
-  log: LogParts,
-): void {
+/** Empties a format 4 doc's `groups` map once its groups have become nodes; nothing else writes it. */
+function emptyLegacyGroups(doc: Y.Doc, next: SceneDefinition): void {
   const map = groupsMap(doc);
-  const was = prev.groups ?? {};
-  const now = next.groups ?? {};
-  for (const id of new Set([...Object.keys(was), ...Object.keys(now)])) {
-    const a = was[id];
-    const b = now[id];
-    if (same(a, b)) continue;
-    const logKey = `${GROUP_KEY_PREFIX}${id}`;
-    const ymap = map.get(id);
-    if (!b) map.delete(id);
-    else if (!ymap || !(ymap instanceof Y.Map)) map.set(id, groupMap(b));
-    else patchGroup(ymap, a, b);
-    log.before[logKey] = a ?? null;
-    log.after[logKey] = b ? fingerprint(b) : null;
-    log.keys.push(logKey);
-  }
+  if (map.size === 0 || "groups" in next) return;
+  for (const id of [...map.keys()]) map.delete(id);
 }
 
 /** The `assets` header, one key per id, so two clients adding different ids merge; logged as its sorted ids, null when empty. */

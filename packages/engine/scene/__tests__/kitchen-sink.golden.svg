@@ -55,6 +55,21 @@
 <path data-ref="floor-plan" data-type="nav" d="M1900 300L2300 300L2300 400L2050 400L2050 550L1900 550Z" fill="none" stroke="#55aaff" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="pillar" data-type="nav" d="M2120 330L2180 330L2180 370L2120 370Z" fill="none" stroke="#55aaff" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="framing" data-type="camera-region" stroke-dasharray="13.5 9" d="M900 50L2100 50L2100 750L900 750Z" fill="none" stroke="#ff9966" stroke-opacity="0.9" stroke-width="4.5" stroke-linejoin="round"/>
+<g data-ref="shelf" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="1400" cy="700" r="11.25"/><path d="M1382 700H1418M1400 682V718"/></g>
+<g data-ref="wing" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="3200" cy="400" r="11.25"/><path d="M3182 400H3218M3200 382V418"/></g>
+<g data-ref="pivot" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="940" cy="820" r="11.25"/><path d="M922 820H958M940 802V838"/></g>
+<g data-ref="hook" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="1500" cy="360" r="11.25"/><path d="M1482 360H1518M1500 342V378"/></g>
+<g data-ref="post-1" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="1640" cy="1160" r="11.25"/><path d="M1622 1160H1658M1640 1142V1178"/></g>
+<g data-ref="post-2" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="1760" cy="1160" r="11.25"/><path d="M1742 1160H1778M1760 1142V1178"/></g>
+<g data-ref="gate-1" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="1980" cy="1160" r="11.25"/><path d="M1962 1160H1998M1980 1142V1178"/></g>
+<g data-ref="gate-2" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="2200" cy="1160" r="11.25"/><path d="M2182 1160H2218M2200 1142V1178"/></g>
+<g data-ref="room-1" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="2720" cy="900" r="11.25"/><path d="M2702 900H2738M2720 882V918"/></g>
+<g data-ref="room-1/door-1" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="2570" cy="900" r="11.25"/><path d="M2552 900H2588M2570 882V918"/></g>
+<g data-ref="room-1/door-1/latch" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="2640" cy="900" r="11.25"/><path d="M2622 900H2658M2640 882V918"/></g>
+<g data-ref="room-1/latch-1" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="2870" cy="900" r="11.25"/><path d="M2852 900H2888M2870 882V918"/></g>
+<g data-ref="door-2" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="3300" cy="1160" r="11.25"/><path d="M3282 1160H3318M3300 1142V1178"/></g>
+<g data-ref="door-2/latch" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="3230" cy="1160" r="11.25"/><path d="M3212 1160H3248M3230 1142V1178"/></g>
+<g data-ref="latch-3" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="3.38"><circle cx="3460" cy="1160" r="11.25"/><path d="M3442 1160H3478M3460 1142V1178"/></g>
 <g data-ref="start" data-type="marker" class="spawn"><path d="M760 1140V1090.5L787 1101.75L760 1113" fill="#ffcc44" fill-opacity="0.85" stroke="#ffcc44" stroke-width="3.38"/><circle cx="760" cy="1140" r="6.75" fill="#ffcc44"/></g>
 <g data-ref="shelf-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1440" cy="680" r="11.25"/><path d="M1422 680H1458M1440 662V698"/></g>
 <g data-ref="wing-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="3220" cy="480" r="11.25"/><path d="M3202 480H3238M3220 462V498"/></g>
@@ -71,6 +86,8 @@
 <g data-ref="std-camera-target" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1200" cy="600" r="11.25"/><path d="M1182 600H1218M1200 582V618"/></g>
 <g data-ref="std-anim" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1060" cy="520" r="11.25"/><path d="M1042 520H1078M1060 502V538"/></g>
 <g data-ref="std-emitter" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1280" cy="540" r="11.25"/><path d="M1262 540H1298M1280 522V558"/></g>
+<g data-ref="cap-flag" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1010" r="11.25"/><path d="M1622 1010H1658M1640 992V1028"/></g>
+<g data-ref="hook-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1500" cy="420" r="11.25"/><path d="M1482 420H1518M1500 402V438"/></g>
 <g data-ref="post-1/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1030" r="11.25"/><path d="M1622 1030H1658M1640 1012V1048"/></g>
 <g data-ref="post-2/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1760" cy="1030" r="11.25"/><path d="M1742 1030H1778M1760 1012V1048"/></g>
 <g data-ref="room-1/lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2720" cy="700" r="11.25"/><path d="M2702 700H2738M2720 682V718"/></g>
@@ -122,6 +139,21 @@
 </g>
 </g>
 <g id="labels" text-anchor="middle" fill="#f2f4f8" stroke="#000000" stroke-opacity="0.75" stroke-width="6.75" stroke-linejoin="round" paint-order="stroke">
+<text x="1420.25" y="679.75" font-size="24.75" text-anchor="start">shelf</text>
+<text x="3220.25" y="379.75" font-size="24.75" text-anchor="start">wing</text>
+<text x="960.25" y="799.75" font-size="24.75" text-anchor="start">pivot</text>
+<text x="1520.25" y="339.75" font-size="24.75" text-anchor="start">hook</text>
+<text x="1660.25" y="1139.75" font-size="24.75" text-anchor="start">post-1</text>
+<text x="1780.25" y="1139.75" font-size="24.75" text-anchor="start">post-2</text>
+<text x="2000.25" y="1139.75" font-size="24.75" text-anchor="start">gate-1</text>
+<text x="2220.25" y="1139.75" font-size="24.75" text-anchor="start">gate-2</text>
+<text x="2740.25" y="879.75" font-size="24.75" text-anchor="start">room-1</text>
+<text x="2590.25" y="879.75" font-size="24.75" text-anchor="start">room-1/door-1</text>
+<text x="2660.25" y="879.75" font-size="24.75" text-anchor="start">room-1/door-1/latch</text>
+<text x="2890.25" y="879.75" font-size="24.75" text-anchor="start">room-1/latch-1</text>
+<text x="3320.25" y="1139.75" font-size="24.75" text-anchor="start">door-2</text>
+<text x="3250.25" y="1139.75" font-size="24.75" text-anchor="start">door-2/latch</text>
+<text x="3480.25" y="1139.75" font-size="24.75" text-anchor="start">latch-3</text>
 <text x="820" y="908.84" font-size="24.75">ledge</text>
 <text class="sprite-label" x="820" y="883.25" font-size="20.25" fill-opacity="0.8">hero:hero-1</text>
 <text x="760" y="388.84" font-size="24.75">deck</text>
@@ -168,6 +200,8 @@
 <text x="1080.25" y="499.75" font-size="24.75" text-anchor="start">std-anim</text>
 <text class="sprite-label" x="1060" y="489.25" font-size="20.25" fill-opacity="0.8">hero:hero-0</text>
 <text x="1300.25" y="519.75" font-size="24.75" text-anchor="start">std-emitter</text>
+<text x="1660.25" y="989.75" font-size="24.75" text-anchor="start">cap-flag</text>
+<text x="1520.25" y="399.75" font-size="24.75" text-anchor="start">hook-mark</text>
 <text x="1660.25" y="1009.75" font-size="24.75" text-anchor="start">post-1/cap</text>
 <text x="1780.25" y="1009.75" font-size="24.75" text-anchor="start">post-2/cap</text>
 <text x="2740.25" y="679.75" font-size="24.75" text-anchor="start">room-1/lamp</text>

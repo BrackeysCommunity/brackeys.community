@@ -54,11 +54,13 @@ import type {
   BehaviorSystem,
   RegisteredBehavior,
 } from "./behaviors";
+import type { BehaviorKey, Entity, HandleOf } from "./entity";
 import type { FlowRequest, SublevelInfo, SublevelOptions, SublevelResult } from "./flow";
 import type { PadAxis, PadButton, PointerButton } from "./input-codes";
 import type { LiveDeclaration, SceneSwap } from "./live";
 import type { CameraRigDef } from "./primitives";
 import type { SaveDepth, SaveGameData, SaveLimits } from "./save-file";
+import type { ScriptClass } from "./script";
 import type { ResolvedTime, TimeModel } from "./time";
 
 export type { ResolvedTime, RuntimeGrid, RuntimeNav };
@@ -79,6 +81,7 @@ export type JsonValue =
  * `base` to be spawned by the engine's system for it.
  */
 export const PRIMITIVE_TYPES = [
+  "node",
   "solid",
   "sensor",
   "marker",
@@ -223,6 +226,19 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
    * colliders in step; a type without it can't be tweened by pose.
    */
   setPose?(id: string, x: number, y: number, rot: number): void;
+  /** True while this type moves `id` in world space, so a parent's movement doesn't carry it. */
+  selfMoving?(id: string): boolean;
+  /**
+   * The tree found a body above `id` (`host`), or none any more (null): put
+   * its collider on that body at its offset, or back on its own.
+   */
+  ride?(id: string, host: string | null): void;
+  /**
+   * The tree carries `id` to `pose` because `parent` moved. When `id`'s
+   * collider rides `parent`'s body, which already put it there, writes its
+   * pose (and visual) alone and returns true; false to take `setPose`.
+   */
+  carried?(id: string, parent: string, pose: Readonly<Pose>, snap: boolean): boolean;
 }
 
 /** A save game code asked for; the host writes it after the tick, and the result is a host event. */
@@ -290,8 +306,9 @@ export type EngineContext = {
   /** The system that spawns `type`, for a game's hooks to drive. */
   system: <S extends SceneSystem = SceneSystem>(type: EntityTypeName) => S | undefined;
   /**
-   * Colliders riding another entity's body: what `attach` on solids and
-   * sensors goes through. Throws `PhysicsRequiredError` when physics is null.
+   * Colliders riding another entity's body: colliders with no body of
+   * their own under a parent that has one.
+   * Throws `PhysicsRequiredError` when physics is null.
    */
   attachments: AttachmentHub;
   /**
@@ -383,7 +400,43 @@ export type EngineContext = {
   readonly anim: AnimContext;
   /** Tweens over whole ticks: an entity's pose and sprite look, or a number in game state. */
   readonly tweens: Tweens;
+  /** The handle of a live entity, the same object each time; undefined for an id that isn't live. */
+  entity: (id: string) => Entity | undefined;
+  /** Handles in spawn order. */
+  entities: (sel?: EntitySelector) => readonly Entity[];
+  /**
+   * Moves any entity through whoever owns its position: its type system,
+   * then each attached behavior's `posed`. Metres and radians; `rot`
+   * omitted keeps the angle, `snap` moves without interpolating. Throws
+   * `EngineError("pose-not-settable")` for a type nothing can pose.
+   */
+  setPose: (id: string, x: number, y: number, rot?: number, opts?: { snap?: boolean }) => void;
+  /** The first enabled entity in spawn order carrying it: a definition, a script class or a name. */
+  findBehavior: <D extends BehaviorKey = never>(def: D | BehaviorName) => HandleOf<D> | undefined;
+  /** Every enabled entity carrying it, in spawn order. */
+  findBehaviors: <D extends BehaviorKey = never>(def: D | BehaviorName) => readonly HandleOf<D>[];
+  /** Parents and children at runtime, by id. */
+  readonly tree: SceneTree;
 };
+
+/** `EngineContext.tree`: the entities' parents and children, and poses in a parent's frame. */
+export interface SceneTree {
+  parent(id: string): string | null;
+  children(id: string): readonly string[];
+  /** `id`, then its descendants, depth first in child order. */
+  subtree(id: string): readonly string[];
+  root(id: string): string;
+  /** Whether `id` is `ancestor` or below it. Answers for entities destroyed this tick, until the tick's last dispatch. */
+  isUnder(id: string, ancestor: string): boolean;
+  /** The pose in the parent's frame; the world pose for a root. */
+  local(id: string): Readonly<Pose> | undefined;
+  setLocal(id: string, x: number, y: number, rot?: number): void;
+  /**
+   * Moves `id` under `parent` (null: a root), keeping its world pose unless
+   * `keepWorld` is false. Throws `EngineError` `parent-cycle` or `parent-scope`.
+   */
+  setParent(id: string, parent: string | null, opts?: { keepWorld?: boolean }): void;
+}
 
 /** `EngineContext.live`. */
 export type LiveContext = {
@@ -438,13 +491,21 @@ export type SpawnInput = {
   id?: string;
   /** A sublevel's label: the spawn is destroyed with that sublevel's detach. */
   sublevel?: string;
+  /** The live entity it spawns under. */
+  parent?: string;
+  /** The geometry fields are in the parent's frame; default false, world. */
+  local?: boolean;
   [field: string]: unknown;
 };
 
 /**
  * A runtime refusal with an issue code: `spawn-id-invalid`,
- * `prefab-not-spawnable`, `physics-required`, `unknown-type`, `schema`. A
- * playtest that hits one ends blocked at stage `"run"` with its code.
+ * `prefab-not-spawnable`, `physics-required`, `unknown-type`, `schema`,
+ * `entity-gone` (a handle used after its entity was destroyed),
+ * `pose-not-settable` (`ctx.setPose` on a type nothing can pose),
+ * `parent-cycle` and `parent-scope` (a reparent under its own subtree, or
+ * under an entity of another sublevel). A playtest that hits one ends
+ * blocked at stage `"run"` with its code.
  */
 export class EngineError extends Error {
   readonly code: string;
@@ -478,7 +539,12 @@ export interface EventBus {
 }
 
 export type InstantiateOptions = {
-  rot?: 0 | 1 | 2 | 3;
+  /** Degrees clockwise (y down). */
+  rot?: number;
+  /** The live entity the instance's node spawns under. */
+  parent?: string;
+  /** `at` is in the parent's frame; default false, world. */
+  local?: boolean;
   flip?: boolean;
   z?: number;
   layer?: string;
@@ -525,6 +591,10 @@ export type EntitySelector = {
   tag?: string;
   /** Default true: only enabled entities. */
   enabled?: boolean;
+  /** Only entities carrying this behavior. */
+  behavior?: BehaviorName;
+  /** Only this entity's descendants. */
+  under?: string;
 };
 
 export interface EntityQuery {
@@ -1149,8 +1219,11 @@ export type GameDefinition<S = unknown, G = unknown> = {
   tables?: Readonly<Record<string, GameTableDef>>;
   /** Fields the game adds to the project's game-settings doc. */
   projectSettings?: z.ZodRawShape;
-  /** The game's behaviors, after the engine's in registration order; names are `<id>/<name>`. */
-  behaviors?: readonly BehaviorDef[];
+  /**
+   * The game's behaviors, after the engine's in registration order; names are
+   * `<id>/<name>`. A script class registers its `behavior`.
+   */
+  behaviors?: readonly (BehaviorDef | ScriptClass)[];
   /** Scene layers, bottom to top; replaces the engine's four defaults when given. */
   layers?: readonly SceneLayerDef[];
   /** The game's resolution policy, under the project's and the host's. */

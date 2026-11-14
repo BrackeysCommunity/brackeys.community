@@ -166,14 +166,13 @@ describe("openPrefabIsolation", () => {
     project.destroy();
   });
 
-  it("refuses scene-only ops, grouped children and an instance of itself, leaving both docs as they were", async () => {
+  it("refuses scene-only ops and an instance of itself, leaving both docs as they were", async () => {
     const { project, main, iso } = await setup();
     const before = main.getHash();
     for (const ops of [
       [{ op: "setScene", set: { name: "other" } }],
       [{ op: "setSettings", set: { gravity: 1 } }],
       [{ op: "definePrefab", id: "post", prefab: null }],
-      [{ op: "add", entity: { id: "x", type: "marker", at: [0, 0], group: "walls" } }],
     ] as const) {
       const refused = iso.session.dispatch({ ops: [...ops] as never });
       expect(refused.ok || refused.issue.code, JSON.stringify(ops)).toBe("op-invalid");

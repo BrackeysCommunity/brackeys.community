@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "room",
   "bulk": {
     "solid": [
@@ -9,7 +9,7 @@
   },
   "instances": [
     { "id": "gate-1", "prefab": "gate", "at": [-200, 0] },
-    { "id": "gate-2", "prefab": "gate", "at": [200, 0], "rot": 2, "flip": true, "overrides": { "door.path.speed": 90 } },
+    { "id": "gate-2", "prefab": "gate", "at": [200, 0], "rot": 180, "flip": true, "overrides": { "door.path.speed": 90 } },
     { "id": "door-1", "prefab": "door", "z": 2, "at": [0, 40], "overrides": { "latch/door.path.speed": 30, "panel.path.speed": 50 } }
   ],
   "entities": [

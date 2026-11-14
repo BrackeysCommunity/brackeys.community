@@ -24,7 +24,13 @@ export {
 } from "./asset-drop";
 export { prune, remap, select, type SelectMode } from "./selection";
 export { createEditorStore, setHover, type EditorMode, type EditorStoreState } from "./store";
-export { buildOutline, INSTANCES_ROW, outlineOrder, type OutlineRow } from "./outline";
+export {
+  buildOutline,
+  buildTreeOutline,
+  INSTANCES_ROW,
+  outlineOrder,
+  type OutlineRow,
+} from "./outline";
 export {
   applyLevels,
   applyToPrefabBatch,
@@ -54,12 +60,17 @@ export {
 export {
   buildInspectorModel,
   INSPECTOR_SECTIONS,
+  instanceAngleBatch,
+  instanceAngleRow,
   instanceParamsModel,
   instanceTransformModel,
   instanceZBatch,
   modelBatch,
   modelOps,
   paramBatch,
+  parentBatch,
+  parentCandidates,
+  parentModel,
   parseRelative,
   refCandidates,
   SECTION_TITLES,
@@ -79,6 +90,7 @@ export {
   type ModelField,
   type ModelSectionId,
   type ParamModel,
+  type ParentModel,
   type ShapeConversion,
 } from "./inspector-model";
 export {
@@ -175,7 +187,6 @@ export {
   type KeyScope,
 } from "./keymap";
 export type { GameEditorDef, GameKeyBinding, InspectorWidgetDef } from "../game/types";
-export { attachBatch, attachFieldOf, isFollowerType } from "./attach";
 export { docRefs, isBulkRef, lookupRef, referableEntities, type RefTarget } from "./refs";
 export {
   fragmentBounds,
@@ -234,7 +245,7 @@ export {
   groupBatch,
   hierarchyDown,
   hierarchyUp,
-  nextGroupName,
+  instanceLevels,
   nudgeBatch,
   nudgeDelta,
   quarterTurnTargets,
@@ -242,11 +253,13 @@ export {
   rotationPivot,
   selectAllRefs,
   selectionBounds,
+  selectionRoots,
   targetsOf,
   turnBatch,
   ungroupBatch,
   zOrderBatch,
   type QuarterTurnTargets,
+  type SelectingBatch,
 } from "./commands";
 export {
   boxTool,

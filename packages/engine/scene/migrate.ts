@@ -8,14 +8,20 @@ import { pxPerMetreOf, scaleLengths, scaleLengthsAt } from "../game/units";
 import { parseBulkId } from "./bulk-ref";
 import { splitFieldPath, splitOverridePath } from "./field-path";
 import { jsonPointer, makeIssue } from "./issues";
+import { CHILD_SEPARATOR, parseChildRef, sceneFrames } from "./resolve";
 import { unknownGameIssue } from "./schema";
 import { isShapeSchema, mapShapeLengths } from "./shapes";
+import { compose, IDENTITY_2D, invert, type Transform2D } from "./transform";
+import { transformEntityDef } from "./translate";
 import {
   PREFAB_KIND,
   PREFAB_MAX_DEPTH,
   RESERVED_SCENE_KEYS,
   SCENE_FORMAT_VERSION,
+  type EntityDef,
   type Prefab,
+  type PrefabLibrary,
+  type SceneDefinition,
   type SceneIssue,
 } from "./types";
 import { pxToMetres } from "./units";
@@ -380,6 +386,18 @@ function metricStep(registry: Registry, env: MigrateEnv) {
   };
 }
 
+/** Runs `fn` for the value at `pointer`, turning a ref it can't follow into a refusal that names the site. */
+function followAt<T>(pointer: (string | number)[], what: string, fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    if (!(error instanceof Unresolved)) throw error;
+    throw new Refused(
+      unresolved(jsonPointer(pointer), `${what} can't be followed: ${error.message}`),
+    );
+  }
+}
+
 /** Runs `fn` for the value at `pointer`, turning an unreadable unit into a refusal that names the site. */
 function at<T>(pointer: (string | number)[], what: string, fn: () => T): T {
   try {
@@ -429,10 +447,257 @@ function v3ToV4(raw: unknown, env: MigrateEnv): unknown {
   }
 }
 
+// ─── v4 → v5: the scene tree ─────────────────────────────
+
+const NODE = "node";
+
+/** Whether a v4 doc is a scene: prefab files and fragments never had groups. */
+const isSceneDoc = (doc: Body) => doc.kind === undefined;
+
+/** Composes steps given innermost first. */
+const composeAll = (steps: readonly Transform2D[]): Transform2D =>
+  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
+
+/** Quarter turns `k` as degrees; anything else is left for the schema to judge. */
+const quarterDeg = (k: unknown): unknown => (k === 1 || k === 2 || k === 3 ? 90 * k : k);
+
+/** An instance with `rot` in degrees. */
+function instanceDeg(inst: unknown): unknown {
+  if (!isRecord(inst) || inst.rot === undefined) return inst;
+  const out = { ...inst, rot: quarterDeg(inst.rot) };
+  if (out.rot === 0) delete out.rot;
+  return out;
+}
+
+/**
+ * The v4 → v5 step for one document, over the registry it is read with.
+ * Throws `Unresolved` where a ref can't be followed through `env.prefab`.
+ */
+function treeStep(registry: Registry, env: MigrateEnv) {
+  const prefab = (id: unknown): Body => {
+    if (typeof id !== "string") throw new Unresolved("its prefab id isn't a string");
+    const found = env.prefab?.(id);
+    if (!found)
+      throw new Unresolved(
+        env.prefab
+          ? `prefab "${id}" isn't in the project`
+          : `the step wasn't given prefab "${id}" to follow`,
+      );
+    return found as unknown as Body;
+  };
+
+  /** Whether `child` (a ref relative to `body`) names one of its nested instances. */
+  function namesInstance(body: Body, child: string, depth: number): boolean {
+    if (depth > PREFAB_MAX_DEPTH * 2) throw new Unresolved("its prefabs nest too deep to follow");
+    const [head, ...rest] = child.split("/") as [string, ...string[]];
+    const nested = listOf(body.instances).find((i) => i.id === head);
+    if (rest.length > 0) {
+      if (nested) return namesInstance(prefab(nested.prefab), rest.join("/"), depth + 1);
+    } else {
+      if (nested) return true;
+      if (parseBulkId(head) || listOf(body.entities).some((e) => e.id === head)) return false;
+    }
+    if (typeof body.base === "string") return namesInstance(prefab(body.base), child, depth + 1);
+    throw new Unresolved(`it names no child "${child}"`);
+  }
+
+  /** Overrides with each `<instance>.rot` value in degrees; `body` is what the keys are relative to. */
+  function overridesDeg(
+    body: () => Body,
+    overrides: unknown,
+    pointer: (string | number)[],
+  ): unknown {
+    if (!isRecord(overrides)) return overrides;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(overrides)) {
+      const split = splitOverridePath(key);
+      out[key] =
+        split?.field === "rot" && typeof value === "number"
+          ? followAt([...pointer, key], `override "${key}"`, () =>
+              namesInstance(body(), split.child, 0) ? quarterDeg(value) : value,
+            )
+          : value;
+    }
+    return out;
+  }
+
+  /** Step 1: instance `rot` in degrees, in the doc's instances and in overrides that set one. */
+  function rotations(doc: Body, out: Record<string, unknown>): void {
+    if (!Array.isArray(doc.instances)) return;
+    out.instances = doc.instances.map((inst, i) => {
+      const lifted = instanceDeg(inst);
+      if (!isRecord(lifted) || lifted.overrides === undefined) return lifted;
+      return {
+        ...lifted,
+        overrides: overridesDeg(() => prefab(lifted.prefab), lifted.overrides, [
+          "instances",
+          i,
+          "overrides",
+        ]),
+      };
+    });
+  }
+
+  /** Step 2: each group a node at the front of `entities`, each `group` a `parent`. */
+  function groups(doc: Body, out: Record<string, unknown>): void {
+    const declared = isRecord(doc.groups) ? doc.groups : {};
+    delete out.groups;
+    const taken = new Set(
+      [...listOf(out.entities), ...listOf(out.instances)].map((e) => String(e.id)),
+    );
+    const nodeOf = new Map<string, string>();
+    const nodes: Record<string, unknown>[] = [];
+    for (const g of Object.keys(declared).sort()) {
+      const def = declared[g];
+      if (!isRecord(def)) continue;
+      let id = g;
+      for (let n = 1; taken.has(id); n++) id = `${g}-${n}`;
+      taken.add(id);
+      nodeOf.set(g, id);
+      const node: Record<string, unknown> = { id, type: NODE };
+      if (typeof def.name === "string") node.name = def.name;
+      node.at = def.at;
+      const rot = quarterDeg(def.rot);
+      if (typeof rot === "number" && rot !== 0) node.rot = rot;
+      if (def.flip === true) node.flip = true;
+      nodes.push(node);
+    }
+    const lift = (item: unknown): unknown => {
+      if (!isRecord(item) || item.group === undefined) return item;
+      const { group, ...rest } = item;
+      const node = typeof group === "string" ? nodeOf.get(group) : undefined;
+      return node === undefined ? rest : { ...rest, parent: node };
+    };
+    if (Array.isArray(out.instances)) out.instances = out.instances.map(lift);
+    if (nodes.length > 0 || Array.isArray(out.entities))
+      out.entities = [...nodes, ...listOf(out.entities).map(lift)];
+  }
+
+  /** The prefabs `doc`'s instances reach, at the current version, for placing their children. */
+  function library(doc: Body): PrefabLibrary {
+    const out = new Map<string, Prefab>();
+    const visit = (id: unknown, depth: number) => {
+      if (typeof id !== "string" || out.has(id)) return;
+      if (depth > PREFAB_MAX_DEPTH * 2) throw new Unresolved("its prefabs nest too deep to follow");
+      const raw = prefab(id);
+      const lifted =
+        typeof raw.v === "number" && raw.v < SCENE_FORMAT_VERSION
+          ? migrate(structuredClone(raw), MIGRATIONS, SCENE_FORMAT_VERSION, env)
+          : { ok: true as const, raw };
+      if (!lifted.ok) throw new Unresolved(lifted.issue.message);
+      const body = lifted.raw as Body;
+      out.set(id, { ...body, entities: listOf(body.entities) } as unknown as Prefab);
+      for (const n of listOf(body.instances)) visit(n.prefab, depth + 1);
+      visit(body.base, depth + 1);
+    };
+    for (const n of listOf(doc.instances)) visit(n.prefab, 0);
+    return out;
+  }
+
+  /** Step 3: `attach: f` on a type with no field of that name becomes `parent: f`, kept in place. */
+  function attachments(out: Record<string, unknown>): void {
+    const entities = listOf(out.entities);
+    const riders = entities.filter(
+      (e) =>
+        typeof e.attach === "string" &&
+        typeof e.type === "string" &&
+        !("attach" in (registry.types.get(e.type)?.shape ?? {})),
+    );
+    if (riders.length === 0) return;
+    const nested = entities.findIndex(
+      (e) => riders.includes(e) && String(e.attach).includes(CHILD_SEPARATOR),
+    );
+    const view = {
+      v: SCENE_FORMAT_VERSION,
+      name: "",
+      bounds: [0, 0, 0, 0],
+      ...(isRecord(out.settings) ? { settings: out.settings } : {}),
+      entities,
+      instances: listOf(out.instances),
+    } as unknown as SceneDefinition;
+    const prefabs =
+      nested < 0
+        ? undefined
+        : followAt(["entities", nested, "attach"], `${String(entities[nested]!.id)}.attach`, () =>
+            library(out),
+          );
+    const frames = sceneFrames(view, registry, prefabs);
+    const moved = new Map<Record<string, unknown>, Record<string, unknown>>();
+    entities.forEach((e, i) => {
+      if (!riders.includes(e)) return;
+      const host = e.attach as string;
+      const child = parseChildRef(host);
+      const inst = child && view.instances?.find((x) => x.id === child.instance);
+      if (child && !(inst && frames.placed(inst)?.some((c) => c.def.id === host)))
+        throw new Refused(
+          unresolved(
+            jsonPointer(["entities", i, "attach"]),
+            `${String(e.id)}.attach names "${host}", which the step can't place through its instance's prefab`,
+          ),
+        );
+      const { attach: _attach, ...rest } = e;
+      const by = compose(
+        invert(composeAll(frames.under(host))),
+        composeAll(frames.stepsFor(e as EntityDef)),
+      );
+      const placed = transformEntityDef(registry, rest as EntityDef, by) ?? (rest as EntityDef);
+      moved.set(e, { ...placed, parent: host });
+    });
+    out.entities = entities.map((e) => moved.get(e) ?? e);
+  }
+
+  return function lift(doc: Body): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...doc };
+    rotations(doc, out);
+    if (doc.kind === PREFAB_KIND && doc.overrides !== undefined && typeof doc.base === "string") {
+      const base = doc.base;
+      out.overrides = overridesDeg(() => prefab(base), doc.overrides, ["overrides"]);
+    }
+    if (isSceneDoc(doc)) groups(doc, out);
+    attachments(out);
+    out.v = 5;
+    return out;
+  };
+}
+
+/**
+ * v4 → v5: the scene tree. In order: an instance's `rot` counts degrees
+ * (`k` quarter turns become `90 × k`), in scenes, prefab files' nested
+ * instances, overrides keyed `<instance>.rot` and fragments; each declared
+ * group becomes a `node` at the front of `entities` (its id, or the next
+ * free `<id>-<n>` when an entity or instance has it, at the group's `at`,
+ * turn and flip, with its name) and each `group` naming one becomes
+ * `parent`, one naming none is dropped; then `attach: f` on a solid or
+ * sensor becomes `parent: f`, its geometry taken from the world into
+ * `f`'s frame, through the frames above it first. An `f` inside an
+ * instance is placed through `env.prefab`. Refuses
+ * (`migration-unresolved`) without a registry, or when a ref can't be
+ * followed through the prefabs.
+ */
+function v4ToV5(raw: unknown, env: MigrateEnv): unknown {
+  const doc = raw as Record<string, unknown>;
+  const registry = env.registry;
+  if (!registry)
+    return unresolved(
+      "/v",
+      "the v4 → v5 step places groups and attached colliders under parents through the game's registry, and wasn't given it",
+    );
+  const game = typeof doc.game === "string" ? doc.game : undefined;
+  if (game !== undefined && game !== registry.id)
+    return { refused: unknownGameIssue(game, registry) };
+  try {
+    return treeStep(registry, env)(doc);
+  } catch (error) {
+    if (error instanceof Refused) return error.refusal;
+    throw error;
+  }
+}
+
 export const MIGRATIONS: Readonly<Record<number, Migration>> = Object.freeze({
   1: v1ToV2,
   2: v2ToV3,
   3: v3ToV4,
+  4: v4ToV5,
 });
 
 export type MigrateResult =

@@ -1151,14 +1151,14 @@ describe("references", () => {
       });
       expect(valueOf(r, keyOf(r, "post"))).toEqual({
         kind: "prefab",
-        v: 4,
+        v: 5,
         game: "surfaces",
         id: "post",
         entities: [],
       });
       expect(valueOf(r, keyOf(r, "red-post"))).toEqual({
         kind: "prefab",
-        v: 4,
+        v: 5,
         game: "surfaces",
         id: "red-post",
         base: "post",

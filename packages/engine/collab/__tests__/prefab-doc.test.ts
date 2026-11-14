@@ -161,10 +161,8 @@ describe("prefab docs", () => {
     for (const ops of [
       [{ op: "setScene", set: { name: "x" } }],
       [{ op: "setSettings", set: { gravity: 1 } }],
-      [{ op: "setGroup", id: "walls", at: [0, 0] }],
       [{ op: "definePrefab", id: "post", prefab: null }],
       [{ op: "createPrefab", refs: ["cap"], id: "lid" }],
-      [{ op: "add", entity: { id: "x", type: "marker", at: [0, 0], group: "walls" } }],
     ] as const) {
       const r = applyOpsToDoc(a, { ops: [...ops] as never }, ada, registry);
       expect(r.ok || r.issue.code, JSON.stringify(ops)).toBe("op-invalid");
@@ -178,6 +176,32 @@ describe("prefab docs", () => {
     );
     expect(self.ok || self.issue.code).toBe("prefab-cycle");
     expect(Y.encodeStateVector(a)).toEqual(vector);
+  });
+
+  it("takes parent links between its children, written and reparented", () => {
+    const [a, b] = pair({ ...POST, v: 4 });
+    const added = applyOpsToDoc(
+      a,
+      {
+        ops: [
+          { op: "add", entity: { id: "hinge", type: "node", at: [0, -60], rot: 90 } },
+          { op: "add", entity: { id: "flag", type: "marker", at: [4, 0], parent: "hinge" } },
+          { op: "reparent", refs: ["cap"], parent: "hinge" },
+        ],
+      },
+      ada,
+      registry,
+      { validate: "none" },
+    );
+    expect(added.ok || added.issue.message).toBe(true);
+    sync(a, b);
+    expect(child(b, "flag")).toMatchObject({ parent: "hinge", at: [4, 0] });
+    expect(child(b, "cap").parent).toBe("hinge");
+    expect(formatPrefab(docToPrefab(b))).toBe(formatPrefab(docToPrefab(a)));
+
+    expect(revertEntry(a, readLog(a).at(-1)!, ada).ok).toBe(true);
+    expect(docToPrefab(a).entities.map((e) => e.id)).toEqual(["pole", "cap"]);
+    expect(child(a, "cap")).toEqual(POST.entities[1]);
   });
 
   it("an instance follows a prefab edit, re-expanding once per prefab transaction", async () => {
@@ -381,7 +405,7 @@ const RICH: Prefab = {
       params: { height: 80 },
       overrides: { "cap.tags": ["x"] },
     },
-    { id: "inner-2", prefab: "post", at: [100, 0], rot: 1, z: 2 },
+    { id: "inner-2", prefab: "post", at: [100, 0], rot: 90, z: 2 },
   ],
 };
 
@@ -609,7 +633,7 @@ const ROOM: Prefab = {
   entities: [{ id: "floor", type: "solid", shape: ["box", 0, 0, 200, 10] }],
   instances: [
     { id: "door-1", prefab: "door", at: [-60, 0], overrides: { "panel-1/knob.tags": ["brass"] } },
-    { id: "door-2", prefab: "door", at: [60, 0], rot: 2 },
+    { id: "door-2", prefab: "door", at: [60, 0], rot: 180 },
   ],
 };
 const NESTED: PrefabLibrary = new Map([
@@ -684,9 +708,9 @@ describe("nested prefabs in prefab docs", () => {
       bounds: [-1000, -1000, 1000, 1000],
       instances: [{ id: "room-1", prefab: "room", at: [0, 0] }],
     };
-    const expanded = expandScene(scene, registry, { prefabs: source!.library() }).entities.map(
-      (e) => e.id.replace(/^room-1\//, ""),
-    );
+    const expanded = expandScene(scene, registry, { prefabs: source!.library() })
+      .entities.filter((e) => e.type !== "node")
+      .map((e) => e.id.replace(/^room-1\//, ""));
     expect(idsOf(resolved())).toEqual(expanded.sort());
     expect(idsOf(resolved())).toEqual(
       expect.arrayContaining([

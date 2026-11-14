@@ -19,6 +19,12 @@ export type RuntimeEventBus = EventBus & {
 export type EventBusOptions = {
   /** Warns about subscriptions made before the first load, which that load ends. */
   dev?: boolean;
+  /**
+   * Whether an event's `candidate` id is the subscribed `id` or below it, for
+   * `{ entity }` subscriptions: the scene tree's `isUnder`. Without it an
+   * entity has nothing below it.
+   */
+  under?: (candidate: string, id: string) => boolean;
 };
 
 /** More deliveries than this in one dispatch pass means handlers are raising each other's events forever. */
@@ -36,13 +42,13 @@ type Subscription = {
   active: boolean;
 };
 
-const matchesId = (candidate: string | undefined, id: string) =>
-  candidate !== undefined && (candidate === id || candidate.startsWith(`${id}/`));
-
-const matches = (sub: Subscription, e: StepEvent) =>
-  sub.entity === undefined || matchesId(e.entityId, sub.entity) || matchesId(e.other, sub.entity);
-
 export function createEventBus(opts: EventBusOptions = {}): RuntimeEventBus {
+  const under = opts.under ?? ((candidate: string, id: string) => candidate === id);
+  const matchesId = (candidate: string | undefined, id: string) =>
+    candidate !== undefined && under(candidate, id);
+  const matches = (sub: Subscription, e: StepEvent) =>
+    sub.entity === undefined || matchesId(e.entityId, sub.entity) || matchesId(e.other, sub.entity);
+
   /**
    * Per event type, in subscription order. Lists are replaced, never
    * mutated, so a delivery in progress walks the list as it was when the

@@ -335,7 +335,6 @@ observePeers
 observeProjectLog
 observeProjectPeers
 paramsMap
-patchGroup
 patchMap
 patchRecord
 peers
@@ -420,6 +419,7 @@ BulkEntry
 BulkKey
 CLOSE_PX
 COARSE_NUDGE_STEPS
+CarryContext
 CreateVariant
 DEFAULT_CELL
 DEFAULT_DRAW_TYPE
@@ -438,6 +438,8 @@ ENGINE_KEYS
 ENGINE_TOOL_IDS
 EditGeometry
 EditPose
+EditSource
+EditTree
 EditableSpatialIndex
 EditorCommand
 EditorKeyEvent
@@ -499,6 +501,7 @@ OverlayTone
 PICK_TOL_PX
 POINT_PICK_PX
 ParamModel
+ParentModel
 ParseFragmentResult
 PasteOptions
 PasteResult
@@ -535,6 +538,7 @@ SceneOp
 SceneOrigin
 ScenePresence
 SelectMode
+SelectingBatch
 SessionHistory
 SettingsRowsOptions
 SettingsSection
@@ -563,8 +567,6 @@ WHEEL_ZOOM
 applyLevels
 applyToPrefabBatch
 asProjectBatch
-attachBatch
-attachFieldOf
 behaviorGizmo
 behaviorHandles
 behaviorMarks
@@ -572,9 +574,11 @@ boundsCheck
 boxTool
 buildInspectorModel
 buildOutline
+buildTreeOutline
 builtinTools
 bulkGeometry
 capsuleLength
+carryPreview
 childOverrides
 circleTool
 convertToChainFix
@@ -613,6 +617,8 @@ dropBatch
 dropFragment
 dropPreview
 duplicateSelection
+editTree
+enclosingInstances
 entityGeometry
 expandRefs
 fieldOp
@@ -620,6 +626,7 @@ flipBatch
 formatMetres
 fragmentBounds
 fragmentOf
+frameHandles
 geometryOfRef
 gizmoTarget
 groupBatch
@@ -628,13 +635,15 @@ hierarchyUp
 hitHandle
 insertVertex
 inspectorFields
+instanceAngleBatch
+instanceAngleRow
+instanceLevels
 instanceOfRef
 instanceParamsModel
 instanceTransformModel
 instanceZBatch
 instancesOf
 isBulkRef
-isFollowerType
 isolationBounds
 judgeConcave
 keyChord
@@ -649,7 +658,6 @@ moveTarget
 moveVertex
 nestedInstanceOf
 nextFreeId
-nextGroupName
 normDeg
 normalizeChord
 nudgeBatch
@@ -661,6 +669,9 @@ outlineOrder
 overridePathsOf
 panTool
 paramBatch
+parentBatch
+parentCandidates
+parentModel
 parseFragment
 parseRelative
 pasteFragment
@@ -692,7 +703,9 @@ resizeBox
 resizeCursor
 revertAllBatch
 revertFieldBatch
+rootTargets
 rotateByHandle
+rotateFrame
 rotateSelectionBatch
 rotateTargetsBatch
 rotateTool
@@ -705,6 +718,7 @@ selectTool
 selectionBounds
 selectionBox
 selectionHandles
+selectionRoots
 setHover
 settingsEdit
 settingsRows
@@ -726,14 +740,17 @@ strokeShape
 takesConcave
 targetBox
 targetHandles
+targetPivot
 targetsOf
 toolKeyEventOf
+treeBox
 turnBatch
 ungroupBatch
 unpackBatch
 vertexHandles
 waypointHandles
 waypointsTool
+withPreview
 withShapeSlot
 zOrderBatch
 
@@ -858,6 +875,7 @@ ActionDef
 ActionKind
 AnimBlock
 AnimContext
+AnimHandle
 AnimState
 AnimSystem
 AssetIdSchema
@@ -873,6 +891,7 @@ BODY_SHAPE_TYPES
 BasePrimitive
 BehaviorBlock
 BehaviorDef
+BehaviorKey
 BehaviorName
 BehaviorRules
 BehaviorSystem
@@ -880,11 +899,14 @@ BehaviorSystemFactory
 Binding
 BindingContext
 BindingProblem
+BlockOf
 BodyBlock
 BodyControl
 BodyEntry
+BodyHandle
 BodyKind
 BodyStandIn
+Bound
 BulkKeyInfo
 BurstOptions
 CAMERA_RIG_SCHEMA
@@ -903,6 +925,7 @@ CameraFrame
 CameraRequest
 CameraRigDef
 CameraTargetBlock
+CameraTargetHandle
 CameraTargetSpec
 CastResult
 CastSpawnOptions
@@ -910,6 +933,7 @@ Cell
 CellBounds
 CellKey
 CharacterControllerOptions
+CharacterHandle
 CharacterIntent
 CharacterSideViewBlock
 CharacterSystem
@@ -919,6 +943,7 @@ CheckKindDef
 CheckVerdict
 ClipSource
 ColliderBlock
+ColliderHandle
 ColliderSystem
 ColliderTag
 ColliderTags
@@ -961,12 +986,14 @@ EaseName
 EditorToolDef
 EffectRequest
 EmitterBlock
+EmitterHandle
 EngineCheckKind
 EngineCollisionGroup
 EngineContext
 EngineError
 EngineRunResult
 EngineToolId
+Entity
 EntityOf
 EntityQuery
 EntitySelector
@@ -983,6 +1010,7 @@ FlowUse
 FollowerOptions
 FollowerSystem
 ForceAreaBlock
+ForceAreaHandle
 ForceAreaSystem
 FrameRect
 GRID_STEP_SAVE_OWNER
@@ -1009,6 +1037,8 @@ GridPathOptions
 GridPlace
 GridSettings
 GridStepper
+HandleOf
+HandleType
 ID_PATTERN
 InputState
 InspectorWidgetDef
@@ -1018,6 +1048,7 @@ IssueCodeDef
 JOINT
 JOINT_KINDS
 JointBlock
+JointHandle
 JointKind
 JointSystem
 JsonValue
@@ -1029,6 +1060,7 @@ LIVE_CHECK_AGAIN_TICKS
 LIVE_DEFAULTS
 LibraryScene
 LifetimeBlock
+LifetimeHandle
 LiveContext
 LiveDeclaration
 LoadFailureReason
@@ -1049,6 +1081,7 @@ NAV_ARRIVED
 NAV_BLOCKED
 NAV_COMMAND
 NavAgentBlock
+NavAgentHandle
 NavAgentSystem
 NavDestination
 NavEntity
@@ -1059,8 +1092,10 @@ NavSystem
 OCCUPANT
 Occupancy
 OccupantBlock
+OccupantHandle
 OverlapTracker
 Overlaps
+OwnedBody
 PAD_AXES
 PAD_BUTTONS
 PATH_FOLLOW
@@ -1074,6 +1109,7 @@ PadButton
 ParseSaveResult
 ParseShapeResult
 PathFollowBlock
+PathFollowHandle
 PathFollowSystem
 PathPlace
 PathSchema
@@ -1093,6 +1129,7 @@ PlayState
 PlayWorld
 PlayerInfo
 PlayerInputBlock
+PlayerInputHandle
 PlayerInputSystem
 PlayersDef
 PointerButton
@@ -1153,9 +1190,15 @@ SceneRuntimeHandle
 SceneSwap
 SceneSystem
 SceneTemplate
+SceneTree
 SceneValidator
 SceneView
+Script
+ScriptClass
+ScriptDef
+ScriptHooks
 ScriptPredicate
+ScriptSelf
 SeatInput
 SensorSystem
 Side
@@ -1173,10 +1216,12 @@ SpaceQuery
 SpawnInput
 SpawnShape
 SpawnerBlock
+SpawnerHandle
 SpawnerSystem
 SpriteAssetInfo
 SpriteBlock
 SpriteGeometry
+SpriteHandle
 StepEvent
 StepResult
 Style
@@ -1203,6 +1248,7 @@ TopDownOptions
 TransitionSpec
 TweenBlock
 TweenChannel
+TweenHandle
 TweenSpec
 TweenSystem
 Tweens
@@ -1257,6 +1303,7 @@ declaredBindings
 defineBehavior
 defineEntityType
 defineGame
+defineScript
 degToRad
 distanceVec2
 drawEntity
@@ -1275,6 +1322,7 @@ gridGeometry
 gridMissingIssue
 gridPlace
 gridRoute
+handleType
 inCellBounds
 initialWaypointState
 inputFor
@@ -1292,6 +1340,7 @@ lerpVec2
 lineOfSight
 materialField
 mirrorField
+moveBodyNow
 navContains
 navNearest
 navPath
@@ -1938,6 +1987,7 @@ ExpandedScene
 FRAGMENT_KIND
 FieldKind
 FieldPath
+Frame
 GRID_CHUNK
 GRID_MAX_VALUE
 GRID_ROW_PATTERN
@@ -1946,8 +1996,6 @@ GridCells
 GridProblem
 GridRow
 GridSettings
-GroupDef
-GroupSchema
 IDENTITY_2D
 ID_PATTERN
 INPUT_SCRIPT_LAYOUT
@@ -1978,8 +2026,10 @@ MigrationRefusal
 OP_NAMES
 OVERRIDE_PATH
 OpBatch
+Orientation
 OverlayPoint
 OverridePath
+PARENT_MAX_DEPTH
 PREFABS_DIR
 PREFAB_KIND
 PREFAB_MAX_DEPTH
@@ -2096,6 +2146,8 @@ compareChunkKeys
 comparePointers
 compose
 composeDihedral
+composeFrames
+composeOrientations
 containedInRect
 containsPoint
 convexHull
@@ -2114,6 +2166,7 @@ diffToOps
 dihedral
 dihedralOf
 encodeRow
+entityFrame
 entityIssues
 entitySchemaFor
 expandInstance
@@ -2130,17 +2183,18 @@ fragmentBounds
 fragmentJsonSchema
 fragmentOf
 fragmentSchemaFor
+frame
+frameOf
 geometryFields
 gridCellBounds
 gridProblems
 gridTurns
-groupOrigin
-groupTransform
 hashText
 inputScriptJsonSchema
 inputScriptSchemaFor
 inputScriptSchemaId
 inputScriptSchemasFor
+instanceFrame
 instanceOrigin
 instanceSteps
 instanceTransform
@@ -2154,6 +2208,7 @@ isGridValue
 isIdentityTurn
 isInstanceOverrideField
 isMigrationRefusal
+isQuarterTurn
 isSpawnOnly
 isWholePixel
 jsonPointer
@@ -2187,6 +2242,7 @@ parseShape
 placeChildren
 placeFragment
 placeableTypes
+placedFrame
 plural
 pointerLines
 prefabBody
@@ -2539,7 +2595,6 @@ type PrefabDocWriter = {
 declare const SCENE_ONLY_OPS: readonly SceneOp["op"][];
 declare function applyOpsToDoc(doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, registry: Registry, opts?: DocApplyOptions): DocApplyResult;
 declare function headerOf(def: SceneDefinition): Record<string, unknown>;
-declare function patchGroup(ymap: Y.Map<unknown>, prev: GroupDef | undefined, next: GroupDef): void;
 declare function refsOfView(view: DocView): Map<string, Ref>;
 
 ## collab/asset-changed.ts
@@ -4087,14 +4142,6 @@ declare function dropPreview(drop: AssetDrop, at: Pt, opts: DropOptions & {
     asset?: SpriteAssetLookup;
 }): DropPreview;
 
-## editor/attach.ts
-declare function attachBatch(def: SceneDefinition, ref: Ref, follower: Ref | null, registry: Registry, prefabs?: PrefabLibrary): OpBatch | null;
-declare function attachFieldOf(registry: Registry, type: EntityTypeName): null | {
-    field: string;
-    targets: readonly EntityTypeName[];
-};
-declare function isFollowerType(registry: Registry, type: EntityTypeName): boolean;
-
 ## editor/builtin/draw.ts
 declare const DEFAULT_DRAW_TYPE = "solid";
 declare const DRAW_TYPE_COMMAND = "type:";
@@ -4250,26 +4297,30 @@ declare function pasteFragment(input: SceneFragment | string, opts: PasteOptions
 ## editor/commands.ts
 declare const COARSE_NUDGE_STEPS = 10;
 type QuarterTurnTargets = {
-    groups: string[];
     instances: string[];
     rest: Ref[];
 };
+type SelectingBatch = {
+    batch: OpBatch;
+    select: Ref[];
+};
 declare function deleteBatch(refs: readonly Ref[]): OpBatch | null;
 declare function flipBatch(def: SceneDefinition, refs: readonly Ref[], axis: "x" | "y"): OpBatch | null;
-declare function groupBatch(def: SceneDefinition, refs: readonly Ref[], name?: string): OpBatch | null;
-declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
-declare function hierarchyUp(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
-declare function nextGroupName(def: SceneDefinition): string;
+declare function groupBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): SelectingBatch | null;
+declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[], prefabs?: PrefabLibrary): Ref[] | null;
+declare function hierarchyUp(def: SceneDefinition, sel: readonly Ref[]): Ref[] | null;
+declare function instanceLevels(ref: Ref): Ref[];
 declare function nudgeBatch(refs: readonly Ref[], delta: Pt, pxPerMetre: number): OpBatch | null;
 declare function nudgeDelta(command: string, pxPerMetre: number): Pt | null;
 declare function quarterTurnTargets(def: SceneDefinition, refs: readonly Ref[]): QuarterTurnTargets;
-declare function rotateSelectionBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], deg: number): OpBatch | null;
+declare function rotateSelectionBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], deg: number, prefabs?: PrefabLibrary): OpBatch | null;
 declare function rotationPivot(targets: readonly GizmoTarget[]): Pt | null;
 declare function selectAllRefs(def: SceneDefinition, index: SpatialIndex, layers?: PickLayers): Ref[];
 declare function selectionBounds(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null;
-declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): GizmoTarget[];
+declare function selectionRoots(def: SceneDefinition, refs: readonly Ref[]): Ref[];
+declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[], source?: EditSource): GizmoTarget[];
 declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 | 1): OpBatch | null;
-declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): OpBatch | null;
+declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): SelectingBatch | null;
 declare function zOrderBatch(refs: readonly Ref[], by: -1 | 1): OpBatch | null;
 
 ## editor/gesture.ts
@@ -4362,6 +4413,15 @@ declare const FORCE_PX = 4;
 declare const VELOCITY_PX = 16;
 declare function behaviorGizmo(def: SceneDefinition, registry: Registry, ref: Ref, geometry?: EditGeometry): BehaviorGizmo | undefined;
 
+## editor/gizmos/carry.ts
+type CarryContext = {
+    frameOf(ref: Ref): Frame | undefined;
+    registry: Registry;
+    tree: EditTree;
+    view: SceneDefinition;
+};
+declare function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null;
+
 ## editor/gizmos/drag.ts
 type Box = Extract<ShapeObj, {
     type: "box";
@@ -4388,6 +4448,7 @@ declare function rotateByHandle(s: ShapeObj, from: Pt, to: Pt, snap: SnapSetting
     deg: number;
     shape: ShapeObj;
 };
+declare function rotateFrame(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
 
 ## editor/gizmos/edit.ts
 type DragOptions = {
@@ -4402,6 +4463,7 @@ type GizmoEdit = {
     batch: OpBatch | null;
     concave?: boolean;
     guides?: SnapGuide[];
+    preview?: OpBatch;
     pts?: Pt[];
     readout: string;
     shape?: ShapeObj;
@@ -4413,6 +4475,7 @@ declare function snapDraggedPoint(t: GizmoTarget, start: Pt, from: Pt, to: Pt, o
     guides: SnapGuide[];
 };
 declare function takesConcave(registry: Registry, t: GizmoTarget): boolean;
+declare function withPreview<E extends GizmoEdit | null>(edit: E, targets: readonly GizmoTarget[]): E;
 
 ## editor/gizmos/handles.ts
 declare const HANDLE_HIT_PX = 6;
@@ -4431,6 +4494,10 @@ type ResizeDir = (typeof RESIZE_DIRS)[number];
 declare const STALK_PX = 24;
 declare function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[];
 declare function dirSigns(dir: ResizeDir): Pt;
+declare function frameHandles(f: {
+    at: Pt;
+    rot: number;
+}, box: Aabb | undefined, scale: number): GizmoHandle[];
 declare function hitHandle(handles: readonly GizmoHandle[], p: Pt, scale: number, tolPx?: number): GizmoHandle | undefined;
 declare function resizeCursor([x, y]: Pt): string;
 declare function selectionHandles(box: Aabb, scale: number): GizmoHandle[];
@@ -4448,6 +4515,7 @@ declare function waypointHandles(pts: readonly Pt[], opts: {
 
 ## editor/gizmos/multi.ts
 declare function dragSelection(targets: readonly GizmoTarget[], handleId: string, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function rootTargets(targets: readonly GizmoTarget[]): GizmoTarget[];
 declare function rotateTargetsBatch(targets: readonly GizmoTarget[], about: Pt, deg: number, pxPerMetre: number, label?: string): OpBatch | null;
 declare function selectionBox(targets: readonly GizmoTarget[]): Aabb;
 
@@ -4465,7 +4533,9 @@ declare const readSize: (w: number, h: number, pxPerMetre: number) => string;
 type GizmoTarget = {
     at?: Pt;
     behaviors?: BehaviorGizmo;
+    box?: Aabb;
     bulk: boolean;
+    frame?: Frame;
     local?: ShapeObj;
     path?: {
         field: string;
@@ -4473,13 +4543,31 @@ type GizmoTarget = {
         pts: Pt[];
     };
     pointField?: string;
+    prefab?: string;
+    preview?: (batch: OpBatch) => OpBatch | null;
     ref: Ref;
     shape?: ShapeObj;
     shapeField?: string;
+    subtree?: Ref[];
     type: string;
 };
-declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref): GizmoTarget | undefined;
+declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref, source?: EditSource): GizmoTarget | undefined;
 declare function targetBox(t: GizmoTarget): Aabb;
+declare function targetPivot(t: GizmoTarget): Pt;
+declare const treeBox: (t: GizmoTarget) => Aabb;
+
+## editor/gizmos/tree.ts
+type EditSource = {
+    doc: SceneDefinition;
+    prefabs?: PrefabLibrary;
+};
+type EditTree = {
+    below(refs: Iterable<Ref>): Ref[];
+    instances(): readonly Ref[];
+    isInstance(ref: Ref): boolean;
+};
+declare function editTree(view: SceneDefinition, source?: EditSource): EditTree;
+declare function enclosingInstances(ref: Ref): Ref[];
 
 ## editor/gizmos/vertices.ts
 declare const MIN_POINTS: {
@@ -4574,6 +4662,7 @@ type FieldWidget = {
     either?: true;
     kind: "entity-ref";
     multiple: boolean;
+    parent?: true;
 } | {
     bigStep: number;
     decimals?: number;
@@ -4712,7 +4801,7 @@ type InstanceTransformModel = {
     editable: boolean;
     flip: boolean;
     ref: Ref;
-    rot: 0 | 1 | 2 | 3;
+    rot: number;
     z: number;
 };
 type ModelEdit = {
@@ -4726,6 +4815,7 @@ type ModelField = Omit<InspectorRow, "children"> & {
     children?: ModelField[];
     group?: string;
     section: ModelSectionId;
+    storedIn?: Ref | null;
 };
 type ModelSectionId = BehaviorSectionId | InspectorSectionId;
 type ParamModel = {
@@ -4734,6 +4824,13 @@ type ParamModel = {
     name: string;
     set: boolean;
     targets: readonly OverridePath[];
+};
+type ParentModel = {
+    candidates: Ref[];
+    fixed?: string;
+    mixed: boolean;
+    refs: Ref[];
+    value: Ref | null | undefined;
 };
 declare const SECTION_TITLES: Readonly<Record<InspectorSectionId, string>>;
 type ShapeConversion = {
@@ -4746,6 +4843,14 @@ declare function buildInspectorModel(registry: Registry, targets: readonly RefTa
     def?: SceneDefinition;
     sources?: ClipSourceLookup;
 }): InspectorModel;
+declare function instanceAngleBatch(def: SceneDefinition, model: InstanceTransformModel, input: unknown, registry?: Registry, prefabs?: PrefabLibrary): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
+declare function instanceAngleRow(model: InstanceTransformModel): InspectorRow;
 declare function instanceParamsModel(def: SceneDefinition, ref: Ref, registry: Registry, prefabs: PrefabLibrary): InstanceParamsModel | null;
 declare function instanceTransformModel(def: SceneDefinition, ref: Ref, prefabs: PrefabLibrary): InstanceTransformModel | null;
 declare function instanceZBatch(model: InstanceTransformModel, text: string): {
@@ -4770,6 +4875,15 @@ declare function paramBatch(model: InstanceParamsModel, param: ParamModel, input
     error: string;
     ok: false;
 };
+declare function parentBatch(model: ParentModel, parent: Ref | null, def: SceneDefinition): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
+declare function parentCandidates(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): Ref[];
+declare function parentModel(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): ParentModel | null;
 declare function parseRelative(text: string, current: unknown): number | undefined;
 declare function refCandidates(def: SceneDefinition, registry: Registry, accepts: readonly EntityTypeName[], prefabs?: PrefabLibrary): string[];
 declare function shapeConversions(tuple: ShapeTuple, types?: readonly ShapeType[], pxPerMetre?: number): ShapeConversion[];
@@ -4864,7 +4978,6 @@ type KeyContext = {
     hasSelection?: boolean;
     inPrefab?: boolean;
     mode: EditorMode;
-    quarterTurns?: boolean;
     subObject?: boolean;
     tool?: string;
 };
@@ -4903,6 +5016,7 @@ type OutlineRow = {
     type?: EntityTypeName;
 };
 declare function buildOutline(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): OutlineRow[];
+declare function buildTreeOutline(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): OutlineRow[];
 declare function outlineOrder(rows: readonly OutlineRow[]): Ref[];
 
 ## editor/picking.ts
@@ -5147,8 +5261,8 @@ type EditGeometry = {
     shapeField?: string;
 };
 type EditableSpatialIndex = SpatialIndex & {
-    rebuild(def: SceneDefinition, registry: Registry): void;
-    update(def: SceneDefinition, registry: Registry, touched: readonly Ref[]): void;
+    rebuild(def: SceneDefinition, registry: Registry, source?: EditSource): void;
+    update(def: SceneDefinition, registry: Registry, touched: readonly Ref[], source?: EditSource): void;
 };
 type SpatialIndexOptions = {
     asset?: SpriteAssetLookup;
@@ -5198,7 +5312,7 @@ type ToolHost = {
     duplicate(): boolean;
     index(): SpatialIndex;
     key(e: ToolKeyEvent): boolean;
-    keyContext(): Pick<KeyContext, "gesture" | "hasSelection" | "quarterTurns" | "subObject" | "tool">;
+    keyContext(): Pick<KeyContext, "gesture" | "hasSelection" | "subObject" | "tool">;
     layers(): ToolLayers;
     option(): ToolOption | undefined;
     overlay(): ToolOverlay;
@@ -5288,6 +5402,7 @@ type EditorToolContext = {
         keys: string[];
     }): void;
     snap(): SnapSettings;
+    source?(): EditSource;
 };
 type EditorToolDef = {
     create(ctx: EditorToolContext): EditorTool;
@@ -5301,11 +5416,14 @@ type GizmoHandle = {
     cursor?: string;
     id: string;
     kind: HandleKind;
+    stalk?: Pt;
 };
 type HandleKind = "insert" | "length" | "move" | "radius" | "resize" | "rotate" | "vertex" | "waypoint";
 type IndexEntry = {
     aabb: Aabb;
     geometry: Pt | ShapeObj;
+    instance?: true;
+    instances?: Ref[];
     key: string;
     layer: string;
     ref: Ref;
@@ -5577,10 +5695,11 @@ declare const BEHAVIORS_FIELD = "behaviors";
 declare const BEHAVIOR_NAME_PATTERN: RegExp;
 type BehaviorBlock = Readonly<Record<string, unknown>>;
 type BehaviorCategory = NonNullable<NonNullable<BehaviorDef["inspector"]>["category"]>;
-type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
+type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape, H = unknown> = {
     conflicts?: readonly BehaviorName[];
     description: string;
     fields: ((env: FieldEnv) => F) | F;
+    handle?: HandleType<H>;
     inspector?: {
         category?: "movement" | "physics" | "visual" | "world";
         label?: string;
@@ -5597,7 +5716,7 @@ type BehaviorName = string;
 interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
     attach(entityId: string, block: B, entity: RuntimeEntity): void;
     detach(entityId: string): void;
-    update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void;
+    update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): boolean | void;
     beforeStep?(dtMs: number): void;
     beforePhysics?(): void;
     step?(dtMs: number): void;
@@ -5611,14 +5730,27 @@ interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
     enable?(entityId: string): void;
     save?(entityId: string): JsonValue | undefined;
     restore?(entityId: string, state: JsonValue): void;
+    handle?(entityId: string): object | undefined;
+    posed?(entityId: string, pose: Readonly<Pose>, snap: boolean): void;
+    selfMoving?(entityId: string): boolean;
+    ride?(entityId: string, host: null | string): void;
 }
 type BehaviorSystemFactory = (ctx: EngineContext, def: RegisteredBehavior) => BehaviorSystem;
+type BlockOf<D> = D extends BehaviorDef<infer F, unknown> ? z.infer<z.ZodObject<F>> : BehaviorBlock;
+type Bound<S, K extends keyof S> = {
+    [P in K]: S[P] extends ((id: string, ...rest: infer A) => infer R) ? (...rest: A) => R : never;
+};
+declare const HANDLE: unique symbol;
+type HandleType<H> = {
+    readonly [HANDLE]?: H;
+};
 type RegisteredBehavior = BehaviorDef & {
     index: number;
     origin: string;
     shape: z.ZodRawShape;
 };
-declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F>;
+declare function defineBehavior<F extends z.ZodRawShape, H = unknown>(def: BehaviorDef<F, H>): BehaviorDef<F, H>;
+declare const handleType: <H>() => HandleType<H>;
 
 ## game/behaviors/anim.ts
 declare const ANIM: BehaviorDef<{
@@ -5632,8 +5764,9 @@ declare const ANIM: BehaviorDef<{
     playing: z.ZodOptional<z.ZodBoolean>;
     source: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
     speed: z.ZodOptional<z.ZodNumber>;
-}>;
+}, AnimHandle>;
 type AnimBlock = z.infer<z.ZodObject<ReturnType<typeof animFields>>>;
+type AnimHandle = Bound<AnimContext, "play" | "shapes" | "state" | "stop">;
 declare const animFields: (env: FieldEnv) => {
     clip: z.ZodString;
     offset: z.ZodOptional<z.ZodUnion<readonly [
@@ -5659,13 +5792,14 @@ declare const BODY: BehaviorDef<{
         static: "static";
     }>>;
     linearDamping: z.ZodOptional<z.ZodNumber>;
-}>;
+}, BodyHandle>;
 declare const BODY_KINDS: readonly [
     "dynamic",
     "kinematic",
     "static"
 ];
 type BodyBlock = z.infer<z.ZodObject<typeof bodyFields>>;
+type BodyHandle = Bound<BodyControl, "angularVelocity" | "applyForce" | "applyImpulse" | "applyTorque" | "kind" | "mass" | "setAngularVelocity" | "setVelocity" | "velocity" | "wake">;
 type BodyKind = (typeof BODY_KINDS)[number];
 declare const bodyFields: {
     angularDamping: z.ZodOptional<z.ZodNumber>;
@@ -5684,8 +5818,9 @@ declare const bodyFields: {
 declare const CAMERA_TARGET: BehaviorDef<{
     seat: z.ZodOptional<z.ZodNumber>;
     weight: z.ZodDefault<z.ZodNumber>;
-}>;
+}, CameraTargetHandle>;
 type CameraTargetBlock = z.infer<z.ZodObject<typeof cameraTargetFields>>;
+type CameraTargetHandle = Record<never, never>;
 declare const cameraTargetFields: {
     seat: z.ZodOptional<z.ZodNumber>;
     weight: z.ZodDefault<z.ZodNumber>;
@@ -5709,7 +5844,7 @@ declare const CHARACTER_SIDE_VIEW: BehaviorDef<{
     pushDynamic: z.ZodDefault<z.ZodBoolean>;
     snapToGround: z.ZodDefault<z.ZodNumber>;
     stepHeight: z.ZodDefault<z.ZodNumber>;
-}>;
+}, CharacterHandle>;
 type CharacterSideViewBlock = z.infer<z.ZodObject<typeof characterSideViewFields>>;
 declare const characterSideViewFields: {
     accel: z.ZodDefault<z.ZodNumber>;
@@ -5737,7 +5872,8 @@ declare const CHARACTER_TOP_DOWN: BehaviorDef<{
     maxSpeed: z.ZodDefault<z.ZodNumber>;
     move: z.ZodDefault<z.ZodString>;
     pushDynamic: z.ZodDefault<z.ZodBoolean>;
-}>;
+}, CharacterHandle>;
+type CharacterHandle = Bound<CharacterSystem, "grounded" | "launch" | "setIntent" | "velocity">;
 type CharacterIntent = {
     jump?: boolean;
     move: Vec2;
@@ -5768,8 +5904,9 @@ declare const COLLIDER: BehaviorDef<{
     restitution: z.ZodOptional<z.ZodNumber>;
     sensor: z.ZodDefault<z.ZodBoolean>;
     shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
-}>;
+}, ColliderHandle>;
 type ColliderBlock = z.infer<z.ZodObject<ReturnType<typeof colliderFields>>>;
+type ColliderHandle = Bound<ColliderSystem, "rebuild">;
 type ColliderSystem = BehaviorSystem<ColliderBlock> & BodyStandIn & {
     has(entityId: string): boolean;
     rebuild(entityId: string): void;
@@ -5792,8 +5929,9 @@ declare const EMITTER: BehaviorDef<{
     offset: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
     preset: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
     rate: z.ZodOptional<z.ZodNumber>;
-}>;
+}, EmitterHandle>;
 type EmitterBlock = z.infer<z.ZodObject<ReturnType<typeof emitterFields>>>;
+type EmitterHandle = Record<never, never>;
 declare const emitterFields: (env: FieldEnv) => {
     emitting: z.ZodOptional<z.ZodBoolean>;
     offset: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
@@ -5822,8 +5960,9 @@ declare const FORCE_AREA: BehaviorDef<{
         point: "point";
     }>>;
     strength: z.ZodOptional<z.ZodNumber>;
-}>;
+}, ForceAreaHandle>;
 type ForceAreaBlock = z.infer<z.ZodObject<typeof forceAreaFields>>;
+type ForceAreaHandle = Record<never, never>;
 type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
     sample(point: Vec2, entityId?: string): Vec2;
 };
@@ -5874,7 +6013,7 @@ declare const JOINT: BehaviorDef<{
     }, z.core.$strict>>;
     stiffness: z.ZodOptional<z.ZodNumber>;
     to: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
-}>;
+}, JointHandle>;
 declare const JOINT_KINDS: readonly [
     "revolute",
     "prismatic",
@@ -5883,6 +6022,7 @@ declare const JOINT_KINDS: readonly [
     "spring"
 ];
 type JointBlock = z.infer<z.ZodObject<typeof jointFields>>;
+type JointHandle = Bound<JointSystem, "joined">;
 type JointKind = (typeof JOINT_KINDS)[number];
 type JointSystem = BehaviorSystem<JointBlock> & {
     joined(entityId: string): boolean;
@@ -5921,8 +6061,9 @@ declare const LIFETIME: BehaviorDef<{
         disable: "disable";
     }>>;
     ticks: z.ZodOptional<z.ZodNumber>;
-}>;
+}, LifetimeHandle>;
 type LifetimeBlock = z.infer<z.ZodObject<typeof lifetimeFields>>;
+type LifetimeHandle = Record<never, never>;
 declare const lifetimeFields: {
     ms: z.ZodOptional<z.ZodNumber>;
     then: z.ZodOptional<z.ZodEnum<{
@@ -5946,8 +6087,9 @@ declare const NAV_AGENT: BehaviorDef<{
         ], null>,
         z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
     ]>>;
-}>;
+}, NavAgentHandle>;
 type NavAgentBlock = z.infer<z.ZodObject<typeof navAgentFields>>;
+type NavAgentHandle = Bound<NavAgentSystem, "path" | "setDestination" | "stop">;
 type NavAgentSystem = BehaviorSystem<NavAgentBlock> & {
     path(entityId: string): null | readonly Vec2[];
     setDestination(entityId: string, to: Vec2 | string): void;
@@ -5971,8 +6113,9 @@ declare const navAgentFields: {
 ## game/behaviors/occupant.ts
 declare const OCCUPANT: BehaviorDef<{
     blocks: z.ZodOptional<z.ZodBoolean>;
-}>;
+}, OccupantHandle>;
 type OccupantBlock = z.infer<z.ZodObject<typeof occupantFields>>;
+type OccupantHandle = Record<never, never>;
 declare const occupantFields: {
     blocks: z.ZodOptional<z.ZodBoolean>;
 };
@@ -5991,8 +6134,9 @@ declare const PATH_FOLLOW: BehaviorDef<{
         ], null>>;
         speed: z.ZodNumber;
     }, z.core.$strict>;
-}>;
+}, PathFollowHandle>;
 type PathFollowBlock = z.infer<z.ZodObject<typeof pathFollowFields>>;
+type PathFollowHandle = Bound<PathFollowSystem, "frameDelta" | "position">;
 type PathFollowSystem = BehaviorSystem<PathFollowBlock> & {
     frameDelta(entityId: string): Vec2 | null;
     position(entityId: string): Vec2 | null;
@@ -6015,8 +6159,12 @@ declare const pathFollowFields: {
 ## game/behaviors/player-input.ts
 declare const PLAYER_INPUT: BehaviorDef<{
     seat: z.ZodDefault<z.ZodNumber>;
-}>;
+}, PlayerInputHandle>;
 type PlayerInputBlock = z.infer<z.ZodObject<typeof playerInputFields>>;
+type PlayerInputHandle = {
+    readonly input: SeatInput;
+    readonly seat: null | number;
+};
 declare const playerInputFields: {
     seat: z.ZodDefault<z.ZodNumber>;
 };
@@ -6036,8 +6184,9 @@ declare const SPAWNER: BehaviorDef<{
         z.ZodNumber,
         z.ZodNumber
     ], null>>;
-}>;
+}, SpawnerHandle>;
 type SpawnerBlock = z.infer<z.ZodObject<ReturnType<typeof spawnerFields>>>;
+type SpawnerHandle = Bound<SpawnerSystem, "live">;
 type SpawnerSystem = BehaviorSystem<SpawnerBlock> & {
     live(entityId: string): readonly string[];
 };
@@ -6095,7 +6244,7 @@ declare const SPRITE: BehaviorDef<{
     tile: z.ZodOptional<z.ZodBoolean>;
     tint: z.ZodOptional<z.ZodNumber>;
     turn: z.ZodOptional<z.ZodBoolean>;
-}>;
+}, SpriteHandle>;
 declare const SPRITE_FALLBACK_SIZE: readonly [
     w: number,
     h: number
@@ -6120,6 +6269,7 @@ type SpriteGeometry = {
         h: number
     ];
 };
+type SpriteHandle = Record<never, never>;
 declare const spriteFields: (env: FieldEnv) => {
     alpha: z.ZodOptional<z.ZodNumber>;
     anchor: z.ZodOptional<z.ZodTuple<[
@@ -6245,9 +6395,10 @@ declare const TWEEN: BehaviorDef<{
         }, z.core.$strict>;
         yoyo: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
-}>;
+}, TweenHandle>;
 type TweenBlock = z.infer<z.ZodObject<typeof tweenFields>>;
 type TweenChannel = "alpha" | "rot" | "scale" | "tint" | "x" | "y";
+type TweenHandle = Bound<Tweens, "cancelAll" | "to">;
 type TweenSpec = z.infer<typeof tweenSpecSchema>;
 declare const tweenFields: {
     tweens: z.ZodArray<z.ZodObject<{
@@ -6449,14 +6600,58 @@ declare function isSpawnOnly(registry: Registry, type: EntityTypeName): boolean;
 declare function placeableTypes(registry: Registry): EntityTypeName[];
 declare function withProject(registry: Registry, view: ProjectView, values: ReadonlyMap<AssetId, unknown>): Registry;
 
+## game/entity.ts
+type BehaviorKey = BehaviorDef | ScriptClass;
+interface Entity<F extends object = Record<string, unknown>> {
+    readonly id: string;
+    readonly type: EntityTypeName;
+    readonly alive: boolean;
+    readonly record: RuntimeEntity<F>;
+    readonly pose: Readonly<Pose>;
+    setPose(x: number, y: number, rot?: number, opts?: {
+        snap?: boolean;
+    }): void;
+    hasTag(tag: string): boolean;
+    readonly enabled: boolean;
+    readonly enabledSelf: boolean;
+    setEnabled(on: boolean): void;
+    destroy(): void;
+    getBehavior<D extends BehaviorKey = never>(def: BehaviorName | D): HandleOf<D> | undefined;
+    behaviors(): readonly BehaviorName[];
+    on(type: string, handler: (e: StepEvent) => void): () => void;
+    readonly parent: Entity | null;
+    readonly children: readonly Entity[];
+    readonly root: Entity;
+    readonly localPose: Readonly<Pose>;
+    setLocalPose(x: number, y: number, rot?: number): void;
+    setParent(parent: Entity | null | string, opts?: {
+        keepWorld?: boolean;
+    }): void;
+    find(path: string): Entity | undefined;
+    getBehaviorInChildren<D extends BehaviorKey = never>(def: BehaviorName | D): HandleOf<D> | undefined;
+    getBehaviorsInChildren<D extends BehaviorKey = never>(def: BehaviorName | D): readonly HandleOf<D>[];
+    getBehaviorInParent<D extends BehaviorKey = never>(def: BehaviorName | D): HandleOf<D> | undefined;
+}
+type HandleOf<D> = [
+    D
+] extends [
+    never
+] ? Readonly<{
+    fields: BehaviorBlock;
+}> : D extends (abstract new () => infer I) ? I : D extends BehaviorDef<infer F, infer H> ? Readonly<{
+    fields: Readonly<z.infer<z.ZodObject<F>>>;
+}> & H : Readonly<{
+    fields: BehaviorBlock;
+}>;
+
 ## game/fields.ts
 declare const AssetIdSchema: z.ZodString;
 declare const BASE_FIELDS: {
-    readonly group: z.ZodOptional<z.ZodString>;
     readonly id: z.ZodString;
     readonly layer: z.ZodOptional<z.ZodString>;
     readonly name: z.ZodOptional<z.ZodString>;
     readonly off: z.ZodOptional<z.ZodBoolean>;
+    readonly parent: z.ZodOptional<z.ZodString>;
     readonly z: z.ZodOptional<z.ZodNumber>;
 };
 declare const BODY_SHAPE_TYPES: readonly ShapeType[];
@@ -6855,6 +7050,23 @@ declare const PRIMITIVES: {
         };
         type: string;
     };
+    node: {
+        ascii: string;
+        description: string;
+        fields: {
+            at: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+            flip: z.ZodOptional<z.ZodLiteral<true>>;
+            rot: z.ZodOptional<z.ZodNumber>;
+        };
+        physics: "optional";
+        style: {
+            stroke: number;
+        };
+        type: string;
+    };
     note: {
         description: string;
         fields: {
@@ -6909,7 +7121,6 @@ declare const PRIMITIVES: {
         };
         description: string;
         fields: {
-            attach: z.ZodOptional<z.ZodString>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
             tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
         };
@@ -6936,7 +7147,6 @@ declare const PRIMITIVES: {
         };
         description: string;
         fields: (env: FieldEnv) => {
-            attach: z.ZodOptional<z.ZodString>;
             material: z.ZodOptional<z.ZodEnum<{
                 [x: string]: string;
             }>> | z.ZodOptional<z.ZodNever>;
@@ -7052,6 +7262,7 @@ type WorldState = {
     counters: Readonly<Record<string, number>>;
     destroyed: readonly string[];
     enabled: Readonly<Record<string, false>>;
+    parents?: Readonly<Record<string, null | string>>;
     poses: Readonly<Record<string, readonly [
         number,
         number,
@@ -7078,6 +7289,47 @@ declare function formatSaveFile(file: SaveFile): string;
 declare function parseSaveFile(text: string, game?: Pick<GameDefinition, "id" | "saves">): ParseSaveResult;
 declare function saveFileBytes(file: SaveFile): number;
 declare const saveFileSchema: z.ZodType<SaveFile>;
+
+## game/script.ts
+declare function Script<F extends z.ZodRawShape>(def: ScriptDef<F>): ScriptClass<F>;
+interface ScriptClass<F extends z.ZodRawShape = z.ZodRawShape> {
+    new (): ScriptSelf<F> & ScriptHooks<F>;
+    readonly behavior: BehaviorDef<F>;
+}
+type ScriptDef<F extends z.ZodRawShape> = Omit<BehaviorDef<F>, "handle" | "system">;
+type ScriptHooks<F extends z.ZodRawShape = z.ZodRawShape> = {
+    awake?(): void;
+    beforePhysics?(): void;
+    beforeStep?(dtMs: number): void;
+    onContactEnd?(other: Entity, e: StepEvent): void;
+    onContactStart?(other: Entity, e: StepEvent): void;
+    onDestroy?(): void;
+    onDisable?(): void;
+    onEnable?(): void;
+    onFieldsChanged?(prev: Readonly<z.infer<z.ZodObject<F>>>): void;
+    onSensorEnter?(other: Entity, e: StepEvent): void;
+    onSensorExit?(other: Entity, e: StepEvent): void;
+    render?(alpha: number): void;
+    restore?(state: JsonValue): void;
+    save?(): JsonValue | undefined;
+    start?(): void;
+    step?(dtMs: number): void;
+};
+type ScriptSelf<F extends z.ZodRawShape = z.ZodRawShape> = {
+    after(delay: Delay, action: TimerAction): number;
+    cancel(timer: number): void;
+    emit(type: string, data?: JsonValue): void;
+    every(period: Delay, action: TimerAction, times?: number): number;
+    readonly ctx: EngineContext;
+    readonly entity: Entity;
+    readonly fields: Readonly<z.infer<z.ZodObject<F>>>;
+    readonly input: SeatInput;
+    ref(field: string): Entity | undefined;
+    run(co: () => Generator<CoroutineYield, void, void>): number;
+};
+declare function defineScript<F extends z.ZodRawShape, H extends ScriptHooks<F> & object>(def: ScriptDef<F> & {
+    create(self: ScriptSelf<F>): H;
+}): BehaviorDef<F, H & Pick<ScriptSelf<F>, "entity" | "fields">>;
 
 ## game/style.ts
 declare function styleOf(ctx: Pick<EngineContext, "registry">, type: RegisteredType, material: string | undefined): Style | undefined;
@@ -7274,8 +7526,12 @@ type EngineContext = {
     dev: boolean;
     emit: (event: Omit<StepEvent, "tick">) => void;
     enabled: (id: string) => boolean;
+    entities: (sel?: EntitySelector) => readonly Entity[];
+    entity: (id: string) => Entity | undefined;
     events: EventBus;
     exists: (id: string) => boolean;
+    findBehavior: <D extends BehaviorKey = never>(def: BehaviorName | D) => HandleOf<D> | undefined;
+    findBehaviors: <D extends BehaviorKey = never>(def: BehaviorName | D) => readonly HandleOf<D>[];
     flow: FlowContext;
     geometry: GeometryWorld | null;
     get: (id: string) => RuntimeEntity | undefined;
@@ -7300,10 +7556,14 @@ type EngineContext = {
     readonly seeking: boolean;
     readonly tick: number;
     readonly time: ResolvedTime;
+    readonly tree: SceneTree;
     readonly tweens: Tweens;
     registry: Registry;
     saves: SavesContext;
     setEnabled: (id: string, enabled: boolean) => void;
+    setPose: (id: string, x: number, y: number, rot?: number, opts?: {
+        snap?: boolean;
+    }) => void;
     settings: ResolvedSettings;
     space: SpaceQuery;
     spawn: <E extends RuntimeEntity = RuntimeEntity>(input: SpawnInput) => E;
@@ -7332,9 +7592,11 @@ interface EntityQuery {
     extent(id: string): ShapeObj | undefined;
 }
 type EntitySelector = {
+    behavior?: BehaviorName;
     enabled?: boolean;
     tag?: string;
     type?: EntityTypeName | readonly EntityTypeName[];
+    under?: string;
 };
 type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     ascii?: string;
@@ -7407,7 +7669,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     actions: readonly ActionDef[];
     assetKinds?: readonly AssetKindDef[];
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
-    behaviors?: readonly BehaviorDef[];
+    behaviors?: readonly (BehaviorDef | ScriptClass)[];
     camera?: CameraRigDef;
     checks?: Readonly<Record<string, CheckKindDef>>;
     collisionGroups?: Readonly<Record<string, {
@@ -7544,9 +7806,11 @@ type InstantiateOptions = {
     flip?: boolean;
     id?: string;
     layer?: string;
+    local?: boolean;
     overrides?: Readonly<Record<OverridePath, unknown>>;
     params?: Readonly<Record<string, unknown>>;
-    rot?: 0 | 1 | 2 | 3;
+    parent?: string;
+    rot?: number;
     z?: number;
 };
 type InstantiateResult = {
@@ -7582,6 +7846,7 @@ type MaterialDef = {
     tint?: number;
 };
 declare const PRIMITIVE_TYPES: readonly [
+    "node",
     "solid",
     "sensor",
     "marker",
@@ -7731,6 +7996,9 @@ interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     save?(id: string): JsonValue | undefined;
     restore?(id: string, state: JsonValue): void;
     setPose?(id: string, x: number, y: number, rot: number): void;
+    selfMoving?(id: string): boolean;
+    ride?(id: string, host: null | string): void;
+    carried?(id: string, parent: string, pose: Readonly<Pose>, snap: boolean): boolean;
 }
 type SceneTemplate = {
     [bulkKey: BulkKey]: unknown;
@@ -7738,6 +8006,18 @@ type SceneTemplate = {
     entities?: EntityDef[];
     settings?: SceneSettings;
 };
+interface SceneTree {
+    parent(id: string): null | string;
+    children(id: string): readonly string[];
+    subtree(id: string): readonly string[];
+    root(id: string): string;
+    isUnder(id: string, ancestor: string): boolean;
+    local(id: string): Readonly<Pose> | undefined;
+    setLocal(id: string, x: number, y: number, rot?: number): void;
+    setParent(id: string, parent: null | string, opts?: {
+        keepWorld?: boolean;
+    }): void;
+}
 type SceneValidator = (def: SceneDefinition, env: {
     lines?: ReadonlyMap<string, number>;
     registry: Registry;
@@ -7751,6 +8031,8 @@ type Side = "down" | "left" | "right" | "up";
 type SpawnInput = {
     [field: string]: unknown;
     id?: string;
+    local?: boolean;
+    parent?: string;
     sublevel?: string;
     type: EntityTypeName;
 };
@@ -7943,15 +8225,12 @@ type LibraryOption = {
     library?: PrefabLibrary;
     prefabs?: PrefabLibrary;
 };
-type ObserveOption = {
-    observe?: (ctx: EngineContext, tick: number) => void;
-};
 type RuntimeShareOptions = Pick<SceneRuntimeOptions, "persist" | "prefabs">;
 declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions): HeadlessRuntime & {
     live: HeadlessLive;
     save: NonNullable<HeadlessRuntime["save"]>;
 };
-declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption & ObserveOption): ProbeReport<S>;
+declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
 declare function simActionError(registry: Registry, action: string): null | string;
 declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
 
@@ -8437,6 +8716,7 @@ type ProbeInput = {
 };
 type ProbeOptions<S = unknown> = ProbeInput & {
     game?: GameDefinition<S> | null;
+    onTick?: (tick: number, ctx: EngineContext) => void;
     project?: ProjectRuntimeView | null;
     rapier?: RapierModule | null;
     registry?: Registry;
@@ -8647,7 +8927,9 @@ interface MotionBody {
     move(delta: Vec2, opts?: {
         slide?: boolean;
     }): MotionResult;
-    teleport(x: number, y: number): void;
+    teleport(x: number, y: number, opts?: {
+        snap?: boolean;
+    }): void;
     grounded?(): boolean;
     setEnabled(enabled: boolean): void;
     velocity(): Vec2;
@@ -11981,7 +12263,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 21;
+declare const AGENT_SURFACE_VERSION = 22;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -12128,9 +12410,11 @@ declare function bulkKeysOf(def: SceneDefinition): BulkKey[];
 declare function defaultPhysics(registry: Registry, engine?: Readonly<Record<string, unknown>>): "none" | "rapier";
 declare function expandInstance(inst: InstanceDef, library: PrefabLibrary, registry: Registry, opts?: {
     cells?: boolean;
-    group?: GroupDef;
+    parent?: string;
+    steps?: readonly Transform2D[];
 }): {
     entities: RuntimeEntity[];
+    nodes: number;
     ok: true;
 } | {
     issue: SceneIssue;
@@ -12257,6 +12541,7 @@ type ParseFragmentResult = {
     ok: false;
 };
 type PlacedFragment = {
+    ids: Record<string, Ref>;
     issues: SceneIssue[];
     ops: SceneOp[];
     select: Ref[];
@@ -13719,6 +14004,14 @@ declare function buildOpSchemas(registry: Registry): {
                 refs: z.ZodArray<z.ZodString>;
             }, z.core.$strict>,
             z.ZodObject<{
+                op: z.ZodLiteral<"reparent">;
+                parent: z.ZodUnion<readonly [
+                    z.ZodString,
+                    z.ZodNull
+                ]>;
+                refs: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>,
+            z.ZodObject<{
                 index: z.ZodOptional<z.ZodNumber>;
                 instance: z.ZodObject<{
                     at: z.ZodTuple<[
@@ -13729,25 +14022,10 @@ declare function buildOpSchemas(registry: Registry): {
                     id: z.ZodOptional<z.ZodString>;
                     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
                     prefab: z.ZodString;
-                    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+                    rot: z.ZodOptional<z.ZodNumber>;
                     z: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$loose>;
                 op: z.ZodLiteral<"instantiate">;
-            }, z.core.$strict>,
-            z.ZodObject<{
-                at: z.ZodOptional<z.ZodTuple<[
-                    z.ZodNumber,
-                    z.ZodNumber
-                ], null>>;
-                flip: z.ZodOptional<z.ZodBoolean>;
-                id: z.ZodString;
-                name: z.ZodOptional<z.ZodUnion<readonly [
-                    z.ZodString,
-                    z.ZodNull
-                ]>>;
-                op: z.ZodLiteral<"setGroup">;
-                remove: z.ZodOptional<z.ZodBoolean>;
-                rot: z.ZodOptional<z.ZodLiteral<0 | 1 | 2 | 3>>;
             }, z.core.$strict>,
             z.ZodObject<{
                 op: z.ZodLiteral<"override">;
@@ -13810,9 +14088,9 @@ declare function buildOpSchemas(registry: Registry): {
                     x: "x";
                     y: "y";
                 }>>;
-                groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 op: z.ZodLiteral<"transform">;
-                refs: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                refs: z.ZodArray<z.ZodString>;
+                rotate: z.ZodOptional<z.ZodNumber>;
                 turn: z.ZodOptional<z.ZodLiteral<-1 | 1 | 2 | 3>>;
             }, z.core.$strict>,
             z.ZodObject<{
@@ -14006,6 +14284,14 @@ declare function buildOpSchemas(registry: Registry): {
             refs: z.ZodArray<z.ZodString>;
         }, z.core.$strict>,
         z.ZodObject<{
+            op: z.ZodLiteral<"reparent">;
+            parent: z.ZodUnion<readonly [
+                z.ZodString,
+                z.ZodNull
+            ]>;
+            refs: z.ZodArray<z.ZodString>;
+        }, z.core.$strict>,
+        z.ZodObject<{
             index: z.ZodOptional<z.ZodNumber>;
             instance: z.ZodObject<{
                 at: z.ZodTuple<[
@@ -14016,25 +14302,10 @@ declare function buildOpSchemas(registry: Registry): {
                 id: z.ZodOptional<z.ZodString>;
                 params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
                 prefab: z.ZodString;
-                rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+                rot: z.ZodOptional<z.ZodNumber>;
                 z: z.ZodOptional<z.ZodNumber>;
             }, z.core.$loose>;
             op: z.ZodLiteral<"instantiate">;
-        }, z.core.$strict>,
-        z.ZodObject<{
-            at: z.ZodOptional<z.ZodTuple<[
-                z.ZodNumber,
-                z.ZodNumber
-            ], null>>;
-            flip: z.ZodOptional<z.ZodBoolean>;
-            id: z.ZodString;
-            name: z.ZodOptional<z.ZodUnion<readonly [
-                z.ZodString,
-                z.ZodNull
-            ]>>;
-            op: z.ZodLiteral<"setGroup">;
-            remove: z.ZodOptional<z.ZodBoolean>;
-            rot: z.ZodOptional<z.ZodLiteral<0 | 1 | 2 | 3>>;
         }, z.core.$strict>,
         z.ZodObject<{
             op: z.ZodLiteral<"override">;
@@ -14097,9 +14368,9 @@ declare function buildOpSchemas(registry: Registry): {
                 x: "x";
                 y: "y";
             }>>;
-            groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
             op: z.ZodLiteral<"transform">;
-            refs: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            refs: z.ZodArray<z.ZodString>;
+            rotate: z.ZodOptional<z.ZodNumber>;
             turn: z.ZodOptional<z.ZodLiteral<-1 | 1 | 2 | 3>>;
         }, z.core.$strict>,
         z.ZodObject<{
@@ -14684,20 +14955,24 @@ type BulkPlacement = {
     z?: number;
 };
 declare const CHILD_SEPARATOR = "/";
-type LocalChild = {
+type ChildLinks = {
+    nodeParent?: Ref;
+    under?: Ref;
+};
+type LocalChild = ChildLinks & ({
     child: Ref;
     def: EntityDef;
     kind: "entity";
-    turn?: Dihedral;
+    turn?: Orientation;
 } | {
     child: Ref;
     index: number;
     key: string;
     kind: "bulk";
     placed?: BulkPlacement;
-    turn?: Dihedral;
+    turn?: Orientation;
     value: BulkEntry;
-};
+});
 type PlacedChild = {
     child: LocalChild;
     def: EntityDef;
@@ -14717,11 +14992,11 @@ type ResolvedOrigin = {
     instance: number;
     kind: "child";
     path: string[];
-    transform: Dihedral;
+    transform: Orientation;
 } | {
     index: number;
     kind: "entity";
-    transform?: Dihedral;
+    transform?: Orientation;
 };
 type ResolvedPrefab = {
     children: LocalChild[];
@@ -14741,12 +15016,12 @@ type SourceBatchResult = {
     ok: false;
 };
 declare const childRef: (instance: string, child: Ref) => Ref;
+declare function entityFrame(registry: Registry | undefined, def: EntityDef): Frame;
 declare function gridTurns(def: Pick<SceneDefinition, "settings">): boolean;
-declare function groupOrigin(def: SceneDefinition, group: string | undefined): Pt;
-declare function groupTransform(def: SceneDefinition, group: string | undefined): Transform2D;
-declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef): Pt;
-declare function instanceSteps(def: SceneDefinition, inst: InstanceDef): Transform2D[];
-declare function instanceTransform(def: SceneDefinition, inst: InstanceDef): Transform2D;
+declare function instanceFrame(inst: Pick<InstanceDef, "at" | "flip" | "rot">): Frame;
+declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef, registry?: Registry, prefabs?: PrefabLibrary): Pt;
+declare function instanceSteps(def: SceneDefinition, inst: InstanceDef, registry?: Registry, prefabs?: PrefabLibrary): Transform2D[];
+declare function instanceTransform(def: SceneDefinition, inst: InstanceDef, registry?: Registry, prefabs?: PrefabLibrary): Transform2D;
 declare function localChild(prefab: Prefab, inst: InstanceDef, child: Ref, registry: Registry, library?: PrefabLibrary, opts?: ResolveOptions): LocalChild | null;
 declare function localChildren(prefab: Prefab, inst: InstanceDef, registry: Registry, library?: PrefabLibrary, opts?: ResolveOptions): LocalChild[];
 declare function parseChildRef(ref: Ref): null | {
@@ -14754,36 +15029,28 @@ declare function parseChildRef(ref: Ref): null | {
     instance: string;
 };
 declare function placeChildren(prefab: Prefab, inst: InstanceDef, registry: Registry, steps: Transform2D | readonly Transform2D[], cells: boolean, library?: PrefabLibrary): PlacedChild[];
+declare function placedFrame(registry: Registry | undefined, def: EntityDef, turn?: Orientation): Frame;
 declare function resolvePrefab(id: string, library: PrefabLibrary, registry: Registry, opts?: ResolveOptions): PrefabResolution;
 declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): SceneDefinition;
 declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
 
 ## scene/schema.ts
 type FieldKind = "angle" | "grid" | "mirror" | "path" | "point" | "shape" | "side" | "tags" | "value" | "vector";
-declare const GroupSchema: z.ZodObject<{
-    at: z.ZodTuple<[
-        z.ZodNumber,
-        z.ZodNumber
-    ], null>;
-    flip: z.ZodOptional<z.ZodLiteral<true>>;
-    name: z.ZodOptional<z.ZodString>;
-    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
-}, z.core.$strict>;
 declare const InstanceSchema: z.ZodObject<{
     at: z.ZodTuple<[
         z.ZodNumber,
         z.ZodNumber
     ], null>;
     flip: z.ZodOptional<z.ZodLiteral<true>>;
-    group: z.ZodOptional<z.ZodString>;
     id: z.ZodString;
     layer: z.ZodOptional<z.ZodString>;
     name: z.ZodOptional<z.ZodString>;
     off: z.ZodOptional<z.ZodBoolean>;
     overrides: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    parent: z.ZodOptional<z.ZodString>;
     prefab: z.ZodString;
-    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+    rot: z.ZodOptional<z.ZodNumber>;
     z: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 declare const OVERRIDE_PATH: RegExp;
@@ -14922,7 +15189,15 @@ type Dihedral = {
     flip: boolean;
     rot: 0 | 1 | 2 | 3;
 };
+type Frame = {
+    at: Pt;
+    rot: number;
+} & Orientation;
 declare const IDENTITY_2D: Transform2D;
+type Orientation = {
+    flip: boolean;
+    rot: number;
+};
 type Pt = [
     x: number,
     y: number
@@ -14939,17 +15214,22 @@ declare function applyPt(t: Transform2D, p: Pt): Pt;
 declare function applyVec(t: Transform2D, v: Pt): Pt;
 declare function compose(outer: Transform2D, inner: Transform2D): Transform2D;
 declare function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral;
+declare function composeFrames(outer: Frame, inner: Frame): Frame;
+declare function composeOrientations(outer: Orientation, inner: Orientation): Orientation;
 declare function dihedral(d: Dihedral, at: Pt): Transform2D;
 declare function dihedralOf(t: Transform2D): Dihedral | null;
 declare function flipWorld(d: Dihedral, axis: "x" | "y"): Dihedral;
+declare function frame(f: Frame): Transform2D;
+declare function frameOf(t: Transform2D): Orientation;
 declare const inverseTurn: (d: Dihedral) => Dihedral;
 declare function invert(t: Transform2D): Transform2D;
 declare const isIdentityTurn: (d: Dihedral) => boolean;
+declare const isQuarterTurn: (deg: number) => boolean;
 declare const translation: ([dx, dy]: Pt) => Transform2D;
-declare const turnOf: (d: {
+declare function turnOf(d: {
     flip?: boolean;
     rot?: number;
-}) => Dihedral;
+}): Dihedral | null;
 
 ## scene/translate.ts
 declare function translateEntityDef(registry: Registry, def: EntityDef, by: Pt): EntityDef | null;
@@ -15046,6 +15326,9 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "nav-missing",
     "joint-ref-type",
     "joint-self",
+    "parent-depth",
+    "parent-type",
+    "quarter-turn-only",
     "follower-hits-solid",
     "solid-overlap",
     "grid-unreachable",
@@ -15081,6 +15364,10 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "prefab-not-spawnable",
     "body-missing",
     "body-not-dynamic",
+    "entity-gone",
+    "pose-not-settable",
+    "parent-cycle",
+    "parent-scope",
     "recording-other-platform",
     "scene-unlisted",
     "start-scene-missing",
@@ -15106,11 +15393,11 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
-    group?: string;
     id: string;
     layer?: string;
     name?: string;
     off?: boolean;
+    parent?: Ref;
     type: EntityTypeName;
     z?: number;
 };
@@ -15148,24 +15435,18 @@ type GridSettings = {
     kind: "square";
     origin?: Pt;
 };
-type GroupDef = {
-    at: Pt;
-    flip?: true;
-    name?: string;
-    rot?: 1 | 2 | 3;
-};
 type InstanceDef = {
     at: Pt;
     flip?: true;
-    group?: string;
     id: string;
     layer?: string;
     name?: string;
     off?: boolean;
     overrides?: Record<OverridePath, unknown>;
     params?: Record<string, unknown>;
+    parent?: Ref;
     prefab: string;
-    rot?: 1 | 2 | 3;
+    rot?: number;
     z?: number;
 };
 type InstanceInput = Omit<InstanceDef, "id"> & {
@@ -15191,8 +15472,8 @@ declare const OP_NAMES: readonly [
     "setScene",
     "setSettings",
     "reorder",
+    "reparent",
     "instantiate",
-    "setGroup",
     "override",
     "revertOverride",
     "applyToPrefab",
@@ -15214,6 +15495,7 @@ type OpBatch = {
     ops: SceneOp[];
 };
 type OverridePath = string;
+declare const PARENT_MAX_DEPTH = 16;
 declare const PREFAB_KIND = "prefab";
 declare const PREFAB_MAX_DEPTH = 8;
 type PathDef = {
@@ -15275,9 +15557,10 @@ type RuntimeEntity<F extends object = {
     behaviors?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
     id: string;
     layer?: string;
+    parent?: string;
     transform?: {
         flip: boolean;
-        turn: 0 | 1 | 2 | 3;
+        rot: number;
     };
     type: EntityTypeName;
     z?: number;
@@ -15286,7 +15569,7 @@ type RuntimeField<T> = T extends ShapeTuple ? ShapeObj : T;
 type RuntimeFields<F> = {
     [K in keyof F]: RuntimeField<F[K]>;
 };
-declare const SCENE_FORMAT_VERSION = 4;
+declare const SCENE_FORMAT_VERSION = 5;
 declare const SCENE_HEADER_KEYS: readonly [
     "$schema",
     "v",
@@ -15295,7 +15578,6 @@ declare const SCENE_HEADER_KEYS: readonly [
     "bounds",
     "settings",
     "assets",
-    "groups",
     "instances"
 ];
 type SceneChange = {
@@ -15303,7 +15585,7 @@ type SceneChange = {
     kind: "moved";
     ref: Ref;
 } | {
-    field: "assets" | "bounds" | "game" | "name" | "v" | `groups.${string}` | `settings.${string}`;
+    field: "assets" | "bounds" | "game" | "name" | "v" | `settings.${string}`;
     from: unknown;
     kind: "scene";
     to: unknown;
@@ -15338,7 +15620,6 @@ type SceneDefinition = {
     bounds: Bounds;
     entities?: EntityDef[];
     game?: string;
-    groups?: Record<string, GroupDef>;
     instances?: InstanceDef[];
     name: string;
     settings?: SceneSettings;
@@ -15362,9 +15643,9 @@ type SceneIssue = {
 type SceneOp = {
     about?: Pt;
     flip?: "x" | "y";
-    groups?: string[];
     op: "transform";
-    refs?: string[];
+    refs: string[];
+    rotate?: number;
     turn?: -1 | 1 | 2 | 3;
 } | {
     add?: AssetId[];
@@ -15375,14 +15656,6 @@ type SceneOp = {
     at: Pt;
     op: "place";
     ref: Ref;
-} | {
-    at?: Pt;
-    flip?: boolean;
-    id: string;
-    name?: null | string;
-    op: "setGroup";
-    remove?: boolean;
-    rot?: 0 | 1 | 2 | 3;
 } | {
     at?: Pt;
     id: string;
@@ -15464,6 +15737,10 @@ type SceneOp = {
     set: Record<OverridePath, unknown>;
 } | {
     op: "remove";
+    refs: Ref[];
+} | {
+    op: "reparent";
+    parent: Ref | null;
     refs: Ref[];
 } | {
     op: "revertOverride";
@@ -16143,6 +16420,7 @@ declare function selectTick(state: GameStoreState): number;
 type Attachment = {
     collider(): Collider | null;
     detach(): void;
+    follow(pose: Readonly<Pose>, offset: Readonly<Pose>, frame: Pose): Pose | null;
     host(): AttachmentHost | null;
 };
 type AttachmentHost = {
@@ -16152,11 +16430,11 @@ type AttachmentHost = {
     type: string;
 };
 type AttachmentHub = {
-    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider, moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void): Attachment;
+    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider): Attachment;
     attachedTo(hostId: string): string[];
     clear(): void;
-    host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
-    moved(hostId: string, snap?: boolean, at?: Readonly<Pose>): void;
+    host(hostId: string, type: string, body: RigidBody, origin?: Vec2): void;
+    hosted(hostId: string): AttachmentHost | null;
     unhost(hostId: string): void;
 };
 
@@ -16165,6 +16443,10 @@ type OverlapTracker = {
     diff(id: string, before: Overlaps, now: Overlaps, at: (handle: number) => Vec2): void;
 };
 type Overlaps = Map<number, string | undefined>;
+type OwnedBody = {
+    body: RigidBody;
+    collider: Collider;
+};
 type PropEntity = RuntimeEntity<{
     angularDamping?: number;
     ccd?: boolean;
@@ -16182,7 +16464,6 @@ type SavedOverlap = [
     nth: number
 ];
 type SensorEntity = RuntimeEntity<{
-    attach?: string;
     shape: ShapeObj;
     tags?: string[];
 }>;
@@ -16191,7 +16472,6 @@ type SensorSystem = SceneSystem<SensorEntity> & {
     setPose(id: string, x: number, y: number, rot: number): void;
 };
 type SolidEntity = RuntimeEntity<{
-    attach?: string;
     material?: string;
     oneWay?: Side | boolean;
     shape: ShapeObj;
@@ -16230,6 +16510,7 @@ declare function drawEntity(ctx: Pick<EngineContext, "registry" | "view">, type:
     z?: number;
 }, layer: ViewLayer, shape?: ShapeObj): void;
 declare function forgetOneWayActor(ctx: EngineContext, actorId: string, passes?: ReadonlySet<number>): void;
+declare function moveBodyNow(ctx: EngineContext, id: string, entry: OwnedBody, to: Pose): void;
 declare function oneWayPasses(ctx: EngineContext, actorId: string): ReadonlySet<number>;
 declare function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps;
 declare function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[];
@@ -16238,8 +16519,9 @@ declare function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOver
 type DataSystem<E extends RuntimeEntity = RuntimeEntity> = SceneSystem<E> & {
     get(id: string): E | undefined;
     list(): E[];
+    setPose(id: string, x: number, y: number, rot: number): void;
 };
-declare function createDataSystem<E extends RuntimeEntity = RuntimeEntity>(_ctx?: EngineContext, _type?: RegisteredType): DataSystem<E>;
+declare function createDataSystem<E extends RuntimeEntity = RuntimeEntity>(ctx?: EngineContext, _type?: RegisteredType): DataSystem<E>;
 
 ## systems/decor.ts
 type DecorEntity = RuntimeEntity<{
@@ -16746,7 +17028,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.15.0";
+declare const ENGINE_VERSION = "0.16.0";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

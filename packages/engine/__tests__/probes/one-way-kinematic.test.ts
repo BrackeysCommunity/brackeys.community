@@ -290,7 +290,7 @@ describe("one-way sides", () => {
                 id: "g",
                 prefab: "gate",
                 at: [0, 0],
-                ...(d.rot ? { rot: d.rot } : {}),
+                ...(d.rot ? { rot: 90 * d.rot } : {}),
                 ...(d.flip ? { flip: true as const } : {}),
               },
             ],

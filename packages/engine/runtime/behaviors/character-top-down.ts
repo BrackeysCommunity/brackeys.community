@@ -222,6 +222,15 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
     launch(id, v) {
       own(id, "launch").body.setVelocity({ x: v.x, y: v.y });
     },
+    handle: (id) => ({
+      grounded: () => system.grounded(id),
+      launch: (v: Vec) => system.launch(id, v),
+      setIntent: (intent: CharacterIntent) => system.setIntent(id, intent),
+      velocity: () => system.velocity(id),
+    }),
+    posed(id, pose, snap) {
+      characters.get(id)?.body.teleport(pose.x, pose.y, { snap });
+    },
     save(id): JsonValue | undefined {
       const intent = characters.get(id)?.intent;
       if (!intent) return undefined;

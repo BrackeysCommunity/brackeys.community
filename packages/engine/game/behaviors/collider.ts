@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import type { BodyStandIn } from "../../runtime/bodies-control";
-import { defineBehavior, type BehaviorSystem } from "../behaviors";
+import { type BehaviorSystem, type Bound, defineBehavior, handleType } from "../behaviors";
 import { bodyShapeField, ID_PATTERN, materialField } from "../fields";
 import type { FieldEnv } from "../types";
 
@@ -69,8 +69,12 @@ export type ColliderSystem = BehaviorSystem<ColliderBlock> &
     rebuild(entityId: string): void;
   };
 
+/** What `getBehavior(COLLIDER)` adds beside `fields`. */
+export type ColliderHandle = Bound<ColliderSystem, "rebuild">;
+
 export const COLLIDER = defineBehavior({
   name: "collider",
+  handle: handleType<ColliderHandle>(),
   description:
     "A collision shape on the entity: static on its own, moved by a body beside it, or a trigger with sensor.",
   fields: colliderFields,

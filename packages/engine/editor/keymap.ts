@@ -82,8 +82,6 @@ export type KeyContext = {
   gesture?: boolean;
   /** The active tool; anything but `select` is cleared by Escape. */
   tool?: string;
-  /** Everything selected is prefab instances or whole groups, which turn by quarter turns. */
-  quarterTurns?: boolean;
   /** A prefab is open on its own, so Escape can leave it. */
   inPrefab?: boolean;
   /** Something is selected; Escape clears it before leaving a prefab. */
@@ -154,19 +152,15 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
   {
     key: "q",
     scope: "edit",
-    command: "turn-ccw",
-    description: "Turn a quarter counterclockwise",
-    when: (c) => c.quarterTurns === true,
+    command: "rotate-ccw",
+    description: "Rotate counterclockwise by the snap angle",
   },
-  { key: "q", scope: "edit", command: "rotate-ccw", description: "Rotate −15°" },
   {
     key: "e",
     scope: "edit",
-    command: "turn-cw",
-    description: "Turn a quarter clockwise",
-    when: (c) => c.quarterTurns === true,
+    command: "rotate-cw",
+    description: "Rotate clockwise by the snap angle",
   },
-  { key: "e", scope: "edit", command: "rotate-cw", description: "Rotate +15°" },
   { key: "Shift+h", scope: "edit", command: "flip-x", description: "Flip horizontally" },
   { key: "Shift+v", scope: "edit", command: "flip-y", description: "Flip vertically" },
   ...arrows.flatMap((d): EngineKeyBinding[] => [

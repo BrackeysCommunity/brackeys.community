@@ -102,10 +102,14 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "one-way-latch",
       "post",
       "room",
+      "turret",
       "grid-yard-save",
       "scene-list",
+      "tree-yard-checks",
+      "tree-yard",
+      "tree-yard-script",
     ]);
-    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(9);
+    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(10);
     expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
   });
 
@@ -332,6 +336,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
         "one-way-latch",
         "post",
         "room",
+        "turret",
       ]);
     });
 

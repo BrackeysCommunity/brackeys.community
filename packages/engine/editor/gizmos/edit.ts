@@ -24,6 +24,12 @@ export type DragOptions = {
 export type GizmoEdit = {
   /** The whole gesture as one batch, on whole world px; `null` when it changes nothing. */
   batch: OpBatch | null;
+  /**
+   * What the resolved view previews while dragging, when it isn't `batch`:
+   * a parent's subtree carried with it, an instance's children for an
+   * instance (`GizmoTarget.preview`). Commit `batch` all the same.
+   */
+  preview?: OpBatch;
   /** The drag readout: `Δ 0.64, 0 m`, `W 1.6 H 0.16 m`, `37°`. */
   readout: string;
   /** The shape as the batch commits it, world metres. */
@@ -40,6 +46,16 @@ export type GizmoEdit = {
   concave?: boolean;
   guides?: SnapGuide[];
 };
+
+/** `edit` with the preview `targets` give its batch, when one does. */
+export function withPreview<E extends GizmoEdit | null>(
+  edit: E,
+  targets: readonly GizmoTarget[],
+): E {
+  if (!edit?.batch) return edit;
+  const preview = targets.find((t) => t.preview)?.preview?.(edit.batch);
+  return preview ? { ...edit, preview } : edit;
+}
 
 /** A gesture that gives `t` the world shape `world`, rounded as it will commit. */
 export function shapeEdit(

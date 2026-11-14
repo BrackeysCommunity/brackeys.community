@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import { EMITTER_KIND } from "../../project/kinds/emitter";
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
 import { assetField, vectorField } from "../fields";
 import type { FieldEnv } from "../types";
 
@@ -31,8 +31,12 @@ const emitterFields = (env: FieldEnv) => ({
 /** An `emitter` block as an entity carries it. */
 export type EmitterBlock = z.infer<z.ZodObject<ReturnType<typeof emitterFields>>>;
 
+/** Nothing beside `fields` yet. */
+export type EmitterHandle = Record<never, never>;
+
 export const EMITTER = defineBehavior({
   name: "emitter",
+  handle: handleType<EmitterHandle>(),
   description:
     "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
   visualOnly: true,

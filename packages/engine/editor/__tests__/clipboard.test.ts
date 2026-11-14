@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { fake } from "../../scene/__tests__/fixtures/fake-game";
-import { fake as yardFake, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
+import {
+  engine as yardEngine,
+  fake as yardFake,
+  yardPrefabs,
+} from "../../scene/__tests__/fixtures/random-ops";
 import { fragmentBounds, type SceneFragment } from "../../scene/fragment";
 import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
@@ -162,7 +166,7 @@ describe("instances on the clipboard", () => {
         id: "gate-2",
         prefab: "gate",
         at: [300, 400],
-        rot: 1,
+        rot: 90,
         z: 3,
         params: { speed: 90 },
         overrides: { "door.path.speed": 120 },
@@ -260,7 +264,7 @@ describe("instances on the clipboard", () => {
         entities: [],
         instances: [
           { id: "p1", prefab: "post", at: [-100, 0] },
-          { id: "p2", prefab: "tall-post", at: [100, 0], rot: 1 },
+          { id: "p2", prefab: "tall-post", at: [100, 0], rot: 90 },
         ],
       },
     ]);
@@ -353,5 +357,82 @@ describe("nextFreeId", () => {
     expect(nextFreeId("lift-2", new Set(["lift-2"]))).toBe("lift-3");
     const long = "a".repeat(48);
     expect(nextFreeId(long, new Set([long]))).toBe(`${"a".repeat(46)}-2`);
+  });
+});
+
+describe("trees on the clipboard", () => {
+  const prefabs = yardPrefabs();
+  const tree: SceneDefinition = {
+    v: 4,
+    name: "t",
+    bounds: [0, 0, 2000, 1000],
+    entities: [
+      { id: "pen", type: "node", at: [100, 100], rot: 90 },
+      { id: "peg", type: "marker", at: [10, 0], parent: "pen" },
+      { id: "pip", type: "marker", at: [0, 10], parent: "peg" },
+      { id: "lamp", type: "marker", at: [0, -5], parent: "post-1/top" },
+    ],
+    instances: [{ id: "post-1", prefab: "post", at: [20, 0], parent: "pen" }],
+  };
+  const applyTree = (to: SceneDefinition, batch: OpBatch) => {
+    const r = applyOps(to, batch, yardEngine, { prefabs, validate: "none" });
+    if (!r.ok) throw new Error(`${r.issue.code}: ${r.issue.message}`);
+    return r.def;
+  };
+  const world = (def: SceneDefinition, id: string) =>
+    resolveScene(def, yardEngine, prefabs).entities!.find((e) => e.id === id)!.at;
+
+  it("cuts a parent with its subtree, each child removed before its parent", () => {
+    const { text, batch } = cutSelection(tree, ["peg"], yardEngine, prefabs);
+    expect(JSON.parse(text).entities.map((e: { id: string }) => e.id)).toEqual(["peg", "pip"]);
+    expect(batch.ops).toEqual([{ op: "remove", refs: ["pip", "peg"] }]);
+    const all = cutSelection(tree, ["pip", "pen"], yardEngine, prefabs).batch;
+    expect(all.ops).toEqual([{ op: "remove", refs: ["lamp", "pip", "peg", "post-1", "pen"] }]);
+    expect(applyTree(tree, all).entities ?? []).toEqual([]);
+  });
+
+  it("removes what sits under a cut instance child, which it turns off", () => {
+    const { batch } = cutSelection(tree, ["post-1/top"], yardEngine, prefabs);
+    expect(batch.ops).toEqual([
+      { op: "remove", refs: ["lamp"] },
+      { op: "override", ref: "post-1", set: { "top.off": true } },
+    ]);
+  });
+
+  it("pastes a copied child under nothing, where it stood", () => {
+    const text = copySelection(tree, ["peg"], yardEngine, prefabs);
+    const r = pasteFragment(text, { def: tree, registry: yardEngine, prefabs });
+    if (!r.ok) throw new Error(r.issues[0]!.message);
+    expect(r.batch.ops[0]).toEqual({
+      op: "add",
+      entity: { id: "peg-2", type: "marker", at: [100, 110] },
+    });
+    const after = applyTree(tree, r.batch);
+    expect(world(after, "pip-2")).toEqual(world(tree, "pip"));
+  });
+
+  it("duplicates a parent with its subtree, the copies under the copy", () => {
+    const r = duplicateSelection(tree, ["pen"], yardEngine, 1, { prefabs });
+    if (!r.ok) throw new Error(r.issues[0]!.message);
+    expect(r.batch.label).toBe("Duplicate");
+    expect(r.batch.ops.some((op) => op.op === "reparent")).toBe(false);
+    expect(r.select).toEqual(["pen-2", "peg-2", "pip-2", "post-2", "lamp-2"]);
+    const after = applyTree(tree, r.batch);
+    const [x, y] = world(tree, "lamp") as [number, number];
+    expect(world(after, "lamp-2")).toEqual([x + 1, y + 1]);
+  });
+
+  it("duplicates a child next to its original, under the same parent", () => {
+    const r = duplicateSelection(tree, ["peg", "post-1"], yardEngine, 1, { prefabs });
+    if (!r.ok) throw new Error(r.issues[0]!.message);
+    expect(r.batch.ops.at(-1)).toEqual({
+      op: "reparent",
+      refs: ["peg-2", "post-2"],
+      parent: "pen",
+    });
+    const after = applyTree(tree, r.batch);
+    expect(after.entities!.find((e) => e.id === "peg-2")?.parent).toBe("pen");
+    const [x, y] = world(tree, "pip") as [number, number];
+    expect(world(after, "pip-2")).toEqual([x + 1, y + 1]);
   });
 });

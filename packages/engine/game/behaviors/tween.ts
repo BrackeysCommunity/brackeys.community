@@ -6,11 +6,11 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import type { Tweens } from "../../anim/tweens";
+import { type Bound, defineBehavior, handleType } from "../behaviors";
 import { rgbSchema } from "../color";
 import { delayField } from "../delay-field";
-import { isAttachField } from "../fields";
-import { ENGINE_REGISTRY_ID, type EntityTypeDef, type RegisteredType } from "../types";
+import { ENGINE_REGISTRY_ID, type EntityTypeDef } from "../types";
 
 const EASE_FAMILIES = [
   "quad",
@@ -78,10 +78,12 @@ export const isLookChannel = (channel: string): channel is LookChannel =>
 
 /** The engine primitives whose systems have `setPose`; zod-only code can't ask the systems. */
 export const POSED_PRIMITIVES: readonly string[] = Object.freeze([
+  "node",
   "marker",
   "decor",
   "solid",
   "sensor",
+  "prop",
 ]);
 
 /**
@@ -132,42 +134,20 @@ export function tweenTargetProblem(
 
 /**
  * What a tween plays on: an entity's type and whether it can be posed, as
- * `tweenTargetProblem` takes them, and the host it rides when it rides one
- * (`ridingHost`).
+ * `tweenTargetProblem` takes them.
  */
-export type TweenTarget = { type: string; posable: boolean | null; riding?: string };
+export type TweenTarget = { type: string; posable: boolean | null };
 
 /**
- * The host an entity rides: the id an attach field of its type names (a
- * solid's or sensor's `attach`), whether or not that host is live, since an
- * attachment made once it spawns would take the pose back. The scene
- * validator and the run both ask here.
- */
-export function ridingHost(
-  type: Pick<RegisteredType, "shape"> | undefined,
-  fields: Readonly<Record<string, unknown>>,
-): string | undefined {
-  for (const [field, schema] of Object.entries(type?.shape ?? {})) {
-    const host = fields[field];
-    if (typeof host === "string" && isAttachField(schema)) return host;
-  }
-  return undefined;
-}
-
-/**
- * Why `spec` can't play on `target`, or null when it can. An entity riding
- * a host goes where the host's body takes it, so its pose can't be tweened.
+ * Why `spec` can't play on `target`, or null when it can. A child moves in
+ * its parent's frame like any other entity.
  */
 export function tweenProblem(
   target: TweenTarget,
   spec: Pick<TweenSpec, "to">,
   hasSprite: boolean,
 ): string | null {
-  const posed =
-    target.riding === undefined
-      ? target
-      : { type: `${target.type} riding "${target.riding}"`, posable: false };
-  return tweenTargetProblem(posed, tweenChannels(spec), hasSprite);
+  return tweenTargetProblem(target, tweenChannels(spec), hasSprite);
 }
 
 /**
@@ -193,9 +173,21 @@ export function tweenBlockProblems(
 const channels = (description: string, placeholder: string) =>
   z
     .strictObject({
-      x: z.number().optional().describe("World x, m.").meta({ unit: "m", placeholder }),
-      y: z.number().optional().describe("World y, m.").meta({ unit: "m", placeholder }),
-      rot: z.number().optional().describe("Rotation, radians.").meta({ unit: "rad", placeholder }),
+      x: z
+        .number()
+        .optional()
+        .describe("x, m: world, or in the parent's frame for a child.")
+        .meta({ unit: "m", placeholder }),
+      y: z
+        .number()
+        .optional()
+        .describe("y, m: world, or in the parent's frame for a child.")
+        .meta({ unit: "m", placeholder }),
+      rot: z
+        .number()
+        .optional()
+        .describe("Rotation, radians: world, or in the parent's frame for a child.")
+        .meta({ unit: "rad", placeholder }),
       alpha: z
         .number()
         .min(0)
@@ -285,8 +277,12 @@ const tweenFields = {
 /** A `tween` block as an entity carries it. */
 export type TweenBlock = z.infer<z.ZodObject<typeof tweenFields>>;
 
+/** What `getBehavior(TWEEN)` adds beside `fields`. */
+export type TweenHandle = Bound<Tweens, "to" | "cancelAll">;
+
 export const TWEEN = defineBehavior({
   name: "tween",
+  handle: handleType<TweenHandle>(),
   description:
     "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
   fields: tweenFields,

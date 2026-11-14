@@ -60,7 +60,6 @@ describe("sceneSchemaFor", () => {
       "bounds",
       "settings",
       "assets",
-      "groups",
       "instances",
       "solid",
       "entities",
@@ -73,7 +72,6 @@ describe("sceneSchemaFor", () => {
       "bounds",
       "settings",
       "assets",
-      "groups",
       "instances",
       "flag",
       "pad",
@@ -116,11 +114,11 @@ describe("sceneSchemaFor", () => {
     expect(schema.safeParse({ ...minimal, bounds: [1, 0, 0, 1] }).success).toBe(false);
   });
 
-  it("takes bounds, group and instance origins in metres, not only whole numbers", () => {
+  it("takes bounds and instance origins in metres, not only whole numbers", () => {
     const schema = sceneSchemaFor(engine);
     expect(schema.safeParse({ ...minimal, bounds: [-0.5, 0, 12.34, 7.205] }).success).toBe(true);
     expect(schema.safeParse({ ...minimal, groups: { room: { at: [0.32, 1.5] } } }).success).toBe(
-      true,
+      false,
     );
     expect(
       schema.safeParse({ ...minimal, instances: [{ id: "g", prefab: "gate", at: [0.5, 0.25] }] })
@@ -263,23 +261,22 @@ describe("v3 keys", () => {
   const parses = (scene: object) => schema.safeParse({ ...minimal, ...scene }).success;
   const inst = { id: "g", prefab: "gate", at: [10, 20] };
 
-  it("parses instance rot, flip, z and params", () => {
+  it("parses instance rot in degrees, flip, z and params", () => {
     expect(
-      parses({ instances: [{ ...inst, rot: 1, flip: true, z: 5, params: { speed: 120 } }] }),
+      parses({ instances: [{ ...inst, rot: 90, flip: true, z: 5, params: { speed: 120 } }] }),
     ).toBe(true);
-    for (const rot of [2, 3]) expect(parses({ instances: [{ ...inst, rot }] })).toBe(true);
-    for (const rot of [0, 4, 1.5, "1"])
+    for (const rot of [1, 30, 180, 359.5])
+      expect(parses({ instances: [{ ...inst, rot }] })).toBe(true);
+    for (const rot of [0, 360, -90, "90"])
       expect(parses({ instances: [{ ...inst, rot }] })).toBe(false);
     expect(parses({ instances: [{ ...inst, flip: false }] })).toBe(false);
     expect(parses({ instances: [{ ...inst, params: [1] }] })).toBe(false);
     expect(parses({ instances: [{ ...inst, spin: 1 }] })).toBe(false);
   });
 
-  it("parses group rot and flip", () => {
-    expect(parses({ groups: { w: { at: [0, 0], rot: 2, flip: true, name: "Wing" } } })).toBe(true);
-    expect(parses({ groups: { w: { at: [0, 0], rot: 0 } } })).toBe(false);
-    expect(parses({ groups: { w: { at: [0, 0], flip: false } } })).toBe(false);
-    expect(parses({ groups: { w: { at: [0, 0], z: 1 } } })).toBe(false);
+  it("has no groups: a node is the frame things sit in", () => {
+    expect(parses({ groups: { w: { at: [0, 0] } } })).toBe(false);
+    expect(parses({ entities: [{ id: "m", type: "marker", at: [0, 0], group: "w" }] })).toBe(false);
   });
 
   it("parses an assets header of ids, dangling or not", () => {

@@ -2483,6 +2483,25 @@
     box-shadow: inset 0 0 0 1px var(--je-primary);
   }
 
+  .je-outliner-item[data-drop-before] {
+    box-shadow: inset 0 2px 0 var(--je-primary);
+  }
+
+  .je-outliner-item[data-drop-refused] {
+    background: color-mix(in srgb, var(--je-danger) 10%, transparent);
+    box-shadow: inset 0 0 0 1px var(--je-danger);
+    cursor: not-allowed;
+  }
+
+  .je-outliner-list[data-drop-over] {
+    box-shadow: inset 0 0 0 1px var(--je-primary);
+    border-radius: var(--je-radius-sm);
+  }
+
+  .je-outliner-list[data-drop-refused] {
+    box-shadow: inset 0 0 0 1px var(--je-danger);
+  }
+
   .je-outliner-entity {
     position: relative;
   }

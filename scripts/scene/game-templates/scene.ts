@@ -10,6 +10,7 @@ import {
 } from "@jams/engine/scene";
 
 import { onBehaviors, type GameNames, type GameOptions } from ".";
+import { goalScriptName } from "./goal";
 
 type Box = ["box", number, number, number, number];
 
@@ -45,9 +46,10 @@ const SIDE_GOAL: [number, number] = [6.75, 3.5];
 
 /**
  * The top-down room, 8 × 6 m: a wall down the middle from the top leaves a
- * gap at the bottom, the hero starts top-left and the goal is top-right.
+ * gap at the bottom, the hero starts top-left and the goal, a sensor
+ * carrying the goal script, is top-right.
  */
-function topDownTemplate(pxPerMetre: number): SceneTemplate {
+function topDownTemplate(pxPerMetre: number, goalScript: string): SceneTemplate {
   const { m, box } = layout(pxPerMetre);
   return {
     bounds: [0, 0, m(8), m(6)],
@@ -70,7 +72,13 @@ function topDownTemplate(pxPerMetre: number): SceneTemplate {
           "camera-target": {},
         },
       },
-      { id: "goal", type: "sensor", shape: box(...TOP_DOWN_GOAL, 0.9, 0.5), tags: ["goal"] },
+      {
+        id: "goal",
+        type: "sensor",
+        shape: box(...TOP_DOWN_GOAL, 0.9, 0.5),
+        tags: ["goal"],
+        behaviors: { [goalScript]: {} },
+      },
     ],
   };
 }
@@ -79,7 +87,7 @@ function topDownTemplate(pxPerMetre: number): SceneTemplate {
  * The side-view room, 8 × 5 m under gravity: the hero starts on the floor at
  * the left, and the goal sits on a 0.6 m ledge at the right, a jump up.
  */
-function sideViewTemplate(pxPerMetre: number): SceneTemplate {
+function sideViewTemplate(pxPerMetre: number, goalScript: string): SceneTemplate {
   const { m, box } = layout(pxPerMetre);
   return {
     bounds: [0, 0, m(8), m(5)],
@@ -102,7 +110,13 @@ function sideViewTemplate(pxPerMetre: number): SceneTemplate {
           "camera-target": {},
         },
       },
-      { id: "goal", type: "sensor", shape: box(...SIDE_GOAL, 0.5, 0.5), tags: ["goal"] },
+      {
+        id: "goal",
+        type: "sensor",
+        shape: box(...SIDE_GOAL, 0.5, 0.5),
+        tags: ["goal"],
+        behaviors: { [goalScript]: {} },
+      },
     ],
   };
 }
@@ -150,8 +164,10 @@ function gridTemplate(cell: number, pxPerMetre: number): SceneTemplate {
 
 /** What a new scene of the game starts with, and what `scenes/main.json` holds. */
 export function sceneTemplateOf(options: GameOptions): SceneTemplate {
-  if (options.preset === "top-down") return topDownTemplate(options.lengthUnit);
-  if (options.preset === "side-view") return sideViewTemplate(options.lengthUnit);
+  if (options.preset === "top-down")
+    return topDownTemplate(options.lengthUnit, goalScriptName(options));
+  if (options.preset === "side-view")
+    return sideViewTemplate(options.lengthUnit, goalScriptName(options));
   return gridTemplate(options.grid?.cell ?? 1, options.lengthUnit);
 }
 

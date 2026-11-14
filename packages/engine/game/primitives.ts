@@ -2,9 +2,8 @@ import { z } from "zod";
 
 import { DEFAULT_CAMERA_DAMPING, DEFAULT_REGION_EASE } from "./defaults";
 import {
-  attachField,
+  angleField,
   bodyShapeField,
-  isAttachField,
   PathSchema,
   materialField,
   pointField,
@@ -101,6 +100,25 @@ const OWNS_BODY = { forbidden: ["body", "collider"] } as const;
  * (`runtime/primitives.ts`), so this module stays loadable on a server.
  */
 export const PRIMITIVES = {
+  node: {
+    type: "node",
+    description:
+      "A pose and nothing else: a parent to move, turn, hide or destroy what sits under it as one thing.",
+    physics: "optional",
+    fields: {
+      at: pointField(`The node's origin. ${absolute}`),
+      rot: angleField("Its angle, degrees clockwise; default 0.", "deg")
+        .optional()
+        .meta({ title: "Rotation", default: 0 }),
+      flip: z
+        .literal(true)
+        .optional()
+        .describe("Mirror x in the node's frame, before `rot`; omitted means not mirrored.")
+        .meta({ kind: "mirror", axis: "x", title: "Mirror" }),
+    },
+    style: { stroke: 0x99bbdd },
+    ascii: "*",
+  },
   solid: {
     type: "solid",
     description:
@@ -114,9 +132,6 @@ export const PRIMITIVES = {
       )
         .optional()
         .meta({ title: "One-way", group: "surface" }),
-      attach: attachField(
-        "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
-      ),
     }),
     bulk: {
       form: "shape",
@@ -136,9 +151,6 @@ export const PRIMITIVES = {
     fields: {
       shape: shapeField(`Trigger shape. ${absolute}`),
       tags: tagsField("Labels a game reads off the sensor's events."),
-      attach: attachField(
-        "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
-      ),
     },
     behaviors: OWNS_BODY,
     style: { fill: 0x44cc88, stroke: 0x44cc88, alpha: 0.3 },
@@ -290,24 +302,9 @@ export function typePhysics(type: EntityTypeDef): "required" | "optional" {
   return type.physics ?? (type.base ? PRIMITIVES[type.base].physics : undefined) ?? "optional";
 }
 
-/** One reason an entity can't load without physics: its type needs it, or `field` rides another entity. */
-export type PhysicsNeed = { field?: string };
-
-/**
- * Why an entity of `type` with these fields can't load in a scene without
- * physics, type first then each set attach field; empty when it can (or
- * when the type doesn't load at all).
- */
-export function physicsNeeds(
-  type: RegisteredType,
-  fields: Readonly<Record<string, unknown>>,
-): PhysicsNeed[] {
-  if (type.loads === false) return [];
-  const out: PhysicsNeed[] = typePhysics(type) === "required" ? [{}] : [];
-  for (const [field, schema] of Object.entries(type.shape)) {
-    if (fields[field] !== undefined && isAttachField(schema)) out.push({ field });
-  }
-  return out;
+/** Whether entities of `type` can't load in a scene without physics; false for a type that doesn't load. */
+export function needsPhysics(type: RegisteredType): boolean {
+  return type.loads !== false && typePhysics(type) === "required";
 }
 
 type ResolvedFields<D> = D extends { fields: infer F }
@@ -334,6 +331,7 @@ export function primitiveFields<P extends PrimitiveType>(
 
 /** The fields a type based on each primitive must have. */
 export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readonly string[]> = {
+  node: ["at"],
   solid: ["shape"],
   sensor: ["shape"],
   marker: ["at"],

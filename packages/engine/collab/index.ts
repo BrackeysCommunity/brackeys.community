@@ -76,7 +76,6 @@ export { assignZ, compareZ } from "./order";
 export {
   applyOpsToDoc,
   headerOf,
-  patchGroup,
   refsOfView,
   SCENE_ONLY_OPS,
   type DocApplyOptions,

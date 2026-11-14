@@ -1,0 +1,19 @@
+{
+  "v": 5,
+  "name": "prefabbed",
+  "bounds": [0, 0, 20, 10],
+  "instances": [
+    { "id": "gate-1", "prefab": "gate", "at": [6, 9] },
+    { "id": "gate-2", "prefab": "gate", "parent": "east", "at": [2, 9], "overrides": { "door.path.speed": 1.4, "~solid:0.shape": ["box", 0, 0.5, 0.6, 0.06] } }
+  ],
+  "solid": [
+    ["box", 10, 9.8, 10, 0.2]
+  ],
+  "entities": [
+    { "id": "east", "type": "node", "name": "East wing", "at": [12, 0] },
+    { "id": "posts", "type": "node", "at": [0, 0] },
+    { "id": "left-post", "type": "solid", "parent": "posts", "shape": ["box", 1, 9, 0.1, 0.6] },
+    { "id": "east-post", "type": "solid", "parent": "east", "shape": ["box", 5, 9, 0.1, 0.6] },
+    { "id": "start", "type": "marker", "at": [3, 9.6], "tags": ["spawn"] }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "hero-top",
   "params": {
     "maxSpeed": { "description": "Top walking speed, m/s.", "targets": ["hero.behaviors.character-top-down.maxSpeed"] }

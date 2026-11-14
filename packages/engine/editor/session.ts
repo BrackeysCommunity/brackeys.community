@@ -280,8 +280,6 @@ export function labelFor(batch: OpBatch): string {
       return `Reorder ${many(op.refs.length, op.refs[0]!)}`;
     case "instantiate":
       return `Place ${op.instance.id ?? op.instance.prefab}`;
-    case "setGroup":
-      return op.remove ? `Delete group ${op.id}` : `Edit group ${op.id}`;
     case "override":
       return `Override ${op.ref}`;
     case "revertOverride":
@@ -295,10 +293,14 @@ export function labelFor(batch: OpBatch): string {
     case "definePrefab":
       return op.prefab ? `Edit prefab ${op.id}` : `Delete prefab ${op.id}`;
     case "transform": {
-      const what = [...(op.refs ?? []), ...(op.groups ?? [])];
-      const verb = op.turn !== undefined ? "Turn" : "Flip";
+      const what = op.refs;
+      const verb = op.turn !== undefined || op.rotate !== undefined ? "Turn" : "Flip";
       return what.length === 1 ? `${verb} ${what[0]}` : `${verb} ${what.length} items`;
     }
+    case "reparent":
+      return op.parent === null
+        ? `Move ${many(op.refs.length, op.refs[0]!)} to the root`
+        : `Put ${many(op.refs.length, op.refs[0]!)} under ${op.parent}`;
     case "setZ":
       return `Set z of ${many(op.refs.length, op.refs[0]!)}`;
     case "useAssets":

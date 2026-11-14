@@ -436,7 +436,7 @@ describe("behavior blocks in the JSON Schema", () => {
 describe("behavior defaults on parse", () => {
   const r = createRegistry(testGame);
   const scene = (behaviors: Record<string, unknown>): SceneDefinition => ({
-    v: 4,
+    v: 5,
     game: "test-game",
     name: "defaults",
     bounds: [0, 0, 640, 480],
@@ -529,7 +529,7 @@ describe("the lifetime behavior's schema", () => {
     game({ types: [marker("post"), marker("spark", { defaults: { lifetime: { ticks: 5 } } })] }),
   );
   const scene = (type: string, lifetime: Record<string, unknown>): SceneDefinition => ({
-    v: 4,
+    v: 5,
     game: "fake",
     name: "lifetime",
     bounds: [0, 0, 640, 480],

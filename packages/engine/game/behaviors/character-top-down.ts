@@ -6,7 +6,13 @@
 import { z } from "zod";
 
 import type { Vec2 } from "../../types";
-import { defineBehavior, type BehaviorBlock, type BehaviorSystem } from "../behaviors";
+import {
+  type BehaviorBlock,
+  type BehaviorSystem,
+  type Bound,
+  defineBehavior,
+  handleType,
+} from "../behaviors";
 import { actionField } from "./player-input";
 
 /** What a character is asked to do this tick when no seat drives it. */
@@ -72,8 +78,15 @@ const characterTopDownFields = {
 /** A `character-top-down` block as an entity carries it, defaults applied. */
 export type CharacterTopDownBlock = z.infer<z.ZodObject<typeof characterTopDownFields>>;
 
+/** What `getBehavior` adds beside `fields` for either character behavior. */
+export type CharacterHandle = Bound<
+  CharacterSystem,
+  "grounded" | "launch" | "setIntent" | "velocity"
+>;
+
 export const CHARACTER_TOP_DOWN = defineBehavior({
   name: "character-top-down",
+  handle: handleType<CharacterHandle>(),
   description:
     "Walks the entity in the plane from its seat's move action or an intent from code: a kinematic controller stopped and slid along by walls.",
   fields: characterTopDownFields,

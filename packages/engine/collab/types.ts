@@ -7,7 +7,7 @@
  * doc.getMap("scene")     name, bounds and any other header value a batch can change (atomic each)
  * doc.getMap("settings")  top-level settings key → atomic value
  * doc.getMap("assets")    AssetId → true: the `assets` header as a set
- * doc.getMap("groups")    group id → Y.Map { at, rot?, flip?, name? }
+ * doc.getMap("groups")    format 4 only: group id → Y.Map { at, rot?, flip?, name? }, read to migrate and then emptied
  * doc.getMap("instances") key → Y.Map { @z, id, prefab, at, rot?, flip?, z?, params: Y.Map, overrides: Y.Map, … }
  * doc.getMap("entities")  key → Y.Map { @z, @bulk?, id, type, …fields, path: Y.Map, behaviors: Y.Map<Y.Map>, "<grid>@<cx>,<cy>/<r>": row }
  * doc.getArray("log")     LogEntry[]    who changed what, capped, written with each batch
@@ -31,6 +31,7 @@ export const DOC_MAPS = {
   settings: "settings",
   scene: "scene",
   meta: "meta",
+  /** Read only to migrate a format 4 doc, whose groups become nodes; the migration empties it. */
   groups: "groups",
   instances: "instances",
   /** Layout 1 only: the scene's prefabs, one atomic value each; `migrateLayout` moves them to prefab docs. */
@@ -137,8 +138,9 @@ export function actorLabel(origin: DocOrigin): string {
 /** Pseudo-keys a log entry uses for the two non-entity maps it can touch. */
 export const SETTINGS_KEY = "@settings";
 export const SCENE_KEY = "@scene";
-/** Log keys for the other maps: `@instance:<key>`, `@group:<id>`, `@prefab:<id>`. */
+/** Log keys for the other maps: `@instance:<key>`, `@prefab:<id>`. */
 export const INSTANCE_KEY_PREFIX = "@instance:";
+/** A format 4 group's log key, in logs written before format 5; nothing writes it now. */
 export const GROUP_KEY_PREFIX = "@group:";
 export const PREFAB_KEY_PREFIX = "@prefab:";
 /** Log key for the `assets` map. */

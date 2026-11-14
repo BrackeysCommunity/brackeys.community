@@ -194,8 +194,11 @@ describe("subscription order", () => {
 });
 
 describe("entity and owner", () => {
-  it("entity matches entityId or other, and the children of an instance id", () => {
-    const { ctx, step, hooks, rt } = setup();
+  it("entity matches entityId or other, and the entities under it", () => {
+    const { ctx, step, hooks, rt } = setup([
+      { id: "gate#1", type: "node", at: [0, 0] },
+      { id: "gate#1/door", type: "dot", at: [0, 0], parent: "gate#1" },
+    ]);
     const seen: StepEvent[] = [];
     ctx.events.on("hit", (e) => void seen.push(e), { entity: "gate#1" });
     hooks.systemAfter = (c) => {

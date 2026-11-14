@@ -2,11 +2,11 @@ import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import type { GridCells } from "../scene/grid";
 import { growOverGrid, type SpriteAssetLookup } from "../scene/render-geometry";
-import { CHILD_SEPARATOR } from "../scene/resolve";
 import { gridFieldsOf } from "../scene/schema";
 import { aabb, aabbBox, aabbUnion, regionBox } from "../scene/shape-geometry";
 import type { Aabb, EntityDef, GridSettings, Pt, Ref, SceneDefinition } from "../scene/types";
 import { pathFollowPath } from "./gizmos/behavior-marks";
+import { editTree, type EditSource, type EditTree } from "./gizmos/tree";
 import { editSpriteBox, entityGeometry, geometryOfRef, type EditGeometry } from "./spatial-index";
 import type { OverlayTone, ToolOverlay } from "./tools";
 
@@ -19,13 +19,36 @@ export type OutlineLook = {
   asset?: SpriteAssetLookup;
   /** Whether a point entity carrying a sprite marks its point as well as the box; default true. */
   spritePoints?: boolean;
+  /** The document behind the view, which says what sits under a parent the view can't show: an instance under a node. */
+  source?: EditSource;
+  /** The view's tree, kept for the last view asked about, so a frame's outlines read it once. */
+  tree?: (def: SceneDefinition) => EditTree;
 };
 
-/** The look outlines are drawn and bounded with, sizing sprite boxes by `asset` when given. */
-export const outlineLook = (registry: Registry, asset?: SpriteAssetLookup): OutlineLook => ({
-  registry,
-  ...(asset ? { asset } : {}),
-});
+/**
+ * The look outlines are drawn and bounded with, sizing sprite boxes by
+ * `asset` when given and reading the tree with `source`, the document
+ * behind the view.
+ */
+export function outlineLook(
+  registry: Registry,
+  asset?: SpriteAssetLookup,
+  source?: EditSource,
+): OutlineLook {
+  let last: { def: SceneDefinition; tree: EditTree } | undefined;
+  return {
+    registry,
+    ...(asset ? { asset } : {}),
+    ...(source ? { source } : {}),
+    tree(def) {
+      if (last?.def !== def) last = { def, tree: editTree(def, source) };
+      return last.tree;
+    },
+  };
+}
+
+const treeOf = (look: OutlineLook, def: SceneDefinition): EditTree =>
+  look.tree?.(def) ?? editTree(def, look.source);
 
 const ptsBox = (pts: readonly Pt[]): Aabb | null =>
   pts.reduce<Aabb | null>((b, [x, y]) => {
@@ -78,26 +101,36 @@ function geometryMarks(
     out.points.push({ at: g.at, tone, ref: owner });
 }
 
-/** The entities `ref` names in `def`: the entity itself, or an instance's children. */
-function entitiesOfRef(def: SceneDefinition, ref: Ref): EntityDef[] {
+/** The entities `ref` names in `def`: the entity itself, then what sits under it (an instance's children for an instance). */
+function entitiesOfRef(def: SceneDefinition, ref: Ref, tree: EditTree): EntityDef[] {
   const entities = def.entities ?? [];
   const own = entities.find((e) => e.id === ref);
-  if (own) return [own];
-  const prefix = `${ref}${CHILD_SEPARATOR}`;
-  return entities.filter((e) => e.id.startsWith(prefix));
+  const below = new Set(tree.below([ref]));
+  const under = below.size > 0 ? entities.filter((e) => below.has(e.id) && e !== own) : [];
+  return own ? [own, ...under] : under;
 }
 
-/** Whether `ref` names an instance (or a nested one) rather than an entity of `def`. */
-export function isComposite(def: SceneDefinition, ref: Ref): boolean {
-  const named = entitiesOfRef(def, ref);
-  return named.length > 0 && named[0]!.id !== ref;
+/**
+ * Whether `ref` stands for more than its own outline: an instance, or a
+ * node with something under it. The selection's box is drawn around it.
+ */
+export function isComposite(
+  def: SceneDefinition,
+  ref: Ref,
+  look?: Pick<OutlineLook, "source" | "tree">,
+): boolean {
+  const tree = look?.tree?.(def) ?? editTree(def, look?.source);
+  if (tree.isInstance(ref)) return tree.below([ref]).length > 0;
+  const own = (def.entities ?? []).find((e) => e.id === ref);
+  return own?.type === "node" && tree.below([ref]).length > 0;
 }
 
 /**
  * Appends `ref`'s outlines in `def` (the resolved view, as previewed) to
  * `out`, each in its world pose: an entity's or bulk row's own geometry,
- * or for an instance, every child it resolves to. Sprite boxes are posed
- * from `def`'s geometry, so they follow a preview. Outlines carry `ref`.
+ * then everything under it in the tree, which moves and turns with it (an
+ * instance's children for an instance). Sprite boxes are posed from `def`'s
+ * geometry, so they follow a preview. Outlines carry `ref`.
  */
 export function outlinesOfRef(
   def: SceneDefinition,
@@ -108,20 +141,21 @@ export function outlinesOfRef(
 ): void {
   const { registry } = look;
   const own = geometryOfRef(def, registry, ref);
+  const entities = entitiesOfRef(def, ref, treeOf(look, def));
   if (own) {
-    const entity = own.bulk ? undefined : (def.entities ?? []).find((e) => e.id === ref);
+    const entity = own.bulk ? undefined : entities[0];
     geometryMarks(def, own, own.type, entity, tone, ref, out, look);
-    return;
   }
-  for (const e of entitiesOfRef(def, ref)) {
+  for (const e of own && !own.bulk ? entities.slice(1) : entities) {
     const t = registry.types.get(e.type);
     if (t) geometryMarks(def, entityGeometry(t, e), e.type, e, tone, ref, out, look);
   }
 }
 
 /**
- * The box around what `refs` outline in `def`, an instance's children for an
- * instance; `null` when none of them draws. Framing and revealing a selection
+ * The box around what `refs` outline in `def`, by the tree: each with what
+ * sits under it, an instance's children for an instance; `null` when none
+ * of them draws. Framing and revealing a selection
  * go by it, so they show what its outline shows.
  */
 export function outlineBounds(
@@ -146,8 +180,9 @@ export function frameBounds(
 ): Aabb | null {
   const { registry } = look;
   const route: Pt[] = [];
+  const tree = treeOf(look, def);
   for (const ref of refs) {
-    for (const e of entitiesOfRef(def, ref)) {
+    for (const e of entitiesOfRef(def, ref, tree)) {
       const t = registry.types.get(e.type);
       if (!t) continue;
       route.push(...(entityGeometry(t, e).pts ?? []));

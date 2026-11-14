@@ -2,14 +2,15 @@ import type { Registry } from "../game/types";
 import { bulkOffset, lcsPairs, pairBulk } from "./diff";
 import { bulkEntries, bulkId, bulkKeysOf } from "./expand";
 import { sortedAssets } from "./format";
+import { parentsFirst } from "./fragment";
 import { sceneHash } from "./hash";
 import { usesBulkRefs } from "./ops-schema";
+import { parseChildRef } from "./resolve";
 import type {
   BulkEntry,
   BulkKey,
   EntityDef,
   EntityInput,
-  GroupDef,
   InstanceDef,
   InstanceInput,
   OpBatch,
@@ -119,19 +120,6 @@ function alignBucket(va: readonly BulkEntry[], vb: readonly BulkEntry[]) {
   return { pairs, removed, added };
 }
 
-/** The `setGroup` fields that make a group `to` from `from`; rot and flip only when either turns. */
-export function setGroupFields(
-  to: GroupDef,
-  from: GroupDef | undefined,
-): Omit<Extract<SceneOp, { op: "setGroup" }>, "op" | "id"> {
-  const turns = to.rot !== undefined || to.flip || from?.rot !== undefined || from?.flip;
-  return {
-    at: clone(to.at),
-    ...(turns ? { rot: to.rot ?? 0, flip: to.flip === true } : {}),
-    name: to.name ?? null,
-  };
-}
-
 const HEADER_FIXED = ["$schema", "v", "game"] as const;
 
 /**
@@ -197,17 +185,15 @@ function instanceChange(a: InstanceDef, b: InstanceDef): SceneOp[] {
  * Aligns two lists of things with ids (entities, instances): one on both
  * sides that `matches` stays and gets an `update` of its top-level fields,
  * survivors that changed places get `reorder`s, and the rest is removed or
- * added at its index.
+ * added. `adds` are the rest of `bs` with their places in it; `insertAt`
+ * gives the index each takes when they are added, in any order, after the
+ * reorders.
  */
 function alignNamed<T extends { id: string }>(
   as: readonly T[],
   bs: readonly T[],
   matches: (a: T, b: T) => boolean,
-  add: (item: T, index: { index?: number }) => SceneOp,
-  change: (a: T, b: T) => SceneOp[] = (a, b) => {
-    const update = namedUpdate(a as unknown as EntityDef, b as unknown as EntityDef);
-    return update ? [update] : [];
-  },
+  change: (a: T, b: T) => SceneOp[],
 ) {
   const inA = new Map<string, T>();
   for (const x of as) if (!inA.has(x.id)) inA.set(x.id, x);
@@ -217,11 +203,8 @@ function alignNamed<T extends { id: string }>(
     if (x && !kept.has(y.id) && matches(x, y)) kept.add(y.id);
   }
   const removeRefs = as.filter((x) => !kept.has(x.id) || inA.get(x.id) !== x).map((x) => x.id);
-  const updates: SceneOp[] = [];
-  for (const y of bs) {
-    if (!kept.has(y.id)) continue;
-    updates.push(...change(inA.get(y.id)!, y));
-  }
+  const updates = new Map<string, SceneOp[]>();
+  for (const y of bs) if (kept.has(y.id)) updates.set(y.id, change(inA.get(y.id)!, y));
   const list = as.filter((x) => kept.has(x.id) && inA.get(x.id) === x).map((x) => x.id);
   const target = bs.filter((y) => kept.has(y.id)).map((y) => y.id);
   const reorders: SceneOp[] = [];
@@ -235,14 +218,179 @@ function alignNamed<T extends { id: string }>(
     list.splice(index, 0, id);
     reorders.push({ op: "reorder", refs: [id], index });
   });
-  const adds: SceneOp[] = [];
+  const adds = bs.flatMap((item, j) => (kept.has(item.id) ? [] : [{ item, j }]));
+  const present = bs.map((y) => kept.has(y.id));
   let length = list.length;
-  bs.forEach((y, j) => {
-    if (kept.has(y.id)) return;
-    adds.push(add(y, j === length ? {} : { index: j }));
+  /** The index `bs[j]` is added at, counting what is in place by then; none at the end. */
+  const insertAt = (j: number): { index?: number } => {
+    let index = 0;
+    for (let k = 0; k < j; k++) if (present[k]) index++;
+    present[j] = true;
     length++;
+    return index === length - 1 ? {} : { index };
+  };
+  return { kept, removeRefs, updates, reorders, adds, insertAt };
+}
+
+/** An entity or instance without its `parent`, which only `reparent` changes. */
+function unparented<T extends { parent?: Ref }>(x: T): T {
+  if (x.parent === undefined) return x;
+  const { parent: _parent, ...rest } = x;
+  return rest as T;
+}
+
+/** Base fields that hold no geometry, so a `reparent` leaves them as they are. */
+const PLACE_FREE_FIELDS: readonly string[] = ["name", "layer", "z", "off"];
+
+/**
+ * The `update` that puts `b`'s stored fields on an entity that was `a`
+ * before a `reparent` re-expressed its geometry: every field but its
+ * identity, since the re-expressed values aren't known here, and an unset
+ * of what `b` lacks, a node's `rot` and `flip` included (a turned frame
+ * gives a node one).
+ */
+function restoreEntity(a: EntityDef, b: EntityDef): SceneOp | null {
+  const set: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(b)) {
+    if (k === "id" || k === "type" || k === "parent" || v === undefined) continue;
+    if (PLACE_FREE_FIELDS.includes(k) && same(a[k], v)) continue;
+    set[k] = clone(v);
+  }
+  const unset = Object.keys(a).filter(
+    (k) => k !== "id" && k !== "type" && k !== "parent" && a[k] !== undefined && b[k] === undefined,
+  );
+  for (const k of ["rot", "flip"])
+    if (b.type === "node" && b[k] === undefined && !unset.includes(k)) unset.push(k);
+  if (Object.keys(set).length === 0 && unset.length === 0) return null;
+  return {
+    op: "update",
+    ref: a.id,
+    ...(Object.keys(set).length > 0 ? { set } : {}),
+    ...(unset.length > 0 ? { unset } : {}),
+  };
+}
+
+/**
+ * `restoreEntity` for an instance: its `at`, turn and flip always, which
+ * are all a `reparent` changes, and its other fields and params as
+ * `instanceChange` writes them.
+ */
+function restoreInstance(a: InstanceDef, b: InstanceDef): SceneOp[] {
+  const ops = instanceChange(unparented(a), unparented(b));
+  const own = ops.findIndex((op) => op.op === "update" || op.op === "setZ");
+  const was = ops[own];
+  const set: Record<string, unknown> = {
+    ...(was?.op === "update" ? was.set : was?.op === "setZ" ? { z: b.z } : {}),
+    at: clone(b.at),
+    rot: b.rot ?? 0,
+    flip: b.flip === true,
+  };
+  const unset = (was?.op === "update" ? (was.unset ?? []) : []).filter(
+    (k) => k !== "rot" && k !== "flip",
+  );
+  const update: SceneOp = { op: "update", ref: a.id, set, ...(unset.length > 0 ? { unset } : {}) };
+  if (own < 0) return [update, ...ops];
+  ops[own] = update;
+  return ops;
+}
+
+const ownerOf = (ref: Ref) => parseChildRef(ref)?.instance ?? ref;
+
+/**
+ * How the parents change from `a` to `b` for the entities and instances
+ * that stay (`kept`, by id), given what is `removed`:
+ *
+ * - `restored`: those whose `parent` changes, those directly under
+ *   something removed, since `remove` takes a subtree with it, and
+ *   everything below either, added ones included, whose stored geometry a
+ *   `reparent` may rewrite to keep it in place;
+ * - `restoreOrder`: what gets restored sorted parents first;
+ * - `detach`: the ones directly under something removed, which go to the
+ *   root before the `remove` with what sits under them;
+ * - `removeOrder`: removals sorted children first;
+ * - `attach()`: the `reparent`s, after the adds, that put each moving one
+ *   under its parent in `b`, in an order that never makes a cycle on the
+ *   way (one that can't go yet goes to the root first). Throws when `b`'s
+ *   own parents form a cycle, since no op makes one.
+ */
+function parentMoves(
+  a: SceneDefinition,
+  b: SceneDefinition,
+  removed: ReadonlySet<string>,
+  kept: readonly string[],
+) {
+  const parents = (def: SceneDefinition) => {
+    const out = new Map<string, Ref | undefined>();
+    for (const x of [...(def.entities ?? []), ...(def.instances ?? [])])
+      if (!out.has(x.id)) out.set(x.id, x.parent);
+    return out;
+  };
+  const before = parents(a);
+  const after = parents(b);
+  /** The owners above `id` in `map`, nearest first, stopping at a cycle. */
+  const chain = (map: ReadonlyMap<string, Ref | undefined>, id: string): string[] => {
+    const out: string[] = [];
+    for (let p = map.get(id); p !== undefined; p = map.get(ownerOf(p))) {
+      const owner = ownerOf(p);
+      if (owner === id || out.includes(owner)) break;
+      out.push(owner);
+    }
+    return out;
+  };
+  const detach = kept.filter((id) => {
+    const p = before.get(id);
+    return p !== undefined && removed.has(ownerOf(p));
   });
-  return { removeRefs, updates, reorders, adds };
+  const moving = new Set([...kept.filter((id) => before.get(id) !== after.get(id)), ...detach]);
+  // A reparent rewrites what sits under an entity whose frame comes from its geometry, so all of it is restored.
+  const restored = new Set([
+    ...moving,
+    ...[...after.keys()].filter((id) =>
+      [...chain(before, id), ...chain(after, id)].some((o) => moving.has(o)),
+    ),
+  ]);
+  /** `items` sorted parents first by their places in `b`. */
+  const restoreOrder = <T extends { id: string }>(items: readonly T[]) =>
+    items
+      .map((x, k) => ({ x, k, d: chain(after, x.id).length }))
+      .sort((p, q) => p.d - q.d || p.k - q.k)
+      .map(({ x }) => x);
+  const depth = new Map([...before.keys()].map((id) => [id, chain(before, id).length]));
+  const removeOrder = (refs: readonly Ref[]) =>
+    refs
+      .map((ref, k) => ({ ref, k, d: depth.get(ref) ?? 0 }))
+      .sort((x, y) => y.d - x.d || x.k - y.k)
+      .map((x) => x.ref);
+
+  const attach = (): SceneOp[] => {
+    const now = new Map(after);
+    for (const id of kept) now.set(id, detach.includes(id) ? undefined : before.get(id));
+    const pending = kept.filter((id) => moving.has(id) && now.get(id) !== after.get(id));
+    const out: { refs: Ref[]; parent: Ref | null }[] = [];
+    const emit = (id: string, parent: Ref | undefined) => {
+      now.set(id, parent);
+      const last = out[out.length - 1];
+      if (last && last.parent === (parent ?? null)) last.refs.push(id);
+      else out.push({ refs: [id], parent: parent ?? null });
+    };
+    while (pending.length > 0) {
+      const k = pending.findIndex((id) => {
+        const p = after.get(id);
+        return p === undefined || (ownerOf(p) !== id && !chain(now, ownerOf(p)).includes(id));
+      });
+      if (k >= 0) {
+        const id = pending.splice(k, 1)[0]!;
+        emit(id, after.get(id));
+        continue;
+      }
+      const stuck = pending.find((id) => now.get(id) !== undefined);
+      if (stuck === undefined)
+        throw new Error("diffToOps: the target scene's parents form a cycle, which no op makes.");
+      emit(stuck, undefined);
+    }
+    return out.map(({ refs, parent }) => ({ op: "reparent", refs, parent }));
+  };
+  return { restored, detach, removeOrder, restoreOrder, attach };
 }
 
 /**
@@ -257,16 +405,21 @@ function alignNamed<T extends { id: string }>(
  * that only moved becomes a `move` (one per offset), one resized or
  * otherwise changed in place an `update` of its shape or point, and the
  * rest is removed or added. The header goes through `setScene`, settings
- * through `setSettings`, the `assets` header through `useAssets`, groups
- * through `setGroup` (its turn and flip included). Instances match by id
+ * through `setSettings`, the `assets` header through `useAssets`. Instances match by id
  * like named entities, their `rot`, `flip` and `overrides` through
  * `update`, each changed param through `setParam`; a change of only `z` is a `setZ`, and one placing
  * another prefab is removed and instantiated again. A grid field that
  * changed is one `update` of the whole field.
  *
+ * A `parent` never goes through `update`. One that changes is a `reparent`
+ * after the adds, followed by an `update` that puts the stored geometry
+ * back exactly, on it and on everything below it; something under a removed entity or instance goes to the
+ * root first, since `remove` takes a subtree. Removals list children
+ * before their parents, and adds put a parent before what sits under it.
+ *
  * `registry` tells point-form bulk keys from shape-form ones; without it the
- * values decide. Throws when `$schema`, `v` or `game` differ, or when `b` has
- * no `name`, since no op changes those.
+ * values decide. Throws when `$schema`, `v` or `game` differ, when `b` has
+ * no `name`, or when `b`'s parents form a cycle, since no op makes those.
  */
 export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Registry): OpBatch {
   for (const k of HEADER_FIXED) {
@@ -310,42 +463,50 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
     });
   }
 
-  // ─── Groups ────────────────────────────────────────────
-  const ga = a.groups ?? {};
-  const gb = b.groups ?? {};
-  const groupRemovals: SceneOp[] = [];
-  for (const id of Object.keys(gb).sort()) {
-    const g = gb[id]!;
-    if (same(ga[id], g)) continue;
-    ops.push({ op: "setGroup", id, ...setGroupFields(g, ga[id]) });
-  }
-  for (const id of Object.keys(ga).sort())
-    if (!(id in gb)) groupRemovals.push({ op: "setGroup", id, remove: true });
-
   // ─── Named entities and instances ─────────────────────
-  const removeRefs: Ref[] = [];
-  const updates: SceneOp[] = [];
-  const reorders: SceneOp[] = [];
   const named = alignNamed(
     a.entities ?? [],
     b.entities ?? [],
     (x, y) => x.type === y.type,
-    (e, index) => ({ op: "add", entity: clone(e) as EntityInput, ...index }),
+    (x, y) => {
+      const update = namedUpdate(unparented(x), unparented(y));
+      return update ? [update] : [];
+    },
   );
   const instances = alignNamed(
     a.instances ?? [],
     b.instances ?? [],
     (x, y) => x.prefab === y.prefab,
-    (x, index) => ({ op: "instantiate", instance: clone(x) as InstanceInput, ...index }),
-    instanceChange,
+    (x, y) => instanceChange(unparented(x), unparented(y)),
   );
-  for (const n of [named, instances]) {
-    removeRefs.push(...n.removeRefs);
-    updates.push(...n.updates);
-    reorders.push(...n.reorders);
+  const tree = parentMoves(a, b, new Set([...named.removeRefs, ...instances.removeRefs]), [
+    ...named.kept,
+    ...instances.kept,
+  ]);
+  const removeRefs: Ref[] = tree.removeOrder([...named.removeRefs, ...instances.removeRefs]);
+  const updates: SceneOp[] = [];
+  const restoring: { id: string; ops: SceneOp[] }[] = [];
+  const aEntities = new Map((a.entities ?? []).map((e) => [e.id, e]));
+  const aInstances = new Map((a.instances ?? []).map((i) => [i.id, i]));
+  const added = new Set([...named.adds, ...instances.adds].map(({ item }) => item.id));
+  for (const e of b.entities ?? []) {
+    if (!tree.restored.has(e.id)) {
+      if (named.kept.has(e.id)) updates.push(...named.updates.get(e.id)!);
+      continue;
+    }
+    const restore = restoreEntity(added.has(e.id) ? e : aEntities.get(e.id)!, e);
+    if (restore) restoring.push({ id: e.id, ops: [restore] });
   }
-  const adds = named.adds;
-  const instAdds = instances.adds;
+  for (const i of b.instances ?? []) {
+    if (!tree.restored.has(i.id)) {
+      if (instances.kept.has(i.id)) updates.push(...instances.updates.get(i.id)!);
+      continue;
+    }
+    const was = added.has(i.id) ? i : aInstances.get(i.id)!;
+    restoring.push({ id: i.id, ops: restoreInstance(was, i) });
+  }
+  const restores = tree.restoreOrder(restoring).flatMap((r) => r.ops);
+  const reorders = [...named.reorders, ...instances.reorders];
 
   // ─── Bulk arrays ───────────────────────────────────────
   const moves = new Map<string, { by: Pt; refs: Ref[] }>();
@@ -386,10 +547,37 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
     }
   }
 
+  if (tree.detach.length > 0) ops.push({ op: "reparent", refs: tree.detach, parent: null });
   if (removeRefs.length > 0) ops.push({ op: "remove", refs: removeRefs });
   for (const { by, refs } of moves.values()) ops.push({ op: "move", refs, by });
-  ops.push(...updates, ...bulkUpdates, ...reorders, ...adds, ...bulkAdds, ...instAdds);
-  ops.push(...groupRemovals);
+  ops.push(...updates, ...bulkUpdates, ...reorders);
+  // Something added under a parent that is added too comes after it.
+  const adding = [
+    ...named.adds.map((x) => ({ ...x, entity: true })),
+    ...instances.adds.map((x) => ({ ...x, entity: false })),
+  ];
+  let bulkPlaced = false;
+  const order = parentsFirst(
+    adding,
+    (x) => x.item.id,
+    (x) => (x.item.parent === undefined ? undefined : ownerOf(x.item.parent)),
+  );
+  for (const { item, j, entity } of order) {
+    if (!entity && !bulkPlaced) {
+      ops.push(...bulkAdds);
+      bulkPlaced = true;
+    }
+    if (entity) ops.push({ op: "add", entity: clone(item) as EntityInput, ...named.insertAt(j) });
+    else {
+      ops.push({
+        op: "instantiate",
+        instance: clone(item) as InstanceInput,
+        ...instances.insertAt(j),
+      });
+    }
+  }
+  if (!bulkPlaced) ops.push(...bulkAdds);
+  ops.push(...tree.attach(), ...restores);
 
   const batch: OpBatch = { ops };
   if (usesBulkRefs(batch)) batch.base = sceneHash(a);
@@ -413,7 +601,7 @@ export function diffPrefabToOps(
   header?: Pick<Prefab, "base" | "params">,
 ): OpBatch {
   const target: Record<string, unknown> = {};
-  for (const k of [...HEADER_FIXED, "name", "bounds", "settings", "groups"] as const)
+  for (const k of [...HEADER_FIXED, "name", "bounds", "settings"] as const)
     if (view[k] !== undefined) target[k] = clone(view[k]);
   for (const [key, entries] of Object.entries(next.bulk ?? {}))
     if (entries.length > 0) target[key] = clone(entries);

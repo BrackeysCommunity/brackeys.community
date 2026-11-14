@@ -12,7 +12,7 @@ import {
 import { physicsOf, PhysicsRequiredError } from "../game/physics-of";
 import { sublevelLabelOf } from "../game/runtime-ids";
 import { SAVE_RANDOM_KEY, type SavedSystems, type WorldState } from "../game/save-file";
-import { resolveTime, wholeTicksIn } from "../game/time";
+import { isCount, resolveTime, wholeTicksIn } from "../game/time";
 import {
   EngineError,
   type EngineContext,
@@ -55,6 +55,7 @@ import { tweensContext } from "./behaviors/tween";
 import { createBodyControl, type RuntimeBodyControl } from "./bodies-control";
 import { castSpawn } from "./cast";
 import { createContacts, type RuntimeContacts, type SavedTouch } from "./contacts";
+import { createEntityHandles, type EntityHandles } from "./entities";
 import { EntityTable } from "./entity-table";
 import { createEventBus, EVENT_PASS_LIMIT } from "./events";
 import {
@@ -68,17 +69,20 @@ import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
 import { createGridState, gridWallTypes, type GridState } from "./grid";
 import { createLifecycle, type Lifecycle } from "./lifecycle";
 import { overlayLibrary } from "./live";
+import { createLookups, type Lookups } from "./lookups";
 import { runtimeNav } from "./nav";
 import { gamePersistCell, playClockOf, type PlayClock } from "./persist";
 import { LOAD_GENERATION } from "./pool";
-import { createPoseIndex } from "./poses";
+import { createPoseIndex, relativePose } from "./poses";
 import { createPresentationQueue } from "./present";
 import { systemFactoryOf } from "./primitives";
 import { createQueryIndex, type RuntimeQueryIndex } from "./query-index";
 import { runRandom } from "./seed";
+import { createSetPose } from "./set-pose";
 import { geometrySpace, rapierSpace, type SpaceQuery } from "./space";
 import { swapRuntime, type SwapHost } from "./swap";
 import { createTimers, type RuntimeTimers, type UnsaveableTimer } from "./timers";
+import type { RuntimeSceneTree } from "./tree";
 import type {
   LoadReport,
   ReconcileReport,
@@ -129,6 +133,19 @@ export const SAVE_HOST: unique symbol = Symbol("save host");
 export const SAVE_TIMERS_KEY = "@timers";
 export const SAVE_CONTACTS_KEY = "@contacts";
 export const SAVE_INPUT_KEY = "@input";
+/**
+ * What `world.parents` can't say: `locals`, the local poses a fresh measure
+ * wouldn't give back exactly (a disabled child's, kept while its parent
+ * moved, or one off by rounding); `children`, the child order of each
+ * parent `parents` names. A restored run then composes and walks its
+ * children as the saved one did.
+ */
+const SAVE_TREE_KEY = "@tree";
+
+type SavedTree = {
+  locals?: Record<string, [number, number, number]>;
+  children?: Record<string, string[]>;
+};
 
 /** What capture and restore reach inside a runtime, kept off the public `EngineContext`. */
 export type SaveHost = {
@@ -208,8 +225,12 @@ function createForkBook() {
 
   return {
     root: (rng: Rng) => track(rng, ""),
+    /** Every stream's state, a restored one the run hasn't forked again yet included. */
     states(): Record<string, JsonValue> {
-      return Object.fromEntries([...forks].map(([key, rng]) => [key, [...rng.snapshot()]]));
+      return {
+        ...Object.fromEntries([...waiting].map(([key, state]) => [key, [...state]])),
+        ...Object.fromEntries([...forks].map(([key, rng]) => [key, [...rng.snapshot()]])),
+      };
     },
     restore(states: Readonly<Record<string, JsonValue>>): void {
       waiting = new Map();
@@ -311,13 +332,20 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let rapierQueries: SpaceQuery | null = null;
   let space: SpaceQuery | null = null;
   let grid: GridState | null = null;
-  const events = createEventBus({ dev: opts.dev ?? false });
+  const events = createEventBus({
+    dev: opts.dev ?? false,
+    under: (candidate, id) => tree.isUnder(candidate, id),
+  });
   /** Built once `ctx` exists, since each reads it; `lifecycle` once the systems and behaviors are. */
   let timers: RuntimeTimers;
   let query: RuntimeQueryIndex;
   let contacts: RuntimeContacts;
   let lifecycle: Lifecycle;
   let bodies: RuntimeBodyControl;
+  let handles: EntityHandles;
+  let lookups: Lookups;
+  let tree: RuntimeSceneTree;
+  let setPose: EngineContext["setPose"];
   const forks = createForkBook();
   let random = forks.root(runRandom(registry, ""));
   const saveRegistry = createSaveRegistry();
@@ -483,6 +511,20 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     present: present.queue,
     anim: animContext({ behavior: behaviorOf }),
     tweens: tweensContext({ behavior: behaviorOf }),
+    entity: (id) => handles.entity(id),
+    get entities() {
+      return lookups.entities;
+    },
+    setPose: (id, x, y, rot, poseOpts) => setPose(id, x, y, rot, poseOpts),
+    get findBehavior() {
+      return lookups.findBehavior;
+    },
+    get findBehaviors() {
+      return lookups.findBehaviors;
+    },
+    get tree() {
+      return tree;
+    },
   };
   bodies = createBodyControl(ctx);
   timers = createTimers(ctx);
@@ -556,6 +598,21 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   });
   const { posed, entered, leaving, checkEntities, spawnOrder, spawnEntity, despawnEntity } =
     lifecycle;
+  setPose = createSetPose({
+    ctx,
+    systems,
+    behaviors,
+    get: (id) => lifecycle.get(id),
+    enabled: (id) => lifecycle.enabled(id),
+  });
+  handles = createEntityHandles({
+    ctx,
+    behaviors,
+    entities: byId,
+    enabledSelf: (id) => lifecycle.enabledSelf(id),
+  });
+  lookups = createLookups({ ctx, behaviors, query, handles });
+  tree = lifecycle.tree;
   Object.defineProperty(ctx, LOAD_GENERATION, { value: () => lifecycle.generation });
   const flowLoader: FlowLoader = {
     read: () => readSceneLibrary(opts.scenes),
@@ -613,6 +670,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     query.clear();
     contacts.clear();
     lifecycle.reset();
+    handles.clear();
     ctx.attachments.clear();
     ctx.tags.clear();
     gridState.clear();
@@ -742,6 +800,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         byId.set(e.id, e);
         authored.add(e.id);
       }
+      lifecycle.link(next.entities);
       lifecycle.ready(spawned);
       const offset = playOpts?.timeOffsetMs ?? 0;
       behaviors.reset();
@@ -800,6 +859,15 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       spawned.push(e);
     }
     for (const e of entities) byId.set(e.id, e);
+    const added = new Set(entities.map((e) => e.id));
+    const adopted = [...byId.values()].filter(
+      (e) =>
+        !added.has(e.id) &&
+        e.parent !== undefined &&
+        added.has(e.parent) &&
+        tree.parent(e.id) === null,
+    );
+    lifecycle.link([...entities, ...adopted]);
     lifecycle.ready(spawned);
     reconciled();
     return { ok: true };
@@ -857,15 +925,50 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       }
     }
     for (const { e } of changes) byId.set(e.id, e);
+    const unlinked = relink(changes);
     reconciled();
-    return { ok: true };
+    return unlinked ?? { ok: true };
+  }
+
+  /**
+   * After an edit replaced records: one whose `parent` changed moves under
+   * the new one (or becomes a root when that isn't live), keeping the pose
+   * the edit gave it; the rest stay where they are among their siblings,
+   * measured anew and asked to ride again, with their children, since a
+   * respawn rebuilt their colliders and bodies. A parent the tree refuses
+   * (a cycle, another sublevel) is the edit's refusal.
+   */
+  function relink(
+    changes: readonly { e: RuntimeEntity; prev: RuntimeEntity }[],
+  ): Extract<ReconcileReport, { ok: false }> | null {
+    let refused: Extract<ReconcileReport, { ok: false }> | null = null;
+    const refresh = new Set<string>();
+    for (const { e, prev } of changes) {
+      if ((e.parent ?? null) !== (prev.parent ?? null)) {
+        const parent = e.parent !== undefined && e.parent !== e.id && byId.has(e.parent);
+        try {
+          tree.setParent(e.id, parent ? e.parent! : null);
+        } catch (err) {
+          refused ??= { ok: false, error: errorText(err), entityId: e.id };
+        }
+      } else {
+        const parent = tree.parent(e.id);
+        if (parent !== null) refresh.add(parent);
+      }
+      refresh.add(e.id);
+    }
+    const again = [...refresh].flatMap((id) => childrenOf(id, tree.children(id)));
+    if (again.length > 0) tree.link(again);
+    return refused;
   }
 
   function remove(ids: string[]): void {
     let removed = false;
+    const going = new Set(ids);
     for (const id of ids) {
       const e = byId.get(id);
       if (!e) continue;
+      for (const child of tree.children(id)) if (!going.has(child)) tree.setParent(child, null);
       despawnEntity(e);
       byId.delete(id);
       removed = true;
@@ -1084,6 +1187,67 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
   }
 
+  /**
+   * The records of `ids` that are `parent`'s children now, each naming it:
+   * what `tree.link` takes to link them again in this order, which measures
+   * their local poses anew and asks each to ride.
+   */
+  function childrenOf(parent: string, ids: readonly string[]): RuntimeEntity[] {
+    return ids.flatMap((id) => {
+      const e = byId.get(id);
+      if (!e || tree.parent(id) !== parent) return [];
+      return [e.parent === parent ? e : { ...e, parent }];
+    });
+  }
+
+  /**
+   * The links a fresh load and a restore's spawns would make again: a
+   * spawn's or an instance node's from its record, anything else's from
+   * its own `parent`, when that entity is live.
+   */
+  function loadedParents(): (id: string) => string | null {
+    const spawned = new Map<string, string | undefined>();
+    for (const rec of lifecycle.spawns())
+      spawned.set(rec.id, rec.instance ? rec.instance.parent : rec.input.parent);
+    return (id) => {
+      const named = spawned.has(id) ? spawned.get(id) : byId.get(id)?.parent;
+      return named !== undefined && named !== id && byId.has(named) ? named : null;
+    };
+  }
+
+  /**
+   * Walking the tree from each root, parents first and siblings in order:
+   * each link that differs from the load's, the child order of each parent
+   * those name, and each local pose that measuring the saved poses wouldn't
+   * give back bit for bit.
+   */
+  function captureTree(): { parents: Record<string, string | null>; saved: SavedTree } {
+    const parents: Record<string, string | null> = {};
+    const locals: Record<string, [number, number, number]> = {};
+    const loaded = loadedParents();
+    for (const root of byId.keys()) {
+      if (tree.parent(root) !== null) continue;
+      for (const id of tree.subtree(root)) {
+        const parent = tree.parent(id);
+        if (parent !== loaded(id)) parents[id] = parent;
+        if (parent === null) continue;
+        const local = tree.local(id);
+        const pose = ctx.poses.get(id);
+        const frame = ctx.poses.get(parent);
+        if (!local || !pose || !frame) continue;
+        const measured = relativePose(pose, frame);
+        if (measured.x !== local.x || measured.y !== local.y || measured.rot !== local.rot)
+          locals[id] = [local.x, local.y, local.rot];
+      }
+    }
+    const saved: SavedTree = {};
+    if (Object.keys(locals).length > 0) saved.locals = locals;
+    const named = new Set(Object.values(parents).filter((p): p is string => p !== null));
+    if (named.size > 0)
+      saved.children = Object.fromEntries([...named].map((p) => [p, [...tree.children(p)]]));
+    return { parents, saved };
+  }
+
   function captureWorld(): WorldState {
     const saved: Record<string, Record<string, JsonValue>> = {};
     const put = (id: string, owner: string, value: JsonValue) => {
@@ -1104,6 +1268,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       saved[SAVE_CONTACTS_KEY] = { watches: touching as unknown as JsonValue };
     const held = captureInput();
     if (Object.keys(held).length > 0) saved[SAVE_INPUT_KEY] = held;
+    const linked = captureTree();
+    if (Object.keys(linked.saved).length > 0) saved[SAVE_TREE_KEY] = linked.saved;
 
     const poses: Record<string, [number, number, number]> = {};
     for (const id of ctx.poses.ids()) {
@@ -1118,6 +1284,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       random: random.snapshot(),
       timers: timed.timers,
       enabled: Object.fromEntries(lifecycle.disabledIds().map((id) => [id, false as const])),
+      ...(Object.keys(linked.parents).length > 0 ? { parents: linked.parents } : {}),
       destroyed: expected.filter((id) => !byId.has(id)),
       spawned: spawns.map(({ id, input: given, instance }) => ({
         id,
@@ -1147,12 +1314,62 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
    * After a fresh load of the save's scene, in order: sublevels as saved;
    * runtime spawns as saved (kept where the load made them again, spawned
    * again with their exact ids otherwise, and the rest destroyed); saved
-   * destroys; counters; enabled flags; the tick; poses; each owner's
-   * `restore` (type system, behaviors, then what registered with the save
-   * registry) and the contact watches; timers; `ctx.random` and its forks;
-   * seats and held input. Outside a step, so none of it raises an event.
+   * destroys; counters; parents; enabled flags (own switches); the tick;
+   * poses, then each child's local pose measured from them, or the saved
+   * one; each owner's `restore` (type system, behaviors, then what
+   * registered with the save registry) and the contact watches; timers;
+   * `ctx.random` and its forks; seats and held input. Outside a step, so
+   * none of it raises an event, and with the tree not following, so a
+   * parent's pose write moves no child.
    */
   function restoreWorld(world: WorldState, levels: readonly SublevelInfo[]): SceneIssue | null {
+    return tree.quietly(() => restoreWorldQuietly(world, levels));
+  }
+
+  /**
+   * Destroys `id` for a restore. A descendant the save still holds is made
+   * a root first, so it outlives the destroy; the save's `parents` puts it
+   * back where it was.
+   */
+  function destroyKeeping(id: string, doomed: ReadonlySet<string>): void {
+    for (const at of tree.subtree(id)) {
+      const parent = tree.parent(at);
+      if (at !== id && !doomed.has(at) && parent !== null && doomed.has(parent))
+        tree.setParent(at, null);
+    }
+    lifecycle.destroy(id);
+  }
+
+  /**
+   * Each child's local pose measured from the poses as they are, its
+   * place among its siblings kept, and its ride asked again; then the
+   * saved locals over them, deepest first, so a parent's write composes
+   * its children from their saved locals. Their poses stay as saved.
+   */
+  function restoreLocals(world: WorldState, saved: SavedTree | undefined): void {
+    const again = [...byId.keys()].flatMap((id) => childrenOf(id, tree.children(id)));
+    if (again.length > 0) tree.link(again);
+    const locals = saved?.locals;
+    if (!locals) return;
+    const order: string[] = [];
+    for (const root of byId.keys())
+      if (tree.parent(root) === null) order.push(...tree.subtree(root));
+    for (let i = order.length - 1; i >= 0; i--) {
+      const id = order[i]!;
+      const local = Object.hasOwn(locals, id) ? locals[id] : undefined;
+      if (!local || tree.parent(id) === null) continue;
+      tree.setLocal(id, local[0], local[1], local[2]);
+    }
+    for (const id of Object.keys(locals)) {
+      const pose = Object.hasOwn(world.poses, id) ? world.poses[id] : undefined;
+      if (pose && byId.has(id)) ctx.poses.set(id, pose[0], pose[1], pose[2], { snap: true });
+    }
+  }
+
+  function restoreWorldQuietly(
+    world: WorldState,
+    levels: readonly SublevelInfo[],
+  ): SceneIssue | null {
     const systemsSaved: SavedSystems = world.systems;
     const want = new Map(levels.map((l) => [l.label, l]));
     for (const l of sublevels.list()) {
@@ -1167,7 +1384,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
 
     const keep = new Set(world.spawned.map((s) => s.id));
-    for (const rec of lifecycle.spawns()) if (!keep.has(rec.id)) lifecycle.destroy(rec.id);
+    const dropped = lifecycle.spawns().filter((rec) => !keep.has(rec.id));
+    const doomed = new Set([...world.destroyed, ...dropped.flatMap((rec) => rec.ids)]);
+    for (const rec of dropped) destroyKeeping(rec.id, doomed);
     for (const rec of world.spawned) {
       if (lifecycle.exists(rec.id)) continue;
       try {
@@ -1176,12 +1395,25 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         return restoreRefused(`spawning "${rec.id}" again`, err, rec.id);
       }
     }
-    for (const id of world.destroyed) if (lifecycle.exists(id)) lifecycle.destroy(id);
+    for (const id of world.destroyed) if (lifecycle.exists(id)) destroyKeeping(id, doomed);
     lifecycle.setCounters(world.counters);
+    const savedTree = systemsSaved[SAVE_TREE_KEY] as SavedTree | undefined;
+    for (const [id, parent] of Object.entries(world.parents ?? {})) {
+      try {
+        tree.setParent(id, parent);
+      } catch (err) {
+        const under = parent === null ? "a root" : `under "${parent}"`;
+        return restoreRefused(`putting "${id}" ${under}`, err, id);
+      }
+    }
+    for (const [parent, order] of Object.entries(savedTree?.children ?? {})) {
+      const again = childrenOf(parent, order);
+      if (again.length > 0) tree.link(again);
+    }
     for (const id of [...byId.keys()]) {
       const off = world.enabled[id] === false;
       try {
-        if (lifecycle.enabled(id) === off) lifecycle.setEnabled(id, !off);
+        if (lifecycle.enabledSelf(id) === off) lifecycle.setEnabled(id, !off);
       } catch (err) {
         return restoreRefused(`switching "${id}" ${off ? "off" : "on"}`, err, id);
       }
@@ -1191,6 +1423,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const [id, [x, y, rot]] of Object.entries(world.poses)) {
       if (byId.has(id)) ctx.poses.set(id, x, y, rot, { snap: true });
     }
+    restoreLocals(world, savedTree);
     for (const e of byId.values()) {
       const states = systemsSaved[e.id];
       if (states) restoreOwn(e, states);
@@ -1203,7 +1436,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     contacts.restore((watches ?? []) as unknown as SavedTouch[][]);
 
     const next = systemsSaved[SAVE_TIMERS_KEY]?.next;
-    timers.restore(world.timers, world.tick, typeof next === "number" ? next : 1);
+    timers.restore(world.timers, world.tick, isCount(next, 1) ? next : 1);
     setRngState(random, world.random);
     forks.restore(systemsSaved[SAVE_RANDOM_KEY] ?? {});
     restoreInput(world, systemsSaved[SAVE_INPUT_KEY] ?? {});

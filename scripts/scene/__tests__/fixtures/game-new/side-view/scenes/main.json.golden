@@ -1,6 +1,6 @@
 {
   "$schema": "../scene.schema.json",
-  "v": 4,
+  "v": 5,
   "game": "demo",
   "name": "main",
   "bounds": [0, 0, 8, 5],
@@ -13,6 +13,6 @@
   ],
   "entities": [
     { "id": "hero", "type": "hero", "at": [1.5, 4.2], "behaviors": { "camera-target": {}, "character-side-view": {}, "collider": { "shape": ["box", 0, 0, 0.2, 0.4] }, "player-input": {} } },
-    { "id": "goal", "type": "sensor", "shape": ["box", 6.75, 3.5, 0.5, 0.5], "tags": ["goal"] }
+    { "id": "goal", "type": "sensor", "shape": ["box", 6.75, 3.5, 0.5, 0.5], "tags": ["goal"], "behaviors": { "demo/goal": {} } }
   ]
 }

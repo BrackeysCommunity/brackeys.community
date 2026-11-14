@@ -394,7 +394,7 @@ describe("scene.schema.json", () => {
     const fresh = sceneJsonSchema(registry);
     if (process.env.UPDATE_SCHEMAS) writeFileSync(SCHEMA, `${JSON.stringify(fresh, null, 2)}\n`);
     expect(JSON.parse(readFileSync(SCHEMA, "utf8"))).toEqual(fresh);
-    expect(fresh.$id).toBe("urn:jams-engine:scene:tactics:v4");
+    expect(fresh.$id).toBe("urn:jams-engine:scene:tactics:v5");
   });
 });
 

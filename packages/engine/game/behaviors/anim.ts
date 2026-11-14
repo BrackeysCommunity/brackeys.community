@@ -7,7 +7,8 @@ import { z } from "zod";
 
 import { ANIMATION_KIND } from "../../project/kinds/animation";
 import { ATLAS_KIND } from "../../project/kinds/atlas";
-import { defineBehavior } from "../behaviors";
+import type { AnimContext } from "../../runtime/behaviors/anim";
+import { type Bound, defineBehavior, handleType } from "../behaviors";
 import { delayField } from "../delay-field";
 import { assetField } from "../fields";
 import type { FieldEnv } from "../types";
@@ -42,8 +43,12 @@ const animFields = (env: FieldEnv) => ({
 /** An `anim` block as an entity carries it. */
 export type AnimBlock = z.infer<z.ZodObject<ReturnType<typeof animFields>>>;
 
+/** What `getBehavior(ANIM)` adds beside `fields`: the entity's clip. */
+export type AnimHandle = Bound<AnimContext, "play" | "stop" | "state" | "shapes">;
+
 export const ANIM = defineBehavior({
   name: "anim",
+  handle: handleType<AnimHandle>(),
   description: "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
   requires: ["sprite"],
   fields: animFields,

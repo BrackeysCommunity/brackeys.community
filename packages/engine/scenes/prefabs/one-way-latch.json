@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 4,
+  "v": 5,
   "id": "one-way-latch",
   "base": "latch",
   "overrides": {

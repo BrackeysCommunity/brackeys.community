@@ -926,7 +926,17 @@ describe("tween blocks", () => {
 
   it("tween-target-invalid on a type that can't be posed, at the entry", () => {
     const def = scene({ settings: { physics: "rapier" } }, [
-      tweened("crate", "prop", { y: 2 }, { density: 1, restitution: 0 } as Partial<EntityDef>),
+      tweened("crate", "follower", { y: 2 }, {
+        shape: ["box", 100, 100, 10, 10],
+        path: {
+          pts: [
+            [100, 100],
+            [200, 100],
+          ],
+          mode: "loop",
+          speed: 50,
+        },
+      } as Partial<EntityDef>),
     ]);
     const issues = tweenIssues(def);
     expect(issues.map((i) => [i.path, i.severity, i.entityIds, i.message])).toEqual([
@@ -934,19 +944,19 @@ describe("tween blocks", () => {
         "/entities/1/behaviors/tween/tweens/0",
         "error",
         ["crate"],
-        "crate's tween 1 can't play: it is a prop, which can't be posed, so a tween can't move its x",
+        "crate's tween 1 can't play: it is a follower, which can't be posed, so a tween can't move its x",
       ],
       [
         "/entities/1/behaviors/tween/tweens/1",
         "error",
         ["crate"],
-        "crate's tween 2 can't play: it is a prop, which can't be posed, so a tween can't move its y",
+        "crate's tween 2 can't play: it is a follower, which can't be posed, so a tween can't move its y",
       ],
     ]);
     expect(issues[0]!.line).toBeTypeOf("number");
   });
 
-  it("tween-target-invalid on the pose of a solid or sensor riding a host, as the run refuses it", () => {
+  it("no tween-target-invalid on the pose of a solid or sensor riding a host, as the run plays it", () => {
     const def = scene({ settings: { physics: "rapier" } }, [
       lift([
         [0, 0],
@@ -954,28 +964,10 @@ describe("tween blocks", () => {
       ]),
       tweened("plank", "solid", { y: 3 }, { attach: "lift" } as Partial<EntityDef>),
       tweened("gate", "sensor", { y: 3 }, { attach: "lift" } as Partial<EntityDef>),
+      tweened("ghosted", "solid", { y: 3 }, { attach: "ghost" } as Partial<EntityDef>),
       tweened("door", "solid", { y: 3 }),
     ]);
-    const issues = tweenIssues(def);
-    expect(issues.map((i) => [i.path, i.entityIds])).toEqual([
-      ["/entities/2/behaviors/tween/tweens/0", ["plank"]],
-      ["/entities/2/behaviors/tween/tweens/1", ["plank"]],
-      ["/entities/3/behaviors/tween/tweens/0", ["gate"]],
-      ["/entities/3/behaviors/tween/tweens/1", ["gate"]],
-    ]);
-    expect(issues[1]!.message).toBe(
-      `plank's tween 2 can't play: it is a solid riding "lift", which can't be posed, so a tween can't move its y`,
-    );
-  });
-
-  it("counts an attach naming no live host as riding, as the run does", () => {
-    const def = scene({ settings: { physics: "rapier" } }, [
-      tweened("plank", "solid", { y: 3 }, { attach: "ghost" } as Partial<EntityDef>),
-    ]);
-    expect(tweenIssues(def).map((i) => i.message)).toEqual([
-      `plank's tween 1 can't play: it is a solid riding "ghost", which can't be posed, so a tween can't move its x`,
-      `plank's tween 2 can't play: it is a solid riding "ghost", which can't be posed, so a tween can't move its y`,
-    ]);
+    expect(tweenIssues(def)).toEqual([]);
   });
 
   it("tween-target-invalid for a visual channel on an entity without a sprite", () => {
@@ -994,11 +986,12 @@ describe("tween blocks", () => {
     expect(tweenIssues(def, registry)).toEqual([]);
     const types = registry.types;
     expect(posableType(types.get("follower")!)).toBe(false);
-    expect(posableType(types.get("prop")!)).toBe(false);
+    expect(posableType(types.get("prop")!)).toBe(true);
     expect(posableType(types.get("decor")!)).toBe(true);
     expect(posableType(types.get(LAMP.type)!)).toBe(true);
     expect(posableType({ type: "own", origin: "g", system: () => ({}) as never })).toBeNull();
-    expect(posableType({ type: "on-prop", origin: "g", base: "prop" })).toBe(false);
+    expect(posableType({ type: "on-prop", origin: "g", base: "prop" })).toBe(true);
+    expect(posableType({ type: "on-follower", origin: "g", base: "follower" })).toBe(false);
   });
 });
 
@@ -1342,7 +1335,7 @@ describe("grid fields", () => {
         id: "nest",
         game: "painter",
         entities: [],
-        instances: [{ id: "inner", prefab: "tiles", at: [0, 0], rot: 2 }],
+        instances: [{ id: "inner", prefab: "tiles", at: [0, 0], rot: 180 }],
       },
     ],
   ]);
@@ -1362,10 +1355,11 @@ describe("grid fields", () => {
     expect(gridIssues(gridScene(square, {}, [floor()]))).toEqual([]);
     expect(
       gridIssues(
-        gridScene(square, {
-          groups: { g: { at: [0, 0], rot: 1 } },
-          instances: [{ id: "t1", prefab: "tiles", at: [128, 128], flip: true, group: "g" }],
-        }),
+        gridScene(
+          square,
+          { instances: [{ id: "t1", prefab: "tiles", at: [128, 128], flip: true, parent: "g" }] },
+          [{ id: "g", type: "node", at: [0, 0], rot: 90 }],
+        ),
       ),
     ).toEqual([]);
     expect(gridIssues(gridScene(undefined, {}, [floor({ cells: undefined })]))).toEqual([]);
@@ -1451,7 +1445,7 @@ describe("grid fields", () => {
 
   it("judges a turned instance over grid children against the game's world.grid", () => {
     const def = gridScene(undefined, {
-      instances: [{ id: "t1", prefab: "tiles", at: [128, 128], rot: 1 }],
+      instances: [{ id: "t1", prefab: "tiles", at: [128, 128], rot: 90 }],
     });
     const flagged = validateScene(def, painterWith({ grid: { kind: "square", cell: [32, 16] } }), {
       prefabs,
@@ -1520,29 +1514,31 @@ describe("grid fields", () => {
     ).toEqual([]);
   });
 
-  it("a turned or flipped instance or group over a grid, unless its cells are square", () => {
+  it("a turned or flipped instance or parent over a grid, unless its cells are square", () => {
     const tall = { kind: "square", cell: [32, 16] };
     const hex = { kind: "hex", cell: [32, 28], side: 16, stagger: "y", index: "odd" };
     const turned = gridIssues(
-      gridScene(tall, { instances: [{ id: "t1", prefab: "tiles", at: [128, 128], rot: 1 }] }),
+      gridScene(tall, { instances: [{ id: "t1", prefab: "tiles", at: [128, 128], rot: 90 }] }),
     );
     expect(turned.map((i) => [i.path, i.entityIds])).toEqual([["/instances/0/rot", ["t1"]]]);
     expect(turned[0]?.message).toContain("t1/floor");
     expect(turned[0]?.message).toContain("32×16");
 
-    const grouped = gridIssues(
-      gridScene(hex, { groups: { g: { at: [0, 0], flip: true } } }, [floor({ group: "g" })]),
+    const parented = gridIssues(
+      gridScene(hex, {}, [
+        { id: "g", type: "node", at: [0, 0], flip: true },
+        floor({ parent: "g" }),
+      ]),
     );
-    expect(grouped.map((i) => [i.path, i.entityIds])).toEqual([["/groups/g/flip", ["g"]]]);
-    expect(grouped[0]?.message).toContain("hex");
+    expect(parented.map((i) => [i.path, i.entityIds])).toEqual([["/entities/2/parent", ["g"]]]);
+    expect(parented[0]?.message).toContain("hex");
 
-    const viaGroup = gridIssues(
-      gridScene(tall, {
-        groups: { g: { at: [0, 0], rot: 3 } },
-        instances: [{ id: "t1", prefab: "tiles", at: [128, 128], group: "g" }],
-      }),
+    const viaParent = gridIssues(
+      gridScene(tall, { instances: [{ id: "t1", prefab: "tiles", at: [128, 128], parent: "g" }] }, [
+        { id: "g", type: "node", at: [0, 0], rot: 270 },
+      ]),
     );
-    expect(viaGroup.map((i) => i.path)).toEqual(["/instances/0"]);
+    expect(viaParent.map((i) => i.path)).toEqual(["/instances/0/parent"]);
   });
 
   it("follows nested instances, where turns compose and may cancel", () => {
@@ -1554,7 +1550,7 @@ describe("grid fields", () => {
       ["/instances/0", true],
     ]);
     const cancelled = gridIssues(
-      gridScene(tall, { instances: [{ id: "n1", prefab: "nest", at: [0, 0], rot: 2 }] }),
+      gridScene(tall, { instances: [{ id: "n1", prefab: "nest", at: [0, 0], rot: 180 }] }),
     );
     expect(cancelled).toEqual([]);
   });
@@ -1576,6 +1572,7 @@ describe("physics-required", () => {
     expect(
       Object.fromEntries(Object.entries(PRIMITIVES).map(([name, def]) => [name, typePhysics(def)])),
     ).toEqual({
+      node: "optional",
       solid: "optional",
       sensor: "optional",
       marker: "optional",
@@ -1623,18 +1620,6 @@ describe("physics-required", () => {
     expect(applied.def.settings).toEqual({ physics: "rapier", gravity: [0, 900] });
     expect(required(applied.def)).toEqual([]);
     expect(required(applied.def, engine, { engine: none })).toEqual([]);
-
-    const rider = scene({}, [
-      lift([
-        [100, 100],
-        [300, 100],
-      ]),
-      { id: "deck", type: "sensor", shape: ["box", 100, 100, 20, 5], attach: "lift" },
-    ]);
-    const [attach] = required(rider, engine, { engine: none });
-    const fixed = applyOps(rider, attach!.fix!, engine);
-    expect(fixed.ok).toBe(true);
-    if (fixed.ok) expect(required(fixed.def, engine, { engine: none })).toEqual([]);
   });
 
   it("resolves physics through the project's engine block and the game's world", () => {
@@ -1693,25 +1678,15 @@ describe("physics-required", () => {
     expect(required(def, crates).map((i) => i.entityIds)).toEqual([["a"], ["c"]]);
   });
 
-  it("flags an attach, pointing at the field, but not the follower it rides", () => {
-    const rider: EntityDef = {
-      id: "deck",
-      type: "sensor",
-      shape: ["box", 100, 100, 20, 5],
-      attach: "lift",
-    };
+  it("lets a child of a follower load without physics: it follows by pose", () => {
     const def = scene({ settings: none }, [
       lift([
         [100, 100],
         [300, 100],
       ]),
-      rider,
+      { id: "deck", type: "sensor", parent: "lift", shape: ["box", 0, 0, 20, 5] },
     ]);
-    const [issue, ...rest] = required(def);
-    expect(rest).toEqual([]);
-    expect(issue).toMatchObject({ path: "/entities/2/attach", entityIds: ["deck"] });
-    expect(issue?.message).toContain("lift");
-    expect(required({ ...def, settings: {} })).toEqual([]);
+    expect(required(def)).toEqual([]);
   });
 
   it("judges instance children in the placing scene, not in the prefab's view", () => {

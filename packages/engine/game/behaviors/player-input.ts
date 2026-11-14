@@ -5,7 +5,8 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
+import type { SeatInput } from "../input-for";
 
 /** The most seats a game can have; seat indices are 0 to one less. */
 const MAX_SEATS = 8;
@@ -45,8 +46,17 @@ const playerInputFields = {
 /** A `player-input` block as an entity carries it, defaults applied. */
 export type PlayerInputBlock = z.infer<z.ZodObject<typeof playerInputFields>>;
 
+/** What `getBehavior(PLAYER_INPUT)` adds beside `fields`. */
+export type PlayerInputHandle = {
+  /** The seat the block names, joined or not. */
+  readonly seat: number | null;
+  /** The seat's input, as `inputFor(ctx, id)`: nothing held while the seat hasn't joined. */
+  readonly input: SeatInput;
+};
+
 export const PLAYER_INPUT = defineBehavior({
   name: "player-input",
+  handle: handleType<PlayerInputHandle>(),
   description:
     "Binds the entity to an input seat: behaviors on it read that player's actions through inputFor.",
   fields: playerInputFields,

@@ -21,8 +21,10 @@ export const isStructured = (v: unknown) => v !== null && typeof v === "object";
 
 /**
  * What changed from `a` to `b`: scene fields, settings by key, the `assets`
- * header as a set, groups by key, entities and then instances by id, then bulk entries per bulk key. Types come from the entities and the
- * bulk keys, so no registry is needed.
+ * header as a set, entities and then instances by id, then
+ * bulk entries per bulk key. A move to another parent is a `modified` on
+ * `parent`, beside whatever stored geometry changed with it. Types come
+ * from the entities and the bulk keys, so no registry is needed.
  */
 export function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange[] {
   const out: SceneChange[] = [];
@@ -40,12 +42,6 @@ export function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange[
   const assetsB = sortedAssets(b.assets ?? []);
   if (key(assetsA) !== key(assetsB))
     out.push({ kind: "scene", field: "assets", from: a.assets, to: b.assets });
-  const ga = a.groups ?? {};
-  const gb = b.groups ?? {};
-  for (const k of [...new Set([...Object.keys(ga), ...Object.keys(gb)])].sort()) {
-    if (key(ga[k]) !== key(gb[k]))
-      out.push({ kind: "scene", field: `groups.${k}`, from: ga[k], to: gb[k] });
-  }
   diffEntities(a.entities ?? [], b.entities ?? [], out);
   diffEntities(instancesAsEntities(a), instancesAsEntities(b), out);
   const keys = [...new Set([...bulkKeysOf(a), ...bulkKeysOf(b)])].sort();

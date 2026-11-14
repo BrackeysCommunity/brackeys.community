@@ -1,5 +1,6 @@
 import type { Registry, Style } from "../game/types";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
+import type { EditSource } from "./gizmos/tree";
 import type { EditorCommand } from "./keymap";
 import type { SelectMode } from "./selection";
 
@@ -42,6 +43,18 @@ export type IndexEntry = {
   sprite?: ShapeObj;
   /** A camera region, or a type based on one: it picks by the outline of the box it frames. */
   region?: true;
+  /**
+   * An instance's entry: `aabb` covers its subtree and `geometry` is that
+   * box. Picking never hits it, only the entries under it; a marquee takes
+   * it in their place.
+   */
+  instance?: true;
+  /**
+   * The instances a prefab child sits in, outermost first (`["room-1",
+   * "room-1/door-1"]` for `room-1/door-1/panel`): the levels a click steps
+   * through.
+   */
+  instances?: Ref[];
 };
 
 /** The uniform grid of AABBs picking and marquee query. */
@@ -74,6 +87,8 @@ export type GizmoHandle = {
   /** A CSS cursor name for hover. */
   cursor?: string;
   active?: boolean;
+  /** Where a rotate handle's stalk starts: the point it turns about, drawn as a line to the handle. */
+  stalk?: Pt;
 };
 
 export type OverlayTone = "selected" | "hover" | "invalid" | "ghost" | "guide";
@@ -158,6 +173,11 @@ export type ToolKeyEvent = ToolModifiers & { type: "down" | "up"; key: string; r
 export type EditorToolContext = {
   registry: Registry;
   getDoc(): SceneDefinition;
+  /**
+   * The document behind `getDoc()`'s resolved view, where instances and the
+   * tree are read from; absent on a host that edits a view with neither.
+   */
+  source?(): EditSource;
   selection(): readonly Ref[];
   select(refs: Ref[], mode?: SelectMode): void;
   /**

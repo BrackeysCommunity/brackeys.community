@@ -7,7 +7,6 @@ import type { BulkKeyInfo, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { closest } from "./did-you-mean";
 import { bulkOffset, diffScenes, isObj, isStructured } from "./diff";
-import { setGroupFields } from "./diff-to-ops";
 import { bulkEntries, bulkId, parseBulkId } from "./expand";
 import { INSTANCE_OVERRIDE_FIELDS, isInstanceOverrideField, splitFieldPath } from "./field-path";
 import { compareEntityKeys, sortedAssets } from "./format";
@@ -49,19 +48,28 @@ import {
 } from "./prefab-header";
 import {
   CHILD_SEPARATOR,
+  childRef,
+  entityFrame,
   gridTurns,
+  instanceFrame,
   instanceOverrideEntries,
   localChild,
   mapResolvedBatch,
   parseChildRef,
   placeChildren,
+  placedFrame,
+  placeInstance,
   resolvePrefab,
+  sceneFrames,
   splitOverridePath,
   type ChildApply,
+  type PlacedInstanceChild,
+  type SceneFrames,
   type SourceBatchResult,
 } from "./resolve";
 import {
   entitySchemaFor,
+  fieldKind,
   geometryFields,
   gridFieldsOf,
   sceneRegistry,
@@ -70,21 +78,19 @@ import {
   unknownGameIssue,
   InstanceSchema,
 } from "./schema";
-import { aabb } from "./shape-geometry";
+import { aabb, normDeg } from "./shape-geometry";
 import { parseShape, shapeToTuple } from "./shapes";
 import {
-  applyPt,
+  asFrame,
   compose,
-  composeDihedral,
+  composeOrientations,
   dihedral,
-  dihedralOf,
-  flipWorld,
+  frame,
+  frameOf,
   IDENTITY_2D,
   invert,
-  inverseTurn,
   translation,
-  turnOf,
-  type Dihedral,
+  type Orientation,
   type Transform2D,
 } from "./transform";
 import {
@@ -93,11 +99,13 @@ import {
   presentGeometry,
   transformBulkEntry,
   translateBulkEntry,
+  transformEntityDef,
   translateEntityDef,
   translateTuple,
   type GeometryKind,
 } from "./translate";
 import {
+  PARENT_MAX_DEPTH,
   PREFAB_KIND,
   PREFAB_MAX_DEPTH,
   SCENE_FORMAT_VERSION,
@@ -109,7 +117,6 @@ import {
   type CellEdit,
   type EntityDef,
   type EntityInput,
-  type GroupDef,
   type InstanceDef,
   type InstanceInput,
   type IssueCode,
@@ -126,17 +133,15 @@ import {
   type ShapeTuple,
   type SpotAnchor,
 } from "./types";
-import { snapToPixel } from "./units";
-import { validateScene, type ValidateOptions } from "./validate";
+import { roundLength, snapToPixel } from "./units";
+import { canBeInTree, validateScene, type ValidateOptions } from "./validate";
 
 /** A bulk entry with identity, so references keep pointing at it while indices shift. */
 type Slot = { value: BulkEntry; orig: number | null; demotedFrom?: string; tag?: string };
 type EntRec = { def: EntityDef; orig: number | null; origId: string | null; tag?: string };
 type InstRec = { def: InstanceDef; orig: number | null; origId: string | null; tag?: string };
-type Target =
-  | { kind: "bulk"; info: BulkKeyInfo; slot: Slot }
-  | { kind: "entity"; rec: EntRec }
-  | { kind: "instance"; rec: InstRec };
+type Named = { kind: "entity"; rec: EntRec } | { kind: "instance"; rec: InstRec };
+type Target = { kind: "bulk"; info: BulkKeyInfo; slot: Slot } | Named;
 type Json = Record<string, unknown>;
 
 type Work = {
@@ -156,8 +161,6 @@ type Work = {
   entitiesTouched: boolean;
   instances: InstRec[];
   instancesTouched: boolean;
-  groups: Record<string, GroupDef>;
-  groupsTouched: boolean;
   prefabs: Map<string, Prefab>;
   /** Prefab ids the batch set or deleted. */
   prefabsChanged: Set<string>;
@@ -411,8 +414,6 @@ function initWork(
       tag: tags?.instances?.[i],
     })),
     instancesTouched: false,
-    groups: clone(start.groups ?? {}),
-    groupsTouched: false,
     prefabs: new Map(prefabs ?? []),
     prefabsChanged: new Set(),
     created: [],
@@ -446,17 +447,7 @@ function materialize(start: SceneDefinition, w: Work): SceneDefinition {
     if (w.instances.length > 0) out.instances = w.instances.map((r) => r.def);
     else delete out.instances;
   }
-  if (w.groupsTouched) {
-    if (Object.keys(w.groups).length > 0) out.groups = sortedGroups(w.groups);
-    else delete out.groups;
-  }
   return out as SceneDefinition;
-}
-
-function sortedGroups(groups: Record<string, GroupDef>): Record<string, GroupDef> {
-  const out: Record<string, GroupDef> = {};
-  for (const id of Object.keys(groups).sort()) out[id] = groups[id]!;
-  return out;
 }
 
 // ─── Resolution and checks ───────────────────────────────
@@ -536,7 +527,7 @@ function resolveInstance(w: Work, id: string): InstRec {
 }
 
 /** An entity or an instance by id. */
-function resolveNamed(w: Work, id: string): Target {
+function resolveNamed(w: Work, id: string): Named {
   const ent = w.entities.find((r) => r.def.id === id);
   if (ent) return { kind: "entity", rec: ent };
   const inst = w.instances.find((r) => r.def.id === id);
@@ -622,7 +613,8 @@ function validateEntity(w: Work, def: EntityDef, relocate: Relocate, label = def
       { entityIds: [label], got: def.type, expected },
     );
   }
-  const result = schema.safeParse(def);
+  const child = parseChildRef(def.id);
+  const result = schema.safeParse(child ? { ...def, id: child.child } : def);
   if (!result.success) {
     const issue = entityIssues(result.error.issues, def, relocate, w.registry)[0]!;
     throw new OpFailure({ ...issue, message: `${label}: ${issue.message}`, entityIds: [label] });
@@ -810,7 +802,7 @@ function instanceFragment(w: Work, inst: InstanceDef): SceneFragment {
     prefabOf(w, inst.prefab),
     inst,
     w.registry,
-    dihedral(turnOf(inst), inst.at),
+    frame(instanceFrame(inst)),
     gridTurns({ settings: w.settings }),
     w.prefabs,
   ).map((c) => c.def);
@@ -1039,15 +1031,340 @@ function withKey<T extends object>(def: T, key: string, value: unknown): T {
 const withZ = <T extends { z?: number }>(def: T, z: number): T =>
   withKey(def, "z", z === 0 ? undefined : z);
 
-/** `def` carrying `d`, the identity written as absent. */
-function withDihedral<T extends { rot?: number; flip?: boolean }>(def: T, d: Dihedral): T {
-  return withKey(withKey(def, "rot", d.rot === 0 ? undefined : d.rot), "flip", d.flip || undefined);
+/** `def` carrying angle and flip `o`, the identity written as absent. */
+function withOrientation<T extends object>(def: T, o: Orientation): T {
+  return withKey(withKey(def, "rot", o.rot === 0 ? undefined : o.rot), "flip", o.flip || undefined);
 }
 
-/** A group's frame: what its members' stored geometry is relative to. */
-function groupFrame(w: Work, group: string | undefined): Transform2D {
-  const g = group === undefined ? undefined : w.groups[group];
-  return g ? dihedral(turnOf(g), g.at) : IDENTITY_2D;
+// ─── The tree ────────────────────────────────────────────
+
+const NODE = "node";
+
+/** The id of the document entry a parent ref names or sits in: `room-1` for `room-1/door-1/panel`. */
+const headOf = (ref: Ref): string => parseChildRef(ref)?.instance ?? ref;
+
+/** Levels a ref adds below its document entry: a child of an instance counts one, as validation counts it. */
+const childLevels = (ref: Ref): number => (parseChildRef(ref) ? 1 : 0);
+
+/** Steps applied innermost first, as `SceneFrames` lists them. */
+const composeAll = (steps: readonly Transform2D[]): Transform2D =>
+  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
+
+const isIdentity = (t: Transform2D) =>
+  t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
+
+/** Whether `t` turns or flips, rather than only moving. */
+const turns = (t: Transform2D) => !(t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1);
+
+/** Equal but for float noise: a parent frame this close hasn't moved its children. */
+const sameFrame = (p: Transform2D, q: Transform2D) =>
+  Math.abs(p.a - q.a) <= 1e-12 &&
+  Math.abs(p.b - q.b) <= 1e-12 &&
+  Math.abs(p.c - q.c) <= 1e-12 &&
+  Math.abs(p.d - q.d) <= 1e-12 &&
+  Math.abs(p.tx - q.tx) <= 1e-9 &&
+  Math.abs(p.ty - q.ty) <= 1e-9;
+
+/** Whether entities of `type` stay out of the tree, as validation judges it. */
+const outsideTree = (registry: Registry, type: string): boolean =>
+  !canBeInTree(registry.types.get(type));
+
+/** A document's tree as the lenient read settles it (`sceneFrames`): links, depths, subtrees. */
+type Tree = {
+  parentOf(id: string): Ref | undefined;
+  /** Levels below its root: 0 for a root; an instance's child one below its instance. */
+  depth(ref: Ref): number;
+  /** Every entity and instance below each of `ids`, by id, `ids` themselves left out. */
+  below(ids: Iterable<string>): Set<string>;
+  /** The ids from `ref`'s own entry up to its root. */
+  chain(ref: Ref): string[];
+};
+
+function treeOf(def: SceneDefinition, frames: SceneFrames): Tree {
+  const children = new Map<string, string[]>();
+  for (const item of [...(def.entities ?? []), ...(def.instances ?? [])]) {
+    const p = frames.parentOf(item.id);
+    if (p === undefined) continue;
+    const list = children.get(headOf(p));
+    if (list) list.push(item.id);
+    else children.set(headOf(p), [item.id]);
+  }
+  const depths = new Map<string, number>();
+  const depthOf = (id: string): number => {
+    let d = depths.get(id);
+    if (d === undefined) {
+      const p = frames.parentOf(id);
+      depths.set(id, (d = p === undefined ? 0 : depthOf(headOf(p)) + childLevels(p) + 1));
+    }
+    return d;
+  };
+  return {
+    parentOf: (id) => frames.parentOf(id),
+    depth: (ref) => depthOf(headOf(ref)) + childLevels(ref),
+    below(ids) {
+      const out = new Set<string>();
+      const queue = [...ids];
+      for (let id = queue.pop(); id !== undefined; id = queue.pop())
+        for (const c of children.get(id) ?? [])
+          if (!out.has(c)) {
+            out.add(c);
+            queue.push(c);
+          }
+      for (const id of ids) out.delete(id);
+      return out;
+    },
+    chain(ref) {
+      const out: string[] = [];
+      for (let id: string | undefined = headOf(ref); id !== undefined; ) {
+        out.push(id);
+        const p = frames.parentOf(id);
+        id = p === undefined ? undefined : headOf(p);
+      }
+      return out;
+    },
+  };
+}
+
+/** The deepest level of `id`'s subtree below `id` itself. */
+const heightOf = (tree: Tree, id: string): number =>
+  Math.max(0, ...[...tree.below([id])].map((d) => tree.depth(d) - tree.depth(id)));
+
+/** Whether any entity or instance the batch holds names a parent. */
+const anyParent = (w: Work) =>
+  w.entities.some((r) => r.def.parent !== undefined) ||
+  w.instances.some((r) => r.def.parent !== undefined);
+
+/**
+ * `deg` in the 360° window `like` sits in, so an angle a frame change turns
+ * stays near the range it was written in.
+ */
+function inWindow(deg: number, like: number): number {
+  const lo = Math.floor(like / 360) * 360;
+  return roundLength(lo + normDeg(deg - lo));
+}
+
+/**
+ * An entity's stored fields re-expressed by `t`, a rigid transform at any
+ * angle, as resolving places a child: field by field
+ * (`transformEntityDef`), grid cells kept when the scene's grid can't turn
+ * with them, a node's `rot` and `flip` composed even when it writes
+ * neither, other angle fields kept in the window they were written in.
+ */
+function reexpressEntity(w: Work, def: EntityDef, t: Transform2D): EntityDef {
+  if (isIdentity(t)) return def;
+  let next = transformEntityDef(w.registry, def, t) ?? clone(def);
+  if (!gridTurns({ settings: w.settings }) && turns(t))
+    for (const field of gridFields(w, def.type))
+      if (def[field] !== undefined) next[field] = clone(def[field]);
+  if (def.type === NODE) {
+    const o = composeOrientations(frameOf(t), {
+      rot: typeof def.rot === "number" ? normDeg(def.rot) : 0,
+      flip: def.flip === true,
+    });
+    next = withKey(
+      withKey(next, "rot", o.rot === 0 ? undefined : o.rot),
+      "flip",
+      o.flip || undefined,
+    );
+    return next;
+  }
+  for (const [field, schema] of Object.entries(w.registry.types.get(def.type)?.shape ?? {})) {
+    const was = def[field];
+    const now = next[field];
+    if (fieldKind(schema) === "angle" && typeof was === "number" && typeof now === "number")
+      next[field] = inWindow(now, was);
+  }
+  return next;
+}
+
+/** An instance's `at`, angle and flip re-expressed by `t`. */
+function reexpressInstance(def: InstanceDef, t: Transform2D): InstanceDef {
+  if (isIdentity(t)) return def;
+  const placed = asFrame(compose(t, frame(instanceFrame(def))));
+  return withOrientation(
+    { ...clone(def), at: [roundLength(placed.at[0]), roundLength(placed.at[1])] },
+    placed,
+  );
+}
+
+/** `rec`'s def re-expressed by `t`, and the list it is in marked touched. */
+function reexpressRec(w: Work, t: Named, by: Transform2D): void {
+  if (t.kind === "instance") {
+    t.rec.def = reexpressInstance(t.rec.def, by);
+    w.instancesTouched = true;
+  } else {
+    t.rec.def = reexpressEntity(w, t.rec.def, by);
+    w.entitiesTouched = true;
+  }
+}
+
+/**
+ * After the entries in `moved` were rewritten into new frames, rewrites
+ * each entry under them whose parent's frame changed, level by level, so
+ * its world pose stays as `before` placed it. Only an entity whose frame
+ * comes from its geometry changes its children's frame: it can't carry a
+ * flip, and a circle or a point carries no angle.
+ */
+function keepChildrenInPlace(w: Work, before: SceneFrames, moved: ReadonlySet<string>): void {
+  let level: ReadonlySet<string> = moved;
+  for (let guard = 0; level.size > 0 && guard <= PARENT_MAX_DEPTH + 1; guard++) {
+    const after = sceneFrames(current(w), w.registry, w.prefabs);
+    const next = new Set<string>();
+    const recs: Named[] = [
+      ...w.entities.map((rec): Named => ({ kind: "entity", rec })),
+      ...w.instances.map((rec): Named => ({ kind: "instance", rec })),
+    ];
+    for (const t of recs) {
+      const id = t.rec.def.id;
+      const p = after.parentOf(id);
+      if (moved.has(id) || p === undefined || !level.has(headOf(p))) continue;
+      const was = composeAll(before.under(p));
+      const is = composeAll(after.under(p));
+      if (sameFrame(was, is)) continue;
+      reexpressRec(w, t, compose(invert(is), was));
+      next.add(id);
+    }
+    level = next;
+  }
+}
+
+/** Refuses a parent `reparent` can't put anything under: a bulk entry, a missing entry or child, a type outside the tree. */
+function checkParent(w: Work, frames: SceneFrames, parent: Ref, i: number): void {
+  const path = `/ops/${i}/parent`;
+  if (parent.startsWith("~"))
+    fail("parent-type", `${parent} is a bulk entry, which can't be a parent; promote it first.`, {
+      path,
+      got: parent,
+      hint: `{ "op": "promote", "ref": "${parent}", "id": "..." }`,
+    });
+  const child = parseChildRef(parent);
+  let type: string | undefined;
+  if (child) {
+    const inst = resolveInstance(w, child.instance).def;
+    const found = frames.placed(inst)?.find((c) => c.def.id === parent);
+    if (!found)
+      fail("ref-not-found", `Instance ${child.instance} has no child "${child.child}".`, {
+        path,
+        got: parent,
+      });
+    type = found.def.type;
+  } else {
+    const t = resolveNamed(w, parent);
+    if (t.kind === "entity") type = t.rec.def.type;
+  }
+  if (type !== undefined && outsideTree(w.registry, type))
+    fail("parent-type", `${parent} is a ${type}, which can't be a parent.`, {
+      path,
+      entityIds: [parent],
+      got: type,
+      hint: "Parent it to a node, an instance or another entity that has a pose.",
+    });
+}
+
+/**
+ * Puts each ref under `parent` with its geometry rewritten into the new
+ * frame, so its world pose is unchanged. The current
+ * frame is the one the lenient read placed it by: a missing parent's, or
+ * one in a cycle's, counts as the identity.
+ */
+function reparentOp(w: Work, op: Extract<SceneOp, { op: "reparent" }>, i: number): void {
+  const parent = op.parent ?? undefined;
+  const refs = [...new Set(op.refs)];
+  for (const ref of refs) {
+    if (ref.startsWith("~"))
+      fail("parent-type", `${ref} is a bulk entry, which can't be in the tree; promote it first.`, {
+        got: ref,
+        hint: `{ "op": "promote", "ref": "${ref}", "id": "..." }`,
+      });
+    const child = parseChildRef(ref);
+    if (child)
+      fail(
+        "op-invalid",
+        `${ref} is a child of instance ${child.instance}, so it stays under its instance; unpack the instance to move its children.`,
+        { got: ref, hint: `{ "op": "unpack", "ref": "${child.instance}" }` },
+      );
+  }
+  const targets = refs.map((ref) => resolveNamed(w, ref));
+  const def = current(w);
+  const frames = sceneFrames(def, w.registry, w.prefabs);
+  if (parent !== undefined) {
+    checkParent(w, frames, parent, i);
+    const tree = treeOf(def, frames);
+    const above = tree.chain(parent);
+    for (const t of targets) {
+      const id = t.rec.def.id;
+      if (t.kind === "entity" && outsideTree(w.registry, t.rec.def.type))
+        fail("parent-type", `${id} is a ${t.rec.def.type}, which can't have a parent.`, {
+          entityIds: [id],
+          got: t.rec.def.type,
+          hint: `Leave ${id} at the root: { "op": "reparent", "refs": ["${id}"], "parent": null }.`,
+        });
+      if (above.includes(id))
+        fail(
+          "parent-cycle",
+          parent === id
+            ? `${id} can't be its own parent.`
+            : `${parent} is under ${id}, so putting ${id} under it would make a loop.`,
+          {
+            entityIds: [id, headOf(parent)],
+            hint: "Pick a parent outside the entity's own subtree, or reparent to null.",
+          },
+        );
+      const deepest = tree.depth(parent) + 1 + heightOf(tree, id);
+      if (deepest > PARENT_MAX_DEPTH)
+        fail(
+          "parent-depth",
+          `Under ${parent}, ${id}'s subtree would reach ${deepest} levels; the most is ${PARENT_MAX_DEPTH}.`,
+          { entityIds: [id], got: String(deepest), expected: String(PARENT_MAX_DEPTH) },
+        );
+    }
+  }
+  const to = composeAll(frames.under(parent));
+  const moved = new Set<string>();
+  for (const t of targets) {
+    const was = t.rec.def;
+    if (was.parent === parent) continue;
+    const by = compose(invert(to), composeAll(frames.stepsFor(was)));
+    reexpressRec(w, t, by);
+    if (t.kind === "instance") {
+      const next = withKey(t.rec.def, "parent", parent);
+      validateInstance(w, next, () => `/ops/${i}`);
+      t.rec.def = next;
+    } else {
+      const next = withKey(t.rec.def, "parent", parent);
+      validateEntity(w, next, () => `/ops/${i}`);
+      t.rec.def = next;
+    }
+    markTouched(w, t);
+    moved.add(was.id);
+  }
+  if (moved.size > 0) keepChildrenInPlace(w, frames, moved);
+}
+
+/** `from` renamed to `to` in every `parent` that names it or one of its children. */
+function renameParents(w: Work, from: string, to: string): void {
+  const prefix = `${from}${CHILD_SEPARATOR}`;
+  const renamed = (p: unknown) =>
+    p === from ? to : typeof p === "string" && p.startsWith(prefix) ? to + p.slice(from.length) : p;
+  for (const rec of w.entities)
+    if (renamed(rec.def.parent) !== rec.def.parent) {
+      rec.def = { ...clone(rec.def), parent: renamed(rec.def.parent) as Ref };
+      w.entitiesTouched = true;
+    }
+  for (const rec of w.instances)
+    if (renamed(rec.def.parent) !== rec.def.parent) {
+      rec.def = { ...clone(rec.def), parent: renamed(rec.def.parent) as Ref };
+      w.instancesTouched = true;
+    }
+}
+
+/** Every entity and instance below `targets` in the tree, as targets. */
+function subtreeTargets(w: Work, targets: readonly Target[]): Target[] {
+  const ids = targets.flatMap((t) => (t.kind === "bulk" ? [] : [t.rec.def.id]));
+  if (ids.length === 0 || !anyParent(w)) return [];
+  const def = current(w);
+  const below = treeOf(def, sceneFrames(def, w.registry, w.prefabs)).below(ids);
+  return [...below].map((id) => resolveNamed(w, id));
 }
 
 function applyOp(w: Work, op: SceneOp, i: number): void {
@@ -1096,6 +1413,15 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         fail(
           "op-invalid",
           "An entity's type can't change; remove it and add a new entity instead.",
+        );
+      if (split.some((s) => s[0] === "parent"))
+        fail(
+          "op-invalid",
+          "update can't set or unset parent, which would move the entity; reparent it, which keeps it where it is in the world.",
+          {
+            got: "parent",
+            hint: `{ "op": "reparent", "refs": ["${op.ref}"], "parent": "<id>" }, or "parent": null for the root.`,
+          },
         );
       const t = resolve(w, op.ref);
       if (t.kind === "instance") {
@@ -1187,15 +1513,16 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       return;
     }
     case "remove": {
-      const targets = [...new Set(op.refs)].map((r) => resolve(w, r));
-      for (const t of targets) {
+      const named = [...new Set(op.refs)].map((r) => resolve(w, r));
+      for (const t of [...named, ...subtreeTargets(w, named)]) {
         if (t.kind === "bulk") {
           const bucket = w.buckets.get(t.info.key)!;
           bucket.splice(bucket.indexOf(t.slot), 1);
-        } else if (t.kind === "instance") {
-          w.instances.splice(w.instances.indexOf(t.rec), 1);
         } else {
-          w.entities.splice(w.entities.indexOf(t.rec), 1);
+          const list: (EntRec | InstRec)[] = t.kind === "instance" ? w.instances : w.entities;
+          const k = list.indexOf(t.rec);
+          if (k < 0) continue;
+          list.splice(k, 1);
         }
         markTouched(w, t);
       }
@@ -1205,6 +1532,7 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       const named = resolveNamed(w, op.from);
       if (op.from === op.to) fail("op-invalid", `rename from "${op.from}" to itself does nothing.`);
       checkNewId(w, op.to);
+      renameParents(w, op.from, op.to);
       if (named.kind === "instance") {
         named.rec.def = { ...clone(named.rec.def), id: op.to };
         w.instancesTouched = true;
@@ -1267,9 +1595,22 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         fail(
           "op-invalid",
           `${def.id} has ${extra.join(", ")}, which a bulk entry can't hold; unset ${extra.length === 1 ? "it" : "them"} first.`,
-          { entityIds: [def.id] },
+          {
+            entityIds: [def.id],
+            ...(extra.includes("parent")
+              ? {
+                  hint: `Take it out from under its parent first: { "op": "reparent", "refs": ["${def.id}"], "parent": null }.`,
+                }
+              : {}),
+          },
         );
       }
+      const below = subtreeTargets(w, [{ kind: "entity", rec }]);
+      if (below.length > 0)
+        fail("parent-type", `${def.id} has children, and a bulk entry can't be a parent.`, {
+          entityIds: [def.id],
+          hint: "Reparent its children elsewhere first.",
+        });
       if (!Array.isArray(def[field]))
         fail("op-invalid", `${def.id} has no ${field}, so it can't be demoted to a bulk entry.`, {
           entityIds: [def.id],
@@ -1349,45 +1690,6 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       w.created.push(def.id);
       return;
     }
-    case "setGroup": {
-      if (!ID_PATTERN.test(op.id))
-        fail("bad-id", `"${op.id}" isn't a valid group id.`, { got: op.id, path: `/ops/${i}/id` });
-      const current = w.groups[op.id];
-      if (op.remove) {
-        if (
-          op.at !== undefined ||
-          op.name !== undefined ||
-          op.rot !== undefined ||
-          op.flip !== undefined
-        )
-          fail("op-invalid", "setGroup with remove takes no at, rot, flip or name.");
-        if (!current) fail("ref-not-found", `No group "${op.id}" to remove.`, { got: op.id });
-        const members = [
-          ...w.entities.filter((r) => r.def.group === op.id),
-          ...w.instances.filter((r) => r.def.group === op.id),
-        ].map((r) => r.def.id);
-        if (members.length > 0)
-          fail(
-            "op-invalid",
-            `Group "${op.id}" still holds ${members.join(", ")}; take them out first.`,
-            { entityIds: members },
-          );
-        delete w.groups[op.id];
-        w.groupsTouched = true;
-        return;
-      }
-      const next: GroupDef = current ? clone(current) : { at: [0, 0] };
-      if (op.at !== undefined) next.at = [op.at[0], op.at[1]];
-      if (op.name === null) delete next.name;
-      else if (op.name !== undefined) next.name = op.name;
-      const d = turnOf({
-        rot: op.rot ?? next.rot,
-        flip: op.flip ?? next.flip,
-      });
-      w.groups[op.id] = groupDef(next.at, d, next.name);
-      w.groupsTouched = true;
-      return;
-    }
     case "override": {
       if (op.ref === undefined) return headerOp(w, { op: op.op, set: op.set }, i);
       const rec = resolveInstance(w, op.ref);
@@ -1441,12 +1743,11 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       return;
     }
     case "unpack": {
-      const rec = resolveInstance(w, op.ref);
-      for (const sub of unpackOps(w, rec.def)) applyOp(w, sub, i);
+      unpackOp(w, resolveInstance(w, op.ref), i);
       return;
     }
     case "createPrefab": {
-      for (const sub of createPrefabOps(w, op, i)) applyOp(w, sub, i);
+      createPrefabOp(w, op, i);
       return;
     }
     case "definePrefab": {
@@ -1514,6 +1815,10 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       transformOp(w, op, i);
       return;
     }
+    case "reparent": {
+      reparentOp(w, op, i);
+      return;
+    }
     case "paintCells": {
       paintCellsOp(w, op, i);
       return;
@@ -1541,77 +1846,81 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
   }
 }
 
-function groupDef(at: Pt, d: Dihedral, name: string | undefined): GroupDef {
-  return {
-    at,
-    ...(d.rot !== 0 ? { rot: d.rot } : {}),
-    ...(d.flip ? { flip: true as const } : {}),
-    ...(name !== undefined ? { name } : {}),
-  };
-}
-
 /**
- * Turns and flips instances and groups in world terms about `about` (each
- * one's own origin by default): the world op `flip ∘ turn` composes onto
- * what each has, and its origin moves about the point. An instance in a
- * group keeps its group-local `at`, conjugated through the group's frame.
+ * Turns and flips instances and nodes in world terms about `about` (each
+ * one's own origin by default): the world op, `flip` after the turn (`turn`
+ * in quarters or `rotate` in degrees), composes onto what each has, and its
+ * origin moves about the point. An instance or node under a parent keeps
+ * its local frame, conjugated through the one above it.
  */
 function transformOp(w: Work, op: Extract<SceneOp, { op: "transform" }>, i: number): void {
-  const refs = [...new Set(op.refs ?? [])];
-  const groups = [...new Set(op.groups ?? [])];
-  if (refs.length === 0 && groups.length === 0)
-    fail("op-invalid", "transform names no instances (refs) and no groups.");
-  if (op.turn === undefined && op.flip === undefined)
-    fail("op-invalid", "transform has no turn and no flip, so it changes nothing.", {
-      hint: `{ "op": "transform", "refs": [...], "turn": 1 }`,
+  const refs = [...new Set(op.refs)];
+  if (refs.length === 0) fail("op-invalid", "transform names no instances or nodes (refs).");
+  if (op.turn !== undefined && op.rotate !== undefined)
+    fail("op-invalid", "transform takes turn or rotate, not both.", {
+      path: `/ops/${i}/rotate`,
+      hint: "Give quarter turns as turn, or the whole angle in degrees as rotate.",
     });
-  const turned: Dihedral = { rot: op.turn === -1 ? 3 : (op.turn ?? 0), flip: false };
-  const world = op.flip === undefined ? turned : flipWorld(turned, op.flip);
-  const about = (origin: Pt) => {
-    const p = op.about ?? origin;
-    return compose(dihedral(world, p), translation([-p[0], -p[1]]));
-  };
-  for (const id of groups) {
-    if (!w.groups[id]) {
-      const suggestion = closest(id, Object.keys(w.groups));
-      fail(
-        "ref-not-found",
-        `No group "${id}"${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
-        {
-          got: id,
-        },
-      );
-    }
-  }
-  const recs = refs.map((ref) => resolveInstance(w, ref));
-  for (const rec of recs) {
-    if (rec.def.group !== undefined && groups.includes(rec.def.group))
+  if (op.turn === undefined && op.flip === undefined && op.rotate === undefined)
+    fail("op-invalid", "transform has no turn, rotate or flip, so it changes nothing.", {
+      hint: `{ "op": "transform", "refs": [...], "rotate": 90 }`,
+    });
+  const deg = op.rotate ?? 90 * (op.turn === -1 ? 3 : (op.turn ?? 0));
+  const mirror =
+    op.flip === undefined
+      ? IDENTITY_2D
+      : dihedral({ rot: op.flip === "x" ? 0 : 2, flip: true }, [0, 0]);
+  const world = compose(mirror, frame({ at: [0, 0], rot: deg, flip: false }));
+  const about = (p: Pt) => compose(translation(p), compose(world, translation([-p[0], -p[1]])));
+  const targets = refs.map((ref) => {
+    const t = resolveNamed(w, ref);
+    if (t.kind === "entity" && t.rec.def.type !== NODE)
       fail(
         "op-invalid",
-        `${rec.def.id} is in group "${rec.def.group}", which this op also transforms; transform the group alone to turn its members with it.`,
-        { entityIds: [rec.def.id] },
+        `${ref} is a ${t.rec.def.type}; transform turns instances and nodes. Put it under a node and turn the node.`,
+        { entityIds: [ref], hint: `{ "op": "reparent", "refs": ["${ref}"], "parent": "<node>" }` },
+      );
+    return t;
+  });
+  const def = current(w);
+  const frames = sceneFrames(def, w.registry, w.prefabs);
+  const tree = targets.length > 0 && anyParent(w) ? treeOf(def, frames) : null;
+  const ids = targets.map((t) => t.rec.def.id);
+  for (const t of targets) {
+    const id = t.rec.def.id;
+    const chain = tree ? tree.chain(id) : [id];
+    const over = chain.slice(1).find((above) => ids.includes(above));
+    if (over !== undefined)
+      fail(
+        "op-invalid",
+        `${id} is under ${over}, which this op also transforms; transform ${over} alone to turn what is under it with it.`,
+        { entityIds: [id, over] },
       );
   }
-  for (const rec of recs) {
-    const frame = groupFrame(w, rec.def.group);
-    const g = rec.def.group === undefined ? undefined : w.groups[rec.def.group];
-    const gd = turnOf(g ?? {});
-    const origin = applyPt(frame, rec.def.at);
-    const at = applyPt(invert(frame), applyPt(about(origin), origin));
-    const d = composeDihedral(
-      inverseTurn(gd),
-      composeDihedral(world, composeDihedral(gd, turnOf(rec.def))),
+  for (const t of targets) {
+    const was = t.rec.def;
+    const own =
+      t.kind === "instance"
+        ? frame(instanceFrame(t.rec.def))
+        : frame(entityFrame(w.registry, t.rec.def));
+    const outer = composeAll(frames.stepsFor(was));
+    const placed = compose(outer, own);
+    const local = compose(
+      invert(outer),
+      compose(about(op.about ?? [placed.tx, placed.ty]), placed),
     );
-    const next = withDihedral({ ...clone(rec.def), at }, d);
-    validateInstance(w, next, () => `/ops/${i}`);
-    rec.def = next;
-    w.instancesTouched = true;
-  }
-  for (const id of groups) {
-    const g = w.groups[id]!;
-    const at = applyPt(about(g.at), g.at);
-    w.groups[id] = groupDef(at, composeDihedral(world, turnOf(g)), g.name);
-    w.groupsTouched = true;
+    const at: Pt = [roundLength(local.tx), roundLength(local.ty)];
+    const f = asFrame(local);
+    if (t.kind === "instance") {
+      const next = withOrientation({ ...clone(t.rec.def), at }, f);
+      validateInstance(w, next, () => `/ops/${i}`);
+      t.rec.def = next;
+    } else {
+      const next = withOrientation(withKey(t.rec.def, "at", at), f);
+      validateEntity(w, next, () => `/ops/${i}`);
+      t.rec.def = next;
+    }
+    markTouched(w, t);
   }
 }
 
@@ -2121,7 +2430,6 @@ function current(w: Work): SceneDefinition {
     ...w,
     entitiesTouched: true,
     instancesTouched: true,
-    groupsTouched: true,
     touchedBuckets: new Set(w.buckets.keys()),
   });
 }
@@ -2154,33 +2462,42 @@ function retargetNested(
 }
 
 /**
- * `remove` of the instance, then one level of it placed where it stood:
- * its own children as plain entries, the instance's turn and flip baked
- * into their fields, and its nested instances as instances of the
- * document, their `at`, turn, `z`, layer and `off` composed with the
- * outer instance's and its overrides through them folded in.
+ * `remove` of the instance, then one level of it placed where it stood, in
+ * the frame its `at` is in and under its parent: its own children as
+ * plain entries, the instance's angle and flip baked into their fields, and
+ * its nested instances as instances of the document, their `at`, angle,
+ * `z`, layer and `off` composed with the outer instance's and its
+ * overrides through them folded in; then `reparent`s that put back the
+ * links between them. `placed` maps a child's ref inside the prefab to the
+ * ref it ends up with.
  */
-function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
+function unpackOps(
+  w: Work,
+  inst: InstanceDef,
+): { ops: SceneOp[]; placed: (local: Ref) => Ref | undefined } {
   const prefab = prefabOf(w, inst.prefab);
-  const d = turnOf(inst);
+  const turn = frame({ ...instanceFrame(inst), at: [0, 0] });
   // The nested instances take the outer params under its overrides, as resolving does.
   const overrides = instanceOverrides(w, inst);
-  // Entities stay in the group's frame and `placeFragment` adds `at`, so they take only the turn.
-  const children = placeChildren(
+  // Entities stay in the frame `at` is in and `placeFragment` adds `at`, so they take only the turn.
+  const placing = placeInstance(
     prefab,
     inst,
     w.registry,
-    [dihedral(d, [0, 0])],
+    [turn],
     gridTurns({ settings: w.settings }),
     w.prefabs,
-  ).filter(({ child }) => !isNestedRef(child.child));
-  // Bulk entries can't join a group, so they land in world coordinates, less the `at` placing adds.
+  );
+  const all: PlacedInstanceChild[] = placing.ok ? placing.children : [];
+  const children = all.filter(({ child }) => !isNestedRef(child.child));
+  const def = current(w);
+  const frames = sceneFrames(def, w.registry, w.prefabs);
+  // Bulk entries can't sit under anything, so they land in world coordinates, less the `at` placing adds.
   const toWorld = [
-    dihedral(d, inst.at),
-    groupFrame(w, inst.group),
+    frame(instanceFrame(inst)),
+    ...frames.stepsFor(inst),
     translation([-inst.at[0], -inst.at[1]]),
   ];
-  const def = current(w);
   const without = {
     ...def,
     instances: (def.instances ?? []).filter((x) => x.id !== inst.id),
@@ -2197,12 +2514,20 @@ function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
   }
 
   const entities: EntityDef[] = [];
+  const entityChildren: Ref[] = [];
   const bulk: Record<BulkKey, BulkEntry[]> = {};
   const targets: Ref[] = [];
+  /** Links inside the prefab, by local ref: [child, parent]. */
+  const links: [Ref, Ref][] = [];
+  const local = (ref: Ref) =>
+    ref.startsWith(`${inst.id}${CHILD_SEPARATOR}`) ? ref.slice(inst.id.length + 1) : ref;
   for (const { child, def: placed } of children) {
     if (child.kind === "entity") {
       targets.push(...retargetNested(w, placed, inst.id, renamed));
+      if (typeof placed.parent === "string") links.push([child.child, local(placed.parent)]);
+      delete placed.parent;
       entities.push(placed);
+      entityChildren.push(child.child);
     } else
       (bulk[child.key] ??= []).push(
         toWorld.reduce((v, t) => transformBulkEntry(v, t), child.value),
@@ -2220,84 +2545,179 @@ function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
       ...targets.map((id) => ({ id, type: "marker" }) as EntityDef),
     ],
   };
-  const placed = placeFragment(
+  const fragment = placeFragment(
     { kind: FRAGMENT_KIND, v: SCENE_FORMAT_VERSION, entities, bulk },
     placedInto,
     w.registry,
     inst.at,
   );
+  const newIds = new Map<Ref, string>();
+  let k = 0;
+  const adds = fragment.ops.map((sub): SceneOp => {
+    if (sub.op !== "add") return sub;
+    const id = sub.entity.id;
+    const was = entityChildren[k++];
+    if (was !== undefined && id !== undefined) newIds.set(was, id);
+    return inst.parent === undefined
+      ? sub
+      : { ...sub, entity: { ...sub.entity, parent: inst.parent } };
+  });
+  const placed = (ref: Ref): Ref | undefined => {
+    const own = newIds.get(ref);
+    if (own !== undefined) return own;
+    const split = parseChildRef(ref);
+    const to = renamed.get(split ? split.instance : ref);
+    return to === undefined ? undefined : split ? childRef(to, split.child) : to;
+  };
 
-  const outer = dihedral(d, inst.at);
+  // A nested instance's frame in the turned prefab frame, through its parents inside the prefab.
+  const childFrames = new Map(
+    all.map((c) => [c.child.child, frame(placedFrame(w.registry, c.def, c.transform))]),
+  );
+  const byId = new Map(nested.map((n) => [n.id, n]));
+  const frameIn = (ref: Ref | undefined, seen: ReadonlySet<string>): Transform2D => {
+    if (ref === undefined) return turn;
+    const known = childFrames.get(ref);
+    if (known) return known;
+    const n = byId.get(ref);
+    if (!n || seen.has(ref)) return turn;
+    return compose(frameIn(n.parent, new Set([...seen, ref])), frame(instanceFrame(n)));
+  };
   const index = w.instances.findIndex((r) => r.def.id === inst.id);
   const instantiates: SceneOp[] = nested.map((n, k) => {
-    let out = { ...clone(n), id: renamed.get(n.id)!, at: applyPt(outer, n.at) } as InstanceDef;
-    out = withDihedral(out, composeDihedral(d, turnOf(n)));
+    const id = renamed.get(n.id)!;
+    const at = compose(frameIn(n.parent, new Set([n.id])), frame(instanceFrame(n)));
+    if (n.parent !== undefined) links.push([n.id, n.parent]);
+    let out = {
+      ...clone(n),
+      id,
+      at: [roundLength(at.tx + inst.at[0]), roundLength(at.ty + inst.at[1])],
+    } as InstanceDef;
+    out = withOrientation(out, frameOf(at));
     out = withZ(out, (inst.z ?? 0) + (n.z ?? 0));
     if (out.layer === undefined && inst.layer !== undefined) out.layer = inst.layer;
     if (inst.off) out.off = true;
-    delete out.group;
-    if (inst.group !== undefined) out.group = inst.group;
+    delete out.parent;
+    if (inst.parent !== undefined) out.parent = inst.parent;
     return { op: "instantiate", instance: out as InstanceInput, index: index + k };
   });
-  return [{ op: "remove", refs: [inst.id] }, ...placed.ops, ...instantiates];
+
+  const relinks = new Map<Ref, Ref[]>();
+  for (const [child, parent] of links) {
+    const from = placed(child);
+    const to = placed(parent);
+    if (from === undefined || to === undefined) continue;
+    relinks.set(to, [...(relinks.get(to) ?? []), from]);
+  }
+  const reparents = [...relinks].map(
+    ([parent, refs]): SceneOp => ({ op: "reparent", refs, parent }),
+  );
+  return {
+    ops: [{ op: "remove", refs: [inst.id] }, ...adds, ...instantiates, ...reparents],
+    placed,
+  };
 }
 
 /**
- * `definePrefab` with the entries `refs` name around the origin, `remove`
- * of them, and one `instantiate` of the new prefab at the origin. Group
- * members leave their group (the instance takes no group); instances among
- * the refs become the prefab's nested instances, their group's transform
- * baked in. The origin is `at`, or the top-left of the entries' box and
- * the instances' `at`s.
+ * `unpack` of `rec`: entries the document holds under the instance or one
+ * of its children are taken off it first, so `remove` leaves them, then put
+ * back under what took its place (the instance's parent, or the child's
+ * new entry) with their geometry re-expressed so nothing moves.
  */
-function createPrefabOps(
-  w: Work,
-  op: Extract<SceneOp, { op: "createPrefab" }>,
-  i: number,
-): SceneOp[] {
+function unpackOp(w: Work, rec: InstRec, i: number): void {
+  const inst = rec.def;
+  const before = sceneFrames(current(w), w.registry, w.prefabs);
+  const hanging: [Named, Ref][] = [];
+  const under = (p: unknown) => typeof p === "string" && headOf(p) === inst.id;
+  for (const r of w.entities)
+    if (under(r.def.parent)) hanging.push([{ kind: "entity", rec: r }, r.def.parent!]);
+  for (const r of w.instances)
+    if (under(r.def.parent)) hanging.push([{ kind: "instance", rec: r }, r.def.parent!]);
+  for (const [t] of hanging) {
+    t.rec.def = withKey(t.rec.def, "parent", undefined);
+    markTouched(w, t);
+  }
+  const { ops, placed } = unpackOps(w, inst);
+  for (const sub of ops) applyOp(w, sub, i);
+  if (hanging.length === 0) return;
+  const after = sceneFrames(current(w), w.registry, w.prefabs);
+  const moved = new Set<string>();
+  for (const [t, p] of hanging) {
+    const to = p === inst.id ? inst.parent : placed(parseChildRef(p)!.child);
+    const by = compose(invert(composeAll(after.under(to))), composeAll(before.under(p)));
+    reexpressRec(w, t, by);
+    t.rec.def = withKey(t.rec.def, "parent", to);
+    moved.add(t.rec.def.id);
+  }
+  keepChildrenInPlace(w, before, moved);
+}
+
+/**
+ * `createPrefab`: the picked roots go into the frame of the parent they
+ * all share, or else to the world through their whole parent chain (a `reparent`, so what sits under them stays put), then
+ * `definePrefab` with them and everything under them around the origin,
+ * `remove` of them, and one `instantiate` of the new prefab at the origin
+ * under that shared parent. What sits under a picked entry comes along and
+ * keeps its links and its geometry in its parent's frame. Instances become the prefab's nested instances. The
+ * origin is `at`, or the top-left of the roots' box and the root
+ * instances' `at`s.
+ */
+function createPrefabOp(w: Work, op: Extract<SceneOp, { op: "createPrefab" }>, i: number): void {
   if (w.prefabs.has(op.id))
     fail("id-taken", `There is already a prefab "${op.id}".`, { got: op.id, path: `/ops/${i}/id` });
-  const entities: EntityDef[] = [];
-  const picked = new Map<BulkKey, { index: number; value: BulkEntry }[]>();
-  const nested: { index: number; def: InstanceDef }[] = [];
-  for (const ref of [...new Set(op.refs)]) {
-    const t = resolve(w, ref);
-    if (t.kind === "instance") {
-      const placed = compose(
-        groupFrame(w, t.rec.def.group),
-        dihedral(turnOf(t.rec.def), t.rec.def.at),
-      );
-      const n = { ...clone(t.rec.def), at: [placed.tx, placed.ty] as Pt };
-      delete n.group;
-      nested.push({
-        index: w.instances.indexOf(t.rec),
-        def: withDihedral(n, dihedralOf(placed) ?? { rot: 0, flip: false }),
-      });
-      continue;
-    }
-    if (t.kind === "bulk") {
-      const list = picked.get(t.info.key) ?? [];
-      list.push({ index: w.buckets.get(t.info.key)!.indexOf(t.slot), value: clone(t.slot.value) });
-      picked.set(t.info.key, list);
-      continue;
-    }
-    const groupAt = t.rec.def.group === undefined ? undefined : w.groups[t.rec.def.group]?.at;
-    const world = groupAt
-      ? (translateEntityDef(w.registry, t.rec.def, groupAt) ?? t.rec.def)
-      : t.rec.def;
-    const e = clone(world);
-    delete e.group;
-    entities.push(e);
-  }
-  entities.sort(
-    (a, b) =>
-      w.entities.findIndex((r) => r.def.id === a.id) -
-      w.entities.findIndex((r) => r.def.id === b.id),
+  const picked = [...new Set(op.refs)].map((ref) => resolve(w, ref));
+  const memberIds = new Set(
+    [...picked, ...subtreeTargets(w, picked)].flatMap((t) =>
+      t.kind === "bulk" ? [] : [t.rec.def.id],
+    ),
   );
-  nested.sort((a, b) => a.index - b.index);
+  const frames = sceneFrames(current(w), w.registry, w.prefabs);
+  const isRoot = (id: string) => {
+    const p = frames.parentOf(id);
+    return p === undefined || !memberIds.has(headOf(p));
+  };
+  const named = [...w.entities, ...w.instances].filter((r) => memberIds.has(r.def.id));
+  const roots = named.filter((r) => isRoot(r.def.id));
+  const shared = roots.map((r) => frames.parentOf(r.def.id));
+  const common =
+    shared[0] !== undefined &&
+    shared.every((p) => p === shared[0]) &&
+    picked.every((t) => t.kind !== "bulk")
+      ? shared[0]
+      : undefined;
+  const moving = roots.filter((r) => r.def.parent !== common).map((r) => r.def.id);
+  if (moving.length > 0) applyOp(w, { op: "reparent", refs: moving, parent: common ?? null }, i);
+  const fromWorld = invert(composeAll(frames.under(common)));
+
+  const entities: { index: number; def: EntityDef; root: boolean }[] = [];
+  const nested: { index: number; def: InstanceDef; root: boolean }[] = [];
+  const bulkPicked = new Map<BulkKey, { index: number; value: BulkEntry }[]>();
+  w.entities.forEach((rec, index) => {
+    if (!memberIds.has(rec.def.id)) return;
+    const root = isRoot(rec.def.id);
+    const e = clone(rec.def);
+    if (root) delete e.parent;
+    entities.push({ index, def: e, root });
+  });
+  w.instances.forEach((rec, index) => {
+    if (!memberIds.has(rec.def.id)) return;
+    const root = isRoot(rec.def.id);
+    const n = clone(rec.def);
+    if (root) delete n.parent;
+    nested.push({ index, def: n, root });
+  });
+  for (const t of picked) {
+    if (t.kind !== "bulk") continue;
+    const list = bulkPicked.get(t.info.key) ?? [];
+    list.push({
+      index: w.buckets.get(t.info.key)!.indexOf(t.slot),
+      value: transformBulkEntry(clone(t.slot.value), fromWorld),
+    });
+    bulkPicked.set(t.info.key, list);
+  }
   const bulk: Record<BulkKey, BulkEntry[]> = {};
-  for (const key of [...picked.keys()].sort())
-    bulk[key] = picked
+  for (const key of [...bulkPicked.keys()].sort())
+    bulk[key] = bulkPicked
       .get(key)!
       .sort((a, b) => a.index - b.index)
       .map((x) => x.value);
@@ -2307,18 +2727,26 @@ function createPrefabOps(
   if (op.at) origin = [op.at[0], op.at[1]];
   else {
     const box = fragmentBounds(
-      { kind: FRAGMENT_KIND, v: SCENE_FORMAT_VERSION, entities, bulk },
+      {
+        kind: FRAGMENT_KIND,
+        v: SCENE_FORMAT_VERSION,
+        entities: entities.filter((e) => e.root).map((e) => e.def),
+        bulk,
+      },
       w.registry,
     );
-    const xs = [...(box ? [box.minX] : []), ...nested.map((n) => n.def.at[0])];
-    const ys = [...(box ? [box.minY] : []), ...nested.map((n) => n.def.at[1])];
+    const rootAts = nested.filter((n) => n.root).map((n) => n.def.at);
+    const xs = [...(box ? [box.minX] : []), ...rootAts.map((at) => at[0])];
+    const ys = [...(box ? [box.minY] : []), ...rootAts.map((at) => at[1])];
     if (xs.length === 0)
       fail("op-invalid", "None of those entries has a position to put the prefab's origin at.");
     origin = [Math.floor(Math.min(...xs)), Math.floor(Math.min(...ys))];
   }
   const back: Pt = [-origin[0], -origin[1]];
   const body: PrefabBody = {
-    entities: entities.map((e) => translateEntityDef(w.registry, e, back) ?? e),
+    entities: entities.map(({ def: e, root }) =>
+      root ? (translateEntityDef(w.registry, e, back) ?? e) : e,
+    ),
     ...(Object.keys(bulk).length > 0
       ? {
           bulk: Object.fromEntries(
@@ -2327,18 +2755,25 @@ function createPrefabOps(
         }
       : {}),
     ...(nested.length > 0
-      ? { instances: nested.map(({ def }) => ({ ...def, at: addPt(def.at, back) })) }
+      ? {
+          instances: nested.map(({ def: n, root }) => (root ? { ...n, at: addPt(n.at, back) } : n)),
+        }
       : {}),
   };
-  const refs = [...new Set(op.refs)];
-  return [
+  const subs: SceneOp[] = [
     { op: "definePrefab", id: op.id, prefab: body },
-    { op: "remove", refs },
+    { op: "remove", refs: [...new Set(op.refs)] },
     {
       op: "instantiate",
-      instance: { ...(op.instance ? { id: op.instance } : {}), prefab: op.id, at: origin },
+      instance: {
+        ...(op.instance ? { id: op.instance } : {}),
+        prefab: op.id,
+        at: origin,
+        ...(common !== undefined ? { parent: common } : {}),
+      },
     },
   ];
+  for (const sub of subs) applyOp(w, sub, i);
 }
 
 function markTouched(w: Work, t: Target): void {
@@ -2465,19 +2900,6 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
     else if (!was && now) last.push({ op: "definePrefab", id, prefab: null });
   }
 
-  // Groups: restored and re-declared first, ones the batch declared dropped last.
-  if (w.groupsTouched) {
-    const was = start.groups ?? {};
-    for (const id of Object.keys(was).sort()) {
-      const g = was[id]!;
-      const now = w.groups[id];
-      if (same(g, now)) continue;
-      ops.push({ op: "setGroup", id, ...setGroupFields(g, now) });
-    }
-    for (const id of Object.keys(w.groups).sort())
-      if (!(id in was)) last.push({ op: "setGroup", id, remove: true });
-  }
-
   const sceneSet: { name?: string; bounds?: SceneDefinition["bounds"] } = {};
   if (w.name !== start.name) sceneSet.name = start.name;
   if (!same(w.bounds, start.bounds)) sceneSet.bounds = clone(start.bounds);
@@ -2508,10 +2930,23 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   const startEnts = start.entities ?? [];
   const replaced = new Set<number>();
   const survivors = w.entities.filter((r) => r.orig !== null);
+  const plan = treeInverse(start, w, startPrefabs);
+  const exact: SceneOp[] = [];
   for (const rec of w.entities) if (rec.orig === null) removeRefs.push(rec.def.id);
   for (const rec of survivors) {
     const was = startEnts[rec.orig!]!;
+    if (plan?.replaced.has(rec)) {
+      replaced.add(rec.orig!);
+      removeRefs.push(rec.def.id);
+      continue;
+    }
+    if (plan?.exact.has(rec)) {
+      exact.push(...exactRestore(was, rec.def));
+      continue;
+    }
     const current: EntityDef = { ...clone(rec.def), id: was.id };
+    // Renames put a parent's id back; any other change of parent is the plan's.
+    if (current.parent !== undefined) current.parent = was.parent;
     if (same(was, current)) continue;
     // A grid present on both sides comes back cell by cell; the rest is restored as usual.
     const original = { ...was };
@@ -2543,12 +2978,15 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   }
 
   const startInsts = start.instances ?? [];
-  const instSurvivors = w.instances.filter((r) => r.orig !== null);
-  for (const rec of w.instances) if (rec.orig === null) removeRefs.push(rec.def.id);
+  const instSurvivors = w.instances.filter((r) => r.orig !== null && !plan?.replaced.has(r));
+  for (const rec of w.instances)
+    if (rec.orig === null || plan?.replaced.has(rec)) removeRefs.push(rec.def.id);
   for (const rec of instSurvivors) {
     const original = startInsts[rec.orig!]!;
-    if (restoreZ(original.id, original, { ...rec.def, id: original.id })) continue;
-    const now = { ...rec.def } as unknown as Json;
+    const def: InstanceDef =
+      rec.def.parent === undefined ? rec.def : { ...rec.def, parent: original.parent! };
+    if (restoreZ(original.id, original, { ...def, id: original.id })) continue;
+    const now = { ...def } as unknown as Json;
     const was = { ...original } as unknown as Json;
     const params = original.prefab === rec.def.prefab ? paramsInverse(original, rec.def) : null;
     if (params) {
@@ -2647,7 +3085,8 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   ops.push(...renameOps);
   for (const { by, refs } of moves.values()) ops.push({ op: "move", refs, by });
   for (const [z, refs] of zRestores) ops.push({ op: "setZ", refs, z });
-  ops.push(...updates, ...readds);
+  for (const e of plan?.readded ?? []) exact.push(...exactRestore(e, e));
+  ops.push(...updates, ...readds, ...(plan?.back ?? []), ...exact);
   ops.push(
     ...orderInverse(
       startEnts.map((e) => e.id),
@@ -2659,7 +3098,157 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
     ),
   );
   ops.push(...last);
+  if (plan && plan.out.length > 0) ops.unshift({ op: "reparent", refs: plan.out, parent: null });
   return ops;
+}
+
+/** How the inverse puts parents back (see `treeInverse`). */
+type TreePlan = {
+  /** Entities, by their ids after the batch, the inverse first puts at the root, before it removes anything. */
+  out: Ref[];
+  /** `reparent`s that put entities back under their start parents, shallowest first, once everything is re-added. */
+  back: SceneOp[];
+  /** Entities whose every field the inverse sets back after `back`, since reparenting rewrote them. */
+  exact: Set<EntRec>;
+  /** Start entities the inverse re-adds under an entity `back` moves, set back the same way. */
+  readded: EntityDef[];
+  /** Entities and instances the inverse removes and re-adds from the start document, links and all. */
+  replaced: Set<EntRec | InstRec>;
+};
+
+/**
+ * How the inverse restores the tree, or null when neither document has a
+ * parent. An entity whose parent changed, or whose parent the inverse
+ * removes, goes to the root first and back under its start parent after
+ * everything is re-added, which neither loops nor nests too deep, since
+ * every link left between is a start link; then every field it and what
+ * sits under it had is set back, so rounding can't drift. An entity whose
+ * start link `reparent` would refuse (a missing parent, a loop, too deep,
+ * a type outside the tree), and an instance that would need moving, is
+ * removed and re-added as it was instead, and so is an entity that would
+ * move with an instance below it, which reparenting might have to turn off
+ * the quarter turns.
+ */
+function treeInverse(
+  start: SceneDefinition,
+  w: Work,
+  startPrefabs: PrefabLibrary,
+): TreePlan | null {
+  const now = current(w);
+  const hasParent = (d: SceneDefinition) =>
+    [...(d.entities ?? []), ...(d.instances ?? [])].some((e) => e.parent !== undefined);
+  if (!hasParent(start) && !hasParent(now)) return null;
+  const nowTree = treeOf(now, sceneFrames(now, w.registry, w.prefabs));
+  const wasFrames = sceneFrames(start, w.registry, startPrefabs);
+  const wasTree = treeOf(start, wasFrames);
+  const startEnts = start.entities ?? [];
+  const startInsts = start.instances ?? [];
+  const ents = w.entities.filter((r) => r.orig !== null);
+  const insts = w.instances.filter((r) => r.orig !== null);
+  const wasEnt = (r: EntRec) => startEnts[r.orig!]!;
+  const wasInst = (r: InstRec) => startInsts[r.orig!]!;
+
+  const startId = new Map<string, string>();
+  for (const r of [...ents, ...insts]) startId.set(r.def.id, r.origId!);
+  /** A parent ref after the batch, in start ids; one the batch made can't match any. */
+  const asStart = (p: Ref | undefined): string | undefined => {
+    if (p === undefined) return undefined;
+    const head = headOf(p);
+    const id = startId.get(head);
+    return id === undefined ? `\0${p}` : id + p.slice(head.length);
+  };
+  const created = [...w.entities, ...w.instances].filter((r) => r.orig === null);
+  const restorable = (r: EntRec): boolean => {
+    const was = wasEnt(r);
+    const p = was.parent;
+    if (p === undefined) return true;
+    if (wasFrames.parentOf(was.id) !== p || outsideTree(w.registry, was.type)) return false;
+    const child = parseChildRef(p);
+    const inst = child ? startInsts.find((x) => x.id === child.instance) : undefined;
+    const type = child
+      ? (inst && wasFrames.placed(inst)?.find((c) => c.def.id === p))?.def.type
+      : startEnts.find((e) => e.id === p)?.type;
+    if (child && type === undefined) return false;
+    if (type !== undefined && outsideTree(w.registry, type)) return false;
+    return wasTree.depth(was.id) + heightOf(wasTree, was.id) <= PARENT_MAX_DEPTH;
+  };
+
+  const replaced = new Set<EntRec | InstRec>(
+    ents.filter((r) => {
+      const now = { ...r.def, id: wasEnt(r).id } as unknown as Json;
+      const was = wasEnt(r) as unknown as Json;
+      const zOnly = same(withZ(now as { z?: number }, (was.z as number | undefined) ?? 0), was);
+      return !same(was, now) && !keyOrderRestorable(was, now) && !zOnly;
+    }),
+  );
+  const nowInstances = new Set(w.instances.map((r) => r.def.id));
+  const wasInstances = new Set(startInsts.map((x) => x.id));
+  // Moving an entity rewrites what sits under it, which an instance may refuse.
+  const holdsInstance = (r: EntRec) =>
+    [...nowTree.below([r.def.id])].some((id) => nowInstances.has(id)) ||
+    [...wasTree.below([r.origId!])].some((id) => wasInstances.has(id));
+  let phase: EntRec[] = [];
+  for (let grew = true; grew; ) {
+    grew = false;
+    const removed = new Set([...created, ...replaced].map((r) => r.def.id));
+    const leaving = (now: Ref | undefined, was: Ref | undefined) =>
+      asStart(now) !== was || (now !== undefined && removed.has(headOf(now)));
+    phase = ents.filter((r) => !replaced.has(r) && leaving(r.def.parent, wasEnt(r).parent));
+    for (const r of phase)
+      if (!restorable(r) || holdsInstance(r)) {
+        replaced.add(r);
+        grew = true;
+      }
+    for (const r of insts)
+      if (!replaced.has(r) && leaving(r.def.parent, wasInst(r).parent)) {
+        replaced.add(r);
+        grew = true;
+      }
+  }
+  phase = phase.filter((r) => !replaced.has(r));
+
+  const below = nowTree.below(phase.map((r) => r.def.id));
+  const belowWas = wasTree.below(phase.map((r) => r.origId!));
+  const exact = new Set(
+    ents.filter(
+      (r) =>
+        !replaced.has(r) && (phase.includes(r) || below.has(r.def.id) || belowWas.has(r.origId!)),
+    ),
+  );
+  const exactIds = new Set([...exact].map((r) => r.origId!));
+  const readded = startEnts.filter((e) => belowWas.has(e.id) && !exactIds.has(e.id));
+  const back: Extract<SceneOp, { op: "reparent" }>[] = [];
+  const returning = phase
+    .filter((r) => wasEnt(r).parent !== undefined)
+    .map((r) => ({ id: r.origId!, parent: wasEnt(r).parent!, depth: wasTree.depth(r.origId!) }))
+    .sort((a, b) => a.depth - b.depth);
+  let depth = -1;
+  for (const r of returning) {
+    const prev = back.at(-1);
+    if (prev && prev.parent === r.parent && depth === r.depth) prev.refs.push(r.id);
+    else back.push({ op: "reparent", refs: [r.id], parent: r.parent });
+    depth = r.depth;
+  }
+  return {
+    out: phase.filter((r) => r.def.parent !== undefined).map((r) => r.def.id),
+    back,
+    exact,
+    readded,
+    replaced,
+  };
+}
+
+/** One `update` that sets back every field `was` had and unsets every other `now` has, its parent aside. */
+function exactRestore(was: EntityDef, now: EntityDef): SceneOp[] {
+  const fixed = ["id", "type", "parent"];
+  const set: Json = {};
+  for (const [k, v] of Object.entries(was)) if (!fixed.includes(k)) set[k] = clone(v);
+  const extra = was.type === NODE ? ["rot", "flip"] : [];
+  const unset = [...new Set([...Object.keys(now), ...extra])].filter(
+    (k) => !fixed.includes(k) && !(k in was),
+  );
+  if (Object.keys(set).length === 0 && unset.length === 0) return [];
+  return [{ op: "update", ref: was.id, ...pathsOf({ set, unset }) }];
 }
 
 /**
@@ -2749,7 +3338,10 @@ function touchedRefs(start: SceneDefinition, w: Work): Ref[] {
       if (s.orig === null || !same(s.value, original[s.orig])) out.push(bulkId(key, i));
     });
   }
-  return out;
+  // What the batch removed, under the ids it had: a removed parent takes its subtree.
+  const kept = new Set([...w.entities, ...w.instances].map((r) => r.origId));
+  for (const e of [...startEnts, ...startInsts]) if (!kept.has(e.id)) out.push(e.id);
+  return [...new Set(out)];
 }
 
 // ─── Edits on the resolved view ──────────────────────────
@@ -2757,8 +3349,8 @@ function touchedRefs(start: SceneDefinition, w: Work): Ref[] {
 /**
  * Maps a batch written against the resolved view (`resolveScene`: world
  * coordinates, instance children as `gate-3/door`) onto the document, as
- * `mapResolvedBatch` describes: a child's edit becomes overrides, a group
- * member's geometry loses the group's origin. The editor sends every batch
+ * `mapResolvedBatch` describes: a child's edit becomes overrides, a
+ * parented entity's geometry goes back into its parent's frame. The editor sends every batch
  * through it; an agent working on the file writes document ops directly.
  */
 export function toSourceBatch(

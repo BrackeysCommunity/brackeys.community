@@ -58,8 +58,8 @@ const isSessionSource = (source: PrefabSource): source is SessionPrefabSource =>
  * it holds show resolved like a scene's, their children by `door-1/panel`;
  * an edit to one is an override in this prefab, and an instance that
  * would contain the prefab itself is refused with `prefab-cycle`. Ops that
- * only mean something in a scene, and children joining a group, are
- * refused with `op-invalid`. Null when the source has no such prefab to open.
+ * only mean something in a scene are refused with `op-invalid`. Null when
+ * the source has no such prefab to open.
  */
 export async function openPrefabIsolation(
   scene: EditorSession,

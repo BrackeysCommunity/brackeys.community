@@ -124,10 +124,10 @@ describe("undo isolation", () => {
       { op: "paintCells", ref: "floor", field: "cells", rects: [[4, 3, 6, 3, 1]] },
       { op: "setParam", ref: "post-1", name: "top", value: [0, -70] },
     ]);
-    expect(instance(a, "gate-1")).toMatchObject({ rot: 1, params: { pause: 200, speed: 150 } });
+    expect(instance(a, "gate-1")).toMatchObject({ rot: 90, params: { pause: 200, speed: 150 } });
 
     undoA.undo();
-    expect(instance(b, "gate-1")).toMatchObject({ rot: 1, params: { pause: 200 } });
+    expect(instance(b, "gate-1")).toMatchObject({ rot: 90, params: { pause: 200 } });
     undoA.undo();
     expect(instance(b, "gate-1")).toEqual({
       id: "gate-1",

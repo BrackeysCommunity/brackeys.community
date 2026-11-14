@@ -9,6 +9,7 @@
 <path data-ref="~solid:0" data-type="solid" d="M0 288L640 288L640 320L0 320Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="1.25" stroke-linejoin="round"/>
 <path data-ref="hero" data-type="prop" d="M80 224L112 224L112 288L80 288Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="1.25" stroke-linejoin="round"/>
 <path data-ref="crate" data-type="prop" d="M208 222.06L241.94 256L208 289.94L174.06 256Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="1.25" stroke-linejoin="round"/>
+<g data-ref="mirrored" data-type="node" class="marker" fill="none" stroke="#99bbdd" stroke-width="1.5"><circle cx="560" cy="200" r="5"/><path d="M552 200H568M560 192V208"/></g>
 <g data-ref="lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="1.5"><circle cx="320" cy="288" r="5"/><path d="M312 288H328M320 280V296"/></g>
 <g data-ref="tree" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="1.5"><circle cx="448" cy="288" r="5"/><path d="M440 288H456M448 280V296"/></g>
 <g data-ref="banner" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="1.5"><circle cx="560" cy="200" r="5"/><path d="M552 200H568M560 192V208"/></g>
@@ -24,6 +25,7 @@
 <g id="paths" fill="none">
 </g>
 <g id="labels" text-anchor="middle" fill="#f2f4f8" stroke="#000000" stroke-opacity="0.75" stroke-width="3" stroke-linejoin="round" paint-order="stroke">
+<text x="569" y="191" font-size="11" text-anchor="start">mirrored</text>
 <text x="329" y="279" font-size="11" text-anchor="start">lamp</text>
 <text class="sprite-label" x="320" y="221" font-size="9" fill-opacity="0.8">lamp</text>
 <text x="457" y="279" font-size="11" text-anchor="start">tree</text>

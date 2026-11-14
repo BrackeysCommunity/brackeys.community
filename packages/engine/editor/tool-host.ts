@@ -17,14 +17,15 @@ import {
   hierarchyUp,
   nudgeBatch,
   nudgeDelta,
-  quarterTurnTargets,
   rotateSelectionBatch,
   selectAllRefs,
+  selectionRoots,
   turnBatch,
   ungroupBatch,
   zOrderBatch,
 } from "./commands";
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
+import type { EditSource } from "./gizmos/tree";
 import type { KeyContext } from "./keymap";
 import {
   frameBounds,
@@ -131,10 +132,7 @@ export type ToolHost = {
   /** The canvas cursor the active tool asks for. */
   cursor(): string | undefined;
   /** The parts of the keymap's context the host knows. */
-  keyContext(): Pick<
-    KeyContext,
-    "gesture" | "subObject" | "tool" | "quarterTurns" | "hasSelection"
-  >;
+  keyContext(): Pick<KeyContext, "gesture" | "subObject" | "tool" | "hasSelection">;
   /**
    * A key press or release for the active tool (the pen's Enter and
    * Backspace); call it before resolving the keymap and stop when it returns
@@ -231,7 +229,8 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     keyOf: (r) => session.keyOf(r),
     ...(opts.asset ? { asset: opts.asset } : {}),
   });
-  index.rebuild(session.getResolved(), registry);
+  const editSource = (): EditSource => ({ doc: session.getDoc(), prefabs: session.getPrefabs() });
+  index.rebuild(session.getResolved(), registry, editSource());
   const gesture = createGesturePreview({
     registry,
     getDoc: () => session.getResolved(),
@@ -294,6 +293,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       emit();
     },
     shareGhost: (ghost) => session.setGhost(ghost),
+    source: editSource,
     ...(opts.pan ? { pan: opts.pan } : {}),
   };
 
@@ -404,9 +404,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   });
 
   const unsubscribe = session.subscribe((e) => {
-    const view = session.getResolved();
-    if (e.touched.length === 0 || view !== e.doc) index.rebuild(view, registry);
-    else index.update(view, registry, e.touched);
+    index.update(session.getResolved(), registry, e.touched, editSource());
     emit();
   });
 
@@ -450,15 +448,17 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
 
   function defaults(command: string): boolean {
     const def = session.getResolved();
+    const doc = session.getDoc();
+    const prefabs = session.getPrefabs();
     const sel = selection();
     const ppm = pxPerMetreOf(registry);
     const delta = nudgeDelta(command, ppm);
-    if (delta) return apply(nudgeBatch(sel, delta, ppm));
+    if (delta) return apply(nudgeBatch(selectionRoots(doc, sel), delta, ppm));
     switch (command) {
       case "rotate-cw":
       case "rotate-ccw": {
         const deg = (command === "rotate-cw" ? 1 : -1) * (snap.angleDeg > 0 ? snap.angleDeg : 15);
-        return apply(rotateSelectionBatch(def, registry, sel, deg));
+        return apply(rotateSelectionBatch(doc, registry, sel, deg, prefabs));
       }
       case "turn-cw":
       case "turn-ccw":
@@ -469,17 +469,19 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       case "select-all":
         return selectRefs(selectAllRefs(def, index, layers));
       case "group":
-        return apply(groupBatch(def, sel));
-      case "ungroup":
-        return apply(ungroupBatch(def, sel));
+      case "ungroup": {
+        const edit =
+          command === "group" ? groupBatch(doc, registry, sel, prefabs) : ungroupBatch(doc, sel);
+        return edit !== null && apply(edit.batch, edit.select);
+      }
       case "bring-forward":
         return apply(zOrderBatch(sel, 1));
       case "send-backward":
         return apply(zOrderBatch(sel, -1));
       case "hierarchy-up":
-        return selectRefs(hierarchyUp(def, registry, sel));
+        return selectRefs(hierarchyUp(doc, sel));
       case "hierarchy-down":
-        return selectRefs(hierarchyDown(def, registry, sel));
+        return selectRefs(hierarchyDown(doc, registry, sel, prefabs));
       case "delete":
         return apply(deleteBatch(sel));
       case "duplicate":
@@ -514,15 +516,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     }
   }
 
-  /** A game's tool (a placement ghost) keeps `e` for itself, so only the engine's tools turn instances. */
-  function quarterTurns(): boolean {
-    const sel = selection();
-    if (sel.length === 0 || gameIds.has(activeId)) return false;
-    const t = quarterTurnTargets(session.getDoc(), sel);
-    return t.rest.length === 0 && t.instances.length + t.groups.length > 0;
-  }
-
-  const look = (): OutlineLook => outlineLook(registry, opts.asset);
+  const look = (): OutlineLook => outlineLook(registry, opts.asset, editSource());
 
   /**
    * The overlay's outlines: the selection's, the shared hover's and the
@@ -540,7 +534,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     const marks: OutlineMarks = { outlines: [], points: [] };
     for (const ref of sel) outlinesOfRef(def, ref, "selected", marks, outline);
     const bounds =
-      sel.length > 1 || (sel.length === 1 && isComposite(def, sel[0]!))
+      sel.length > 1 || (sel.length === 1 && isComposite(def, sel[0]!, outline))
         ? marksBounds(marks.outlines, marks.points)
         : null;
     if (previewed) {
@@ -579,7 +573,6 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       gesture: active?.gesture?.() ?? false,
       subObject: subObject || (active?.subObject?.() ?? false),
       tool: activeId,
-      quarterTurns: quarterTurns(),
       hasSelection: selection().length > 0,
     }),
     key(e) {
@@ -622,7 +615,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     },
     index: () => index,
     reindex() {
-      index.rebuild(session.getResolved(), registry);
+      index.rebuild(session.getResolved(), registry, editSource());
       emit();
     },
     copy: () =>

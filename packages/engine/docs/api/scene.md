@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`AGENT_SURFACE_KEYWORD`](#agent_surface_keyword) · [`AGENT_SURFACE_VERSION`](#agent_surface_version) · [`Aabb`](#aabb) · [`AnalogSet`](#analogset) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetId`](#assetid) · [`Bounds`](#bounds) · [`BulkEntry`](#bulkentry) · [`BulkForm`](#bulkform) · [`BulkKey`](#bulkkey) · [`BulkPlacement`](#bulkplacement) · [`CHECKS_FORMAT_VERSION`](#checks_format_version) · [`CHECKS_LAYOUT`](#checks_layout) · [`CHECKS_SUFFIX`](#checks_suffix) · [`CHILD_SEPARATOR`](#child_separator) · [`CHUNK_KEY_PATTERN`](#chunk_key_pattern) · [`CellEdit`](#celledit) · [`CellRect`](#cellrect) · [`CheckCell`](#checkcell) · [`CheckPlace`](#checkplace) · [`ChecksFile`](#checksfile) · [`ChecksIssue`](#checksissue) · [`ChunkKey`](#chunkkey) · [`ConnectedCheck`](#connectedcheck) · [`CountMatch`](#countmatch) · [`DEFAULT_ASCII_TAG_CHARS`](#default_ascii_tag_chars) · [`DEFAULT_BLOCKED_BY`](#default_blocked_by) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_SCRIPT_MAX_TICKS`](#default_script_max_ticks) · [`DEFAULT_TOUCH_ROLLOUTS`](#default_touch_rollouts) · [`DEFAULT_TOUCH_SEED`](#default_touch_seed) · [`DEFAULT_TOUCH_TICKS`](#default_touch_ticks) · [`DEFAULT_UNTIL_MAX`](#default_until_max) · [`Dihedral`](#dihedral) · [`DrawnSprite`](#drawnsprite) · [`EMPTY_SCENE_TEMPLATE`](#empty_scene_template) · [`ENGINE_ISSUE_CODE_LIST`](#engine_issue_code_list) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`EngineIssueCode`](#engineissuecode) · [`EntityBase`](#entitybase) · [`EntityDef`](#entitydef) · [`EntityInput`](#entityinput) · [`EntityTypeName`](#entitytypename) · [`ExistsMatch`](#existsmatch) · [`ExpandOptions`](#expandoptions) · [`ExpandedScene`](#expandedscene) · [`FRAGMENT_KIND`](#fragment_kind) · [`FieldKind`](#fieldkind) · [`FieldPath`](#fieldpath) · [`GRID_CHUNK`](#grid_chunk) · [`GRID_MAX_VALUE`](#grid_max_value) · [`GRID_ROW_PATTERN`](#grid_row_pattern) · [`GameCheck`](#gamecheck) · [`GridCells`](#gridcells) · [`GridProblem`](#gridproblem) · [`GridRow`](#gridrow) · [`GridSettings`](#gridsettings) · [`GroupDef`](#groupdef) · [`GroupSchema`](#groupschema) · [`IDENTITY_2D`](#identity_2d) · [`ID_PATTERN`](#id_pattern) · [`INPUT_SCRIPT_LAYOUT`](#input_script_layout) · [`INPUT_SCRIPT_MIGRATIONS`](#input_script_migrations) · [`INPUT_SCRIPT_VERSION`](#input_script_version) · [`INSTANCE_OVERRIDE_FIELDS`](#instance_override_fields) · [`ISSUE_CODES`](#issue_codes) · [`InputScriptSchemas`](#inputscriptschemas) · [`InstanceDef`](#instancedef) · [`InstanceInput`](#instanceinput) · [`InstanceSchema`](#instanceschema) · [`IssueCode`](#issuecode) · [`IssueCodeInfo`](#issuecodeinfo) · [`JsonSchemaOptions`](#jsonschemaoptions) · [`LENGTH_UNITS`](#length_units) · [`LengthUnitName`](#lengthunitname) · [`LiveIssueInput`](#liveissueinput) · [`LiveSwapPhase`](#liveswapphase) · [`LocalChild`](#localchild) · [`MAX_SCRIPT_TICKS`](#max_script_ticks) · [`MAX_TOUCH_ROLLOUTS`](#max_touch_rollouts) · [`MIGRATIONS`](#migrations) · [`MigrateEnv`](#migrateenv) · [`MigrateInputScriptResult`](#migrateinputscriptresult) · [`MigrateResult`](#migrateresult) · [`Migration`](#migration) · [`MigrationRefusal`](#migrationrefusal) · [`OP_NAMES`](#op_names) · [`OVERRIDE_PATH`](#override_path) · [`OpBatch`](#opbatch) · [`OverlayPoint`](#overlaypoint) · [`OverridePath`](#overridepath) · [`PREFABS_DIR`](#prefabs_dir) · [`PREFAB_KIND`](#prefab_kind) · [`PREFAB_MAX_DEPTH`](#prefab_max_depth) · [`ParseChecksResult`](#parsechecksresult) · [`ParseFragmentResult`](#parsefragmentresult) · [`ParseInputScriptResult`](#parseinputscriptresult) · [`ParseOptions`](#parseoptions) · [`ParsePrefabResult`](#parseprefabresult) · [`ParseRecordingResult`](#parserecordingresult) · [`ParseSceneResult`](#parsesceneresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathCommand`](#pathcommand) · [`PathDef`](#pathdef) · [`PlacedChild`](#placedchild) · [`PlacedFragment`](#placedfragment) · [`Prefab`](#prefab) · [`PrefabBody`](#prefabbody) · [`PrefabLibrary`](#prefablibrary) · [`PrefabParam`](#prefabparam) · [`PrefabResolution`](#prefabresolution) · [`Pt`](#pt) · [`RECORDING_SCHEMA_ID`](#recording_schema_id) · [`RECORDING_TRAIL_EVERY`](#recording_trail_every) · [`RECORDING_VERSION`](#recording_version) · [`RESERVED_SCENE_KEYS`](#reserved_scene_keys) · [`ReachesCheck`](#reachescheck) · [`RecordedSwap`](#recordedswap) · [`RecordingCommand`](#recordingcommand) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`RectInput`](#rectinput) · [`Ref`](#ref) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolveOptions`](#resolveoptions) · [`ResolvedOrigin`](#resolvedorigin) · [`ResolvedPrefab`](#resolvedprefab) · [`ResolvedScene`](#resolvedscene) · [`ResolvedSettings`](#resolvedsettings) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeField`](#runtimefield) · [`RuntimeFields`](#runtimefields) · [`SCENE_FORMAT_VERSION`](#scene_format_version) · [`SCENE_GRID_MAX_CELLS`](#scene_grid_max_cells) · [`SCENE_HEADER_KEYS`](#scene_header_keys) · [`SCENE_SVG_MAX_SIZE`](#scene_svg_max_size) · [`SCHEMA_ID_BASE`](#schema_id_base) · [`SHORT_ID_LENGTH`](#short_id_length) · [`SceneAsciiMap`](#sceneasciimap) · [`SceneAsciiOptions`](#sceneasciioptions) · [`SceneChange`](#scenechange) · [`SceneCheck`](#scenecheck) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneLabels`](#scenelabels) · [`SceneLayerDef`](#scenelayerdef) · [`SceneOp`](#sceneop) · [`SceneOverlay`](#sceneoverlay) · [`SceneParseError`](#sceneparseerror) · [`SceneRegionOptions`](#sceneregionoptions) · [`SceneSettings`](#scenesettings) · [`SceneSprite`](#scenesprite) · [`SceneSvgOptions`](#scenesvgoptions) · [`SceneVersionError`](#sceneversionerror) · [`SceneViewport`](#sceneviewport) · [`ScriptPointer`](#scriptpointer) · [`SeatEvent`](#seatevent) · [`SettingsSources`](#settingssources) · [`Severity`](#severity) · [`ShapeInput`](#shapeinput) · [`ShapeObj`](#shapeobj) · [`ShapeTuple`](#shapetuple) · [`ShapeTupleSchema`](#shapetupleschema) · [`ShapeType`](#shapetype) · [`SpatialHash`](#spatialhash) · [`SpotAnchor`](#spotanchor) · [`SpriteAssetLookup`](#spriteassetlookup) · [`SpritePoseSource`](#spriteposesource) · [`SublevelJudgeOptions`](#subleveljudgeoptions) · [`SublevelSettings`](#sublevelsettings) · [`SystemEvent`](#systemevent) · [`TouchesCheck`](#touchescheck) · [`Transform2D`](#transform2d) · [`ValidCheck`](#validcheck) · [`ValidateOptions`](#validateoptions) · [`aabb`](#aabb-1) · [`aabbUnion`](#aabbunion) · [`applyOps`](#applyops) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`behaviorBlocks`](#behaviorblocks) · [`boxCorners`](#boxcorners) · [`bulkEntries`](#bulkentries) · [`bulkId`](#bulkid) · [`bulkKeyType`](#bulkkeytype) · [`bulkKeysOf`](#bulkkeysof) · [`canonicalGrid`](#canonicalgrid) · [`centroid`](#centroid) · [`checksJsonSchema`](#checksjsonschema) · [`checksPathOf`](#checkspathof) · [`checksSchemaFor`](#checksschemafor) · [`checksSchemaId`](#checksschemaid) · [`childRef`](#childref) · [`closest`](#closest) · [`closestOnSegment`](#closestonsegment) · [`compareChunkKeys`](#comparechunkkeys) · [`comparePointers`](#comparepointers) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`containedInRect`](#containedinrect) · [`containsPoint`](#containspoint) · [`convexHull`](#convexhull) · [`createRegistry`](#createregistry) · [`createScene`](#createscene) · [`createSpatialHash`](#createspatialhash) · [`decodeRow`](#decoderow) · [`defaultLayer`](#defaultlayer) · [`defaultPhysics`](#defaultphysics) · [`describeChange`](#describechange) · [`didYouMean`](#didyoumean) · [`diffExpanded`](#diffexpanded) · [`diffPrefabToOps`](#diffprefabtoops) · [`diffScenes`](#diffscenes) · [`diffToOps`](#difftoops) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`encodeRow`](#encoderow) · [`entityIssues`](#entityissues) · [`entitySchemaFor`](#entityschemafor) · [`expandInstance`](#expandinstance) · [`expandScene`](#expandscene) · [`fieldKind`](#fieldkind-1) · [`flipWorld`](#flipworld) · [`formatAsciiMap`](#formatasciimap) · [`formatChecks`](#formatchecks) · [`formatInputScript`](#formatinputscript) · [`formatPrefab`](#formatprefab) · [`formatPrefabs`](#formatprefabs) · [`formatScene`](#formatscene) · [`fragmentBounds`](#fragmentbounds) · [`fragmentJsonSchema`](#fragmentjsonschema) · [`fragmentOf`](#fragmentof) · [`fragmentSchemaFor`](#fragmentschemafor) · [`geometryFields`](#geometryfields) · [`gridCellBounds`](#gridcellbounds) · [`gridProblems`](#gridproblems) · [`gridTurns`](#gridturns) · [`groupOrigin`](#grouporigin) · [`groupTransform`](#grouptransform) · [`hashText`](#hashtext) · [`inputScriptJsonSchema`](#inputscriptjsonschema) · [`inputScriptSchemaFor`](#inputscriptschemafor) · [`inputScriptSchemaId`](#inputscriptschemaid) · [`inputScriptSchemasFor`](#inputscriptschemasfor) · [`instanceOrigin`](#instanceorigin) · [`instanceSteps`](#instancesteps) · [`instanceTransform`](#instancetransform) · [`intersectsRect`](#intersectsrect) · [`inverseTurn`](#inverseturn) · [`invert`](#invert) · [`isConvex`](#isconvex) · [`isErrorIssue`](#iserrorissue) · [`isExpandedScene`](#isexpandedscene) · [`isGridValue`](#isgridvalue) · [`isIdentityTurn`](#isidentityturn) · [`isInstanceOverrideField`](#isinstanceoverridefield) · [`isMigrationRefusal`](#ismigrationrefusal) · [`isSpawnOnly`](#isspawnonly) · [`isWholePixel`](#iswholepixel) · [`jsonPointer`](#jsonpointer) · [`layerNames`](#layernames) · [`lengthDecimals`](#lengthdecimals) · [`liveIssue`](#liveissue) · [`localChild`](#localchild-1) · [`localChildren`](#localchildren) · [`makeIssue`](#makeissue) · [`migrate`](#migrate) · [`migrateInputScript`](#migrateinputscript) · [`migrateRecordingV1`](#migraterecordingv1) · [`nearestSegment`](#nearestsegment) · [`nearestVertex`](#nearestvertex) · [`nextFreeId`](#nextfreeid) · [`opBatchSchemaFor`](#opbatchschemafor) · [`opsJsonSchema`](#opsjsonschema) · [`opsSchemaId`](#opsschemaid) · [`paintGrid`](#paintgrid) · [`parseBulkId`](#parsebulkid) · [`parseChecks`](#parsechecks) · [`parseChildRef`](#parsechildref) · [`parseChunkKey`](#parsechunkkey) · [`parseFragment`](#parsefragment) · [`parseInputScript`](#parseinputscript) · [`parsePrefab`](#parseprefab) · [`parseRecording`](#parserecording) · [`parseScene`](#parsescene) · [`parseSceneOrThrow`](#parsesceneorthrow) · [`parseShape`](#parseshape) · [`placeChildren`](#placechildren) · [`placeFragment`](#placefragment) · [`placeableTypes`](#placeabletypes) · [`plural`](#plural) · [`pointerLines`](#pointerlines) · [`prefabBody`](#prefabbody-1) · [`prefabJsonSchema`](#prefabjsonschema) · [`prefabLibrary`](#prefablibrary-1) · [`prefabOf`](#prefabof) · [`prefabScene`](#prefabscene) · [`prefabSchemaFor`](#prefabschemafor) · [`prefabsUsedBy`](#prefabsusedby) · [`projectSpriteAssets`](#projectspriteassets) · [`pxToMetres`](#pxtometres) · [`raycastShape`](#raycastshape) · [`readCell`](#readcell) · [`recordingJsonSchema`](#recordingjsonschema) · [`renderSceneAscii`](#rendersceneascii) · [`renderSceneSvg`](#renderscenesvg) · [`resolvePrefab`](#resolveprefab) · [`resolveScene`](#resolvescene) · [`resolveSceneDetailed`](#resolvescenedetailed) · [`resolveSettings`](#resolvesettings) · [`resolveTime`](#resolvetime) · [`rotateShape`](#rotateshape) · [`roundLength`](#roundlength) · [`runRecordingSchema`](#runrecordingschema) · [`runRecordingV1Schema`](#runrecordingv1schema) · [`sceneAsciiMap`](#sceneasciimap-1) · [`sceneBody`](#scenebody) · [`sceneGameOf`](#scenegameof) · [`sceneHash`](#scenehash-1) · [`sceneHashWith`](#scenehashwith) · [`sceneJsonSchema`](#scenejsonschema) · [`sceneOpSchemaFor`](#sceneopschemafor) · [`scenePhysics`](#scenephysics) · [`sceneRegistry`](#sceneregistry) · [`sceneSchemaFor`](#sceneschemafor) · [`sceneSprites`](#scenesprites) · [`sceneViewport`](#sceneviewport-1) · [`schemaIdFor`](#schemaidfor) · [`scriptSeatLimit`](#scriptseatlimit) · [`scriptShapeIssues`](#scriptshapeissues) · [`shapeAtPose`](#shapeatpose) · [`shapeIsClosed`](#shapeisclosed) · [`shapeOutline`](#shapeoutline) · [`shapeToTuple`](#shapetotuple) · [`shapeVertices`](#shapevertices) · [`shapesIntersect`](#shapesintersect) · [`shortId`](#shortid) · [`snapToPixel`](#snaptopixel) · [`spawnSchemaFor`](#spawnschemafor) · [`splitChildRef`](#splitchildref) · [`splitFieldPath`](#splitfieldpath) · [`splitOverridePath`](#splitoverridepath) · [`spriteBoxOf`](#spriteboxof) · [`sublevelIssue`](#sublevelissue) · [`suggestType`](#suggesttype) · [`takenIds`](#takenids) · [`toSourceBatch`](#tosourcebatch) · [`topSpan`](#topspan) · [`transformGrid`](#transformgrid) · [`translateEntityDef`](#translateentitydef) · [`translateShape`](#translateshape) · [`translation`](#translation) · [`turnOf`](#turnof) · [`undescribedProperties`](#undescribedproperties) · [`unknownGameIssue`](#unknowngameissue) · [`untitledEntityFields`](#untitledentityfields) · [`validateScene`](#validatescene) · [`worldPointSchema`](#worldpointschema)
+[`AGENT_SURFACE_KEYWORD`](#agent_surface_keyword) · [`AGENT_SURFACE_VERSION`](#agent_surface_version) · [`Aabb`](#aabb) · [`AnalogSet`](#analogset) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetId`](#assetid) · [`Bounds`](#bounds) · [`BulkEntry`](#bulkentry) · [`BulkForm`](#bulkform) · [`BulkKey`](#bulkkey) · [`BulkPlacement`](#bulkplacement) · [`CHECKS_FORMAT_VERSION`](#checks_format_version) · [`CHECKS_LAYOUT`](#checks_layout) · [`CHECKS_SUFFIX`](#checks_suffix) · [`CHILD_SEPARATOR`](#child_separator) · [`CHUNK_KEY_PATTERN`](#chunk_key_pattern) · [`CellEdit`](#celledit) · [`CellRect`](#cellrect) · [`CheckCell`](#checkcell) · [`CheckPlace`](#checkplace) · [`ChecksFile`](#checksfile) · [`ChecksIssue`](#checksissue) · [`ChunkKey`](#chunkkey) · [`ConnectedCheck`](#connectedcheck) · [`CountMatch`](#countmatch) · [`DEFAULT_ASCII_TAG_CHARS`](#default_ascii_tag_chars) · [`DEFAULT_BLOCKED_BY`](#default_blocked_by) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_SCRIPT_MAX_TICKS`](#default_script_max_ticks) · [`DEFAULT_TOUCH_ROLLOUTS`](#default_touch_rollouts) · [`DEFAULT_TOUCH_SEED`](#default_touch_seed) · [`DEFAULT_TOUCH_TICKS`](#default_touch_ticks) · [`DEFAULT_UNTIL_MAX`](#default_until_max) · [`Dihedral`](#dihedral) · [`DrawnSprite`](#drawnsprite) · [`EMPTY_SCENE_TEMPLATE`](#empty_scene_template) · [`ENGINE_ISSUE_CODE_LIST`](#engine_issue_code_list) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`EngineIssueCode`](#engineissuecode) · [`EntityBase`](#entitybase) · [`EntityDef`](#entitydef) · [`EntityInput`](#entityinput) · [`EntityTypeName`](#entitytypename) · [`ExistsMatch`](#existsmatch) · [`ExpandOptions`](#expandoptions) · [`ExpandedScene`](#expandedscene) · [`FRAGMENT_KIND`](#fragment_kind) · [`FieldKind`](#fieldkind) · [`FieldPath`](#fieldpath) · [`Frame`](#frame) · [`GRID_CHUNK`](#grid_chunk) · [`GRID_MAX_VALUE`](#grid_max_value) · [`GRID_ROW_PATTERN`](#grid_row_pattern) · [`GameCheck`](#gamecheck) · [`GridCells`](#gridcells) · [`GridProblem`](#gridproblem) · [`GridRow`](#gridrow) · [`GridSettings`](#gridsettings) · [`IDENTITY_2D`](#identity_2d) · [`ID_PATTERN`](#id_pattern) · [`INPUT_SCRIPT_LAYOUT`](#input_script_layout) · [`INPUT_SCRIPT_MIGRATIONS`](#input_script_migrations) · [`INPUT_SCRIPT_VERSION`](#input_script_version) · [`INSTANCE_OVERRIDE_FIELDS`](#instance_override_fields) · [`ISSUE_CODES`](#issue_codes) · [`InputScriptSchemas`](#inputscriptschemas) · [`InstanceDef`](#instancedef) · [`InstanceInput`](#instanceinput) · [`InstanceSchema`](#instanceschema) · [`IssueCode`](#issuecode) · [`IssueCodeInfo`](#issuecodeinfo) · [`JsonSchemaOptions`](#jsonschemaoptions) · [`LENGTH_UNITS`](#length_units) · [`LengthUnitName`](#lengthunitname) · [`LiveIssueInput`](#liveissueinput) · [`LiveSwapPhase`](#liveswapphase) · [`LocalChild`](#localchild) · [`MAX_SCRIPT_TICKS`](#max_script_ticks) · [`MAX_TOUCH_ROLLOUTS`](#max_touch_rollouts) · [`MIGRATIONS`](#migrations) · [`MigrateEnv`](#migrateenv) · [`MigrateInputScriptResult`](#migrateinputscriptresult) · [`MigrateResult`](#migrateresult) · [`Migration`](#migration) · [`MigrationRefusal`](#migrationrefusal) · [`OP_NAMES`](#op_names) · [`OVERRIDE_PATH`](#override_path) · [`OpBatch`](#opbatch) · [`Orientation`](#orientation) · [`OverlayPoint`](#overlaypoint) · [`OverridePath`](#overridepath) · [`PARENT_MAX_DEPTH`](#parent_max_depth) · [`PREFABS_DIR`](#prefabs_dir) · [`PREFAB_KIND`](#prefab_kind) · [`PREFAB_MAX_DEPTH`](#prefab_max_depth) · [`ParseChecksResult`](#parsechecksresult) · [`ParseFragmentResult`](#parsefragmentresult) · [`ParseInputScriptResult`](#parseinputscriptresult) · [`ParseOptions`](#parseoptions) · [`ParsePrefabResult`](#parseprefabresult) · [`ParseRecordingResult`](#parserecordingresult) · [`ParseSceneResult`](#parsesceneresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathCommand`](#pathcommand) · [`PathDef`](#pathdef) · [`PlacedChild`](#placedchild) · [`PlacedFragment`](#placedfragment) · [`Prefab`](#prefab) · [`PrefabBody`](#prefabbody) · [`PrefabLibrary`](#prefablibrary) · [`PrefabParam`](#prefabparam) · [`PrefabResolution`](#prefabresolution) · [`Pt`](#pt) · [`RECORDING_SCHEMA_ID`](#recording_schema_id) · [`RECORDING_TRAIL_EVERY`](#recording_trail_every) · [`RECORDING_VERSION`](#recording_version) · [`RESERVED_SCENE_KEYS`](#reserved_scene_keys) · [`ReachesCheck`](#reachescheck) · [`RecordedSwap`](#recordedswap) · [`RecordingCommand`](#recordingcommand) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`RectInput`](#rectinput) · [`Ref`](#ref) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolveOptions`](#resolveoptions) · [`ResolvedOrigin`](#resolvedorigin) · [`ResolvedPrefab`](#resolvedprefab) · [`ResolvedScene`](#resolvedscene) · [`ResolvedSettings`](#resolvedsettings) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeField`](#runtimefield) · [`RuntimeFields`](#runtimefields) · [`SCENE_FORMAT_VERSION`](#scene_format_version) · [`SCENE_GRID_MAX_CELLS`](#scene_grid_max_cells) · [`SCENE_HEADER_KEYS`](#scene_header_keys) · [`SCENE_SVG_MAX_SIZE`](#scene_svg_max_size) · [`SCHEMA_ID_BASE`](#schema_id_base) · [`SHORT_ID_LENGTH`](#short_id_length) · [`SceneAsciiMap`](#sceneasciimap) · [`SceneAsciiOptions`](#sceneasciioptions) · [`SceneChange`](#scenechange) · [`SceneCheck`](#scenecheck) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneLabels`](#scenelabels) · [`SceneLayerDef`](#scenelayerdef) · [`SceneOp`](#sceneop) · [`SceneOverlay`](#sceneoverlay) · [`SceneParseError`](#sceneparseerror) · [`SceneRegionOptions`](#sceneregionoptions) · [`SceneSettings`](#scenesettings) · [`SceneSprite`](#scenesprite) · [`SceneSvgOptions`](#scenesvgoptions) · [`SceneVersionError`](#sceneversionerror) · [`SceneViewport`](#sceneviewport) · [`ScriptPointer`](#scriptpointer) · [`SeatEvent`](#seatevent) · [`SettingsSources`](#settingssources) · [`Severity`](#severity) · [`ShapeInput`](#shapeinput) · [`ShapeObj`](#shapeobj) · [`ShapeTuple`](#shapetuple) · [`ShapeTupleSchema`](#shapetupleschema) · [`ShapeType`](#shapetype) · [`SpatialHash`](#spatialhash) · [`SpotAnchor`](#spotanchor) · [`SpriteAssetLookup`](#spriteassetlookup) · [`SpritePoseSource`](#spriteposesource) · [`SublevelJudgeOptions`](#subleveljudgeoptions) · [`SublevelSettings`](#sublevelsettings) · [`SystemEvent`](#systemevent) · [`TouchesCheck`](#touchescheck) · [`Transform2D`](#transform2d) · [`ValidCheck`](#validcheck) · [`ValidateOptions`](#validateoptions) · [`aabb`](#aabb-1) · [`aabbUnion`](#aabbunion) · [`applyOps`](#applyops) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`behaviorBlocks`](#behaviorblocks) · [`boxCorners`](#boxcorners) · [`bulkEntries`](#bulkentries) · [`bulkId`](#bulkid) · [`bulkKeyType`](#bulkkeytype) · [`bulkKeysOf`](#bulkkeysof) · [`canonicalGrid`](#canonicalgrid) · [`centroid`](#centroid) · [`checksJsonSchema`](#checksjsonschema) · [`checksPathOf`](#checkspathof) · [`checksSchemaFor`](#checksschemafor) · [`checksSchemaId`](#checksschemaid) · [`childRef`](#childref) · [`closest`](#closest) · [`closestOnSegment`](#closestonsegment) · [`compareChunkKeys`](#comparechunkkeys) · [`comparePointers`](#comparepointers) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`composeFrames`](#composeframes) · [`composeOrientations`](#composeorientations) · [`containedInRect`](#containedinrect) · [`containsPoint`](#containspoint) · [`convexHull`](#convexhull) · [`createRegistry`](#createregistry) · [`createScene`](#createscene) · [`createSpatialHash`](#createspatialhash) · [`decodeRow`](#decoderow) · [`defaultLayer`](#defaultlayer) · [`defaultPhysics`](#defaultphysics) · [`describeChange`](#describechange) · [`didYouMean`](#didyoumean) · [`diffExpanded`](#diffexpanded) · [`diffPrefabToOps`](#diffprefabtoops) · [`diffScenes`](#diffscenes) · [`diffToOps`](#difftoops) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`encodeRow`](#encoderow) · [`entityFrame`](#entityframe) · [`entityIssues`](#entityissues) · [`entitySchemaFor`](#entityschemafor) · [`expandInstance`](#expandinstance) · [`expandScene`](#expandscene) · [`fieldKind`](#fieldkind-1) · [`flipWorld`](#flipworld) · [`formatAsciiMap`](#formatasciimap) · [`formatChecks`](#formatchecks) · [`formatInputScript`](#formatinputscript) · [`formatPrefab`](#formatprefab) · [`formatPrefabs`](#formatprefabs) · [`formatScene`](#formatscene) · [`fragmentBounds`](#fragmentbounds) · [`fragmentJsonSchema`](#fragmentjsonschema) · [`fragmentOf`](#fragmentof) · [`fragmentSchemaFor`](#fragmentschemafor) · [`frame`](#frame-1) · [`frameOf`](#frameof) · [`geometryFields`](#geometryfields) · [`gridCellBounds`](#gridcellbounds) · [`gridProblems`](#gridproblems) · [`gridTurns`](#gridturns) · [`hashText`](#hashtext) · [`inputScriptJsonSchema`](#inputscriptjsonschema) · [`inputScriptSchemaFor`](#inputscriptschemafor) · [`inputScriptSchemaId`](#inputscriptschemaid) · [`inputScriptSchemasFor`](#inputscriptschemasfor) · [`instanceFrame`](#instanceframe) · [`instanceOrigin`](#instanceorigin) · [`instanceSteps`](#instancesteps) · [`instanceTransform`](#instancetransform) · [`intersectsRect`](#intersectsrect) · [`inverseTurn`](#inverseturn) · [`invert`](#invert) · [`isConvex`](#isconvex) · [`isErrorIssue`](#iserrorissue) · [`isExpandedScene`](#isexpandedscene) · [`isGridValue`](#isgridvalue) · [`isIdentityTurn`](#isidentityturn) · [`isInstanceOverrideField`](#isinstanceoverridefield) · [`isMigrationRefusal`](#ismigrationrefusal) · [`isQuarterTurn`](#isquarterturn) · [`isSpawnOnly`](#isspawnonly) · [`isWholePixel`](#iswholepixel) · [`jsonPointer`](#jsonpointer) · [`layerNames`](#layernames) · [`lengthDecimals`](#lengthdecimals) · [`liveIssue`](#liveissue) · [`localChild`](#localchild-1) · [`localChildren`](#localchildren) · [`makeIssue`](#makeissue) · [`migrate`](#migrate) · [`migrateInputScript`](#migrateinputscript) · [`migrateRecordingV1`](#migraterecordingv1) · [`nearestSegment`](#nearestsegment) · [`nearestVertex`](#nearestvertex) · [`nextFreeId`](#nextfreeid) · [`opBatchSchemaFor`](#opbatchschemafor) · [`opsJsonSchema`](#opsjsonschema) · [`opsSchemaId`](#opsschemaid) · [`paintGrid`](#paintgrid) · [`parseBulkId`](#parsebulkid) · [`parseChecks`](#parsechecks) · [`parseChildRef`](#parsechildref) · [`parseChunkKey`](#parsechunkkey) · [`parseFragment`](#parsefragment) · [`parseInputScript`](#parseinputscript) · [`parsePrefab`](#parseprefab) · [`parseRecording`](#parserecording) · [`parseScene`](#parsescene) · [`parseSceneOrThrow`](#parsesceneorthrow) · [`parseShape`](#parseshape) · [`placeChildren`](#placechildren) · [`placeFragment`](#placefragment) · [`placeableTypes`](#placeabletypes) · [`placedFrame`](#placedframe) · [`plural`](#plural) · [`pointerLines`](#pointerlines) · [`prefabBody`](#prefabbody-1) · [`prefabJsonSchema`](#prefabjsonschema) · [`prefabLibrary`](#prefablibrary-1) · [`prefabOf`](#prefabof) · [`prefabScene`](#prefabscene) · [`prefabSchemaFor`](#prefabschemafor) · [`prefabsUsedBy`](#prefabsusedby) · [`projectSpriteAssets`](#projectspriteassets) · [`pxToMetres`](#pxtometres) · [`raycastShape`](#raycastshape) · [`readCell`](#readcell) · [`recordingJsonSchema`](#recordingjsonschema) · [`renderSceneAscii`](#rendersceneascii) · [`renderSceneSvg`](#renderscenesvg) · [`resolvePrefab`](#resolveprefab) · [`resolveScene`](#resolvescene) · [`resolveSceneDetailed`](#resolvescenedetailed) · [`resolveSettings`](#resolvesettings) · [`resolveTime`](#resolvetime) · [`rotateShape`](#rotateshape) · [`roundLength`](#roundlength) · [`runRecordingSchema`](#runrecordingschema) · [`runRecordingV1Schema`](#runrecordingv1schema) · [`sceneAsciiMap`](#sceneasciimap-1) · [`sceneBody`](#scenebody) · [`sceneGameOf`](#scenegameof) · [`sceneHash`](#scenehash-1) · [`sceneHashWith`](#scenehashwith) · [`sceneJsonSchema`](#scenejsonschema) · [`sceneOpSchemaFor`](#sceneopschemafor) · [`scenePhysics`](#scenephysics) · [`sceneRegistry`](#sceneregistry) · [`sceneSchemaFor`](#sceneschemafor) · [`sceneSprites`](#scenesprites) · [`sceneViewport`](#sceneviewport-1) · [`schemaIdFor`](#schemaidfor) · [`scriptSeatLimit`](#scriptseatlimit) · [`scriptShapeIssues`](#scriptshapeissues) · [`shapeAtPose`](#shapeatpose) · [`shapeIsClosed`](#shapeisclosed) · [`shapeOutline`](#shapeoutline) · [`shapeToTuple`](#shapetotuple) · [`shapeVertices`](#shapevertices) · [`shapesIntersect`](#shapesintersect) · [`shortId`](#shortid) · [`snapToPixel`](#snaptopixel) · [`spawnSchemaFor`](#spawnschemafor) · [`splitChildRef`](#splitchildref) · [`splitFieldPath`](#splitfieldpath) · [`splitOverridePath`](#splitoverridepath) · [`spriteBoxOf`](#spriteboxof) · [`sublevelIssue`](#sublevelissue) · [`suggestType`](#suggesttype) · [`takenIds`](#takenids) · [`toSourceBatch`](#tosourcebatch) · [`topSpan`](#topspan) · [`transformGrid`](#transformgrid) · [`translateEntityDef`](#translateentitydef) · [`translateShape`](#translateshape) · [`translation`](#translation) · [`turnOf`](#turnof) · [`undescribedProperties`](#undescribedproperties) · [`unknownGameIssue`](#unknowngameissue) · [`untitledEntityFields`](#untitledentityfields) · [`validateScene`](#validatescene) · [`worldPointSchema`](#worldpointschema)
 
 ## `AGENT_SURFACE_KEYWORD`
 
@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 21;
+declare const AGENT_SURFACE_VERSION = 22;
 ```
 
 ## `Aabb`
@@ -551,6 +551,9 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "nav-missing",
     "joint-ref-type",
     "joint-self",
+    "parent-depth",
+    "parent-type",
+    "quarter-turn-only",
     "follower-hits-solid",
     "solid-overlap",
     "grid-unreachable",
@@ -586,6 +589,10 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "prefab-not-spawnable",
     "body-missing",
     "body-not-dynamic",
+    "entity-gone",
+    "pose-not-settable",
+    "parent-cycle",
+    "parent-scope",
     "recording-other-platform",
     "scene-unlisted",
     "start-scene-missing",
@@ -639,19 +646,23 @@ Fields every entity has, whatever its type.
 
 ```ts
 type EntityBase = {
-    group?: string;
     id: string;
     /** A registry layer's name; omitted means `defaultLayer`'s. */
     layer?: string;
     name?: string;
     off?: boolean;
+    /**
+     * An entity, an instance, or an instance's child by resolved ref; the
+     * entity's geometry is stored in its frame.
+     */
+    parent?: Ref;
     type: EntityTypeName;
     /** Draw order within the layer: an integer, default 0. */
     z?: number;
 };
 ```
 
-Refers to [`EntityTypeName`](#entitytypename).
+Refers to [`EntityTypeName`](#entitytypename), [`Ref`](#ref).
 
 ## `EntityDef`
 
@@ -765,6 +776,21 @@ A dot path into an entity: `shape`, `path.speed`, `path.pts.1`.
 type FieldPath = string;
 ```
 
+## `Frame`
+
+_type_ in `scene/transform.ts`
+
+Mirror x when `flip`, turn `rot` degrees clockwise (y down), move to `at`.
+
+```ts
+type Frame = {
+    at: Pt;
+    rot: number;
+} & Orientation;
+```
+
+Refers to [`Orientation`](#orientation).
+
 ## `GRID_CHUNK`
 
 _const_ in `scene/grid.ts`
@@ -872,41 +898,6 @@ type GridSettings = {
 ```
 
 Refers to [`Pt`](#pt).
-
-## `GroupDef`
-
-_type_ in `scene/types.ts`
-
-A group: members store their geometry relative to `at`, so moving the
-group is one edit to `at`. `rot` is quarter turns clockwise (y down) and
-`flip` mirrors x before turning; absent is the identity.
-
-```ts
-type GroupDef = {
-    at: Pt;
-    flip?: true;
-    name?: string;
-    rot?: 1 | 2 | 3;
-};
-```
-
-Refers to [`Pt`](#pt).
-
-## `GroupSchema`
-
-_const_ in `scene/schema.ts`
-
-```ts
-declare const GroupSchema: z.ZodObject<{
-    at: z.ZodTuple<[
-        z.ZodNumber,
-        z.ZodNumber
-    ], null>;
-    flip: z.ZodOptional<z.ZodLiteral<true>>;
-    name: z.ZodOptional<z.ZodString>;
-    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
-}, z.core.$strict>;
-```
 
 ## `IDENTITY_2D`
 
@@ -1058,15 +1049,14 @@ type InputScriptSchemas = ReturnType<typeof buildInputScriptSchemas>;
 _type_ in `scene/types.ts`
 
 One placement of a prefab. Its children load as entities with ids
-`<id>/<childId>` (bulk children `<id>/~key:index`), translated by `at`
-and then by the instance's group.
+`<id>/<childId>` (bulk children `<id>/~key:index`), placed by `at`,
+`rot` and `flip` and then by the frames of its parent chain.
 
 ```ts
 type InstanceDef = {
     at: Pt;
     /** Mirror x in the prefab's frame, before `rot`. */
     flip?: true;
-    group?: string;
     id: string;
     layer?: string;
     name?: string;
@@ -1079,15 +1069,17 @@ type InstanceDef = {
     overrides?: Record<OverridePath, unknown>;
     /** Values of the prefab's exposed parameters, by name. */
     params?: Record<string, unknown>;
+    /** What the instance sits under, as an entity's `parent`; its `at` is in that frame. */
+    parent?: Ref;
     prefab: string;
-    /** Quarter turns clockwise (y down); absent is 0. */
-    rot?: 1 | 2 | 3;
+    /** Degrees clockwise (y down), in (0, 360); absent is 0. */
+    rot?: number;
     /** Added to every child's `z`. */
     z?: number;
 };
 ```
 
-Refers to [`OverridePath`](#overridepath), [`Pt`](#pt).
+Refers to [`OverridePath`](#overridepath), [`Pt`](#pt), [`Ref`](#ref).
 
 ## `InstanceInput`
 
@@ -1114,15 +1106,15 @@ declare const InstanceSchema: z.ZodObject<{
         z.ZodNumber
     ], null>;
     flip: z.ZodOptional<z.ZodLiteral<true>>;
-    group: z.ZodOptional<z.ZodString>;
     id: z.ZodString;
     layer: z.ZodOptional<z.ZodString>;
     name: z.ZodOptional<z.ZodString>;
     off: z.ZodOptional<z.ZodBoolean>;
     overrides: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    parent: z.ZodOptional<z.ZodString>;
     prefab: z.ZodString;
-    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+    rot: z.ZodOptional<z.ZodNumber>;
     z: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 ```
@@ -1279,28 +1271,28 @@ _type_ in `scene/resolve.ts`
 A child in a prefab's own frame, overrides applied. `child` is its ref
 relative to the prefab: its own id, or under the nested instances it is
 in (`door-1/panel`, `door-1/~solid:0`); an entity's `def.id` stays its id
-in its own prefab. `turn` is the turn and flip of the nested instances
-above it, and a nested bulk entry's `placed` the z, layer and `off` they
-give it.
+in its own prefab. `turn` is the angle and flip of the nested instances
+and parents above it, and a nested bulk entry's `placed` the z, layer
+and `off` they give it.
 
 ```ts
-type LocalChild = {
+type LocalChild = ChildLinks & ({
     child: Ref;
     def: EntityDef;
     kind: "entity";
-    turn?: Dihedral;
+    turn?: Orientation;
 } | {
     child: Ref;
     index: number;
     key: string;
     kind: "bulk";
     placed?: BulkPlacement;
-    turn?: Dihedral;
+    turn?: Orientation;
     value: BulkEntry;
-};
+});
 ```
 
-Refers to [`BulkEntry`](#bulkentry), [`BulkPlacement`](#bulkplacement), [`Dihedral`](#dihedral), [`EntityDef`](#entitydef), [`Ref`](#ref).
+Refers to [`BulkEntry`](#bulkentry), [`BulkPlacement`](#bulkplacement), [`EntityDef`](#entitydef), [`Orientation`](#orientation), [`Ref`](#ref).
 
 ## `MAX_SCRIPT_TICKS`
 
@@ -1424,8 +1416,8 @@ declare const OP_NAMES: readonly [
     "setScene",
     "setSettings",
     "reorder",
+    "reparent",
     "instantiate",
-    "setGroup",
     "override",
     "revertOverride",
     "applyToPrefab",
@@ -1471,6 +1463,19 @@ type OpBatch = {
 
 Refers to [`SceneHash`](#scenehash), [`SceneOp`](#sceneop).
 
+## `Orientation`
+
+_type_ in `scene/transform.ts`
+
+An angle and a flip without an origin: what a frame does to directions.
+
+```ts
+type Orientation = {
+    flip: boolean;
+    rot: number;
+};
+```
+
 ## `OverlayPoint`
 
 _type_ in `scene/render-geometry.ts`
@@ -1495,6 +1500,16 @@ bulk child), a dot, then a field path: `door.path.speed`, `~solid:0.shape`.
 
 ```ts
 type OverridePath = string;
+```
+
+## `PARENT_MAX_DEPTH`
+
+_const_ in `scene/types.ts`
+
+How deep `parent` links may nest below a root.
+
+```ts
+declare const PARENT_MAX_DEPTH = 16;
 ```
 
 ## `PREFABS_DIR`
@@ -1708,7 +1723,7 @@ Refers to [`Pt`](#pt).
 
 _type_ in `scene/resolve.ts`
 
-An instance child as the entity the resolved view holds: its resolved ref, the instance's transform, `z`, layer, group and `off` applied.
+An instance child as the entity the resolved view holds: its resolved ref, the instance's transform, `z`, layer and `off` applied.
 
 ```ts
 type PlacedChild = {
@@ -1725,8 +1740,14 @@ _type_ in `scene/fragment.ts`
 
 ```ts
 type PlacedFragment = {
+    /** Each placed entity's and instance's id, by its id in the fragment. */
+    ids: Record<string, Ref>;
     issues: SceneIssue[];
-    /** `addBulk` ops, then one `add` per entity, then one `instantiate` per instance. */
+    /**
+     * `addBulk` ops, then one `add` per entity, then one `instantiate` per
+     * instance, except that anything placed under a parent from the fragment
+     * comes after that parent.
+     */
     ops: SceneOp[];
     /** The refs the ops create, bulk entries at the indices they will have. */
     select: Ref[];
@@ -2113,7 +2134,7 @@ type ResolveOptions = {
 
 _type_ in `scene/resolve.ts`
 
-Where a resolved entity came from, and the turn and flip it was placed with (absent: none).
+Where a resolved entity came from, and the angle and flip it was placed with (absent: none).
 
 ```ts
 type ResolvedOrigin = {
@@ -2122,16 +2143,16 @@ type ResolvedOrigin = {
     kind: "child";
     /** The instance ids from the scene down to the child's own instance: `["room-1", "door-1"]`. */
     path: string[];
-    /** The accumulated turn and flip of its instances and group. */
-    transform: Dihedral;
+    /** The accumulated angle (degrees clockwise) and flip of its instances and parents. */
+    transform: Orientation;
 } | {
     index: number;
     kind: "entity";
-    transform?: Dihedral;
+    transform?: Orientation;
 };
 ```
 
-Refers to [`Dihedral`](#dihedral), [`Ref`](#ref).
+Refers to [`Orientation`](#orientation), [`Ref`](#ref).
 
 ## `ResolvedPrefab`
 
@@ -2312,10 +2333,15 @@ type RuntimeEntity<F extends object = {
     id: string;
     /** The entity's layer after instance inheritance; present only when set. */
     layer?: string;
-    /** The turns and flips of the instances and groups above it; present only when not the identity. */
+    /** The live entity it sits under at runtime; present only when it has one. */
+    parent?: string;
+    /**
+     * The angle (degrees clockwise) and flip of the instances and parents
+     * above it; present only when not the identity.
+     */
     transform?: {
         flip: boolean;
-        turn: 0 | 1 | 2 | 3;
+        rot: number;
     };
     type: EntityTypeName;
     /** Draw order within the layer; present only when non-zero. */
@@ -2356,7 +2382,7 @@ _const_ in `scene/types.ts`
 Lengths are metres from v4; a game's `world.lengthUnit` (px per metre) draws them.
 
 ```ts
-declare const SCENE_FORMAT_VERSION = 4;
+declare const SCENE_FORMAT_VERSION = 5;
 ```
 
 ## `SCENE_GRID_MAX_CELLS`
@@ -2385,7 +2411,6 @@ declare const SCENE_HEADER_KEYS: readonly [
     "bounds",
     "settings",
     "assets",
-    "groups",
     "instances"
 ];
 ```
@@ -2479,7 +2504,7 @@ type SceneChange = {
     kind: "moved";
     ref: Ref;
 } | {
-    field: "assets" | "bounds" | "game" | "name" | "v" | `groups.${string}` | `settings.${string}`;
+    field: "assets" | "bounds" | "game" | "name" | "v" | `settings.${string}`;
     from: unknown;
     kind: "scene";
     to: unknown;
@@ -2538,8 +2563,6 @@ type SceneDefinition = {
     entities?: EntityDef[];
     /** The game whose registry validates this file; omitted means engine primitives only. */
     game?: string;
-    /** Declared groups by id. A member of a group stores geometry local to the group's `at`. */
-    groups?: Record<string, GroupDef>;
     instances?: InstanceDef[];
     name: string;
     settings?: SceneSettings;
@@ -2547,7 +2570,7 @@ type SceneDefinition = {
 };
 ```
 
-Refers to [`AssetId`](#assetid), [`Bounds`](#bounds), [`BulkKey`](#bulkkey), [`EntityDef`](#entitydef), [`GroupDef`](#groupdef), [`InstanceDef`](#instancedef), [`SceneSettings`](#scenesettings).
+Refers to [`AssetId`](#assetid), [`Bounds`](#bounds), [`BulkKey`](#bulkkey), [`EntityDef`](#entitydef), [`InstanceDef`](#instancedef), [`SceneSettings`](#scenesettings).
 
 ## `SceneFragment`
 
@@ -2651,9 +2674,9 @@ _type_ in `scene/types.ts`
 type SceneOp = {
     about?: Pt;
     flip?: "x" | "y";
-    groups?: string[];
     op: "transform";
-    refs?: string[];
+    refs: string[];
+    rotate?: number;
     turn?: -1 | 1 | 2 | 3;
 } | {
     add?: AssetId[];
@@ -2664,16 +2687,6 @@ type SceneOp = {
     at: Pt;
     op: "place";
     ref: Ref;
-} | {
-    at?: Pt;
-    /** Absolute; false is written as absent. */
-    flip?: boolean;
-    id: string;
-    name?: null | string;
-    op: "setGroup";
-    remove?: boolean;
-    /** Absolute; 0 is written as absent. */
-    rot?: 0 | 1 | 2 | 3;
 } | {
     at?: Pt;
     id: string;
@@ -2755,6 +2768,10 @@ type SceneOp = {
     set: Record<OverridePath, unknown>;
 } | {
     op: "remove";
+    refs: Ref[];
+} | {
+    op: "reparent";
+    parent: Ref | null;
     refs: Ref[];
 } | {
     op: "revertOverride";
@@ -3658,6 +3675,28 @@ declare function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral;
 
 Refers to [`Dihedral`](#dihedral).
 
+## `composeFrames`
+
+_function_ in `scene/transform.ts`
+
+```ts
+declare function composeFrames(outer: Frame, inner: Frame): Frame;
+```
+
+Refers to [`Frame`](#frame).
+
+## `composeOrientations`
+
+_function_ in `scene/transform.ts`
+
+`outer ∘ inner` on orientations: a flip reverses the turn it is applied after.
+
+```ts
+declare function composeOrientations(outer: Orientation, inner: Orientation): Orientation;
+```
+
+Refers to [`Orientation`](#orientation).
+
 ## `containedInRect`
 
 _function_ in `scene/shape-geometry.ts`
@@ -3854,8 +3893,10 @@ Refers to [`OpBatch`](#opbatch), [`Prefab`](#prefab), [`Registry`](#registry), [
 _function_ in `scene/diff.ts`
 
 What changed from `a` to `b`: scene fields, settings by key, the `assets`
-header as a set, groups by key, entities and then instances by id, then bulk entries per bulk key. Types come from the entities and the
-bulk keys, so no registry is needed.
+header as a set, entities and then instances by id, then
+bulk entries per bulk key. A move to another parent is a `modified` on
+`parent`, beside whatever stored geometry changed with it. Types come
+from the entities and the bulk keys, so no registry is needed.
 
 ```ts
 declare function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange[];
@@ -3878,16 +3919,21 @@ added at their index. Bulk arrays keep the entries they share in order (LCS); an
 that only moved becomes a `move` (one per offset), one resized or
 otherwise changed in place an `update` of its shape or point, and the
 rest is removed or added. The header goes through `setScene`, settings
-through `setSettings`, the `assets` header through `useAssets`, groups
-through `setGroup` (its turn and flip included). Instances match by id
+through `setSettings`, the `assets` header through `useAssets`. Instances match by id
 like named entities, their `rot`, `flip` and `overrides` through
 `update`, each changed param through `setParam`; a change of only `z` is a `setZ`, and one placing
 another prefab is removed and instantiated again. A grid field that
 changed is one `update` of the whole field.
 
+A `parent` never goes through `update`. One that changes is a `reparent`
+after the adds, followed by an `update` that puts the stored geometry
+back exactly, on it and on everything below it; something under a removed entity or instance goes to the
+root first, since `remove` takes a subtree. Removals list children
+before their parents, and adds put a parent before what sits under it.
+
 `registry` tells point-form bulk keys from shape-form ones; without it the
-values decide. Throws when `$schema`, `v` or `game` differ, or when `b` has
-no `name`, since no op changes those.
+values decide. Throws when `$schema`, `v` or `game` differ, when `b` has
+no `name`, or when `b`'s parents form a cycle, since no op makes those.
 
 ```ts
 declare function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Registry): OpBatch;
@@ -3929,6 +3975,23 @@ declare function encodeRow(cells: ArrayLike<number>): GridRow;
 
 Refers to [`GridRow`](#gridrow).
 
+## `entityFrame`
+
+_function_ in `scene/resolve.ts`
+
+An entity's own frame from its stored fields: what its children's
+geometry is written in. A node's `at`, `rot` and `flip`; any other
+entity's spawn pose, as `runtime/spawn-pose.ts` reads it (the shape's
+centre, a path rider's shape placed at the path's first point, else its
+point, else the path's first point) at its box's or capsule's `rotDeg`,
+unflipped. An entity with no geometry stands at the origin.
+
+```ts
+declare function entityFrame(registry: Registry | undefined, def: EntityDef): Frame;
+```
+
+Refers to [`EntityDef`](#entitydef), [`Frame`](#frame), [`Registry`](#registry).
+
 ## `entityIssues`
 
 _function_ in `scene/parse.ts`
@@ -3964,21 +4027,31 @@ Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
 
 _function_ in `scene/expand.ts`
 
-One prefab instance's entities as a load expands them: ids
-`<instance>/<child>` (refs between its children remapped to them, the
-behavior blocks' entity refs by `scopeBehaviorRefs`), fields,
-behaviors, `z`, layers and `transform`, in spawn-group order, `off`
-children and types that don't load dropped. `group` is the instance's
-group; `cells` says the scene's turns are grid turns (`gridTurns`). An
-issue when the prefab is missing, cyclic or too deep; a child of an
+One prefab instance's entities as a load expands them. First a `node`
+at the instance's id, at its world origin and turned by its angle (`rot`
+in degrees), under `parent` when one is given; then one for each nested
+instance (`<instance>/<nested>`), each under the nested instance's
+`parent` if it has one, else under the one that holds it, with its layer
+and summed `z`. Then the children, ids `<instance>/<child>` (refs
+between its children remapped to them, the behavior blocks' entity refs
+by `scopeBehaviorRefs`), fields, behaviors, `z`, layers and `transform`,
+in spawn-group order, each under its own `parent` in the prefab, else
+under the nearest enclosing instance's node; `nodes` counts the leading
+nodes, the rest being the prefab's children. `off` children and types
+that don't load are dropped; an `off` instance gives nothing. `steps` are
+the frames above the instance, innermost first (default none);
+`cells` says the scene's turns are grid turns (`gridTurns`). An issue
+when the prefab is missing, cyclic or too deep; a child of an
 unregistered type throws, as a load does.
 
 ```ts
 declare function expandInstance(inst: InstanceDef, library: PrefabLibrary, registry: Registry, opts?: {
     cells?: boolean;
-    group?: GroupDef;
+    parent?: string;
+    steps?: readonly Transform2D[];
 }): {
     entities: RuntimeEntity[];
+    nodes: number;
     ok: true;
 } | {
     issue: SceneIssue;
@@ -3986,15 +4059,15 @@ declare function expandInstance(inst: InstanceDef, library: PrefabLibrary, regis
 };
 ```
 
-Refers to [`GroupDef`](#groupdef), [`InstanceDef`](#instancedef), [`PrefabLibrary`](#prefablibrary), [`Registry`](#registry), [`RuntimeEntity`](#runtimeentity), [`SceneIssue`](#sceneissue).
+Refers to [`InstanceDef`](#instancedef), [`PrefabLibrary`](#prefablibrary), [`Registry`](#registry), [`RuntimeEntity`](#runtimeentity), [`SceneIssue`](#sceneissue), [`Transform2D`](#transform2d).
 
 ## `expandScene`
 
 _function_ in `scene/expand.ts`
 
 What the runtime loads, as the scene's resolved view (`resolveScene`)
-holds it: group transforms applied, each instance's children through
-`expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
+holds it: parent frames applied, each instance's nodes and children
+through `expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
 types that don't load are dropped, along with the editor's fields (`layer`
 and a non-zero `z` stay), shapes become objects, behavior blocks are whole
 (`behaviorBlocks`), a turned or flipped entity records its `transform`,
@@ -4106,10 +4179,10 @@ _function_ in `scene/format.ts`
 
 The canonical text of a scene, without a registry: header keys in
 `SCENE_HEADER_KEYS` order, then bulk keys sorted by code unit, then
-`entities`; one tuple, instance, entity or group per line, the `assets`
+`entities`; one tuple, instance or entity per line, the `assets`
 header on one line, sorted and unique, two-space indent, trailing
 newline. An entity holding grids spans lines: its grid fields last, one
-chunk per line. Empty arrays, an empty `groups` or `settings` and a
+chunk per line. Empty arrays, an empty `settings` and a
 row's empty nested maps (`withoutEmptyMaps`) are left out. `lines`
 maps every JSON Pointer to its 1-based line; pointers inside a tuple or
 entity map to that item's first line, except those inside a chunk (its
@@ -4129,8 +4202,9 @@ Refers to [`SceneDefinition`](#scenedefinition).
 _function_ in `scene/fragment.ts`
 
 The world box around everything in the fragment; `null` when nothing in
-it has a position. Its instances count with `prefabs`: the box around
-each one's resolved children (a variant's base and nested instances'
+it has a position. What sits under a parent in it counts where the
+parent puts it. Its instances count with `prefabs`: the box around each
+one's resolved children (a variant's base and nested instances'
 children included), turned and flipped with it; one whose prefab isn't
 there is skipped.
 
@@ -4157,10 +4231,14 @@ Refers to [`Registry`](#registry).
 _function_ in `scene/fragment.ts`
 
 The entities, instances and bulk entries `refs` name, in document order,
-as the resolved view holds them (world coordinates); refs that don't
-resolve are skipped. An instance travels as itself, its prefab by id; a
-child of an instance (`gate-2/door`, resolved through `prefabs`) travels
-as a plain entity, unless its instance is copied too.
+with everything below them (`withSubtrees`); refs that don't resolve are
+skipped. The fragment's roots (what has no parent in it) stand where the
+resolved view puts them, in world coordinates, under nothing; what sits
+under one of them keeps its `parent` and its stored geometry, rewritten
+only where a root's own fields can't carry the turn or flip it stood in.
+An instance travels as itself, its prefab by id; a child of an instance
+(`gate-2/door`, resolved through `prefabs`) travels as a plain root
+entity, unless its instance is copied too.
 
 ```ts
 declare function fragmentOf(def: SceneDefinition, refs: readonly Ref[], registry: Registry, prefabs?: PrefabLibrary): SceneFragment;
@@ -4180,6 +4258,31 @@ declare function fragmentSchemaFor(registry: Registry): z.ZodObject;
 ```
 
 Refers to [`Registry`](#registry).
+
+## `frame`
+
+_function_ in `scene/transform.ts`
+
+Built from integers when `rot` is a multiple of 90, so quarter turns stay
+exact; from sine and cosine otherwise.
+
+```ts
+declare function frame(f: Frame): Transform2D;
+```
+
+Refers to [`Frame`](#frame), [`Transform2D`](#transform2d).
+
+## `frameOf`
+
+_function_ in `scene/transform.ts`
+
+The angle in [0, 360) and the flip of a rigid transform; exact for quarter turns.
+
+```ts
+declare function frameOf(t: Transform2D): Orientation;
+```
+
+Refers to [`Orientation`](#orientation), [`Transform2D`](#transform2d).
 
 ## `geometryFields`
 
@@ -4233,30 +4336,6 @@ declare function gridTurns(def: Pick<SceneDefinition, "settings">): boolean;
 ```
 
 Refers to [`SceneDefinition`](#scenedefinition).
-
-## `groupOrigin`
-
-_function_ in `scene/resolve.ts`
-
-A group's origin; `[0, 0]` for no group or one that isn't declared.
-
-```ts
-declare function groupOrigin(def: SceneDefinition, group: string | undefined): Pt;
-```
-
-Refers to [`Pt`](#pt), [`SceneDefinition`](#scenedefinition).
-
-## `groupTransform`
-
-_function_ in `scene/resolve.ts`
-
-A group's transform: its turn and flip about its `at`, the identity for no group or one that isn't declared.
-
-```ts
-declare function groupTransform(def: SceneDefinition, group: string | undefined): Transform2D;
-```
-
-Refers to [`SceneDefinition`](#scenedefinition), [`Transform2D`](#transform2d).
 
 ## `hashText`
 
@@ -4318,6 +4397,18 @@ declare function inputScriptSchemasFor(registry: Registry, players?: PlayersDef 
 
 Refers to [`InputScriptSchemas`](#inputscriptschemas), [`Registry`](#registry).
 
+## `instanceFrame`
+
+_function_ in `scene/resolve.ts`
+
+An instance's own frame: its `at`, its angle in degrees and its flip.
+
+```ts
+declare function instanceFrame(inst: Pick<InstanceDef, "at" | "flip" | "rot">): Frame;
+```
+
+Refers to [`Frame`](#frame), [`InstanceDef`](#instancedef).
+
 ## `instanceOrigin`
 
 _function_ in `scene/resolve.ts`
@@ -4325,36 +4416,38 @@ _function_ in `scene/resolve.ts`
 Where an instance's prefab origin lands in the world.
 
 ```ts
-declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef): Pt;
+declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef, registry?: Registry, prefabs?: PrefabLibrary): Pt;
 ```
 
-Refers to [`InstanceDef`](#instancedef), [`Pt`](#pt), [`SceneDefinition`](#scenedefinition).
+Refers to [`InstanceDef`](#instancedef), [`PrefabLibrary`](#prefablibrary), [`Pt`](#pt), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
 ## `instanceSteps`
 
 _function_ in `scene/resolve.ts`
 
 The transforms that place an instance's children, innermost first: its
-own turn and flip at its `at`, then its group's. Each is applied in turn,
-so a child resolves exactly as it would after `unpack` into the group.
+own angle and flip at its `at`, then its parent chain's.
+Each is applied in turn, so a child resolves exactly as it would after
+`unpack` into the parent. Without `registry`, a parent that is
+neither a node nor an instance counts as the identity.
 
 ```ts
-declare function instanceSteps(def: SceneDefinition, inst: InstanceDef): Transform2D[];
+declare function instanceSteps(def: SceneDefinition, inst: InstanceDef, registry?: Registry, prefabs?: PrefabLibrary): Transform2D[];
 ```
 
-Refers to [`InstanceDef`](#instancedef), [`SceneDefinition`](#scenedefinition), [`Transform2D`](#transform2d).
+Refers to [`InstanceDef`](#instancedef), [`PrefabLibrary`](#prefablibrary), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`Transform2D`](#transform2d).
 
 ## `instanceTransform`
 
 _function_ in `scene/resolve.ts`
 
-An instance's world transform: its group's after its own turn and flip at its `at`.
+An instance's world transform: its parent chain's after its own angle and flip at its `at`.
 
 ```ts
-declare function instanceTransform(def: SceneDefinition, inst: InstanceDef): Transform2D;
+declare function instanceTransform(def: SceneDefinition, inst: InstanceDef, registry?: Registry, prefabs?: PrefabLibrary): Transform2D;
 ```
 
-Refers to [`InstanceDef`](#instancedef), [`SceneDefinition`](#scenedefinition), [`Transform2D`](#transform2d).
+Refers to [`InstanceDef`](#instancedef), [`PrefabLibrary`](#prefablibrary), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`Transform2D`](#transform2d).
 
 ## `intersectsRect`
 
@@ -4473,6 +4566,16 @@ declare function isMigrationRefusal(value: unknown): value is MigrationRefusal;
 ```
 
 Refers to [`MigrationRefusal`](#migrationrefusal).
+
+## `isQuarterTurn`
+
+_const_ in `scene/transform.ts`
+
+Whether `deg` is a whole number of quarter turns.
+
+```ts
+declare const isQuarterTurn: (deg: number) => boolean;
+```
 
 ## `isSpawnOnly`
 
@@ -4928,9 +5031,11 @@ with `def`'s entities or instances renamed (`lift` → `lift-2`, `gate-2`
 → `gate-3`), references inside the fragment following the renames (a
 child ref `gate-2/door` with its instance), and references out of it
 kept when their target exists in `def`, else cleared with a
-`dangling-ref` warning. An instance whose prefab isn't in `prefabs`
-places nothing and warns `prefab-unknown`. Paste and unpack both place
-fragments this way.
+`dangling-ref` warning. `parent` is a reference like the others: what
+sits under a parent from the fragment keeps its stored geometry, which
+is in that parent's frame, and moves with it; everything else moves by
+`by`. An instance whose prefab isn't in `prefabs` places nothing and
+warns `prefab-unknown`. Paste and unpack both place fragments this way.
 
 ```ts
 declare function placeFragment(fragment: SceneFragment, def: SceneDefinition, registry: Registry, by: Pt, prefabs?: PrefabLibrary): PlacedFragment;
@@ -4949,6 +5054,21 @@ declare function placeableTypes(registry: Registry): EntityTypeName[];
 ```
 
 Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
+
+## `placedFrame`
+
+_function_ in `scene/resolve.ts`
+
+The frame of an entity already placed by `turn` (the angle and flip of
+what is above it, as a resolved entity's origin carries): a node's from
+its fields, which placing turns; any other entity's spawn point, at its
+box's or capsule's `rotDeg`, else at `turn`'s angle, with `turn`'s flip.
+
+```ts
+declare function placedFrame(registry: Registry | undefined, def: EntityDef, turn?: Orientation): Frame;
+```
+
+Refers to [`EntityDef`](#entitydef), [`Frame`](#frame), [`Orientation`](#orientation), [`Registry`](#registry).
 
 ## `plural`
 
@@ -5181,7 +5301,7 @@ Refers to [`PrefabLibrary`](#prefablibrary), [`PrefabResolution`](#prefabresolut
 
 _function_ in `scene/resolve.ts`
 
-The resolved view of a scene (see `resolveSceneDetailed`). Returns `def` itself when it has no groups or instances.
+The resolved view of a scene (see `resolveSceneDetailed`). Returns `def` itself when it has no instances or parents.
 
 ```ts
 declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): SceneDefinition;
@@ -5195,11 +5315,13 @@ _function_ in `scene/resolve.ts`
 
 The resolved view and where each of its entities came from. A document
 entity keeps its index, so pointers into `/entities/<i>` stay put; the
-instances' children follow, instance by instance. A child's world
-transform is its group's, then its instance's, each a turn and flip at
-its `at` (`instanceTransform`), and an instance's `z` is added to each
-child's. An instance whose prefab is missing contributes nothing
-(validation reports it); an `off` instance's children are all `off`.
+instances' children follow, instance by instance. A stored geometry maps
+to the world through its parent chain (`sceneFrames`): `W(child) = W(parent) ∘ frame(entityFrame(parent))`, the
+innermost frame applied first. An instance's children go through its own
+frame, then its steps, and its `z` is added to each child's. An instance
+whose prefab is missing contributes nothing (validation reports it); an
+`off` instance's children are all `off`, and so is everything under an
+`off` parent.
 
 ```ts
 declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
@@ -5907,7 +6029,7 @@ the sprite system places it: `spriteGeometry` of the block (its flip
 toggled by the entity's) and its asset's info from `assets`, its asset's
 px over `pxPerMetre`, at the pose plus the offset. The offset mirrors
 with the entity's flip and turns with the pose, or with `turn: false`
-with the quarter turns only. Undefined for a value that isn't a block or
+with the angle of what it sits in only. Undefined for a value that isn't a block or
 an entity with no pose.
 
 ```ts
@@ -5964,8 +6086,8 @@ _function_ in `scene/ops.ts`
 
 Maps a batch written against the resolved view (`resolveScene`: world
 coordinates, instance children as `gate-3/door`) onto the document, as
-`mapResolvedBatch` describes: a child's edit becomes overrides, a group
-member's geometry loses the group's origin. The editor sends every batch
+`mapResolvedBatch` describes: a child's edit becomes overrides, a
+parented entity's geometry goes back into its parent's frame. The editor sends every batch
 through it; an agent working on the file writes document ops directly.
 
 ```ts
@@ -6042,15 +6164,16 @@ Refers to [`Transform2D`](#transform2d).
 
 ## `turnOf`
 
-_const_ in `scene/transform.ts`
+_function_ in `scene/transform.ts`
 
-The dihedral element an instance's or group's `rot` and `flip` spell.
+The dihedral element an instance's or node's `rot` (degrees, absent 0)
+and `flip` spell; null when `rot` is off the quarter turns.
 
 ```ts
-declare const turnOf: (d: {
+declare function turnOf(d: {
     flip?: boolean;
     rot?: number;
-}) => Dihedral;
+}): Dihedral | null;
 ```
 
 Refers to [`Dihedral`](#dihedral).
@@ -6097,13 +6220,13 @@ _function_ in `scene/validate.ts`
 Structural checks over a parsed scene, judged by the registry its `game`
 picks (`sceneRegistry`). On the document itself: ids (entities and
 instances share them), layers, `settings.grid`, the `assets` header,
-groups, instances (their prefabs resolved through nesting and variant
+instances (their prefabs resolved through nesting and variant
 bases by `resolvePrefab`, every variant's base known and sharing no
 child id with it), their params (each one the prefab exposes) and
 overrides (never of a grid field), a prefab view's params (each target
 naming a child), and grids
-under a turned or flipped instance or group (square cells only). On its resolved view
-(`resolveScene`, so instance children and group members are checked
+under a turned or flipped instance or parent (square cells only). On its resolved view
+(`resolveScene`, so instance children and parented entities are checked
 where they land): spawn-only types, which game code alone may make
 (`unknown-type`), references (each type's `refs`; a child ref
 `<instance>/<child>` is `ref-child-unknown` when the instance's prefab

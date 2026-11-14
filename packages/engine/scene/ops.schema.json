@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:ops:v4",
-  "x-agent-surface": 21,
+  "$id": "urn:jams-engine:ops:v5",
+  "x-agent-surface": 22,
   "type": "object",
   "properties": {
     "label": {
@@ -35,6 +35,7 @@
                   "type": {
                     "type": "string",
                     "enum": [
+                      "node",
                       "solid",
                       "sensor",
                       "marker",
@@ -54,7 +55,7 @@
                 },
                 "required": ["type"],
                 "additionalProperties": {},
-                "description": "An entity as in the scene file, with `id` optional and `shape` accepting any shape form. A type with a `path` has its `shape` local to the path point; every other position is absolute."
+                "description": "An entity as in the scene file, with `id` optional and `shape` accepting any shape form. A type with a `path` has its `shape` local to the path point; every other position is absolute, or in its `parent`'s frame when it has one."
               },
               "index": {
                 "type": "integer",
@@ -146,7 +147,7 @@
                 "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
               },
               "set": {
-                "description": "Field path to new value, e.g. `{ \"path.speed\": 1.4 }` or `{ \"shape\": [\"box\", 0, 0, 0.4, 0.06] }`. Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.tactics/selectable.team`; set `behaviors.<behavior>` to `{}` to add a block. On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. A grid field is set whole, never below the field: paint its cells with paintCells. `id` and `type` can't be set: use rename, or remove and add.",
+                "description": "Field path to new value, e.g. `{ \"path.speed\": 1.4 }` or `{ \"shape\": [\"box\", 0, 0, 0.4, 0.06] }`. Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.tactics/selectable.team`; set `behaviors.<behavior>` to `{}` to add a block. On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. A grid field is set whole, never below the field: paint its cells with paintCells. `id` and `type` can't be set: use rename, or remove and add. `parent` can't be set or unset: use reparent, which keeps the entity where it is.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -266,7 +267,7 @@
             },
             "required": ["op", "refs"],
             "additionalProperties": false,
-            "description": "Remove entities or bulk entries."
+            "description": "Remove entities, instances or bulk entries, each with every entity and instance under it."
           },
           {
             "type": "object",
@@ -287,7 +288,7 @@
             },
             "required": ["op", "from", "to"],
             "additionalProperties": false,
-            "description": "Change an entity's id and rewrite every reference to it."
+            "description": "Change an entity's or instance's id and rewrite every reference to it, and every `parent` that names it or one of its children."
           },
           {
             "type": "object",
@@ -442,6 +443,40 @@
             "properties": {
               "op": {
                 "type": "string",
+                "const": "reparent",
+                "description": "The op: reparent."
+              },
+              "refs": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "An entity id: lowercase letters, digits and hyphens, starting with a letter or digit, at most 48 characters."
+                },
+                "description": "Entities and instances to move under `parent`, by id; bulk entries and an instance's children refuse."
+              },
+              "parent": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "An entity or instance, or an instance's child by its resolved ref (`room-1/door-1/panel`)."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The new parent, or null for the root."
+              }
+            },
+            "required": ["op", "refs", "parent"],
+            "additionalProperties": false,
+            "description": "Put entities and instances under another parent. Their geometry is rewritten into the new parent's frame, so nothing moves in the world. Refused for a loop, a chain deeper than 16 levels, and a nav area, camera region or note on either end."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
                 "const": "instantiate",
                 "description": "The op: instantiate."
               },
@@ -470,13 +505,14 @@
                         "unit": "m"
                       }
                     ],
-                    "description": "Where the prefab's origin lands.",
+                    "description": "Where the prefab's origin lands, in its `parent`'s frame when it has one.",
                     "unit": "m"
                   },
                   "rot": {
-                    "description": "Quarter turns clockwise (y down); omitted is 0.",
+                    "description": "Degrees clockwise (y down), in (0, 360); omitted is 0.",
                     "type": "number",
-                    "enum": [1, 2, 3]
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 360
                   },
                   "flip": {
                     "description": "Mirror x in the prefab's frame, before `rot`.",
@@ -500,7 +536,7 @@
                 },
                 "required": ["prefab", "at"],
                 "additionalProperties": {},
-                "description": "An instance as in the scene file: `prefab`, `at`, and optionally `id`, `rot`, `flip`, `z`, `params`, `overrides`, `name`, `layer`, `group`, `off`."
+                "description": "An instance as in the scene file: `prefab`, `at`, and optionally `id`, `rot`, `flip`, `z`, `params`, `overrides`, `name`, `layer`, `parent`, `off`."
               },
               "index": {
                 "type": "integer",
@@ -512,66 +548,6 @@
             "required": ["op", "instance"],
             "additionalProperties": false,
             "description": "Place a prefab: add one instance to `instances`."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "op": {
-                "type": "string",
-                "const": "setGroup",
-                "description": "The op: setGroup."
-              },
-              "id": {
-                "type": "string",
-                "description": "The group's id; a new id declares a group (at [0, 0] unless `at` says)."
-              },
-              "at": {
-                "description": "The group's origin. Members store geometry relative to it, so changing it moves every member.",
-                "type": "array",
-                "prefixItems": [
-                  {
-                    "type": "number",
-                    "description": "x in world metres.",
-                    "unit": "m"
-                  },
-                  {
-                    "type": "number",
-                    "description": "y in world metres; y is down.",
-                    "unit": "m"
-                  }
-                ],
-                "unit": "m"
-              },
-              "rot": {
-                "description": "Quarter turns clockwise (y down), absolute; 0 is written as absent.",
-                "type": "number",
-                "enum": [0, 1, 2, 3]
-              },
-              "flip": {
-                "description": "Mirror x before turning, absolute; false is written as absent.",
-                "type": "boolean"
-              },
-              "name": {
-                "description": "Display label; null clears it.",
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "remove": {
-                "description": "Delete the group's declaration; refused while an entity or instance is in it.",
-                "type": "boolean"
-              }
-            },
-            "required": ["op", "id"],
-            "additionalProperties": false,
-            "description": "Declare a group, move its origin, rename it, or delete it."
           },
           {
             "type": "object",
@@ -671,7 +647,7 @@
             },
             "required": ["op", "ref"],
             "additionalProperties": false,
-            "description": "Replace an instance with its own children where they stand, one level: its entities and bulk entries become plain entries, its nested instances become instances, and its turn and flip are baked in. Ids that clash get a suffix."
+            "description": "Replace an instance with its own children where they stand, one level: its entities and bulk entries become plain entries, its nested instances become instances, and its turn and flip are baked in. They sit under the instance's parent, links between them kept; what sat under the instance or one of its children stays put under what took its place. Ids that clash get a suffix."
           },
           {
             "type": "object",
@@ -689,7 +665,7 @@
                   "minLength": 1,
                   "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
                 },
-                "description": "Entities, bulk entries and instances to move into the prefab; instances become nested instances."
+                "description": "Entities, bulk entries and instances to move into the prefab, with everything under them; instances become nested instances."
               },
               "id": {
                 "type": "string",
@@ -719,7 +695,7 @@
             },
             "required": ["op", "refs", "id"],
             "additionalProperties": false,
-            "description": "Turn entries into a prefab: they leave the scene, the prefab holds them around the origin, and one instance puts them back where they were."
+            "description": "Turn entries into a prefab: they leave the scene, the prefab holds them around the origin, and one instance puts them back where they were, under the parent they all share if they share one."
           },
           {
             "type": "object",
@@ -868,20 +844,13 @@
                 "description": "The op: transform."
               },
               "refs": {
-                "description": "Instances to turn or flip, by id.",
+                "minItems": 1,
                 "type": "array",
                 "items": {
                   "type": "string",
                   "description": "An entity id: lowercase letters, digits and hyphens, starting with a letter or digit, at most 48 characters."
-                }
-              },
-              "groups": {
-                "description": "Groups to turn or flip, by id.",
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "description": "An entity id: lowercase letters, digits and hyphens, starting with a letter or digit, at most 48 characters."
-                }
+                },
+                "description": "Instances and nodes to turn or flip, by id."
               },
               "turn": {
                 "description": "Quarter turns clockwise on screen (y down); -1 turns one quarter anticlockwise.",
@@ -893,8 +862,13 @@
                 "type": "string",
                 "enum": ["x", "y"]
               },
+              "rotate": {
+                "description": "Any angle, degrees clockwise on screen (y down); give this or `turn`, not both.",
+                "unit": "deg",
+                "type": "number"
+              },
               "about": {
-                "description": "The point to turn and flip about; omitted, each instance's or group's own `at`.",
+                "description": "The point to turn and flip about; omitted, each instance's or node's own `at`.",
                 "type": "array",
                 "prefixItems": [
                   {
@@ -911,9 +885,9 @@
                 "unit": "m"
               }
             },
-            "required": ["op"],
+            "required": ["op", "refs"],
             "additionalProperties": false,
-            "description": "Turn and flip instances and groups, composing onto what they already have. Turns and flips about a whole-pixel point keep whole-pixel geometry exact."
+            "description": "Turn and flip instances and nodes, composing onto what they already have; what sits under a node or an instance turns with it. Quarter turns and flips about a whole-pixel point keep whole-pixel geometry exact."
           },
           {
             "type": "object",

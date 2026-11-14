@@ -1,6 +1,6 @@
 import { importLine, onBehaviors, type GameOptions } from ".";
 
-/** The lines every preset's runtime shares: finding the goals and the hero, its body, the goal check and the slice. */
+/** The lines the presets' runtimes share: finding the goals and the hero, its body, the goal check and the slice. */
 const SHARED = {
   findGoals: [
     `      goals = new Set(`,
@@ -17,15 +17,14 @@ const SHARED = {
     `      const half = (typeof start.size === "number" ? start.size : HERO_SIZE) / 2;`,
     `      const shape = { type: "box" as const, cx: 0, cy: 0, hw: half, hh: half, rotDeg: 0 };`,
   ],
-  /** The goal check; `onWin` are lines run once the hero reaches a goal. */
-  afterStep: (onWin: readonly string[] = []) => [
+  /** The goal check. */
+  afterStep: [
     `    afterStep(_dtMs, events) {`,
     `      for (const e of events) {`,
     `        if (reached || e.type !== SENSOR_ENTER || e.other !== heroId) continue;`,
     `        if (e.entityId === undefined || !goals.has(e.entityId)) continue;`,
     `        reached = true;`,
     `        ctx.emit({ type: REACHED, entityId: e.entityId, other: heroId, at: e.at });`,
-    ...onWin,
     `      }`,
     `    },`,
   ],
@@ -38,55 +37,39 @@ const SHARED = {
 };
 
 /**
- * A behavior preset's runtime: no movement code. The hero's `collider`,
- * character, `player-input` and `camera-target` behaviors walk it and the
- * camera follows; the game finds the goals and declares the win, which
- * drops the hero's `player-input` so it comes to rest.
+ * A behavior preset's runtime: no movement code and no goal check. The
+ * hero's `collider`, character, `player-input` and `camera-target`
+ * behaviors walk it and the camera follows; the goal's script declares the
+ * win and drops the hero's seat, and the runtime keeps the snapshot.
  */
 function behaviorRuntime(): string {
   return [
-    `import {`,
-    `  PLAYER_INPUT,`,
-    `  SENSOR_ENTER,`,
-    `  type EngineContext,`,
-    `  type GameRuntime,`,
-    `  type PlayerInputSystem,`,
-    `} from "@jams/engine/game";`,
+    `import type { EngineContext, GameRuntime } from "@jams/engine/game";`,
     ``,
-    `import { GOAL_TAG, HERO, REACHED, type Slice, type Snapshot } from "./types";`,
+    `import { HERO, REACHED, type Slice, type Snapshot } from "./types";`,
     ``,
-    `/** Raises \`REACHED\` when the hero enters a goal; the hero's behaviors move it. */`,
+    `/** Follows the hero for the snapshot; its behaviors move it and the goal's script wins. */`,
     `export function createRuntime(ctx: EngineContext): GameRuntime<Snapshot> {`,
     `  let heroId: string | null = null;`,
-    `  let goals = new Set<string>();`,
     `  let moving = false;`,
     `  let reached = false;`,
     `  let slice: Slice = { reached };`,
     ``,
     `  return {`,
     `    onLoad(scene) {`,
-    `      goals = new Set(`,
-    `        scene.entities`,
-    `          .filter(`,
-    `            (e) => e.type === "sensor" && (e.tags as string[] | undefined)?.includes(GOAL_TAG),`,
-    `          )`,
-    `          .map((e) => e.id),`,
-    `      );`,
     `      heroId = scene.entities.find((e) => e.type === HERO)?.id ?? null;`,
     `    },`,
     `    onUnload() {`,
     `      heroId = null;`,
-    `      goals.clear();`,
     `      moving = false;`,
     `      reached = false;`,
     `    },`,
     `    beforeStep(_dtMs, actions) {`,
     `      for (const a of actions) if (a.action === "move") moving = a.pressed;`,
     `    },`,
-    ...SHARED.afterStep([
-      `        // The win freezes the hero: with no seat, its character slows to a stop.`,
-      `        if (heroId !== null) ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name)?.detach(heroId);`,
-    ]),
+    `    afterStep(_dtMs, events) {`,
+    `      if (events.some((e) => e.type === REACHED)) reached = true;`,
+    `    },`,
     `    // An event clock keeps ticking while \`move\` is held or the hero still moves.`,
     `    busy() {`,
     `      if (moving) return true;`,
@@ -221,7 +204,7 @@ function gridRuntime(options: GameOptions): string {
           `      if (to && !reached && !stepper.moving()) stepper.step(to);`,
           `    },`,
         ]),
-    ...s.afterStep(),
+    ...s.afterStep,
     turns
       ? `    // Ticks run while the hero walks or has steps queued.`
       : `    // The event clock keeps ticking while the hero walks or \`move\` is held.`,

@@ -2,11 +2,12 @@ import type { EngineContext, Registry } from "../game/types";
 import { degToRad } from "../physics";
 import { geometryFields } from "../scene/schema";
 import { geometryPose, shapeCentre, type GeometryPose } from "../scene/shape-geometry";
+import { turnRadians } from "../scene/transform";
 import type { PathDef, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Pose } from "./poses";
 
-/** Radians for an entity's quarter turns. */
-const turnRad = (transform: RuntimeEntity["transform"]) => ((transform?.turn ?? 0) * Math.PI) / 2;
+/** Radians for the angle of what an entity sits in. */
+const turnRad = (transform: RuntimeEntity["transform"]) => turnRadians(transform?.rot ?? 0);
 
 const poseOf = ({ at, rotDeg }: GeometryPose, transform: RuntimeEntity["transform"]): Pose => ({
   x: at[0],
@@ -16,7 +17,7 @@ const poseOf = ({ at, rotDeg }: GeometryPose, transform: RuntimeEntity["transfor
 
 /**
  * A shape's pose in its own coordinates: its centre, and its angle from
- * `rotDeg`, else from the entity's quarter turns (circles, polygons, chains).
+ * `rotDeg`, else from the entity's frame (circles, polygons, chains).
  */
 export function shapeSpawnPose(shape: ShapeObj, transform?: RuntimeEntity["transform"]): Pose {
   return poseOf(shapeCentre(shape), transform);
@@ -45,7 +46,7 @@ export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
  * Where an entity starts, from its type's geometry: a shape's centre (a
  * path rider's shape placed at the path's first point), else its point
  * field, else its path's first point. The angle is the shape's `rotDeg`,
- * else `RuntimeEntity.transform`'s quarter turns.
+ * else `RuntimeEntity.transform`'s angle.
  */
 export function spawnPose(e: RuntimeEntity, registry: Registry): Pose {
   const type = registry.types.get(e.type);

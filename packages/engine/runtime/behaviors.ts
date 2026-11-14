@@ -15,6 +15,7 @@ import { schemaRefSites } from "../project/refs";
 import type { AssetId } from "../project/types";
 import type { RuntimeEntity } from "../scene/types";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "./behaviors/index";
+import type { Pose } from "./poses";
 import type { TimingScope } from "./timing";
 import type { AssetReloadError } from "./types";
 
@@ -76,6 +77,22 @@ export type BehaviorHost = {
   save(e: RuntimeEntity): Record<BehaviorName, JsonValue>;
   /** Hands each of `e`'s attached blocks its entry in `states`, through the system's `restore`. */
   restore(e: RuntimeEntity, states: Readonly<Record<string, JsonValue>>): void;
+  /**
+   * What `Entity.getBehavior` returns for `e`'s `name` block: the system's
+   * `handle`, asked once per attach and kept until the block detaches, with
+   * `fields` reading the block as it is now; `{ fields }` for a behavior
+   * with no system or a system without `handle`. Undefined when `e` doesn't
+   * carry the block, or its system isn't built or holds it detached.
+   */
+  handle(e: RuntimeEntity, name: BehaviorName): object | undefined;
+  /** `ctx.setPose` moved `e`: each attached block's `posed`, in registration order. */
+  posed(e: RuntimeEntity, pose: Readonly<Pose>, snap: boolean): void;
+  /** The record `attach` is attaching under `id` right now, before the entity table holds it. */
+  attaching(id: string): RuntimeEntity | undefined;
+  /** Whether any attached block's system says it moves `e` in world space. */
+  selfMoving(e: RuntimeEntity): boolean;
+  /** Each attached block's `ride`, in registration order. */
+  ride(e: RuntimeEntity, host: string | null): void;
 };
 
 type HostReloadError = Omit<AssetReloadError, "error"> & { error: unknown };
@@ -105,6 +122,10 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
   const dropped = new Map<string, Set<BehaviorName>>();
   /** Per disabled entity, the blocks detached because their system has no `disable`. */
   const parked = new Map<string, Set<BehaviorName>>();
+  /** Per entity, the handles `handle` made, until their blocks detach. */
+  const handles = new Map<string, Map<BehaviorName, object>>();
+  /** The record `attach` is attaching, so its hooks reach `ctx.entity` before the table insert. */
+  let current: RuntimeEntity | undefined;
   for (const name of registry.behaviorNames) {
     const def = registry.behaviors.get(name);
     if (!def || (def.visualOnly && ctx.view === null)) continue;
@@ -118,8 +139,15 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
   const beforeStepParts = built.map(({ name }) => `behavior.${name}.beforeStep`);
   const beforePhysicsParts = built.map(({ name }) => `behavior.${name}.beforePhysics`);
 
+  /** Drops `id`'s cached handle for `name`, or every one of its handles. */
+  function forget(id: string, name?: BehaviorName): void {
+    if (name === undefined) handles.delete(id);
+    else handles.get(id)?.delete(name);
+  }
+
   /** Detaches `id` from every built system, in reverse; each `detach` is idempotent. */
   function detachEverywhere(id: string): void {
+    forget(id);
     for (let i = built.length - 1; i >= 0; i--) built[i]!.system.detach(id);
   }
 
@@ -145,9 +173,10 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     });
   }
 
+  const noneLive: readonly Built[] = [];
   /** The systems holding one of `e`'s blocks now: not left detached by a failed reload or a disable. */
-  function live(e: RuntimeEntity): Built[] {
-    if (!e.behaviors || !carriers.has(e.id)) return [];
+  function live(e: RuntimeEntity): readonly Built[] {
+    if (!e.behaviors || !carriers.has(e.id)) return noneLive;
     const gone = dropped.get(e.id);
     const off = parked.get(e.id);
     return built.filter(
@@ -159,19 +188,28 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     attach(e) {
       dropped.delete(e.id);
       parked.delete(e.id);
+      forget(e.id);
       if (!e.behaviors) return;
       carriers.set(e.id, e);
-      attached(e, () => {
-        for (const { name, system } of built) {
-          const block = blockOf(e, name);
-          if (block) system.attach(e.id, block, e);
-        }
-      });
+      const outer = current;
+      current = e;
+      try {
+        attached(e, () => {
+          for (const { name, system } of built) {
+            const block = blockOf(e, name);
+            if (block) system.attach(e.id, block, e);
+          }
+        });
+      } finally {
+        current = outer;
+      }
     },
+    attaching: (id) => (current?.id === id ? current : undefined),
     detach(e) {
       carriers.delete(e.id);
       dropped.delete(e.id);
       parked.delete(e.id);
+      forget(e.id);
       if (!e.behaviors) return;
       for (let i = built.length - 1; i >= 0; i--) {
         const { name, system } = built[i]!;
@@ -187,16 +225,20 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
       attached(e, () => {
         for (let i = built.length - 1; i >= 0; i--) {
           const { name, system } = built[i]!;
-          if (blockOf(prev, name) && !blockOf(e, name) && !gone?.has(name)) system.detach(prev.id);
+          if (blockOf(prev, name) && !blockOf(e, name) && !gone?.has(name)) {
+            forget(prev.id, name);
+            system.detach(prev.id);
+          }
         }
         for (const { name, system } of built) {
           const block = blockOf(e, name);
           if (!block) continue;
           const before = gone?.has(name) ? undefined : blockOf(prev, name);
-          if (!before) system.attach(e.id, block, e);
-          else if (system.update) system.update(e.id, block, before, e);
-          else {
-            system.detach(prev.id);
+          if (before && system.update) {
+            if (system.update(e.id, block, before, e) === true) forget(e.id, name);
+          } else {
+            forget(e.id, name);
+            if (before) system.detach(prev.id);
             system.attach(e.id, block, e);
           }
         }
@@ -239,6 +281,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
       carriers.clear();
       dropped.clear();
       parked.clear();
+      handles.clear();
       for (let i = built.length - 1; i >= 0; i--) built[i]!.system.clear();
     },
     ready(ids) {
@@ -260,6 +303,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
         if (!blockOf(e, name) || gone?.has(name)) continue;
         if (system.disable) system.disable(e.id);
         else {
+          forget(e.id, name);
           system.detach(e.id);
           off.add(name);
         }
@@ -304,6 +348,39 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
         if (state !== undefined) system.restore?.(e.id, state);
       }
     },
+    handle(e, name) {
+      const current = carriers.get(e.id);
+      if (!current || !blockOf(current, name)) return undefined;
+      const cached = handles.get(e.id)?.get(name);
+      if (cached) return cached;
+      const def = registry.behaviors.get(name);
+      if (!def) return undefined;
+      const system = byName.get(name);
+      if (system) {
+        if (dropped.get(e.id)?.has(name) || parked.get(e.id)?.has(name)) return undefined;
+      } else if (factoryOf(def)) return undefined;
+      const made = system?.handle?.(e.id) ?? {};
+      if (!("fields" in made)) {
+        Object.defineProperty(made, "fields", {
+          get: () => blockOf(carriers.get(e.id) ?? current, name),
+          enumerable: true,
+        });
+      }
+      let own = handles.get(e.id);
+      if (!own) handles.set(e.id, (own = new Map()));
+      own.set(name, made);
+      return made;
+    },
+    posed(e, pose, snap) {
+      for (const { system } of live(e)) system.posed?.(e.id, pose, snap);
+    },
+    selfMoving(e) {
+      for (const { system } of live(e)) if (system.selfMoving?.(e.id) === true) return true;
+      return false;
+    },
+    ride(e, host) {
+      for (const { system } of live(e)) system.ride?.(e.id, host);
+    },
     reloadAssets(changed) {
       if (changed.length === 0) return [];
       const ids = new Set(changed);
@@ -318,12 +395,17 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
             touched.push({ name, system, block });
         }
         const detachTouched = () => {
-          for (let i = touched.length - 1; i >= 0; i--) touched[i]!.system.detach(e.id);
+          for (let i = touched.length - 1; i >= 0; i--) {
+            forget(e.id, touched[i]!.name);
+            touched[i]!.system.detach(e.id);
+          }
         };
         try {
-          for (const { system, block } of touched) {
-            if (system.update) system.update(e.id, block, block, e);
-            else {
+          for (const { name, system, block } of touched) {
+            if (system.update) {
+              if (system.update(e.id, block, block, e) === true) forget(e.id, name);
+            } else {
+              forget(e.id, name);
               system.detach(e.id);
               system.attach(e.id, block, e);
             }

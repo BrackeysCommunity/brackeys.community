@@ -28,6 +28,7 @@ import yard from "../../scenes/engine-yard.json";
 import { createToolRouter, type ToolRouter } from "../../tool-router";
 import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
 import { createEditorSession, type EditorSession } from "../session";
+import type { EditableSpatialIndex } from "../spatial-index";
 import {
   createToolHost,
   frameBounds,
@@ -300,6 +301,173 @@ describe("selection", () => {
   });
 });
 
+describe("clicks into instances", () => {
+  /** A room at 5, 3 m holding a lid and a post at 7, 3 m whose top is a triangle. */
+  function roomRig() {
+    const yardDef = parseSceneOrThrow(yard, registry);
+    const def: SceneDefinition = {
+      ...yardDef,
+      instances: [{ id: "room-1", prefab: "room", at: [5, 3] }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: def.v,
+        id: "post",
+        entities: [{ id: "top", type: "solid", shape: ["poly", -0.3, 0.3, 0.3, 0.3, 0, -0.3] }],
+      },
+      {
+        kind: "prefab",
+        v: def.v,
+        id: "room",
+        entities: [{ id: "lid", type: "sensor", shape: ["box", 0, 0, 0.3, 0.3] }],
+        instances: [{ id: "post-a", prefab: "post", at: [2, 0] }],
+      },
+    ]);
+    const r = rig({}, undefined, { def, prefabs });
+    const sel = () => r.session.store.state.selection;
+    return { r, sel };
+  }
+  const TOP: [number, number] = [700, 310];
+
+  it("selects the outermost instance first, then steps one level in per click", () => {
+    const { r, sel } = roomRig();
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1"]);
+    r.later();
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1/post-a"]);
+    r.later();
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1/post-a/top"]);
+    r.later();
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1/post-a/top"]);
+    // A level selected elsewhere in the chain steps from there.
+    r.later();
+    r.click(500, 300);
+    expect(sel()).toEqual(["room-1"]);
+    r.later();
+    r.click(500, 300);
+    expect(sel()).toEqual(["room-1/lid"]);
+    r.later();
+    r.click(1500, 500);
+    expect(sel()).toEqual([]);
+    r.later();
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1"]);
+    expect(r.writes()).toBe(0);
+  });
+
+  it("keeps the selected instance on a drag from its child, and steps in only on a click", () => {
+    const { r, sel } = roomRig();
+    r.click(...TOP);
+    r.later();
+    r.drag(TOP, [TOP[0] + 50, TOP[1]]);
+    // The press grabbed the instance: no step in, and nothing written as a child's override.
+    expect(sel()).toEqual(["room-1"]);
+    expect(r.def().instances![0]!.overrides).toBeUndefined();
+  });
+
+  it("toggles and adds by the selected level, or the outermost", () => {
+    const { r, sel } = roomRig();
+    r.click(...TOP, { shift: true });
+    expect(sel()).toEqual(["room-1"]);
+    r.later();
+    r.click(...TOP, { mod: true });
+    expect(sel()).toEqual([]);
+  });
+
+  it("steps in on a double-click, and edits points once the shape itself is selected", () => {
+    const { r, sel } = roomRig();
+    r.click(...TOP);
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1/post-a"]);
+    expect(r.host.keyContext().subObject).toBe(false);
+    r.later();
+    r.click(...TOP);
+    r.click(...TOP);
+    expect(sel()).toEqual(["room-1/post-a/top"]);
+    expect(r.host.keyContext().subObject).toBe(true);
+  });
+
+  it("cycles exact hits with Alt-click, inside instances too", () => {
+    const { r, sel } = roomRig();
+    r.click(...TOP, { alt: true });
+    expect(sel()).toEqual(["room-1/post-a/top"]);
+  });
+});
+
+describe("group and ungroup", () => {
+  it("wraps the selection in a node and dissolves it, one undo each", () => {
+    const r = rig();
+    const before = r.def();
+    r.session.select(["crate", "ledge"]);
+    expect(r.host.command("group")).toBe(true);
+    expect(r.writes()).toBe(1);
+    expect(readLog(r.doc).at(-1)?.label).toBe("Group 2 entities");
+    expect(r.session.store.state.selection).toEqual(["node-1"]);
+    expect(r.entity("node-1")?.type).toBe("node");
+    expect(r.entity("crate")?.parent).toBe("node-1");
+    expect(r.entity("ledge")?.parent).toBe("node-1");
+    expect(r.host.command("undo")).toBe(true);
+    expect(r.def()).toEqual(before);
+
+    expect(r.host.command("redo")).toBe(true);
+    r.session.select(["node-1"]);
+    const writes = r.writes();
+    expect(r.host.command("ungroup")).toBe(true);
+    expect(r.writes()).toBe(writes + 1);
+    expect([...r.session.store.state.selection].sort()).toEqual(["crate", "ledge"]);
+    expect(r.entity("node-1")).toBeUndefined();
+    expect(clean(r.def())).toEqual(clean(before));
+    expect(r.host.command("undo")).toBe(true);
+    expect(r.entity("node-1")?.type).toBe("node");
+    r.session.select(["crate"]);
+    expect(r.host.command("ungroup")).toBe(false);
+  });
+
+  it("walks the tree with [ and ]", () => {
+    const r = rig();
+    r.session.select(["crate", "ledge"]);
+    r.host.command("group");
+    r.session.select(["crate"]);
+    expect(r.host.command("hierarchy-up")).toBe(true);
+    expect(r.session.store.state.selection).toEqual(["node-1"]);
+    expect(r.host.command("hierarchy-up")).toBe(false);
+    expect(r.host.command("hierarchy-down")).toBe(true);
+    expect(r.session.store.state.selection).toHaveLength(1);
+    expect(r.entity(r.session.store.state.selection[0]!)?.parent).toBe("node-1");
+  });
+});
+
+describe("the spatial index", () => {
+  it("updates by what an edit touched, in a scene with instances, rather than rebuilding", () => {
+    const def: SceneDefinition = {
+      ...parseSceneOrThrow(yard, registry),
+      instances: [{ id: "post-1", prefab: "post", at: [6, 6] }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: def.v,
+        id: "post",
+        entities: [{ id: "top", type: "marker", at: [0, -1] }],
+      },
+    ]);
+    const r = rig({}, undefined, { def, prefabs });
+    const index = r.host.index() as EditableSpatialIndex;
+    const rebuild = vi.spyOn(index, "rebuild");
+    const update = vi.spyOn(index, "update");
+    r.session.dispatch({ ops: [{ op: "move", refs: ["crate"], by: [0.1, 0] }] });
+    expect(rebuild).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0]![2]).toEqual(["crate"]);
+    expect(r.host.index().get("crate")?.aabb.minX).toBeCloseTo(11.9);
+    expect(r.host.index().get("post-1/top")).toBeDefined();
+  });
+});
+
 describe("point editing", () => {
   /** Adds a poly whose points are given in screen px. */
   function withRock(r: Rig, pts: number[]) {
@@ -530,13 +698,16 @@ describe("host commands", () => {
     expect(dispatch).toHaveBeenCalledTimes(2);
   });
 
-  it("turns and flips selected instances and whole groups by quarter turns", async () => {
+  it("turns and flips selected instances by quarter turns, and rotates them by the snap angle", () => {
     const yardDef = parseSceneOrThrow(yard, registry);
     const def: SceneDefinition = {
       ...yardDef,
-      groups: { pair: { at: [0, 0] } },
       instances: [{ id: "post-1", prefab: "post", at: [600, 600] }],
-      entities: [...yardDef.entities!, { id: "pin", type: "marker", at: [40, 40], group: "pair" }],
+      entities: [
+        ...yardDef.entities!,
+        { id: "pair", type: "node", at: [0, 0] },
+        { id: "pin", type: "marker", at: [40, 40], parent: "pair" },
+      ],
     };
     const prefabs = prefabLibrary([
       {
@@ -546,38 +717,34 @@ describe("host commands", () => {
         entities: [{ id: "top", type: "marker", at: [10, 0] }],
       },
     ]);
-    const tools = await registry.game!.editor!.tools!();
-    const r = rig({}, tools, { def, prefabs });
+    const r = rig({ snap: DEFAULT_SNAP }, undefined, { def, prefabs });
     const dispatch = vi.spyOn(r.session, "dispatch");
 
     r.session.select(["post-1/top"]);
-    expect(r.host.keyContext().quarterTurns).toBe(true);
     expect(r.host.command("turn-cw")).toBe(true);
-    expect(r.def().instances![0]).toMatchObject({ id: "post-1", rot: 1 });
+    expect(r.def().instances![0]).toMatchObject({ id: "post-1", rot: 90 });
     expect(r.host.command("turn-ccw")).toBe(true);
     expect(r.def().instances![0]!.rot).toBeUndefined();
     expect(r.host.command("flip-x")).toBe(true);
     expect(r.def().instances![0]!.flip).toBe(true);
 
     r.session.select(["pin"]);
-    expect(r.host.keyContext().quarterTurns).toBe(true);
-    expect(r.host.command("flip-y")).toBe(true);
-    expect(dispatch.mock.calls.at(-1)![0].ops).toEqual([
-      { op: "transform", groups: ["pair"], flip: "y" },
-    ]);
-
-    r.session.select(["post-1", "crate"]);
-    expect(r.host.keyContext().quarterTurns).toBe(false);
+    expect(r.host.command("flip-y")).toBe(false);
     r.session.select(["crate"]);
-    expect(r.host.keyContext().quarterTurns).toBe(false);
     expect(r.host.command("turn-cw")).toBe(false);
     expect(r.host.command("flip-x")).toBe(false);
-    expect(dispatch).toHaveBeenCalledTimes(4);
+    expect(dispatch).toHaveBeenCalledTimes(3);
 
-    // A game's tool keeps e for its own ghost.
+    // e and q turn instances and nodes by the snap angle, as they do everything else.
     r.session.select(["post-1"]);
-    r.host.command("tool:test-crate:crate");
-    expect(r.host.keyContext().quarterTurns).toBe(false);
+    expect(r.host.command("rotate-cw")).toBe(true);
+    expect(dispatch.mock.calls.at(-1)![0]).toEqual({
+      label: "Rotate post-1",
+      ops: [{ op: "transform", refs: ["post-1"], rotate: DEFAULT_SNAP.angleDeg }],
+    });
+    r.session.select(["pair", "pin"]);
+    expect(r.host.command("rotate-ccw")).toBe(true);
+    expect(r.entity("pair")?.rot).toBe(360 - DEFAULT_SNAP.angleDeg);
   });
 
   it("copies, pastes and duplicates prefab instances as instances", () => {

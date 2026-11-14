@@ -75,6 +75,35 @@ describe("scene textconv", () => {
     expect(changed).toEqual([expect.stringMatching(/^~solid:1 \[box /)]);
   });
 
+  it("lists a child after its parent, keeping file order otherwise", async () => {
+    const r = await conv(
+      JSON.stringify({
+        v: 4,
+        bounds: [0, 0, 10, 10],
+        entities: [
+          { id: "pin", type: "marker", parent: "hand", at: [0, 1] },
+          { id: "start", type: "marker", at: [1, 1] },
+          { id: "hand", type: "node", parent: "arm", at: [2, 0] },
+          { id: "arm", type: "node", at: [5, 5] },
+          { id: "tip", type: "marker", parent: "arm", at: [1, 0] },
+          { id: "door", type: "marker", parent: "gate-1/frame", at: [0, 0] },
+          { id: "a", type: "marker", parent: "b" },
+          { id: "b", type: "marker", parent: "a" },
+        ],
+      }),
+    );
+    expect(r.text.split("\n").slice(2)).toEqual([
+      'start marker { "at": [1, 1] }',
+      'arm node { "at": [5, 5] }',
+      'hand node { "parent": "arm", "at": [2, 0] }',
+      'pin marker { "parent": "hand", "at": [0, 1] }',
+      'tip marker { "parent": "arm", "at": [1, 0] }',
+      'door marker { "parent": "gate-1/frame", "at": [0, 0] }',
+      'a marker { "parent": "b" }',
+      'b marker { "parent": "a" }',
+    ]);
+  });
+
   it("passes text that isn't a scene through unchanged", async () => {
     for (const text of ['{ "v": 1, "entities": [', '{ "checks": [] }\n', "[1, 2]\n", ""]) {
       const r = await conv(text);

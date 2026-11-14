@@ -54,8 +54,8 @@ describe("fragment.schema.json and prefab.schema.json", () => {
 
     it(`${name}: has a URN id per game, the agent surface version, and describes every field`, () => {
       const schema = make(engine);
-      expect(schema.$id).toBe(`${SCHEMA_ID_BASE}${name}:v4`);
-      expect(make(fake).$id).toBe(`${SCHEMA_ID_BASE}${name}:fake:v4`);
+      expect(schema.$id).toBe(`${SCHEMA_ID_BASE}${name}:v5`);
+      expect(make(fake).$id).toBe(`${SCHEMA_ID_BASE}${name}:fake:v5`);
       expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
       expect(undescribedProperties(schema)).toEqual([]);
     });
@@ -118,11 +118,11 @@ describe("nested instances in a prefab", () => {
 
   it("reports a bad instance at its pointer, as a scene's would be", () => {
     const raw = JSON.parse(room) as { instances: Record<string, unknown>[] };
-    raw.instances[1]!.rot = 5;
+    raw.instances[1]!.rot = 400;
     const bad = parsePrefab(raw, engine);
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.issues[0]!.path).toBe("/instances/1/rot");
-    raw.instances[1]!.rot = 2;
+    raw.instances[1]!.rot = 180;
     raw.instances[0]!.spin = 1;
     const extra = parsePrefab(raw, engine);
     expect(!extra.ok && [extra.issues[0]!.code, extra.issues[0]!.path]).toEqual([

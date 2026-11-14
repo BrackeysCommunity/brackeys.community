@@ -7,6 +7,7 @@
     { "id": "ball-in-zone", "kind": "touches", "atLeast": 4, "entity": "zone", "rollouts": 4, "skip": "needs a game whose props touch sensors; the engine's test game runs it", "ticks": 120 },
     { "id": "nav-step", "kind": "reaches", "expect": { "near": { "id": "std-nav-agent", "to": [22.6, 3.5], "within": 0.2 } }, "result": "script-end", "script": { "steps": [{ "nav": { "id": "std-nav-agent", "to": [22.6, 3.5] } }, { "hold": [], "max": 600, "until": { "event": { "entityId": "std-nav-agent", "type": "nav:arrived" } } }], "v": 2 } },
     { "id": "nav-check", "kind": "reaches", "expect": { "near": { "id": "std-nav-agent", "to": [22.6, 3.5], "within": 0.2 } }, "nav": [{ "id": "std-nav-agent", "to": [22.6, 3.5] }], "result": "script-end", "script": { "steps": [{ "wait": 600 }], "v": 2 } },
-    { "id": "two-seats", "kind": "reaches", "result": "script-end", "script": { "players": 2, "tracks": [{ "player": 0, "steps": [{ "wait": 30 }] }, { "player": 1, "steps": [{ "wait": 60 }] }], "v": 2 } }
+    { "id": "two-seats", "kind": "reaches", "result": "script-end", "script": { "players": 2, "tracks": [{ "player": 0, "steps": [{ "wait": 30 }] }, { "player": 1, "steps": [{ "wait": 60 }] }], "v": 2 } },
+    { "id": "parented", "kind": "reaches", "expect": { "count": { "eq": 1, "tag": "hook" }, "exists": "cap-flag", "near": { "id": "cap-flag", "to": [16.4, 10.1], "within": 0.01 } }, "result": "script-end", "script": { "steps": [{ "wait": 60 }], "v": 2 } }
   ]
 }

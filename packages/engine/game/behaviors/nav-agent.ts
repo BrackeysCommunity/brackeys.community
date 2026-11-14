@@ -6,7 +6,7 @@
 import { z } from "zod";
 
 import type { Vec2 } from "../../types";
-import { defineBehavior, type BehaviorSystem } from "../behaviors";
+import { type BehaviorSystem, type Bound, defineBehavior, handleType } from "../behaviors";
 import { pointField, refField } from "../fields";
 
 const metres = (title: string, fallback: number, description: string) =>
@@ -69,8 +69,12 @@ export type NavAgentSystem = BehaviorSystem<NavAgentBlock> & {
   path(entityId: string): readonly Vec2[] | null;
 };
 
+/** What `getBehavior(NAV_AGENT)` adds beside `fields`. */
+export type NavAgentHandle = Bound<NavAgentSystem, "path" | "setDestination" | "stop">;
+
 export const NAV_AGENT = defineBehavior({
   name: "nav-agent",
+  handle: handleType<NavAgentHandle>(),
   description:
     "Walks the entity through the scene's walk areas to a point or another entity, kept apart from other agents; raises nav:arrived and nav:blocked.",
   fields: navAgentFields,

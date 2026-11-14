@@ -56,7 +56,7 @@ function prefab(id: string): Prefab {
 /** Every prefab of the engine's home: the kitchen sink reaches all of them through instances, nesting and bases. */
 const homePrefabs = (): Prefab[] =>
   readdirSync(new URL("prefabs/", scenes))
-    .filter((f) => f.endsWith(".json"))
+    .filter((f) => f.endsWith(".json") && !f.endsWith(".asset.json"))
     .sort()
     .map((f) => prefab(f.slice(0, -".json".length)));
 
@@ -110,6 +110,7 @@ const ENGINE_FLOW = {
     { scene: "grid-yard", title: "Grid yard" },
     { scene: "behavior-yard", title: "Behavior yard" },
     { scene: "grid-annex", sublevel: true, title: "Grid annex" },
+    { scene: "tree-yard", title: "Tree yard" },
   ],
 };
 

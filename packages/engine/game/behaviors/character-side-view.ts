@@ -4,7 +4,8 @@
  */
 import { z } from "zod";
 
-import { defineBehavior } from "../behaviors";
+import { defineBehavior, handleType } from "../behaviors";
+import type { CharacterHandle } from "./character-top-down";
 import { characterMovementFields } from "./character-top-down";
 import { actionField } from "./player-input";
 
@@ -96,6 +97,7 @@ export type CharacterSideViewBlock = z.infer<z.ZodObject<typeof characterSideVie
 
 export const CHARACTER_SIDE_VIEW = defineBehavior({
   name: "character-side-view",
+  handle: handleType<CharacterHandle>(),
   description:
     "Runs and jumps the entity under gravity from its seat's move and jump actions or an intent from code, with coyote time, jump buffering and one-way platforms.",
   fields: characterSideViewFields,

@@ -275,10 +275,10 @@ describe("kitchen-sink.json", () => {
       expect(rows.some((r) => r[0] === "box" && typeof r[5] === "number" && r[5] !== 0)).toBe(true);
     });
 
-    it("a group with three members", () => {
-      const sizes = Object.keys(def.groups ?? {}).map(
-        (g) => entities().filter((e) => e.group === g).length,
-      );
+    it("a node with three children", () => {
+      const sizes = entities()
+        .filter((e) => e.type === "node")
+        .map((n) => entities().filter((e) => e.parent === n.id).length);
       expect(sizes.some((n) => n >= 3)).toBe(true);
     });
 
@@ -291,17 +291,68 @@ describe("kitchen-sink.json", () => {
       expect(def.instances!.some((i) => Object.keys(i.overrides ?? {}).length > 0)).toBe(true);
     });
 
-    it("a turned and flipped group whose members expand turned and flipped", () => {
-      const [id, group] =
-        Object.entries(def.groups ?? {}).find(([, g]) => g.rot !== undefined && g.flip) ?? [];
-      expect(group).toBeDefined();
-      const members = entities().filter((e) => e.group === id);
-      expect(members.length).toBeGreaterThanOrEqual(3);
+    it("a turned and flipped node whose children expand turned and flipped", () => {
+      const node = entities().find((e) => e.type === "node" && e.rot !== undefined && e.flip);
+      expect(node).toBeDefined();
+      const children = entities().filter((e) => e.parent === node!.id);
+      expect(children.length).toBeGreaterThanOrEqual(3);
       const byId = new Map(expanded().entities.map((e) => [e.id, e]));
-      for (const m of members)
-        expect(byId.get(m.id)?.transform ?? null, m.id).toEqual(
-          m.type === "note" ? null : { turn: group!.rot, flip: true },
+      for (const c of children)
+        expect(byId.get(c.id)?.transform ?? null, c.id).toEqual(
+          c.type === "note" ? null : { rot: node!.rot, flip: true },
         );
+    });
+
+    it("a turned node with a child, which loads turned with it", () => {
+      const node = entities().find(
+        (e) =>
+          e.type === "node" &&
+          typeof e.rot === "number" &&
+          e.rot !== 0 &&
+          !e.flip &&
+          entities().some((c) => c.parent === e.id && Array.isArray(c.at)),
+      );
+      expect(node).toBeDefined();
+      const child = entities().find((e) => e.parent === node!.id && Array.isArray(e.at))!;
+      const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine, prefabs });
+      expect(rt.load(expanded()).ok).toBe(true);
+      expect(rt.ctx.tree.parent(child.id)).toBe(node!.id);
+      const n = rt.ctx.poses.get(node!.id)!;
+      const c = rt.ctx.poses.get(child.id)!;
+      const [lx, ly] = child.at as Pt;
+      const turn = ((node!.rot as number) * Math.PI) / 180;
+      expect(n.rot).toBeCloseTo(turn, 9);
+      expect(c.x).toBeCloseTo(n.x + lx * Math.cos(turn) - ly * Math.sin(turn), 6);
+      expect(c.y).toBeCloseTo(n.y + lx * Math.sin(turn) + ly * Math.cos(turn), 6);
+      expect(c.rot).toBeCloseTo(turn, 9);
+      rt.destroy();
+    });
+
+    it("a child of an instance's child, which goes where the instance goes", () => {
+      const child = entities().find(
+        (e) => typeof e.parent === "string" && e.parent.split("/").length === 2,
+      );
+      expect(child, "an entity whose parent is an instance's child").toBeDefined();
+      const parent = child!.parent as string;
+      const instance = parent.split("/")[0]!;
+      expect(def.instances!.some((i) => i.id === instance)).toBe(true);
+      const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine, prefabs });
+      expect(rt.load(expanded()).ok).toBe(true);
+      expect(rt.ctx.tree.parent(child!.id)).toBe(parent);
+      expect(rt.ctx.tree.parent(parent)).toBe(instance);
+      const offset = (id: string) => {
+        const p = rt.ctx.poses.get(id)!;
+        const i = rt.ctx.poses.get(instance)!;
+        return [p.x - i.x, p.y - i.y];
+      };
+      const before = offset(child!.id);
+      const at = rt.ctx.poses.get(instance)!;
+      rt.ctx.setPose(instance, at.x + 1, at.y - 2, 0);
+      rt.step(rt.ctx.time.tickMs, []);
+      expect(offset(child!.id)[0]).toBeCloseTo(before[0]!, 6);
+      expect(offset(child!.id)[1]).toBeCloseTo(before[1]!, 6);
+      expect(rt.ctx.poses.get(child!.id)!.x).toBeCloseTo(at.x + 1 + before[0]!, 6);
+      rt.destroy();
     });
 
     it("a flipped instance of an asymmetric prefab, its children mirrored about its x", () => {
@@ -325,7 +376,7 @@ describe("kitchen-sink.json", () => {
       for (const [child, x] of mirrored) expect(x, child).toBe(2 * ax - unflipped.get(child)!);
       expect([...unflipped.values()].some((x) => x !== ax)).toBe(true);
       for (const e of expanded().entities.filter((e) => e.id.startsWith(`${flipped.id}/`)))
-        expect(e.transform, e.id).toEqual({ turn: 0, flip: true });
+        expect(e.transform, e.id).toEqual({ rot: 0, flip: true });
     });
 
     it("a three-level prefab from the project's prefab assets, expanding to the doc's ids", () => {
@@ -410,12 +461,14 @@ describe("kitchen-sink.json", () => {
       }
     });
 
-    it("a child ref: an entity attached to a follower inside a nested instance", () => {
+    it("a child ref: an entity under a follower inside a nested instance", () => {
       const byId = new Map(expanded().entities.map((e) => [e.id, e]));
-      const refs = entities().filter((e) => typeof e.attach === "string" && e.attach.includes("/"));
+      const refs = entities().filter(
+        (e) => typeof e.parent === "string" && e.parent.split("/").length >= 3,
+      );
       expect(refs.length).toBeGreaterThanOrEqual(1);
       for (const e of refs) {
-        const target = e.attach as string;
+        const target = e.parent as string;
         expect(target.split("/").length, target).toBeGreaterThanOrEqual(3);
         expect(byId.get(target)?.type, target).toBe("follower");
       }
@@ -471,7 +524,7 @@ describe("kitchen-sink.json", () => {
       const withExpect = checks.checks.filter(
         (c): c is ReachesCheck => c.kind === "reaches" && c.expect !== undefined,
       );
-      expect(withExpect.map((c) => c.id)).toEqual(["fades", "nav-step", "nav-check"]);
+      expect(withExpect.map((c) => c.id)).toEqual(["fades", "nav-step", "nav-check", "parented"]);
       expect(withExpect[0]!.expect).toEqual({
         exists: expect.any(String),
         count: expect.objectContaining({ type: "decor" }),
@@ -519,14 +572,14 @@ describe("kitchen-sink.json", () => {
       expect(material.render?.tint).toMatch(/^#[0-9a-f]{6}$/);
     });
 
-    it("a solid and a sensor attached to a follower", () => {
+    it("a solid and a sensor under a follower", () => {
       const followers = new Set(
         entities()
           .filter((e) => e.type === "follower")
           .map((e) => e.id),
       );
       const attached = entities()
-        .filter((e) => typeof e.attach === "string" && followers.has(e.attach))
+        .filter((e) => typeof e.parent === "string" && followers.has(e.parent))
         .map((e) => e.type);
       expect(attached).toEqual(expect.arrayContaining(["solid", "sensor"]));
     });
@@ -684,7 +737,7 @@ describe("kitchen-sink.json", () => {
 
     it("a two-seat check whose tracks fit the seats the input map gives the gameless engine", () => {
       const raw = JSON.parse(checksText) as { checks: { id: string }[] };
-      expect(raw.checks.at(-1)?.id).toBe("two-seats");
+      expect(raw.checks.map((c) => c.id)).toContain("two-seats");
       const twoSeats = checks.checks.find((c): c is ReachesCheck => c.id === "two-seats")!;
       const { players: own, ...script } = twoSeats.script as { players?: number };
       const map = values.get(entriesOf(INPUT_MAP_KIND)[0]!.id) as {
@@ -1124,6 +1177,7 @@ describe("kitchen-sink.json", () => {
         ["nav-step", "reaches", true, false],
         ["nav-check", "reaches", true, false],
         ["two-seats", "reaches", true, false],
+        ["parented", "reaches", true, false],
       ]);
       expect(report.ok).toBe(true);
     });
@@ -1168,6 +1222,7 @@ describe("kitchen-sink.json", () => {
         "reaches",
         "reaches",
         "touches",
+        "reaches",
         "reaches",
         "reaches",
         "reaches",

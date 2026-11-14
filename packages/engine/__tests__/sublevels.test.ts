@@ -207,6 +207,7 @@ const ofType = (events: readonly StepEvent[], type: string) =>
   events.filter((e) => e.type === type).map((e) => e.entityId);
 
 const CELLAR_IDS = [
+  "cellar:lamp-1",
   "cellar:~solid:0",
   "cellar:wall",
   "cellar:zone",
