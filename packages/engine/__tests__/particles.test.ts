@@ -34,6 +34,7 @@ import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-sur
 import { undescribedProperties } from "../scene/json-schema";
 import type { ExpandedScene, SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
+import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
 
 /** Every particle container made, so the shell's particles can be counted from outside. */
 const made = vi.hoisted(() => [] as { particleChildren: unknown[]; destroyed: boolean }[]);
@@ -61,15 +62,7 @@ vi.mock("pixi.js", async (importOriginal) => {
   return { ...pixi, ParticleContainer: StubParticleContainer };
 });
 
-vi.mock("../renderer", () => ({
-  createRenderer: async () => ({
-    app: {},
-    worldContainer: new Container(),
-    uiContainer: new Container(),
-    resize: () => {},
-    destroy: () => {},
-  }),
-}));
+vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
 const env: KindEnv = { registry: createRegistry(), project: null };
 /** The kind as hosts call it, every hook taking its env. */
@@ -724,23 +717,14 @@ describe("the emitter behavior", () => {
 
 describe("particles in the shell", () => {
   const games: GameInstance[] = [];
-  let pending: FrameRequestCallback[] = [];
-  let now = 0;
-  const advance = (ms: number) => {
-    now += ms;
-    vi.advanceTimersByTime(ms);
-    vi.setSystemTime(now);
-    const due = pending;
-    pending = [];
-    for (const cb of due) cb(now);
-  };
+  let frames: FrameClock;
+  const advance = (ms: number) => frames.advance(ms);
   const alive = () =>
     made.filter((c) => !c.destroyed).reduce((n, c) => n + c.particleChildren.length, 0);
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] });
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
-    vi.stubGlobal("cancelAnimationFrame", () => {});
+    frames = manualFrames({ timers: true, date: true });
     document.body.appendChild(document.createElement("canvas"));
     made.length = 0;
   });

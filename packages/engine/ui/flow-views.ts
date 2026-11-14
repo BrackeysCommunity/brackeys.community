@@ -43,7 +43,7 @@ export function fadeTransition(opts: { color?: number } = {}): TransitionRunner 
     }
     veil.style.background = cssHex(spec.color ?? opts.color ?? 0x000000);
     const half = Math.max(0, Math.round((spec.ms ?? DEFAULT_FADE_MS) / 2));
-    const ms = env.reducedMotion ? 0 : half;
+    const ms = env?.reducedMotion ? 0 : half;
     fadeOpacity(veil, phase === "out" ? 1 : 0, ms);
     if (ms > 0) await wait(ms);
     if (phase === "in") veil.remove();

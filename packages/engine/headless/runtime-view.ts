@@ -45,7 +45,7 @@ export function memoryRuntimeView(init: MemoryRuntimeViewInit = {}): ProjectRunt
     asset: () => undefined,
     inputMap: init.inputMap ? frozen(init.inputMap) : null,
     flow: frozen(init.flow ?? { start: null, scenes: [] }),
-    doc: docs.doc,
-    docs: docs.docs,
+    doc: docs.read,
+    docs: docs.ids,
   });
 }

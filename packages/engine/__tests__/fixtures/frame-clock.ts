@@ -20,9 +20,11 @@ export type FrameClock = {
 /**
  * Stubs `requestAnimationFrame` so frames run only when the test says.
  * `performance` makes `performance.now()` read the same clock; `timers`
- * moves vitest's fake timers on with it.
+ * moves vitest's fake timers on with it; `date` sets the faked `Date` to it.
  */
-export function manualFrames(opts: { performance?: boolean; timers?: boolean } = {}): FrameClock {
+export function manualFrames(
+  opts: { performance?: boolean; timers?: boolean; date?: boolean } = {},
+): FrameClock {
   let pending: FrameRequestCallback[] = [];
   let now = 0;
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
@@ -31,6 +33,7 @@ export function manualFrames(opts: { performance?: boolean; timers?: boolean } =
   const advance = (ms: number) => {
     now += ms;
     if (opts.timers) vi.advanceTimersByTime(ms);
+    if (opts.date) vi.setSystemTime(now);
     const due = pending;
     pending = [];
     for (const cb of due) cb(now);

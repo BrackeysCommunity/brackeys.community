@@ -6,7 +6,7 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "../game/behaviors";
-import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
+import { DEFAULT_LENGTH_UNIT, DEFAULT_TIME } from "../game/defaults";
 import { behaviorsConflict } from "../game/define";
 import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
 import { capitalise } from "../game/live";
@@ -185,6 +185,18 @@ export type FieldWidget =
   /** Mode, speed, pause and the point list, as `children`. */
   | { kind: "path" }
   | { kind: "object" }
+  /**
+   * A list of objects: one object row per item in `children`, titled
+   * `item` and its number from 1, with add and remove within `min` and
+   * `max`. Add copies the last item, or `seed` into an empty list.
+   */
+  | { kind: "list"; item: string; min?: number; max?: number; seed?: unknown }
+  /**
+   * A `Delay`-shaped value: whole ticks, or `{ ms }`. One number in the
+   * form the value holds (ms when unset) and a switch between the two,
+   * converting at the game's `rate` ticks per second.
+   */
+  | { kind: "delay"; min: number; rate: number }
   /**
    * An sRGB colour, for `meta.widget: "color"` when the game registers no
    * widget of that id: a swatch that opens a picker, and a hex field. A
@@ -558,8 +570,27 @@ function widgetFor(
       return { kind: "points", ...(min !== undefined ? { min } : {}) };
     }
     if (unwrapSchema(element) instanceof z.ZodString) return { kind: "tags" };
+    if (unwrapSchema(element) instanceof z.ZodObject) {
+      const { minimum, maximum } = inner._zod.bag as { minimum?: number; maximum?: number };
+      const title = fieldMeta(element).title;
+      const seed = seedValue(element);
+      return {
+        kind: "list",
+        item: typeof title === "string" ? title : "Item",
+        ...(minimum !== undefined ? { min: minimum } : {}),
+        ...(maximum !== undefined ? { max: maximum } : {}),
+        ...(seed !== undefined ? { seed } : {}),
+      };
+    }
   }
   if (inner instanceof z.ZodObject) return { kind: "object" };
+  const delayMin = delayUnionMin(inner);
+  if (delayMin !== undefined)
+    return {
+      kind: "delay",
+      min: delayMin,
+      rate: ctx.registry?.game?.time?.rate ?? DEFAULT_TIME.rate,
+    };
   if (inner instanceof z.ZodUnion) {
     // A point or an entity (`nav-agent.to`): the editor for the form the value holds, an entity when unset.
     const options = inner.options as z.ZodType[];
@@ -572,6 +603,21 @@ function widgetFor(
     }
   }
   return { kind: "readonly", format: "json" };
+}
+
+/**
+ * The least a `Delay`-shaped union takes (whole ticks with `meta.unit`
+ * "ticks", or an object of `ms` alone), or undefined for any other schema.
+ */
+function delayUnionMin(inner: z.core.$ZodType): number | undefined {
+  if (!(inner instanceof z.ZodUnion) || inner.options.length !== 2) return undefined;
+  const [ticks, ms] = inner.options as [z.ZodType, z.ZodType];
+  const count = unwrapSchema(ticks);
+  const object = unwrapSchema(ms);
+  if (!(count instanceof z.ZodNumber) || fieldMeta(ticks).unit !== "ticks") return undefined;
+  if (!(object instanceof z.ZodObject) || Object.keys(object.shape).join() !== "ms")
+    return undefined;
+  return numberBounds(count).min ?? 0;
 }
 
 function defaultSection(widget: FieldWidget): InspectorSectionId {
@@ -671,6 +717,13 @@ export function describeRow(
         describeRow(`${path}.${k}`, s as z.ZodType, root, ctx),
       ),
     );
+  }
+  if (widget.kind === "list" && inner instanceof z.ZodArray && Array.isArray(stored)) {
+    const element = inner.element as z.ZodType;
+    row.children = stored.map((_, i) => ({
+      ...describeRow(`${path}.${i}`, element, root, ctx),
+      title: `${widget.item} ${i + 1}`,
+    }));
   }
   return row;
 }
@@ -1251,7 +1304,7 @@ function addedBlocks(
   s: BehaviorState,
   name: BehaviorName,
   def: SceneDefinition | undefined,
-  clips: ClipLookup | undefined,
+  { clips, assetKind }: ClipSources,
 ): {
   blocks: Record<BehaviorName, Record<string, unknown>>;
   unavailable?: string;
@@ -1291,7 +1344,11 @@ function addedBlocks(
       const choices = kinds ? assetChoices(schema) : [];
       const clip = kinds?.includes(ANIMATION_KIND) ? clipField(shape, block) : undefined;
       if (clip !== undefined && choices.length > 0) {
-        const picked = choices
+        const named = namedValues(self, blocks);
+        const rank = (id: string) =>
+          named.has(id) ? 0 : assetKind?.(id) === ANIMATION_KIND ? 1 : 2;
+        const picked = [...choices]
+          .sort((a, b) => rank(a) - rank(b))
           .map((id) => [id, clips?.(id)?.[0]] as const)
           .find(([, first]) => first !== undefined);
         if (picked) {
@@ -1324,11 +1381,36 @@ function addedBlocks(
 const behaviorLabel = (registry: Registry, name: BehaviorName) =>
   registry.behaviors.get(name)?.inspector?.label ?? fieldTitle(name);
 
-const articled = (kinds: readonly string[]) =>
-  kinds.map((k) => `${/^[aeiou]/.test(k) ? "an" : "a"} ${k}`).join(" or ");
+/** Asset kinds as a phrase names them, each with its article: "an animation or an atlas"; "an asset" for none. */
+export const articled = (kinds: readonly string[]) =>
+  kinds.length === 0
+    ? "an asset"
+    : kinds.map((k) => `${/^[aeiou]/.test(k) ? "an" : "a"} ${k}`).join(" or ");
 
 /** `buildInspectorModel`'s `clips`. */
 type ClipLookup = (source: AssetId) => readonly string[] | null;
+
+/** What Add behavior reads of the project to pick an `anim` block's source and clip. */
+type ClipSources = {
+  clips?: ClipLookup | undefined;
+  assetKind?: ((id: AssetId) => AssetKindName | undefined) | undefined;
+};
+
+/**
+ * The strings the entity's blocks already hold at their top level, written
+ * or being added (a sprite's atlas): a source among them keeps its look.
+ */
+function namedValues(
+  entity: Record<string, unknown>,
+  added: Readonly<Record<BehaviorName, Readonly<Record<string, unknown>>>>,
+): Set<string> {
+  const out = new Set<string>();
+  for (const block of [...Object.values(writtenBlocks(entity)), ...Object.values(added)]) {
+    if (!isRecord(block)) continue;
+    for (const v of Object.values(block)) if (typeof v === "string") out.add(v);
+  }
+  return out;
+}
 
 /** The block's required `clip` text field an animation-taking asset field picks along with it, when unset. */
 function clipField(shape: z.ZodRawShape, block: Readonly<Record<string, unknown>>) {
@@ -1380,7 +1462,7 @@ function addOptions(
   registry: Registry,
   states: readonly BehaviorState[],
   def: SceneDefinition | undefined,
-  clips: ClipLookup | undefined,
+  sources: ClipSources,
 ): BehaviorOption[] {
   const [first, ...rest] = states;
   if (!first) return [];
@@ -1395,7 +1477,7 @@ function addOptions(
     const uses = new Set<string>();
     let unavailable: string | undefined;
     const ops: SceneOp[] = lacking.map((s) => {
-      const added = addedBlocks(registry, s, name, def, clips);
+      const added = addedBlocks(registry, s, name, def, sources);
       unavailable ??= added.unavailable;
       for (const u of added.uses) uses.add(u);
       for (const n of Object.keys(added.blocks))
@@ -1471,6 +1553,11 @@ export function buildInspectorModel(
      * behavior picks an `anim` block's source and clip from them.
      */
     clips?: (source: AssetId) => readonly string[] | null;
+    /**
+     * A project asset's kind: Add behavior then prefers an animation's
+     * clips over an atlas's tags when it picks an `anim` block's source.
+     */
+    assetKind?: (id: AssetId) => AssetKindName | undefined;
   } = {},
 ): InspectorModel {
   const maybe = targets.map((t) => behaviorState(registry, t));
@@ -1512,7 +1599,7 @@ export function buildInspectorModel(
     refs: targets.map((t) => t.ref),
     types,
     sections,
-    addBehaviors: addOptions(registry, states, opts.def, opts.clips),
+    addBehaviors: addOptions(registry, states, opts.def, opts),
   };
 }
 

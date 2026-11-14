@@ -28,7 +28,9 @@ made against a project that has animations go stale once.
   drains them after each tick's `view.commit` and presents camera and
   effect requests (sounds are dropped for now).
   `@jams/engine/game` exports `PresentationQueue`, `PresentRequest`,
-  `PresentedRequest`, `CameraRequest`, `EffectRequest` and `AudioRequest`.
+  `PresentedRequest`, `CameraRequest`, `EffectRequest` and `AudioRequest`;
+  `.` and `./game` export `FlashOptions` and `BurstOptions`, the
+  `effects.flash` and `effects.burst` options.
 - Headless: `recordPresentation` on `createHeadlessRuntime` and
   `runPlaytest` keeps the requests in `StepResult.present` and
   `PlaytestReport.present` (each with its tick from the run's start);
@@ -45,8 +47,10 @@ made against a project that has animations go stale once.
   (`CameraRigDef`), `GameRuntime.cameraTargets?()`, `CameraTargetSpec`,
   `CameraFrame`.
 - `GameConfig.reducedMotion` (`boolean | "auto"`, default `"auto"`) and
-  `GameInstance.reducedMotion`: resolved once at `createGame` from
-  `prefers-reduced-motion`, false where the page can't say.
+  `GameInstance.reducedMotion`: under `"auto"` it follows the page's
+  `prefers-reduced-motion` as the player changes it, from the next frame
+  (false where the page can't say); the effects, the camera, the particles,
+  transitions and `UiContext.reducedMotion` read it as it stands.
 - Viewports (split screen and minimaps): `GameConfig.viewports` /
   `GameInstance.setViewports` take 1–4 `ViewportDef`s (canvas-fraction
   rects, each framing `{ player }`, `{ entity }`, `"main"` or `"scene"`,
@@ -60,7 +64,8 @@ made against a project that has animations go stale once.
   topmost viewport under a page point; the recorded pointer samples through
   the viewport under it; `clientToWorld` and `worldToClient` take an
   optional viewport index. Camera requests reach the rig of the viewport
-  they name.
+  they name. `viewportRect(def, width, height)` (with `ViewportRect`) on
+  `.` gives a viewport's rectangle in canvas px.
 - Flash and hit-stop in the shell: `ctx.present.effects.flash({ color, ms,
 alpha })` draws a full-canvas DOM flash over every viewport, on the
   effect layer under the UI layer, fading over `ms` (default 120, white,
@@ -72,8 +77,9 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
   are dropped and flashes are capped at 0.3 alpha and 80 ms.
 - The `anim` behavior runs on the simulation's ticks, headless included.
   It plays an animation doc's clips, or an atlas's tags as clips, advancing
-  by `speed` in whole thousandths of a tick, and `offset` staggers the
-  start. `ctx.anim` gives `play` (unknown clip: `EngineError`
+  by `speed` in whole thousandths of a tick, and `offset` (whole ticks, or
+  `{ ms }` rounded to ticks at the run's rate, as a tween's `duration`)
+  staggers the start. `ctx.anim` gives `play` (unknown clip: `EngineError`
   `anim-clip-unknown`; an entity without the block: `behavior-missing`),
   `stop`, `state` and `shapes(id, set)`, which is a frame's named shape set
   in world space at the sprite's anchor, mirrored by the sprite's and the
@@ -102,14 +108,17 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
 - `createParticleLayer` and `createEffectLayer` with `ParticleLayer` and
   `EffectLayer` on `.`; `SceneView.particles?()`, the view's particle layer.
 - Runtime doc kinds: `DocKindDef.runtime` (`"sim" | "view"`),
-  `crossValidate` with `DocLookup`, `bundleRefs`, and
+  `crossValidate` with `DocLookup` (`ids(kind)`: every live asset id of a
+  kind in path order, blobs too; `read(kind, id)`: a doc's parsed,
+  migrated value), `bundleRefs`, and
   `BlobKindDef.metaVersion`. `game-settings`, `data-table`, `input-map`
   and `scene-list` are `sim`. `isRuntimeKind` and `runtimeKindNames` are
   the one rule the runtime view, the export, the scene CLI and the editor
   read runtime kinds by. `ProjectRuntimeView.doc(kind, id)` and
   `docs(kind)` give every runtime kind's docs, parsed, migrated and
   frozen; `runtimeView` takes the kind registry as an optional fourth
-  argument. `validateProject(view, texts, kinds, env)` runs every doc's
+  argument; `doc` and `docs` are a `DocLookup`'s `read` and `ids` over the
+  runtime docs that parse. `validateProject(view, texts, kinds, env)` runs every doc's
   checks, then every kind's `crossValidate` over the other docs, and never
   throws (a check that throws reports as a `schema` error on its doc).
   `@jams/engine/project` exports `validateProject` and the `AnimationFile`,
@@ -120,7 +129,9 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
   co-edited per clip, with per-frame `ms`, `events` and named shape sets in
   metres; loop modes loop, once, pingpong and hold; `next` for a once clip;
   capped at 256 KiB and 512 clips; runtime `sim`. `animationIssues` is the
-  one check the kind's validation and clip resolution share.
+  one check the kind's validation and clip resolution share; the kind's
+  validation leaves a missing or wrong-kind atlas to the ref index, so it
+  is reported once.
   `@jams/engine/project` exports `animationKind`, `ANIMATION_KIND`,
   `ANIMATION_VERSION`, `ANIMATION_SCHEMA_ID`, `animationIssues`,
   `CLIP_LOOPS` and `SHAPE_SET_NAME`.
@@ -131,6 +142,14 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
   lookup so a seek and a replay agree.
 - `AssetInfo.durations`: an atlas's frame durations in `frames` order,
   null where the export gives none.
+- `ValidateOptions.runtime` (the project's runtime view): with it and
+  `project`, an `anim` block whose source is an animation is checked
+  against that animation's clips (`anim-clip-unknown`), as an atlas
+  source is against its tags.
+- `runProbe` takes `observe(ctx, tick)`, called after each tick's step
+  that didn't throw, to read state the report doesn't carry.
+- `didYouMean(word, candidates)` on `./scene`: the `; did you mean "x"?`
+  suffix every issue message uses, for a host's own messages.
 - `ease(name, t)` implements every `EaseName` (linear, and quad, cubic,
   quart, quint, sine, expo, circ, back, elastic, bounce, each In/Out/InOut)
   using only `+ − × ÷` and `Math.sqrt`, so tweened runs replay the same on
@@ -191,7 +210,8 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   `ctx.present.effects.burst(preset, at, { count, angle, tint })` draws a
   one-off burst on the scene's `gameplay` layer. The layer's randomness is
   its own stream, seeded by the scene name, so no run's digest changes.
-  `createParticleLayer` takes `ParticleLayerOptions` (`reducedMotion`,
+  `createParticleLayer` takes `ParticleLayerOptions` (`reducedMotion`, a
+  flag or a function read as it draws,
   `seed`, `pxPerMetre?`, `layer?`, `texture?`); `ParticleLayer.emitter`
   takes an optional `layer`; `PixiViewOptions.particles` passes the
   options through. `.` exports `ParticleLayerOptions` and
@@ -203,7 +223,9 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   with the doc values it follows. `checkReleaseManifest` raises
   `asset-missing` for a shipped blob's reference (an atlas's texture, a
   font's pages) that isn't in `assets`, and, with the new
-  `CheckReleaseOptions.docRefs`, for a shipped doc's reference.
+  `CheckReleaseOptions.docRefs`, for a shipped doc's reference;
+  `manifestDocRefs(texts, registry, kinds?)` in `@jams/engine/project`
+  builds that callback from the shipped docs' texts.
 - Genre probes: `grid-puzzle` slides each pushed crate's picture with a
   tween over 8 ticks, and gains a `pointer-swap` variant (match-3: two
   adjacent pieces picked by pointer presses swap through a `swap`
@@ -239,12 +261,32 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   restore-then-continue. matrix.ts reads "landed" from a table of the
   shipped milestones' versions against `ENGINE_VERSION`.
 
+- The editor's inspector edits a list of objects (a `tween` block's
+  `tweens`) item by item: each item's fields under "Tween 1", "Tween 2"…,
+  with Remove and an Add that copies the last item, within the list's
+  bounds (`FieldWidget` kind `"list"`). A ticks-or-`{ ms }` value (a
+  tween's `duration` and `delay`, an anim `offset`) is one number with a
+  ms/ticks switch that converts at the game's tick rate (kind `"delay"`).
+  `buildInspectorModel` takes an optional `assetKind(id)`: Add behavior's
+  Animation then prefers a source the entity already names (its sprite's
+  atlas), then an animation, then an atlas's tags. It also takes
+  `clips(source)`, the clip names an animation or atlas offers, so Add
+  behavior picks an `anim` block's source and clip; `BehaviorOption.uses`
+  names the assets an option's batch picks (`hero (idle)`), and an
+  `"asset"` `FieldWidget` carries `clip?`, the field its picked clip goes
+  to.
+
 ### Changed
 
-- `TransitionRunner` takes a fourth argument, `{ reducedMotion }`, the
-  instance's resolved flag; `fadeTransition` cuts by it instead of asking
-  the page itself, and a runner wrapping it passes it on.
-  `UiContext.reducedMotion` is `GameInstance.reducedMotion`.
+- `TransitionRunner` takes an optional fourth argument, `{ reducedMotion }`,
+  which the flow host always passes (left out, it means full motion);
+  `fadeTransition` cuts by it instead of asking the page itself, and a
+  runner wrapping it passes it on.
+- The asset picker names kinds with their articles ("Pick an animation or
+  an atlas", "gone isn't a texture or an atlas in this project.").
+- The camera region's editor outline is drawn at 0.9 alpha, 2 px wide, so
+  an unselected region reads at default zoom; the kitchen sink's svg
+  golden moves with it.
 - The editor's Add behavior fills a required asset field with the
   project's first asset of its kinds, and offers the behavior as
   unavailable, saying which asset it needs, when the project has none.
@@ -303,7 +345,9 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
 ### Removed
 
 - `RUNTIME_VIEW_KINDS` from `@jams/engine/project`: read the kinds'
-  `runtime` flag through `runtimeKindNames(kinds)` or `isRuntimeKind`.
+  `runtime` flag through `runtimeKindNames(kinds)` or `isRuntimeKind`. The
+  runtime kinds now depend on the game's kind registry, so no fixed list
+  can name them; this one break in a minor release is deliberate.
 
 ### Fixed
 
@@ -339,7 +383,16 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
 - The `camera-region` primitive in every scene schema
   (`$defs/CameraRegionShape`).
 - The `emitter` block's `rate` reads "Particles per second; overrides the
-  preset's rate."
+  preset's rate." with `unit` "/s"; the tween spec's tick counts carry
+  `unit` "ticks".
+- The `anim` block's `offset` takes whole ticks or `{ ms }` (it took ticks
+  only) and reads "Starts this far into the clip, so a row of torches
+  doesn't flicker in step; default 0."; its `speed` and `playing`, and the
+  `emitter` block's `emitting`, carry their defaults (1, true, true) as
+  `default`.
+- `tween-target-invalid` counts a block's tweens from 1 in its message
+  ("crate's tween 1 can't play: …" for the first); its path stays
+  zero-based.
 - The tween spec's `scale` reads "Multiplies the sprite's drawn size; 1
   draws it as its block sizes it."
 - `scene step --anim <id>` prints an entity's clip, frame index and frame

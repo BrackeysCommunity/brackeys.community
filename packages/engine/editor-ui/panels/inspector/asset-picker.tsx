@@ -1,4 +1,6 @@
+import { articled } from "../../../editor/inspector-model";
 import { assetInfo, type AssetKindName, type ProjectView } from "../../../project/index";
+import { kindsLabel } from "../../../project/refs";
 import {
   Combobox,
   ComboboxContent,
@@ -52,9 +54,6 @@ export function frameFor(frames: readonly string[], current: unknown): string | 
   return typeof current === "string" && frames.includes(current) ? current : frames[0];
 }
 
-const kindList = (kinds: readonly AssetKindName[]) =>
-  kinds.length <= 1 ? (kinds[0] ?? "asset") : `${kinds.slice(0, -1).join(", ")} or ${kinds.at(-1)}`;
-
 /** Why `value` isn't one of `options`, or null. */
 export function danglingAsset(
   value: unknown,
@@ -62,7 +61,7 @@ export function danglingAsset(
   kinds: readonly AssetKindName[],
 ): string | null {
   if (typeof value !== "string" || options.some((o) => o.id === value)) return null;
-  return `${value} isn't a ${kindList(kinds)} in this project.`;
+  return `${value} isn't ${articled(kinds)} in this project.`;
 }
 
 /**
@@ -95,7 +94,6 @@ export function AssetCombobox({
 }) {
   const current = !mixed && typeof value === "string" ? value : null;
   const byId = new Map(options.map((o) => [o.id, o]));
-  const kindsText = kindList(kinds);
   return (
     <Combobox
       items={options.map((o) => o.id)}
@@ -109,7 +107,7 @@ export function AssetCombobox({
       <ComboboxInput
         aria-label={path}
         aria-invalid={invalid || undefined}
-        placeholder={placeholder ?? `Pick a ${kindsText}`}
+        placeholder={placeholder ?? `Pick ${articled(kinds)}`}
         showClear={optional}
       />
       <ComboboxContent className="je-asset-picker">
@@ -129,7 +127,7 @@ export function AssetCombobox({
             );
           }}
         </ComboboxList>
-        <ComboboxEmpty>No {kindsText} in this project</ComboboxEmpty>
+        <ComboboxEmpty>No {kindsLabel({ kinds })} in this project</ComboboxEmpty>
       </ComboboxContent>
     </Combobox>
   );

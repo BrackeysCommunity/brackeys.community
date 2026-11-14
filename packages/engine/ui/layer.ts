@@ -176,7 +176,10 @@ export function mountUi<G>(
     slice: () => (store.state.game ?? null) as G | null,
     watch,
     settings: game.project()?.settings ?? {},
-    reducedMotion: game.reducedMotion,
+    // Read through, so a HUD sees the page's setting change under "auto".
+    get reducedMotion() {
+      return game.reducedMotion;
+    },
     ...(opts.links ? { links: { ...opts.links } } : {}),
   };
 

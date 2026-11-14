@@ -1449,9 +1449,9 @@ type ProjectRuntimeView = {
      * frozen; undefined for an unknown id, a doc that doesn't parse, or a
      * kind that isn't a runtime kind. `runtimeView` always sets it.
      */
-    doc?<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+    doc?: DocLookup["read"];
     /** The ids `doc` answers for a runtime kind, in path order. `runtimeView` always sets it. */
-    docs?(kind: AssetKindName): readonly AssetId[];
+    docs?: DocLookup["ids"];
     /** game-settings' `engine` block as written (`resolution` and the like); empty without one. */
     engine: Readonly<Record<string, unknown>>;
     /**
@@ -3250,10 +3250,11 @@ as `runPlaytest`'s does: `blocked` at stage `run` with the error's code,
 the report covering the ticks before it. A game that lists its commands
 gets `legal` after the last tick, else at the start (`legalCommands`), as
 `runPlaytest` does; a blocked run has none. A UI-only action in `hold` or
-`inputs` is refused (`simActionError`).
+`inputs` is refused (`simActionError`). `observe` sees each tick after
+its step.
 
 ```ts
-declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
+declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption & ObserveOption): ProbeReport<S>;
 ```
 
 Refers to [`ProbeOptions`](#probeoptions), [`ProbeReport`](#probereport).

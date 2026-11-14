@@ -13,7 +13,7 @@ import {
 import { createGame } from "../engine";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { primitiveFields, type CameraRigDef } from "../game/primitives";
-import type { GameDefinition } from "../game/types";
+import type { EngineContext, GameDefinition } from "../game/types";
 import { createHeadlessRuntime } from "../headless/headless";
 import type { PixiView } from "../render/pixi-view";
 import { snapshotDigest } from "../runtime/recorder";
@@ -263,6 +263,28 @@ describe("createCameraRig", () => {
     rig.request({ op: "zoom", zoom: 0.001 });
     expect(rig.update(input({ targets: [at(-50, 0)] })).zoom).toBe(MIN_CAMERA_ZOOM);
   });
+
+  it("ignores a request whose numbers it can't show, and takes the next good one", () => {
+    const rig = createCameraRig({ damping: 0 }, "s");
+    rig.update(input({ targets: [at(3, 4)] }));
+    for (const zoom of [NaN, Infinity, 0, -2]) rig.request({ op: "zoom", zoom });
+    rig.request({ op: "zoom", zoom: 2, ms: NaN });
+    rig.request({ op: "shake", trauma: NaN });
+    rig.request({ op: "shake", trauma: Infinity });
+    rig.request({ op: "snap", at: { x: NaN, y: 0 } });
+    rig.request({ op: "follow", target: { point: { x: 0, y: Infinity } } });
+    expect(rig.trauma).toBe(0);
+    expect(rig.following).toBeNull();
+    expect(rig.update(input({ targets: [at(3, 4)] }))).toEqual({
+      position: { x: 3, y: 4 },
+      zoom: 1,
+      rotation: 0,
+    });
+    rig.request({ op: "shake", trauma: 0.5 });
+    expect(rig.trauma).toBe(0.5);
+    rig.request({ op: "zoom", zoom: 2 });
+    expect(rig.update(input({ targets: [at(3, 4)] })).zoom).toBe(2);
+  });
 });
 
 describe("centreOf", () => {
@@ -483,6 +505,58 @@ describe("the rig in Play", () => {
     expect(lastFrame().x).toBeCloseTo(20 - (20 - 17.2) * 0.9 ** ticks, 9);
     expect(lastFrame().zoom).toBe(1);
     expect(game.getStore().state.camera.zoom).toBe(1);
+  });
+
+  /** A game with no camera settings that runs what `asks` holds after its next step. */
+  const asking = (asks: ((ctx: EngineContext) => void)[]) =>
+    defineGame({
+      id: "asking",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      createRuntime: (ctx) => ({
+        afterStep() {
+          for (const ask of asks.splice(0)) ask(ctx);
+        },
+        snapshot: () => null,
+      }),
+    });
+
+  it("starts a rig a request makes where the plain follow left the camera", async () => {
+    const asks: ((ctx: EngineContext) => void)[] = [];
+    const game = await playing(sceneOf([followed("hero", 20, -4)], "asking"), asking(asks));
+    expect(game.runtime()!.update([followed("hero", 40, -4)])).toEqual({ ok: true });
+    advance(4);
+    const lagging = lastFrame();
+    expect(lagging.x).toBeGreaterThan(20);
+    expect(lagging.x).toBeLessThan(39);
+
+    asks.push((ctx) => ctx.present.camera.zoom(1));
+    const from = game.getStore().state.tick;
+    advance(1);
+    expect(game.getStore().state.tick).toBe(from + 1);
+    expect(lastFrame()).toEqual(lagging);
+    advance(120);
+    expect(lastFrame().x).toBeCloseTo(40, 3);
+  });
+
+  it("times a request's rig from its own first frame after the region rig went", async () => {
+    const asks: ((ctx: EngineContext) => void)[] = [];
+    const room = {
+      id: "room",
+      type: "camera-region",
+      shape: ["box", 10, -4, 12, 8],
+      ease: 0,
+    } as EntityDef;
+    const game = await playing(sceneOf([followed("hero", 20, -4), room], "asking"), asking(asks));
+    game.runtime()!.remove(["room"]);
+    advance(90);
+    asks.push((ctx) => ctx.present.camera.zoom(2, { ms: 1000 }));
+    advance(1);
+    expect(lastFrame().zoom).toBe(1);
+    advance(30);
+    expect(lastFrame().zoom).toBeGreaterThan(1);
+    expect(lastFrame().zoom).toBeLessThan(2);
   });
 
   it("refuses a game whose camera settings aren't a rig", async () => {

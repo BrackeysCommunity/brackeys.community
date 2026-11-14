@@ -9,6 +9,8 @@
  * inside the window, a page must answer in time, a missing browser is never
  * a pass) are unit-tested without a browser.
  */
+import { viewportRect } from "@jams/engine";
+
 import { TACTICS_GOLDEN_DIGEST } from "../../src/games/tactics/__tests__/pins";
 import { judgeContact, type ContactRead } from "./browser/contact";
 import type { EngineSmokeResult } from "./browser/main";
@@ -154,18 +156,16 @@ export function judgeRender(render: RenderProbe | undefined): string | null {
   return null;
 }
 
-/** Why a read isn't inside its viewport's rectangle of a `width` × `height` canvas, or null. */
+/** Why a read isn't inside its viewport's rectangle (`viewportRect`) of a `width` × `height` canvas, or null. */
 function outsideViewport(read: ViewportPixel, width: number, height: number): string | null {
   const def = SPLIT_VIEWPORTS[read.viewport];
   if (!def) return `viewport ${read.viewport} isn't one of the split run's`;
-  const [rx, ry, rw, rh] = def.rect;
+  const r = viewportRect(def, width, height);
   const [x, y] = read.at;
-  const inside =
-    x >= rx * width && x < (rx + rw) * width && y >= ry * height && y < (ry + rh) * height;
+  // Half-open, as pixels are: the right and bottom edges are the next viewport's or off the canvas.
+  if (x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height) return null;
   const n = (v: number) => Math.round(v * 10) / 10;
-  return inside
-    ? null
-    : `viewport ${read.viewport} drew its point at (${n(x)}, ${n(y)}), outside its rectangle [${def.rect.join(", ")}] of ${width}×${height}`;
+  return `viewport ${read.viewport} drew its point at (${n(x)}, ${n(y)}), outside its rectangle [${def.rect.join(", ")}] of ${width}×${height}`;
 }
 
 /** Why `read` isn't an opaque pixel of `colour`, or null. */

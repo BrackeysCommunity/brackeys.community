@@ -4,14 +4,15 @@
  * code steers it through presentation requests and nothing reads it back.
  */
 import { ease, type EaseName } from "../anim/ease";
-import { clampZoom, zoomToFit } from "../camera";
+import { boxCentre, clampViewInBox, clampZoom, zoomToFit } from "../camera";
 import {
   DEFAULT_CAMERA_DAMPING,
   DEFAULT_CAMERA_SHAKE,
   DEFAULT_REGION_EASE,
 } from "../game/defaults";
+import { zodIssueText } from "../game/fields";
 import { CAMERA_RIG_SCHEMA, type CameraRigDef } from "../game/primitives";
-import { lerp, lerpVec2 } from "../math";
+import { clamp, lerp, lerpVec2, smoothstep } from "../math";
 import type { CameraRequest } from "../runtime/present";
 import { viewRandom } from "../sim-kit/rng";
 import type { Vec2 } from "../types";
@@ -54,23 +55,28 @@ export { DEFAULT_CAMERA_DAMPING, DEFAULT_CAMERA_SHAKE };
 /** Why `def` can't be a camera rig's settings, or null when it can. */
 export function cameraRigProblem(def: unknown): string | null {
   const parsed = CAMERA_RIG_SCHEMA.safeParse(def);
-  if (parsed.success) return null;
-  const issue = parsed.error.issues[0];
-  if (!issue) return "not a camera rig";
-  const at = issue.path.join(".");
-  return at ? `${at}: ${issue.message}` : issue.message;
+  return parsed.success ? null : zodIssueText(parsed.error);
 }
 
 type Transition = { from: Vec2; fromZoom: number; elapsed: number; seconds: number };
 type ZoomEase = { from: number; to: number; ms: number; elapsed: number; ease?: EaseName };
 
-const smooth = (t: number) => t * t * (3 - 2 * t);
+const finitePoint = (p: Vec2) => Number.isFinite(p.x) && Number.isFinite(p.y);
 
-/** `p` with the view (half sizes `hw`, `hh`) kept inside the box; a box smaller than the view centres it. */
-function clampView(p: Vec2, hw: number, hh: number, min: Vec2, max: Vec2): Vec2 {
-  const axis = (v: number, lo: number, hi: number, half: number) =>
-    hi - lo <= 2 * half ? (lo + hi) / 2 : Math.min(hi - half, Math.max(lo + half, v));
-  return { x: axis(p.x, min.x, max.x, hw), y: axis(p.y, min.y, max.y, hh) };
+/** Whether the rig can take `op`: a number it carries that isn't finite (or a zoom that isn't positive) can't be shown. */
+function usable(op: CameraRequest): boolean {
+  switch (op.op) {
+    case "follow":
+      return op.target === null || !("point" in op.target) || finitePoint(op.target.point);
+    case "zoom":
+      return (
+        Number.isFinite(op.zoom) && op.zoom > 0 && (op.ms === undefined || Number.isFinite(op.ms))
+      );
+    case "shake":
+      return Number.isFinite(op.trauma);
+    case "snap":
+      return op.at === undefined || finitePoint(op.at);
+  }
 }
 
 /**
@@ -146,7 +152,7 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
     let z = framing?.zoom ?? baseZoom;
     if (def.fit && input.targets.length >= 2) {
       z = Math.min(z, fitZoom(input.targets, input.view, def.fit.padding));
-      z = Math.min(def.fit.maxZoom, Math.max(def.fit.minZoom, z));
+      z = clamp(z, def.fit.minZoom, def.fit.maxZoom);
     }
     // The zoom the camera will apply, so the view's clamp is sized from the view it shows.
     return clampZoom(z);
@@ -183,19 +189,14 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
 
     const framing = regionFor(input.targets, input.regions);
     const z = goalZoom(input, framing);
-    const hw = input.view.width / (2 * z);
-    const hh = input.view.height / (2 * z);
+    const half = { x: input.view.width / (2 * z), y: input.view.height / (2 * z) };
     const box = framing && framing.clamp ? framing : input.bounds;
     const centre = centreOf(input.targets);
-    const boundsCentre = {
-      x: (input.bounds.min.x + input.bounds.max.x) / 2,
-      y: (input.bounds.min.y + input.bounds.max.y) / 2,
-    };
     const focus = centre ? focusOf(centre) : null;
 
     if (position === null || snap) {
-      const at = snap?.at ?? focus ?? position ?? boundsCentre;
-      position = clampView(at, hw, hh, box.min, box.max);
+      const at = snap?.at ?? focus ?? position ?? boxCentre(input.bounds.min, input.bounds.max);
+      position = clampViewInBox(at, half, box.min, box.max);
       zoom = z;
       snap = null;
       transition = null;
@@ -209,11 +210,11 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
       const desired = focus ? deadzoned(position, focus) : position;
       const k = damping > 0 ? 1 - Math.pow(0.5, dt / damping) : 1;
       const damped = lerpVec2(position, desired, k);
-      const framed = clampView(damped, hw, hh, box.min, box.max);
+      const framed = clampViewInBox(damped, half, box.min, box.max);
       if (transition) {
         transition.elapsed += dt;
         const t = transition.seconds > 0 ? Math.min(1, transition.elapsed / transition.seconds) : 1;
-        const s = smooth(t);
+        const s = smoothstep(t);
         position = t >= 1 ? framed : lerpVec2(transition.from, framed, s);
         zoom = t >= 1 ? z : lerp(transition.fromZoom, z, s);
         if (t >= 1) transition = null;
@@ -241,6 +242,7 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
   }
 
   function request(op: CameraRequest): void {
+    if (!usable(op)) return;
     switch (op.op) {
       case "follow":
         following = op.target;
@@ -256,7 +258,7 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
         if (!(zoomEase.ms > 0)) advanceZoom(0);
         break;
       case "shake":
-        trauma = Math.min(1, Math.max(0, trauma + op.trauma));
+        trauma = clamp(trauma + op.trauma, 0, 1);
         break;
       case "snap":
         snap = op.at ? { at: { x: op.at.x, y: op.at.y } } : {};

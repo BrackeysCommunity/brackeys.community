@@ -934,13 +934,13 @@ describe("tween blocks", () => {
         "/entities/1/behaviors/tween/tweens/0",
         "error",
         ["crate"],
-        "crate's tween 0 can't play: it is a prop, which can't be posed, so a tween can't move its x",
+        "crate's tween 1 can't play: it is a prop, which can't be posed, so a tween can't move its x",
       ],
       [
         "/entities/1/behaviors/tween/tweens/1",
         "error",
         ["crate"],
-        "crate's tween 1 can't play: it is a prop, which can't be posed, so a tween can't move its y",
+        "crate's tween 2 can't play: it is a prop, which can't be posed, so a tween can't move its y",
       ],
     ]);
     expect(issues[0]!.line).toBeTypeOf("number");
@@ -951,7 +951,7 @@ describe("tween blocks", () => {
     expect(tweenIssues(def).map((i) => [i.path, i.message])).toEqual([
       [
         "/entities/1/behaviors/tween/tweens/1",
-        "spot's tween 1 can't play: it has no sprite, so a tween can't animate its alpha, tint",
+        "spot's tween 2 can't play: it has no sprite, so a tween can't animate its alpha, tint",
       ],
     ]);
   });

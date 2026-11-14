@@ -8,6 +8,7 @@ import { z } from "zod";
 import { ANIMATION_KIND } from "../../project/kinds/animation";
 import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { defineBehavior } from "../behaviors";
+import { delayField } from "../delay-field";
 import { assetField } from "../fields";
 import type { FieldEnv } from "../types";
 
@@ -23,15 +24,13 @@ const animFields = (env: FieldEnv) => ({
     .positive()
     .max(16)
     .optional()
-    .describe("Multiplies the clip's speed; default 1."),
-  playing: z.boolean().optional().describe("Default true."),
-  offset: z
-    .number()
-    .int()
-    .min(0)
-    .optional()
-    .describe("Starts this many ticks into the clip, so a row of torches doesn't flicker in step.")
-    .meta({ unit: "ticks" }),
+    .describe("Multiplies the clip's speed; default 1.")
+    .meta({ default: 1 }),
+  playing: z.boolean().optional().describe("Default true.").meta({ default: true }),
+  offset: delayField(
+    "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0.",
+    0,
+  ).optional(),
 });
 
 /** An `anim` block as an entity carries it. */

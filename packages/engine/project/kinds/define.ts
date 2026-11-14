@@ -71,26 +71,32 @@ export type DocLayout =
   | { as: "keyed"; id?: string /* default "id" */; item: Extract<DocLayout, { as: "map" }> };
 
 /**
- * Parsed docs by kind: what a kind's `crossValidate` reads of the other
- * docs, and what `ProjectRuntimeView` gives of its runtime docs.
+ * Other docs as a kind's `crossValidate` reads them; `ProjectRuntimeView`'s
+ * `docs` and `doc` are a lookup over its runtime docs.
  */
 export type DocLookup = {
-  /** The ids `doc` answers for a kind, in path order. */
-  docs: (kind: AssetKindName) => readonly AssetId[];
-  /** A doc's parsed, migrated value; undefined for an id of no doc of `kind` that parses. */
-  doc: <T = unknown>(kind: AssetKindName, id: AssetId) => T | undefined;
+  /** Every live asset id of a kind, in path order. */
+  ids: (kind: AssetKindName) => readonly AssetId[];
+  /** A doc's parsed, migrated value; undefined when missing or invalid. */
+  read: <T = unknown>(kind: AssetKindName, id: AssetId) => T | undefined;
 };
 
-/** A `DocLookup` over parsed docs by kind, then id; a kind's ids in its map's order. */
+/**
+ * A `DocLookup` over parsed docs by kind, then id. `ids` gives a kind's
+ * ids from `ids` when given (every live entry, parsed or not), else the
+ * ids `byKind` holds, in its map's order.
+ */
 export function docLookup(
   byKind: ReadonlyMap<AssetKindName, ReadonlyMap<AssetId, unknown>>,
+  ids?: ReadonlyMap<AssetKindName, readonly AssetId[]>,
 ): DocLookup {
-  const ids = new Map<AssetKindName, readonly AssetId[]>();
-  for (const [kind, docs] of byKind) ids.set(kind, Object.freeze([...docs.keys()]));
+  const listed = new Map<AssetKindName, readonly AssetId[]>();
+  for (const [kind, list] of ids ?? []) listed.set(kind, Object.freeze([...list]));
+  if (!ids) for (const [kind, docs] of byKind) listed.set(kind, Object.freeze([...docs.keys()]));
   const none: readonly AssetId[] = Object.freeze([]);
   return {
-    docs: (kind) => ids.get(kind) ?? none,
-    doc: <T = unknown>(kind: AssetKindName, id: AssetId) =>
+    ids: (kind) => listed.get(kind) ?? none,
+    read: <T = unknown>(kind: AssetKindName, id: AssetId) =>
       byKind.get(kind)?.get(id) as T | undefined,
   };
 }

@@ -27,6 +27,13 @@ import type { FieldEnv, Side } from "./types";
  * `.describe()`, because the JSON Schema, `codes` and the inspector print it.
  */
 
+/** A zod error's first issue as `path: message`, or the message alone when it has no path. */
+export function zodIssueText(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "invalid";
+  return issue.path.length > 0 ? `${issue.path.join(".")}: ${issue.message}` : issue.message;
+}
+
 /** Ids, scene names and game ids. `~` can never match, so a bulk reference is never a real id. */
 export const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;
 

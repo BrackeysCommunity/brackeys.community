@@ -37,6 +37,20 @@ export type TweenChannel = "x" | "y" | "rot" | "alpha" | "tint" | "scale";
 /** The channels that move the pose; the rest are a sprite's. */
 export const POSE_CHANNELS: readonly TweenChannel[] = Object.freeze(["x", "y", "rot"]);
 
+/** The channels that change a sprite's look: every channel that isn't the pose's. */
+export const LOOK_CHANNELS = Object.freeze([
+  "alpha",
+  "tint",
+  "scale",
+] as const satisfies readonly TweenChannel[]);
+
+/** A channel of a sprite's look. */
+export type LookChannel = (typeof LOOK_CHANNELS)[number];
+
+/** Whether `channel` is one of a sprite's look. */
+export const isLookChannel = (channel: string): channel is LookChannel =>
+  (LOOK_CHANNELS as readonly string[]).includes(channel);
+
 /** The engine primitives whose systems have `setPose`; zod-only code can't ask the systems. */
 export const POSED_PRIMITIVES: readonly string[] = Object.freeze([
   "marker",
@@ -89,7 +103,7 @@ export function tweenTargetProblem(
   const pose = channels.filter((c) => POSE_CHANNELS.includes(c));
   if (pose.length > 0 && type.posable === false)
     return `it is a ${type.type}, which can't be posed, so a tween can't move its ${pose.join(", ")}`;
-  const visual = channels.filter((c) => !POSE_CHANNELS.includes(c));
+  const visual = channels.filter(isLookChannel);
   if (visual.length > 0 && !hasSprite)
     return `it has no sprite, so a tween can't animate its ${visual.join(", ")}`;
   return null;

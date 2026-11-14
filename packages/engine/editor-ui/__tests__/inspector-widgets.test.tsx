@@ -292,7 +292,7 @@ describe("the inspector's asset picker", () => {
     });
     session.select(["lost"]);
     render(<EditorInspector session={session} project={fakeProject()} />);
-    expect(screen.getByText("gone isn't a texture or atlas in this project.")).toBeTruthy();
+    expect(screen.getByText("gone isn't a texture or an atlas in this project.")).toBeTruthy();
   });
 
   it("falls back to text fields without a project", () => {
@@ -410,6 +410,140 @@ describe("the inspector's behavior edits", () => {
     ).toBeNull();
     expect(screen.queryByLabelText("behaviors.force-area.affects.groups")).toBeNull();
     for (const g of groups) expect(screen.getByLabelText(`Remove tag ${g}`)).toBeTruthy();
+  });
+});
+
+describe("the inspector's motion behaviors", () => {
+  const SPIN = {
+    to: { y: 4.6, alpha: 0.5 },
+    duration: { ms: 800 },
+    ease: "sineInOut",
+    repeat: -1,
+    yoyo: true,
+  };
+  const open = () => {
+    const session = createEditorSession({
+      doc: sceneToDoc(
+        {
+          v: 2,
+          name: "motion-yard",
+          bounds: [0, 0, 20, 20],
+          entities: [
+            {
+              id: "lamp",
+              type: "marker",
+              at: [5, 3],
+              behaviors: {
+                sprite: { asset: "hero" },
+                anim: { source: "hero", clip: "idle" },
+                tween: { tweens: [SPIN] },
+              },
+            },
+            {
+              id: "fire",
+              type: "marker",
+              at: [8, 3],
+              behaviors: { emitter: { preset: "sparks" } },
+            },
+          ],
+        },
+        { key: sequentialKeys("m") },
+      ),
+      origin: ada,
+      name: "motion-yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+    });
+    const block = (id: string, name: string) =>
+      (session.getDoc().entities!.find((e) => e.id === id)!.behaviors as Record<string, unknown>)[
+        name
+      ] as Record<string, unknown>;
+    const tweens = () => block("lamp", "tween").tweens as Record<string, unknown>[];
+    return { session, block, tweens };
+  };
+  const show = (session: ReturnType<typeof open>["session"], id: string) => {
+    session.select([id]);
+    render(<EditorInspector session={session} />);
+  };
+  const type = (label: string, value: string) => {
+    const input = screen.getByLabelText(label) as HTMLInputElement;
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyDown(input, { key: "Enter" });
+  };
+  const rowOf = (label: string) =>
+    screen.getByLabelText(label).closest(".je-insp-field") as HTMLElement;
+
+  it("shows an unset Playing, Speed and Emitting at their defaults, and stops with one click", () => {
+    const { session, block } = open();
+    show(session, "lamp");
+    const playing = screen.getByRole("switch", { name: "behaviors.anim.playing" });
+    expect(playing.getAttribute("aria-checked")).toBe("true");
+    expect(within(rowOf("behaviors.anim.playing")).getByText("on (default)")).toBeTruthy();
+    expect(screen.getByLabelText("behaviors.anim.speed").getAttribute("placeholder")).toBe(
+      "1 (default)",
+    );
+    fireEvent.click(playing);
+    expect(block("lamp", "anim").playing).toBe(false);
+
+    cleanup();
+    show(session, "fire");
+    const emitting = screen.getByRole("switch", { name: "behaviors.emitter.emitting" });
+    expect(emitting.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(emitting);
+    expect(block("fire", "emitter").emitting).toBe(false);
+  });
+
+  it("edits a tween's channel and ease in place", async () => {
+    const { session, tweens } = open();
+    show(session, "lamp");
+    expect(screen.getByText("Tween 1")).toBeTruthy();
+    expect((screen.getByLabelText("behaviors.tween.tweens.0.to.y") as HTMLInputElement).value).toBe(
+      "4.6",
+    );
+    type("behaviors.tween.tweens.0.to.y", "5");
+    expect(tweens()[0]).toEqual({ ...SPIN, to: { y: 5, alpha: 0.5 } });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "behaviors.tween.tweens.0.ease" }));
+    choose(await screen.findByRole("option", { name: /^quad ?in$/i }));
+    expect(tweens()[0]!.ease).toBe("quadIn");
+  });
+
+  it("adds a copy of the last tween and removes one, keeping at least one", () => {
+    const { session, tweens } = open();
+    show(session, "lamp");
+    const remove = screen.getByRole("button", { name: "Remove Tween 1" }) as HTMLButtonElement;
+    expect(remove.matches(":disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Add tween" }));
+    expect(tweens()).toEqual([SPIN, SPIN]);
+    type("behaviors.tween.tweens.1.to.alpha", "1");
+    fireEvent.click(screen.getByRole("button", { name: "Remove Tween 1" }));
+    expect(tweens()).toEqual([{ ...SPIN, to: { y: 4.6, alpha: 1 } }]);
+  });
+
+  it("takes a duration in ms or ticks, converting at the tick rate on the switch", () => {
+    const { session, tweens } = open();
+    show(session, "lamp");
+    const duration = "behaviors.tween.tweens.0.duration";
+    expect((screen.getByLabelText(duration) as HTMLInputElement).value).toBe("800");
+    fireEvent.click(within(rowOf(duration)).getByRole("button", { name: "ticks" }));
+    expect(tweens()[0]!.duration).toBe(48);
+    type(duration, "+=2");
+    expect(tweens()[0]!.duration).toBe(50);
+    fireEvent.click(within(rowOf(duration)).getByRole("button", { name: "ms" }));
+    expect(tweens()[0]!.duration).toEqual({ ms: 833 });
+  });
+
+  it("writes an anim offset typed while unset in ms, or in ticks once switched", () => {
+    const { session, block } = open();
+    show(session, "lamp");
+    const offset = "behaviors.anim.offset";
+    type(offset, "100");
+    expect(block("lamp", "anim").offset).toEqual({ ms: 100 });
+    type(offset, "");
+    expect(block("lamp", "anim").offset).toBeUndefined();
+    fireEvent.click(within(rowOf(offset)).getByRole("button", { name: "ticks" }));
+    type(offset, "3");
+    expect(block("lamp", "anim").offset).toBe(3);
   });
 });
 

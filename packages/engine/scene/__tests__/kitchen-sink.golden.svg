@@ -54,7 +54,7 @@
 <path data-ref="door-2/panel" data-type="follower" d="M3292 1080L3308 1080L3308 1160L3292 1160Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="floor-plan" data-type="nav" d="M1900 300L2300 300L2300 400L2050 400L2050 550L1900 550Z" fill="none" stroke="#55aaff" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="pillar" data-type="nav" d="M2120 330L2180 330L2180 370L2120 370Z" fill="none" stroke="#55aaff" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
-<path data-ref="framing" data-type="camera-region" stroke-dasharray="13.5 9" d="M900 50L2100 50L2100 750L900 750Z" fill="none" stroke="#ff9966" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="framing" data-type="camera-region" stroke-dasharray="13.5 9" d="M900 50L2100 50L2100 750L900 750Z" fill="none" stroke="#ff9966" stroke-opacity="0.9" stroke-width="4.5" stroke-linejoin="round"/>
 <g data-ref="start" data-type="marker" class="spawn"><path d="M760 1140V1090.5L787 1101.75L760 1113" fill="#ffcc44" fill-opacity="0.85" stroke="#ffcc44" stroke-width="3.38"/><circle cx="760" cy="1140" r="6.75" fill="#ffcc44"/></g>
 <g data-ref="shelf-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1440" cy="680" r="11.25"/><path d="M1422 680H1458M1440 662V698"/></g>
 <g data-ref="wing-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="3220" cy="480" r="11.25"/><path d="M3202 480H3238M3220 462V498"/></g>

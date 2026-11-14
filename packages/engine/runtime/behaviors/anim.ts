@@ -3,9 +3,9 @@ import { frameShapesAt } from "../../anim/shapes";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import { ANIM, type AnimBlock } from "../../game/behaviors/anim";
 import { SPRITE, spriteOffset, type SpriteBlock } from "../../game/behaviors/sprite";
-import { isCount, wholeTicksIn } from "../../game/time";
+import { delayTicks, isCount, wholeTicksIn } from "../../game/time";
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
-import { ANIMATION_KIND, type AnimationFile } from "../../project/kinds/animation";
+import { clipSourceIn } from "../../project/clip-source";
 import { closest } from "../../scene/did-you-mean";
 import type { ShapeObj } from "../../scene/types";
 import { spawnPose } from "../spawn-pose";
@@ -91,7 +91,7 @@ function startAt(clip: ResolvedClip, offset: number): number {
  * on to its `next`, else holds its last frame and raises `anim:end`.
  * An entity's first frame is entered on the first tick after it attaches
  * or after `play` (on that same tick when `play` runs before this system's
- * step); one started `offset` ticks in mid-frame raises nothing for it.
+ * step); one started `offset` in mid-frame raises nothing for it.
  */
 export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const runs = new Map<string, Run>();
@@ -108,10 +108,10 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
     const key = `${source}@${ctx.time.rate}`;
     const cached = resolved.get(key);
     if (cached) return cached;
-    let clips: ReadonlyMap<string, ResolvedClip> = new Map();
-    const doc = project?.doc?.<AnimationFile>(ANIMATION_KIND, source);
-    const atlas = project?.asset(doc ? doc.atlas : source);
-    if (atlas) clips = resolveClips(doc ? { animation: doc } : { atlas }, atlas, ctx.time).clips;
+    const found = project ? clipSourceIn(project, source) : null;
+    const clips: ReadonlyMap<string, ResolvedClip> = found
+      ? resolveClips(found.source, found.atlas, ctx.time).clips
+      : new Map();
     resolved.set(key, clips);
     return clips;
   }
@@ -215,7 +215,11 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       shown,
       byCode: false,
     };
-    begin(run, clips.get(block.clip) ?? null, block.offset ?? 0);
+    begin(
+      run,
+      clips.get(block.clip) ?? null,
+      delayTicks(block.offset ?? 0, ctx.time, "anim offset"),
+    );
     return run;
   }
 

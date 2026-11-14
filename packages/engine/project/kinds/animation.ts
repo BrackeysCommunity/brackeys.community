@@ -174,7 +174,9 @@ const listed = (names: readonly string[]) =>
  * null when the host has none (a missing asset is the ref index's
  * `asset-missing`), and then only the checks that need no atlas run.
  *
- * `asset-kind` for an atlas id naming another kind; `anim-tag-unknown` and
+ * `asset-kind` for an atlas id naming another kind (so clip resolution
+ * refuses every clip; the kind's validation leaves that fault to the ref
+ * index and passes null); `anim-tag-unknown` and
  * `asset-frame-unknown` for a tag or frame the atlas lacks;
  * `frame-shape-invalid` for a shape set name that isn't lowercase with
  * dashes or a tuple that doesn't parse; `anim-clip-unknown` for a `next`
@@ -290,8 +292,11 @@ export const animationKind = defineAssetKind({
     rest: { as: "atomic" },
   },
   limits: { maxStateBytes: 262_144, maxItems: 512 },
-  validate: (file: AnimationFile, env: KindEnv): SceneIssue[] =>
-    animationIssues(file, env.project ? assetInfo(env.project, file.atlas) : null),
+  // A missing or wrong-kind atlas is the ref index's, through `refs`.
+  validate: (file: AnimationFile, env: KindEnv): SceneIssue[] => {
+    const atlas = env.project ? assetInfo(env.project, file.atlas) : null;
+    return animationIssues(file, atlas?.kind === ATLAS_KIND ? atlas : null);
+  },
   refs: (file: AnimationFile): RefSite[] => [
     { pointer: "/atlas", id: file.atlas, kinds: [ATLAS_KIND] },
   ],

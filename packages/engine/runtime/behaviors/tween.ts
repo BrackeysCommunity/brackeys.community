@@ -11,6 +11,7 @@ import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors
 import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import { SPRITE } from "../../game/behaviors/sprite";
 import {
+  isLookChannel,
   POSE_CHANNELS,
   TWEEN,
   tweenChannels,
@@ -20,6 +21,7 @@ import {
   type TweenChannel,
   type TweenSpec,
 } from "../../game/behaviors/tween";
+import { zodIssueText } from "../../game/fields";
 import { delayTicks, wholeTicksIn } from "../../game/time";
 import {
   EngineError,
@@ -28,6 +30,7 @@ import {
   type SceneSystem,
 } from "../../game/types";
 import type { RuntimeEntity } from "../../scene/types";
+import { plainJsonProblem } from "../persist";
 import { spawnPose } from "../spawn-pose";
 import { spriteLook, type SpriteLook, type SpriteSystem } from "./sprite";
 
@@ -92,9 +95,6 @@ const isPose = (channel: string) => POSE_CHANNELS.includes(channel as TweenChann
 
 const entryKey = (spec: TweenSpec) => JSON.stringify(spec);
 
-const isLookChannel = (channel: string): channel is keyof SpriteLook =>
-  channel === "alpha" || channel === "tint" || channel === "scale";
-
 /** The look a world save held for an entity, its channels checked; null when there is none. */
 function savedLook(value: unknown): SpriteLook | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
@@ -104,16 +104,21 @@ function savedLook(value: unknown): SpriteLook | null {
   return Object.keys(out).length > 0 ? out : null;
 }
 
+/** `spec` checked as a tween, its `emit.data` as plain JSON too, since a step event and a world save carry it. */
 function parsedSpec(spec: unknown, entityId?: string): TweenSpec {
   const parsed = tweenSpecSchema.safeParse(spec);
-  if (parsed.success) return parsed.data;
-  const issue = parsed.error.issues[0];
-  const where = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
-  throw new EngineError(
-    "schema",
-    `a tween doesn't match its schema: ${where}${issue?.message ?? "invalid"}`,
-    entityId,
-  );
+  if (!parsed.success) {
+    throw new EngineError(
+      "schema",
+      `a tween doesn't match its schema: ${zodIssueText(parsed.error)}`,
+      entityId,
+    );
+  }
+  const data = parsed.data.emit?.data;
+  const problem = data === undefined ? null : plainJsonProblem({ data });
+  if (problem)
+    throw new EngineError("schema", `a tween's emit isn't plain JSON: ${problem}`, entityId);
+  return parsed.data;
 }
 
 /**
@@ -188,16 +193,25 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     return add({ state: stateOf(spec, defined(spec.to)!, defined(spec.from), owner, index) });
   }
 
+  /**
+   * Why `e` can't take `spec`. An entity riding a host (a solid's or
+   * sensor's `attach`) goes where the host's body takes it, so its pose
+   * can't be tweened either.
+   */
   function targetProblem(e: RuntimeEntity, spec: TweenSpec): string | null {
     const system = ctx.system<SceneSystem>(e.type);
+    const host = e.attach;
+    const rides = typeof host === "string" && ctx.attachments.attachedTo(host).includes(e.id);
     return tweenTargetProblem(
-      { type: e.type, posable: typeof system?.setPose === "function" },
+      rides
+        ? { type: `${e.type} riding "${host}"`, posable: false }
+        : { type: e.type, posable: typeof system?.setPose === "function" },
       tweenChannels(spec),
       SPRITE.name in (e.behaviors ?? {}),
     );
   }
 
-  function startBlock(id: string, block: TweenBlock, entity?: RuntimeEntity): void {
+  function checkBlock(id: string, block: TweenBlock, entity?: RuntimeEntity): void {
     block.tweens.forEach((spec, i) => {
       const problem = entity ? targetProblem(entity, spec) : null;
       if (problem) {
@@ -208,8 +222,65 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
         );
       }
     });
+  }
+
+  function startBlock(id: string, block: TweenBlock, entity?: RuntimeEntity): void {
+    checkBlock(id, block, entity);
     blocks.set(id, block);
     block.tweens.forEach((spec, i) => startEntry(id, spec, i));
+  }
+
+  /**
+   * The block changed, or a swap replaced its entity. An entry written as
+   * before keeps its place: running on, or finished, except that a finished
+   * one that moved the pose plays again, since the swap put the entity back
+   * at its spawn pose. Any other entry starts over, and the look channels
+   * only those wrote go back to the sprite block's, so a restart starts
+   * from that look and not a mid-tween one.
+   */
+  function updateBlock(id: string, block: TweenBlock, prev: TweenBlock, entity: RuntimeEntity) {
+    checkBlock(id, block, entity);
+    const running = new Set<number>();
+    for (const { state } of tweens.values())
+      if (state.owner === id && state.block !== undefined) running.add(state.block);
+    const keeps = (i: number) => {
+      const before = prev.tweens[i];
+      const now = block.tweens[i];
+      if (before === undefined || now === undefined || entryKey(before) !== entryKey(now))
+        return false;
+      return running.has(i) || !tweenChannels(now).some((c) => !isLookChannel(c));
+    };
+    for (const [tid, { state }] of tweens)
+      if (state.owner === id && state.block !== undefined && !keeps(state.block))
+        tweens.delete(tid);
+    const kept = new Set<string>();
+    const reset = new Set<string>();
+    prev.tweens.forEach((spec, i) => {
+      for (const c of tweenChannels(spec)) if (isLookChannel(c)) (keeps(i) ? kept : reset).add(c);
+    });
+    blocks.set(id, block);
+    restyle(
+      entity,
+      [...reset].filter((c) => !kept.has(c)),
+    );
+    block.tweens.forEach((spec, i) => {
+      if (!keeps(i)) startEntry(id, spec, i);
+    });
+  }
+
+  /** Drops what tweens held of `e`'s look on `channels` and draws those as its sprite block does. */
+  function restyle(e: RuntimeEntity, channels: readonly string[]): void {
+    const held = looks.get(e.id);
+    if (!held || channels.length === 0) return;
+    const base = spriteLook(ctx, e);
+    const look: SpriteLook = {};
+    for (const c of channels) {
+      if (!isLookChannel(c) || held[c] === undefined) continue;
+      delete held[c];
+      look[c] = base[c];
+    }
+    if (Object.keys(held).length === 0) looks.delete(e.id);
+    if (Object.keys(look).length > 0) ctx.behavior<SpriteSystem>(SPRITE.name)?.style(e.id, look);
   }
 
   function dropBlock(id: string): void {
@@ -374,10 +445,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
 
   const system: TweenSystem = {
     attach: (id, block, entity) => startBlock(id, block, entity),
-    update(id, block, _prev, entity) {
-      dropBlock(id);
-      startBlock(id, block, entity);
-    },
+    update: updateBlock,
     detach: dropBlock,
     // Pausing follows the owner hooks, which reach entities without a block too.
     disable() {},

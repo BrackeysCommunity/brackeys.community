@@ -7,6 +7,7 @@ import {
   spriteOffset,
   type SpriteBlock,
 } from "../../game/behaviors/sprite";
+import type { LookChannel } from "../../game/behaviors/tween";
 import { styleOf } from "../../game/style";
 import type { EngineContext } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
@@ -38,7 +39,7 @@ export type SpriteSystem<B extends BehaviorBlock = BehaviorBlock> = BehaviorSyst
 };
 
 /** What a tween animates of a sprite: `scale` multiplies its drawn size. */
-export type SpriteLook = { alpha?: number; tint?: number; scale?: number };
+export type SpriteLook = { [C in LookChannel]?: number };
 
 const WHITE = 0xffffff;
 

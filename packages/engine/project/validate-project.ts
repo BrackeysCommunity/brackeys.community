@@ -9,7 +9,8 @@ import type { AssetEntry, AssetId, AssetKindName, ProjectView } from "./types";
 /**
  * Every doc's `validate` (through `parseAssetDoc`: JSON, migrations,
  * schema, then the kind's own checks), then every kind's `crossValidate`
- * over a lookup of the docs in `texts` that parse, in path order. A doc
+ * over a lookup whose `ids` list every live entry of a kind (blobs too) in
+ * path order and whose `read` gives the docs in `texts` that parse. A doc
  * with no text in `texts` is skipped. Each issue names its doc first in
  * `entityIds`. Never throws: a check that throws reports as a `schema`
  * error on its doc.
@@ -23,7 +24,9 @@ export function validateProject(
   const issues: SceneIssue[] = [];
   const entries = [...view.byId.values()].sort(byPathThenKey);
   const docs: { entry: AssetEntry; def: DocKindDef }[] = [];
+  const ids = new Map<AssetKindName, AssetId[]>();
   for (const entry of entries) {
+    ids.set(entry.kind, [...(ids.get(entry.kind) ?? []), entry.id]);
     const def = kinds.get(entry.kind);
     if (def?.storage === "doc") docs.push({ entry, def });
   }
@@ -43,10 +46,10 @@ export function validateProject(
     issues.push(...withId(entry.id, found));
   }
 
-  const lookup = docLookup(parsed);
+  const lookup = docLookup(parsed, ids);
   for (const { entry, def } of docs) {
     if (!def.crossValidate || !parsed.get(entry.kind)?.has(entry.id)) continue;
-    const value = lookup.doc(entry.kind, entry.id);
+    const value = lookup.read(entry.kind, entry.id);
     const found = guarded(entry, "cross-validating", () => def.crossValidate!(value, lookup, env));
     issues.push(...withId(entry.id, found));
   }

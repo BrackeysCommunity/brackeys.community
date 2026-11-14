@@ -1,5 +1,3 @@
-import { lerp, lerpAngle } from "../math";
-
 export type Pose = {
   x: number;
   y: number;
@@ -80,11 +78,19 @@ export function createPoseIndex(tick: () => number): WatchedPoseIndex {
   };
 }
 
+const TAU = Math.PI * 2;
+
+/** From angle `a` toward `b` (radians) by `t`, turning the shorter way round. Defined here because the pose index takes no value imports. */
+export function lerpAngle(a: number, b: number, t: number): number {
+  const d = ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
+  return a + d * t;
+}
+
 /** `prev` toward `cur` by `alpha`: what a rendered frame between two ticks draws, turning the shorter way. */
 export function lerpPose(prev: Readonly<Pose>, cur: Readonly<Pose>, alpha: number): Pose {
   return {
-    x: lerp(prev.x, cur.x, alpha),
-    y: lerp(prev.y, cur.y, alpha),
+    x: prev.x + (cur.x - prev.x) * alpha,
+    y: prev.y + (cur.y - prev.y) * alpha,
     rot: lerpAngle(prev.rot, cur.rot, alpha),
   };
 }

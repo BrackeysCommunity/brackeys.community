@@ -58,9 +58,9 @@ export type ProjectRuntimeView = {
    * frozen; undefined for an unknown id, a doc that doesn't parse, or a
    * kind that isn't a runtime kind. `runtimeView` always sets it.
    */
-  doc?: DocLookup["doc"];
+  doc?: DocLookup["read"];
   /** The ids `doc` answers for a runtime kind, in path order. `runtimeView` always sets it. */
-  docs?: DocLookup["docs"];
+  docs?: DocLookup["ids"];
 };
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
@@ -141,8 +141,8 @@ export function runtimeView(
     },
     inputMap,
     flow,
-    doc: runtimeDocs.doc,
-    docs: runtimeDocs.docs,
+    doc: runtimeDocs.read,
+    docs: runtimeDocs.ids,
   });
 }
 

@@ -10,6 +10,7 @@ BindingLayerName
 BindingLayers
 BlendMode
 BoundInput
+BurstOptions
 CameraMode
 CameraState
 DEFAULT_INDEXED_DB_NAME
@@ -20,6 +21,7 @@ Dihedral
 ENGINE_VERSION
 EffectLayer
 ExpandedScene
+FlashOptions
 FlowRequest
 FlowResult
 FrameRect
@@ -111,6 +113,7 @@ UiContext
 UiHandle
 Vec2
 ViewportDef
+ViewportRect
 acceptedTimings
 acceptedTimingsWords
 applyPt
@@ -163,6 +166,7 @@ timingWords
 utf8Bytes
 versionName
 viewportFor
+viewportRect
 watchView
 
 ## @jams/engine/collab
@@ -882,6 +886,7 @@ BodyEntry
 BodyKind
 BodyStandIn
 BulkKeyInfo
+BurstOptions
 CAMERA_RIG_SCHEMA
 CAMERA_TARGET
 CHARACTER_JUMPED
@@ -970,6 +975,7 @@ EventBus
 EventSubscribeOptions
 FORCE_AREA
 FieldEnv
+FlashOptions
 FlowContext
 FlowField
 FlowRequest
@@ -1792,6 +1798,7 @@ kindInputMap
 liveCompat
 liveCompatKey
 liveFiles
+manifestDocRefs
 materialKind
 materialSchema
 mayBeAssetFile
@@ -2098,6 +2105,7 @@ decodeRow
 defaultLayer
 defaultPhysics
 describeChange
+didYouMean
 diffExpanded
 diffPrefabToOps
 diffScenes
@@ -2384,11 +2392,6 @@ sceneNameOf
 snapshotFiles
 
 ## anim/clips.ts
-type ClipSource = {
-    animation: AnimationFile;
-} | {
-    atlas: AssetInfo;
-};
 type ResolvedClip = {
     frames: readonly {
         events: readonly string[];
@@ -2485,6 +2488,13 @@ type ViewportDef = {
     ];
     rig?: CameraRigDef;
 };
+type ViewportRect = {
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+};
+declare function viewportRect(def: ViewportDef, width: number, height: number): ViewportRect;
 
 ## collab/apply.ts
 type DocApplyOptions = ApplyOptions & {
@@ -4533,6 +4543,7 @@ type BehaviorOption = {
     label: string;
     name: BehaviorName;
     unavailable?: string;
+    uses?: string[];
 };
 type BehaviorSectionId = `behaviors:${BehaviorName}`;
 type BehaviorSectionInfo = {
@@ -4579,12 +4590,13 @@ type FieldWidget = {
     step?: number;
     unit?: string;
 } | {
-    format: "json" | "text";
-    kind: "readonly";
-} | {
+    clip?: FieldPath;
     frame?: FieldPath;
     kind: "asset";
     kinds: AssetKindName[];
+} | {
+    format: "json" | "text";
+    kind: "readonly";
 } | {
     id: string;
     kind: "custom";
@@ -4594,7 +4606,17 @@ type FieldWidget = {
     kind: "angle";
     snapDeg: number;
 } | {
+    item: string;
+    kind: "list";
+    max?: number;
+    min?: number;
+    seed?: unknown;
+} | {
     kind: "color";
+} | {
+    kind: "delay";
+    min: number;
+    rate: number;
 } | {
     kind: "object";
 } | {
@@ -4702,6 +4724,8 @@ type ShapeConversion = {
     tuple: ShapeTuple;
 };
 declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
+    assetKind?: (id: AssetId) => AssetKindName | undefined;
+    clips?: (source: AssetId) => null | readonly string[];
     def?: SceneDefinition;
 }): InspectorModel;
 declare function instanceParamsModel(def: SceneDefinition, ref: Ref, registry: Registry, prefabs: PrefabLibrary): InstanceParamsModel | null;
@@ -5580,7 +5604,12 @@ declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): B
 ## game/behaviors/anim.ts
 declare const ANIM: BehaviorDef<{
     clip: z.ZodString;
-    offset: z.ZodOptional<z.ZodNumber>;
+    offset: z.ZodOptional<z.ZodUnion<readonly [
+        z.ZodNumber,
+        z.ZodObject<{
+            ms: z.ZodNumber;
+        }, z.core.$strict>
+    ]>>;
     playing: z.ZodOptional<z.ZodBoolean>;
     source: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
     speed: z.ZodOptional<z.ZodNumber>;
@@ -5588,7 +5617,12 @@ declare const ANIM: BehaviorDef<{
 type AnimBlock = z.infer<z.ZodObject<ReturnType<typeof animFields>>>;
 declare const animFields: (env: FieldEnv) => {
     clip: z.ZodString;
-    offset: z.ZodOptional<z.ZodNumber>;
+    offset: z.ZodOptional<z.ZodUnion<readonly [
+        z.ZodNumber,
+        z.ZodObject<{
+            ms: z.ZodNumber;
+        }, z.core.$strict>
+    ]>>;
     playing: z.ZodOptional<z.ZodBoolean>;
     source: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
     speed: z.ZodOptional<z.ZodNumber>;
@@ -6704,6 +6738,7 @@ declare const PRIMITIVES: {
         style: {
             alpha: number;
             stroke: number;
+            strokeWidth: number;
         };
         type: string;
     };
@@ -7886,12 +7921,15 @@ type LibraryOption = {
     library?: PrefabLibrary;
     prefabs?: PrefabLibrary;
 };
+type ObserveOption = {
+    observe?: (ctx: EngineContext, tick: number) => void;
+};
 type RuntimeShareOptions = Pick<SceneRuntimeOptions, "persist" | "prefabs">;
 declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions): HeadlessRuntime & {
     live: HeadlessLive;
     save: NonNullable<HeadlessRuntime["save"]>;
 };
-declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
+declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption & ObserveOption): ProbeReport<S>;
 declare function simActionError(registry: Registry, action: string): null | string;
 declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
 
@@ -9075,6 +9113,11 @@ type ClipDef = {
     tag?: string;
 };
 type ClipLoop = "hold" | "loop" | "once" | "pingpong";
+type ClipSource = {
+    animation: AnimationFile;
+} | {
+    atlas: AssetInfo;
+};
 declare const SHAPE_SET_NAME: RegExp;
 declare function animationIssues(file: AnimationFile, atlas: AssetInfo | null | undefined): SceneIssue[];
 declare const animationKind: {
@@ -9363,8 +9406,8 @@ type DocLayout = {
     as: "text";
 };
 type DocLookup = {
-    ids(kind: AssetKindName): readonly AssetId[];
-    read<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+    ids: (kind: AssetKindName) => readonly AssetId[];
+    read: <T = unknown>(kind: AssetKindName, id: AssetId) => T | undefined;
 };
 type InspectEnv = {
     idAt(path: AssetPath): AssetId | undefined;
@@ -10682,6 +10725,7 @@ declare function findRelease<R extends {
     manifest: ReleaseManifest;
 }>(recording: ReleaseRecordingRef, releases: readonly R[]): R | null;
 declare function formatReleaseManifest(manifest: ReleaseManifest): string;
+declare function manifestDocRefs(texts: ReadonlyMap<AssetId, string>, registry: Registry, kinds?: KindRegistry): NonNullable<CheckReleaseOptions["docRefs"]>;
 declare function parseReleaseManifest(text: string): ParseReleaseManifestResult;
 declare function releaseBuildHash(files: readonly ReleaseFile[]): Promise<Sha256>;
 declare function releaseId(manifest: ReleaseManifest): Promise<Sha256>;
@@ -10702,8 +10746,8 @@ type HeldProject = {
 };
 type ProjectRuntimeView = {
     asset(id: AssetId, frame?: string): AssetInfo | undefined;
-    doc?<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
-    docs?(kind: AssetKindName): readonly AssetId[];
+    doc?: DocLookup["read"];
+    docs?: DocLookup["ids"];
     engine: Readonly<Record<string, unknown>>;
     flow?: SceneListFlow;
     inputMap: InputMapFile | null;
@@ -11157,11 +11201,7 @@ declare function traceShape(g: Graphics, shape: ShapeObj, scale?: number): void;
 
 ## render/effects.ts
 interface EffectLayer {
-    flash(opts?: {
-        alpha?: number;
-        color?: number;
-        ms?: number;
-    }): void;
+    flash(opts?: FlashOptions): void;
     hitStop(ms: number): void;
     clear(): void;
 }
@@ -11173,11 +11213,7 @@ declare function createEffectLayer(layer: HTMLElement, loop: Pick<GameLoop, "get
 interface ParticleLayer {
     emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
     remove(id: string): void;
-    burst(preset: EmitterFile, at: Vec2, opts?: {
-        angle?: number;
-        count?: number;
-        tint?: number;
-    }): void;
+    burst(preset: EmitterFile, at: Vec2, opts?: BurstOptions): void;
     update(dtMs: number): void;
     stats(): {
         emitters: number;
@@ -11188,7 +11224,7 @@ interface ParticleLayer {
 type ParticleLayerOptions = {
     layer?: (layer: ViewLayer) => Container;
     pxPerMetre?: number;
-    reducedMotion: boolean;
+    reducedMotion: (() => boolean) | boolean;
     seed: string;
     texture?: (preset: EmitterFile) => ParticleTexture | null;
 };
@@ -11481,6 +11517,11 @@ type AudioRequest = {
     key: string;
     op: "stop";
 };
+type BurstOptions = {
+    angle?: number;
+    count?: number;
+    tint?: number;
+};
 type CameraRequest = {
     at?: Vec2;
     op: "snap";
@@ -11500,21 +11541,20 @@ type CameraRequest = {
     trauma: number;
     viewport?: number;
 };
-type EffectRequest = {
+type EffectRequest = ({
+    at: Vec2;
+    op: "burst";
+    preset: AssetId;
+} & BurstOptions) | ({
+    op: "flash";
+} & FlashOptions) | {
+    ms: number;
+    op: "hitStop";
+};
+type FlashOptions = {
     alpha?: number;
     color?: number;
     ms?: number;
-    op: "flash";
-} | {
-    angle?: number;
-    at: Vec2;
-    count?: number;
-    op: "burst";
-    preset: AssetId;
-    tint?: number;
-} | {
-    ms: number;
-    op: "hitStop";
 };
 type PresentRequest = {
     kind: "audio";
@@ -11544,16 +11584,8 @@ interface PresentationQueue {
         }): void;
     };
     effects: {
-        burst(preset: AssetId, at: Vec2, opts?: {
-            angle?: number;
-            count?: number;
-            tint?: number;
-        }): void;
-        flash(opts?: {
-            alpha?: number;
-            color?: number;
-            ms?: number;
-        }): void;
+        burst(preset: AssetId, at: Vec2, opts?: BurstOptions): void;
+        flash(opts?: FlashOptions): void;
         hitStop(ms: number): void;
     };
     audio: {
@@ -12042,6 +12074,7 @@ declare function createScene(name: string, registry: Registry, opts?: {
 
 ## scene/did-you-mean.ts
 declare function closest(word: string, candidates: readonly string[]): string | undefined;
+declare function didYouMean(word: string, candidates: readonly string[]): string;
 
 ## scene/diff-to-ops.ts
 declare function diffPrefabToOps(view: SceneDefinition, next: Prefab, registry?: Registry, header?: Pick<Prefab, "base" | "params">): OpBatch;
@@ -15531,6 +15564,7 @@ type ValidateOptions = {
     prefab?: string;
     prefabs?: PrefabLibrary;
     project?: ProjectView;
+    runtime?: Pick<ProjectRuntimeView, "doc">;
     settings?: SettingsSources;
 };
 declare function sublevelIssue(main: SublevelSettings, sub: SublevelSettings, opts: SublevelJudgeOptions): SceneIssue | null;
@@ -16617,7 +16651,7 @@ type StagedVersion = {
     texts: ReadonlyMap<Sha256, string>;
     version: SceneVersion;
 };
-type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement, env: {
+type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement, env?: {
     reducedMotion: boolean;
 }) => Promise<void>;
 type UiActionEvent = {

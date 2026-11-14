@@ -9,6 +9,7 @@ import { createRegistry, withProject } from "../game/define";
 import { stableJson } from "../project/canonical";
 import { memoryContentStore } from "../project/content-store";
 import { sha256 } from "../project/hash";
+import type { RefSite } from "../project/refs";
 import {
   checkReleaseManifest,
   findRelease,
@@ -490,6 +491,17 @@ describe("checkReleaseManifest", () => {
         .map((i) => [i.code, i.got, i.expected]),
     ).toEqual([["asset-missing", "tiles", "an asset"]]);
     expect(where(await check(base.manifest))).toEqual([]);
+  });
+
+  it("takes a material name no shipped material has for a game's code material", async () => {
+    const sites = {
+      "level-1": [
+        { pointer: "/entities/solid:ice", id: "ice", kinds: ["material"], in: "key" as const },
+        { pointer: "/entities/@floor/material", id: "units", kinds: ["material"] },
+      ],
+    } as Record<string, RefSite[]>;
+    const docRefs = (id: AssetId) => sites[id] ?? [];
+    expect(where(await checkReleaseManifest(base.manifest, base.files, { docRefs }))).toEqual([]);
   });
 
   it("reports a shape the schema refuses before anything else", async () => {

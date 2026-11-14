@@ -17,6 +17,8 @@ export {
   type Dihedral,
   type Transform2D,
 } from "./scene/transform";
+export { cssHex } from "./game/color";
+export { lerpAngle } from "./runtime/poses";
 
 /** Linearly interpolate between two numbers */
 export function lerp(a: number, b: number, t: number): number {
@@ -31,14 +33,6 @@ export function lerpVec2(a: Vec2, b: Vec2, t: number): Vec2 {
   };
 }
 
-const TAU = Math.PI * 2;
-
-/** From angle `a` toward `b` (radians) by `t`, turning the shorter way round. */
-export function lerpAngle(a: number, b: number, t: number): number {
-  const d = ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
-  return a + d * t;
-}
-
 /** Each 8-bit channel of 0xRRGGBB colours `a` to `b` by `t`, rounded and kept in 0–255. */
 export function lerpRgb(a: number, b: number, t: number): number {
   let out = 0;
@@ -50,14 +44,13 @@ export function lerpRgb(a: number, b: number, t: number): number {
   return out;
 }
 
-/** A 0xRRGGBB colour as CSS hex, `#rrggbb`. */
-export const cssHex = (rgb: number): string =>
-  `#${(Math.trunc(rgb) & 0xffffff).toString(16).padStart(6, "0")}`;
-
 /** Clamp a number between min and max */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+/** Hermite smoothstep of `t` in 0–1: eases in and out with zero slope at both ends. */
+export const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 
 /** Clamp a Vec2 component-wise between min and max Vec2s */
 export function clampVec2(v: Vec2, min: Vec2, max: Vec2): Vec2 {

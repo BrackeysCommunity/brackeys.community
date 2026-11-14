@@ -12,7 +12,7 @@ import type { FieldEnv } from "../types";
 
 const emitterFields = (env: FieldEnv) => ({
   preset: assetField(env, [EMITTER_KIND], "The emitter preset."),
-  emitting: z.boolean().optional().describe("Default true."),
+  emitting: z.boolean().optional().describe("Default true.").meta({ default: true }),
   offset: vectorField("World metres from the pose; turns and flips with the instance.").optional(),
   rate: z
     .number()

@@ -157,7 +157,7 @@ describe("Add behavior templates", () => {
       );
     });
 
-    it("links the source to its clip, and shows ticks and per-second units", () => {
+    it("links the source to its clip, and shows a ms/ticks offset and per-second units", () => {
       const def = room({
         ...hero,
         behaviors: {
@@ -174,7 +174,7 @@ describe("Add behavior templates", () => {
         kind: "asset",
         clip: "behaviors.anim.clip",
       });
-      expect(widget("behaviors.anim.offset")).toMatchObject({ kind: "number", unit: "ticks" });
+      expect(widget("behaviors.anim.offset")).toMatchObject({ kind: "delay", min: 0 });
       expect(widget("behaviors.emitter.rate")).toMatchObject({ kind: "number", unit: "/s" });
     });
 

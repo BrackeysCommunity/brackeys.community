@@ -1630,17 +1630,28 @@ export async function createGame(
     const regions = sceneRegions(loaded.runtime).length > 0;
     const scene = loaded.runtime.scene();
     if (!main.rig && regions && scene) {
-      main.rig = createCameraRig({}, scene.name);
-      main.rig.request({ op: "snap", at: camera.getPosition() });
-      main.frameAt = null;
+      startMainRig({}, scene);
       regionRig = true;
     } else if (regionRig && !regions) {
       main.rig = null;
+      main.frameAt = null;
       regionRig = false;
       camera.setZoom(1);
       updateCamera(store, { zoom: 1, scale: camera.getState().scale });
     }
     return main.rig !== null;
+  }
+
+  /**
+   * Gives the first viewport a rig for `def` in place of the plain follow,
+   * starting where the follow left the camera, its first frame taking no time.
+   */
+  function startMainRig(def: CameraRigDef, scene: ExpandedScene): CameraRig {
+    const rig = createCameraRig(def, scene.name);
+    rig.request({ op: "snap", at: camera.getPosition() });
+    main.rig = rig;
+    main.frameAt = null;
+    return rig;
   }
 
   /**
@@ -1924,10 +1935,16 @@ export async function createGame(
           if (!vc || frameOf(index) === "scene") break;
           const scene = loaded?.runtime.scene();
           if (!scene) break;
-          vc.rig ??= createCameraRig(rigDefOf(scene, index) ?? {}, scene.name);
+          let rig = vc.rig;
+          if (!rig) {
+            const def = rigDefOf(scene, index) ?? {};
+            // A viewport past the first has no plain follow, so its rig starts on its targets.
+            rig =
+              index === 0 ? startMainRig(def, scene) : (vc.rig = createCameraRig(def, scene.name));
+          }
           // A rig a camera request has steered stays when the scene loses its regions.
           if (index === 0) regionRig = false;
-          vc.rig.request(req.op);
+          rig.request(req.op);
           break;
         }
         case "effect":

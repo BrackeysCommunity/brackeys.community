@@ -148,8 +148,8 @@ export type GameConfig = {
   release?: { id: Sha256; manifest: ReleaseManifest };
   /**
    * Whether shake, flashes, particles, fades and HUD animations calm down;
-   * "auto" (the default) follows the page's `prefers-reduced-motion`.
-   * Resolved once, at `createGame`.
+   * "auto" (the default) follows the page's `prefers-reduced-motion` as
+   * it changes, from the next frame.
    */
   reducedMotion?: boolean | "auto";
   /** Split screen or a minimap: 1–4 viewports over the canvas; default one framing the main targets. */
@@ -176,12 +176,16 @@ export type SceneSource = {
   scene(id: AssetId): LibraryScene | null;
 };
 
-/** Runs one half of a transition over `layer`, which sits above the game's UI; under `env.reducedMotion` a fade is a cut. */
+/**
+ * Runs one half of a transition over `layer`, which sits above the game's
+ * UI; under `env.reducedMotion` a fade is a cut. The flow host always
+ * passes `env`; a caller that leaves it out means full motion.
+ */
 export type TransitionRunner = (
   phase: "out" | "in",
   spec: TransitionSpec,
   layer: HTMLElement,
-  env: { reducedMotion: boolean },
+  env?: { reducedMotion: boolean },
 ) => Promise<void>;
 
 /** What the flow host shows while a slow load runs. */
@@ -593,7 +597,10 @@ export type GameInstance = {
   saves: SaveSlots;
   /** New versions of listed scenes, staged and swapped into the running game. */
   live: GameLive;
-  /** `GameConfig.reducedMotion` as resolved at `createGame`: what the effects, the camera and the UI read. */
+  /**
+   * `GameConfig.reducedMotion` as it stands now (under "auto", the page's
+   * setting at this moment): what the effects, the camera and the UI read.
+   */
   readonly reducedMotion: boolean;
   /**
    * Replaces the viewports (1–4; throws on any other count or a rect outside

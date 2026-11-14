@@ -5,7 +5,7 @@
  * timers, so every browser behaves alike.
  */
 import type { GameLoop } from "../loop";
-import { cssHex } from "../math";
+import { clamp, cssHex } from "../math";
 import type { FlashOptions } from "../runtime/present";
 import { colourVeil, fadeOpacity } from "../ui/flow-views";
 
@@ -57,7 +57,7 @@ export function createEffectLayer(
       const reduced = opts.reducedMotion();
       let ms = positive(o.ms) ? o.ms : FLASH_MS;
       let alpha = o.alpha !== undefined && Number.isFinite(o.alpha) ? o.alpha : FLASH_ALPHA;
-      alpha = Math.min(1, Math.max(0, alpha));
+      alpha = clamp(alpha, 0, 1);
       if (reduced) {
         ms = Math.min(ms, REDUCED_FLASH_MS);
         alpha = Math.min(alpha, REDUCED_FLASH_ALPHA);

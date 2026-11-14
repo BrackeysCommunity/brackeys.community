@@ -112,7 +112,7 @@ export {
   type ResolutionViewport,
 } from "./resolution";
 export { drawSprite, type BlendMode, type SpriteVisual } from "./context";
-export type { ViewportDef } from "./camera/viewports";
+export { viewportRect, type ViewportDef, type ViewportRect } from "./camera/viewports";
 export {
   createParticleLayer,
   type ParticleLayer,

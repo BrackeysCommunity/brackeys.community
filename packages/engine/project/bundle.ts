@@ -18,7 +18,7 @@ import { entityRefSites, headerAssetRefs } from "./kinds/fields";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
 import { MATERIAL_KIND } from "./kinds/material";
 import { TEXTURE_KIND } from "./kinds/texture";
-import { schemaRefSites, type RefSite } from "./refs";
+import { kindsLabel, schemaRefSites, siteFits, type RefSite } from "./refs";
 import type { AssetEntry, AssetId, AssetKindName, ProjectView, Sha256 } from "./types";
 
 /** One blob a bundle fetches. */
@@ -83,15 +83,14 @@ export function unsizedIds(issues: readonly SceneIssue[]): Set<AssetId> {
 /** A reference to resolve: `where` names its field for a message, `entityIds` its owner. */
 type Source = { site: RefSite; where: string; entityIds: string[] };
 
-const fits = (entry: AssetEntry, site: RefSite): boolean =>
-  site.kinds.length === 0 || site.kinds.includes(entry.kind);
+const fits = (entry: AssetEntry, site: RefSite): boolean => siteFits(site, entry.kind);
 
 /** The site's field below its first `skip` pointer segments, dotted. */
 const fieldOf = (site: RefSite, skip: number): string =>
   pointerSegments(site.pointer).slice(skip).join(".");
 
 function missingIssue(view: ProjectView, { site, where, entityIds }: Source): SceneIssue {
-  const what = site.kinds.length > 0 ? site.kinds.join(" or ") : "asset";
+  const what = kindsLabel(site);
   const live = view.byId.get(site.id);
   let why: string;
   if (live && fits(live, site)) why = "which has no content to fetch";

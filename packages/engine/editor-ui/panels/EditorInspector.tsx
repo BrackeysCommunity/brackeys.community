@@ -67,16 +67,18 @@ import {
   paramOverriddenBy,
 } from "../../editor/inspector-model";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
+import { ticksFor } from "../../game/time";
 import { pxPerMetreOf } from "../../game/units";
+import { sourceClipsIn } from "../../project/clip-source";
 import {
   assetInfo,
   isRuntimeKind,
   parseAssetDoc,
   type AssetId,
+  type AssetKindName,
   type ProjectView,
 } from "../../project/index";
-import { ANIMATION_KIND, sourceClipNames, type AnimationFile } from "../../project/kinds/animation";
-import { ATLAS_KIND } from "../../project/kinds/atlas";
+import { ANIMATION_KIND } from "../../project/kinds/animation";
 import type { PrefabLibrary } from "../../scene/index";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
@@ -871,6 +873,129 @@ function NestedFields({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
+/**
+ * A list of objects: each item's fields under its title with a Remove, then
+ * an Add that copies the last item (or the list's seed), within the list's
+ * bounds. A field edits its own item; Add and Remove set the whole list.
+ */
+function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const w = field.widget as Extract<FieldWidget, { kind: "list" }>;
+  const [error, setError] = useState<string | null>(null);
+  const items = Array.isArray(field.value) ? (field.value as unknown[]) : [];
+  const set = (next: unknown[]) => setError(commitField(ctx, field, next));
+  const last = items.at(-1) ?? w.seed;
+  const noun = w.item.toLowerCase();
+  if (field.mixed)
+    return (
+      <FieldRow field={field}>
+        <span className="je-insp-line je-insp-muted">{MIXED} differs across the selection</span>
+      </FieldRow>
+    );
+  return (
+    <NestedField field={field}>
+      {(field.children ?? []).map((item, i) => (
+        <div key={item.path} className="je-insp-row" data-gap="tight" data-align="start">
+          <div className="je-insp-grow">
+            <FieldView field={item} ctx={ctx} />
+          </div>
+          <IconButton
+            icon={Cancel01Icon}
+            size="icon-xs"
+            label={`Remove ${item.title}`}
+            tooltip={`Remove ${noun}`}
+            disabled={items.length <= (w.min ?? 0)}
+            onClick={() => set(items.filter((_, j) => j !== i))}
+          />
+        </div>
+      ))}
+      <Button
+        size="xs"
+        variant="ghost"
+        className="je-insp-start"
+        disabled={last === undefined || (w.max !== undefined && items.length >= w.max)}
+        {...(w.max !== undefined && items.length >= w.max
+          ? { tooltip: `Holds at most ${w.max}` }
+          : {})}
+        onClick={() => set([...items, structuredClone(last)])}
+      >
+        Add {noun}
+      </Button>
+      {error ? <span className="je-insp-error">{error}</span> : null}
+    </NestedField>
+  );
+}
+
+const DELAY_FORMS = ["ms", "ticks"] as const;
+type DelayForm = (typeof DELAY_FORMS)[number];
+
+/** A `Delay` value's number and the form it is in; undefined when unset or of neither form. */
+function delayParts(value: unknown): { form: DelayForm; n: number } | undefined {
+  if (typeof value === "number") return { form: "ticks", n: value };
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { ms?: unknown }).ms === "number"
+  )
+    return { form: "ms", n: (value as { ms: number }).ms };
+  return undefined;
+}
+
+/**
+ * A `Delay`: one number in the form the value holds (ms when unset) and a
+ * ms/ticks switch, which converts a set value at the game's tick rate.
+ */
+function DelayField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const w = field.widget as Extract<FieldWidget, { kind: "delay" }>;
+  const [unsetForm, setUnsetForm] = useState<DelayForm>("ms");
+  const [error, setError] = useState<string | null>(null);
+  const held = field.mixed ? undefined : delayParts(field.value);
+  const form = held?.form ?? unsetForm;
+  const commit = (text: string) => {
+    if (text.trim() === "" && field.optional) return commitField(ctx, field, undefined);
+    const n = resolveNumber(text, held?.n, { integer: form === "ticks", min: w.min });
+    if (n instanceof EditError) return n.message;
+    return commitField(ctx, field, form === "ticks" ? n : { ms: n });
+  };
+  const switchTo = (next: string) => {
+    if (next === form || !(DELAY_FORMS as readonly string[]).includes(next)) return;
+    if (!held) return setUnsetForm(next as DelayForm);
+    const converted =
+      next === "ms"
+        ? { ms: Math.max(w.min, Math.round((held.n * 1000) / w.rate)) }
+        : held.n === 0
+          ? 0
+          : Math.max(w.min, ticksFor(held.n, w));
+    setError(commitField(ctx, field, converted));
+  };
+  return (
+    <FieldRow field={field} error={error}>
+      <div className="je-insp-row" data-gap="tight">
+        <NumberInput
+          label={field.path}
+          value={held?.n}
+          fallback={field}
+          mixed={field.mixed}
+          step={1}
+          bigStep={10}
+          onCommit={commit}
+        />
+        <SegmentedControl
+          size="xs"
+          aria-label={`${field.path} unit`}
+          value={form}
+          onChange={switchTo}
+        >
+          {DELAY_FORMS.map((f) => (
+            <SegmentedControl.Item key={f} value={f}>
+              {f}
+            </SegmentedControl.Item>
+          ))}
+        </SegmentedControl>
+      </div>
+    </FieldRow>
+  );
+}
+
 /** A colour field: `0xRRGGBB` or `#rrggbb`, as the field's schema takes. */
 function ColorField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const [error, setError] = useState<string | null>(null);
@@ -1268,6 +1393,10 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     case "path":
     case "object":
       return <NestedFields field={field} ctx={ctx} />;
+    case "list":
+      return <ListField field={field} ctx={ctx} />;
+    case "delay":
+      return <DelayField field={field} ctx={ctx} />;
     case "color":
       return <ColorField field={field} ctx={ctx} />;
     case "asset":
@@ -1359,19 +1488,21 @@ const animationDocs = (project: ProjectSession, view: ProjectView) =>
     .sort();
 
 function clipsOf(project: ProjectSession, view: ProjectView, source: AssetId) {
-  const entry = view.byId.get(source);
-  if (entry?.kind === ATLAS_KIND) {
-    const atlas = assetInfo(view, source);
-    return atlas?.tags ? sourceClipNames({ atlas }) : null;
-  }
-  if (entry?.kind !== ANIMATION_KIND) return null;
-  const name = project.docNameFor(entry);
-  const held = name ? project.get(name) : undefined;
-  const kind = project.kinds.get(ANIMATION_KIND);
-  if (!held?.layout || !isRuntimeKind(kind)) return null;
   const env = { registry: project.registry, project: view };
-  const read = parseAssetDoc(kind, layoutFromDoc(held.doc, held.layout), env);
-  return read.ok ? sourceClipNames({ animation: read.value as AnimationFile }) : null;
+  function doc<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined {
+    const entry = view.byId.get(id);
+    if (entry?.kind !== kind) return undefined;
+    const def = project.kinds.get(kind);
+    if (!isRuntimeKind(def)) return undefined;
+    const name = project.docNameFor(entry);
+    const held = name ? project.get(name) : undefined;
+    if (!held?.layout) return undefined;
+    const read = parseAssetDoc(def, layoutFromDoc(held.doc, held.layout), env);
+    return read.ok ? (read.value as T) : undefined;
+  }
+  return (
+    sourceClipsIn({ asset: (id) => assetInfo(view, id) ?? undefined, doc }, source)?.names ?? null
+  );
 }
 
 /**
@@ -1590,6 +1721,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
   const readOnly = useContext(ReadOnlyContext);
   const labelColumn = useLabelColumn();
   const clips = useClips(project ?? null);
+  const projectView = useProjectView(project ?? null);
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = useEditorResolved(session);
@@ -1626,6 +1758,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
   const model = buildInspectorModel(session.registry, targets, {
     def: view,
     ...(clips ? { clips } : {}),
+    ...(projectView ? { assetKind: (id: AssetId) => projectView.byId.get(id)?.kind } : {}),
   });
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
   const childParams = child ? paramsFeeding(doc, child, session.registry, prefabs) : [];

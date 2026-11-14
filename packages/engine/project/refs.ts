@@ -174,20 +174,36 @@ export type RefIndex = {
   dangling(): readonly SceneIssue[];
 };
 
-const fits = (entry: AssetEntry, site: RefSite): boolean =>
-  site.kinds.length === 0 || site.kinds.includes(entry.kind);
+/** Whether an asset of `kind` may stand at `site`: one of its kinds, or any kind when it names none. */
+export const siteFits = (site: Pick<RefSite, "kinds">, kind: AssetKindName): boolean =>
+  site.kinds.length === 0 || site.kinds.includes(kind);
+
+/** What `site` takes, as a message names it: its kinds joined with "or", else "asset". */
+export const kindsLabel = (site: Pick<RefSite, "kinds">): string =>
+  site.kinds.length > 0 ? site.kinds.join(" or ") : "asset";
+
+const fits = (entry: AssetEntry, site: RefSite): boolean => siteFits(site, entry.kind);
 
 /**
- * A site that may name a material is a reference only when an entry of one
- * of its kinds (live or trashed) has the id: other names are a game's code
- * materials, which aren't assets.
+ * Whether `site` is a reference, given the kinds of the assets holding its
+ * id. A site that may name a material is one only when an asset of one of
+ * its kinds has the id: other names are a game's code materials, which
+ * aren't assets.
  */
-function siteCounts(view: ProjectView, site: RefSite): boolean {
+export function siteIsRef(
+  site: Pick<RefSite, "id" | "kinds">,
+  kindsOf: (id: AssetId) => readonly (AssetKindName | undefined)[],
+): boolean {
   if (!site.kinds.includes(MATERIAL_KIND)) return true;
-  const live = view.byId.get(site.id);
-  if (live && fits(live, site)) return true;
-  return view.deleted.some((e) => e.id === site.id && fits(e, site));
+  return kindsOf(site.id).some((kind) => kind !== undefined && siteFits(site, kind));
 }
+
+/** `siteIsRef` over a project's live and trashed entries. */
+const siteCounts = (view: ProjectView, site: RefSite): boolean =>
+  siteIsRef(site, (id) => [
+    view.byId.get(id)?.kind,
+    ...view.deleted.filter((e) => e.id === id).map((e) => e.kind),
+  ]);
 
 function sitesOf(
   entry: AssetEntry,
@@ -203,10 +219,6 @@ function sitesOf(
   }
   if (def.storage === "blob") return def.refs?.(entry) ?? [];
   return [];
-}
-
-function kindsLabel(site: RefSite): string {
-  return site.kinds.length > 0 ? site.kinds.join(" or ") : "asset";
 }
 
 function danglingIssue(view: ProjectView, from: AssetEntry, site: RefSite): SceneIssue | undefined {

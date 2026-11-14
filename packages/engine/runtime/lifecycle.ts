@@ -1,3 +1,4 @@
+import { zodIssueText } from "../game/fields";
 import { PhysicsRequiredError } from "../game/physics-of";
 import { physicsNeeds } from "../game/primitives";
 import {
@@ -483,11 +484,9 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     if (!schema) return;
     const parsed = schema.safeParse(fields);
     if (parsed.success) return;
-    const issue = parsed.error.issues[0];
-    const where = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
     throw new EngineError(
       "schema",
-      `spawn of "${type}" doesn't match its schema: ${where}${issue?.message ?? "invalid"}`,
+      `spawn of "${type}" doesn't match its schema: ${zodIssueText(parsed.error)}`,
       id,
     );
   }

@@ -28,6 +28,26 @@ export function zoomToFit(width: number, height: number, view: { width: number; 
   );
 }
 
+/** The centre of the box from `min` to `max`. */
+export const boxCentre = (min: Vec2, max: Vec2): Vec2 => ({
+  x: (min.x + max.x) / 2,
+  y: (min.y + max.y) / 2,
+});
+
+/**
+ * `p` with a view of half sizes `half` kept inside the box from `min` to
+ * `max`; on an axis where the box is no bigger than the view, the box's centre.
+ */
+export function clampViewInBox(p: Vec2, half: Vec2, min: Vec2, max: Vec2): Vec2 {
+  const centre = boxCentre(min, max);
+  const axis = (v: number, lo: number, hi: number, h: number, mid: number) =>
+    hi - lo <= 2 * h ? mid : clamp(v, lo + h, hi - h);
+  return {
+    x: axis(p.x, min.x, max.x, half.x, centre.x),
+    y: axis(p.y, min.y, max.y, half.y, centre.y),
+  };
+}
+
 /** `d` turned by `angle` radians. */
 function rotate(d: Vec2, angle: number): Vec2 {
   if (angle === 0) return d;
@@ -123,23 +143,7 @@ export function createCamera(
         { x: bounds.max.x + halfW, y: bounds.max.y + halfH },
       );
     }
-    const worldW = bounds.max.x - bounds.min.x;
-    const worldH = bounds.max.y - bounds.min.y;
-    const center = boundsCenter();
-
-    const clampMin = {
-      x: worldW <= viewW / zoom ? center.x : bounds.min.x + halfW,
-      y: worldH <= viewH / zoom ? center.y : bounds.min.y + halfH,
-    };
-    const clampMax = {
-      x: worldW <= viewW / zoom ? center.x : bounds.max.x - halfW,
-      y: worldH <= viewH / zoom ? center.y : bounds.max.y - halfH,
-    };
-    return clampVec2(p, clampMin, clampMax);
-  }
-
-  function boundsCenter(): Vec2 {
-    return { x: (bounds.min.x + bounds.max.x) / 2, y: (bounds.min.y + bounds.max.y) / 2 };
+    return clampViewInBox(p, { x: halfW, y: halfH }, bounds.min, bounds.max);
   }
 
   function apply(): void {
@@ -237,7 +241,7 @@ export function createCamera(
 
   function snapTo(p: Vec2 | null): void {
     rotation = 0;
-    position = p ? { ...p } : boundsCenter();
+    position = p ? { ...p } : boxCentre(bounds.min, bounds.max);
     apply();
   }
 

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { zodIssueText } from "../game/fields";
 import { EngineError, type GameDefinition, type JsonValue } from "../game/types";
 import type { PersistCell } from "./types";
 
@@ -111,9 +112,7 @@ export function persistProblem(value: unknown, schema: z.ZodType | undefined): s
   if (problem) return `isn't plain JSON: ${problem}`;
   const parsed = schema?.safeParse(value);
   if (!parsed || parsed.success) return null;
-  const issue = parsed.error.issues[0];
-  const where = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
-  return `doesn't match the game's persist schema: ${where}${issue?.message ?? "invalid"}`;
+  return `doesn't match the game's persist schema: ${zodIssueText(parsed.error)}`;
 }
 
 /** The cell for `game`'s `persist`; a game that declares none gets one holding null. */

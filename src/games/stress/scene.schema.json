@@ -1740,19 +1740,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -1793,6 +1813,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -1814,6 +1835,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -2873,19 +2895,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -2926,6 +2968,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -2947,6 +2990,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -4244,19 +4288,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -4297,6 +4361,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -4318,6 +4383,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -5429,19 +5495,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -5482,6 +5568,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -5503,6 +5590,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -6556,19 +6644,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -6609,6 +6717,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -6630,6 +6739,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -7918,19 +8028,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -7971,6 +8101,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -7992,6 +8123,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -9296,19 +9428,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -9349,6 +9501,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -9370,6 +9523,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -10679,19 +10833,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -10732,6 +10906,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -10753,6 +10928,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -12155,19 +12331,39 @@
                     },
                     "speed": {
                       "description": "Multiplies the clip's speed; default 1.",
+                      "default": 1,
                       "type": "number",
                       "exclusiveMinimum": 0,
                       "maximum": 16
                     },
                     "playing": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
-                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Ticks.",
+                          "unit": "ticks"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "ms": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Milliseconds, rounded to ticks once at the run's rate."
+                            }
+                          },
+                          "required": ["ms"],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0."
                     }
                   },
                   "required": ["source", "clip"],
@@ -12208,6 +12404,7 @@
                     },
                     "emitting": {
                       "description": "Default true.",
+                      "default": true,
                       "type": "boolean"
                     },
                     "offset": {
@@ -12229,6 +12426,7 @@
                     },
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
+                      "unit": "/s",
                       "type": "number",
                       "minimum": 0
                     }
@@ -12396,7 +12594,8 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991,
-              "description": "Ticks."
+              "description": "Ticks.",
+              "unit": "ticks"
             },
             {
               "type": "object",
@@ -12456,7 +12655,8 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991,
-              "description": "Ticks."
+              "description": "Ticks.",
+              "unit": "ticks"
             },
             {
               "type": "object",

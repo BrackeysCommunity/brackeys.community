@@ -27,12 +27,11 @@ import { physicsNeeds } from "../game/primitives";
 import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo, atlasFrameIssue } from "../project/asset-info";
-import { ANIMATION_KIND, sourceClipNames, type AnimationFile } from "../project/kinds/animation";
-import { ATLAS_KIND } from "../project/kinds/atlas";
+import { sourceClipsIn } from "../project/clip-source";
 import { isPlainObject } from "../project/kinds/define";
 import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
 import type { SceneListEntry } from "../project/kinds/scene-list";
-import { schemaRefSites, type RefSite } from "../project/refs";
+import { kindsLabel, schemaRefSites, siteFits, type RefSite } from "../project/refs";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
 import { closest, didYouMean } from "./did-you-mean";
@@ -1210,7 +1209,7 @@ function checkBehaviors(
           const problem = tweenTargetProblem(target, tweenChannels(spec), sprited);
           if (!problem) return;
           push("tween-target-invalid", {
-            message: `${e.id}'s tween ${j} can't play: ${problem}`,
+            message: `${e.id}'s tween ${j + 1} can't play: ${problem}`,
             path: pointer(name, "tweens", j),
             entityIds: [e.id],
           });
@@ -1293,24 +1292,6 @@ function blockPointer(e: EntityDef, at: string, name: string) {
     written ? `${at}${jsonPointer([BEHAVIORS_FIELD, name, ...rest])}` : at;
 }
 
-/** The clips an `anim` block's source offers and what it is, or null when they can't be read. */
-function sourceClips(
-  project: ProjectView,
-  runtime: Pick<ProjectRuntimeView, "doc"> | undefined,
-  source: AssetId,
-): { what: string; names: string[] } | null {
-  const kind = project.byId.get(source)?.kind;
-  if (kind === ATLAS_KIND) {
-    const atlas = assetInfo(project, source);
-    return atlas?.tags ? { what: "atlas", names: sourceClipNames({ atlas }) } : null;
-  }
-  if (kind === ANIMATION_KIND) {
-    const animation = runtime?.doc?.<AnimationFile>(ANIMATION_KIND, source);
-    return animation ? { what: "animation", names: sourceClipNames({ animation }) } : null;
-  }
-  return null;
-}
-
 /**
  * An entity's anim block against its source: `anim-clip-unknown` for a
  * `clip` that isn't one of the source's clips (an animation's, or an
@@ -1330,7 +1311,13 @@ function checkAnim(
   const source = block?.source;
   const clip = block?.clip;
   if (typeof source !== "string" || typeof clip !== "string") return;
-  const clips = sourceClips(project, runtime, source);
+  const clips = sourceClipsIn(
+    {
+      asset: (id) => assetInfo(project, id) ?? undefined,
+      ...(runtime?.doc ? { doc: runtime.doc } : {}),
+    },
+    source,
+  );
   if (!clips || clips.names.includes(clip)) return;
   push("anim-clip-unknown", {
     message: `${e.id}'s anim plays clip "${clip}", which ${clips.what} "${source}" doesn't have${didYouMean(clip, clips.names)}`,
@@ -1340,9 +1327,6 @@ function checkAnim(
     ...(clips.names.length > 0 ? { expected: clips.names.join(" | ") } : {}),
   });
 }
-
-const kindsLabel = (kinds: readonly AssetKindName[]) =>
-  kinds.length > 0 ? kinds.join(" or ") : "asset";
 
 /**
  * `asset-missing` for an id no live asset has, `asset-kind` for a live one
@@ -1356,10 +1340,10 @@ function assetIssue(
   owner: string,
   entityIds: string[],
 ): (Partial<SceneIssue> & { code: IssueCode; message: string }) | undefined {
-  const fits = (kind: AssetKindName) => site.kinds.length === 0 || site.kinds.includes(kind);
+  const fits = (kind: AssetKindName) => siteFits(site, kind);
   const live = project.byId.get(site.id);
   if (live && fits(live.kind)) return undefined;
-  const what = kindsLabel(site.kinds);
+  const what = kindsLabel(site);
   const segments = pointerSegments(site.pointer);
   const field = (owner ? segments.slice(2) : segments).join(".");
   const where = owner ? `${owner}.${field}` : field;

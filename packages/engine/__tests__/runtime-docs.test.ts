@@ -52,14 +52,14 @@ const curveKind = defineAssetKind({
   refs: (value: CurveFile) =>
     value.art === undefined ? [] : [{ pointer: "/art", id: value.art, kinds: ["texture"] }],
   crossValidate: (value: CurveFile, lookup) =>
-    value.after === undefined || lookup.doc(CURVE, value.after) !== undefined
+    value.after === undefined || lookup.read(CURVE, value.after) !== undefined
       ? []
       : [
           makeIssue("asset-missing", {
             message: `the curve follows "${value.after}", which isn't a curve`,
             path: "/after",
             got: value.after,
-            expected: lookup.docs(CURVE).join(", "),
+            expected: lookup.ids(CURVE).join(", "),
           }),
         ],
   runtime: "sim",

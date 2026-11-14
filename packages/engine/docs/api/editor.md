@@ -181,6 +181,8 @@ type BehaviorOption = {
     name: BehaviorName;
     /** Why it can't be added yet (a reference with nothing in the scene to name); `batch` would fail. */
     unavailable?: string;
+    /** The project assets `batch` names, each with the clip it picked (`hero (idle)`). */
+    uses?: string[];
 };
 ```
 
@@ -932,12 +934,13 @@ type FieldWidget = {
     step?: number;
     unit?: string;
 } | {
-    format: "json" | "text";
-    kind: "readonly";
-} | {
+    clip?: FieldPath;
     frame?: FieldPath;
     kind: "asset";
     kinds: AssetKindName[];
+} | {
+    format: "json" | "text";
+    kind: "readonly";
 } | {
     id: string;
     kind: "custom";
@@ -947,7 +950,17 @@ type FieldWidget = {
     kind: "angle";
     snapDeg: number;
 } | {
+    item: string;
+    kind: "list";
+    max?: number;
+    min?: number;
+    seed?: unknown;
+} | {
     kind: "color";
+} | {
+    kind: "delay";
+    min: number;
+    rate: number;
 } | {
     kind: "object";
 } | {
@@ -3321,6 +3334,17 @@ differ is `mixed`. Pure: the site renders it.
 
 ```ts
 declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
+    /**
+     * A project asset's kind: Add behavior then prefers an animation's
+     * clips over an atlas's tags when it picks an `anim` block's source.
+     */
+    assetKind?: (id: AssetId) => AssetKindName | undefined;
+    /**
+     * The clip names an animation or atlas asset offers, in file order (an
+     * atlas's tags are its clips), null when they can't be read: Add
+     * behavior picks an `anim` block's source and clip from them.
+     */
+    clips?: (source: AssetId) => null | readonly string[];
     /** The scene the targets are in (the resolved view): Add behavior seeds a reference from it. */
     def?: SceneDefinition;
 }): InspectorModel;

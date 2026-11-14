@@ -503,6 +503,67 @@ describe("tweens", () => {
     blocked.destroy();
   });
 
+  it("are refused on the pose of a solid or sensor riding a host, which its host's body places", () => {
+    const { rt } = load(
+      [
+        {
+          id: "lift",
+          type: "follower",
+          shape: box(0, 0, 2, 0.5),
+          path: {
+            pts: [
+              [0, 0],
+              [10, 0],
+            ],
+            mode: "loop",
+            speed: 1,
+          },
+        },
+        { id: "plank", type: "solid", attach: "lift", shape: box(1, -1, 1, 0.2) },
+        { id: "gate", type: "sensor", attach: "lift", shape: box(-1, -1, 0.5, 0.5) },
+        { id: "door", type: "solid", shape: box(5, 5, 1, 0.5) },
+      ],
+      "rapier",
+    );
+    const refusal = (id: string) => {
+      try {
+        rt.ctx.tweens.to(id, { to: { y: 3 }, duration: 5 });
+      } catch (err) {
+        return err instanceof EngineError ? [err.code, err.message] : String(err);
+      }
+      return null;
+    };
+    expect(refusal("plank")).toEqual([
+      "tween-target-invalid",
+      `can't tween "plank": it is a solid riding "lift", which can't be posed, so a tween can't move its y`,
+    ]);
+    expect(refusal("gate")?.[0]).toBe("tween-target-invalid");
+    expect(refusal("door")).toBeNull();
+    rt.destroy();
+  });
+
+  it("refuse an emit whose data isn't plain JSON, at `to`", () => {
+    const rt = tweening([{ id: "spot", type: "marker", at: [0, 0] }]);
+    const emitting = (data: unknown) => {
+      try {
+        rt.ctx.tweens.to("spot", { to: { x: 1 }, duration: 2, emit: { type: "done", data } });
+      } catch (err) {
+        return err instanceof EngineError ? [err.code, err.message] : String(err);
+      }
+      return null;
+    };
+    expect(emitting({ fn: () => 1 })).toEqual([
+      "schema",
+      "a tween's emit isn't plain JSON: /data/fn: a function isn't JSON",
+    ]);
+    expect(emitting({ at: new Date(0) })?.[0]).toBe("schema");
+    expect(emitting({ gone: undefined })?.[0]).toBe("schema");
+    expect(rt.ctx.tweens.size).toBe(0);
+    expect(emitting({ score: 3, tags: ["a"] })).toBeNull();
+    expect(stepFor(rt, 2, ["done"])).toMatchObject([{ data: { score: 3, tags: ["a"] } }]);
+    rt.destroy();
+  });
+
   it("a tween block runs from spawn, its entries side by side", () => {
     const rt = tweening([
       {
@@ -575,6 +636,62 @@ describe("tweens and the view", () => {
       expect(visual.size).toEqual([size[0] * scale, size[1] * scale]);
     }
     rt.destroy();
+  });
+
+  describe("through a reconcile swap", () => {
+    const sid = spriteViewId("lamp");
+    const pulsing = (tint: number, alpha = 0.2): RuntimeEntity => ({
+      id: "lamp",
+      type: "decor",
+      at: [1, 1],
+      behaviors: {
+        sprite: { tint },
+        tween: { tweens: [{ to: { alpha }, duration: 4, repeat: -1, yoyo: true }] },
+      },
+    });
+    /** The sprite's alpha each tick, swapping `swap` in before tick `at` when given. */
+    const alphas = (swap?: { at: number; to: RuntimeEntity }) => {
+      const { view, live } = recordingView({ sprites: true });
+      const rt = tweening([pulsing(0)], view);
+      const out: number[] = [];
+      for (let k = 0; k < 14; k++) {
+        if (k === swap?.at) expect(rt.update([swap.to])).toEqual({ ok: true });
+        rt.step(DT, []);
+        out.push(live.get(sid)!.sprite!.alpha ?? 1);
+      }
+      rt.destroy();
+      return out;
+    };
+
+    it("keep a block's place when the swap leaves its tweens as written", () => {
+      const plain = alphas();
+      expect(plain.slice(0, 4)).toEqual([1, 2, 3, 4].map((k) => formula(1, 0.2, k, 4)));
+      expect(alphas({ at: 2, to: pulsing(0x00ff00) })).toEqual(plain);
+    });
+
+    it("start a changed entry over from the sprite block's look, not the mid-tween one", () => {
+      const swapped = alphas({ at: 2, to: pulsing(0, 0.4) });
+      expect(swapped.slice(0, 2)).toEqual([formula(1, 0.2, 1, 4), formula(1, 0.2, 2, 4)]);
+      expect(swapped.slice(2, 6)).toEqual([1, 2, 3, 4].map((k) => formula(1, 0.4, k, 4)));
+      expect(Math.min(...swapped.slice(2))).toBe(0.4);
+      expect(Math.max(...swapped.slice(6))).toBe(1);
+    });
+
+    it("play a finished pose tween again, since the swap put its entity back at spawn", () => {
+      const slide = (tint: number): RuntimeEntity => ({
+        id: "lamp",
+        type: "decor",
+        at: [1, 1],
+        behaviors: { sprite: { tint }, tween: { tweens: [{ to: { x: 4 }, duration: 3 }] } },
+      });
+      const rt = tweening([slide(0)], recordingView({ sprites: true }).view);
+      stepFor(rt, 5);
+      expect(pose(rt, "lamp").x).toBe(4);
+      expect(rt.update([slide(0x00ff00)])).toEqual({ ok: true });
+      stepFor(rt, 3);
+      expect(pose(rt, "lamp").x).toBe(4);
+      rt.destroy();
+    });
   });
 
   it("a run with a view and a headless run end on one digest", () => {

@@ -17,7 +17,7 @@ import { createKindRegistry, parseAssetDoc, type DocLayout, type KindRegistry } 
 import { byCodeUnit, type KindEnv } from "./kinds/define";
 import { ENGINE_ASSET_KINDS } from "./kinds/index";
 import { readJsonDocument, zodSceneIssues } from "./project-file";
-import type { RefSite } from "./refs";
+import { kindsLabel, siteFits, siteIsRef, type RefSite } from "./refs";
 import { assetEntryOf } from "./release-assets";
 import { sidecarSchema } from "./sidecar";
 import {
@@ -870,8 +870,10 @@ function refIssues(m: ReleaseManifest, docRefs: CheckReleaseOptions["docRefs"]):
     const sites = asset.storage === "blob" ? blobRefs(id, asset) : (docRefs?.(id, asset) ?? []);
     for (const site of sites) {
       const target = ownValue(m.assets, site.id);
-      if (target && (site.kinds.length === 0 || site.kinds.includes(target.kind))) continue;
-      const expected = site.kinds.length > 0 ? site.kinds.join(" or ") : "an asset";
+      if (!siteIsRef(site, () => [target?.kind])) continue;
+      if (target && siteFits(site, target.kind)) continue;
+      // Any kind fits a site naming none, so only a missing target gets here without kinds.
+      const expected = site.kinds.length > 0 ? kindsLabel(site) : "an asset";
       issues.push(
         makeIssue("asset-missing", {
           message: target

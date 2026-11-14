@@ -65,6 +65,7 @@
       "utf8Bytes",
       "versionName",
       "viewportFor",
+      "viewportRect",
       "watchView"
     ],
     "./scene": [
@@ -156,6 +157,7 @@
       "defaultLayer",
       "defaultPhysics",
       "describeChange",
+      "didYouMean",
       "diffExpanded",
       "diffPrefabToOps",
       "diffScenes",
@@ -1189,6 +1191,7 @@
       "liveCompat",
       "liveCompatKey",
       "liveFiles",
+      "manifestDocRefs",
       "materialKind",
       "materialSchema",
       "mayBeAssetFile",

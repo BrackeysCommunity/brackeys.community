@@ -253,7 +253,7 @@ export const PRIMITIVES = {
         .describe(`Seconds to move into the region's framing; default ${DEFAULT_REGION_EASE}.`)
         .meta({ title: "Ease", unit: "s", default: DEFAULT_REGION_EASE }),
     },
-    style: { stroke: 0xff9966, alpha: 0.5 },
+    style: { stroke: 0xff9966, alpha: 0.9, strokeWidth: 2 },
     ascii: "c",
   },
   note: {

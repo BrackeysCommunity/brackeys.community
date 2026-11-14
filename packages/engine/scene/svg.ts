@@ -1,3 +1,4 @@
+import { cssHex } from "../game/color";
 import { CAMERA_REGION_TYPE, outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
@@ -76,7 +77,6 @@ const SCENE_FILL = "#181b22";
 const INK = "#f2f4f8";
 const ONE_WAY_COLOR = "#4da3ff";
 
-const hex = (c: number) => `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const toPt = (p: OverlayPoint): Pt => (Array.isArray(p) ? [p[0], p[1]] : [p.x, p.y]);
@@ -246,7 +246,7 @@ export function renderSceneSvg(
   for (const d of visible) {
     if (d.shape || !d.at) continue;
     const style = styleOf({ registry }, d.type, materialOf(d));
-    const color = hex(style?.stroke ?? style?.fill ?? POINT_COLOR);
+    const color = cssHex(style?.stroke ?? style?.fill ?? POINT_COLOR);
     const [x, y] = d.at;
     const attrs = `data-ref="${esc(d.id)}" data-type="${esc(d.type.type)}"`;
     if (isSpawnLike(d)) {
@@ -288,7 +288,7 @@ export function renderSceneSvg(
     for (const d of sprites) {
       const s = d.sprite!;
       const style = styleOf({ registry }, d.type, materialOf(d));
-      const color = hex(style?.stroke ?? style?.fill ?? POINT_COLOR);
+      const color = cssHex(style?.stroke ?? style?.fill ?? POINT_COLOR);
       const asset = s.asset === undefined ? "" : ` data-asset="${esc(s.asset)}"`;
       const frame = s.frame === undefined ? "" : ` data-frame="${esc(s.frame)}"`;
       out.push(
@@ -304,7 +304,7 @@ export function renderSceneSvg(
     for (const d of visible) {
       if (!d.path || d.path.pts.length === 0) continue;
       const style = styleOf({ registry }, d.type, materialOf(d)) ?? FALLBACK_STYLE;
-      const color = hex(style.stroke ?? style.fill ?? POINT_COLOR);
+      const color = cssHex(style.stroke ?? style.fill ?? POINT_COLOR);
       const pts = d.path.pts;
       const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${num(x)} ${num(y)}`).join("");
       const dash = `stroke-dasharray="${px(6)} ${px(4)}"`;
@@ -398,7 +398,7 @@ function gridCellElements(
       const style = styleOf({ registry }, d.type, materialOf(d)) ?? FALLBACK_STYLE;
       out.push(
         `<g data-ref="${esc(d.id)}" data-type="${esc(d.type.type)}" data-field="${esc(c.field)}" ` +
-          `stroke="${hex(style.stroke ?? style.fill ?? POINT_COLOR)}" stroke-opacity="0.6">`,
+          `stroke="${cssHex(style.stroke ?? style.fill ?? POINT_COLOR)}" stroke-opacity="0.6">`,
       );
       open = c;
     }
@@ -453,12 +453,12 @@ function shapeElement(
   const alpha = style.alpha ?? 1;
   const parts = [`<path ${attrs} d="${svgPathData(shapeOutline(shape))}"`];
   parts.push(
-    fill === undefined ? ` fill="none"` : ` fill="${hex(fill)}" fill-opacity="${num(alpha)}"`,
+    fill === undefined ? ` fill="none"` : ` fill="${cssHex(fill)}" fill-opacity="${num(alpha)}"`,
   );
   if (stroke !== undefined) {
     const width = Math.max(style.strokeWidth ?? 1, closed ? 1.25 : 2);
     parts.push(
-      ` stroke="${hex(stroke)}" stroke-opacity="${num(style.strokeAlpha ?? Math.max(alpha, 0.6))}" stroke-width="${px(width)}" stroke-linejoin="round"`,
+      ` stroke="${cssHex(stroke)}" stroke-opacity="${num(style.strokeAlpha ?? Math.max(alpha, 0.6))}" stroke-width="${px(width)}" stroke-linejoin="round"`,
     );
   }
   parts.push("/>");
