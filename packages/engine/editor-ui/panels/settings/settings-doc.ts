@@ -1,18 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
-import {
-  applyProjectBatch,
-  layoutFromDoc,
-  setProjectPresence,
-  type ProjectSession,
-  type SessionDoc,
-} from "../../../collab/index";
+import { applyProjectBatch, setProjectPresence, type ProjectSession } from "../../../collab/index";
 import { PROJECT_PRESENCE_FIELD, type ProjectPresence } from "../../../collab/types";
 import type { AssetEntry, AssetKindName, DocLayout, ProjectOp } from "../../../project/index";
 import { perProjectEntries } from "../../../project/kinds/define";
 import type { EditorNotify } from "../../host";
 import { useOwnOrSharedPending } from "../../pending/use-pending";
-import { useSessionDoc } from "../../session/use-project-session";
+import { useDocValue, useSessionDoc } from "../../session/use-project-session";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
 import { useProjectView } from "../EditorProject";
 
@@ -39,18 +33,6 @@ export type SettingsDoc = {
 export const settingScope = (doc: string | null, path: string) => `settings:${doc ?? ""}:${path}`;
 
 const READ_ONLY = "This project is read-only here.";
-
-/** The doc's value, read again on every update to it. */
-function useDocValue(doc: SessionDoc | null): Record<string, unknown> | null {
-  const [, bump] = useState(0);
-  useEffect(() => {
-    if (!doc) return;
-    const changed = () => bump((n) => n + 1);
-    doc.doc.on("update", changed);
-    return () => doc.doc.off("update", changed);
-  }, [doc]);
-  return doc?.layout ? layoutFromDoc(doc.doc, doc.layout) : null;
-}
 
 /**
  * The project's `kind` asset (the first live one by path) with its doc held

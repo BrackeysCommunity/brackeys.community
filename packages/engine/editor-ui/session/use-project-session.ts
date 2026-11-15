@@ -1,7 +1,12 @@
 import { Store } from "@tanstack/store";
 import { useEffect, useRef, useState } from "react";
 
-import type { AssetChangedMessage, ProjectSession, SessionDoc } from "../../collab/index";
+import {
+  layoutFromDoc,
+  type AssetChangedMessage,
+  type ProjectSession,
+  type SessionDoc,
+} from "../../collab/index";
 import type { ProjectId } from "../../project/index";
 import {
   CONNECTION_OFF,
@@ -136,4 +141,24 @@ export function useSessionDoc(
   }, [session, name, key]);
 
   return held && held.key === key ? held : { doc: null, error: null };
+}
+
+const readDoc = (doc: SessionDoc | null): Record<string, unknown> | null =>
+  doc?.layout ? layoutFromDoc(doc.doc, doc.layout) : null;
+
+/**
+ * The doc's value, read again on every update to it. The value itself is
+ * state: a read keyed only on `doc` is memoized by the React Compiler, so a
+ * re-render alone would keep showing the first read.
+ */
+export function useDocValue(doc: SessionDoc | null): Record<string, unknown> | null {
+  const [read, setRead] = useState(() => ({ doc, value: readDoc(doc) }));
+  useEffect(() => {
+    if (!doc) return;
+    const changed = () => setRead({ doc, value: readDoc(doc) });
+    changed();
+    doc.doc.on("update", changed);
+    return () => doc.doc.off("update", changed);
+  }, [doc]);
+  return read.doc === doc ? read.value : readDoc(doc);
 }

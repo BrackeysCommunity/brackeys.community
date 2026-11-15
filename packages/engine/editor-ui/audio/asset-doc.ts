@@ -1,18 +1,11 @@
-import { useEffect, useState } from "react";
-
-import {
-  applyProjectBatch,
-  layoutFromDoc,
-  type ProjectSession,
-  type SessionDoc,
-} from "../../collab/index";
+import { applyProjectBatch, type ProjectSession } from "../../collab/index";
 import type { Registry } from "../../game/types";
 import type { AssetEntry, AssetId, JsonEdit, ProjectOp } from "../../project/index";
 import { useProjectView } from "../panels/EditorProject";
 import type { SelectedAsset } from "../panels/project-tree/asset-panel";
 import type { SettingsDoc } from "../panels/settings/settings-doc";
 import { useOwnOrSharedPending, type OwnPendingNotify } from "../pending/use-pending";
-import { useSessionDoc } from "../session/use-project-session";
+import { useDocValue, useSessionDoc } from "../session/use-project-session";
 
 /**
  * One doc asset opened for editing by id, in the shape the settings panels'
@@ -23,18 +16,6 @@ import { useSessionDoc } from "../session/use-project-session";
 export type AssetDoc = SettingsDoc;
 
 const READ_ONLY = "This project is read-only here.";
-
-/** The doc's value, read again on every update to it. */
-function useDocValue(doc: SessionDoc | null): Record<string, unknown> | null {
-  const [, bump] = useState(0);
-  useEffect(() => {
-    if (!doc) return;
-    const changed = () => bump((n) => n + 1);
-    doc.doc.on("update", changed);
-    return () => doc.doc.off("update", changed);
-  }, [doc]);
-  return doc?.layout ? layoutFromDoc(doc.doc, doc.layout) : null;
-}
 
 /**
  * `entry`'s doc, held open while the caller is mounted. Each `edit` is one
