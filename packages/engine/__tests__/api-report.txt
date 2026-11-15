@@ -1163,6 +1163,8 @@ DialogueVars
 DialogueView
 DialogueViewChoice
 Dihedral
+DragJoint
+DragJointOptions
 DrawLayer
 EASE_NAMES
 EMITTER
@@ -1511,6 +1513,7 @@ bindTo
 bindingKeyLabel
 bindingProblems
 bodyLocalShape
+bodyOf
 bodyShapeField
 boundsCells
 bracketKey
@@ -1531,6 +1534,7 @@ composePose
 createDataSystem
 createDecorSystem
 createDialogueRunner
+createDragJoint
 createFollowerSystem
 createGridStepper
 createMarkerSystem
@@ -2393,6 +2397,7 @@ DEFAULT_TOUCH_ROLLOUTS
 DEFAULT_TOUCH_SEED
 DEFAULT_TOUCH_TICKS
 DEFAULT_UNTIL_MAX
+DecomposeResult
 Dihedral
 DrawnSprite
 DrawnTile
@@ -2561,6 +2566,7 @@ bulkEntries
 bulkId
 bulkKeyType
 bulkKeysOf
+canDecompose
 canonicalGrid
 centroid
 checksJsonSchema
@@ -2584,6 +2590,8 @@ createRegistry
 createScene
 createSpatialHash
 decodeRow
+decomposeBatch
+decomposePolygon
 defaultLayer
 defaultPhysics
 describeChange
@@ -10560,6 +10568,22 @@ declare function shapePose(shape: ShapeObj): {
     y: number;
 };
 
+## physics/body-of.ts
+declare function bodyOf(ctx: EngineContext, physics: PhysicsWorld, id: string, cached?: null | number): RigidBody | null;
+
+## physics/drag.ts
+interface DragJoint {
+    update(to: Vec2): void;
+    release(): void;
+    readonly body: string;
+}
+type DragJointOptions = {
+    damping?: number;
+    maxForce?: number;
+    stiffness?: number;
+};
+declare function createDragJoint(_ctx: EngineContext, _body: string, _at: Vec2, _opts?: DragJointOptions): DragJoint;
+
 ## placement.ts
 declare const DEFAULT_ROTATE_STEP = 0.15;
 type PlacementCheck = {
@@ -14550,7 +14574,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 25;
+declare const AGENT_SURFACE_VERSION = 26;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -14669,6 +14693,29 @@ declare function createScene(name: string, registry: Registry, opts?: {
     $schema?: string;
     template?: SceneTemplate;
 }): SceneDefinition;
+
+## scene/decompose.ts
+type DecomposeResult = {
+    area2: number;
+    ok: true;
+    pieces: readonly Pt[][];
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+declare function canDecompose(_points: readonly Pt[]): boolean;
+declare function decomposeBatch(_def: SceneDefinition, _id: string, _registry: Registry, _opts?: {
+    group?: boolean;
+}): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+declare function decomposePolygon(_points: readonly Pt[], _opts?: {
+    maxVertices?: number;
+}): DecomposeResult;
 
 ## scene/did-you-mean.ts
 declare function closest(word: string, candidates: readonly string[]): string | undefined;

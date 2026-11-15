@@ -7,6 +7,91 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.20.0] — unreleased
+
+Physics completeness: the pointer drag joint and concave polygon
+decomposition. The version and the agent-surface step (0.20.0, agent
+surface 26) are not yet confirmed by the owner.
+
+### Added
+
+- `createDragJoint(ctx, body, at, opts?)` and `DragJoint` (`./game`): drags
+  a body by a kinematic anchor (no collider) and a rest-length-0 spring at
+  the body-local point under `at`; `stiffness` default 200 N/m, `damping`
+  default 20 N·s/m, `maxForce` (N) caps spring plus damping together by
+  placing the anchor; `release()` is idempotent; a destroyed body or
+  replaced world releases on the next `update`; throws `physics-required`
+  outside Rapier and `body-missing` for an entity with no body.
+- `bodyOf(ctx, physics, id)` (`./game`): the body holding an entity's first
+  enabled non-sensor collider, the one rule the joint behavior and the drag
+  joint find an entity's body by.
+- `decomposePolygon`, `decomposeBatch`, `canDecompose` and
+  `DecomposeResult` (`./scene`): splitting a concave `poly` into convex
+  pieces.
+- Schematic renders draw joints: `renderSceneSvg` draws a line from the
+  entity's anchorA to the `to` entity's anchorB (or the point under
+  anchorA) with a `j` glyph at the midpoint; `renderSceneAscii` draws the
+  line in `-` with `j` at its middle. `scene show` lists joints
+  (`id  kind  id ↔ to`) and its JSON carries `joints: [{ id, kind, to }]`.
+- The inspector's shape widget offers "Split into convex pieces" for an
+  entity whose own concave poly (its `shape` or `behaviors.collider.shape`)
+  can split: one batch, one undo step, with the editor's pending feedback
+  and the refusal's message as a toast. `splitConvex(session, id, { group })`,
+  `canSplitConvex(def, id)` and `polyPointsOf(def, id)` in `@jams/engine/editor`.
+- The physics-sandbox genre probe: a motorised crane of revolute joints, a
+  rope bridge, a concave bin split with `decomposeBatch` before load, and
+  three runtime-spawned crates dragged by a recorded pointer
+  (`createDragJoint`) into a goal sensor, with crate contacts counted. Its
+  genre pin is new; every existing pin and the platformer's golden traces
+  are unchanged.
+- The kitchen sink gains joints: hinged-door, a body hinged to the lintel
+  whose revolute limits stop it at ±0.5 rad, and bob, a prop on a 1 m rope
+  from the static peg; the sink's goldens draw both.
+
+### Changed
+
+- Smooth follow: everything moving in Play is drawn from the pose index's
+  prev/cur lerped by the loop's alpha, and the camera rig follows that same
+  interpolated pose on the rendered frame, timed by the animation frame's
+  timestamp, with one pixel-snapping rule (both round in canvas px with
+  `Math.round`, sprites against the camera's whole-px world offset). Proven
+  for followers, Rapier bodies (sprite- and body-drawn), kinematic
+  path-follow movers, character controllers and children under a moving
+  parent, with and without look-ahead, at 50/75/90/120/144/165 Hz frames
+  (±2 ms jitter) against the 60 Hz tick, and through frames that run zero
+  or two ticks. A teleport (`ctx.setPose` with `snap`) is one jump with no
+  lerped streak: the pose index marks it (`teleports`), sprites, texts and
+  body-drawn shapes redraw at it on that frame and ease on from it, and a
+  camera whose every target teleported jumps with them keeping its lag. A
+  replay seek snaps the cameras. A spawn or live edit still clears `prev`
+  but the camera eases to it. The browser smoke records a followed prop's
+  drawn x over 120 settled frames in Chromium, Firefox and WebKit and fails
+  a step of 0.5 px or more.
+- `poly-invalid`'s hint names "Split into convex pieces" for a simple
+  concave poly. `poly-invalid` now also checks concave polys written in
+  behavior blocks (for example `behaviors.collider.shape`), which Rapier
+  used to hull silently.
+- The kitchen-sink golden SVG and ASCII gain std-joint's line and glyph.
+- Internal: navigation and decomposition share one ear clipper (`earClip`
+  in `scene/shape-geometry.ts`).
+
+### Fixed
+
+- Renaming an entity now rewrites every behavior field that references it
+  (a joint's `to`, a nav agent's target) as well as a type's `refs`, and
+  demote refuses an entity a behavior still names.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` 25 → 26, with the `decompose` command, the MCP
+  `scene_decompose` tool and the new public `bodyOf`, `createDragJoint`
+  (with its `DragJointOptions`), `decomposePolygon`, `decomposeBatch`
+  (returning an `OpBatch`) and `canDecompose`; no new issue code, op or
+  schema field.
+- CLI `decompose <scene> <id> [--group] [--live]` and MCP `scene_decompose`;
+  the area check is in m², and `--group` refuses with `parent-type` for a
+  type that can't be in the tree (a nav area).
+
 ## [0.19.0] — unreleased
 
 Tilemaps: the `tilemap` primitive and the `tileset` kind, chunked tile
@@ -203,8 +288,8 @@ game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
   stamps, autotile rules that arm the autotile brush, and the picked
   tile's data, read-only. `EditorProjectLink.assetImage` gives it the
   tiles' image.
-- Editor: the six tile tools in the toolbar while a tilemap is selected,
-  hovered or being painted, with rotate and flip-brush buttons (R, F, V);
+- Editor: the six tile tools in the toolbar, always drawn and usable in any
+  scene with a tilemap, with rotate and flip-brush buttons (R, F, V);
   their room is kept so the dock never refits. A refused tool action shows
   in the status bar. With a brush armed, the hovered cells ghost the tiles a
   press would paint. Presence draws each painter's tile brush rectangle in

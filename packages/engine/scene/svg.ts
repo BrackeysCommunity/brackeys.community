@@ -22,6 +22,7 @@ import type { TileTraits } from "../tiles/chunks";
 import {
   type DrawnGridCell,
   type DrawnGridCells,
+  drawnJoints,
   gridCellsIn,
   num,
   oneWayEdges,
@@ -151,6 +152,7 @@ const BACKGROUND = "#101218";
 const SCENE_FILL = "#181b22";
 const INK = "#f2f4f8";
 const ONE_WAY_COLOR = "#4da3ff";
+const JOINT_COLOR = "#c792ea";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -492,6 +494,20 @@ export function renderSceneSvg(
     for (const { entity, side, from, to } of faces)
       out.push(
         `<path data-one-way="${esc(entity.id)}" data-side="${side}" d="M${num(from[0])} ${num(from[1])}L${num(to[0])} ${num(to[1])}"/>`,
+      );
+    out.push(`</g>`);
+  }
+
+  // Joints: a line between the two anchors, the kind's `j` glyph at its middle
+  const joints = drawnJoints(all, drawing.pxPerMetre);
+  if (joints.length > 0) {
+    out.push(`<g id="joints" fill="none" stroke="${JOINT_COLOR}" stroke-width="${px(1.5)}">`);
+    for (const { entity, kind, to, from, end, mid } of joints)
+      out.push(
+        `<g data-joint="${esc(entity.id)}" data-kind="${esc(kind)}" data-to="${esc(to)}">` +
+          `<path d="M${num(from[0])} ${num(from[1])}L${num(end[0])} ${num(end[1])}"/>` +
+          `<circle cx="${num(mid[0])}" cy="${num(mid[1])}" r="${px(6)}" fill="${BACKGROUND}"/>` +
+          `<text x="${num(mid[0])}" y="${num(mid[1] + 3.2 * u)}" font-size="${px(9)}" text-anchor="middle" fill="${JOINT_COLOR}" stroke="none">j</text></g>`,
       );
     out.push(`</g>`);
   }

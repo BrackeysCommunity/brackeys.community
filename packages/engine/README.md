@@ -4016,6 +4016,349 @@ Destroying a motion body forgets its `oneWayPasses`; a controller that
 gates one-way solids with no motion body of its own calls
 `forgetOneWayActor(ctx, id)` when it lets the entity go.
 
+## Joints
+
+The `joint` behavior ([Standard behaviors](#standard-behaviors) lists its
+fields, the `joint-ref-type` and `joint-self` checks and where it acts in
+the tick) links the entity's body to `to`'s. It is Rapier only: a joint in
+a scene without physics is `physics-required`. There are five kinds:
+`revolute` (a hinge), `prismatic` (a slider along `axis`, in this body's
+frame), `rope` (at most `length` apart), `weld` (held rigidly) and `spring`
+(pulled toward `length` apart, with `stiffness` in N/m and `damping` in
+N·s/m).
+
+- **Anchors** are metres from each entity's own pose: `anchorA` on this
+  body, `anchorB` on `to`'s. With no `anchorB` the joint holds the point of
+  `to` under `anchorA` when it is first made, so a rope or spring meant to
+  hang from a point names that point.
+- **Limits** go low, then high: this body's angle relative to `to` in
+  radians for a hinge (the editor shows degrees), its travel along `axis`
+  in metres for a slider.
+- **The motor** drives a hinge's or slider's speed relative to `to` toward
+  `velocity` (rad/s or m/s), using at most `maxForce`: torque in N·m for a
+  hinge, force in N for a slider. A motor too weak for its load turns
+  slower than `velocity`, or not at all; it keeps nothing between ticks.
+- **When they exist.** Joints are made after every body, in scene order,
+  so adding one never changes how the scene's bodies and colliders are
+  allocated. When an end is destroyed, disabled or rebuilt, its joint goes
+  with it and is made again, holding where the first one did, once both
+  ends are back. `ctx.behavior<JointSystem>("joint")?.joined(id)` says
+  whether an entity's joint exists now.
+
+The yard below hangs one of each from a static beam:
+
+```ts joint-yard.ts
+import { defineGame, type EngineContext, type JointSystem } from "@jams/engine/game";
+import { runPlaytest, type RapierModule } from "@jams/engine/headless";
+import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "@jams/engine/scene";
+
+export type YardSnapshot = {
+  /** The gate's angle, rad: its motor drives it open until the high limit stops it. */
+  gate: number;
+  /** How far the shutter has slid down its rail, m, held by the rail's limits. */
+  shutter: number;
+  /** The lamp's distance from the beam, m: never past the rope's 1 m. */
+  lamp: number;
+  /** The sign's offset from the gate's leaf, m: a weld keeps it. */
+  sign: number;
+  /** The bob's distance from the beam, m: the spring pulls it toward 0.5 m. */
+  bob: number;
+  /** Which entities' joints exist right now. */
+  joined: string[];
+};
+
+const JOINTED = ["gate", "shutter", "lamp", "sign", "bob"];
+
+export const yardGame = defineGame<YardSnapshot>({
+  id: "joint-yard",
+  types: [],
+  actions: [],
+  createRuntime(ctx: EngineContext) {
+    const at = (id: string) => ctx.poses.get(id) ?? { x: 0, y: 0, rot: 0 };
+    const apart = (a: string, b: string) => Math.hypot(at(a).x - at(b).x, at(a).y - at(b).y);
+    return {
+      snapshot: () => ({
+        gate: at("gate").rot,
+        shutter: at("shutter").y - 1,
+        lamp: apart("lamp", "beam"),
+        sign: apart("sign", "gate"),
+        bob: apart("bob", "beam"),
+        joined: JOINTED.filter((id) => ctx.behavior<JointSystem>("joint")?.joined(id)),
+      }),
+    };
+  },
+});
+
+const box = (
+  id: string,
+  at: [number, number],
+  kind: "dynamic" | "static",
+  joint?: Record<string, unknown>,
+): EntityDef => ({
+  id,
+  type: "marker",
+  at,
+  behaviors: {
+    collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+    body: { kind },
+    ...(joint ? { joint } : {}),
+  },
+});
+
+export const yard: SceneDefinition = {
+  v: SCENE_FORMAT_VERSION,
+  game: "joint-yard",
+  name: "yard",
+  bounds: [-4, -4, 8, 6],
+  settings: { physics: "rapier", gravity: [0, 9.8] },
+  entities: [
+    box("beam", [0, 0], "static"),
+    // A hinge: anchors are metres from each body's own pose. The gate turns
+    // about the beam's corner, its motor driving it at 1 rad/s with at most
+    // 40 N·m, until the high limit (1 rad) stops it.
+    box("gate", [1, 0], "dynamic", {
+      kind: "revolute",
+      to: "beam",
+      anchorA: [-1, 0],
+      anchorB: [0, 0],
+      limits: [0, 1],
+      motor: { velocity: 1, maxForce: 40 },
+    }),
+    // A slider down the beam's frame, falling under gravity to 0.5 m of travel.
+    box("shutter", [3, 1], "dynamic", {
+      kind: "prismatic",
+      to: "beam",
+      axis: [0, 1],
+      limits: [0, 0.5],
+    }),
+    // Without anchorB the other end holds the point under anchorA, so the
+    // rope and the spring name the beam's centre to measure from it.
+    box("lamp", [-1, 1], "dynamic", { kind: "rope", to: "beam", anchorB: [0, 0], length: 1 }),
+    box("sign", [1.5, 0], "dynamic", { kind: "weld", to: "gate" }),
+    box("bob", [-2, 0], "dynamic", {
+      kind: "spring",
+      to: "beam",
+      anchorB: [0, 0],
+      length: 0.5,
+      stiffness: 400,
+      damping: 20,
+    }),
+  ],
+};
+
+/** Three seconds in the yard. */
+export function swingGate(rapier: RapierModule) {
+  const run = runPlaytest<YardSnapshot>({
+    rapier,
+    game: yardGame,
+    scene: yard,
+    script: { v: 2, steps: [{ wait: 180 }] },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+  return run.final!;
+}
+```
+
+After three seconds the gate rests on its high limit (1 rad), the shutter
+on its 0.5 m stop, the lamp 1 m from the beam, the sign 0.5 m from the
+gate's centre and the bob 0.5 m from the beam.
+
+## Dragging bodies
+
+`createDragJoint(ctx, body, at, opts)` (from `@jams/engine/game`) grabs a
+body at a world point and pulls that point toward wherever `update` puts
+the pointer: a spring of rest length 0 (`stiffness`, default 200 N/m) with
+`damping` (default 20 N·s/m) against the held point's velocity. Call
+`update(to)` every tick while the button is held and `release()` when it
+lets go; `release` is safe to call twice, and a drag whose body is gone,
+or whose world was replaced, releases on its next `update`.
+
+`maxForce` (N, default unbounded) caps the spring and its damping
+together. Rapier's joints have no force cap, so the drag clamps how far
+the spring stretches instead: never more than `maxForce / stiffness`
+metres from the held point. A heavy body follows a capped drag slowly
+instead of being yanked. The anchor has no collider, so queries and
+contacts never see it, and outside a Rapier scene `createDragJoint` throws
+`PhysicsRequiredError`.
+
+Drive it from recorded input, so a playtest replays the drag exactly:
+
+```ts drag-crate.ts
+import { createDragJoint, defineGame, type DragJoint, type EngineContext } from "@jams/engine/game";
+import { runPlaytest, type InputScriptV2, type RapierModule } from "@jams/engine/headless";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "@jams/engine/scene";
+
+export type DragSnapshot = { crate: { x: number; y: number }; dragging: boolean };
+
+/** Holding the primary button over a body drags it; letting go drops it. */
+export const dragGame = defineGame<DragSnapshot>({
+  id: "drag-crate",
+  types: [],
+  actions: [
+    {
+      action: "grab",
+      description: "Hold to drag what's under the pointer.",
+      bindings: [{ device: "pointer", button: "primary" }],
+    },
+  ],
+  createRuntime(ctx: EngineContext) {
+    let drag: DragJoint | null = null;
+    return {
+      onUnload() {
+        drag?.release();
+        drag = null;
+      },
+      beforeStep() {
+        const p = ctx.input.pointer();
+        if (ctx.input.pressed("grab") && p) {
+          const hit = ctx.space.pointAt(p)[0];
+          // A pull of at most 20 N: the spring never stretches past 20 / 200 = 0.1 m.
+          if (hit) drag = createDragJoint(ctx, hit.tag.entityId, p, { maxForce: 20 });
+        } else if (ctx.input.released("grab")) {
+          drag?.release();
+          drag = null;
+        } else if (p) drag?.update(p);
+      },
+      snapshot() {
+        const at = ctx.poses.get("crate");
+        return { crate: { x: at?.x ?? 0, y: at?.y ?? 0 }, dragging: drag !== null };
+      },
+    };
+  },
+});
+
+const floor: SceneDefinition = {
+  v: SCENE_FORMAT_VERSION,
+  game: "drag-crate",
+  name: "floor",
+  bounds: [-5, -5, 5, 5],
+  settings: { physics: "rapier", gravity: [0, 0] },
+  entities: [
+    {
+      id: "crate",
+      type: "marker",
+      at: [0, 0],
+      behaviors: {
+        collider: { shape: ["box", 0, 0, 0.25, 0.25] },
+        body: { kind: "dynamic", fixedRotation: true },
+      },
+    },
+  ],
+};
+
+/** Press on the crate, drag it 2 m right, hold, then let go: recorded input, so it replays. */
+export const dragRight: InputScriptV2 = {
+  v: 2,
+  steps: [
+    { pointer: { at: [0, 0], press: "primary" }, for: 1 },
+    { pointer: { at: [0, 0], drag: [2, 0] }, for: 30 },
+    { pointer: { at: [2, 0] }, for: 240 },
+    { pointer: { at: [2, 0], release: "primary" }, for: 2 },
+  ],
+};
+
+export function dragCrate(rapier: RapierModule) {
+  const run = runPlaytest<DragSnapshot>({
+    rapier,
+    game: dragGame,
+    scene: floor,
+    script: dragRight,
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+  return run.final!;
+}
+```
+
+The crate ends 2 m right of where it started, and the drag is released.
+
+## Concave shapes
+
+A collider's `poly` must be convex (`poly-invalid` otherwise).
+`decomposePolygon(points, opts)` (from `@jams/engine/scene`) splits a
+simple concave polygon into convex pieces: ear clipping, then merging
+triangles across their shared edges into pieces of at most 8 vertices
+(`maxVertices`). It adds no vertex: every piece's corners are the input's.
+It works on whole world pixels (`pxPerMetre`, default the engine's), so
+every test is an exact integer cross product and the same points always
+give the same pieces; `area2` is twice the area in px². A
+self-intersecting, zero-area or under-three-point polygon is refused with
+`poly-invalid`.
+
+`canDecompose(points)` is the one rule for offering a split: a simple
+polygon with area that isn't already convex. `decomposeBatch(def, id,
+registry, { group })` turns it into an edit: one entity per piece, with the
+same type and fields and ids `<id>-1`, `<id>-2`, …, or with `group` a node
+named `id` holding them, as one op batch for `applyOps`. The editor's
+inspector offers the same batch as **Split into convex pieces**, and so do
+`vp run scene decompose <scene> <id> [--group] [--dry-run]` and the MCP
+tool `scene_decompose` (a dry run unless `dryRun` is false).
+
+```ts concave-ledge.ts
+import { createRegistry } from "@jams/engine/game";
+import {
+  applyOps,
+  canDecompose,
+  decomposeBatch,
+  decomposePolygon,
+  SCENE_FORMAT_VERSION,
+  type Pt,
+  type SceneDefinition,
+} from "@jams/engine/scene";
+
+/** An L-shaped ledge, in metres: concave, so one convex collider can't hold it. */
+export const ledge: Pt[] = [
+  [0, 0],
+  [3, 0],
+  [3, 0.5],
+  [1, 0.5],
+  [1, 2],
+  [0, 2],
+];
+
+const cave: SceneDefinition = {
+  v: SCENE_FORMAT_VERSION,
+  name: "cave",
+  bounds: [-1, -1, 5, 5],
+  settings: { physics: "rapier" },
+  entities: [{ id: "ledge", type: "solid", shape: ["poly", ...ledge.flat()] }],
+};
+
+export function splitLedge() {
+  const registry = createRegistry(null);
+  const split = decomposePolygon(ledge);
+  if (!split.ok) throw new Error(split.issue.message);
+  // The same edit the editor's "Split into convex pieces" and `vp run scene decompose` make.
+  const batch = decomposeBatch(cave, "ledge", registry, { group: true });
+  if (!batch.ok) throw new Error(batch.issue.message);
+  const applied = applyOps(cave, batch.batch, registry);
+  if (!applied.ok) throw new Error("the batch didn't apply");
+  return {
+    splits: canDecompose(ledge),
+    // A square is already convex, so there's nothing to split.
+    squareSplits: canDecompose([
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ]),
+    pieces: split.pieces,
+    area2: split.area2,
+    ids: applied.def.entities?.map((e) => `${e.id}${e.parent ? ` in ${e.parent}` : ""}`),
+    // A bow tie crosses itself: refused, with nothing written.
+    bowTie: decomposePolygon([
+      [0, 0],
+      [2, 2],
+      [2, 0],
+      [0, 1],
+    ]),
+  };
+}
+```
+
+The L becomes two four-cornered pieces under a `ledge` group, `ledge-1`
+and `ledge-2`; the square isn't offered a split, and the bow tie is
+refused.
+
 ## Scripts
 
 A script is a behavior with one instance per entity, written the way a

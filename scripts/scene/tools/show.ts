@@ -381,6 +381,32 @@ export function sceneRegions(
   });
 }
 
+export type ShownJoint = { id: string; kind: string; to: string };
+
+/** Every entity of the expanded scene carrying a `joint` block, with its kind and the entity it links. */
+export function sceneJoints(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  engine: Readonly<Record<string, unknown>> | undefined,
+): ShownJoint[] {
+  const scene = expandScene(def, registry, { prefabs, engine });
+  return scene.entities.flatMap((e) => {
+    const b = e.behaviors?.joint as { kind?: unknown; to?: unknown } | undefined;
+    if (!b || typeof b !== "object") return [];
+    return [
+      {
+        id: e.id,
+        kind: typeof b.kind === "string" ? b.kind : "(no kind)",
+        to: typeof b.to === "string" ? b.to : "(no to)",
+      },
+    ];
+  });
+}
+
+/** `hinge  revolute  hinge ↔ frame`. */
+export const jointLine = (j: ShownJoint) => `  ${j.id}  ${j.kind}  ${j.id} ↔ ${j.to}`;
+
 /** `framing 9,0.5..21,7.5 m zoom 1.5 clamp ease 0.5 s`. */
 export function regionLine(r: CameraRegion): string {
   const zoom = r.zoom === undefined ? "" : ` zoom ${r.zoom}`;
@@ -451,6 +477,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   const shown = truncated ? rows.slice(0, MAX_ROWS) : rows;
   const listed = new Set(rows.map((r) => r.ref));
   const regions = sceneRegions(def, registry, prefabs, engine).filter((r) => listed.has(r.id));
+  const joints = sceneJoints(def, registry, prefabs, engine).filter((j) => listed.has(j.id));
   const data = {
     ok: true,
     scene: loaded.name,
@@ -462,6 +489,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     time,
     physics,
     cameraRegions: regions,
+    joints,
     entities: shown,
     total,
     truncated,
@@ -492,6 +520,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
       ...(regions.length > 0
         ? ["camera regions (as the camera rig reads them):", ...regions.map(regionLine)]
         : []),
+      ...(joints.length > 0 ? ["joints:", ...joints.map(jointLine)] : []),
       ...shown.map(rowLine),
       ...more,
     ].join("\n"),

@@ -76,6 +76,12 @@ import {
   SINK_SCENE,
   SPLIT_VIEWPORTS,
 } from "./browser/sink";
+import {
+  FOLLOW_FRAMES,
+  FOLLOW_SPEED,
+  FOLLOW_STEP_PX,
+  judgeSmoothOutcome,
+} from "./browser/smooth-follow";
 import { runTactics, type TacticsProbe } from "./browser/tactics";
 import { EMPTY_CELL, HEX_GRID, TILE_CELL, TILE_COLOURS, TILEMAP_ENTITY } from "./browser/tilemaps";
 import { closeWithin } from "./export";
@@ -258,7 +264,10 @@ async function runEngine(
       `${name}'s window.__engineSmoke`,
     );
     return {
-      ...judgeMedia(judgeResult(name, result, expected), result),
+      ...judgeSmoothOutcome(
+        judgeMedia(judgeResult(name, result, expected), result),
+        result?.ok ? result.smoothFollow : undefined,
+      ),
       ms: Math.round(performance.now() - started),
     };
   } finally {
@@ -534,6 +543,7 @@ writeFileSync(
           colour: hexOf(SIGNS.web.colour),
         },
       },
+      smoothFollow: { frames: FOLLOW_FRAMES, speed: FOLLOW_SPEED, stepPx: FOLLOW_STEP_PX },
       audio: {
         patch: SMOKE_PATCH,
         endedSlackMs: AUDIO_ENDED_SLACK_MS,

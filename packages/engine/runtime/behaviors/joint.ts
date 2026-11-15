@@ -6,6 +6,7 @@ import { physicsOf } from "../../game/physics-of";
 import { EngineError, scopedRef, type EngineContext, type JsonValue } from "../../game/types";
 import { rotate } from "../../math";
 import type { PhysicsWorld } from "../../physics";
+import { bodyOf } from "../../physics/body-of";
 import { composePose, relativePose, type Pose } from "../poses";
 
 type Vec = { x: number; y: number };
@@ -49,29 +50,6 @@ const inverse = (dynamic: boolean, amount: number): number =>
  */
 export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const linked = new Map<string, Linked>();
-
-  /**
-   * The body holding `id`'s first enabled non-sensor collider, which is what
-   * `joint-ref-type` validates; re-looked-up when the cached one was disabled.
-   */
-  function bodyOf(physics: PhysicsWorld, id: string, cached: number | null): RigidBody | null {
-    if (cached !== null) {
-      const body = physics.world.bodies.get(cached);
-      if (body?.isEnabled()) return body;
-    }
-    let best: RigidBody | null = null;
-    let bestHandle = Infinity;
-    for (const handle of ctx.tags.handlesOf(id)) {
-      const collider = physics.world.getCollider(handle);
-      if (!collider || collider.isSensor() || !collider.isEnabled() || handle >= bestHandle)
-        continue;
-      const parent = collider.parent();
-      if (!parent?.isEnabled()) continue;
-      best = parent;
-      bestHandle = handle;
-    }
-    return best;
-  }
 
   function live(physics: PhysicsWorld, l: Linked): ImpulseJoint | null {
     return l.joint === null ? null : physics.world.impulseJoints.get(l.joint);
@@ -160,8 +138,8 @@ export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       if (l.joint !== null) drop(l);
       return;
     }
-    const self = bodyOf(physics, id, l.self);
-    const other = bodyOf(physics, l.target, l.other);
+    const self = bodyOf(ctx, physics, id, l.self);
+    const other = bodyOf(ctx, physics, l.target, l.other);
     if (strict && !other)
       throw new EngineError(
         "joint-ref-type",
@@ -189,8 +167,8 @@ export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       )
         continue;
       if (!live(physics, l)) continue;
-      const self = bodyOf(physics, id, l.self);
-      const other = bodyOf(physics, l.target, l.other);
+      const self = bodyOf(ctx, physics, id, l.self);
+      const other = bodyOf(ctx, physics, l.target, l.other);
       if (!self || !other) continue;
       const selfDynamic = ctx.bodies.kind(id) === "dynamic";
       const otherDynamic = ctx.bodies.kind(l.target) === "dynamic";
@@ -328,8 +306,8 @@ export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
         l.held = { x: held[0], y: held[1] };
       const saved = typeof handle === "number" ? physics.world.impulseJoints.get(handle) : null;
       l.target = targetOf(ctx, id, l.block.to);
-      const self = bodyOf(physics, id, null);
-      const other = bodyOf(physics, l.target, null);
+      const self = bodyOf(ctx, physics, id, null);
+      const other = bodyOf(ctx, physics, l.target, null);
       if (
         saved &&
         self &&

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
+import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import { createRegistry } from "../../game/define";
 import { bulkEntries } from "../../scene/expand";
 import { applyOps } from "../../scene/ops";
@@ -24,12 +25,16 @@ import {
   selectAllRefs,
   selectionBounds,
   selectionRoots,
+  canSplitConvex,
+  polyPointsOf,
+  splitConvex,
   turnBatch,
   ungroupBatch,
   ungroupRefusal,
   zOrderBatch,
 } from "../commands";
 import { outlineBounds, outlineLook } from "../outline-bounds";
+import { createEditorSession } from "../session";
 import { createSpatialIndex } from "../spatial-index";
 
 const registry = createRegistry();
@@ -544,5 +549,66 @@ describe("select-all, delete and bounds", () => {
       maxX: 7.5,
       maxY: 3.5,
     });
+  });
+});
+
+describe("splitConvex", () => {
+  const ell = ["poly", 0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4];
+  const square = ["poly", 0, 0, 2, 0, 2, 2, 0, 2];
+  const polys = parseSceneOrThrow(
+    {
+      v: SCENE_FORMAT_VERSION,
+      name: "polys",
+      bounds: [0, 0, 20, 10],
+      entities: [
+        { id: "ell", type: "solid", shape: ell },
+        { id: "square", type: "solid", shape: square },
+        { id: "ring", type: "prop", shape: ["box", 3, 3, 1, 1], density: 1, restitution: 0 },
+      ],
+    },
+    registry,
+  );
+  const session = () =>
+    createEditorSession({
+      doc: sceneToDoc(polys, { key: sequentialKeys("s") }),
+      origin: { kind: "user", userId: "ada", name: "Ada" },
+      name: "polys",
+      registry,
+      issuesDebounceMs: 0,
+    });
+
+  it("reads an entity's own poly shape", () => {
+    expect(polyPointsOf(polys, "ell")).toHaveLength(6);
+    expect(polyPointsOf(polys, "ring")).toBeNull();
+    expect(polyPointsOf(polys, "missing")).toBeNull();
+  });
+
+  it("is enabled for a concave poly only", () => {
+    expect(canSplitConvex(polys, "ell")).toBe(true);
+    expect(canSplitConvex(polys, "square")).toBe(false);
+    expect(canSplitConvex(polys, "ring")).toBe(false);
+  });
+
+  it("dispatches one batch that one undo restores", () => {
+    const s = session();
+    const before = s.getDoc();
+    const dispatch = vi.spyOn(s, "dispatch");
+    expect(splitConvex(s, "ell")).toEqual({ ok: true });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    const after = s.getDoc().entities!;
+    expect(after.some((e) => e.id === "ell")).toBe(false);
+    expect(after.filter((e) => e.id?.startsWith("ell-")).length).toBeGreaterThan(1);
+    expect(s.undo()).toBe(true);
+    expect(s.getDoc()).toEqual(before);
+    s.destroy();
+  });
+
+  it("refuses a convex poly with an issue and dispatches nothing", () => {
+    const s = session();
+    const dispatch = vi.spyOn(s, "dispatch");
+    const result = splitConvex(s, "square");
+    expect(result.ok).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+    s.destroy();
   });
 });

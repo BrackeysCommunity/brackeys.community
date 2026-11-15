@@ -17,6 +17,7 @@ import type { EngineContext, GameDefinition } from "../game/types";
 import { createHeadlessRuntime } from "../headless/headless";
 import type { PixiView } from "../render/pixi-view";
 import { snapshotDigest } from "../runtime/recorder";
+import type { SceneRuntimeHandle } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { Vec2 } from "../types";
@@ -483,6 +484,16 @@ describe("the rig in Play", () => {
         snapshot: () => null,
       }),
     });
+
+  it("jumps with a lone target ctx.setPose teleports", async () => {
+    const game = await playing(
+      sceneOf([followed("hero", 12, -4)], "framer"),
+      framer({ damping: 0.1 }),
+    );
+    (game.runtime() as SceneRuntimeHandle).ctx.setPose("hero", 40, -4, undefined, { snap: true });
+    advance(1);
+    expect(lastFrame().x).toBeCloseTo(40, 6);
+  });
 
   it("lets a request steer the follow without a jump", async () => {
     const asks: ((ctx: EngineContext) => void)[] = [];

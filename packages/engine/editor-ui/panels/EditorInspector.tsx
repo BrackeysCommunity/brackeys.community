@@ -19,6 +19,7 @@ import {
 } from "react";
 
 import type { ProjectSession } from "../../collab/index";
+import { canSplitConvex, splitConvex } from "../../editor/commands";
 import {
   applyLevels,
   applyToPrefabBatch,
@@ -137,6 +138,7 @@ import {
   type IconSvgElement,
 } from "../kit/index";
 import { useResizeFit } from "../kit/ssr";
+import { useOptionalPending } from "../pending/use-pending";
 import { openPrefabScope } from "../session/live-scene-editor";
 import {
   useEditorDoc,
@@ -937,6 +939,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           {tag ? `${MIXED} each ${tag} differs` : `${MIXED} the shapes differ`}
         </p>
       )}
+      {tag === "poly" ? <SplitConvexAction ctx={ctx} /> : null}
       <Confirm
         open={lossy !== null}
         onOpenChange={(open) => !open && setLossy(null)}
@@ -948,6 +951,49 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           setLossy(null);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * "Split into convex pieces" for one entity whose own concave poly can split:
+ * one batch, so one undo restores it. A refusal toasts through the editor's
+ * pending tasks, or shows inline outside an editor.
+ */
+function SplitConvexAction({ ctx }: { ctx: Ctx }) {
+  const pending = useOptionalPending();
+  const [error, setError] = useState<string | null>(null);
+  const target = ctx.targets.length === 1 && !ctx.edit ? ctx.targets[0] : undefined;
+  const id = target?.kind === "entity" ? target.entity.id : undefined;
+  if (!id || !canSplitConvex(ctx.session.getDoc(), id)) return null;
+  const scope = `inspector:split-convex:${id}`;
+  const split = () => {
+    if (ctx.readOnly) return setError(READ_ONLY);
+    if (!pending) {
+      const result = splitConvex(ctx.session, id);
+      return setError(result.ok ? null : result.issue.message);
+    }
+    void pending.run(
+      { label: `Splitting ${id} into convex pieces`, scope, error: `Couldn't split ${id}` },
+      async () => {
+        const result = splitConvex(ctx.session, id);
+        if (!result.ok) throw new Error(result.issue.message);
+      },
+    );
+  };
+  return (
+    <div className="je-insp-stack" data-gap="tight">
+      <Button
+        size="sm"
+        variant="outline"
+        busyScope={scope}
+        disabled={ctx.readOnly}
+        tooltip="Replace this concave polygon with convex pieces of the same type; undo restores it"
+        onClick={split}
+      >
+        Split into convex pieces
+      </Button>
+      {error ? <p className="je-insp-error">{error}</p> : null}
     </div>
   );
 }

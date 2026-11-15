@@ -103,7 +103,7 @@ describe("joint", () => {
     let lowest = 0;
     step(rt, 300, () => {
       const held = worldAnchor(rt, "bob", [-2, 0]);
-      expect(distance(held, { x: 0, y: 0 })).toBeLessThan(0.02);
+      expect(distance(held, { x: 0, y: 0 })).toBeLessThan(0.005);
       lowest = Math.max(lowest, pose(rt, "bob").y);
     });
     expect(lowest).toBeGreaterThan(1.9);
@@ -166,7 +166,7 @@ describe("joint", () => {
     let far = 0;
     step(rt, 180, () => {
       const p = pose(rt, "slider");
-      expect(Math.abs(p.y)).toBeLessThan(0.01);
+      expect(Math.abs(p.y)).toBeLessThan(0.005);
       expect(Math.abs(p.rot)).toBeLessThan(0.01);
       far = Math.max(far, p.x);
     });
@@ -182,7 +182,7 @@ describe("joint", () => {
     ]);
     step(rt, 60);
     const p = pose(rt, "slider");
-    expect(Math.abs(p.x)).toBeLessThan(0.01);
+    expect(Math.abs(p.x)).toBeLessThan(0.005);
     expect(p.y).toBeGreaterThan(1);
     rt.destroy();
   });
@@ -197,7 +197,7 @@ describe("joint", () => {
       most = Math.max(most, distance(pose(rt, "load"), { x: 0, y: 0 }));
     });
     expect(most).toBeGreaterThan(2.9);
-    expect(most).toBeLessThan(3.02);
+    expect(most).toBeLessThan(3 + 0.005);
     rt.destroy();
   });
 
@@ -254,49 +254,56 @@ describe("joint", () => {
     touching.destroy();
   });
 
-  it("a chain of 10 revolute links is stable over 600 ticks and replays to the same digest", () => {
-    const half = 0.25;
-    const chain: EntityDef[] = [box("top", [0, 0], { kind: "static", hw: 0.1, hh: 0.1 })];
-    for (let i = 1; i <= 10; i++) {
-      chain.push(
-        box(`link-${i}`, [(2 * i - 1) * half, 0], {
-          hw: half,
-          hh: 0.05,
-          joint: {
-            kind: "revolute",
-            to: i === 1 ? "top" : `link-${i - 1}`,
-            anchorA: [-half, 0],
-            anchorB: i === 1 ? [0, 0] : [half, 0],
-          },
-        }),
-      );
-    }
-    const run = () => {
-      const rt = load(structuredClone(chain));
-      expect(jointCount(rt)).toBe(10);
-      const trace: number[] = [];
-      let lowest = 0;
-      step(rt, 600, () => {
-        for (let i = 1; i <= 10; i++) {
-          const p = pose(rt, `link-${i}`);
-          trace.push(p.x, p.y, p.rot);
-        }
-        lowest = Math.max(lowest, pose(rt, "link-10").y);
-      });
-      for (let i = 1; i <= 10; i++) {
-        const p = pose(rt, `link-${i}`);
-        expect(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.rot)).toBe(true);
-        const held = worldAnchor(rt, `link-${i}`, [-half, 0]);
-        const on = i === 1 ? { x: 0, y: 0 } : worldAnchor(rt, `link-${i - 1}`, [half, 0]);
-        expect(distance(held, on)).toBeLessThan(0.05);
+  it.each([
+    [10, 0.05],
+    [20, 0.01],
+  ])(
+    "a chain of %i revolute links is stable over 600 ticks and replays to the same digest",
+    (links, slack) => {
+      const half = 0.25;
+      const chain: EntityDef[] = [box("top", [0, 0], { kind: "static", hw: 0.1, hh: 0.1 })];
+      for (let i = 1; i <= links; i++) {
+        chain.push(
+          box(`link-${i}`, [(2 * i - 1) * half, 0], {
+            hw: half,
+            hh: 0.05,
+            joint: {
+              kind: "revolute",
+              to: i === 1 ? "top" : `link-${i - 1}`,
+              anchorA: [-half, 0],
+              anchorB: i === 1 ? [0, 0] : [half, 0],
+            },
+          }),
+        );
       }
-      // it swings down from level: the far end passes well below the pivot
-      expect(lowest).toBeGreaterThan(3.5);
-      rt.destroy();
-      return hashText(JSON.stringify(trace));
-    };
-    expect(run()).toBe(run());
-  }, 30_000);
+      const run = () => {
+        const rt = load(structuredClone(chain));
+        expect(jointCount(rt)).toBe(links);
+        const trace: number[] = [];
+        let lowest = 0;
+        step(rt, 600, () => {
+          for (let i = 1; i <= links; i++) {
+            const p = pose(rt, `link-${i}`);
+            trace.push(p.x, p.y, p.rot);
+          }
+          lowest = Math.max(lowest, pose(rt, `link-${links}`).y);
+        });
+        for (let i = 1; i <= links; i++) {
+          const p = pose(rt, `link-${i}`);
+          expect(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.rot)).toBe(true);
+          const held = worldAnchor(rt, `link-${i}`, [-half, 0]);
+          const on = i === 1 ? { x: 0, y: 0 } : worldAnchor(rt, `link-${i - 1}`, [half, 0]);
+          expect(distance(held, on)).toBeLessThan(slack);
+        }
+        // it swings down from level: the far end passes well below the pivot
+        expect(lowest).toBeGreaterThan(3.5);
+        rt.destroy();
+        return hashText(JSON.stringify(trace));
+      };
+      expect(run()).toBe(run());
+    },
+    30_000,
+  );
 
   it("removing the far end removes the joint, and the body falls free", () => {
     const rt = load([
@@ -359,6 +366,36 @@ describe("joint", () => {
       expect(distance(held, { x: 0, y: 0 })).toBeLessThan(0.05);
     });
     rt.destroy();
+  });
+
+  it("a live swap that respawns an end re-joins it before the next step, so the run digests the same", () => {
+    const entities = (pivotHalf: number) => [
+      box("pivot", [0, 0], { kind: "static", hw: pivotHalf, hh: pivotHalf }),
+      box("bob", [2, 0], { joint: { kind: "revolute", to: "pivot", anchorA: [-2, 0] } }),
+    ];
+    const run = (swapAt: number | null) => {
+      const rt = load(entities(0.25));
+      const trace: number[] = [];
+      for (let t = 0; t < 120; t++) {
+        if (t === swapAt) {
+          const before = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("pivot")[0]!)!;
+          const report = rt.swap(expandScene(scene(entities(0.3)), registry), {
+            prefabs: new Map(),
+          });
+          expect(report).toMatchObject({ ok: true, strategy: "reconcile" });
+          const after = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("pivot")[0]!)!;
+          expect(after.parent()!.handle).not.toBe(before.parent()?.handle);
+        }
+        step(rt, 1);
+        expect(joints(rt).joined("bob")).toBe(true);
+        expect(jointCount(rt)).toBe(1);
+        const p = pose(rt, "bob");
+        trace.push(p.x, p.y, p.rot);
+      }
+      rt.destroy();
+      return hashText(JSON.stringify(trace));
+    };
+    expect(run(40)).toBe(run(null));
   });
 
   it("disabling either end removes the joint, and enabling both makes it again", () => {

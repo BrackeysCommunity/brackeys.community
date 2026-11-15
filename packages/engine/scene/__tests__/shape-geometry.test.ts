@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   convexHull,
+  earClip,
   signedArea,
   aabb,
   aabbBox,
@@ -1132,5 +1133,49 @@ describe("walk-polygon predicates", () => {
       ["room", ["pillar"]],
       ["annex", ["crate"]],
     ]);
+  });
+});
+
+describe("earClip", () => {
+  const twice = (t: readonly Pt[]) => 2 * signedArea(t);
+  it("clips a concave ring into positive triangles of its corners, area exact, the first ear walking from corner 0", () => {
+    const ring: Pt[] = [
+      [0, 0],
+      [4, 0],
+      [4, 1],
+      [1, 1],
+      [1, 3],
+      [0, 3],
+    ];
+    const tris = earClip(ring);
+    expect(tris).toHaveLength(4);
+    // Corner 0's ear holds [1, 1], so the walk takes corner 1's first.
+    expect(tris[0]).toEqual([
+      [0, 0],
+      [4, 0],
+      [4, 1],
+    ]);
+    for (const t of tris) {
+      expect(twice(t)).toBeGreaterThan(0);
+      for (const p of t) expect(ring).toContainEqual(p);
+    }
+    expect(tris.reduce((a, t) => a + twice(t), 0)).toBe(twice(ring));
+  });
+
+  it("gives nothing for fewer than three points and drops a flat corner", () => {
+    expect(
+      earClip([
+        [0, 0],
+        [1, 0],
+      ]),
+    ).toEqual([]);
+    const tris = earClip([
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [2, 2],
+      [0, 2],
+    ]);
+    expect(tris.reduce((a, t) => a + twice(t), 0)).toBe(8);
   });
 });

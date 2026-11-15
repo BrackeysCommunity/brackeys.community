@@ -30,6 +30,8 @@ import type { EventLog, EventLogWriter } from "./debug/event-log";
 import { GameEventEmitter } from "./events";
 import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
+import { SPRITE } from "./game/behaviors/sprite";
+import { TEXT } from "./game/behaviors/text";
 import { LATENCY_COMMAND, LATENCY_MS_LIMIT } from "./game/commands";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
@@ -128,6 +130,8 @@ import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import type { CameraTargetSystem } from "./runtime/behaviors/camera-target";
 import { emitterPreset } from "./runtime/behaviors/emitter";
+import type { SpriteSystem } from "./runtime/behaviors/sprite";
+import type { TextSystem } from "./runtime/behaviors/text";
 import { loadListed } from "./runtime/flow";
 import {
   createLiveLayer,
@@ -147,7 +151,7 @@ import {
   type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
-import { lerpPose } from "./runtime/poses";
+import { isWatched, lerpPose, type PoseIndex } from "./runtime/poses";
 import type { AudioRequest, EffectRequest, PresentRequest } from "./runtime/present";
 import { emptyTick, recordingRapier, recordingStart } from "./runtime/recorder";
 import {
@@ -412,6 +416,7 @@ export async function createGame(
     rig: null,
     frameAt: null,
     track: freshTrack(),
+    seenTeleports: null,
     rect: { x: 0, y: 0, ...display },
     holder: null,
     surface: null,
@@ -1583,6 +1588,8 @@ export async function createGame(
       const runtime = loaded!.runtime;
       try {
         restoreWorld(runtime, checkpoint.snapshot);
+        // A seek jumps the world: the cameras jump with it rather than ease across.
+        for (const vc of [main, ...extras]) vc.rig?.request({ op: "snap" });
       } catch (error) {
         if (cfg.dev) console.warn(`[replay] seek: ${errorText(error)}`);
         return false;
@@ -2151,6 +2158,11 @@ export async function createGame(
     const dtMs = vc.frameAt === null || loop.isPaused() ? 0 : Math.max(0, now - vc.frameAt);
     vc.frameAt = now;
     const targets = viewTargets(runtime, vc, true, rig.following, alpha) ?? [];
+    const jump = teleported(vc, runtime.ctx.poses, targets);
+    if (jump) {
+      const at = cam.getPosition();
+      rig.request({ op: "snap", at: { x: at.x + jump.x, y: at.y + jump.y } });
+    }
     const { zoom, bounds } = cam.getState();
     const vp = cam.getViewport();
     const input: RigInput = {
@@ -2254,6 +2266,7 @@ export async function createGame(
           rig: null,
           frameAt: null,
           track: freshTrack(),
+          seenTeleports: null,
           rect: r,
           holder,
           surface: createViewportSurface(true),
@@ -2801,6 +2814,25 @@ export async function createGame(
 
   /** When the last rendered frame ran, for the particles' wall time; null before the first. */
   let lastFrameAt: number | null = null;
+  /** The pose index's teleport count when the visuals last settled at a frame. */
+  let settledTeleports: { poses: PoseIndex; count: number } | null = null;
+
+  /**
+   * Settles the pose-index visuals at a frame after a teleport since the
+   * last one, so they jump on the same frame the camera does rather than a
+   * tick later.
+   */
+  function settleTeleported(runtime: SceneRuntimeHandle): void {
+    const { poses } = runtime.ctx;
+    if (!isWatched(poses)) return;
+    const count = poses.teleports();
+    if (settledTeleports?.poses === poses && settledTeleports.count === count) return;
+    const first = settledTeleports?.poses !== poses;
+    settledTeleports = { poses, count };
+    if (first) return;
+    runtime.ctx.behavior<SpriteSystem>(SPRITE.name)?.settle();
+    runtime.ctx.behavior<TextSystem>(TEXT.name)?.settle();
+  }
   /** Sim time `step` advanced while paused, owed to the particles on the next rendered frame. */
   let steppedMs = 0;
 
@@ -2904,6 +2936,7 @@ export async function createGame(
         // Paused or editing, nothing steps, so visuals sit at their latest poses (an idle
         // turns or event game gets alpha 1 from the loop).
         const a = loop.isPaused() || getMode() === "edit" ? 1 : alpha;
+        settleTeleported(loaded.runtime);
         if (framedPerFrame()) {
           const before = camera.getState().zoom;
           frameView(main, loaded.runtime, a, frameNow);
@@ -4089,8 +4122,30 @@ function flowUnavailable(): FlowResult {
   };
 }
 
-/** One thing the camera follows this frame, world metres and m/s. */
-type FollowTarget = RigInput["targets"][number];
+/**
+ * One thing the camera follows this frame, world metres and m/s;
+ * `teleports` is an entity's pose-index teleport count.
+ */
+type FollowTarget = RigInput["targets"][number] & { teleports?: number };
+
+/**
+ * How far the targets `vc` follows jumped when every one is an entity
+ * teleported since its last frame, else null: the camera jumps with them,
+ * keeping its lag, rather than easing across the jump.
+ */
+function teleported(
+  vc: ViewCamera,
+  poses: PoseIndex,
+  targets: readonly FollowTarget[],
+): Vec2 | null {
+  if (!isWatched(poses)) return null;
+  const seen = vc.seenTeleports;
+  const centre = centreOf(targets)?.at ?? null;
+  vc.seenTeleports = { poses, count: poses.teleports(), centre };
+  if (seen?.poses !== poses || !seen.centre || !centre) return null;
+  if (!targets.every((t) => t.teleports !== undefined && t.teleports > seen.count)) return null;
+  return { x: centre.x - seen.centre.x, y: centre.y - seen.centre.y };
+}
 
 /** The game's `cameraTarget()` point as last read: where, on which tick, and how fast it moved then. */
 type PointTrack = { at: Vec2 | null; tick: number; velocity: Vec2 };
@@ -4106,6 +4161,8 @@ type ViewCamera = {
   frameAt: number | null;
   /** The game's `cameraTarget()` point as this view last read it, for its velocity. */
   track: PointTrack;
+  /** The pose index's teleport count and the targets' centre at the rig's last frame; null before its first. */
+  seenTeleports: { poses: PoseIndex; count: number; centre: Vec2 | null } | null;
   /** Its rectangle on the canvas, px. */
   rect: ViewportRect;
   /** What a later viewport's camera places, whose transform draws the world into its surface; null for the first. */
@@ -4153,7 +4210,8 @@ function entityTarget(
   const seconds = ctx.time.tickMs / 1000;
   const velocity = { x: (cur.x - prev.x) / seconds, y: (cur.y - prev.y) / seconds };
   const pose = alpha >= 1 ? cur : lerpPose(prev, cur, alpha);
-  return { at: { x: pose.x, y: pose.y }, velocity, weight };
+  const teleports = isWatched(ctx.poses) ? ctx.poses.teleports(id) : 0;
+  return { at: { x: pose.x, y: pose.y }, velocity, weight, ...(teleports ? { teleports } : {}) };
 }
 
 /**

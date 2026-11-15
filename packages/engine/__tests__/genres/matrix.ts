@@ -44,7 +44,11 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     deliveredBy: "M14 (PHY-2), M15, M16, M22",
     probes: ["racing", "top-down"],
   },
-  "physics-sandbox": { genre: "Physics sandbox", deliveredBy: "M14, M15, M26", probes: [] },
+  "physics-sandbox": {
+    genre: "Physics sandbox",
+    deliveredBy: "M14, M15, M26",
+    probes: ["physics-sandbox"],
+  },
   rts: {
     genre: "RTS / strategy",
     deliveredBy: "M14, M16, M22, M24, M25",
@@ -117,6 +121,7 @@ export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
   23: "0.17.0",
   24: "0.18.0",
   25: "0.19.0",
+  26: "0.20.0",
 };
 
 /** `a` against `b` as semver release triples: negative, zero or positive. */

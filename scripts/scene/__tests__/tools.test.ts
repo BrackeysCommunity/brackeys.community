@@ -342,6 +342,21 @@ describe("show", () => {
     expect(refs((await show({ scene: ENGINE_YARD }, ctx)).data)).toEqual(refs(data));
   });
 
+  it("lists joints with their kind and ends, in text and JSON", async () => {
+    const sink = join(root, "show-joints");
+    await copyProject(ENGINE_SCENES, sink);
+    const sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
+    const r = await show({ scene: "kitchen-sink" }, sinkCtx);
+    expect(r.exitCode).toBe(0);
+    expect(r.text).toContain("joints:\n  std-joint  revolute  std-joint ↔ std-collider\n");
+    expect((r.data as { joints: unknown }).joints).toEqual([
+      { id: "std-joint", kind: "revolute", to: "std-collider" },
+    ]);
+    const yard = await show({ scene: "engine-yard" }, ctx);
+    expect((yard.data as { joints: unknown }).joints).toEqual([]);
+    expect(yard.text).not.toContain("joints:");
+  });
+
   it("refuses a type the scene's game doesn't register and suggests refs", async () => {
     const typo = await show({ scene: "test-yard", type: "movers" }, ctx);
     expect(typo.exitCode).toBe(2);
@@ -3187,6 +3202,7 @@ describe("runCli", () => {
       "step",
       "grid",
       "tiles",
+      "decompose",
       "paint",
       "playtest",
       "replay",

@@ -2,7 +2,15 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../game/define";
-import { composePose, createPoseIndex, framePose, lerpPose, relativePose } from "../runtime/poses";
+import {
+  composePose,
+  createPoseIndex,
+  framePose,
+  lerpPose,
+  relativePose,
+  settlePosed,
+  type Pose,
+} from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { spawnPose } from "../runtime/spawn-pose";
 import type { ExpandedScene, PathDef, RuntimeEntity, ShapeObj } from "../scene/types";
@@ -85,6 +93,49 @@ describe("createPoseIndex", () => {
     expect(poses.prev("a")).toEqual({ x: 50, y: 50, rot: 2 });
     poses.set("b", 1, 1);
     expect(poses.get("b")).toEqual({ x: 1, y: 1, rot: 0 });
+  });
+
+  it("counts teleports apart from plain snaps, per entity and in all", () => {
+    const poses = createPoseIndex(() => 0);
+    poses.set("a", 0, 0);
+    poses.set("b", 0, 0);
+    poses.set("a", 5, 0, undefined, { snap: true });
+    expect(poses.teleports()).toBe(0);
+    poses.teleport("a");
+    poses.teleport("b");
+    expect([poses.teleports("a"), poses.teleports("b"), poses.teleports()]).toEqual([1, 2, 2]);
+    // A later snap keeps the mark; a missing entity has none.
+    poses.set("a", 9, 0, undefined, { snap: true });
+    expect(poses.teleports("a")).toBe(1);
+    poses.teleport("ghost");
+    expect(poses.teleports("ghost")).toBe(0);
+  });
+
+  it("settles a teleport between ticks by snapping to it, then easing from there", () => {
+    let tick = 0;
+    const poses = createPoseIndex(() => tick);
+    const placed: [number, boolean][] = [];
+    const posed = new Map([["a", { applied: null as Readonly<Pose> | null }]]);
+    const settle = () =>
+      settlePosed(poses, posed, (_id, a, pose, snap) => {
+        placed.push([pose.x, snap]);
+        a.applied = pose;
+      });
+    poses.set("a", 0, 0);
+    settle();
+    tick = 1;
+    poses.set("a", 1, 0);
+    settle();
+    // Teleported between ticks, then moved on by the next tick.
+    poses.set("a", 50, 0, undefined, { snap: true });
+    tick = 2;
+    poses.set("a", 51, 0);
+    placed.length = 0;
+    settle();
+    expect(placed).toEqual([
+      [50, true],
+      [51, false],
+    ]);
   });
 
   it("removes, lists and counts entries, and hands out frozen poses", () => {

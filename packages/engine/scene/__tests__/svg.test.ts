@@ -867,3 +867,62 @@ describe("tilemaps", () => {
     expect(svg).not.toContain("data-tile");
   });
 });
+
+describe("joints", () => {
+  const registry = createRegistry();
+  const kinds = ["revolute", "prismatic", "rope", "weld", "spring"] as const;
+  const scene = (entities: ExpandedScene["entities"]): ExpandedScene => ({
+    name: "joints",
+    bounds: [0, 0, 10, 4],
+    settings: { gravity: [0, 0], physics: "none", grid: null, view: { projection: "orthogonal" } },
+    entities,
+  });
+
+  it("draws each kind as a line from anchorA to the other's anchorB with a j glyph at the middle", () => {
+    const svg = renderSceneSvg(
+      scene(
+        kinds.flatMap((kind, i) => [
+          {
+            id: `a-${kind}`,
+            type: "marker",
+            at: [1 + 2 * i, 1] as [number, number],
+            behaviors: { joint: { kind, to: `b-${kind}`, anchorA: [0.5, 0], anchorB: [0, -0.5] } },
+          },
+          { id: `b-${kind}`, type: "marker", at: [1 + 2 * i, 3] as [number, number] },
+        ]),
+      ),
+      { registry },
+    );
+    kinds.forEach((kind, i) => {
+      const x = 100 + 200 * i;
+      const joint = new RegExp(
+        `<g data-joint="a-${kind}" data-kind="${kind}" data-to="b-${kind}"><path d="M${x + 50} 100L${x} 250"/>` +
+          `<circle cx="${x + 25}" cy="175" [^>]*/><text [^>]*>j</text></g>`,
+      );
+      expect(svg).toMatch(joint);
+    });
+  });
+
+  it("ends a joint without anchorB under anchorA and draws nothing when `to` is missing", () => {
+    const svg = renderSceneSvg(
+      scene([
+        {
+          id: "arm",
+          type: "marker",
+          at: [1, 1],
+          behaviors: { joint: { kind: "rope", to: "post" } },
+        },
+        { id: "post", type: "marker", at: [5, 1] },
+        {
+          id: "lost",
+          type: "marker",
+          at: [5, 2],
+          behaviors: { joint: { kind: "weld", to: "gone" } },
+        },
+      ]),
+      { registry },
+    );
+    expect(svg).toMatch(/<g data-joint="arm" [^>]*><path d="M100 100L100 100"\/>/);
+    expect(svg).not.toContain('data-joint="lost"');
+  });
+});

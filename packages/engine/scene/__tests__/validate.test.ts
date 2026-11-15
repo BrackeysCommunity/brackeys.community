@@ -192,6 +192,33 @@ describe("validateScene", () => {
     expect(flatIssue.hint).toContain("one line");
   });
 
+  it("poly-invalid names Split into convex pieces for a simple concave poly, and checks a collider's", () => {
+    const concave = ["poly", 100, 800, 300, 800, 200, 850, 300, 900, 100, 900];
+    const solid = only(validateScene(scene({ solid: [concave] }), engine), "poly-invalid");
+    expect(solid.hint).toContain("Split into convex pieces");
+    expect(solid.fix?.ops).toHaveLength(1);
+    const bowtie = ["poly", 0, 0, 10, 10, 10, 0, 0, 10];
+    const crossed = only(validateScene(scene({ solid: [bowtie] }), engine), "poly-invalid");
+    expect(crossed.hint).not.toContain("Split into convex pieces");
+
+    const local = ["poly", 0, 0, 2, 0, 1, 0.5, 2, 1, 0, 1];
+    const def = scene({}, [
+      { id: "lump", type: "marker", at: [5, 5], behaviors: { collider: { shape: local } } },
+    ]);
+    const issue = only(validateScene(def, engine), "poly-invalid");
+    expect(issue).toMatchObject({
+      path: "/entities/1/behaviors/collider/shape",
+      entityIds: ["lump"],
+    });
+    expect(issue.at).toBeUndefined();
+    expect(issue.hint).toContain("Split into convex pieces");
+    expect(issue.fix?.ops[0]).toEqual({
+      op: "update",
+      ref: "lump",
+      set: { "behaviors.collider.shape": ["poly", 0, 0, 2, 0, 2, 1, 0, 1] },
+    });
+  });
+
   describe("nav-invalid", () => {
     const nav = (id: string, pts: number[], mode?: "walk" | "block"): EntityDef => ({
       id,

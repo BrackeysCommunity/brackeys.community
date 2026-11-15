@@ -1,3 +1,4 @@
+import { JOINT } from "../game/behaviors/joint";
 import {
   SPRITE,
   spriteAssets,
@@ -782,4 +783,64 @@ export function sceneSprites(
   return drawnEntities(expanded, opts.registry, renderAssets(opts)).flatMap((d) =>
     d.sprite ? [{ ref: d.id, type: d.type.type, ...d.sprite }] : [],
   );
+}
+
+// ─── Joints ──────────────────────────────────────────────
+
+/** A `joint` block as a render draws it: a line between the two anchors' world points. */
+export type DrawnJoint = {
+  /** The entity carrying the block. */
+  entity: DrawnEntity;
+  kind: string;
+  to: string;
+  /** This entity's anchor, in world units. */
+  from: Pt;
+  /** The other entity's anchor: `anchorB` from its pose, else the point under `from`. */
+  end: Pt;
+  mid: Pt;
+};
+
+/**
+ * Every joint among `entities` whose `to` is one of them, each anchor
+ * placed from its entity's pose as the joint system does. `pxPerMetre`
+ * scales the anchors (metres) to the entities' units: 1 for metre-space
+ * entities.
+ */
+export function drawnJoints(entities: readonly DrawnEntity[], pxPerMetre = 1): DrawnJoint[] {
+  const byId = new Map(entities.map((d) => [d.id, d]));
+  const poseOf = (d: DrawnEntity) =>
+    spritePose({ ...d, ...(d.entity.transform ? { transform: d.entity.transform } : {}) });
+  const place = (pose: { at: Pt; deg: number }, anchor: [number, number] | undefined): Pt => {
+    const [x, y] = turnBy(
+      [(anchor?.[0] ?? 0) * pxPerMetre, (anchor?.[1] ?? 0) * pxPerMetre],
+      pose.deg * DEG,
+    );
+    return [pose.at[0] + x, pose.at[1] + y];
+  };
+  const out: DrawnJoint[] = [];
+  for (const d of entities) {
+    const b = d.entity.behaviors?.[JOINT.name];
+    if (!b || typeof b !== "object" || Array.isArray(b)) continue;
+    const block = b as Record<string, unknown>;
+    if (typeof block.to !== "string") continue;
+    const other = byId.get(block.to);
+    const self = poseOf(d);
+    const there = other && poseOf(other);
+    if (!self || !there) continue;
+    const from = place(
+      self,
+      pairOf(block.anchorA, () => true),
+    );
+    const anchorB = pairOf(block.anchorB, () => true);
+    const end = anchorB ? place(there, anchorB) : from;
+    out.push({
+      entity: d,
+      kind: typeof block.kind === "string" ? block.kind : "joint",
+      to: block.to,
+      from,
+      end,
+      mid: [(from[0] + end[0]) / 2, (from[1] + end[1]) / 2],
+    });
+  }
+  return out;
 }

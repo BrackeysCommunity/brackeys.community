@@ -101,6 +101,7 @@ import {
 } from "./transform";
 import {
   addPt,
+  holdsEntityRef,
   movableGeometry,
   presentGeometry,
   transformBulkEntry,
@@ -990,6 +991,18 @@ function referencesTo(w: Work, id: string): { rec: EntRec; segs: string[]; value
       const value = getPath(rec.def, segs);
       if (value === id || (Array.isArray(value) && value.includes(id)))
         out.push({ rec, segs, value });
+    }
+    const blocks = rec.def[BEHAVIORS_FIELD];
+    if (!isObj(blocks)) continue;
+    for (const [behavior, block] of Object.entries(blocks)) {
+      const shape = w.registry.behaviors.get(behavior)?.shape;
+      if (!shape || !isObj(block)) continue;
+      for (const [field, schema] of Object.entries(shape)) {
+        const value = block[field];
+        if (!holdsEntityRef(schema)) continue;
+        if (value === id || (Array.isArray(value) && value.includes(id)))
+          out.push({ rec, segs: [BEHAVIORS_FIELD, behavior, field], value });
+      }
     }
   }
   return out;

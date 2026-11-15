@@ -1,6 +1,7 @@
 import { isNodeTypeIn, NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
+import { canDecompose, decomposeBatch } from "../scene/decompose";
 import { parseBulkId } from "../scene/expand";
 import { takenIds } from "../scene/fragment";
 import { plural } from "../scene/plural";
@@ -21,6 +22,7 @@ import type {
   Pt,
   Ref,
   SceneDefinition,
+  SceneIssue,
   SceneOp,
 } from "../scene/types";
 import { snapToPixel } from "../scene/units";
@@ -32,6 +34,7 @@ import { buildOutline, liftIntoTree, liftedBatch, outOfTreeReason } from "./outl
 import { outlineBounds, outlineLook } from "./outline-bounds";
 import type { PickLayers } from "./picking";
 import { docRefs } from "./refs";
+import type { EditorSession } from "./session";
 import type { SpatialIndex } from "./tools";
 
 /** World px a coarse (Shift) nudge moves. */
@@ -489,4 +492,41 @@ export function hierarchyDown(
   const tree = documentTree(def);
   const below = treeItems(def).find((item) => tree.parentOf(item.id) === ref);
   return below ? [below.id] : null;
+}
+
+/** The points of entity `id`'s `poly` shape, its own `shape` field or its collider's; null when it has none. */
+export function polyPointsOf(def: SceneDefinition, id: string): Pt[] | null {
+  const entity = def.entities?.find((e) => e.id === id);
+  if (!entity) return null;
+  const collider = (entity.behaviors as Record<string, { shape?: unknown }> | undefined)?.collider;
+  for (const shape of [entity.shape, collider?.shape]) {
+    if (!Array.isArray(shape) || shape[0] !== "poly") continue;
+    const pts: Pt[] = [];
+    for (let i = 1; i + 1 < shape.length; i += 2)
+      pts.push([shape[i] as number, shape[i + 1] as number]);
+    return pts;
+  }
+  return null;
+}
+
+/** Whether entity `id` has a simple concave `poly` shape that "Split into convex pieces" can split. */
+export function canSplitConvex(def: SceneDefinition, id: string): boolean {
+  const pts = polyPointsOf(def, id);
+  return pts !== null && canDecompose(pts);
+}
+
+/**
+ * Replaces entity `id`'s concave poly with its convex pieces (or a group of
+ * them) in one batch, so one undo restores it. The refusal's issue when the
+ * shape can't split or the document refuses the batch.
+ */
+export function splitConvex(
+  session: EditorSession,
+  id: string,
+  opts: { group?: boolean } = {},
+): { ok: true } | { ok: false; issue: SceneIssue } {
+  const built = decomposeBatch(session.getDoc(), id, session.registry, opts);
+  if (!built.ok) return built;
+  const result = session.dispatch({ label: `Split ${id} into convex pieces`, ...built.batch });
+  return result.ok ? { ok: true } : { ok: false, issue: result.issue };
 }

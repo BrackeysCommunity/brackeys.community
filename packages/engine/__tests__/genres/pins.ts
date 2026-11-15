@@ -29,6 +29,9 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     default: "e6c5d3bf9e6c327e",
     saved: "e6c5d3bf9e6c327e",
   },
+  "physics-sandbox": {
+    default: "ad75c73bc1e933fc",
+  },
   "point-and-click": {
     default: "c7e11bc7913bc936",
     "gravity-sideways": "c7e11bc7913bc936",

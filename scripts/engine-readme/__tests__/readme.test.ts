@@ -269,6 +269,45 @@ describe("the tilemap examples run", () => {
   });
 });
 
+describe("the physics examples run", () => {
+  it("joint-yard.ts holds each of the five kinds to its limit, length or weld", async () => {
+    const { swingGate } = await import("../examples/joint-yard");
+    const yard = swingGate(await loadCompatRapier());
+    expect(yard.gate).toBeCloseTo(1, 1);
+    expect(yard.shutter).toBeCloseTo(0.5, 2);
+    expect(yard.lamp).toBeCloseTo(1, 2);
+    expect(yard.sign).toBeCloseTo(0.5, 3);
+    expect(yard.bob).toBeCloseTo(0.5, 2);
+    expect(yard.joined).toEqual(["gate", "shutter", "lamp", "sign", "bob"]);
+  });
+
+  it("drag-crate.ts drags the crate 2 m right from recorded input, then releases", async () => {
+    const { dragCrate } = await import("../examples/drag-crate");
+    const end = dragCrate(await loadCompatRapier());
+    expect(end.crate.x).toBeCloseTo(2, 2);
+    expect(end.crate.y).toBeCloseTo(0, 3);
+    expect(end.dragging).toBe(false);
+  });
+
+  it("concave-ledge.ts splits the L into two original-vertex pieces under a group", async () => {
+    const { ledge, splitLedge } = await import("../examples/concave-ledge");
+    const r = splitLedge();
+    expect(r.splits).toBe(true);
+    expect(r.squareSplits).toBe(false);
+    expect(r.pieces).toHaveLength(2);
+    const corners = new Set(ledge.map((p) => p.join()));
+    for (const piece of r.pieces) {
+      expect(piece.length).toBeLessThanOrEqual(8);
+      for (const p of piece) expect(corners.has(p.join())).toBe(true);
+    }
+    // 3 m² is 30000 px² at the engine's 100 px per metre, twice over.
+    expect(r.area2).toBe(60000);
+    expect(r.ids).toEqual(["ledge", "ledge-1 in ledge", "ledge-2 in ledge"]);
+    expect(r.bowTie.ok).toBe(false);
+    if (!r.bowTie.ok) expect(r.bowTie.issue.code).toBe("poly-invalid");
+  });
+});
+
 describe("the world-model examples run", () => {
   it("grid-tools.ts paths round the rocks, floods a field and casts sight", async () => {
     const { scout } = await import("../examples/grid-tools");

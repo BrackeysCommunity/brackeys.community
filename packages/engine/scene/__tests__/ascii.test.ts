@@ -515,3 +515,75 @@ describe("tilemaps", () => {
     expect(map.lines[1]!.slice(0, 6)).toBe(`.${origin}:::.`);
   });
 });
+
+describe("joints", () => {
+  const registry = createRegistry();
+  const kinds = ["revolute", "prismatic", "rope", "weld", "spring"] as const;
+  const hinged = (extra: ExpandedScene["entities"] = []): ExpandedScene => ({
+    name: "joints",
+    bounds: [0, 0, 10, 4],
+    settings: { gravity: [0, 0], physics: "none", grid: null, view: { projection: "orthogonal" } },
+    entities: [
+      ...kinds.flatMap((kind, i) => [
+        {
+          id: `a-${kind}`,
+          type: "marker",
+          at: [1 + 2 * i, 1] as [number, number],
+          behaviors: { joint: { kind, to: `b-${kind}`, anchorB: [0, 0] } },
+        },
+        { id: `b-${kind}`, type: "marker", at: [1 + 2 * i, 3] as [number, number] },
+      ]),
+      ...extra,
+    ],
+  });
+
+  it("draws each kind as a line between its anchors with j at the middle", () => {
+    const map = sceneAsciiMap(hinged(), { registry, cell: 50 });
+    // 100 px per metre at 50 px a cell: the markers sit on rows 2 and 6, the glyph on row 4.
+    for (let i = 0; i < kinds.length; i++) {
+      const col = 2 + 4 * i;
+      expect(map.lines[2]![col]).toBe("+");
+      expect(map.lines[3]![col]).toBe("-");
+      expect(map.lines[4]![col]).toBe("j");
+      expect(map.lines[5]![col]).toBe("-");
+      expect(map.lines[6]![col]).toBe("+");
+    }
+    expect(legendOf(map).j).toBe(kinds.map((k) => `joint ${k}`).join(", "));
+  });
+
+  it("draws nothing for a joint whose `to` is missing", () => {
+    const scene: ExpandedScene = {
+      ...hinged(),
+      entities: [
+        {
+          id: "lost",
+          type: "marker",
+          at: [5, 2],
+          behaviors: { joint: { kind: "weld", to: "nowhere" } },
+        },
+      ],
+    };
+    const map = sceneAsciiMap(scene, { registry, cell: 50 });
+    expect(map.lines.join("")).not.toMatch(/[j-]/);
+  });
+
+  it("turns anchorA with its entity's pose and, without anchorB, draws the glyph on it", () => {
+    const scene: ExpandedScene = {
+      ...hinged(),
+      entities: [
+        {
+          id: "arm",
+          type: "marker",
+          at: [1, 1],
+          transform: { rot: 90, flip: false },
+          behaviors: { joint: { kind: "rope", to: "post", anchorA: [2, 0] } },
+        },
+        { id: "post", type: "marker", at: [5, 1] },
+      ],
+    };
+    const map = sceneAsciiMap(scene, { registry, cell: 50 });
+    // A quarter turn puts anchorA [2, 0] two metres below the arm, at (100, 300) px.
+    expect(map.lines[6]![2]).toBe("j");
+    expect(map.lines.join("")).not.toContain("-");
+  });
+});

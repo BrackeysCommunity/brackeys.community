@@ -1,5 +1,6 @@
 import type { AudioProbe, SignProbe } from "../browser/media-compare";
 import { SIGN_GRID } from "../browser/signs";
+import { FOLLOW_FRAMES, FOLLOW_SPEED, type SmoothFollowProbe } from "../browser/smooth-follow";
 import type { TilemapProbe } from "../browser/tilemaps";
 
 const points = SIGN_GRID[0] * SIGN_GRID[1];
@@ -49,3 +50,17 @@ export const tilemapsDrawn: TilemapProbe = {
   },
   hex: { shape: "hex", renderer: "webgl", tile: [95, 158, 79, 255], empty: [26, 26, 46, 255] },
 };
+
+/** A run at `hz` whose hero sits at `x` on screen while the world passes at the hero's speed. */
+export function followProbe(
+  hz: number,
+  x: (i: number) => number | null = () => 120,
+): SmoothFollowProbe {
+  const at = Array.from({ length: FOLLOW_FRAMES }, (_, i) => (i * 1000) / hz);
+  return {
+    renderer: "webgl",
+    screen: at.map((_, i) => x(i)),
+    origin: at.map((ms) => 120 - (FOLLOW_SPEED * 100 * ms) / 1000),
+    at,
+  };
+}

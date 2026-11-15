@@ -130,6 +130,7 @@ function isPure(argv: string[]): boolean {
   if (rest.includes("--live") || name === "project pull" || name === "project push") return false;
   if (name === "fmt") return rest.includes("--check");
   if (name === "paint") return rest.includes("--dry-run");
+  if (name === "decompose") return rest.includes("--dry-run");
   if (name === "apply" || name?.startsWith("assets "))
     return name === "assets list" || name === "assets info" || rest.includes("--dry-run");
   if (name === "render") return !rest.includes("--out");
@@ -1273,5 +1274,33 @@ describe("the tilemap docs' sample map", () => {
     expect(texts[0]!.replace(/\s+/g, " ")).toContain(
       "`generate.ts` writes them and `LICENCE.txt` gives the licence, CC0-1.0",
     );
+  });
+});
+
+describe("the README's hinge example", () => {
+  const section = texts[0]!.slice(
+    texts[0]!.indexOf("**A hinge between two bodies.**"),
+    texts[0]!.indexOf("**Splitting a polygon.**"),
+  );
+  const steps = examples(DOCS[0]!, section).filter((e) => e.fenced);
+
+  it("hangs the sign on a copy of the engine project and shows its joint", async () => {
+    expect(steps.map((e) => split(e.argv)[0])).toEqual(["apply", "apply", "show", "show"]);
+    const dir = join(await mkdtemp(join(root, "hinge-")), "engine");
+    await cp(repoFile("packages/engine/scenes"), dir, { recursive: true });
+    const fresh: ToolContext = {
+      projects: [await tempProject(dir, { id: "engine" })],
+      loadRapier: loadCompatRapier,
+    };
+    for (const step of steps.slice(0, 2)) {
+      const r = await runCli(step.argv, fresh);
+      expect(r.exitCode, r.stdout + r.stderr).toBe(0);
+    }
+    expect((await runCli(steps[2]!.argv, fresh)).stdout).toContain("sign  revolute  sign ↔ ledge");
+    expect((await runCli(steps[3]!.argv, fresh)).stdout).toContain(
+      "hinged-door  revolute  hinged-door ↔ lintel",
+    );
+    const checked = await runCli(["validate", "engine-yard", "--json"], fresh);
+    expect(checked.exitCode, checked.stdout).toBe(0);
   });
 });

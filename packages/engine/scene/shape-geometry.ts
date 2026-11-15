@@ -1012,6 +1012,104 @@ export function segmentsMeet(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
   );
 }
 
+/** Closed point-in-triangle for a triangle wound with positive area. */
+const inTriangle = (p: Pt, a: Pt, b: Pt, c: Pt) =>
+  cross3(a, b, p) >= 0 && cross3(b, c, p) >= 0 && cross3(c, a, p) >= 0;
+
+/**
+ * Whether direction `p`→`to` points strictly into the interior at `p`, a
+ * corner between `prev` and `next` of a ring that keeps its inside on the left.
+ */
+export function intoCorner(prev: Pt, p: Pt, next: Pt, to: Pt): boolean {
+  const u: Pt = [next[0] - p[0], next[1] - p[1]];
+  const w: Pt = [prev[0] - p[0], prev[1] - p[1]];
+  const d: Pt = [to[0] - p[0], to[1] - p[1]];
+  const cr = (a: Pt, b: Pt) => a[0] * b[1] - a[1] * b[0];
+  if (cr(u, w) > 0) return cr(u, d) > 0 && cr(d, w) > 0;
+  return !(cr(w, d) >= 0 && cr(d, u) >= 0);
+}
+
+/**
+ * Ear clipping of one ring wound with positive `signedArea` (a hole-free
+ * polygon, or one with its holes bridged in): ears are taken walking forward
+ * from corner 0, so one ring always gives the same triangles. Triangles are
+ * wound positive, and every corner, collinear ones included, is a triangle
+ * corner unless it has no area to clip. Exact on integer points.
+ */
+export function earClip(ring: readonly Pt[]): (readonly [Pt, Pt, Pt])[] {
+  const n = ring.length;
+  if (n < 3) return [];
+  const prev = Array.from({ length: n }, (_, i) => (i + n - 1) % n);
+  const next = Array.from({ length: n }, (_, i) => (i + 1) % n);
+  const alive = Array.from({ length: n }, () => true);
+  const out: (readonly [Pt, Pt, Pt])[] = [];
+  const unlink = (i: number) => {
+    next[prev[i]!] = next[i]!;
+    prev[next[i]!] = prev[i]!;
+    alive[i] = false;
+  };
+
+  const isEar = (ia: number, ib: number, ic: number): boolean => {
+    const a = ring[ia]!;
+    const b = ring[ib]!;
+    const c = ring[ic]!;
+    if (cross3(a, b, c) <= 0) return false;
+    if (!intoCorner(ring[prev[ia]!]!, a, b, c)) return false;
+    if (!intoCorner(b, c, ring[next[ic]!]!, a)) return false;
+    for (let j = next[ic]!; j !== ia; j = next[j]!) {
+      const p = ring[j]!;
+      if (samePt(p, a) || samePt(p, b) || samePt(p, c)) continue;
+      if (inTriangle(p, a, b, c)) return false;
+      const q = ring[next[j]!]!;
+      if (
+        !samePt(q, a) &&
+        !samePt(q, c) &&
+        !samePt(p, a) &&
+        !samePt(p, c) &&
+        segmentsMeet(a, c, p, q)
+      )
+        return false;
+    }
+    return true;
+  };
+
+  let remaining = n;
+  let cur = 0;
+  let stall = 0;
+  while (remaining > 3) {
+    const a = prev[cur]!;
+    const c = next[cur]!;
+    if (isEar(a, cur, c)) {
+      out.push([ring[a]!, ring[cur]!, ring[c]!]);
+      unlink(cur);
+      remaining--;
+      cur = c;
+      stall = 0;
+      continue;
+    }
+    cur = next[cur]!;
+    if (++stall < remaining) continue;
+    // No ear left: drop a corner with no area (a spike or a straight run) and go on.
+    let flat = -1;
+    for (let i = 0; i < n; i++) {
+      if (alive[i] && cross3(ring[prev[i]!]!, ring[i]!, ring[next[i]!]!) === 0) {
+        flat = i;
+        break;
+      }
+    }
+    if (flat < 0) return out;
+    cur = next[flat]!;
+    unlink(flat);
+    remaining--;
+    stall = 0;
+  }
+  const a = ring[prev[cur]!]!;
+  const b = ring[cur]!;
+  const c = ring[next[cur]!]!;
+  if (cross3(a, b, c) > 0) out.push([a, b, c]);
+  return out;
+}
+
 /** Where `p` lies against a closed polygon (winding number): 1 inside, 0 on its outline, -1 outside. */
 export function polygonSide(p: Pt, pts: readonly Pt[]): 1 | 0 | -1 {
   let winding = 0;

@@ -1,0 +1,24 @@
+{
+  "label": "Hang a sign from the ledge on a hinge",
+  "ops": [
+    {
+      "op": "add",
+      "entity": {
+        "id": "sign",
+        "type": "marker",
+        "at": [14.6, 8.1],
+        "behaviors": {
+          "collider": { "shape": ["box", 0, 0.3, 0.3, 0.3] },
+          "body": {},
+          "joint": {
+            "kind": "revolute",
+            "to": "ledge",
+            "anchorA": [0, 0],
+            "anchorB": [0.6, 0.1],
+            "limits": [-0.8, 0.8]
+          }
+        }
+      }
+    }
+  ]
+}

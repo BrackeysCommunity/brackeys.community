@@ -1,6 +1,7 @@
 import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import {
+  drawnJoints,
   gridCellsIn,
   metresToPx,
   num,
@@ -64,6 +65,8 @@ const OUTCOME = "!";
 const MORE = "…";
 const TEXT = '"';
 const OPEN_TILE = ":";
+const JOINT_LINE = "-";
+const JOINT = "j";
 const RULER_EVERY = 8;
 
 /**
@@ -162,7 +165,7 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
  * scene's metres times the game's px per metre): each
  * entity in its type's character (`EntityTypeDef.ascii`, else its base
  * primitive's), camera regions as their box's outline under everything else, `=` for one-way solids, tag characters for tagged ones,
- * `~` along paths, each sprite's box in its entity's character under
+ * `~` along paths, `-` along a joint's line between its anchors with `j` at its middle, each sprite's box in its entity's character under
  * everything else, each `text` block's measured box in `"` (labelled "≈"
  * where its size is an estimate), grid fields' filled cells in their entity's character
  * (a tilemap's solid tiles by `opts.tileTraits`; its other tiles `:`; at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
@@ -231,6 +234,11 @@ export function sceneAsciiMap(
   );
   for (const p of sampleLine(trailPts, step))
     put(p, { char: TRAIL, label: "trail", priority: PRIORITY.trail });
+
+  const joints = drawnJoints(all, pxPerMetre);
+  for (const j of joints)
+    for (const p of sampleLine([j.from, j.end], step))
+      put(p, { char: JOINT_LINE, label: "joint line", priority: PRIORITY.path });
 
   const tagChars = opts.tagChars ?? DEFAULT_ASCII_TAG_CHARS;
   const grid = gridCellsIn(visible, drawing.grid, region);
@@ -316,6 +324,9 @@ export function sceneAsciiMap(
       put(d.at, m);
     }
   }
+
+  for (const j of joints)
+    put(j.mid, { char: JOINT, label: `joint ${j.kind}`, priority: PRIORITY.point });
 
   const outcome = opts.overlay?.outcome;
   if (outcome?.at) {

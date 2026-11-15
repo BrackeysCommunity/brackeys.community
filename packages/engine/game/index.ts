@@ -463,6 +463,8 @@ export type {
 export { createSensorCollider } from "../collisions";
 export { degToRad, posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 export type { CharacterControllerOptions, PhysicsWorld } from "../physics";
+export { bodyOf } from "../physics/body-of";
+export { createDragJoint, type DragJoint, type DragJointOptions } from "../physics/drag";
 export {
   advanceAlongPath,
   advanceWaypoint,

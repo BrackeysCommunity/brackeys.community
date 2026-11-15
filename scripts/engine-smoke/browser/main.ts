@@ -14,6 +14,7 @@ import {
 } from "./run";
 import { runSaves, type SavesProbe } from "./saves";
 import { runSignSmoke } from "./sign-run";
+import { runSmoothFollow, type SmoothFollowProbe } from "./smooth-follow";
 import { runTactics, type TacticsProbe } from "./tactics";
 import { runTilemapSmoke } from "./tilemap-run";
 import type { TilemapProbe } from "./tilemaps";
@@ -42,6 +43,8 @@ export type EngineSmokeResult =
       signs: SignProbe;
       /** A synth patch through `webAudioBackend` after the runner's click, and offline at `pan: -1`. */
       audio: AudioProbe;
+      /** A followed prop's drawn place on the canvas across settled frames. */
+      smoothFollow: SmoothFollowProbe;
       userAgent: string;
     }
   | { ok: false; error: string };
@@ -75,6 +78,7 @@ try {
   const saves = await steps.run("the save run", runSaves);
   const signs = await steps.run("the sign run", runSignSmoke);
   const audio = await steps.run("the audio run", runAudioSmoke);
+  const smoothFollow = await steps.run("the smooth-follow run", () => runSmoothFollow(loadRapier));
   settle({
     ok: true,
     flavour: SMOKE_FLAVOUR,
@@ -89,6 +93,7 @@ try {
     saves,
     signs,
     audio,
+    smoothFollow,
     userAgent: navigator.userAgent,
   });
 } catch (err) {

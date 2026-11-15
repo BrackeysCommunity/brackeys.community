@@ -23,7 +23,7 @@ import {
 import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
-import { isCameraRegionType, needsPhysics } from "../game/primitives";
+import { needsPhysics } from "../game/primitives";
 import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo, atlasFrameIssue } from "../project/asset-info";
@@ -35,6 +35,7 @@ import { kindsLabel, schemaRefSites, siteFits, type RefSite } from "../project/r
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
 import { parseBulkId } from "./bulk-ref";
+import { canDecompose, entityShapeSites } from "./decompose";
 import { closest, didYouMean, meantText } from "./did-you-mean";
 import {
   behaviorBlocks,
@@ -47,7 +48,7 @@ import { isInstanceOverrideField } from "./field-path";
 import { comparePointers } from "./format";
 import { sceneHash } from "./hash";
 import { jsonPointer, lineAt, makeIssue, pointerSegments } from "./issues";
-import { isNavType } from "./nav-type";
+import { canBeInTree, isNavType } from "./nav-type";
 import { prefabsUsedBy } from "./prefab";
 import {
   CHILD_SEPARATOR,
@@ -188,6 +189,8 @@ type Item = {
   shapes: (Located<ShapeTuple> & { schema: z.core.$ZodType })[];
   points: Located<Pt>[];
   paths: Located<PathDef>[];
+  /** Shapes in its behavior blocks, local to its pose: checked as polys, not placed. */
+  behaviorShapes: (Located<ShapeTuple> & { schema: z.core.$ZodType })[];
 };
 
 function items(def: SceneDefinition, registry: Registry): Item[] {
@@ -207,6 +210,7 @@ function items(def: SceneDefinition, registry: Registry): Item[] {
         shapes: b.form === "shape" && schema ? [{ ...at, schema }] : [],
         points: b.form === "point" ? [at] : [],
         paths: [],
+        behaviorShapes: [],
       });
     });
   }
@@ -214,17 +218,30 @@ function items(def: SceneDefinition, registry: Registry): Item[] {
     const type = registry.types.get(e.type);
     if (!type) return;
     const pointer = jsonPointer(["entities", i]);
-    const item: Item = { ref: e.id, pointer, index: i, type, shapes: [], points: [], paths: [] };
+    const item: Item = {
+      ref: e.id,
+      pointer,
+      index: i,
+      type,
+      shapes: [],
+      points: [],
+      paths: [],
+      behaviorShapes: [],
+    };
     for (const { field, kind } of geometryFields(type)) {
       const value = e[field];
       if (!geometryShaped(kind, value)) continue;
       const at = { field, pointer: `${pointer}${jsonPointer([field])}`, value };
-      if (kind === "shape") {
-        const schema = type.shape[field];
-        if (schema) item.shapes.push({ ...(at as Located<ShapeTuple>), schema });
-      } else if (kind === "point") item.points.push(at as Located<Pt>);
+      if (kind === "point") item.points.push(at as Located<Pt>);
       else if (kind === "path") item.paths.push(at as Located<PathDef>);
     }
+    for (const { field, pointer: at, value, schema, behavior } of entityShapeSites(registry, e))
+      (behavior ? item.behaviorShapes : item.shapes).push({
+        field,
+        pointer: `${pointer}${at}`,
+        value,
+        schema,
+      });
     list.push(item);
   });
   return list;
@@ -603,38 +620,54 @@ export function validateScene(
     const { ref, pointer, type } = item;
     const parsed: ShapeObj[] = [];
 
+    const polyCheck = (
+      field: string,
+      at: string,
+      obj: ShapeObj,
+      schema: z.core.$ZodType,
+      local: boolean,
+    ): void => {
+      if (obj.type !== "poly" || !obj.pts[0] || isPolygonField(schema) || isConvex(obj.pts)) return;
+      const chain: ShapeTuple = ["chain", ...obj.pts.flat(), ...obj.pts[0]];
+      const canChain = z.safeParse(schema, chain).success;
+      const hull = convexHull(obj.pts);
+      const hullTuple: ShapeTuple | undefined =
+        hull.length >= 3 ? ["poly", ...hull.flat()] : undefined;
+      const fixWith = canChain ? chain : hullTuple;
+      const splits = canDecompose(obj.pts, { pxPerMetre: ppm });
+      push("poly-invalid", {
+        message: `${ref}'s poly isn't a simple convex polygon (non-convex, self-intersecting or zero area)`,
+        path: at,
+        entityIds: [ref],
+        ...(local ? {} : { at: center(aabb(obj)) }),
+        hint: canChain
+          ? splits
+            ? 'Convert it to a chain of the same outline, or use "Split into convex pieces".'
+            : "Convert it to a chain of the same outline, or split it into convex polys."
+          : hullTuple
+            ? `${splits ? 'Use "Split into convex pieces"' : "Split it into convex polys"}, or take its convex hull; ${type.type}'s ${field} can't be a chain.`
+            : `Its points lie on one line; give it area, or remove it. ${type.type}'s ${field} can't be a chain.`,
+        fix: fixWith
+          ? batch(
+              canChain ? `Convert ${ref} to a chain` : `Replace ${ref} with its convex hull`,
+              [{ op: "update", ref, set: { [field]: fixWith } }],
+              [ref],
+            )
+          : undefined,
+      });
+    };
+    for (const { field, pointer: at, value, schema } of item.behaviorShapes) {
+      const shape = parseShape(value);
+      if (shape.ok) polyCheck(field, at, shape.shape, schema, true);
+    }
+
     for (const { field, pointer: at, value, schema } of item.shapes) {
       const shape = parseShape(value);
       if (!shape.ok) continue;
       const obj = shape.shape;
       parsed.push(obj);
 
-      if (obj.type === "poly" && obj.pts[0] && !isPolygonField(schema) && !isConvex(obj.pts)) {
-        const chain: ShapeTuple = ["chain", ...obj.pts.flat(), ...obj.pts[0]];
-        const canChain = z.safeParse(schema, chain).success;
-        const hull = convexHull(obj.pts);
-        const hullTuple: ShapeTuple | undefined =
-          hull.length >= 3 ? ["poly", ...hull.flat()] : undefined;
-        const fixWith = canChain ? chain : hullTuple;
-        push("poly-invalid", {
-          message: `${ref}'s poly isn't a simple convex polygon (non-convex, self-intersecting or zero area)`,
-          path: at,
-          entityIds: [ref],
-          at: center(aabb(obj)),
-          hint: canChain
-            ? "Convert it to a chain of the same outline, or split it into convex polys."
-            : hullTuple
-              ? `Split it into convex polys, or take its convex hull; ${type.type}'s ${field} can't be a chain.`
-              : `Its points lie on one line; give it area, or remove it. ${type.type}'s ${field} can't be a chain.`,
-          fix: fixWith
-            ? batch(
-                canChain ? `Convert ${ref} to a chain` : `Replace ${ref} with its convex hull`,
-                [{ op: "update", ref, set: { [field]: fixWith } }],
-                [ref],
-              )
-            : undefined,
-        });
-      }
+      polyCheck(field, at, obj, schema, false);
 
       if (obj.type === "chain") {
         const k = firstRepeat(obj.pts, false);
@@ -765,16 +798,7 @@ export function validateScene(
 
 type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string }) => void;
 
-/**
- * Whether entities of `type` can be in the tree, as a parent or a child:
- * nav areas, camera regions and types that never load (notes) can't. An
- * unregistered type is reported as such, not here.
- */
-export function canBeInTree(type: RegisteredType | undefined): boolean {
-  return (
-    type === undefined || !(type.loads === false || isNavType(type) || isCameraRegionType(type))
-  );
-}
+export { canBeInTree } from "./nav-type";
 
 /**
  * What a ref names as a parent: a document entity or instance, an

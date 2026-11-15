@@ -1434,6 +1434,51 @@ or `body`) is `joint-ref-type`:
 }
 ```
 
+**A hinge between two bodies.** A revolute `joint` pins its entity to the
+body `to` names, letting it turn about the shared point: `anchorA` is that
+point on the joint's own entity and `anchorB` on the other, both in metres
+from each pose, and `limits` bounds the swing in radians. `examples/hang-a-sign.json`
+hangs a sign from the end of the engine yard's ledge, free to swing ±0.8 rad:
+
+```sh
+vp run scene apply engine-yard --ops scripts/scene/examples/hang-a-sign.json --dry-run
+vp run scene apply engine-yard --ops scripts/scene/examples/hang-a-sign.json
+vp run scene show engine-yard --near 14.6,8.1,1
+```
+
+`show` lists each joint among the entities it shows under `joints:`, its
+entity, its kind and the pair it links (`sign  revolute  sign ↔ ledge`);
+the kitchen sink's `hinged-door` is one already:
+
+```sh
+vp run scene show kitchen-sink --near 2,4.4,1
+```
+
+A joint whose `to` is its own entity or an entity with no body is refused
+([`joint-self` and `joint-ref-type`](#issue-codes), shown above).
+
+**Splitting a polygon.** A collider's `poly` must be convex, so a concave
+one (drawn in the editor, or imported) is `poly-invalid`; `apply` won't
+write a batch that makes one. `decompose <scene> <id>` replaces the
+entity's `poly` with convex pieces that cover the same area: one entity
+per piece with the same type and fields (ids `<id>-1`, `<id>-2`…), or
+with `--group` a group named `<id>` holding them, written as one batch the
+way `apply` writes it. It prints the pieces and the area before and after,
+and refuses a self-intersecting, zero-area or already convex polygon,
+writing nothing. `--dry-run` shows the batch without writing; `--live`
+edits the scene open in the dev editor as one undoable entry, as `apply
+--live` does. Any `poly` splits, such as the kitchen sink's L-shaped
+`floor-plan` nav area (a nav can't be in the tree, so it splits without
+`--group`):
+
+```sh
+vp run scene decompose kitchen-sink floor-plan --dry-run
+vp run scene decompose kitchen-sink floor-plan --live
+```
+
+MCP's `scene_decompose` takes `scene`, `id`, `group` and `live`, and is a
+dry run unless `dryRun` is `false`.
+
 A dynamic body or a joint in a scene without physics is
 `physics-required`; a kinematic body is fine there:
 
@@ -3466,6 +3511,7 @@ functions as the CLI (it never spawns it), versioned with the engine
 | `scene_frame`           | `frame --live`          | `scene`, `viewport` (metres), `debug`, `url`; the open editor's canvas as a PNG `image` with `source: "live"`, `debug: true` with its debug layers showing, else the schematic with `source: "schematic"` (with `debug`, its `ctx.debug` draws); `frame-too-large` and `live-refused` pass through                                                                                                                              |
 | `scene_play`            | `play --live`           | `scene`, `action` (`play`, `pause`, `resume`, `step`, `stop`, `state`), `ticks` with `step`, `url`; `live-no-editor` and `live-refused` pass through                                                                                                                                                                                                                                                                            |
 | `scene_paint`           | `paint`                 | writes; `scene`, `map`, and one of `cells`, `rect` (lists of the CLI's `c,r=tile` and `c0,r0,c1,r1=tile`), `fill` or `auto` (re-tiles existing terrain); tiles by id or tag, `empty` clears, `0` is tile 0; a tile no id or tag names writes nothing                                                                                                                                                                            |
+| `scene_decompose`       | `decompose`             | writes; `scene`, `id`, `group`, `live`; one entity per convex piece, or a group with `group`                                                                                                                                                                                                                                                                                                                                    |
 | `scene_stats`           | `stats`                 | `scene` by name or path, or `live`; `ticks` (a number, default 600), `game`; returns `counts` and `wall`                                                                                                                                                                                                                                                                                                                        |
 | `project_tree`          | `project tree`          |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `asset_refs`            | `project refs`          | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -3491,7 +3537,7 @@ and as `structuredContent`, with `exitCode` added. A scene with error issues
 is a normal result with `exitCode: 1`; `isError` is set only for calls that
 did nothing (a usage error, a stale base, a missing scene or server).
 Every tool takes `project`, which scopes it as `--project` does. The writers
-`scene_apply_ops`, `scene_paint`, `asset_import`, `asset_apply_ops` and `game_new` write only with
+`scene_apply_ops`, `scene_paint`, `scene_decompose`, `asset_import`, `asset_apply_ops` and `game_new` write only with
 `dryRun: false` (it defaults to `true`); every other tool is annotated
 read-only, and `asset_apply_ops`, whose batches can delete assets and replace
 content, destructive. `game_build` writes its build (annotated destructive and

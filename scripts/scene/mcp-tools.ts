@@ -42,6 +42,7 @@ import { assetsApply, type WriterFlags } from "./tools/assets-apply";
 import { assetsImport } from "./tools/assets-import";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
+import { decompose } from "./tools/decompose";
 import { dialogueWalk } from "./tools/dialogue-walk";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
@@ -863,6 +864,24 @@ export const MCP_TOOLS: readonly McpTool[] = [
         },
         ctx,
       );
+    },
+  }),
+  defineTool({
+    name: "scene_decompose",
+    title: "Split a concave polygon",
+    description:
+      "Replace an entity's concave `poly` shape with convex pieces, as the CLI's `decompose` does: one entity per piece (same type and fields, ids `<id>-1`…), or with group one group holding them, written as one batch. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. A self-intersecting, zero-area or already convex polygon is refused, writing nothing.",
+    annotations: WRITE,
+    input: {
+      scene: sceneName,
+      id: z.string().describe("The entity whose concave poly splits."),
+      group: z.boolean().optional().describe("Put the pieces under one group."),
+      ...writerFields,
+    },
+    run: async (i, ctx) => {
+      const flags = writerFlags(i, ctx);
+      if (isToolResult(flags)) return flags;
+      return decompose({ ...flags, scene: i.scene, id: i.id, group: i.group }, ctx);
     },
   }),
   defineTool({

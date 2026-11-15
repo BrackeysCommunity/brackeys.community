@@ -32,12 +32,21 @@ export interface PoseIndex {
  */
 export type WatchedPoseIndex = PoseIndex & {
   watch(fn: (id: string, snap: boolean) => void): void;
+  /** Marks `id`'s latest snap a teleport, which a following camera jumps with, and tells `onTeleport`'s listeners. */
+  teleport(id: string): void;
+  onTeleport(fn: (id: string) => void): void;
+  /**
+   * A count of teleports that only grows: with `id`, the count as of that
+   * entity's latest (0 for none), else the latest. A follower compares the
+   * two to tell a teleport since it last looked.
+   */
+  teleports(id?: string): number;
 };
 
 export const isWatched = (poses: PoseIndex): poses is WatchedPoseIndex =>
   typeof (poses as Partial<WatchedPoseIndex>).watch === "function";
 
-type Entry = { cur: Readonly<Pose>; prev: Readonly<Pose>; at: number };
+type Entry = { cur: Readonly<Pose>; prev: Readonly<Pose>; at: number; teleport: number };
 
 /**
  * A pose index whose ticks are read from `tick`. Entries are lazy: the
@@ -47,6 +56,8 @@ type Entry = { cur: Readonly<Pose>; prev: Readonly<Pose>; at: number };
 export function createPoseIndex(tick: () => number): WatchedPoseIndex {
   const entries = new Map<string, Entry>();
   const watchers: ((id: string, snap: boolean) => void)[] = [];
+  let teleports = 0;
+  const teleportWatchers: ((id: string) => void)[] = [];
   const wrote = (id: string, snap: boolean) => {
     for (const fn of watchers) fn(id, snap);
   };
@@ -55,6 +66,16 @@ export function createPoseIndex(tick: () => number): WatchedPoseIndex {
       watchers.push(fn);
     },
     get: (id) => entries.get(id)?.cur,
+    teleport(id) {
+      const entry = entries.get(id);
+      if (!entry) return;
+      entry.teleport = ++teleports;
+      for (const fn of teleportWatchers) fn(id);
+    },
+    onTeleport(fn) {
+      teleportWatchers.push(fn);
+    },
+    teleports: (id) => (id === undefined ? teleports : (entries.get(id)?.teleport ?? 0)),
     prev(id) {
       const entry = entries.get(id);
       if (!entry) return undefined;
@@ -65,7 +86,7 @@ export function createPoseIndex(tick: () => number): WatchedPoseIndex {
       const entry = entries.get(id);
       const pose = Object.freeze({ x, y, rot: rot ?? entry?.cur.rot ?? 0 });
       if (!entry || opts?.snap) {
-        entries.set(id, { cur: pose, prev: pose, at: t });
+        entries.set(id, { cur: pose, prev: pose, at: t, teleport: entry?.teleport ?? 0 });
       } else {
         if (entry.at !== t) entry.prev = entry.cur;
         entry.cur = pose;
@@ -113,7 +134,10 @@ export const samePose = (a: Readonly<Pose>, b: Readonly<Pose>): boolean =>
 /**
  * Re-poses each of a view system's `posed` entries whose pose-index pose
  * moved since it was last `applied`, snapping where the index's `prev`
- * equals the pose (a spawn or a teleport). `skip` passes an entry over.
+ * equals the pose (a spawn or a teleport). Where `prev` isn't what was last
+ * applied, the entry was teleported between ticks and then moved: it snaps
+ * to `prev` and eases from there, never across the jump. `skip` passes an
+ * entry over.
  */
 export function settlePosed<A extends { applied: Readonly<Pose> | null }>(
   poses: PoseIndex,
@@ -126,6 +150,11 @@ export function settlePosed<A extends { applied: Readonly<Pose> | null }>(
     const pose = poses.get(id);
     if (!pose || (a.applied && samePose(pose, a.applied))) continue;
     const prev = poses.prev(id);
+    if (prev && a.applied && !samePose(prev, a.applied) && !samePose(prev, pose)) {
+      place(id, a, prev, true);
+      place(id, a, pose, false);
+      continue;
+    }
     place(id, a, pose, prev !== undefined && samePose(prev, pose));
   }
 }

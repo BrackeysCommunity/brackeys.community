@@ -1,6 +1,7 @@
 import { EngineError, entityGone, type EngineContext, type SceneSystem } from "../game/types";
 import type { EntityTypeName, RuntimeEntity } from "../scene/types";
 import type { BehaviorHost } from "./behaviors";
+import { isWatched } from "./poses";
 
 export type SetPoseDeps = {
   ctx: EngineContext;
@@ -33,12 +34,17 @@ export function createSetPose(deps: SetPoseDeps): EngineContext["setPose"] {
     }
     const angle = rot ?? ctx.poses.get(id)?.rot ?? 0;
     const snap = opts?.snap === true;
+    const teleported = () => {
+      if (snap && isWatched(ctx.poses)) ctx.poses.teleport(id);
+    };
     if (!deps.enabled(id)) {
       ctx.poses.set(id, x, y, angle, snap ? { snap } : undefined);
+      teleported();
       return;
     }
     system.setPose(id, x, y, angle);
     if (snap) ctx.poses.set(id, x, y, angle, { snap });
+    teleported();
     behaviors.posed(e, ctx.poses.get(id) ?? { x, y, rot: angle }, snap);
   };
 }

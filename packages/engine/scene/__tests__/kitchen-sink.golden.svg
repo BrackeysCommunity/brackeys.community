@@ -45,6 +45,7 @@
 <path data-ref="shelf-board" data-type="solid" d="M1300 690L1500 690L1500 710L1300 710Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="wing-board" data-type="solid" d="M3192 480L3192 400L3208 400L3208 480Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="side-wall" data-type="solid" d="M292 160L308 160L308 280L292 280Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="lintel" data-type="solid" d="M100 435L180 435L180 445L100 445Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="post-1/pole" data-type="solid" d="M1630 1040L1650 1040L1650 1160L1630 1160Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="post-2/pole" data-type="solid" d="M1750 1040L1770 1040L1770 1160L1750 1160Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="gate-1/bar" data-type="solid" d="M1920 1140L2040 1140L2040 1160L1920 1160Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
@@ -72,6 +73,7 @@
 <path data-ref="ball" data-type="prop" d="M1020 1050A20 20 0 0 1 1000 1070A20 20 0 0 1 980 1050A20 20 0 0 1 1000 1030A20 20 0 0 1 1020 1050Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="shelf-box" data-type="prop" d="M1340 650L1380 650L1380 690L1340 690Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="upright" data-type="prop" d="M302 130L322 130L322 150L302 150Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="bob" data-type="prop" d="M492 420A12 12 0 0 1 480 432A12 12 0 0 1 468 420A12 12 0 0 1 480 408A12 12 0 0 1 492 420Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="carrier" data-type="follower" d="M700 392L820 392L820 408L700 408Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="orbit" data-type="follower" d="M1716 200A16 16 0 0 1 1700 216A16 16 0 0 1 1684 200A16 16 0 0 1 1700 184A16 16 0 0 1 1716 200Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="room-1/door-1/panel" data-type="follower" d="M2562 820L2578 820L2578 900L2562 900Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
@@ -116,6 +118,8 @@
 <g data-ref="std-text" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1080" cy="260" r="11.25"/><path d="M1062 260H1098M1080 242V278"/></g>
 <g data-ref="std-audio" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="440" cy="220" r="11.25"/><path d="M422 220H458M440 202V238"/></g>
 <g data-ref="talk-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="640" cy="220" r="11.25"/><path d="M622 220H658M640 202V238"/></g>
+<g data-ref="hinged-door" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="190" cy="440" r="11.25"/><path d="M172 440H208M190 422V458"/></g>
+<g data-ref="peg" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="420" cy="420" r="11.25"/><path d="M402 420H438M420 402V438"/></g>
 <g data-ref="post-1/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1030" r="11.25"/><path d="M1622 1030H1658M1640 1012V1048"/></g>
 <g data-ref="post-2/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1760" cy="1030" r="11.25"/><path d="M1742 1030H1778M1760 1012V1048"/></g>
 <g data-ref="room-1/lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2720" cy="700" r="11.25"/><path d="M2702 700H2738M2720 682V718"/></g>
@@ -129,6 +133,11 @@
 <path data-one-way="side-wall" data-side="left" d="M292 280L292 160"/>
 <path data-one-way="gate-2/bar" data-side="up" d="M2140 1140L2260 1140"/>
 <path data-one-way="latch-3/bar" data-side="up" d="M3420 1140L3500 1140"/>
+</g>
+<g id="joints" fill="none" stroke="#c792ea" stroke-width="3.38">
+<g data-joint="std-joint" data-kind="revolute" data-to="std-collider"><path d="M1600 310L1600 310"/><circle cx="1600" cy="310" r="13.5" fill="#101218"/><text x="1600" y="317.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">j</text></g>
+<g data-joint="hinged-door" data-kind="revolute" data-to="lintel"><path d="M190 440L190 440"/><circle cx="190" cy="440" r="13.5" fill="#101218"/><text x="190" y="447.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">j</text></g>
+<g data-joint="peg" data-kind="rope" data-to="bob"><path d="M420 420L480 420"/><circle cx="450" cy="420" r="13.5" fill="#101218"/><text x="450" y="427.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">j</text></g>
 </g>
 <g id="sprites" fill="none" stroke-width="2.81" stroke-dasharray="9 6.75">
 <path data-sprite="ledge" data-asset="hero" data-frame="hero-1" d="M740 890L900 890L900 910L740 910Z" stroke="#8899aa"/>
@@ -192,6 +201,7 @@
 <text x="1400" y="708.84" font-size="24.75">shelf-board</text>
 <text x="3200" y="448.84" font-size="24.75">wing-board</text>
 <text x="300" y="228.84" font-size="24.75">side-wall</text>
+<text x="140" y="448.84" font-size="24.75">lintel</text>
 <text x="1640" y="1108.84" font-size="24.75">post-1/pole</text>
 <text x="1760" y="1108.84" font-size="24.75">post-2/pole</text>
 <text x="1980" y="1158.84" font-size="24.75">gate-1/bar</text>
@@ -238,6 +248,8 @@
 <text x="1100.25" y="239.75" font-size="24.75" text-anchor="start">std-text</text>
 <text x="460.25" y="199.75" font-size="24.75" text-anchor="start">std-audio</text>
 <text x="660.25" y="199.75" font-size="24.75" text-anchor="start">talk-mark</text>
+<text x="210.25" y="419.75" font-size="24.75" text-anchor="start">hinged-door</text>
+<text x="440.25" y="399.75" font-size="24.75" text-anchor="start">peg</text>
 <text x="1660.25" y="1009.75" font-size="24.75" text-anchor="start">post-1/cap</text>
 <text x="1780.25" y="1009.75" font-size="24.75" text-anchor="start">post-2/cap</text>
 <text x="2740.25" y="679.75" font-size="24.75" text-anchor="start">room-1/lamp</text>
@@ -247,6 +259,7 @@
 <text class="sprite-label" x="1000" y="1023.25" font-size="20.25" fill-opacity="0.8">crates:crate-1</text>
 <text x="1360" y="678.84" font-size="24.75">shelf-box</text>
 <text x="312" y="148.84" font-size="24.75">upright</text>
+<text x="480" y="428.84" font-size="24.75">bob</text>
 <text x="760" y="380.59" font-size="24.75">carrier</text>
 <text x="1700" y="172.59" font-size="24.75">orbit</text>
 <text x="2570" y="808.59" font-size="24.75">room-1/door-1/panel</text>

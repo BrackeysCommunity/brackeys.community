@@ -19,6 +19,7 @@ import { exploreDialogue } from "../dialogue/explore";
 import type { AnimBlock } from "../game/behaviors/anim";
 import { AUDIO, type AudioBlock } from "../game/behaviors/audio";
 import type { EmitterBlock } from "../game/behaviors/emitter";
+import type { JointBlock } from "../game/behaviors/joint";
 import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
 import { OCCUPANT } from "../game/behaviors/occupant";
 import type { SpawnerBlock, SpawnerSystem } from "../game/behaviors/spawner";
@@ -1239,6 +1240,37 @@ describe("kitchen-sink.json", () => {
       expect(at.x).toBeCloseTo(sx + ox, 5);
       expect(at.y).toBeCloseTo(sy + oy, 5);
     }
+    rt.destroy();
+  });
+
+  it("stops the hinged door at its limits and never lets the rope run past its length, over 300 ticks", () => {
+    const door = entities().find((e) => e.id === "hinged-door")!;
+    const hinge = (door.behaviors as { joint: JointBlock }).joint;
+    const peg = entities().find((e) => e.id === "peg")!;
+    const rope = (peg.behaviors as { joint: JointBlock }).joint;
+    expect([hinge.kind, rope.kind, rope.to]).toEqual(["revolute", "rope", "bob"]);
+    const [lo, hi] = hinge.limits!;
+    const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+    expect(rt.load(expanded()).ok).toBe(true);
+    const world = rt.ctx.physics!.world;
+    const collider = (id: string) => world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!;
+    const [px, py] = peg.at as Pt;
+    let lowest = Infinity;
+    let highest = -Infinity;
+    let farthest = 0;
+    for (let i = 0; i < 300; i++) {
+      rt.step(rt.ctx.time.tickMs, []);
+      const angle = collider("hinged-door").parent()!.rotation();
+      lowest = Math.min(lowest, angle);
+      highest = Math.max(highest, angle);
+      const at = collider("bob").translation();
+      farthest = Math.max(farthest, Math.hypot(at.x - px, at.y - py));
+    }
+    expect(lowest).toBeGreaterThanOrEqual(lo - 0.01);
+    expect(highest).toBeLessThanOrEqual(hi + 0.01);
+    expect(Math.max(-lowest, highest)).toBeGreaterThan(Math.min(-lo, hi) - 0.02);
+    expect(farthest).toBeLessThanOrEqual(rope.length! + 0.005);
+    expect(farthest).toBeGreaterThan(rope.length! - 0.05);
     rt.destroy();
   });
 

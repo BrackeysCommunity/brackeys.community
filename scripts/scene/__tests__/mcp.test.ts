@@ -139,6 +139,7 @@ describe("scene MCP server", () => {
       "scene_apply_ops",
       "scene_check",
       "scene_codes",
+      "scene_decompose",
       "scene_diff",
       "scene_flow",
       "scene_frame",
@@ -158,6 +159,7 @@ describe("scene MCP server", () => {
       scene_apply_ops: false,
       asset_import: false,
       scene_paint: false,
+      scene_decompose: false,
       asset_apply_ops: true,
       game_new: false,
     };
@@ -773,6 +775,44 @@ describe("tilemaps", { timeout: 60_000 }, () => {
     const scene = JSON.parse(await sink()) as { entities: { id: string; cells?: GridCells }[] };
     const cells = scene.entities.find((e) => e.id === "tiles")!.cells!;
     expect([readCell(cells, 0, 0), readCell(cells, 1, 0)]).toEqual([1, 0]);
+  });
+
+  it("scene_decompose returns the batch as a dry run, and applies it when dryRun is false", async () => {
+    const seeded = await tileCall("scene_apply_ops", {
+      scene: "kitchen-sink",
+      ops: {
+        ops: [
+          {
+            op: "add",
+            entity: {
+              id: "ell",
+              type: "nav",
+              shape: ["poly", 40, 0, 44, 0, 44, 1, 41, 1, 41, 3, 40, 3],
+            },
+          },
+        ],
+      },
+      dryRun: false,
+    });
+    expect(seeded.structuredContent.exitCode, JSON.stringify(seeded.structuredContent)).toBe(0);
+    const before = await sink();
+    const dry = await tileCall("scene_decompose", { scene: "kitchen-sink", id: "ell" });
+    expect(dry.structuredContent.exitCode, JSON.stringify(dry.structuredContent)).toBe(0);
+    expect(dry.structuredContent).toMatchObject({ dryRun: true, written: false });
+    expect(dry.structuredContent.batch).toMatchObject({ ops: expect.any(Array) });
+    expect(await sink()).toBe(before);
+
+    const wrote = await tileCall("scene_decompose", {
+      scene: "kitchen-sink",
+      id: "ell",
+      dryRun: false,
+    });
+    expect(wrote.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    const ids = (JSON.parse(await sink()) as { entities: { id: string }[] }).entities.map(
+      (e) => e.id,
+    );
+    expect(ids).not.toContain("ell");
+    for (const id of wrote.structuredContent.pieces as string[]) expect(ids).toContain(id);
   });
 
   it("asset_import converts an LDtk world's chosen levels, as a dry run by default", async () => {

@@ -93,6 +93,11 @@
     { "id": "tiles", "type": "tilemap", "at": [25, 10], "tileset": "kitchen-tileset", "cells": {
       "0,0": ["2*8,0,3*3", "1*8,0*5,4"]
     } },
-    { "id": "about-tiles", "type": "note", "at": [25, 9.4], "text": "Tilemap: tiles paints an 8 by 2 strip on the scene's 0.25 m grid from the kitchen tileset, moss over stone, both solid, with the tileset's moss-top autotile rule (edge16 on the moss terrain: moss with moss above turns to stone). Beside it, three one-way planks you can jump up through, and an animated lamp that cycles a dim and a lit frame every 250 ms." }
+    { "id": "about-tiles", "type": "note", "at": [25, 9.4], "text": "Tilemap: tiles paints an 8 by 2 strip on the scene's 0.25 m grid from the kitchen tileset, moss over stone, both solid, with the tileset's moss-top autotile rule (edge16 on the moss terrain: moss with moss above turns to stone). Beside it, three one-way planks you can jump up through, and an animated lamp that cycles a dim and a lit frame every 250 ms." },
+    { "id": "lintel", "type": "solid", "shape": ["box", 1.4, 4.4, 0.4, 0.05] },
+    { "id": "hinged-door", "type": "marker", "at": [1.9, 4.4], "behaviors": { "body": {}, "collider": { "shape": ["box", 0.4, 0, 0.4, 0.04] }, "joint": { "anchorA": [0, 0], "anchorB": [0.5, 0], "kind": "revolute", "limits": [-0.5, 0.5], "to": "lintel" } } },
+    { "id": "peg", "type": "marker", "at": [4.2, 4.2], "behaviors": { "body": { "kind": "static" }, "collider": { "shape": ["box", 0, 0, 0.05, 0.05] }, "joint": { "anchorA": [0, 0], "anchorB": [0, 0], "kind": "rope", "length": 1, "to": "bob" } } },
+    { "id": "bob", "type": "prop", "shape": ["circle", 4.8, 4.2, 0.12], "density": 1, "restitution": 0 },
+    { "id": "about-joints", "type": "note", "at": [1, 3.4], "text": "Joints: hinged-door is a body hinged to the lintel's right end, a revolute joint whose limits stop its swing at ±0.5 rad (about 29°), so it falls from level and rests against one of them; peg is a static body tied by a 1 m rope to the prop bob, which starts 0.6 m away, drops until the rope is taut and then swings without ever getting farther than 1 m." }
   ]
 }

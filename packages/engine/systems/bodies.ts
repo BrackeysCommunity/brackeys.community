@@ -27,7 +27,14 @@ import type {
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 import { rapierBodyEntry, registerBody, type BodyEntry } from "../runtime/bodies-control";
 import type { GeometryColliderDesc } from "../runtime/geometry-world";
-import { composePose, framePose, relativePose, samePose, type Pose } from "../runtime/poses";
+import {
+  composePose,
+  framePose,
+  isWatched,
+  relativePose,
+  samePose,
+  type Pose,
+} from "../runtime/poses";
 import type { SpaceHit } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../runtime/types";
@@ -309,6 +316,16 @@ export function createBodyTable<T extends OwnedBody>(
 
   const drawsPoses = () => posesView && ctx.view !== null;
 
+  // A teleport redraws the body where it landed at once, snapped, so it jumps on the frame
+  // the camera does and the next tick eases on from there rather than across the jump.
+  if (isWatched(ctx.poses))
+    ctx.poses.onTeleport((id) => {
+      const entry = owned.get(id);
+      if (!entry || disabled.has(id) || !drawsPoses()) return;
+      const t = entry.body.translation();
+      ctx.view!.pose(id, t.x, t.y, entry.body.rotation(), true);
+    });
+
   function poseView(id: string, body: RigidBody): void {
     if (!drawsPoses()) return;
     const t = body.translation();
@@ -326,7 +343,7 @@ export function createBodyTable<T extends OwnedBody>(
       const p = composePose(t.x, t.y, rot, offset);
       ctx.poses.set(id, p.x, p.y, p.rot, snap ? { snap } : undefined);
     }
-    if (view) ctx.view!.pose(id, t.x, t.y, rot);
+    if (view) ctx.view!.pose(id, t.x, t.y, rot, snap);
   }
 
   return {

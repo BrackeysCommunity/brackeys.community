@@ -18,6 +18,7 @@ import { assetsSetImport } from "./tools/assets-set-import";
 import { bundle } from "./tools/bundle";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
+import { decompose, DECOMPOSE_USAGE } from "./tools/decompose";
 import { DIALOGUE_WALK_USAGE, dialogueWalk } from "./tools/dialogue-walk";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
@@ -322,6 +323,16 @@ const DEFINITIONS = {
     maxPositionals: 2,
     run: ({ positionals: [scene, map], flags }, ctx) =>
       tiles({ scene, map, rect: str(flags.rect) }, ctx),
+  },
+  decompose: {
+    usage: `${DECOMPOSE_USAGE} ${WRITER_USAGE}`,
+    summary:
+      "split an entity's concave poly into convex pieces (ids <id>-1…, or one group with --group) as one batch",
+    values: [...WRITER_VALUES],
+    switches: ["group", ...WRITER_SWITCHES],
+    maxPositionals: 2,
+    run: ({ positionals: [scene, id], flags }, ctx) =>
+      decompose({ ...writerFlags(flags), scene, id, group: flags.group === true }, ctx),
   },
   paint: {
     usage: PAINT_USAGE,

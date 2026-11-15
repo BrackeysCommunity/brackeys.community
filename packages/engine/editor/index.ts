@@ -272,6 +272,7 @@ export {
   type ToolLayers,
 } from "./tool-host";
 export {
+  canSplitConvex,
   COARSE_NUDGE_STEPS,
   deleteBatch,
   flipBatch,
@@ -281,12 +282,14 @@ export {
   instanceLevels,
   nudgeBatch,
   nudgeDelta,
+  polyPointsOf,
   quarterTurnTargets,
   rotateSelectionBatch,
   rotationPivot,
   selectAllRefs,
   selectionBounds,
   selectionRoots,
+  splitConvex,
   targetsOf,
   turnBatch,
   ungroupBatch,

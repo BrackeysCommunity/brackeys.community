@@ -1,3 +1,4 @@
+import { isCameraRegionType } from "../game/primitives";
 import type { RegisteredType, SystemFactory } from "../game/types";
 
 /** Registry-wide, so a second copy of this module (a bundle beside the source) reads the same mark. */
@@ -24,4 +25,15 @@ export function isNavType(type: RegisteredType | undefined): type is RegisteredT
   return type.system
     ? (type.system as { [NAV_SYSTEM]?: true })[NAV_SYSTEM] === true
     : (type.base ?? type.type) === "nav";
+}
+
+/**
+ * Whether entities of `type` can be in the tree, as a parent or a child:
+ * nav areas, camera regions and types that never load (notes) can't. An
+ * unregistered type is reported as such, not here.
+ */
+export function canBeInTree(type: RegisteredType | undefined): boolean {
+  return (
+    type === undefined || !(type.loads === false || isNavType(type) || isCameraRegionType(type))
+  );
 }
