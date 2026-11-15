@@ -330,13 +330,14 @@ const DEFINITIONS = {
     values: ["cells", "rect", "fill", "auto", ...WRITER_VALUES],
     repeatable: ["cells", "rect"],
     switches: [...WRITER_SWITCHES],
-    maxPositionals: 2,
-    run: ({ positionals: [scene, map], flags }, ctx) =>
+    maxPositionals: 3,
+    run: ({ positionals: [scene, map, autoRect], flags }, ctx) =>
       paint(
         {
           ...writerFlags(flags),
           scene,
           map,
+          autoRect,
           cells: strs(flags.cells),
           rect: strs(flags.rect),
           fill: str(flags.fill),

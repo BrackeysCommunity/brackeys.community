@@ -17,7 +17,7 @@ import { useMemo, type ReactNode } from "react";
 
 import type { EventLog } from "../../debug/event-log";
 import type { EditorSession, Ref, SceneIssue } from "../../editor/index";
-import type { AssetKey } from "../../project/index";
+import type { AssetId, AssetKey } from "../../project/index";
 import type { GameStoreState } from "../../types";
 import type { EditorControls } from "../frame/keys";
 import type { EditorNotify, EditorPublishHost } from "../host";
@@ -406,12 +406,13 @@ export const PANELS: readonly PanelDef[] = [
     id: "tiles",
     title: "Tiles",
     icon: GridViewIcon,
-    render: ({ controls }) => (
+    render: (ctx) => (
       <TilePalette
-        session={controls.session}
-        runtime={controls.project?.runtime ?? null}
-        imageUrl={controls.project?.assetImage}
-        tools={controls.tools}
+        session={ctx.controls.session}
+        runtime={ctx.controls.project?.runtime ?? null}
+        imageUrl={ctx.controls.project?.assetImage}
+        tools={ctx.controls.tools}
+        onOpenTileset={openAssetIn(ctx)}
       />
     ),
     skeleton: rows(4),
@@ -449,6 +450,21 @@ function debugEventsOf(game: PanelControls["game"]): EventLog | null {
 function replaySourceOf(game: PanelControls["game"]): ReplaySource | null {
   const g = game as Partial<ReplaySource> | null | undefined;
   return g?.replayHandle && g.getStore ? (g as ReplaySource) : null;
+}
+
+/**
+ * Opens a project asset by id as picking it in the project tree does: in the
+ * inspector, revealed. None outside a project.
+ */
+function openAssetIn(ctx: PanelContext): ((id: AssetId) => void) | undefined {
+  const session = ctx.controls.project?.session;
+  if (!session) return undefined;
+  return (id) => {
+    const entry = session.view().byId.get(id);
+    if (!entry || entry.deleted) return;
+    ctx.pickedAsset.setState(() => entry.key);
+    ctx.openPanel("inspector");
+  };
 }
 
 /** The running game's binding capture. */

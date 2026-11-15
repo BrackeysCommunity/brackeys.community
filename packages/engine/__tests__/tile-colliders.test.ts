@@ -26,7 +26,16 @@ beforeAll(async () => {
 });
 
 const DT = 1000 / 60;
+const BOUNCY_MATERIAL = "material-bouncy";
 const registry = createRegistry(testGame);
+const withMaterial = createRegistry(testGame, {
+  materials: {
+    [BOUNCY_MATERIAL]: {
+      description: "Springy.",
+      physics: { friction: 0.25, restitution: 0.8 },
+    },
+  },
+});
 const PPM = pxPerMetreOf(registry);
 /** m: one cell. */
 const CELL = 0.32;
@@ -35,6 +44,7 @@ const TILE_PX = Math.round(CELL * PPM);
 const SOLID = 1;
 const UP = 2;
 const DOWN = 3;
+const BOUNCY = 4;
 
 const TILESET: TilesetFile = {
   kind: "tileset",
@@ -46,6 +56,7 @@ const TILESET: TilesetFile = {
     { id: 0, solid: true },
     { id: 1, solid: true, oneWay: "up" },
     { id: 2, solid: true, oneWay: "down" },
+    { id: 3, solid: true, material: BOUNCY_MATERIAL },
   ],
 };
 
@@ -88,8 +99,19 @@ function scene(physics: "rapier" | "none", entities: RuntimeEntity[]): ExpandedS
   };
 }
 
-function load(physics: "rapier" | "none", entities: RuntimeEntity[], view: unknown = null) {
-  const rt = createSceneRuntime({ rapier, view: view as never, game: testGame, project });
+function load(
+  physics: "rapier" | "none",
+  entities: RuntimeEntity[],
+  view: unknown = null,
+  reg = registry,
+) {
+  const rt = createSceneRuntime({
+    rapier,
+    view: view as never,
+    game: testGame,
+    registry: reg,
+    project,
+  });
   const report = rt.load(scene(physics, entities));
   if (!report.ok) throw new Error(report.error);
   const tiles = rt.ctx.system<TilemapSystem>("tilemap")!;
@@ -121,6 +143,24 @@ describe("tilemap colliders", () => {
       const hits = rt.ctx.space.overlaps(box(5 * CELL, 10.5 * CELL, 0.01, 0.01));
       expect(hits.map((h) => h.tag.tile)).toEqual([{ map: "map", tile: 0, cell: [0, 10] }]);
       expect(rt.ctx.tags.handlesOf("map")).toHaveLength(3);
+      rt.destroy();
+    }
+  });
+
+  it("gives a tile's collider its material's surface and tag", () => {
+    const row = cells({ rects: [[0, 10, 3, 10, BOUNCY]] });
+    for (const physics of ["rapier", "none"] as const) {
+      const { rt } = load(physics, [tilemap("map", row)], null, withMaterial);
+      const hits = rt.ctx.space.pointAt({ x: 1.5 * CELL, y: 10.5 * CELL });
+      expect(
+        hits.map((h) => h.tag.material),
+        physics,
+      ).toEqual([BOUNCY_MATERIAL]);
+      if (physics === "rapier") {
+        const collider = rt.ctx.physics!.world.getCollider(hits[0]!.handle)!;
+        expect(collider.restitution()).toBeCloseTo(0.8);
+        expect(collider.friction()).toBeCloseTo(0.25);
+      }
       rt.destroy();
     }
   });

@@ -2,6 +2,7 @@ import { OCCUPANT } from "../game/behaviors/occupant";
 import type { EngineContext, Registry } from "../game/types";
 import {
   cellKey,
+  cellKeyRun,
   gridGeometry,
   inCellBounds,
   type Cell,
@@ -11,7 +12,7 @@ import {
 } from "../grid/geometry";
 import { createKeyedOccupancy, type KeyedOccupancy, type Occupancy } from "../grid/occupancy";
 import { findPath, type GridPath } from "../grid/path";
-import { GRID_CHUNK, parseChunkKey, type ChunkKey, type GridCells } from "../scene/grid";
+import { GRID_CHUNK, type ChunkKey, type GridCells } from "../scene/grid";
 import { makeIssue } from "../scene/issues";
 import { geometryFields } from "../scene/schema";
 import { translateShape } from "../scene/shape-geometry";
@@ -26,7 +27,8 @@ import type {
   ShapeObj,
 } from "../scene/types";
 import { isTilemapSystem, type TilemapSystem } from "../systems/tilemap";
-import { DEFAULT_TILE_COST, forEachChunkRun, tileTraits } from "../tiles/chunks";
+import { chunkOrigin, DEFAULT_TILE_COST, forEachChunkRun, tileTraits } from "../tiles/chunks";
+import { tileOffset } from "../tiles/mesh";
 import type { OccupantSystem } from "./behaviors/occupant";
 import { spawnPose } from "./spawn-pose";
 
@@ -68,8 +70,6 @@ export type GridState = {
 };
 
 const DEFAULT_GRID_WALLS: readonly EntityTypeName[] = ["solid"];
-/** The cell-key step from one column to the next. */
-const COL_STEP = cellKey([1, 0]) - cellKey([0, 0]);
 
 /** The types whose shapes are grid walls: `GameDefinition.world.gridWalls`, default `["solid"]`. */
 export function gridWallTypes(registry: Registry): ReadonlySet<EntityTypeName> {
@@ -133,9 +133,7 @@ export function createGridState(
 
   function mapOrigin(grid: RuntimeGrid, e: RuntimeEntity): Cell | null {
     if (!Array.isArray(e.at)) return null;
-    const [w, h] = grid.geometry.settings.cell;
-    const at = e.at as Pt;
-    return grid.geometry.cellAt([at[0] + w / 2, at[1] + h / 2]);
+    return tileOffset(grid.geometry.settings, e.at as Pt, grid.geometry);
   }
 
   function dropChunk(t: MapTiles, key: ChunkKey, touched: Set<CellKey> | null): void {
@@ -166,10 +164,9 @@ export function createGridState(
     for (const key of keys ?? Object.keys(cells)) {
       const rows = cells[key];
       if (!rows) continue;
-      const at = parseChunkKey(key);
-      if (!at) throw new Error(`tile chunk key "${key}" isn't "cx,cy"`);
-      const c0 = at[0] * GRID_CHUNK + oc;
-      const r0 = at[1] * GRID_CHUNK + or;
+      const [cx, cy] = chunkOrigin(key);
+      const c0 = cx * GRID_CHUNK + oc;
+      const r0 = cy * GRID_CHUNK + or;
       const mine: CellKey[] = [];
       forEachChunkRun(key, rows, (value, col, row, count) => {
         if (value === 0) return;
@@ -180,9 +177,7 @@ export function createGridState(
           costOf.set(value, cost);
         }
         if (cost !== null && cost <= DEFAULT_TILE_COST) return;
-        const first = cellKey([c0 + col, r0 + row]);
-        cellKey([c0 + col + count - 1, r0 + row]); // throws when the run ends out of range
-        for (let j = 0, k = first; j < count; j++, k += COL_STEP) {
+        for (const k of cellKeyRun(c0 + col, r0 + row, count)) {
           if (cost === null) t.walls.add(k);
           else t.costs.set(k, cost - DEFAULT_TILE_COST);
           mine.push(k);

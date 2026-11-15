@@ -363,7 +363,7 @@ export function importTiled(
           return objectLayer(layer, name, here, path);
         default:
           return drop(
-            `layer "${name}" is a ${String(layer.type)} layer, which doesn't import`,
+            `layer "${name}" is a Tiled "${String(layer.type)}" layer, which doesn't import`,
             path,
           );
       }
@@ -480,7 +480,10 @@ export function importTiled(
                     ? "point"
                     : "rectangle";
       if (kind !== "point" && kind !== "rectangle")
-        return drop(`${label} in layer "${name}" is a ${kind} object, which doesn't import`, where);
+        return drop(
+          `${label} in layer "${name}" is a Tiled "${kind}" object, which doesn't import`,
+          where,
+        );
       const tag = asTag(o.class ?? o.type);
       const extra = properties(o.properties);
       const common = {

@@ -16,6 +16,10 @@ export type CellBounds = { c0: number; r0: number; c1: number; r1: number };
 const HALF_RANGE = 2 ** 20;
 const ROW_SPAN = 2 ** 21;
 
+/** A path step to an edge neighbour, and to a diagonal one. */
+export const EDGE_COST = 10;
+export const DIAGONAL_COST = 14;
+
 const inRange = (n: number) => Number.isInteger(n) && n >= -HALF_RANGE && n < HALF_RANGE;
 
 export function cellKey(c: Cell): CellKey {
@@ -23,6 +27,15 @@ export function cellKey(c: Cell): CellKey {
   if (!inRange(col) || !inRange(row))
     throw new RangeError(`cell [${col}, ${row}] is outside [−2^20, 2^20) or not whole`);
   return (col + HALF_RANGE) * ROW_SPAN + (row + HALF_RANGE);
+}
+
+/** The keys of `count` cells from `[col, row]` rightwards; throws when any lies out of range. */
+export function cellKeyRun(col: number, row: number, count: number): CellKey[] {
+  const first = cellKey([col, row]);
+  if (count > 1) cellKey([col + count - 1, row]);
+  const keys = new Array<CellKey>(count);
+  for (let j = 0; j < count; j++) keys[j] = first + j * ROW_SPAN;
+  return keys;
 }
 
 export function cellOf(k: CellKey): Cell {
@@ -350,13 +363,14 @@ export function gridGeometry(settings: GridSettings): GridGeometry {
       );
     },
     stepCost(a, b) {
-      return square && a[0] !== b[0] && a[1] !== b[1] ? 14 : 10;
+      return square && a[0] !== b[0] && a[1] !== b[1] ? DIAGONAL_COST : EDGE_COST;
     },
     heuristic(a, b) {
-      if (!square) return 10 * hexDistance(a, b);
+      if (!square) return EDGE_COST * hexDistance(a, b);
       const dx = abs(b[0] - a[0]);
       const dy = abs(b[1] - a[1]);
-      return dx > dy ? 10 * dx + 4 * dy : 10 * dy + 4 * dx;
+      const extra = DIAGONAL_COST - EDGE_COST;
+      return dx > dy ? EDGE_COST * dx + extra * dy : EDGE_COST * dy + extra * dx;
     },
     distance(a, b, diagonals = false) {
       if (!square) return hexDistance(a, b);

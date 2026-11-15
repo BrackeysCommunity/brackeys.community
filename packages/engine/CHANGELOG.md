@@ -29,7 +29,9 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
 - `TILEMAP_PRIMITIVE` in `./game`: the `tilemap` type's definition (`at`,
   `tileset`, `cells`, `collision`, `tint`, `alpha`; physics optional; ascii
   `#`). A tilemap is a tree entity: its frame poses the whole map, and its
-  cells' flags follow quarter turns and mirrors only.
+  cells' flags follow quarter turns and mirrors only. An `at` between grid
+  cells snaps to the nearest cell: colliders, drawing, grid walls, the tile
+  tools and the svg and ascii renders all place the map there.
 - `gridField(description, { tileFlags: true })` marks a grid field whose
   values are tile cells; `gridFieldInfo` returns `tileFlags: true` for it.
 - The `tileset` kind's contract in `./project`: `TilesetFile`, `TileDef`,
@@ -70,12 +72,16 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
   and before a game's listed groups when its `spawnOrder` leaves it out.
 - The `tileset` kind joins `ENGINE_ASSET_KINDS`: `data` is judged by
   `GameDefinition.tileData`, `image` refs a texture or atlas and `material`
-  a material, limits 1 MiB / 8,191 items. A repeated numeric keyed id (a
-  tileset's `tiles`) is now a `dup-id`, as a string id already was.
+  a material, limits 1 MiB / 8,191 items. A tile's `cost` is at least 10
+  (one grid step), since A\* needs costs that only add. A repeated numeric
+  keyed id (a tileset's `tiles`) is now a `dup-id`, as a string id already
+  was.
 - `tilemapIssues` raises `tile-unknown` per cell, `tileset-missing` and
   `tileset-grid-mismatch` (tile px must equal grid cell × px per metre, a
   whole pixel; the issue reports the expected px), called from the scene
-  kind's cross-validation; `tilesetIssues` checks rule tiles, fallbacks and
+  kind's cross-validation, and for the tilemaps a prefab holds or a scene's
+  instances place (so `scene validate` checks those too);
+  `tilesetIssues` checks rule tiles, fallbacks and
   animation frames. New helpers `tilesetTileCount`, `tilesetImageInfo`,
   `tilesetSchemaFor`, all in `./project`.
 - `transformGrid` takes `{ tileFlags }` and turns tile cell flip flags with
@@ -105,7 +111,8 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
   cross-doc ProjectOp batch: textures (importAsset), tilesets (createAsset),
   then the scene's grid, one tilemap per tile layer per tileset, markers and
   sensors. `TiledImportOptions` gains `images`, `folder` and `licence`.
-  Isometric and staggered maps are refused with `import-failed`.
+  Isometric and staggered maps are refused with `import-failed`. A layer's
+  parallax (composed through its groups) is noted and not imported.
 - `importLdtk(world, { project, pxPerMetre, hash, levels?, images?, files?,
 game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
   result: one cross-doc batch with one scene per level. IntGrid layers become
@@ -113,7 +120,8 @@ game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
   export PNG writer), or over the layer's auto-layer tiles when it has them;
   tile layers keep their flips, tilesets keep their tags and custom data, and
   entities become markers with their fields in `extra`. Generated and copied
-  image bytes come back in `blobs`, keyed by hash.
+  image bytes come back in `blobs`, keyed by hash. Both importers' notes
+  quote the Tiled or LDtk kind of a layer or object they leave out.
 - `marker` and `sensor` gain an optional `extra` field: imported properties
   (Tiled object properties, LDtk entity fields) a game maps to its own types.
 - `scene assets import --tiled <map.tmj> [--into scene] [--tilesets dir]` and
@@ -198,7 +206,8 @@ game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
 - Editor: the six tile tools in the toolbar while a tilemap is selected,
   hovered or being painted, with rotate and flip-brush buttons (R, F, V);
   their room is kept so the dock never refits. A refused tool action shows
-  in the status bar. Presence draws each painter's tile brush rectangle in
+  in the status bar. With a brush armed, the hovered cells ghost the tiles a
+  press would paint. Presence draws each painter's tile brush rectangle in
   their colour.
 
 - `GameInstance.extractFrame({ width?, height? })` renders the whole stage

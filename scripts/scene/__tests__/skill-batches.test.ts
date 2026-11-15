@@ -292,11 +292,13 @@ describe("the scene-editing skill's tilemap examples", () => {
     return shown.rows as unknown[];
   };
 
-  it("are the files this test runs, every one", async () => {
+  it("are the files this test runs, every one, beside their generator and licence", async () => {
     expect((await readdir(TILE_EXAMPLES)).sort()).toEqual(
-      Object.values(TILES)
-        .map((p) => p.slice(TILE_EXAMPLES.length))
-        .sort(),
+      [
+        ...Object.values(TILES).map((p) => p.slice(TILE_EXAMPLES.length)),
+        "LICENCE.txt",
+        "generate.ts",
+      ].sort(),
     );
   });
 

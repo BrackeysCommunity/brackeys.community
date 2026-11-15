@@ -9,6 +9,7 @@ import { PREFAB_KIND, SCENE_FORMAT_VERSION, type Prefab } from "../../scene/type
 import type { RefSite } from "../refs";
 import { defineAssetKind, folderOf, joinFolder, type DocLookup } from "./define";
 import { bodyRefs, bulkMaterialRefs } from "./fields";
+import { prefabTilemapIssues } from "./scene";
 import { docStringKeyIssues } from "./strings";
 
 /** A reusable piece of a level placed by instances, co-edited per child and field. */
@@ -39,8 +40,10 @@ export const prefabKind = defineAssetKind({
       : { ok: true, value: prefab, migratedFrom, issues };
   },
   format: (prefab: Prefab) => formatPrefab(prefab),
-  crossValidate: (prefab: Prefab, lookup: DocLookup) =>
-    docStringKeyIssues(PREFAB_KIND, prefab, lookup),
+  crossValidate: (prefab: Prefab, lookup: DocLookup, env) => [
+    ...docStringKeyIssues(PREFAB_KIND, prefab, lookup),
+    ...prefabTilemapIssues(prefab, lookup, env),
+  ],
   empty: (env, { id }) =>
     prefabOf(
       id,

@@ -82,14 +82,20 @@ function decodeRows(
   return { values, empty };
 }
 
+/** The chunk `key` names, `[cx, cy]`; throws when it isn't `"cx,cy"`. */
+export function chunkOrigin(key: ChunkKey): [cx: number, cy: number] {
+  const at = parseChunkKey(key);
+  if (!at) throw new Error(`tile chunk key "${key}" isn't "cx,cy"`);
+  return at;
+}
+
 /** Every non-empty chunk of `cells`, decoded, in chunk-key order. */
 export function decodeChunks(cells: GridCells): TileChunk[] {
   const out: TileChunk[] = [];
   for (const key of Object.keys(cells).sort(compareChunkKeys)) {
-    const at = parseChunkKey(key);
-    if (!at) throw new Error(`tile chunk key "${key}" isn't "cx,cy"`);
+    const [cx, cy] = chunkOrigin(key);
     const { values, empty } = decodeRows(key, cells[key]);
-    if (!empty) out.push({ key, cx: at[0], cy: at[1], values });
+    if (!empty) out.push({ key, cx, cy, values });
   }
   return out;
 }

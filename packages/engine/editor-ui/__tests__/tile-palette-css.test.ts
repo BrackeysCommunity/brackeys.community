@@ -27,8 +27,19 @@ describe("tile palette styles", () => {
     );
     const grid = declarations(".je-tile-grid");
     expect(grid).toContain("flex: 0 1 auto");
-    expect(grid).toMatch(/min-height: calc\(2 \* var\(--je-tile-px\)/);
-    expect(grid).toMatch(/max-height: calc\(10 \* var\(--je-tile-px\)/);
+    expect(grid).toContain(
+      "min-height: calc(2 * var(--je-tile-h) + var(--je-tile-gap) + 2 * var(--je-tile-pad))",
+    );
+    expect(grid).toContain(
+      "max-height: calc(10 * var(--je-tile-h) + 9 * var(--je-tile-gap) + 2 * var(--je-tile-pad))",
+    );
+  });
+
+  it("takes the grid's gap and padding from the palette, with no second copy of their sizes", () => {
+    const grid = declarations(".je-tile-grid");
+    expect(grid).toContain("gap: var(--je-tile-gap)");
+    expect(grid).toContain("padding: var(--je-tile-pad)");
+    expect(grid).not.toMatch(/--je-tile-(h|gap|pad|px):/);
   });
 
   it("an armed rule uses the kit's ghost pressed state, nothing of its own", () => {

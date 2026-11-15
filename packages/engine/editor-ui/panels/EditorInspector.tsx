@@ -8,6 +8,7 @@ import {
 import {
   createContext,
   Fragment,
+  useCallback,
   useContext,
   useLayoutEffect,
   useMemo,
@@ -135,6 +136,7 @@ import {
   useComboboxAnchor,
   type IconSvgElement,
 } from "../kit/index";
+import { useResizeFit } from "../kit/ssr";
 import { openPrefabScope } from "../session/live-scene-editor";
 import {
   useEditorDoc,
@@ -413,6 +415,8 @@ function fitLabelColumn(el: HTMLElement) {
     );
 }
 
+const titlesOf = (el: HTMLElement) => Array.from(fieldTitles(el), (t) => t.textContent).join("\n");
+
 /**
  * Sets `--je-label-col` on the element from its own width and its titles,
  * so nested fields line up with the top-level ones: again on each resize
@@ -423,25 +427,23 @@ function fitLabelColumn(el: HTMLElement) {
 function useLabelColumn() {
   const [el, setEl] = useState<HTMLElement | null>(null);
   const fitted = useRef<{ el: HTMLElement; titles: string } | null>(null);
+  const fit = useCallback(() => {
+    if (!el) return;
+    fitted.current = { el, titles: titlesOf(el) };
+    fitLabelColumn(el);
+  }, [el]);
+  useResizeFit(el, fit);
   useLayoutEffect(() => {
     if (!el || typeof ResizeObserver === "undefined") return;
-    const fit = () => fitLabelColumn(el);
-    const observer = new ResizeObserver(fit);
-    observer.observe(el);
     // Titles measured in a fallback face are narrower than in the web font that replaces it.
     const fonts = el.ownerDocument.fonts as FontFaceSet | undefined;
     fonts?.addEventListener("loadingdone", fit);
-    return () => {
-      observer.disconnect();
-      fonts?.removeEventListener("loadingdone", fit);
-    };
-  }, [el]);
+    return () => fonts?.removeEventListener("loadingdone", fit);
+  }, [el, fit]);
   useLayoutEffect(() => {
     if (!el || typeof ResizeObserver === "undefined") return;
-    const titles = Array.from(fieldTitles(el), (t) => t.textContent).join("\n");
-    if (fitted.current?.el === el && fitted.current.titles === titles) return;
-    fitted.current = { el, titles };
-    fitLabelColumn(el);
+    if (fitted.current?.el === el && fitted.current.titles === titlesOf(el)) return;
+    fit();
   });
   return setEl;
 }

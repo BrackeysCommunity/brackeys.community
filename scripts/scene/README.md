@@ -76,7 +76,7 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--anim id] [--legal] [--timing]`                                                               | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands)); `--timing` times each tick's parts ([Timing](#timing)); `--anim` prints an entity's clip and frame on each tick ([Animation docs](#animation-docs))                                                                                |
 | `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                                    | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                                                                                                                                                                                           |
 | `tiles <scene> <map> [--rect c0,r0,c1,r1]`                                                                                                                                                                                                           | no                       | a tilemap's cells as ASCII, one character per tile id, with a legend of each tile's count, flips, solidity and tags; exit 1 with the map's issues; see [Tilemaps](#tilemaps)                                                                                                                                                                                                                                                                                                     |
-| `paint <scene> <map> (--cells c,r=tile… \| --rect c0,r0,c1,r1=tile \| --fill c,r=tile \| --auto 'rule c0,r0,c1,r1') [--dry-run] [--live …]`                                                                                                          | yes, unless dry run      | one `paintCells` batch on a tilemap, tiles named by id or tag (`empty` clears); see [Tilemaps](#tilemaps)                                                                                                                                                                                                                                                                                                                                                                        |
+| `paint <scene> <map> (--cells c,r=tile… \| --rect c0,r0,c1,r1=tile \| --fill c,r=tile \| --auto rule c0,r0,c1,r1) [--dry-run] [--live …]`                                                                                                            | yes, unless dry run      | one `paintCells` batch on a tilemap, tiles named by id or tag (`empty` clears); see [Tilemaps](#tilemaps)                                                                                                                                                                                                                                                                                                                                                                        |
 | `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]`                                                                                           | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; `--timing` as `step`'s; `--present` the presentation requests with their ticks, sounds and music among them ([Presentation requests](#presentation-requests)); exit 1 when blocked |
 | `replay <scene\|file\|-> --run <file\|-> [--game id] [--releases <dir>] [--versions <dir>] [--seek <tick>]`                                                                                                                                          | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; `--releases` also names the build under the directory the run was made on (see [Game builds](#game-builds)); `--versions` reads the scene versions a run swapped to (see [Live levels](#live-levels)); exit 1 when it ends differently; `--seek` stops at a tick and prints the state there                                        |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                                         | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                                                                                                                                                                                |
@@ -2824,10 +2824,11 @@ first; `--live` sends it to the open editor as one undoable entry). It
 takes exactly one of `--cells c,r=tile` (repeatable), `--rect
 c0,r0,c1,r1=tile` (repeatable), `--fill c,r=tile` (the 4-connected cells holding the same value as that
 cell; a region over 65,536 cells is refused) or
-`--auto 'rule c0,r0,c1,r1'` (re-tiles the terrain cells already in the
+`--auto rule c0,r0,c1,r1` (re-tiles the terrain cells already in the
 rectangle and its one-cell border by the tileset's autotile rule, as
 `ctx.tiles.autotile` does; cells of other tiles and empty cells are left
-alone, so paint terrain first, e.g. `--rect …=moss`). Columns and rows count from the map's
+alone, so paint terrain first, e.g. `--rect …=moss`; the quoted
+`--auto 'rule c0,r0,c1,r1'` is accepted too). Columns and rows count from the map's
 `at`. A tile is its id (`0` is tile 0, not empty), a tag (the lowest id
 with it), or `empty` (or `none`) to clear; a name no tile has is refused
 with the tags the tileset does have, writing nothing.
@@ -2836,7 +2837,7 @@ with the tags the tileset does have, writing nothing.
 vp run scene paint kitchen-sink tiles --rect 0,0,3,0=stone --dry-run
 vp run scene paint kitchen-sink tiles --cells 8,0=lamp --cells 9,0=empty --dry-run
 vp run scene paint kitchen-sink tiles --fill 0,1=moss --dry-run
-vp run scene paint kitchen-sink tiles --auto 'moss-top 0,0,7,1' --dry-run
+vp run scene paint kitchen-sink tiles --auto moss-top 0,0,7,1 --dry-run
 ```
 
 The same edit as a batch, for when it rides with other ops
@@ -2890,7 +2891,7 @@ neither beside the map nor in the project. Wang sets don't import; write
 the tileset's autotile `rules` instead. The map's px become metres at the
 game's px per metre, so its tiles must match the scene grid's cell; an
 LDtk layer whose cells don't is dropped. `scripts/scene/examples/tiles/`
-(`cave.tmj`, `cave.png`) is generated for these docs and is CC0-1.0.
+holds the sample map (`cave.tmj`, `cave.png`): `generate.ts` writes them and `LICENCE.txt` gives the licence, CC0-1.0.
 
 ## Game builds
 

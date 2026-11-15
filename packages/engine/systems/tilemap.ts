@@ -53,6 +53,7 @@ import {
   outlineChains,
   type TileCollision,
 } from "../tiles/colliders";
+import { tileOffset } from "../tiles/mesh";
 import {
   addGeometryCollider,
   applySurface,
@@ -131,8 +132,7 @@ export function tilePlacement(
 ): TilePlacement {
   const settings: GridSettings = grid ?? { kind: "square", cell: fallbackCell };
   const geo = gridGeometry(settings);
-  const [w, h] = settings.cell;
-  return { geo, settings, offset: geo.cellAt([at[0] + w / 2, at[1] + h / 2]) };
+  return { geo, settings, offset: tileOffset(settings, at, geo) };
 }
 
 /** The top-left of a map cell's bounding box, world m. */

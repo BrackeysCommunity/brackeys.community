@@ -3079,6 +3079,40 @@ describe("paint", { timeout: 60_000 }, () => {
     expect(miss.text).toContain("no autotile rule moss-tip; did you mean moss-top?");
   });
 
+  it("takes --auto's rectangle as its own word, as well as quoted with the rule", async () => {
+    await paint({ scene: "kitchen-sink", map: "tiles", rect: ["0,2,2,3=moss"] }, sinkCtx);
+    const split = await runCli(
+      ["paint", "kitchen-sink", "tiles", "--auto", "moss-top", "0,0,2,3", "--dry-run", "--json"],
+      sinkCtx,
+    );
+    const quoted = await runCli(
+      ["paint", "kitchen-sink", "tiles", "--auto", "moss-top 0,0,2,3", "--dry-run", "--json"],
+      sinkCtx,
+    );
+    expect(split.exitCode, split.stderr).toBe(0);
+    expect(quoted.exitCode, quoted.stderr).toBe(0);
+    expect(JSON.parse(split.stdout)).toEqual(JSON.parse(quoted.stdout));
+
+    const stray = await runCli(
+      ["paint", "kitchen-sink", "tiles", "--cells", "0,5=moss", "0,0,2,3"],
+      sinkCtx,
+    );
+    expect(stray.exitCode).toBe(2);
+    expect(stray.stderr).toContain("too many arguments: 0,0,2,3");
+    const twice = await runCli(
+      ["paint", "kitchen-sink", "tiles", "--auto", "moss-top 0,0,2,3", "0,0,2,3"],
+      sinkCtx,
+    );
+    expect(twice.exitCode).toBe(2);
+    expect(twice.stderr).toContain("too many arguments: 0,0,2,3");
+    const bad = await runCli(
+      ["paint", "kitchen-sink", "tiles", "--auto", "moss-top", "0,0,2"],
+      sinkCtx,
+    );
+    expect(bad.exitCode).toBe(2);
+    expect(bad.stderr).toContain('--auto takes rule c0,r0,c1,r1, got "moss-top 0,0,2"');
+  });
+
   it("writes nothing on a dry run or a refusal", async () => {
     const before = await sinkText();
     const dry = await paint(

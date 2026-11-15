@@ -25,6 +25,7 @@ import {
 } from "../../../editor/inspector-model";
 import { DEFAULT_LENGTH_UNIT } from "../../../game/defaults";
 import { STRING_KEY_PATTERN } from "../../../project/kinds/strings";
+import { forEachRun, gridCellBounds, isGridValue, type GridCells } from "../../../scene/grid";
 import { fieldKind } from "../../../scene/index";
 import { unwrapSchema } from "../../../scene/schema";
 import { LENGTH_UNITS, roundLength, type LengthUnitName } from "../../../scene/units";
@@ -965,7 +966,60 @@ export function PointField({
   );
 }
 
-/** A value shown, not edited: a metric number with its unit, JSON for anything not a string. */
+/** How many cells `grid` paints, or null when a row isn't in the row grammar. */
+function paintedCount(grid: GridCells): number | null {
+  let n = 0;
+  for (const rows of Object.values(grid))
+    for (const row of rows) {
+      const ok = forEachRun(row, (value, _start, count) => {
+        if (value !== 0) n += count;
+      });
+      if (!ok) return null;
+    }
+  return n;
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** A grid field's cells in a short line, with where they lie for its hint. */
+export type GridSummary = { text: string; detail?: string };
+
+/**
+ * A grid field's cells in words: how many are painted, in how many chunks,
+ * and the columns and rows they span from the entity's `at`. Null when the
+ * value isn't a grid.
+ */
+export function gridSummary(value: unknown): GridSummary | null {
+  const none = { text: "No cells painted" };
+  const empty =
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0;
+  if (empty) return none;
+  if (!isGridValue(value)) return null;
+  const count = paintedCount(value);
+  if (count === null) return null;
+  let bounds: ReturnType<typeof gridCellBounds>;
+  try {
+    bounds = gridCellBounds(value);
+  } catch {
+    return null;
+  }
+  if (count === 0 || !bounds) return none;
+  const { c0, r0, c1, r1 } = bounds;
+  const chunks = Object.values(value).filter((rows) => rows.some((r) => r !== "")).length;
+  const span = (a: number, b: number) => (a === b ? `${a}` : `${a} to ${b}`);
+  return {
+    text: `${plural(count, "cell")} · ${plural(chunks, "chunk")} · ${c1 - c0 + 1} × ${r1 - r0 + 1}`,
+    detail: `Columns ${span(c0, c1)}, rows ${span(r0, r1)}, counted from its origin. Paint them with the tile tools.`,
+  };
+}
+
+/**
+ * A value shown, not edited: a metric number with its unit, a grid field's
+ * cells summed up, JSON for anything else not a string.
+ */
 export function ReadonlyField({
   field,
   json = false,
@@ -974,7 +1028,7 @@ export function ReadonlyField({
   hint,
 }: {
   field: Pick<InspectorRow, "title" | "description" | "value" | "mixed"> &
-    Partial<Pick<InspectorRow, "widget">>;
+    Partial<Pick<InspectorRow, "widget" | "schema">>;
   json?: boolean;
   ppm?: number;
   unset?: string;
@@ -982,18 +1036,26 @@ export function ReadonlyField({
   hint?: string;
 }) {
   const unit = field.widget && "unit" in field.widget ? metricUnit(field.widget.unit) : undefined;
+  const grid =
+    !field.mixed && field.schema && fieldKind(field.schema) === "grid"
+      ? gridSummary(field.value)
+      : null;
   const text = field.mixed
     ? MIXED
     : field.value === undefined
       ? unset
-      : unit && typeof field.value === "number"
-        ? formatQuantity(field.value, unit, ppm)
-        : json || typeof field.value !== "string"
-          ? JSON.stringify(field.value)
-          : field.value;
+      : grid !== null
+        ? grid.text
+        : unit && typeof field.value === "number"
+          ? formatQuantity(field.value, unit, ppm)
+          : json || typeof field.value !== "string"
+            ? JSON.stringify(field.value)
+            : field.value;
   return (
     <FieldRow field={field} {...(hint !== undefined ? { hint } : {})}>
-      <span className="je-insp-line je-sp-truncate">{text}</span>
+      <Hinted {...(grid?.detail !== undefined ? { hint: grid.detail } : {})}>
+        <span className="je-insp-line je-sp-truncate">{text}</span>
+      </Hinted>
     </FieldRow>
   );
 }

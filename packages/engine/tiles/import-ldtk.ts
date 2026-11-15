@@ -347,7 +347,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
       if (type !== "IntGrid" && type !== "Tiles" && type !== "AutoLayer") {
         out.notes.push(
           failed(
-            `level ${name}'s layer ${layerName} is a ${type ?? "unknown"} layer, which doesn't import`,
+            `level ${name}'s layer ${layerName} is an LDtk "${type ?? "unknown"}" layer, which doesn't import`,
           ),
         );
         return;

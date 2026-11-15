@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 // @vitest-environment jsdom
 import { Store } from "@tanstack/store";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
@@ -40,6 +43,7 @@ function setup(notice: Store<SceneNotice | null>) {
       <canvas />
     </EditorFrame>,
   );
+  return session;
 }
 
 const status = () =>
@@ -56,6 +60,19 @@ describe("a scene notice in the status bar", () => {
     const shown = await within(status()).findByText("Undid Move pad in Cellar");
     expect(shown.className).toBe("je-status-notice");
     expect(shown.closest(".je-sr-only")).toBeNull();
+  });
+});
+
+describe("a tool's refusal in the status bar", () => {
+  it("shows in the status bar's warning tone", async () => {
+    resizeWindow(1280);
+    const session = setup(new Store<SceneNotice | null>(null));
+    act(() => session.store.setState((s) => ({ ...s, notice: "Select a tilemap to paint." })));
+    const shown = await within(status()).findByText("Select a tilemap to paint.");
+    expect(shown.getAttribute("data-tone")).toBe("warning");
+    expect(shown.closest(".je-status")).not.toBeNull();
+    const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    expect(css).toMatch(/\.je-status \[data-tone="warning"\] \{\s*color: var\(--je-warning\);/);
   });
 });
 

@@ -3540,16 +3540,18 @@
     min-width: 0;
   }
 
-  /* The grid gives way first in a short dock, down to two rows, so the rules and tile data stay in view. */
+  /*
+   * The grid gives way first in a short dock, down to two rows, so the rules and tile data stay in view.
+   * TilePalette sets the row height, gap and padding on the grid, the one place they're kept.
+   */
   .je-tile-grid {
-    --je-tile-px: 24px;
     display: grid;
     flex: 0 1 auto;
-    gap: 1px;
-    min-height: calc(2 * var(--je-tile-px) + 3px);
-    max-height: calc(10 * var(--je-tile-px) + 11px);
+    gap: var(--je-tile-gap);
+    min-height: calc(2 * var(--je-tile-h) + var(--je-tile-gap) + 2 * var(--je-tile-pad));
+    max-height: calc(10 * var(--je-tile-h) + 9 * var(--je-tile-gap) + 2 * var(--je-tile-pad));
     overflow: auto;
-    padding: 1px;
+    padding: var(--je-tile-pad);
     border-radius: var(--je-radius-nested);
     background: var(--je-muted);
     user-select: none;

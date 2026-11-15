@@ -7793,13 +7793,8 @@ Refers to [`TextureSettings`](#texturesettings).
 
 _function_ in `project/kinds/tileset.ts`
 
-The one tilemap rule: `tileset-missing` (no tileset, or none readable),
-`tileset-grid-mismatch` (tile px ≠ grid cell × px per metre) and
-`tile-unknown` for each cell value beyond the image's tiles, at its
-first cell in row-major order. `pointer` is the entity's JSON Pointer
-in its document, for the issues' paths. The tileset's own rule and frame tiles
-are `tilesetIssues`'. The scene kind's cross-validation, the tilemap
-system's spawn and the CLI call it.
+The one tilemap rule (missing tileset, tile px vs grid cell, unknown tile
+ids at their first cell); the tileset's own rules are `tilesetIssues`'.
 
 ```ts
 declare function tilemapIssues(entity: TilemapRecord, tileset: TilesetFile | undefined, imageInfo: Pick<AssetInfo, "size"> | null, grid: TileGridInfo | null, pointer?: string): SceneIssue[];

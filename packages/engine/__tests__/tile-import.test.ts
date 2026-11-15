@@ -10,6 +10,7 @@ import type { ProjectOp } from "../project/ops";
 import { projectView } from "../project/view";
 import { readCell, type GridCells } from "../scene/grid";
 import type { EntityInput, GridSettings } from "../scene/types";
+import { importLdtk } from "../tiles/import-ldtk";
 import { importTiled, type TiledImportOptions } from "../tiles/import-tiled";
 import { fixtureText, TILED_FIXTURES } from "./fixtures/tiled/generate";
 
@@ -143,8 +144,8 @@ describe("importTiled", () => {
       },
     ]);
     expect(notes.map((n) => n.message)).toEqual([
-      'round in layer "Things" is a ellipse object, which doesn\'t import',
-      'layer "Sky" is a imagelayer layer, which doesn\'t import',
+      'round in layer "Things" is a Tiled "ellipse" object, which doesn\'t import',
+      'layer "Sky" is a Tiled "imagelayer" layer, which doesn\'t import',
     ]);
   });
 
@@ -328,5 +329,26 @@ describe("importTiled", () => {
     const zipped = importTiled(map, TILESETS, opts());
     expect(zipped.ops).toEqual([]);
     expect(zipped.notes[0]?.message).toContain("zlib-compressed");
+  });
+});
+
+describe("importLdtk notes", () => {
+  it("names a layer type it doesn't import in quotes", () => {
+    const ldtk = join(import.meta.dirname, "fixtures/ldtk");
+    const world = JSON.parse(readFileSync(join(ldtk, "sample.ldtk"), "utf8")) as {
+      levels: { identifier: string; layerInstances: { __type: string }[] }[];
+    };
+    const level = world.levels.find((l) => l.identifier === "Level_1")!;
+    level.layerInstances[0]!.__type = "Mystery";
+    const { notes } = importLdtk(world, {
+      project: empty,
+      pxPerMetre: 8,
+      hash: () => SHA("b"),
+      files: new Map([["tiles.png", new Uint8Array(readFileSync(join(ldtk, "tiles.png")))]]),
+      levels: ["Level_1"],
+    });
+    expect(notes.map((n) => n.message)).toContain(
+      "level Level_1's layer Collisions is an LDtk \"Mystery\" layer, which doesn't import",
+    );
   });
 });

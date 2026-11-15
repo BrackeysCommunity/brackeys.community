@@ -66,3 +66,18 @@ export function useWindowSize(server: { width: number; height: number }): {
   const height = useSyncExternalStore(subscribeResize, windowHeight, () => server.height);
   return { width, height };
 }
+
+/**
+ * Calls `fit` now and again whenever `el` resizes, until `el` or `fit`
+ * changes; nothing without an element or a `ResizeObserver`. Keep `fit`
+ * stable (`useCallback`) or it refits on every render.
+ */
+export function useResizeFit(el: Element | null | undefined, fit: () => void): void {
+  useIsomorphicLayoutEffect(() => {
+    if (!el || typeof ResizeObserver === "undefined") return;
+    fit();
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el, fit]);
+}

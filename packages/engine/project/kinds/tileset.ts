@@ -19,7 +19,10 @@ import { TEXTURE_KIND } from "./texture";
 export const TILESET_VERSION = 1;
 export const TILESET_SCHEMA_ID = `urn:jams-engine:tileset:v${TILESET_VERSION}`;
 
-/** A grid step's cost, matching the grid geometry's edge cost; tile costs never go below it. */
+/**
+ * A plain tile's path cost: one grid step, the grid geometry's `EDGE_COST` (this kind can't import
+ * grid/). Tile costs never go below it.
+ */
 export const DEFAULT_TILE_COST = 10;
 
 /** One tile's data, keyed by its id in the image (row-major from the top left). */
@@ -244,13 +247,8 @@ export function tilesetIssues(
 }
 
 /**
- * The one tilemap rule: `tileset-missing` (no tileset, or none readable),
- * `tileset-grid-mismatch` (tile px ≠ grid cell × px per metre) and
- * `tile-unknown` for each cell value beyond the image's tiles, at its
- * first cell in row-major order. `pointer` is the entity's JSON Pointer
- * in its document, for the issues' paths. The tileset's own rule and frame tiles
- * are `tilesetIssues`'. The scene kind's cross-validation, the tilemap
- * system's spawn and the CLI call it.
+ * The one tilemap rule (missing tileset, tile px vs grid cell, unknown tile
+ * ids at their first cell); the tileset's own rules are `tilesetIssues`'.
  */
 export function tilemapIssues(
   entity: TilemapRecord,

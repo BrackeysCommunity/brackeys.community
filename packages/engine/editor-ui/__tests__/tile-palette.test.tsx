@@ -18,7 +18,7 @@ import type { TilesetFile } from "../../project/kinds/tileset";
 import { KitProvider } from "../kit/index";
 import type { ToolHostCell } from "../panels/canvas-layer/tool-host";
 import { PANELS, type PanelContext } from "../panels/registry";
-import { fitTilePx, TilePalette } from "../panels/TilePalette";
+import { fitTilePx, GRID_GAP_PX, GRID_PAD_PX, TilePalette } from "../panels/TilePalette";
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 
@@ -42,8 +42,8 @@ const water: TilesetFile = {
   columns: 2,
 };
 
-function runtime(): ProjectRuntimeView {
-  const docs: Record<string, TilesetFile> = { ground, water };
+function runtime(extra: Record<string, TilesetFile> = {}): ProjectRuntimeView {
+  const docs: Record<string, TilesetFile> = { ground, water, ...extra };
   const sizes: Record<string, [number, number]> = { "ground-png": [64, 32], "water-png": [32, 48] };
   return {
     settings: {},
@@ -70,8 +70,17 @@ function scene(): SceneDefinition {
 }
 
 function editorSession(): EditorSession {
+  return sessionOf(scene());
+}
+
+/** A session on a scene holding only `map`. */
+function sessionWith(map: Record<string, unknown>): EditorSession {
+  return sessionOf({ ...scene(), entities: [map] } as SceneDefinition);
+}
+
+function sessionOf(def: SceneDefinition): EditorSession {
   return createEditorSession({
-    doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),
+    doc: sceneToDoc(def, { key: sequentialKeys("t") }),
     origin: ada,
     name: "tiles-yard",
     registry: createRegistry(),
@@ -238,6 +247,31 @@ describe("tile palette", () => {
     expect(setTool).toHaveBeenLastCalledWith("tile-auto");
   });
 
+  it("Edit in tileset at the registry's mount opens the tileset in the inspector", () => {
+    const session = editorSession();
+    const pickedAsset = new Store<string | null>(null);
+    const openPanel = vi.fn();
+    const entries = new Map([["ground", { key: "k-ground", id: "ground", kind: "tileset" }]]);
+    const def = PANELS.find((p) => p.id === "tiles")!;
+    const controls = {
+      session,
+      project: {
+        runtime: runtime(),
+        assetImage: (id: string) => `/assets/${id}`,
+        session: { view: () => ({ byId: entries }) },
+      },
+    };
+    render(
+      <KitProvider host={{}}>
+        {def.render({ controls, pickedAsset, openPanel } as unknown as PanelContext)}
+      </KitProvider>,
+    );
+    fireEvent.pointerDown(tile(0), { button: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Edit in tileset" }));
+    expect(pickedAsset.state).toBe("k-ground");
+    expect(openPanel).toHaveBeenCalledWith("inspector");
+  });
+
   it("fits tiles to a narrow panel instead of scrolling them sideways", () => {
     expect(fitTilePx(400, 4)).toBe(24);
     expect(fitTilePx(60, 4)).toBe(13);
@@ -254,9 +288,47 @@ describe("tile palette", () => {
     setup();
     const grid = screen.getByRole("grid", { name: "Tiles of ground" });
     expect(grid.style.gridTemplateColumns).toBe("repeat(4, 13px)");
-    expect(grid.style.getPropertyValue("--je-tile-px")).toBe("13px");
+    expect(grid.style.getPropertyValue("--je-tile-h")).toBe("13px");
     expect(tile(5).style.width).toBe("13px");
     expect(tile(5).style.backgroundPosition).toBe("-13px -13px");
+  });
+
+  it("counts the grid's gaps and padding from the constants the grid's style carries", () => {
+    const four = 4 * 24 + 3 * GRID_GAP_PX + 2 * GRID_PAD_PX;
+    expect(fitTilePx(four, 4)).toBe(24);
+    expect(fitTilePx(four - 1, 4)).toBe(23);
+    setup();
+    const grid = screen.getByRole("grid", { name: "Tiles of ground" });
+    expect(grid.style.getPropertyValue("--je-tile-gap")).toBe(`${GRID_GAP_PX}px`);
+    expect(grid.style.getPropertyValue("--je-tile-pad")).toBe(`${GRID_PAD_PX}px`);
+  });
+
+  it("bounds the grid in rows of a non-square tile's height, not its width", () => {
+    const tall: TilesetFile = {
+      kind: "tileset",
+      v: 1,
+      image: "tall-png",
+      tile: [16, 32],
+      columns: 2,
+    };
+    render(
+      <KitProvider host={{}}>
+        <TilePalette
+          session={sessionWith({
+            id: "tall",
+            type: "tilemap",
+            at: [0, 0],
+            tileset: "tall",
+            cells: {},
+          })}
+          runtime={runtime({ tall })}
+        />
+      </KitProvider>,
+    );
+    const grid = screen.getByRole("grid", { name: "Tiles of tall" });
+    expect(grid.style.gridTemplateColumns).toBe("repeat(2, 24px)");
+    expect(grid.style.getPropertyValue("--je-tile-h")).toBe("48px");
+    expect(tile(0).style.height).toBe("48px");
   });
 
   it("Edit in tileset opens the map's tileset, only when the host can", () => {

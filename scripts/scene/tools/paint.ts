@@ -44,10 +44,12 @@ export type PaintInput = WriterFlags & {
   fill?: string;
   /** `rule c0,r0,c1,r1`: re-tiles the terrain already in the rectangle and its border by the tileset's autotile rule. */
   auto?: string;
+  /** The CLI's word after `--auto rule`: the rectangle written as its own argument, `c0,r0,c1,r1`. */
+  autoRect?: string;
 };
 
 export const PAINT_USAGE =
-  "paint <scene> <map> (--cells c,r=tile… | --rect c0,r0,c1,r1=tile | --fill c,r=tile | --auto 'rule c0,r0,c1,r1') [writer flags]";
+  "paint <scene> <map> (--cells c,r=tile… | --rect c0,r0,c1,r1=tile | --fill c,r=tile | --auto rule c0,r0,c1,r1) [writer flags]";
 
 /** Tile names that clear a cell. */
 const ERASE = new Set(["empty", "none"]);
@@ -56,6 +58,7 @@ const INT = String.raw`(-?\d+)`;
 const CELL_ARG = new RegExp(`^${INT},${INT}=(\\S+)$`);
 const RECT_ARG = new RegExp(`^${INT},${INT},${INT},${INT}=(\\S+)$`);
 const AUTO_ARG = new RegExp(`^(\\S+)\\s+${INT},${INT},${INT},${INT}$`);
+const AUTO_RECT_ARG = new RegExp(`^${INT},${INT},${INT},${INT}$`);
 
 class PaintError extends Error {
   constructor(
@@ -142,7 +145,7 @@ function paintBatch(input: PaintInput, { def, registry, tileset }: MapState): Op
     const cells = region.map(([col, row]): CellEdit => [col, row, value]);
     return tilePaintBatch(map, { cells }, `Fill ${cells.length} cells on ${map}`);
   }
-  const [ruleId, ...corners] = match(AUTO_ARG, input.auto!, "--auto", "'rule c0,r0,c1,r1'");
+  const [ruleId, ...corners] = match(AUTO_ARG, input.auto!, "--auto", "rule c0,r0,c1,r1");
   if (!tileset) throw new PaintError(`${map} has no tileset, so it has no autotile rules`, 1);
   const rule = autotileRule(tileset, ruleId!);
   if (!rule) {
@@ -243,6 +246,15 @@ export const paint: Tool<PaintInput> = async (input, ctx) => {
   if (given.length !== 1) return usage(PAINT_USAGE);
   if (input.live && (isFileArg(input.scene) || input.scene === "-"))
     return usage("scene paint --live takes a scene name; file paths are read-only");
+  if (input.autoRect !== undefined) {
+    if (input.auto === undefined || /\s/.test(input.auto.trim()))
+      return usage(`too many arguments: ${input.autoRect}`);
+    if (!AUTO_RECT_ARG.test(input.autoRect))
+      return usage(
+        `--auto takes rule c0,r0,c1,r1, got ${JSON.stringify(`${input.auto} ${input.autoRect}`)}`,
+      );
+    input = { ...input, auto: `${input.auto.trim()} ${input.autoRect}`, autoRect: undefined };
+  }
 
   let batch: OpBatch | null;
   try {

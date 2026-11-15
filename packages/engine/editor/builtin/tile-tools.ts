@@ -28,6 +28,7 @@ import type {
   ShapeObj,
 } from "../../scene/types";
 import { applyAutotile, terrainTile } from "../../tiles/autotile";
+import { tileOffset } from "../../tiles/mesh";
 import {
   defineEditorTool,
   type EditorTool,
@@ -320,7 +321,7 @@ export function tileTarget(def: SceneDefinition, registry: Registry, ref: Ref): 
     cells,
     geo,
     cell: [w, h],
-    offset: geo.cellAt([at[0] + w / 2, at[1] + h / 2]),
+    offset: tileOffset(grid, at, geo),
   };
 }
 
@@ -415,6 +416,8 @@ function brushKeyTurn(key: string, shift: boolean): BrushTurn | null {
 }
 
 const UNSET_MAP = "Select a tilemap to paint, or point at one.";
+/** The most stamp cells the hover ghost draws one by one; a larger stamp ghosts its footprint. */
+const GHOST_CELLS = 256;
 
 type Gesture =
   | { kind: "stroke"; t: TileTarget; last: Cell; cells: Map<number, Cell> }
@@ -564,6 +567,20 @@ function createTileTool(id: TileToolId, ctx: EditorToolContext): EditorTool {
     hover = t ? { t, cell: cellUnder(t, world) } : null;
   }
 
+  /** What a press at the hovered cell paints: the stamp's tiles, a cell of terrain. */
+  function hoverGhosts(t: TileTarget, rect: CellBounds): ToolOverlay["ghosts"] {
+    if (id === "tile-erase" || id === "tile-pick" || id === "tile-fill") return undefined;
+    const cells: Cell[] =
+      id === "tile-brush"
+        ? stampCells(stamp(), [rect.c0, rect.r0]).map(([c, r]): Cell => [c, r])
+        : [[rect.c0, rect.r0]];
+    if (cells.length > GHOST_CELLS) return [{ shape: cellsBox(t, rect), valid: true }];
+    return cells.map(([c, r]) => ({
+      shape: { type: "poly", pts: t.geo.corners([c + t.offset[0], r + t.offset[1]]) },
+      valid: true,
+    }));
+  }
+
   function turn(how: BrushTurn): boolean {
     ctx.tiles?.setBrush(turnBrush(brush(), how));
     preview();
@@ -612,6 +629,7 @@ function createTileTool(id: TileToolId, ctx: EditorToolContext): EditorTool {
       if (cov) {
         const tone = gesture ? "selected" : "hover";
         out.outlines = [{ shape: cellsBox(cov.t, cov.rect), tone, ref: cov.t.ref }];
+        if (!gesture && hover) out.ghosts = hoverGhosts(hover.t, cov.rect);
         if (gesture && gesture.kind !== "stroke") {
           const w = cov.rect.c1 - cov.rect.c0 + 1;
           const h = cov.rect.r1 - cov.rect.r0 + 1;

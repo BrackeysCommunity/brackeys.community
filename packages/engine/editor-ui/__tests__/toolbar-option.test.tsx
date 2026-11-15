@@ -24,12 +24,12 @@ import type { LoadedRun } from "../session/loaded-run";
 
 const scene: SceneDefinition = { v: 1, name: "option-yard", bounds: [0, 0, 2000, 1200] };
 
-function setup() {
+function setup(def: SceneDefinition = scene) {
   const registry = createRegistry();
   const session = createEditorSession({
-    doc: sceneToDoc(scene, { key: sequentialKeys("t") }),
+    doc: sceneToDoc(def, { key: sequentialKeys("t") }),
     origin: { kind: "user", userId: "ada", name: "Ada" },
-    name: scene.name,
+    name: def.name,
     registry,
     issuesDebounceMs: 0,
   });
@@ -49,7 +49,7 @@ function setup() {
       onPlayHere={() => {}}
     />,
   );
-  return { registry, tools };
+  return { registry, tools, session };
 }
 
 const bar = () => within(screen.getByRole("toolbar", { name: "Editor" }));
@@ -60,6 +60,33 @@ const order = () =>
     .map((b) => b.getAttribute("aria-label"));
 
 afterEach(cleanup);
+
+describe("the dock's tile tools", () => {
+  const tiled: SceneDefinition = {
+    ...scene,
+    entities: [{ id: "floor", type: "tilemap", at: [0, 0], tileset: "ts", cells: {} }],
+  } as SceneDefinition;
+
+  it("are drawn and live in a scene with a tilemap, before one is selected or hovered", () => {
+    const { tools, session } = setup(tiled);
+    expect(session.store.state.selection).toEqual([]);
+    const brush = bar().getByRole("button", { name: /^Tile brush/ }) as HTMLButtonElement;
+    expect(brush.closest("[inert], [aria-hidden]")).toBeNull();
+    expect(brush.disabled).toBe(false);
+    const turn = bar().getByRole("button", { name: "Rotate the brush" }) as HTMLButtonElement;
+    expect(turn.disabled).toBe(true);
+
+    fireEvent.click(brush);
+    expect(tools.tool()).toBe("tile-brush");
+    expect(turn.disabled).toBe(false);
+  });
+
+  it("aren't offered in a scene without a tilemap", () => {
+    setup();
+    expect(bar().queryByRole("button", { name: /^Tile brush/ })).toBeNull();
+    expect(document.querySelector("[data-tile-tools]")).toBeNull();
+  });
+});
 
 describe("the dock's draw type slot", () => {
   it("is there before a draw tool is picked, disabled, at the width it keeps", () => {

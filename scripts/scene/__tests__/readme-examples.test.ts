@@ -33,6 +33,7 @@ import { COMMAND_GROUPS, COMMANDS, runCli, type CommandName } from "../commands"
 import type { ToolContext } from "../context";
 import { REPO_ROOT } from "../default-context";
 import { ensurePackedEngine } from "../engine-dist";
+import { caveMapText, cavePng } from "../examples/tiles/generate";
 import { GAME_PRESETS } from "../game-templates";
 import { DEFAULT_PROJECT_GLOBS, discoverProjects, openProject } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
@@ -1257,4 +1258,20 @@ describe("game builds in the docs", () => {
       building ? BUILD_MS : 60_000,
     );
   }
+});
+
+describe("the tilemap docs' sample map", () => {
+  const dir = "scripts/scene/examples/tiles";
+
+  it("is the generator's output, byte for byte", async () => {
+    expect(await readFile(repoFile(`${dir}/cave.tmj`), "utf8")).toBe(caveMapText());
+    expect(new Uint8Array(await readFile(repoFile(`${dir}/cave.png`)))).toEqual(cavePng());
+  });
+
+  it("carries its licence beside it, as the README says", async () => {
+    expect(await readFile(repoFile(`${dir}/LICENCE.txt`), "utf8")).toContain("CC0-1.0");
+    expect(texts[0]!.replace(/\s+/g, " ")).toContain(
+      "`generate.ts` writes them and `LICENCE.txt` gives the licence, CC0-1.0",
+    );
+  });
 });

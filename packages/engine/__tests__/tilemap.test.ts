@@ -30,6 +30,7 @@ import {
 } from "../project/kinds";
 import { docLookup } from "../project/kinds/define";
 import { ENGINE_ASSET_KINDS } from "../project/kinds/index";
+import { prefabKind } from "../project/kinds/prefab";
 import { sceneKind } from "../project/kinds/scene";
 import {
   tilemapIssues,
@@ -55,7 +56,13 @@ import {
 } from "../scene/grid";
 import { undescribedProperties } from "../scene/json-schema";
 import { parseScene } from "../scene/parse";
-import type { ExpandedScene, RuntimeEntity, SceneDefinition, ShapeObj } from "../scene/types";
+import type {
+  ExpandedScene,
+  Prefab,
+  RuntimeEntity,
+  SceneDefinition,
+  ShapeObj,
+} from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { TilemapSystem } from "../systems/tilemap";
 import type { RapierModule } from "../types";
@@ -551,6 +558,74 @@ describe("a tilemap in a scene", () => {
       ["tile-unknown", "/entities/0/cells", ["floor"]],
     ]);
     expect(cross(tilemapScene({ game: "other" }), sheet)).toEqual([]);
+  });
+
+  const tilePrefab = (over: Partial<Prefab> = {}): Prefab => ({
+    kind: "prefab",
+    v: 5,
+    id: "room",
+    entities: [
+      { id: "floor", type: "tilemap", at: [0, 0], tileset: "sheet", cells: strip([[1, 2]]) },
+    ],
+    ...over,
+  });
+  const projectLookup = (prefabs: Prefab[], tileset?: TilesetFile) =>
+    docLookup(
+      new Map<string, Map<string, unknown>>([
+        ["prefab", new Map(prefabs.map((p) => [p.id, p]))],
+        ...(tileset ? [["tileset", new Map([["sheet", tileset]])] as const] : []),
+      ]),
+    );
+
+  it("is judged by the tile rule in the prefab kind's cross-validation", () => {
+    const env = { ...engineEnv, project: viewOf(texture("sheet", 50, 25)) };
+    const cross = (prefab: Prefab, tileset?: TilesetFile, others: Prefab[] = []) =>
+      prefabKind.crossValidate!(prefab, projectLookup([prefab, ...others], tileset), env);
+    expect(cross(tilePrefab(), sheet)).toEqual([]);
+    expect(cross(tilePrefab()).map((i) => [i.code, i.path, i.entityIds])).toEqual([
+      ["tileset-missing", "/entities/0/tileset", ["floor"]],
+    ]);
+    const unknown = tilePrefab({
+      entities: [{ ...tilePrefab().entities[0]!, cells: strip([[7]]) }],
+    });
+    expect(cross(unknown, sheet).map((i) => [i.code, i.path, i.entityIds])).toEqual([
+      ["tile-unknown", "/entities/0/cells", ["floor"]],
+    ]);
+    const outer = tilePrefab({
+      id: "house",
+      entities: [],
+      instances: [{ id: "r", prefab: "room", at: [1, 1], overrides: { "floor.tileset": "gone" } }],
+    });
+    expect(cross(outer, sheet, [tilePrefab()]).map((i) => [i.code, i.path, i.entityIds])).toEqual([
+      ["tileset-missing", "/instances/0/tileset", ["r/floor"]],
+    ]);
+  });
+
+  it("is judged by the tile rule for the tilemaps a scene's instances place", () => {
+    const env = { ...engineEnv, project: viewOf(texture("sheet", 50, 25)) };
+    const scene = (overrides?: Record<string, unknown>, settings?: SceneDefinition["settings"]) =>
+      tilemapScene({
+        entities: [],
+        instances: [
+          { id: "a", prefab: "room", at: [2, 2], rot: 90, ...(overrides ? { overrides } : {}) },
+        ],
+        ...(settings ? { settings } : {}),
+      });
+    const cross = (def: SceneDefinition, tileset?: TilesetFile) =>
+      sceneKind.crossValidate!(def, projectLookup([tilePrefab()], tileset), env);
+    expect(cross(scene(), sheet)).toEqual([]);
+    expect(cross(scene()).map((i) => [i.code, i.path, i.entityIds])).toEqual([
+      ["tileset-missing", "/instances/0/tileset", ["a/floor"]],
+    ]);
+    expect(
+      cross(scene({ "floor.cells": strip([[9]]) }), sheet).map((i) => [i.code, i.entityIds]),
+    ).toEqual([["tile-unknown", ["a/floor"]]]);
+    expect(
+      codes(cross(scene(undefined, { grid: { kind: "square", cell: [0.5, 0.25] } }), sheet)),
+    ).toEqual(["tileset-grid-mismatch"]);
+    const off = scene();
+    off.instances![0]!.off = true;
+    expect(cross(off)).toEqual([]);
   });
 });
 

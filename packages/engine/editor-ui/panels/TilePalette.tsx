@@ -1,12 +1,11 @@
 import {
+  useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
-  type RefObject,
 } from "react";
 
 import type { TileBrush, TileToolId } from "../../editor/builtin/tile-tools";
@@ -16,6 +15,7 @@ import type { AssetId, ProjectRuntimeView } from "../../project/index";
 import type { AutotileRule, TileDef, TilesetFile } from "../../project/kinds/tileset";
 import type { EntityDef, SceneDefinition } from "../../scene/types";
 import { Button, cx, Facts, MicroLabel, Text } from "../kit/index";
+import { useResizeFit } from "../kit/ssr";
 import { useEditorResolved, useEditorStore } from "../session/use-editor-store";
 import { createToolHostCell, useToolHost, type ToolHostCell } from "./canvas-layer/tool-host";
 
@@ -34,14 +34,18 @@ export type TilePaletteProps = {
 /** The tools a picked stamp keeps; any other tool gives way to the brush. */
 const STAMP_TOOLS: readonly string[] = ["tile-brush", "tile-rect", "tile-fill"];
 
-/** A tile's side in the palette, px, when the panel has room for every column. */
+/** A tile's width in the palette, px, when the panel has room for every column. */
 const TILE_PX = 24;
 /** The smallest a narrow panel shrinks tiles to before the grid scrolls sideways, px. */
 const MIN_TILE_PX = 12;
+/** The grid's gap between tiles and its padding, px; the stylesheet reads both from the grid's style. */
+export const GRID_GAP_PX = 1;
+export const GRID_PAD_PX = 1;
 
-/** The tile side that fits `columns` across a grid `width` px wide inside, with its 1px gaps and padding. */
+/** The tile width that fits `columns` across a grid `width` px wide inside, with its gaps and padding. */
 export function fitTilePx(width: number, columns: number): number {
-  const fit = Math.floor((width - 2 - (columns - 1)) / Math.max(1, columns));
+  const cols = Math.max(1, columns);
+  const fit = Math.floor((width - 2 * GRID_PAD_PX - (cols - 1) * GRID_GAP_PX) / cols);
   return Math.min(TILE_PX, Math.max(MIN_TILE_PX, fit));
 }
 
@@ -129,22 +133,16 @@ export function brushTileIds(brush: TileBrush): Set<number> {
 }
 
 /**
- * The tile side for a grid as wide as it is now: shrinks tiles in a narrow
- * panel instead of scrolling them sideways, again on each resize. Without a
- * `ResizeObserver` tiles keep their full size.
+ * The tile width for a grid as wide as it is now: shrinks tiles in a narrow
+ * panel instead of scrolling them sideways, again on each resize of its box.
+ * Without a `ResizeObserver` tiles keep their full size.
  */
-function useFittedTilePx(grid: RefObject<HTMLDivElement | null>, columns: number): number {
+function useFittedTilePx(grid: HTMLElement | null, columns: number): number {
   const [px, setPx] = useState(TILE_PX);
-  useLayoutEffect(() => {
-    const el = grid.current;
-    const box = el?.parentElement;
-    if (!el || !box || typeof ResizeObserver === "undefined") return;
-    const fit = () => setPx(fitTilePx(el.clientWidth, columns));
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(box);
-    return () => observer.disconnect();
+  const fit = useCallback(() => {
+    if (grid) setPx(fitTilePx(grid.clientWidth, columns));
   }, [grid, columns]);
+  useResizeFit(grid?.parentElement, fit);
   return px;
 }
 
@@ -244,9 +242,10 @@ function TilesetView({
   const rows = rowsOf(set, image.size?.[1]);
   const url = imageUrl?.(image.id) ?? null;
   const [tw, th] = set.tile;
-  const grid = useRef<HTMLDivElement>(null);
+  const [grid, setGrid] = useState<HTMLDivElement | null>(null);
   const tilePx = useFittedTilePx(grid, columns);
   const scale = tilePx / Math.max(1, tw);
+  const tileH = Math.round(th * scale);
 
   const picked = useMemo(() => brushTileIds(brush), [brush]);
   const [focus, setFocus] = useState({ c: 0, r: 0 });
@@ -285,9 +284,7 @@ function TilesetView({
         r: Math.min(rows - 1, Math.max(0, focus.r + d[1])),
       };
       setFocus(next);
-      grid.current
-        ?.querySelector<HTMLElement>(`[data-tile="${next.r * columns + next.c}"]`)
-        ?.focus();
+      grid?.querySelector<HTMLElement>(`[data-tile="${next.r * columns + next.c}"]`)?.focus();
       if (e.shiftKey) pick(next, true);
       return;
     }
@@ -301,7 +298,7 @@ function TilesetView({
   const spacing = set.spacing ?? 0;
   const tileStyle = (c: number, r: number): CSSProperties => ({
     width: tilePx,
-    height: Math.round(th * scale),
+    height: tileH,
     ...(url
       ? {
           backgroundImage: `url("${url}")`,
@@ -328,7 +325,7 @@ function TilesetView({
         </Text>
       </div>
       <div
-        ref={grid}
+        ref={setGrid}
         role="grid"
         aria-label={`Tiles of ${tilesetId}`}
         aria-multiselectable="true"
@@ -336,7 +333,9 @@ function TilesetView({
         style={
           {
             gridTemplateColumns: `repeat(${columns}, ${tilePx}px)`,
-            "--je-tile-px": `${tilePx}px`,
+            "--je-tile-h": `${tileH}px`,
+            "--je-tile-gap": `${GRID_GAP_PX}px`,
+            "--je-tile-pad": `${GRID_PAD_PX}px`,
           } as CSSProperties
         }
         onKeyDown={moveFocus}

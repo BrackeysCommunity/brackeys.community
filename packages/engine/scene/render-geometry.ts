@@ -7,7 +7,7 @@ import {
   type SpriteBlock,
 } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
-import { oneWaySideOf } from "../game/primitives";
+import { oneWaySideOf, TILEMAP_PRIMITIVE } from "../game/primitives";
 import { PRIMITIVE_TYPES, type RegisteredType, type Registry, type Side } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
@@ -139,7 +139,7 @@ export function drawnEntities(
     if (at) {
       const pt = { minX: at[0], minY: at[1], maxX: at[0], maxY: at[1] };
       box = box ? aabbUnion(box, pt) : pt;
-      if (grid) box = growOverGrid(box, grid, at, gridValues(type, e));
+      if (grid) box = growOverGrid(box, grid, at, gridValues(type, e), isTilemap(type));
     }
     if (!box) continue;
     const sprite = spriteBoxOf(
@@ -516,13 +516,69 @@ function gridValues(type: RegisteredType, e: RuntimeEntity): { field: string; va
   return out;
 }
 
-/** `box` grown over the filled cells of `values`, placed at `at`. */
+const isTilemap = (t: RegisteredType) => (t.base ?? t.type) === TILEMAP_PRIMITIVE.type;
+
+/**
+ * The grid cell a tilemap at `at` puts its cell (0, 0) on: the one whose
+ * centre is nearest `at` plus half a cell, as `tileOffset` picks with the
+ * grid geometry, which the schematic renders' shared image doesn't carry.
+ */
+export function tilemapGridCell(grid: GridSettings, at: Pt): [number, number] {
+  const [w, h] = grid.cell;
+  const [ox, oy] = grid.origin ?? [0, 0];
+  const px = at[0] + w / 2;
+  const py = at[1] + h / 2;
+  if (grid.kind === "square") return [Math.floor((px - ox) / w) + 0, Math.floor((py - oy) / h) + 0];
+  const staggerX = grid.stagger === "x";
+  const shifted = (n: number) => ((n & 1) === 1) === (grid.index === "odd");
+  const pitch = staggerX ? (w + grid.side) / 2 : (h + grid.side) / 2;
+  const across = Math.floor((staggerX ? px - ox : py - oy) / pitch);
+  let best: [number, number] = [0, 0];
+  let bestD = Infinity;
+  for (let a = across - 1; a <= across + 1; a++) {
+    const along = staggerX
+      ? Math.floor((py - oy - (shifted(a) ? h / 2 : 0)) / h)
+      : Math.floor((px - ox - (shifted(a) ? w / 2 : 0)) / w);
+    for (let b = along - 1; b <= along + 1; b++) {
+      const [col, row] = staggerX ? [a, b] : [b, a];
+      const cx = staggerX ? ox + col * pitch : ox + col * w + (shifted(row) ? w / 2 : 0);
+      const cy = staggerX ? oy + row * h + (shifted(col) ? h / 2 : 0) : oy + row * pitch;
+      const dx = px - (cx + w / 2);
+      const dy = py - (cy + h / 2);
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = [col + 0, row + 0];
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Where a grid entity's cell (0, 0) lies: a tilemap's on the grid cell its
+ * `at` snaps to, as the runtime places it; any other grid field's at `at`.
+ */
+function cellPlacement(
+  grid: GridSettings,
+  at: Pt,
+  snap: boolean,
+): { origin: Pt; offset: readonly [number, number] } {
+  return snap
+    ? { origin: grid.origin ?? [0, 0], offset: tilemapGridCell(grid, at) }
+    : { origin: at, offset: [0, 0] };
+}
+
+/** `box` grown over the filled cells of `values` at `at`; `snap` places them as a tilemap's. */
 export function growOverGrid(
   box: Aabb,
   grid: GridSettings,
   at: Pt,
   values: readonly { value: GridCells }[],
+  snap = false,
 ): Aabb {
+  const { origin, offset } = cellPlacement(grid, at, snap);
+  const [oc, or] = offset;
   for (const { value } of values) {
     const b = gridCellBounds(value);
     if (!b) continue;
@@ -530,15 +586,17 @@ export function growOverGrid(
     const cols = [...new Set([b.c0, Math.min(b.c0 + 1, b.c1), Math.max(b.c1 - 1, b.c0), b.c1])];
     const rows = [...new Set([b.r0, Math.min(b.r0 + 1, b.r1), Math.max(b.r1 - 1, b.r0), b.r1])];
     for (const c of cols)
-      for (const r of rows) box = aabbUnion(box, boxOfPts(gridCellOutline(grid, at, c, r)));
+      for (const r of rows)
+        box = aabbUnion(box, boxOfPts(gridCellOutline(grid, origin, c + oc, r + or)));
   }
   return box;
 }
 
 /**
  * The filled cells of every grid field that fall in `region`, at most `max`
- * of them; cells are local to their entity's `at` and sized by the scene's
- * grid. Nothing without a grid.
+ * of them; cells are local to their entity's `at` (a tilemap's snapped to
+ * the grid, as the runtime places it) and sized by the scene's grid.
+ * Nothing without a grid.
  */
 export function gridCellsIn(
   entities: readonly DrawnEntity[],
@@ -550,6 +608,8 @@ export function gridCellsIn(
   if (!grid) return out;
   for (const d of entities) {
     if (!d.at) continue;
+    const { origin, offset } = cellPlacement(grid, d.at, isTilemap(d.type));
+    const [oc, or] = offset;
     for (const { field, value } of gridValues(d.type, d.entity)) {
       const found: DrawnGridCell[] = [];
       for (const [key, rows] of Object.entries(value)) {
@@ -563,7 +623,7 @@ export function gridCellsIn(
             if (v === 0) continue;
             const col = chunk[0] * GRID_CHUNK + i;
             const row = chunk[1] * GRID_CHUNK + r;
-            const outline = gridCellOutline(grid, d.at!, col, row);
+            const outline = gridCellOutline(grid, origin, col + oc, row + or);
             const box = boxOfPts(outline);
             if (box.maxX <= x0 || box.minX >= x1 || box.maxY <= y0 || box.minY >= y1) continue;
             found.push({ entity: d, field, col, row, value: v, outline, box });

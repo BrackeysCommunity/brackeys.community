@@ -18,6 +18,7 @@ import { projectView, type AssetEntry, type ProjectState } from "../../project/i
 import { EditorInspector } from "../panels/EditorInspector";
 import { ColorWidget } from "../panels/inspector/color-widget";
 import {
+  gridSummary,
   NumberField,
   OptionsField,
   PointField,
@@ -735,5 +736,54 @@ describe("the shared field widgets", () => {
     const x = screen.getByRole("textbox", { name: "at.x" });
     fireEvent.keyDown(x, { key: "ArrowUp" });
     expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the inspector's grid field summary", () => {
+  it("counts the painted cells, their chunks and their span", () => {
+    expect(gridSummary({ "0,0": ["2*8,0,3*3", "1*8,0*5,4"] })).toEqual({
+      text: "20 cells · 1 chunk · 14 × 2",
+      detail:
+        "Columns 0 to 13, rows 0 to 1, counted from its origin. Paint them with the tile tools.",
+    });
+    expect(gridSummary({ "0,0": ["5"], "-1,1": ["", "0*31,1"] })?.text).toBe(
+      "2 cells · 2 chunks · 2 × 34",
+    );
+    expect(gridSummary({ "0,0": ["5"] })?.detail).toMatch(/^Columns 0, rows 0,/);
+    expect(gridSummary({ "0,0": ["0*4"] })).toEqual({ text: "No cells painted" });
+    expect(gridSummary({})).toEqual({ text: "No cells painted" });
+    expect(gridSummary({ "0,0": ["x"] })).toBeNull();
+    expect(gridSummary("2*8")).toBeNull();
+  });
+
+  it("shows a selected tilemap's cells summed up, not run-encoded", () => {
+    const session = createEditorSession({
+      doc: sceneToDoc(
+        {
+          v: 5,
+          name: "tiles-yard",
+          bounds: [0, 0, 20, 20],
+          settings: { grid: { kind: "square", cell: [1, 1] } },
+          entities: [
+            {
+              id: "floor",
+              type: "tilemap",
+              at: [0, 0],
+              tileset: "ground",
+              cells: { "0,0": ["2*8,0,3*3", "1*8,0*5,4"] },
+            },
+          ],
+        } as SceneDefinition,
+        { key: sequentialKeys("g") },
+      ),
+      origin: ada,
+      name: "tiles-yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+    });
+    session.select(["floor"]);
+    render(<EditorInspector session={session} />);
+    expect(screen.getByText("20 cells · 1 chunk · 14 × 2")).toBeTruthy();
+    expect(screen.queryByText(/2\*8/)).toBeNull();
   });
 });

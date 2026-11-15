@@ -33,7 +33,6 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   drawTypeOptions,
   ENGINE_TOOL_IDS,
-  lookupRef,
   SNAP_STEPS,
   type DrawToolKind,
   type EditorCommand,
@@ -553,7 +552,6 @@ export function dockParts(
     }),
   );
   if (tile.length > 0) {
-    // Kept whether or not a tilemap is in reach, so the tools appearing doesn't refit the dock.
     parts.push({ key: "divider:tile", width: W.divider });
     tile.forEach((t, i) =>
       parts.push({ key: `tool:${t.id}`, width: W.icon, drop: 170 + tile.length - i }),
@@ -811,27 +809,6 @@ export const PUBLISH_SCENE_TOOLTIP = "Publish this level to players without a ne
 /** Publish scene's icon: one level sent up live, apart from the Publish panel's releases. */
 export const PUBLISH_SCENE_ICON = CloudUploadIcon;
 
-/**
- * The tile tools and the brush's turns: drawn while a tilemap is selected,
- * hovered or being painted, else kept as blank room so the dock never refits.
- */
-function TileGroup({ shown, children }: { shown: boolean; children: ReactNode }) {
-  return shown ? (
-    <span data-tile-tools="shown" style={{ display: "contents" }}>
-      {children}
-    </span>
-  ) : (
-    <span
-      aria-hidden
-      inert
-      data-tile-tools="reserved"
-      style={{ display: "contents", visibility: "hidden" }}
-    >
-      {children}
-    </span>
-  );
-}
-
 const NO_SNAP: Snap | null = null;
 const NO_OPTION: ToolOption | null = null;
 
@@ -882,14 +859,6 @@ export function EditorToolbar({
     [host, hasTilemap],
   );
   const tileActive = isTileTool(active);
-  const tileInReach = useEditorStore(session, (s) =>
-    [s.hover, ...s.selection].some((ref) => {
-      if (ref === null) return false;
-      const target = lookupRef(resolved, ref);
-      return target?.kind === "entity" && isTilemapIn(session.registry, target.entity.type);
-    }),
-  );
-  const tilesShown = tileActive || tileInReach;
   const snap = useHostValue(host, (h) => h.snap(), host?.snap() ?? NO_SNAP);
   const option = useHostValue(host, (h) => h.option() ?? NO_OPTION, NO_OPTION);
   const slot = useMemo(
@@ -940,7 +909,7 @@ export function EditorToolbar({
     overflow = (
       <OverflowMenu
         session={session}
-        tools={tilesShown ? hiddenTools : hiddenTools.filter((t) => !isTileTool(t.id))}
+        tools={hiddenTools}
         active={active}
         keymap={keymap}
         host={host}
@@ -993,7 +962,7 @@ export function EditorToolbar({
           {gameTools.length > 0 ? <Divider /> : null}
           {gameTools.map(toolButton)}
           {tileTools.length > 0 || shownBrush.length > 0 ? (
-            <TileGroup shown={tilesShown}>
+            <span data-tile-tools="" style={{ display: "contents" }}>
               <Divider />
               {tileTools.map(toolButton)}
               {shownBrush.map((c) => (
@@ -1006,7 +975,7 @@ export function EditorToolbar({
                   tooltip={<KeyHint text={c.label} chord={brushChord(keymap, c)} />}
                 />
               ))}
-            </TileGroup>
+            </span>
           ) : null}
           {overflow}
           {slot && !hidden.has("option") ? (

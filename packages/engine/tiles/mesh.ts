@@ -1,6 +1,6 @@
 /** Per-chunk quad geometry and UVs into a tileset image; the Pixi mesh is built in render/. Pure. */
 import { FLIP_D, FLIP_X, FLIP_Y, TILE_ID_BITS } from "../game/tile-cell";
-import { gridGeometry } from "../grid/geometry";
+import { gridGeometry, type GridGeometry } from "../grid/geometry";
 import type { TileDef, TilesetFile } from "../project/kinds/tileset";
 import { GRID_CHUNK } from "../scene/grid";
 import type { Bounds, GridSettings, Pt } from "../scene/types";
@@ -30,10 +30,18 @@ export type ChunkMeshInput = {
 const ID_MASK = (1 << TILE_ID_BITS) - 1;
 const FLAG_MASK = FLIP_X | FLIP_Y | FLIP_D;
 
-/** The grid cell a map at `at` (metres) starts on: the one whose top-left corner is `at`. */
-export function tileOffset(grid: GridSettings, at: Pt): [number, number] {
+/**
+ * The grid cell a map at `at` (metres) starts on: the one whose top-left
+ * corner is `at`, else the nearest. The one rule every reader of a map's
+ * placement goes through.
+ */
+export function tileOffset(
+  grid: GridSettings,
+  at: Pt,
+  geo: GridGeometry = gridGeometry(grid),
+): [number, number] {
   const [w, h] = grid.cell;
-  const [c, r] = gridGeometry(grid).cellAt([at[0] + w / 2, at[1] + h / 2]);
+  const [c, r] = geo.cellAt([at[0] + w / 2, at[1] + h / 2]);
   return [c, r];
 }
 
