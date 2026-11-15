@@ -210,6 +210,228 @@
       "maximum": 1,
       "description": "Loudness; default 1. 0 to 1.",
       "default": 1
+    },
+    "level": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "The first oscillator's mixer level; default 1. 0 to 1.",
+      "default": 1,
+      "title": "Osc 1 level"
+    },
+    "osc2": {
+      "description": "A second oscillator, tuned from the first.",
+      "type": "object",
+      "properties": {
+        "wave": {
+          "type": "string",
+          "enum": ["square", "saw", "triangle", "sine"],
+          "description": "Its wave: square, saw, triangle or sine."
+        },
+        "octave": {
+          "type": "integer",
+          "minimum": -3,
+          "maximum": 3,
+          "description": "Whole octaves from the first oscillator; default 0. -3 to 3.",
+          "title": "Octave"
+        },
+        "detune": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 100,
+          "description": "Cents from the first oscillator; default 0. -100 to 100.",
+          "unit": "ct",
+          "title": "Detune"
+        },
+        "level": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Its mixer level; default 1. 0 to 1.",
+          "default": 1
+        }
+      },
+      "required": ["wave"],
+      "additionalProperties": false
+    },
+    "osc3": {
+      "description": "A third oscillator, tuned from the first.",
+      "type": "object",
+      "properties": {
+        "wave": {
+          "type": "string",
+          "enum": ["square", "saw", "triangle", "sine"],
+          "description": "Its wave: square, saw, triangle or sine."
+        },
+        "octave": {
+          "type": "integer",
+          "minimum": -3,
+          "maximum": 3,
+          "description": "Whole octaves from the first oscillator; default 0. -3 to 3.",
+          "title": "Octave"
+        },
+        "detune": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 100,
+          "description": "Cents from the first oscillator; default 0. -100 to 100.",
+          "unit": "ct",
+          "title": "Detune"
+        },
+        "level": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Its mixer level; default 1. 0 to 1.",
+          "default": 1
+        }
+      },
+      "required": ["wave"],
+      "additionalProperties": false
+    },
+    "noise": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "White noise in the mixer; default 0. 0 to 1."
+    },
+    "ampDecayMs": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2000,
+      "description": "The volume's fall to the amp sustain level during the sustain, ms; default 0. 0 to 2000.",
+      "unit": "ms",
+      "title": "Amp decay"
+    },
+    "ampSustain": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "The level the volume falls to during the sustain; default 1. 0 to 1.",
+      "default": 1,
+      "title": "Amp sustain"
+    },
+    "filter": {
+      "description": "A resonant 24 dB per octave ladder low-pass after the mixer.",
+      "type": "object",
+      "properties": {
+        "cutoff": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 20000,
+          "description": "Cutoff, Hz. 20 to 20000.",
+          "unit": "Hz",
+          "step": 1,
+          "decimals": 0,
+          "title": "Cutoff"
+        },
+        "resonance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Peak at the cutoff, ringing near 1; default 0. 0 to 1."
+        },
+        "envAmount": {
+          "type": "number",
+          "minimum": -8,
+          "maximum": 8,
+          "description": "Octaves the filter envelope moves the cutoff at its peak; default 0. -8 to 8.",
+          "title": "Envelope"
+        },
+        "keyTrack": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How far the cutoff follows the pitch from middle C; default 0. 0 to 1.",
+          "title": "Key track"
+        },
+        "drive": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Pushes the filter into saturation; default 0. 0 to 1."
+        }
+      },
+      "required": ["cutoff"],
+      "additionalProperties": false
+    },
+    "filterEnv": {
+      "description": "The filter's envelope; the gate is the attack plus the sustain.",
+      "type": "object",
+      "properties": {
+        "attackMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "Rise, ms; default 0. 0 to 2000.",
+          "unit": "ms",
+          "title": "Attack"
+        },
+        "decayMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "Fall to the sustain level, ms; default 0. 0 to 2000.",
+          "unit": "ms",
+          "title": "Decay"
+        },
+        "sustain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Level held until the gate ends; default 0. 0 to 1.",
+          "title": "Sustain"
+        },
+        "releaseMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "Fall to 0 after the gate, ms; default 0. 0 to 2000.",
+          "unit": "ms",
+          "title": "Release"
+        }
+      },
+      "additionalProperties": false
+    },
+    "lfo": {
+      "description": "A slow oscillator that moves the pitch, the cutoff or the volume.",
+      "type": "object",
+      "properties": {
+        "wave": {
+          "type": "string",
+          "enum": ["sine", "triangle", "square", "saw", "random"],
+          "description": "Its shape: sine, triangle, square, saw or random."
+        },
+        "hz": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Rate, Hz. 0 to 40.",
+          "unit": "Hz",
+          "title": "Rate"
+        },
+        "pitch": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 12,
+          "description": "Pitch swing, semitones; default 0. 0 to 12."
+        },
+        "cutoff": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Cutoff swing, octaves; default 0. 0 to 4."
+        },
+        "amp": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Volume swing; default 0. 0 to 1.",
+          "title": "Amp"
+        }
+      },
+      "required": ["wave", "hz"],
+      "additionalProperties": false
     }
   },
   "required": ["kind", "v", "wave", "freq", "sustainMs", "decayMs"],

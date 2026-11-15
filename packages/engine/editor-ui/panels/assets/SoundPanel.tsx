@@ -75,7 +75,7 @@ export function SoundPanel({ asset, session, registry }: AssetDocPanelProps) {
   const strings = useStringKeyTable(session);
   return (
     <div className="je-doc-asset">
-      <AssetPanel {...asset} />
+      <AssetPanel {...asset} editor />
       <div className="je-asset-panel je-sound-panel" aria-label="Sound">
         {doc.entry ? (
           <DocGate doc={doc} noun="sound">

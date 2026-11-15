@@ -1175,6 +1175,7 @@ export function InspectorSection({
   title,
   hint,
   actions,
+  defaultOpen = true,
   children,
 }: {
   id: string;
@@ -1182,18 +1183,20 @@ export function InspectorSection({
   hint?: string;
   /** Controls at the end of the title's row, such as a behavior's Remove. */
   actions?: ReactNode;
+  /** How it starts until the viewer toggles it; only a choice that differs is stored. */
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
   const { storage } = useKit();
-  const [open, setOpen] = useBrowserState(
-    () => !readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id],
-    true,
-  );
+  const [open, setOpen] = useBrowserState(() => {
+    const closed = readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id];
+    return closed === undefined ? defaultOpen : !closed;
+  }, defaultOpen);
   const toggle = (e: MouseEvent) => {
     e.preventDefault();
     const closed = { ...readStored(storage, COLLAPSED_KEY, {}, storedFlags) };
-    if (open) closed[id] = true;
-    else delete closed[id];
+    if (!open === defaultOpen) delete closed[id];
+    else closed[id] = open;
     writeStored(storage, COLLAPSED_KEY, closed);
     setOpen(!open);
   };

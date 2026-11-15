@@ -3858,6 +3858,11 @@
     gap: 6px;
   }
 
+  /* Its file and licence sections sit close; a rule between them is enough. */
+  .je-asset-panel > .je-insp-section + .je-insp-section {
+    margin-top: -6px;
+  }
+
   .je-licence-field {
     align-items: center;
   }
@@ -3947,6 +3952,171 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+  }
+
+  /* The synth's front panel: modules that wrap two to a row where there's room. */
+  .je-synth-rack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .je-synth-module {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 4px 6px 6px;
+    border: 1px solid var(--je-border);
+    border-radius: var(--je-radius-nested);
+    background: color-mix(in srgb, var(--je-muted) 45%, transparent);
+  }
+
+  .je-synth-module-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 20px;
+    color: var(--je-muted-fg);
+  }
+
+  .je-synth-module-head > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .je-synth-module[data-off] .je-synth-knobs {
+    opacity: 0.45;
+  }
+
+  .je-synth-knobs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 0;
+  }
+
+  .je-knob {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    width: 48px;
+    min-width: 0;
+  }
+
+  .je-knob-label {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--je-muted-fg);
+    font-size: var(--je-label);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .je-knob-dial {
+    display: block;
+    border-radius: 50%;
+    cursor: ns-resize;
+    touch-action: none;
+    outline: none;
+  }
+
+  .je-knob-dial:focus-visible {
+    box-shadow: 0 0 0 2px var(--je-ring);
+  }
+
+  .je-knob-dial > svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .je-knob-track,
+  .je-knob-fill {
+    fill: none;
+    stroke-linecap: round;
+    stroke-width: 3;
+  }
+
+  .je-knob-track {
+    stroke: var(--je-border);
+  }
+
+  .je-knob-fill {
+    stroke: var(--je-primary);
+  }
+
+  .je-knob-mark {
+    fill: var(--je-muted-fg);
+  }
+
+  /* A black cap with a white line, as on a hardware mono synth, in either theme. */
+  .je-knob-cap {
+    fill: #17171d;
+    stroke: color-mix(in srgb, var(--je-panel-fg) 18%, transparent);
+    stroke-width: 1;
+  }
+
+  .je-knob-pointer {
+    stroke: #f2f2f6;
+    stroke-linecap: round;
+    stroke-width: 2;
+  }
+
+  .je-knob-dial:hover .je-knob-cap {
+    fill: #22222b;
+  }
+
+  .je-knob-value,
+  .je-knob-input {
+    width: 100%;
+    height: 16px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 3px;
+    background: none;
+    color: var(--je-panel-fg);
+    font: inherit;
+    font-size: var(--je-label);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  button.je-knob-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: text;
+  }
+
+  button.je-knob-value:hover {
+    background: var(--je-muted);
+  }
+
+  .je-knob[data-default] .je-knob-value {
+    color: var(--je-muted-fg);
+  }
+
+  .je-knob-input {
+    background: var(--je-bg);
+    box-shadow: inset 0 0 0 1px var(--je-ring);
+    outline: none;
+  }
+
+  .je-knob[data-disabled] .je-knob-dial {
+    cursor: default;
+  }
+
+  .je-knob[data-disabled] .je-knob-fill {
+    stroke: var(--je-muted-fg);
+  }
+
+  .je-knob[data-disabled] {
+    opacity: 0.55;
+  }
+
+  .je-synth-module[data-off] .je-knob[data-disabled] {
+    opacity: 1;
   }
 
   .je-strings-keys {

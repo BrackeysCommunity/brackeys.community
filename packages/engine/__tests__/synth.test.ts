@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs, synthWav } from "../audio/synth";
 import { CLICK_PATCH, mutateSynth, randomSynth, SYNTH_PRESETS } from "../audio/synth-presets";
+import blip from "../collab/__tests__/fixtures/blip.synth.json";
 import { readWav } from "../project/inspect/wav";
 import {
   SYNTH_BOUNDS,
@@ -10,6 +11,7 @@ import {
   type SynthFile,
   type SynthNumberPath,
 } from "../project/kinds/synth";
+import clink from "../scenes/audio/clink.synth.json";
 import { Rng } from "../sim-kit/rng";
 
 const schema = synthKind.schema();
@@ -42,6 +44,38 @@ const rms = (samples: Float32Array, from = 0, to = samples.length) => {
 
 const bytesOf = (a: Float32Array) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
 
+/** FNV-1a over a render's bytes. */
+function hashOf(a: Float32Array): string {
+  let h = 0x811c9dc5;
+  for (const x of bytesOf(a)) h = Math.imul(h ^ x, 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, "0");
+}
+
+/** The power at `hz` over the window (a single Goertzel bin). */
+function powerAt(samples: Float32Array, hz: number, from: number, to: number): number {
+  const w = (2 * Math.PI * hz) / SYNTH_SAMPLE_RATE;
+  const c = 2 * Math.cos(w);
+  let s1 = 0;
+  let s2 = 0;
+  for (let i = from; i < to; i++) {
+    const s0 = samples[i]! + c * s1 - s2;
+    s2 = s1;
+    s1 = s0;
+  }
+  return (s1 * s1 + s2 * s2 - c * s1 * s2) / (to - from) ** 2;
+}
+
+/** How much of a window's energy is in its sample-to-sample change: higher is brighter. */
+function brightness(samples: Float32Array, from: number, to: number): number {
+  let diff = 0;
+  let sum = 0;
+  for (let i = from + 1; i < to; i++) {
+    diff += (samples[i]! - samples[i - 1]!) ** 2;
+    sum += samples[i]! ** 2;
+  }
+  return Math.sqrt(diff / sum);
+}
+
 function setPath(p: SynthFile, path: SynthNumberPath, v: number): SynthFile {
   const [head, leaf] = path.split(".") as [string, string | undefined];
   const out = structuredClone(p) as Record<string, unknown>;
@@ -52,6 +86,11 @@ function setPath(p: SynthFile, path: SynthNumberPath, v: number): SynthFile {
       vibrato: { semitones: 1, hz: 5 },
       lowpass: { hz: 1_000 },
       highpass: { hz: 100 },
+      osc2: { wave: "saw" } as never,
+      osc3: { wave: "saw" } as never,
+      filter: { cutoff: 1_000 },
+      filterEnv: {},
+      lfo: { wave: "sine", hz: 5 } as never,
     };
     out[head] = { ...filled[head], ...(out[head] as object), [leaf]: v };
   }
@@ -90,6 +129,25 @@ describe("synth schema", () => {
     }
   });
 
+  it("accepts the subtractive voice's blocks and refuses a fractional octave or noise oscillator", () => {
+    const full = patch({
+      level: 0.8,
+      osc2: { wave: "saw", octave: -1, detune: 7, level: 0.6 },
+      osc3: { wave: "square" },
+      noise: 0.2,
+      ampDecayMs: 120,
+      ampSustain: 0.5,
+      filter: { cutoff: 800, resonance: 0.7, envAmount: 3, keyTrack: 0.5, drive: 0.3 },
+      filterEnv: { attackMs: 5, decayMs: 200, sustain: 0.2, releaseMs: 80 },
+      lfo: { wave: "random", hz: 8, pitch: 1, cutoff: 1, amp: 0.3 },
+    });
+    expect(valid(full)).toBe(true);
+    expect(valid(patch({ osc2: { wave: "saw", octave: 0.5 } }))).toBe(false);
+    expect(valid(patch({ osc2: { wave: "noise" as never } }))).toBe(false);
+    expect(valid(patch({ lfo: { wave: "organ" as never, hz: 1 } }))).toBe(false);
+    expect(valid(patch({ filter: { cutoff: 800, q: 2 } as never }))).toBe(false);
+  });
+
   it("names the spec's bounds", () => {
     expect(SYNTH_BOUNDS.freq).toEqual([20, 8_000]);
     expect(SYNTH_BOUNDS.attackMs).toEqual([0, 1_000]);
@@ -117,6 +175,48 @@ describe("synth schema", () => {
 });
 
 describe("renderSynth", () => {
+  it("renders a patch without the subtractive voice's fields exactly as before it had them", () => {
+    // Hashes of the one-oscillator renderer's output, taken before the mixer, ladder and LFO existed.
+    const base = { kind: "synth", v: 1, freq: 440, sustainMs: 100, decayMs: 100 } as const;
+    const every = (wave: SynthFile["wave"]): SynthFile => ({
+      ...base,
+      wave,
+      duty: 0.3,
+      dutySweep: 0.5,
+      attackMs: 7,
+      sustainMs: 33,
+      decayMs: 61,
+      punch: 1,
+      lowpass: { hz: 3_000, resonance: 1, sweep: 3 },
+      highpass: { hz: 60, sweep: 2 },
+      vibrato: { semitones: 3, hz: 9 },
+      jump: { atMs: 20, semitones: 5 },
+      retriggerMs: 40,
+      slide: 4,
+      slideAccel: 30,
+      seed: 99,
+      volume: 0.7,
+    });
+    const golden: [SynthFile, string][] = [
+      [clink as SynthFile, "8b66b794"],
+      [blip as SynthFile, "95c6f31d"],
+      [{ ...base, wave: "square" }, "ee1e03f9"],
+      [every("square"), "8818ec8d"],
+      [{ ...base, wave: "saw" }, "e82c16f4"],
+      [every("saw"), "5093685f"],
+      [{ ...base, wave: "triangle" }, "8d0cb864"],
+      [every("triangle"), "8831ee50"],
+      [{ ...base, wave: "sine" }, "76c2a570"],
+      [every("sine"), "f2dc6f5f"],
+      [{ ...base, wave: "noise" }, "5a9fcee0"],
+      [every("noise"), "c5825047"],
+    ];
+    for (const [p, hash] of golden) expect(hashOf(renderSynth(p)), JSON.stringify(p)).toBe(hash);
+    // Writing a default out changes nothing.
+    const plain = golden[2]![0];
+    expect(hashOf(renderSynth({ ...plain, level: 1, ampSustain: 1, noise: 0 }))).toBe("ee1e03f9");
+  });
+
   it("lasts the three envelope times", () => {
     expect(synthDurationMs(patch({ attackMs: 12, sustainMs: 34, decayMs: 56 }))).toBe(102);
     expect(synthDurationMs(patch({ sustainMs: 34, decayMs: 56 }))).toBe(90);
@@ -243,6 +343,142 @@ describe("renderSynth", () => {
     expect(sustainStart).toBeLessThanOrEqual(1);
   });
 
+  it("stays finite and within ±1 with every block at its edge, each wave, 5 s at most", () => {
+    for (const wave of SYNTH_WAVES) {
+      for (const edge of [0, 1]) {
+        const p = patch({
+          wave,
+          freq: edge ? 8_000 : 20,
+          attackMs: 1_000,
+          sustainMs: 2_000,
+          decayMs: 2_000,
+          punch: 1,
+          level: 1,
+          osc2: { wave: "saw", octave: edge ? 3 : -3, detune: 100, level: 1 },
+          osc3: { wave: "square", octave: edge ? -3 : 3, detune: -100, level: 1 },
+          noise: 1,
+          ampDecayMs: 2_000,
+          ampSustain: edge,
+          filter: {
+            cutoff: edge ? 20_000 : 20,
+            resonance: 1,
+            envAmount: edge ? 8 : -8,
+            keyTrack: 1,
+            drive: 1,
+          },
+          filterEnv: { attackMs: 2_000, decayMs: 2_000, sustain: 1, releaseMs: 2_000 },
+          lfo: { wave: "random", hz: 40, pitch: 12, cutoff: 4, amp: 1 },
+        });
+        expect(valid(p)).toBe(true);
+        const out = renderSynth(p);
+        expect(out.length).toBe(220_500);
+        // One expect per render: an expect per sample is slower than the render.
+        const bad = out.findIndex((s) => !Number.isFinite(s) || Math.abs(s) > 1);
+        expect(bad, `${wave} edge ${edge}`).toBe(-1);
+        expect(Math.abs(out[out.length - 1]!)).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it("cuts a sine two octaves above the ladder's cutoff about twice as deep as the 12 dB low-pass", () => {
+    const base = patch({ wave: "sine", freq: 4_000, sustainMs: 500, decayMs: 0 });
+    const from = samplesIn(100);
+    const to = samplesIn(400);
+    const open = rms(renderSynth(base), from, to);
+    const twelve = rms(renderSynth({ ...base, lowpass: { hz: 1_000 } }), from, to) / open;
+    const ladder = rms(renderSynth({ ...base, filter: { cutoff: 1_000 } }), from, to) / open;
+    // Two octaves: about −24 dB for two poles, −48 dB for four.
+    expect(twelve).toBeGreaterThan(0.04);
+    expect(ladder).toBeLessThan(0.012);
+    // Well under the cutoff it passes.
+    const low = patch({ wave: "sine", freq: 100, sustainMs: 500, decayMs: 0 });
+    const passed = rms(renderSynth({ ...low, filter: { cutoff: 2_000 } }), from, to);
+    expect(passed / rms(renderSynth(low), from, to)).toBeGreaterThan(0.85);
+  });
+
+  it("lifts the harmonic at the cutoff as the resonance rises", () => {
+    const base = patch({ wave: "square", freq: 110, sustainMs: 500, decayMs: 0 });
+    const at = (resonance: number) =>
+      powerAt(
+        renderSynth({ ...base, filter: { cutoff: 990, resonance } }),
+        990,
+        samplesIn(100),
+        samplesIn(400),
+      );
+    expect(at(0.9)).toBeGreaterThan(at(0) * 8);
+    expect(at(0.5)).toBeGreaterThan(at(0));
+  });
+
+  it("opens the cutoff with the filter envelope and closes it as it decays", () => {
+    const p = patch({
+      wave: "saw",
+      freq: 110,
+      sustainMs: 600,
+      decayMs: 0,
+      filter: { cutoff: 200, envAmount: 5 },
+      filterEnv: { decayMs: 200, sustain: 0 },
+    });
+    const out = renderSynth(p);
+    const early = brightness(out, samplesIn(10), samplesIn(60));
+    const late = brightness(out, samplesIn(400), samplesIn(500));
+    expect(early).toBeGreaterThan(late * 2);
+    // With no envelope amount the same window is as dark as the end.
+    const still = renderSynth({ ...p, filter: { cutoff: 200 } });
+    expect(brightness(still, samplesIn(10), samplesIn(60))).toBeCloseTo(late, 1);
+  });
+
+  it("follows the pitch with key tracking", () => {
+    const at = (freq: number, keyTrack: number) =>
+      brightness(
+        renderSynth(
+          patch({
+            wave: "saw",
+            freq,
+            sustainMs: 300,
+            decayMs: 0,
+            filter: { cutoff: 300, keyTrack },
+          }),
+        ),
+        samplesIn(100),
+        samplesIn(250),
+      );
+    expect(at(1_000, 1) / at(1_000, 0)).toBeGreaterThan(1.5);
+  });
+
+  it("falls to the amp sustain level over the amp decay", () => {
+    const out = renderSynth(
+      patch({ wave: "square", sustainMs: 400, decayMs: 0, ampDecayMs: 100, ampSustain: 0.25 }),
+    );
+    const start = rms(out, 0, samplesIn(5));
+    const held = rms(out, samplesIn(200), samplesIn(350));
+    expect(held / start).toBeCloseTo(0.25, 1);
+  });
+
+  it("tunes the second oscillator by octave and mixes the noise from the seed", () => {
+    const p = patch({
+      wave: "sine",
+      level: 0,
+      osc2: { wave: "sine", octave: 1 },
+      sustainMs: 1_000,
+      decayMs: 0,
+    });
+    expect(crossings(renderSynth(p), 0, SYNTH_SAMPLE_RATE)).toBeGreaterThan(1_755);
+    expect(crossings(renderSynth(p), 0, SYNTH_SAMPLE_RATE)).toBeLessThan(1_765);
+    const noisy = patch({ wave: "sine", noise: 0.5 });
+    expect(bytesOf(renderSynth({ ...noisy, seed: 1 }))).not.toEqual(
+      bytesOf(renderSynth({ ...noisy, seed: 2 })),
+    );
+    expect(bytesOf(renderSynth(noisy))).toEqual(bytesOf(renderSynth(noisy)));
+  });
+
+  it("swings the volume with the LFO's amp", () => {
+    const base = patch({ wave: "sine", freq: 1_000, sustainMs: 1_000, decayMs: 0 });
+    const out = renderSynth({ ...base, lfo: { wave: "square", hz: 2, amp: 1 } });
+    // A square LFO at 2 Hz is up for the first quarter second, down for the next.
+    expect(rms(out, samplesIn(20), samplesIn(230))).toBeGreaterThan(0.5);
+    expect(rms(out, samplesIn(270), samplesIn(480))).toBeLessThan(0.01);
+  });
+
   it("sweeps a square's duty", () => {
     const highShare = (p: SynthFile, from: number, to: number) => {
       const out = renderSynth(p);
@@ -289,7 +525,7 @@ describe("synthWav", () => {
 });
 
 describe("presets", () => {
-  it("lists the seven presets", () => {
+  it("lists the presets", () => {
     expect(SYNTH_PRESETS).toEqual([
       "pickup",
       "jump",
@@ -298,6 +534,7 @@ describe("presets", () => {
       "laser",
       "powerup",
       "blip",
+      "bass",
     ]);
     expect(Object.isFrozen(CLICK_PATCH)).toBe(true);
     expect(CLICK_PATCH.wave).toBe("square");
@@ -315,6 +552,16 @@ describe("presets", () => {
         expect(valid(mutated), `${preset} #${seed} mutated: ${JSON.stringify(mutated)}`).toBe(true);
         expect(valid(mutateSynth(drawn, rng, 1)), `${preset} #${seed} mutated by 1`).toBe(true);
       }
+    }
+  });
+
+  it("draws a bass through the ladder, its filter envelope set, its octave whole", () => {
+    const rng = Rng.from("bass");
+    for (let i = 0; i < 100; i++) {
+      const bass = randomSynth("bass", rng);
+      expect(bass.filter).toBeDefined();
+      expect(bass.filterEnv).toBeDefined();
+      expect(Number.isInteger(mutateSynth(bass, rng, 1).osc3?.octave)).toBe(true);
     }
   });
 

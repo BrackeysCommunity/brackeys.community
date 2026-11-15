@@ -1,5 +1,10 @@
-import { ShuffleIcon, VolumeHighIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DiceFaces03Icon,
+  ShuffleIcon,
+  VolumeHighIcon,
+  VolumeOffIcon,
+} from "@hugeicons/core-free-icons";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { renderSynth, synthDurationMs } from "../../../audio/synth";
 import {
@@ -8,12 +13,17 @@ import {
   SYNTH_PRESETS,
   type SynthPreset,
 } from "../../../audio/synth-presets";
-import { settingsRows, type InspectorRow } from "../../../editor/settings-model";
 import { capitalise } from "../../../game/live";
 import { sameValue } from "../../../project/canonical";
 import type { JsonEdit } from "../../../project/index";
 import {
   SYNTH_BOUNDS,
+  SYNTH_DEFAULTS,
+  SYNTH_LFO_WAVES,
+  SYNTH_OSC_WAVES,
+  SYNTH_WAVES,
+  synthField,
+  synthKind,
   withSynthField,
   type SynthFile,
   type SynthNumberPath,
@@ -23,22 +33,13 @@ import { Rng } from "../../../sim-kit/rng";
 import { useAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
 import { useEditorAudio } from "../../audio/editor-audio";
 import { STORAGE_PREFIX } from "../../host";
-import { Button, IconButton, Switch, useKit } from "../../kit/index";
+import { Button, IconButton, Knob, MicroLabel, Switch, useKit } from "../../kit/index";
 import { readStored, storedFlag, writeStored } from "../../session/stored";
-import {
-  FieldRow,
-  InspectorSection,
-  Locked,
-  NumberField,
-  OptionsField,
-  ReadonlyField,
-  SliderField,
-} from "../inspector/field-widgets";
+import { InspectorSection, Locked } from "../inspector/field-widgets";
 import { AssetPanel } from "../project-tree/asset-panel";
 import { DocGate } from "../settings/DocGate";
 import { settingScope } from "../settings/settings-doc";
-import { synthObject } from "../settings/settings-schemas";
-import { commitSettingsRow, SettingsNote } from "../settings/SettingsRows";
+import { SettingsNote } from "../settings/SettingsRows";
 
 /** Where the viewer's choice to hear a patch as it changes is kept. */
 export const SYNTH_SPEAKER_KEY = `${STORAGE_PREFIX}synth-speaker`;
@@ -46,11 +47,13 @@ export const SYNTH_SPEAKER_KEY = `${STORAGE_PREFIX}synth-speaker`;
 /** How long after a field change the patch is heard, so a run of edits plays once. */
 export const SYNTH_AUDITION_DELAY_MS = 150;
 
-/** The fields the panel never edits: the file's identity. */
-const IDENTITY: readonly string[] = ["$schema", "kind", "v"];
-
-/** What an optional block holds when it's switched on. */
+/** What an optional block holds when its module is switched on. */
 const BLOCK_DEFAULTS = {
+  osc2: () => ({ wave: "saw", detune: 7 }),
+  osc3: () => ({ wave: "square", octave: -1 }),
+  filter: () => ({ cutoff: 2_000, resonance: 0.3 }),
+  filterEnv: () => ({ decayMs: 300 }),
+  lfo: () => ({ wave: "sine", hz: 5, pitch: 0.5 }),
   jump: (patch: SynthFile) => ({
     atMs: Math.min(SYNTH_BOUNDS["jump.atMs"][1], Math.round(synthDurationMs(patch) / 2)),
     semitones: 5,
@@ -58,12 +61,9 @@ const BLOCK_DEFAULTS = {
   vibrato: () => ({ semitones: 0.5, hz: 6 }),
   lowpass: () => ({ hz: 4_000 }),
   highpass: () => ({ hz: 200 }),
-} satisfies Record<string, (patch: SynthFile) => Record<string, number>>;
+} satisfies Record<string, (patch: SynthFile) => Record<string, number | string>>;
 
-const isBounded = (path: string): path is SynthNumberPath => Object.hasOwn(SYNTH_BOUNDS, path);
-
-/** The fields that only change a square wave. */
-const SQUARE_ONLY: readonly string[] = ["duty", "dutySweep"];
+type Block = keyof typeof BLOCK_DEFAULTS;
 
 /** A preset's button label where its id doesn't read as one. */
 const PRESET_LABELS: Partial<Record<SynthPreset, string>> = { powerup: "Power-up" };
@@ -179,6 +179,7 @@ export function SynthPanel({ asset, session }: AssetDocPanelProps) {
     <div className="je-doc-asset" onPointerDownCapture={arm} onKeyDownCapture={arm}>
       <AssetPanel
         {...asset}
+        editor
         audition={
           patch ? { patch, lengthMs: synthDurationMs(patch), actions: toggle } : { actions: toggle }
         }
@@ -232,6 +233,215 @@ function useAudition(id: string, speaker: boolean) {
   return { audition, arm };
 }
 
+/** A knob on a numeric field. */
+type KnobSpec = {
+  path: SynthNumberPath;
+  label: string;
+  unit?: string;
+  step: number;
+  log?: true;
+  /** Shown in place of a value while the field is unset (a retrigger that's off). */
+  unset?: string;
+  format?: (v: number) => string;
+  /** Usable only while the patch is like this. */
+  when?: (patch: SynthFile) => boolean;
+};
+
+/** A stepped knob on a wave field. */
+type WaveSpec = {
+  path: "wave" | "osc2.wave" | "osc3.wave" | "lfo.wave";
+  label: string;
+  options: readonly string[];
+};
+
+type Control = KnobSpec | WaveSpec;
+
+type ModuleSpec = { id: string; title: string; block?: Block; controls: readonly Control[] };
+
+const WAVE_NAMES: Readonly<Record<string, string>> = {
+  square: "Square",
+  saw: "Saw",
+  triangle: "Tri",
+  sine: "Sine",
+  noise: "Noise",
+  random: "S&H",
+};
+
+const roundTo = (v: number, step: number) => Math.round(v / step) * step;
+const hz = (v: number) => (v >= 1_000 ? `${Number((v / 1_000).toFixed(2))}k` : String(v));
+const signed = (v: number) => (v > 0 ? `+${v}` : String(v));
+const ms = { unit: "ms", step: 1 } as const;
+const unit = { step: 0.01 } as const;
+const isSquare = (p: SynthFile) => p.wave === "square";
+
+/**
+ * The patch as a mono synth's front panel: oscillators into a mixer, the
+ * ladder filter and its envelope, the amp envelope, then pitch movement and
+ * modulation, and the plain sound-effect filters last.
+ */
+const MODULES: readonly ModuleSpec[] = [
+  {
+    id: "osc1",
+    title: "Osc 1",
+    controls: [
+      { path: "wave", label: "Wave", options: SYNTH_WAVES },
+      { path: "freq", label: "Freq", unit: "Hz", step: 1, log: true, format: hz },
+      { path: "duty", label: "Width", step: 0.01, when: isSquare },
+      { path: "dutySweep", label: "PWM", step: 0.01, when: isSquare },
+    ],
+  },
+  {
+    id: "osc2",
+    title: "Osc 2",
+    block: "osc2",
+    controls: [
+      { path: "osc2.wave", label: "Wave", options: SYNTH_OSC_WAVES },
+      { path: "osc2.octave", label: "Octave", step: 1, format: signed },
+      { path: "osc2.detune", label: "Detune", unit: "ct", step: 1, format: signed },
+    ],
+  },
+  {
+    id: "osc3",
+    title: "Osc 3",
+    block: "osc3",
+    controls: [
+      { path: "osc3.wave", label: "Wave", options: SYNTH_OSC_WAVES },
+      { path: "osc3.octave", label: "Octave", step: 1, format: signed },
+      { path: "osc3.detune", label: "Detune", unit: "ct", step: 1, format: signed },
+    ],
+  },
+  {
+    id: "mixer",
+    title: "Mixer",
+    controls: [
+      { path: "level", label: "Osc 1", ...unit },
+      { path: "osc2.level", label: "Osc 2", ...unit, when: (p) => !!p.osc2 },
+      { path: "osc3.level", label: "Osc 3", ...unit, when: (p) => !!p.osc3 },
+      { path: "noise", label: "Noise", ...unit },
+    ],
+  },
+  {
+    id: "filter",
+    title: "Filter",
+    block: "filter",
+    controls: [
+      { path: "filter.cutoff", label: "Cutoff", unit: "Hz", step: 1, log: true, format: hz },
+      { path: "filter.resonance", label: "Emphasis", ...unit },
+      { path: "filter.envAmount", label: "Contour", unit: "oct", step: 0.05 },
+      { path: "filter.keyTrack", label: "Key", ...unit },
+      { path: "filter.drive", label: "Drive", ...unit },
+    ],
+  },
+  {
+    id: "filterEnv",
+    title: "Filter envelope",
+    block: "filterEnv",
+    controls: [
+      { path: "filterEnv.attackMs", label: "Attack", ...ms },
+      { path: "filterEnv.decayMs", label: "Decay", ...ms },
+      { path: "filterEnv.sustain", label: "Sustain", ...unit },
+      { path: "filterEnv.releaseMs", label: "Release", ...ms },
+    ],
+  },
+  {
+    id: "amp",
+    title: "Amp envelope",
+    controls: [
+      { path: "attackMs", label: "Attack", ...ms },
+      { path: "ampDecayMs", label: "Decay", ...ms },
+      { path: "ampSustain", label: "Sustain", ...unit },
+      { path: "decayMs", label: "Release", ...ms },
+      { path: "sustainMs", label: "Gate", ...ms },
+      { path: "punch", label: "Punch", ...unit },
+      { path: "volume", label: "Volume", ...unit },
+    ],
+  },
+  {
+    id: "pitch",
+    title: "Pitch",
+    controls: [
+      { path: "slide", label: "Slide", step: 0.05 },
+      { path: "slideAccel", label: "Accel", step: 0.1 },
+      { path: "retriggerMs", label: "Repeat", ...ms, unset: "Off" },
+    ],
+  },
+  {
+    id: "jump",
+    title: "Jump",
+    block: "jump",
+    controls: [
+      { path: "jump.atMs", label: "At", ...ms },
+      { path: "jump.semitones", label: "Step", unit: "st", step: 1, format: signed },
+    ],
+  },
+  {
+    id: "lfo",
+    title: "LFO",
+    block: "lfo",
+    controls: [
+      { path: "lfo.wave", label: "Wave", options: SYNTH_LFO_WAVES },
+      { path: "lfo.hz", label: "Rate", unit: "Hz", step: 0.1 },
+      { path: "lfo.pitch", label: "Pitch", unit: "st", step: 0.05 },
+      { path: "lfo.cutoff", label: "Cutoff", unit: "oct", step: 0.05, when: (p) => !!p.filter },
+      { path: "lfo.amp", label: "Amp", ...unit },
+    ],
+  },
+  {
+    id: "vibrato",
+    title: "Vibrato",
+    block: "vibrato",
+    controls: [
+      { path: "vibrato.semitones", label: "Depth", unit: "st", step: 0.05 },
+      { path: "vibrato.hz", label: "Rate", unit: "Hz", step: 0.1 },
+    ],
+  },
+  {
+    id: "lowpass",
+    title: "Low-pass 12",
+    block: "lowpass",
+    controls: [
+      { path: "lowpass.hz", label: "Cutoff", unit: "Hz", step: 1, log: true, format: hz },
+      { path: "lowpass.sweep", label: "Sweep", step: 0.05 },
+      { path: "lowpass.resonance", label: "Res", ...unit },
+    ],
+  },
+  {
+    id: "highpass",
+    title: "High-pass",
+    block: "highpass",
+    controls: [
+      { path: "highpass.hz", label: "Cutoff", unit: "Hz", step: 1, log: true, format: hz },
+      { path: "highpass.sweep", label: "Sweep", step: 0.05 },
+    ],
+  },
+];
+
+/** What the renderer reads for a numeric field that's unset. */
+const UNSET_DEFAULTS: Partial<Record<SynthNumberPath, number>> = {
+  duty: SYNTH_DEFAULTS.duty,
+  volume: SYNTH_DEFAULTS.volume,
+  level: SYNTH_DEFAULTS.level,
+  "osc2.level": SYNTH_DEFAULTS.oscLevel,
+  "osc3.level": SYNTH_DEFAULTS.oscLevel,
+  ampSustain: SYNTH_DEFAULTS.ampSustain,
+};
+
+/** Where a reset puts a field the file must hold: the new patch's or the switched-on block's value. */
+function requiredDefault(path: SynthNumberPath, patch: SynthFile): number | undefined {
+  const [head, leaf] = path.split(".") as [string, string | undefined];
+  const empty = synthKind.empty() as Record<string, unknown>;
+  if (leaf === undefined)
+    return typeof empty[head] === "number" ? (empty[head] as number) : undefined;
+  const block = BLOCK_DEFAULTS[head as Block]?.(patch) as Record<string, unknown> | undefined;
+  return typeof block?.[leaf] === "number" ? (block[leaf] as number) : undefined;
+}
+
+/** A field the file must hold: a reset sets it back rather than removing it. */
+const isRequired = (path: string) =>
+  /^(freq|sustainMs|decayMs|filter\.cutoff|lowpass\.hz|highpass\.hz|lfo\.hz|jump\.\w+|vibrato\.\w+)$/.test(
+    path,
+  );
+
 function SynthFields({
   doc,
   value,
@@ -244,30 +454,22 @@ function SynthFields({
   const id = doc.entry!.id;
   const [rng] = useState(() => Rng.from(Math.floor(Math.random() * 0xffff_ffff)));
   const readOnly = doc.readOnly !== null;
-  const shape = useMemo(() => synthObject(), []);
-  const key = JSON.stringify(value);
+  // A knob's drag redraws the waveform from this before it's written.
+  const [preview, setPreview] = useState<SynthFile | null>(null);
+  const shown = preview ?? value;
+  const key = useDeferredValue(JSON.stringify(shown));
   const samples = useMemo(() => renderSynth(JSON.parse(key) as SynthFile), [key]);
   const scope = settingScope(doc.docName, "");
 
-  const replace = (next: SynthFile, label: string) => {
+  const replace = (next: SynthFile, label: string, now = true) => {
     if (!doc.value) return;
-    audition(next, true);
+    setPreview(null);
+    audition(next, now);
     void doc.edit([{ op: "editAsset", id, edits: replaceEdits(doc.value, next) }], label, scope);
   };
 
-  const commit: Commit = (row, input, label) =>
-    commitSettingsRow(doc, row, input, {
-      ...(label !== undefined ? { label } : {}),
-      onCommitted: (next) => audition(withSynthField(value, row.path, next)),
-    });
-
-  const rows = shape
-    ? settingsRows(shape, value, "").filter(
-        (r) =>
-          !IDENTITY.includes(r.path) &&
-          (!SQUARE_ONLY.includes(r.path) || value.wave === "square" || r.value !== undefined),
-      )
-    : [];
+  const set = (path: string, next: unknown, label: string) =>
+    replace(withSynthField(value, path, next), label, false);
 
   return (
     <div className="je-insp-stack">
@@ -311,9 +513,28 @@ function SynthFields({
         </div>
       </InspectorSection>
       <Locked disabled={readOnly}>
-        <div className="je-insp-stack">
-          {rows.map((row) => (
-            <SynthRow key={row.path} row={row} patch={value} doc={doc} commit={commit} />
+        <div className="je-synth-rack" role="group" aria-label="Synth controls">
+          {MODULES.map((module) => (
+            <SynthModule
+              key={module.id}
+              module={module}
+              patch={shown}
+              readOnly={readOnly}
+              onPreview={(path, v) => setPreview(withSynthField(value, path, v))}
+              onSet={set}
+              extra={
+                module.id === "mixer" ? (
+                  <IconButton
+                    size="icon-xs"
+                    icon={DiceFaces03Icon}
+                    label="New noise"
+                    tooltip={`Roll a new noise seed (now ${value.seed ?? SYNTH_DEFAULTS.seed})`}
+                    disabled={readOnly}
+                    onClick={() => set("seed", rng.range(1, 0xffff_ffff), "Roll a new noise seed")}
+                  />
+                ) : null
+              }
+            />
           ))}
         </div>
       </Locked>
@@ -321,98 +542,118 @@ function SynthFields({
   );
 }
 
-/** Writes `input` into `row`, checked by its schema, and plays the patch it makes. */
-type Commit = (row: InspectorRow, input: unknown, label?: string) => Promise<string | null>;
-
-function SynthRow({
-  row,
+function SynthModule({
+  module,
   patch,
-  doc,
-  commit: write,
-  block,
+  readOnly,
+  onPreview,
+  onSet,
+  extra,
 }: {
-  row: InspectorRow;
+  module: ModuleSpec;
   patch: SynthFile;
-  doc: AssetDoc;
-  commit: Commit;
-  /** The block a nested row is in, whose title names its controls with the row's. */
-  block?: InspectorRow;
+  readOnly: boolean;
+  onPreview: (path: string, value: unknown) => void;
+  onSet: (path: string, value: unknown, label: string) => void;
+  extra?: ReactNode;
 }) {
-  const scope = settingScope(doc.docName, row.path);
-  const commit = (input: unknown) => write(row, input);
-  const disabled = doc.readOnly !== null;
-  const label = block ? `${block.title} ${row.title.toLowerCase()}` : row.title;
-  switch (row.widget.kind) {
-    case "number":
-      // The renderer reads an unset number with no schema default as 0.
-      return isBounded(row.path) ? (
-        <SliderField field={row} label={label} scope={scope} commit={commit} fallback={0} />
-      ) : (
-        <NumberField field={row} label={label} commit={commit} scope={scope} disabled={disabled} />
-      );
-    case "segmented":
-    case "select":
-      return (
-        <OptionsField
-          field={row}
-          label={label}
-          commit={commit}
-          scope={scope}
-          options={row.widget.options}
-          segmented={false}
-        />
-      );
-    case "object":
-      return <BlockField row={row} patch={patch} doc={doc} commit={write} />;
-    default:
-      return <ReadonlyField field={row} />;
-  }
+  const block = module.block;
+  const on = block === undefined || patch[block] !== undefined;
+  // A switched-off module shows what switching it on would set.
+  const filled = block && !on ? withSynthField(patch, block, BLOCK_DEFAULTS[block](patch)) : patch;
+  const name = (label: string) => `${module.title} ${label.toLowerCase()}`;
+  return (
+    <section
+      className="je-synth-module"
+      aria-label={module.title}
+      data-module={module.id}
+      data-off={on ? undefined : ""}
+    >
+      <header className="je-synth-module-head">
+        <MicroLabel className="je-sp-truncate">{module.title}</MicroLabel>
+        {extra}
+        {block ? (
+          <Switch
+            aria-label={`${module.title} on`}
+            checked={on}
+            disabled={readOnly}
+            onCheckedChange={(checked) =>
+              onSet(
+                block,
+                checked ? BLOCK_DEFAULTS[block](patch) : undefined,
+                `${checked ? "Add" : "Remove"} ${module.title.toLowerCase()}`,
+              )
+            }
+          />
+        ) : null}
+      </header>
+      <div className="je-synth-knobs">
+        {module.controls.map((control) => {
+          const disabled =
+            readOnly || !on || ("when" in control && control.when?.(patch) === false);
+          if ("options" in control) {
+            const current = String(synthWave(filled, control.path));
+            return (
+              <Knob
+                key={control.path}
+                label={control.label}
+                value={Math.max(0, control.options.indexOf(current))}
+                min={0}
+                max={control.options.length - 1}
+                options={control.options.map((o) => WAVE_NAMES[o] ?? o)}
+                disabled={disabled}
+                isDefault={false}
+                aria-label={name(control.label)}
+                onCommit={(i) =>
+                  onSet(control.path, control.options[i], `Set ${name(control.label)}`)
+                }
+              />
+            );
+          }
+          const [min, max] = SYNTH_BOUNDS[control.path];
+          const set = synthField(filled, control.path);
+          const required = isRequired(control.path);
+          const fallback = UNSET_DEFAULTS[control.path] ?? (required ? undefined : 0);
+          const resetTo = fallback ?? requiredDefault(control.path, patch);
+          const what = name(control.label);
+          const off = set === undefined ? control.unset : undefined;
+          const format = control.format;
+          return (
+            <Knob
+              key={control.path}
+              label={control.label}
+              aria-label={name(control.label)}
+              value={set ?? fallback ?? min}
+              min={min}
+              max={max}
+              step={control.step}
+              {...(control.log ? { scale: "log" as const } : {})}
+              {...(control.unit && off === undefined ? { unit: control.unit } : {})}
+              {...(resetTo !== undefined ? { defaultValue: resetTo } : {})}
+              {...(off !== undefined
+                ? { format: () => off }
+                : format
+                  ? { format: (v: number) => format(roundTo(v, control.step)) }
+                  : {})}
+              isDefault={set === undefined || set === resetTo}
+              disabled={disabled}
+              onChange={(v) => onPreview(control.path, v)}
+              onCommit={(v) => onSet(control.path, v, `Set ${what}`)}
+              onReset={() => {
+                // An optional field resets by going unset; one the file must hold, to its starting value.
+                if (!required) onSet(control.path, undefined, `Reset ${what}`);
+                else if (resetTo !== undefined) onSet(control.path, resetTo, `Reset ${what}`);
+              }}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
-/** An optional block (a jump, vibrato or a filter): a switch that adds or removes it, then its fields. */
-function BlockField({
-  row,
-  patch,
-  doc,
-  commit,
-}: {
-  row: InspectorRow;
-  patch: SynthFile;
-  doc: AssetDoc;
-  commit: Commit;
-}) {
-  const on = row.value !== undefined;
-  const fill = BLOCK_DEFAULTS[row.path as keyof typeof BLOCK_DEFAULTS];
-  return (
-    <>
-      <FieldRow field={row} scope={settingScope(doc.docName, row.path)}>
-        <Switch
-          aria-label={`${row.title} on`}
-          checked={on}
-          disabled={doc.readOnly !== null || (!on && !fill)}
-          onCheckedChange={(checked) =>
-            void commit(
-              row,
-              checked ? fill?.(patch) : undefined,
-              `${checked ? "Add" : "Remove"} ${row.title.toLowerCase()}`,
-            )
-          }
-        />
-      </FieldRow>
-      {on && row.children ? (
-        <div className="je-insp-stack je-insp-nested">
-          {row.children.map((child) => (
-            <SynthRow
-              key={child.path}
-              row={child}
-              patch={patch}
-              doc={doc}
-              commit={commit}
-              block={row}
-            />
-          ))}
-        </div>
-      ) : null}
-    </>
-  );
+function synthWave(patch: SynthFile, path: WaveSpec["path"]): string | undefined {
+  if (path === "wave") return patch.wave;
+  const [head] = path.split(".") as ["osc2" | "osc3" | "lfo"];
+  return patch[head]?.wave;
 }
