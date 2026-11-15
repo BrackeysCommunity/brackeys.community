@@ -780,8 +780,15 @@ export function editorChrome(
   {
     dev = false,
     publish,
+    pickedAsset = new Store<AssetKey | null>(null),
   }: {
     dev?: boolean;
+    /**
+     * The asset picked in the project tree. A host that rebuilds its game on
+     * project edits passes one store for every editor it builds, so the pick
+     * and the panels showing it survive the rebuild.
+     */
+    pickedAsset?: Store<AssetKey | null>;
     /** The host's publishing: the Publish panel and the project settings' Usage section. */
     publish?: EditorPublishHost;
   } = {},
@@ -791,7 +798,6 @@ export function editorChrome(
   const keymap = createKeymap(editorKeys);
   if (dev && editorKeys) warnShadowedKeys(editorKeys, keymap);
   const physical = new Store<readonly SceneIssue[]>([]);
-  const pickedAsset = new Store<AssetKey | null>(null);
   const tools = createToolHostCell();
   const look = () =>
     outlineLook(session.registry, tools.state ? hostAsset(tools.state) : undefined, {

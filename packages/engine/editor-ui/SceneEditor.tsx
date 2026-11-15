@@ -1,3 +1,4 @@
+import { Store } from "@tanstack/store";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -11,7 +12,7 @@ import {
   type GameInstance,
   type RapierModule,
 } from "../index";
-import type { AssetId, ProjectId, ProjectRuntimeView } from "../project/index";
+import type { AssetId, AssetKey, ProjectId, ProjectRuntimeView } from "../project/index";
 import { mountUi } from "../ui/layer";
 import type { MountUi } from "../ui/types";
 import {
@@ -435,15 +436,17 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   }, [game, built, editorSession]);
 
   const publish = host.publish;
+  // One for the editor's life: a project edit rebuilds the game and its chrome, and the pick outlives that.
+  const [pickedAsset] = useState(() => new Store<AssetKey | null>(null));
   const chrome = useMemo(
     () =>
       editing.editor
         ? editorChrome(
             { ...editing.editor, notify },
-            { dev: true, ...(publish ? { publish } : {}) },
+            { dev: true, pickedAsset, ...(publish ? { publish } : {}) },
           )
         : null,
-    [editing.editor, notify, publish],
+    [editing.editor, notify, publish, pickedAsset],
   );
 
   const announced = useRef(false);
