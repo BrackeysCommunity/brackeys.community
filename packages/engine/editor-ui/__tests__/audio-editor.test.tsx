@@ -341,7 +341,7 @@ describe("the sound panel", () => {
         <SoundPanel asset={asset} session={session} registry={registry} />
       </r.Wrap>,
     );
-    const volume = await screen.findByRole("textbox", { name: "volume" });
+    const volume = await screen.findByRole("textbox", { name: "Volume" });
     await act(async () => {
       fireEvent.change(volume, { target: { value: "0.8" } });
       fireEvent.keyDown(volume, { key: "Enter" });

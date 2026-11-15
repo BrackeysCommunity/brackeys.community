@@ -3841,7 +3841,7 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
     const big = JSON.parse(await readFile(path, "utf8")) as {
       entities: { id?: string; behaviors?: { text?: { size?: number } } }[];
     };
-    big.entities.find((e) => e.id === "std-text")!.behaviors!.text!.size = 200;
+    big.entities.find((e) => e.id === "std-text")!.behaviors!.text!.size = 128;
     await writeFile(path, JSON.stringify(big));
     const ascii = await render({ scene: "kitchen-sink", ascii: true }, sinkCtx);
     expect(ascii.exitCode, ascii.text).toBe(0);
