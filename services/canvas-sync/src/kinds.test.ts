@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { Extension, onAuthenticatePayload } from "@hocuspocus/server";
+import { type Extension, type onAuthenticatePayload, OutgoingMessage } from "@hocuspocus/server";
 
 import { SCENE_FORMAT_VERSION } from "../../../packages/engine/scene/types.ts";
 import { SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
@@ -18,7 +18,9 @@ import {
   type DocumentKind,
   type DocumentKindName,
   DocumentKinds,
+  isStatelessMessage,
   type KindGrant,
+  relaysStateless,
 } from "./kinds.ts";
 import { ConnectionCaps, localLedger, SyncRefusal } from "./limits.ts";
 import { RevocationList, type RevocationTombstones } from "./revoke.ts";
@@ -369,5 +371,22 @@ describe("the engine kinds", () => {
       code: SYNC_CLOSE.unauthorized,
       reason: expect.stringContaining("no engine version"),
     });
+  });
+});
+
+describe("stateless messages between a doc's clients", () => {
+  it("are relayed for scene and asset docs only", () => {
+    expect(relaysStateless("scene")).toBe(true);
+    expect(relaysStateless("asset")).toBe(true);
+    expect(relaysStateless("canvas")).toBe(false);
+    expect(relaysStateless("project")).toBe(false);
+  });
+
+  it("are told apart from sync and awareness messages", () => {
+    const stateless = new OutgoingMessage("scene:a").writeStateless("hi").toUint8Array();
+    expect(isStatelessMessage(stateless)).toBe(true);
+    const sync = new OutgoingMessage("scene:a").writeQueryAwareness().toUint8Array();
+    expect(isStatelessMessage(sync)).toBe(false);
+    expect(isStatelessMessage(new Uint8Array())).toBe(false);
   });
 });

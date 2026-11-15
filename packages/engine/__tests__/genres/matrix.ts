@@ -115,6 +115,7 @@ export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
   22: "0.15.0",
   43: "0.16.0",
   23: "0.17.0",
+  24: "0.18.0",
 };
 
 /** `a` against `b` as semver release triples: negative, zero or positive. */

@@ -563,6 +563,20 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       if (a.blocked) state.blocked = a.blocked;
       return state;
     },
+    /** Where it heads, its route and the waypoint it walks to, and why it stopped when it did. */
+    inspect(id) {
+      const a = agents.get(id);
+      if (!a) return undefined;
+      return {
+        on: a.on,
+        to: a.to ? { x: a.to.x, y: a.to.y } : null,
+        target: a.target,
+        path: a.path ? a.path.map((w) => ({ x: w.x, y: w.y })) : null,
+        next: a.next,
+        stuckTicks: a.stuck,
+        blocked: a.blocked,
+      };
+    },
     restore(id, state) {
       const a = agents.get(id);
       if (!a || !isRecord(state)) return;

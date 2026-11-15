@@ -538,12 +538,14 @@ export function playAudioBackend(
 
 /**
  * Sound in Play flipped while playing: off mutes the game's master bus and
- * stops what plays; on unmutes it. False when this Play started with it off,
- * so it has no sound to unmute until the next Play.
+ * stops what plays; on unmutes it, asking for a backend at once in a Play
+ * that started silent. False when it is on and no sound could start.
  */
 export function applySoundInPlay(game: object, on: boolean): boolean {
-  // The chrome's game type leaves `audio` out; a stand-in game may have none.
-  const audio = (game as Partial<Pick<GameInstance, "audio">>).audio ?? null;
+  // The chrome's game type leaves these out; a stand-in game may have neither.
+  const g = game as Partial<Pick<GameInstance, "audio" | "reopenAudio">>;
+  let audio = g.audio ?? null;
+  if (!audio && on && g.reopenAudio?.()) audio = g.audio ?? null;
   if (!audio) return !on;
   const master = audio.buses().master;
   if (master && master.muted === on) audio.setBus("master", master.volume, !on);

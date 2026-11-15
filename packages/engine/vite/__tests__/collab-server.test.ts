@@ -11,6 +11,7 @@ import { checkedTestGame } from "../../__tests__/fixtures/test-game";
 import { applyOpsToDoc } from "../../collab/apply";
 import { stampWins } from "../../collab/build-stamp";
 import { docToScene } from "../../collab/convert";
+import { LIVE_MESSAGE_MAX_BYTES } from "../../collab/live-channel";
 import { readLog } from "../../collab/log";
 import { applyProjectBatch, applyRegistryBatch } from "../../collab/project-apply";
 import { projectBuildMap, projectCodeMap, readProject, writeEntry } from "../../collab/project-doc";
@@ -175,6 +176,35 @@ describe("the dev collab server: scene docs", () => {
     expect(readLog(serverDoc()).some((e) => e.actor.kind === "disk")).toBe(false);
     expect(readProjectLog(serverDoc(PROJECT))).toEqual([]);
     expect(JSON.parse(await disk()).name).toBe("renamed");
+  });
+});
+
+describe("the dev collab server: stateless messages between clients", () => {
+  beforeEach(() => start());
+
+  it("relays a doc's stateless message to its other connections, not the sender", async () => {
+    const a = await open();
+    const b = await open();
+    const c = await open();
+    const other = await open(PROJECT);
+    a.provider.sendStateless(JSON.stringify({ t: "state", id: "r1" }));
+    await until(() => b.stateless.length > 0 && c.stateless.length > 0, "the relay");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(b.stateless).toEqual(['{"t":"state","id":"r1"}']);
+    expect(c.stateless).toEqual(['{"t":"state","id":"r1"}']);
+    expect(a.stateless).toEqual([]);
+    expect(other.stateless).toEqual([]);
+  });
+
+  it("drops a message over the cap without closing the sender", async () => {
+    const a = await open();
+    const b = await open();
+    a.provider.sendStateless("x".repeat(LIVE_MESSAGE_MAX_BYTES + 1));
+    a.provider.sendStateless("after");
+    await until(() => b.stateless.length > 0, "the next message");
+    expect(b.stateless).toEqual(["after"]);
+    expect(warnings.some((w) => w.includes("over the cap"))).toBe(true);
+    expect(a.provider.isSynced).toBe(true);
   });
 });
 

@@ -3,6 +3,8 @@ import type { BehaviorName } from "../game/behaviors";
 import type { FlowRequest, SceneLibrary } from "../game/flow";
 import type { SceneDiff, SceneSwap, SwapStrategy } from "../game/live";
 import type {
+  DebugDrawCommand,
+  DebugDrawSink,
   EngineContext,
   GameCommand,
   GameDefinition,
@@ -25,6 +27,7 @@ import type {
 import type { InputAction, RapierModule, Vec2 } from "../types";
 import type { PresentRequest } from "./present";
 import type { RunTiming, TimingReport } from "./timing";
+import type { RuntimeTimings, TimingsOptions } from "./timings";
 
 export type ReconcileReport = { ok: true } | { ok: false; error: string; entityId?: string };
 
@@ -153,6 +156,8 @@ export type StepResult = {
    * step (a game's `onLoad`) are in the next tick's list.
    */
   present?: readonly PresentRequest[];
+  /** The tick's debug draws; set only for a runtime given `SceneRuntimeOptions.debugDraw`. */
+  debug?: readonly DebugDrawCommand[];
 };
 
 export type RuntimeStats = {
@@ -284,6 +289,14 @@ export type SceneRuntimeOptions = {
    */
   timing?: RunTiming;
   /**
+   * Per-phase, per-system and per-behavior timings over a window of ticks,
+   * read through `SceneRuntimeHandle.timings()`. Off by default; the shell
+   * turns it on with its perf layer, headless with stats. Only `clock` is read.
+   */
+  timings?: TimingsOptions;
+  /** Where `EngineContext.debug` draws; without one it is a frozen no-op with `active` false. */
+  debugDraw?: DebugDrawSink;
+  /**
    * What `EngineContext.live` reads: the instance's live layer. Without one
    * the version is null and `boundary()` does nothing.
    */
@@ -299,6 +312,8 @@ export type SceneRuntimeHandle = SceneRuntime & {
   readonly game: GameRuntime | null;
   /** The loaded scene with every `add`, `update` and `remove` since applied, or null. */
   scene: () => ExpandedScene | null;
+  /** The last full window of `SceneRuntimeOptions.timings`; null without the option. */
+  timings: () => RuntimeTimings | null;
   /** Each rendered frame, after the view's `frame`: the visual behaviors' render hooks. */
   render: (alpha: number) => void;
   /**

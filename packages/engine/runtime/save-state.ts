@@ -5,6 +5,7 @@ import {
   slotNameIssue,
   type SaveDepth,
   type SaveFile,
+  type WorldState,
 } from "../game/save-file";
 import type { JsonValue } from "../game/types";
 import { errorText, makeIssue } from "../scene/issues";
@@ -80,7 +81,11 @@ export function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[] {
  * `save-unsupported` naming each cause, at the save's `/depth`: its line in
  * `text`, the save as it would be written at progress depth, when given.
  */
-function unsupported(blockers: readonly SaveBlocker[], slot?: string, text?: string): SceneIssue {
+export function unsupported(
+  blockers: readonly SaveBlocker[],
+  slot?: string,
+  text?: string,
+): SceneIssue {
   const where = slot === undefined ? "" : ` in slot "${slot}"`;
   const line = text === undefined ? undefined : locatePointer(text, "/depth");
   return makeIssue("save-unsupported", {
@@ -93,6 +98,26 @@ function unsupported(blockers: readonly SaveBlocker[], slot?: string, text?: str
 }
 
 const failed = (issue: SceneIssue) => ({ ok: false as const, issue });
+
+/**
+ * The world a world save holds, once `worldSaveBlockers` names nothing:
+ * the runtime's own capture with the tween and dialogue systems' runs
+ * added. The one capture walk, shared by saves and world snapshots.
+ */
+export function worldStateOf(runtime: SceneRuntimeHandle, host: SaveHost): WorldState {
+  const captured = host.captureWorld();
+  const tweens = tweenSystemOf(runtime.ctx)?.capture();
+  const dialogue = dialogueSystemOf(runtime.ctx)?.save();
+  if (tweens === undefined && dialogue === undefined) return captured;
+  return {
+    ...captured,
+    systems: {
+      ...captured.systems,
+      ...(tweens !== undefined ? { [SAVE_TWEENS_KEY]: { run: tweens } } : {}),
+      ...(dialogue !== undefined ? { [SAVE_DIALOGUE_KEY]: { run: dialogue } } : {}),
+    },
+  };
+}
 
 /** The run hash a save of the loaded main scene is taken under. */
 function runHashOf(runtime: SceneRuntimeHandle, host: SaveHost): string {
@@ -167,20 +192,7 @@ export function captureSave(
   const blockers = worldSaveBlockers(runtime);
   if (blockers.length > 0)
     return failed(unsupported(blockers, opts.slot, formatSaveFile(progress)));
-  const captured = host.captureWorld();
-  const tweens = tweenSystemOf(ctx)?.capture();
-  const dialogue = dialogueSystemOf(ctx)?.save();
-  const world =
-    tweens === undefined && dialogue === undefined
-      ? captured
-      : {
-          ...captured,
-          systems: {
-            ...captured.systems,
-            ...(tweens !== undefined ? { [SAVE_TWEENS_KEY]: { run: tweens } } : {}),
-            ...(dialogue !== undefined ? { [SAVE_DIALOGUE_KEY]: { run: dialogue } } : {}),
-          },
-        };
+  const world = worldStateOf(runtime, host);
   const worldProblem = plainJsonProblem({ world });
   if (worldProblem) return notJson(opts.slot, worldProblem);
   return { ok: true, file: { ...progress, depth: "world", world: structuredClone(world) } };
@@ -190,7 +202,7 @@ export function captureSave(
  * Loads `id` fresh: from the runtime's scene list when it has one, else
  * the main scene it has loaded, which must be `id`.
  */
-function freshLoad(
+export function freshLoad(
   runtime: SceneRuntimeHandle,
   host: SaveHost,
   id: string,
@@ -311,13 +323,35 @@ export function restoreSave(
  * the scene is only partly restored.
  */
 export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): SceneIssue | null {
+  return restoreParts(runtime, {
+    world: file.depth === "world" ? file.world : undefined,
+    sceneId: file.scene.id,
+    sublevels: file.scene.sublevels,
+    data: file.data,
+    persist: file.persist,
+    playTicks: file.meta.playTicks,
+  });
+}
+
+/** What a restore puts back: a save's parts, or a world snapshot's. */
+export type RestoredParts = {
+  world: WorldState | undefined;
+  sceneId: string;
+  sublevels: readonly SublevelInfo[];
+  data: JsonValue;
+  persist: JsonValue;
+  playTicks: number;
+};
+
+/** `restoreLoaded` over the parts themselves, in its order. */
+export function restoreParts(runtime: SceneRuntimeHandle, parts: RestoredParts): SceneIssue | null {
   const host = saveHostOf(runtime.ctx);
   if (!host) throw new Error("restoreLoaded needs a runtime built by createSceneRuntime");
   const { ctx } = runtime;
-  const world = file.depth === "world" ? file.world : undefined;
+  const { world } = parts;
   if (world) {
     if (ctx.settings.physics === "rapier") return unsupported([PHYSICS_BLOCKER]);
-    const refused = host.restoreWorld(world, file.scene.sublevels);
+    const refused = host.restoreWorld(world, parts.sublevels);
     if (refused) return refused;
     tweenSystemOf(ctx)?.restoreCaptured(world.systems[SAVE_TWEENS_KEY]?.run);
     const notResumed = dialogueSystemOf(ctx)?.restore(world.systems[SAVE_DIALOGUE_KEY]?.run);
@@ -327,15 +361,15 @@ export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): Scen
         path: `/world/systems/${SAVE_DIALOGUE_KEY}`,
       });
     }
-    if (!sameSublevels(ctx.flow.sublevels(), file.scene.sublevels)) {
+    if (!sameSublevels(ctx.flow.sublevels(), parts.sublevels)) {
       return makeIssue("sublevel-invalid", {
-        message: `the save's sublevels (${file.scene.sublevels.map((s) => s.label).join(", ") || "none"}) couldn't all be attached again`,
-        entityIds: [file.scene.id],
+        message: `the save's sublevels (${parts.sublevels.map((s) => s.label).join(", ") || "none"}) couldn't all be attached again`,
+        entityIds: [parts.sceneId],
       });
     }
   }
   try {
-    runtime.game?.restore?.(structuredClone(file.data));
+    runtime.game?.restore?.(structuredClone(parts.data));
   } catch (err) {
     return makeIssue("schema", {
       message: `the game's restore refused the save's data: ${errorText(err)}`,
@@ -343,13 +377,13 @@ export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): Scen
     });
   }
   try {
-    ctx.persist.set(file.persist);
+    ctx.persist.set(parts.persist);
   } catch (err) {
     return makeIssue("schema", {
       message: `the save's persist was refused: ${errorText(err)}`,
       path: "/persist",
     });
   }
-  host.playClock().ticks = file.meta.playTicks;
+  host.playClock().ticks = parts.playTicks;
   return null;
 }

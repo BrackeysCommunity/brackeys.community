@@ -26,6 +26,7 @@ import { RELEASE_SCHEMA_ID } from "../project/release";
 import { SCENE_VERSION_SCHEMA_ID } from "../project/scene-version";
 import { sidecarJsonSchema } from "../project/sidecar";
 import { projectSnapshotJsonSchema } from "../project/snapshot";
+import { createSceneRuntime, NOOP_DEBUG_DRAW } from "../runtime/runtime";
 import { checksJsonSchema } from "../scene/checks";
 import { inputScriptJsonSchema } from "../scene/input-script";
 import { ISSUE_CODES } from "../scene/issues";
@@ -1205,6 +1206,56 @@ describe("package boundary", () => {
     expect(sourceFiles.some((f) => rel(f) === "anim/index.ts")).toBe(true);
     expect(sourceFiles.some((f) => rel(f) === "camera/index.ts")).toBe(true);
     violations(bad);
+  });
+
+  it("keeps debug/ out of what a production game ships: the shell, ./game, ./standalone and ./scene", () => {
+    const bad: string[] = [];
+    for (const entry of [
+      "engine.ts",
+      ENTRIES["."],
+      ENTRIES["./game"],
+      ENTRIES["./standalone"],
+      ENTRIES["./scene"],
+    ]) {
+      for (const f of runtimeGraph(entry).files)
+        if (f.startsWith("debug/")) bad.push(`${entry} reaches ${f}`);
+    }
+    violations(bad);
+  });
+
+  it("gives ctx.debug a frozen no-op without a host's sink, built outside debug/", () => {
+    const runtime = createSceneRuntime({ rapier: null, view: null });
+    try {
+      expect(runtime.ctx.debug).toBe(NOOP_DEBUG_DRAW);
+      expect(Object.isFrozen(runtime.ctx.debug)).toBe(true);
+      expect(runtime.ctx.debug.active).toBe(false);
+    } finally {
+      runtime.destroy();
+    }
+    violations([...runtimeGraph("runtime/runtime.ts").files].filter((f) => f.startsWith("debug/")));
+  });
+
+  it("keeps the live channel on the structural provider: no value imports at all", () => {
+    violations(
+      importsOf(join(ENGINE, "collab/live-channel.ts"))
+        .filter((imp) => !imp.typeOnly)
+        .map((imp) => `collab/live-channel.ts:${imp.line} imports ${imp.spec}`),
+    );
+  });
+
+  it("keeps editor-ui/ out of the play bundle", () => {
+    for (const entry of ["engine.ts", ENTRIES["."], ENTRIES["./standalone"]]) {
+      violations([...runtimeGraph(entry).files].filter((f) => f.startsWith("editor-ui/")));
+    }
+  });
+
+  it("reads the timings' clock only through the injected Clock", () => {
+    for (const file of ["runtime/timings.ts", "runtime/timing.ts"]) {
+      const src = stripStrings(stripComments(readFileSync(join(ENGINE, file), "utf8")));
+      expect(src, file).not.toMatch(
+        /\b(performance\s*\.\s*now|Date\s*\.\s*now|process\s*\.\s*hrtime|new\s+Date)\b/,
+      );
+    }
   });
 
   it("has no module-level Map, Set or array registries", () => {

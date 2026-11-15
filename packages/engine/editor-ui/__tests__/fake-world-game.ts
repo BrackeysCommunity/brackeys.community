@@ -2,7 +2,7 @@ import { Store } from "@tanstack/store";
 import { vi } from "vite-plus/test";
 
 import type { Registry } from "../../game/index";
-import type { GameMode, GameStoreState } from "../../index";
+import type { GameInstance, GameMode, GameStoreState } from "../../index";
 import {
   expandScene,
   type ExpandedScene,
@@ -11,6 +11,16 @@ import {
 } from "../../scene/index";
 import type { EditorGame } from "../session/live-scene-editor";
 import type { EditorChromeGame } from "../session/use-scene-editor";
+
+/** `GameInstance.debug` with nothing to inspect and an empty event log. */
+export function fakeGameDebug(): GameInstance["debug"] {
+  return {
+    inspect: async () => null,
+    entities: async () => [],
+    pick: async () => null,
+    events: { capacity: 0, list: () => [], clear() {}, subscribe: () => () => {} },
+  };
+}
 
 /**
  * A game that records its world as an `ExpandedScene` instead of building
@@ -84,6 +94,7 @@ export function fakeWorldGame(registry: Registry) {
     panBy: vi.fn(),
     // No device presses here: a binding capture times out at once.
     input: { capture: vi.fn(async () => null) },
+    debug: fakeGameDebug(),
   };
   const calls = () =>
     game.loadScene.mock.calls.length +

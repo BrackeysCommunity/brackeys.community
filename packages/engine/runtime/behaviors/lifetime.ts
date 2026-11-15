@@ -105,6 +105,16 @@ export const createLifetimeSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       const c = running.get(id);
       return c ? { left: Math.max(0, c.due - nextPhase()), seq: c.seq } : undefined;
     },
+    /** Ticks left before it goes, from the next tick, and what it does then; `left` null while paused. */
+    inspect(id) {
+      const block = blocks.get(id);
+      if (!block) return undefined;
+      const c = running.get(id);
+      return {
+        left: c ? Math.max(0, c.due - nextPhase()) : null,
+        then: block.then ?? "destroy",
+      };
+    },
     restore(id, state: JsonValue) {
       if (!blocks.has(id) || typeof state !== "object" || state === null) return;
       const { left, seq: order } = state as { left?: unknown; seq?: unknown };

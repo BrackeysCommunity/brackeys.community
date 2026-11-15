@@ -76,12 +76,15 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--anim id] [--legal] [--timing]`                                                               | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands)); `--timing` times each tick's parts ([Timing](#timing)); `--anim` prints an entity's clip and frame on each tick ([Animation docs](#animation-docs))                                                                                |
 | `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                                    | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                                                                                                                                                                                           |
 | `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]`                                                                                           | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; `--timing` as `step`'s; `--present` the presentation requests with their ticks, sounds and music among them ([Presentation requests](#presentation-requests)); exit 1 when blocked |
-| `replay <scene\|file\|-> --run <file\|-> [--game id] [--releases <dir>] [--versions <dir>]`                                                                                                                                                          | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; `--releases` also names the build under the directory the run was made on (see [Game builds](#game-builds)); `--versions` reads the scene versions a run swapped to (see [Live levels](#live-levels)); exit 1 when it ends differently                                                                                             |
+| `replay <scene\|file\|-> --run <file\|-> [--game id] [--releases <dir>] [--versions <dir>] [--seek <tick>]`                                                                                                                                          | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; `--releases` also names the build under the directory the run was made on (see [Game builds](#game-builds)); `--versions` reads the scene versions a run swapped to (see [Live levels](#live-levels)); exit 1 when it ends differently; `--seek` stops at a tick and prints the state there                                        |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                                         | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                                                                                                                                                                                |
 | `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress] [--now ms] [--flow]`                                                                                                                             | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; `--flow` follows scene requests through the scene list; see [Saves](#saves)                                                                                                                                                                                                                                              |
 | `input [--project p] [--player n] [--json]`                                                                                                                                                                                                          | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2)                                                                                                                                                                                                                                                                                               |
 | `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                                                                                        | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                                                                                                                                                                                                                                                                                                                        |
 | `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                                                                                       | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                                                                                                                                                                                                                                                                                                                   |
+| `stats <scene\|file> [--ticks n] [--game id]`                                                                                                                                                                                                        | no                       | a headless run with timings on: deterministic counts (entities, bodies, colliders, behaviors, events, spawns, destroys) and this machine's ticks per second and mean and worst ms per phase, system and behavior; see [Frames and live Play](#frames-and-live-play)                                                                                                                                                                                                              |
+| `frame <scene> --live [--out f.png] [--viewport n] [--url …]`                                                                                                                                                                                        | with --out               | the open editor's canvas as a PNG (`source: "live"`), else the schematic (`source: "schematic"`) with `live-no-editor` or `frame-too-large`; `live-refused` exits 1                                                                                                                                                                                                                                                                                                              |
+| `play <scene> --live play\|pause\|resume\|step\|stop\|state [--ticks n] [--url …]`                                                                                                                                                                   | no                       | drives the open editor's Play, or reads its store, entities, events and timings; `live-no-editor` exits 1                                                                                                                                                                                                                                                                                                                                                                        |
 | `textconv <file>`                                                                                                                                                                                                                                    | no                       | a scene as one sorted line per header field, bulk entry and entity, for `git diff`                                                                                                                                                                                                                                                                                                                                                                                               |
 | `bundle <scene>`                                                                                                                                                                                                                                     | no                       | the texture blobs a scene loads (sorted, deduplicated, with bytes and a total); `asset-missing` issues with a did-you-mean, exit 1 on them                                                                                                                                                                                                                                                                                                                                       |
 | `project show`                                                                                                                                                                                                                                       | no                       | the project's id, name, game, live assets by kind, code modules, file problems and storage usage                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -2049,6 +2052,10 @@ false`) and mirrored by its flip. Nothing
   is decoded; the box is all a schematic shows of the art. With `--json`
   the report lists them as `sprites`: each one's `ref`, `type`, `label` and
   world `box`.
+- `--debug-draw` runs the scene headless for `--ticks n` (default 60) and
+  draws the last tick's `ctx.debug` shapes over the schematic, in metres
+  at the game's px per metre; `--json` adds `debugDraw: { ticks, draws }`.
+  It needs an image, not `--ascii`.
 - `--ascii` prints a character map instead, one character per 64 world px
   cell (0.64 m at 100 px per metre)
   (bigger cells past 200 columns or rows), aligned to multiples of the cell
@@ -3266,6 +3273,61 @@ release's level at their next load, and the game's page says why. A
 publisher unblocks it in the editor's Publish panel (the blocked line on
 the game's page opens it) once it's fixed, or you publish a new version.
 
+## Frames and live Play
+
+An agent can see a scene three ways: the schematic (`render`), a headless
+run's numbers (`stats`, `replay --seek`), and the canvas of the editor that
+has the scene open (`frame --live`), whose Play it can also drive
+(`play --live`).
+
+`stats` runs a scene headless with timings on. Its counts are the same on
+every run; its ticks per second and per-phase milliseconds are this
+machine's and differ between runs, so never pin them:
+
+```sh
+vp run scene stats engine-yard --ticks 120
+```
+
+`render --debug-draw` shows what game code drew with `ctx.debug` on the
+last of `--ticks` ticks, over the schematic:
+
+```sh
+vp run scene render kitchen-sink --debug-draw --ticks 30
+```
+
+`replay --seek <tick>` stops a recording's replay at a tick (clamped to the
+recording) and prints `at t<n>` with the game's snapshot there in place of
+`final`:
+
+```sh
+vp run scene replay engine-yard --run scripts/scene/examples/settles.v1.recording.json --seek 30
+```
+
+**The open editor.** With the editor open on a scene (`vp dev`, then the
+scene in the game room with `?edit=1`), `frame --live` writes its canvas as
+a PNG, downscaled until it fits 1 MiB. When no editor answers within 2 s,
+no server is reachable, or the frame stays over the cap, it writes the
+schematic instead and says so (`source: "schematic"`, with
+`live-no-editor` or `frame-too-large`). `play --live` drives that editor's
+own Play: `play`, `pause`, `resume`, `step --ticks n`, `stop` (back to the
+edit world) and `state` (the store, the entities, the event log and the
+timings):
+
+```sh
+vp run scene frame kitchen-sink --live --out /tmp/kitchen-sink.png
+vp run scene play kitchen-sink --live play
+vp run scene play kitchen-sink --live step --ticks 60
+vp run scene play kitchen-sink --live state
+vp run scene play kitchen-sink --live stop
+```
+
+The editor answers only while its viewer's "Let agents drive Play"
+(Project settings → Agents) is on: on by default against the dev server,
+off on a hosted project. With it off the answer is `live-refused`. With
+several editors open, the lowest client id among those with it on answers.
+`--url` and `--token` reach a hosted project as the other `--live` readers
+do; MCP's `scene_frame` and `scene_play` do the same as the two commands.
+
 ## MCP
 
 `mcp.ts` is a local stdio MCP server, `jams-scenes`, over the same tool
@@ -3288,11 +3350,13 @@ functions as the CLI (it never spawns it), versioned with the engine
 | `scene_diff`            | `diff`                  | one of `other`, `git` or an inline `ops` batch                                                                                                                                                                                                                                                                                                                                                                                  |
 | `scene_apply_ops`       | `apply` / `--live`      | writes; `dryRun` defaults to `true`                                                                                                                                                                                                                                                                                                                                                                                             |
 | `scene_playtest`        | `playtest`              | `script` inline or a path, v1 or v2 (tracks, `set`, `pointer`, `join`, `leave`), command and elapse steps included; `at` is `[x, y]` in metres; `events` a list of types, returns `lifecycle`, and `legal`/`legalTruncated` for a game that lists its commands; `flow` follows scene requests (`segments`), `fromSave` a fixture inline or a path; `present: true` returns the presentation requests                            |
-| `scene_replay`          | `replay`                | `run` inline or a path: a v1 or v2 recording or a playtest result; reports `migratedFrom`, the platform and `issues`; `versions`: a directory `game_live_build` wrote, as `--versions`                                                                                                                                                                                                                                          |
+| `scene_replay`          | `replay`                | `run` inline or a path: a v1 or v2 recording or a playtest result; reports `migratedFrom`, the platform and `issues`; `versions`: a directory `game_live_build` wrote, as `--versions`; `seek` (a tick) stops there and reports `at`                                                                                                                                                                                            |
 | `scene_fuzz`            | `fuzz`                  | `seed`, `rollouts`, `ticks` as numbers                                                                                                                                                                                                                                                                                                                                                                                          |
 | `scene_check`           | `check`                 | every kind, `connected` included; `reaches` takes `expect`                                                                                                                                                                                                                                                                                                                                                                      |
 | `dialogue_walk`         | `dialogue walk`         | `id`, `vars` (an object or its JSON), `maxDepth`; returns `endings` (each `ending`, its choice `path`, the `choices`' keys and the `nodes` passed), `unreached` and `truncated`                                                                                                                                                                                                                                                 |
-| `scene_render`          | `render`                | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes                                                                                                                                                                                                                                                                                                                          |
+| `scene_render`          | `render`                | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes; `debugDraw` and `ticks` as `--debug-draw`                                                                                                                                                                                                                                                                               |
+| `scene_frame`           | `frame --live`          | `scene`, `viewport`, `url`; the open editor's canvas as a PNG `image` with `source: "live"`, else the schematic with `source: "schematic"`; `frame-too-large` and `live-refused` pass through                                                                                                                                                                                                                                   |
+| `scene_play`            | `play --live`           | `scene`, `action` (`play`, `pause`, `resume`, `step`, `stop`, `state`), `ticks` with `step`, `url`; `live-no-editor` and `live-refused` pass through                                                                                                                                                                                                                                                                            |
 | `project_tree`          | `project tree`          |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `asset_refs`            | `project refs`          | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                                                                                                     |
 | `asset_import`          | `assets import`         | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                                                                                                                                                                                 |
@@ -4477,6 +4541,15 @@ a batch that reports each):
 | `dialogue-dead-end`    | error    | A dialogue node has no choices, no `next` and no `end`; as a warning, every choice's `if` can fail with nothing to fall back on.          | add a `next`, an `end` or an unguarded choice                   |
 | `dialogue-unreachable` | warn     | No path from the dialogue's `start` reaches a node.                                                                                       | link the node from `start`, or remove it                        |
 | `sound-bus-unknown`    | error    | A sound's `bus` is neither one of the engine's five nor one the game declares in `GameDefinition.audio.buses`.                            | pick one of the buses the hint lists, or declare it in the game |
+
+The live channel adds these; `frame --live`, `play --live` and the MCP
+`scene_frame` and `scene_play` report them:
+
+| Code              | Severity | Meaning                                                           | Fix                                                |
+| ----------------- | -------- | ----------------------------------------------------------------- | -------------------------------------------------- |
+| `live-no-editor`  | info     | No editor with the scene open answered a live request in time.    | open the scene in an editor, or read the schematic |
+| `live-refused`    | warn     | The editor that has the scene open doesn't let agents drive Play. | turn on Let agents drive Play in that editor       |
+| `frame-too-large` | warn     | A live frame stayed over the frame cap after downscaling.         | ask for a smaller frame (`--viewport`)             |
 
 ## The agent surface version
 

@@ -510,6 +510,28 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       for (const [id, r] of tweens) if (r.state.owner === entityId) tweens.delete(id);
     },
     handle: (id) => bindTo(system, id, ["to", "cancelAll"]),
+    /** The entity's live tweens, block or code, in start order; undefined with none. */
+    inspect(entityId) {
+      const live: JsonValue[] = [];
+      for (const { state: t } of tweens.values()) {
+        if (t.owner !== entityId) continue;
+        live.push({
+          id: t.id,
+          ...(t.block !== undefined ? { block: t.block } : {}),
+          ...(t.key !== undefined ? { key: t.key } : {}),
+          to: { ...t.to },
+          ...(t.from ? { from: { ...t.from } } : {}),
+          tick: t.tick,
+          duration: t.duration,
+          delay: t.delay,
+          play: t.play,
+          repeat: t.repeat,
+          ease: t.ease,
+        });
+      }
+      if (live.length === 0) return undefined;
+      return { tweens: live, paused: paused.has(entityId) };
+    },
     pending: () => tweens.size,
     ownerDestroyed(entityId) {
       system.cancelAll(entityId);

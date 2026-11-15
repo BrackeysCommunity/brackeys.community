@@ -127,12 +127,20 @@ describe("panel groups", () => {
     expect(tabNames("Left column, top group")).toEqual(["Outliner"]);
     expect(tabNames("Left column, bottom group")).toEqual(["Project", "Project settings"]);
     expect(tabNames("Right column, top group")).toEqual(["Inspector"]);
-    expect(tabNames("Right column, bottom group")).toEqual(["Problems", "Run", "History"]);
+    expect(tabNames("Right column, bottom group")).toEqual([
+      "Problems",
+      "Event log",
+      "Perf",
+      "Run",
+      "History",
+    ]);
     expect(PANELS.map((p) => p.id)).toEqual([
       "outliner",
       "project",
       "inspector",
       "problems",
+      "event-log",
+      "perf",
       "run",
       "history",
       "settings",
@@ -145,6 +153,9 @@ describe("panel groups", () => {
     const problems = tab(/Problems/);
     act(() => problems.focus());
     fireEvent.keyDown(problems, { key: "ArrowRight" });
+    await waitFor(() => expect(tab(/Event log/).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.keyDown(tab(/Event log/), { key: "ArrowRight" });
+    fireEvent.keyDown(tab(/Perf/), { key: "ArrowRight" });
     await waitFor(() => expect(tab(/Run/).getAttribute("aria-selected")).toBe("true"));
     expect(
       screen
@@ -211,7 +222,12 @@ describe("panel groups", () => {
     await waitFor(() =>
       expect(tabNames("Right column, top group")).toEqual(["Inspector", "History"]),
     );
-    expect(tabNames("Right column, bottom group")).toEqual(["Problems", "Run"]);
+    expect(tabNames("Right column, bottom group")).toEqual([
+      "Problems",
+      "Event log",
+      "Perf",
+      "Run",
+    ]);
     expect(tab(/History/).getAttribute("aria-selected")).toBe("true");
     await waitFor(() => {
       const stored = JSON.parse(storage.data.get(LAYOUT_KEY) ?? "null") as EditorLayout | null;
@@ -220,7 +236,13 @@ describe("panel groups", () => {
 
     await chooseFromMenu(/History/, "Reset layout");
     await waitFor(() => expect(tabNames("Right column, top group")).toEqual(["Inspector"]));
-    expect(tabNames("Right column, bottom group")).toEqual(["Problems", "Run", "History"]);
+    expect(tabNames("Right column, bottom group")).toEqual([
+      "Problems",
+      "Event log",
+      "Perf",
+      "Run",
+      "History",
+    ]);
     await waitFor(() => expect(JSON.parse(storage.data.get(LAYOUT_KEY)!)).toEqual(DEFAULT_LAYOUT));
   });
 

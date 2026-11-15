@@ -3,6 +3,14 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { heldDocs } from "../../__tests__/fixtures/held-project";
 import { GLOW, LAMP, PLAIN, testGame } from "../../__tests__/fixtures/test-game";
+import {
+  createLiveResponder,
+  LIVE_FRAME_MAX_BYTES,
+  liveRequest,
+  type LiveRequest,
+  type LiveResponderOptions,
+  type StatelessProvider,
+} from "../../collab/live-channel";
 import { budgetIssues, DEFAULT_EXPORT_BUDGET, measureBudget } from "../../export/budget";
 import { planContent } from "../../export/content";
 import { assetCredits } from "../../export/credits";
@@ -37,10 +45,10 @@ import { createSceneRuntime } from "../../runtime/runtime";
 import { captureSave } from "../../runtime/save-state";
 import { createSaveSlots } from "../../saves/slots";
 import { memorySaveStore, type SaveStore } from "../../saves/store";
-import type { RapierModule } from "../../types";
+import type { GameInstance, RapierModule } from "../../types";
 import { expandScene } from "../expand";
 import { formatScene } from "../format";
-import { ISSUE_CODES, liveIssue } from "../issues";
+import { ISSUE_CODES, liveIssue, makeIssue } from "../issues";
 import { applyOps } from "../ops";
 import { locatePointer, parseScene } from "../parse";
 import {
@@ -362,6 +370,33 @@ const rock = (shape: unknown[]): EntityDef => ({
   density: 1,
   restitution: 0,
 });
+
+/** A live request answered (or not) over an in-memory doc, as the issue its failure reports. */
+async function liveFailure(
+  req: LiveRequest,
+  responder?: Omit<LiveResponderOptions, "game">,
+): Promise<SceneIssue[]> {
+  const peers: Set<(e: { payload: string }) => void>[] = [];
+  const peer = (): StatelessProvider => {
+    const own = new Set<(e: { payload: string }) => void>();
+    peers.push(own);
+    return {
+      sendStateless: (payload) => {
+        for (const p of peers) if (p !== own) for (const l of [...p]) l({ payload });
+      },
+      on: (_e, fn) => void own.add(fn),
+      off: (_e, fn) => void own.delete(fn),
+    };
+  };
+  if (responder) {
+    const game = {
+      getStore: () => ({ state: { tick: 0, mode: "edit" } }),
+    } as unknown as GameInstance;
+    createLiveResponder().attach(peer(), { ...responder, game: () => game });
+  }
+  const res = await liveRequest(peer(), req, { timeoutMs: 20 });
+  return res.ok ? [] : [makeIssue(res.code, { message: res.message })];
+}
 
 /**
  * One scene per engine code that produces it, through the tool that owns
@@ -1047,6 +1082,17 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
     });
     return run.issues;
   },
+  "live-no-editor": () => liveFailure({ t: "state", id: "s" }),
+  "live-refused": () =>
+    liveFailure(
+      { t: "state", id: "s" },
+      { enabled: () => false, render: async () => new Uint8Array() },
+    ),
+  "frame-too-large": () =>
+    liveFailure(
+      { t: "frame", id: "f", opts: {} },
+      { enabled: () => true, render: async () => new Uint8Array(LIVE_FRAME_MAX_BYTES + 1) },
+    ),
 };
 
 const localeSettings = (locales: unknown) => ({
@@ -1086,17 +1132,24 @@ const NO_LINE_CODES: readonly EngineIssueCode[] = [
   "export-over-budget",
   "export-itch-layout",
   "export-target-unsupported",
+  "live-no-editor",
+  "live-refused",
+  "frame-too-large",
   // Cross-doc checks run over parsed values and give a path; `scene validate` locates its line.
   "locale-unknown",
   "font-missing",
   "string-key-missing",
 ];
 
-/** A build's target comes from the command line, not from a document a path could point into. */
+/** A build's target comes from the command line, and a live answer from an open editor: neither is a document a path could point into. */
 const NO_PATH_CODES: readonly EngineIssueCode[] = [
   "export-target-unsupported",
   "live-swap-failed",
   "live-timing-unsupported",
+  // A live request's answer concerns an open editor, not a place in a document.
+  "live-no-editor",
+  "live-refused",
+  "frame-too-large",
 ];
 
 /** `applyOps` and `checkProjectBatch` codes point into the batch, which has no line map. */

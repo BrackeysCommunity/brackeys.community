@@ -1,6 +1,12 @@
 import { writeFile } from "node:fs/promises";
 
-import { stringTableData, textFontOf, type StringTableData } from "@jams/engine/game";
+import {
+  stringTableData,
+  textFontOf,
+  type DebugDrawCommand,
+  type StringTableData,
+} from "@jams/engine/game";
+import { runProbe } from "@jams/engine/headless";
 import { localeFont, localeSettingsOf, projectView, type ProjectView } from "@jams/engine/project";
 import {
   formatAsciiMap,
@@ -9,6 +15,7 @@ import {
   sceneSprites,
   roundLength,
   sceneViewport,
+  expandScene,
   type Aabb,
   type Bounds,
   type PrefabLibrary,
@@ -31,6 +38,7 @@ import {
 } from "../context";
 import { projectRuntime, scanProject, type ProjectHandle } from "../projects";
 import { rasterizeSvg } from "../raster";
+import { rapierFor } from "./step";
 
 /** The view of the project a scene is in, which sizes its sprites; undefined outside every project. */
 export async function sceneProjectView(
@@ -90,7 +98,15 @@ export type RenderInput = {
   scale?: string;
   ascii?: boolean;
   overlay?: string;
+  /** Run the scene headless and draw the last tick's `ctx.debug` shapes. */
+  debugDraw?: boolean;
+  /** With `debugDraw`: ticks to run, default `DEBUG_DRAW_TICKS`. */
+  ticks?: string;
 };
+
+/** The ticks `--debug-draw` runs without `--ticks`: one second at 60 Hz. */
+export const DEBUG_DRAW_TICKS = 60;
+const MAX_DEBUG_DRAW_TICKS = 60 * 60 * 10;
 
 const LABELS: readonly SceneLabels[] = ["entities", "all", "none"];
 
@@ -131,7 +147,7 @@ async function readOverlay(
   };
 }
 
-type Parsed = SceneRegionOptions & { scale?: number; labels?: SceneLabels };
+type Parsed = SceneRegionOptions & { scale?: number; labels?: SceneLabels; ticks?: number };
 
 function parseFlags(input: RenderInput): Parsed | ToolResult {
   const out: Parsed = {};
@@ -159,6 +175,13 @@ function parseFlags(input: RenderInput): Parsed | ToolResult {
     }
     out.labels = input.labels as SceneLabels;
   }
+  if (input.ticks !== undefined) {
+    if (!input.debugDraw) return usage("--ticks needs --debug-draw");
+    const ticks = Number(input.ticks);
+    if (!Number.isInteger(ticks) || ticks < 1 || ticks > MAX_DEBUG_DRAW_TICKS)
+      return usage(`--ticks must be an integer from 1 to ${MAX_DEBUG_DRAW_TICKS}`);
+    out.ticks = ticks;
+  }
   return out;
 }
 
@@ -175,6 +198,8 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
   if (input.ascii && (flags.scale !== undefined || flags.labels !== undefined)) {
     return usage("--scale and --labels are for images, not --ascii");
   }
+  if (input.ascii && input.debugDraw) return usage("--debug-draw is for images, not --ascii");
+  const { ticks: debugTicks, ...view } = flags;
 
   const loaded = await openScene(ctx, input.scene, "render <scene|file|->");
   if (!loaded.ok) return loaded.result;
@@ -193,10 +218,30 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
     }
   }
 
+  let debugDraw: readonly DebugDrawCommand[] | undefined;
+  let ran: { ticks: number } | undefined;
+  if (input.debugDraw) {
+    const runtime = loaded.project ? await projectRuntime(loaded.project, registry, scan) : null;
+    const engine = runtime?.engine;
+    const report = runProbe({
+      rapier: await rapierFor(ctx, def, registry, engine),
+      game: registry.game,
+      registry,
+      project: runtime,
+      scene: expandScene(def, registry, { prefabs, engine }),
+      library: prefabs,
+      ticks: debugTicks ?? DEBUG_DRAW_TICKS,
+      collectDebugDraw: true,
+    });
+    if (!report.load.ok) return failure(`${name}: failed to load: ${report.load.error}`);
+    debugDraw = report.debug ?? [];
+    ran = { ticks: report.ticks };
+  }
+
   try {
     if (input.ascii) {
       const map = sceneAsciiMap(def, {
-        ...flags,
+        ...view,
         registry,
         prefabs,
         ...(project ? { project } : {}),
@@ -221,25 +266,39 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
     }
 
     const opts = {
-      ...flags,
+      ...view,
       registry,
       prefabs,
       ...(project ? { project } : {}),
       ...(strings ? { strings } : {}),
       ...(overlay ? { overlay } : {}),
+      ...(debugDraw ? { debugDraw } : {}),
     };
     const svg = renderSceneSvg(def, opts);
     const { region, pxPerMetre, scale, width, height, tick } = sceneViewport(def, opts);
-    const view = { region, pxPerMetre, scale, width, height, tick, ...spriteRows(def, opts) };
+    const debug =
+      debugDraw && ran ? { debugDraw: { ticks: ran.ticks, draws: debugDraw.length } } : {};
+    const shown = {
+      region,
+      pxPerMetre,
+      scale,
+      width,
+      height,
+      tick,
+      ...spriteRows(def, opts),
+      ...debug,
+    };
     if (!input.out) {
-      return { exitCode: 0, data: { ok: true, scene: name, ...view, svg }, text: svg.trimEnd() };
+      return { exitCode: 0, data: { ok: true, scene: name, ...shown, svg }, text: svg.trimEnd() };
     }
     const bytes = format === "png" ? (await rasterizeSvg(svg)).png : svg;
     await writeFile(input.out, bytes);
     return {
       exitCode: 0,
-      data: { ok: true, scene: name, out: input.out, format, ...view },
-      text: `wrote ${input.out} (${width}x${height}, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")} m, ticks every ${tick}px)`,
+      data: { ok: true, scene: name, out: input.out, format, ...shown },
+      text:
+        `wrote ${input.out} (${width}x${height}, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")} m, ticks every ${tick}px)` +
+        (ran ? `; ${debugDraw?.length ?? 0} debug draws after ${ran.ticks} ticks` : ""),
     };
   } catch (e) {
     if (e instanceof Error && /^(no entity|region|scale)/.test(e.message)) return usage(e.message);

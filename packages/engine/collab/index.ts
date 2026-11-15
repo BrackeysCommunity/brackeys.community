@@ -193,3 +193,21 @@ export {
   layoutToDoc,
   type LayoutWriteOptions,
 } from "./layout";
+export {
+  createLiveResponder,
+  electResponder,
+  LIVE_FRAME_MAX_BYTES,
+  LIVE_MESSAGE_MAX_BYTES,
+  LIVE_REQUEST_TIMEOUT_MS,
+  liveMessageBytes,
+  livePresence,
+  liveRequest,
+  relayableStateless,
+  type LiveErrorCode,
+  type LivePresence,
+  type LiveRequest,
+  type LiveResponder,
+  type LiveResponderOptions,
+  type LiveResponse,
+  type StatelessProvider,
+} from "./live-channel";

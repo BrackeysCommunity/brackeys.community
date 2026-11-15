@@ -329,6 +329,11 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
       if (s.burst) state.burst = true;
       return state;
     },
+    /** Its live spawns oldest first, the spawns it owes, and whether it is on. */
+    inspect(id) {
+      const s = spawners.get(id);
+      return s ? { on: s.on, live: [...s.live], owed: s.owed, burst: s.burst } : undefined;
+    },
     restore(id, state: JsonValue) {
       const s = spawners.get(id);
       if (!s || typeof state !== "object" || state === null || Array.isArray(state)) return;

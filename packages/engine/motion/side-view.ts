@@ -69,6 +69,11 @@ export interface SideViewController {
   launch(v: Vec2): void;
   save(): JsonValue;
   restore(state: JsonValue): void;
+  /**
+   * What a debugger shows: grounded and the ground's normal, airborne ticks
+   * (null once the coyote window is spent), the buffered press, rising. Read-only.
+   */
+  inspect?(): JsonValue;
   /** Drops it from world saves; the body is the caller's to destroy. */
   destroy(): void;
 }
@@ -225,6 +230,7 @@ export function createSideViewController(
   const unregister = saveRegistryOf(ctx)?.register(body.entityId, "side-view", {
     save: () => controller.save(),
     restore: (state) => controller.restore(state),
+    inspect: () => controller.inspect?.(),
   });
 
   /** Accumulates a tick's moves. */
@@ -448,6 +454,13 @@ export function createSideViewController(
       grounded = saved.n !== null;
       groundNormal = saved.n ? { x: saved.n[0], y: saved.n[1] } : null;
     },
+    inspect: () => ({
+      grounded,
+      normal: grounded && groundNormal ? { x: groundNormal.x, y: groundNormal.y } : null,
+      airTicks: air,
+      pressTicks: press,
+      rising,
+    }),
     destroy() {
       unregister?.();
     },

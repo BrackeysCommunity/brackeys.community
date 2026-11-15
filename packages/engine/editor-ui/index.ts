@@ -75,6 +75,26 @@ export {
   type PanelId,
 } from "./layout/model";
 export { createPending, type Pending, type PendingRun, type PendingTask } from "./pending/pending";
+export {
+  AGENTS_DRIVE_PLAY_HINT,
+  AGENTS_DRIVE_PLAY_KEY,
+  AGENTS_DRIVE_PLAY_LABEL,
+  agentsDrivePlay,
+  agentsDrivePlayDefault,
+  attachEditorResponder,
+  canvasPixels,
+  canvasPxPerMetre,
+  crop,
+  encodePng,
+  fitFrame,
+  frameRegion,
+  renderFrame,
+  resample,
+  useAgentsDrivePlay,
+  type EditorResponderOptions,
+  type FrameAsk,
+  type FramePixels,
+} from "./session/live-responder";
 
 /** The stylesheet's specifier, for hosts that inject a `<link>`. */
 export const EDITOR_UI_STYLESHEET = "@jams/engine/editor-ui/style.css";

@@ -1,5 +1,7 @@
 import {
+  Activity01Icon,
   AlertCircleIcon,
+  DashboardSpeed01Icon,
   Folder01Icon,
   ListViewIcon,
   Rocket01Icon,
@@ -12,24 +14,31 @@ import type { IconSvgElement } from "@hugeicons/react";
 import type { Store } from "@tanstack/store";
 import type { ReactNode } from "react";
 
+import type { EventLog } from "../../debug/event-log";
 import type { EditorSession, Ref, SceneIssue } from "../../editor/index";
 import type { AssetKey } from "../../project/index";
+import type { GameStoreState } from "../../types";
 import type { EditorControls } from "../frame/keys";
 import type { EditorNotify, EditorPublishHost } from "../host";
 import { Skeleton, Text } from "../kit/index";
 import type { PanelId } from "../layout/model";
 import { useEditorStore } from "../session/use-editor-store";
 import type { EditorProjectLink } from "../session/use-scene-editor";
-import { useStoreValue } from "../session/use-store-value";
+import type { EditorChromeGame } from "../session/use-scene-editor";
+import { useStoreValue, type ReadableStore } from "../session/use-store-value";
 import { EditorHistory } from "./EditorHistory";
 import { EditorInspector } from "./EditorInspector";
 import { EditorOutliner } from "./EditorOutliner";
 import { EditorProject, useSelectedAsset } from "./EditorProject";
-import { LoadRunPanel } from "./LoadRunPanel";
+import { EventLogPanel } from "./EventLogPanel";
+import { LoadRunPanel, type ReplaySource } from "./LoadRunPanel";
+import { PerfReadout } from "./PerfReadout";
+import { PlayInspector } from "./PlayInspector";
 import { ProblemsPanel } from "./ProblemsPanel";
 import { PublishPanel } from "./publish/PublishPanel";
 import type { CaptureBinding } from "./settings/InputPanel";
 import { ProjectSettings } from "./settings/ProjectSettings";
+import { SpawnedGroup } from "./SpawnedGroup";
 
 /** What the panels are drawn from: the editor's controls and the stores they share. */
 export type PanelControls = Pick<
@@ -45,7 +54,7 @@ export type PanelControls = Pick<
   | "playFrom"
   | "frame"
 > &
-  Partial<Pick<EditorControls, "game">> & {
+  Partial<Pick<EditorControls, "game" | "rapier">> & {
     /** The host's publishing, when it publishes the project's releases. */
     publish?: EditorPublishHost;
   };
@@ -97,24 +106,57 @@ export function createPanelContext(args: Omit<PanelContext, "subscribe">): Panel
 
 const sameIssues = (issues: readonly SceneIssue[]) => issues;
 
+const NO_GAME: ReadableStore<Partial<GameStoreState>> = {
+  state: {},
+  subscribe: () => () => {},
+};
+
+/** Whether the editor's game is in Play: its inspector and outliner show the play world then. */
+function usePlaying(game: EditorChromeGame | undefined): boolean {
+  return useStoreValue<Partial<GameStoreState>, boolean>(
+    game?.getStore() ?? NO_GAME,
+    (s) => s.mode === "play",
+    Object.is,
+  );
+}
+
 function OutlinerWithProblems({
   session,
   physical,
   notify,
   onOpenPrefab,
+  game,
 }: {
   session: EditorSession;
   physical: Store<readonly SceneIssue[]>;
   notify: EditorNotify;
   onOpenPrefab?: (prefab: string, from: Ref) => void;
+  game?: EditorChromeGame;
 }) {
+  const playing = usePlaying(game);
   return (
-    <EditorOutliner
-      session={session}
-      physical={useStoreValue(physical, sameIssues, Object.is)}
-      notify={notify}
-      onOpenPrefab={onOpenPrefab}
-    />
+    <>
+      <EditorOutliner
+        session={session}
+        physical={useStoreValue(physical, sameIssues, Object.is)}
+        notify={notify}
+        onOpenPrefab={onOpenPrefab}
+      />
+      {playing && game ? <SpawnedGroup game={game} session={session} /> : null}
+    </>
+  );
+}
+
+/** The inspector: the play world's entity during Play, else the edit inspector. */
+function InspectorForMode(
+  props: Parameters<typeof InspectorWithAsset>[0] & { game?: EditorChromeGame },
+) {
+  const { game, ...edit } = props;
+  const playing = usePlaying(game);
+  return playing && game ? (
+    <PlayInspector game={game} session={edit.session} notify={edit.notify} />
+  ) : (
+    <InspectorWithAsset {...edit} />
   );
 }
 
@@ -213,6 +255,7 @@ export const PANELS: readonly PanelDef[] = [
         physical={ctx.physical}
         notify={ctx.controls.notify}
         onOpenPrefab={ctx.controls.onOpenPrefab}
+        game={ctx.controls.game}
       />
     ),
     skeleton: rows(8),
@@ -242,13 +285,14 @@ export const PANELS: readonly PanelDef[] = [
     icon: SlidersHorizontalIcon,
     follow: followSelection,
     render: ({ controls, pickedAsset }) => (
-      <InspectorWithAsset
+      <InspectorForMode
         session={controls.session}
         project={controls.project}
         picked={pickedAsset}
         onOpenPrefab={controls.onOpenPrefab}
         inPrefab={controls.prefab !== undefined}
         notify={controls.notify}
+        game={controls.game}
       />
     ),
     skeleton: rows(6),
@@ -270,6 +314,35 @@ export const PANELS: readonly PanelDef[] = [
     skeleton: rows(3),
   },
   {
+    id: "event-log",
+    title: "Event log",
+    icon: Activity01Icon,
+    render: ({ controls }) => (
+      <EventLogPanel
+        events={debugEventsOf(controls.game)}
+        session={controls.session}
+        notify={controls.notify}
+        run={controls.runStore}
+        replay={replaySourceOf(controls.game)}
+        replayHost={() => ({
+          rapier: controls.rapier ?? null,
+          registry: controls.game?.registry ?? controls.session.registry,
+          ...(controls.project?.runtime ? { project: controls.project.runtime } : {}),
+          ...(controls.liveVersion ? { versions: controls.liveVersion } : {}),
+          ...(controls.project?.scene ? { sceneId: controls.project.scene } : {}),
+        })}
+      />
+    ),
+    skeleton: rows(3),
+  },
+  {
+    id: "perf",
+    title: "Perf",
+    icon: DashboardSpeed01Icon,
+    render: ({ controls }) => <PerfReadout game={controls.game ?? null} />,
+    skeleton: rows(3),
+  },
+  {
     id: "run",
     title: "Run",
     icon: Route01Icon,
@@ -281,6 +354,7 @@ export const PANELS: readonly PanelDef[] = [
         onReplay={(run) => controls.onReplay(run.recording)}
         liveVersion={controls.liveVersion}
         notify={controls.notify}
+        replay={replaySourceOf(controls.game)}
       />
     ),
     skeleton: rows(2),
@@ -332,6 +406,18 @@ export const PUBLISH_PANEL: PanelDef = {
 /** The panels for a host: `PANELS`, and the Publish panel when it publishes. */
 export function editorPanels(host: { publish?: EditorPublishHost }): readonly PanelDef[] {
   return host.publish ? [...PANELS, PUBLISH_PANEL] : PANELS;
+}
+
+/** The game's event log; none for a host game that lends no debug reads. */
+function debugEventsOf(game: PanelControls["game"]): EventLog | null {
+  const debug = (game as Partial<Pick<EditorChromeGame, "debug">> | undefined)?.debug;
+  return debug?.events ?? null;
+}
+
+/** The game's replay controls; none for a host game that lends no replay handle. */
+function replaySourceOf(game: PanelControls["game"]): ReplaySource | null {
+  const g = game as Partial<ReplaySource> | null | undefined;
+  return g?.replayHandle && g.getStore ? (g as ReplaySource) : null;
 }
 
 /** The running game's binding capture. */

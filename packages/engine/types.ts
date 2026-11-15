@@ -4,6 +4,8 @@ import type { CalibrateLatencyOptions, LatencyCalibration } from "./audio/clock"
 import type { AudioBackend, GameAudio } from "./audio/types";
 import type { ViewportDef } from "./camera/viewports";
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
+import type { EventLog } from "./debug/event-log";
+import type { EntityInspection, EntityRow } from "./debug/inspect";
 import type { DialogueView } from "./dialogue/runner";
 import type { FlowRequest, LibraryScene, SceneListEntry, TransitionSpec } from "./game/flow";
 import type { SceneSwap, SwapTiming } from "./game/live";
@@ -11,6 +13,7 @@ import type {
   ActionKind,
   Binding,
   DeviceId,
+  EntitySelector,
   GameCommand,
   GameDefinition,
   GameOutcome,
@@ -29,6 +32,8 @@ import type { AssetId, ProjectView, Sha256 } from "./project/types";
 import type { AssetLoader, AssetUrl, LoadProgress } from "./render/asset-loader";
 import type { ResolutionPolicy } from "./resolution";
 import type { RecordingHost } from "./runtime/recorder";
+import type { SeekProgress } from "./runtime/seek";
+import type { RuntimeTimings } from "./runtime/timings";
 import type {
   AssetReloadError,
   LoadFailureReason,
@@ -450,6 +455,63 @@ export type GameStoreState = {
   session: PlaySession | null;
   /** The active conversation after the last tick; null with none. */
   dialogue: Readonly<DialogueView> | null;
+  /** The runtime's timings, refreshed twice a second while a debug layer needs them; else null. */
+  timings: RuntimeTimings | null;
+};
+
+/**
+ * `GameInstance.debug`: reads of the play world for debug views. Every
+ * answer is plain data and the reads are promises, so the world may sit
+ * across a worker link. Without a dev host's debug overlay `inspect` and
+ * `pick` resolve null, `entities` resolves empty, and `events` stays empty.
+ */
+export type GameDebug = {
+  /** The live entity `id`, everything a debugger shows of it; null for an id that isn't live. */
+  inspect(id: string): Promise<EntityInspection | null>;
+  /** Entities by selector, with their type and position: the play outliner's rows. */
+  entities(sel?: EntitySelector): Promise<readonly EntityRow[]>;
+  /** The topmost entity whose extent contains the world point (metres); null for none. */
+  pick(p: Vec2): Promise<string | null>;
+  /** Every step's events in Play and in a replay. */
+  readonly events: EventLog;
+};
+
+/** `GameInstance.replay`'s options. */
+export type GameReplayOptions = {
+  /** The scene versions the recording names, by id; null for one the host doesn't have. */
+  versions?: (id: Sha256) => StagedVersion | null;
+  /** The scene's asset id when `doc.name` isn't it, as for `play`. */
+  sceneId?: AssetId;
+  /** Start at this tick, re-simulated with the view muted. */
+  seek?: number;
+  /** Ticks between the checkpoints a seek restores from; default 300. */
+  checkpointEvery?: number;
+  /** Start paused. */
+  paused?: boolean;
+};
+
+/** The replay `GameInstance.replay` started, while it runs. */
+export interface ReplayHandle {
+  readonly tick: number;
+  /** The recording's length in ticks. */
+  readonly ticks: number;
+  /** Re-simulates to `tick` with the view muted, from the nearest checkpoint at or before it. */
+  seek(tick: number, opts?: { onProgress?: (p: SeekProgress) => void }): Promise<void>;
+  play(): void;
+  pause(): void;
+  step(n?: number): void;
+  readonly checkpoints: readonly number[];
+}
+
+/**
+ * What the shell asks of whoever runs the play world to move a replay: the
+ * engine's own world, or one across a worker link.
+ */
+export type ReplayHost = {
+  /** Re-simulates the running replay to `target`; resolves once the view shows it. */
+  seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void>;
+  /** The ticks a seek can restore from, ascending. */
+  checkpoints(): readonly number[];
 };
 
 // ─── Game Instance ───────────────────────────────────────
@@ -514,16 +576,11 @@ export type GameInstance = {
    * A recording on a live version plays that version and its recorded
    * swaps; a version `versions` can't give is `scene-version-removed`.
    */
-  replay: (
-    doc: SceneDefinition,
-    recording: RunRecording,
-    opts?: {
-      /** The scene versions the recording names, by id; null for one the host doesn't have. */
-      versions?: (id: Sha256) => StagedVersion | null;
-      /** The scene's asset id when `doc.name` isn't it, as for `play`. */
-      sceneId?: AssetId;
-    },
-  ) => PlayReport;
+  replay: (doc: SceneDefinition, recording: RunRecording, opts?: GameReplayOptions) => PlayReport;
+  /** The running replay's controls; null outside a replay. */
+  replayHandle: () => ReplayHandle | null;
+  /** Reads of the play world for debug views. */
+  readonly debug: GameDebug;
   /**
    * The prefabs that documents passed to `loadScene`, `play` and `replay`
    * expand their instances from, e.g. the collab doc's as they change.
@@ -634,6 +691,11 @@ export type GameInstance = {
   viewportAt: (clientX: number, clientY: number) => number | null;
   /** Bus volumes, mutes, the audio clock and stopping everything; null while no backend plays. */
   readonly audio: GameAudio | null;
+  /**
+   * Asks `GameConfig.audio.backend` again during Play, so sound turns on in
+   * a Play that started silent; true when audio is open after the call.
+   */
+  reopenAudio: () => boolean;
   /** The player's language: a browser preference the simulation never sees. */
   readonly locale: GameLocale;
   /** The player's captions choice, a browser preference kept in the prefs under "captions"; unset, it is on while a `createCaptions` is mounted, which shows captions only while it is on. */

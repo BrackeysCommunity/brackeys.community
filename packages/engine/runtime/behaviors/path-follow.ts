@@ -6,6 +6,7 @@ import type { PathDef } from "../../scene/types";
 import {
   advanceAlongPath,
   initialWaypointState,
+  inspectPathPlace,
   pathPosition,
   pathWaypoints,
   readPathPlace,
@@ -238,6 +239,12 @@ export const createPathFollowSystem: BehaviorSystemFactory = (ctx: EngineContext
       const place = savePathPlace(r) as Record<string, JsonValue>;
       if (r.parent === null || r.frame === null) return place;
       return { ...place, parent: r.parent, frame: [r.frame.x, r.frame.y, r.frame.rot] };
+    },
+    inspect(id) {
+      const r = riders.get(id);
+      if (!r) return undefined;
+      const place = inspectPathPlace(r) as Record<string, JsonValue>;
+      return r.parent !== null ? { ...place, parent: r.parent } : place;
     },
     /** The world save put the pose and the body back; this puts back the path clock and the frame. */
     restore(id, state) {

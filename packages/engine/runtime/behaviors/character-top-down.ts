@@ -227,6 +227,12 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
       const saved: SavedCharacter = { intent: [intent.x, intent.y] };
       return saved;
     },
+    /** The last `setIntent`; the velocity is its motion body's. */
+    inspect(id) {
+      const c = characters.get(id);
+      if (!c) return undefined;
+      return { intent: c.intent ? { x: c.intent.x, y: c.intent.y } : null, disabled: c.disabled };
+    },
     restore(id, state) {
       const c = characters.get(id);
       if (!c || typeof state !== "object" || state === null || Array.isArray(state)) return;

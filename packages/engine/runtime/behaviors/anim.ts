@@ -345,6 +345,11 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
         flipX,
       );
     },
+    /** Its `AnimState`: the clip, frame and progress, playing and speed. */
+    inspect(id) {
+      const run = runs.get(id);
+      return run ? stateOf(run) : undefined;
+    },
     save(id) {
       const run = runs.get(id);
       const state = run ? stateOf(run) : undefined;

@@ -24,7 +24,7 @@ import { makeIssue } from "../scene/issues";
 import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
 import type { PrefabLibrary, Pt, SceneDefinition, SceneIssue } from "../scene/types";
 import { compileInputScript, scriptSource, type ScriptSource } from "./compile-input-script";
-import { probeConfigHash } from "./headless";
+import { collectedDebugDraw, probeConfigHash } from "./headless";
 import { legalCommands, startState } from "./legal";
 import {
   blockedRun,
@@ -308,6 +308,7 @@ export function runPlaytest<S = unknown, G = unknown>(
   const inputs: InputEdge[] = [];
   const commands: RecordingCommand[] = [];
   const present = presentCollector(opts.recordPresentation === true);
+  const draws = collectedDebugDraw(opts.collectDebugDraw);
   const issues = [...first.issues];
   const segments: PlaytestSegment[] = [];
   const base = { slots: 0, ticks: 0 };
@@ -365,6 +366,8 @@ export function runPlaytest<S = unknown, G = unknown>(
       ...(flow ? { flow: { scene: seg.id, entry: seg.entry, library: flow } } : {}),
       ...(saved ? { fromSave: saved.file } : {}),
       ...(opts.timing ? { timing: opts.timing } : {}),
+      ...(opts.timings ? { timings: opts.timings } : {}),
+      ...(draws ? { debugDraw: draws } : {}),
       ...(opts.recordPresentation ? { recordPresentation: true } : {}),
     });
     if (!started.ok)
@@ -519,6 +522,7 @@ export function runPlaytest<S = unknown, G = unknown>(
       if (talked || dialogue) report.dialogue = dialogue;
       if (flow) report.segments = segments;
       present.attach(report);
+      if (draws) report.debug = draws.last();
       return report;
     } finally {
       runtime.destroy();

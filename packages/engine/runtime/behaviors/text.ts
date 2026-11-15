@@ -210,6 +210,17 @@ export const createTextSystem: BehaviorSystemFactory = (ctx) => {
       if (shown.vars) state.vars = { ...shown.vars };
       return state;
     },
+    /** What `set` or `setKey` shows in place of the block's text; null for the block's own. */
+    inspect(id) {
+      const a = attached.get(id);
+      if (!a) return undefined;
+      const shown: JsonValue = !a.shown
+        ? null
+        : "text" in a.shown
+          ? { text: a.shown.text }
+          : { key: a.shown.key, ...(a.shown.vars ? { vars: { ...a.shown.vars } } : {}) };
+      return { shown, disabled: a.disabled };
+    },
     restore(id, state) {
       const shown = readShown(state);
       if (shown) replace(id, shown);

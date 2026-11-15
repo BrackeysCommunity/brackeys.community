@@ -4,10 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { RapierModule } from "@jams/engine/headless";
+import { createRegistry, defineGame, type DebugDraw } from "@jams/engine/game";
+import { runProbe, type RapierModule } from "@jams/engine/headless";
+import { expandScene, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { noopDebugDrawProblem } from "../../engine-bundle-check";
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { rasterizeSvg } from "../raster";
@@ -15,15 +18,43 @@ import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 
+/** Draws a green line at x = its tick in metres and its tick as text, each step, while something shows them. */
+const drawingGame = defineGame({
+  id: "debug-drawing",
+  types: [],
+  actions: [],
+  createRuntime(run) {
+    let tick = 0;
+    return {
+      beforeStep() {
+        tick++;
+        if (!run.debug.active) return;
+        run.debug.line({ x: tick, y: 0 }, { x: tick, y: 4 }, { color: 0x00ff00, width: 6 });
+        run.debug.text({ x: tick, y: 5 }, `tick ${tick}`);
+      },
+      snapshot: () => ({ tick }),
+    };
+  },
+});
+
 let root: string;
 let ctx: ToolContext;
 let stdin = "";
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "scene-render-"));
-  const dirs = { engine: join(root, "engine"), platformer: join(root, "platformer") };
+  const dirs = {
+    engine: join(root, "engine"),
+    platformer: join(root, "platformer"),
+    drawing: join(root, "drawing"),
+  };
   await mkdir(dirs.engine);
   await mkdir(dirs.platformer);
+  await mkdir(dirs.drawing);
+  await writeFile(
+    join(dirs.drawing, "draws.json"),
+    `${JSON.stringify({ v: SCENE_FORMAT_VERSION, game: drawingGame.id, name: "draws", bounds: [0, 0, 10, 6], settings: { physics: "none" }, entities: [] })}\n`,
+  );
   await copyFile(
     repoFile("packages/engine/scenes/engine-yard.json"),
     join(dirs.engine, "engine-yard.json"),
@@ -40,6 +71,7 @@ beforeAll(async () => {
     projects: [
       await tempProject(dirs.engine, { id: "engine" }),
       await tempProject(dirs.platformer, { game: platformerGame }),
+      await tempProject(dirs.drawing, { game: drawingGame }),
     ],
     loadRapier: () => import("@dimforge/rapier2d") as Promise<RapierModule>,
     readStdin: async () => stdin,
@@ -64,6 +96,91 @@ const distinctColors = (pixels: Uint8Array) => {
   }
   return seen.size;
 };
+
+describe("scene render --debug-draw", () => {
+  it("runs the ticks and draws the last tick's ctx.debug shapes in the SVG", async () => {
+    const r = await runCli(["render", "draws", "--debug-draw", "--ticks", "3", "--json"], ctx);
+    expect(r.exitCode, r.stderr).toBe(0);
+    const data = JSON.parse(r.stdout);
+    expect(data.debugDraw).toEqual({ ticks: 3, draws: 2 });
+    expect(data.svg).toMatch(/data-debug="line" d="M300 0L300 400" fill="none" stroke="#00ff00"/);
+    expect(data.svg).toContain(">tick 3</text>");
+    expect(data.svg).not.toContain('d="M200 0L200 400"');
+  });
+
+  it("draws nothing extra without the flag", async () => {
+    const r = await runCli(["render", "draws"], ctx);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain("debug-draw");
+  });
+
+  it("draws them in the PNG", async () => {
+    const out = join(root, "draws.png");
+    const r = await runCli(["render", "draws", "--debug-draw", "--ticks", "2", "--out", out], ctx);
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toContain("2 debug draws after 2 ticks");
+    const plain = await rasterizeSvg((await runCli(["render", "draws"], ctx)).stdout);
+    const drawn = await rasterizeSvg(
+      JSON.parse(
+        (await runCli(["render", "draws", "--debug-draw", "--ticks", "2", "--json"], ctx)).stdout,
+      ).svg,
+    );
+    const green = (pixels: Uint8Array) => {
+      let n = 0;
+      for (let i = 0; i < pixels.length; i += 4)
+        if (pixels[i]! < 60 && pixels[i + 1]! > 200 && pixels[i + 2]! < 60) n++;
+      return n;
+    };
+    expect(green(plain.pixels)).toBe(0);
+    expect(green(drawn.pixels)).toBeGreaterThan(50);
+  });
+
+  it("refuses --ticks without --debug-draw, a bad count and --ascii", async () => {
+    const noFlag = await runCli(["render", "draws", "--ticks", "3"], ctx);
+    expect(noFlag.exitCode).toBe(2);
+    expect(noFlag.stderr).toContain("--ticks needs --debug-draw");
+    const bad = await runCli(["render", "draws", "--debug-draw", "--ticks", "0"], ctx);
+    expect(bad.exitCode).toBe(2);
+    expect(bad.stderr).toContain("--ticks must be an integer");
+    const ascii = await runCli(["render", "draws", "--debug-draw", "--ascii"], ctx);
+    expect(ascii.exitCode).toBe(2);
+    expect(ascii.stderr).toContain("--debug-draw is for images");
+  });
+});
+
+describe("the production ctx.debug check", () => {
+  /** The `ctx.debug` game code sees in a headless run, with or without a collector. */
+  const debugOf = (collectDebugDraw: boolean) => {
+    let seen: DebugDraw | null = null;
+    runProbe({
+      rapier: null,
+      game: drawingGame,
+      scene: expandScene(
+        {
+          v: SCENE_FORMAT_VERSION,
+          name: "d",
+          bounds: [0, 0, 1, 1],
+          settings: { physics: "none" },
+          entities: [],
+        },
+        createRegistry(drawingGame),
+      ),
+      ticks: 1,
+      collectDebugDraw,
+      onTick: (_tick, run) => {
+        seen = run.debug;
+      },
+    });
+    return seen!;
+  };
+
+  it("accepts the frozen no-op and refuses an active or unfrozen draw", () => {
+    const noop = debugOf(false);
+    expect(noopDebugDrawProblem(noop)).toBeNull();
+    expect(noopDebugDrawProblem(debugOf(true))).toBe("ctx.debug is active");
+    expect(noopDebugDrawProblem({ ...noop })).toBe("ctx.debug isn't frozen");
+  });
+});
 
 describe("scene render", () => {
   it("writes a PNG of the expected size that isn't blank", async () => {

@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`AudioBackend`](#audiobackend) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DecodeOptions`](#decodeoptions) · [`DialogueEnding`](#dialogueending) · [`DialogueExploration`](#dialogueexploration) · [`DialogueMatch`](#dialoguematch) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FakeAudioBackend`](#fakeaudiobackend) · [`FakeAudioCall`](#fakeaudiocall) · [`FakeAudioLogEntry`](#fakeaudiologentry) · [`FakeAudioOptions`](#fakeaudiooptions) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PrefsStore`](#prefsstore) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SynthPreset`](#synthpreset) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`dialogueCommands`](#dialoguecommands) · [`exploreDialogue`](#exploredialogue) · [`fakeAudioBackend`](#fakeaudiobackend-1) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`mutateSynth`](#mutatesynth) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`randomSynth`](#randomsynth) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`renderSynth`](#rendersynth) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`soundLeafMs`](#soundleafms) · [`swapCheck`](#swapcheck) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
+[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`AudioBackend`](#audiobackend) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`Clock`](#clock) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DecodeOptions`](#decodeoptions) · [`DialogueEnding`](#dialogueending) · [`DialogueExploration`](#dialogueexploration) · [`DialogueMatch`](#dialoguematch) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FakeAudioBackend`](#fakeaudiobackend) · [`FakeAudioCall`](#fakeaudiocall) · [`FakeAudioLogEntry`](#fakeaudiologentry) · [`FakeAudioOptions`](#fakeaudiooptions) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PrefsStore`](#prefsstore) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`RuntimeTimings`](#runtimetimings) · [`SEEK_CHECKPOINT_EVERY`](#seek_checkpoint_every) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SeekProgress`](#seekprogress) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StatsOptions`](#statsoptions) · [`StatsReport`](#statsreport) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SynthPreset`](#synthpreset) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`TimingsOptions`](#timingsoptions) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`WorldSnapshot`](#worldsnapshot) · [`WorldSnapshotResult`](#worldsnapshotresult) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`dialogueCommands`](#dialoguecommands) · [`exploreDialogue`](#exploredialogue) · [`fakeAudioBackend`](#fakeaudiobackend-1) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`mutateSynth`](#mutatesynth) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`randomSynth`](#randomsynth) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`renderSynth`](#rendersynth) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`restoreWorld`](#restoreworld) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`runStats`](#runstats) · [`scriptSource`](#scriptsource-1) · [`seekTarget`](#seektarget) · [`simActionError`](#simactionerror) · [`snapshotWorld`](#snapshotworld) · [`soundLeafMs`](#soundleafms) · [`swapCheck`](#swapcheck) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
 
 ## `ANIM_END`
 
@@ -242,6 +242,16 @@ type ChecksReport = {
 ```
 
 Refers to [`CheckResult`](#checkresult).
+
+## `Clock`
+
+_type_ in `runtime/timings.ts`
+
+A millisecond clock, such as `performance.now`.
+
+```ts
+type Clock = () => number;
+```
 
 ## `CompileResult`
 
@@ -886,6 +896,8 @@ _type_ in `headless/types.ts`
 
 ```ts
 type HeadlessRuntimeOptions = {
+    /** Where `ctx.debug` draws; each `StepResult.debug` holds the tick's. */
+    debugDraw?: DebugDrawSink;
     dev?: boolean;
     /** The listed scenes: with it a flow request loads the next scene after the tick; without it the run ends there. */
     flow?: SceneLibrary;
@@ -902,10 +914,12 @@ type HeadlessRuntimeOptions = {
     scene?: ExpandedScene;
     /** Times each step's parts into this collector; `stats().timing` reports them. */
     timing?: RunTiming;
+    /** Windowed per-phase timings on this clock, read through `timings()`. */
+    timings?: TimingsOptions;
 };
 ```
 
-Refers to [`RapierModule`](#rapiermodule), [`RunTiming`](#runtiming).
+Refers to [`RapierModule`](#rapiermodule), [`RunTiming`](#runtiming), [`TimingsOptions`](#timingsoptions).
 
 ## `InputEdge`
 
@@ -1300,6 +1314,8 @@ _type_ in `headless/playtest-types.ts`
 
 ```ts
 type PlaytestOptions<S = unknown, G = unknown> = {
+    /** Keep each tick's `ctx.debug` draws, the last tick's in `PlaytestReport.debug`; default false. */
+    collectDebugDraw?: boolean;
     /** Freeze the played definition, as the editor's Play does in dev. */
     dev?: boolean;
     /** The listed scenes: with it the run follows flow requests on the same script; without it a request ends the run as `flow`. */
@@ -1330,10 +1346,12 @@ type PlaytestOptions<S = unknown, G = unknown> = {
      * run's report or recording.
      */
     timing?: RunTiming;
+    /** Windowed per-phase timings on this clock, every runtime of the run; read by `runStats`. */
+    timings?: TimingsOptions;
 };
 ```
 
-Refers to [`CompiledInputScript`](#compiledinputscript), [`InputScript`](#inputscript), [`InputScriptV2`](#inputscriptv2), [`ProjectRuntimeView`](#projectruntimeview), [`RapierModule`](#rapiermodule), [`RunTiming`](#runtiming).
+Refers to [`CompiledInputScript`](#compiledinputscript), [`InputScript`](#inputscript), [`InputScriptV2`](#inputscriptv2), [`ProjectRuntimeView`](#projectruntimeview), [`RapierModule`](#rapiermodule), [`RunTiming`](#runtiming), [`TimingsOptions`](#timingsoptions).
 
 ## `PlaytestOutcomeReport`
 
@@ -1370,6 +1388,8 @@ type PlaytestReport<S = unknown> = {
     commands: RecordingCommand[];
     /** `probeConfigHash` of the game. */
     configHash: string;
+    /** The last tick's `ctx.debug` draws; only with `collectDebugDraw`. */
+    debug?: readonly DebugDrawCommand[];
     /** The active conversation after the last tick, null with none; absent when the run had no dialogue. */
     dialogue?: Readonly<DialogueView> | null;
     events: StepEvent[];
@@ -1618,6 +1638,8 @@ _type_ in `headless/types.ts`
 
 ```ts
 type ProbeOptions<S = unknown> = ProbeInput & {
+    /** Keep each tick's `ctx.debug` draws, the last tick's in `ProbeReport.debug`; default false. */
+    collectDebugDraw?: boolean;
     game?: GameDefinition<S> | null;
     /**
      * Called after each tick's step that didn't throw, with the tick and the
@@ -1652,6 +1674,8 @@ type ProbeReport<S = unknown> = {
     blocked?: PlaytestBlocked;
     /** Changes with the engine version, the tick rate, the game and its tuning. */
     configHash: string;
+    /** The last tick's `ctx.debug` draws; only with `collectDebugDraw`. */
+    debug?: readonly DebugDrawCommand[];
     events: StepEvent[];
     /** The game's snapshot after the last tick; `null` without a game. */
     final: S | null;
@@ -1931,6 +1955,8 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     game?: GameDefinition<S> | null;
     /** Every prefab `ctx.instantiate` may place, as `loadHeadless` returns it; default `prefabs`. */
     library?: PrefabLibrary;
+    /** Called with each replayed tick's events, as the shell's event log takes them in Play. */
+    onEvents?: (tick: number, events: readonly StepEvent[]) => void;
     /** The prefabs the scene's instances name. */
     prefabs?: PrefabLibrary;
     /** The project's data the game reads as `EngineContext.project`; its `engine` block resolves the scene's settings and the clock. */
@@ -1951,6 +1977,11 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     /** The scene's listed id (`ctx.flow.scene`); default the library's id for it, else its name. */
     sceneId?: AssetId;
     /**
+     * Stop at this tick, clamped to the recording, and report the state there
+     * as `ReplayReport.at`; the replay is judged on the ticks it stepped.
+     */
+    seek?: number;
+    /**
      * The scene versions the recording names, by id (a host holding several
      * looks one up with `findSceneVersion`); null for one it doesn't have. A
      * recording that starts on a version it can't find doesn't replay, and a
@@ -1961,7 +1992,7 @@ type ReplayOptions<S = unknown> = RecordingHost & {
 };
 ```
 
-Refers to [`ProjectRuntimeView`](#projectruntimeview), [`RapierModule`](#rapiermodule), [`RecordingHost`](#recordinghost).
+Refers to [`ProjectRuntimeView`](#projectruntimeview), [`RapierModule`](#rapiermodule), [`RecordingHost`](#recordinghost), [`StepEvent`](#stepevent).
 
 ## `ReplayReport`
 
@@ -1969,6 +2000,11 @@ _type_ in `headless/recording.ts`
 
 ```ts
 type ReplayReport<S = unknown> = {
+    /** With `seek`: the tick it stopped at and the game's snapshot after it. */
+    at?: {
+        snapshot: S | null;
+        tick: number;
+    };
     blocked: false;
     /** How it differs from the recording, when it doesn't match. */
     divergence: null | string;
@@ -1976,7 +2012,7 @@ type ReplayReport<S = unknown> = {
     final: S | null;
     /** Coded warnings beside `warnings`: `recording-other-platform`. */
     issues: SceneIssue[];
-    /** Same result, tick and end digest as the recording. */
+    /** Same result, tick and end digest as the recording; with `seek` before its end, no swap stopped it on the way. */
     matches: boolean;
     /** The format version the recording was migrated from, when it was. */
     migratedFrom?: 1;
@@ -2178,6 +2214,11 @@ simulation, a recording, a save or a hash.
 type RunTiming = {
     /** Off, every scope's `begin` is false and nothing reads the clock. */
     enabled: boolean;
+    /** Called as each span closes, with its scope's name and the ms each part took in it, in first-run order. */
+    onSpan?: (scope: string, parts: Iterable<readonly [
+        string,
+        number
+    ]>) => void;
     /** Each scope's spans so far; `shell`, `frame` and `draw` only once they ran. */
     report(): TimingReport;
     /** Forgets everything measured; scopes stay valid. */
@@ -2226,6 +2267,39 @@ type RuntimeStats = {
 ```
 
 Refers to [`TimingReport`](#timingreport).
+
+## `RuntimeTimings`
+
+_type_ in `runtime/timings.ts`
+
+Where the last window's ticks went, wall-clock milliseconds. Never part of
+state, a recording, a save or a digest: two runs never report the same.
+
+```ts
+type RuntimeTimings = {
+    behaviors: Readonly<Record<BehaviorName, TimingStat>>;
+    /** Shell only: render and the frame's presentation work. */
+    frame?: {
+        present: TimingStat;
+        render: TimingStat;
+    };
+    /** Mean and worst ms per tick, per phase, over the window. */
+    phases: Readonly<Record<TickPhase, TimingStat>>;
+    systems: Readonly<Record<EntityTypeName, TimingStat>>;
+    /** Ticks in the window these numbers cover. */
+    ticks: number;
+};
+```
+
+## `SEEK_CHECKPOINT_EVERY`
+
+_const_ in `runtime/seek.ts`
+
+Ticks between the checkpoints a replay's seek restores from.
+
+```ts
+declare const SEEK_CHECKPOINT_EVERY = 300;
+```
 
 ## `SENSOR_ENTER`
 
@@ -2417,10 +2491,12 @@ type SceneRuntimeHandle = SceneRuntime & {
     render: (alpha: number) => void;
     /** The loaded scene with every `add`, `update` and `remove` since applied, or null. */
     scene: () => ExpandedScene | null;
+    /** The last full window of `SceneRuntimeOptions.timings`; null without the option. */
+    timings: () => RuntimeTimings | null;
 };
 ```
 
-Refers to [`AssetReloadError`](#assetreloaderror), [`ProjectRuntimeView`](#projectruntimeview), [`SceneRuntime`](#sceneruntime).
+Refers to [`AssetReloadError`](#assetreloaderror), [`ProjectRuntimeView`](#projectruntimeview), [`RuntimeTimings`](#runtimetimings), [`SceneRuntime`](#sceneruntime).
 
 ## `ScriptIssue`
 
@@ -2521,6 +2597,22 @@ type SeatEvent = [
 ];
 ```
 
+## `SeekProgress`
+
+_type_ in `runtime/seek.ts`
+
+How far a seek has re-simulated: plain data, so it crosses a worker link.
+
+```ts
+type SeekProgress = {
+    /** The tick it re-simulated from: a checkpoint's, the start's or where the world stood. */
+    readonly from: number;
+    readonly target: number;
+    /** The tick the world steps next. */
+    readonly tick: number;
+};
+```
+
 ## `SnapshotError`
 
 _class_ in `project/snapshot.ts`
@@ -2550,6 +2642,54 @@ type SnapshotLoadInput = LoadCommon & {
 ```
 
 Refers to [`ProjectSnapshot`](#projectsnapshot).
+
+## `StatsOptions`
+
+_type_ in `headless/stats.ts`
+
+```ts
+type StatsOptions = PlaytestOptions & {
+    ticks: number;
+    /** Ticks run first and left out of the measurements. */
+    warmup?: number;
+};
+```
+
+Refers to [`PlaytestOptions`](#playtestoptions).
+
+## `StatsReport`
+
+_type_ in `headless/stats.ts`
+
+What `runStats` measured over a scene's run.
+
+```ts
+type StatsReport = {
+    /** Deterministic: the same for every run of one input. */
+    counts: {
+        behaviors: Readonly<Record<BehaviorName, number>>;
+        bodies: number;
+        colliders: number;
+        destroyed: number;
+        entities: number;
+        events: number;
+        spawned: number;
+    };
+    scene: string;
+    ticks: number;
+    /** Not deterministic: wall-clock measurements on this machine. */
+    wall: {
+        machine: {
+            arch: string;
+            runtime: string;
+        };
+        ticksPerSecond: number;
+        timings: RuntimeTimings;
+    };
+};
+```
+
+Refers to [`RuntimeTimings`](#runtimetimings).
 
 ## `StepDuration`
 
@@ -2603,6 +2743,8 @@ _type_ in `runtime/types.ts`
 
 ```ts
 type StepResult = {
+    /** The tick's debug draws; set only for a runtime given `SceneRuntimeOptions.debugDraw`. */
+    debug?: readonly DebugDrawCommand[];
     /** Engine events first (sensors), then the game's, each in the order raised. */
     events: StepEvent[];
     /** The game's `snapshot()` after the step; `null` without a game. */
@@ -2849,6 +2991,24 @@ type TimingSpan = TimingBucket & {
 
 Refers to [`TimingBucket`](#timingbucket).
 
+## `TimingsOptions`
+
+_type_ in `runtime/timings.ts`
+
+`SceneRuntimeOptions.timings`.
+
+```ts
+type TimingsOptions = {
+    clock: Clock;
+    /** Read at each step's start: false skips timing that step. Default always on. */
+    enabled?: () => boolean;
+    /** Ticks per window; default `DEFAULT_TIMINGS_WINDOW`. */
+    window?: number;
+};
+```
+
+Refers to [`Clock`](#clock).
+
 ## `UntilClause`
 
 _type_ in `headless/playtest-types.ts`
@@ -2896,6 +3056,37 @@ type ValidatePhysicalOptions = PhysicalOptions & {
 ```
 
 Refers to [`PhysicalOptions`](#physicaloptions), [`RapierModule`](#rapiermodule).
+
+## `WorldSnapshot`
+
+_type_ in `runtime/world-snapshot.ts`
+
+A runtime's world in memory at a tick: a world save's state (no JSON) plus
+each system's and behavior's save. Opaque: only `restoreWorld` reads it.
+
+```ts
+type WorldSnapshot = {
+    readonly [worldSnapshotBrand]: true;
+    readonly backend: "geometry" | "rapier";
+    readonly tick: number;
+};
+```
+
+## `WorldSnapshotResult`
+
+_type_ in `runtime/world-snapshot.ts`
+
+```ts
+type WorldSnapshotResult = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    snapshot: WorldSnapshot;
+};
+```
+
+Refers to [`WorldSnapshot`](#worldsnapshot).
 
 ## `analogActions`
 
@@ -3532,6 +3723,21 @@ declare function restoreSave(runtime: SceneRuntimeHandle, file: SaveFile): {
 
 Refers to [`LoadReport`](#loadreport), [`SceneRuntimeHandle`](#sceneruntimehandle).
 
+## `restoreWorld`
+
+_function_ in `runtime/world-snapshot.ts`
+
+Puts `snapshot` back into the runtime it was taken from, as a world-depth
+restore does: the scene loaded fresh through the entry it was reached by,
+then the world, the game's `restore`, `persist` and the play clock.
+Between ticks only; throws when a part can't be put back.
+
+```ts
+declare function restoreWorld(runtime: SceneRuntimeHandle, snapshot: WorldSnapshot): void;
+```
+
+Refers to [`SceneRuntimeHandle`](#sceneruntimehandle), [`WorldSnapshot`](#worldsnapshot).
+
 ## `runBlocked`
 
 _function_ in `headless/play-loop.ts`
@@ -3604,6 +3810,22 @@ declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): P
 
 Refers to [`ProbeOptions`](#probeoptions), [`ProbeReport`](#probereport).
 
+## `runStats`
+
+_function_ in `headless/stats.ts`
+
+Plays the script for `warmup + ticks` ticks (fewer when the script or the
+game ends it first) with timings on, then reports the scene's counts and
+its speed here. `counts` covers the measured ticks and the world after the
+last one; `wall` is the only part two runs of one input don't share.
+Rejects when the run is blocked.
+
+```ts
+declare function runStats(opts: StatsOptions): Promise<StatsReport>;
+```
+
+Refers to [`StatsOptions`](#statsoptions), [`StatsReport`](#statsreport).
+
 ## `scriptSource`
 
 _function_ in `headless/compile-input-script.ts`
@@ -3620,6 +3842,16 @@ declare function scriptSource(script: CompiledInputScript, holds: (until: UntilC
 
 Refers to [`CompiledInputScript`](#compiledinputscript), [`ScriptSource`](#scriptsource), [`UntilClause`](#untilclause).
 
+## `seekTarget`
+
+_function_ in `runtime/seek.ts`
+
+A seek's target within a run of `ticks` ticks: a whole tick from 0 to the end.
+
+```ts
+declare function seekTarget(target: number, ticks: number): number;
+```
+
 ## `simActionError`
 
 _function_ in `headless/headless.ts`
@@ -3632,6 +3864,18 @@ input path (probe, step, fuzz macro, input script) applies.
 ```ts
 declare function simActionError(registry: Registry, action: string): null | string;
 ```
+
+## `snapshotWorld`
+
+_function_ in `runtime/world-snapshot.ts`
+
+Captures the world as a save's world depth would; refuses what `captureSave` refuses, with its issue.
+
+```ts
+declare function snapshotWorld(runtime: SceneRuntimeHandle): WorldSnapshotResult;
+```
+
+Refers to [`SceneRuntimeHandle`](#sceneruntimehandle), [`WorldSnapshotResult`](#worldsnapshotresult).
 
 ## `soundLeafMs`
 

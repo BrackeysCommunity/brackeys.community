@@ -5,12 +5,16 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { RigidBody } from "@dimforge/rapier2d";
+import { HocuspocusProvider } from "@hocuspocus/provider";
+import type { GameInstance, GamePhase } from "@jams/engine";
+import { createLiveResponder, LIVE_FRAME_MAX_BYTES } from "@jams/engine/collab";
 import { DEFAULT_ZIP_TARGET, exportTargetNames } from "@jams/engine/export";
 import { defineGame, parseSaveFile } from "@jams/engine/game";
 import { synthDurationMs, type RapierModule } from "@jams/engine/headless";
 import {
   checksKind,
   dataTableKind,
+  docNameOf,
   gameSettingsKind,
   inputScriptKind,
   materialKind,
@@ -28,13 +32,17 @@ import {
   sceneHash,
   type OpBatch,
 } from "@jams/engine/scene";
+import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import * as Y from "yjs";
 import { z } from "zod";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { generateLargeScene } from "../../engine-perf";
 import { gateStrings, gateTalk } from "../../engine-readme/examples/gate-game";
 import { COMMAND_NAMES, runCli } from "../commands";
 import type { ToolContext } from "../context";
+import { openProject } from "../projects";
 import { apply } from "../tools/apply";
 import { assetsInfo } from "../tools/assets-info";
 import { check } from "../tools/check";
@@ -43,18 +51,21 @@ import { dialogueWalk, walkDialogue } from "../tools/dialogue-walk";
 import { diff } from "../tools/diff";
 import { flow } from "../tools/flow";
 import { fmt } from "../tools/fmt";
+import { frame } from "../tools/frame";
 import { fuzz } from "../tools/fuzz";
 import { gameLiveBuild } from "../tools/game-live";
 import { grid } from "../tools/grid";
 import { input } from "../tools/input";
 import { list } from "../tools/list";
 import { newScene } from "../tools/new";
+import { playLive, type PlayLiveInput } from "../tools/play-live";
 import { playtest } from "../tools/playtest";
 import { render } from "../tools/render";
 import { replay, replayText } from "../tools/replay";
 import { projectSaveFixtures, save } from "../tools/save";
 import { schema } from "../tools/schema";
 import { MAX_ROWS, show } from "../tools/show";
+import { stats } from "../tools/stats";
 import { step } from "../tools/step";
 import { validate } from "../tools/validate";
 import { CARD_SPEED, CARD_TABLE, cardGame } from "./card-game";
@@ -1807,6 +1818,56 @@ describe("playtest in a project with data", () => {
   });
 });
 
+describe("stats", () => {
+  type StatsData = {
+    game: string | null;
+    scene: string;
+    ticks: number;
+    counts: { entities: number; colliders: number; behaviors: Record<string, number> };
+    wall: { ticksPerSecond: number; timings: { ticks: number }; machine: { arch: string } };
+  };
+
+  it("reports counts that match across runs and wall timings that are this machine's", async () => {
+    const a = await stats({ scene: "engine-yard", ticks: "60" }, ctx);
+    const b = await stats({ scene: "engine-yard", ticks: "60" }, ctx);
+    expect(a.exitCode, a.text).toBe(0);
+    const da = a.data as StatsData;
+    const db = b.data as StatsData;
+    expect(da.ticks).toBe(60);
+    expect(da.counts).toEqual(db.counts);
+    expect(da.counts.entities).toBeGreaterThan(0);
+    expect(da.wall.ticksPerSecond).toBeGreaterThan(0);
+    expect(da.wall.timings.ticks).toBe(60);
+    expect(da.wall.machine.arch).toBe(process.arch);
+    expect(a.text).toContain("engine-yard: 60 ticks");
+    expect(a.text).toMatch(/ticks\/s/);
+    expect(a.text).toContain("physics");
+  });
+
+  it("measures a generated scene file and its physics-free twin, as engine:perf does", async () => {
+    const mix = { solids: 30, sensors: 15, followers: 5 };
+    for (const physics of ["rapier", "none"] as const) {
+      const file = join(root, `large-${physics}.json`);
+      await writeFile(file, JSON.stringify(generateLargeScene(9, mix, physics)));
+      const r = await stats({ scene: file, ticks: "30" }, ctx);
+      expect(r.exitCode, r.text).toBe(0);
+      expect((r.data as StatsData).counts.entities).toBe(50);
+    }
+  });
+
+  it("refuses a --ticks that isn't a whole number in range", async () => {
+    for (const ticks of ["0", "1.5", "x", "40000"]) {
+      const r = await stats({ scene: "engine-yard", ticks }, ctx);
+      expect(r.exitCode).toBe(2);
+      expect(r.text).toContain("--ticks");
+    }
+  });
+
+  it("is registered with the CLI", () => {
+    expect(COMMAND_NAMES).toContain("stats");
+  });
+});
+
 describe("a scene without physics", () => {
   const WAIT_SCRIPT = { v: 1, steps: [{ wait: 30 }] };
   const FREE_YARD = {
@@ -1976,6 +2037,31 @@ describe("replay", () => {
 
     expect((await replay({ scene: "test-yard" }, ctx)).exitCode).toBe(2);
     expect((await replay({ scene: "-", run: "-" }, ctx)).exitCode).toBe(2);
+  });
+
+  it("stops at --seek and prints the state there", async () => {
+    const file = join(root, "seek.rec.json");
+    expect(
+      (await playtest({ scene: "test-yard", script: HOP_LEFT, record: file }, ctx)).exitCode,
+    ).toBe(0);
+    const ticks = (JSON.parse(await readFile(file, "utf8")) as { ticks: number }).ticks;
+    const at = await replay({ scene: "test-yard", run: file, seek: "10" }, ctx);
+    expect(at.exitCode, at.text).toBe(0);
+    const report = at.data as { at: { tick: number; snapshot: unknown }; final: unknown };
+    expect(report.at.tick).toBe(10);
+    expect(report.at.snapshot).toEqual(report.final);
+    expect(at.text).toMatch(/^ {2}at t10 /m);
+    expect(at.text).not.toContain("  final ");
+
+    const end = await replay({ scene: "test-yard", run: file }, ctx);
+    const past = await replay({ scene: "test-yard", run: file, seek: String(ticks + 50) }, ctx);
+    expect((past.data as { at: { tick: number; snapshot: unknown } }).at).toEqual({
+      tick: ticks,
+      snapshot: (end.data as { final: unknown }).final,
+    });
+
+    for (const bad of ["-1", "1.5", "soon"])
+      expect((await replay({ scene: "test-yard", run: file, seek: bad }, ctx)).exitCode).toBe(2);
   });
 
   it("replays a frozen v1 recording, saying it migrated, where and on what it was made", async () => {
@@ -2862,6 +2948,9 @@ describe("runCli", () => {
       "save",
       "check",
       "render",
+      "stats",
+      "frame",
+      "play",
       "textconv",
       "bundle",
       "project show",
@@ -3851,6 +3940,15 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
     });
   });
 
+  it("render --debug-draw runs the kitchen sink headless and reports its draws", async () => {
+    const r = await render({ scene: "kitchen-sink", debugDraw: true, ticks: "4" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect((r.data as { debugDraw: unknown }).debugDraw).toEqual({ ticks: 4, draws: 0 });
+    const plain = await render({ scene: "kitchen-sink" }, sinkCtx);
+    expect((plain.data as { debugDraw?: unknown }).debugDraw).toBeUndefined();
+    expect((r.data as { svg: string }).svg).toBe((plain.data as { svg: string }).svg);
+  });
+
   it("playtest --present lists the sounds step events play through a sound's on matchers", async () => {
     const script = join(root, "wait.json");
     await writeFile(script, JSON.stringify({ v: 2, steps: [{ wait: 20 }] }));
@@ -3934,5 +4032,227 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
       expect(engine[code]?.severity, code).toBe(severity);
       expect(r.text, code).toMatch(new RegExp(`^  ${code} +${severity} +\\S`, "m"));
     }
+  });
+});
+
+describe("frame and play --live", { timeout: 60_000 }, () => {
+  type Editor = { provider: HocuspocusProvider; detach: () => void };
+  let liveRoot: string;
+  let server: ListeningSceneCollab;
+  let live: ToolContext;
+  let editor: Editor | null;
+
+  /** A PNG header naming its size: what the responder's `pngSize` and the CLI read. */
+  const fakePng = (width: number, height: number) => {
+    const bytes = new Uint8Array(64);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(16, width);
+    view.setUint32(20, height);
+    return bytes;
+  };
+
+  /** A game as the responder drives it, its Play kept in plain fields. */
+  function fakeGame() {
+    const state = {
+      phase: "idle" as GamePhase,
+      tick: 0,
+      mode: "edit" as "edit" | "play",
+      game: null,
+      dialogue: null,
+      session: null,
+      timings: null,
+    };
+    const game = {
+      getStore: () => ({ state }),
+      pause: () => void (state.phase = "paused"),
+      resume: () => void (state.phase = "running"),
+      step: (n: number) => void (state.tick += n),
+      stop: () => {
+        state.mode = "edit";
+        state.phase = "idle";
+        state.tick = 0;
+      },
+      debug: {
+        entities: async () => [{ id: "lift" }],
+        events: { list: () => [] },
+      },
+    };
+    return { state, game: game as unknown as GameInstance };
+  }
+
+  async function openEditor(opts: { enabled?: boolean; png?: Uint8Array } = {}) {
+    const { state, game } = fakeGame();
+    const provider = new HocuspocusProvider({
+      url: server.url,
+      name: docNameOf({ kind: "scene", project: "engine", key: "engine-yard" }),
+      document: new Y.Doc(),
+    });
+    const end = Date.now() + 5_000;
+    while (!provider.synced) {
+      if (Date.now() > end) throw new Error("the editor never synced");
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    const asked: unknown[] = [];
+    const detach = createLiveResponder().attach(provider, {
+      enabled: () => opts.enabled ?? true,
+      game: () => game,
+      render: async (req) => {
+        asked.push(req.opts);
+        return opts.png ?? fakePng(320, 180);
+      },
+      play: () => {
+        state.mode = "play";
+        state.phase = "running";
+      },
+    });
+    editor = { provider, detach };
+    return { state, asked };
+  }
+
+  beforeEach(async () => {
+    liveRoot = await mkdtemp(join(tmpdir(), "scene-frame-"));
+    const dir = join(liveRoot, "engine");
+    await mkdir(dir);
+    await copyFile(ENGINE_YARD, join(dir, "engine-yard.json"));
+    await writeFile(
+      join(dir, "jams.project.json"),
+      JSON.stringify({ kind: "project", v: 1, id: "engine", name: "Engine", game: null }),
+    );
+    live = {
+      projects: [await openProject(dir, { cacheDir: join(liveRoot, "cli-cache") })],
+      loadRapier: () => import("@dimforge/rapier2d") as Promise<RapierModule>,
+    };
+    server = await listenSceneCollab({
+      projects: [await readFileProject(dir, { cacheDir: join(liveRoot, "cache") })],
+      debounceMs: 50,
+      warn: () => undefined,
+    });
+    editor = null;
+  });
+
+  afterEach(async () => {
+    editor?.detach();
+    editor?.provider.destroy();
+    await server.close();
+    await rm(liveRoot, { recursive: true, force: true });
+  });
+
+  it("writes the open editor's frame, asking for the viewport", async () => {
+    const { asked } = await openEditor();
+    const out = join(liveRoot, "frame.png");
+    const r = await frame(
+      { scene: "engine-yard", live: true, out, viewport: "12", url: server.url },
+      live,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({ source: "live", width: 320, height: 180, mode: "edit", out });
+    expect(asked).toEqual([{ viewport: 12 }]);
+    expect(new Uint8Array(await readFile(out))).toEqual(fakePng(320, 180));
+    expect(r.text).toContain("source: live");
+
+    const inline = await frame({ scene: "engine-yard", live: true, url: server.url }, live);
+    expect((inline.data as { png: string }).png).toBe(
+      Buffer.from(fakePng(320, 180)).toString("base64"),
+    );
+  });
+
+  it("falls back to the schematic, saying so, when no editor answers", async () => {
+    const out = join(liveRoot, "schematic.png");
+    const r = await frame(
+      { scene: "engine-yard", live: true, out, url: server.url, timeoutMs: 300 },
+      live,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({
+      source: "schematic",
+      out,
+      issues: [{ code: "live-no-editor" }],
+    });
+    expect((await readFile(out)).subarray(1, 4).toString()).toBe("PNG");
+    expect(r.text).toContain("source: schematic");
+
+    const down = await frame(
+      { scene: "engine-yard", live: true, url: "ws://127.0.0.1:9/__scene-collab", timeoutMs: 300 },
+      live,
+    );
+    expect(down.data).toMatchObject({ source: "schematic", issues: [{ code: "live-no-editor" }] });
+    expect((down.data as { png: string }).png.length).toBeGreaterThan(0);
+  });
+
+  it("falls back on frame-too-large and stops on live-refused", async () => {
+    await openEditor({ png: new Uint8Array(LIVE_FRAME_MAX_BYTES + 1) });
+    const big = await frame({ scene: "engine-yard", live: true, url: server.url }, live);
+    expect(big.data).toMatchObject({ source: "schematic", issues: [{ code: "frame-too-large" }] });
+    editor!.detach();
+    editor!.provider.destroy();
+
+    await openEditor({ enabled: false });
+    const refused = await frame({ scene: "engine-yard", live: true, url: server.url }, live);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.data).toMatchObject({ ok: false, issues: [{ code: "live-refused" }] });
+    const play = await playLive(
+      { scene: "engine-yard", live: true, action: "play", url: server.url },
+      live,
+    );
+    expect(play.data).toMatchObject({ issues: [{ code: "live-refused", severity: "warn" }] });
+  });
+
+  it("plays, steps, pauses, resumes, reads state and stops the editor's Play", async () => {
+    await openEditor();
+    const run = (action: string, ticks?: string) =>
+      playLive({ scene: "engine-yard", live: true, action, ticks, url: server.url }, live);
+    const seen: unknown[] = [];
+    for (const [action, ticks] of [
+      ["play"],
+      ["step", "3"],
+      ["pause"],
+      ["resume"],
+      ["stop"],
+    ] as const) {
+      const r = await run(action, ticks);
+      expect(r.exitCode, r.text).toBe(0);
+      seen.push([action, (r.data as { phase: string }).phase, (r.data as { tick: number }).tick]);
+    }
+    expect(seen).toEqual([
+      ["play", "running", 0],
+      ["step", "running", 3],
+      ["pause", "paused", 3],
+      ["resume", "running", 3],
+      ["stop", "idle", 0],
+    ]);
+    const state = await run("state");
+    expect(state.data).toMatchObject({
+      store: { mode: "edit", phase: "idle", tick: 0 },
+      entities: [{ id: "lift" }],
+      events: [],
+      timings: null,
+    });
+    expect(state.text).toContain("engine-yard: edit idle at t0");
+  });
+
+  it("refuses bad usage and reports live-no-editor with nobody there", async () => {
+    const usageOf = (input: Partial<PlayLiveInput>) =>
+      playLive({ scene: "engine-yard", live: true, url: server.url, ...input }, live).then(
+        (r) => r.exitCode,
+      );
+    expect(await usageOf({ action: "dance" })).toBe(2);
+    expect(await usageOf({ action: "pause", ticks: "2" })).toBe(2);
+    expect(await usageOf({ action: "step", ticks: "0" })).toBe(2);
+    expect(await usageOf({ action: "play", live: false })).toBe(2);
+    expect((await frame({ scene: "engine-yard", live: false }, live)).exitCode).toBe(2);
+    expect((await frame({ scene: "engine-yard", live: true, out: "f.svg" }, live)).exitCode).toBe(
+      2,
+    );
+    expect((await frame({ scene: "engine-yard", live: true, viewport: "0" }, live)).exitCode).toBe(
+      2,
+    );
+
+    const none = await playLive(
+      { scene: "engine-yard", live: true, action: "state", url: server.url, timeoutMs: 300 },
+      live,
+    );
+    expect(none.exitCode).toBe(1);
+    expect(none.data).toMatchObject({ issues: [{ code: "live-no-editor", severity: "info" }] });
   });
 });

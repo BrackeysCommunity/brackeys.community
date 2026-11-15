@@ -454,6 +454,12 @@ export function createBodyTable<T extends OwnedBody>(
       return true;
     },
     disabled: (id: string): boolean => disabled.has(id),
+    /** Its body's motion, `{ placed: true }` for one held without a body, undefined for an unknown id. */
+    inspect: (id: string): Record<string, JsonValue> | undefined => {
+      if (placed.has(id)) return { placed: true };
+      const entry = owned.get(id);
+      return entry ? inspectRigidBody(entry.body) : undefined;
+    },
     clear: (): void => {
       for (const id of [...placed.keys()]) despawn(id);
       for (const id of [...owned.keys()]) despawn(id);
@@ -491,6 +497,23 @@ export function createBodyTable<T extends OwnedBody>(
       }
     },
   };
+}
+
+/** What a debugger shows of a Rapier body: m/s, rad/s. */
+function inspectRigidBody(body: RigidBody): {
+  velocity: Vec2;
+  angular: number;
+  sleeping: boolean;
+} {
+  const v = body.linvel();
+  return { velocity: { x: v.x, y: v.y }, angular: body.angvel(), sleeping: body.isSleeping() };
+}
+
+/** The ids of what a sensor overlaps, each once, in overlap order. */
+function overlapIds(overlaps: Overlaps | undefined): string[] {
+  const ids = new Set<string>();
+  for (const id of overlaps?.values() ?? []) if (id !== undefined) ids.add(id);
+  return [...ids];
 }
 
 // ─── Riders: colliders on another entity's body ──────────
@@ -1152,6 +1175,17 @@ export function createSolidSystem(
       restoreMoved(ctx, id, state, setPose);
       setGate(id, state.hidden === true);
     },
+    inspect(id) {
+      const body = table.inspect(id);
+      const ride = rides.get(id);
+      if (!body && ride === undefined) return undefined;
+      const hidden = table.owned.get(id)?.hidden ?? placedOneWay.get(id)?.hidden ?? gated.has(id);
+      return {
+        ...body,
+        ...(ride !== undefined ? { rides: ride } : {}),
+        ...(hidden ? { hidden } : {}),
+      };
+    },
     ...riding(ctx, {
       records,
       rides,
@@ -1365,6 +1399,7 @@ export function createPropSystem(
     },
     /** Its body moves it in the world: a parent's movement doesn't carry it. */
     selfMoving: () => true,
+    inspect: (id) => table.inspect(id),
   };
 }
 
@@ -1687,6 +1722,17 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
      * What overlaps the sensor since the last step, so a restore raises no
      * enter for it again, and whether `setPose` moved it.
      */
+    inspect(id) {
+      const placed = placedSensors.get(id);
+      const overlaps = placed?.inside ?? table.owned.get(id)?.inside ?? inside.get(id);
+      if (!records.has(id)) return undefined;
+      const ride = rides.get(id);
+      return {
+        ...table.inspect(id),
+        ...(ride !== undefined ? { rides: ride } : {}),
+        inside: overlapIds(overlaps),
+      };
+    },
     save(id): JsonValue | undefined {
       const placed = placedSensors.get(id);
       const overlaps = placed?.inside ?? table.owned.get(id)?.inside ?? inside.get(id);

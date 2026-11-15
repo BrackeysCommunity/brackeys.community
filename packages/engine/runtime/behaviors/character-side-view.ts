@@ -490,6 +490,15 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
       if (c.grounded) out.g = true;
       return out;
     },
+    /** The last `setIntent`, the jump held, grounded; the velocity is its motion body's. */
+    inspect(id) {
+      const c = characters.get(id);
+      if (!c) return undefined;
+      const intent = c.intent
+        ? { move: { x: c.intent.move.x, y: c.intent.move.y }, jump: c.intent.jump === true }
+        : null;
+      return { intent, held: c.held, grounded: c.grounded, disabled: c.disabled };
+    },
     restore(id, state) {
       const c = characters.get(id);
       const saved = readSaved(state);

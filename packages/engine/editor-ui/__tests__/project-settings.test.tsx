@@ -226,7 +226,7 @@ afterEach(() => {
 });
 
 describe("the project settings panel", () => {
-  it("is a panel of the editor's tab groups, with five sections", async () => {
+  it("is a panel of the editor's tab groups, with six sections", async () => {
     expect(PANELS.find((p) => p.id === "settings")?.title).toBe("Project settings");
     const { session } = await client(project(), ada);
     const panel = mount(session);
@@ -236,6 +236,7 @@ describe("the project settings panel", () => {
       "Input",
       "Scenes",
       "Layers",
+      "Agents",
     ]);
   });
 

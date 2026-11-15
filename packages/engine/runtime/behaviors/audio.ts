@@ -79,6 +79,10 @@ export const createAudioBehaviorSystem: BehaviorSystemFactory = (ctx) => {
       if (!a || a.playing === playsFromAttach(a.block)) return undefined;
       return { playing: a.playing };
     },
+    inspect(id) {
+      const a = attached.get(id);
+      return a ? { sound: a.block.sound, playing: a.playing, voice: audioVoiceKey(id) } : undefined;
+    },
     restore(id, state) {
       const a = attached.get(id);
       if (!a || typeof state !== "object" || state === null || Array.isArray(state)) return;

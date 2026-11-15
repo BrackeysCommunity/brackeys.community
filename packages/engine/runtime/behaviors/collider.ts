@@ -605,6 +605,33 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       if (inside.length === 0 && (next === null || next.length === 0)) return undefined;
       return next === null ? { inside } : { inside, next };
     },
+    inspect(id) {
+      const b = built.get(id);
+      if (!b) return undefined;
+      const out: Record<string, JsonValue> = {
+        kind: b.kind,
+        sensor: b.sensor,
+        disabled: b.disabled,
+        riding: b.riding,
+      };
+      if (b.body && !b.stood) {
+        const v = b.kind === "kinematic" ? b.v : b.body.linvel();
+        out.velocity = { x: v.x, y: v.y };
+        out.angular = b.kind === "kinematic" ? b.w : b.body.angvel();
+        out.sleeping = b.body.isSleeping();
+      }
+      if (b.stood) out.stoodIn = true;
+      if (b.sensor) {
+        // A restored sensor holds its overlaps by entity until the next step resolves them to handles.
+        const ids = b.restored
+          ? (Array.isArray(b.restored.inside) ? b.restored.inside : []).map((o) =>
+              Array.isArray(o) ? o[0] : undefined,
+            )
+          : [...b.inside.values()];
+        out.inside = [...new Set(ids.filter((o): o is string => typeof o === "string"))];
+      }
+      return out;
+    },
     restore(id, state) {
       system.rebuild(id);
       const b = built.get(id);

@@ -35,6 +35,7 @@
     "engine:api-report": "bun scripts/engine-api-report.ts",
     "engine:api-docs": "bun scripts/engine-api-docs.ts",
     "engine:bundle-check": "bun scripts/engine-bundle-check.ts",
+    "engine:perf": "bun scripts/engine-perf.ts",
     "engine:editor": "node --no-experimental-webstorage scripts/engine-editor/run.ts",
     "scene": "bun scripts/scene/cli.ts",
     "check": "vp check --no-fmt",

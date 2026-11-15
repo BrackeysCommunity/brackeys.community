@@ -11,6 +11,8 @@ export interface GridStepper {
   step(to: Cell): boolean;
   /** Advances the step; call once per tick. Lerps exactly by whole ticks. */
   update(dtMs: number): void;
+  /** What a debugger shows: the cell, whether it moves, and the step under way. Read-only. */
+  inspect?(): JsonValue;
 }
 
 type Step = { from: Cell; to: Cell; ticks: number; done: number };
@@ -72,7 +74,14 @@ export function createGridStepper(
     if (occupy) grid.occupancy.place(entityId, cell);
   }
 
+  function inspect(): JsonValue {
+    if (!current) return { cell: [cell[0], cell[1]], moving: false };
+    const { from, ticks, done } = current;
+    return { cell: [cell[0], cell[1]], moving: true, from: [from[0], from[1]], done, ticks };
+  }
+
   saveRegistryOf(ctx)?.register(entityId, "grid-step", {
+    inspect,
     save(): JsonValue {
       if (!current) return { cell: [cell[0], cell[1]] };
       const { from, ticks, done } = current;
@@ -90,6 +99,7 @@ export function createGridStepper(
   return {
     cell: () => cell,
     moving: () => current !== null,
+    inspect,
     step(to) {
       const grid = ctx.grid;
       if (current || !grid) return false;

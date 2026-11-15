@@ -27,6 +27,8 @@ const KNOWN: readonly PanelId[] = [
   "settings",
   "inspector",
   "problems",
+  "event-log",
+  "perf",
   "run",
   "history",
 ];
@@ -356,9 +358,15 @@ describe("tabs and panels", () => {
       panels: ["inspector", "history"],
       active: "history",
     });
-    expect(layout.right.groups[1]!.panels).toEqual(["problems", "run"]);
+    expect(layout.right.groups[1]!.panels).toEqual(["problems", "event-log", "perf", "run"]);
     const back = movePanel(layout, "history", { side: "right", group: 1 });
-    expect(back.right.groups[1]!.panels).toEqual(["problems", "run", "history"]);
+    expect(back.right.groups[1]!.panels).toEqual([
+      "problems",
+      "event-log",
+      "perf",
+      "run",
+      "history",
+    ]);
   });
 
   it("grows a short bottom group to the height a form panel needs, and never shrinks one", () => {
@@ -390,7 +398,7 @@ describe("tabs and panels", () => {
     const topGone = movePanel(DEFAULT_LAYOUT, "inspector", { side: "right", group: 1 });
     expect(topGone.right.groups).toHaveLength(1);
     expect(topGone.right.groups[0]).toMatchObject({
-      panels: ["problems", "run", "history", "inspector"],
+      panels: ["problems", "event-log", "perf", "run", "history", "inspector"],
       size: null,
       active: "inspector",
     });
@@ -481,7 +489,14 @@ describe("parseLayout", () => {
     const stored = structuredClone(DEFAULT_LAYOUT) as EditorLayout;
     stored.right.groups[1]!.panels = ["problems"];
     const parsed = parseLayout(stored, [...KNOWN, "console"])!;
-    expect(parsed.right.groups[1]!.panels).toEqual(["problems", "run", "history", "console"]);
+    expect(parsed.right.groups[1]!.panels).toEqual([
+      "problems",
+      "event-log",
+      "perf",
+      "run",
+      "history",
+      "console",
+    ]);
   });
 
   it("keeps each panel once", () => {
@@ -491,7 +506,7 @@ describe("parseLayout", () => {
     expect(parsed.left.groups[0]!.panels).toEqual(["outliner", "inspector"]);
     expect(parsed.right.groups).toHaveLength(1);
     expect(parsed.right.groups[0]).toMatchObject({
-      panels: ["problems", "run", "history"],
+      panels: ["problems", "event-log", "perf", "run", "history"],
       size: null,
     });
   });

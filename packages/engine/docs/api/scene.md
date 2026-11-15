@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 23;
+declare const AGENT_SURFACE_VERSION = 24;
 ```
 
 ## `Aabb`
@@ -620,7 +620,10 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "font-missing",
     "string-key-missing",
     "dialogue-dead-end",
-    "dialogue-unreachable"
+    "dialogue-unreachable",
+    "live-no-editor",
+    "live-refused",
+    "frame-too-large"
 ];
 ```
 
@@ -2948,6 +2951,8 @@ _type_ in `scene/svg.ts`
 
 ```ts
 type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
+    /** `ctx.debug` draws (a probe's `debug`), drawn over everything in world metres; widths and text sizes in image px. */
+    debugDraw?: readonly DebugDrawCommand[];
     /** `entities` (default) labels entities that have ids; `all` adds bulk refs; `none` labels nothing. */
     labels?: SceneLabels;
     /** Cap on the longest side, image px; default `SCENE_SVG_MAX_SIZE`. */

@@ -26,6 +26,14 @@ import type {
   ProjectTransport,
 } from "../host";
 
+type StatelessListener = (e: { payload: string }) => void;
+
+/** An open doc's provider and who listens to its stateless messages, for `liveChannel`. */
+type DocChannel = {
+  provider: ReturnType<ProjectSocket["provider"]>;
+  listeners: Set<StatelessListener>;
+};
+
 // ─── Tokens ──────────────────────────────────────────────
 
 /** A token is minted afresh once less than this is left of its life. */
@@ -193,6 +201,7 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
   const listeners = new Set<() => void>();
   const assetListeners = new Set<(message: AssetChangedMessage) => void>();
   const live = new Set<() => void>();
+  const channels = new Map<string, DocChannel>();
   const unsynced = new Map<string, number>();
   let state: ProjectConnectionState = {
     ...CONNECTION_OFF,
@@ -269,11 +278,14 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
       let closed = false;
       let retries = 0;
       let timer: ReturnType<typeof setTimeout> | null = null;
+      const listeners = new Set<StatelessListener>();
 
       const close = () => {
         if (closed) return;
         closed = true;
         live.delete(close);
+        if (channels.get(name)?.listeners === listeners) channels.delete(name);
+        listeners.clear();
         if (timer) clearTimeout(timer);
         provider.destroy();
         doc.destroy();
@@ -322,12 +334,14 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
             if (closed) return;
             const message = assetChangedOf(payload, project);
             if (message) for (const l of [...assetListeners]) l(message);
+            for (const l of [...listeners]) l({ payload });
           },
           unsynced(count) {
             if (!closed) countUnsynced(name, count);
           },
         },
       });
+      channels.set(name, { provider, listeners });
       live.add(close);
     });
   };
@@ -399,6 +413,18 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
       assetListeners.add(listener);
       return () => assetListeners.delete(listener);
     },
+    liveChannel(name) {
+      const channel = channels.get(name);
+      if (!channel?.provider.sendStateless) return null;
+      const { provider } = channel;
+      return {
+        sendStateless: (payload) => provider.sendStateless?.(payload),
+        on: (_event, fn) => void channel.listeners.add(fn),
+        off: (_event, fn) => void channel.listeners.delete(fn),
+        awareness: channel.provider.awareness,
+      };
+    },
+    hosted: tokens !== null,
     destroy() {
       if (destroyed) return;
       destroyed = true;

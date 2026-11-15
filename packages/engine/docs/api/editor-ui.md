@@ -2,7 +2,33 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`BlobRouteError`](#blobrouteerror) · [`CloseReason`](#closereason) · [`ConnectProjectSessionOptions`](#connectprojectsessionoptions) · [`DEFAULT_LAYOUT`](#default_layout) · [`EDITOR_UI_STYLESHEET`](#editor_ui_stylesheet) · [`EditorCue`](#editorcue) · [`EditorHost`](#editorhost) · [`EditorIdentityInput`](#editoridentityinput) · [`EditorLayout`](#editorlayout) · [`EditorLiveHost`](#editorlivehost) · [`EditorNotify`](#editornotify) · [`EditorProjectChoice`](#editorprojectchoice) · [`EditorPublishHost`](#editorpublishhost) · [`EditorSkeleton`](#editorskeleton) · [`EditorSkeletonProps`](#editorskeletonprops) · [`EditorStorage`](#editorstorage) · [`GameSaveMode`](#gamesavemode) · [`GameSettingsPatch`](#gamesettingspatch) · [`GameSettingsView`](#gamesettingsview) · [`GameVisibility`](#gamevisibility) · [`LiveBaseView`](#livebaseview) · [`LiveMove`](#livemove) · [`LivePointerView`](#livepointerview) · [`LivePublishOptions`](#livepublishoptions) · [`LivePublishProgress`](#livepublishprogress) · [`LivePublished`](#livepublished) · [`LiveUsageView`](#liveusageview) · [`LiveVersionView`](#liveversionview) · [`LiveWording`](#livewording) · [`MintProjectToken`](#mintprojecttoken) · [`NotifyOptions`](#notifyoptions) · [`PanelId`](#panelid) · [`Pending`](#pending) · [`PendingRun`](#pendingrun) · [`PendingTask`](#pendingtask) · [`PointerMove`](#pointermove) · [`ProjectAccess`](#projectaccess) · [`ProjectBlobs`](#projectblobs) · [`ProjectConnection`](#projectconnection) · [`ProjectConnectionState`](#projectconnectionstate) · [`ProjectConnectionStatus`](#projectconnectionstatus) · [`ProjectSocket`](#projectsocket) · [`ProjectTokenAnswer`](#projecttokenanswer) · [`ProjectTokenRequest`](#projecttokenrequest) · [`ProjectTokens`](#projecttokens) · [`ProjectTransport`](#projecttransport) · [`PublishChannel`](#publishchannel) · [`PublishWording`](#publishwording) · [`ReleaseRollback`](#releaserollback) · [`ReleaseView`](#releaseview) · [`SceneEditor`](#sceneeditor) · [`SceneEditorHandle`](#sceneeditorhandle) · [`SceneEditorProps`](#sceneeditorprops) · [`SceneHome`](#scenehome) · [`UsageLevel`](#usagelevel) · [`UsageLineView`](#usagelineview) · [`UsageView`](#usageview) · [`blobContentStore`](#blobcontentstore) · [`connectProjectSession`](#connectprojectsession) · [`createPending`](#createpending) · [`createProjectTokens`](#createprojecttokens) · [`devProjectHost`](#devprojecthost) · [`fitLayout`](#fitlayout) · [`hocuspocusTransport`](#hocuspocustransport) · [`mountSceneEditor`](#mountsceneeditor) · [`offConnection`](#offconnection) · [`parseLayout`](#parselayout) · [`projectBlobs`](#projectblobs-1)
+[`AGENTS_DRIVE_PLAY_HINT`](#agents_drive_play_hint) · [`AGENTS_DRIVE_PLAY_KEY`](#agents_drive_play_key) · [`AGENTS_DRIVE_PLAY_LABEL`](#agents_drive_play_label) · [`BlobRouteError`](#blobrouteerror) · [`CloseReason`](#closereason) · [`ConnectProjectSessionOptions`](#connectprojectsessionoptions) · [`DEFAULT_LAYOUT`](#default_layout) · [`EDITOR_UI_STYLESHEET`](#editor_ui_stylesheet) · [`EditorCue`](#editorcue) · [`EditorHost`](#editorhost) · [`EditorIdentityInput`](#editoridentityinput) · [`EditorLayout`](#editorlayout) · [`EditorLiveHost`](#editorlivehost) · [`EditorNotify`](#editornotify) · [`EditorProjectChoice`](#editorprojectchoice) · [`EditorPublishHost`](#editorpublishhost) · [`EditorResponderOptions`](#editorresponderoptions) · [`EditorSkeleton`](#editorskeleton) · [`EditorSkeletonProps`](#editorskeletonprops) · [`EditorStorage`](#editorstorage) · [`FrameAsk`](#frameask) · [`FramePixels`](#framepixels) · [`GameSaveMode`](#gamesavemode) · [`GameSettingsPatch`](#gamesettingspatch) · [`GameSettingsView`](#gamesettingsview) · [`GameVisibility`](#gamevisibility) · [`LiveBaseView`](#livebaseview) · [`LiveMove`](#livemove) · [`LivePointerView`](#livepointerview) · [`LivePublishOptions`](#livepublishoptions) · [`LivePublishProgress`](#livepublishprogress) · [`LivePublished`](#livepublished) · [`LiveUsageView`](#liveusageview) · [`LiveVersionView`](#liveversionview) · [`LiveWording`](#livewording) · [`MintProjectToken`](#mintprojecttoken) · [`NotifyOptions`](#notifyoptions) · [`PanelId`](#panelid) · [`Pending`](#pending) · [`PendingRun`](#pendingrun) · [`PendingTask`](#pendingtask) · [`PointerMove`](#pointermove) · [`ProjectAccess`](#projectaccess) · [`ProjectBlobs`](#projectblobs) · [`ProjectConnection`](#projectconnection) · [`ProjectConnectionState`](#projectconnectionstate) · [`ProjectConnectionStatus`](#projectconnectionstatus) · [`ProjectSocket`](#projectsocket) · [`ProjectTokenAnswer`](#projecttokenanswer) · [`ProjectTokenRequest`](#projecttokenrequest) · [`ProjectTokens`](#projecttokens) · [`ProjectTransport`](#projecttransport) · [`PublishChannel`](#publishchannel) · [`PublishWording`](#publishwording) · [`ReleaseRollback`](#releaserollback) · [`ReleaseView`](#releaseview) · [`SceneEditor`](#sceneeditor) · [`SceneEditorHandle`](#sceneeditorhandle) · [`SceneEditorProps`](#sceneeditorprops) · [`SceneHome`](#scenehome) · [`UsageLevel`](#usagelevel) · [`UsageLineView`](#usagelineview) · [`UsageView`](#usageview) · [`agentsDrivePlay`](#agentsdriveplay) · [`agentsDrivePlayDefault`](#agentsdriveplaydefault) · [`attachEditorResponder`](#attacheditorresponder) · [`blobContentStore`](#blobcontentstore) · [`canvasPixels`](#canvaspixels) · [`canvasPxPerMetre`](#canvaspxpermetre) · [`connectProjectSession`](#connectprojectsession) · [`createPending`](#createpending) · [`createProjectTokens`](#createprojecttokens) · [`crop`](#crop) · [`devProjectHost`](#devprojecthost) · [`encodePng`](#encodepng) · [`fitFrame`](#fitframe) · [`fitLayout`](#fitlayout) · [`frameRegion`](#frameregion) · [`hocuspocusTransport`](#hocuspocustransport) · [`mountSceneEditor`](#mountsceneeditor) · [`offConnection`](#offconnection) · [`parseLayout`](#parselayout) · [`projectBlobs`](#projectblobs-1) · [`renderFrame`](#renderframe) · [`resample`](#resample) · [`useAgentsDrivePlay`](#useagentsdriveplay)
+
+## `AGENTS_DRIVE_PLAY_HINT`
+
+_const_ in `editor-ui/session/live-responder.ts`
+
+```ts
+declare const AGENTS_DRIVE_PLAY_HINT = "Agents with this scene open (the scene CLI, an MCP client) can take frames of this canvas, start and step Play here, and read its state";
+```
+
+## `AGENTS_DRIVE_PLAY_KEY`
+
+_const_ in `editor-ui/session/live-responder.ts`
+
+Where the viewer's "Let agents drive Play" choice is kept.
+
+```ts
+declare const AGENTS_DRIVE_PLAY_KEY = "jams-editor:agents-drive-play";
+```
+
+## `AGENTS_DRIVE_PLAY_LABEL`
+
+_const_ in `editor-ui/session/live-responder.ts`
+
+```ts
+declare const AGENTS_DRIVE_PLAY_LABEL = "Let agents drive Play";
+```
 
 ## `BlobRouteError`
 
@@ -276,6 +302,32 @@ type EditorPublishHost = {
 
 Refers to [`EditorLiveHost`](#editorlivehost), [`GameSettingsPatch`](#gamesettingspatch), [`GameSettingsView`](#gamesettingsview), [`PointerMove`](#pointermove), [`PublishChannel`](#publishchannel), [`PublishWording`](#publishwording), [`ReleaseRollback`](#releaserollback), [`ReleaseView`](#releaseview), [`UsageView`](#usageview).
 
+## `EditorResponderOptions`
+
+_type_ in `editor-ui/session/live-responder.ts`
+
+```ts
+type EditorResponderOptions = {
+    /** The game's canvas, for frames. */
+    canvas?: (() => HTMLElement | null) | undefined;
+    /** What the canvas shows; default reads `canvas` (`canvasPixels`). */
+    capture?: () => Promise<FramePixels | null>;
+    /** "Let agents drive Play", read for each request. */
+    enabled: () => boolean;
+    game: GameInstance;
+    /** The editor's own Play and Stop. */
+    live: Pick<LiveEditor, "play" | "stop">;
+    /** Each request shows as a task in the status bar while it is answered. */
+    pending?: Pending | null;
+    /** The project doc's awareness: the editor's project presence says it answers. */
+    projectAwareness?: AwarenessLike | null;
+    /** The open scene doc's live channel. */
+    provider: StatelessProvider;
+};
+```
+
+Refers to [`FramePixels`](#framepixels), [`Pending`](#pending).
+
 ## `EditorSkeleton`
 
 _function_ in `editor-ui/frame/EditorSkeleton.ts`
@@ -321,6 +373,32 @@ _type_ in `editor-ui/host.ts`
 type EditorStorage = {
     get(key: string): null | string;
     set(key: string, value: string): void;
+};
+```
+
+## `FrameAsk`
+
+_type_ in `editor-ui/session/live-responder.ts`
+
+What `frame` asks for, as `frameRegion` reads it.
+
+```ts
+type FrameAsk = (LiveRequest & {
+    t: "frame";
+})["opts"];
+```
+
+## `FramePixels`
+
+_type_ in `editor-ui/session/live-responder.ts`
+
+RGBA pixels, row by row from the top left.
+
+```ts
+type FramePixels = {
+    data: Uint8Array | Uint8ClampedArray;
+    height: number;
+    width: number;
 };
 ```
 
@@ -608,7 +686,7 @@ type NotifyOptions = {
 _type_ in `editor-ui/layout/model.ts`
 
 ```ts
-type PanelId = "history" | "inspector" | "outliner" | "problems" | "project" | "run" | (string & {});
+type PanelId = "event-log" | "history" | "inspector" | "outliner" | "perf" | "problems" | "project" | "run" | (string & {});
 ```
 
 ## `Pending`
@@ -733,6 +811,14 @@ type ProjectConnection = {
     blobs?: ProjectBlobs;
     destroy(): void;
     getState(): ProjectConnectionState;
+    /** The server is hosted (it takes tokens), not the dev server. */
+    hosted?: boolean;
+    /**
+     * An open doc's stateless messages and awareness, for the live channel
+     * (agents asking the open editor for frames and Play); null while the doc
+     * isn't open. A connection without it answers no live requests.
+     */
+    liveChannel?(doc: string): StatelessProvider | null;
     /** Fires for each `asset:changed` message the server sends about this project. */
     onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
     subscribe(listener: () => void): () => void;
@@ -790,6 +876,8 @@ type ProjectSocket = {
         awareness: AwarenessLike;
         destroy(): void;
         detach(): void;
+        /** Sends a stateless message on the doc; a provider without it sends none. */
+        sendStateless?(payload: string): void;
     };
     status(): ProjectSocketStatus;
     subscribe(listener: () => void): () => void;
@@ -1064,6 +1152,43 @@ type UsageView = {
 
 Refers to [`UsageLevel`](#usagelevel), [`UsageLineView`](#usagelineview).
 
+## `agentsDrivePlay`
+
+_const_ in `editor-ui/session/live-responder.ts`
+
+The viewer's choice as it stands now, read afresh for each request.
+
+```ts
+declare const agentsDrivePlay: (storage: EditorStorage | null, hosted: boolean) => boolean;
+```
+
+Refers to [`EditorStorage`](#editorstorage).
+
+## `agentsDrivePlayDefault`
+
+_const_ in `editor-ui/session/live-responder.ts`
+
+On by default against the dev server, off on a hosted one, where other people's agents may ask.
+
+```ts
+declare const agentsDrivePlayDefault: (hosted: boolean) => boolean;
+```
+
+## `attachEditorResponder`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+Answers agents' live requests on the open scene doc for this editor:
+frames of its canvas, its own Play (a `play` runs it as a click on Play
+does, `stop` returns to the edit world) and the game's state. Returns the
+detach, which also takes `live: true` out of this client's presence.
+
+```ts
+declare function attachEditorResponder(opts: EditorResponderOptions): () => void;
+```
+
+Refers to [`EditorResponderOptions`](#editorresponderoptions).
+
 ## `blobContentStore`
 
 _function_ in `editor-ui/connect/blobs.ts`
@@ -1075,6 +1200,30 @@ declare function blobContentStore(blobs: ProjectBlobs): ContentStore;
 ```
 
 Refers to [`ProjectBlobs`](#projectblobs).
+
+## `canvasPixels`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+What the canvas shows, read right after the engine has drawn: a frame
+callback asked for outside the frame runs after the engine's own, so a
+WebGL or WebGPU canvas still holds its picture. Null when it can't be read.
+
+```ts
+declare function canvasPixels(canvas: HTMLCanvasElement): Promise<FramePixels | null>;
+```
+
+Refers to [`FramePixels`](#framepixels).
+
+## `canvasPxPerMetre`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+The canvas px one world metre spans along x in the first view, null when it can't be told.
+
+```ts
+declare function canvasPxPerMetre(game: Pick<GameInstance, "worldToClient">, canvas: HTMLCanvasElement): null | number;
+```
 
 ## `connectProjectSession`
 
@@ -1129,6 +1278,18 @@ declare function createProjectTokens(request: ProjectTokenRequest, mint: MintPro
 
 Refers to [`MintProjectToken`](#mintprojecttoken), [`ProjectTokenRequest`](#projecttokenrequest), [`ProjectTokens`](#projecttokens).
 
+## `crop`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+The `width` × `height` region of `src` at `x`, `y`.
+
+```ts
+declare function crop(src: FramePixels, x: number, y: number, width: number, height: number): FramePixels;
+```
+
+Refers to [`FramePixels`](#framepixels).
+
 ## `devProjectHost`
 
 _function_ in `editor-ui/connect/dev.ts`
@@ -1155,6 +1316,32 @@ declare function devProjectHost(opts: {
 
 Refers to [`EditorHost`](#editorhost).
 
+## `encodePng`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+`px` as a PNG (8-bit RGBA, no filtering), without a canvas, so it works under every renderer.
+
+```ts
+declare function encodePng(px: FramePixels): Promise<Uint8Array>;
+```
+
+Refers to [`FramePixels`](#framepixels).
+
+## `fitFrame`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+The live frame size rule: `px` as a PNG, downscaled step by step until it
+is at most `max` bytes. One that stays over even at a few px is returned
+as it is, and the responder answers `frame-too-large`.
+
+```ts
+declare function fitFrame(px: FramePixels, max?: number): Promise<Uint8Array>;
+```
+
+Refers to [`FramePixels`](#framepixels).
+
 ## `fitLayout`
 
 _const_ in `editor-ui/layout/model.ts`
@@ -1169,6 +1356,32 @@ declare const fitLayout: (layout: EditorLayout, viewport: Viewport) => FittedLay
 ```
 
 Refers to [`EditorLayout`](#editorlayout).
+
+## `frameRegion`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+Which part of the canvas a frame shows and at what size. `viewport` is
+the world width in metres around the view's centre, turned into canvas
+px by `pxPerMetre` (the camera's scale, the game's px per metre included);
+`width` and `height` are the PNG's size, the missing one following the
+region's aspect.
+
+```ts
+declare function frameRegion(canvas: {
+    height: number;
+    width: number;
+}, ask: FrameAsk, pxPerMetre: null | number): {
+    height: number;
+    outHeight: number;
+    outWidth: number;
+    width: number;
+    x: number;
+    y: number;
+};
+```
+
+Refers to [`FrameAsk`](#frameask).
 
 ## `hocuspocusTransport`
 
@@ -1238,3 +1451,42 @@ declare function projectBlobs(route: string, fetcher?: typeof fetch): ProjectBlo
 ```
 
 Refers to [`ProjectBlobs`](#projectblobs).
+
+## `renderFrame`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+A frame request answered from `pixels` (the whole canvas): its region, its size, then the size rule.
+
+```ts
+declare function renderFrame(pixels: FramePixels, ask: FrameAsk, pxPerMetre: null | number): Promise<Uint8Array>;
+```
+
+Refers to [`FrameAsk`](#frameask), [`FramePixels`](#framepixels).
+
+## `resample`
+
+_function_ in `editor-ui/session/live-responder.ts`
+
+`src` resampled to `width` × `height`: each target pixel averages the source pixels it covers.
+
+```ts
+declare function resample(src: FramePixels, width: number, height: number): FramePixels;
+```
+
+Refers to [`FramePixels`](#framepixels).
+
+## `useAgentsDrivePlay`
+
+_const_ in `editor-ui/session/live-responder.ts`
+
+The choice and its setter, following other tabs (`useStoredFlag`).
+
+```ts
+declare const useAgentsDrivePlay: (storage: EditorStorage | null, hosted: boolean) => [
+    boolean,
+    (on: boolean) => void
+];
+```
+
+Refers to [`EditorStorage`](#editorstorage).

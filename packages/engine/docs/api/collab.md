@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ASSETS_KEY`](#assets_key) · [`ASSET_CHANGED`](#asset_changed) · [`AssetChange`](#assetchange) · [`AssetChangedMessage`](#assetchangedmessage) · [`AwarenessLike`](#awarenesslike) · [`BEHAVIORS_FIELD`](#behaviors_field) · [`BULK_FIELD`](#bulk_field) · [`BindOptions`](#bindoptions) · [`BindableRuntime`](#bindableruntime) · [`COLLAB_LAYOUT_VERSION`](#collab_layout_version) · [`CONTENT_KEY_PREFIX`](#content_key_prefix) · [`CONTENT_MAP`](#content_map) · [`CodeSkewIssue`](#codeskewissue) · [`DOC_MAPS`](#doc_maps) · [`DocApplyOptions`](#docapplyoptions) · [`DocApplyResult`](#docapplyresult) · [`DocLayoutMigration`](#doclayoutmigration) · [`DocOrigin`](#docorigin) · [`DocView`](#docview) · [`EMPTY_PREFAB_SOURCE`](#empty_prefab_source) · [`ENTITIES_BUCKET`](#entities_bucket) · [`ENTRY_NESTED_FIELDS`](#entry_nested_fields) · [`EntityRecord`](#entityrecord) · [`GRID_ROW_KEY`](#grid_row_key) · [`GROUP_KEY_PREFIX`](#group_key_prefix) · [`HistoryRow`](#historyrow) · [`INSTANCE_KEY_PREFIX`](#instance_key_prefix) · [`IssueProject`](#issueproject) · [`IssueWatch`](#issuewatch) · [`KEYED_ITEM`](#keyed_item) · [`KEYED_Z`](#keyed_z) · [`KeyGen`](#keygen) · [`LEGACY_BULK_FIELD`](#legacy_bulk_field) · [`LEGACY_Z_FIELD`](#legacy_z_field) · [`LOG_ARRAY`](#log_array) · [`LOG_CAP`](#log_cap) · [`LayoutMigration`](#layoutmigration) · [`LayoutWriteOptions`](#layoutwriteoptions) · [`LogEntry`](#logentry) · [`LogWarning`](#logwarning) · [`MemoryDocClient`](#memorydocclient) · [`MemoryDocHost`](#memorydochost) · [`MigrateDocOptions`](#migratedocoptions) · [`NESTED2_FIELDS`](#nested2_fields) · [`NESTED_FIELDS`](#nested_fields) · [`NO_PREFAB_WRITER`](#no_prefab_writer) · [`OVERRIDES_FIELD`](#overrides_field) · [`OpenDoc`](#opendoc) · [`OpenedDoc`](#openeddoc) · [`PARAMS_FIELD`](#params_field) · [`PARAM_KEY_PREFIX`](#param_key_prefix) · [`PATH_FIELD`](#path_field) · [`PREFAB_HEADER_KEY`](#prefab_header_key) · [`PREFAB_KEY_PREFIX`](#prefab_key_prefix) · [`PRESENCE_FIELD`](#presence_field) · [`PROJECT_LAYOUT_VERSION`](#project_layout_version) · [`PROJECT_MAPS`](#project_maps) · [`PROJECT_PRESENCE_FIELD`](#project_presence_field) · [`PeerPresence`](#peerpresence) · [`PrefabChange`](#prefabchange) · [`PrefabDocHeader`](#prefabdocheader) · [`PrefabDocPlan`](#prefabdocplan) · [`PrefabDocWrite`](#prefabdocwrite) · [`PrefabDocWriter`](#prefabdocwriter) · [`PrefabPatchOptions`](#prefabpatchoptions) · [`PrefabPlan`](#prefabplan) · [`PrefabSource`](#prefabsource) · [`PrefabToDocOptions`](#prefabtodocoptions) · [`PrefabWriteRequest`](#prefabwriterequest) · [`PrefabWriter`](#prefabwriter) · [`ProjectApplyOptions`](#projectapplyoptions) · [`ProjectDocWriterOptions`](#projectdocwriteroptions) · [`ProjectLogEntry`](#projectlogentry) · [`ProjectLogInput`](#projectloginput) · [`ProjectPeer`](#projectpeer) · [`ProjectPresence`](#projectpresence) · [`ProjectRevertResult`](#projectrevertresult) · [`ProjectSession`](#projectsession) · [`ProjectSessionEvent`](#projectsessionevent) · [`ProjectSessionOptions`](#projectsessionoptions) · [`ProjectWriter`](#projectwriter) · [`ReadDocOptions`](#readdocoptions) · [`RegistryApplyOptions`](#registryapplyoptions) · [`RegistryApplyResult`](#registryapplyresult) · [`ReinspectResult`](#reinspectresult) · [`RepairResult`](#repairresult) · [`RevertOptions`](#revertoptions) · [`RevertResult`](#revertresult) · [`SCENE_KEY`](#scene_key) · [`SCENE_ONLY_OPS`](#scene_only_ops) · [`SEED_STALE_CODE`](#seed_stale_code) · [`SEED_STALE_REASON`](#seed_stale_reason) · [`SETTINGS_KEY`](#settings_key) · [`SceneBinding`](#scenebinding) · [`SceneDocMeta`](#scenedocmeta) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SceneToDocOptions`](#scenetodocoptions) · [`SceneUndo`](#sceneundo) · [`SelectionMeta`](#selectionmeta) · [`SessionDoc`](#sessiondoc) · [`SessionPrefabSource`](#sessionprefabsource) · [`SessionPrefabSourceOptions`](#sessionprefabsourceoptions) · [`StepSelection`](#stepselection) · [`UNDO_CAP`](#undo_cap) · [`UndoCoordinator`](#undocoordinator) · [`UndoneStep`](#undonestep) · [`VARIANT_KEY`](#variant_key) · [`WatchIssuesOptions`](#watchissuesoptions) · [`Z_FIELD`](#z_field) · [`actorId`](#actorid) · [`actorLabel`](#actorlabel) · [`appendHistory`](#appendhistory) · [`appendProjectLog`](#appendprojectlog) · [`applyEntityDiff`](#applyentitydiff) · [`applyOpsToDoc`](#applyopstodoc) · [`applyProjectBatch`](#applyprojectbatch) · [`applyRegistryBatch`](#applyregistrybatch) · [`applyRepairs`](#applyrepairs) · [`assetsMap`](#assetsmap) · [`assignZ`](#assignz) · [`bindSceneDoc`](#bindscenedoc) · [`bucketOf`](#bucketof) · [`buildAtFrom`](#buildatfrom) · [`bulkRecord`](#bulkrecord) · [`compareZ`](#comparez) · [`contentLogKey`](#contentlogkey) · [`contentMap`](#contentmap) · [`contentMaps`](#contentmaps) · [`createProjectSession`](#createprojectsession) · [`createSceneUndo`](#createsceneundo) · [`createUndoCoordinator`](#createundocoordinator) · [`docLayout`](#doclayout) · [`docMeta`](#docmeta) · [`docPrefabs`](#docprefabs) · [`docToPrefab`](#doctoprefab) · [`docToScene`](#doctoscene) · [`entitiesMap`](#entitiesmap) · [`entityRecord`](#entityrecord-1) · [`expandLenient`](#expandlenient) · [`fieldLayout`](#fieldlayout) · [`fingerprint`](#fingerprint) · [`gridRowKey`](#gridrowkey) · [`groupsMap`](#groupsmap) · [`headerOf`](#headerof) · [`historyRows`](#historyrows) · [`instanceRecord`](#instancerecord) · [`instancesMap`](#instancesmap) · [`isLayoutKey`](#islayoutkey) · [`isPrefabDoc`](#isprefabdoc) · [`isSeedStaleClose`](#isseedstaleclose) · [`layoutFromDoc`](#layoutfromdoc) · [`layoutPatch`](#layoutpatch) · [`layoutToDoc`](#layouttodoc) · [`localPrefabSource`](#localprefabsource) · [`memoryDocHost`](#memorydochost-1) · [`metaMap`](#metamap) · [`migrateDoc`](#migratedoc) · [`migrateDocLayout`](#migratedoclayout) · [`migrateLayout`](#migratelayout) · [`observeLog`](#observelog) · [`observePeers`](#observepeers) · [`observeProjectLog`](#observeprojectlog) · [`observeProjectPeers`](#observeprojectpeers) · [`paramsMap`](#paramsmap) · [`patchMap`](#patchmap) · [`patchRecord`](#patchrecord) · [`peers`](#peers) · [`prefabHeaderMap`](#prefabheadermap) · [`prefabOverridesMap`](#prefaboverridesmap) · [`prefabPatch`](#prefabpatch) · [`prefabPathNear`](#prefabpathnear) · [`prefabSceneBounds`](#prefabscenebounds) · [`prefabToDoc`](#prefabtodoc) · [`prefabsMap`](#prefabsmap) · [`projectAssetsMap`](#projectassetsmap) · [`projectBuildMap`](#projectbuildmap) · [`projectCodeMap`](#projectcodemap) · [`projectDocWriter`](#projectdocwriter) · [`projectHistoryMap`](#projecthistorymap) · [`projectLogFor`](#projectlogfor) · [`projectMetaMap`](#projectmetamap) · [`projectPeers`](#projectpeers) · [`projectPeersByDoc`](#projectpeersbydoc) · [`randomKey`](#randomkey) · [`readAssets`](#readassets) · [`readDoc`](#readdoc) · [`readEntry`](#readentry) · [`readLog`](#readlog) · [`readProject`](#readproject) · [`readProjectLog`](#readprojectlog) · [`recordFields`](#recordfields) · [`recordMap`](#recordmap) · [`recordOf`](#recordof) · [`refsOfView`](#refsofview) · [`reinspectBlobs`](#reinspectblobs) · [`revertEntry`](#revertentry) · [`revertOpenProjectEntry`](#revertopenprojectentry) · [`revertProblem`](#revertproblem) · [`revertProjectEntry`](#revertprojectentry) · [`sceneMap`](#scenemap) · [`sceneToDoc`](#scenetodoc) · [`seedProjectDoc`](#seedprojectdoc) · [`selectionsByKey`](#selectionsbykey) · [`sequentialKeys`](#sequentialkeys) · [`sessionPrefabSource`](#sessionprefabsource-1) · [`setPresence`](#setpresence) · [`setProjectPresence`](#setprojectpresence) · [`settingsMap`](#settingsmap) · [`stableJson`](#stablejson) · [`stampWins`](#stampwins) · [`staticPrefabSource`](#staticprefabsource) · [`validateDoc`](#validatedoc) · [`watchIssues`](#watchissues) · [`writeAssets`](#writeassets) · [`writeEntry`](#writeentry) · [`writeProjectState`](#writeprojectstate)
+[`ASSETS_KEY`](#assets_key) · [`ASSET_CHANGED`](#asset_changed) · [`AssetChange`](#assetchange) · [`AssetChangedMessage`](#assetchangedmessage) · [`AwarenessLike`](#awarenesslike) · [`BEHAVIORS_FIELD`](#behaviors_field) · [`BULK_FIELD`](#bulk_field) · [`BindOptions`](#bindoptions) · [`BindableRuntime`](#bindableruntime) · [`COLLAB_LAYOUT_VERSION`](#collab_layout_version) · [`CONTENT_KEY_PREFIX`](#content_key_prefix) · [`CONTENT_MAP`](#content_map) · [`CodeSkewIssue`](#codeskewissue) · [`DOC_MAPS`](#doc_maps) · [`DocApplyOptions`](#docapplyoptions) · [`DocApplyResult`](#docapplyresult) · [`DocLayoutMigration`](#doclayoutmigration) · [`DocOrigin`](#docorigin) · [`DocView`](#docview) · [`EMPTY_PREFAB_SOURCE`](#empty_prefab_source) · [`ENTITIES_BUCKET`](#entities_bucket) · [`ENTRY_NESTED_FIELDS`](#entry_nested_fields) · [`EntityRecord`](#entityrecord) · [`GRID_ROW_KEY`](#grid_row_key) · [`GROUP_KEY_PREFIX`](#group_key_prefix) · [`HistoryRow`](#historyrow) · [`INSTANCE_KEY_PREFIX`](#instance_key_prefix) · [`IssueProject`](#issueproject) · [`IssueWatch`](#issuewatch) · [`KEYED_ITEM`](#keyed_item) · [`KEYED_Z`](#keyed_z) · [`KeyGen`](#keygen) · [`LEGACY_BULK_FIELD`](#legacy_bulk_field) · [`LEGACY_Z_FIELD`](#legacy_z_field) · [`LIVE_FRAME_MAX_BYTES`](#live_frame_max_bytes) · [`LIVE_MESSAGE_MAX_BYTES`](#live_message_max_bytes) · [`LIVE_REQUEST_TIMEOUT_MS`](#live_request_timeout_ms) · [`LOG_ARRAY`](#log_array) · [`LOG_CAP`](#log_cap) · [`LayoutMigration`](#layoutmigration) · [`LayoutWriteOptions`](#layoutwriteoptions) · [`LiveErrorCode`](#liveerrorcode) · [`LivePresence`](#livepresence) · [`LiveRequest`](#liverequest) · [`LiveResponder`](#liveresponder) · [`LiveResponderOptions`](#liveresponderoptions) · [`LiveResponse`](#liveresponse) · [`LogEntry`](#logentry) · [`LogWarning`](#logwarning) · [`MemoryDocClient`](#memorydocclient) · [`MemoryDocHost`](#memorydochost) · [`MigrateDocOptions`](#migratedocoptions) · [`NESTED2_FIELDS`](#nested2_fields) · [`NESTED_FIELDS`](#nested_fields) · [`NO_PREFAB_WRITER`](#no_prefab_writer) · [`OVERRIDES_FIELD`](#overrides_field) · [`OpenDoc`](#opendoc) · [`OpenedDoc`](#openeddoc) · [`PARAMS_FIELD`](#params_field) · [`PARAM_KEY_PREFIX`](#param_key_prefix) · [`PATH_FIELD`](#path_field) · [`PREFAB_HEADER_KEY`](#prefab_header_key) · [`PREFAB_KEY_PREFIX`](#prefab_key_prefix) · [`PRESENCE_FIELD`](#presence_field) · [`PROJECT_LAYOUT_VERSION`](#project_layout_version) · [`PROJECT_MAPS`](#project_maps) · [`PROJECT_PRESENCE_FIELD`](#project_presence_field) · [`PeerPresence`](#peerpresence) · [`PrefabChange`](#prefabchange) · [`PrefabDocHeader`](#prefabdocheader) · [`PrefabDocPlan`](#prefabdocplan) · [`PrefabDocWrite`](#prefabdocwrite) · [`PrefabDocWriter`](#prefabdocwriter) · [`PrefabPatchOptions`](#prefabpatchoptions) · [`PrefabPlan`](#prefabplan) · [`PrefabSource`](#prefabsource) · [`PrefabToDocOptions`](#prefabtodocoptions) · [`PrefabWriteRequest`](#prefabwriterequest) · [`PrefabWriter`](#prefabwriter) · [`ProjectApplyOptions`](#projectapplyoptions) · [`ProjectDocWriterOptions`](#projectdocwriteroptions) · [`ProjectLogEntry`](#projectlogentry) · [`ProjectLogInput`](#projectloginput) · [`ProjectPeer`](#projectpeer) · [`ProjectPresence`](#projectpresence) · [`ProjectRevertResult`](#projectrevertresult) · [`ProjectSession`](#projectsession) · [`ProjectSessionEvent`](#projectsessionevent) · [`ProjectSessionOptions`](#projectsessionoptions) · [`ProjectWriter`](#projectwriter) · [`ReadDocOptions`](#readdocoptions) · [`RegistryApplyOptions`](#registryapplyoptions) · [`RegistryApplyResult`](#registryapplyresult) · [`ReinspectResult`](#reinspectresult) · [`RepairResult`](#repairresult) · [`RevertOptions`](#revertoptions) · [`RevertResult`](#revertresult) · [`SCENE_KEY`](#scene_key) · [`SCENE_ONLY_OPS`](#scene_only_ops) · [`SEED_STALE_CODE`](#seed_stale_code) · [`SEED_STALE_REASON`](#seed_stale_reason) · [`SETTINGS_KEY`](#settings_key) · [`SceneBinding`](#scenebinding) · [`SceneDocMeta`](#scenedocmeta) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SceneToDocOptions`](#scenetodocoptions) · [`SceneUndo`](#sceneundo) · [`SelectionMeta`](#selectionmeta) · [`SessionDoc`](#sessiondoc) · [`SessionPrefabSource`](#sessionprefabsource) · [`SessionPrefabSourceOptions`](#sessionprefabsourceoptions) · [`StatelessProvider`](#statelessprovider) · [`StepSelection`](#stepselection) · [`UNDO_CAP`](#undo_cap) · [`UndoCoordinator`](#undocoordinator) · [`UndoneStep`](#undonestep) · [`VARIANT_KEY`](#variant_key) · [`WatchIssuesOptions`](#watchissuesoptions) · [`Z_FIELD`](#z_field) · [`actorId`](#actorid) · [`actorLabel`](#actorlabel) · [`appendHistory`](#appendhistory) · [`appendProjectLog`](#appendprojectlog) · [`applyEntityDiff`](#applyentitydiff) · [`applyOpsToDoc`](#applyopstodoc) · [`applyProjectBatch`](#applyprojectbatch) · [`applyRegistryBatch`](#applyregistrybatch) · [`applyRepairs`](#applyrepairs) · [`assetsMap`](#assetsmap) · [`assignZ`](#assignz) · [`bindSceneDoc`](#bindscenedoc) · [`bucketOf`](#bucketof) · [`buildAtFrom`](#buildatfrom) · [`bulkRecord`](#bulkrecord) · [`compareZ`](#comparez) · [`contentLogKey`](#contentlogkey) · [`contentMap`](#contentmap) · [`contentMaps`](#contentmaps) · [`createLiveResponder`](#createliveresponder) · [`createProjectSession`](#createprojectsession) · [`createSceneUndo`](#createsceneundo) · [`createUndoCoordinator`](#createundocoordinator) · [`docLayout`](#doclayout) · [`docMeta`](#docmeta) · [`docPrefabs`](#docprefabs) · [`docToPrefab`](#doctoprefab) · [`docToScene`](#doctoscene) · [`electResponder`](#electresponder) · [`entitiesMap`](#entitiesmap) · [`entityRecord`](#entityrecord-1) · [`expandLenient`](#expandlenient) · [`fieldLayout`](#fieldlayout) · [`fingerprint`](#fingerprint) · [`gridRowKey`](#gridrowkey) · [`groupsMap`](#groupsmap) · [`headerOf`](#headerof) · [`historyRows`](#historyrows) · [`instanceRecord`](#instancerecord) · [`instancesMap`](#instancesmap) · [`isLayoutKey`](#islayoutkey) · [`isPrefabDoc`](#isprefabdoc) · [`isSeedStaleClose`](#isseedstaleclose) · [`layoutFromDoc`](#layoutfromdoc) · [`layoutPatch`](#layoutpatch) · [`layoutToDoc`](#layouttodoc) · [`liveMessageBytes`](#livemessagebytes) · [`livePresence`](#livepresence-1) · [`liveRequest`](#liverequest-1) · [`localPrefabSource`](#localprefabsource) · [`memoryDocHost`](#memorydochost-1) · [`metaMap`](#metamap) · [`migrateDoc`](#migratedoc) · [`migrateDocLayout`](#migratedoclayout) · [`migrateLayout`](#migratelayout) · [`observeLog`](#observelog) · [`observePeers`](#observepeers) · [`observeProjectLog`](#observeprojectlog) · [`observeProjectPeers`](#observeprojectpeers) · [`paramsMap`](#paramsmap) · [`patchMap`](#patchmap) · [`patchRecord`](#patchrecord) · [`peers`](#peers) · [`prefabHeaderMap`](#prefabheadermap) · [`prefabOverridesMap`](#prefaboverridesmap) · [`prefabPatch`](#prefabpatch) · [`prefabPathNear`](#prefabpathnear) · [`prefabSceneBounds`](#prefabscenebounds) · [`prefabToDoc`](#prefabtodoc) · [`prefabsMap`](#prefabsmap) · [`projectAssetsMap`](#projectassetsmap) · [`projectBuildMap`](#projectbuildmap) · [`projectCodeMap`](#projectcodemap) · [`projectDocWriter`](#projectdocwriter) · [`projectHistoryMap`](#projecthistorymap) · [`projectLogFor`](#projectlogfor) · [`projectMetaMap`](#projectmetamap) · [`projectPeers`](#projectpeers) · [`projectPeersByDoc`](#projectpeersbydoc) · [`randomKey`](#randomkey) · [`readAssets`](#readassets) · [`readDoc`](#readdoc) · [`readEntry`](#readentry) · [`readLog`](#readlog) · [`readProject`](#readproject) · [`readProjectLog`](#readprojectlog) · [`recordFields`](#recordfields) · [`recordMap`](#recordmap) · [`recordOf`](#recordof) · [`refsOfView`](#refsofview) · [`reinspectBlobs`](#reinspectblobs) · [`relayableStateless`](#relayablestateless) · [`revertEntry`](#revertentry) · [`revertOpenProjectEntry`](#revertopenprojectentry) · [`revertProblem`](#revertproblem) · [`revertProjectEntry`](#revertprojectentry) · [`sceneMap`](#scenemap) · [`sceneToDoc`](#scenetodoc) · [`seedProjectDoc`](#seedprojectdoc) · [`selectionsByKey`](#selectionsbykey) · [`sequentialKeys`](#sequentialkeys) · [`sessionPrefabSource`](#sessionprefabsource-1) · [`setPresence`](#setpresence) · [`setProjectPresence`](#setprojectpresence) · [`settingsMap`](#settingsmap) · [`stableJson`](#stablejson) · [`stampWins`](#stampwins) · [`staticPrefabSource`](#staticprefabsource) · [`validateDoc`](#validatedoc) · [`watchIssues`](#watchissues) · [`writeAssets`](#writeassets) · [`writeEntry`](#writeentry) · [`writeProjectState`](#writeprojectstate)
 
 ## `ASSETS_KEY`
 
@@ -522,6 +522,36 @@ The layout-2 names of the layout's own record keys, which `migrateLayout` reads.
 declare const LEGACY_Z_FIELD = "z";
 ```
 
+## `LIVE_FRAME_MAX_BYTES`
+
+_const_ in `collab/live-channel.ts`
+
+A live frame's largest PNG; base64 keeps it inside `LIVE_MESSAGE_MAX_BYTES`.
+
+```ts
+declare const LIVE_FRAME_MAX_BYTES: number;
+```
+
+## `LIVE_MESSAGE_MAX_BYTES`
+
+_const_ in `collab/live-channel.ts`
+
+A live message's largest encoded size; the relays drop anything bigger without closing.
+
+```ts
+declare const LIVE_MESSAGE_MAX_BYTES: number;
+```
+
+## `LIVE_REQUEST_TIMEOUT_MS`
+
+_const_ in `collab/live-channel.ts`
+
+How long a requester waits for an answer before `live-no-editor`.
+
+```ts
+declare const LIVE_REQUEST_TIMEOUT_MS = 2000;
+```
+
 ## `LOG_ARRAY`
 
 _const_ in `collab/types.ts`
@@ -575,6 +605,140 @@ type LayoutWriteOptions = {
 ```
 
 Refers to [`KeyGen`](#keygen).
+
+## `LiveErrorCode`
+
+_type_ in `collab/live-channel.ts`
+
+```ts
+type LiveErrorCode = "frame-too-large" | "live-no-editor" | "live-refused";
+```
+
+## `LivePresence`
+
+_type_ in `collab/live-channel.ts`
+
+A presence entry as the election reads it.
+
+```ts
+type LivePresence = {
+    clientId: number;
+    live?: boolean;
+};
+```
+
+## `LiveRequest`
+
+_type_ in `collab/live-channel.ts`
+
+What an agent asks the editor that has a scene open.
+
+```ts
+type LiveRequest = {
+    action: "pause" | "play" | "resume" | "step" | "stop";
+    from?: "here" | "start";
+    id: string;
+    script?: InputScript;
+    t: "play";
+    ticks?: number;
+} | {
+    entities?: EntitySelector;
+    id: string;
+    select?: readonly ("entities" | "events" | "store" | "timings")[];
+    t: "state";
+} | {
+    id: string;
+    opts: {
+        debug?: boolean;
+        height?: number;
+        viewport?: number;
+        width?: number;
+    };
+    t: "frame";
+};
+```
+
+## `LiveResponder`
+
+_interface_ in `collab/live-channel.ts`
+
+```ts
+interface LiveResponder {
+    /** Answers requests on `provider` while elected; returns the detach. */
+    attach(provider: StatelessProvider, opts: LiveResponderOptions): () => void;
+}
+```
+
+Refers to [`LiveResponderOptions`](#liveresponderoptions), [`StatelessProvider`](#statelessprovider).
+
+## `LiveResponderOptions`
+
+_type_ in `collab/live-channel.ts`
+
+```ts
+type LiveResponderOptions = {
+    /** Read per request: false answers `live-refused`. */
+    enabled: () => boolean;
+    game: () => GameInstance | null;
+    /**
+     * Runs a `play` request's `play` action through the host's own Play, so
+     * recordings and history behave as for a click. Without it a `play`
+     * action is refused; the other actions drive `game()` directly.
+     */
+    play?: (req: LiveRequest & {
+        t: "play";
+    }) => Promise<void> | void;
+    /** The canvas as PNG bytes at the requested size, downscaled to fit `LIVE_FRAME_MAX_BYTES` where it can. */
+    render: (req: LiveRequest & {
+        t: "frame";
+    }) => Promise<Uint8Array>;
+};
+```
+
+Refers to [`LiveRequest`](#liverequest).
+
+## `LiveResponse`
+
+_type_ in `collab/live-channel.ts`
+
+The editor's answer to the request with the same `id`.
+
+```ts
+type LiveResponse = {
+    code: LiveErrorCode;
+    id: string;
+    message: string;
+    ok: false;
+    t: LiveRequest["t"];
+} | {
+    entities?: readonly unknown[];
+    events?: readonly StepEvent[];
+    id: string;
+    ok: true;
+    store?: Pick<GameStoreState, "dialogue" | "game" | "mode" | "phase" | "tick">;
+    t: "state";
+    timings?: RuntimeTimings | null;
+} | {
+    height: number;
+    id: string;
+    mode: GameMode;
+    ok: true;
+    /** Base64. */
+    png: string;
+    t: "frame";
+    tick: number;
+    width: number;
+} | {
+    id: string;
+    ok: true;
+    outcome: PlayOutcome | null;
+    phase: GamePhase;
+    t: "play";
+    tick: number;
+};
+```
+
+Refers to [`LiveErrorCode`](#liveerrorcode), [`LiveRequest`](#liverequest).
 
 ## `LogEntry`
 
@@ -1131,6 +1295,8 @@ What each client publishes through the project doc's awareness: where it is, not
 type ProjectPresence = {
     /** The doc this client is looking at, or null on the project overview. */
     doc: null | string;
+    /** This client answers live requests on its doc. */
+    live?: boolean;
     mode: "edit" | "play";
     user: {
         color: string;
@@ -1535,6 +1701,8 @@ type ScenePresence = {
         by: Pt;
         keys: string[];
     };
+    /** This client answers live requests on the doc (`createLiveResponder`). */
+    live?: boolean;
     mode: "edit" | "play";
     selection: string[];
     tool?: string;
@@ -1661,6 +1829,29 @@ type SessionPrefabSourceOptions = {
     scene?: AssetId;
 };
 ```
+
+## `StatelessProvider`
+
+_type_ in `collab/live-channel.ts`
+
+A doc's provider as the live channel uses it: stateless messages, and the
+doc's awareness when it has one (a responder advertises itself there and
+a requester checks it before waiting).
+
+```ts
+type StatelessProvider = {
+    awareness?: AwarenessLike | null;
+    off(event: "stateless", fn: (e: {
+        payload: string;
+    }) => void): void;
+    on(event: "stateless", fn: (e: {
+        payload: string;
+    }) => void): void;
+    sendStateless(payload: string): void;
+};
+```
+
+Refers to [`AwarenessLike`](#awarenesslike).
 
 ## `StepSelection`
 
@@ -2047,6 +2238,16 @@ made before the doc has synced still watches them.
 declare function contentMaps(doc: Y.Doc): Y.Map<unknown>[];
 ```
 
+## `createLiveResponder`
+
+_function_ in `collab/live-channel.ts`
+
+```ts
+declare function createLiveResponder(): LiveResponder;
+```
+
+Refers to [`LiveResponder`](#liveresponder).
+
 ## `createProjectSession`
 
 _function_ in `collab/project-session.ts`
@@ -2151,6 +2352,18 @@ The scene a doc holds. Pass the result to `formatScene` for its canonical text.
 ```ts
 declare function docToScene(doc: Y.Doc): SceneDefinition;
 ```
+
+## `electResponder`
+
+_function_ in `collab/live-channel.ts`
+
+Which client answers: the lowest client id among entries advertising `live: true`; null for none.
+
+```ts
+declare function electResponder(entries: readonly LivePresence[]): null | number;
+```
+
+Refers to [`LivePresence`](#livepresence).
 
 ## `entitiesMap`
 
@@ -2344,6 +2557,44 @@ declare function layoutToDoc(doc: Y.Doc, layout: DocLayout, value: unknown, orig
 ```
 
 Refers to [`LayoutWriteOptions`](#layoutwriteoptions).
+
+## `liveMessageBytes`
+
+_function_ in `collab/live-channel.ts`
+
+The UTF-8 size of a stateless payload.
+
+```ts
+declare function liveMessageBytes(payload: string): number;
+```
+
+## `livePresence`
+
+_function_ in `collab/live-channel.ts`
+
+Every awareness state's `live` flag, this client's own included.
+
+```ts
+declare function livePresence(awareness: AwarenessLike): LivePresence[];
+```
+
+Refers to [`AwarenessLike`](#awarenesslike), [`LivePresence`](#livepresence).
+
+## `liveRequest`
+
+_function_ in `collab/live-channel.ts`
+
+Sends `req` and resolves with its answer, or `live-no-editor` after
+`timeoutMs` (default `LIVE_REQUEST_TIMEOUT_MS`), or at once when the
+provider's awareness shows no responder.
+
+```ts
+declare function liveRequest(provider: StatelessProvider, req: LiveRequest, opts?: {
+    timeoutMs?: number;
+}): Promise<LiveResponse>;
+```
+
+Refers to [`LiveRequest`](#liverequest), [`LiveResponse`](#liveresponse), [`StatelessProvider`](#statelessprovider).
 
 ## `localPrefabSource`
 
@@ -2880,6 +3131,16 @@ declare function reinspectBlobs(doc: Y.Doc, opts: {
 ```
 
 Refers to [`DocOrigin`](#docorigin), [`ReinspectResult`](#reinspectresult).
+
+## `relayableStateless`
+
+_function_ in `collab/live-channel.ts`
+
+Whether a relay passes a doc's stateless message on: at most `LIVE_MESSAGE_MAX_BYTES`.
+
+```ts
+declare function relayableStateless(payload: string): boolean;
+```
 
 ## `revertEntry`
 

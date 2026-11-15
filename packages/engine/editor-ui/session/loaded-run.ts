@@ -1,6 +1,8 @@
 import { Store } from "@tanstack/store";
 
+import { createEventLog, type EventLog } from "../../debug/event-log";
 import type { Registry } from "../../game/index";
+import { replayRecording, type ReplayOptions } from "../../headless/index";
 import type { PlayOptions } from "../../index";
 import {
   parseRecording,
@@ -136,4 +138,40 @@ export function runIsStale(
   ownHash?: SceneHash,
 ): boolean {
   return run.recording.sceneHash !== runHashOf(def, prefabs, ownHash);
+}
+
+/** What a loaded run replays against in the page: everything `replayRecording` takes but the run. */
+export type LoadedRunReplayHost = Omit<ReplayOptions, "recording" | "seek" | "onEvents">;
+
+const runLogs = new WeakMap<RunRecording, WeakMap<SceneDefinition, EventLog | null>>();
+
+/**
+ * Every event of the loaded run, from replaying it headless once against
+ * `host` (its swaps onto the live versions `host.versions` holds, as the
+ * shell replays it), so a log of it covers ticks not yet watched. Kept per
+ * recording and scene, so it replays again only once the scene changes;
+ * null when the run can't replay here.
+ */
+export function loadedRunEvents(
+  run: LoadedRun,
+  host: LoadedRunReplayHost,
+  replay: typeof replayRecording = replayRecording,
+): EventLog | null {
+  let byScene = runLogs.get(run.recording);
+  if (byScene?.has(host.scene)) return byScene.get(host.scene) ?? null;
+  const log = createEventLog();
+  let result: EventLog | null;
+  try {
+    const report = replay({
+      ...host,
+      recording: run.recording,
+      onEvents: (tick, events) => log.append(tick, events),
+    });
+    result = report.blocked ? null : log;
+  } catch {
+    result = null;
+  }
+  if (!byScene) runLogs.set(run.recording, (byScene = new WeakMap()));
+  byScene.set(host.scene, result);
+  return result;
 }

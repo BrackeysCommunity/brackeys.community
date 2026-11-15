@@ -1580,3 +1580,28 @@ describe("the audio, text, dialogue and localisation examples run", () => {
     });
   });
 });
+
+describe("the profiling, debugging and live examples run", () => {
+  it("corridor-stats.ts reports the same counts every run and some ticks per second", async () => {
+    const { corridorStats } = await import("../examples/corridor-stats");
+    const [a, b] = [await corridorStats(), await corridorStats()];
+    expect(a.counts).toEqual(b.counts);
+    expect(a.counts).toMatchObject({ entities: 3, spawned: 0, destroyed: 0 });
+    expect(a.ticksPerSecond).toBeGreaterThan(0);
+    expect(a.slowest).toEqual(expect.any(String));
+  });
+
+  it("corridor-debug.ts collects the draws, replays into the log and seeks to tick 60", async () => {
+    const { traceCorridor } = await import("../examples/corridor-debug");
+    const r = traceCorridor();
+    expect(r.draws).toEqual(["circle", "text"]);
+    expect(r.replayed).toBe(true);
+    expect(r.logged).toBe(0);
+    expect(r.at).toEqual({ tick: 60, snapshot: { cell: [6, 2], walks: 1, home: false } });
+  });
+
+  it("live-election.ts elects the lowest live client id", async () => {
+    const { responder } = await import("../examples/live-election");
+    expect(responder).toBe(12);
+  });
+});

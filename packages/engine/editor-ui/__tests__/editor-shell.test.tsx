@@ -34,6 +34,7 @@ import { SCENE_FORMAT_VERSION, type Prefab } from "../../scene/index";
 import { EditorFrame, editorChrome } from "../frame/EditorFrame";
 import type { EditorHostState } from "../session/live-scene-editor";
 import type { EditorChromeGame } from "../session/use-scene-editor";
+import { fakeGameDebug } from "./fake-world-game";
 
 // jsdom has no WebGL, so the Pixi application is a stand-in; the containers are real.
 vi.mock("pixi.js", async (importOriginal) => {
@@ -204,6 +205,7 @@ function fakeGame() {
     frame: vi.fn(),
     runtime: () => null,
     input: shared.input,
+    debug: fakeGameDebug(),
   } satisfies EditorChromeGame;
 }
 

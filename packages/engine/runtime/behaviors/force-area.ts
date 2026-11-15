@@ -258,6 +258,11 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
       if (!area || area.inside.size === 0) return undefined;
       return { inside: [...area.inside] };
     },
+    /** What it pushes now, in the order they entered, and whether it is on. */
+    inspect(id) {
+      const area = areas.get(id);
+      return area ? { on: area.on, inside: [...area.inside] } : undefined;
+    },
     restore(id, state: JsonValue) {
       const area = areas.get(id);
       if (!area || typeof state !== "object" || state === null || Array.isArray(state)) return;

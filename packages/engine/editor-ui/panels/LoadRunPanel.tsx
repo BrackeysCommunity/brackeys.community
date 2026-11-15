@@ -1,9 +1,9 @@
 import type { Store } from "@tanstack/store";
-import { useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { EditorSession } from "../../editor/index";
 import { resolveTime, type Registry, type TimeKind } from "../../game/index";
-import type { PlayOptions, StagedVersion } from "../../index";
+import type { PlayOptions, ReplayHandle, StagedVersion } from "../../index";
 import type { Sha256 } from "../../project/index";
 import { replayGap } from "../../runtime/live";
 import type { EditorNotify } from "../host";
@@ -17,6 +17,8 @@ import {
   DialogTitle,
   Input,
   MicroLabel,
+  Progress,
+  Slider,
   Spinner,
   Text,
   Textarea,
@@ -31,7 +33,7 @@ import {
 import { runTimes } from "../session/live-scene-editor";
 import { parseRun, runIsStale, runStart, type LoadedRun } from "../session/loaded-run";
 import { useEditorDoc, useEditorPrefabs } from "../session/use-editor-store";
-import { useStoreValue } from "../session/use-store-value";
+import { useStoreValue, type ReadableStore } from "../session/use-store-value";
 
 /** Markers listed before the rest are summarised as a count. */
 const MAX_EVENTS = 50;
@@ -46,6 +48,149 @@ function readText(file: Blob): Promise<string> {
     reader.onerror = () => fail(reader.error ?? new Error("couldn't read the file"));
     reader.readAsText(file);
   });
+}
+
+/** How long a drag rests before the replay seeks to it. */
+export const SCRUB_DEBOUNCE_MS = 50;
+
+/** The game whose running replay the scrubber and the event log seek. */
+export type ReplaySource = {
+  replayHandle(): ReplayHandle | null;
+  getStore(): ReadableStore<{ tick: number }>;
+};
+
+const NO_TICK: ReadableStore<{ tick: number }> = {
+  state: { tick: 0 },
+  subscribe: () => () => {},
+};
+
+/** The running replay's handle, read again whenever the play world's tick moves; null outside a replay. */
+export function useReplayHandle(source: ReplaySource | null | undefined): ReplayHandle | null {
+  useStoreValue(source?.getStore() ?? NO_TICK, (s) => s.tick);
+  return source?.replayHandle() ?? null;
+}
+
+type SeekState = { target: number; from: number } | null;
+
+/**
+ * Seeks `handle` to the newest target asked for: a later call supersedes an
+ * earlier one still re-simulating, whose result is then dropped. `pending`
+ * is the seek in flight, with the checkpoint it started past.
+ */
+export function useReplaySeek(handle: ReplayHandle | null, notify: Pick<EditorNotify, "error">) {
+  const [pending, setPending] = useState<SeekState>(null);
+  const generation = useRef(0);
+  const seek = useCallback(
+    (target: number) => {
+      if (!handle) return;
+      const mine = ++generation.current;
+      const from = [...handle.checkpoints].reverse().find((c) => c <= target) ?? 0;
+      setPending({ target, from });
+      handle.seek(target).then(
+        () => {
+          if (generation.current === mine) setPending(null);
+        },
+        (error: unknown) => {
+          if (generation.current !== mine) return;
+          setPending(null);
+          notify.error("Couldn't seek the replay", {
+            description: error instanceof Error ? error.message : String(error),
+          });
+        },
+      );
+    },
+    [handle, notify],
+  );
+  return { seek, pending: handle ? pending : null };
+}
+
+/**
+ * A range over the replay's ticks with the run's markers and the handle's
+ * checkpoints under it. A drag shows its tick at once and seeks once it
+ * rests for `SCRUB_DEBOUNCE_MS`; while re-simulating it says where to.
+ */
+function ReplayScrubber({
+  handle,
+  markers,
+  at,
+  notify,
+}: {
+  handle: ReplayHandle;
+  markers: readonly { tick: number; type: string }[];
+  at: (tick: number) => string;
+  notify: Pick<EditorNotify, "error">;
+}) {
+  const { seek, pending } = useReplaySeek(handle, notify);
+  const [dragged, setDragged] = useState<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const last = Math.max(1, handle.ticks);
+  const shown = dragged ?? pending?.target ?? Math.min(handle.tick, last);
+  const pct = (tick: number) => `${(Math.min(tick, last) / last) * 100}%`;
+  const onChange = (value: number | readonly number[]) => {
+    const tick = Math.round(Array.isArray(value) ? (value[0] ?? 0) : (value as number));
+    setDragged(tick);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setDragged(null);
+      seek(tick);
+    }, SCRUB_DEBOUNCE_MS);
+  };
+  const reached = pending
+    ? Math.max(pending.from, ...handle.checkpoints.filter((c) => c <= pending.target))
+    : 0;
+  return (
+    <div className="je-run-scrub">
+      <div className="je-run-scrub-head">
+        <MicroLabel>Replay</MicroLabel>
+        <span className="je-run-scrub-at">
+          {at(shown)} / {at(handle.ticks)}
+        </span>
+      </div>
+      <div className="je-run-scrub-range">
+        <Slider
+          aria-label="Replay tick"
+          min={0}
+          max={last}
+          step={1}
+          value={shown}
+          onValueChange={onChange}
+        />
+        <div className="je-run-scrub-ticks" aria-hidden="true">
+          {markers.map((m, i) => (
+            <span
+              key={`m${m.tick}:${i}`}
+              className="je-run-scrub-marker"
+              style={{ left: pct(m.tick) }}
+            />
+          ))}
+          {handle.checkpoints.map((c) => (
+            <span key={`c${c}`} className="je-run-scrub-checkpoint" style={{ left: pct(c) }} />
+          ))}
+        </div>
+      </div>
+      {pending ? (
+        <div role="status" className="je-run-scrub-pending">
+          <Spinner size={12} label={null} />
+          <Text as="span" size="xs" variant="muted">
+            Re-simulating to tick {pending.target}
+          </Text>
+          <Progress
+            label={`Re-simulating to tick ${pending.target}`}
+            value={pending.target > 0 ? Math.min(reached, pending.target) : null}
+            max={Math.max(1, pending.target)}
+            className="je-run-scrub-progress"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** Looks up a live version this editor holds: Live in Play's `liveVersion`. */
@@ -203,6 +348,8 @@ function RunSummary({
   held,
   onPlayFrom,
   onReplay,
+  handle,
+  notify,
 }: {
   run: LoadedRun;
   stale: boolean;
@@ -210,6 +357,8 @@ function RunSummary({
   held: HeldVersion | undefined;
   onPlayFrom: (opts: PlayOptions) => void;
   onReplay: (run: LoadedRun) => void;
+  handle: ReplayHandle | null;
+  notify: Pick<EditorNotify, "error">;
 }) {
   const { recording } = run;
   const times = runTimes(recording, timeKind);
@@ -269,6 +418,9 @@ function RunSummary({
           Play from its start
         </Button>
       </div>
+      {handle ? (
+        <ReplayScrubber handle={handle} markers={recording.markers} at={times.at} notify={notify} />
+      ) : null}
       <h3>
         <MicroLabel>
           Markers · {recording.markers.length} · trail {recording.trail?.pts.length ?? 0} points
@@ -302,7 +454,8 @@ function RunSummary({
  * stays in view while the markers scroll, so a long run never grows the
  * panel. With `liveVersion` it says whether Replay plays all of a run that
  * played live versions or where it stops. Outside an editor it reads files
- * through a `Pending` of its own.
+ * through a `Pending` of its own. With `replay`, a running replay gets a
+ * scrubber over its ticks.
  */
 export function LoadRunPanel({
   session,
@@ -310,6 +463,7 @@ export function LoadRunPanel({
   onPlayFrom,
   onReplay,
   liveVersion,
+  replay,
   notify,
 }: {
   session: EditorSession;
@@ -318,8 +472,11 @@ export function LoadRunPanel({
   onReplay: (run: LoadedRun) => void;
   /** The live versions this editor holds; without it the panel can't tell whether a replay plays through. */
   liveVersion?: HeldVersion;
+  /** The game whose running replay the scrubber seeks. */
+  replay?: ReplaySource | null;
   notify: EditorNotify;
 }) {
+  const handle = useReplayHandle(replay);
   const loaded = useStoreValue(run);
   const def = useEditorDoc(session);
   const prefabs = useEditorPrefabs(session);
@@ -357,6 +514,8 @@ export function LoadRunPanel({
             held={liveVersion}
             onPlayFrom={onPlayFrom}
             onReplay={onReplay}
+            handle={handle}
+            notify={notify}
           />
         ) : (
           <Text as="p" size="xs" variant="muted">

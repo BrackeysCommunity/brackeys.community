@@ -84,6 +84,8 @@ type FakeProvider = {
   attaches: number;
   attached: boolean;
   destroyed: boolean;
+  /** Stateless messages this client sent on the doc. */
+  sent: string[];
 };
 
 type FakeSocket = { url: string; providers: FakeProvider[]; destroyed: boolean };
@@ -134,6 +136,7 @@ function fakeServer() {
           attaches: 0,
           attached: false,
           destroyed: false,
+          sent: [],
         };
         socket.providers.push(p);
         let unwire: (() => void) | null = null;
@@ -171,6 +174,7 @@ function fakeServer() {
         attach();
         return {
           awareness: fakeAwareness(),
+          sendStateless: (payload) => void p.sent.push(payload),
           attach,
           detach,
           destroy() {
@@ -570,6 +574,63 @@ describe("asset:changed messages", () => {
     events.stateless?.(JSON.stringify(changed({ id: "b" })));
     expect(heard).toHaveLength(1);
     l.destroy();
+  });
+
+  it("reach a doc's live channel, which sends on that doc and goes with it", async () => {
+    const server = fakeServer();
+    const l = connectProjectSession({
+      project: "p",
+      url: devCollabUrl(),
+      registry,
+      kinds,
+      origin,
+      transport: server.transport,
+    });
+    await vi.waitFor(() => expect(l.getState().session).not.toBeNull());
+    expect(l.hosted).toBe(false);
+    expect(l.liveChannel?.("scene:nowhere")).toBeNull();
+    const channel = l.liveChannel?.("project:p");
+    expect(channel?.awareness).toBeTruthy();
+    const heard = vi.fn();
+    channel!.on("stateless", heard);
+    const p = server.provider("project:p")!;
+    p.events.stateless?.('{"t":"frame","id":"r1","opts":{}}');
+    expect(heard).toHaveBeenCalledWith({ payload: '{"t":"frame","id":"r1","opts":{}}' });
+    channel!.sendStateless("answer");
+    expect(p.sent).toEqual(["answer"]);
+    channel!.off("stateless", heard);
+    p.events.stateless?.("again");
+    expect(heard).toHaveBeenCalledTimes(1);
+    l.destroy();
+    expect(l.liveChannel?.("project:p")).toBeNull();
+  });
+
+  it("send stateless messages through Hocuspocus's provider", () => {
+    const sendStateless = vi.fn();
+    const mod = {
+      WebSocketStatus: { Connected: "connected", Connecting: "connecting" },
+      HocuspocusProviderWebsocket: class {
+        status = "connected";
+        destroy() {}
+      },
+      HocuspocusProvider: class {
+        awareness = {};
+        sendStateless = sendStateless;
+        attach() {}
+        detach() {}
+        destroy() {}
+      },
+    } as unknown as HocuspocusModule;
+    const socket = hocuspocusTransport(mod)("ws://dev.test/__scene-collab");
+    const made = socket.provider({
+      name: "scene:p.a",
+      doc: new Y.Doc(),
+      token: null,
+      events: { synced: () => {}, closed: () => {} },
+    });
+    made.sendStateless?.("hello");
+    expect(sendStateless).toHaveBeenCalledWith("hello");
+    socket.destroy();
   });
 
   it("reach the hook's latest onAssetChanged", async () => {

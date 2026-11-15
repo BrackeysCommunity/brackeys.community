@@ -52,6 +52,7 @@ export function hocuspocusTransport(mod: HocuspocusModule): ProjectTransport {
         provider.attach();
         return {
           awareness,
+          sendStateless: (payload) => provider.sendStateless(payload),
           attach: () => provider.attach(),
           detach: () => provider.detach(),
           destroy: () => provider.destroy(),

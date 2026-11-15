@@ -717,6 +717,24 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Link the node from `start`, or remove it.",
     fixable: false,
   },
+  "live-no-editor": {
+    severity: "info",
+    summary: "No editor with the scene open answered a live request in time.",
+    hint: "Open the scene in an editor, or read the schematic.",
+    fixable: false,
+  },
+  "live-refused": {
+    severity: "warn",
+    summary: "The editor that has the scene open doesn't let agents drive Play.",
+    hint: "Turn on Let agents drive Play in that editor.",
+    fixable: false,
+  },
+  "frame-too-large": {
+    severity: "warn",
+    summary: "A live frame stayed over the frame cap after downscaling.",
+    hint: "Ask for a smaller frame.",
+    fixable: false,
+  },
 };
 
 /**

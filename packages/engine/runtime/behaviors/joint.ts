@@ -306,6 +306,17 @@ export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       if (l.held) saved.held = [l.held.x, l.held.y];
       return saved.joint === undefined && saved.held === undefined ? undefined : saved;
     },
+    /** The entity it holds, whether the joint stands now, and where it holds it. */
+    inspect(id) {
+      const l = linked.get(id);
+      if (!l) return undefined;
+      return {
+        target: l.target,
+        joined: l.joint !== null && system.joined(id),
+        held: l.held ? { x: l.held.x, y: l.held.y } : null,
+        disabled: l.disabled,
+      };
+    },
     restore(id, state) {
       const l = linked.get(id);
       const physics = ctx.physics;

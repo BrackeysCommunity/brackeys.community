@@ -17,6 +17,7 @@ import { SAVE_RANDOM_KEY, type SavedSystems, type WorldState } from "../game/sav
 import { isCount, resolveTime, wholeTicksIn } from "../game/time";
 import {
   EngineError,
+  type DebugDraw,
   type EngineContext,
   type GameCommand,
   type GameDefinition,
@@ -86,6 +87,8 @@ import { createSetPose } from "./set-pose";
 import { geometrySpace, rapierSpace, type SpaceQuery } from "./space";
 import { swapRuntime, type SwapHost } from "./swap";
 import { createTimers, type RuntimeTimers, type UnsaveableTimer } from "./timers";
+import { bothScopes, type TimingScope } from "./timing";
+import { createTimings } from "./timings";
 import type { RuntimeSceneTree } from "./tree";
 import type {
   LoadReport,
@@ -175,6 +178,19 @@ export type SaveHost = {
 
 /** A load outside flow naming its scene's asset id. */
 type PlayedAs = { sceneId: AssetId };
+
+const noDraw = (): void => {};
+
+/** `EngineContext.debug` without a host's sink, and in every production build: draws nothing. */
+export const NOOP_DEBUG_DRAW: DebugDraw = Object.freeze({
+  line: noDraw,
+  box: noDraw,
+  circle: noDraw,
+  shape: noDraw,
+  path: noDraw,
+  text: noDraw,
+  active: false,
+});
 
 /**
  * The `live` option as the runtime reads it. A live layer's hooks also
@@ -270,6 +286,8 @@ function createSaveRegistry() {
   const registry: SaveRegistry & {
     entries: typeof entries;
     clear(): void;
+    /** What each owner's entry for `entityId` reports, by owner name. */
+    inspect(entityId: string): Record<string, JsonValue | undefined>;
   } = {
     entries,
     register(entityId, owner, entry) {
@@ -284,6 +302,11 @@ function createSaveRegistry() {
       };
     },
     clear: () => entries.clear(),
+    inspect(entityId) {
+      const out: Record<string, JsonValue | undefined> = {};
+      for (const [owner, entry] of entries.get(entityId) ?? []) out[owner] = entry.inspect?.();
+      return out;
+    },
   };
   return registry;
 }
@@ -398,6 +421,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     tick: () => tick,
   });
   const behaviorOf: EngineContext["behavior"] = (name) => host?.system(name);
+  const debugSink = opts.debugDraw ?? null;
   const dialogue = createDialogueSystem({ dev: opts.dev ?? false, ctx: () => ctx });
   const ctx: EngineContext = {
     get rapier() {
@@ -553,6 +577,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       view: () => dialogue.view(),
       stop: () => dialogue.stop(),
     },
+    get debug() {
+      return debugSink?.draw ?? NOOP_DEBUG_DRAW;
+    },
   };
   bodies = createBodyControl(ctx);
   timers = createTimers(ctx);
@@ -575,6 +602,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const ordered = [...systems.values()];
   /** With a collector, each step is one span of its `tick` scope, split at the laps `step` takes. */
   const tickTiming = opts.timing?.scope("tick") ?? null;
+  const windowed = opts.timings ? createTimings(opts.timings) : null;
   const beforeStepParts = [...systems.keys()].map((type) => `system.${type}.beforeStep`);
   const beforePhysicsParts = [...systems.keys()].map((type) => `system.${type}.beforePhysics`);
   const afterStepParts = [...systems.keys()].map((type) => `system.${type}.afterStep`);
@@ -1003,6 +1031,13 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     if (removed) reconciled();
   }
 
+  /** The step's span in the collector, the timings window, both, or neither. */
+  function timedStep(): Pick<TimingScope, "lap" | "end"> | null {
+    const run = tickTiming?.begin() ? tickTiming : null;
+    const win = windowed?.begin() ?? null;
+    return run && win ? bothScopes(run, win) : (run ?? win);
+  }
+
   function step(
     dtMs: number,
     given: TickInput | InputAction[],
@@ -1013,7 +1048,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     gameEvents = [];
     raised = [];
     lifecycle.beginStep();
-    const timed = tickTiming?.begin() ? tickTiming : null;
+    const timed = timedStep();
     const tickInput = tickInputOf(given, commands, t);
 
     stepping = true;
@@ -1027,6 +1062,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         timed?.lap(beforeStepParts[i]!);
       }
       dialogue.commands(tickInput.commands);
+      timed?.lap("dialogue");
       if (game?.beforeStep) {
         inGame(() => game.beforeStep!(dtMs, tickInput.actions, tickInput.commands));
         timed?.lap("game.beforeStep");
@@ -1066,7 +1102,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       timed?.lap("lifecycle");
       const second = { delivered: 0 };
       let next = events.dispatch(raised, delivered, second);
-      timed?.lap("events");
+      timed?.lap("events.again");
       for (let flushes = 1; lifecycle.pending(); flushes++) {
         if (flushes >= EVENT_PASS_LIMIT) {
           throw new EngineError(
@@ -1077,7 +1113,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         lifecycle.flush();
         timed?.lap("lifecycle");
         next = events.dispatch(raised, next, second);
-        timed?.lap("events");
+        timed?.lap("events.again");
       }
     } finally {
       stepping = false;
@@ -1094,6 +1130,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     playClock.ticks++;
     const result: StepResult = { tick: t, events: [...engineEvents, ...gameEvents], game: null };
     if (opts.recordPresentation) result.present = present.take();
+    if (debugSink) result.debug = debugSink.take();
     result.game = snapshot();
     if (game) timed?.lap("game.snapshot");
     timed?.end();
@@ -1617,6 +1654,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     ctx,
     game,
     render: (alpha) => behaviors.render(alpha),
+    timings: () => windowed?.view() ?? null,
     reloadAssets(next, changed) {
       project = next;
       return behaviors.reloadAssets(changed).map(({ entityId, error, reattached }) => ({

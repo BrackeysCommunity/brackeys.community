@@ -1,5 +1,14 @@
+import { createDebugDrawSink } from "../debug/draw-sink";
 import type { LibraryScene, SceneLibrary } from "../game/flow";
-import type { GameCommand, GameDefinition, GameOutcome, PlayState, Registry } from "../game/types";
+import type {
+  DebugDrawCommand,
+  DebugDrawSink,
+  GameCommand,
+  GameDefinition,
+  GameOutcome,
+  PlayState,
+  Registry,
+} from "../game/types";
 import { applyFlowRequest } from "../runtime/flow";
 import {
   createLiveLayer,
@@ -79,6 +88,8 @@ export function createHeadlessRuntime(
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(library ? { scenes: () => liveLibrary(library, layer) } : {}),
     ...(opts.timing ? { timing: opts.timing } : {}),
+    ...(opts.timings ? { timings: opts.timings } : {}),
+    ...(opts.debugDraw ? { debugDraw: opts.debugDraw } : {}),
     live: layer.hooks,
   });
   current = runtime;
@@ -172,6 +183,26 @@ function headlessLive(
   };
 }
 
+/** A sink that remembers the draws of the last tick it handed over, for a report. */
+export type KeptDebugDraw = DebugDrawSink & { last(): readonly DebugDrawCommand[] };
+
+/** `collectDebugDraw`'s sink: a fresh collector that keeps the last tick's draws; null when not asked. */
+export function collectedDebugDraw(collect: boolean | undefined): KeptDebugDraw | null {
+  if (!collect) return null;
+  const sink = createDebugDrawSink();
+  let last: readonly DebugDrawCommand[] = [];
+  return {
+    get draw() {
+      return sink.draw;
+    },
+    take() {
+      last = sink.take();
+      return last;
+    },
+    last: () => last,
+  };
+}
+
 /** The probe's error for an action name the game doesn't declare, or null. */
 export function unknownActionError(action: string, actionNames: readonly string[]): string | null {
   if (actionNames.includes(action)) return null;
@@ -210,6 +241,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
     const error = simActionError(registry, action);
     if (error) throw new Error(error);
   }
+  const draws = collectedDebugDraw(opts.collectDebugDraw);
   const runtime = createSceneRuntime({
     rapier: opts.rapier ?? null,
     view: null,
@@ -218,6 +250,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
     project: opts.project,
     prefabs: runLibrary(opts),
     ...(opts.timing ? { timing: opts.timing } : {}),
+    ...(draws ? { debugDraw: draws } : {}),
   });
   try {
     const load = runtime.load(opts.scene);
@@ -290,6 +323,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
     };
     if (outcome) report.outcome = outcome;
     if (blocked) report.blocked = blocked;
+    if (draws) report.debug = draws.last();
     return report;
   } finally {
     runtime.destroy();

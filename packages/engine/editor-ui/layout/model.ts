@@ -10,6 +10,8 @@ export type PanelId =
   | "project"
   | "inspector"
   | "problems"
+  | "event-log"
+  | "perf"
   | "run"
   | "history"
   | (string & {});
@@ -64,7 +66,10 @@ export const DEFAULT_LAYOUT: EditorLayout = {
   right: {
     width: 320,
     collapsed: false,
-    groups: [group(["inspector"], null), group(["problems", "run", "history"], 240)],
+    groups: [
+      group(["inspector"], null),
+      group(["problems", "event-log", "perf", "run", "history"], 240),
+    ],
   },
 };
 

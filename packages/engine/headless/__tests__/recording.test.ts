@@ -197,6 +197,38 @@ describe("RunRecording", () => {
     }
   });
 
+  it("with seek, stops at that tick and reports the state there as `at`", () => {
+    const rec = played(wander).recording;
+    const whole = replayed(rec);
+    expect(whole).not.toHaveProperty("at");
+    const first = played({ ...wander, steps: [{ hold: ["right"], for: 40 }] });
+    const sought = replayRecording<TestGameSnapshot>({
+      rapier,
+      game: testGame,
+      registry,
+      scene: yard,
+      recording: rec,
+      seek: 40,
+    });
+    if (sought.blocked) throw new Error("blocked");
+    expect(sought.at).toEqual({ tick: 40, snapshot: first.final });
+    expect(sought.final).toEqual(first.final);
+    expect(sought.matches).toBe(true);
+    expect(sought.recording.ticks).toBe(40);
+    // Past the end, it stops where the recording did.
+    const past = replayRecording<TestGameSnapshot>({
+      rapier,
+      game: testGame,
+      registry,
+      scene: yard,
+      recording: rec,
+      seek: rec.ticks + 100,
+    });
+    if (past.blocked) throw new Error("blocked");
+    expect(past.at).toEqual({ tick: rec.ticks, snapshot: whole.final });
+    expect(past.matches, past.divergence ?? "").toBe(true);
+  });
+
   it("replays a recording made in a project that sets engine.tickRate without a tuning warning", () => {
     const project: ProjectRuntimeView = { ...view(), engine: { tickRate: 30 } };
     const run = played(wander, { project });

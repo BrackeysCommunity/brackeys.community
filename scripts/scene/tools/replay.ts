@@ -41,10 +41,12 @@ export type ReplayInput = {
   game?: string;
   /** A directory of scene versions and the texts they carry, for a run that swapped versions in. */
   versions?: string;
+  /** Stop at this tick (clamped to the recording) and print the state there. */
+  seek?: string;
 };
 
 const USAGE =
-  "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>] [--versions <dir>]";
+  "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>] [--versions <dir>] [--seek <tick>]";
 
 /** The file `game live build` writes a version to. */
 export const SCENE_VERSION_FILE = "scene-version.json";
@@ -211,7 +213,7 @@ export function replayText(scene: string, r: ReplayReport, recorded: Recorded | 
     ),
     ...r.warnings.map((w) => `  warning ${w}`),
     ...r.issues.map(issueLine),
-    `  final ${rounded(r.final)}`,
+    ...(r.at ? [`  at t${r.at.tick} ${rounded(r.at.snapshot)}`] : [`  final ${rounded(r.final)}`]),
   ].join("\n");
 }
 
@@ -224,12 +226,19 @@ export function replayText(scene: string, r: ReplayReport, recorded: Recorded | 
  * swapped scene versions in replays its swaps from `--versions`, a
  * directory of version files and their texts (`game live build`'s output,
  * one or several); without the version a swap names, it stops there with
- * `scene-version-removed`.
+ * `scene-version-removed`. `--seek` stops at a tick and prints the state
+ * there instead of the final one.
  */
 export const replay: Tool<ReplayInput> = async (input, ctx) => {
   if (!input.run) return usage(`scene ${USAGE}`);
   if (input.scene === "-" && input.run === "-")
     return usage("only one of the scene and --run can be read from stdin");
+  let seek: number | undefined;
+  if (input.seek !== undefined) {
+    seek = Number(input.seek);
+    if (!/^\d+$/.test(input.seek) || !Number.isSafeInteger(seek))
+      return usage(`--seek takes a tick, a whole number of 0 or more: ${input.seek}`);
+  }
 
   const under = input.game === undefined ? undefined : gameFlag(ctx, input.game);
   if (isToolResult(under)) return under;
@@ -274,6 +283,7 @@ export const replay: Tool<ReplayInput> = async (input, ctx) => {
     ...(saves ? { saves } : {}),
     ...(versions ? { versions: (id: Sha256) => findSceneVersion(id, versions) } : {}),
     ...(ctx.rapierFlavour ? { platform: { flavour: ctx.rapierFlavour } } : {}),
+    ...(seek === undefined ? {} : { seek }),
   });
   const game = registry.game?.id ?? null;
   const versionsData = held

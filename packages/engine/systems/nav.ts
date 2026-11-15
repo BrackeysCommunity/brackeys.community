@@ -74,6 +74,11 @@ export function createNavSystem(_ctx: EngineContext, _type: RegisteredType): Nav
     areas: () => polygons("walk"),
     holes: () => polygons("block"),
     revision: () => rev,
+    /** Whether it walks or blocks, and the mesh revision it is part of. */
+    inspect(id) {
+      const e = live.get(id);
+      return e ? { mode: e.mode ?? "walk", revision: rev } : undefined;
+    },
     memo: null,
   };
 }

@@ -6,6 +6,7 @@ export type {
   CameraState,
   FlowResult,
   GameConfig,
+  GameDebug,
   GameEventMap,
   GameFlow,
   GameInput,
@@ -14,6 +15,7 @@ export type {
   GameLocale,
   GameMode,
   GamePhase,
+  GameReplayOptions,
   GameStoreState,
   InputAction,
   InputBinding,
@@ -25,6 +27,8 @@ export type {
   RapierModule,
   RenderBackend,
   RendererConfig,
+  ReplayHandle,
+  ReplayHost,
   SceneSource,
   SimState,
   StagedVersion,
@@ -32,6 +36,11 @@ export type {
   UiActionEvent,
   Vec2,
 } from "./types";
+export type { EntityInspection, EntityRow } from "./debug/inspect";
+export type { EventLog, EventLogFilter } from "./debug/event-log";
+export { SEEK_CHECKPOINT_EVERY, seekTarget } from "./runtime/seek";
+export type { SeekProgress } from "./runtime/seek";
+export type { RuntimeTimings, TickPhase, TimingStat } from "./runtime/timings";
 export { liveSceneSource, type LiveSceneVersions } from "./flow-host";
 export {
   browserSaveStore,
@@ -223,7 +232,14 @@ export {
   SYNTH_PRESETS,
   type SynthPreset,
 } from "./audio/synth-presets";
-export { browserPrefsStore, memoryPrefsStore, snapshotPrefsStore, type PrefsStore } from "./prefs";
+export {
+  browserPrefsStore,
+  memoryPrefsStore,
+  PREF_KEYS,
+  setPref,
+  snapshotPrefsStore,
+  type PrefsStore,
+} from "./prefs";
 export type { StringTable, StringTableData, TextDirection } from "./text/strings";
 export type { RichLine, RichSpan } from "./text/rich";
 export type { DialogueView } from "./dialogue/runner";

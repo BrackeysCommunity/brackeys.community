@@ -3,17 +3,54 @@ import type { Container } from "pixi.js";
 
 import type { Viewport } from "../camera";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
-import type { EngineContext } from "../game/types";
+import type { DebugDrawCommand, DebugDrawSink, EngineContext, EntitySelector } from "../game/types";
 import type { RunTiming } from "../runtime/timing";
+import type { RuntimeTimings } from "../runtime/timings";
+import type { SceneRuntimeHandle } from "../runtime/types";
 import { setDebugMode } from "../store";
 import type { ToolRouter } from "../tool-router";
 import type { GameStoreState, Vec2 } from "../types";
 import { createDebugPanel, type DebugPanel } from "./debug-panel";
+import { createDebugDrawSink, debugDrawLayer } from "./draw";
+import { createEventLog, type EventLogWriter } from "./event-log";
 import { gridLayer } from "./grid-overlay";
+import {
+  inspectEntity,
+  listEntities,
+  pickEntity,
+  type EntityInspection,
+  type EntityRow,
+} from "./inspect";
+import { perfLayer } from "./perf";
 import { physicsLayer } from "./physics-wireframes";
 import { createTimingReadout } from "./timing-readout";
 
 export { TIMING_ATTRIBUTE, TIMING_STORAGE_KEY } from "./timing-readout";
+export { createDebugDrawSink, DEBUG_DRAW_MAX, debugDrawLayer } from "./draw";
+export {
+  createEventLog,
+  EVENT_LOG_CAPACITY,
+  type EventLog,
+  type EventLogFilter,
+  type EventLogWriter,
+} from "./event-log";
+export {
+  inspectEntity,
+  listEntities,
+  pickEntity,
+  type EntityInspection,
+  type EntityRow,
+} from "./inspect";
+export {
+  PERF_SLOWEST,
+  perfLayer,
+  perfLines,
+  perfPlan,
+  type PerfBar,
+  type PerfPlan,
+  type PerfRow,
+} from "./perf";
+export type { RuntimeTimings, TickPhase, TimingStat } from "../runtime/timings";
 
 /** The loaded scene's world, as the physics wireframes and the grid read it. */
 export type DebugSceneSource = Pick<EngineContext, "physics" | "geometry" | "tags" | "registry"> &
@@ -30,6 +67,10 @@ export type DebugFrame = {
   scale: number;
   /** The game's `debugInfo()`; null without a scene or when the game supplies none. */
   info: unknown;
+  /** The store's `timings`, while a shown layer needs them. */
+  timings?: RuntimeTimings | null;
+  /** The last tick's `ctx.debug` draws, while a shown layer needs them. */
+  draws?: readonly DebugDrawCommand[];
   /** The world bound by `setPhysics`; null without a scene. */
   scene: DebugSceneSource | null;
 };
@@ -59,11 +100,21 @@ export type DebugLayer = {
  */
 export type DebugLayerFactory = {
   id: string;
+  /** What the shell must collect while this layer shows. */
+  needs?: DebugNeeds;
   create: (host: DebugLayerHost) => DebugLayer;
 };
 
+/** `timings`: the runtime's timings in the store; `debugDraw`: game code's `ctx.debug` draws. */
+export type DebugNeeds = { timings?: boolean; debugDraw?: boolean };
+
 /** The engine's layers, before the game's. */
-export const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[] = [gridLayer, physicsLayer];
+export const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[] = [
+  gridLayer,
+  physicsLayer,
+  debugDrawLayer,
+  perfLayer,
+];
 
 export const DEBUG_OFF = "off";
 
@@ -82,7 +133,34 @@ export type DebugOverlay = {
   setPhysics: (source: DebugSceneSource | null) => void;
   update: (tick: DebugTick) => void;
   destroy: () => void;
+  /** What the shown layers need now. */
+  needs?: () => DebugNeeds;
+  /** The sink the shown debug-draw layer reads; null while none shows. */
+  debugDraw?: () => DebugDrawSink | null;
+  /** Live inspection and the event log, for `GameInstance.debug`. */
+  tools?: DebugTools;
 };
+
+/**
+ * What a dev host's overlay lends `GameInstance.debug`. Every answer is
+ * plain data, so the play world may later sit across a worker link.
+ */
+export type DebugTools = {
+  inspect(runtime: SceneRuntimeHandle, id: string): EntityInspection | null;
+  entities(runtime: SceneRuntimeHandle, sel?: EntitySelector): readonly EntityRow[];
+  pick(runtime: SceneRuntimeHandle, p: Vec2): string | null;
+  createEventLog(): EventLogWriter;
+};
+
+/** The engine's own inspection and event log. */
+export function debugTools(): DebugTools {
+  return {
+    inspect: inspectEntity,
+    entities: listEntities,
+    pick: pickEntity,
+    createEventLog: () => createEventLog(),
+  };
+}
 
 export type DebugOverlayFactory = (deps: DebugDeps) => DebugOverlay;
 
@@ -116,6 +194,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
   const layers: (DebugLayer | null)[] = factories.map(() => null);
   let shown = 0;
   let scene: DebugSceneSource | null = null;
+  let drawSink: DebugDrawSink | null = null;
 
   function applyMode(mode: string): void {
     shown = Math.max(0, modes.indexOf(mode));
@@ -140,6 +219,16 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
     readout?.update();
   }
 
+  function needs(): DebugNeeds {
+    const out: DebugNeeds = {};
+    for (let i = 0; i < shown; i++) {
+      const wants = factories[i]?.needs;
+      if (wants?.timings) out.timings = true;
+      if (wants?.debugDraw) out.debugDraw = true;
+    }
+    return out;
+  }
+
   function destroy(): void {
     panel.destroy();
     readout?.destroy();
@@ -147,7 +236,11 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
     layers.fill(null);
     shown = 0;
     scene = null;
+    drawSink = null;
   }
 
-  return { setPhysics, update, destroy };
+  const debugDraw = (): DebugDrawSink | null =>
+    needs().debugDraw ? (drawSink ??= createDebugDrawSink()) : null;
+
+  return { setPhysics, update, destroy, needs, debugDraw, tools: debugTools() };
 }

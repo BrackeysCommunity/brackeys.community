@@ -223,6 +223,8 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
   save?(id: string): JsonValue | undefined;
   /** Puts back what `save` returned, after the entity was spawned again from its scene or record. */
   restore?(id: string, state: JsonValue): void;
+  /** What a debugger shows for `id`: plain JSON, read-only (a velocity, a path's progress). */
+  inspect?(id: string): JsonValue | undefined;
   /**
    * Moves `id` as a tween or a game asks (metres, radians), keeping its
    * colliders in step; a type without it can't be tweened by pose.
@@ -418,6 +420,52 @@ export type EngineContext = {
   readonly tree: SceneTree;
   /** The active conversation. */
   readonly dialogue: DialogueContext;
+  /** Debug shapes for this tick; a frozen no-op with `active` false unless a host shows them. */
+  readonly debug: DebugDraw;
+};
+
+// ─── Debug draw ──────────────────────────────────────────
+
+/**
+ * How a debug draw looks. `color` is 0xRRGGBB, `alpha` 0–1, `width` a line
+ * width in screen px (default 1), `layer` a name a host may filter by.
+ */
+export type DebugStyle = { color?: number; alpha?: number; width?: number; layer?: string };
+
+/**
+ * Shapes game code draws for one tick, in world metres. Draws made during
+ * tick t show until tick t + 1's commit and never enter state or a digest.
+ */
+export interface DebugDraw {
+  line(a: Vec2, b: Vec2, opts?: DebugStyle): void;
+  /** `at` is the box's centre, `size` its full width and height. */
+  box(at: Vec2, size: [number, number], opts?: DebugStyle): void;
+  circle(at: Vec2, r: number, opts?: DebugStyle): void;
+  shape(s: ShapeObj, opts?: DebugStyle): void;
+  path(pts: readonly Vec2[], opts?: DebugStyle & { closed?: boolean }): void;
+  /** `size` is the text's height in screen px. */
+  text(at: Vec2, text: string, opts?: DebugStyle & { size?: number }): void;
+  /** False when nothing would show the draws: callers skip expensive work. */
+  readonly active: boolean;
+}
+
+/** One debug draw as plain data: positions in world metres, `style.width` in screen px. */
+export type DebugDrawCommand =
+  | { kind: "line"; a: Vec2; b: Vec2; style: DebugStyle }
+  | { kind: "box"; at: Vec2; size: [number, number]; style: DebugStyle }
+  | { kind: "circle"; at: Vec2; r: number; style: DebugStyle }
+  | { kind: "shape"; shape: ShapeObj; style: DebugStyle }
+  | { kind: "path"; pts: readonly Vec2[]; closed: boolean; style: DebugStyle }
+  | { kind: "text"; at: Vec2; text: string; size?: number; style: DebugStyle };
+
+/**
+ * Where a host collects game code's debug draws: `draw` is what
+ * `EngineContext.debug` reads (at each use, so a host may swap it), and
+ * `take` hands over the draws since the last call, emptied, after each step.
+ */
+export type DebugDrawSink = {
+  readonly draw: DebugDraw;
+  take(): readonly DebugDrawCommand[];
 };
 
 /**

@@ -256,6 +256,39 @@ engine-package:
         - bun.lock
     # No tag clause — see the note on `lint` above; `engine-pack` runs both on an engine tag.
 
+# Ticks per second for the kitchen sink and the large scenes against the
+# baseline recorded for this runner's arch and Node major; fails below 80%.
+engine-perf:
+  stage: test
+  image: node:24
+  needs: [engine-package]
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - bun run engine:perf --json
+  artifacts:
+    when: always
+    paths:
+      - engine-perf.json
+    expire_in: 1 month
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - packages/engine/**/*
+        - scripts/engine-perf.ts
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - packages/engine/**/*
+        - scripts/engine-perf.ts
+        - package.json
+        - bun.lock
+
 # The checks no other job runs: formatting, lint and types over the whole repo,
 # each service's own typecheck against its own dependencies, and the scene
 # CLI's validation of every engine and game scene.

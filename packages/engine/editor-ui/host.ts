@@ -6,6 +6,7 @@ import type {
   AwarenessLike,
   DocOrigin,
   ProjectSession,
+  StatelessProvider,
 } from "../collab/index";
 import type { SwapTiming } from "../game/index";
 import type { AssetUrl } from "../index";
@@ -476,6 +477,14 @@ export type ProjectConnection = {
   onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
   /** Where imports upload; a connection without it takes no imports. */
   blobs?: ProjectBlobs;
+  /**
+   * An open doc's stateless messages and awareness, for the live channel
+   * (agents asking the open editor for frames and Play); null while the doc
+   * isn't open. A connection without it answers no live requests.
+   */
+  liveChannel?(doc: string): StatelessProvider | null;
+  /** The server is hosted (it takes tokens), not the dev server. */
+  hosted?: boolean;
   destroy(): void;
 };
 
@@ -523,6 +532,8 @@ export type ProjectSocket = {
     events: ProjectDocEvents;
   }): {
     awareness: AwarenessLike;
+    /** Sends a stateless message on the doc; a provider without it sends none. */
+    sendStateless?(payload: string): void;
     detach(): void;
     attach(): void;
     destroy(): void;

@@ -66,6 +66,9 @@ export const createBodySystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       if (w !== 0) saved.w = w;
       return saved;
     },
+    /** Its kind; the velocity is the inspection's `body`. */
+    inspect: (id) =>
+      carried.has(id) && ctx.bodies.has(id) ? { kind: ctx.bodies.kind(id) } : undefined,
     restore(id, state) {
       rebuild(id);
       if (typeof state !== "object" || state === null || Array.isArray(state)) return;

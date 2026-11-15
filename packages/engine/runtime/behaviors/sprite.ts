@@ -206,6 +206,12 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
       for (const id of [...attached.keys()]) hide(id);
     },
     size: () => attached.size,
+    /** What `setFrame` and `style` put over the block, and the layer it draws on. */
+    inspect(id) {
+      const a = attached.get(id);
+      if (!a) return undefined;
+      return { frame: a.frame ?? a.block.frame ?? null, look: { ...a.look }, layer: a.layer };
+    },
   };
   return system as SpriteSystem;
 };

@@ -59,6 +59,10 @@ export const createOccupantSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       const a = attached.get(id);
       return a && a.key !== null ? [...cellOf(a.key)] : undefined;
     },
+    inspect(id) {
+      const a = attached.get(id);
+      return a ? { cell: a.key !== null ? [...cellOf(a.key)] : null, blocks: a.blocks } : undefined;
+    },
     restore(id, state: JsonValue) {
       const a = attached.get(id);
       const grid = ctx.grid;

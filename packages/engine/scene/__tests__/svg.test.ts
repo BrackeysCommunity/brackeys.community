@@ -8,6 +8,7 @@ import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
+import type { DebugDrawCommand } from "../../game/types";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
@@ -723,5 +724,60 @@ describe("text boxes", () => {
     expect(textEl(svg, "a")).toBeDefined();
     expect(labelOf(svg, "a")).toBeUndefined();
     expect(renderSceneSvg(yard, { registry: engine })).not.toContain('id="texts"');
+  });
+});
+
+describe("debug draws", () => {
+  const draws = [
+    { kind: "line", a: { x: 1, y: 2 }, b: { x: 3, y: 2 }, style: { color: 0x00ff00, width: 2 } },
+    { kind: "box", at: { x: 5, y: 5 }, size: [2, 1], style: { layer: "ai" } },
+    { kind: "circle", at: { x: 4, y: 8 }, r: 0.5, style: {} },
+    { kind: "shape", shape: { type: "box", cx: 6, cy: 6, hw: 0.5, hh: 0.5, rotDeg: 0 }, style: {} },
+    {
+      kind: "path",
+      pts: [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+        { x: 2, y: 0 },
+      ],
+      closed: true,
+      style: { alpha: 0.5 },
+    },
+    { kind: "text", at: { x: 2, y: 3 }, text: "speed <3", size: 14, style: {} },
+  ] satisfies DebugDrawCommand[];
+
+  it("draws nothing extra without draws, so the goldens hold", () => {
+    const plain = renderSceneSvg(yard, { registry: engine });
+    expect(renderSceneSvg(yard, { registry: engine, debugDraw: [] })).toBe(plain);
+    expect(plain).not.toContain("debug-draw");
+  });
+
+  it("draws each kind in world px, metres times px per metre", () => {
+    const svg = renderSceneSvg(yard, { registry: engine, debugDraw: draws });
+    expect(svg).toContain(`<g id="debug-draw"`);
+    expect(svg).toMatch(/data-debug="line" d="M100 200L300 200" fill="none" stroke="#00ff00"/);
+    expect(svg).toMatch(/data-debug="box" data-layer="ai" d="M400 450L600 450L600 550L400 550Z"/);
+    expect(svg).toMatch(/data-debug="circle" d="M[^"]*A50 50 /);
+    expect(svg).toMatch(/data-debug="shape" d="M550 550L650 550L650 650L550 650Z"/);
+    expect(svg).toMatch(/data-debug="path" d="M0 0L100 100L200 0Z"[^>]*stroke-opacity="0.5"/);
+    expect(svg).toMatch(
+      /data-debug="text"><rect [^>]*\/><text x="200" y="[\d.]+" [^>]*>speed &lt;3<\/text>/,
+    );
+    expect(svg.indexOf(`id="debug-draw"`)).toBeGreaterThan(svg.indexOf(`id="labels"`));
+    expect(svg).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("measures debug text as world text is measured", () => {
+    const short = renderSceneSvg(yard, {
+      registry: engine,
+      debugDraw: [{ kind: "text", at: { x: 0, y: 0 }, text: "a", style: {} }],
+    });
+    const long = renderSceneSvg(yard, {
+      registry: engine,
+      debugDraw: [{ kind: "text", at: { x: 0, y: 0 }, text: "a much longer label", style: {} }],
+    });
+    const width = (svg: string) =>
+      Number(/data-debug="text"><rect [^>]*width="([\d.]+)"/.exec(svg)?.[1]);
+    expect(width(long)).toBeGreaterThan(width(short) * 4);
   });
 });

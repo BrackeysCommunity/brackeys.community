@@ -11,8 +11,10 @@ import {
   type DebugTick,
 } from "../debug";
 import { gridLayer, gridOverlayPlan, type GridSegment } from "../debug/grid-overlay";
+import { perfLayer, perfLines, perfPlan } from "../debug/perf";
 import { gridGeometry } from "../grid/geometry";
 import { createSceneRuntime } from "../runtime/runtime";
+import { TICK_PHASES, type RuntimeTimings } from "../runtime/timings";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { createGameStore, selectDebugMode, setDebugMode } from "../store";
 import { createToolRouter, TOOL_PRIORITY, type ToolRouter } from "../tool-router";
@@ -69,12 +71,26 @@ function loadedRuntime(rapier: RapierModule, entities: number): SceneRuntimeHand
 
 describe("debugModes", () => {
   it("is off, then the engine's layers", () => {
-    expect(debugModes(ENGINE_DEBUG_LAYERS)).toEqual(["off", "grid", "physics"]);
+    expect(debugModes(ENGINE_DEBUG_LAYERS)).toEqual([
+      "off",
+      "grid",
+      "physics",
+      "debug-draw",
+      "perf",
+    ]);
   });
 
   it("appends a game's layers in order", () => {
     const layers = [...ENGINE_DEBUG_LAYERS, spyLayer("arcs").factory, spyLayer("scale").factory];
-    expect(debugModes(layers)).toEqual(["off", "grid", "physics", "arcs", "scale"]);
+    expect(debugModes(layers)).toEqual([
+      "off",
+      "grid",
+      "physics",
+      "debug-draw",
+      "perf",
+      "arcs",
+      "scale",
+    ]);
   });
 
   it("rejects a layer id used twice", () => {
@@ -111,8 +127,7 @@ describe("createDebugOverlay", () => {
     overlay.update(TICK);
     expect(game.created).not.toHaveBeenCalled();
 
-    pressF3(target); // grid
-    pressF3(target); // physics
+    for (let i = 0; i < ENGINE_DEBUG_LAYERS.length; i++) pressF3(target);
     expect(game.created).not.toHaveBeenCalled();
     pressF3(target); // arcs
     expect(selectDebugMode(store.state)).toBe("arcs");
@@ -130,7 +145,7 @@ describe("createDebugOverlay", () => {
   it("hands every layer the world bound last, even after an earlier one is freed", async () => {
     const rapier = await loadCompatRapier();
     const { target, game, overlay } = setup();
-    for (let i = 0; i < 3; i++) pressF3(target);
+    for (let i = 0; i <= ENGINE_DEBUG_LAYERS.length; i++) pressF3(target);
     const runtimeA = loadedRuntime(rapier, 1);
     const runtimeB = loadedRuntime(rapier, ENGINE_YARD_EXPANDED.entities.length);
     const a: DebugSceneSource = runtimeA.ctx;
@@ -154,7 +169,7 @@ describe("createDebugOverlay", () => {
 
   it("hides the game layer when F3 wraps back to off and stops updating it", () => {
     const { target, store, game, overlay } = setup();
-    for (let i = 0; i < 4; i++) pressF3(target);
+    for (let i = 0; i <= ENGINE_DEBUG_LAYERS.length + 1; i++) pressF3(target);
     expect(selectDebugMode(store.state)).toBe("off");
     expect(game.visible).toEqual([true, false]);
 
@@ -393,5 +408,65 @@ describe("the grid layer", () => {
     const plan = gridOverlayPlan(TICK.viewport, 250, geometry);
     expect(plan.minor.length).toBeGreaterThan(0);
     layer.destroy();
+  });
+});
+
+// ─── Perf layer ──────────────────────────────────────────
+
+describe("the perf layer", () => {
+  const stat = (mean: number, max = mean) => ({ mean, max });
+  const FIXTURE: RuntimeTimings = {
+    ticks: 120,
+    phases: Object.fromEntries(
+      TICK_PHASES.map((p, i) => [p, p === "physics" ? stat(2, 4) : stat(i / 10)]),
+    ) as RuntimeTimings["phases"],
+    systems: { a: stat(0.1), b: stat(0.6), c: stat(0.3), d: stat(0.2), e: stat(0.5), f: stat(0.4) },
+    behaviors: { script: stat(0.25, 1), anim: stat(0.05) },
+  };
+
+  it("plans the phases as bars against the slowest phase's worst tick, and the five slowest", () => {
+    const plan = perfPlan(FIXTURE);
+    expect(plan.scaleMs).toBe(4);
+    expect(plan.bars.map((b) => b.phase)).toEqual([...TICK_PHASES]);
+    expect(plan.bars.find((b) => b.phase === "physics")).toMatchObject({
+      meanFrac: 0.5,
+      maxFrac: 1,
+    });
+    expect(plan.systems.map((r) => r.name)).toEqual(["b", "e", "f", "c", "d"]);
+    expect(plan.behaviors.map((r) => r.name)).toEqual(["script", "anim"]);
+  });
+
+  it("draws from the frame's timings, and a waiting line without them", () => {
+    const ui = new Container();
+    const layer = perfLayer.create({
+      worldContainer: new Container(),
+      uiContainer: ui,
+      pxPerMetre: 100,
+    });
+    layer.setVisible(true);
+    const texts = () => ui.children[0]!.children[2]!.children.map((t) => (t as Text).text);
+
+    layer.update({ ...FRAME, timings: null });
+    expect(texts()).toEqual(["perf: waiting for a full window"]);
+
+    layer.update({ ...FRAME, timings: FIXTURE });
+    const shown = texts();
+    expect(shown[0]).toBe("tick ms over 120 ticks (mean / max)");
+    expect(shown).toEqual(
+      expect.arrayContaining([
+        "physics",
+        "2.000 / 4.000",
+        "slowest systems",
+        "  b 0.600 / 0.600",
+        "slowest behaviors",
+        "  script 0.250 / 1.000",
+      ]),
+    );
+    expect(shown).not.toContain("  a 0.100 / 0.100");
+    expect((ui.children[0]!.children[1] as Graphics).bounds.width).toBeGreaterThan(0);
+    expect(perfLines(perfPlan(FIXTURE))).toContain("physics 2.000 / 4.000");
+
+    layer.destroy();
+    expect(ui.children).toHaveLength(0);
   });
 });

@@ -39,7 +39,12 @@ export type RuntimeTimers = Timers & {
    * `tick`; one whose owner is disabled waits paused. Ids carry on from `next`.
    */
   restore(saved: readonly SavedTimer[], tick: number, next: number): void;
+  /** Every pending timer and coroutine `owner` owns, in id order, with the tick it next runs. */
+  owned(owner: string): OwnedTimer[];
 };
+
+/** A pending entry as inspection shows it; `due` is the tick it next runs. */
+export type OwnedTimer = { id: number; due: number; kind: "after" | "every" | "co" };
 
 type Base = {
   id: number;
@@ -253,6 +258,16 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
         out.push({ kind: e.kind, id: e.id, ...(e.owner !== undefined ? { owner: e.owner } : {}) });
       }
       return out;
+    },
+    owned(owner) {
+      const out: OwnedTimer[] = [];
+      for (const e of entries.values()) {
+        if (e.owner !== owner) continue;
+        const kind = e.kind === "coroutine" ? "co" : e.period !== null ? "every" : "after";
+        const due = e.paused === null ? e.due - offset : ctx.tick + e.paused;
+        out.push({ id: e.id, due, kind });
+      }
+      return out.sort((a, b) => a.id - b.id);
     },
     capture(tick) {
       const timers: SavedTimer[] = [];

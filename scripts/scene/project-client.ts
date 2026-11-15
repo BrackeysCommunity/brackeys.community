@@ -10,18 +10,25 @@ import {
   docToPrefab,
   docToScene,
   isPrefabDoc,
+  electResponder,
   isSeedStaleClose,
   layoutFromDoc,
+  LIVE_REQUEST_TIMEOUT_MS,
+  liveRequest as sendLiveRequest,
+  livePresence,
   sessionPrefabSource,
   type AwarenessLike,
   type DocOrigin,
   type KeyGen,
+  type LiveRequest,
+  type LiveResponse,
   type OpenDoc,
   type OpenedDoc,
   type PrefabWriter,
   type ProjectApplyOptions,
   type ProjectSession,
   type SessionDoc,
+  type StatelessProvider,
 } from "@jams/engine/collab";
 import type { Registry } from "@jams/engine/game";
 import {
@@ -128,6 +135,8 @@ export type ProjectClient = {
   ): Promise<ProjectApplyResult>;
   /** Resolves once the server has acknowledged every local change, in every doc opened. */
   pushed(): Promise<void>;
+  /** The stateless channel of a doc this client has opened, for live requests; null for one it hasn't. */
+  stateless(doc: string): StatelessProvider | null;
   /**
    * Waits for the push, then closes every doc and the socket; tears down even
    * when the push times out. Rejects with `seedStaleError` when a doc was
@@ -213,6 +222,7 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
   }
 
   const providers = new Set<HocuspocusProvider>();
+  const byName = new Map<string, HocuspocusProvider>();
   /**
    * Each doc's provider, opened once and kept until the client closes. A doc
    * let go of stays synced, ready to open again: Hocuspocus can't take a doc
@@ -251,6 +261,7 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
         waiting.delete(fail);
         clearTimeout(timer);
         providers.delete(provider);
+        if (byName.get(name) === provider) byName.delete(name);
         provider.destroy();
         doc.destroy();
         reject(error);
@@ -283,6 +294,7 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
         },
       });
       providers.add(provider);
+      byName.set(name, provider);
       waiting.add(fail);
       provider.attach();
       timer = setTimeout(
@@ -389,6 +401,16 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
       }
     },
     pushed,
+    stateless(name) {
+      const provider = byName.get(name);
+      if (!provider || ended) return null;
+      return {
+        sendStateless: (payload) => provider.sendStateless(payload),
+        on: (event, fn) => provider.on(event, fn),
+        off: (event, fn) => provider.off(event, fn),
+        awareness: provider.awareness,
+      };
+    },
     async close() {
       if (ended) return;
       const failed = fatal;
@@ -403,6 +425,7 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
           p.document.destroy();
         }
         providers.clear();
+        byName.clear();
         pool.clear();
         socket.destroy();
       }
@@ -786,4 +809,86 @@ export async function readLiveValues(session: ProjectSession): Promise<Map<Asset
     }
   }
   return values;
+}
+
+// ─── Live requests to the open editor ────────────────────
+
+/** A live request as a caller writes it; `liveRequest` gives it its id. */
+export type LiveAsk =
+  | Omit<LiveRequest & { t: "frame" }, "id">
+  | Omit<LiveRequest & { t: "play" }, "id">
+  | Omit<LiveRequest & { t: "state" }, "id">;
+
+/** How long a requester waits for the editors' presence to arrive after its doc syncs. */
+const PRESENCE_GRACE_MS = 500;
+
+const liveId = () => `cli-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/**
+ * Sends `ask` on a doc's stateless channel and resolves with the elected
+ * editor's answer. Presence can land just after the doc's first sync, so it
+ * waits briefly for an editor advertising `live` before the channel's own
+ * check reads it; the answer wait is `timeoutMs` (default `LIVE_REQUEST_TIMEOUT_MS`).
+ */
+export async function requestOnProvider(
+  provider: StatelessProvider,
+  ask: LiveAsk,
+  opts: { timeoutMs?: number; id?: string } = {},
+): Promise<LiveResponse> {
+  const timeoutMs = opts.timeoutMs ?? LIVE_REQUEST_TIMEOUT_MS;
+  const { awareness } = provider;
+  if (awareness) {
+    const end = Date.now() + Math.min(PRESENCE_GRACE_MS, timeoutMs);
+    while (electResponder(livePresence(awareness)) === null && Date.now() < end)
+      await new Promise((r) => setTimeout(r, 20));
+  }
+  const req = { ...ask, id: opts.id ?? liveId() } as LiveRequest;
+  return sendLiveRequest(provider, req, { timeoutMs });
+}
+
+export type LiveRequestOptions = Omit<
+  OpenLiveOptions,
+  "find" | "origin" | "prefabs" | "write" | "timeoutMs"
+> & {
+  scene: string;
+  ask: LiveAsk;
+  /** How long connecting and syncing the scene's doc may take. */
+  connectTimeoutMs?: number;
+  /** How long the editor has to answer; default `LIVE_REQUEST_TIMEOUT_MS`. */
+  timeoutMs?: number;
+};
+
+/**
+ * Asks the editor that has `scene` open, over the scene doc of the dev
+ * server or hosted project `url` names (agent tokens as `project pull`
+ * uses them). Closes the connection before it resolves.
+ */
+export async function liveRequest(
+  opts: LiveRequestOptions,
+): Promise<{ response: LiveResponse; project: ProjectId }> {
+  const { scene, ask, connectTimeoutMs, timeoutMs, ...open } = opts;
+  const { project, client } = await openLiveProject({
+    ...open,
+    find: findScene(scene),
+    ...(connectTimeoutMs === undefined ? {} : { timeoutMs: connectTimeoutMs }),
+  });
+  try {
+    const { session } = client;
+    const entry = sceneEntry(session.view(), scene)!;
+    const name = session.docNameFor(entry);
+    if (!name) throw new ProjectClientError(`${scene} has no doc on the server.`);
+    await session.open(name);
+    try {
+      const provider = client.stateless(name);
+      if (!provider) throw new ProjectClientError(`${name} has no live channel.`);
+      const response = await requestOnProvider(provider, ask, {
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      });
+      return { response, project: project.file.id };
+    } finally {
+      session.release(name);
+    }
+  } finally {
+    await client.close();
+  }
 }

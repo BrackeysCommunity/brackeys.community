@@ -48,6 +48,7 @@ describe("the genre matrix", () => {
     }
     expect(MILESTONE_VERSIONS[22]).toBe("0.15.0");
     expect(MILESTONE_VERSIONS[23]).toBe("0.17.0");
+    expect(MILESTONE_VERSIONS[24]).toBe("0.18.0");
   });
 
   it("counts a milestone landed once the engine's version reaches its own", () => {

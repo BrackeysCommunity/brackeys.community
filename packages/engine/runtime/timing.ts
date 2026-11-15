@@ -57,6 +57,8 @@ export type RunTiming = {
   report(): TimingReport;
   /** Forgets everything measured; scopes stay valid. */
   reset(): void;
+  /** Called as each span closes, with its scope's name and the ms each part took in it, in first-run order. */
+  onSpan?: (scope: string, parts: Iterable<readonly [string, number]>) => void;
 };
 
 type Part = TimingBucket & { pending: number };
@@ -66,11 +68,29 @@ type Scope = TimingScope & { report(): TimingSpan; reset(): void };
 /** Milliseconds to the microsecond. */
 const ms = (value: number) => Math.round(value * 1000) / 1000;
 
+function* pendingOf(parts: Map<string, Part>): Generator<readonly [string, number]> {
+  for (const [name, part] of parts) if (part.pending > 0) yield [name, part.pending];
+}
+
+/** One span timed into two scopes at once, each on its own clock. */
+export function bothScopes(a: TimingScope, b: TimingScope): Pick<TimingScope, "lap" | "end"> {
+  return {
+    lap(part) {
+      a.lap(part);
+      b.lap(part);
+    },
+    end() {
+      a.end();
+      b.end();
+    },
+  };
+}
+
 /** A collector on `now`, a millisecond clock such as `performance.now`; it starts enabled. */
 export function createRunTiming(now: () => number): RunTiming {
   const scopes = new Map<string, Scope>();
 
-  function createScope(): Scope {
+  function createScope(name: string): Scope {
     const parts = new Map<string, Part>();
     const span: TimingBucket = { calls: 0, totalMs: 0, maxMs: 0 };
     let open = false;
@@ -85,11 +105,11 @@ export function createRunTiming(now: () => number): RunTiming {
         started = mark = now();
         return true;
       },
-      lap(name) {
+      lap(partName) {
         if (!open) return;
         const at = now();
-        let part = parts.get(name);
-        if (!part) parts.set(name, (part = { calls: 0, totalMs: 0, maxMs: 0, pending: 0 }));
+        let part = parts.get(partName);
+        if (!part) parts.set(partName, (part = { calls: 0, totalMs: 0, maxMs: 0, pending: 0 }));
         part.calls++;
         part.pending += at - mark;
         mark = at;
@@ -101,6 +121,7 @@ export function createRunTiming(now: () => number): RunTiming {
         span.calls++;
         span.totalMs += took;
         if (took > span.maxMs) span.maxMs = took;
+        timing.onSpan?.(name, pendingOf(parts));
         for (const part of parts.values()) {
           part.totalMs += part.pending;
           if (part.pending > part.maxMs) part.maxMs = part.pending;
@@ -132,7 +153,7 @@ export function createRunTiming(now: () => number): RunTiming {
 
   function scopeOf(name: string): Scope {
     let scope = scopes.get(name);
-    if (!scope) scopes.set(name, (scope = createScope()));
+    if (!scope) scopes.set(name, (scope = createScope(name)));
     return scope;
   }
 

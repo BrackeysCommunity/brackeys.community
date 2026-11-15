@@ -14,6 +14,8 @@ import type { Vec2 } from "../types";
 export type SaveEntry = {
   save(): JsonValue | undefined;
   restore(state: JsonValue): void;
+  /** What a debugger shows of it: plain JSON, read-only. */
+  inspect?(): JsonValue | undefined;
 };
 
 /**
@@ -89,6 +91,8 @@ export interface MotionBody {
   setVelocity(v: Vec2): void;
   /** Takes it out of the world and `ctx.bodies`, and forgets the entity's `oneWayPasses`. */
   destroy(): void;
+  /** What a debugger shows: velocity, grounded, enabled and the last move's result. Read-only. */
+  inspect?(): JsonValue;
 }
 
 /** The `motion` owner's state in a world save. */
@@ -311,6 +315,7 @@ export function createMotionBody(
   let enabled = true;
   let destroyed = false;
   let grounded = false;
+  let last: MotionResult | null = null;
   ctx.poses.set(entity.id, pos.x, pos.y, undefined, { snap: true });
 
   const live = (what: string) => {
@@ -331,6 +336,7 @@ export function createMotionBody(
       body.teleport(saved.at[0], saved.at[1]);
       velocity = saved.v ? { x: saved.v[0], y: saved.v[1] } : { x: 0, y: 0 };
     },
+    inspect: () => body.inspect?.(),
   });
 
   const body: MotionBody = {
@@ -347,7 +353,8 @@ export function createMotionBody(
       pos = { x: pos.x + moved.x, y: pos.y + moved.y };
       backend.place(pos, false);
       ctx.poses.set(entity.id, pos.x, pos.y);
-      return { moved, hits, blocked: lostTravel(delta, moved) };
+      last = { moved, hits, blocked: lostTravel(delta, moved) };
+      return last;
     },
     teleport(x, y, teleportOpts) {
       live("teleport");
@@ -368,6 +375,20 @@ export function createMotionBody(
     velocity: () => ({ ...velocity }),
     setVelocity(v) {
       velocity = { x: v.x, y: v.y };
+    },
+    inspect() {
+      const out: Record<string, JsonValue> = {
+        velocity: { ...velocity },
+        grounded,
+        enabled,
+      };
+      if (last)
+        out.last = {
+          moved: { ...last.moved },
+          blocked: last.blocked,
+          hits: last.hits.map((h) => h.tag.entityId),
+        };
+      return out;
     },
     destroy() {
       if (destroyed) return;

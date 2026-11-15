@@ -3,7 +3,7 @@ import type { GameInstance, UiContext } from "@jams/engine";
 import { defineGame } from "@jams/engine/game";
 import type { FakeAudioBackend } from "@jams/engine/headless";
 import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Container } from "pixi.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -16,6 +16,11 @@ const made = vi.hoisted(() => ({
   /** Whether the stand-in for `tryWebAudioBackend` finds no Web Audio, as a browser without it does. */
   noWebAudio: false,
   hosted: null as HostedGame | null,
+  flags: {} as Record<string, boolean>,
+}));
+
+vi.mock("@/lib/hooks/use-flag", () => ({
+  useFlag: (flag: string) => made.flags[flag] ?? false,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -174,6 +179,7 @@ beforeEach(() => {
   made.games.length = 0;
   made.backends.length = 0;
   made.noWebAudio = false;
+  made.flags = {};
   mounted.greeting = null;
   [made.hosted] = hostedGamesFrom(globs, vi.fn());
   localStorage.clear();
@@ -241,6 +247,56 @@ describe("GameCanvas audio", () => {
     game.step(3);
     expect(game.audio).toBeNull();
     expect(game.getStore().state.tick).toBeGreaterThanOrEqual(3);
+  }, 20_000);
+});
+
+describe("GameCanvas sound menu", () => {
+  const soundButton = () => screen.queryByRole("button", { name: "Sound" });
+  const openMenu = () => {
+    if (!screen.queryByRole("menu")) fireEvent.click(soundButton()!);
+  };
+
+  it("is hidden without engine-games-enabled", async () => {
+    await playing();
+    expect(soundButton()).toBeNull();
+  }, 20_000);
+
+  it("mutes the master bus and saves it, and the choice comes back on reload", async () => {
+    made.flags = { "engine-games-enabled": true };
+    const { game } = await playing();
+    game.step(1);
+    await waitFor(() => expect(soundButton()).not.toBeNull());
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Mute" }));
+    expect(game.audio?.buses().master?.muted).toBe(true);
+    expect(made.backends[0]!.busVolumes.get("master")).toBe(0);
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Record<string, unknown>;
+    expect(saved["audio.bus.master"]).toEqual({ volume: 1, muted: true });
+
+    cleanup();
+    made.games.length = 0;
+    made.backends.length = 0;
+    const again = await playing();
+    again.game.step(1);
+    expect(again.game.audio?.buses().master).toEqual({ volume: 1, muted: true });
+    await waitFor(() => expect(soundButton()?.textContent).toContain("Muted"));
+  }, 30_000);
+
+  it("saves a choice made while the game plays silent, and the audio opens with it", async () => {
+    made.flags = { "engine-games-enabled": true };
+    made.noWebAudio = true;
+    const { game } = await playing();
+    game.step(1);
+    expect(game.audio).toBeNull();
+    await waitFor(() => expect(soundButton()).not.toBeNull());
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Mute" }));
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Record<string, unknown>;
+    expect(saved["audio.bus.master"]).toEqual({ volume: 1, muted: true });
+
+    made.noWebAudio = false;
+    expect(game.reopenAudio()).toBe(true);
+    expect(game.audio?.buses().master?.muted).toBe(true);
   }, 20_000);
 });
 

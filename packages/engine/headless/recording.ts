@@ -28,7 +28,8 @@ import {
   type RecordingHost,
 } from "../runtime/recorder";
 import { resolveGame, saveHostOf } from "../runtime/runtime";
-import type { SceneRuntimeHandle } from "../runtime/types";
+import { seekTarget } from "../runtime/seek";
+import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import { checkCommand } from "../scene/input-script";
 import { errorText, leadIssue, makeIssue } from "../scene/issues";
 import {
@@ -86,6 +87,13 @@ export type ReplayOptions<S = unknown> = RecordingHost & {
    * `scene-version-removed`.
    */
   versions?: (id: Sha256) => StagedVersion | null;
+  /**
+   * Stop at this tick, clamped to the recording, and report the state there
+   * as `ReplayReport.at`; the replay is judged on the ticks it stepped.
+   */
+  seek?: number;
+  /** Called with each replayed tick's events, as the shell's event log takes them in Play. */
+  onEvents?: (tick: number, events: readonly StepEvent[]) => void;
 };
 
 /**
@@ -159,7 +167,7 @@ export type ReplayReport<S = unknown> = {
   issues: SceneIssue[];
   /** The format version the recording was migrated from, when it was. */
   migratedFrom?: 1;
-  /** Same result, tick and end digest as the recording. */
+  /** Same result, tick and end digest as the recording; with `seek` before its end, no swap stopped it on the way. */
   matches: boolean;
   /** How it differs from the recording, when it doesn't match. */
   divergence: string | null;
@@ -167,6 +175,8 @@ export type ReplayReport<S = unknown> = {
   recording: RunRecording;
   /** The game's snapshot after the last tick; `null` without a game. */
   final: S | null;
+  /** With `seek`: the tick it stopped at and the game's snapshot after it. */
+  at?: { tick: number; snapshot: S | null };
 };
 
 export type ReplayRun<S = unknown> = ReplayReport<S> | PlaytestBlocked;
@@ -477,17 +487,22 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       return `the swap at tick ${stop.tick} can't be replayed: ${first?.message ?? "its version didn't read"}`;
     };
 
+    const seek = opts.seek === undefined ? null : seekTarget(opts.seek, rec.ticks);
+    const sought = seek !== null && seek < rec.ticks;
     let end: ReturnType<typeof runLoop>;
     try {
       end = runLoop({
         runtime,
         game,
-        maxTicks: rec.ticks,
+        maxTicks: seek ?? rec.ticks,
         input,
         stuck: rec.outcome.result === "stuck",
         everySlot: true,
         ...(swaps.length > 0 ? { live: { beforeTick } } : {}),
-        onTick: (state, focus, _edges, _commands, stepped) => recorder.tick(state, stepped, focus),
+        onTick: (state, focus, _edges, _commands, stepped) => {
+          recorder.tick(state, stepped, focus);
+          if (state.events.length > 0) opts.onEvents?.(state.tick, state.events);
+        },
       });
     } catch (err) {
       const blocked = runBlocked(err, runName, prepared.issues, registry);
@@ -505,7 +520,9 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     const recording = recorder.finish({ ...end, ...(next ? { next } : {}) }, final);
     const divergence = halted
       ? `stopped before tick ${end.ticks}: ${end.cause}`
-      : recordingDivergence(rec, recording);
+      : sought
+        ? null
+        : recordingDivergence(rec, recording);
     const stale =
       parsed.migratedFrom === 1
         ? rec.sceneHash !== prepared.hash
@@ -524,6 +541,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       recording,
       final,
     };
+    if (seek !== null) report.at = { tick: runtime.ctx.tick, snapshot: final };
     if (staleFrom !== undefined) report.staleFrom = staleFrom;
     if (parsed.migratedFrom !== undefined) report.migratedFrom = parsed.migratedFrom;
     return report;

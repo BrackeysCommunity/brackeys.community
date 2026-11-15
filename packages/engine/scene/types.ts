@@ -358,6 +358,10 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "string-key-missing",
   "dialogue-dead-end",
   "dialogue-unreachable",
+  // agents' live requests
+  "live-no-editor",
+  "live-refused",
+  "frame-too-large",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */

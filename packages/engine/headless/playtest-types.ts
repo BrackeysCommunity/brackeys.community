@@ -2,6 +2,7 @@ import type { DialogueView } from "../dialogue/runner";
 import type { NavDestination } from "../game/commands";
 import type { SceneLibrary } from "../game/flow";
 import type {
+  DebugDrawCommand,
   DeviceId,
   GameCommand,
   GameDefinition,
@@ -13,6 +14,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import type { PresentedRequest } from "../runtime/present";
 import type { RunTiming } from "../runtime/timing";
+import type { TimingsOptions } from "../runtime/timings";
 import type { LoadReport, StepEvent } from "../runtime/types";
 import type {
   AnalogSet,
@@ -241,6 +243,10 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
   timing?: RunTiming;
   /** Keep presentation requests in `PlaytestReport.present`; default false, when they are dropped. */
   recordPresentation?: boolean;
+  /** Keep each tick's `ctx.debug` draws, the last tick's in `PlaytestReport.debug`; default false. */
+  collectDebugDraw?: boolean;
+  /** Windowed per-phase timings on this clock, every runtime of the run; read by `runStats`. */
+  timings?: TimingsOptions;
 };
 
 /** How one scene's part of a run ended: the request that left it (`flow`, with `to`), or the run's own end. */
@@ -339,6 +345,8 @@ export type PlaytestReport<S = unknown> = {
    * its tick counted from the run's start; only with `recordPresentation`.
    */
   present?: PresentedRequest[];
+  /** The last tick's `ctx.debug` draws; only with `collectDebugDraw`. */
+  debug?: readonly DebugDrawCommand[];
 };
 
 /**

@@ -6071,6 +6071,13 @@ only); `browserPrefsStore()` keeps them in `localStorage` under
   a patch's waveform, one button per preset, Mutate and every field, heard
   shortly after each change while its speaker is on. Play is silent unless
   "Sound in Play" is on in the play bar, so a shared session stays quiet.
+- **A backend that throws.** `GameConfig.audio.backend` may be a function
+  the engine calls when it first needs sound. If it throws, the game plays
+  silent (a dev build warns once) rather than failing inside a tick, in
+  every host. `game.reopenAudio()` asks the function again during Play: the
+  editor calls it when "Sound in Play" is turned on in a Play that began
+  silent, so sound starts at once instead of at the next Play. The editor's
+  note about sound starting next Play shows only when no sound could start.
 
 This page plays the gate game ([Dialogue](#dialogue)) with sound, and
 mounts an options panel that writes the player's volumes, language and
@@ -9143,6 +9150,200 @@ export async function startLane(canvas: HTMLCanvasElement): Promise<GameInstance
   watchGraphics(game, (line) => console.info(line));
   return game;
 }
+```
+
+## Profiling and budgets
+
+Timings are wall-clock milliseconds on this machine. They never reach
+state, a recording, a save or a digest, and two runs never report the same
+numbers, so nothing deterministic may read them.
+
+- **Timings.** `SceneRuntimeOptions.timings` (a `Clock`, a `window` of
+  ticks, default 120) fills `SceneRuntimeHandle.timings()` with the mean and
+  worst ms per tick phase, per entity type's system and per behavior over
+  the window. Without it the runtime reads no clock and `timings()` is
+  `null`. The store's `timings` carries them while a shown debug layer asks
+  for them.
+- **The perf layer.** F3 cycles off, grid, physics, debug-draw, perf, then
+  the game's layers. The perf layer draws the window's phases as bars and
+  lists the slowest systems and behaviors (`PERF_SLOWEST`). The editor's
+  Perf tab in the bottom group shows the same numbers during Play.
+- **`stats`.** `runStats` (`./headless`) runs a scene with timings on and
+  reports deterministic `counts` (entities, bodies, colliders, behaviors,
+  events, spawns, destroys) beside this machine's `wall`: ticks per second,
+  the timings and the machine. `vp run scene stats <scene>` prints the same
+  report.
+- **`engine:perf`.** `vp run engine:perf` runs the kitchen sink, large-5k
+  and its physics-free twin for 600 ticks, five times each, and judges the
+  median ticks per second against
+  `packages/engine/__tests__/perf/baseline.json`, keyed
+  `${arch}/node${major}`. Below 80% of the baseline fails, below 90% warns,
+  and a machine with no baseline passes with a notice. CI runs it on Linux
+  x64. Only the owner records a baseline (`vp run engine:perf --update`, or
+  `UPDATE_PERF_BASELINE=1`), on purpose and with the reason in the
+  changelog; a slower run is never fixed by lowering the baseline. The file
+  ships empty.
+
+```ts corridor-stats.ts
+import { createRegistry } from "@jams/engine/game";
+import { runStats } from "@jams/engine/headless";
+
+import { walkerGame } from "./walker-game";
+import { corridor } from "./walker-playtest";
+
+/** 120 measured ticks after 30 of warm-up; `counts` repeat run to run, `wall` doesn't. */
+export async function corridorStats() {
+  const report = await runStats({
+    rapier: null,
+    game: walkerGame,
+    registry: createRegistry(walkerGame),
+    scene: corridor,
+    script: { v: 2, steps: [{ command: "walk", args: { to: [9, 0] } }, { wait: 300 }] },
+    ticks: 120,
+    warmup: 30,
+  });
+  const { ticksPerSecond, timings } = report.wall;
+  const slowest = Object.entries(timings.phases).sort(([, a], [, b]) => b.mean - a.mean)[0];
+  return { counts: report.counts, ticksPerSecond, slowest: slowest?.[0] ?? null };
+}
+```
+
+## Debugging
+
+Everything here is for dev hosts and the editor. A production build ships
+none of `./debug`, and its `ctx.debug` is the frozen no-op.
+
+- **`ctx.debug`.** Game code, systems and behaviors draw lines, boxes,
+  circles, shapes, paths and text for one tick, in world metres (`width` and
+  text `size` in screen px). A draw made in tick t shows until tick t + 1
+  commits and never enters state or a digest. `ctx.debug.active` is false
+  when nothing would show the draws, so skip expensive work then. The
+  debug-draw layer shows the last tick's draws; a headless run keeps them
+  with `collectDebugDraw` (the last tick's in `report.debug`), and
+  `vp run scene render <scene> --debug-draw` draws them over the schematic.
+  Draws are capped at `DEBUG_DRAW_MAX` (4096) a tick.
+- **The Play inspector.** During Play the editor's Inspector shows the
+  runtime entity under the selection, a row in the Outliner's Spawned group
+  (runtime ids such as `bullet#12`), or an Alt+click on the canvas: its
+  pose and previous pose, whether it is enabled, its body, its system's and
+  behaviors' `inspect(id)` answers, pending timers and coroutines with the
+  tick they next run, and contacts. It is read-only and refreshes at most
+  every 100 ms. Turn on Panels in the Play bar to keep the panels beside the
+  game. `inspect?(id)` on a `SceneSystem` or `BehaviorSystem` returns plain
+  JSON, which is all the inspector shows. In code, `game.debug.inspect(id)`,
+  `game.debug.entities(sel?)` and `game.debug.pick(point)` resolve to the
+  same plain data (`inspectEntity`, `listEntities`, `pickEntity`).
+- **The event log.** `createEventLog()` keeps the newest 10,000 step events
+  (`EVENT_LOG_CAPACITY`), each with its tick, filtered by `since`, `types`,
+  `entity` and `limit`. `game.debug.events` is Play's and a replay's, cleared
+  as each starts; `replayRecording`'s `onEvents` feeds one headless. The
+  editor's Event log tab lists them, filtered by type, entity and tick
+  range. A row selects its entity, or seeks a running replay to its tick.
+- **Seek and scrub.** `game.replay(doc, recording, { seek, checkpointEvery,
+paused })` and `game.replayHandle()` seek a replay. Seeking re-simulates
+  with presentation muted (no sounds, effects, dialogue view or step
+  listeners) from the nearest `snapshotWorld` checkpoint, taken every 300
+  ticks (`SEEK_CHECKPOINT_EVERY`); a Rapier scene re-simulates from tick 0.
+  The Run panel's scrubber seeks once a drag rests for 50 ms and shows
+  progress over the checkpoints. Headless, `replayRecording({ seek })` stops
+  at the tick and reports `at`, and `vp run scene replay <scene> --run <rec>
+--seek <tick>` prints it.
+
+```ts corridor-debug.ts
+import { createEventLog } from "@jams/engine/debug";
+import { createRegistry, defineGame, type EngineContext } from "@jams/engine/game";
+import { replayRecording, runPlaytest } from "@jams/engine/headless";
+
+import { walkerGame, type WalkerSnapshot } from "./walker-game";
+import { corridor } from "./walker-playtest";
+
+/** The walker, drawing the tick over the hero's start; `ctx.debug` is a no-op without a sink. */
+export const tracedWalker = defineGame<WalkerSnapshot>({
+  ...walkerGame,
+  createRuntime(ctx: EngineContext) {
+    const inner = walkerGame.createRuntime(ctx);
+    return {
+      ...inner,
+      afterStep() {
+        if (!ctx.debug.active) return;
+        ctx.debug.circle({ x: 0.16, y: 0.16 }, 0.12, { color: 0x44ccff, width: 2 });
+        ctx.debug.text({ x: 0.16, y: 0.4 }, `tick ${ctx.tick}`, { size: 12 });
+      },
+    };
+  },
+});
+
+/** Plays with the draws collected, then replays into an event log and seeks to tick 60. */
+export function traceCorridor() {
+  const registry = createRegistry(tracedWalker);
+  const run = runPlaytest({
+    rapier: null,
+    game: tracedWalker,
+    registry,
+    scene: corridor,
+    script: { v: 2, steps: [{ command: "walk", args: { to: [9, 0] } }, { wait: 300 }] },
+    collectDebugDraw: true,
+  });
+  if (run.blocked) throw new Error(run.stage);
+
+  const log = createEventLog();
+  const replay = replayRecording({
+    rapier: null,
+    game: tracedWalker,
+    scene: corridor,
+    recording: run.recording,
+    onEvents: (tick, events) => log.append(tick, events),
+  });
+  const sought = replayRecording({
+    rapier: null,
+    game: tracedWalker,
+    scene: corridor,
+    recording: run.recording,
+    seek: 60,
+  });
+  return {
+    draws: (run.debug ?? []).map((d) => d.kind),
+    replayed: !replay.blocked && replay.matches,
+    logged: log.list().length,
+    at: sought.blocked ? null : (sought.at ?? null),
+  };
+}
+```
+
+## Agents in the editor
+
+An agent can look at the editor that has a scene open and drive its Play.
+The editor answers over the scene doc's live channel; the CLI and the MCP
+server ask (`vp run scene frame <scene> --live`, `vp run scene play <scene>
+--live step --ticks 60`, MCP `scene_frame` and `scene_play`).
+
+- **The toggle.** "Let agents drive Play" in Project settings → Agents is
+  per viewer, kept in that browser's storage and never in a doc. It is on
+  against the dev server and off on a hosted project until the viewer turns
+  it on. While it is on, the editor advertises `live: true` in presence.
+- **What it shares.** A frame of its canvas (a PNG downscaled to fit 1 MiB,
+  else `frame-too-large`); its own Play, Pause, Resume, Step and Stop (Stop
+  returns to the edit world); and the game's state: the store, the entities
+  (`game.debug.entities`), the event log and the timings. It shares nothing
+  else, and every answer is plain data.
+- **Who answers.** With several editors open on the scene, the one with the
+  lowest client id among those advertising `live` answers
+  (`electResponder`). No answer within 2 s is `live-no-editor`; an editor
+  with the toggle off answers `live-refused`. `scene frame` then falls back
+  to the schematic render (`source: "schematic"`).
+- **Co-edits during Play.** With Live in Play on, edits an agent applies
+  while it drives Play (`apply --live`) reach the running world as other
+  co-edits do.
+
+```ts live-election.ts
+import { electResponder } from "@jams/engine/collab";
+
+/** Two editors have the scene open with Let agents drive Play on; the lower client id answers. */
+export const responder = electResponder([
+  { clientId: 41, live: true },
+  { clientId: 7 },
+  { clientId: 12, live: true },
+]);
 ```
 
 ## Versioning

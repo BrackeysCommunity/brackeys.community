@@ -153,6 +153,8 @@ for its assets (`--dry-run` first). An id two projects hold needs `--project <id
 workflow and conventions are in `scripts/scene/README.md`; the `scene-editing` skill loads
 them.
 
+Agents can ask the open editor for a frame (`vp run scene frame <scene> --live`).
+
 The engine is the workspace package `@jams/engine` in `packages/engine/`. The site, tests
 and the scene CLI import its source through `tsconfig.json` paths; a game export bundles
 the packed `dist` through `node_modules/@jams/engine`, so `vp run game:build <id>` packs

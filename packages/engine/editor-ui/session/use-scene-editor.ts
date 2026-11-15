@@ -35,6 +35,7 @@ import {
 } from "../connect/scene-doc";
 import {
   hostPeerColor,
+  hostStorage,
   type EditorHost,
   type EditorNotify,
   type EditorProjectChoice,
@@ -42,6 +43,7 @@ import {
   type ProjectConnection,
 } from "../host";
 import type { Pending } from "../pending/pending";
+import { agentsDrivePlay, attachEditorResponder } from "./live-responder";
 import {
   editorIdentity,
   openLiveEditor,
@@ -77,6 +79,7 @@ export type EditorChromeGame = Pick<
   | "frame"
   | "runtime"
   | "input"
+  | "debug"
 >;
 
 /** The project the open scene belongs to, as the project tree edits it. */
@@ -102,6 +105,8 @@ export type EditorProjectLink = {
   blobs?: ProjectBlobs;
   /** Viewers: the tree and the licence fields take no edits. */
   readOnly?: boolean;
+  /** The project is on a hosted server, not the dev server: per-viewer defaults that let others in start off. */
+  hosted?: boolean;
   /** The host's projects, offered in a switcher when there are two or more. */
   projects?: readonly EditorProjectChoice[];
   onProjectChange?: (id: ProjectId) => void;
@@ -208,6 +213,7 @@ export type SceneEditorOptions = {
     | "projects"
     | "onProjectChange"
     | "onSceneChange"
+    | "storage"
   >;
   /** Where notices go when the host has no `notify`: the frame's own toast region. */
   notify?: EditorNotify;
@@ -327,6 +333,7 @@ export function useSceneEditor({
   const [tasks] = useState(() => pending);
   const [connect] = useState(() => host.connect);
   const [readOnly] = useState(() => host.readOnly);
+  const [storage] = useState(() => hostStorage(host));
   const [peerColor] = useState(() => hostPeerColor(host));
   // The switcher shows only for a host that can open another project.
   const [projects] = useState(() =>
@@ -631,6 +638,23 @@ export function useSceneEditor({
     return () => game.off("play:recorded", show);
   }, [game, live, runStore]);
 
+  // Agents with the scene open see and drive this editor's Play over the doc's own connection.
+  const hosted = connection?.hosted ?? false;
+  useEffect(() => {
+    if (!live || !game || !ready || !connection?.liveChannel) return;
+    const provider = connection.liveChannel(ready.name);
+    if (!provider) return;
+    return attachEditorResponder({
+      provider,
+      projectAwareness: ready.session.awareness,
+      enabled: () => agentsDrivePlay(storage, hosted),
+      live,
+      game,
+      canvas: getCanvas,
+      pending: tasks ?? null,
+    });
+  }, [live, game, ready, connection, storage, hosted, getCanvas, tasks]);
+
   const open = useStoreValue(live?.prefab ?? NO_PREFAB);
 
   const editor = useMemo<EditorProps | null>(() => {
@@ -660,6 +684,7 @@ export function useSceneEditor({
               notice,
               ...(connection?.blobs ? { blobs: connection.blobs } : {}),
               ...(readOnly ? { readOnly } : {}),
+              ...(hosted ? { hosted } : {}),
               ...(projects ? { projects, onProjectChange: switchProject } : {}),
             },
           }
@@ -675,6 +700,7 @@ export function useSceneEditor({
     ready,
     connection,
     readOnly,
+    hosted,
     projects,
     switchProject,
     flow,

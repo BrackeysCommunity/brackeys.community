@@ -1,4 +1,4 @@
-import type { Extension } from "@hocuspocus/server";
+import { type Extension, IncomingMessage, MessageType } from "@hocuspocus/server";
 import { eq } from "drizzle-orm";
 import type * as Y from "yjs";
 
@@ -31,6 +31,26 @@ export interface KindGrant {
   readOnly?: boolean;
   /** A stateless message sent to the client once it is connected. */
   notice?: string;
+}
+
+/**
+ * Whether a kind's clients may talk to each other over its docs' stateless
+ * messages (the engine's live channel): the scene and asset docs an editor
+ * has open.
+ */
+export function relaysStateless(kind: DocumentKindName): boolean {
+  return kind === "scene" || kind === "asset";
+}
+
+/** Whether a raw Hocuspocus message is a client's stateless message. */
+export function isStatelessMessage(message: Uint8Array): boolean {
+  try {
+    const incoming = new IncomingMessage(message);
+    incoming.readVarString();
+    return incoming.readVarUint() === MessageType.Stateless;
+  } catch {
+    return false;
+  }
 }
 
 /**

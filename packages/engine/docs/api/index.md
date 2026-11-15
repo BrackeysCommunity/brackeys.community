@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`AudioBackend`](#audiobackend) · [`AudioClipHandle`](#audiocliphandle) · [`AudioClock`](#audioclock) · [`AudioSystem`](#audiosystem) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`BurstOptions`](#burstoptions) · [`BusLevel`](#buslevel) · [`BusName`](#busname) · [`CLICK_PATCH`](#click_patch) · [`CalibrateLatencyOptions`](#calibratelatencyoptions) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`CaptionsOptions`](#captionsoptions) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DEFAULT_TEXT_FACE`](#default_text_face) · [`DeviceTables`](#devicetables) · [`DialogueBoxOptions`](#dialogueboxoptions) · [`DialogueView`](#dialogueview) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`EmitterFollow`](#emitterfollow) · [`ExpandedScene`](#expandedscene) · [`FakeAudioCall`](#fakeaudiocall) · [`FlashOptions`](#flashoptions) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FontSource`](#fontsource) · [`FrameRect`](#framerect) · [`GameAudio`](#gameaudio) · [`GameCaptions`](#gamecaptions) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameLocale`](#gamelocale) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LatencyCalibration`](#latencycalibration) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`PrefsStore`](#prefsstore) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RichTextOptions`](#richtextoptions) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SynthPreset`](#synthpreset) · [`TOOL_PRIORITY`](#tool_priority) · [`TextContent`](#textcontent) · [`TextDirection`](#textdirection) · [`TextFont`](#textfont) · [`TextLogOptions`](#textlogoptions) · [`TextVisual`](#textvisual) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiAssetUrl`](#uiasseturl) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewEmitter`](#viewemitter) · [`ViewportDef`](#viewportdef) · [`ViewportRect`](#viewportrect) · [`Voice`](#voice) · [`VoiceOptions`](#voiceoptions) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserPrefsStore`](#browserprefsstore) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createCaptions`](#createcaptions) · [`createDialogueBox`](#createdialoguebox) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createRichText`](#createrichtext) · [`createTextLog`](#createtextlog) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`drawText`](#drawtext) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`mutateSynth`](#mutatesynth) · [`pixiContainer`](#pixicontainer) · [`randomSynth`](#randomsynth) · [`renderRichText`](#renderrichtext) · [`renderSynth`](#rendersynth) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectDialogue`](#selectdialogue) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotPrefsStore`](#snapshotprefsstore) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`timingWords`](#timingwords) · [`tryWebAudioBackend`](#trywebaudiobackend) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`viewportRect`](#viewportrect-1) · [`watchView`](#watchview) · [`webAudioBackend`](#webaudiobackend)
+[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`AudioBackend`](#audiobackend) · [`AudioClipHandle`](#audiocliphandle) · [`AudioClock`](#audioclock) · [`AudioSystem`](#audiosystem) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`BurstOptions`](#burstoptions) · [`BusLevel`](#buslevel) · [`BusName`](#busname) · [`CLICK_PATCH`](#click_patch) · [`CalibrateLatencyOptions`](#calibratelatencyoptions) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`CaptionsOptions`](#captionsoptions) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DEFAULT_TEXT_FACE`](#default_text_face) · [`DeviceTables`](#devicetables) · [`DialogueBoxOptions`](#dialogueboxoptions) · [`DialogueView`](#dialogueview) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`EmitterFollow`](#emitterfollow) · [`EntityInspection`](#entityinspection) · [`EntityRow`](#entityrow) · [`EventLog`](#eventlog) · [`EventLogFilter`](#eventlogfilter) · [`ExpandedScene`](#expandedscene) · [`FakeAudioCall`](#fakeaudiocall) · [`FlashOptions`](#flashoptions) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FontSource`](#fontsource) · [`FrameRect`](#framerect) · [`GameAudio`](#gameaudio) · [`GameCaptions`](#gamecaptions) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDebug`](#gamedebug) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameLocale`](#gamelocale) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameReplayOptions`](#gamereplayoptions) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LatencyCalibration`](#latencycalibration) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`PREF_KEYS`](#pref_keys) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`PrefsStore`](#prefsstore) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ReplayHandle`](#replayhandle) · [`ReplayHost`](#replayhost) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RichTextOptions`](#richtextoptions) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeTimings`](#runtimetimings) · [`SEEK_CHECKPOINT_EVERY`](#seek_checkpoint_every) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SeekProgress`](#seekprogress) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SynthPreset`](#synthpreset) · [`TOOL_PRIORITY`](#tool_priority) · [`TextContent`](#textcontent) · [`TextDirection`](#textdirection) · [`TextFont`](#textfont) · [`TextLogOptions`](#textlogoptions) · [`TextVisual`](#textvisual) · [`TextureSource`](#texturesource) · [`TickPhase`](#tickphase) · [`TimingStat`](#timingstat) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiAssetUrl`](#uiasseturl) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewEmitter`](#viewemitter) · [`ViewportDef`](#viewportdef) · [`ViewportRect`](#viewportrect) · [`Voice`](#voice) · [`VoiceOptions`](#voiceoptions) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserPrefsStore`](#browserprefsstore) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createCaptions`](#createcaptions) · [`createDialogueBox`](#createdialoguebox) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createRichText`](#createrichtext) · [`createTextLog`](#createtextlog) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`drawText`](#drawtext) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`mutateSynth`](#mutatesynth) · [`pixiContainer`](#pixicontainer) · [`randomSynth`](#randomsynth) · [`renderRichText`](#renderrichtext) · [`renderSynth`](#rendersynth) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`seekTarget`](#seektarget) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectDialogue`](#selectdialogue) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`setPref`](#setpref) · [`snapshotPrefsStore`](#snapshotprefsstore) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`timingWords`](#timingwords) · [`tryWebAudioBackend`](#trywebaudiobackend) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`viewportRect`](#viewportrect-1) · [`watchView`](#watchview) · [`webAudioBackend`](#webaudiobackend)
 
 ## `ActionBindings`
 
@@ -467,7 +467,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.17.0";
+declare const ENGINE_VERSION = "0.18.0";
 ```
 
 ## `EffectLayer`
@@ -502,6 +502,96 @@ type EmitterFollow = {
         x: number,
         y: number
     ];
+};
+```
+
+## `EntityInspection`
+
+_type_ in `debug/inspect.ts`
+
+Everything a debugger shows of one live entity: plain data, read-only.
+
+```ts
+type EntityInspection = {
+    /** Each behavior's `inspect` that answers for it, by name. */
+    behaviors: Readonly<Record<BehaviorName, JsonValue | undefined>>;
+    /** Rapier: linear (metres per second) and angular velocity; other bodies: their own inspect. */
+    body?: null | {
+        angular: number;
+        sleeping: boolean;
+        velocity: Vec2;
+    };
+    /** Ids of what it touches now: watched contacts and what its sensors hold. */
+    contacts: readonly string[];
+    enabled: boolean;
+    entity: RuntimeEntity;
+    id: string;
+    /** What game code made for it (a motion body, a grid stepper, a controller), by owner name. */
+    owners?: Readonly<Record<string, JsonValue | undefined>>;
+    /** World metres and radians. */
+    pose: Pose | null;
+    prevPose: Pose | null;
+    /** The type system's `inspect`. */
+    system: JsonValue | undefined;
+    timers: readonly InspectedTimer[];
+    type: EntityTypeName;
+};
+```
+
+Refers to [`RuntimeEntity`](#runtimeentity), [`Vec2`](#vec2).
+
+## `EntityRow`
+
+_type_ in `debug/inspect.ts`
+
+One row of the play outliner: `at` in world metres, null for an entity without a pose.
+
+```ts
+type EntityRow = {
+    at: Vec2 | null;
+    enabled: boolean;
+    id: string;
+    type: string;
+};
+```
+
+Refers to [`Vec2`](#vec2).
+
+## `EventLog`
+
+_interface_ in `debug/event-log.ts`
+
+The events of a run as they happened, each with its tick: plain data.
+
+```ts
+interface EventLog {
+    /** Oldest first; at most `capacity` events. */
+    list(opts?: EventLogFilter): readonly StepEvent[];
+    readonly capacity: number;
+    clear(): void;
+    /**
+     * Called with each tick's events as they happen, and with none when the
+     * log is cleared; returns the unsubscribe.
+     */
+    subscribe(fn: (tick: number, events: readonly StepEvent[]) => void): () => void;
+}
+```
+
+Refers to [`EventLogFilter`](#eventlogfilter), [`StepEvent`](#stepevent).
+
+## `EventLogFilter`
+
+_type_ in `debug/event-log.ts`
+
+```ts
+type EventLogFilter = {
+    /** Only events naming this entity, as `entityId` or `other`. */
+    entity?: string;
+    /** The newest this many of what matches. */
+    limit?: number;
+    /** Only events at or after this tick. */
+    since?: number;
+    types?: readonly string[];
 };
 ```
 
@@ -846,6 +936,30 @@ type GameConfig = {
 
 Refers to [`AssetLoader`](#assetloader), [`AssetUrl`](#asseturl), [`AudioBackend`](#audiobackend), [`ExpandedScene`](#expandedscene), [`GameDefinition`](#gamedefinition), [`InputBinding`](#inputbinding), [`LoadingViewFactory`](#loadingviewfactory), [`PrefsStore`](#prefsstore), [`RapierModule`](#rapiermodule), [`Registry`](#registry), [`RemapStore`](#remapstore), [`RendererConfig`](#rendererconfig), [`ResolutionPolicy`](#resolutionpolicy), [`SaveStore`](#savestore), [`SceneSource`](#scenesource), [`TransitionRunner`](#transitionrunner), [`ViewportDef`](#viewportdef).
 
+## `GameDebug`
+
+_type_ in `types.ts`
+
+`GameInstance.debug`: reads of the play world for debug views. Every
+answer is plain data and the reads are promises, so the world may sit
+across a worker link. Without a dev host's debug overlay `inspect` and
+`pick` resolve null, `entities` resolves empty, and `events` stays empty.
+
+```ts
+type GameDebug = {
+    /** Entities by selector, with their type and position: the play outliner's rows. */
+    entities(sel?: EntitySelector): Promise<readonly EntityRow[]>;
+    /** The live entity `id`, everything a debugger shows of it; null for an id that isn't live. */
+    inspect(id: string): Promise<EntityInspection | null>;
+    /** The topmost entity whose extent contains the world point (metres); null for none. */
+    pick(p: Vec2): Promise<null | string>;
+    /** Every step's events in Play and in a replay. */
+    readonly events: EventLog;
+};
+```
+
+Refers to [`EntityInspection`](#entityinspection), [`EntityRow`](#entityrow), [`EventLog`](#eventlog), [`Vec2`](#vec2).
+
 ## `GameDefinition`
 
 _type_ in `game/types.ts`
@@ -1189,6 +1303,8 @@ type GameInstance = {
     readonly audio: GameAudio | null;
     /** The player's captions choice, a browser preference kept in the prefs under "captions"; unset, it is on while a `createCaptions` is mounted, which shows captions only while it is on. */
     readonly captions: GameCaptions;
+    /** Reads of the play world for debug views. */
+    readonly debug: GameDebug;
     /** The player's language: a browser preference the simulation never sees. */
     readonly locale: GameLocale;
     /**
@@ -1222,18 +1338,20 @@ type GameInstance = {
         failed: BundleEntry[];
     }>;
     /**
+     * Asks `GameConfig.audio.backend` again during Play, so sound turns on in
+     * a Play that started silent; true when audio is open after the call.
+     */
+    reopenAudio: () => boolean;
+    /**
      * Plays `recording` on `doc`: Play from the recording's start, with its
      * input edges stepped on their ticks in place of the keyboard's. At its
      * last tick the loop pauses on the end state; Stop returns to edit.
      * A recording on a live version plays that version and its recorded
      * swaps; a version `versions` can't give is `scene-version-removed`.
      */
-    replay: (doc: SceneDefinition, recording: RunRecording, opts?: {
-        /** The scene's asset id when `doc.name` isn't it, as for `play`. */
-        sceneId?: AssetId;
-        /** The scene versions the recording names, by id; null for one the host doesn't have. */
-        versions?: (id: Sha256) => StagedVersion | null;
-    }) => PlayReport;
+    replay: (doc: SceneDefinition, recording: RunRecording, opts?: GameReplayOptions) => PlayReport;
+    /** The running replay's controls; null outside a replay. */
+    replayHandle: () => ReplayHandle | null;
     resize: (width: number, height: number) => void;
     resume: () => void;
     /**
@@ -1298,7 +1416,7 @@ type GameInstance = {
 };
 ```
 
-Refers to [`AssetReloadError`](#assetreloaderror), [`CalibrateLatencyOptions`](#calibratelatencyoptions), [`ExpandedScene`](#expandedscene), [`GameAudio`](#gameaudio), [`GameCaptions`](#gamecaptions), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameLocale`](#gamelocale), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LatencyCalibration`](#latencycalibration), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`StagedVersion`](#stagedversion), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2), [`ViewportDef`](#viewportdef).
+Refers to [`AssetReloadError`](#assetreloaderror), [`CalibrateLatencyOptions`](#calibratelatencyoptions), [`ExpandedScene`](#expandedscene), [`GameAudio`](#gameaudio), [`GameCaptions`](#gamecaptions), [`GameCommand`](#gamecommand), [`GameDebug`](#gamedebug), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameLocale`](#gamelocale), [`GameMode`](#gamemode), [`GameReplayOptions`](#gamereplayoptions), [`GameStoreState`](#gamestorestate), [`LatencyCalibration`](#latencycalibration), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`ReplayHandle`](#replayhandle), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2), [`ViewportDef`](#viewportdef).
 
 ## `GameLive`
 
@@ -1384,6 +1502,29 @@ _type_ in `types.ts`
 type GamePhase = "destroyed" | "idle" | "loading" | "paused" | "running";
 ```
 
+## `GameReplayOptions`
+
+_type_ in `types.ts`
+
+`GameInstance.replay`'s options.
+
+```ts
+type GameReplayOptions = {
+    /** Ticks between the checkpoints a seek restores from; default 300. */
+    checkpointEvery?: number;
+    /** Start paused. */
+    paused?: boolean;
+    /** The scene's asset id when `doc.name` isn't it, as for `play`. */
+    sceneId?: AssetId;
+    /** Start at this tick, re-simulated with the view muted. */
+    seek?: number;
+    /** The scene versions the recording names, by id; null for one the host doesn't have. */
+    versions?: (id: Sha256) => StagedVersion | null;
+};
+```
+
+Refers to [`StagedVersion`](#stagedversion).
+
 ## `GameStoreState`
 
 _type_ in `types.ts`
@@ -1404,10 +1545,12 @@ type GameStoreState = {
     session: PlaySession | null;
     sim: SimState;
     tick: number;
+    /** The runtime's timings, refreshed twice a second while a debug layer needs them; else null. */
+    timings: RuntimeTimings | null;
 };
 ```
 
-Refers to [`CameraState`](#camerastate), [`DialogueView`](#dialogueview), [`GameMode`](#gamemode), [`GamePhase`](#gamephase), [`PlaySession`](#playsession), [`SimState`](#simstate).
+Refers to [`CameraState`](#camerastate), [`DialogueView`](#dialogueview), [`GameMode`](#gamemode), [`GamePhase`](#gamephase), [`PlaySession`](#playsession), [`RuntimeTimings`](#runtimetimings), [`SimState`](#simstate).
 
 ## `IDENTITY_2D`
 
@@ -1639,6 +1782,21 @@ type MountUi<G = unknown> = (ctx: UiContext<G>) => UiHandle;
 ```
 
 Refers to [`UiContext`](#uicontext), [`UiHandle`](#uihandle).
+
+## `PREF_KEYS`
+
+_const_ in `prefs.ts`
+
+The keys the engine keeps its preferences under; each bus under its own prefix, so no bus name meets another key.
+
+```ts
+declare const PREF_KEYS: {
+    readonly busKey: (bus: string) => string;
+    readonly captions: "captions";
+    readonly latencyMs: "audio.latencyMs";
+    readonly locale: "locale";
+};
+```
 
 ## `ParticleLayer`
 
@@ -2017,6 +2175,48 @@ type RendererConfig = {
 };
 ```
 
+## `ReplayHandle`
+
+_interface_ in `types.ts`
+
+The replay `GameInstance.replay` started, while it runs.
+
+```ts
+interface ReplayHandle {
+    readonly tick: number;
+    /** The recording's length in ticks. */
+    readonly ticks: number;
+    /** Re-simulates to `tick` with the view muted, from the nearest checkpoint at or before it. */
+    seek(tick: number, opts?: {
+        onProgress?: (p: SeekProgress) => void;
+    }): Promise<void>;
+    play(): void;
+    pause(): void;
+    step(n?: number): void;
+    readonly checkpoints: readonly number[];
+}
+```
+
+Refers to [`SeekProgress`](#seekprogress).
+
+## `ReplayHost`
+
+_type_ in `types.ts`
+
+What the shell asks of whoever runs the play world to move a replay: the
+engine's own world, or one across a worker link.
+
+```ts
+type ReplayHost = {
+    /** The ticks a seek can restore from, ascending. */
+    checkpoints(): readonly number[];
+    /** Re-simulates the running replay to `target`; resolves once the view shows it. */
+    seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void>;
+};
+```
+
+Refers to [`SeekProgress`](#seekprogress).
+
 ## `ResolutionPolicy`
 
 _type_ in `resolution.ts`
@@ -2186,6 +2386,41 @@ type RuntimeEntity<F extends object = {
     /** Draw order within the layer; present only when non-zero. */
     z?: number;
 } & RuntimeFields<F>;
+```
+
+## `RuntimeTimings`
+
+_type_ in `runtime/timings.ts`
+
+Where the last window's ticks went, wall-clock milliseconds. Never part of
+state, a recording, a save or a digest: two runs never report the same.
+
+```ts
+type RuntimeTimings = {
+    behaviors: Readonly<Record<BehaviorName, TimingStat>>;
+    /** Shell only: render and the frame's presentation work. */
+    frame?: {
+        present: TimingStat;
+        render: TimingStat;
+    };
+    /** Mean and worst ms per tick, per phase, over the window. */
+    phases: Readonly<Record<TickPhase, TimingStat>>;
+    systems: Readonly<Record<EntityTypeName, TimingStat>>;
+    /** Ticks in the window these numbers cover. */
+    ticks: number;
+};
+```
+
+Refers to [`TickPhase`](#tickphase), [`TimingStat`](#timingstat).
+
+## `SEEK_CHECKPOINT_EVERY`
+
+_const_ in `runtime/seek.ts`
+
+Ticks between the checkpoints a replay's seek restores from.
+
+```ts
+declare const SEEK_CHECKPOINT_EVERY = 300;
 ```
 
 ## `SPRITE`
@@ -2478,6 +2713,22 @@ type SceneSwap = {
 
 Refers to [`SceneDiff`](#scenediff), [`SwapSide`](#swapside), [`SwapStrategy`](#swapstrategy), [`SwapTiming`](#swaptiming).
 
+## `SeekProgress`
+
+_type_ in `runtime/seek.ts`
+
+How far a seek has re-simulated: plain data, so it crosses a worker link.
+
+```ts
+type SeekProgress = {
+    /** The tick it re-simulated from: a checkpoint's, the start's or where the world stood. */
+    readonly from: number;
+    readonly target: number;
+    /** The tick the world steps next. */
+    readonly tick: number;
+};
+```
+
 ## `SimState`
 
 _type_ in `types.ts`
@@ -2645,6 +2896,8 @@ _type_ in `runtime/types.ts`
 
 ```ts
 type StepResult = {
+    /** The tick's debug draws; set only for a runtime given `SceneRuntimeOptions.debugDraw`. */
+    debug?: readonly DebugDrawCommand[];
     /** Engine events first (sensors), then the game's, each in the order raised. */
     events: StepEvent[];
     /** The game's `snapshot()` after the step; `null` without a game. */
@@ -2865,6 +3118,27 @@ type TextureSource = {
     get(hash: Sha256): Texture | null;
     /** Fires with each hash as it loads; returns unsubscribe. */
     onLoad(cb: (hash: Sha256) => void): () => void;
+};
+```
+
+## `TickPhase`
+
+_type_ in `runtime/timings.ts`
+
+```ts
+type TickPhase = (typeof TICK_PHASES)[number];
+```
+
+## `TimingStat`
+
+_type_ in `runtime/timings.ts`
+
+Milliseconds per tick over a window: the mean and the worst.
+
+```ts
+type TimingStat = {
+    max: number;
+    mean: number;
 };
 ```
 
@@ -3947,6 +4221,16 @@ declare function resolveResolution(sources: {
 
 Refers to [`ResolutionPolicy`](#resolutionpolicy).
 
+## `seekTarget`
+
+_function_ in `runtime/seek.ts`
+
+A seek's target within a run of `ticks` ticks: a whole tick from 0 to the end.
+
+```ts
+declare function seekTarget(target: number, ticks: number): number;
+```
+
 ## `selectCamera`
 
 _function_ in `store.ts`
@@ -4048,6 +4332,18 @@ declare function selectTick(state: GameStoreState): number;
 ```
 
 Refers to [`GameStoreState`](#gamestorestate).
+
+## `setPref`
+
+_function_ in `prefs.ts`
+
+Sets one preference, keeping the rest.
+
+```ts
+declare function setPref(store: PrefsStore, gameId: string, key: string, value: JsonValue): void;
+```
+
+Refers to [`PrefsStore`](#prefsstore).
 
 ## `snapshotPrefsStore`
 

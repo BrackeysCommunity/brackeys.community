@@ -1,6 +1,8 @@
 import type { SceneLibrary } from "../game/flow";
 import type { SaveDepth, SaveFile } from "../game/save-file";
 import type {
+  DebugDrawCommand,
+  DebugDrawSink,
   EngineContext,
   GameCommand,
   GameDefinition,
@@ -9,6 +11,7 @@ import type {
 } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { RunTiming } from "../runtime/timing";
+import type { TimingsOptions } from "../runtime/timings";
 import type { LoadReport, RuntimeStats, SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { ExpandedScene, SceneIssue } from "../scene/types";
 import type { GameLive, RapierModule, StagedVersion } from "../types";
@@ -31,6 +34,10 @@ export type HeadlessRuntimeOptions = {
   timing?: RunTiming;
   /** Keep presentation requests in each `StepResult.present`; default false, when they are dropped. */
   recordPresentation?: boolean;
+  /** Where `ctx.debug` draws; each `StepResult.debug` holds the tick's. */
+  debugDraw?: DebugDrawSink;
+  /** Windowed per-phase timings on this clock, read through `timings()`. */
+  timings?: TimingsOptions;
 };
 
 /**
@@ -87,6 +94,8 @@ export type ProbeOptions<S = unknown> = ProbeInput & {
    * clip, say) inside the probe's own run. It must not change the run.
    */
   onTick?: (tick: number, ctx: EngineContext) => void;
+  /** Keep each tick's `ctx.debug` draws, the last tick's in `ProbeReport.debug`; default false. */
+  collectDebugDraw?: boolean;
 };
 
 export type ProbeReport<S = unknown> = {
@@ -110,4 +119,6 @@ export type ProbeReport<S = unknown> = {
   /** Set when an `EngineError` out of a step ended the run: stage `run`, the error's code on its issue; `ticks`, `events` and `final` cover the ticks before it. */
   blocked?: PlaytestBlocked;
   stats: RuntimeStats;
+  /** The last tick's `ctx.debug` draws; only with `collectDebugDraw`. */
+  debug?: readonly DebugDrawCommand[];
 };

@@ -6,6 +6,7 @@ import { GAME_SETTINGS_KIND, INPUT_MAP_KIND, SCENE_LIST_KIND } from "../../../pr
 import type { EditorNotify, EditorPublishHost } from "../../host";
 import { TabPanel, Tabs } from "../../kit/index";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
+import { AgentsPanel } from "./AgentsPanel";
 import { EnginePanel } from "./EnginePanel";
 import { GeneralPanel } from "./GeneralPanel";
 import { InputPanel, type CaptureBinding } from "./InputPanel";
@@ -20,6 +21,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "input", title: "Input" },
   { id: "scenes", title: "Scenes" },
   { id: "layers", title: "Layers" },
+  { id: "agents", title: "Agents" },
 ];
 
 /** The section a publishing host adds: the project's storage against its quotas. */
@@ -29,10 +31,11 @@ export const USAGE_SECTION: SettingsSection = { id: "usage", title: "Usage" };
 const shownSection = new WeakMap<ProjectSession, string>();
 
 /**
- * The project's settings in five tabs over its game-settings, input-map and
+ * The project's settings in tabs over its game-settings, input-map and
  * scene-list docs (and, read-only, what its code registers). Every edit is
  * one `settingsEdit` batch through the project session, so it has history,
- * per-person undo and sync like any other.
+ * per-person undo and sync like any other. The Agents tab is the viewer's
+ * own, kept in their storage.
  */
 export function ProjectSettings({
   project,
@@ -81,6 +84,9 @@ export function ProjectSettings({
         </TabPanel>
         <TabPanel value="layers">
           <LayersPanel session={project.session} />
+        </TabPanel>
+        <TabPanel value="agents">
+          <AgentsPanel hosted={project.hosted ?? false} />
         </TabPanel>
         {publish ? (
           <TabPanel value="usage">

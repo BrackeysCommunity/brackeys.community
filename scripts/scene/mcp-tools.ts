@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -45,6 +45,7 @@ import { codes } from "./tools/codes";
 import { dialogueWalk } from "./tools/dialogue-walk";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
+import { frame } from "./tools/frame";
 import { fuzz } from "./tools/fuzz";
 import { gameBuild } from "./tools/game-build";
 import {
@@ -65,11 +66,12 @@ import {
   gameReleaseRollback,
 } from "./tools/game-release";
 import { list } from "./tools/list";
+import { PLAY_LIVE_ACTIONS, playLive } from "./tools/play-live";
 import { playtest } from "./tools/playtest";
 import { projectRefs } from "./tools/project-refs";
 import { projectTree } from "./tools/project-tree";
 import { render } from "./tools/render";
-import { replay } from "./tools/replay";
+import { replay, type ReplayInput } from "./tools/replay";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { validate } from "./tools/validate";
@@ -411,6 +413,58 @@ const liveTiming = swapTimingSchema
 
 // ─── Tools ───────────────────────────────────────────────
 
+type RenderToolInput = {
+  scene: string;
+  region?: readonly [number, number, number, number];
+  around?: string;
+  margin?: number;
+  labels?: "entities" | "all" | "none";
+  scale?: number;
+  ascii?: boolean;
+  overlay?: unknown;
+  debugDraw?: boolean;
+  ticks?: number;
+  live?: boolean;
+  url?: string;
+};
+
+/** `render` through `withSource`, rasterized to a PNG unless `ascii`. */
+async function renderTool(i: RenderToolInput, ctx: ToolContext): Promise<McpToolOutput> {
+  const result = await withSource(i, ctx, async (scene, c, tmp) =>
+    render(
+      {
+        scene,
+        region: opt(i.region, (r) => r.join(",")),
+        around: i.around,
+        margin: opt(i.margin, String),
+        labels: i.labels,
+        scale: opt(i.scale, String),
+        ascii: i.ascii === true,
+        overlay: i.overlay === undefined ? undefined : await tmp.payload("overlay.json", i.overlay),
+        debugDraw: i.debugDraw === true,
+        ticks: opt(i.ticks, String),
+      },
+      c,
+    ),
+  );
+  if (result.exitCode !== 0 || i.ascii) return result;
+  const { svg, ...data } = result.data as Rendered;
+  const { png } = await rasterizeSvg(svg);
+  const { scene, width, height, scale, region, tick } = data;
+  return {
+    exitCode: 0,
+    data,
+    text: `${scene}: ${width}x${height}px, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")} m, ticks every ${tick}px`,
+    image: { data: Buffer.from(png).toString("base64"), mimeType: "image/png" },
+  };
+}
+
+/** Whether a tool result carries `code`, at `data.code` or among `data.issues`. */
+function hasCode(result: ToolResult, code: string): boolean {
+  const data = result.data as { code?: unknown; issues?: readonly { code?: unknown }[] } | null;
+  return data?.code === code || (data?.issues?.some((x) => x.code === code) ?? false);
+}
+
 export const MCP_TOOLS: readonly McpTool[] = [
   defineTool({
     name: "scene_list",
@@ -656,21 +710,28 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .describe(
           "A directory of scene versions and their texts (as `game_live_build` writes them) for a run that swapped versions while it played; each swap replays at its recorded tick.",
         ),
+      seek: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe(
+          "Stop at this tick and report the state there as `at` instead of replaying to the end.",
+        ),
       game,
       ...liveFields,
     },
     run: (i, ctx) =>
-      withSource(i, ctx, async (scene, c, tmp) =>
-        replay(
-          {
-            scene,
-            run: await tmp.payload("run.json", i.run),
-            game: i.game,
-            versions: i.versions,
-          },
-          c,
-        ),
-      ),
+      withSource(i, ctx, async (scene, c, tmp) => {
+        const input: ReplayInput & { seek?: string } = {
+          scene,
+          run: await tmp.payload("run.json", i.run),
+          game: i.game,
+          versions: i.versions,
+          seek: opt(i.seek, String),
+        };
+        return replay(input, c);
+      }),
   }),
   defineTool({
     name: "scene_fuzz",
@@ -751,35 +812,96 @@ export const MCP_TOOLS: readonly McpTool[] = [
       scale: z.number().optional().describe("Image px per world px."),
       ascii: z.boolean().optional().describe("A character map instead of an image."),
       overlay: jsonOrPath("A `scene_playtest` or `scene_validate` result").optional(),
+      debugDraw: z
+        .boolean()
+        .optional()
+        .describe("Run the scene headless and draw the last tick's ctx.debug shapes."),
+      ticks: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("With debugDraw: ticks to run; default 60."),
       ...liveFields,
     },
+    run: (i, ctx) => renderTool(i, ctx),
+  }),
+  defineTool({
+    name: "scene_frame",
+    title: "Look at the editor's frame",
+    description:
+      'A PNG of the open editor\'s canvas as the human sees it (`source: "live"`, with its tick and mode), asked over the scene\'s live channel of the dev collab server or, with an agent token, the hosted site. When no editor answers (`live-no-editor`) it falls back to the schematic `scene_render` draws from the scene file, with `source: "schematic"`. `live-refused` means the editor\'s "Let agents drive Play" toggle is off; `frame-too-large` that no downscale fit the PNG under 1 MiB (try a smaller viewport).',
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    input: {
+      scene: sceneName,
+      viewport: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("The frame's longest side in px; default the editor canvas's size."),
+      url: liveFields.url,
+    },
     run: async (i, ctx) => {
-      const result = await withSource(i, ctx, async (scene, c, tmp) =>
-        render(
-          {
-            scene,
-            region: opt(i.region, (r) => r.join(",")),
-            around: i.around,
-            margin: opt(i.margin, String),
-            labels: i.labels,
-            scale: opt(i.scale, String),
-            ascii: i.ascii === true,
-            overlay:
-              i.overlay === undefined ? undefined : await tmp.payload("overlay.json", i.overlay),
-          },
-          c,
-        ),
+      if (isFileArg(i.scene) || i.scene === "-")
+        return usage("scene_frame takes a scene name; file paths have no editor");
+      const url = liveUrl(i.url, ctx);
+      if (isToolResult(url)) return url;
+      const tmp = scratch();
+      try {
+        const out = await tmp.write("frame.png", "");
+        const result = await frame(
+          { scene: i.scene, live: true, out, viewport: opt(i.viewport, String), url },
+          ctx,
+        );
+        if (hasCode(result, "live-no-editor")) {
+          const schematic = await renderTool({ scene: i.scene }, ctx);
+          if (schematic.exitCode !== 0) return schematic;
+          return {
+            ...schematic,
+            data: { ...(schematic.data as object), source: "schematic", url },
+            text: `no editor answered; schematic instead. ${schematic.text}`,
+          };
+        }
+        if (result.exitCode !== 0) return result;
+        const { png, ...data } = (result.data ?? {}) as Record<string, unknown>;
+        const bytes = typeof png === "string" ? png : (await readFile(out)).toString("base64");
+        if (bytes.length === 0) return failure("the editor answered without a frame", { url });
+        return {
+          ...result,
+          data: { ...data, out: undefined, source: "live", url },
+          image: { data: bytes, mimeType: "image/png" },
+        };
+      } finally {
+        await tmp.close();
+      }
+    },
+  }),
+  defineTool({
+    name: "scene_play",
+    title: "Drive the editor's Play",
+    description:
+      "Drive Play in the open editor over the scene's live channel: `play` starts it through the editor's own Play (recordings and history as for a click), `pause`, `resume`, `step` (`ticks`, default 1, while paused), `stop` (back to the edit world), or `state` to read the phase, tick and outcome without changing anything. `live-no-editor` when no editor answers, `live-refused` when its \"Let agents drive Play\" toggle is off.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    input: {
+      scene: sceneName,
+      action: z.enum(PLAY_LIVE_ACTIONS),
+      ticks: z.number().int().min(1).optional().describe("With step: ticks to advance; default 1."),
+      url: liveFields.url,
+    },
+    run: async (i, ctx) => {
+      if (i.ticks !== undefined && i.action !== "step") return usage("ticks needs action step");
+      const url = liveUrl(i.url, ctx);
+      if (isToolResult(url)) return url;
+      return playLive(
+        { scene: i.scene, live: true, action: i.action, ticks: opt(i.ticks, String), url },
+        ctx,
       );
-      if (result.exitCode !== 0 || i.ascii) return result;
-      const { svg, ...data } = result.data as Rendered;
-      const { png } = await rasterizeSvg(svg);
-      const { scene, width, height, scale, region, tick } = data;
-      return {
-        exitCode: 0,
-        data,
-        text: `${scene}: ${width}x${height}px, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")} m, ticks every ${tick}px`,
-        image: { data: Buffer.from(png).toString("base64"), mimeType: "image/png" },
-      };
     },
   }),
   defineTool({

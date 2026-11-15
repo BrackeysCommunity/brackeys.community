@@ -33,6 +33,10 @@ Dihedral
 ENGINE_VERSION
 EffectLayer
 EmitterFollow
+EntityInspection
+EntityRow
+EventLog
+EventLogFilter
 ExpandedScene
 FakeAudioCall
 FlashOptions
@@ -44,6 +48,7 @@ GameAudio
 GameCaptions
 GameCommand
 GameConfig
+GameDebug
 GameDefinition
 GameEventMap
 GameFlow
@@ -53,6 +58,7 @@ GameLive
 GameLocale
 GameMode
 GamePhase
+GameReplayOptions
 GameStoreState
 IDENTITY_2D
 InputAction
@@ -70,6 +76,7 @@ LoadingView
 LoadingViewFactory
 MAX_PLAYERS
 MountUi
+PREF_KEYS
 ParticleLayer
 ParticleLayerOptions
 ParticleTexture
@@ -87,6 +94,8 @@ RemapState
 RemapStore
 RenderBackend
 RendererConfig
+ReplayHandle
+ReplayHost
 ResolutionPolicy
 ResolutionViewport
 ResolvedBindings
@@ -95,6 +104,8 @@ RichSpan
 RichTextOptions
 RunRecording
 RuntimeEntity
+RuntimeTimings
+SEEK_CHECKPOINT_EVERY
 SPRITE
 SPRITE_FALLBACK_SIZE
 SYNTH_PRESETS
@@ -111,6 +122,7 @@ SceneLibrary
 SceneListEntry
 SceneSource
 SceneSwap
+SeekProgress
 SimState
 SpriteAssetInfo
 SpriteBlock
@@ -132,6 +144,8 @@ TextFont
 TextLogOptions
 TextVisual
 TextureSource
+TickPhase
+TimingStat
 ToolConsumer
 ToolEvent
 ToolRouter
@@ -198,6 +212,7 @@ renderSynth
 resolveBindings
 resolvePlayers
 resolveResolution
+seekTarget
 selectCamera
 selectDebugMode
 selectDialogue
@@ -208,6 +223,7 @@ selectPhase
 selectSession
 selectSim
 selectTick
+setPref
 snapshotPrefsStore
 snapshotRemapStore
 spriteGeometry
@@ -258,10 +274,19 @@ KEYED_Z
 KeyGen
 LEGACY_BULK_FIELD
 LEGACY_Z_FIELD
+LIVE_FRAME_MAX_BYTES
+LIVE_MESSAGE_MAX_BYTES
+LIVE_REQUEST_TIMEOUT_MS
 LOG_ARRAY
 LOG_CAP
 LayoutMigration
 LayoutWriteOptions
+LiveErrorCode
+LivePresence
+LiveRequest
+LiveResponder
+LiveResponderOptions
+LiveResponse
 LogEntry
 LogWarning
 MemoryDocClient
@@ -327,6 +352,7 @@ SelectionMeta
 SessionDoc
 SessionPrefabSource
 SessionPrefabSourceOptions
+StatelessProvider
 StepSelection
 UNDO_CAP
 UndoCoordinator
@@ -353,6 +379,7 @@ compareZ
 contentLogKey
 contentMap
 contentMaps
+createLiveResponder
 createProjectSession
 createSceneUndo
 createUndoCoordinator
@@ -361,6 +388,7 @@ docMeta
 docPrefabs
 docToPrefab
 docToScene
+electResponder
 entitiesMap
 entityRecord
 expandLenient
@@ -378,6 +406,9 @@ isSeedStaleClose
 layoutFromDoc
 layoutPatch
 layoutToDoc
+liveMessageBytes
+livePresence
+liveRequest
 localPrefabSource
 memoryDocHost
 metaMap
@@ -420,6 +451,7 @@ recordMap
 recordOf
 refsOfView
 reinspectBlobs
+relayableStateless
 revertEntry
 revertOpenProjectEntry
 revertProblem
@@ -443,21 +475,47 @@ writeEntry
 writeProjectState
 
 ## @jams/engine/debug
+DEBUG_DRAW_MAX
 DEBUG_OFF
 DebugDeps
 DebugFrame
 DebugLayer
 DebugLayerFactory
 DebugLayerHost
+DebugNeeds
 DebugOverlay
 DebugOverlayFactory
 DebugSceneSource
 DebugTick
+DebugTools
 ENGINE_DEBUG_LAYERS
+EVENT_LOG_CAPACITY
+EntityInspection
+EntityRow
+EventLog
+EventLogFilter
+EventLogWriter
+PERF_SLOWEST
+PerfBar
+PerfPlan
+PerfRow
+RuntimeTimings
 TIMING_ATTRIBUTE
 TIMING_STORAGE_KEY
+TickPhase
+TimingStat
+createDebugDrawSink
 createDebugOverlay
+createEventLog
+debugDrawLayer
 debugModes
+debugTools
+inspectEntity
+listEntities
+perfLayer
+perfLines
+perfPlan
+pickEntity
 
 ## @jams/engine/editor
 Aabb
@@ -812,6 +870,9 @@ withShapeSlot
 zOrderBatch
 
 ## @jams/engine/editor-ui
+AGENTS_DRIVE_PLAY_HINT
+AGENTS_DRIVE_PLAY_KEY
+AGENTS_DRIVE_PLAY_LABEL
 BlobRouteError
 CloseReason
 ConnectProjectSessionOptions
@@ -825,9 +886,12 @@ EditorLiveHost
 EditorNotify
 EditorProjectChoice
 EditorPublishHost
+EditorResponderOptions
 EditorSkeleton
 EditorSkeletonProps
 EditorStorage
+FrameAsk
+FramePixels
 GameSaveMode
 GameSettingsPatch
 GameSettingsView
@@ -869,17 +933,29 @@ SceneHome
 UsageLevel
 UsageLineView
 UsageView
+agentsDrivePlay
+agentsDrivePlayDefault
+attachEditorResponder
 blobContentStore
+canvasPixels
+canvasPxPerMetre
 connectProjectSession
 createPending
 createProjectTokens
+crop
 devProjectHost
+encodePng
+fitFrame
 fitLayout
+frameRegion
 hocuspocusTransport
 mountSceneEditor
 offConnection
 parseLayout
 projectBlobs
+renderFrame
+resample
+useAgentsDrivePlay
 
 ## @jams/engine/export
 BudgetContent
@@ -1032,6 +1108,10 @@ DIALOGUE_LINE
 DIALOGUE_LOG_MAX
 DRAW_LAYERS
 DataSystem
+DebugDraw
+DebugDrawCommand
+DebugDrawSink
+DebugStyle
 DecorEntity
 Delay
 DeviceId
@@ -1427,6 +1507,7 @@ handleType
 inCellBounds
 initialWaypointState
 inputFor
+inspectPathPlace
 interpolatePosition
 isDialogueCommand
 isNavSystem
@@ -1529,6 +1610,7 @@ CheckEnv
 CheckResult
 CheckVerdict
 ChecksReport
+Clock
 CompileResult
 CompiledInputScript
 CompiledPointer
@@ -1626,6 +1708,8 @@ RunRecordingV2
 RunTiming
 RuntimeRequests
 RuntimeStats
+RuntimeTimings
+SEEK_CHECKPOINT_EVERY
 SENSOR_ENTER
 SENSOR_EXIT
 STUCK_METRES
@@ -1641,8 +1725,11 @@ ScriptSource
 ScriptStepLog
 SeatChange
 SeatEvent
+SeekProgress
 SnapshotError
 SnapshotLoadInput
+StatsOptions
+StatsReport
 StepDuration
 StepEvent
 StepResult
@@ -1658,8 +1745,11 @@ TimingBucket
 TimingReport
 TimingScope
 TimingSpan
+TimingsOptions
 UntilClause
 ValidatePhysicalOptions
+WorldSnapshot
+WorldSnapshotResult
 analogActions
 analogValues
 assetInfo
@@ -1702,13 +1792,17 @@ recordingDivergence
 renderSynth
 replayRecording
 restoreSave
+restoreWorld
 runBlocked
 runChecks
 runPhysicalChecks
 runPlaytest
 runProbe
+runStats
 scriptSource
+seekTarget
 simActionError
+snapshotWorld
 soundLeafMs
 swapCheck
 synthDurationMs
@@ -3130,6 +3224,100 @@ declare function layoutFromDoc(doc: Y.Doc, layout: DocLayout): Record<string, un
 declare function layoutPatch(doc: Y.Doc, layout: DocLayout, next: unknown, origin?: unknown, opts?: LayoutWriteOptions): boolean;
 declare function layoutToDoc(doc: Y.Doc, layout: DocLayout, value: unknown, origin?: unknown, opts?: LayoutWriteOptions): Y.Doc;
 
+## collab/live-channel.ts
+declare const LIVE_FRAME_MAX_BYTES: number;
+declare const LIVE_MESSAGE_MAX_BYTES: number;
+declare const LIVE_REQUEST_TIMEOUT_MS = 2000;
+type LiveErrorCode = "frame-too-large" | "live-no-editor" | "live-refused";
+type LivePresence = {
+    clientId: number;
+    live?: boolean;
+};
+type LiveRequest = {
+    action: "pause" | "play" | "resume" | "step" | "stop";
+    from?: "here" | "start";
+    id: string;
+    script?: InputScript;
+    t: "play";
+    ticks?: number;
+} | {
+    entities?: EntitySelector;
+    id: string;
+    select?: readonly ("entities" | "events" | "store" | "timings")[];
+    t: "state";
+} | {
+    id: string;
+    opts: {
+        debug?: boolean;
+        height?: number;
+        viewport?: number;
+        width?: number;
+    };
+    t: "frame";
+};
+interface LiveResponder {
+    attach(provider: StatelessProvider, opts: LiveResponderOptions): () => void;
+}
+type LiveResponderOptions = {
+    enabled: () => boolean;
+    game: () => GameInstance | null;
+    play?: (req: LiveRequest & {
+        t: "play";
+    }) => Promise<void> | void;
+    render: (req: LiveRequest & {
+        t: "frame";
+    }) => Promise<Uint8Array>;
+};
+type LiveResponse = {
+    code: LiveErrorCode;
+    id: string;
+    message: string;
+    ok: false;
+    t: LiveRequest["t"];
+} | {
+    entities?: readonly unknown[];
+    events?: readonly StepEvent[];
+    id: string;
+    ok: true;
+    store?: Pick<GameStoreState, "dialogue" | "game" | "mode" | "phase" | "tick">;
+    t: "state";
+    timings?: RuntimeTimings | null;
+} | {
+    height: number;
+    id: string;
+    mode: GameMode;
+    ok: true;
+    png: string;
+    t: "frame";
+    tick: number;
+    width: number;
+} | {
+    id: string;
+    ok: true;
+    outcome: PlayOutcome | null;
+    phase: GamePhase;
+    t: "play";
+    tick: number;
+};
+type StatelessProvider = {
+    awareness?: AwarenessLike | null;
+    off(event: "stateless", fn: (e: {
+        payload: string;
+    }) => void): void;
+    on(event: "stateless", fn: (e: {
+        payload: string;
+    }) => void): void;
+    sendStateless(payload: string): void;
+};
+declare function createLiveResponder(): LiveResponder;
+declare function electResponder(entries: readonly LivePresence[]): null | number;
+declare function liveMessageBytes(payload: string): number;
+declare function livePresence(awareness: AwarenessLike): LivePresence[];
+declare function liveRequest(provider: StatelessProvider, req: LiveRequest, opts?: {
+    timeoutMs?: number;
+}): Promise<LiveResponse>;
+declare function relayableStateless(payload: string): boolean;
+
 ## collab/log.ts
 declare const LOG_CAP = 200;
 declare function fingerprint(rec: unknown): string;
@@ -3604,6 +3792,7 @@ type ProjectLogEntry = {
 };
 type ProjectPresence = {
     doc: null | string;
+    live?: boolean;
     mode: "edit" | "play";
     user: {
         color: string;
@@ -3629,6 +3818,7 @@ type ScenePresence = {
         by: Pt;
         keys: string[];
     };
+    live?: boolean;
     mode: "edit" | "play";
     selection: string[];
     tool?: string;
@@ -3849,6 +4039,34 @@ type ViewLayerHandle = {
 declare function drawSprite(view: SceneView, id: string, visual: SpriteVisual, layer: ViewLayer): void;
 declare function drawText(view: SceneView, id: string, visual: TextVisual, layer: ViewLayer): void;
 
+## debug/draw-sink.ts
+declare const DEBUG_DRAW_MAX = 4096;
+declare function createDebugDrawSink(): DebugDrawSink;
+
+## debug/draw.ts
+declare const debugDrawLayer: DebugLayerFactory;
+
+## debug/event-log.ts
+declare const EVENT_LOG_CAPACITY = 10000;
+interface EventLog {
+    list(opts?: EventLogFilter): readonly StepEvent[];
+    readonly capacity: number;
+    clear(): void;
+    subscribe(fn: (tick: number, events: readonly StepEvent[]) => void): () => void;
+}
+type EventLogFilter = {
+    entity?: string;
+    limit?: number;
+    since?: number;
+    types?: readonly string[];
+};
+type EventLogWriter = EventLog & {
+    append(tick: number, events: readonly StepEvent[]): void;
+};
+declare function createEventLog(opts?: {
+    capacity?: number;
+}): EventLogWriter;
+
 ## debug/index.ts
 declare const DEBUG_OFF = "off";
 type DebugDeps = Omit<DebugLayerHost, "pxPerMetre"> & {
@@ -3859,11 +4077,13 @@ type DebugDeps = Omit<DebugLayerHost, "pxPerMetre"> & {
     timing?: RunTiming;
 };
 type DebugFrame = {
+    draws?: readonly DebugDrawCommand[];
     dtMs: number;
     info: unknown;
     mouseWorld: Vec2;
     scale: number;
     scene: DebugSceneSource | null;
+    timings?: RuntimeTimings | null;
     viewport: Viewport;
 };
 type DebugLayer = {
@@ -3874,23 +4094,97 @@ type DebugLayer = {
 type DebugLayerFactory = {
     create: (host: DebugLayerHost) => DebugLayer;
     id: string;
+    needs?: DebugNeeds;
 };
 type DebugLayerHost = {
     pxPerMetre: number;
     uiContainer: Container;
     worldContainer: Container;
 };
+type DebugNeeds = {
+    debugDraw?: boolean;
+    timings?: boolean;
+};
 type DebugOverlay = {
+    debugDraw?: () => DebugDrawSink | null;
     destroy: () => void;
+    needs?: () => DebugNeeds;
     setPhysics: (source: DebugSceneSource | null) => void;
+    tools?: DebugTools;
     update: (tick: DebugTick) => void;
 };
 type DebugOverlayFactory = (deps: DebugDeps) => DebugOverlay;
 type DebugSceneSource = Pick<EngineContext, "geometry" | "physics" | "registry" | "tags"> & Partial<Pick<EngineContext, "grid">>;
 type DebugTick = Omit<DebugFrame, "scene">;
+type DebugTools = {
+    createEventLog(): EventLogWriter;
+    entities(runtime: SceneRuntimeHandle, sel?: EntitySelector): readonly EntityRow[];
+    inspect(runtime: SceneRuntimeHandle, id: string): EntityInspection | null;
+    pick(runtime: SceneRuntimeHandle, p: Vec2): null | string;
+};
 declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
 declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
+declare function debugTools(): DebugTools;
+
+## debug/inspect.ts
+type EntityInspection = {
+    behaviors: Readonly<Record<BehaviorName, JsonValue | undefined>>;
+    body?: null | {
+        angular: number;
+        sleeping: boolean;
+        velocity: Vec2;
+    };
+    contacts: readonly string[];
+    enabled: boolean;
+    entity: RuntimeEntity;
+    id: string;
+    owners?: Readonly<Record<string, JsonValue | undefined>>;
+    pose: Pose | null;
+    prevPose: Pose | null;
+    system: JsonValue | undefined;
+    timers: readonly InspectedTimer[];
+    type: EntityTypeName;
+};
+type EntityRow = {
+    at: Vec2 | null;
+    enabled: boolean;
+    id: string;
+    type: string;
+};
+type InspectedTimer = {
+    due: number;
+    id: number;
+    kind: "after" | "co" | "every";
+};
+declare function inspectEntity(runtime: SceneRuntimeHandle, id: string): EntityInspection | null;
+declare function listEntities(runtime: SceneRuntimeHandle, sel?: EntitySelector): readonly EntityRow[];
+declare function pickEntity(runtime: SceneRuntimeHandle, p: Vec2): null | string;
+
+## debug/perf.ts
+declare const PERF_SLOWEST = 5;
+type PerfBar = {
+    max: number;
+    maxFrac: number;
+    mean: number;
+    meanFrac: number;
+    phase: TickPhase;
+};
+type PerfPlan = {
+    bars: PerfBar[];
+    behaviors: PerfRow[];
+    scaleMs: number;
+    systems: PerfRow[];
+    ticks: number;
+};
+type PerfRow = {
+    max: number;
+    mean: number;
+    name: string;
+};
+declare const perfLayer: DebugLayerFactory;
+declare function perfLines(plan: PerfPlan): string[];
+declare function perfPlan(timings: RuntimeTimings): PerfPlan;
 
 ## debug/timing-readout.ts
 declare const TIMING_ATTRIBUTE = "data-jams-timing";
@@ -4313,6 +4607,8 @@ type ProjectConnection = {
     blobs?: ProjectBlobs;
     destroy(): void;
     getState(): ProjectConnectionState;
+    hosted?: boolean;
+    liveChannel?(doc: string): StatelessProvider | null;
     onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
     subscribe(listener: () => void): () => void;
 };
@@ -4343,6 +4639,7 @@ type ProjectSocket = {
         awareness: AwarenessLike;
         destroy(): void;
         detach(): void;
+        sendStateless?(payload: string): void;
     };
     status(): ProjectSocketStatus;
     subscribe(listener: () => void): () => void;
@@ -4478,7 +4775,7 @@ type GroupState = {
     panels: PanelId[];
     size: null | number;
 };
-type PanelId = "history" | "inspector" | "outliner" | "problems" | "project" | "run" | (string & {});
+type PanelId = "event-log" | "history" | "inspector" | "outliner" | "perf" | "problems" | "project" | "run" | (string & {});
 type Side = "left" | "right";
 type Viewport = {
     bottom: number;
@@ -4502,7 +4799,7 @@ type PanelContext = {
     pickedAsset: Store<AssetKey | null>;
     subscribe: (listener: () => void) => () => void;
 };
-type PanelControls = Pick<EditorControls, "frame" | "liveVersion" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game">> & {
+type PanelControls = Pick<EditorControls, "frame" | "liveVersion" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game" | "rapier">> & {
     publish?: EditorPublishHost;
 };
 type PanelDef = {
@@ -4568,6 +4865,54 @@ declare const createPending: (opts: {
     now?: () => number;
 }) => Pending;
 
+## editor-ui/session/live-responder.ts
+declare const AGENTS_DRIVE_PLAY_HINT = "Agents with this scene open (the scene CLI, an MCP client) can take frames of this canvas, start and step Play here, and read its state";
+declare const AGENTS_DRIVE_PLAY_KEY = "jams-editor:agents-drive-play";
+declare const AGENTS_DRIVE_PLAY_LABEL = "Let agents drive Play";
+type EditorResponderOptions = {
+    canvas?: (() => HTMLElement | null) | undefined;
+    capture?: () => Promise<FramePixels | null>;
+    enabled: () => boolean;
+    game: GameInstance;
+    live: Pick<LiveEditor, "play" | "stop">;
+    pending?: Pending | null;
+    projectAwareness?: AwarenessLike | null;
+    provider: StatelessProvider;
+};
+type FrameAsk = (LiveRequest & {
+    t: "frame";
+})["opts"];
+type FramePixels = {
+    data: Uint8Array | Uint8ClampedArray;
+    height: number;
+    width: number;
+};
+declare const agentsDrivePlay: (storage: EditorStorage | null, hosted: boolean) => boolean;
+declare const agentsDrivePlayDefault: (hosted: boolean) => boolean;
+declare function attachEditorResponder(opts: EditorResponderOptions): () => void;
+declare function canvasPixels(canvas: HTMLCanvasElement): Promise<FramePixels | null>;
+declare function canvasPxPerMetre(game: Pick<GameInstance, "worldToClient">, canvas: HTMLCanvasElement): null | number;
+declare function crop(src: FramePixels, x: number, y: number, width: number, height: number): FramePixels;
+declare function encodePng(px: FramePixels): Promise<Uint8Array>;
+declare function fitFrame(px: FramePixels, max?: number): Promise<Uint8Array>;
+declare function frameRegion(canvas: {
+    height: number;
+    width: number;
+}, ask: FrameAsk, pxPerMetre: null | number): {
+    height: number;
+    outHeight: number;
+    outWidth: number;
+    width: number;
+    x: number;
+    y: number;
+};
+declare function renderFrame(pixels: FramePixels, ask: FrameAsk, pxPerMetre: null | number): Promise<Uint8Array>;
+declare function resample(src: FramePixels, width: number, height: number): FramePixels;
+declare const useAgentsDrivePlay: (storage: EditorStorage | null, hosted: boolean) => [
+    boolean,
+    (on: boolean) => void
+];
+
 ## editor-ui/session/live-scene-editor.ts
 type EditingTarget = {
     onOpenPrefab?: (prefab: string, from: Ref) => void;
@@ -4581,6 +4926,24 @@ type EditorHostState = {
     sceneChanged: boolean;
     unsynced?: number;
 };
+type LiveEditor = {
+    closePrefab: () => void;
+    createVariant: (base: string) => boolean;
+    destroy: () => void;
+    editing: (open: OpenPrefab | null) => EditingTarget;
+    host: Store<EditorHostState>;
+    liveVersion: (id: Sha256) => StagedVersion | null;
+    openPrefab: (prefab: string, from?: Ref) => boolean;
+    play: (opts?: PlayOptions) => boolean;
+    prefab: Store<OpenPrefab | null>;
+    projectPeers: Store<readonly ProjectPeer[]>;
+    replay: (recording: RunRecording) => boolean;
+    replaying: () => boolean;
+    restart: () => void;
+    session: EditorSession;
+    setLivePlay: (on: boolean) => void;
+    stop: () => void;
+};
 type LivePlayState = {
     checks: readonly SceneIssue[];
     on: boolean;
@@ -4591,6 +4954,10 @@ type LivePlayStatus = {
     issue?: SceneIssue;
     text: string;
     tone: "applied" | "busy" | "failed" | "waiting";
+};
+type OpenPrefab = {
+    from?: Ref;
+    isolation: PrefabIsolation;
 };
 type OpenPrefabLink = {
     id: string;
@@ -4607,11 +4974,12 @@ type LoadedRun = {
 };
 
 ## editor-ui/session/use-scene-editor.ts
-type EditorChromeGame = Pick<GameInstance, "cancel" | "command" | "frame" | "getStore" | "input" | "panBy" | "pause" | "pointerWorld" | "registry" | "resume" | "router" | "runtime" | "screenToWorld" | "setTimeScale" | "step" | "zoomAt">;
+type EditorChromeGame = Pick<GameInstance, "cancel" | "command" | "debug" | "frame" | "getStore" | "input" | "panBy" | "pause" | "pointerWorld" | "registry" | "resume" | "router" | "runtime" | "screenToWorld" | "setTimeScale" | "step" | "zoomAt">;
 type EditorProjectLink = {
     blobs?: ProjectBlobs;
     doc: string;
     flow?: SceneListFlow;
+    hosted?: boolean;
     notice?: Store<SceneNotice | null>;
     onProjectChange?: (id: ProjectId) => void;
     openScene?: (id: string, opts?: {
@@ -6264,6 +6632,7 @@ interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
     enable?(entityId: string): void;
     save?(entityId: string): JsonValue | undefined;
     restore?(entityId: string, state: JsonValue): void;
+    inspect?(entityId: string): JsonValue | undefined;
     handle?(entityId: string): object | undefined;
     posed?(entityId: string, pose: Readonly<Pose>, snap: boolean): void;
     selfMoving?(entityId: string): boolean;
@@ -8138,6 +8507,66 @@ interface Contacts {
     watch(a: ContactSelector, b?: ContactSelector): () => void;
 }
 type CoroutineYield = (() => boolean) | Delay;
+interface DebugDraw {
+    line(a: Vec2, b: Vec2, opts?: DebugStyle): void;
+    box(at: Vec2, size: [
+        number,
+        number
+    ], opts?: DebugStyle): void;
+    circle(at: Vec2, r: number, opts?: DebugStyle): void;
+    shape(s: ShapeObj, opts?: DebugStyle): void;
+    path(pts: readonly Vec2[], opts?: DebugStyle & {
+        closed?: boolean;
+    }): void;
+    text(at: Vec2, text: string, opts?: DebugStyle & {
+        size?: number;
+    }): void;
+    readonly active: boolean;
+}
+type DebugDrawCommand = {
+    a: Vec2;
+    b: Vec2;
+    kind: "line";
+    style: DebugStyle;
+} | {
+    at: Vec2;
+    kind: "box";
+    size: [
+        number,
+        number
+    ];
+    style: DebugStyle;
+} | {
+    at: Vec2;
+    kind: "circle";
+    r: number;
+    style: DebugStyle;
+} | {
+    at: Vec2;
+    kind: "text";
+    size?: number;
+    style: DebugStyle;
+    text: string;
+} | {
+    closed: boolean;
+    kind: "path";
+    pts: readonly Vec2[];
+    style: DebugStyle;
+} | {
+    kind: "shape";
+    shape: ShapeObj;
+    style: DebugStyle;
+};
+type DebugDrawSink = {
+    readonly draw: DebugDraw;
+    take(): readonly DebugDrawCommand[];
+};
+type DebugStyle = {
+    alpha?: number;
+    color?: number;
+    layer?: string;
+    width?: number;
+};
 type Delay = number | {
     ms: number;
 };
@@ -8219,6 +8648,7 @@ type EngineContext = {
     rapier: RapierModule | null;
     readonly anim: AnimContext;
     readonly bodies: BodyControl;
+    readonly debug: DebugDraw;
     readonly dialogue: DialogueContext;
     readonly grid: RuntimeGrid | null;
     readonly live: LiveContext;
@@ -8677,6 +9107,7 @@ interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     enable?(id: string): void;
     save?(id: string): JsonValue | undefined;
     restore?(id: string, state: JsonValue): void;
+    inspect?(id: string): JsonValue | undefined;
     setPose?(id: string, x: number, y: number, rot: number): void;
     selfMoving?(id: string): boolean;
     ride?(id: string, host: null | string): void;
@@ -9134,6 +9565,7 @@ type PlaytestBlocked = {
     stage: "load" | "run" | "scene" | "script";
 };
 type PlaytestOptions<S = unknown, G = unknown> = {
+    collectDebugDraw?: boolean;
     dev?: boolean;
     flow?: SceneLibrary;
     game?: GameDefinition<S, G> | null;
@@ -9148,6 +9580,7 @@ type PlaytestOptions<S = unknown, G = unknown> = {
     scene: SceneDefinition;
     script: CompiledInputScript | InputScript<G> | InputScriptV2<G>;
     timing?: RunTiming;
+    timings?: TimingsOptions;
 };
 type PlaytestOutcomeReport = {
     at: Vec2 | null;
@@ -9161,6 +9594,7 @@ type PlaytestReport<S = unknown> = {
     blocked: false;
     commands: RecordingCommand[];
     configHash: string;
+    debug?: readonly DebugDrawCommand[];
     dialogue?: Readonly<DialogueView> | null;
     events: StepEvent[];
     final: S | null;
@@ -9249,6 +9683,7 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     flow?: SceneLibrary;
     game?: GameDefinition<S> | null;
     library?: PrefabLibrary;
+    onEvents?: (tick: number, events: readonly StepEvent[]) => void;
     prefabs?: PrefabLibrary;
     project?: ProjectRuntimeView | null;
     rapier?: RapierModule | null;
@@ -9257,9 +9692,14 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     saves?: ReadonlyMap<Sha256, SaveFile | string>;
     scene: SceneDefinition;
     sceneId?: AssetId;
+    seek?: number;
     versions?: (id: Sha256) => StagedVersion | null;
 };
 type ReplayReport<S = unknown> = {
+    at?: {
+        snapshot: S | null;
+        tick: number;
+    };
     blocked: false;
     divergence: null | string;
     final: S | null;
@@ -9316,6 +9756,34 @@ type Row = Readonly<Record<string, unknown> & {
     id: string;
 }>;
 declare function memoryRuntimeView(init?: MemoryRuntimeViewInit): ProjectRuntimeView;
+
+## headless/stats.ts
+type StatsOptions = PlaytestOptions & {
+    ticks: number;
+    warmup?: number;
+};
+type StatsReport = {
+    counts: {
+        behaviors: Readonly<Record<BehaviorName, number>>;
+        bodies: number;
+        colliders: number;
+        destroyed: number;
+        entities: number;
+        events: number;
+        spawned: number;
+    };
+    scene: string;
+    ticks: number;
+    wall: {
+        machine: {
+            arch: string;
+            runtime: string;
+        };
+        ticksPerSecond: number;
+        timings: RuntimeTimings;
+    };
+};
+declare function runStats(opts: StatsOptions): Promise<StatsReport>;
 
 ## headless/swap-check.ts
 type SwapCheckOptions = {
@@ -9382,6 +9850,7 @@ type HeadlessRuntime = SceneRuntimeHandle & {
     };
 };
 type HeadlessRuntimeOptions = {
+    debugDraw?: DebugDrawSink;
     dev?: boolean;
     flow?: SceneLibrary;
     fromSave?: SaveFile;
@@ -9391,6 +9860,7 @@ type HeadlessRuntimeOptions = {
     registry?: Registry;
     scene?: ExpandedScene;
     timing?: RunTiming;
+    timings?: TimingsOptions;
 };
 type ProbeInput = {
     commands?: readonly (readonly [
@@ -9407,6 +9877,7 @@ type ProbeInput = {
     ticks: number;
 };
 type ProbeOptions<S = unknown> = ProbeInput & {
+    collectDebugDraw?: boolean;
     game?: GameDefinition<S> | null;
     onTick?: (tick: number, ctx: EngineContext) => void;
     project?: ProjectRuntimeView | null;
@@ -9418,6 +9889,7 @@ type ProbeOptions<S = unknown> = ProbeInput & {
 type ProbeReport<S = unknown> = {
     blocked?: PlaytestBlocked;
     configHash: string;
+    debug?: readonly DebugDrawCommand[];
     events: StepEvent[];
     final: S | null;
     legal?: GameCommand[];
@@ -9628,6 +10100,7 @@ interface MotionBody {
     velocity(): Vec2;
     setVelocity(v: Vec2): void;
     destroy(): void;
+    inspect?(): JsonValue;
 }
 type MotionBodyOptions = {
     controller?: CharacterControllerOptions;
@@ -9651,6 +10124,7 @@ interface GridStepper {
     moving(): boolean;
     step(to: Cell): boolean;
     update(dtMs: number): void;
+    inspect?(): JsonValue;
 }
 declare function createGridStepper(ctx: EngineContext, entityId: string, opts: {
     body?: MotionBody;
@@ -9667,6 +10141,7 @@ interface SideViewController {
     launch(v: Vec2): void;
     save(): JsonValue;
     restore(state: JsonValue): void;
+    inspect?(): JsonValue;
     destroy(): void;
 }
 type SideViewEnv = {
@@ -9820,12 +10295,19 @@ type PlacementToolOptions<T> = {
 declare function createPlacementTool<T>(opts: PlacementToolOptions<T>): PlacementTool<T>;
 
 ## prefs.ts
+declare const PREF_KEYS: {
+    readonly busKey: (bus: string) => string;
+    readonly captions: "captions";
+    readonly latencyMs: "audio.latencyMs";
+    readonly locale: "locale";
+};
 interface PrefsStore {
     load(gameId: string): Readonly<Record<string, JsonValue>>;
     save(gameId: string, prefs: Readonly<Record<string, JsonValue>>): void;
 }
 declare function browserPrefsStore(prefix?: string): PrefsStore;
 declare function memoryPrefsStore(): PrefsStore;
+declare function setPref(store: PrefsStore, gameId: string, key: string, value: JsonValue): void;
 declare function snapshotPrefsStore(initial: unknown, save: (gameId: string, prefs: Readonly<Record<string, JsonValue>>) => void): PrefsStore;
 
 ## project/asset-files.ts
@@ -13290,6 +13772,15 @@ declare function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[];
 ## runtime/seed.ts
 declare function defaultSeed(gameId: null | string, sceneName: string): number;
 
+## runtime/seek.ts
+declare const SEEK_CHECKPOINT_EVERY = 300;
+type SeekProgress = {
+    readonly from: number;
+    readonly target: number;
+    readonly tick: number;
+};
+declare function seekTarget(target: number, ticks: number): number;
+
 ## runtime/space.ts
 type SpaceCastHit = SpaceHit & {
     normal: Vec2;
@@ -13321,6 +13812,10 @@ declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
 ## runtime/timing.ts
 type RunTiming = {
     enabled: boolean;
+    onSpan?: (scope: string, parts: Iterable<readonly [
+        string,
+        number
+    ]>) => void;
     report(): TimingReport;
     reset(): void;
     scope(name: string): TimingScope;
@@ -13346,6 +13841,42 @@ type TimingSpan = TimingBucket & {
     unattributedMs: number;
 };
 declare function createRunTiming(now: () => number): RunTiming;
+
+## runtime/timings.ts
+type Clock = () => number;
+type RuntimeTimings = {
+    behaviors: Readonly<Record<BehaviorName, TimingStat>>;
+    frame?: {
+        present: TimingStat;
+        render: TimingStat;
+    };
+    phases: Readonly<Record<TickPhase, TimingStat>>;
+    systems: Readonly<Record<EntityTypeName, TimingStat>>;
+    ticks: number;
+};
+declare const TICK_PHASES: readonly [
+    "systems-before",
+    "game-before",
+    "physics",
+    "systems-after",
+    "behaviors",
+    "timers",
+    "dispatch-1",
+    "game-after",
+    "destroy",
+    "dispatch-2",
+    "commit"
+];
+type TickPhase = (typeof TICK_PHASES)[number];
+type TimingStat = {
+    max: number;
+    mean: number;
+};
+type TimingsOptions = {
+    clock: Clock;
+    enabled?: () => boolean;
+    window?: number;
+};
 
 ## runtime/types.ts
 type AssetReloadError = {
@@ -13449,8 +13980,10 @@ type SceneRuntimeHandle = SceneRuntime & {
     reloadAssets: (project: ProjectRuntimeView | null, changed: readonly AssetId[]) => AssetReloadError[];
     render: (alpha: number) => void;
     scene: () => ExpandedScene | null;
+    timings: () => RuntimeTimings | null;
 };
 type SceneRuntimeOptions = {
+    debugDraw?: DebugDrawSink;
     dev?: boolean;
     game?: GameDefinition | null;
     live?: {
@@ -13466,6 +13999,7 @@ type SceneRuntimeOptions = {
     sampling?: "linear" | "nearest";
     scenes?: (() => SceneLibrary) | SceneLibrary;
     timing?: RunTiming;
+    timings?: TimingsOptions;
     view: SceneView | null;
 };
 type StepEvent = {
@@ -13478,6 +14012,7 @@ type StepEvent = {
     type: string;
 };
 type StepResult = {
+    debug?: readonly DebugDrawCommand[];
     events: StepEvent[];
     game: unknown;
     present?: readonly PresentRequest[];
@@ -13493,6 +14028,23 @@ type SwapReport = {
     issue: SceneIssue;
     ok: false;
 };
+
+## runtime/world-snapshot.ts
+type WorldSnapshot = {
+    readonly [worldSnapshotBrand]: true;
+    readonly backend: "geometry" | "rapier";
+    readonly tick: number;
+};
+type WorldSnapshotResult = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    snapshot: WorldSnapshot;
+};
+declare function restoreWorld(runtime: SceneRuntimeHandle, snapshot: WorldSnapshot): void;
+declare function snapshotWorld(runtime: SceneRuntimeHandle): WorldSnapshotResult;
+declare const worldSnapshotBrand: unique symbol;
 
 ## saves/browser.ts
 declare function browserSaveStore(): SaveStore;
@@ -13553,7 +14105,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 23;
+declare const AGENT_SURFACE_VERSION = 24;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -16482,6 +17034,7 @@ declare function createSpatialHash<K>(cell?: number): SpatialHash<K>;
 declare const SCENE_SVG_MAX_SIZE = 1600;
 type SceneLabels = "all" | "entities" | "none";
 type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
+    debugDraw?: readonly DebugDrawCommand[];
     labels?: SceneLabels;
     maxSize?: number;
     overlay?: SceneOverlay;
@@ -16722,7 +17275,10 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "font-missing",
     "string-key-missing",
     "dialogue-dead-end",
-    "dialogue-unreachable"
+    "dialogue-unreachable",
+    "live-no-editor",
+    "live-refused",
+    "frame-too-large"
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
@@ -17924,6 +18480,9 @@ declare function advanceWaypoint(state: WaypointState, waypoints: Vec2[], speed:
 declare function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null;
 declare function createFollowerSystem(ctx: EngineContext, type: RegisteredType, opts?: FollowerOptions): FollowerSystem;
 declare function initialWaypointState(): WaypointState;
+declare function inspectPathPlace(m: PathPlace & {
+    waypoints: readonly Vec2[];
+}): JsonValue;
 declare function interpolatePosition(a: Vec2, b: Vec2, t: number): Vec2;
 declare function pathPosition(waypoints: readonly Vec2[], state: WaypointState): Vec2;
 declare function pathWaypoints(path: Pick<PathDef, "pts">): Vec2[];
@@ -18087,6 +18646,12 @@ type GameConfig = {
     timing?: boolean;
     viewports?: readonly ViewportDef[];
 };
+type GameDebug = {
+    entities(sel?: EntitySelector): Promise<readonly EntityRow[]>;
+    inspect(id: string): Promise<EntityInspection | null>;
+    pick(p: Vec2): Promise<null | string>;
+    readonly events: EventLog;
+};
 type GameEventMap = {
     "audio:caption": {
         at: number;
@@ -18213,6 +18778,7 @@ type GameInstance = {
     project: () => ProjectRuntimeView | null;
     readonly audio: GameAudio | null;
     readonly captions: GameCaptions;
+    readonly debug: GameDebug;
     readonly locale: GameLocale;
     readonly reducedMotion: boolean;
     recording: (opts?: {
@@ -18227,10 +18793,9 @@ type GameInstance = {
         errors: AssetReloadError[];
         failed: BundleEntry[];
     }>;
-    replay: (doc: SceneDefinition, recording: RunRecording, opts?: {
-        sceneId?: AssetId;
-        versions?: (id: Sha256) => StagedVersion | null;
-    }) => PlayReport;
+    reopenAudio: () => boolean;
+    replay: (doc: SceneDefinition, recording: RunRecording, opts?: GameReplayOptions) => PlayReport;
+    replayHandle: () => ReplayHandle | null;
     resize: (width: number, height: number) => void;
     resume: () => void;
     router: ToolRouter;
@@ -18284,6 +18849,13 @@ type GameLocale = {
 };
 type GameMode = "edit" | "play";
 type GamePhase = "destroyed" | "idle" | "loading" | "paused" | "running";
+type GameReplayOptions = {
+    checkpointEvery?: number;
+    paused?: boolean;
+    sceneId?: AssetId;
+    seek?: number;
+    versions?: (id: Sha256) => StagedVersion | null;
+};
 type GameStoreState = {
     camera: CameraState;
     debugMode: string;
@@ -18295,6 +18867,7 @@ type GameStoreState = {
     session: PlaySession | null;
     sim: SimState;
     tick: number;
+    timings: RuntimeTimings | null;
 };
 type InputAction = {
     action: string;
@@ -18341,6 +18914,21 @@ type RendererConfig = {
         destroy(): void;
     };
     preference?: "webgl" | "webgpu";
+};
+interface ReplayHandle {
+    readonly tick: number;
+    readonly ticks: number;
+    seek(tick: number, opts?: {
+        onProgress?: (p: SeekProgress) => void;
+    }): Promise<void>;
+    play(): void;
+    pause(): void;
+    step(n?: number): void;
+    readonly checkpoints: readonly number[];
+}
+type ReplayHost = {
+    checkpoints(): readonly number[];
+    seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void>;
 };
 type SceneSource = {
     list(): readonly SceneListEntry[];
@@ -18465,7 +19053,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.17.0";
+declare const ENGINE_VERSION = "0.18.0";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

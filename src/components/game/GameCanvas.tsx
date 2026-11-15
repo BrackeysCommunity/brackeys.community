@@ -38,6 +38,7 @@ import {
 } from "./hosted-games";
 import { LoadFailed } from "./load-failed";
 import { GameSiteIsland } from "./site-island";
+import { SoundMenu } from "./sound-menu";
 
 const loadRapier = () => import("@dimforge/rapier2d");
 
@@ -101,6 +102,9 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
     [],
   );
   const displayMenu = useFlag("game-display-menu");
+  const soundMenu = useFlag("engine-games-enabled");
+  // One store for the game and the sound menu, so both read and write the same prefs.
+  const prefs = useMemo(() => browserPrefsStore(), []);
   const [display, setDisplay] = useDisplaySetting();
   const resolutionKey = JSON.stringify(displayMenu ? (displayResolution(display) ?? null) : null);
   const resolution = useMemo(
@@ -146,7 +150,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         keyTarget: window,
         // A player's remaps, bus volumes and locale stay in their own browser.
         input: { touch: "auto", remaps: browserRemapStore() },
-        audio: { backend: tryWebAudioBackend, prefs: browserPrefsStore() },
+        audio: { backend: tryWebAudioBackend, prefs },
         prefabs,
         flow: { source: flow },
         project,
@@ -199,7 +203,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
       loader?.destroy();
       setGame(null);
     };
-  }, [modules, hosted, resolution, start.attempt]);
+  }, [modules, hosted, resolution, start.attempt, prefs]);
 
   const ui = modules?.ui ?? null;
   const hint = useMemo(
@@ -226,6 +230,13 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
           title={roomId}
           display={displayMenu ? { value: display, onChange: setDisplay } : undefined}
         />
+      }
+      topRight={
+        soundMenu && modules ? (
+          <Island>
+            <SoundMenu game={game} gameId={modules.game.id} prefs={prefs} />
+          </Island>
+        ) : undefined
       }
       status={
         game ? (

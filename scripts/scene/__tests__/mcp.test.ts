@@ -6,7 +6,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
-import { docToScene, readLog, readProject, readProjectLog } from "@jams/engine/collab";
+import {
+  createLiveResponder,
+  docToScene,
+  readLog,
+  readProject,
+  readProjectLog,
+} from "@jams/engine/collab";
 import { createRegistry, defineGame, formatSaveFile } from "@jams/engine/game";
 import { createHeadlessRuntime } from "@jams/engine/headless";
 import { docNameOf } from "@jams/engine/project";
@@ -133,8 +139,10 @@ describe("scene MCP server", () => {
       "scene_codes",
       "scene_diff",
       "scene_flow",
+      "scene_frame",
       "scene_fuzz",
       "scene_list",
+      "scene_play",
       "scene_playtest",
       "scene_render",
       "scene_replay",
@@ -174,6 +182,11 @@ describe("scene MCP server", () => {
         });
         for (const arg of ["token", "url", "site", "dryRun"])
           expect(t.inputSchema.properties, t.name).not.toHaveProperty(arg);
+      } else if (t.name === "scene_frame" || t.name === "scene_play") {
+        expect(t.annotations, t.name).toMatchObject({
+          readOnlyHint: t.name === "scene_frame",
+          openWorldHint: true,
+        });
       } else if (t.name === "game_build") {
         expect(t.annotations).toMatchObject({
           readOnlyHint: false,
@@ -2032,6 +2045,176 @@ describe("live docs", { timeout: 60_000 }, () => {
       url: "ws://192.0.2.1:3000/__scene-collab",
     });
     expect(r).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+  });
+});
+
+describe("the open editor's frame and Play", { timeout: 60_000 }, () => {
+  let server: ListeningSceneCollab;
+  let editor: { doc: Y.Doc; provider: HocuspocusProvider };
+
+  async function until(check: () => boolean, what: string, ms = 5_000) {
+    const end = Date.now() + ms;
+    while (!check()) {
+      if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  }
+
+  /** Just enough of a running game for the responder: a store and the Play controls. */
+  function fakeGame() {
+    const state = {
+      phase: "edit",
+      tick: 0,
+      mode: "edit",
+      game: {},
+      dialogue: null,
+      session: null,
+      timings: null,
+    };
+    const calls: string[] = [];
+    const game = {
+      getStore: () => ({ state }),
+      debug: { entities: async () => [], events: { list: () => [] } },
+      pause: () => {
+        calls.push("pause");
+        state.phase = "paused";
+      },
+      resume: () => {
+        calls.push("resume");
+        state.phase = "playing";
+      },
+      step: (n: number) => {
+        calls.push(`step ${n}`);
+        state.tick += n;
+      },
+      stop: () => {
+        calls.push("stop");
+        state.phase = "edit";
+        state.mode = "edit";
+        state.tick = 0;
+      },
+    };
+    return { game, state, calls };
+  }
+
+  beforeAll(async () => {
+    const liveDir = join(root, "live-frame");
+    await mkdir(liveDir);
+    await copyFile(ENGINE_YARD, join(liveDir, "engine-yard.json"));
+    await writeFile(
+      join(liveDir, "jams.project.json"),
+      JSON.stringify({ kind: "project", v: 1, id: "engine", name: "Engine", game: null }),
+    );
+    server = await listenSceneCollab({
+      projects: [await readFileProject(liveDir, { cacheDir: join(root, "live-frame-cache") })],
+      debounceMs: 50,
+      warn: () => undefined,
+    });
+    const doc = new Y.Doc();
+    const provider = new HocuspocusProvider({
+      url: server.url,
+      name: docNameOf({ kind: "scene", project: "engine", key: "engine-yard" }),
+      document: doc,
+    });
+    await until(() => provider.synced, "the editor's first sync");
+    editor = { doc, provider };
+  });
+
+  afterAll(async () => {
+    editor.provider.destroy();
+    editor.doc.destroy();
+    await server.close();
+  });
+
+  it("falls back to the schematic with no editor answering", async () => {
+    const r = await call("scene_frame", { scene: "engine-yard", url: server.url });
+    expect(r.isError).toBe(false);
+    expect(r.structuredContent).toMatchObject({ exitCode: 0, source: "schematic" });
+    expect(r.content.find((c) => c.type === "image")?.mimeType).toBe("image/png");
+  });
+
+  it("returns the editor's PNG through its responder, and drives its Play", async () => {
+    const png = new Uint8Array(await readFile(DOT));
+    const { game, state, calls } = fakeGame();
+    const detach = createLiveResponder().attach(editor.provider as never, {
+      enabled: () => true,
+      game: () => game as never,
+      render: async () => png,
+      play: () => {
+        calls.push("play");
+        state.phase = "playing";
+        state.mode = "play";
+      },
+    });
+    try {
+      const frame = await call("scene_frame", { scene: "engine-yard", url: server.url });
+      expect(frame.structuredContent).toMatchObject({ exitCode: 0, source: "live" });
+      expect(frame.content.find((c) => c.type === "image")?.data).toBe(
+        Buffer.from(png).toString("base64"),
+      );
+
+      const play = (action: string, extra: Record<string, unknown> = {}) =>
+        call("scene_play", { scene: "engine-yard", action, url: server.url, ...extra });
+      for (const [action, extra] of [
+        ["play", {}],
+        ["pause", {}],
+        ["step", { ticks: 3 }],
+        ["resume", {}],
+        ["state", {}],
+        ["stop", {}],
+      ] as const) {
+        const r = await play(action, extra);
+        expect(r.structuredContent, action).toMatchObject({ exitCode: 0 });
+      }
+      expect(calls).toEqual(["play", "pause", "step 3", "resume", "stop"]);
+      expect(state).toMatchObject({ phase: "edit", tick: 0 });
+
+      const bad = await play("pause", { ticks: 2 });
+      expect(bad.structuredContent).toMatchObject({ exitCode: 2 });
+    } finally {
+      detach();
+    }
+  });
+
+  it("passes the editor's refusal through instead of a schematic", async () => {
+    const { game } = fakeGame();
+    const detach = createLiveResponder().attach(editor.provider as never, {
+      enabled: () => false,
+      game: () => game as never,
+      render: async () => new Uint8Array(),
+    });
+    try {
+      const r = await call("scene_frame", { scene: "engine-yard", url: server.url });
+      expect(r.isError).toBe(true);
+      expect(JSON.stringify(r.structuredContent)).toContain("live-refused");
+      expect(r.structuredContent).not.toHaveProperty("source", "schematic");
+    } finally {
+      detach();
+    }
+  });
+});
+
+describe("debug draws and seeking", { timeout: 30_000 }, () => {
+  it("scene_render takes debugDraw", async () => {
+    const r = await call("scene_render", { scene: "engine-yard", debugDraw: true, ticks: 10 });
+    expect(r.structuredContent).toMatchObject({ exitCode: 0, debugDraw: { ticks: 10 } });
+    expect(r.content.find((c) => c.type === "image")?.mimeType).toBe("image/png");
+    const ascii = await call("scene_render", {
+      scene: "engine-yard",
+      debugDraw: true,
+      ascii: true,
+    });
+    expect(ascii.structuredContent).toMatchObject({ exitCode: 2 });
+  });
+
+  it("scene_replay stops at a seek tick and reports the state there", async () => {
+    const played = await call("scene_playtest", { scene: "test-yard", script: HOP_LEFT });
+    const r = await call("scene_replay", {
+      scene: "test-yard",
+      run: played.structuredContent.recording,
+      seek: 10,
+    });
+    expect(r.structuredContent).toMatchObject({ exitCode: 0, at: { tick: 10 } });
   });
 });
 

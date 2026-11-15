@@ -2,6 +2,7 @@ import { type Extension, Hocuspocus } from "@hocuspocus/server";
 import crossws from "crossws/adapters/bun";
 import * as Y from "yjs";
 
+import { relayableStateless } from "../../../packages/engine/collab/live-channel.ts";
 import type { KindRegistry, QuotaPolicy } from "../../../packages/engine/project/index.ts";
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
@@ -22,7 +23,13 @@ import type { ServiceDb } from "./db.ts";
 import { createAssetKind, type AssetKind } from "./engine/asset-kind.ts";
 import type { EngineDocStore } from "./engine/doc-store.ts";
 import { createProjectKind, type ProjectKind, type ProjectStore } from "./engine/project-kind.ts";
-import { canvasKind, type DocumentKind, DocumentKinds } from "./kinds.ts";
+import {
+  canvasKind,
+  type DocumentKind,
+  DocumentKinds,
+  isStatelessMessage,
+  relaysStateless,
+} from "./kinds.ts";
 import {
   ConnectionCaps,
   createMessageLimiter,
@@ -284,8 +291,13 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
           throw new SyncRefusal(SYNC_CLOSE.revoked, "access revoked", "auth");
         }
         const kind = kinds.get(context.kind);
-        const limits =
+        const docLimits =
           context.kind === "asset" && assetKind ? assetKind.limitsFor(context.docId) : kind?.limits;
+        // A relayed stateless message is capped where it's relayed, without closing the socket.
+        const limits =
+          docLimits && relaysStateless(context.kind) && isStatelessMessage(update)
+            ? { ...docLimits, maxMessageBytes: MAX_FRAME_BYTES }
+            : docLimits;
         limitMessage(connection, update, limits);
         if (
           !context.readOnly &&
@@ -306,6 +318,16 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         countRefusal(error);
         throw error;
       }
+    },
+    async onStateless({ connection, document, payload }) {
+      const context = connection.context as SyncContext;
+      // Read-only connections only listen: an agent driving Play needs a token that may write.
+      if (!relaysStateless(context.kind) || context.readOnly || isRevoked(context)) return;
+      if (!relayableStateless(payload)) {
+        metrics.refused("size");
+        return;
+      }
+      document.broadcastStateless(payload, (other) => other !== connection);
     },
     async beforeHandleAwareness({ connection, context, document, states }) {
       if (!connection || !context) return;

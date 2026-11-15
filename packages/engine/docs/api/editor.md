@@ -2721,6 +2721,8 @@ type ScenePresence = {
         by: Pt;
         keys: string[];
     };
+    /** This client answers live requests on the doc (`createLiveResponder`). */
+    live?: boolean;
     mode: "edit" | "play";
     selection: string[];
     tool?: string;

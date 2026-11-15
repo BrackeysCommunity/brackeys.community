@@ -21,6 +21,18 @@ import { SCENE_FORMAT_VERSION, type EntityDef } from "../../scene/types";
  * tick is time another process took, and the median of a busy CI runner
  * carries that into the ratio. The ratios are printed with the medians';
  * only past 2× is it a failure.
+ *
+ * The function form runs above the class form because `create` hands back
+ * fresh `awake`/`step` closures per entity: 2,000 distinct call targets,
+ * each with its own context, where the class has one prototype method. The
+ * gap sits wholly in the behavior's own lap, none in the host's phases;
+ * holding the state on an object instead of a closure `let` doesn't close
+ * it, and the same function form returning one shared set of methods runs
+ * level with the class. On Apple M4 (Node 26, arm64) the ratios are about
+ * class 1.1, function 1.2; on CI's Linux x64 runners about 1.5 and 1.7–2.2,
+ * where the extra targets and contexts cost more. It is the form's cost,
+ * not the host's: a hot script with thousands of instances is cheaper
+ * written as a class or as one behavior system.
  */
 
 const COUNT = 2000;

@@ -377,7 +377,7 @@ describe("Sound in Play", () => {
     entities: [],
   };
 
-  it("builds no backend while off, and one per Play while on, closed on Stop", async () => {
+  it("builds no backend while off, one as soon as it turns on mid-Play, closed on Stop", async () => {
     document.body.appendChild(document.createElement("canvas"));
     const made: FakeAudioBackend[] = [];
     const make = vi.fn(() => {
@@ -414,14 +414,10 @@ describe("Sound in Play", () => {
     const toggle = screen.getByRole("switch", { name: "Sound in Play" });
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     await click(toggle);
-    // This Play started silent, so the sound waits for the next one.
-    expect(screen.getByText("Sound starts at the next Play")).toBeTruthy();
-    game.setMode("edit");
-    expect(make).not.toHaveBeenCalled();
-
-    game.setMode("play");
+    // Turned on in a Play that started silent, the sound starts at once.
     expect(make).toHaveBeenCalledTimes(1);
     expect(game.audio).not.toBeNull();
+    expect(game.audio!.buses().master?.muted).toBe(false);
     game.setMode("edit");
     expect(made[0]!.log.at(-1)?.op).toBe("close");
     expect(game.audio).toBeNull();

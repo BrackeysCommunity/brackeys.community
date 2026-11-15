@@ -8,6 +8,7 @@ import {
   SEED_STALE_CODE,
   SEED_STALE_REASON,
   seedProjectDoc,
+  type StatelessProvider,
 } from "@jams/engine/collab";
 import { createRegistry } from "@jams/engine/game";
 import {
@@ -27,6 +28,7 @@ import {
   agentOrigin,
   openProjectClient,
   ProjectClientError,
+  requestOnProvider,
   seedStaleError,
 } from "../project-client";
 
@@ -88,6 +90,9 @@ async function serve(opts: { token?: (doc: string) => string } = {}): Promise<Ha
           },
         }
       : {}),
+    async onStateless({ connection, document, payload }) {
+      document.broadcastStateless(payload, (other) => other !== connection);
+    },
     async onLoadDocument({ documentName, document }) {
       const seed = seeds.get(documentName);
       if (!seed) throw new Error(`no doc named ${documentName}`);
@@ -265,5 +270,106 @@ describe("openProjectClient", () => {
     expect(error).toBeInstanceOf(ProjectClientError);
     expect((error as Error).message).toMatch(/Can't reach the project collab server/);
     expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe("requestOnProvider", () => {
+  type Listener = (e: { payload: string }) => void;
+
+  /** A provider whose other side is `answer`: each sent request comes back as its reply, if any. */
+  function fakeProvider(opts: {
+    answer?: (req: { t: string; id: string }) => Record<string, unknown> | null;
+    live?: number[];
+  }) {
+    const listeners = new Set<Listener>();
+    const sent: string[] = [];
+    const states = new Map<number, Record<string, unknown>>([[1, {}]]);
+    for (const id of opts.live ?? []) states.set(id, { scene: { live: true } });
+    const provider: StatelessProvider = {
+      sendStateless(payload) {
+        sent.push(payload);
+        const reply = opts.answer?.(JSON.parse(payload) as { t: string; id: string });
+        if (reply)
+          setTimeout(() => {
+            for (const fn of [...listeners]) fn({ payload: JSON.stringify(reply) });
+          }, 5);
+      },
+      on: (_event, fn) => void listeners.add(fn),
+      off: (_event, fn) => void listeners.delete(fn),
+      awareness: {
+        clientID: 1,
+        getLocalState: () => states.get(1) ?? null,
+        setLocalStateField: () => undefined,
+        getStates: () => states,
+        on() {},
+        off() {},
+      },
+    };
+    return { provider, sent, listeners };
+  }
+
+  it("resolves with the elected editor's answer to its request", async () => {
+    const { provider, sent, listeners } = fakeProvider({
+      live: [7],
+      answer: (req) => ({
+        t: req.t,
+        id: req.id,
+        ok: true,
+        tick: 4,
+        phase: "paused",
+        outcome: null,
+      }),
+    });
+    const res = await requestOnProvider(provider, { t: "play", action: "pause" }, { id: "r1" });
+    expect(res).toEqual({ t: "play", id: "r1", ok: true, tick: 4, phase: "paused", outcome: null });
+    expect(JSON.parse(sent[0]!)).toEqual({ t: "play", action: "pause", id: "r1" });
+    expect(listeners.size).toBe(0);
+  });
+
+  it("passes a refusal through", async () => {
+    const { provider } = fakeProvider({
+      live: [7],
+      answer: (req) => ({ t: req.t, id: req.id, ok: false, code: "live-refused", message: "off" }),
+    });
+    const res = await requestOnProvider(provider, { t: "state" });
+    expect(res).toMatchObject({ ok: false, code: "live-refused", message: "off" });
+  });
+
+  it("answers live-no-editor after the timeout, or at once with nobody advertising", async () => {
+    const silent = fakeProvider({ live: [7] });
+    const started = Date.now();
+    const res = await requestOnProvider(
+      silent.provider,
+      { t: "frame", opts: {} },
+      { timeoutMs: 150 },
+    );
+    expect(res).toMatchObject({ t: "frame", ok: false, code: "live-no-editor" });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(140);
+    expect(silent.listeners.size).toBe(0);
+
+    const nobody = fakeProvider({ answer: () => ({}) });
+    const none = await requestOnProvider(nobody.provider, { t: "state" }, { timeoutMs: 150 });
+    expect(none).toMatchObject({ ok: false, code: "live-no-editor" });
+    expect(nobody.sent).toEqual([]);
+  });
+
+  it("gives a client's opened docs a stateless channel", async () => {
+    const h = await serve();
+    const a = await openProjectClient({ url: h.url, project: "p", registry, kinds });
+    const b = await openProjectClient({ url: h.url, project: "p", registry, kinds });
+    try {
+      await a.session.open("asset:p.a");
+      await b.session.open("asset:p.a");
+      expect(a.stateless("asset:p.b")).toBeNull();
+      const got: string[] = [];
+      b.stateless("asset:p.a")!.on("stateless", ({ payload }) => got.push(payload));
+      a.stateless("asset:p.a")!.sendStateless("hello");
+      await until(() => got.length > 0, "the stateless message");
+      expect(got).toEqual(["hello"]);
+    } finally {
+      await a.close();
+      await b.close();
+    }
+    expect(a.stateless("asset:p.a")).toBeNull();
   });
 });

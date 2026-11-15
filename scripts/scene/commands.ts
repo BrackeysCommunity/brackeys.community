@@ -22,6 +22,7 @@ import { DIALOGUE_WALK_USAGE, dialogueWalk } from "./tools/dialogue-walk";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fmt } from "./tools/fmt";
+import { frame, FRAME_USAGE } from "./tools/frame";
 import { fuzz } from "./tools/fuzz";
 import { GAME_BUILD_USAGE, gameBuild } from "./tools/game-build";
 import { GAME_EXPORT_USAGE, gameExport } from "./tools/game-export";
@@ -57,6 +58,7 @@ import { grid } from "./tools/grid";
 import { input } from "./tools/input";
 import { list } from "./tools/list";
 import { newScene } from "./tools/new";
+import { playLive, PLAY_LIVE_USAGE } from "./tools/play-live";
 import { playtest, PLAYTEST_USAGE } from "./tools/playtest";
 import { projectPull } from "./tools/project-pull";
 import { projectPush } from "./tools/project-push";
@@ -69,6 +71,7 @@ import { replay } from "./tools/replay";
 import { save } from "./tools/save";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
+import { stats, STATS_USAGE } from "./tools/stats";
 import { step, STEP_FLAGS, type StepInput } from "./tools/step";
 import {
   STRINGS_EXPORT_USAGE,
@@ -334,10 +337,11 @@ const DEFINITIONS = {
       ),
   },
   replay: {
-    usage: "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>] [--versions <dir>]",
+    usage:
+      "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>] [--versions <dir>] [--seek <tick>]",
     summary:
-      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; with --releases, the release among those builds the run was made on; exit 1 when it ends differently; with --versions, a run's live swaps replay from a directory of scene versions and their texts (game live build's output), and one it can't find stops the replay at that swap with scene-version-removed",
-    values: ["run", "game", "releases", "versions"],
+      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; with --releases, the release among those builds the run was made on; exit 1 when it ends differently; with --versions, a run's live swaps replay from a directory of scene versions and their texts (game live build's output), and one it can't find stops the replay at that swap with scene-version-removed; --seek stops at a tick and prints the state there",
+    values: ["run", "game", "releases", "versions", "seek"],
     switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) => {
@@ -347,6 +351,7 @@ const DEFINITIONS = {
         run: str(flags.run),
         game: str(flags.game),
         versions: str(flags.versions),
+        seek: str(flags.seek),
       };
       return releases === undefined
         ? replay(input, ctx)
@@ -411,27 +416,66 @@ const DEFINITIONS = {
   },
   render: {
     usage:
-      "render <scene|file|-> [--out file] [--ascii] [--region r|--around ref --margin n] [--labels l] [--scale n] [--overlay f]",
+      "render <scene|file|-> [--out file] [--ascii] [--region r|--around ref --margin n] [--labels l] [--scale n] [--overlay f] [--debug-draw [--ticks n]]",
     summary:
-      "a schematic of the scene as PNG or SVG (longest side 1600px), or --ascii as a character map",
-    values: ["out", "region", "around", "margin", "labels", "scale", "overlay"],
-    switches: ["ascii"],
+      "a schematic of the scene as PNG or SVG (longest side 1600px), or --ascii as a character map; --debug-draw runs the ticks headless and draws the last tick's ctx.debug shapes",
+    values: ["out", "region", "around", "margin", "labels", "scale", "overlay", "ticks"],
+    switches: ["ascii", "debug-draw"],
+    maxPositionals: 1,
+    run: ({ positionals: [scene], flags }, ctx) => {
+      const input = {
+        scene,
+        out: str(flags.out),
+        region: str(flags.region),
+        around: str(flags.around),
+        margin: str(flags.margin),
+        labels: str(flags.labels),
+        scale: str(flags.scale),
+        ascii: flags.ascii === true,
+        overlay: str(flags.overlay),
+        debugDraw: flags["debug-draw"] === true,
+        ticks: str(flags.ticks),
+      };
+      return render(input, ctx);
+    },
+  },
+  stats: {
+    usage: STATS_USAGE,
+    summary:
+      "run a scene headless with timings on: its deterministic counts (entities, bodies, colliders, behaviors, events, spawns, destroys) and this machine's ticks per second and mean and worst ms per tick phase, system and behavior, which differ between runs",
+    values: ["ticks", "game"],
+    switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
-      render(
+      stats({ scene, ticks: str(flags.ticks), game: str(flags.game) }, ctx),
+  },
+  frame: {
+    usage: FRAME_USAGE,
+    summary:
+      "with --live, the canvas of the editor that has the scene open, as a PNG (downscaled under 1 MiB, else frame-too-large); live-no-editor when no editor answers, live-refused when its Let agents drive Play is off",
+    values: ["out", "viewport", "url", "token"],
+    switches: ["live"],
+    maxPositionals: 1,
+    run: ({ positionals: [scene], flags }, ctx) =>
+      frame(
         {
           scene,
+          ...liveReadFlags(flags),
           out: str(flags.out),
-          region: str(flags.region),
-          around: str(flags.around),
-          margin: str(flags.margin),
-          labels: str(flags.labels),
-          scale: str(flags.scale),
-          ascii: flags.ascii === true,
-          overlay: str(flags.overlay),
+          viewport: str(flags.viewport),
         },
         ctx,
       ),
+  },
+  play: {
+    usage: PLAY_LIVE_USAGE,
+    summary:
+      "with --live, drive the Play of the editor that has the scene open (play, pause, resume, step --ticks n, stop) or read its state (store, entities, events, timings); live-no-editor when no editor answers, live-refused when its Let agents drive Play is off",
+    values: ["ticks", "url", "token"],
+    switches: ["live"],
+    maxPositionals: 2,
+    run: ({ positionals: [scene, action], flags }, ctx) =>
+      playLive({ scene, action, ...liveReadFlags(flags), ticks: str(flags.ticks) }, ctx),
   },
   textconv: {
     usage: "textconv <file>",

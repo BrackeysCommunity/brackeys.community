@@ -11,6 +11,7 @@ import type { SaveFile } from "../game/save-file";
 import type { ResolvedTime } from "../game/time";
 import {
   EngineError,
+  type DebugDrawSink,
   type GameCommand,
   type GameDefinition,
   type PlayerInfo,
@@ -36,6 +37,7 @@ import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import { restoreSave } from "../runtime/save-state";
 import type { RunTiming } from "../runtime/timing";
+import type { TimingsOptions } from "../runtime/timings";
 import type { LoadReport, PersistCell, SceneRuntimeHandle } from "../runtime/types";
 import { makeIssue } from "../scene/issues";
 import type {
@@ -156,6 +158,9 @@ export type StartOptions = {
   fromSave?: SaveFile;
   /** Times each step's parts into this collector. */
   timing?: RunTiming;
+  timings?: TimingsOptions;
+  /** Where `ctx.debug` draws. */
+  debugDraw?: DebugDrawSink;
   /** The live version `scene` was read from, active before the load so `ctx.live.version` names it. */
   version?: PreparedVersion;
   /** The release's own definition of a scene, which a swap back to it applies; default the flow library's. */
@@ -228,6 +233,8 @@ export function startRun(
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(library ? { scenes: () => liveLibrary(library, live) } : {}),
     ...(opts.timing ? { timing: opts.timing } : {}),
+    ...(opts.timings ? { timings: opts.timings } : {}),
+    ...(opts.debugDraw ? { debugDraw: opts.debugDraw } : {}),
     live: live.hooks,
   });
   created = runtime;

@@ -152,6 +152,8 @@ export interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
   save?(entityId: string): JsonValue | undefined;
   /** Puts back what `save` returned, after the block was attached again. */
   restore?(entityId: string, state: JsonValue): void;
+  /** What a debugger shows for the block on `entityId`: plain JSON, read-only. */
+  inspect?(entityId: string): JsonValue | undefined;
   /**
    * The per-entity object for `Entity.getBehavior`. Asked once per attach;
    * the host caches it until detach and adds `fields`.

@@ -26,6 +26,7 @@ import {
   type ViewportRect,
 } from "./camera/viewports";
 import type { DebugOverlay } from "./debug";
+import type { EventLog, EventLogWriter } from "./debug/event-log";
 import { GameEventEmitter } from "./events";
 import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
@@ -44,6 +45,8 @@ import type { SaveFile } from "./game/save-file";
 import { resolveTime, type ResolvedTime } from "./game/time";
 import type {
   Binding,
+  DebugDrawCommand,
+  DebugDrawSink,
   DeviceId,
   EngineContext,
   GameAttachment,
@@ -146,17 +149,28 @@ import {
 } from "./runtime/play-session";
 import { lerpPose } from "./runtime/poses";
 import type { AudioRequest, EffectRequest, PresentRequest } from "./runtime/present";
-import { recordingRapier, recordingStart } from "./runtime/recorder";
+import { emptyTick, recordingRapier, recordingStart } from "./runtime/recorder";
 import {
   createSceneRuntime,
   eventEntityOf,
+  NOOP_DEBUG_DRAW,
   resolveGame,
   SAVE_INPUT_KEY,
   type ProjectOption,
 } from "./runtime/runtime";
 import { captureSave, restoreSave } from "./runtime/save-state";
+import {
+  createCheckpoints,
+  SEEK_CHECKPOINT_EVERY,
+  seekSteps,
+  seekTarget,
+  type Checkpoints,
+  type SeekProgress,
+  type SeekWorld,
+} from "./runtime/seek";
 import { createRunTiming } from "./runtime/timing";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
+import { restoreWorld, snapshotWorld } from "./runtime/world-snapshot";
 import {
   createSaveSlots,
   inertSaveSlots,
@@ -188,6 +202,7 @@ import {
   setSession,
   setSimPaused,
   setSimTimeScale,
+  setTimings,
   updateCamera,
 } from "./store";
 import {
@@ -202,9 +217,11 @@ import type {
   CameraState,
   FlowResult,
   GameConfig,
+  GameDebug,
   GameEventMap,
   GameInput,
   GameInstance,
+  GameReplayOptions,
   GameLive,
   GameMode,
   GameStoreState,
@@ -213,6 +230,8 @@ import type {
   PlayOutcome,
   PlayReport,
   RapierModule,
+  ReplayHandle,
+  ReplayHost,
   StagedVersion,
   UiActionEvent,
   Vec2,
@@ -235,6 +254,19 @@ const MIN_CATCH_UP_MS = 1000;
 
 /** A pad timestamp further back than this from now isn't on `performance.now()`'s clock. */
 const PAD_CLOCK_WINDOW_MS = 1000;
+
+const NO_DRAWS: readonly DebugDrawCommand[] = Object.freeze([]);
+
+/** How often the store's `timings` refresh while a debug layer needs them: twice a second. */
+const TIMINGS_REFRESH_MS = 500;
+
+/** `GameInstance.debug.events` without a dev host's log: always empty. */
+const EMPTY_EVENT_LOG: EventLog = Object.freeze({
+  capacity: 0,
+  list: () => [],
+  clear() {},
+  subscribe: () => () => {},
+});
 
 /**
  * `config.project` is what every scene's game reads as `EngineContext.project`;
@@ -586,6 +618,23 @@ export async function createGame(
       timing,
     });
   }
+  const debugTools = debugOverlay?.tools ?? null;
+  /** Every step's events in Play; only a dev host's overlay brings a log to fill. */
+  const eventLog: EventLogWriter | null = debugTools?.createEventLog() ?? null;
+  /** `ctx.debug` reads the shown debug-draw layer's sink through this, else draws nothing. */
+  const debugDrawHost: DebugDrawSink | null = debugOverlay
+    ? {
+        get draw() {
+          return debugOverlay?.debugDraw?.()?.draw ?? NOOP_DEBUG_DRAW;
+        },
+        take: () => debugOverlay?.debugDraw?.()?.take() ?? NO_DRAWS,
+      }
+    : null;
+  /** The last tick's debug draws, for the debug-draw layer. */
+  let lastDraws: readonly DebugDrawCommand[] = NO_DRAWS;
+  const debugNeedsTimings = () => debugOverlay?.needs?.().timings === true;
+  /** Wall time of the store's last `timings` refresh. */
+  let timingsAt = -Infinity;
 
   // ─── Scene runtime (one at a time) ────────────────────────
 
@@ -753,6 +802,10 @@ export async function createGame(
       prefabs: () => prefabs,
       persist,
       timing,
+      ...(debugOverlay
+        ? { timings: { clock: () => performance.now(), enabled: debugNeedsTimings } }
+        : {}),
+      ...(debugDrawHost ? { debugDraw: debugDrawHost } : {}),
       live: liveLayer.hooks,
       ...(cfg.flow ? { scenes: flowLibrary } : {}),
       ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
@@ -1043,6 +1096,8 @@ export async function createGame(
     as?: PlayAs,
   ): PlayReport {
     const playing = getMode() === "play" && editState !== null;
+    eventLog?.clear();
+    loggedThrough = -1;
     const remembered = playing
       ? editState
       : {
@@ -1079,6 +1134,8 @@ export async function createGame(
   /** How `session` writes its live swaps, made with it. */
   let sessionSwaps: { session: SessionRecording; write: (swap: SceneSwap) => void } | null = null;
   let lastRecording: RunRecording | null = null;
+  /** Re-recordings of a replay sought back, which no longer cover the run from its start. */
+  const unpublished = new WeakSet<RunRecording>();
 
   /** The host's own project ref, else the released project's when this instance plays a release. */
   const recordingProjectRef =
@@ -1089,7 +1146,7 @@ export async function createGame(
         : undefined;
 
   function finishRecording(recording: RunRecording | null): void {
-    if (!recording) return;
+    if (!recording || unpublished.has(recording)) return;
     lastRecording = recording;
     events.emit("play:recorded", recording);
   }
@@ -1254,6 +1311,9 @@ export async function createGame(
     if (report.ok && loaded) {
       const scene = as.sceneId ?? doc.name;
       session = recordSession(loaded.runtime, scene, prepared, opts, persistAtLoad, replay);
+      replaySession = replay
+        ? { scene, prepared, start: opts, persistAtLoad, recording: replay.recording }
+        : null;
       if (replay && loop.isPaused()) resume();
     }
     return { ...report, issues: prepared.issues };
@@ -1320,10 +1380,10 @@ export async function createGame(
    * Starts from the recording's persistent value, as a headless replay does; a refused start keeps the value it had.
    * A recording that started on a live version plays that version's scene in place of `doc`.
    */
-  function replay(
+  function startReplay(
     doc: SceneDefinition,
     recording: RunRecording,
-    opts: { versions?: (id: Sha256) => StagedVersion | null; sceneId?: AssetId } = {},
+    opts: GameReplayOptions,
   ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
     let start: PreparedVersion | null = null;
@@ -1361,10 +1421,292 @@ export async function createGame(
     return report;
   }
 
+  function replay(
+    doc: SceneDefinition,
+    recording: RunRecording,
+    opts: GameReplayOptions = {},
+  ): PlayReport {
+    replayRun = null;
+    const report = startReplay(doc, recording, opts);
+    if (!report.ok) return report;
+    replayRun = {
+      doc,
+      recording,
+      opts,
+      checkpoints: createCheckpoints(opts.checkpointEvery ?? SEEK_CHECKPOINT_EVERY),
+      seeks: 0,
+      queue: Promise.resolve(),
+    };
+    if (opts.paused) pause();
+    if (opts.seek !== undefined) void replayHost.seekTo(opts.seek);
+    return report;
+  }
+
+  /** What a replay's session was recorded with, so a seek back can start a fresh one where it lands. */
+  let replaySession: {
+    scene: string;
+    prepared: Extract<PreparedPlay, { ok: true }>;
+    start: PlayOptions;
+    persistAtLoad: JsonValue | undefined;
+    recording: RunRecording;
+  } | null = null;
+
+  /** The running replay: what restarts it, and the checkpoints its seeks restore from. */
+  let replayRun: {
+    doc: SceneDefinition;
+    recording: RunRecording;
+    opts: GameReplayOptions;
+    checkpoints: Checkpoints;
+    /** Bumped by each seek, so a later one supersedes one still re-simulating. */
+    seeks: number;
+    queue: Promise<void>;
+  } | null = null;
+
+  /** The world's last tick the event log took, so a seek back doesn't log a tick twice. */
+  let loggedThrough = -1;
+  /** While a seek re-simulates, the loop's own ticks step nothing. */
+  let seeking = false;
+
+  const replayRunning = () =>
+    replayRun !== null && session !== null && replaySession !== null && getMode() === "play";
+
+  /**
+   * One recorded tick of the running replay with presentation muted: no
+   * present request, sound, caption, dialogue view or step listener sees it.
+   * The simulation, the swaps and the re-recording run as an unmuted tick's.
+   */
+  function stepReplayMuted(): boolean {
+    if (!loaded || !session?.replaying) return false;
+    const runtime = loaded.runtime;
+    const tick = runtime.ctx.tick;
+    if (!replaySwaps(tick)) return false;
+    const tickInput = session.input(tick, emptyTick(tick));
+    const sample = tickInput.pointers.find((p) => p !== undefined);
+    if (sample) replayPointer = { x: sample.x, y: sample.y };
+    const result = runtime.step(runtime.ctx.time.tickMs, tickInput);
+    logEvents(result);
+    incrementTick(store);
+    runtime.takeRequests();
+    const verdict = judge(result, runtime);
+    const finished = session.stepped(result, tickInput, verdict);
+    finishRecording(finished);
+    liveLayer.afterTick({ paused: true, changing: false });
+    return finished === null;
+  }
+
+  function logEvents(result: StepResult): void {
+    if (!eventLog || getMode() !== "play" || result.tick <= loggedThrough) return;
+    loggedThrough = result.tick;
+    eventLog.append(result.tick, result.events);
+  }
+
+  /** A fresh, unpublished session for the replay from where a restore left the world. */
+  function reseatReplaySession(): void {
+    const args = replaySession;
+    if (!loaded || !args) return;
+    session?.stop();
+    const fresh = recordSession(
+      loaded.runtime,
+      args.scene,
+      args.prepared,
+      args.start,
+      args.persistAtLoad,
+      { recording: args.recording },
+    );
+    const quiet = (r: RunRecording | null) => {
+      if (r) unpublished.add(r);
+      return r;
+    };
+    session = {
+      ...fresh,
+      stepped: (...a) => quiet(fresh.stepped(...a)),
+      requested: (req) => quiet(fresh.requested(req)),
+      stop: () => quiet(fresh.stop()),
+      soFar: () => fresh.soFar(),
+      input: (tick, live) => fresh.input(tick, live),
+      get done() {
+        return fresh.done;
+      },
+      get replaying() {
+        return fresh.replaying;
+      },
+    };
+    if (sessionSwaps?.session === fresh) sessionSwaps = { ...sessionSwaps, session };
+  }
+
+  /** The replay as a seek moves it, through the shell's own stepping and restores. */
+  const seekWorld: SeekWorld = {
+    tick: () => loaded?.runtime.ctx.tick ?? 0,
+    step: stepReplayMuted,
+    snapshot: () =>
+      loaded
+        ? snapshotWorld(loaded.runtime)
+        : {
+            ok: false,
+            issue: makeIssue("save-unsupported", { message: "no world is loaded" }),
+          },
+    version: () => loaded?.runtime.ctx.live.version ?? null,
+    restore(checkpoint) {
+      const run = replayRun;
+      if (!run || !loaded) return false;
+      // Another version under the checkpoint: rebuild from the start and replay the swaps before it.
+      if (checkpoint.version !== (loaded.runtime.ctx.live.version ?? null)) {
+        if (!restartReplay(run)) return false;
+        const swapTicks = [...new Set((run.recording.swaps ?? []).map((sw) => sw.tick))];
+        for (const at of swapTicks.filter((t) => t < checkpoint.tick).sort((a, b) => a - b))
+          if (!replaySwaps(at)) return false;
+      }
+      const runtime = loaded!.runtime;
+      try {
+        restoreWorld(runtime, checkpoint.snapshot);
+      } catch (error) {
+        if (cfg.dev) console.warn(`[replay] seek: ${errorText(error)}`);
+        return false;
+      }
+      if (replayLive) {
+        const later = (run.recording.swaps ?? []).filter((sw) => sw.tick >= checkpoint.tick);
+        replayLive.swaps = replaySwapsOf(replayLive.scene, later, run.opts.versions, replayLive);
+      }
+      reseatReplaySession();
+      reopenOutcome(checkpoint.tick);
+      return true;
+    },
+    restart() {
+      const run = replayRun;
+      return run !== null && restartReplay(run);
+    },
+  };
+
+  /** Plays the replay again from its start, keeping its checkpoints and the event log. */
+  function restartReplay(run: NonNullable<typeof replayRun>): boolean {
+    const logged = loggedThrough;
+    const log = eventLog;
+    // The restart's own Play clears the log; what it held stays.
+    const kept = log?.list() ?? [];
+    session?.stop();
+    session = null;
+    const report = startReplay(run.doc, run.recording, run.opts);
+    replayRun = run;
+    if (!report.ok) return false;
+    if (log && kept.length > 0) {
+      const byTick = new Map<number, StepResult["events"][number][]>();
+      for (const e of kept) {
+        const at = byTick.get(e.tick);
+        if (at) at.push(e);
+        else byTick.set(e.tick, [e]);
+      }
+      for (const [tick, evs] of byTick) log.append(tick, evs);
+    }
+    loggedThrough = logged;
+    reseatReplaySession();
+    return true;
+  }
+
+  /** A verdict the store holds from at or after `tick` is undone by a seek back before it. */
+  function reopenOutcome(tick: number): void {
+    const current = store.state.session;
+    if (current?.outcome && current.outcome.tick >= tick)
+      setSession(store, { ...current, outcome: null });
+  }
+
+  /** Ticks a seek re-simulates before yielding to the page, so a long seek stays responsive. */
+  const SEEK_SLICE_MS = 8;
+
+  /**
+   * Moves the running replay to `target` through the shared seek path, a
+   * slice at a time, with the loop held; the view is re-posed at the end.
+   * A later seek supersedes this one where it stands.
+   */
+  function seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void> {
+    const run = replayRun;
+    if (!run || !replayRunning()) return Promise.resolve();
+    const id = ++run.seeks;
+    const next = run.queue.then(async () => {
+      if (replayRun !== run || run.seeks !== id || !replayRunning()) return;
+      const wasPaused = loop.isPaused();
+      seeking = true;
+      const steps = seekSteps(seekWorld, run.checkpoints, seekTarget(target, run.recording.ticks));
+      try {
+        for (;;) {
+          const until = performance.now() + SEEK_SLICE_MS;
+          let done = false;
+          while (performance.now() < until) {
+            const r = steps.next();
+            if (r.done) {
+              done = true;
+              break;
+            }
+            onProgress?.(r.value);
+          }
+          if (done) break;
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          if (destroyed || replayRun !== run || run.seeks !== id || !replayRunning()) return;
+        }
+      } finally {
+        seeking = false;
+        if (!destroyed && replayRun === run) settleSeek(wasPaused);
+      }
+    });
+    run.queue = next.catch(() => {});
+    return next;
+  }
+
+  /** After a seek: the view and the store at the world's tick, posed without interpolation. */
+  function settleSeek(wasPaused: boolean): void {
+    if (!loaded) return;
+    const runtime = loaded.runtime;
+    stopWorldSounds();
+    const current = store.state.session;
+    if (current) store.setState((st) => ({ ...st, tick: current.startTick + runtime.ctx.tick }));
+    camera.snapTo(targetsCentre(runtime));
+    updateCamera(store, camera.getState());
+    const { position, zoom } = camera.getState();
+    loaded.view.frame?.({ alpha: 1, camera: { x: position.x, y: position.y, zoom } });
+    runtime.render(1);
+    syncGameSlice();
+    syncDialogue();
+    if (wasPaused || !session?.replaying) loop.pause();
+    else loop.resume();
+    syncSim();
+  }
+
+  const replayHost: ReplayHost = {
+    seekTo,
+    checkpoints: () => replayRun?.checkpoints.ticks() ?? [],
+  };
+
+  const replayControls: ReplayHandle = {
+    get tick() {
+      return loaded?.runtime.ctx.tick ?? 0;
+    },
+    get ticks() {
+      return replayRun?.recording.ticks ?? 0;
+    },
+    seek: (tick, opts?: { onProgress?: (p: SeekProgress) => void }) =>
+      replayHost.seekTo(tick, opts?.onProgress),
+    play: () => resume(),
+    pause: () => pause(),
+    step: (n) => step(n),
+    get checkpoints() {
+      return replayHost.checkpoints();
+    },
+  };
+
+  const gameDebug: GameDebug = {
+    inspect: (id) =>
+      Promise.resolve(debugTools && loaded ? debugTools.inspect(loaded.runtime, id) : null),
+    entities: (sel) =>
+      Promise.resolve(debugTools && loaded ? debugTools.entities(loaded.runtime, sel) : []),
+    pick: (p) => Promise.resolve(debugTools && loaded ? debugTools.pick(loaded.runtime, p) : null),
+    events: eventLog ?? EMPTY_EVENT_LOG,
+  };
+
   function stop(): void {
     if (destroyed || getMode() !== "play") return;
     finishRecording(session?.stop() ?? null);
     session = null;
+    replayRun = null;
+    replaySession = null;
     endReplayLive();
     const remembered = editState;
     editState = null;
@@ -2199,7 +2541,13 @@ export async function createGame(
     audioAsked = true;
     const option = cfg.audio?.backend;
     const owned = typeof option === "function";
-    const backend = owned ? option() : option;
+    let backend: AudioBackend | false | undefined;
+    try {
+      backend = owned ? option() : option;
+    } catch (err) {
+      if (cfg.dev) console.warn("[audio] the backend factory threw; Play goes on silent", err);
+      return null;
+    }
     if (!backend) return null;
     const system = createAudioSystem({
       backend,
@@ -2339,12 +2687,20 @@ export async function createGame(
     syncGameSlice();
     updateCamera(store, { position: camera.getPosition() });
 
+    const needsTimings = debugNeedsTimings();
+    if (!needsTimings) setTimings(store, null);
+    else if (performance.now() - timingsAt >= TIMINGS_REFRESH_MS) {
+      timingsAt = performance.now();
+      setTimings(store, loaded?.runtime.timings() ?? null);
+    }
     debugOverlay?.update({
       dtMs: dt,
       mouseWorld,
       viewport: camera.getViewport(),
       scale: camera.getState().scale,
       info: hooks?.debugInfo?.() ?? null,
+      timings: store.state.timings,
+      draws: lastDraws,
     });
   }
 
@@ -2359,7 +2715,7 @@ export async function createGame(
     ...(initialTime.kind === "fixed" ? {} : { gate }),
 
     onTick(dt: number) {
-      if (flowHolding) {
+      if (flowHolding || seeking) {
         shellTick(dt, canvasToWorld(input.getMousePosition()));
         return;
       }
@@ -2395,6 +2751,8 @@ export async function createGame(
         loaded.attachment?.onTick?.(dt, mouseWorld);
         shellTiming.lap("input");
         const result = loaded.runtime.step(dt, tickInput);
+        logEvents(result);
+        if (debugDrawHost) lastDraws = result.debug ?? NO_DRAWS;
         playTick(result, presentTick(result.present));
         shellTiming.lap("step");
         incrementTick(store);
@@ -3548,6 +3906,8 @@ export async function createGame(
     runtime: () => loaded?.runtime ?? null,
     play,
     replay,
+    replayHandle: () => (replayRunning() ? replayControls : null),
+    debug: gameDebug,
     setPrefabs: (next) => {
       prefabs = next;
     },
@@ -3596,6 +3956,10 @@ export async function createGame(
     viewportAt,
     get audio() {
       return openAudio()?.pick ?? null;
+    },
+    reopenAudio: () => {
+      if (!audio) audioAsked = false;
+      return openAudio() !== null;
     },
     locale,
     captions,

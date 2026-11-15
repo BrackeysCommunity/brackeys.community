@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
+import type { GameInstance } from "../../types";
+import {
+  createLiveResponder,
+  electResponder,
+  livePresence,
+  type StatelessProvider,
+} from "../live-channel";
 import { peers, presenceChannel, setPresence } from "../presence";
 import {
   observeProjectPeers,
@@ -126,6 +133,50 @@ describe("project presence", () => {
     ]);
     expect(where(projectPeers(ada))).toEqual([["bo", "scene:p.yard", "edit"]]);
     expect(projectPeers(bo)).toEqual([]);
+  });
+});
+
+describe("a live responder in presence", () => {
+  /** A scene doc's stateless side over `awareness`; this test sends nothing on it. */
+  const channel = (awareness: AwarenessLike): StatelessProvider => ({
+    awareness,
+    sendStateless: () => {},
+    on: () => {},
+    off: () => {},
+  });
+
+  it("shows an editor's live: true to its peers, and closing the editor removes it", () => {
+    const project = awarenessNet();
+    const scene = awarenessNet();
+    const ada = project.join(1);
+    const bo = project.join(2);
+    const boScene = scene.join(2);
+    const adaScene = scene.join(1);
+    setProjectPresence(bo, { user: user("bo"), doc: "scene:p.yard", mode: "edit" });
+
+    const off = createLiveResponder().attach(channel(boScene), {
+      enabled: () => true,
+      game: () => ({}) as GameInstance,
+      render: vi.fn(async () => new Uint8Array()),
+    });
+    setProjectPresence(bo, { live: true });
+    const detach = () => {
+      off();
+      setProjectPresence(bo, { live: false });
+    };
+    expect(projectPeers(ada)).toEqual([
+      { user: user("bo"), doc: "scene:p.yard", mode: "edit", live: true, clientId: 2 },
+    ]);
+    expect(electResponder(livePresence(adaScene))).toBe(2);
+
+    detach();
+    expect(projectPeers(ada)[0]?.live).toBe(false);
+    expect(electResponder(livePresence(adaScene))).toBeNull();
+
+    project.leave(2);
+    scene.leave(2);
+    expect(projectPeers(ada)).toEqual([]);
+    expect(livePresence(adaScene)).toEqual([]);
   });
 });
 

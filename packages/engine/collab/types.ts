@@ -199,6 +199,8 @@ export type ScenePresence = {
   /** A drag in progress: the keys being dragged and the offset so far. */
   ghost?: { keys: string[]; by: Pt };
   mode: "edit" | "play";
+  /** This client answers live requests on the doc (`createLiveResponder`). */
+  live?: boolean;
 };
 
 /**
@@ -223,6 +225,8 @@ export type ProjectPresence = {
   /** The doc this client is looking at, or null on the project overview. */
   doc: string | null;
   mode: "edit" | "play";
+  /** This client answers live requests on its doc. */
+  live?: boolean;
 };
 
 /** The awareness field project presence is published under. */

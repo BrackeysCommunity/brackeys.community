@@ -25,6 +25,9 @@ function fakeRelay() {
     async onAwarenessUpdate() {
       calls.push("awareness");
     },
+    async beforeBroadcastStateless({ payload }: { payload: string }) {
+      calls.push(`stateless:${payload}`);
+    },
     async beforeUnloadDocument({ documentName }: { documentName: string }) {
       calls.push(`beforeUnload:${documentName}`);
     },
@@ -79,6 +82,18 @@ describe("ResilientRelay", () => {
     await extension.onChange({ documentName: "canvas:a" } as never);
     await extension.onAwarenessUpdate({ documentName: "canvas:a" } as never);
     expect(calls).toEqual([]);
+  });
+
+  it("carries a doc's stateless broadcasts to the other instances only while Redis is up", async () => {
+    const { extension, calls, load, up } = setup();
+    await load("scene:a");
+    await extension.beforeBroadcastStateless({ documentName: "scene:a", payload: "p1" } as never);
+    expect(calls).toEqual([]);
+    up();
+    await Bun.sleep(0);
+    calls.length = 0;
+    await extension.beforeBroadcastStateless({ documentName: "scene:a", payload: "p2" } as never);
+    expect(calls).toEqual(["stateless:p2"]);
   });
 
   it("never runs a store hook, so a lock held elsewhere can't skip a store", () => {

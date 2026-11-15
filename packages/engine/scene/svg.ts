@@ -12,7 +12,7 @@ import {
 import { cssHex } from "../game/color";
 import { isCameraRegionType, outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
-import type { Registry, Style } from "../game/types";
+import type { DebugDrawCommand, Registry, Style } from "../game/types";
 import { assetInfo } from "../project/asset-info";
 import { measureText } from "../text/measure";
 import { parseRichText, richPlainText } from "../text/rich";
@@ -26,6 +26,7 @@ import {
   overlaps,
   overlayInPx,
   sceneDrawing,
+  shapeInPx,
   type DrawnEntity,
   type OverlayPoint,
   type SceneDrawing,
@@ -74,6 +75,8 @@ export type SceneSvgOptions = SceneRegionOptions &
     /** Waypoints, numbered ghosts and the line between them for every path rider; default true. */
     paths?: boolean;
     overlay?: SceneOverlay;
+    /** `ctx.debug` draws (a probe's `debug`), drawn over everything in world metres; widths and text sizes in image px. */
+    debugDraw?: readonly DebugDrawCommand[];
   };
 
 /** The world rectangle a render covers and the image size it gets. */
@@ -555,6 +558,9 @@ export function renderSceneSvg(
   if (opts.overlay)
     out.push(...overlayElements(overlayInPx(opts.overlay, drawing.pxPerMetre), byId, px, u, vp));
 
+  if (opts.debugDraw && opts.debugDraw.length > 0)
+    out.push(...debugDrawElements(opts.debugDraw, drawing.pxPerMetre, px, u));
+
   // Axis ticks, along the top and left edges
   out.push(
     `<g id="ticks" font-size="${px(10)}" fill="#c8ccd6" stroke="${BACKGROUND}" stroke-width="${px(2.5)}" paint-order="stroke">`,
@@ -755,6 +761,84 @@ function overlayElements(
     );
   }
 
+  out.push(`</g>`);
+  return out;
+}
+
+/** A `ctx.debug` draw's color when its style names none, here and in the shell's layer. */
+export const DEBUG_DRAW_COLOR = 0xff3df0;
+/** A `ctx.debug` text's height when it names none, screen px. */
+export const DEBUG_TEXT_SIZE = 11;
+
+/** `ctx.debug` draws as SVG: shapes stroked in their style, text measured as world text is. */
+function debugDrawElements(
+  draws: readonly DebugDrawCommand[],
+  k: number,
+  px: (n: number) => string,
+  u: number,
+): string[] {
+  const out: string[] = [`<g id="debug-draw" stroke-linejoin="round" stroke-linecap="round">`];
+  const xy = (p: { x: number; y: number }) => `${num(p.x * k)} ${num(p.y * k)}`;
+  for (const cmd of draws) {
+    const color = cssHex(cmd.style.color ?? DEBUG_DRAW_COLOR);
+    const alpha = num(cmd.style.alpha ?? 1);
+    const layer = cmd.style.layer === undefined ? "" : ` data-layer="${esc(cmd.style.layer)}"`;
+    const attrs = `data-debug="${cmd.kind}"${layer}`;
+    if (cmd.kind === "text") {
+      const size = cmd.size ?? DEBUG_TEXT_SIZE;
+      const lines = parseRichText(richSource(cmd.text, false)).lines;
+      const m = measureText(lines, null, size);
+      const x = cmd.at.x * k;
+      const y = cmd.at.y * k;
+      out.push(
+        `<g ${attrs}><rect x="${num(x - 2 * u)}" y="${num(y - 2 * u)}" width="${num((m.width + 4) * u)}" height="${num((m.height + 4) * u)}" fill="#000000" fill-opacity="0.6"/>` +
+          `<text x="${num(x)}" y="${num(y + size * 0.8 * u)}" font-size="${px(size)}" fill="${color}" fill-opacity="${alpha}">${esc(richPlainText(lines))}</text></g>`,
+      );
+      continue;
+    }
+    let d: string;
+    let closed = true;
+    switch (cmd.kind) {
+      case "line":
+        d = `M${xy(cmd.a)}L${xy(cmd.b)}`;
+        closed = false;
+        break;
+      case "box": {
+        const [w, h] = cmd.size;
+        d = svgPathData(
+          shapeOutline({
+            type: "box",
+            cx: cmd.at.x * k,
+            cy: cmd.at.y * k,
+            hw: (w / 2) * k,
+            hh: (h / 2) * k,
+            rotDeg: 0,
+          }),
+        );
+        break;
+      }
+      case "circle":
+        d = svgPathData(
+          shapeOutline({ type: "circle", cx: cmd.at.x * k, cy: cmd.at.y * k, r: cmd.r * k }),
+        );
+        break;
+      case "shape":
+        d = svgPathData(shapeOutline(shapeInPx(cmd.shape, k)));
+        closed = shapeIsClosed(cmd.shape);
+        break;
+      case "path":
+        if (cmd.pts.length < 2) continue;
+        d = cmd.pts.map((p, i) => `${i ? "L" : "M"}${xy(p)}`).join("") + (cmd.closed ? "Z" : "");
+        closed = cmd.closed;
+        break;
+    }
+    const fill = closed
+      ? `fill="${color}" fill-opacity="${num((cmd.style.alpha ?? 1) * 0.12)}"`
+      : `fill="none"`;
+    out.push(
+      `<path ${attrs} d="${d}" ${fill} stroke="${color}" stroke-opacity="${alpha}" stroke-width="${px(cmd.style.width ?? 1)}"/>`,
+    );
+  }
   out.push(`</g>`);
   return out;
 }

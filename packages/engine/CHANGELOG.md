@@ -7,6 +7,210 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.18.0] — unreleased
+
+Debugging, profiling and agent eyes: windowed per-phase timings and a perf
+layer, `scene stats` and a CI ticks-per-second budget, a Play-mode
+inspector, a Spawned group and an event log in the editor, `ctx.debug`
+draws in the view and in renders, in-memory world snapshots, seek and a
+replay scrubber, and live frames and Play for agents over the open editor's
+doc. Timings, debug draws and the event log never touch state, so every
+golden trace and digest is unchanged. The version and the agent-surface
+step (0.18.0, agent surface 24) follow 0.17.0 and are not yet confirmed by
+the owner.
+
+### Added
+
+- `EngineContext.debug: DebugDraw` (`line`, `box`, `circle`, `shape`,
+  `path`, `text`, `active`; positions in metres, `DebugStyle.width` in
+  screen px) and `DebugStyle`, `DebugDrawCommand`, `DebugDrawSink` in
+  `./game`. Without a host's sink `ctx.debug` is the frozen
+  `NOOP_DEBUG_DRAW` with `active: false`, as in every production build;
+  `SceneRuntimeOptions.debugDraw` passes a sink, whose draws for a tick land
+  in `StepResult.debug`.
+- `SceneSystem.inspect?(id)` and `BehaviorSystem.inspect?(id)`: plain,
+  read-only JSON for a debugger.
+- `runtime/timings.ts`: `TICK_PHASES`, `TickPhase`, `RuntimeTimings`,
+  `TimingStat`, `Clock`, `TimingsOptions`, `createTimings`, a windowed view
+  over the `RunTiming` collector. `SceneRuntimeOptions.timings` and
+  `SceneRuntimeHandle.timings()`; `GameStoreState.timings`.
+- `GameInstance.debug` (`GameDebug`: `inspect`, `entities` and `pick`
+  return promises of plain data; `events` is an `EventLog`, filled from
+  every step's events in Play and a replay when a dev host's overlay lends
+  one), `GameInstance.replayHandle()` with `ReplayHandle` and
+  `ReplayHost`, `GameReplayOptions` (`seek`, `checkpointEvery`, `paused`),
+  and `GameInstance.reopenAudio()`.
+- `./debug`: the `debug-draw` and `perf` layers in `ENGINE_DEBUG_LAYERS`
+  (F3 now cycles off, grid, physics, debug-draw, perf, then the game's),
+  `DebugNeeds`, `DebugTools` and `debugTools()`, `createEventLog`,
+  `EventLog`, `EVENT_LOG_CAPACITY`, `inspectEntity`, `listEntities`,
+  `pickEntity`, `EntityInspection`, `EntityRow`, `createDebugDrawSink`;
+  `DebugOverlay` gains optional `needs`, `debugDraw` and `tools`.
+- `./collab`: the live channel's types (`LiveRequest`, `LiveResponse`,
+  `LiveResponder`, `StatelessProvider`), `LIVE_MESSAGE_MAX_BYTES`
+  (1.5 MiB), `LIVE_FRAME_MAX_BYTES` (1 MiB), `LIVE_REQUEST_TIMEOUT_MS`,
+  `electResponder`, `createLiveResponder`, `liveRequest`.
+- `./headless`: `runStats`, `StatsReport`, `snapshotWorld`,
+  `restoreWorld`, `WorldSnapshot`; `collectDebugDraw` and `timings` on
+  playtests and probes (`debug` on their reports), `seek` on
+  `replayRecording` and `ReplayReport.at`.
+- The editor's inspector gains its Play mode, the outliner a Spawned
+  group, and the bottom group an Event log and a Perf tab.
+- Timings: `SceneRuntimeOptions.timings` now fills
+  `SceneRuntimeHandle.timings()` with windowed (default 120 ticks) mean and
+  max ms per tick phase, per type system and per behavior; the `perf` debug
+  layer draws them (`perfPlan`, `perfLines`, `PERF_SLOWEST`, `PerfPlan`,
+  `PerfBar`, `PerfRow` in `./debug`) and the editor's Perf tab shows them.
+  `RunTiming` gains the optional `onSpan`.
+- Live inspection: `inspectEntity`, `listEntities` and `pickEntity` in
+  `./debug` (`EntityInspection.owners`, `InspectedTimer`); engine systems
+  and standard behaviors answer `inspect(id)` (bodies, sensors, followers,
+  nav areas, anim, tween, lifetime, occupant, audio, sprite, text,
+  collider, body, characters, force-area, joint, nav-agent, spawner,
+  player-input); `MotionBody`, `GridStepper`, `SideViewController` and
+  `SaveEntry` gain optional `inspect()`. Pending timers and coroutines show
+  their kind and the tick they next run. `inspectPathPlace` in `./game`.
+- Editor: during Play the Inspector shows the runtime entity under the
+  selection, a Spawned row or an Alt+click on the canvas (pose, previous
+  pose, enabled, body, system, behaviors, timers, contacts), read-only and
+  refreshed at most every 100 ms; the Outliner lists runtime-spawned ids
+  (`bullet#12`) in a Spawned group while playing. A Panels switch in the
+  Play bar (off by default, kept per viewer) keeps the panels beside the
+  game during Play, where these, the Event log and Perf can be read.
+- The event log (`debug/event-log`): keeps the newest 10,000 step events
+  (`EVENT_LOG_CAPACITY`), filtered by `since`, `types`, `entity` (as
+  `entityId` or `other`) and `limit`; `subscribe` hears each tick's events
+  and the clear. `replayRecording`'s `onEvents` hears each replayed tick's
+  events. The editor's Event log tab lists Play's, a replay's and a loaded
+  run's events (replayed headless once in the page), filtered by type,
+  entity and tick range; a row selects its entity. The shell clears Play's
+  log as each Play or replay starts.
+- `createDebugDrawSink()` (debug) collects `ctx.debug`'s line, box, circle,
+  shape, path and text as plain data, capped at `DEBUG_DRAW_MAX` (4096) a
+  tick; the `debug-draw` layer draws the last tick's in world metres with
+  widths in screen px, and the overlay hands the shell a sink while that
+  layer shows.
+- `SceneSvgOptions.debugDraw`: `renderSceneSvg` draws `ctx.debug` draws in
+  a `<g id="debug-draw">` over the overlay, metres scaled by the game's px
+  per metre, text measured as world text is; `DEBUG_DRAW_COLOR` and
+  `DEBUG_TEXT_SIZE` exported from scene/svg. engine-bundle-check also
+  asserts a runtime with no sink gets the frozen, inactive no-op
+  `ctx.debug`.
+- `snapshotWorld` / `restoreWorld` (physics-free): a world save's state
+  held in memory, without JSON, including every system's and behavior's
+  save (tweens, dialogue, anim, scripts, tree, timers, persisted cells).
+  Refuses what a world save refuses, with the same `save-unsupported`
+  issue; a Rapier scene gets the world save's message. `restoreWorld`
+  reloads the scene through its entry and restores in a world save's
+  order. `captureSave`'s world depth now goes through the same capture
+  walk, and its output is unchanged.
+- The live channel: `createLiveResponder`, `liveRequest`, `electResponder`
+  (lowest client id among presence entries with `live: true`),
+  `livePresence`, `liveMessageBytes` and `relayableStateless` over a doc's
+  stateless messages; requests time out after 2 s with `live-no-editor`, a
+  responder with its toggle off answers `live-refused`, a PNG over 1 MiB
+  answers `frame-too-large`. Scene and project presence admit `live`. The
+  dev collab server and canvas-sync relay a scene or asset doc's stateless
+  messages to its other connections (across instances over the relay
+  Redis), dropping any over 1.5 MiB without closing; read-only connections
+  only listen.
+- Audio hosts: a throwing `GameConfig.audio.backend` function now plays
+  silent (with a dev warning) instead of throwing inside the tick, for
+  every host. `GameInstance.reopenAudio()` asks the backend again during
+  Play, so the editor's Sound in Play starts sound at once in a Play that
+  began silent. `PREF_KEYS` and `setPref` are exported from the root entry.
+  The editor's next-Play sound note is shown only when no sound could
+  start. The site's game room gains a mute and volume menu for the master
+  bus (behind `engine-games-enabled`), kept in the engine's prefs store.
+- `runStats` (headless) reports a run's deterministic `counts` and this
+  machine's `wall` ticks per second and per-phase timings;
+  `scene stats <scene> [--ticks n] [--json]` prints them.
+- `vp run engine:perf` judges the kitchen sink, large-5k and its
+  physics-free twin (600 ticks, 5 runs, median ticks/s) against
+  packages/engine/**tests**/perf/baseline.json keyed `${arch}/node${major}`:
+  below 80% fails, below 90% warns, no baseline passes with a notice;
+  `--update` / UPDATE_PERF_BASELINE=1 records the key. The baseline ships
+  empty: the owner records it.
+- `GameInstance.replay(doc, rec, { seek, checkpointEvery = 300, paused })`
+  and `replayHandle()` seek. Seeking re-simulates with presentation muted
+  (no step listeners, present requests, audio, effects or dialogue view)
+  from the nearest checkpoint at or before the target, taking a
+  `snapshotWorld` checkpoint every `SEEK_CHECKPOINT_EVERY` (300) ticks, and
+  re-poses the view with alpha 1 at the target. Rapier scenes re-simulate
+  from tick 0. Live swaps are re-applied at their ticks, and a seek back
+  past one restores onto the earlier version. Progress comes as plain-data
+  `SeekProgress` (with `seekTarget`, from the root and `./headless`).
+  `replayRecording({ seek })` stops there and reports `ReplayReport.at`.
+- The Run panel's replay scrubber: a range over a running replay's ticks
+  with the run's markers and the replay's checkpoints; dragging seeks after
+  it rests 50 ms, shows 'Re-simulating to tick N' with progress over the
+  checkpoints while it re-simulates, and a newer drag supersedes an older
+  seek. Clicking an event in the event log seeks a running replay to its
+  tick, else selects its entity.
+- The editor answers agents' live requests on the open scene doc: frames of
+  its canvas (a PNG downscaled to fit 1 MiB, else frame-too-large), its own
+  Play, Pause, Step and Stop (stop goes back to the edit world), and the
+  game's state from the store and game.debug. The per-viewer switch "Let
+  agents drive Play" is in Project settings → Agents and kept in the
+  viewer's storage, never in a doc. It defaults on against the dev server
+  and off on a hosted one. While the editor answers, it advertises
+  live: true in scene and project presence.
+- `ProjectConnection.liveChannel(doc)` and `ProjectConnection.hosted`; a
+  `ProjectSocket` provider's `sendStateless`; the responder's exports from
+  `./editor-ui` (`attachEditorResponder`, `agentsDrivePlay` and the frame
+  helpers).
+
+### Changed
+
+- A replay sought backward doesn't publish its re-recording
+  (`play:recorded`); the event log keeps the ticks it has and never logs a
+  tick twice.
+- The runtime's `--timing` / `RuntimeStats.timing` parts name the
+  end-of-tick dispatches `events.again` (was a second `events`) and add a
+  `dialogue` part.
+
+### Performance
+
+- The scripts-budget probe's function-form gap is documented:
+  `defineScript`'s `create` returns fresh `awake`/`step` closures per entity
+  (thousands of distinct call targets and contexts, against the class
+  form's one prototype method). The whole gap is inside the behavior's own
+  lap, not the host's phases. A function script that returns shared methods
+  runs level with the class form. On arm64 the ratios are about 1.1 (class)
+  and 1.2 (function); on CI Linux x64 about 1.5 and 1.7-2.2. The 2x budget
+  is unchanged.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` 23 → 24; every published JSON Schema's
+  `x-agent-surface` follows.
+- Issue codes `live-no-editor` (info), `live-refused` (warn),
+  `frame-too-large` (warn).
+- Command `stats <scene> [--ticks n] [--json]`; `render` gains
+  `--debug-draw` and `--ticks` (default 60 ticks; its data gains
+  `debugDraw: { ticks, draws }`).
+- `scene frame <scene> --live [--out f.png] [--viewport n] [--url …]
+[--token t]` writes the open editor's canvas (`source: "live"`), or the
+  schematic render (`source: "schematic"`) when no editor answers within
+  2 s, no server is reachable, or the frame stays over the cap
+  (`live-no-editor` / `frame-too-large` attached); `live-refused` exits 1.
+- `scene play <scene> --live play|pause|resume|step [--ticks n]|stop|state`
+  drives the open editor's Play or reads its store, entities, events and
+  timings; with no editor it reports `live-no-editor` (exit 1).
+- `replay <rec> --seek <tick>` stops at the tick (clamped to the recording)
+  and prints `at t<n> <snapshot>` in place of `final`, with
+  `ReplayReport.at` in `--json`.
+- MCP `scene_play` (`scene`, `action`: play|pause|resume|step|stop|state,
+  `ticks` with step, `url`): drives the open editor's Play over the live
+  channel, or reads its state; `live-no-editor` / `live-refused` pass
+  through.
+- MCP `scene_frame` (`scene`, `viewport`, `url`): the open editor's canvas
+  PNG with `source: "live"`; with no editor answering, the schematic
+  `scene_render` PNG with `source: "schematic"`; `frame-too-large` and
+  `live-refused` pass through.
+- MCP `scene_replay` gains `seek` (int >= 0, reports `at`); `scene_render`
+  gains `debugDraw` and `ticks`.
+
 ## [0.17.0] — unreleased
 
 Audio, text, dialogue and localisation: sounds played by step events or

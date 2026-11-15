@@ -1,6 +1,7 @@
 import { Store } from "@tanstack/store";
 
 import type { DialogueView } from "./dialogue/runner";
+import type { RuntimeTimings } from "./runtime/timings";
 import type {
   CameraState,
   GameMode,
@@ -37,6 +38,7 @@ function createInitialState(): GameStoreState {
     mode: "play",
     session: null,
     dialogue: null,
+    timings: null,
   };
 }
 
@@ -100,6 +102,12 @@ export function setDialogue(
 ): void {
   if (store.state.dialogue === dialogue) return;
   store.setState((s) => ({ ...s, dialogue }));
+}
+
+/** Stores the runtime's timings; an unchanged reference leaves the store alone. */
+export function setTimings(store: Store<GameStoreState>, timings: RuntimeTimings | null): void {
+  if (store.state.timings === timings) return;
+  store.setState((s) => ({ ...s, timings }));
 }
 
 export function resetGameStore(store: Store<GameStoreState>): void {

@@ -65,6 +65,7 @@ import {
 } from "../panels/registry";
 import type { EditorHostState } from "../session/live-scene-editor";
 import { createLoadedRunStore } from "../session/loaded-run";
+import { useStoredFlag } from "../session/stored";
 import { useEditorStore } from "../session/use-editor-store";
 import { usePhysicalIssues } from "../session/use-physical-issues";
 import { useStoreValue, type ReadableStore } from "../session/use-store-value";
@@ -77,6 +78,7 @@ import {
   type EditorControls,
 } from "./keys";
 import { PanelGroup } from "./PanelGroup";
+import { PANELS_IN_PLAY_KEY, PanelsInPlayContext } from "./panels-in-play";
 import { Rail, type RailPanel } from "./Rail";
 import { frameInView, revealInView, setVisibleArea, type VisibleArea } from "./visible-rect";
 
@@ -304,6 +306,7 @@ function placeChrome(
   m: Measured,
   playing: boolean,
   hasContext: boolean,
+  columnsHidden: boolean = playing,
 ): {
   viewport: Viewport;
   area: Span;
@@ -319,7 +322,7 @@ function placeChrome(
     bottom: m.bottom,
   };
   const fitted = fitLayout(layout, base);
-  const columns = !playing && fitted.mode !== "phone";
+  const columns = !columnsHidden && fitted.mode !== "phone";
   const area = {
     left: columns && fitted.left ? fitted.left.x + fitted.left.width + GAP : INSET,
     right: columns && fitted.right ? m.width - fitted.right.x + GAP : INSET,
@@ -477,19 +480,22 @@ function FrameBody({
   const { layout, update } = layoutState;
   const measured = useMeasured(root, parts);
   const playing = useStoreValue(mode, isPlaying, Object.is);
+  const panelsInPlay = useStoredFlag(storage, PANELS_IN_PLAY_KEY, false);
+  // Play fills the window unless the viewer keeps the panels beside it.
+  const hidden = playing && !panelsInPlay[0];
   const showContext = Boolean(context) && !playing;
   const top = useMemo(
-    () => placeChrome(layout, measured, playing, showContext),
-    [layout, measured, playing, showContext],
+    () => placeChrome(layout, measured, playing, showContext, hidden),
+    [layout, measured, playing, showContext, hidden],
   );
   const { viewport } = top;
   const fitted = useMemo(() => fitLayout(layout, viewport), [layout, viewport]);
   const [sheet, setSheet] = useState<GroupAt | "left" | "right" | null>(null);
   const phone = fitted.mode === "phone";
 
-  const live = useRef({ viewport, fitted, playing });
+  const live = useRef({ viewport, fitted, hidden });
   useIsomorphicLayoutEffect(() => {
-    live.current = { viewport, fitted, playing };
+    live.current = { viewport, fitted, hidden };
   });
 
   const [opener] = useState(createOpener);
@@ -544,7 +550,7 @@ function FrameBody({
 
   const readArea = useCallback((): VisibleArea | null => {
     const now = live.current;
-    const insets = now.playing ? { left: 0, right: 0, top: 0, bottom: 0 } : now.fitted.canvas;
+    const insets = now.hidden ? { left: 0, right: 0, top: 0, bottom: 0 } : now.fitted.canvas;
     return { width: now.viewport.width, height: now.viewport.height, insets };
   }, []);
 
@@ -649,12 +655,12 @@ function FrameBody({
   const bottomInset = viewport.bottom > 0 ? INSET + viewport.bottom + GAP : INSET;
   // The default toasts sit in the canvas area, over the status bar and the phone's panel bar.
   const toasts = {
-    "--je-toasts-right": `${(playing ? 0 : fitted.canvas.right) + INSET}px`,
+    "--je-toasts-right": `${(hidden ? 0 : fitted.canvas.right) + INSET}px`,
     "--je-toasts-bottom": `${bottomInset + (phone && !playing && measured.phone > 0 ? measured.phone + GAP : 0)}px`,
   } as CSSProperties;
   // What the chrome covers of the canvas, as the safe area a game's HUD reads
   // (UiContext.root); in Play only the host's corners and the top bar stay.
-  const covered = playing ? { ...fitted.canvas, left: 0, right: 0 } : fitted.canvas;
+  const covered = hidden ? { ...fitted.canvas, left: 0, right: 0 } : fitted.canvas;
   const safeArea = {
     "--jams-ui-safe-top": `${covered.top}px`,
     "--jams-ui-safe-right": `${covered.right}px`,
@@ -670,85 +676,87 @@ function FrameBody({
         data-je-theme={theme}
         style={toasts}
       >
-        <PanelOpenerContext.Provider value={panelOpener}>
-          <div className="je-frame-chrome" data-je-mode={fitted.mode}>
-            {topLeft || topRight || dock ? (
-              <div
-                ref={barRef}
-                className="je-frame-topbar"
-                data-playing={playing ? "" : undefined}
-                style={{ left: INSET, right: top.barRight, top: INSET }}
-              >
-                {topLeft ? (
-                  <div ref={topLeftRef} className="je-frame-top-left je-host" data-je-region="">
-                    {topLeft}
-                  </div>
-                ) : null}
-                <div className="je-frame-dock">
-                  <DockRoomContext.Provider value={top.dockRoom}>{dock}</DockRoomContext.Provider>
-                </div>
-                {topRight ? (
-                  <div ref={topRightRef} className="je-frame-top-right je-host" data-je-region="">
-                    {topRight}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {showContext && top.context ? (
-              <div
-                ref={contextRef}
-                className="je-frame-context"
-                style={{
-                  left: top.context.left,
-                  top: top.context.top,
-                  maxWidth: top.context.maxWidth,
-                }}
-              >
-                {context}
-              </div>
-            ) : null}
-            {banner && !playing ? (
-              <div
-                className="je-frame-banner"
-                style={{
-                  left: fitted.canvas.left,
-                  right: fitted.canvas.right,
-                  top: fitted.canvas.top > 0 ? fitted.canvas.top + GAP : INSET,
-                }}
-              >
-                {banner}
-              </div>
-            ) : null}
-            {/* Kept mounted in play mode, so the panels' scroll, filters and drafts survive a playtest. */}
-            <div className="je-frame-columns" hidden={playing} inert={playing}>
-              <RevealContext.Provider value={panels?.reveal ?? null}>
-                {phone ? (
-                  <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
-                    {phoneSheet()}
-                    <div className="je-frame-phone-bar">
-                      {phoneRail("left")}
-                      {phoneRail("right")}
+        <PanelsInPlayContext.Provider value={panelsInPlay}>
+          <PanelOpenerContext.Provider value={panelOpener}>
+            <div className="je-frame-chrome" data-je-mode={fitted.mode}>
+              {topLeft || topRight || dock ? (
+                <div
+                  ref={barRef}
+                  className="je-frame-topbar"
+                  data-playing={playing ? "" : undefined}
+                  style={{ left: INSET, right: top.barRight, top: INSET }}
+                >
+                  {topLeft ? (
+                    <div ref={topLeftRef} className="je-frame-top-left je-host" data-je-region="">
+                      {topLeft}
                     </div>
+                  ) : null}
+                  <div className="je-frame-dock">
+                    <DockRoomContext.Provider value={top.dockRoom}>{dock}</DockRoomContext.Provider>
                   </div>
-                ) : (
-                  <>
-                    {column("left")}
-                    {column("right")}
-                  </>
-                )}
-              </RevealContext.Provider>
-            </div>
-            {statusShown ? (
-              <div
-                ref={bottomRef}
-                className="je-frame-status"
-                style={{ left: top.area.left, right: top.area.right }}
-              >
-                {status}
+                  {topRight ? (
+                    <div ref={topRightRef} className="je-frame-top-right je-host" data-je-region="">
+                      {topRight}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {showContext && top.context ? (
+                <div
+                  ref={contextRef}
+                  className="je-frame-context"
+                  style={{
+                    left: top.context.left,
+                    top: top.context.top,
+                    maxWidth: top.context.maxWidth,
+                  }}
+                >
+                  {context}
+                </div>
+              ) : null}
+              {banner && !playing ? (
+                <div
+                  className="je-frame-banner"
+                  style={{
+                    left: fitted.canvas.left,
+                    right: fitted.canvas.right,
+                    top: fitted.canvas.top > 0 ? fitted.canvas.top + GAP : INSET,
+                  }}
+                >
+                  {banner}
+                </div>
+              ) : null}
+              {/* Kept mounted in play mode, so the panels' scroll, filters and drafts survive a playtest. */}
+              <div className="je-frame-columns" hidden={hidden} inert={hidden}>
+                <RevealContext.Provider value={panels?.reveal ?? null}>
+                  {phone ? (
+                    <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
+                      {phoneSheet()}
+                      <div className="je-frame-phone-bar">
+                        {phoneRail("left")}
+                        {phoneRail("right")}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {column("left")}
+                      {column("right")}
+                    </>
+                  )}
+                </RevealContext.Provider>
               </div>
-            ) : null}
-          </div>
-        </PanelOpenerContext.Provider>
+              {statusShown ? (
+                <div
+                  ref={bottomRef}
+                  className="je-frame-status"
+                  style={{ left: top.area.left, right: top.area.right }}
+                >
+                  {status}
+                </div>
+              ) : null}
+            </div>
+          </PanelOpenerContext.Provider>
+        </PanelsInPlayContext.Provider>
         <div
           data-je-region=""
           data-je-document=""

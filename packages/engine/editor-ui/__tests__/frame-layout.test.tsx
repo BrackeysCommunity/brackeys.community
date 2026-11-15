@@ -23,6 +23,7 @@ import {
   type EditorFrameHandle,
   type FramePanels,
 } from "../frame/EditorFrame";
+import { PANELS_IN_PLAY_KEY } from "../frame/panels-in-play";
 import { visibleFrame } from "../frame/visible-rect";
 import type { EditorStorage } from "../host";
 import {
@@ -417,6 +418,17 @@ describe("the frame's layout", () => {
     act(() => mode.setState(() => ({ mode: "edit" })));
     expect(columns.hidden).toBe(false);
     expectColumnAt("right", fitLayout(DEFAULT_LAYOUT, viewportOf(1440)).right!);
+  });
+
+  it("keeps the columns beside the game in play mode while Panels in Play is on", () => {
+    const storage = memoryStorage();
+    storage.set(PANELS_IN_PLAY_KEY, "true");
+    const { mode } = setup({ storage });
+    act(() => mode.setState(() => ({ mode: "play" })));
+    const columns = document.querySelector<HTMLElement>(".je-frame-columns")!;
+    expect(columns.hidden).toBe(false);
+    expect(columns.hasAttribute("inert")).toBe(false);
+    expect(screen.queryByText("status")).toBeNull();
   });
 
   it("keeps the panels mounted through a playtest: the outliner's filter survives Play and Stop", () => {

@@ -1,4 +1,5 @@
 import {
+  LayoutThreeColumnIcon,
   LiveStreaming02Icon,
   NextIcon,
   PauseIcon,
@@ -16,6 +17,7 @@ import { onLocale } from "../../ui/bind";
 import { applySoundInPlay, useSoundInPlay } from "../audio/editor-audio";
 import { Island } from "../frame/EditorFrame";
 import type { EditorControls } from "../frame/keys";
+import { PANELS_IN_PLAY_TOOLTIP, usePanelsInPlay } from "../frame/panels-in-play";
 import { STORAGE_PREFIX } from "../host";
 import {
   Badge,
@@ -55,8 +57,8 @@ export const LIVE_PLAY_SOURCES =
 export const SOUND_IN_PLAY_TOOLTIP =
   "Hear the game while you play here. Off by default, so a shared session stays quiet";
 
-/** Said when Sound in Play is turned on in a Play that started without it. */
-export const SOUND_NEXT_PLAY = "Sound starts at the next Play";
+/** Said when Sound in Play is turned on and this Play could start no sound. */
+export const SOUND_NEXT_PLAY = "No sound in this Play; trying again at the next one";
 
 export const LOCALE_TOOLTIP = "Preview the game's text in another language";
 
@@ -111,6 +113,7 @@ export function EditorPlayBar({
 }: EditorControls) {
   const { storage } = useKit();
   const [sound, setSound] = useSoundInPlay(storage);
+  const panels = usePanelsInPlay();
   const { paused, timeScale } = useStoreValue(game.getStore(), (s) => s.sim);
   // While Live in Play applies edits, the game already has them; Restart is offered when one didn't land.
   const sceneChanged = useStoreValue(
@@ -176,6 +179,15 @@ export function EditorPlayBar({
         </div>
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
         <SoundInPlayToggle game={game} on={sound} onChange={setSound} onLater={setSoundLater} />
+        {panels ? (
+          <PlayBarSwitch
+            label="Panels"
+            icon={LayoutThreeColumnIcon}
+            tooltip={`${PANELS_IN_PLAY_TOOLTIP}.`}
+            checked={panels[0]}
+            onChange={panels[1]}
+          />
+        ) : null}
         <div className="je-play-pickers">
           <LocalePicker game={game} canvas={canvas} />
           <DialoguePicker
@@ -335,8 +347,8 @@ function LiveInPlayToggle({
 /**
  * The Sound in Play switch: off by default, kept per viewer, and following a
  * change made in another tab. The editor's game reads it when Play starts;
- * changed mid-Play, off silences the game at once and on brings it back, or,
- * in a Play that started silent, says the sound starts at the next one.
+ * changed mid-Play, off silences the game at once and on brings it back,
+ * starting it in a Play that began silent.
  */
 function SoundInPlayToggle({
   game,

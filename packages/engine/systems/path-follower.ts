@@ -209,6 +209,21 @@ export function savePathPlace(m: PathPlace): JsonValue {
   };
 }
 
+/** A follower's phase for a debugger: its leg, how far along, which way, the pause left (ms) and its last tick's move (m). */
+/** A path place as live inspection shows it. */
+export function inspectPathPlace(m: PathPlace & { waypoints: readonly Vec2[] }): JsonValue {
+  const { currentIndex, nextIndex, t, direction, pauseRemainingMs } = m.state;
+  return {
+    from: currentIndex,
+    to: nextIndex,
+    t,
+    direction,
+    pauseMs: pauseRemainingMs,
+    waypoints: m.waypoints.length,
+    delta: { x: m.frameDelta.x, y: m.frameDelta.y },
+  };
+}
+
 const finite = (v: JsonValue | undefined): v is number =>
   typeof v === "number" && Number.isFinite(v);
 
@@ -512,6 +527,10 @@ export function createFollowerSystem(
     save(id) {
       const m = bodiless.get(id) ?? table.owned.get(id);
       return m ? savePathPlace(m) : undefined;
+    },
+    inspect(id) {
+      const m = bodiless.get(id) ?? table.owned.get(id);
+      return m ? inspectPathPlace(m) : undefined;
     },
     restore(id, state) {
       const m = bodiless.get(id) ?? table.owned.get(id);

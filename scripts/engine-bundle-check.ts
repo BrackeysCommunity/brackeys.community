@@ -1,6 +1,7 @@
 /**
  * Checks that production builds hold no dev-only engine module: the debug
- * overlay, the editor and its UI, the dev server, or a game's debug layers.
+ * overlay, the editor and its UI, the dev server, or a game's debug layers,
+ * and that a runtime without a host's sink gets the frozen no-op `ctx.debug`.
  * One list (`DEV_ONLY`) covers the site's client build and every game export.
  * Checked by module id from the build's chunk report
  * (`scripts/engine-bundle-report.ts`), since minification renames functions.
@@ -20,6 +21,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { DebugDraw } from "../packages/engine/game/types";
 import type { ReportedChunk } from "./engine-bundle-report";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -230,8 +232,38 @@ function flagValues(argv: string[], flag: string): string[] {
   return argv.flatMap((a, i) => (a === flag && argv[i + 1] ? [argv[i + 1]!] : []));
 }
 
+const DEBUG_DRAW_METHODS = ["line", "box", "circle", "shape", "path", "text"] as const;
+
+/**
+ * Why `draw` isn't the no-op a production `ctx.debug` must be, or null: it
+ * must be frozen, inactive, and draw nothing from any of its methods.
+ */
+export function noopDebugDrawProblem(draw: DebugDraw): string | null {
+  if (!Object.isFrozen(draw)) return "ctx.debug isn't frozen";
+  if (draw.active !== false) return "ctx.debug is active";
+  for (const name of DEBUG_DRAW_METHODS) {
+    const method = draw[name] as unknown;
+    if (typeof method !== "function") return `ctx.debug.${name} isn't a function`;
+    if ((method as () => unknown)() !== undefined) return `ctx.debug.${name} returns a value`;
+  }
+  return null;
+}
+
+/** The `ctx.debug` a runtime gets with no `debugDraw` sink, as every production host makes it. */
+async function productionDebugDraw(): Promise<DebugDraw> {
+  const { createSceneRuntime } = await import("../packages/engine/runtime/runtime");
+  const runtime = createSceneRuntime({ rapier: null, view: null });
+  try {
+    return runtime.ctx.debug;
+  } finally {
+    runtime.destroy();
+  }
+}
+
 async function main(argv: string[]): Promise<number> {
   const failures: string[] = [];
+  const noop = noopDebugDrawProblem(await productionDebugDraw());
+  if (noop) failures.push(`a production runtime's ${noop}`);
   const exports = flagValues(argv, "--export");
   const reportAt = argv.indexOf("--report");
   const selfTest = argv.includes("--self-test");

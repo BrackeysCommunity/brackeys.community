@@ -70,6 +70,11 @@ export const createPlayerInputSystem: BehaviorSystemFactory = (ctx: EngineContex
     },
     size: () => seats.size,
     seatOf: (id) => seats.get(id) ?? null,
+    /** Its seat, and whether a player has joined it. */
+    inspect(id) {
+      const seat = seats.get(id);
+      return seat === undefined ? undefined : { seat, joined: live(id) !== null };
+    },
     inputFor(id) {
       if (!seats.has(id)) return undefined;
       let view = views.get(id);

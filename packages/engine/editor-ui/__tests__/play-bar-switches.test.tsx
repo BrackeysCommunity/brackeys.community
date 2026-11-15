@@ -122,9 +122,32 @@ describe("the Sound in Play switch", () => {
     expect(master.muted).toBe(false);
   });
 
-  it("says the sound waits for the next Play when this one started silent", () => {
+  it("starts the sound at once in a Play that started silent", () => {
+    const { game, master } = standIn();
+    let audio: typeof game.audio | null = null;
+    const reopenAudio = vi.fn(() => {
+      audio = game.audio;
+      return true;
+    });
+    const silent = {
+      ...game,
+      reopenAudio,
+      get audio() {
+        return audio;
+      },
+    };
+    master.muted = true;
+    bar(silent);
+    expect(reopenAudio).not.toHaveBeenCalled();
+    fireEvent.click(soundSwitch());
+    expect(reopenAudio).toHaveBeenCalledTimes(1);
+    expect(master.muted).toBe(false);
+    expect(screen.queryByText(SOUND_NEXT_PLAY)).toBeNull();
+  });
+
+  it("says so when no sound could start in this Play", () => {
     const { game } = standIn();
-    const silent = { ...game, audio: null };
+    const silent = { ...game, audio: null, reopenAudio: () => false };
     bar(silent);
     expect(screen.queryByText(SOUND_NEXT_PLAY)).toBeNull();
     fireEvent.click(soundSwitch());

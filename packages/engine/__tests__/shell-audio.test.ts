@@ -381,6 +381,64 @@ describe("the shell's audio system", () => {
     expect(made).toHaveLength(2);
   });
 
+  it("plays silent when the function form throws, and Play goes on", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warn.mockRestore());
+    const ask = vi.fn((): never => {
+      throw new Error("no audio device");
+    });
+    const game = await playing({ audio: { backend: ask }, dev: true });
+    const start = tickOf(game);
+    runTicks(game, 6);
+    expect(tickOf(game)).toBe(start + 6);
+    expect(game.audio).toBeNull();
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(made).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("asks again mid-Play through reopenAudio, building one backend however often it's asked", async () => {
+    let on = false;
+    const backends: FakeAudioBackend[] = [];
+    const ask = vi.fn(() => {
+      if (!on) return false as const;
+      const b = fakeAudioBackend({ state: "running" });
+      backends.push(b);
+      return b;
+    });
+    const game = await editing({ audio: { backend: ask } });
+    game.setMode("play");
+    runTicks(game, 2);
+    expect(game.audio).toBeNull();
+    expect(game.reopenAudio()).toBe(false);
+
+    on = true;
+    expect(game.reopenAudio()).toBe(true);
+    expect(game.audio).not.toBeNull();
+    expect(game.reopenAudio()).toBe(true);
+    runTicks(game, 2);
+    expect(backends).toHaveLength(1);
+    expect(made).toHaveLength(1);
+    expect(made[0]!.ticks.length).toBeGreaterThan(0);
+
+    game.setMode("edit");
+    expect(made[0]!.destroyed).toBe(true);
+    expect(backends[0]!.log.at(-1)?.op).toBe("close");
+    expect(game.reopenAudio()).toBe(false);
+    expect(backends).toHaveLength(1);
+  });
+
+  it("unlocks a reopened backend at once when a gesture came earlier", async () => {
+    let on = false;
+    const backend = fakeAudioBackend();
+    const game = await editing({ audio: { backend: () => (on ? backend : false) } });
+    game.setMode("play");
+    game.router.dispatch(pointerDown());
+    on = true;
+    expect(game.reopenAudio()).toBe(true);
+    await vi.waitFor(() => expect(game.audio?.unlocked).toBe(true));
+  });
+
   it("plays a sound on entity:destroyed by the destroyed entity's type and tags", async () => {
     const pops: ProjectRuntimeView = {
       ...project,

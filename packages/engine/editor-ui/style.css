@@ -3319,6 +3319,45 @@
     padding-top: 2px;
   }
 
+  .je-play-facts > dd {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .je-play-contacts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--je-text);
+  }
+
+  /* Under the outliner while playing: the runtime's spawns, in the outliner's row look. */
+  .je-spawned {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 40%;
+    min-height: 0;
+    padding-top: var(--je-pad);
+    border-top: 1px solid var(--je-border);
+  }
+
+  .je-spawned-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 2px;
+  }
+
+  .je-spawned-list {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .je-spawned-row {
+    padding-left: 8px;
+  }
+
   .je-insp-actions {
     display: flex;
     flex-wrap: wrap;
@@ -3604,6 +3643,66 @@
 
   .je-run-paste {
     max-height: 192px;
+  }
+
+  .je-run-scrub {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .je-run-scrub-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .je-run-scrub-at {
+    color: var(--je-muted-fg);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .je-run-scrub-range {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Markers above the line, checkpoints below, both placed by tick. */
+  .je-run-scrub-ticks {
+    position: relative;
+    height: 6px;
+    pointer-events: none;
+  }
+
+  .je-run-scrub-marker,
+  .je-run-scrub-checkpoint {
+    position: absolute;
+    width: 2px;
+    transform: translateX(-1px);
+  }
+
+  .je-run-scrub-marker {
+    top: 0;
+    height: 4px;
+    background: var(--je-primary);
+  }
+
+  .je-run-scrub-checkpoint {
+    bottom: 0;
+    height: 2px;
+    background: var(--je-muted-fg);
+  }
+
+  .je-run-scrub-pending {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .je-run-scrub-progress {
+    flex: 1;
+    min-width: 0;
   }
 }
 
@@ -3919,6 +4018,7 @@
   }
 
   .je-asset-panel-details,
+  .je-play-facts,
   .je-licence-field {
     display: grid;
     grid-template-columns: 5rem minmax(0, 1fr);
@@ -3926,16 +4026,19 @@
     font-size: var(--je-text);
   }
 
-  .je-asset-panel-details {
+  .je-asset-panel-details,
+  .je-play-facts {
     row-gap: 4px;
   }
 
   .je-asset-panel-details > dt,
+  .je-play-facts > dt,
   .je-licence-title {
     color: var(--je-muted-fg);
   }
 
   .je-asset-panel-details > dd,
+  .je-play-facts > dd,
   .je-licence-title {
     overflow: hidden;
     text-overflow: ellipsis;
