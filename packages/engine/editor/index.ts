@@ -282,7 +282,6 @@ export {
   instanceLevels,
   nudgeBatch,
   nudgeDelta,
-  polyPointsOf,
   quarterTurnTargets,
   rotateSelectionBatch,
   rotationPivot,

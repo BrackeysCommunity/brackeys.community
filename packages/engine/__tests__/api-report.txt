@@ -711,6 +711,7 @@ buildOutline
 buildTreeOutline
 builtinTools
 bulkGeometry
+canSplitConvex
 capsuleLength
 carryPreview
 cellLine
@@ -877,6 +878,7 @@ snapDraggedPoint
 snapMove
 snapPoint
 snapToGrid
+splitConvex
 stampCells
 strokeFit
 strokeShape
@@ -2540,10 +2542,12 @@ SettingsSources
 Severity
 ShapeInput
 ShapeObj
+ShapeSite
 ShapeTuple
 ShapeTupleSchema
 ShapeType
 SpatialHash
+SplittableSite
 SpotAnchor
 SpriteAssetLookup
 SpritePoseSource
@@ -2735,6 +2739,7 @@ spawnSchemaFor
 splitChildRef
 splitFieldPath
 splitOverridePath
+splittableSite
 spriteBoxOf
 sublevelIssue
 suggestType
@@ -5387,6 +5392,7 @@ type SelectingBatch = {
     batch: OpBatch;
     select: Ref[];
 };
+declare function canSplitConvex(def: SceneDefinition, id: string, registry: Registry): boolean;
 declare function deleteBatch(refs: readonly Ref[], def?: SceneDefinition): OpBatch | null;
 declare function flipBatch(def: SceneDefinition, refs: readonly Ref[], axis: "x" | "y"): OpBatch | null;
 declare function groupBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): SelectingBatch | null;
@@ -5401,6 +5407,14 @@ declare function rotationPivot(targets: readonly GizmoTarget[]): Pt | null;
 declare function selectAllRefs(def: SceneDefinition, index: SpatialIndex, layers?: PickLayers): Ref[];
 declare function selectionBounds(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null;
 declare function selectionRoots(def: SceneDefinition, refs: readonly Ref[]): Ref[];
+declare function splitConvex(session: EditorSession, id: string, opts?: {
+    group?: boolean;
+}): {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+};
 declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[], source?: GizmoSource): GizmoTarget[];
 declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 | 1): OpBatch | null;
 declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): SelectingBatch | null;
@@ -10582,7 +10596,7 @@ type DragJointOptions = {
     maxForce?: number;
     stiffness?: number;
 };
-declare function createDragJoint(_ctx: EngineContext, _body: string, _at: Vec2, _opts?: DragJointOptions): DragJoint;
+declare function createDragJoint(ctx: EngineContext, body: string, at: Vec2, opts?: DragJointOptions): DragJoint;
 
 ## placement.ts
 declare const DEFAULT_ROTATE_STEP = 0.15;
@@ -14695,16 +14709,33 @@ declare function createScene(name: string, registry: Registry, opts?: {
 }): SceneDefinition;
 
 ## scene/decompose.ts
+type DecomposeOptions = {
+    maxVertices?: number;
+    pxPerMetre?: number;
+};
 type DecomposeResult = {
     area2: number;
     ok: true;
+    pieceArea2: readonly number[];
     pieces: readonly Pt[][];
 } | {
     issue: SceneIssue;
     ok: false;
 };
-declare function canDecompose(_points: readonly Pt[]): boolean;
-declare function decomposeBatch(_def: SceneDefinition, _id: string, _registry: Registry, _opts?: {
+type ShapeSite = {
+    behavior: boolean;
+    field: string;
+    pointer: string;
+    schema: z.core.$ZodType;
+    value: ShapeTuple;
+};
+type SplittableSite = ShapeSite & {
+    pts: Pt[];
+};
+declare function canDecompose(points: readonly Pt[], opts?: {
+    pxPerMetre?: number;
+}): boolean;
+declare function decomposeBatch(def: SceneDefinition, id: string, registry: Registry, opts?: {
     group?: boolean;
 }): {
     batch: OpBatch;
@@ -14713,9 +14744,8 @@ declare function decomposeBatch(_def: SceneDefinition, _id: string, _registry: R
     issue: SceneIssue;
     ok: false;
 };
-declare function decomposePolygon(_points: readonly Pt[], _opts?: {
-    maxVertices?: number;
-}): DecomposeResult;
+declare function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions): DecomposeResult;
+declare function splittableSite(registry: Registry, e: EntityDef): SplittableSite | null;
 
 ## scene/did-you-mean.ts
 declare function closest(word: string, candidates: readonly string[]): string | undefined;
@@ -19721,7 +19751,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.19.0";
+declare const ENGINE_VERSION = "0.20.0";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

@@ -2,7 +2,7 @@ import { pxPerMetreOf } from "@jams/engine/game";
 import {
   decomposeBatch,
   decomposePolygon,
-  parseShape,
+  splittableSite,
   type OpBatch,
   type Pt,
   type SceneDefinition,
@@ -33,32 +33,16 @@ export type DecomposeInput = WriterFlags & {
   group?: boolean;
 };
 
-/** The entity's first `poly` field's points. */
-function polyOf(def: SceneDefinition, id: string): readonly Pt[] | null {
-  const entity = def.entities?.find((e) => e.id === id);
-  for (const value of Object.values(entity ?? {})) {
-    if (typeof value !== "object" || value === null) continue;
-    const parsed = parseShape(value);
-    if (parsed.ok && parsed.shape.type === "poly") return parsed.shape.pts;
-  }
-  return null;
-}
-
 /** The polygon's area and the pieces' summed, in m², from the decomposer's whole-px measure. */
 function areaCheck(
-  points: readonly Pt[] | null,
+  points: readonly Pt[],
   pxPerMetre: number,
 ): { area: number; pieces: number } | null {
-  if (!points) return null;
   const whole = decomposePolygon(points, { pxPerMetre });
   if (!whole.ok) return null;
-  let pieces2 = 0;
-  for (const piece of whole.pieces) {
-    const part = decomposePolygon(piece, { pxPerMetre });
-    if (part.ok) pieces2 += Math.abs(part.area2);
-  }
+  const pieces2 = whole.pieceArea2.reduce((sum, a) => sum + Math.abs(a), 0);
   const toM2 = (area2: number) => area2 / 2 / (pxPerMetre * pxPerMetre);
-  return { area: toM2(Math.abs(whole.area2)), pieces: toM2(pieces2) };
+  return { area: toM2(whole.area2), pieces: toM2(pieces2) };
 }
 
 const addedIds = (batch: OpBatch) =>
@@ -106,7 +90,9 @@ export const decompose: Tool<DecomposeInput> = async (input, ctx) => {
     };
 
   const pieces = addedIds(built.batch);
-  const area = areaCheck(polyOf(def, input.id), pxPerMetreOf(loaded.registry));
+  const entity = def.entities?.find((e) => e.id === input.id);
+  const site = entity ? splittableSite(loaded.registry, entity) : null;
+  const area = site ? areaCheck(site.pts, pxPerMetreOf(loaded.registry)) : null;
   const text = JSON.stringify(built.batch);
   const via = { ...ctx, readStdin: async () => text };
   const result: ToolResult = input.live

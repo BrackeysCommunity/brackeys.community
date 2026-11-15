@@ -1,7 +1,7 @@
 import { isNodeTypeIn, NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
-import { canDecompose, decomposeBatch } from "../scene/decompose";
+import { decomposeBatch, splittableSite } from "../scene/decompose";
 import { parseBulkId } from "../scene/expand";
 import { takenIds } from "../scene/fragment";
 import { plural } from "../scene/plural";
@@ -494,25 +494,10 @@ export function hierarchyDown(
   return below ? [below.id] : null;
 }
 
-/** The points of entity `id`'s `poly` shape, its own `shape` field or its collider's; null when it has none. */
-export function polyPointsOf(def: SceneDefinition, id: string): Pt[] | null {
+/** Whether entity `id` has a poly "Split into convex pieces" splits: the rule `decomposeBatch` uses. */
+export function canSplitConvex(def: SceneDefinition, id: string, registry: Registry): boolean {
   const entity = def.entities?.find((e) => e.id === id);
-  if (!entity) return null;
-  const collider = (entity.behaviors as Record<string, { shape?: unknown }> | undefined)?.collider;
-  for (const shape of [entity.shape, collider?.shape]) {
-    if (!Array.isArray(shape) || shape[0] !== "poly") continue;
-    const pts: Pt[] = [];
-    for (let i = 1; i + 1 < shape.length; i += 2)
-      pts.push([shape[i] as number, shape[i + 1] as number]);
-    return pts;
-  }
-  return null;
-}
-
-/** Whether entity `id` has a simple concave `poly` shape that "Split into convex pieces" can split. */
-export function canSplitConvex(def: SceneDefinition, id: string): boolean {
-  const pts = polyPointsOf(def, id);
-  return pts !== null && canDecompose(pts);
+  return entity !== undefined && splittableSite(registry, entity) !== null;
 }
 
 /**

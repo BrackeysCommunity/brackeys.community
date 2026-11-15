@@ -151,7 +151,7 @@ import {
   type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
-import { isWatched, lerpPose, type PoseIndex } from "./runtime/poses";
+import { isWatched, lerpPose, samePose, type PoseIndex } from "./runtime/poses";
 import type { AudioRequest, EffectRequest, PresentRequest } from "./runtime/present";
 import { emptyTick, recordingRapier, recordingStart } from "./runtime/recorder";
 import {
@@ -174,7 +174,13 @@ import {
 } from "./runtime/seek";
 import { createRunTiming } from "./runtime/timing";
 import { createFrameTimings } from "./runtime/timings";
-import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
+import {
+  ENTITY_SPAWNED,
+  type AssetReloadError,
+  type LoadReport,
+  type SceneRuntimeHandle,
+  type StepResult,
+} from "./runtime/types";
 import { restoreWorld, snapshotWorld } from "./runtime/world-snapshot";
 import {
   createSaveSlots,
@@ -1512,6 +1518,7 @@ export async function createGame(
     const sample = tickInput.pointers.find((p) => p !== undefined);
     if (sample) replayPointer = { x: sample.x, y: sample.y };
     const result = runtime.step(runtime.ctx.time.tickMs, tickInput);
+    teleportSpawns(runtime, result);
     logEvents(result);
     if (debugDrawHost) lastDraws = result.debug ?? NO_DRAWS;
     incrementTick(store);
@@ -1521,6 +1528,14 @@ export async function createGame(
     if (requests.flow) flowRequested(requests.flow, result.tick, verdict);
     liveLayer.afterTick({ paused: true, changing: false });
     return session?.replaying ?? false;
+  }
+
+  /** A spawn is a teleport: a camera following only what just spawned (a respawn) jumps to it. */
+  function teleportSpawns(runtime: SceneRuntimeHandle, result: StepResult): void {
+    const { poses } = runtime.ctx;
+    if (!isWatched(poses)) return;
+    for (const e of result.events)
+      if (e.type === ENTITY_SPAWNED && e.entityId !== undefined) poses.teleport(e.entityId);
   }
 
   function logEvents(result: StepResult): void {
@@ -2878,6 +2893,7 @@ export async function createGame(
         loaded.attachment?.onTick?.(dt, mouseWorld);
         shellTiming.lap("input");
         const result = loaded.runtime.step(dt, tickInput);
+        teleportSpawns(loaded.runtime, result);
         logEvents(result);
         if (debugDrawHost) lastDraws = result.debug ?? NO_DRAWS;
         playTick(result, presentTick(result.present));
@@ -3743,6 +3759,7 @@ export async function createGame(
     if (swap.timing === "next-load") return;
     const scene = loaded?.runtime.scene();
     if (!loaded || !scene) return;
+    teleportSwapped(loaded.runtime);
     const listed = liveLayer.sceneFor(swap.scene) ?? flowSource?.scene(swap.scene) ?? null;
     const bundle = bundleFor(
       scene,
@@ -4145,6 +4162,21 @@ function teleported(
   if (seen?.poses !== poses || !seen.centre || !centre) return null;
   if (!targets.every((t) => t.teleports !== undefined && t.teleports > seen.count)) return null;
   return { x: centre.x - seen.centre.x, y: centre.y - seen.centre.y };
+}
+
+/**
+ * Marks what a live swap snapped as teleported, so a camera following it
+ * jumps with it rather than easing across: every entity whose `prev` is
+ * its pose after the swap (a re-posed one, its subtree, or one at rest).
+ */
+function teleportSwapped(runtime: SceneRuntimeHandle): void {
+  const { poses } = runtime.ctx;
+  if (!isWatched(poses)) return;
+  for (const id of poses.ids()) {
+    const cur = poses.get(id);
+    const prev = poses.prev(id);
+    if (cur && prev && samePose(cur, prev)) poses.teleport(id);
+  }
 }
 
 /** The game's `cameraTarget()` point as last read: where, on which tick, and how fast it moved then. */

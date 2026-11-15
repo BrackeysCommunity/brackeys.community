@@ -14,6 +14,7 @@ import type { AnimationFile } from "../../project/kinds/animation";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
+import { decomposeBatch } from "../decompose";
 import { parseBulkId } from "../expand";
 import { formatScene } from "../format";
 import { sceneHash } from "../hash";
@@ -78,6 +79,16 @@ function applyFix(def: SceneDefinition, batch: OpBatch, registry: Registry): Sce
     } else throw new Error(`unexpected op ${op.op}`);
   }
   return next;
+}
+
+/** `decomposeBatch`'s batch for `id`, after proving it applies and clears every poly-invalid. */
+function expectSplit(def: SceneDefinition, id: string): OpBatch {
+  const made = decomposeBatch(def, id, engine);
+  if (!made.ok) throw new Error(made.issue.message);
+  const applied = applyOps(def, made.batch, engine);
+  if (!applied.ok) throw new Error(JSON.stringify(applied));
+  expect(validateScene(applied.def, engine).filter((i) => i.code === "poly-invalid")).toEqual([]);
+  return made.batch;
 }
 
 function only(issues: SceneIssue[], code: IssueCode): SceneIssue {
@@ -177,12 +188,24 @@ describe("validateScene", () => {
     const propIssue = only(validateScene(prop, engine), "poly-invalid");
     expect(propIssue.path).toBe("/entities/1/shape");
     expect(propIssue.hint).toContain("prop's shape can't be a chain");
-    expect(propIssue.fix?.ops[0]).toEqual({
+    expect(propIssue.fix).toEqual(expectSplit(prop, "rock"));
+
+    const pinned = scene({}, [
+      { id: "rock", type: "prop", shape: [...concave], density: 1, restitution: 0 },
+      {
+        id: "hinge",
+        type: "marker",
+        at: [1, 1],
+        behaviors: { joint: { kind: "revolute", to: "rock" } },
+      },
+    ]);
+    const hullIssue = only(validateScene(pinned, engine), "poly-invalid");
+    expect(hullIssue.fix?.ops[0]).toEqual({
       op: "update",
       ref: "rock",
       set: { shape: ["poly", 100, 800, 300, 800, 300, 900, 100, 900] },
     });
-    expectFixClears(prop, propIssue);
+    expectFixClears(pinned, hullIssue);
 
     const flat = scene({}, [
       { id: "flat", type: "prop", shape: ["poly", 0, 0, 10, 0, 20, 0], density: 1, restitution: 0 },
@@ -194,9 +217,13 @@ describe("validateScene", () => {
 
   it("poly-invalid names Split into convex pieces for a simple concave poly, and checks a collider's", () => {
     const concave = ["poly", 100, 800, 300, 800, 200, 850, 300, 900, 100, 900];
-    const solid = only(validateScene(scene({ solid: [concave] }), engine), "poly-invalid");
+    const wall = scene({}, [{ id: "wall", type: "solid", shape: concave }]);
+    const solid = only(validateScene(wall, engine), "poly-invalid");
     expect(solid.hint).toContain("Split into convex pieces");
     expect(solid.fix?.ops).toHaveLength(1);
+    // A bulk entry isn't an entity, so the split can't take it.
+    const bulk = only(validateScene(scene({ solid: [concave] }), engine), "poly-invalid");
+    expect(bulk.hint).not.toContain("Split into convex pieces");
     const bowtie = ["poly", 0, 0, 10, 10, 10, 0, 0, 10];
     const crossed = only(validateScene(scene({ solid: [bowtie] }), engine), "poly-invalid");
     expect(crossed.hint).not.toContain("Split into convex pieces");
@@ -212,11 +239,22 @@ describe("validateScene", () => {
     });
     expect(issue.at).toBeUndefined();
     expect(issue.hint).toContain("Split into convex pieces");
-    expect(issue.fix?.ops[0]).toEqual({
-      op: "update",
-      ref: "lump",
-      set: { "behaviors.collider.shape": ["poly", 0, 0, 2, 0, 2, 1, 0, 1] },
-    });
+    expect(issue.fix).toEqual(expectSplit(def, "lump"));
+  });
+
+  it("poly-invalid's split takes a concave collider, never a nav area's polygon", () => {
+    const local = ["poly", 0, 0, 2, 0, 1, 0.5, 2, 1, 0, 1];
+    const def = scene({}, [
+      {
+        id: "room",
+        type: "nav",
+        shape: ["poly", 0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4],
+        behaviors: { collider: { shape: local } },
+      },
+    ]);
+    const issue = only(validateScene(def, engine), "poly-invalid");
+    expect(issue.path).toBe("/entities/1/behaviors/collider/shape");
+    expect(issue.fix).toEqual(expectSplit(def, "room"));
   });
 
   describe("nav-invalid", () => {

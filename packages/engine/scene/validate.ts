@@ -35,7 +35,7 @@ import { kindsLabel, schemaRefSites, siteFits, type RefSite } from "../project/r
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
 import { parseBulkId } from "./bulk-ref";
-import { canDecompose, entityShapeSites } from "./decompose";
+import { decomposeBatch, entityShapeSites, splittableSite } from "./decompose";
 import { closest, didYouMean, meantText } from "./did-you-mean";
 import {
   behaviorBlocks,
@@ -619,6 +619,12 @@ export function validateScene(
   for (const item of items(def, r)) {
     const { ref, pointer, type } = item;
     const parsed: ShapeObj[] = [];
+    let splitField: string | null | undefined;
+    const splitsAt = (field: string) => {
+      const entity = item.index === undefined ? undefined : def.entities?.[item.index];
+      splitField ??= (entity && splittableSite(r, entity)?.field) ?? null;
+      return field === splitField;
+    };
 
     const polyCheck = (
       field: string,
@@ -634,7 +640,9 @@ export function validateScene(
       const hullTuple: ShapeTuple | undefined =
         hull.length >= 3 ? ["poly", ...hull.flat()] : undefined;
       const fixWith = canChain ? chain : hullTuple;
-      const splits = canDecompose(obj.pts, { pxPerMetre: ppm });
+      const splits = splitsAt(field);
+      // A lossless split beats the hull; a field that takes a chain keeps the chain.
+      const split = splits && !canChain ? decomposeBatch(def, ref, r) : undefined;
       push("poly-invalid", {
         message: `${ref}'s poly isn't a simple convex polygon (non-convex, self-intersecting or zero area)`,
         path: at,
@@ -647,13 +655,15 @@ export function validateScene(
           : hullTuple
             ? `${splits ? 'Use "Split into convex pieces"' : "Split it into convex polys"}, or take its convex hull; ${type.type}'s ${field} can't be a chain.`
             : `Its points lie on one line; give it area, or remove it. ${type.type}'s ${field} can't be a chain.`,
-        fix: fixWith
-          ? batch(
-              canChain ? `Convert ${ref} to a chain` : `Replace ${ref} with its convex hull`,
-              [{ op: "update", ref, set: { [field]: fixWith } }],
-              [ref],
-            )
-          : undefined,
+        fix: split?.ok
+          ? split.batch
+          : fixWith
+            ? batch(
+                canChain ? `Convert ${ref} to a chain` : `Replace ${ref} with its convex hull`,
+                [{ op: "update", ref, set: { [field]: fixWith } }],
+                [ref],
+              )
+            : undefined,
       });
     };
     for (const { field, pointer: at, value, schema } of item.behaviorShapes) {

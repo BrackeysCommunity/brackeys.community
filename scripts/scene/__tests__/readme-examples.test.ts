@@ -1284,6 +1284,7 @@ describe("the README's hinge example", () => {
   );
   const steps = examples(DOCS[0]!, section).filter((e) => e.fenced);
 
+  // Copies the engine project and loads Rapier: about 1.5 s alone, past 5 s under CI load.
   it("hangs the sign on a copy of the engine project and shows its joint", async () => {
     expect(steps.map((e) => split(e.argv)[0])).toEqual(["apply", "apply", "show", "show"]);
     const dir = join(await mkdtemp(join(root, "hinge-")), "engine");
@@ -1302,5 +1303,5 @@ describe("the README's hinge example", () => {
     );
     const checked = await runCli(["validate", "engine-yard", "--json"], fresh);
     expect(checked.exitCode, checked.stdout).toBe(0);
-  });
+  }, 30_000);
 });

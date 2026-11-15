@@ -6,6 +6,7 @@ import { ID_PATTERN, Z_LIMIT } from "../game/fields";
 import { isNodeTypeIn } from "../game/primitives";
 import type { BulkKeyInfo, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
+import { entityRefSites } from "./decompose";
 import { closest } from "./did-you-mean";
 import { bulkOffset, diffScenes, isObj, isStructured } from "./diff";
 import { bulkEntries, bulkId, parseBulkId } from "./expand";
@@ -101,7 +102,6 @@ import {
 } from "./transform";
 import {
   addPt,
-  holdsEntityRef,
   movableGeometry,
   presentGeometry,
   transformBulkEntry,
@@ -984,28 +984,9 @@ function patch(
 
 /** Each entity's reference fields that name `id`, as `[rec, field segments, value]`. */
 function referencesTo(w: Work, id: string): { rec: EntRec; segs: string[]; value: unknown }[] {
-  const out: { rec: EntRec; segs: string[]; value: unknown }[] = [];
-  for (const rec of w.entities) {
-    for (const { field } of w.registry.types.get(rec.def.type)?.refs ?? []) {
-      const segs = field.split(".");
-      const value = getPath(rec.def, segs);
-      if (value === id || (Array.isArray(value) && value.includes(id)))
-        out.push({ rec, segs, value });
-    }
-    const blocks = rec.def[BEHAVIORS_FIELD];
-    if (!isObj(blocks)) continue;
-    for (const [behavior, block] of Object.entries(blocks)) {
-      const shape = w.registry.behaviors.get(behavior)?.shape;
-      if (!shape || !isObj(block)) continue;
-      for (const [field, schema] of Object.entries(shape)) {
-        const value = block[field];
-        if (!holdsEntityRef(schema)) continue;
-        if (value === id || (Array.isArray(value) && value.includes(id)))
-          out.push({ rec, segs: [BEHAVIORS_FIELD, behavior, field], value });
-      }
-    }
-  }
-  return out;
+  return w.entities.flatMap((rec) =>
+    entityRefSites(w.registry, rec.def, id).map((site) => ({ rec, ...site })),
+  );
 }
 
 function validateSettings(w: Work, settings: Json, i: number): void {

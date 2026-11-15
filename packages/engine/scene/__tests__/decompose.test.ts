@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { loadCompatRapier } from "../../__tests__/fixtures/compat-rapier";
-import { canDecompose, decomposeBatch, decomposePolygon } from "../decompose";
+import { createRegistry, defineGame } from "../../game/define";
+import { canDecompose, decomposeBatch, decomposePolygon, splittableSite } from "../decompose";
 import { expandScene } from "../expand";
 import { applyOps } from "../ops";
 import { isConvex, isSimplePolygon } from "../shape-geometry";
@@ -92,7 +93,10 @@ describe("decomposePolygon", () => {
     const at32 = ell.map(([x, y]): Pt => [Math.round(x * 32) / 32, Math.round(y * 32) / 32]);
     const result = decomposePolygon(at32, { pxPerMetre: 32 });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.area2 % 1).toBe(0);
+    if (result.ok) {
+      expect(result.area2 % 1).toBe(0);
+      expect(result.pieceArea2.reduce((a, b) => a + Math.abs(b), 0)).toBe(result.area2);
+    }
   });
 
   it("refuses self-intersecting, collinear and two-point input", () => {
@@ -193,11 +197,74 @@ describe("decomposeBatch", () => {
     expect(polyIssues(applied.def)).toEqual([]);
   });
 
+  it("refuses while another entity's behavior names it, naming the referrer", () => {
+    const hinge: EntityDef = {
+      id: "hinge",
+      type: "marker",
+      at: [1, 1],
+      behaviors: { joint: { kind: "revolute", to: "rock" } },
+    };
+    const made = decomposeBatch(scene([rock(), hinge]), "rock", engine, { group: true });
+    expect(!made.ok && made.issue).toMatchObject({
+      code: "op-invalid",
+      entityIds: ["rock", "hinge"],
+    });
+    expect(!made.ok && made.issue.message).toContain("hinge");
+  });
+
   it("refuses a missing entity and one with nothing to split", () => {
     const def = scene([rock({ shape: ["box", 0, 0, 1, 1] })]);
     const missing = decomposeBatch(def, "nope", engine);
     expect(!missing.ok && missing.issue.code).toBe("ref-not-found");
     const convex = decomposeBatch(def, "rock", engine);
     expect(!convex.ok && convex.issue.code).toBe("poly-invalid");
+  });
+});
+
+describe("splittableSite", () => {
+  const concave = ["poly", ...ell.flat()] as EntityDef["shape"];
+  const collider = ["poly", 0, 0, 2, 0, 1, 0.5, 2, 1, 0, 1];
+
+  it("skips a polygon field and a convex poly for the first concave one decomposeBatch splits", () => {
+    const room: EntityDef = {
+      id: "room",
+      type: "nav",
+      shape: concave,
+      behaviors: { collider: { shape: collider } },
+    };
+    expect(splittableSite(engine, room)?.field).toBe("behaviors.collider.shape");
+    expect(splittableSite(engine, { id: "hall", type: "nav", shape: concave })).toBeNull();
+    const made = decomposeBatch(
+      { v: 1, name: "t", bounds: [0, 0, 10, 10], entities: [room] },
+      "room",
+      engine,
+    );
+    expect(made.ok && made.batch.ops.filter((o) => o.op === "add").length).toBeGreaterThan(1);
+  });
+
+  it("judges at the game's px per metre", () => {
+    const coarse = createRegistry(
+      defineGame({
+        id: "coarse",
+        types: [],
+        actions: [],
+        world: { lengthUnit: 1 },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    // A 0.2 m notch vanishes at 1 px per metre, leaving a square.
+    const notched = ["poly", 0, 0, 4, 0, 4, 4, 2, 4, 2, 3.8, 1.9, 4, 0, 4];
+    const rock: EntityDef = {
+      id: "rock",
+      type: "prop",
+      shape: notched,
+      density: 1,
+      restitution: 0,
+    };
+    expect(splittableSite(engine, rock)?.field).toBe("shape");
+    expect(splittableSite(coarse, rock)).toBeNull();
+    const def: SceneDefinition = { v: 1, name: "t", bounds: [0, 0, 10, 10], entities: [rock] };
+    expect(decomposeBatch(def, "rock", coarse).ok).toBe(false);
+    expect(decomposeBatch(def, "rock", engine).ok).toBe(true);
   });
 });

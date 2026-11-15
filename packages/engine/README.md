@@ -4284,14 +4284,22 @@ give the same pieces; `area2` is twice the area in px². A
 self-intersecting, zero-area or under-three-point polygon is refused with
 `poly-invalid`.
 
-`canDecompose(points)` is the one rule for offering a split: a simple
-polygon with area that isn't already convex. `decomposeBatch(def, id,
-registry, { group })` turns it into an edit: one entity per piece, with the
+`canDecompose(points, { pxPerMetre })` says whether a polygon can split: a
+simple polygon with area that isn't already convex.
+`splittableSite(registry, entity)` is the one rule for which shape of an
+entity splits: its first such `poly`, on its type or in a behavior block
+like `collider`, skipping a polygon field (a nav area may be concave),
+judged at the game's px per metre. `decomposeBatch(def, id, registry,
+{ group })` turns that shape into an edit: one entity per piece, with the
 same type and fields and ids `<id>-1`, `<id>-2`, …, or with `group` a node
-named `id` holding them, as one op batch for `applyOps`. The editor's
-inspector offers the same batch as **Split into convex pieces**, and so do
-`vp run scene decompose <scene> <id> [--group] [--dry-run]` and the MCP
-tool `scene_decompose` (a dry run unless `dryRun` is false).
+named `id` holding them, as one op batch for `applyOps`. It refuses
+(`op-invalid`) while a joint or another behavior names the entity, since
+the pieces take new ids. The editor's inspector offers the same batch as
+**Split into convex pieces** under the shape it splits, `poly-invalid`
+offers it as its fix where the field can't be a chain (in place of the
+convex hull), and so do `vp run scene decompose <scene> <id> [--group]
+[--dry-run]` and the MCP tool `scene_decompose` (a dry run unless `dryRun`
+is false).
 
 ```ts concave-ledge.ts
 import { createRegistry } from "@jams/engine/game";

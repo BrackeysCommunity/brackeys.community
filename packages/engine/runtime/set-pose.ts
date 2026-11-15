@@ -15,9 +15,9 @@ export type SetPoseDeps = {
 
 /**
  * `EngineContext.setPose`: the type system's `setPose`, then the snap
- * write, then each attached behavior's `posed` in registration order. A
- * disabled entity takes the pose index write alone. A type whose system
- * has no `setPose` refuses with `pose-not-settable`.
+ * write, then each attached behavior's `posed` in registration order, then
+ * a snap's teleport mark. A disabled entity takes the pose index write
+ * alone. A type whose system has no `setPose` refuses with `pose-not-settable`.
  */
 export function createSetPose(deps: SetPoseDeps): EngineContext["setPose"] {
   const { ctx, systems, behaviors } = deps;
@@ -44,7 +44,7 @@ export function createSetPose(deps: SetPoseDeps): EngineContext["setPose"] {
     }
     system.setPose(id, x, y, angle);
     if (snap) ctx.poses.set(id, x, y, angle, { snap });
-    teleported();
     behaviors.posed(e, ctx.poses.get(id) ?? { x, y, rot: angle }, snap);
+    teleported();
   };
 }

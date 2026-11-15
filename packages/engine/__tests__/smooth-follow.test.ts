@@ -3,12 +3,14 @@ import type { Container } from "pixi.js";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { defineGame } from "../game/define";
 import { spriteViewId } from "../runtime/behaviors/sprite";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
 import { playRig, TICK_MS, type FrameRecord } from "./fixtures/frame-clock";
+import { oneSceneVersion } from "./fixtures/live-version";
 
 vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
@@ -17,7 +19,7 @@ vi.mock("../render/pixi-view", async (importOriginal) =>
   (await import("./fixtures/frame-clock")).recordingPixiView(importOriginal, seen),
 );
 
-const { frameIn, playing } = playRig(seen, { performance: true });
+const { frameIn, playing, editing, lastFrame } = playRig(seen, { performance: true });
 
 const SPEED = 3;
 
@@ -60,6 +62,8 @@ type Mover = {
   label?: string;
   /** Sets it going once Play has started. */
   go?: (game: GameInstance) => void;
+  /** False where a snapped `setPose` doesn't hold: the type can't be posed, or what drives it pulls it back. */
+  teleports?: false;
 };
 
 const movers: Mover[] = [
@@ -67,6 +71,7 @@ const movers: Mover[] = [
     name: "a follower",
     physics: "none",
     entities: [{ id: "hero", type: "follower", shape: [...BOX], path: PATH, behaviors: target }],
+    teleports: false,
   },
   {
     name: "a Rapier body",
@@ -113,6 +118,7 @@ const movers: Mover[] = [
         },
       },
     ],
+    teleports: false,
   },
   {
     name: "a character controller",
@@ -133,6 +139,62 @@ const movers: Mover[] = [
       ctxOf(game)
         .behavior<CharacterSystem>("character-top-down")!
         .setIntent("hero", { move: { x: 1, y: 0 } }),
+  },
+  {
+    name: "a body on a motored slider",
+    physics: "rapier",
+    entities: [
+      {
+        id: "rail",
+        type: "marker",
+        at: [0, 0],
+        behaviors: { collider: { shape: [...BOX] }, body: { kind: "static" } },
+      },
+      {
+        id: "hero",
+        type: "marker",
+        at: [0, 0],
+        behaviors: {
+          collider: { shape: [...BOX] },
+          body: {},
+          joint: {
+            kind: "prismatic",
+            to: "rail",
+            axis: [1, 0],
+            motor: { velocity: SPEED, maxForce: 1e4 },
+          },
+          ...target,
+        },
+      },
+    ],
+  },
+  {
+    name: "a body welded to a kinematic mover",
+    physics: "rapier",
+    entities: [
+      {
+        id: "cart",
+        type: "marker",
+        at: [0, 0],
+        behaviors: {
+          collider: { shape: [...BOX] },
+          body: { kind: "kinematic" },
+          "path-follow": { path: PATH },
+        },
+      },
+      {
+        id: "hero",
+        type: "marker",
+        at: [0, -1],
+        behaviors: {
+          collider: { shape: [...BOX] },
+          body: {},
+          joint: { kind: "weld", to: "cart" },
+          ...target,
+        },
+      },
+    ],
+    teleports: false,
   },
   {
     name: "a child under a moving parent",
@@ -173,17 +235,20 @@ async function start(
     ? await playing({ ...scene, game: snapper.id }, snapper)
     : await playing(scene);
   m.go?.(game);
-  label = m.label ?? spriteViewId("hero");
+  labels = [m.label ?? spriteViewId("hero")];
   return game;
 }
 
-let label = spriteViewId("hero");
+/** The hero's display labels, the first drawn being the hero's. */
+let labels = [spriteViewId("hero")];
 
 function hero(): Container {
   const view = seen.views.at(-1)!;
-  const found = view.container.getChildByLabel(label, true) as Container | null;
-  if (!found) throw new Error("the hero isn't drawn");
-  return found;
+  for (const label of labels) {
+    const found = view.container.getChildByLabel(label, true) as Container | null;
+    if (found) return found;
+  }
+  throw new Error("the hero isn't drawn");
 }
 
 /** Where the hero is on the canvas and in the drawn world, px, after the last frame. */
@@ -231,6 +296,26 @@ function expectSmooth(run: Run): void {
   });
 }
 
+/** The jump a teleport makes, in px: past this a step isn't the hero's own travel. */
+const isJump = (dx: number, typical: number) => Math.abs(dx) > typical * 4 + 1;
+
+/**
+ * Across `before` and `after`, one frame carries the hero's whole jump (no
+ * streak lerps across it), and the camera jumped with it, so the hero never
+ * left its place on screen. `ticksHeld` is how many ticks of its travel a
+ * jump that lands after a tick's move (a spawn, a swap) holds it back.
+ */
+function expectSnappedJump(before: Run, after: Run, ticksHeld = 0): void {
+  const world = steps([...before.world, ...after.world]);
+  const typical = Math.abs(steps(before.world).at(-1)!);
+  const jumps = world.filter((dx) => isJump(dx, typical));
+  expect(jumps).toHaveLength(1);
+  expect(jumps[0]!).toBeGreaterThan(30);
+  const settled = before.screen.at(-1)!;
+  const held = (typical * ticksHeld * TICK_MS) / before.ms.at(-1)!;
+  for (const x of after.screen) expect(Math.abs(x - settled)).toBeLessThan(held + 0.5);
+}
+
 describe("a followed body on screen", () => {
   // The 60 Hz sim against display rates that don't divide it, and one that does.
   const rates = [50, 75, 90, 120, 144, 165];
@@ -254,7 +339,7 @@ describe("a followed body on screen", () => {
   }
 
   describe("with look-ahead on", () => {
-    for (const m of [mover(FOLLOWER), mover(BODY), mover("a prop drawn by its body")]) {
+    for (const m of movers) {
       it.each(rates)(`settles smooth at %i Hz, frames jittered ±2 ms (${m.name})`, async (hz) => {
         await start(m, { lookAhead: 0.4, damping: 0.15 });
         const next = frameLengths(1000 / hz, 2, hz + 7);
@@ -314,7 +399,7 @@ describe("a followed body on screen", () => {
   });
 
   describe("a teleport", () => {
-    for (const m of [BODY, "a prop drawn by its body", "a character controller"].map(mover)) {
+    for (const m of movers.filter((m) => m.teleports !== false)) {
       it(`is one jump, with no streak and the camera snapped with it (${m.name})`, async () => {
         const game = await start(m);
         drive(60 * 3, () => 1000 / 144);
@@ -322,18 +407,114 @@ describe("a followed body on screen", () => {
         const ctx = ctxOf(game);
         const at = ctx.poses.get("hero")!;
         ctx.setPose("hero", at.x + 40, at.y, undefined, { snap: true });
-        const after = drive(60, () => 1000 / 144);
-
-        const world = steps([...before.world, ...after.world]);
-        const typical = Math.abs(steps(before.world).at(-1)!);
-        const jumps = world.filter((dx) => Math.abs(dx) > typical * 4 + 1);
-        // One frame carries the whole jump: nothing lerps across it.
-        expect(jumps).toHaveLength(1);
-        expect(jumps[0]!).toBeGreaterThan(30);
-        // The camera snapped too, so the hero never left its place on screen.
-        const settled = before.screen.at(-1)!;
-        for (const x of after.screen) expect(Math.abs(x - settled)).toBeLessThan(0.5);
+        expectSnappedJump(
+          before,
+          drive(60, () => 1000 / 144),
+        );
       });
     }
+
+    it("a respawn is one jump, with the camera snapped to the hero that spawned", async () => {
+      let respawn = false;
+      const respawner = defineGame({
+        id: "respawner",
+        types: [],
+        actions: [],
+        createRuntime: (ctx) => ({
+          snapshot: () => null,
+          afterStep() {
+            if (!respawn) return;
+            respawn = false;
+            const at = ctx.poses.get("hero")!;
+            ctx.destroy("hero");
+            ctx.spawn({
+              id: "marker#hero",
+              type: "marker",
+              at: [at.x + 40, at.y],
+              behaviors: { collider: { shape: [...BOX] }, body: {}, ...target },
+            });
+            ctx.bodies.setVelocity("marker#hero", { x: SPEED, y: 0 });
+          },
+        }),
+      });
+      const m = mover(BODY);
+      const game = await playing(
+        { ...sceneOf(m.entities, m.physics), game: respawner.id },
+        respawner,
+      );
+      m.go?.(game);
+      labels = [spriteViewId("marker#hero"), spriteViewId("hero")];
+      drive(60 * 3, () => 1000 / 144);
+      const before = drive(30, () => 1000 / 144);
+      respawn = true;
+      expectSnappedJump(
+        before,
+        drive(60, () => 1000 / 144),
+        1,
+      );
+    });
+
+    it("a live swap that moves the hero is one jump, with the camera snapped with it", async () => {
+      const swapper = defineGame({
+        id: "swapper",
+        types: [],
+        actions: [],
+        live: { timings: ["now"] },
+        createRuntime: () => ({ snapshot: () => null }),
+      });
+      const m = mover(BODY);
+      const scene = { ...sceneOf(m.entities, m.physics), game: swapper.id };
+      const game = await playing(scene, swapper);
+      m.go?.(game);
+      labels = [spriteViewId("hero")];
+      drive(60 * 3, () => 1000 / 144);
+      const before = drive(30, () => 1000 / 144);
+      const at = ctxOf(game).poses.get("hero")!;
+      const [hero] = scene.entities as EntityDef[];
+      const moved = {
+        ...scene,
+        entities: [{ ...hero!, at: [at.x + 40, at.y] }],
+      } as SceneDefinition;
+      const v = await oneSceneVersion(moved, swapper, { scene: scene.name, physics: "rapier" });
+      expect(await game.live.stage(v)).toEqual({ ok: true });
+      // A designer's move puts the hero where it's authored, at rest: set it going again.
+      game.on("live:swapped", () => ctxOf(game).bodies.setVelocity("hero", { x: SPEED, y: 0 }));
+      expect(game.live.activate(scene.name, v.id, "now").issue).toBeUndefined();
+      expectSnappedJump(
+        before,
+        drive(60, () => 1000 / 144),
+        1,
+      );
+    });
+
+    it("a replay's seek back is one jump, with the camera snapped to where it lands", async () => {
+      const m = mover(FOLLOWER);
+      const scene = sceneOf(m.entities, m.physics);
+      const game = await editing(scene);
+      expect(game.play(scene).ok).toBe(true);
+      drive(144 * 6, () => 1000 / 144);
+      game.stop();
+      expect(game.replay(scene, game.recording()!).ok).toBe(true);
+      drive(144 * 2, () => 1000 / 144);
+      const before = drive(30, () => 1000 / 144);
+      const replay = game.replayHandle()!;
+      await replay.seek(replay.tick - 90);
+      frameIn(1000 / 144);
+      const landed = sample();
+      // The camera lands on the hero, its follow's lag dropped, rather than easing back across the seek.
+      expect(Math.abs(landed.world - lastFrame().x * DEFAULT_LENGTH_UNIT)).toBeLessThan(1);
+      const after = drive(60, () => 1000 / 144);
+
+      const world = steps([...before.world, landed.world, ...after.world]);
+      const typical = Math.abs(steps(before.world).at(-1)!);
+      const jumps = world.filter((dx) => isJump(dx, typical));
+      expect(jumps).toHaveLength(1);
+      expect(jumps[0]!).toBeLessThan(-30);
+      // From there it eases back to its lag, one way only.
+      for (const dx of steps([landed.screen, ...after.screen])) {
+        expect(dx).toBeGreaterThan(0);
+        expect(dx).toBeLessThan(typical);
+      }
+    });
   });
 });

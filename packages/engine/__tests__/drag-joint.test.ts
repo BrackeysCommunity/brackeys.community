@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineGame } from "../game/define";
 import { PhysicsRequiredError } from "../game/physics-of";
-import type { GameDefinition } from "../game/types";
+import { EngineError, type GameDefinition } from "../game/types";
 import { runPlaytest } from "../headless/playtest";
 import type { InputScriptV2, PlaytestReport } from "../headless/playtest-types";
 import { replayRecording } from "../headless/recording";
@@ -198,6 +198,29 @@ describe("createDragJoint", () => {
     expect(world.impulseJoints.len()).toBe(0);
     expect(world.bodies.len()).toBe(0);
     drag.release();
+  });
+
+  it("refuses a stiffness or maxForce not above 0 and a negative damping, adding nothing", () => {
+    const rt = load();
+    const world = rt.ctx.physics!.world;
+    for (const opts of [
+      { stiffness: 0 },
+      { stiffness: -5 },
+      { stiffness: Number.NaN },
+      { maxForce: -1 },
+      { maxForce: 0 },
+      { damping: -1 },
+    ]) {
+      let thrown: unknown;
+      try {
+        createDragJoint(rt.ctx, PROP, { x: 0, y: 0 }, opts);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, JSON.stringify(opts)).toBeInstanceOf(EngineError);
+      expect((thrown as EngineError).code).toBe("schema");
+    }
+    expect(world.impulseJoints.len()).toBe(0);
   });
 
   it("throws physics-required in a physics-free scene", () => {

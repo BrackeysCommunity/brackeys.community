@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
@@ -22,6 +22,26 @@ function setup(selection: string) {
     entities: [
       { id: "ell", type: "solid", shape: ["poly", 0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4] },
       { id: "square", type: "solid", shape: ["poly", 0, 0, 2, 0, 2, 2, 0, 2] },
+      { id: "floor", type: "nav", shape: ["poly", 0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4] },
+      {
+        id: "room",
+        type: "nav",
+        shape: ["poly", 0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4],
+        behaviors: { collider: { shape: ["poly", 0, 0, 2, 0, 1, 0.5, 2, 1, 0, 1] } },
+      },
+      {
+        id: "rock",
+        type: "prop",
+        shape: ["poly", 0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4],
+        density: 1,
+        restitution: 0,
+      },
+      {
+        id: "hinge",
+        type: "marker",
+        at: [1, 1],
+        behaviors: { joint: { kind: "revolute", to: "rock" } },
+      },
     ],
   } as SceneDefinition;
   const session = createEditorSession({
@@ -56,6 +76,28 @@ describe("Split into convex pieces", () => {
   it("is not offered for a convex poly", () => {
     const { session } = setup("square");
     expect(screen.queryByRole("button", { name: SPLIT })).toBeNull();
+    session.destroy();
+  });
+
+  it("is not offered for a nav area, whose polygon may be concave", () => {
+    const { session } = setup("floor");
+    expect(screen.queryByRole("button", { name: SPLIT })).toBeNull();
+    session.destroy();
+  });
+
+  it("is offered once, for the concave collider it would split", () => {
+    const { session } = setup("room");
+    expect(screen.getAllByRole("button", { name: SPLIT })).toHaveLength(1);
+    session.destroy();
+  });
+
+  it("shows a refusal inline and drops it when the selection changes", async () => {
+    const { session } = setup("rock");
+    fireEvent.click(screen.getByRole("button", { name: SPLIT }));
+    await screen.findByText(/hinge names it/);
+    act(() => session.select(["ell"]));
+    await waitFor(() => expect(screen.queryByText(/hinge names it/)).toBeNull());
+    expect(screen.getByRole("button", { name: SPLIT })).toBeTruthy();
     session.destroy();
   });
 });

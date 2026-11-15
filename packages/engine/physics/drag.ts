@@ -23,18 +23,12 @@ const DEFAULT_DRAG_STIFFNESS = 200;
 const DEFAULT_DRAG_DAMPING = 20;
 
 /**
- * A kinematic anchor at `at` (m) and a spring joint to `body` at its local
- * point under `at`. The body is found the way the joint behavior finds one.
- * The pull is a spring of rest length 0 toward the pointer, `stiffness`
- * (default 200 N/m), with `damping` (default 20 N·s/m) against the held
- * point's velocity; `maxForce` (N, default unbounded) caps the two together.
- * Rapier's joints have no force cap, so the pull is shaped by where the
- * anchor goes: each `update` puts it where the spring alone pulls with that
- * force, never more than `maxForce / stiffness` m from the held point. Call
- * `update` every tick while dragging. The anchor has no collider, so
- * queries and contacts never see it. `release` is idempotent, and a drag
- * whose body is gone or whose world was replaced releases on its next
- * `update`. Throws `PhysicsRequiredError` outside a Rapier scene.
+ * Drags `body` toward a pointer: a kinematic anchor at `at` (m) on a
+ * zero-length spring (`stiffness` 200 N/m, `damping` 20 N·s/m), capped at
+ * `maxForce` N. Call `update` every tick; `release` is idempotent, and the
+ * drag releases itself once its body or world is gone. Throws
+ * `PhysicsRequiredError` outside a Rapier scene, and `schema` for a
+ * stiffness or maxForce that isn't above 0 or a negative damping.
  */
 export function createDragJoint(
   ctx: EngineContext,
@@ -42,15 +36,23 @@ export function createDragJoint(
   at: Vec2,
   opts: DragJointOptions = {},
 ): DragJoint {
+  const stiffness = opts.stiffness ?? DEFAULT_DRAG_STIFFNESS;
+  const damping = opts.damping ?? DEFAULT_DRAG_DAMPING;
+  const bad = !(Number.isFinite(stiffness) && stiffness > 0)
+    ? `stiffness must be above 0 N/m, got ${stiffness}`
+    : !(Number.isFinite(damping) && damping >= 0)
+      ? `damping must be 0 N·s/m or more, got ${damping}`
+      : opts.maxForce !== undefined && !(opts.maxForce > 0)
+        ? `maxForce must be above 0 N, got ${opts.maxForce}`
+        : null;
+  if (bad) throw new EngineError("schema", `can't drag "${body}": ${bad}`, body);
   const { rapier, physics } = physicsOf(ctx, "createDragJoint", body);
   const target = bodyOf(ctx, physics, body);
   if (!target) {
     throw new EngineError("body-missing", `can't drag "${body}": it has no body`, body);
   }
-  const stiffness = opts.stiffness ?? DEFAULT_DRAG_STIFFNESS;
-  const damping = opts.damping ?? DEFAULT_DRAG_DAMPING;
-  const maxStretch =
-    opts.maxForce === undefined || stiffness <= 0 ? Infinity : opts.maxForce / stiffness;
+  // Rapier's joints have no force cap, so the anchor never strays further than the cap allows.
+  const maxStretch = opts.maxForce === undefined ? Infinity : opts.maxForce / stiffness;
 
   const t = target.translation();
   const local = rotate({ x: at.x - t.x, y: at.y - t.y }, -target.rotation());
@@ -109,10 +111,10 @@ export function createDragJoint(
       const vy = v.y + w * off.x;
       const hx = bt.x + off.x + vx * dt;
       const hy = bt.y + off.y + vy * dt;
-      const lag = stiffness > 0 ? damping / stiffness : 0;
+      const lag = damping / stiffness;
       let dx = to.x - hx - lag * vx;
       let dy = to.y - hy - lag * vy;
-      const len = Math.hypot(dx, dy);
+      const len = Math.sqrt(dx * dx + dy * dy);
       if (len > maxStretch) {
         dx *= maxStretch / len;
         dy *= maxStretch / len;

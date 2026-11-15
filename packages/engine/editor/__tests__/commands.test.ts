@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import { createRegistry } from "../../game/define";
+import { decomposeBatch } from "../../scene/decompose";
 import { bulkEntries } from "../../scene/expand";
 import { applyOps } from "../../scene/ops";
 import { parseSceneOrThrow } from "../../scene/parse";
@@ -26,7 +27,6 @@ import {
   selectionBounds,
   selectionRoots,
   canSplitConvex,
-  polyPointsOf,
   splitConvex,
   turnBatch,
   ungroupBatch,
@@ -564,6 +564,13 @@ describe("splitConvex", () => {
         { id: "ell", type: "solid", shape: ell },
         { id: "square", type: "solid", shape: square },
         { id: "ring", type: "prop", shape: ["box", 3, 3, 1, 1], density: 1, restitution: 0 },
+        { id: "floor", type: "nav", shape: ell },
+        {
+          id: "room",
+          type: "nav",
+          shape: square,
+          behaviors: { collider: { shape: ["poly", 0, 0, 2, 0, 1, 0.5, 2, 1, 0, 1] } },
+        },
       ],
     },
     registry,
@@ -577,16 +584,13 @@ describe("splitConvex", () => {
       issuesDebounceMs: 0,
     });
 
-  it("reads an entity's own poly shape", () => {
-    expect(polyPointsOf(polys, "ell")).toHaveLength(6);
-    expect(polyPointsOf(polys, "ring")).toBeNull();
-    expect(polyPointsOf(polys, "missing")).toBeNull();
-  });
-
-  it("is enabled for a concave poly only", () => {
-    expect(canSplitConvex(polys, "ell")).toBe(true);
-    expect(canSplitConvex(polys, "square")).toBe(false);
-    expect(canSplitConvex(polys, "ring")).toBe(false);
+  it("is enabled exactly where decomposeBatch splits", () => {
+    for (const id of ["ell", "square", "ring", "floor", "room", "missing"])
+      expect(canSplitConvex(polys, id, registry), id).toBe(decomposeBatch(polys, id, registry).ok);
+    expect(canSplitConvex(polys, "ell", registry)).toBe(true);
+    expect(canSplitConvex(polys, "room", registry)).toBe(true);
+    expect(canSplitConvex(polys, "floor", registry)).toBe(false);
+    expect(canSplitConvex(polys, "square", registry)).toBe(false);
   });
 
   it("dispatches one batch that one undo restores", () => {

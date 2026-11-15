@@ -130,15 +130,20 @@ export function translateShape(s: ShapeObj, [dx, dy]: Pt): ShapeObj {
   }
 }
 
-/** Positive when the points run counter-clockwise in a y-up frame (clockwise on screen). */
-export function signedArea(pts: readonly Pt[]): number {
+/** Twice `signedArea`: exact for integer points, so whole-px tests can compare it. */
+export function signedArea2(pts: readonly Pt[]): number {
   let a = 0;
   for (let i = 0; i < pts.length; i++) {
     const [x0, y0] = pts[i]!;
     const [x1, y1] = pts[(i + 1) % pts.length]!;
     a += x0 * y1 - x1 * y0;
   }
-  return a / 2;
+  return a;
+}
+
+/** Positive when the points run counter-clockwise in a y-up frame (clockwise on screen). */
+export function signedArea(pts: readonly Pt[]): number {
+  return signedArea2(pts) / 2;
 }
 
 /** Area centroid of a polygon; the mean of the points when the area is zero. */

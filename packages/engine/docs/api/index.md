@@ -467,7 +467,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.19.0";
+declare const ENGINE_VERSION = "0.20.0";
 ```
 
 ## `EffectLayer`

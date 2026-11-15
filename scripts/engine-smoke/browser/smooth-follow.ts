@@ -9,7 +9,7 @@
 import { createGame, type GameInstance } from "@jams/engine";
 import { defineGame } from "@jams/engine/game";
 import type { RapierModule } from "@jams/engine/headless";
-import type { SceneDefinition } from "@jams/engine/scene";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "@jams/engine/scene";
 
 export const FOLLOW_HERO = "hero";
 
@@ -45,7 +45,7 @@ export const followGame = defineGame({
 
 /** The hero alone, floating free, the camera's only target. */
 export const followScene: SceneDefinition = {
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "smoke-smooth-follow",
   game: followGame.id,
   bounds: [-200, -50, 200, 50],

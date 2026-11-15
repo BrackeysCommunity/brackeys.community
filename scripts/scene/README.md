@@ -1467,13 +1467,16 @@ way `apply` writes it. It prints the pieces and the area before and after,
 and refuses a self-intersecting, zero-area or already convex polygon,
 writing nothing. `--dry-run` shows the batch without writing; `--live`
 edits the scene open in the dev editor as one undoable entry, as `apply
---live` does. Any `poly` splits, such as the kitchen sink's L-shaped
-`floor-plan` nav area (a nav can't be in the tree, so it splits without
-`--group`):
+--live` does. It splits the poly `poly-invalid` flags: the entity's first
+simple concave `poly`, on its type or in a behavior such as `collider`. A
+nav area's polygon may be concave, so it never splits, and an entity a
+joint or another behavior names is refused until that ref points
+elsewhere, since the pieces take new ids. Where the field can't be a
+chain, `poly-invalid`'s fix is this same split.
 
 ```sh
-vp run scene decompose kitchen-sink floor-plan --dry-run
-vp run scene decompose kitchen-sink floor-plan --live
+vp run scene decompose <scene> <id> --dry-run
+vp run scene decompose <scene> <id> --group --live
 ```
 
 MCP's `scene_decompose` takes `scene`, `id`, `group` and `live`, and is a

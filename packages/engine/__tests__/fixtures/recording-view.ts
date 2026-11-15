@@ -41,9 +41,7 @@ export function recordingView(opts: RecordingViewOptions = {}): {
     },
     pose(id, x, y, rot = 0, snap) {
       calls.push(
-        opts.sprites && snap !== undefined
-          ? { op: "pose", id, x, y, rot, snap }
-          : { op: "pose", id, x, y, rot },
+        snap !== undefined ? { op: "pose", id, x, y, rot, snap } : { op: "pose", id, x, y, rot },
       );
       const visual = live.get(id);
       if (visual) visual.pose = { x, y, rot };

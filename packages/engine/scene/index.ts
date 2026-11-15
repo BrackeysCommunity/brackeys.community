@@ -344,4 +344,12 @@ export {
   type ParseInputScriptResult,
   type ScriptPointer,
 } from "./input-script";
-export { canDecompose, decomposeBatch, decomposePolygon, type DecomposeResult } from "./decompose";
+export {
+  canDecompose,
+  decomposeBatch,
+  decomposePolygon,
+  splittableSite,
+  type DecomposeResult,
+  type ShapeSite,
+  type SplittableSite,
+} from "./decompose";

@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
+import { isPolygonField } from "../game/fields";
 import { NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
@@ -9,8 +10,9 @@ import { takenIds } from "./fragment";
 import { jsonPointer, makeIssue } from "./issues";
 import { canBeInTree } from "./nav-type";
 import { fieldKind, geometryFields } from "./schema";
-import { cross3, earClip, isConvex, isSimplePolygon } from "./shape-geometry";
+import { cross3, earClip, isConvex, isSimplePolygon, signedArea2 } from "./shape-geometry";
 import { parseShape } from "./shapes";
+import { holdsEntityRef } from "./translate";
 import type {
   EntityDef,
   EntityInput,
@@ -29,6 +31,8 @@ export type DecomposeResult =
       pieces: readonly Pt[][];
       /** Twice the area, in world px²: an integer for whole-px input. */
       area2: number;
+      /** Each piece's twice-area, in the same px²; they sum to `area2`. */
+      pieceArea2: readonly number[];
     }
   | { ok: false; issue: SceneIssue };
 
@@ -44,32 +48,14 @@ const DEFAULT_MAX_VERTICES = 8;
 const toPx = (pts: readonly Pt[], ppm: number): Pt[] =>
   pts.map(([x, y]): Pt => [Math.round(x * ppm) + 0, Math.round(y * ppm) + 0]);
 
-/** Twice the signed area, summed in integers for integer points. */
-function area2Of(pts: readonly Pt[]): number {
-  let a = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const [x0, y0] = pts[i]!;
-    const [x1, y1] = pts[(i + 1) % pts.length]!;
-    a += x0 * y1 - x1 * y0;
-  }
-  return a;
-}
-
 const finitePts = (pts: readonly Pt[]) =>
   pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 
-/** Whether whole-px `px` is a simple polygon with area: what decomposition needs. */
-const decomposable = (px: readonly Pt[]) => px.length >= 3 && isSimplePolygon(px);
-
-/**
- * Whether `points` (metres) is a simple polygon with area that isn't already
- * convex, judged on whole world px: the one rule for offering "Split into
- * convex pieces".
- */
+/** Whether `points` (metres) is a simple polygon with area that isn't already convex, judged on whole world px. */
 export function canDecompose(points: readonly Pt[], opts?: { pxPerMetre?: number }): boolean {
-  if (points.length < 3 || !finitePts(points)) return false;
+  if (!finitePts(points)) return false;
   const px = toPx(points, opts?.pxPerMetre ?? DEFAULT_LENGTH_UNIT);
-  return decomposable(px) && !isConvex(px);
+  return isSimplePolygon(px) && !isConvex(px);
 }
 
 /** Merges two convex index rings across their shared edge `a`–`b`. */
@@ -94,9 +80,8 @@ const runs = (ring: readonly number[], a: number, b: number) => {
  * Ear clipping, then Hertel–Mehlhorn merging into convex pieces of at most
  * `maxVertices` (default 8), using only the original vertices. Points are
  * metres, snapped to whole world px at `pxPerMetre` so every test is an
- * exact integer cross product; pieces come back in metres (`roundLength`)
- * wound as the input is. A self-intersecting, zero-area or under-3-point
- * polygon is `poly-invalid`.
+ * exact integer cross product; pieces come back in metres wound as the
+ * input is.
  */
 export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions): DecomposeResult {
   const ppm = opts?.pxPerMetre ?? DEFAULT_LENGTH_UNIT;
@@ -108,10 +93,11 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
   if (points.length < 3) return refuse("it has fewer than 3 points.");
   if (!finitePts(points)) return refuse("a point isn't a finite number.");
   const input = toPx(points, ppm);
-  if (area2Of(input) === 0) return refuse("it has zero area.");
-  if (!decomposable(input)) return refuse("its edges cross or touch.");
+  const area2 = signedArea2(input);
+  if (area2 === 0) return refuse("it has zero area.");
+  if (!isSimplePolygon(input)) return refuse("its edges cross or touch.");
 
-  const flipped = area2Of(input) < 0;
+  const flipped = area2 < 0;
   const px = flipped ? [...input].reverse() : input;
   const indexOf = new Map(px.map((p, i) => [`${p[0]},${p[1]}`, i]));
   const idx = (p: Pt) => indexOf.get(`${p[0]},${p[1]}`)!;
@@ -148,19 +134,21 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
     rings[Math.max(li, ri)] = null;
   }
 
-  const pieces = rings
-    .filter((r): r is number[] => r !== null)
-    .map((ring) => {
-      let pts = ring.map((i) => px[i]!);
-      if (!isConvex(pts))
-        pts = pts.filter(
-          (p, k) =>
-            cross3(pts[(k + pts.length - 1) % pts.length]!, p, pts[(k + 1) % pts.length]!) !== 0,
-        );
-      const out = pts.map(([x, y]): Pt => [roundLength(x / ppm), roundLength(y / ppm)]);
-      return flipped ? out.reverse() : out;
-    });
-  return { ok: true, pieces, area2: Math.abs(area2Of(input)) };
+  const pieces: Pt[][] = [];
+  const pieceArea2: number[] = [];
+  for (const ring of rings) {
+    if (ring === null) continue;
+    let pts = ring.map((i) => px[i]!);
+    if (!isConvex(pts))
+      pts = pts.filter(
+        (p, k) =>
+          cross3(pts[(k + pts.length - 1) % pts.length]!, p, pts[(k + 1) % pts.length]!) !== 0,
+      );
+    pieceArea2.push(signedArea2(pts));
+    const out = pts.map(([x, y]): Pt => [roundLength(x / ppm), roundLength(y / ppm)]);
+    pieces.push(flipped ? out.reverse() : out);
+  }
+  return { ok: true, pieces, area2: Math.abs(area2), pieceArea2 };
 }
 
 /** One shape-valued field an entity writes: on its type, or in one of its behavior blocks. */
@@ -218,6 +206,58 @@ export function entityShapeSites(registry: Registry, e: EntityDef): ShapeSite[] 
   return out;
 }
 
+/** A shape site "Split into convex pieces" splits, with its poly's points (m). */
+export type SplittableSite = ShapeSite & { pts: Pt[] };
+
+/**
+ * The shape `decomposeBatch` splits on entity `e`: its first poly, over
+ * `entityShapeSites`, that may not be concave (a polygon field may) and that
+ * `canDecompose` holds for at the game's px per metre; null when none.
+ */
+export function splittableSite(registry: Registry, e: EntityDef): SplittableSite | null {
+  const ppm = pxPerMetreOf(registry);
+  for (const site of entityShapeSites(registry, e)) {
+    if (isPolygonField(site.schema)) continue;
+    const parsed = parseShape(site.value);
+    if (!parsed.ok || parsed.shape.type !== "poly") continue;
+    if (canDecompose(parsed.shape.pts, { pxPerMetre: ppm }))
+      return { ...site, pts: parsed.shape.pts };
+  }
+  return null;
+}
+
+/** The fields of entity `e` (type refs, then behavior fields) that name entity `id`, as dot-path segments. */
+export function entityRefSites(
+  registry: Registry,
+  e: EntityDef,
+  id: string,
+): { segs: string[]; value: unknown }[] {
+  const names = (value: unknown) => value === id || (Array.isArray(value) && value.includes(id));
+  const out: { segs: string[]; value: unknown }[] = [];
+  for (const { field } of registry.types.get(e.type)?.refs ?? []) {
+    const segs = field.split(".");
+    let value: unknown = e;
+    for (const seg of segs)
+      value =
+        value !== null && typeof value === "object"
+          ? (value as Record<string, unknown>)[seg]
+          : undefined;
+    if (names(value)) out.push({ segs, value });
+  }
+  const blocks = e[BEHAVIORS_FIELD];
+  if (blocks === null || typeof blocks !== "object" || Array.isArray(blocks)) return out;
+  for (const [behavior, block] of Object.entries(blocks as Record<string, unknown>)) {
+    const shape = registry.behaviors.get(behavior)?.shape;
+    if (!shape || block === null || typeof block !== "object" || Array.isArray(block)) continue;
+    for (const [field, schema] of Object.entries(shape)) {
+      const value = (block as Record<string, unknown>)[field];
+      if (holdsEntityRef(schema) && names(value))
+        out.push({ segs: [BEHAVIORS_FIELD, behavior, field], value });
+    }
+  }
+  return out;
+}
+
 /** `entity` with the dot path `field` set to `value`, cloned along the way. */
 function withField(entity: EntityDef, field: string, value: unknown): EntityDef {
   const segs = field.split(".");
@@ -229,14 +269,8 @@ function withField(entity: EntityDef, field: string, value: unknown): EntityDef 
 }
 
 /**
- * The op batch that replaces entity `id`'s concave `poly` shape with one
- * entity per piece (same type and fields, ids `<id>-1`…, skipping ids
- * taken), or with `group` a node named `id` holding them. The shape is the
- * first concave poly among the entity's shape fields (`entityShapeSites`).
- * Children of `id` move to its parent, or under the group. Refuses with
- * `ref-not-found` for no such entity, `poly-invalid` when it has no
- * shape `decomposePolygon` can split, and `parent-type` for `group` on a
- * type that can't be in the tree.
+ * The batch replacing `id`'s splittable poly (`splittableSite`) with one entity per
+ * piece, ids `<id>-n`, or a `group` node named `id` holding them; children move with it.
  */
 export function decomposeBatch(
   def: SceneDefinition,
@@ -255,15 +289,7 @@ export function decomposeBatch(
         entityIds: [id],
       }),
     };
-  const ppm = pxPerMetreOf(registry);
-  const site = entityShapeSites(registry, entity).find((s) => {
-    const parsed = parseShape(s.value);
-    return (
-      parsed.ok &&
-      parsed.shape.type === "poly" &&
-      canDecompose(parsed.shape.pts, { pxPerMetre: ppm })
-    );
-  });
+  const site = splittableSite(registry, entity);
   const at = jsonPointer(["entities", index]);
   if (!site)
     return {
@@ -274,13 +300,24 @@ export function decomposeBatch(
         entityIds: [id],
       }),
     };
-  const parsed = parseShape(site.value);
-  const pts = parsed.ok && parsed.shape.type === "poly" ? parsed.shape.pts : [];
-  const result = decomposePolygon(pts, { pxPerMetre: ppm });
+  const result = decomposePolygon(site.pts, { pxPerMetre: pxPerMetreOf(registry) });
   if (!result.ok)
     return {
       ok: false,
       issue: { ...result.issue, path: `${at}${site.pointer}`, entityIds: [id] },
+    };
+  // The pieces take new ids, so a ref to `id` would dangle or name a bodiless group.
+  const referrers = entities
+    .filter((e) => e.id !== id && entityRefSites(registry, e, id).length > 0)
+    .map((e) => e.id);
+  if (referrers.length > 0)
+    return {
+      ok: false,
+      issue: makeIssue("op-invalid", {
+        message: `${id} can't split while ${referrers.join(", ")} ${referrers.length === 1 ? "names" : "name"} it; point ${referrers.length === 1 ? "that ref" : "those refs"} at another entity first.`,
+        path: at,
+        entityIds: [id, ...referrers],
+      }),
     };
 
   if (opts?.group === true && !canBeInTree(registry.types.get(entity.type)))

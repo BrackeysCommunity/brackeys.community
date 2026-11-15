@@ -19,7 +19,7 @@ import {
 } from "react";
 
 import type { ProjectSession } from "../../collab/index";
-import { canSplitConvex, splitConvex } from "../../editor/commands";
+import { splitConvex } from "../../editor/commands";
 import {
   applyLevels,
   applyToPrefabBatch,
@@ -103,6 +103,7 @@ import { FONT_KIND } from "../../project/kinds/font";
 import { SOUND_KIND } from "../../project/kinds/sound";
 import { STRINGS_KIND } from "../../project/kinds/strings";
 import { SYNTH_KIND } from "../../project/kinds/synth";
+import { splittableSite } from "../../scene/decompose";
 import type { PrefabLibrary } from "../../scene/index";
 import { enclosingInstance, headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
@@ -895,6 +896,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           ))}
         </SegmentedControl>
       </FieldRow>
+      {tag === "poly" ? <SplitConvexAction ctx={ctx} path={field.path} /> : null}
       {slots ? (
         <div className="je-insp-slots">
           {slots.map((slot) => {
@@ -939,7 +941,6 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           {tag ? `${MIXED} each ${tag} differs` : `${MIXED} the shapes differ`}
         </p>
       )}
-      {tag === "poly" ? <SplitConvexAction ctx={ctx} /> : null}
       <Confirm
         open={lossy !== null}
         onOpenChange={(open) => !open && setLossy(null)}
@@ -956,16 +957,21 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 }
 
 /**
- * "Split into convex pieces" for one entity whose own concave poly can split:
- * one batch, so one undo restores it. A refusal toasts through the editor's
- * pending tasks, or shows inline outside an editor.
+ * "Split into convex pieces" under the one shape field `splittableSite` would
+ * split: one batch, so one undo restores it. A refusal toasts through the
+ * editor's pending tasks, or shows inline outside an editor.
  */
-function SplitConvexAction({ ctx }: { ctx: Ctx }) {
+function SplitConvexAction({ ctx, path }: { ctx: Ctx; path: string }) {
+  const target = ctx.targets.length === 1 && !ctx.edit ? ctx.targets[0] : undefined;
+  if (target?.kind !== "entity") return null;
+  const entity = ctx.session.getDoc().entities?.find((e) => e.id === target.entity.id);
+  if (!entity || splittableSite(ctx.session.registry, entity)?.field !== path) return null;
+  return <SplitConvexButton key={entity.id} ctx={ctx} id={entity.id} />;
+}
+
+function SplitConvexButton({ ctx, id }: { ctx: Ctx; id: string }) {
   const pending = useOptionalPending();
   const [error, setError] = useState<string | null>(null);
-  const target = ctx.targets.length === 1 && !ctx.edit ? ctx.targets[0] : undefined;
-  const id = target?.kind === "entity" ? target.entity.id : undefined;
-  if (!id || !canSplitConvex(ctx.session.getDoc(), id)) return null;
   const scope = `inspector:split-convex:${id}`;
   const split = () => {
     if (ctx.readOnly) return setError(READ_ONLY);

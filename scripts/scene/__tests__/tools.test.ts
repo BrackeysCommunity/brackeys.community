@@ -348,9 +348,16 @@ describe("show", () => {
     const sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
     const r = await show({ scene: "kitchen-sink" }, sinkCtx);
     expect(r.exitCode).toBe(0);
-    expect(r.text).toContain("joints:\n  std-joint  revolute  std-joint ↔ std-collider\n");
+    expect(r.text).toContain(
+      "joints:\n" +
+        "  std-joint  revolute  std-joint ↔ std-collider\n" +
+        "  hinged-door  revolute  hinged-door ↔ lintel\n" +
+        "  peg  rope  peg ↔ bob\n",
+    );
     expect((r.data as { joints: unknown }).joints).toEqual([
       { id: "std-joint", kind: "revolute", to: "std-collider" },
+      { id: "hinged-door", kind: "revolute", to: "lintel" },
+      { id: "peg", kind: "rope", to: "bob" },
     ]);
     const yard = await show({ scene: "engine-yard" }, ctx);
     expect((yard.data as { joints: unknown }).joints).toEqual([]);
