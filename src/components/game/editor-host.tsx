@@ -425,18 +425,7 @@ function patchSearch(prev: Search, patch: Search): Search {
   return next;
 }
 
-/**
- * The game room's `?edit=1`: the engine's scene editor in the site's chrome,
- * on the project `?project=` names (the platformer by default; one the site
- * doesn't know is said once and dropped from the route). The title names the
- * room until the editor is up, then the scene. When the editor opens another
- * scene than `scene` (it isn't in the project), the editor's notice says so
- * through the site's toast and the route's `?scene=` follows, replacing the
- * history entry; when another project holds the scene, the notice's action
- * opens it there. Picking a project in the Project panel opens its default
- * scene as a new history entry. Projects go by their files' names, from the
- * dev server's listing.
- */
+/** The room's `?edit=1`: the engine's scene editor on `?project=` (the platformer by default), keeping `?scene=` and the title in step with the scene it opens. */
 export function SiteSceneEditor({
   roomId,
   project,

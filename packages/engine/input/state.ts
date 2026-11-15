@@ -87,18 +87,7 @@ const pointerOf = (p: PointerState): PointerState =>
     over: p.over,
   });
 
-/**
- * The input state a runtime derives from its ticks. A tick's seat changes
- * apply first, each raising `player:joined` or `player:left` (`player` the
- * seat, `data: { device }`, `at` the origin); then every action applies in
- * order per seat: `held` and the values are where the last one left them,
- * `pressed` and `released` name the edges this tick crossed (a press and
- * release inside one tick are both seen). A seat's pointer is kept until a
- * tick brings a new one. Values are quantised again on the way in, which
- * leaves already-quantised input unchanged. The seats are `players`, by
- * default the game's (`{ max: 1, join: "auto" }` without one): under
- * `"auto"` seat 0 starts with the keyboard, pointer and touch.
- */
+/** The input state a runtime derives from its ticks: seat changes first (raising player:joined/left), then each seat's actions in order; held and values persist, pressed and released name this tick's edges. Seats default to the game's players, seat 0 on keyboard, pointer and touch under "auto". */
 export function createInputState(
   registry: Registry,
   players: PlayersDef = resolvePlayers(null, registry.game),

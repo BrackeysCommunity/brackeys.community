@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs } from "@jams/engine";
+import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs, webAudioBackend } from "@jams/engine";
 import { createRegistry } from "@jams/engine/game";
 import {
   createKindRegistry,
@@ -11,7 +11,7 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import type { BrowserOutcome } from "../browser-compare";
-import { SMOKE_PATCH } from "../browser/audio";
+import { settledWithin, SMOKE_PATCH } from "../browser/audio";
 import type { EngineSmokeResult } from "../browser/main";
 import {
   AUDIO_ENDED_SLACK_MS,
@@ -116,6 +116,89 @@ describe("judgeAudio", () => {
       "at pan -1 the left channel holds 95.0% of the energy, not over 95%",
     );
     expect(judgeAudio(audio({ leftShare: Number.NaN }))).toMatch(/NaN% of the energy/);
+  });
+});
+
+/**
+ * A real-time context as Firefox's is with no output device: suspended, a
+ * destination of no channels, and a resume() that never settles unless
+ * `refuse` makes it reject.
+ */
+function devicelessContext(refuse = false): AudioContext {
+  const node = () => ({ connect() {}, disconnect() {} });
+  const param = (value: number) => ({
+    value,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    cancelScheduledValues() {},
+    setTargetAtTime() {},
+  });
+  const ctx = {
+    currentTime: 0,
+    sampleRate: SYNTH_SAMPLE_RATE,
+    state: "suspended",
+    destination: { ...node(), channelCount: 0, maxChannelCount: 0 },
+    createGain: () => ({ ...node(), gain: param(1) }),
+    createStereoPanner: () => ({ ...node(), pan: param(0) }),
+    createBuffer: (_channels: number, length: number, rate: number) => ({
+      duration: length / rate,
+      numberOfChannels: 1,
+      copyToChannel() {},
+    }),
+    createBufferSource: () => ({
+      ...node(),
+      playbackRate: param(1),
+      start() {},
+      stop() {},
+      onended: null,
+    }),
+    createMediaElementSource: () => node(),
+    resume: () => (refuse ? Promise.reject(new Error("not allowed")) : new Promise<void>(() => {})),
+    close: () => Promise.resolve(),
+  };
+  return ctx as unknown as AudioContext;
+}
+
+/** The live half of the probe as the page's run reads it, over `context`. */
+async function liveRead(context: AudioContext): Promise<AudioProbe> {
+  const backend = webAudioBackend({ context });
+  await settledWithin(
+    backend.unlock().catch(() => {}),
+    5,
+  );
+  const samples = renderSynth(SMOKE_PATCH);
+  const voice = backend.play(backend.buffer([samples], SYNTH_SAMPLE_RATE), {
+    bus: "sfx",
+    volume: 1,
+    rate: 1,
+    pan: 0,
+    loop: false,
+  });
+  return {
+    ...audioPlayed,
+    context: context.state,
+    backend: backend.state,
+    channels: context.destination.channelCount,
+    maxChannels: context.destination.maxChannelCount,
+    endedMs: null,
+    held: !voice.ended && voice.position() === 0,
+  };
+}
+
+describe("the audio run on a context with no output device", () => {
+  it("passes Firefox on what webAudioBackend reports there", async () => {
+    const read = await liveRead(devicelessContext());
+    expect(read).toMatchObject({ context: "suspended", backend: "suspended", held: true });
+    expect(judgeAudio(read, "firefox")).toBeNull();
+    expect(judgeAudio(read, "chromium")).toMatch(/no output device to run on/);
+  });
+
+  it("fails Firefox when the click's unlock was refused, and the backend reads locked", async () => {
+    const read = await liveRead(devicelessContext(true));
+    expect(read.backend).toBe("locked");
+    expect(judgeAudio(read, "firefox")).toBe(
+      "after the click the context is suspended and the backend locked: the click didn't reach its unlock, or the browser refused it",
+    );
   });
 });
 

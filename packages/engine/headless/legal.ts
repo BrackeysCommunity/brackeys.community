@@ -1,5 +1,5 @@
 import type { DialogueView } from "../dialogue/runner";
-import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
+import { dialogueAdvance, dialogueChoose } from "../game/commands";
 import type { GameCommand, GamePlayDef, PlayState } from "../game/types";
 import { playWorld } from "../runtime/play-session";
 import type { SceneRuntimeHandle } from "../runtime/types";
@@ -21,10 +21,8 @@ export type LegalCommands = {
  */
 export function dialogueCommands(view: Readonly<DialogueView> | null | undefined): GameCommand[] {
   if (!view || view.ended !== null || view.stuck) return [];
-  if (!view.choices) return [{ name: DIALOGUE_ADVANCE_COMMAND }];
-  return view.choices
-    .filter((c) => c.enabled)
-    .map((c) => ({ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: c.index } }));
+  if (!view.choices) return [dialogueAdvance()];
+  return view.choices.filter((c) => c.enabled).map((c) => dialogueChoose(c.index));
 }
 
 /**

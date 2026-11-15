@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import type { TextFont } from "../../context";
 import { FONT_KIND, type FontMeta } from "../../project/kinds/font";
-import { RTL_CHAR, STRING_KEY_PATTERN } from "../../project/kinds/strings";
+import { firstStrong, STRING_KEY_PATTERN } from "../../project/kinds/strings";
 import type { AssetId, Sha256 } from "../../project/types";
 import type { ShapeObj } from "../../scene/types";
 import type { TextDirection } from "../../text/strings";
@@ -22,8 +22,10 @@ import type { FieldEnv } from "../types";
 /** The font size, px at zoom 1, when a block gives none. */
 export const TEXT_SIZE_DEFAULT = 16;
 export const TEXT_COLOR_DEFAULT = 0xffffff;
+/** How a block's lines line up when it names no `align`. */
+export const TEXT_ALIGN_DEFAULT = "center";
 /** Where the pose sits in a box whose block names no `anchor`: its centre. */
-const TEXT_ANCHOR_DEFAULT: readonly [number, number] = [0.5, 0.5];
+export const TEXT_ANCHOR_DEFAULT: readonly [number, number] = [0.5, 0.5];
 
 const unit = z.number().min(0).max(1);
 
@@ -60,8 +62,8 @@ const textFields = (env: FieldEnv) => ({
   align: z
     .enum(["left", "center", "right"])
     .optional()
-    .describe("How lines line up; default center.")
-    .meta({ default: "center", group: "look" }),
+    .describe(`How lines line up; default ${TEXT_ALIGN_DEFAULT}.`)
+    .meta({ default: TEXT_ALIGN_DEFAULT, group: "look" }),
   anchor: z
     .tuple([
       unit.describe("x: 0 the box's left edge, 1 its right."),
@@ -129,12 +131,12 @@ export type TextShown = { text: string } | { key: string; vars?: TextVars };
 export const richSource = (source: string, rich: boolean): string =>
   rich ? source : escapeRich(source, "{");
 
-/** The direction of a text's first letter: right to left for a right-to-left script's. */
+/** The direction of a text's first strong character; left to right when it has none. */
 export function textDirection(lines: readonly RichLine[]): TextDirection {
   for (const line of lines)
     for (const span of line) {
-      const letter = /\p{L}/u.exec(span.text)?.[0];
-      if (letter !== undefined) return RTL_CHAR.test(letter) ? "rtl" : "ltr";
+      const strong = firstStrong(span.text);
+      if (strong) return strong;
     }
   return "ltr";
 }

@@ -1,5 +1,5 @@
 import { localeFontOf } from "../text/strings";
-import type { GameStoreState, Vec2 } from "../types";
+import type { GameInstance, GameStoreState, Vec2 } from "../types";
 import { UI_LAYER_RESIZE } from "./layer";
 import type { UiContext } from "./types";
 import { ensureWebFont, webFontFamily } from "./web-font";
@@ -140,9 +140,16 @@ export function followLocale(el: HTMLElement, ctx: UiContext): void {
   else el.style.removeProperty(UI_FONT);
 }
 
-/** Calls `fn` on a locale change; returns the unsubscribe. Read the table through `ctx.strings()` in it. */
-export function onLocale(ctx: UiContext, fn: () => void): () => void {
+/** What `onLocale` listens on: a game, or a UI context's game. */
+export type LocaleSource = Pick<GameInstance, "on" | "off"> | Pick<UiContext, "game">;
+
+/**
+ * Calls `fn` on the game's locale change; returns the unsubscribe. A DOM
+ * helper reads the new table through `ctx.strings()` in it.
+ */
+export function onLocale(source: LocaleSource, fn: () => void): () => void {
+  const game = "game" in source ? source.game : source;
   const handler = () => fn();
-  ctx.game.on("locale:change", handler);
-  return () => ctx.game.off("locale:change", handler);
+  game.on("locale:change", handler);
+  return () => game.off("locale:change", handler);
 }

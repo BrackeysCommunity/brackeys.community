@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { ArrowDown01Icon, ArrowUp01Icon, DragDropVerticalIcon } from "@hugeicons/core-free-icons";
-import { useId, useState } from "react";
+import { useId } from "react";
 
 import { settingsEdit } from "../../../editor/settings-model";
 import { SCENE_KIND_NAME, type AssetId, type ProjectView } from "../../../project/index";
@@ -20,7 +20,6 @@ import {
   Badge,
   Button,
   IconButton,
-  Input,
   MicroLabel,
   Radio,
   Spinner,
@@ -29,6 +28,7 @@ import {
 } from "../../kit/index";
 import { useBusy } from "../../pending/use-pending";
 import { useProjectView } from "../EditorProject";
+import { DraftInput } from "../inspector/field-widgets";
 import { DocGate } from "./DocGate";
 import { RemoveButton } from "./RemoveButton";
 import { settingScope, type SettingsDoc } from "./settings-doc";
@@ -79,12 +79,9 @@ function reorder(ctx: ListCtx, scene: AssetId, to: number, label: string) {
 }
 
 function TitleField({ ctx, entry, name }: { ctx: ListCtx; entry: Entry; name: string }) {
-  const [draft, setDraft] = useState<string | null>(null);
   const title = typeof entry.title === "string" ? entry.title : "";
-  const commit = () => {
-    if (draft === null) return;
+  const commit = (draft: string) => {
     const text = draft.trim();
-    setDraft(null);
     if (text === title) return;
     void ctx.doc.edit(
       [edit(ctx, `scenes.@${entry.scene}.title`, text === "" ? undefined : text)],
@@ -93,17 +90,12 @@ function TitleField({ ctx, entry, name }: { ctx: ListCtx; entry: Entry; name: st
     );
   };
   return (
-    <Input
+    <DraftInput
       size="sm"
-      aria-label={`${entry.scene} title`}
+      label={`${entry.scene} title`}
       placeholder={name}
-      value={draft ?? title}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
-        else if (e.key === "Escape") setDraft(null);
-      }}
+      value={title}
+      onCommit={commit}
     />
   );
 }

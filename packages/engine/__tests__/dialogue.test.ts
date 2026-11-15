@@ -11,7 +11,13 @@ import {
   type DialogueRunner,
 } from "../dialogue/runner";
 import { memoryVars, persistVars, type DialogueVars } from "../dialogue/vars";
-import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
+import {
+  DIALOGUE_ADVANCE_COMMAND,
+  DIALOGUE_CHOOSE_COMMAND,
+  dialogueAdvance,
+  dialogueChoose,
+  ENGINE_COMMANDS,
+} from "../game/commands";
 import { createRegistry } from "../game/define";
 import { resolveTime } from "../game/time";
 import type { JsonValue, PersistContext } from "../game/types";
@@ -805,7 +811,7 @@ describe("applyDialogueCommand", () => {
     );
     expect(applyDialogueCommand(runner, { name: "talk" })).toBe(false);
     expect(applyDialogueCommand(runner, { name: DIALOGUE_ADVANCE_COMMAND })).toBe(false);
-    for (const args of [undefined, { choice: "0" }, { choice: 7 }])
+    for (const args of [undefined, { choice: "0" }, { choice: 7 }, { choice: 0.5 }, { choice: -1 }])
       expect(
         applyDialogueCommand(runner, { name: DIALOGUE_CHOOSE_COMMAND, ...(args && { args }) }),
       ).toBe(false);
@@ -815,6 +821,31 @@ describe("applyDialogueCommand", () => {
     expect(runner.view().node).toBe("through");
     expect(applyDialogueCommand(runner, { name: DIALOGUE_ADVANCE_COMMAND })).toBe(true);
     expect(runner.view().ended).toBe("paid");
+  });
+
+  it("reads a choice only where the command's declared args schema accepts it", () => {
+    const schema = ENGINE_COMMANDS[DIALOGUE_CHOOSE_COMMAND].args!;
+    const runner = () =>
+      createDialogueRunner(GATE_DIALOGUE, GATE_ID, persistVars({ persist: gold(5) }), () => {});
+    for (const args of [{ choice: 0, extra: true }, { choice: 1.5 }, null]) {
+      expect(schema.safeParse(args).success).toBe(false);
+      expect(applyDialogueCommand(runner(), { name: DIALOGUE_CHOOSE_COMMAND, args })).toBe(false);
+    }
+    expect(applyDialogueCommand(runner(), dialogueChoose(0))).toBe(true);
+  });
+
+  it("builds the two commands, with a seat only when given", () => {
+    expect(dialogueAdvance()).toEqual({ name: DIALOGUE_ADVANCE_COMMAND });
+    expect(dialogueAdvance(1)).toEqual({ name: DIALOGUE_ADVANCE_COMMAND, player: 1 });
+    expect(dialogueChoose(2)).toEqual({ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 2 } });
+    expect(dialogueChoose(0, 0)).toEqual({
+      name: DIALOGUE_CHOOSE_COMMAND,
+      args: { choice: 0 },
+      player: 0,
+    });
+    expect(
+      ENGINE_COMMANDS[DIALOGUE_CHOOSE_COMMAND].args!.safeParse(dialogueChoose(3).args),
+    ).toEqual({ success: true, data: { choice: 3 } });
   });
 });
 

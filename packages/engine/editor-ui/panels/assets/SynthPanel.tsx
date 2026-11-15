@@ -23,6 +23,7 @@ import {
   SYNTH_OSC_WAVES,
   SYNTH_WAVES,
   synthField,
+  synthFieldMeta,
   synthKind,
   withSynthField,
   type SynthFile,
@@ -37,6 +38,7 @@ import {
   type AssetDocPanelProps,
 } from "../../audio/asset-doc";
 import { useEditorAudio } from "../../audio/editor-audio";
+import { formatHz } from "../../audio/format-hz";
 import { STORAGE_PREFIX } from "../../host";
 import { Button, IconButton, Knob, MicroLabel, Switch, useKit } from "../../kit/index";
 import { useStoredFlag } from "../../session/stored";
@@ -257,7 +259,7 @@ const WAVE_NAMES: Readonly<Record<string, string>> = {
 };
 
 const roundTo = (v: number, step: number) => Math.round(v / step) * step;
-const hz = (v: number) => (v >= 1_000 ? `${Number((v / 1_000).toFixed(2))}k` : String(v));
+const hz = (v: number) => formatHz(v, { short: true });
 const signed = (v: number) => (v > 0 ? `+${v}` : String(v));
 const ms = { unit: "ms", step: 1 } as const;
 const unit = { step: 0.01 } as const;
@@ -405,16 +407,6 @@ const MODULES: readonly ModuleSpec[] = [
   },
 ];
 
-/** What the renderer reads for a numeric field that's unset. */
-const UNSET_DEFAULTS: Partial<Record<SynthNumberPath, number>> = {
-  duty: SYNTH_DEFAULTS.duty,
-  volume: SYNTH_DEFAULTS.volume,
-  level: SYNTH_DEFAULTS.level,
-  "osc2.level": SYNTH_DEFAULTS.oscLevel,
-  "osc3.level": SYNTH_DEFAULTS.oscLevel,
-  ampSustain: SYNTH_DEFAULTS.ampSustain,
-};
-
 /** Where a reset puts a field the file must hold: the new patch's or the switched-on block's value. */
 function requiredDefault(path: SynthNumberPath, patch: SynthFile): number | undefined {
   const [head, leaf] = path.split(".") as [string, string | undefined];
@@ -424,12 +416,6 @@ function requiredDefault(path: SynthNumberPath, patch: SynthFile): number | unde
   const block = BLOCK_DEFAULTS[head as Block]?.(patch) as Record<string, unknown> | undefined;
   return typeof block?.[leaf] === "number" ? (block[leaf] as number) : undefined;
 }
-
-/** A field the file must hold: a reset sets it back rather than removing it. */
-const isRequired = (path: string) =>
-  /^(freq|sustainMs|decayMs|filter\.cutoff|lowpass\.hz|highpass\.hz|lfo\.hz|jump\.\w+|vibrato\.\w+)$/.test(
-    path,
-  );
 
 function SynthFields({
   doc,
@@ -600,8 +586,9 @@ function SynthModule({
           }
           const [min, max] = SYNTH_BOUNDS[control.path];
           const set = synthField(filled, control.path);
-          const required = isRequired(control.path);
-          const fallback = UNSET_DEFAULTS[control.path] ?? (required ? undefined : 0);
+          const field = synthFieldMeta(control.path);
+          const required = !field.optional;
+          const fallback = field.default ?? (required ? undefined : 0);
           const resetTo = fallback ?? requiredDefault(control.path, patch);
           const what = name(control.label);
           const off = set === undefined ? control.unset : undefined;

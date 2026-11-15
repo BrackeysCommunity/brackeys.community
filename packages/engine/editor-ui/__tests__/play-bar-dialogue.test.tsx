@@ -31,7 +31,21 @@ function standIn() {
   };
 }
 
-function bar() {
+/** A project session holding just the two dialogues' entries, for their labels. */
+function session() {
+  const entry = (id: string, path: string) => [id, { id, kind: "dialogue", path }] as const;
+  return {
+    view: () => ({
+      byId: new Map([
+        entry("greeting", "talk/hello.dialogue.json"),
+        entry("tour", "talk/tour.dialogue.json"),
+      ]),
+    }),
+    projectDoc: { on: () => {}, off: () => {} },
+  };
+}
+
+function bar(project?: { session: ReturnType<typeof session> }) {
   const canvas = document.createElement("div");
   canvas.tabIndex = -1;
   document.body.append(canvas);
@@ -42,6 +56,7 @@ function bar() {
     onStop: vi.fn(),
     onRestart: vi.fn(),
     canvas: () => canvas,
+    ...(project ? { project } : {}),
   } as unknown as EditorControls;
   render(<EditorPlayBar {...controls} />);
   return { canvas };
@@ -58,9 +73,15 @@ describe("the play bar's dialogue picker", () => {
 
   it("names the running preview in full in its hint, since the picker may cut it short", () => {
     expect(dialoguePickerHint(null)).toBe(`${DIALOGUE_PREVIEW_TOOLTIP}.`);
-    expect(dialoguePickerHint("kitchen-dialogue")).toBe(
-      "Previewing kitchen-dialogue. Pick it again to start over.",
-    );
+    expect(dialoguePickerHint("kitchen")).toBe("Previewing kitchen. Pick it again to start over.");
+  });
+
+  it("names each dialogue as the asset pickers do, by its file's stem rather than its id", async () => {
+    bar({ session: session() });
+    fireEvent.click(picker());
+    expect(await screen.findByRole("option", { name: "hello" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "tour" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "greeting" })).toBeNull();
   });
 
   it("hands focus to the canvas once a dialogue is picked, so Enter moves it on", async () => {

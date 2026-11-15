@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import { clamp } from "../../math";
 import { cx } from "./cx";
 
 export type KnobProps = {
@@ -54,8 +55,6 @@ const decimalsOf = (step: number) => {
   const dot = text.indexOf(".");
   return dot < 0 ? 0 : text.length - dot - 1;
 };
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** The 0–1 position of `value` on the turn. */
 function positionOf(value: number, min: number, max: number, log: boolean): number {

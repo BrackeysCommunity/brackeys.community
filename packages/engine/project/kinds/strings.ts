@@ -137,6 +137,21 @@ export const RTL_CHAR = new RegExp(
   "u",
 );
 
+/**
+ * The direction of `text`'s first strong character: a right-to-left
+ * script's character, or any other letter. Digits, spaces, punctuation
+ * and marks are neutral, so "3 שלום" reads right to left; null for none.
+ */
+export function firstStrong(text: string): "ltr" | "rtl" | null {
+  for (const ch of text) {
+    if (RTL_CHAR.test(ch)) return "rtl";
+    if (LETTER.test(ch)) return "ltr";
+  }
+  return null;
+}
+
+const LETTER = /\p{L}/u;
+
 /** Whether a script subtag ("Arab", "Deva") names a script written right to left. */
 export const isRtlScript = (script: string): boolean =>
   Object.hasOwn(RTL_SCRIPTS, script.toLowerCase());

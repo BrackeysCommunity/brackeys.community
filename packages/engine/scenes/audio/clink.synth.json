@@ -4,8 +4,7 @@
   "decayMs": 262,
   "freq": 1209.8,
   "jump": { "atMs": 46, "semitones": 7 },
-  "osc3": { "octave": -1, "wave": "square" },
-  "punch": 0.45,
+  "punch": 0.416,
   "sustainMs": 44,
-  "wave": "triangle"
+  "wave": "saw"
 }

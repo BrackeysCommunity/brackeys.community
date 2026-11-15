@@ -316,7 +316,13 @@ describe("EditorInspector", () => {
 
     const physics = screen.getByRole("region", { name: "Physics" });
     expect(within(physics).getByText("Glow")).toBeTruthy();
-    expect(within(physics).getByText("3")).toBeTruthy();
+    const glow = physics.querySelector('input[type="range"][aria-label="glow slider"]')!;
+    expect(glow.getAttribute("aria-valuenow")).toBe("3");
+    expect(glow.getAttribute("max")).toBe("10");
+    expect(input("glow").value).toBe("3");
+    fireEvent.change(input("glow"), { target: { value: "+=2" } });
+    fireEvent.keyDown(input("glow"), { key: "Enter" });
+    expect(entity(session, "gizmo").glow).toBe(5);
   });
 
   it("switches a shape's tag losslessly at once, and asks first when the switch loses detail", async () => {

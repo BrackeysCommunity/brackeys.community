@@ -196,6 +196,8 @@ What headless code and the editor know of an asset without decoding or fetching 
 
 ```ts
 type AssetInfo = {
+    /** An audio clip: what its headers say (format, length, channels, sample rate). */
+    audio?: AudioMeta;
     bytes?: number;
     /** An atlas: each frame's durationMs, in `frames` order; null where the export gives none. */
     durations?: readonly (null | number)[];
@@ -246,7 +248,7 @@ type AssetInfo = {
 };
 ```
 
-Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`FontMeta`](#fontmeta), [`Sha256`](#sha256).
+Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`AudioMeta`](#audiometa), [`FontMeta`](#fontmeta), [`Sha256`](#sha256).
 
 ## `AssetKey`
 
@@ -4184,7 +4186,7 @@ _function_ in `project/asset-info.ts`
 `id`'s info from its live entry: kind, hash and size in bytes; a
 texture's pixel size and its import pivot, nine-slice and filter; an
 atlas's frame names in file order, tags and texture id; a font's meta and
-pages; an audio clip's stream flag and loop points. With `frame`, an
+pages; an audio clip's header facts, stream flag and loop points. With `frame`, an
 atlas's info with that frame's pixel size, rectangle and pivot (frames without their
 own carry the atlas's `pivotDefault`). Null for an id with no live asset
 and for a frame the asset doesn't have.

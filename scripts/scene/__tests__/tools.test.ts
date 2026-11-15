@@ -3791,11 +3791,11 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
     const synth = await assetsInfo({ id: "clink-synth" }, sinkCtx);
     expect(synth.exitCode, synth.text).toBe(0);
     expect((synth.data as { synth: unknown }).synth).toEqual({
-      wave: "saw",
+      wave: patch.wave,
       durationMs: length,
       sampleRate: 44100,
     });
-    expect(synth.text).toContain(`  saw patch, ${length} ms, rendered mono at 44100 Hz`);
+    expect(synth.text).toContain(`  ${patch.wave} patch, ${length} ms, rendered mono at 44100 Hz`);
 
     const sound = await assetsInfo({ id: "clink" }, sinkCtx);
     expect(sound.exitCode, sound.text).toBe(0);

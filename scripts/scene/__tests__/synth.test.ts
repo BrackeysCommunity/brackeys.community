@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 import { SYNTH_PRESETS, synthDurationMs } from "@jams/engine/headless";
-import { parseAssetDoc, synthKind, type SynthFile } from "@jams/engine/project";
+import { audioKind, parseAssetDoc, synthKind, type SynthFile } from "@jams/engine/project";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { ToolContext } from "../context";
@@ -109,16 +109,10 @@ describe("synth render", { timeout: 60_000 }, () => {
     const result = await synthRender({ id: "zap", wav }, ctx);
     expect(result.exitCode, result.text).toBe(0);
     const bytes = new Uint8Array(await readFile(wav));
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const ascii = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
-    expect([ascii(0), ascii(8), ascii(12), ascii(36)]).toEqual(["RIFF", "WAVE", "fmt ", "data"]);
-    const channels = view.getUint16(22, true);
-    const rate = view.getUint32(24, true);
-    const bits = view.getUint16(34, true);
-    const frames = view.getUint32(40, true) / channels / (bits / 8);
-    expect(channels).toBe(1);
-    expect(bits).toBe(16);
-    expect(Math.round((frames / rate) * 1000)).toBe(synthDurationMs(patch));
+    const read = audioKind.inspect(bytes, {}, { path: "zap.wav", idAt: () => undefined });
+    if (!read.ok) throw new Error(read.issue.message);
+    expect(read.meta).toMatchObject({ format: "wav", channels: 1 });
+    expect(Math.round(read.meta.durationMs ?? 0)).toBe(synthDurationMs(patch));
     expect(result.data).toMatchObject({ durationMs: synthDurationMs(patch), bytes: bytes.length });
   });
 

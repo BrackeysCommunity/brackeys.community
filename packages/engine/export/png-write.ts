@@ -17,6 +17,21 @@ const u32 = (n: number): number[] => [
   n & 0xff,
 ];
 
+/** `raw` as stored (uncompressed) deflate blocks: no compressor, so the bytes match on every runtime. */
+export function deflateStored(raw: ArrayLike<number>): Uint8Array {
+  const max = 65_535;
+  const blocks = Math.max(1, Math.ceil(raw.length / max));
+  const out = new Uint8Array(raw.length + blocks * 5);
+  let to = 0;
+  for (let at = 0, b = 0; b < blocks; b++, at += max) {
+    const n = Math.min(max, raw.length - at);
+    out.set([b === blocks - 1 ? 1 : 0, n & 0xff, n >>> 8, ~n & 0xff, (~n >>> 8) & 0xff], to);
+    for (let i = 0; i < n; i++) out[to + 5 + i] = raw[at + i] ?? 0;
+    to += 5 + n;
+  }
+  return out;
+}
+
 /** A zlib stream (no preset dictionary, fastest level) around `deflated`, the deflate blocks encoding `raw`. */
 export function zlibStream(deflated: ArrayLike<number>, raw: ArrayLike<number>): Uint8Array {
   return Uint8Array.from([0x78, 0x01, ...Array.from(deflated), ...u32(adler32(raw))]);

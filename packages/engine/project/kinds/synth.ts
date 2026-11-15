@@ -432,6 +432,28 @@ const synthSchema: z.ZodType<SynthFile> = z
     "A sound effect's recipe, rendered once to a one-channel buffer and played like any clip. Presentation only.",
   ) as unknown as z.ZodType<SynthFile>;
 
+/** What the schema says of a numeric field: whether a patch may leave it out, and the default its meta names. */
+export type SynthFieldMeta = { optional: boolean; default?: number };
+
+/** The schema's word on the numeric field at `path`, read from the schema itself. */
+export function synthFieldMeta(path: SynthNumberPath): SynthFieldMeta {
+  let field: z.ZodType = synthSchema as unknown as z.ZodType;
+  for (const key of path.split(".")) {
+    let object: z.core.$ZodType = field;
+    while ("innerType" in object._zod.def)
+      object = (object._zod.def as { innerType: z.core.$ZodType }).innerType;
+    field = (object as z.ZodObject).shape[key] as z.ZodType;
+  }
+  const optional = field.safeParse(undefined).success;
+  for (let s: z.ZodType | undefined = field; s; ) {
+    const fallback = s.meta()?.default;
+    if (typeof fallback === "number") return { optional, default: fallback };
+    const def = s._zod.def as { innerType?: z.ZodType };
+    s = def.innerType;
+  }
+  return { optional };
+}
+
 /** Sound-effect recipes a sound's variants name in place of a clip; presentation only. */
 export const synthKind = defineAssetKind({
   kind: SYNTH_KIND,

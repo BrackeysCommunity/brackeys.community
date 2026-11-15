@@ -6,6 +6,7 @@
  * downmixes, so the output stays two channels or more.
  */
 import { clamp } from "../math";
+import { loopSpan } from "../project/kinds/audio";
 import type { AudioBackend, AudioClipHandle, BusName, Voice, VoiceOptions } from "./types";
 
 type BufferSource = { kind: "buffer"; buffer: AudioBuffer };
@@ -64,6 +65,8 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
   const voices = new Set<WebVoice>();
   /** The context has run since an unlock; a realtime one stopped since then is suspended, not locked. */
   let unlocked = false;
+  /** Unlocks whose resume() hasn't settled: the context was asked to run and hasn't yet. */
+  let resuming = 0;
   let closed = false;
 
   function bus(name: BusName): GainNode {
@@ -79,7 +82,7 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     if (closed || ctx.state === "closed") return "closed";
     if (offline) return unlocked ? "running" : "locked";
     if (ctx.state === "running") return "running";
-    return unlocked ? "suspended" : "locked";
+    return unlocked || resuming > 0 ? "suspended" : "locked";
   }
 
   type WebVoice = Voice & { kill(): void };
@@ -105,6 +108,7 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     const start = Math.max(o.when ?? ctx.currentTime, ctx.currentTime);
     const { gain, panner } = chain(o, start);
     const rate = o.rate > 0 ? o.rate : 1;
+    const loop = loopSpan(o, buffer.duration);
     let node: AudioBufferSourceNode | null = null;
     /** Where the clip was at `anchor` (context time), s. */
     let from = o.offset ?? 0;
@@ -117,8 +121,11 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
       source.buffer = buffer;
       source.playbackRate.value = rate;
       source.loop = o.loop;
-      if (o.loop && o.loopStart !== undefined) source.loopStart = o.loopStart;
-      if (o.loop && o.loopEnd !== undefined) source.loopEnd = o.loopEnd;
+      // Both points always: with only a start, Web Audio would loop the whole buffer.
+      if (o.loop) {
+        source.loopStart = loop.from;
+        source.loopEnd = loop.to;
+      }
       source.connect(gain);
       source.onended = () => {
         if (node !== source) return;
@@ -144,11 +151,9 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
       const played = Math.max(0, ctx.currentTime - anchor) * rate;
       const at = from + played;
       if (!o.loop) return Math.min(at, buffer.duration);
-      const loopStart = o.loopStart ?? 0;
-      const loopEnd = o.loopEnd && o.loopEnd > loopStart ? o.loopEnd : buffer.duration;
-      const span = loopEnd - loopStart;
-      if (at < loopEnd || span <= 0) return at;
-      return loopStart + ((at - loopStart) % span);
+      const span = loop.to - loop.from;
+      if (at < loop.to || span <= 0) return at;
+      return loop.from + ((at - loop.from) % span);
     }
 
     const voice: WebVoice = {
@@ -201,10 +206,12 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     const realtime = ctx as AudioContext;
     const element = document.createElement("audio") as HTMLAudioElement;
     const rate = o.rate > 0 ? o.rate : 1;
-    const loopFrom = o.loop ? Math.max(0, o.loopStart ?? 0) : 0;
-    const loopTo = o.loop && o.loopEnd !== undefined && o.loopEnd > loopFrom ? o.loopEnd : null;
+    const timedEnd = o.loop && o.loopEnd !== undefined && o.loopEnd > (o.loopStart ?? 0);
     // A media element loops only the whole file, so loop points are kept by hand.
-    const loopPoints = o.loop && (loopTo !== null || loopFrom > 0);
+    const loopPoints = o.loop && (timedEnd || (o.loopStart ?? 0) > 0);
+    /** The loop over the file's length once the element knows it, as a buffered clip plays it. */
+    const loop = () =>
+      loopSpan(o, Number.isFinite(element.duration) ? element.duration : Number.POSITIVE_INFINITY);
     element.crossOrigin = "anonymous";
     element.preload = "auto";
     element.loop = o.loop && !loopPoints;
@@ -227,11 +234,11 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     function armLoop(): void {
       if (loopTimer !== null) clearTimeout(loopTimer);
       loopTimer = null;
-      if (loopTo === null || ended || element.paused) return;
-      const left = loopTo - element.currentTime;
+      if (!timedEnd || ended || element.paused) return;
+      const { from, to } = loop();
+      const left = to - element.currentTime;
       if (left <= LOOP_EARLY_S) {
-        const span = loopTo - loopFrom;
-        element.currentTime = loopFrom + (Math.max(0, -left) % span);
+        element.currentTime = from + (Math.max(0, -left) % (to - from));
         return;
       }
       loopTimer = setTimeout(armLoop, ((left - LOOP_EARLY_S) / rate) * 1000);
@@ -246,12 +253,12 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     };
     const onEnded = () => {
       if (!loopPoints || stopping) return finish();
-      element.currentTime = loopFrom;
+      element.currentTime = loop().from;
       void element.play().catch(() => {});
     };
     element.addEventListener("loadedmetadata", onMeta);
     element.addEventListener("ended", onEnded);
-    const loopEvents = loopTo === null ? [] : ["playing", "seeked", "timeupdate"];
+    const loopEvents = timedEnd ? ["playing", "seeked", "timeupdate"] : [];
     for (const type of loopEvents) element.addEventListener(type, armLoop);
 
     function finish(): void {
@@ -347,7 +354,13 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
       blank.connect(destination);
       blank.onended = () => blank.disconnect();
       blank.start();
-      await realtime.resume();
+      // A context with no output device (Firefox's, without one) never settles this.
+      resuming++;
+      try {
+        await realtime.resume();
+      } finally {
+        resuming--;
+      }
       if ((realtime.state as AudioContextState) === "running") unlocked = true;
     },
     async decode(bytes) {

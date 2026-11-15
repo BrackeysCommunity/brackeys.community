@@ -190,6 +190,13 @@ owner.
   `loopStart` and `loopEnd` by seeking back on a timer the element's clock
   corrects, since an element loops only the whole file), `latency` is outputLatency
   - baseLatency; `opts.context` takes an OfflineAudioContext for tests.
+    Its `state` is `locked` until an unlock asks the context to run, and
+    again when the browser refuses that; `suspended` while an asked context
+    hasn't run yet (one with no output device never does) or once one that
+    ran stops. A buffered and a streamed clip play loop points by one rule:
+    a `loopEnd` past the clip's end loops to the end, a `loopStart` at or
+    past it loops the whole clip, and a lone `loopStart` loops to the end (a
+    buffer source is given both points).
 - `tryWebAudioBackend()` is `webAudioBackend()`, or `false` where the
   browser has no Web Audio, so a host's `audio.backend` plays the game
   silent instead of failing it; the site and the standalone host pass it.
@@ -464,6 +471,11 @@ other docs:` line and in `data.project`, without changing the exit code.
 
 ### Changed
 
+- Audio and font sidecar meta widen (metaVersion 2, under Added): a
+  sidecar inspected under an older metaVersion, as every existing audio
+  and font sidecar is, is inspected again once, by the dev watcher, on
+  store or by `scene assets reimport`, and only its `meta` and
+  `metaVersion` change.
 - **Breaking:** `ParticleLayer.emitter(id, preset, follow, layer?)` takes
   the followed entity as data (`EmitterFollow`: `{ entity, offset?, flip?
 }`) in place of an `at: () => Pose | undefined` callback; the layer
@@ -607,8 +619,10 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   or more, and the patch at `pan: -1` through an offline context puts over
   95% of its energy on the left. Firefox's real-time context never runs
   without an output device (a CI runner has none; Chromium and WebKit fake
-  one), so there the smoke accepts a suspended context whose destination
-  reports no device, provided the click unlocked the backend and the voice
+  one) and its `resume()` never settles, so there the smoke accepts a
+  suspended context whose destination reports no device, provided the
+  backend reads `suspended` (the click's unlock asked the context to run;
+  `locked` means it never did, or the browser refused it) and the voice
   waits at position 0 on the stopped clock; the offline checks still
   apply. `engine-browser-smoke.json` gains top-level `signs` and `audio`
   blocks and per-browser `signs` and `audio` probes, the audio one with
@@ -631,6 +645,9 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   `font-missing` (warn), `string-key-missing` (error), `dialogue-dead-end`
   (error), `dialogue-unreachable` (warn); `sound-bus-unknown`, the strings
   and dialogue codes are raised by the checks above.
+- The registry's engine command names gain `@latency`,
+  `@dialogue-advance` and `@dialogue-choose`; step events
+  `dialogue:line`, `dialogue:choices` and `dialogue:end`.
 - `synth new` and `synth render` run. `assets reimport <id...> |
 --all [--dry-run]` runs.
 - `vp run scene dialogue walk <id> [--vars json]` prints each ending a

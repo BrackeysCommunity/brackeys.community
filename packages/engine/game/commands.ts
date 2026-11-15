@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { CommandDef } from "./types";
+import type { CommandDef, GameCommand } from "./types";
 
 /** The engine command a script's or a check's `nav` sends: the `nav-agent` system reads it at the start of the tick. */
 export const NAV_COMMAND = "@nav";
@@ -47,6 +47,29 @@ export const navDestinationSchema: z.ZodType<NavDestination> = z
   )
   .meta({ id: "NavDestination" });
 
+const dialogueChooseArgs = z.strictObject({
+  choice: z.number().int().min(0).describe("The choice's index in the dialogue's view."),
+});
+
+/** `@dialogue-advance`, from `player` when given. */
+export const dialogueAdvance = (player?: number): GameCommand => ({
+  name: DIALOGUE_ADVANCE_COMMAND,
+  ...(player !== undefined && { player }),
+});
+
+/** `@dialogue-choose` for the choice at `choice` in the view, from `player` when given. */
+export const dialogueChoose = (choice: number, player?: number): GameCommand => ({
+  name: DIALOGUE_CHOOSE_COMMAND,
+  args: { choice },
+  ...(player !== undefined && { player }),
+});
+
+/** The choice a `@dialogue-choose` names, or null when its args don't parse. */
+export const dialogueChoiceOf = (command: GameCommand): number | null => {
+  const parsed = dialogueChooseArgs.safeParse(command.args);
+  return parsed.success ? parsed.data.choice : null;
+};
+
 export type EngineCommandName =
   | "@elapsed"
   | typeof NAV_COMMAND
@@ -82,9 +105,7 @@ export const ENGINE_COMMANDS: Readonly<Record<EngineCommandName, CommandDef>> = 
   },
   [DIALOGUE_CHOOSE_COMMAND]: {
     description: "Picks a visible, enabled choice of the active dialogue.",
-    args: z.strictObject({
-      choice: z.number().int().min(0).describe("The choice's index in the dialogue's view."),
-    }),
+    args: dialogueChooseArgs,
   },
 };
 

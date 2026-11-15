@@ -131,7 +131,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Slider,
   Text,
   useComboboxAnchor,
   type IconSvgElement,
@@ -162,6 +161,7 @@ import {
   Hinted,
   IdCombobox,
   InspectorSection,
+  isBoundedNumber,
   JsonField,
   Locked,
   MIXED,
@@ -176,6 +176,7 @@ import {
   ReadonlyField,
   RecordField,
   resolveNumber,
+  SliderField,
   StringKeyField,
   SwitchField,
   TagChips,
@@ -1294,7 +1295,8 @@ function PartRow({
   );
 }
 
-function SliderField({
+/** A game's `slider` widget: the shared bounded-number slider over the range it declares. */
+function CustomSliderField({
   field,
   ctx,
   def,
@@ -1303,33 +1305,21 @@ function SliderField({
   ctx: Ctx;
   def: Extract<InspectorWidgetDef, { kind: "slider" }>;
 }) {
-  const value = typeof field.value === "number" ? field.value : def.min;
-  const [live, setLive] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const shown = live ?? value;
-  return (
-    <FieldRow field={field} error={error}>
-      <div className="je-insp-row je-insp-line">
-        <Slider
-          aria-label={field.path}
-          min={def.min}
-          max={def.max}
-          step={def.step ?? 1}
-          value={[shown]}
-          onValueChange={(v) => setLive(Array.isArray(v) ? (v[0] ?? null) : (v as number))}
-          onValueCommitted={(v) => {
-            const n = Array.isArray(v) ? v[0] : (v as number);
-            setLive(null);
-            if (typeof n === "number" && n !== field.value) setError(commitField(ctx, field, n));
-          }}
-          className="je-insp-grow"
-        />
-        <span className="je-insp-slider-value">
-          {field.mixed && live === null ? MIXED : `${shown}${def.unit ?? ""}`}
-        </span>
-      </div>
-    </FieldRow>
-  );
+  const step = def.step ?? 1;
+  const row: ModelField = {
+    ...field,
+    widget: {
+      kind: "number",
+      integer: false,
+      min: def.min,
+      max: def.max,
+      step,
+      bigStep: step * 10,
+      scrub: false,
+      ...(def.unit ? { unit: def.unit } : {}),
+    },
+  };
+  return <SliderField field={row} commit={committer(ctx, row)} />;
 }
 
 function CustomField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
@@ -1337,7 +1327,7 @@ function CustomField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const def = w.widget;
   switch (def.kind) {
     case "slider":
-      return <SliderField field={field} ctx={ctx} def={def} />;
+      return <CustomSliderField field={field} ctx={ctx} def={def} />;
     case "choice":
       return (
         <OptionsField
@@ -1514,7 +1504,11 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     return <EitherField field={field} ctx={ctx} />;
   switch (w.kind) {
     case "number":
-      return <NumberField field={field} commit={committer(ctx, field)} />;
+      return isBoundedNumber(field) ? (
+        <SliderField field={field} commit={committer(ctx, field)} />
+      ) : (
+        <NumberField field={field} commit={committer(ctx, field)} />
+      );
     case "angle":
       return <AngleField field={field} commit={committer(ctx, field)} />;
     case "segmented":

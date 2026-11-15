@@ -43,6 +43,37 @@ export const audioSettingsSchema: z.ZodType<AudioSettings> = z
   )
   .describe("Audio import settings; every field is optional.");
 
+/**
+ * The span, s, a loop plays over a clip `duration` s long, the same in every
+ * backend: a `loopEnd` past the end stops at the end, and a `loopStart` at
+ * or past it loops the whole clip, as a Web Audio buffer source does.
+ * `duration` may be Infinity while a stream's length isn't known.
+ */
+export function loopSpan(
+  points: Pick<AudioSettings, "loopStart" | "loopEnd">,
+  duration: number,
+): { from: number; to: number } {
+  const from = Math.max(0, points.loopStart ?? 0);
+  const end = points.loopEnd !== undefined && points.loopEnd > from ? points.loopEnd : duration;
+  const to = Math.min(end, duration);
+  return from < to ? { from, to } : { from: 0, to: duration };
+}
+
+/** Why a clip's loop points don't fit inside its measured length, or null when they do or its length isn't known. */
+export function loopPastEnd(
+  points: Pick<AudioSettings, "loopStart" | "loopEnd">,
+  meta: Pick<AudioMeta, "durationMs">,
+): string | null {
+  if (meta.durationMs === undefined) return null;
+  const length = meta.durationMs / 1000;
+  const at = `the clip's ${length.toFixed(3)} s end`;
+  if (points.loopStart !== undefined && points.loopStart >= length)
+    return `loopStart ${points.loopStart} s is at or past ${at}, so the whole clip loops`;
+  if (points.loopEnd !== undefined && points.loopEnd > length)
+    return `loopEnd ${points.loopEnd} s is past ${at}, so the loop jumps back at the end`;
+  return null;
+}
+
 export const audioMetaSchema: z.ZodType<AudioMeta> = z
   .strictObject({
     format: z.enum(["ogg", "mp3", "wav", "m4a"]).describe("The container the file's header names."),

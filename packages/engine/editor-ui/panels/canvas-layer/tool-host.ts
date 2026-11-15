@@ -28,6 +28,7 @@ import type { Registry } from "../../../game/types";
 import type { GameInstance, Vec2 } from "../../../index";
 import { assetInfo } from "../../../project/index";
 import type { ProjectRuntimeView } from "../../../project/runtime-view";
+import { onLocale } from "../../../ui/bind";
 import { frameInView } from "../../frame/visible-rect";
 import { STORAGE_PREFIX, type EditorNotify, type EditorStorage } from "../../host";
 import { useKit } from "../../kit/index";
@@ -84,6 +85,11 @@ const sessionHosts = new WeakMap<EditorSession, ToolHost>();
 export const sessionSource = (session: EditorSession): GizmoSource | undefined =>
   sessionHosts.get(session)?.source();
 
+const localeEvents = (
+  game: ToolHostGame,
+): game is ToolHostGame & Pick<GameInstance, "on" | "off"> =>
+  game.on !== undefined && game.off !== undefined;
+
 /** `game`'s project and locale as gizmos measure text in them, kept while neither changes. */
 function gameTextEnv(game: ToolHostGame): () => GizmoTextEnv | undefined {
   let shown: { project: ProjectRuntimeView; locale: string | undefined; env: GizmoTextEnv } | null =
@@ -95,6 +101,43 @@ function gameTextEnv(game: ToolHostGame): () => GizmoTextEnv | undefined {
     if (shown?.project !== project || shown.locale !== locale)
       shown = { project, locale, env: gizmoTextEnv(project, locale) };
     return shown.env;
+  };
+}
+
+/**
+ * Calls `fn` once after each run of updates to any of `session`'s open docs,
+ * as a microtask, so the listeners that rebuild the project from that doc
+ * have run first. Returns the unsubscribe.
+ */
+function afterDocUpdates(session: ProjectSession, fn: () => void): () => void {
+  const followed = new Map<string, () => void>();
+  let queued = false;
+  const later = () => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      fn();
+    });
+  };
+  const follow = (name: string) => {
+    const doc = followed.has(name) ? undefined : session.get(name)?.doc;
+    if (!doc) return;
+    doc.on("update", later);
+    followed.set(name, () => doc.off("update", later));
+  };
+  for (const name of session.openDocs()) follow(name);
+  const unsubscribe = session.subscribe((e) => {
+    if (e.type === "open") follow(e.doc);
+    else if (e.type === "close") {
+      followed.get(e.doc)?.();
+      followed.delete(e.doc);
+    }
+  });
+  return () => {
+    unsubscribe();
+    for (const stop of followed.values()) stop();
+    followed.clear();
   };
 }
 
@@ -175,7 +218,7 @@ function rememberedDrawTools(
  * fail to load, the engine's tools still run, and `notify` says so. With
  * `project`, sprite boxes are sized from its assets and re-indexed when the
  * project doc changes. Text gizmos measure in the game's project and locale,
- * read again on a locale change. Snap settings and the draw tools' type are kept in
+ * read again when either changes. Snap settings and the draw tools' type are kept in
  * the kit's storage, so they survive a rebuild of the host.
  */
 export function useToolHostLifecycle(
@@ -202,8 +245,17 @@ export function useToolHostLifecycle(
       host?.reindex();
     };
     project?.projectDoc.on("update", onProjectUpdate);
-    const onLocale = () => host?.reindex();
-    game.on?.("locale:change", onLocale);
+    const offLocale = localeEvents(game) ? onLocale(game, () => host?.reindex()) : null;
+    // A strings edit reaches the game in place, moving its project() but not the scene's index.
+    let shown = game.project?.();
+    const offDocs = project
+      ? afterDocUpdates(project, () => {
+          const now = game.project?.();
+          if (cancelled || now === shown) return;
+          shown = now;
+          host?.reindex();
+        })
+      : null;
     const text = gameTextEnv(game);
 
     const start = (gameTools: readonly EditorToolDef[]) => {
@@ -272,7 +324,8 @@ export function useToolHostLifecycle(
     return () => {
       cancelled = true;
       project?.projectDoc.off("update", onProjectUpdate);
-      game.off?.("locale:change", onLocale);
+      offLocale?.();
+      offDocs?.();
       unsubscribe?.();
       if (host && cell.state === host) cell.setState(() => null);
       if (host && sessionHosts.get(session) === host) sessionHosts.delete(session);

@@ -9,7 +9,7 @@ import {
 
 import type { TextFont, TextVisual } from "../context";
 import { richSource } from "../game/behaviors/text";
-import { RTL_CHAR } from "../project/kinds/strings";
+import { firstStrong, RTL_CHAR } from "../project/kinds/strings";
 import type { Sha256 } from "../project/types";
 import { readFlag } from "../reduced-motion";
 import { breakLine, LINE_HEIGHT_EM } from "../text/measure";
@@ -55,18 +55,10 @@ export function resolveText(
   };
 }
 
+/** What ends a right-to-left run: a letter or a digit, which keeps its own order. */
 const LTR_CHAR = /[\p{L}\p{N}]/u;
 
-type Strong = "ltr" | "rtl" | null;
-
-function strongOf(text: string): Strong {
-  let rtl = false;
-  for (const ch of text) {
-    if (RTL_CHAR.test(ch)) rtl = true;
-    else if (LTR_CHAR.test(ch)) return "ltr";
-  }
-  return rtl ? "rtl" : null;
-}
+type Strong = ReturnType<typeof firstStrong>;
 
 /**
  * `text` with each pure right-to-left run in visual order: a run starts and
@@ -238,9 +230,8 @@ function animated(
   const holder = new Container();
   const glyphs: Container[] = [];
   let x = 0;
-  const chars = Array.from(text);
-  // A bitmap run arrives reversed; a web run is in logical order, so its glyphs go right to left.
-  if (face.kind === "web" && strongOf(text) === "rtl") chars.reverse();
+  // A bitmap run arrives in visual order; a web run is in logical order, so its glyphs are reordered here.
+  const chars = Array.from(face.kind === "web" ? reverseRtlRuns(text) : text);
   for (const ch of chars) {
     const glyph = draw(ch, span, face, visual, direction);
     glyph.position.x = x;
@@ -333,7 +324,7 @@ function build(
   rows.forEach((row, r) => {
     const height = Math.max(visual.size * LINE_HEIGHT_EM, ...row.map((p) => p.height));
     let x = (boxWidth - widths[r]!) * align;
-    for (const placed of visualOrder(row, (p) => strongOf(p.piece.text), direction)) {
+    for (const placed of visualOrder(row, (p) => firstStrong(p.piece.text), direction)) {
       if (placed.display) {
         placed.display.position.x += x;
         placed.display.position.y += y + (height - placed.height);

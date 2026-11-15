@@ -139,17 +139,17 @@ describe("the locale picker", () => {
     const { game, changeElsewhere } = standIn(["en", "fr"]);
     bar(game);
     const picker = screen.getByRole("combobox", { name: "Locale" });
-    expect(picker.textContent).toContain("English");
+    expect(picker.textContent).toBe("en");
 
     fireEvent.click(picker);
-    const french = await screen.findByRole("option", { name: "French" });
+    const french = await screen.findByRole("option", { name: "fr" });
     fireEvent.mouseMove(french);
     fireEvent.click(french);
     await waitFor(() => expect(game.locale.set).toHaveBeenCalledWith("fr"));
-    expect(screen.getByRole("combobox", { name: "Locale" }).textContent).toContain("French");
+    expect(screen.getByRole("combobox", { name: "Locale" }).textContent).toBe("fr");
 
     act(() => changeElsewhere("en"));
-    expect(screen.getByRole("combobox", { name: "Locale" }).textContent).toContain("English");
+    expect(screen.getByRole("combobox", { name: "Locale" }).textContent).toBe("en");
   });
 
   it("ends its hint with a full stop, as the switches' hints do, and is sized by a class", () => {

@@ -36,6 +36,7 @@ import {
   Hint,
   Icon,
   IconButton,
+  clamp,
   Input,
   MicroLabel,
   SegmentedControl,
@@ -48,6 +49,7 @@ import {
   Spinner,
   Switch,
   useKit,
+  type InputProps,
 } from "../../kit/index";
 import { useBrowserState } from "../../kit/ssr";
 import { useBusy } from "../../pending/use-pending";
@@ -552,26 +554,36 @@ export function NumberField({
   );
 }
 
-/** Whether `row` is a number with both a least and a most value, as a slider draws it. */
-export const isBoundedNumber = (row: Pick<InspectorRow, "widget">): boolean =>
-  row.widget.kind === "number" && row.widget.min !== undefined && row.widget.max !== undefined;
+/** The most steps a slider spans; a wider range (a z order's ±10000) is typed instead. */
+const SLIDER_MAX_STEPS = 1000;
+
+/**
+ * Whether `row` is a number with both a least and a most value, few enough
+ * steps apart that a slider can pick each one, as `SliderField` draws it.
+ */
+export const isBoundedNumber = (row: Pick<InspectorRow, "widget">): boolean => {
+  const w = row.widget;
+  return (
+    w.kind === "number" &&
+    w.min !== undefined &&
+    w.max !== undefined &&
+    (w.max - w.min) / w.step <= SLIDER_MAX_STEPS
+  );
+};
 
 /**
  * A bounded number (`isBoundedNumber`): a slider over its range that writes
  * on release, the typed value, and a unit slot of one width in every row,
  * so the value boxes line up whether or not a row has a unit. An unset
- * field sits at its default, else `fallback`, else 0.
+ * field sits at its default, else at the end of its range nearest 0.
  */
 export function SliderField({
   field,
   commit,
   scope,
+  unset,
   label: name,
-  fallback,
-}: Pick<FieldWidgetProps, "field" | "commit" | "scope" | "label"> & {
-  /** What an unset field with no schema default plays as. */
-  fallback?: number;
-}) {
+}: Pick<FieldWidgetProps, "field" | "commit" | "scope" | "unset" | "label">) {
   const w = field.widget as NumberWidget;
   const min = w.min ?? 0;
   const max = w.max ?? 1;
@@ -579,12 +591,8 @@ export function SliderField({
   const [error, setError] = useState<string | null>(null);
   const label = name ?? field.path;
   const value = typeof field.value === "number" ? field.value : undefined;
-  const rest = typeof field.defaultValue === "number" ? field.defaultValue : fallback;
-  const shown = drag ?? value ?? Math.min(max, Math.max(min, rest ?? 0));
-  const unset =
-    field.defaultValue === undefined && rest !== undefined
-      ? `${shownNumber(rest, w.decimals)} (default)`
-      : unsetText(field);
+  const rest = typeof field.defaultValue === "number" ? field.defaultValue : 0;
+  const shown = drag ?? value ?? clamp(rest, min, max);
   const write = (input: unknown) => settle(commit(input), setError);
   return (
     <FieldRow field={field} scope={scope} error={error}>
@@ -605,11 +613,12 @@ export function SliderField({
         <NumberInput
           label={label}
           value={value}
-          unset={unset}
+          unset={unset ?? unsetText(field)}
           mixed={field.mixed}
           step={w.step}
           bigStep={w.bigStep}
           decimals={w.decimals}
+          {...(w.named ? { named: w.named } : {})}
           preview={drag === null ? null : String(drag)}
           onCommit={(text) =>
             text.trim() === "" && field.optional ? commit(undefined) : commit(text)
@@ -996,16 +1005,18 @@ const flatText = (value: Flat, valueType: z.ZodType): string =>
     ? value
     : JSON.stringify(value);
 
-/** One entry's key or value: a draft committed on Enter or blur, dropped on Escape. */
-export function RecordInput({
+/** A text draft committed on Enter or blur when it differs from `value`, dropped on Escape. */
+export function DraftInput({
   label,
   value,
   placeholder,
+  size,
   onCommit,
 }: {
   label: string;
   value: string;
   placeholder?: string;
+  size?: InputProps["size"];
   onCommit: (text: string, by: "enter" | "blur") => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -1016,6 +1027,7 @@ export function RecordInput({
   };
   return (
     <Input
+      {...(size ? { size } : {})}
       aria-label={label}
       placeholder={placeholder}
       value={draft ?? value}
@@ -1068,12 +1080,12 @@ export function RecordField({
       <div className="je-insp-stack" data-gap="tight" role="group" aria-label={field.path}>
         {entries.map(([key, value]) => (
           <div key={key} className="je-insp-row je-insp-record" data-gap="tight">
-            <RecordInput
+            <DraftInput
               label={`${field.path} key ${key}`}
               value={key}
               onCommit={(text) => rename(key, text)}
             />
-            <RecordInput
+            <DraftInput
               label={`${field.path}.${key}`}
               value={flatText(value, valueType)}
               onCommit={(text) =>
@@ -1090,7 +1102,7 @@ export function RecordField({
           </div>
         ))}
         <div className="je-insp-row je-insp-record" data-gap="tight">
-          <RecordInput
+          <DraftInput
             label={`${field.path} new key`}
             value={adding.key}
             placeholder="Add a key"
@@ -1098,7 +1110,7 @@ export function RecordField({
               by === "enter" ? add({ ...adding, key: text }) : setAdding({ ...adding, key: text })
             }
           />
-          <RecordInput
+          <DraftInput
             label={`${field.path} new value`}
             value={adding.value}
             placeholder="Value"
@@ -1110,6 +1122,9 @@ export function RecordField({
     </FieldRow>
   );
 }
+
+/** The name the settings panels still import; `DraftInput` itself. */
+export const RecordInput = DraftInput;
 
 /** Typed tags as a list: split on spaces and commas, blanks dropped. */
 export const splitWords = (text: string): string[] => text.split(/[\s,]+/).filter(Boolean);

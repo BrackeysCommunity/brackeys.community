@@ -3,6 +3,7 @@ import { Fragment, useEffect, useMemo, useState, type ComponentProps, type React
 
 import { layoutFromDoc, type ProjectSession } from "../../../collab/index";
 import { sentence } from "../../../game/live";
+import { audioChannelsText, entryInfo } from "../../../project/asset-info";
 import {
   byCodeUnit,
   dialogueIssues,
@@ -30,6 +31,7 @@ import {
 import { plural } from "../../../scene/plural";
 import { useSelectedAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
 import { AssetAudition, isAudibleKind } from "../../audio/editor-audio";
+import { formatHz } from "../../audio/format-hz";
 import { IconButton } from "../../kit/button";
 import { formatBytes } from "../../kit/format";
 import { Icon } from "../../kit/icon";
@@ -52,17 +54,16 @@ export type SelectedAsset = Pick<
   onClose: () => void;
 };
 
-const CHANNELS: Readonly<Record<number, string>> = { 1: "mono", 2: "stereo" };
-
 /** What its kind's inspection read: an image's or a font's size, a clip's rate and channels. */
 function metaLine(entry: AssetEntry): string | null {
   const meta = entry.meta;
   if (!meta) return null;
-  const { width, height, sampleRate, channels } = meta as Record<string, unknown>;
+  const { width, height } = meta as Record<string, unknown>;
   if (typeof width === "number" && typeof height === "number") return `${width} × ${height}`;
+  const clip = entryInfo(entry).info.audio;
   const audio = [
-    typeof sampleRate === "number" ? `${Number((sampleRate / 1000).toFixed(2))} kHz` : null,
-    typeof channels === "number" ? (CHANNELS[channels] ?? `${channels} channels`) : null,
+    clip?.sampleRate !== undefined ? formatHz(clip.sampleRate) : null,
+    clip?.channels !== undefined ? audioChannelsText(clip.channels) : null,
   ].filter((part): part is string => part !== null);
   return audio.length > 0 ? audio.join(" · ") : null;
 }

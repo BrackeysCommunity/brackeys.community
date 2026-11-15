@@ -801,7 +801,7 @@ describe("webAudioBackend", () => {
     });
     const backend = webAudioBackend({ context });
     const first = backend.unlock();
-    expect(backend.state).toBe("locked");
+    expect(backend.state).toBe("suspended");
     await backend.unlock();
     expect(tries).toBe(2);
     expect(made.sources.filter((s) => s.started !== null)).toHaveLength(2);
@@ -810,6 +810,22 @@ describe("webAudioBackend", () => {
     await first;
     await backend.unlock();
     expect(tries).toBe(2);
+  });
+
+  it("reads suspended while an asked resume hasn't settled, and locked again once it's refused", async () => {
+    let refuse = () => {};
+    const { context, ctx } = fakeContext({
+      resume: () =>
+        new Promise<void>((_resolve, reject) => (refuse = () => reject(new Error("no")))),
+    });
+    const backend = webAudioBackend({ context });
+    // A context with no output device (Firefox's, without one) never settles its resume.
+    const unlocking = backend.unlock();
+    expect(backend.state).toBe("suspended");
+    expect(ctx.state).toBe("suspended");
+    refuse();
+    await expect(unlocking).rejects.toThrow("no");
+    expect(backend.state).toBe("locked");
   });
 
   it("a context that stops after running reads suspended, not locked", async () => {
@@ -878,6 +894,60 @@ describe("webAudioBackend", () => {
     // A whole-file loop stays the element's own.
     backend.play(clip, { ...base, rate: 1 });
     expect(element.loop).toBe(true);
+  });
+
+  it("plays loop points that don't fit the clip as a buffered clip does: to its end, or all of it", () => {
+    const element = Object.assign(new EventTarget(), {
+      crossOrigin: null as string | null,
+      preload: "",
+      loop: false,
+      playbackRate: 1,
+      src: "",
+      currentTime: 0,
+      duration: 8,
+      readyState: 4,
+      paused: true,
+      play: vi.fn(() => {
+        element.paused = false;
+        return Promise.resolve();
+      }),
+      pause: vi.fn(() => void (element.paused = true)),
+      load: vi.fn(),
+      removeAttribute: vi.fn(),
+    });
+    const created = vi
+      .spyOn(document, "createElement")
+      .mockReturnValue(element as unknown as HTMLElement);
+    onTestFinished(() => created.mockRestore());
+    const { context, made } = fakeContext();
+    const backend = webAudioBackend({ context });
+    const base = { bus: "music", volume: 1, rate: 1, pan: 0, loop: true } as const;
+
+    // A 1 s buffer: a lone start still loops to the end, which Web Audio wouldn't without loopEnd.
+    const buffered = backend.buffer([new Float32Array(44_100)], 44_100);
+    backend.play(buffered, { ...base, loopStart: 0.25 });
+    expect(made.sources.at(-1)).toMatchObject({ loopStart: 0.25, loopEnd: 1 });
+    backend.play(buffered, { ...base, loopStart: 0.5, loopEnd: 3 });
+    expect(made.sources.at(-1)).toMatchObject({ loopStart: 0.5, loopEnd: 1 });
+    const whole = backend.play(buffered, { ...base, loopStart: 2 });
+    expect(made.sources.at(-1)).toMatchObject({ loopStart: 0, loopEnd: 1 });
+    (context as unknown as { currentTime: number }).currentTime = 2.5;
+    expect(whole.position()).toBeCloseTo(0.5);
+
+    // The same start past an 8 s stream's end loops the whole file, from 0.
+    const streamed = backend.stream("song.ogg");
+    const pastEnd = backend.play(streamed, { ...base, loopStart: 9 });
+    element.currentTime = 8;
+    element.dispatchEvent(new Event("ended"));
+    expect(element.currentTime).toBe(0);
+    expect(pastEnd.ended).toBe(false);
+    pastEnd.stop();
+
+    // A loop end past it jumps back at the file's end.
+    backend.play(streamed, { ...base, loopStart: 1, loopEnd: 12 });
+    element.currentTime = 8;
+    element.dispatchEvent(new Event("timeupdate"));
+    expect(element.currentTime).toBe(1);
   });
 
   it("over an offline context: no latency, running once unlocked, a mono destination left as is", async () => {

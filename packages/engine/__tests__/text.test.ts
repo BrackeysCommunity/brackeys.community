@@ -8,6 +8,8 @@ import {
   measureFont,
   richSource,
   TEXT,
+  TEXT_ALIGN_DEFAULT,
+  TEXT_ANCHOR_DEFAULT,
   textBoxShape,
   textDirection,
   textFontOf,
@@ -17,7 +19,9 @@ import {
 import { createRegistry } from "../game/define";
 import type { FieldEnv, JsonValue } from "../game/types";
 import type { FontMeta } from "../project/kinds/font";
+import { firstStrong } from "../project/kinds/strings";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import { visualOrder } from "../render/text";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "../runtime/behaviors/index";
 import { createTextSystem, textViewId, type TextSystem } from "../runtime/behaviors/text";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -319,12 +323,32 @@ describe("text rules", () => {
     expect(linesOf("[b]a[/b]", true)).toEqual([[{ text: "a", bold: true }]]);
   });
 
-  it("reads direction from the first letter", () => {
+  it("reads direction from the first strong character", () => {
     expect(textDirection(linesOf("12 שלום", false))).toBe("rtl");
     expect(textDirection(linesOf("مرحبا", false))).toBe("rtl");
     expect(textDirection(linesOf("1 Hi", false))).toBe("ltr");
     expect(textDirection(linesOf("e\u0301t\u00e9", false))).toBe("ltr");
+    expect(textDirection(linesOf("\u061f Hi", false))).toBe("rtl");
+    expect(textDirection(linesOf("[b]12[/b] שלום", true))).toBe("rtl");
     expect(textDirection([])).toBe("ltr");
+  });
+
+  it("gives the block and its pieces one first-strong rule", () => {
+    expect(firstStrong("3 שלום")).toBe("rtl");
+    expect(firstStrong("Hi שלום")).toBe("ltr");
+    expect(firstStrong("\u060c")).toBe("rtl");
+    expect(firstStrong("12, !")).toBeNull();
+    expect(firstStrong("\u0301")).toBeNull();
+    for (const text of ["3 שלום", "1 Hi", "؟ abc", "..."])
+      expect(textDirection(linesOf(text, false))).toBe(firstStrong(text) ?? "ltr");
+    // A number between right-to-left words keeps its place in their run.
+    expect(visualOrder(["שלום", " ", "12", " ", "עולם"], firstStrong, "ltr")).toEqual([
+      "עולם",
+      " ",
+      "12",
+      " ",
+      "שלום",
+    ]);
   });
 
   it("reads the scripts localeDirection calls right to left as right to left", () => {
@@ -350,6 +374,8 @@ describe("text rules", () => {
     expect(meta(text.font.unwrap())).toMatchObject({ title: "Font", group: "assets" });
     expect(meta(text.key)).toMatchObject({ widget: "string-key" });
     expect(meta(text.anchor)).toMatchObject({ step: 0.05, decimals: 2 });
+    expect(meta(text.anchor)).toMatchObject({ default: TEXT_ANCHOR_DEFAULT });
+    expect(meta(text.align)).toMatchObject({ default: TEXT_ALIGN_DEFAULT });
     expect(meta(shape(AUDIO.fields).sound)).toMatchObject({ title: "Sound" });
   });
 

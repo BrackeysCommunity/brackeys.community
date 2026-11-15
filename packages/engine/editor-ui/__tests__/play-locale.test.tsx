@@ -51,6 +51,7 @@ afterEach(() => {
 /** The editor on a gameless game whose project offers English and French. */
 async function setup() {
   const canvas = document.createElement("canvas");
+  canvas.tabIndex = -1;
   document.body.append(canvas);
   const g = await createGame(canvas, { game: null, rapier: async () => rapier, dev: true });
   game = g;
@@ -89,7 +90,7 @@ async function setup() {
       <div />
     </EditorFrame>,
   );
-  return { game: g, live, set, current: () => current };
+  return { game: g, live, set, canvas, current: () => current };
 }
 
 const picker = () => screen.getByRole("combobox", { name: "Locale" });
@@ -98,10 +99,10 @@ describe("the play bar's locale picker", () => {
   it("previews a locale in Play, and Stop puts back the one Play started in", async () => {
     const { game, live, set, current } = await setup();
     live.play();
-    await waitFor(() => expect(picker().textContent).toContain("English"));
+    await waitFor(() => expect(picker().textContent).toBe("en"));
 
     fireEvent.click(picker());
-    const french = await screen.findByRole("option", { name: "French" });
+    const french = await screen.findByRole("option", { name: "fr" });
     fireEvent.mouseMove(french);
     fireEvent.click(french);
     await waitFor(() => expect(current()).toBe("fr"));
@@ -112,7 +113,19 @@ describe("the play bar's locale picker", () => {
     expect(set).toHaveBeenLastCalledWith("en");
 
     live.play();
-    await waitFor(() => expect(picker().textContent).toContain("English"));
+    await waitFor(() => expect(picker().textContent).toBe("en"));
+  });
+
+  it("hands focus to the canvas once a locale is picked, so the play keys reach the game", async () => {
+    const { live, canvas } = await setup();
+    live.play();
+    await waitFor(() => picker());
+    picker().focus();
+    fireEvent.click(picker());
+    const french = await screen.findByRole("option", { name: "fr" });
+    fireEvent.mouseMove(french);
+    fireEvent.click(french);
+    await waitFor(() => expect(document.activeElement).toBe(canvas));
   });
 
   it("leaves the locale alone on a Stop when Play never changed it", async () => {

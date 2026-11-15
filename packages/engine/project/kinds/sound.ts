@@ -28,6 +28,9 @@ export const ENGINE_BUSES = ["master", "music", "sfx", "voice", "ui"] as const;
 /** What a bus a game declares may be called. */
 export const BUS_NAME_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 
+/** What a step event a sound plays on may be called: anything without spaces. */
+export const SOUND_EVENT_PATTERN = /^\S+$/;
+
 /** How many voices one sound keeps when its file gives no `maxVoices`. */
 export const SOUND_MAX_VOICES_DEFAULT = 8;
 
@@ -82,7 +85,7 @@ const matcherSchema = z
   .strictObject({
     event: z
       .string()
-      .min(1)
+      .regex(SOUND_EVENT_PATTERN, "an event type has no spaces")
       .describe('A step event type: "contact:start", "anim:frame", a game\'s own.'),
     type: z.string().optional().describe("Only when the event's entity is of this type."),
     tag: z.string().optional().describe("Only when the event's entity carries this tag."),
@@ -134,7 +137,13 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
       kind: z.literal(SOUND_KIND).describe('Always "sound".'),
       v: z.literal(SOUND_VERSION).describe("Sound format version."),
       bus: busSchema(buses),
-      volume: z.number().min(0).max(1).optional().describe("Loudness, 0–1; default 1."),
+      volume: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("Loudness, 0–1; default 1.")
+        .meta({ default: 1 }),
       pitch: z
         .tuple([
           z.number().positive().describe("The lowest playback rate."),

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
 
-import { assetInfo } from "../asset-info";
+import { assetInfo, audioChannelsText } from "../asset-info";
 import { atlasKind } from "../kinds/atlas";
 import { textureKind } from "../kinds/texture";
 import type { AssetEntry, ProjectState } from "../types";
@@ -146,5 +146,34 @@ describe("assetInfo", () => {
       sha256: HASH,
       bytes: itemsArt.bytes,
     });
+  });
+
+  it("gives an audio clip its header facts beside its import settings, and none for meta its schema refuses", () => {
+    const clip: AssetEntry = {
+      key: "ping",
+      id: "ping",
+      kind: "audio",
+      path: "audio/ping.wav",
+      sha256: HASH,
+      bytes: 64,
+      meta: { format: "wav", durationMs: 420, channels: 1, sampleRate: 22_050 },
+      import: { loopStart: 0.1 },
+      created,
+    };
+    const odd = { ...clip, key: "odd", id: "odd", meta: { format: "flac" } };
+    const clips = projectView({ ...state, assets: { ping: clip, odd } });
+    expect(assetInfo(clips, "ping")).toMatchObject({
+      audio: { format: "wav", durationMs: 420, channels: 1, sampleRate: 22_050 },
+      loopStart: 0.1,
+    });
+    expect(assetInfo(clips, "odd")?.audio).toBeUndefined();
+  });
+});
+
+describe("audioChannelsText", () => {
+  it("names mono and stereo, and counts any other layout", () => {
+    expect(audioChannelsText(1)).toBe("mono");
+    expect(audioChannelsText(2)).toBe("stereo");
+    expect(audioChannelsText(6)).toBe("6 channels");
   });
 });

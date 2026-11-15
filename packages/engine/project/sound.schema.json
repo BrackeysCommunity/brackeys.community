@@ -25,6 +25,7 @@
     },
     "volume": {
       "description": "Loudness, 0–1; default 1.",
+      "default": 1,
       "type": "number",
       "minimum": 0,
       "maximum": 1
@@ -116,7 +117,7 @@
         "properties": {
           "event": {
             "type": "string",
-            "minLength": 1,
+            "pattern": "^\\S+$",
             "description": "A step event type: \"contact:start\", \"anim:frame\", a game's own."
           },
           "type": {

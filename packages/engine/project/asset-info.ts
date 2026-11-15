@@ -2,7 +2,7 @@ import { didYouMean } from "../scene/did-you-mean";
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import { ATLAS_KIND, atlasMetaSchema, atlasSettingsSchema } from "./kinds/atlas";
-import { AUDIO_KIND, audioSettingsSchema } from "./kinds/audio";
+import { AUDIO_KIND, audioMetaSchema, audioSettingsSchema, type AudioMeta } from "./kinds/audio";
 import { FONT_KIND, fontMetaSchema, fontSettingsSchema, type FontMeta } from "./kinds/font";
 import { TEXTURE_KIND, textureMetaSchema, textureSettingsSchema } from "./kinds/texture";
 import type { AssetEntry, AssetId, AssetKindName, ProjectView, Sha256 } from "./types";
@@ -30,6 +30,8 @@ export type AssetInfo = {
   font?: FontMeta;
   /** A bitmap font: its page textures' ids, in page order. */
   pages?: readonly AssetId[];
+  /** An audio clip: what its headers say (format, length, channels, sample rate). */
+  audio?: AudioMeta;
   /** An audio clip played as a stream rather than decoded whole. */
   stream?: boolean;
   /** An audio clip's loop points, seconds from its start. */
@@ -103,7 +105,9 @@ export function entryInfo(entry: AssetEntry): EntryInfo {
     return { info, frames };
   }
   if (entry.kind === AUDIO_KIND) {
+    const meta = audioMetaSchema.safeParse(entry.meta);
     const settings = audioSettingsSchema.safeParse(entry.import ?? {});
+    if (meta.success) info.audio = meta.data;
     if (settings.success) {
       const { stream, loopStart, loopEnd } = settings.data;
       if (stream !== undefined) info.stream = stream;
@@ -119,7 +123,7 @@ export function entryInfo(entry: AssetEntry): EntryInfo {
  * `id`'s info from its live entry: kind, hash and size in bytes; a
  * texture's pixel size and its import pivot, nine-slice and filter; an
  * atlas's frame names in file order, tags and texture id; a font's meta and
- * pages; an audio clip's stream flag and loop points. With `frame`, an
+ * pages; an audio clip's header facts, stream flag and loop points. With `frame`, an
  * atlas's info with that frame's pixel size, rectangle and pivot (frames without their
  * own carry the atlas's `pivotDefault`). Null for an id with no live asset
  * and for a frame the asset doesn't have.
@@ -131,6 +135,13 @@ export function assetInfo(view: ProjectView, id: AssetId, frame?: string): Asset
   if (frame === undefined) return info;
   const own = frames.get(frame);
   return own ? { ...info, ...own } : null;
+}
+
+/** A clip's channel count in words: "mono", "stereo", "6 channels". */
+export function audioChannelsText(channels: number): string {
+  if (channels === 1) return "mono";
+  if (channels === 2) return "stereo";
+  return `${channels} channels`;
 }
 
 /**

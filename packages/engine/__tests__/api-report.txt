@@ -9858,6 +9858,7 @@ declare function projectPathMatcher(file: ProjectFile, match: GlobMatch): Projec
 
 ## project/asset-info.ts
 type AssetInfo = {
+    audio?: AudioMeta;
     bytes?: number;
     durations?: readonly (null | number)[];
     filter?: "linear" | "nearest";

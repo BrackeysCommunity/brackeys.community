@@ -139,6 +139,16 @@ describe("a gameless project's dialogue preview from the keyboard", () => {
     press(document.activeElement!, "ArrowUp", "ArrowUp");
     press(document.activeElement!, "ArrowDown", "ArrowDown");
 
+    // From the canvas the arrows still move the selection, though the default `move` uses them.
+    canvas.focus();
+    press(canvas, "ArrowUp", "ArrowUp");
+    expect(document.activeElement).toBe(choices()[0]);
+    expect(choices()[0]!.hasAttribute("data-selected")).toBe(true);
+    frame.focus();
+    press(frame, "ArrowDown", "ArrowDown");
+    expect(document.activeElement).toBe(choices()[1]);
+    expect(choices()[0]!.hasAttribute("data-selected")).toBe(false);
+
     // Enter from the canvas picks the selected choice.
     canvas.focus();
     press(canvas, "Enter", "Enter");

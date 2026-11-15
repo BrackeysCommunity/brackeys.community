@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { InspectorRow } from "../../../editor/inspector-model";
 import { settingsEdit, settingsValue } from "../../../editor/settings-model";
+import { sentence } from "../../../game/live";
 import type { AssetKindName } from "../../../project/index";
 import { localeSettingsOf, localeTagProblem } from "../../../project/kinds/strings";
 import { unwrapSchema } from "../../../scene/schema";
@@ -249,9 +250,9 @@ function AxesRow({ row, ctx, axes }: { row: InspectorRow; ctx: RowsCtx; axes: Ax
 /** game-settings' locales block, which `LocalesRow` draws. */
 export const LOCALES_PATH = "engine.locales";
 
-/** Where a locale is previewed, since the canvas draws the default while editing. */
+/** Where a locale is previewed: edit mode has no locale picker. */
 export const LOCALE_PREVIEW_NOTE =
-  "Edit mode draws the default locale; preview another from the play bar in Play.";
+  "Edit mode draws the locale the game starts in, which follows the browser's language; preview another from the play bar in Play.";
 
 const FONT_KINDS: readonly AssetKindName[] = ["font"];
 
@@ -293,7 +294,7 @@ function withEntry<T>(
 const tagsProblem = (tags: readonly string[]): string | null => {
   for (const tag of tags) {
     const problem = localeTagProblem(tag);
-    if (problem) return `${problem}.`;
+    if (problem) return sentence(problem);
   }
   return null;
 };
@@ -538,8 +539,18 @@ function RowView({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
           segmented={row.widget.kind === "segmented"}
         />
       );
-    case "switch":
-      return <SwitchField {...props} fallback={fallbackOf(ctx, row) === true} />;
+    case "switch": {
+      const fallback = fallbackOf(ctx, row);
+      return (
+        <SwitchField
+          {...props}
+          fallback={fallback === true}
+          {...(typeof fallback === "boolean"
+            ? { unset: `${fallback ? "on" : "off"} (default)` }
+            : {})}
+        />
+      );
+    }
     case "point": {
       const fallback = asPt(fallbackOf(ctx, row));
       return (

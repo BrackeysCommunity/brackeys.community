@@ -106,9 +106,10 @@ export function judgeSigns(signs: SignProbe | undefined): string | null {
 
 /**
  * Firefox's real-time context never runs without an output device, as on a
- * CI runner, where Chromium and WebKit fake one. There the live run proves
- * the gesture unlocked the backend and the voice was scheduled on the
- * context's clock; the offline render proves the graph.
+ * CI runner, where Chromium and WebKit fake one; its resume() never settles.
+ * There the live run proves the gesture's unlock asked the context to run
+ * (the backend reads suspended, not locked) and the voice was scheduled on
+ * the context's clock; the offline render proves the graph.
  */
 export const deviceless = (audio: AudioProbe, browser: BrowserName | undefined): boolean =>
   browser === "firefox" &&
@@ -121,6 +122,8 @@ function judgeLive(audio: AudioProbe, browser: BrowserName | undefined): string 
     return audio.held === true
       ? null
       : "with no output device the patch's voice didn't wait on the stopped context clock";
+  if (browser === "firefox" && audio.maxChannels === 0 && audio.backend === "locked")
+    return `after the click the context is ${audio.context} and the backend locked: the click didn't reach its unlock, or the browser refused it`;
   if (audio.context !== "running" || audio.backend !== "running") {
     const why = audio.maxChannels === 0 ? " (its destination has no output device to run on)" : "";
     return `after the click the context is ${audio.context} and the backend ${audio.backend}, not running${why}`;

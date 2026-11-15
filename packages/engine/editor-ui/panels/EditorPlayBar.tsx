@@ -1,8 +1,18 @@
-import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
+import {
+  LiveStreaming02Icon,
+  NextIcon,
+  PauseIcon,
+  PlayIcon,
+  StopIcon,
+  VolumeHighIcon,
+} from "@hugeicons/core-free-icons";
 import type { Store } from "@tanstack/store";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import type { ProjectSession } from "../../collab/index";
+import { DIALOGUE_KIND, type AssetKindName } from "../../project/index";
 import type { GameInstance, GameStoreState } from "../../types";
+import { onLocale } from "../../ui/bind";
 import { applySoundInPlay, useSoundInPlay } from "../audio/editor-audio";
 import { Island } from "../frame/EditorFrame";
 import type { EditorControls } from "../frame/keys";
@@ -11,7 +21,9 @@ import {
   Badge,
   Button,
   Hint,
+  Icon,
   IconButton,
+  type IconSvgElement,
   KeyHint,
   Select,
   SelectContent,
@@ -25,6 +37,8 @@ import {
 import type { EditorHostState } from "../session/live-scene-editor";
 import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
+import { useProjectView } from "./EditorProject";
+import { assetOptions } from "./inspector/asset-picker";
 import { LiveInPlayStatus, livePlayPending } from "./LiveInPlayStatus";
 import { PlayCaptions, previewDialogues, type DialoguePreview } from "./play-overlay/PlayCaptions";
 
@@ -54,6 +68,8 @@ export const dialoguePickerHint = (running: string | null): string =>
   running === null
     ? `${DIALOGUE_PREVIEW_TOOLTIP}.`
     : `Previewing ${running}. Pick it again to start over.`;
+
+const DIALOGUE_KINDS: readonly AssetKindName[] = [DIALOGUE_KIND];
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -160,10 +176,11 @@ export function EditorPlayBar({
         </div>
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
         <SoundInPlayToggle game={game} on={sound} onChange={setSound} onLater={setSoundLater} />
-        <LocalePicker game={game} />
+        <LocalePicker game={game} canvas={canvas} />
         <DialoguePicker
           game={game}
           canvas={canvas}
+          session={project?.session ?? null}
           running={dialogue?.id ?? null}
           onPick={(id) => setDialogue((was) => ({ id, run: (was?.run ?? 0) + 1 }))}
         />
@@ -171,10 +188,11 @@ export function EditorPlayBar({
           variant="secondary"
           size="sm"
           icon={StopIcon}
+          aria-label="Stop"
           onClick={onStop}
           tooltip={<KeyHint text="Stop" chord={keymap.chordOf("stop")} />}
         >
-          Stop
+          <span className="je-play-stop-label">Stop</span>
         </Button>
       </Island>
       {/* Out of the row's flow, so a status coming or going never moves the controls under the pointer. */}
@@ -210,20 +228,23 @@ export function EditorPlayBar({
 }
 
 /**
- * A labelled switch in the play bar; its label toggles it too. Once flipped,
- * its hint stays shut until the pointer or focus leaves, so the status it
- * would cover above the bar can be read. With an `unavailable` reason it is
- * disabled but focusable, so the hint giving the reason opens from the
- * keyboard as well as on hover.
+ * A labelled switch in the play bar; its label toggles it too, and a narrow
+ * bar swaps the label's text for `icon`. Once flipped, its hint stays shut
+ * until the pointer or focus leaves, so the status it would cover above the
+ * bar can be read. With an `unavailable` reason it is disabled but
+ * focusable, so the hint giving the reason opens from the keyboard as well
+ * as on hover.
  */
 function PlayBarSwitch({
   label,
+  icon,
   tooltip,
   checked,
   onChange,
   unavailable = null,
 }: {
   label: string;
+  icon: IconSvgElement;
   tooltip: string;
   checked: boolean;
   onChange: (on: boolean) => void;
@@ -234,7 +255,8 @@ function PlayBarSwitch({
   const [flipped, setFlipped] = useState(false);
   const text = (
     <Text size="sm" variant={unavailable !== null ? "muted" : "primary"} aria-hidden>
-      {label}
+      <Icon icon={icon} className="je-play-switch-icon" />
+      <span className="je-play-switch-label">{label}</span>
     </Text>
   );
   if (unavailable !== null) {
@@ -296,6 +318,7 @@ function LiveInPlayToggle({
   return (
     <PlayBarSwitch
       label="Live in Play"
+      icon={LiveStreaming02Icon}
       tooltip={`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`}
       checked={on}
       unavailable={unavailable}
@@ -330,6 +353,7 @@ function SoundInPlayToggle({
   return (
     <PlayBarSwitch
       label="Sound in Play"
+      icon={VolumeHighIcon}
       tooltip={`${SOUND_IN_PLAY_TOOLTIP}.`}
       checked={on}
       onChange={onChange}
@@ -339,15 +363,6 @@ function SoundInPlayToggle({
 
 /** The chrome's game type leaves these out; a stand-in game may have none. */
 type LocaleGame = Partial<Pick<GameInstance, "locale" | "on" | "off">>;
-
-/** A locale's name in the editor's language ("French"), or its code when the browser has none. */
-function localeName(code: string): string {
-  try {
-    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-}
 
 /**
  * Puts the game back on the locale it had when Play started once Play stops.
@@ -368,20 +383,39 @@ export function usePlayLocale(game: object, playing: boolean): void {
 }
 
 /**
+ * What a pick in one of the bar's pickers hands focus to once its list
+ * closes: the canvas, so the play keys reach the game rather than reopening
+ * the picker. Dismissing the list without a pick leaves focus on its trigger.
+ */
+function useFocusCanvasOnPick(canvas: EditorControls["canvas"]) {
+  const picked = useRef(false);
+  return {
+    picked: () => {
+      picked.current = true;
+    },
+    finalFocus: () => {
+      const to = picked.current ? (canvas?.() ?? null) : null;
+      picked.current = false;
+      return to ?? true;
+    },
+  };
+}
+
+/**
  * Switches the game's locale while playing, so translated text and its font
  * can be checked; Stop puts back the locale Play started in (`usePlayLocale`).
- * Shown only when the project lists more than one locale.
+ * Locales read as their tags, as the game settings and string tables name
+ * them. Shown only when the project lists more than one locale.
  */
-function LocalePicker({ game }: { game: object }) {
+function LocalePicker({ game, canvas }: { game: object; canvas: EditorControls["canvas"] }) {
   const { cue } = useKit();
+  const focus = useFocusCanvasOnPick(canvas);
   const g = game as LocaleGame;
   const locale = g.locale ?? null;
   const [current, setCurrent] = useState(() => locale?.current() ?? null);
   useEffect(() => {
     if (!locale || !g.on || !g.off) return;
-    const changed = ({ to }: { to: string }) => setCurrent(to);
-    g.on("locale:change", changed);
-    return () => g.off?.("locale:change", changed);
+    return onLocale(g as Pick<GameInstance, "on" | "off">, () => setCurrent(locale.current()));
   }, [g, locale]);
   const available = locale?.available() ?? [];
   if (!locale || current === null || available.length < 2) return null;
@@ -390,20 +424,21 @@ function LocalePicker({ game }: { game: object }) {
       value={current}
       onValueChange={(next) => {
         if (typeof next !== "string" || next === current) return;
+        focus.picked();
         cue("toggle");
         locale.set(next);
         setCurrent(locale.current());
       }}
     >
       <Hint content={`${LOCALE_TOOLTIP}.`}>
-        <SelectTrigger size="sm" aria-label="Locale" className="je-play-select">
-          <SelectValue>{localeName(current)}</SelectValue>
+        <SelectTrigger size="sm" aria-label="Locale" className="je-play-select je-play-locale">
+          <SelectValue>{current}</SelectValue>
         </SelectTrigger>
       </Hint>
-      <SelectContent>
+      <SelectContent finalFocus={focus.finalFocus}>
         {available.map((code) => (
           <SelectItem key={code} value={code}>
-            {localeName(code)}
+            {code}
           </SelectItem>
         ))}
       </SelectContent>
@@ -413,51 +448,50 @@ function LocalePicker({ game }: { game: object }) {
 
 /**
  * Previews one of a gameless project's dialogues in the Play overlay; picking
- * the running one again starts it over. A pick hands focus to the canvas, so
- * the play keys move the dialogue on rather than reopening the picker. Shown
- * only when the project has a dialogue and no game code, whose own UI would
- * start and show them.
+ * the running one again starts it over. Each reads as the asset pickers name
+ * it. A pick hands focus to the canvas, so the play keys move the dialogue on
+ * rather than reopening the picker. Shown only when the project has a
+ * dialogue and no game code, whose own UI would start and show them.
  */
 function DialoguePicker({
   game,
   canvas,
+  session,
   running,
   onPick,
 }: {
   game: object;
   canvas: EditorControls["canvas"];
+  session: ProjectSession | null;
   running: string | null;
   onPick: (id: string) => void;
 }) {
   const { cue } = useKit();
-  const picked = useRef(false);
+  const focus = useFocusCanvasOnPick(canvas);
+  const view = useProjectView(session);
   const ids = previewDialogues(game);
   if (ids.length === 0) return null;
+  const options = view ? assetOptions(view, DIALOGUE_KINDS) : [];
+  const label = (id: string) => options.find((o) => o.id === id)?.label ?? id;
   return (
     <Select
       value={running}
       onValueChange={(next) => {
         if (typeof next !== "string") return;
-        picked.current = true;
+        focus.picked();
         cue("toggle");
         onPick(next);
       }}
     >
-      <Hint content={dialoguePickerHint(running)}>
+      <Hint content={dialoguePickerHint(running === null ? null : label(running))}>
         <SelectTrigger size="sm" aria-label="Preview a dialogue" className="je-play-select">
-          <SelectValue>{running ?? "Dialogue"}</SelectValue>
+          <SelectValue>{running === null ? "Dialogue" : label(running)}</SelectValue>
         </SelectTrigger>
       </Hint>
-      <SelectContent
-        finalFocus={() => {
-          const to = picked.current ? (canvas?.() ?? null) : null;
-          picked.current = false;
-          return to ?? true;
-        }}
-      >
+      <SelectContent finalFocus={focus.finalFocus}>
         {ids.map((id) => (
           <SelectItem key={id} value={id}>
-            {id}
+            {label(id)}
           </SelectItem>
         ))}
       </SelectContent>

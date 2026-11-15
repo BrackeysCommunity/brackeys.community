@@ -42,6 +42,8 @@ What headless code and the editor know of an asset without decoding or fetching 
 
 ```ts
 type AssetInfo = {
+    /** An audio clip: what its headers say (format, length, channels, sample rate). */
+    audio?: AudioMeta;
     bytes?: number;
     /** An atlas: each frame's durationMs, in `frames` order; null where the export gives none. */
     durations?: readonly (null | number)[];
@@ -120,6 +122,11 @@ Where voices play: a Web Audio context in a browser, a logging fake in tests.
 interface AudioBackend {
     /** Seconds, the context's clock. */
     readonly now: number;
+    /**
+     * `locked` until an unlock asks the context to run, and again when the
+     * browser refuses it; `suspended` while an asked context hasn't run yet
+     * (one with no output device never does) or once one that ran stops.
+     */
     readonly state: "closed" | "locked" | "running" | "suspended";
     /** Output latency in seconds (outputLatency + baseLatency where known, else 0). */
     readonly latency: number;
@@ -2924,7 +2931,7 @@ _function_ in `project/asset-info.ts`
 `id`'s info from its live entry: kind, hash and size in bytes; a
 texture's pixel size and its import pivot, nine-slice and filter; an
 atlas's frame names in file order, tags and texture id; a font's meta and
-pages; an audio clip's stream flag and loop points. With `frame`, an
+pages; an audio clip's header facts, stream flag and loop points. With `frame`, an
 atlas's info with that frame's pixel size, rectangle and pivot (frames without their
 own carry the atlas's `pivotDefault`). Null for an id with no live asset
 and for a frame the asset doesn't have.

@@ -5279,15 +5279,7 @@ Refers to [`ExpandedScene`](#expandedscene), [`SceneAsciiOptions`](#sceneasciiop
 
 _function_ in `scene/svg.ts`
 
-A schematic of the scene as SVG text, drawn in world px (the scene's
-metres times the game's px per metre, written to 1/100 px): every entity
-through `shapeOutline` in its registered type's (and material's) style, each
-one-way solid's landing face (as the edit overlay marks it), a
-grid with axis ticks in world px, id labels, each sprite's box labelled `asset[:frame]` (sized
-from `opts.project` when given), each `text` block's measured box labelled with its text
-("≈" before an estimated size), path waypoints with numbered ghosts, and overlays
-(issues, a playtest's trail, events and outcome). Pure and deterministic:
-the same scene and options give the same text.
+The scene as deterministic SVG text in world px (1/100 px): entities in their type's style, one-way faces, a grid, labels, sprite and text boxes ("≈" when estimated), paths and the given overlays.
 
 ```ts
 declare function renderSceneSvg(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): string;

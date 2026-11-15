@@ -12,7 +12,7 @@
  */
 
 import { pcmWav, triangleLevel } from "../../audio/wav";
-import { pngFile, zlibStream } from "../../export/png-write";
+import { deflateStored, pngFile, zlibStream } from "../../export/png-write";
 
 /** A generated file: its path inside the engine project, and its bytes. */
 export type KitchenMediaFile = { path: string; bytes: Uint8Array };
@@ -163,19 +163,6 @@ function layout() {
 
 function pageSize(count: number) {
   return { width: PAGE_COLUMNS * PITCH_X, height: Math.ceil(count / PAGE_COLUMNS) * PITCH_Y };
-}
-
-/** Stored (uncompressed) deflate blocks of `raw`: no encoder to drift. */
-function deflateStored(raw: Uint8Array): number[] {
-  const out: number[] = [];
-  const max = 65_535;
-  for (let at = 0; at < raw.length; at += max) {
-    const block = raw.subarray(at, at + max);
-    const n = block.length;
-    const last = at + max >= raw.length ? 1 : 0;
-    out.push(last, n & 0xff, n >>> 8, ~n & 0xff, (~n >>> 8) & 0xff, ...block);
-  }
-  return out;
 }
 
 /** The font's page: white glyphs on transparent, 8-bit grey and alpha. */

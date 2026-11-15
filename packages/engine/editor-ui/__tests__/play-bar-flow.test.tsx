@@ -144,3 +144,31 @@ describe("the play bar's statuses", () => {
     expect(/\.je-play-notes:empty \{([^}]*)\}/.exec(css)?.[1]).toContain("display: none");
   });
 });
+
+describe("the play bar at narrow widths", () => {
+  it("keeps one row, the chip giving way first, then the switches' labels, then Stop's label and the pickers' width", () => {
+    const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    expect(/\.je-frame-dock \{([^}]*)\}/.exec(css)?.[1]).toContain(
+      "container: je-dock / inline-size",
+    );
+    const below = (selector: string) => {
+      const at = css.indexOf(`${selector} {`, css.indexOf("@container je-dock"));
+      const query = css.lastIndexOf("@container je-dock (max-width: ", at);
+      return Number(/max-width: (\d+)px/.exec(css.slice(query))?.[1]);
+    };
+    const chip = below(".je-play-bar > .je-badge");
+    const labels = below(".je-play-switch-label");
+    const stop = below(".je-play-stop-label");
+    const order = below(".je-play-select");
+    expect(chip).toBeGreaterThan(labels);
+    expect(labels).toBeGreaterThan(stop);
+    expect(stop).toBeGreaterThan(order);
+    expect(order).toBeGreaterThan(0);
+  });
+
+  it("names the switches and Stop for assistive tech whatever their labels show", () => {
+    bar({ outcome: false });
+    expect(button("Stop").getAttribute("aria-label")).toBe("Stop");
+    expect(document.querySelectorAll(".je-play-switch-icon").length).toBeGreaterThan(0);
+  });
+});

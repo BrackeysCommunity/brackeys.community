@@ -10,6 +10,7 @@ import type { PixiView } from "../render/pixi-view";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import type { StringTableData } from "../text/strings";
 import type { GameConfig, GameInstance } from "../types";
+import { onLocale } from "../ui/bind";
 import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
 
 /** Every table the shell handed a scene view, in order. */
@@ -175,6 +176,21 @@ describe("locale.set", () => {
     game.locale.set("fr");
     expect(changes).toHaveLength(1);
     expect(handed.length).toBe(before + 1);
+  });
+
+  it("reaches onLocale's listeners on the game or a UI context's game, until they unsubscribe", async () => {
+    stubLanguages(["en"]);
+    const game = await makeGame(memoryPrefsStore(), { scene: doc });
+    const direct = vi.fn();
+    const viaContext = vi.fn();
+    const stopDirect = onLocale(game, direct);
+    const stopContext = onLocale({ game }, viaContext);
+    game.locale.set("fr");
+    expect([direct.mock.calls.length, viaContext.mock.calls.length]).toEqual([1, 1]);
+    stopDirect();
+    stopContext();
+    game.locale.set("en");
+    expect([direct.mock.calls.length, viaContext.mock.calls.length]).toEqual([1, 1]);
   });
 
   it("draws a locale whose font is empty or inherited in the default's, as the font check reads it", async () => {

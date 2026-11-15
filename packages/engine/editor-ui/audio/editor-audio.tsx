@@ -2,13 +2,12 @@ import { PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import { Store } from "@tanstack/store";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
-import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs } from "../../audio/synth";
-import { pickSoundVariant, soundRate } from "../../audio/system";
+import { renderSynth, SYNTH_SAMPLE_RATE } from "../../audio/synth";
+import { pickSoundVariant, soundLeafMs, soundRate } from "../../audio/system";
 import type { AudioBackend, AudioClipHandle, BusName, Voice } from "../../audio/types";
 import { webAudioBackend } from "../../audio/web-audio";
 import { sameValue } from "../../project/canonical";
 import { AUDIO_KIND } from "../../project/kinds/audio";
-import { isPlainObject } from "../../project/kinds/define";
 import { SOUND_KIND, type SoundFile } from "../../project/kinds/sound";
 import { SYNTH_KIND, type SynthFile } from "../../project/kinds/synth";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
@@ -96,17 +95,9 @@ type Resolved = { id: AssetId; leaf: Leaf; bus: BusName; volume: number; rate: n
 const docOf = <T,>(runtime: ProjectRuntimeView | null, kind: string, id: AssetId): T | undefined =>
   runtime?.doc?.<T>(kind, id);
 
-/** A clip's length from its meta, ms. */
-function clipMs(view: ProjectView | null, id: AssetId): number | null {
-  const meta = view?.byId.get(id)?.meta;
-  return isPlainObject(meta) && typeof meta.durationMs === "number" ? meta.durationMs : null;
-}
-
 /** A clip's or a patch's length, ms; null for a sound or an unknown id. */
-function leafMs(source: EditorAudioSource, id: AssetId): number | null {
-  const patch = docOf<SynthFile>(source.runtime(), SYNTH_KIND, id);
-  return patch ? synthDurationMs(patch) : clipMs(source.view(), id);
-}
+const leafMs = (source: EditorAudioSource, id: AssetId): number | null =>
+  soundLeafMs(source.view(), id, (clip) => docOf<SynthFile>(source.runtime(), SYNTH_KIND, clip));
 
 /** "0.42 s", "12.0 s", "1:05": a clip's or a sound's length. */
 export function formatClipLength(ms: number): string {

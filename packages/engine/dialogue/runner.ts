@@ -1,5 +1,9 @@
 /** One conversation over a dialogue file and a variable host. Pure. */
-import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
+import {
+  DIALOGUE_ADVANCE_COMMAND,
+  DIALOGUE_CHOOSE_COMMAND,
+  dialogueChoiceOf,
+} from "../game/commands";
 import type { GameCommand, JsonValue } from "../game/types";
 import { cloneJson, sameValue } from "../project/canonical";
 import { isPlainObject } from "../project/kinds/define";
@@ -297,8 +301,8 @@ export function createDialogueRunner(
 export function applyDialogueCommand(runner: DialogueRunner, command: GameCommand): boolean {
   if (command.name === DIALOGUE_ADVANCE_COMMAND) return runner.advance();
   if (command.name !== DIALOGUE_CHOOSE_COMMAND) return false;
-  const choice = (command.args as { choice?: unknown } | undefined)?.choice;
-  return typeof choice === "number" && runner.choose(choice);
+  const choice = dialogueChoiceOf(command);
+  return choice !== null && runner.choose(choice);
 }
 
 function parseSave(

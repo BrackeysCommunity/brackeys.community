@@ -1722,6 +1722,7 @@
     flex: 1;
     justify-content: center;
     min-width: 0;
+    container: je-dock / inline-size;
   }
 
   .je-frame-dock > .je-island,
@@ -2176,6 +2177,51 @@
   .je-play-select {
     flex-shrink: 0;
     width: 96px;
+  }
+
+  /* Locale tags are short. */
+  .je-play-select.je-play-locale {
+    width: 80px;
+  }
+
+  .je-play-switch-icon {
+    display: none;
+  }
+
+  /* A narrow bar keeps one row: the chip goes first, then the switches show icons for their labels, then the pickers narrow and Stop keeps only its icon. */
+  @container je-dock (max-width: 819px) {
+    .je-play-bar > .je-badge {
+      display: none;
+    }
+  }
+
+  @container je-dock (max-width: 649px) {
+    .je-play-switch-icon {
+      display: inline-block;
+      vertical-align: -2px;
+    }
+
+    .je-play-switch-label {
+      display: none;
+    }
+  }
+
+  @container je-dock (max-width: 539px) {
+    .je-play-select,
+    .je-play-select.je-play-locale {
+      width: 64px;
+    }
+
+    .je-play-stop-label {
+      display: none;
+    }
+  }
+
+  /* Narrower still, the pickers wrap to a row of their own rather than Stop. */
+  @container je-dock (max-width: 459px) {
+    .je-play-select {
+      order: 1;
+    }
   }
 
   .je-scene-changed {

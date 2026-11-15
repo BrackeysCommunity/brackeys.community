@@ -6,7 +6,12 @@ import { settingsRows } from "../../../editor/settings-model";
 import { sentence } from "../../../game/live";
 import { keyedItemPointer } from "../../../project/json-edit";
 import { AUDIO_KIND } from "../../../project/kinds/audio";
-import { audioBuses, soundBusProblem, type SoundFile } from "../../../project/kinds/sound";
+import {
+  audioBuses,
+  SOUND_EVENT_PATTERN,
+  soundBusProblem,
+  type SoundFile,
+} from "../../../project/kinds/sound";
 import { SYNTH_KIND } from "../../../project/kinds/synth";
 import { ENGINE_STEP_EVENTS } from "../../../runtime/types";
 import { jsonPointer } from "../../../scene/issues";
@@ -19,7 +24,12 @@ import {
 import { AuditionButton } from "../../audio/editor-audio";
 import { IconButton, Text } from "../../kit/index";
 import { useProjectView } from "../EditorProject";
-import { AssetCombobox, assetOptions, danglingAsset } from "../inspector/asset-picker";
+import {
+  AssetCombobox,
+  assetOptions,
+  danglingAsset,
+  type AssetOption,
+} from "../inspector/asset-picker";
 import {
   EditError,
   FieldRow,
@@ -46,11 +56,7 @@ const VARIANT_KINDS = [AUDIO_KIND, SYNTH_KIND] as const;
 /** The fields drawn by their own sections, not as plain rows. */
 const OWN_ROWS: readonly string[] = ["$schema", "kind", "v", "bus", "variants", "on"];
 
-/** What the player reads for an unset field the schema gives no default. */
-const FALLBACKS: Readonly<Record<string, number>> = { volume: 1 };
-
-/** A typed event a game raises itself: anything without spaces. */
-const isEventName = (text: string) => /^\S+$/.test(text);
+const isEventName = (text: string) => SOUND_EVENT_PATTERN.test(text);
 
 /** An event the engine doesn't raise may still be the game's own, so it's noted, not refused. */
 const eventProblem = (event: string): NameProblem | null =>
@@ -130,15 +136,9 @@ function Rows({
     const w = row.widget;
     if (isBoundedNumber(row)) {
       flush();
-      const fallback = FALLBACKS[row.path];
       out.push(
         <Locked key={row.path} disabled={doc.readOnly !== null}>
-          <SliderField
-            field={row}
-            scope={scope}
-            commit={commit}
-            {...(fallback !== undefined ? { fallback } : {})}
-          />
+          <SliderField field={row} scope={scope} commit={commit} />
         </Locked>,
       );
     } else if (w.kind === "range") {
@@ -201,6 +201,36 @@ function BusRow({
 
 type Shapes = ReturnType<typeof soundShapes>;
 
+const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+/**
+ * What each variant is called: its asset's name, or its file name
+ * (`clink.wav`, `clink.synth.json`) when another variant has the same name,
+ * or its path when another has the same file name too; its id when it
+ * names no asset.
+ */
+export function variantNames(
+  clips: readonly string[],
+  options: readonly AssetOption[],
+): Map<string, string> {
+  const byId = new Map(options.map((o) => [o.id, o]));
+  const found = clips.map((clip) => byId.get(clip));
+  const shared = (i: number, of: (o: AssetOption) => string) => {
+    const mine = found[i];
+    return (
+      mine !== undefined && found.some((o, j) => j !== i && o !== undefined && of(o) === of(mine))
+    );
+  };
+  return new Map(
+    clips.map((clip, i) => {
+      const o = found[i];
+      if (o === undefined) return [clip, clip];
+      if (!shared(i, (x) => x.label)) return [clip, o.label];
+      return [clip, shared(i, (x) => fileName(x.path)) ? o.path : fileName(o.path)];
+    }),
+  );
+}
+
 /** A variant's or a trigger's heading: what it is, and its buttons at the end. */
 function ItemHead({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -230,6 +260,10 @@ function Variants({
   const readOnly = doc.readOnly !== null;
   const scope = settingScope(doc.docName, "variants");
   const taken = new Set(value.variants.map((v) => v.clip));
+  const names = variantNames(
+    value.variants.map((v) => v.clip),
+    options,
+  );
   return (
     <InspectorSection id="sound:variants" title="Variants">
       <div className="je-insp-stack">
@@ -239,7 +273,7 @@ function Variants({
         {value.variants.map((variant) => {
           const at = keyedItemPointer(jsonPointer(["variants"]), variant.clip);
           const problem = danglingAsset(variant.clip, options, VARIANT_KINDS);
-          const name = options.find((o) => o.id === variant.clip)?.label ?? variant.clip;
+          const name = names.get(variant.clip) ?? variant.clip;
           const weight = shapes.variant
             ? settingsRows(shapes.variant, variant, `variants.@${variant.clip}`, {
                 registry,

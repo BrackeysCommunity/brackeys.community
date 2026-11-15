@@ -1,6 +1,6 @@
 /** The dialogue box and text log: DOM helpers a game's `MountUi` mounts over the canvas. */
 import type { DialogueLogEntry, DialogueView } from "../dialogue/runner";
-import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
+import { dialogueAdvance, dialogueChoose } from "../game/commands";
 import type { GameCommand } from "../game/types";
 import type { DialogueLine } from "../project/kinds/dialogue";
 import { parseRichText, richPlainText, type RichLine } from "../text/rich";
@@ -297,11 +297,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     const button = buttons[at];
     const index = Number(button?.dataset.jamsChoice);
     if (!button || button.disabled || !Number.isInteger(index)) return;
-    send({
-      name: DIALOGUE_CHOOSE_COMMAND,
-      args: { choice: index },
-      ...(player !== undefined && { player }),
-    });
+    send(dialogueChoose(index, player));
   };
 
   const drawLine = () =>
@@ -351,9 +347,9 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     ) {
       focusChoice(selected);
     }
-    // Kept in its row while a line types, so the box doesn't change height as each line finishes.
-    hint.hidden = !active() || view?.choices != null;
-    hint.style.visibility = typingSince === null ? "" : "hidden";
+    // Kept in its row on every line, so the box's height follows only the line and the choices.
+    hint.hidden = !active();
+    hint.style.visibility = typingSince === null && view?.choices == null ? "" : "hidden";
   };
 
   const finishLine = () => {
@@ -443,7 +439,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
       return;
     }
     if (view.choices !== null) return;
-    send({ name: DIALOGUE_ADVANCE_COMMAND, ...(player !== undefined && { player }) });
+    send(dialogueAdvance(player));
   };
 
   const move = (by: 1 | -1) => {
@@ -491,24 +487,34 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     e.stopPropagation();
     move(e.key === "ArrowUp" ? -1 : 1);
   };
+  /** A key something else already took, or one held with a modifier. */
+  const leftAlone = (e: KeyboardEvent) => e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey;
   /**
-   * Enter, Space and the arrows for the actions the game binds nothing to,
-   * as in a project without game code; a key one of its actions uses stays its.
+   * Enter and Space for an unbound advance, as in a project without game
+   * code; a key one of the game's actions uses stays its.
    */
   const onPageKey = (e: KeyboardEvent) => {
-    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (!active() || !pageHolds(e.target) || keyBound(e.code)) return;
-    if (e.key === "Enter" || e.key === " ") {
-      // A focused choice takes Enter and Space as its own click.
-      if (!unbound(actions.advance) || e.target instanceof win.HTMLButtonElement) return;
-      e.preventDefault();
-      if (!e.repeat) advance();
-    } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      const up = e.key === "ArrowUp";
-      if (!unbound(up ? actions.up : actions.down) || !choicesShown()) return;
-      e.preventDefault();
-      move(up ? -1 : 1);
-    }
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (leftAlone(e) || !active() || !pageHolds(e.target) || keyBound(e.code)) return;
+    // A focused choice takes Enter and Space as its own click.
+    if (!unbound(actions.advance) || e.target instanceof win.HTMLButtonElement) return;
+    e.preventDefault();
+    if (!e.repeat) advance();
+  };
+  /**
+   * The arrows for an unbound up or down while choices show, ahead of the
+   * game's input target: a game action such as "move" on the same key would
+   * otherwise take them from the canvas. The first press moves focus into
+   * the box, where `onKey` takes the rest.
+   */
+  const onPageArrow = (e: KeyboardEvent) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    if (leftAlone(e) || !choicesShown() || focusInBox() || !pageHolds(e.target)) return;
+    const up = e.key === "ArrowUp";
+    if (!unbound(up ? actions.up : actions.down)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    move(up ? -1 : 1);
   };
   const onClick = (e: MouseEvent) => {
     if (e.button === 0) advance(undefined, true);
@@ -516,6 +522,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
   box.addEventListener("keydown", onKey);
   box.addEventListener("click", onClick);
   doc.addEventListener("keydown", onPageKey);
+  doc.addEventListener("keydown", onPageArrow, true);
 
   return {
     destroy() {
@@ -526,6 +533,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
       box.removeEventListener("keydown", onKey);
       box.removeEventListener("click", onClick);
       doc.removeEventListener("keydown", onPageKey);
+      doc.removeEventListener("keydown", onPageArrow, true);
       resized?.disconnect();
       if (focusInBox()) releaseFocus();
       box.remove();

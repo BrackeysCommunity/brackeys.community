@@ -5,7 +5,13 @@ import { describe, expect, it } from "vite-plus/test";
 import { mediaFixtures, wavBytes } from "../project/__tests__/fixtures/make-media-fixtures";
 import { stableJson } from "../project/canonical";
 import { readAudioHeader } from "../project/inspect/audio";
-import { audioKind, audioSettingsSchema, type AudioMeta } from "../project/kinds/audio";
+import {
+  audioKind,
+  audioSettingsSchema,
+  loopPastEnd,
+  loopSpan,
+  type AudioMeta,
+} from "../project/kinds/audio";
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(new URL(`../project/__tests__/fixtures/${name}`, import.meta.url)));
@@ -141,6 +147,38 @@ describe("audio meta from the headers", () => {
     expect(
       audioKind.inspect(fixture("tone.wav"), { loopStart: 2, loopEnd: 1 }, env("t.wav")).ok,
     ).toBe(false);
+  });
+
+  it("names loop points past the measured end of a 120 ms clip, which still imports", () => {
+    const settings = { loopStart: 0.5 };
+    const result = audioKind.inspect(fixture("media/mono-22k.wav"), settings, env("m.wav"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(loopPastEnd(settings, result.meta)).toBe(
+      "loopStart 0.5 s is at or past the clip's 0.120 s end, so the whole clip loops",
+    );
+    expect(loopPastEnd({ loopStart: 0.12 }, result.meta)).toMatch(
+      /^loopStart 0.12 s is at or past/,
+    );
+    expect(loopPastEnd({ loopStart: 0.05, loopEnd: 0.2 }, result.meta)).toBe(
+      "loopEnd 0.2 s is past the clip's 0.120 s end, so the loop jumps back at the end",
+    );
+    expect(loopPastEnd({ loopStart: 0.05, loopEnd: 0.12 }, result.meta)).toBeNull();
+    expect(loopPastEnd({}, result.meta)).toBeNull();
+    expect(loopPastEnd(settings, { durationMs: undefined })).toBeNull();
+  });
+
+  it("plays loop points over a clip's length the same way for every backend", () => {
+    expect(loopSpan({}, 4)).toEqual({ from: 0, to: 4 });
+    expect(loopSpan({ loopStart: 1 }, 4)).toEqual({ from: 1, to: 4 });
+    expect(loopSpan({ loopStart: 1, loopEnd: 3 }, 4)).toEqual({ from: 1, to: 3 });
+    expect(loopSpan({ loopStart: 1, loopEnd: 9 }, 4)).toEqual({ from: 1, to: 4 });
+    expect(loopSpan({ loopStart: 4 }, 4)).toEqual({ from: 0, to: 4 });
+    expect(loopSpan({ loopStart: 6, loopEnd: 9 }, 4)).toEqual({ from: 0, to: 4 });
+    expect(loopSpan({ loopStart: 1, loopEnd: 3 }, Number.POSITIVE_INFINITY)).toEqual({
+      from: 1,
+      to: 3,
+    });
   });
 
   it("is versioned for re-inspection and declares each container's content type", () => {

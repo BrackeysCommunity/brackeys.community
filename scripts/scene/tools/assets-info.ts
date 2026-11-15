@@ -8,7 +8,6 @@ import {
   animationKind,
   ANIMATION_KIND,
   AUDIO_KIND,
-  audioMetaSchema,
   assetInfo,
   FONT_KIND,
   parseAssetDoc,
@@ -227,12 +226,6 @@ function channelsText(channels: number): string {
   return `${channels} channels`;
 }
 
-/** A clip's facts from its sidecar meta; null for meta the audio kind's schema refuses. */
-function clipMeta(view: ProjectView, id: AssetId): AudioMeta | null {
-  const read = audioMetaSchema.safeParse(view.byId.get(id)?.meta);
-  return read.success ? read.data : null;
-}
-
 function clipLines(meta: AudioMeta | null, info: AssetInfo): string[] {
   const facts = meta
     ? [
@@ -274,7 +267,7 @@ function soundInfo(
       const patch = kind === SYNTH_KIND ? (values.get(clip) as SynthFile | undefined) : undefined;
       const durationMs =
         kind === AUDIO_KIND
-          ? (clipMeta(view, clip)?.durationMs ?? null)
+          ? (assetInfo(view, clip)?.audio?.durationMs ?? null)
           : patch
             ? synthDurationMs(patch)
             : null;
@@ -372,7 +365,7 @@ export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Prom
   const extra: Record<string, unknown> = {};
   const lines: string[] = [];
   if (info.kind === AUDIO_KIND) {
-    const audio = clipMeta(view, id);
+    const audio = info.audio ?? null;
     extra.audio = audio;
     lines.push(...clipLines(audio, info));
   } else if (info.kind === FONT_KIND && info.font) {

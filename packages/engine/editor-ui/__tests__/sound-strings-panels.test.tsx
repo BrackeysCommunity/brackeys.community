@@ -250,6 +250,14 @@ describe("the sound panel's fields", () => {
     await waitFor(() => expect(soundOf(session).volume).toBe(0.4));
   });
 
+  it("reads an unset switch as on or off (default), as the entity inspector's switches do", async () => {
+    const session = await project();
+    mountSound(session);
+    const loop = await screen.findByRole("switch", { name: "loop" });
+    expect(loop.closest(".je-insp-field")?.textContent).toContain("off (default)");
+    expect(document.body.textContent).not.toContain("false (default)");
+  });
+
   it("edits a trigger's data filter as keys and values, added and removed", async () => {
     const session = await project({ sound: { ...HIT_SOUND, on: [{ event: "anim:frame" }] } });
     mountSound(session);

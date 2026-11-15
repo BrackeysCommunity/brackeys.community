@@ -89,6 +89,11 @@ Where voices play: a Web Audio context in a browser, a logging fake in tests.
 interface AudioBackend {
     /** Seconds, the context's clock. */
     readonly now: number;
+    /**
+     * `locked` until an unlock asks the context to run, and again when the
+     * browser refuses it; `suspended` while an asked context hasn't run yet
+     * (one with no output device never does) or once one that ran stops.
+     */
     readonly state: "closed" | "locked" | "running" | "suspended";
     /** Output latency in seconds (outputLatency + baseLatency where known, else 0). */
     readonly latency: number;

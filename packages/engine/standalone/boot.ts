@@ -31,6 +31,7 @@ import { channelSaveStore, type SaveStore } from "../saves/store";
 import { errorText, isErrorIssue, makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import type { GameEventMap, GameInstance, RapierModule, SceneSource } from "../types";
+import { onLocale } from "../ui/bind";
 import { mountUi } from "../ui/layer";
 import type { MountUi, UiContext } from "../ui/types";
 import { ENGINE_VERSION } from "../version";
@@ -474,7 +475,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       ...(renderer ? { renderer } : {}),
     });
     unmirror = mirrorRenderState(instance, doc.documentElement);
-    unfollowLocale = followLocale(instance, doc.documentElement);
+    unfollowLocale = mirrorLocale(instance, doc.documentElement);
     if (opts.ui) {
       const credits = manifest.build.files.some((f) => f.path === CREDITS_FILE)
         ? { credits: releaseUrl(base, CREDITS_FILE).href }
@@ -572,13 +573,12 @@ function prefsFor(host: HostChannel | null): PrefsStore {
 }
 
 /** Keeps the page's `lang` on the game's locale, so assistive tech reads its text in that language. */
-function followLocale(instance: GameInstance, root: HTMLElement): () => void {
+function mirrorLocale(instance: GameInstance, root: HTMLElement): () => void {
   const set = () => {
     root.lang = instance.locale.current();
   };
   set();
-  instance.on("locale:change", set);
-  return () => instance.off("locale:change", set);
+  return onLocale(instance, set);
 }
 
 /**

@@ -409,7 +409,7 @@ describe("createDialogueBox", () => {
     ui.destroy();
   });
 
-  it("keeps the advance hint's row while a line types, so the box holds its height", async () => {
+  it("keeps the advance hint's row on every line, so the box holds its height", async () => {
     const h = harness();
     const ui = createDialogueBox(h.ctx, { speed: 40 });
     const hint = () => document.querySelector<HTMLElement>("[data-jams-dialogue-hint]")!;
@@ -419,8 +419,15 @@ describe("createDialogueBox", () => {
     h.act("confirm");
     expect(hint().hidden).toBe(false);
     expect(hint().style.visibility).toBe("");
-    // A line with choices after it shows the choices in the hint's place.
+    // A line with choices after it keeps the row but not the hint, typing or done.
     h.setDialogue(view({ line: 1, choices: CHOICES }));
+    expect(hint().hidden).toBe(false);
+    expect(hint().style.visibility).toBe("hidden");
+    h.act("confirm");
+    expect(buttons()).toHaveLength(CHOICES.length);
+    expect(hint().hidden).toBe(false);
+    expect(hint().style.visibility).toBe("hidden");
+    h.setDialogue(null);
     expect(hint().hidden).toBe(true);
     ui.destroy();
   });
@@ -509,17 +516,47 @@ describe("createDialogueBox", () => {
       expect(h.send).not.toHaveBeenCalled();
     });
 
-    it("leaves a key one of the game's own actions uses to it", () => {
-      const h = harness({ bound: [], keys: { jump: ["Space"], move: ["ArrowDown"] } });
+    it("leaves Space to the game's action on it, but takes the arrows a vector move uses", () => {
+      const h = harness({ bound: [], keys: { jump: ["Space"], move: ["ArrowUp", "ArrowDown"] } });
+      const ui = createDialogueBox(h.ctx, { speed: Infinity });
+      // The game's input target cancels its bound keys on the canvas, as the engine's does.
+      const gameSaw: string[] = [];
+      h.ctx.canvas.addEventListener("keydown", (e) => {
+        if (!["Space", "ArrowUp", "ArrowDown"].includes(e.code)) return;
+        gameSaw.push(e.code);
+        e.preventDefault();
+      });
+      h.setDialogue(view({ choices: CHOICES }));
+      h.ctx.canvas.focus();
+      press(h.ctx.canvas, " ", { code: "Space" });
+      expect(gameSaw).toEqual(["Space"]);
+      expect(h.send).not.toHaveBeenCalled();
+      expect(press(h.ctx.canvas, "ArrowDown", { code: "ArrowDown" }).defaultPrevented).toBe(true);
+      expect(gameSaw).toEqual(["Space"]);
+      expect(document.activeElement).toBe(buttons()[1]);
+      expect(buttons()[1]!.hasAttribute("data-selected")).toBe(true);
+      h.ctx.canvas.focus();
+      press(h.ctx.canvas, "ArrowUp", { code: "ArrowUp" });
+      expect(document.activeElement).toBe(buttons()[0]);
+      h.ctx.canvas.focus();
+      press(h.ctx.canvas, "Enter", { code: "Enter" });
+      expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 0 } }]);
+      // With no choices showing, the arrows are the game's.
+      h.setDialogue(view({ node: "stay", line: 0, log: [...view().log, view().log[0]!] }));
+      press(h.ctx.canvas, "ArrowDown", { code: "ArrowDown" });
+      expect(gameSaw).toEqual(["Space", "ArrowDown"]);
+      ui.destroy();
+    });
+
+    it("leaves the arrows to the game's own up and down actions", () => {
+      const h = harness({ bound: ["up", "down"], keys: { move: ["ArrowDown"] } });
       const ui = createDialogueBox(h.ctx, { speed: Infinity });
       h.setDialogue(view({ choices: CHOICES }));
       h.ctx.canvas.focus();
-      expect(press(h.ctx.canvas, " ", { code: "Space" }).defaultPrevented).toBe(false);
-      press(h.ctx.canvas, "ArrowDown", { code: "ArrowDown" });
+      expect(press(h.ctx.canvas, "ArrowDown", { code: "ArrowDown" }).defaultPrevented).toBe(false);
       expect(document.activeElement).toBe(h.ctx.canvas);
-      expect(h.send).not.toHaveBeenCalled();
-      press(h.ctx.canvas, "Enter", { code: "Enter" });
-      expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 0 } }]);
+      h.act("down");
+      expect(document.activeElement).toBe(buttons()[1]);
       ui.destroy();
     });
 

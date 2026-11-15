@@ -1739,8 +1739,9 @@ describe("sounds, synth patches, dialogue and strings", { timeout: 20_000 }, () 
       edit("clink-synth", { set: "/freq", value: 880 }, { set: "/wave", value: "square" }),
     );
     expect(await patch()).toMatchObject({ freq: 880, wave: "square", decayMs: 262 });
+    const punch = (await patch()).punch;
     await refused(edit("clink-synth", { set: "/punch", value: 7 }), "schema");
-    expect((await patch()).punch).toBe(0.416);
+    expect((await patch()).punch).toBe(punch);
   });
 
   it("asset_apply_ops edits a dialogue, refusing one that can stall", async () => {
