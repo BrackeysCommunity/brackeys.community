@@ -11936,7 +11936,7 @@ declare function projectMaterialOf(value: unknown, registry?: Registry): Project
 
 ## project/kinds/prefab.ts
 declare const prefabKind: {
-    crossValidate: (prefab: Prefab, lookup: DocLookup) => SceneIssue[];
+    crossValidate: (prefab: Prefab, lookup: DocLookup, env: KindEnv) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {

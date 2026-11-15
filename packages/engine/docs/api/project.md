@@ -6363,7 +6363,7 @@ A reusable piece of a level placed by instances, co-edited per child and field.
 
 ```ts
 declare const prefabKind: {
-    crossValidate: (prefab: Prefab, lookup: DocLookup) => SceneIssue[];
+    crossValidate: (prefab: Prefab, lookup: DocLookup, env: KindEnv) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {

@@ -9,8 +9,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-import { deflateStored, pngFile, zlibStream } from "../../../../packages/engine/export/png-write";
+import { crc32 } from "node:zlib";
 
 const TILE_PX = 16;
 const FLIP_H = 0x80000000;
@@ -101,7 +100,40 @@ export const CAVE_MAP = {
 
 export const caveMapText = (): string => `${JSON.stringify(CAVE_MAP, null, 2)}\n`;
 
-/** The tileset image: one row of flat RGBA tiles, stored uncompressed so every runtime writes the same bytes. */
+const u32 = (n: number): number[] => [n >>> 24, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+
+function chunk(type: string, body: Uint8Array): number[] {
+  const typed = Uint8Array.from([...type].map((c) => c.charCodeAt(0)).concat(...body));
+  return [...u32(body.length), ...typed, ...u32(crc32(typed))];
+}
+
+/** A zlib stream of one stored (uncompressed) deflate block; `raw` must fit in 65 535 bytes. */
+function storedZlib(raw: Uint8Array): Uint8Array {
+  let a = 1;
+  let b = 0;
+  for (const byte of raw) {
+    a = (a + byte) % 65_521;
+    b = (b + a) % 65_521;
+  }
+  const n = raw.length;
+  return Uint8Array.from([
+    0x78,
+    0x01,
+    1,
+    n & 0xff,
+    n >>> 8,
+    ~n & 0xff,
+    (~n >>> 8) & 0xff,
+    ...raw,
+    ...u32(((b << 16) | a) >>> 0),
+  ]);
+}
+
+/**
+ * The tileset image: one row of flat RGBA tiles, stored uncompressed so every runtime writes the
+ * same bytes. Written here rather than with the engine's PNG writer because scripts/scene may only
+ * import the engine's public entries.
+ */
 export function cavePng(): Uint8Array {
   const width = TILE_PX * TILE_RGBA.length;
   const height = TILE_PX;
@@ -110,13 +142,20 @@ export function cavePng(): Uint8Array {
   for (let y = 0; y < height; y++)
     for (let x = 0; x < width; x++)
       raw.set(TILE_RGBA[Math.floor(x / TILE_PX)]!, y * stride + 1 + x * 4);
-  return pngFile({
-    width,
-    height,
-    bitDepth: 8,
-    colorType: 6,
-    zlib: zlibStream(deflateStored(raw), raw),
-  });
+  const header = Uint8Array.from([...u32(width), ...u32(height), 8, 6, 0, 0, 0]);
+  return Uint8Array.from([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    ...chunk("IHDR", header),
+    ...chunk("IDAT", storedZlib(raw)),
+    ...chunk("IEND", new Uint8Array(0)),
+  ]);
 }
 
 if (import.meta.main) {

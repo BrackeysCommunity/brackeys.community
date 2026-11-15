@@ -96,21 +96,16 @@ describe("the tile tools in the toolbar", () => {
     expect(tileButton("Tile brush")).toBeNull();
   });
 
-  it("keep their room while no tilemap is in reach, and appear when one is selected or hovered", () => {
+  it("stay drawn and live whatever is selected or hovered, so the dock never refits", () => {
     const { session } = setup();
-    expect(document.querySelector("[data-tile-tools]")?.getAttribute("data-tile-tools")).toBe(
-      "reserved",
-    );
-    expect(tileButton("Tile brush")).toBeNull();
-
-    select(session, ["post"]);
-    expect(tileButton("Tile brush")).toBeNull();
-
-    select(session, ["floor"]);
+    const group = document.querySelector("[data-tile-tools]");
+    expect(group?.closest("[inert], [aria-hidden]")).toBeNull();
     expect(tileButton("Tile brush")).not.toBeNull();
-    select(session, []);
-    expect(tileButton("Tile brush")).toBeNull();
 
+    for (const refs of [["post"], ["floor"], []]) {
+      select(session, refs);
+      expect(tileButton("Tile brush")).not.toBeNull();
+    }
     act(() => session.store.setState((s) => ({ ...s, hover: "floor" })));
     expect(tileButton("Tile eraser")).not.toBeNull();
   });
@@ -198,7 +193,6 @@ describe("the tile tools in the toolbar", () => {
           tools={new Store<ToolHost | null>(host)}
         />,
       );
-      expect(tileButton("Tile brush")).toBeNull();
       fireEvent.pointerDown(screen.getByRole("gridcell", { name: "Tile 1" }), { button: 0 });
       expect(host.tool()).toBe("tile-brush");
       expect(session.store.state.tileBrush).toEqual({ tiles: [[2]] });
