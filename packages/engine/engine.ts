@@ -1497,7 +1497,8 @@ export async function createGame(
   /**
    * One recorded tick of the running replay with presentation muted: no
    * present request, sound, caption, dialogue view or step listener sees it.
-   * The simulation, the swaps and the re-recording run as an unmuted tick's.
+   * The simulation, the swaps, the re-recording, the debug draws and a flow
+   * request's outcome run as an unmuted tick's.
    */
   function stepReplayMuted(): boolean {
     if (!loaded || !session?.replaying) return false;
@@ -1509,13 +1510,14 @@ export async function createGame(
     if (sample) replayPointer = { x: sample.x, y: sample.y };
     const result = runtime.step(runtime.ctx.time.tickMs, tickInput);
     logEvents(result);
+    if (debugDrawHost) lastDraws = result.debug ?? NO_DRAWS;
     incrementTick(store);
-    runtime.takeRequests();
+    const requests = runtime.takeRequests();
     const verdict = judge(result, runtime);
-    const finished = session.stepped(result, tickInput, verdict);
-    finishRecording(finished);
+    finishRecording(session.stepped(result, tickInput, verdict));
+    if (requests.flow) flowRequested(requests.flow, result.tick, verdict);
     liveLayer.afterTick({ paused: true, changing: false });
-    return finished === null;
+    return session?.replaying ?? false;
   }
 
   function logEvents(result: StepResult): void {
@@ -1691,6 +1693,7 @@ export async function createGame(
     runtime.render(1);
     syncGameSlice();
     syncDialogue();
+    updateDebugOverlay(0, replayPointer ?? camera.screenToWorld({ x: 0, y: 0 }));
     if (wasPaused || !session?.replaying) loop.pause();
     else loop.resume();
     syncSim();
@@ -2713,12 +2716,16 @@ export async function createGame(
 
   /** The camera, the game's store slice and the debug overlay: what moves on with or without a step. */
   function shellTick(dt: number, mouseWorld: Vec2): void {
-    const hooks = loaded?.runtime.game ?? null;
     // The plain follow; a rig or a fit to the scene places the camera on render frames instead.
     if (!framedPerFrame()) camera.update(dt, loaded ? targetsCentre(loaded.runtime) : null);
     syncGameSlice();
     updateCamera(store, { position: camera.getPosition() });
+    updateDebugOverlay(dt, mouseWorld);
+  }
 
+  /** The debug overlay's frame: the store's timings and the last tick's draws. */
+  function updateDebugOverlay(dt: number, mouseWorld: Vec2): void {
+    const hooks = loaded?.runtime.game ?? null;
     const needsTimings = debugNeedsTimings();
     if (!needsTimings) setTimings(store, null);
     else if (performance.now() - timingsAt >= TIMINGS_REFRESH_MS) {

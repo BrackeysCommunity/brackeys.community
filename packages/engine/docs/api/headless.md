@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`AudioBackend`](#audiobackend) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`Clock`](#clock) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DecodeOptions`](#decodeoptions) · [`DialogueEnding`](#dialogueending) · [`DialogueExploration`](#dialogueexploration) · [`DialogueMatch`](#dialoguematch) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FakeAudioBackend`](#fakeaudiobackend) · [`FakeAudioCall`](#fakeaudiocall) · [`FakeAudioLogEntry`](#fakeaudiologentry) · [`FakeAudioOptions`](#fakeaudiooptions) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PrefsStore`](#prefsstore) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`RuntimeTimings`](#runtimetimings) · [`SEEK_CHECKPOINT_EVERY`](#seek_checkpoint_every) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SeekProgress`](#seekprogress) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StatsOptions`](#statsoptions) · [`StatsReport`](#statsreport) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SynthPreset`](#synthpreset) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`TimingsOptions`](#timingsoptions) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`WorldSnapshot`](#worldsnapshot) · [`WorldSnapshotResult`](#worldsnapshotresult) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`dialogueCommands`](#dialoguecommands) · [`exploreDialogue`](#exploredialogue) · [`fakeAudioBackend`](#fakeaudiobackend-1) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`mutateSynth`](#mutatesynth) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`randomSynth`](#randomsynth) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`renderSynth`](#rendersynth) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`restoreWorld`](#restoreworld) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`runStats`](#runstats) · [`scriptSource`](#scriptsource-1) · [`seekTarget`](#seektarget) · [`simActionError`](#simactionerror) · [`snapshotWorld`](#snapshotworld) · [`soundLeafMs`](#soundleafms) · [`swapCheck`](#swapcheck) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
+[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`AudioBackend`](#audiobackend) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`Clock`](#clock) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DecodeOptions`](#decodeoptions) · [`DialogueEnding`](#dialogueending) · [`DialogueExploration`](#dialogueexploration) · [`DialogueMatch`](#dialoguematch) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FakeAudioBackend`](#fakeaudiobackend) · [`FakeAudioCall`](#fakeaudiocall) · [`FakeAudioLogEntry`](#fakeaudiologentry) · [`FakeAudioOptions`](#fakeaudiooptions) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PrefsStore`](#prefsstore) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`RuntimeTimings`](#runtimetimings) · [`SEEK_CHECKPOINT_EVERY`](#seek_checkpoint_every) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SeekProgress`](#seekprogress) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StatsOptions`](#statsoptions) · [`StatsReport`](#statsreport) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SynthPreset`](#synthpreset) · [`SystemEvent`](#systemevent) · [`TICK_PHASES`](#tick_phases) · [`TickInput`](#tickinput) · [`TickPhase`](#tickphase) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`TimingStat`](#timingstat) · [`TimingsOptions`](#timingsoptions) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`WorldSnapshot`](#worldsnapshot) · [`WorldSnapshotResult`](#worldsnapshotresult) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`dialogueCommands`](#dialoguecommands) · [`exploreDialogue`](#exploredialogue) · [`fakeAudioBackend`](#fakeaudiobackend-1) · [`fileSchemaIssue`](#fileschemaissue) · [`formatMs`](#formatms) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`mutateSynth`](#mutatesynth) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`randomSynth`](#randomsynth) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`renderSynth`](#rendersynth) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`restoreWorld`](#restoreworld) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`runStats`](#runstats) · [`scriptSource`](#scriptsource-1) · [`seekTarget`](#seektarget) · [`simActionError`](#simactionerror) · [`snapshotWorld`](#snapshotworld) · [`soundLeafMs`](#soundleafms) · [`swapCheck`](#swapcheck) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
 
 ## `ANIM_END`
 
@@ -2291,6 +2291,8 @@ type RuntimeTimings = {
 };
 ```
 
+Refers to [`TickPhase`](#tickphase), [`TimingStat`](#timingstat).
+
 ## `SEEK_CHECKPOINT_EVERY`
 
 _const_ in `runtime/seek.ts`
@@ -2900,6 +2902,28 @@ type SystemEvent = [
 ];
 ```
 
+## `TICK_PHASES`
+
+_const_ in `runtime/timings.ts`
+
+A step's phases, in tick order; the tick counter's own increment isn't timed.
+
+```ts
+declare const TICK_PHASES: readonly [
+    "systems-before",
+    "game-before",
+    "physics",
+    "systems-after",
+    "behaviors",
+    "timers",
+    "dispatch-1",
+    "game-after",
+    "destroy",
+    "dispatch-2",
+    "commit"
+];
+```
+
 ## `TickInput`
 
 _type_ in `input/stream.ts`
@@ -2918,6 +2942,16 @@ type TickInput = {
 ```
 
 Refers to [`SeatChange`](#seatchange).
+
+## `TickPhase`
+
+_type_ in `runtime/timings.ts`
+
+```ts
+type TickPhase = (typeof TICK_PHASES)[number];
+```
+
+Refers to [`TICK_PHASES`](#tick_phases).
 
 ## `TimingBucket`
 
@@ -2990,6 +3024,19 @@ type TimingSpan = TimingBucket & {
 ```
 
 Refers to [`TimingBucket`](#timingbucket).
+
+## `TimingStat`
+
+_type_ in `runtime/timings.ts`
+
+Milliseconds per tick over a window: the mean and the worst.
+
+```ts
+type TimingStat = {
+    max: number;
+    mean: number;
+};
+```
 
 ## `TimingsOptions`
 
@@ -3377,6 +3424,16 @@ declare function fileSchemaIssue(file: string, issue: Pick<ScriptIssue, "expecte
 ```
 
 Refers to [`ScriptIssue`](#scriptissue).
+
+## `formatMs`
+
+_const_ in `runtime/timings.ts`
+
+Milliseconds as the timing views print them, to the microsecond: `1.250`.
+
+```ts
+declare const formatMs: (value: number) => string;
+```
 
 ## `fuzz`
 

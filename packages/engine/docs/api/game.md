@@ -8759,7 +8759,7 @@ Refers to [`EngineContext`](#enginecontext), [`SeatInput`](#seatinput).
 
 _function_ in `systems/path-follower.ts`
 
-A path place as live inspection shows it.
+A follower's phase as live inspection shows it: its leg, how far along, which way, the pause left (ms) and its last tick's move (m).
 
 ```ts
 declare function inspectPathPlace(m: PathPlace & {

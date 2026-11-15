@@ -94,16 +94,22 @@ describe("stateless messages between a scene's clients across two instances", ()
 
     const big = "x".repeat(LIVE_MESSAGE_MAX_BYTES + 1);
     sender.provider.sendStateless(big);
-    sender.provider.sendStateless("after");
+    // Only the live channel's messages pass: not an asset notice only the server may send.
+    sender.provider.sendStateless(
+      JSON.stringify({ type: "asset:changed", project: "p", id: "a", sha256: "0".repeat(64) }),
+    );
+    sender.provider.sendStateless("plain text");
+    const after = JSON.stringify({ t: "state", id: "after" });
+    sender.provider.sendStateless(after);
     expect(
       await until(
-        () => sameInstance.notices.includes("after") && acrossInstances.notices.includes("after"),
+        () => sameInstance.notices.includes(after) && acrossInstances.notices.includes(after),
         8000,
       ),
     ).toBe(true);
     await sleep(200);
 
-    for (const c of [sameInstance, acrossInstances]) expect(c.notices).toEqual([request, "after"]);
+    for (const c of [sameInstance, acrossInstances]) expect(c.notices).toEqual([request, after]);
     expect(sender.notices).toEqual([]);
     expect(elsewhere.notices).toEqual([]);
     expect(sender.closes).toEqual([]);
@@ -116,5 +122,43 @@ describe("stateless messages between a scene's clients across two instances", ()
     expect(sender.notices).toEqual([]);
     expect(acrossInstances.notices).not.toContain("from the reader");
     expect(reader.closes).toEqual([]);
+  });
+
+  it("drops a burst past the rate limit without closing the agent or the editor answering it", async () => {
+    if (fake && !url) url = (await fake.start()).url;
+    const prefix = syncEnvPrefix(`stateless-burst-${crypto.randomUUID().slice(0, 8)}`);
+    const server = await instance("stateless-burst", prefix);
+    const sceneId = newSceneId();
+    store.create(sceneId);
+    const agent = open(server.port, sceneId, "agent");
+    const editor = open(server.port, sceneId, "editor");
+    for (const c of [agent, editor]) expect(await sceneSynced(c)).toBe(true);
+    await sleep(300);
+
+    const BURST = 300;
+    const answered = new Set<string>();
+    editor.provider.on("stateless", ({ payload }: { payload: string }) => {
+      const req = JSON.parse(payload) as { t: string; id: string };
+      if (answered.has(req.id)) return;
+      answered.add(req.id);
+      editor.provider.sendStateless(JSON.stringify({ ...req, ok: true }));
+    });
+    for (let i = 0; i < BURST; i++)
+      agent.provider.sendStateless(JSON.stringify({ t: "state", id: `b${i}` }));
+    expect(await until(() => agent.notices.length > 0, 8000)).toBe(true);
+    await sleep(1000);
+
+    expect(editor.notices.length).toBeLessThan(BURST);
+    expect(editor.notices.length).toBeGreaterThan(0);
+    expect(agent.notices.length).toBeLessThanOrEqual(editor.notices.length);
+    expect(server.metrics.refusals.rate).toBeGreaterThan(0);
+    for (const c of [agent, editor]) {
+      expect(c.closes).toEqual([]);
+      expect(c.provider.isSynced).toBe(true);
+    }
+    // Both still talk once the bucket refills.
+    await sleep(1000);
+    agent.provider.sendStateless(JSON.stringify({ t: "state", id: "later" }));
+    expect(await until(() => agent.notices.some((n) => n.includes('"later"')), 8000)).toBe(true);
   });
 });

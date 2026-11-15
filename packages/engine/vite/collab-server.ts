@@ -10,7 +10,7 @@ import * as Y from "yjs";
 
 import { ASSET_CHANGED, type AssetChangedMessage } from "../collab/asset-changed";
 import { buildAtFrom, stampWins } from "../collab/build-stamp";
-import { relayableStateless } from "../collab/live-channel";
+import { isLiveMessage, relayableStateless } from "../collab/live-channel";
 import { applyRepairs, reinspectBlobs } from "../collab/project-apply";
 import {
   projectAssetsMap,
@@ -378,13 +378,15 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       }
     },
     async onStateless({ connection, document, documentName, payload }) {
-      // A doc's clients talk to each other (the live channel); over the cap it's dropped, the socket kept.
+      // A doc's clients talk to each other over the live channel only; anything else (an
+      // asset notice only the server may send) or over the cap is dropped, the socket kept.
       if (!relayableStateless(payload)) {
         warn(
           `${documentName}: dropped a ${payload.length}-character stateless message over the cap.`,
         );
         return;
       }
+      if (!isLiveMessage(payload)) return;
       document.broadcastStateless(payload, (other) => other !== connection);
     },
     async beforeSync({ type, payload, document, documentName }) {

@@ -15,6 +15,10 @@ export const LIVE_FRAME_MAX_BYTES = 1024 * 1024;
 export const LIVE_REQUEST_TIMEOUT_MS = 2000;
 /** The most ticks one `step` runs; they run synchronously in the editor's tab. */
 export const LIVE_STEP_MAX_TICKS = 60 * 60 * 10;
+/** The events a `state` answer carries when the request gives no `limit`: the newest. */
+export const LIVE_STATE_EVENTS = 500;
+/** A requester's extra wait per tick a `step` asks for: a slow tab's pace, well under the kitchen sink's. */
+const STEP_WAIT_MS_PER_TICK = 1;
 
 /** What an agent asks the editor that has a scene open. */
 export type LiveRequest =
@@ -36,6 +40,8 @@ export type LiveRequest =
       id: string;
       select?: readonly ("store" | "entities" | "events" | "timings")[];
       entities?: EntitySelector;
+      /** The newest this many events; default 500. */
+      limit?: number;
     };
 
 export type LiveErrorCode = "live-no-editor" | "live-refused" | "frame-too-large";
@@ -61,6 +67,8 @@ export type LiveResponse =
       store?: Pick<GameStoreState, "phase" | "tick" | "mode" | "game" | "dialogue">;
       entities?: readonly unknown[];
       events?: readonly StepEvent[];
+      /** How many events the log holds; more than `events` when the answer carries only the newest. */
+      eventsTotal?: number;
       timings?: RuntimeTimings | null;
     }
   | {
@@ -84,8 +92,12 @@ export type StatelessProvider = {
 };
 
 export type LiveResponderOptions = {
-  /** Read per request: false answers `live-refused`. */
+  /** "Let agents drive Play": false answers `live-refused`. Read per request and advertised. */
   enabled: () => boolean;
+  /** Whether the scene is on screen here; default true. Advertised, so a visible editor wins the election. */
+  visible?: () => boolean;
+  /** Calls `changed` whenever `enabled()` or `visible()` may have changed, to re-advertise; returns the unsubscribe. */
+  watch?: (changed: () => void) => () => void;
   game: () => GameInstance | null;
   /** The canvas as PNG bytes at the requested size, downscaled to fit `LIVE_FRAME_MAX_BYTES` where it can. */
   render: (req: LiveRequest & { t: "frame" }) => Promise<Uint8Array>;
@@ -102,28 +114,52 @@ export interface LiveResponder {
   attach(provider: StatelessProvider, opts: LiveResponderOptions): () => void;
 }
 
-/** A presence entry as the election reads it. */
-export type LivePresence = { clientId: number; live?: boolean };
+/**
+ * A presence entry as the election reads it: `live` while a responder is
+ * attached, `drives` while its "Let agents drive Play" is on, `hidden`
+ * while its scene is off screen.
+ */
+export type LivePresence = { clientId: number; live?: boolean; drives?: boolean; hidden?: boolean };
 
 const SCENE_FIELD: typeof PRESENCE_FIELD = "scene";
 
-/** Which client answers: the lowest client id among entries advertising `live: true`; null for none. */
+const rank = (e: LivePresence): number => (e.drives === true ? 0 : 2) + (e.hidden === true ? 1 : 0);
+
+/**
+ * Which client answers, among entries advertising `live: true`: one that
+ * drives Play before one that only refuses, a visible one before a hidden
+ * one, then the lowest client id. Null for none.
+ */
 export function electResponder(entries: readonly LivePresence[]): number | null {
-  let best: number | null = null;
+  let best: LivePresence | null = null;
   for (const e of entries) {
-    if (e.live === true && (best === null || e.clientId < best)) best = e.clientId;
+    if (e.live !== true) continue;
+    if (!best || rank(e) < rank(best) || (rank(e) === rank(best) && e.clientId < best.clientId))
+      best = e;
   }
-  return best;
+  return best?.clientId ?? null;
 }
 
-/** Every awareness state's `live` flag, this client's own included. */
+/** Every awareness state's live flags, this client's own included. */
 export function livePresence(awareness: AwarenessLike): LivePresence[] {
   const out: LivePresence[] = [];
   for (const [clientId, state] of awareness.getStates()) {
-    const presence = state[SCENE_FIELD] as { live?: unknown } | undefined;
-    out.push({ clientId, live: presence?.live === true });
+    const p = state[SCENE_FIELD] as
+      | { live?: unknown; drives?: unknown; hidden?: unknown }
+      | undefined;
+    out.push({
+      clientId,
+      live: p?.live === true,
+      ...(p?.drives === true ? { drives: true } : {}),
+      ...(p?.hidden === true ? { hidden: true } : {}),
+    });
   }
   return out;
+}
+
+/** Whether this client is the one that answers; true without awareness, where it is alone. */
+export function electedHere(awareness: AwarenessLike | null | undefined): boolean {
+  return !awareness || electResponder(livePresence(awareness)) === awareness.clientID;
 }
 
 /** The UTF-8 size of a stateless payload. */
@@ -139,13 +175,15 @@ export function relayableStateless(payload: string): boolean {
   return liveMessageBytes(payload) <= LIVE_MESSAGE_MAX_BYTES;
 }
 
-const isRequestType = (t: string): boolean => t === "frame" || t === "play" || t === "state";
+const isRequestType = (t: unknown): t is LiveRequest["t"] =>
+  t === "frame" || t === "play" || t === "state";
 const isPlayAction = (a: string): boolean =>
   a === "play" || a === "pause" || a === "resume" || a === "step" || a === "stop";
 
-type Parsed = { t: string; id: string; ok?: unknown } & Record<string, unknown>;
+type Parsed = { t: LiveRequest["t"]; id: string; ok?: unknown } & Record<string, unknown>;
 
-function parse(payload: string): Parsed | null {
+/** A live request or answer: a JSON object with `t` one of the request types and a string `id`. */
+export function parseLiveMessage(payload: string): Parsed | null {
   if (payload.length === 0 || payload[0] !== "{") return null;
   let value: unknown;
   try {
@@ -155,8 +193,17 @@ function parse(payload: string): Parsed | null {
   }
   if (typeof value !== "object" || value === null) return null;
   const m = value as Partial<Parsed>;
-  if (typeof m.t !== "string" || typeof m.id !== "string" || !isRequestType(m.t)) return null;
+  if (typeof m.id !== "string" || !isRequestType(m.t)) return null;
   return m as Parsed;
+}
+
+/** Whether a relay passes a stateless message on at all: only live requests and answers. */
+export const isLiveMessage = (payload: string): boolean => parseLiveMessage(payload) !== null;
+
+/** A live request, not an answer (answers carry `ok`). */
+export function parseLiveRequest(payload: string): LiveRequest | null {
+  const m = parseLiveMessage(payload);
+  return m && m.ok === undefined ? (m as unknown as LiveRequest) : null;
 }
 
 function failure(
@@ -279,42 +326,87 @@ async function answer(req: LiveRequest, opts: LiveResponderOptions): Promise<Liv
       }
       if (select.has("entities"))
         out.entities = plainClone(await game.debug.entities(req.entities));
-      if (select.has("events")) out.events = plainClone(game.debug.events.list());
+      if (select.has("events")) {
+        const all = game.debug.events.list();
+        const limit =
+          req.limit !== undefined && Number.isInteger(req.limit) && req.limit >= 0
+            ? req.limit
+            : LIVE_STATE_EVENTS;
+        out.events = plainClone(limit < all.length ? all.slice(all.length - limit) : all);
+        out.eventsTotal = all.length;
+      }
       if (select.has("timings")) out.timings = plainClone(s.timings);
       return out;
     }
   }
 }
 
+/**
+ * `res` encoded within what the relays pass: a `state` answer over the cap
+ * keeps halving its events (the newest stay, `eventsTotal` says how many
+ * there were); anything still over is refused, since a relay would drop it
+ * and leave the requester waiting.
+ */
+function encodeAnswer(res: LiveResponse): string {
+  let text = JSON.stringify(res);
+  if (relayableStateless(text)) return text;
+  if (res.t === "state" && res.ok && res.events) {
+    let events = res.events;
+    while (events.length > 0 && !relayableStateless(text)) {
+      events = events.slice(Math.ceil(events.length / 2));
+      text = JSON.stringify({ ...res, events });
+    }
+    if (relayableStateless(text)) return text;
+  }
+  return JSON.stringify(
+    failure(
+      res.t,
+      res.id,
+      "live-refused",
+      `The answer is ${liveMessageBytes(text)} bytes, over the ${LIVE_MESSAGE_MAX_BYTES}-byte cap the relays pass: ask for less (fewer entities, or none).`,
+    ),
+  );
+}
+
 export function createLiveResponder(): LiveResponder {
   return {
     attach(provider, opts) {
       const awareness = provider.awareness ?? null;
+      let advertised: string | null = null;
       const advertise = (live: boolean) => {
         if (!awareness) return;
+        const flags = {
+          live,
+          drives: live && opts.enabled(),
+          hidden: live && opts.visible?.() === false,
+        };
+        const key = JSON.stringify(flags);
+        if (key === advertised) return;
+        advertised = key;
         const prev = (awareness.getLocalState()?.[SCENE_FIELD] ?? {}) as Record<string, unknown>;
-        awareness.setLocalStateField(SCENE_FIELD, { ...prev, live });
+        awareness.setLocalStateField(SCENE_FIELD, { ...prev, ...flags });
       };
-      const elected = () =>
-        !awareness || electResponder(livePresence(awareness)) === awareness.clientID;
       let detached = false;
       const onStateless = ({ payload }: { payload: string }) => {
-        const m = parse(payload);
-        if (!m || m.ok !== undefined || !elected()) return;
-        const req = m as unknown as LiveRequest;
+        const req = parseLiveRequest(payload);
+        if (!req || !electedHere(awareness)) return;
         void answer(req, opts)
           .catch((e: unknown) =>
             failure(req.t, req.id, "live-refused", e instanceof Error ? e.message : String(e)),
           )
           .then((res) => {
-            if (!detached) provider.sendStateless(JSON.stringify(res));
+            if (!detached) provider.sendStateless(encodeAnswer(res));
           });
       };
       provider.on("stateless", onStateless);
       advertise(true);
+      const unwatch = opts.watch?.(() => {
+        if (!detached) advertise(true);
+      });
       return () => {
         if (detached) return;
         detached = true;
+        unwatch?.();
         provider.off("stateless", onStateless);
         advertise(false);
       };
@@ -322,10 +414,21 @@ export function createLiveResponder(): LiveResponder {
   };
 }
 
+/** How long a requester waits by default: longer for a `step`, which runs in the editor's tab. */
+function answerWaitMs(req: LiveRequest): number {
+  if (req.t !== "play" || req.action !== "step") return LIVE_REQUEST_TIMEOUT_MS;
+  const ticks = Number.isFinite(req.ticks) ? (req.ticks ?? 1) : 1;
+  return (
+    LIVE_REQUEST_TIMEOUT_MS +
+    Math.min(Math.max(ticks, 1), LIVE_STEP_MAX_TICKS) * STEP_WAIT_MS_PER_TICK
+  );
+}
+
 /**
  * Sends `req` and resolves with its answer, or `live-no-editor` after
- * `timeoutMs` (default `LIVE_REQUEST_TIMEOUT_MS`), or at once when the
- * provider's awareness shows no responder.
+ * `timeoutMs`, or at once when the provider's awareness shows no responder.
+ * The default wait is `LIVE_REQUEST_TIMEOUT_MS`, plus a millisecond per
+ * tick a `step` asks for.
  */
 export function liveRequest(
   provider: StatelessProvider,
@@ -336,7 +439,7 @@ export function liveRequest(
   if (provider.awareness && electResponder(livePresence(provider.awareness)) === null) {
     return Promise.resolve(noEditor("No editor with this scene open answers live requests."));
   }
-  const timeoutMs = opts?.timeoutMs ?? LIVE_REQUEST_TIMEOUT_MS;
+  const timeoutMs = opts?.timeoutMs ?? answerWaitMs(req);
   return new Promise((resolve) => {
     const done = (res: LiveResponse) => {
       clearTimeout(timer);
@@ -344,7 +447,7 @@ export function liveRequest(
       resolve(res);
     };
     const onStateless = ({ payload }: { payload: string }) => {
-      const m = parse(payload);
+      const m = parseLiveMessage(payload);
       if (m && m.id === req.id && m.t === req.t && typeof m.ok === "boolean") {
         done(m as unknown as LiveResponse);
       }

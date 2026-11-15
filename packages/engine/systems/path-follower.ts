@@ -209,8 +209,7 @@ export function savePathPlace(m: PathPlace): JsonValue {
   };
 }
 
-/** A follower's phase for a debugger: its leg, how far along, which way, the pause left (ms) and its last tick's move (m). */
-/** A path place as live inspection shows it. */
+/** A follower's phase as live inspection shows it: its leg, how far along, which way, the pause left (ms) and its last tick's move (m). */
 export function inspectPathPlace(m: PathPlace & { waypoints: readonly Vec2[] }): JsonValue {
   const { currentIndex, nextIndex, t, direction, pauseRemainingMs } = m.state;
   return {

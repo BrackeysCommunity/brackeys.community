@@ -1,5 +1,5 @@
 import type { HocuspocusProvider } from "@hocuspocus/provider";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { docNameOf } from "../../project/doc-names";
@@ -12,8 +12,11 @@ import { docToScene } from "../convert";
 import {
   createLiveResponder,
   electResponder,
+  isLiveMessage,
   LIVE_FRAME_MAX_BYTES,
   LIVE_MESSAGE_MAX_BYTES,
+  LIVE_REQUEST_TIMEOUT_MS,
+  LIVE_STATE_EVENTS,
   LIVE_STEP_MAX_TICKS,
   liveRequest,
   livePresence,
@@ -110,6 +113,127 @@ describe("electResponder", () => {
     ).toBe(5);
     expect(electResponder([{ clientId: 3 }])).toBeNull();
     expect(electResponder([])).toBeNull();
+  });
+
+  it("prefers an editor that drives Play, then one on screen, then the lowest id", () => {
+    expect(
+      electResponder([
+        { clientId: 1, live: true },
+        { clientId: 8, live: true, drives: true },
+        { clientId: 4, live: true, drives: true, hidden: true },
+      ]),
+    ).toBe(8);
+    expect(
+      electResponder([
+        { clientId: 1, live: true },
+        { clientId: 4, live: true, drives: true, hidden: true },
+      ]),
+    ).toBe(4);
+    expect(
+      electResponder([
+        { clientId: 6, live: true, hidden: true },
+        { clientId: 9, live: true },
+      ]),
+    ).toBe(9);
+    expect(electResponder([{ clientId: 2, drives: true }])).toBeNull();
+  });
+
+  it("lets the editor with the toggle on answer when a lower id has it off", async () => {
+    const group = awarenessGroup();
+    const h = hub();
+    const answered: number[] = [];
+    for (const [id, on] of [
+      [3, false],
+      [40, true],
+    ] as const) {
+      const { game } = fakeGame();
+      createLiveResponder().attach(h.peer(group(id)), {
+        enabled: () => on,
+        game: () => game,
+        render: async () => {
+          answered.push(id);
+          return png();
+        },
+      });
+    }
+    const res = await liveRequest(h.peer(group(99)), { t: "frame", id: "f", opts: {} });
+    expect(res).toMatchObject({ ok: true });
+    expect(answered).toEqual([40]);
+    expect(h.sent.filter((m) => m.includes('"ok"'))).toHaveLength(1);
+  });
+
+  it("lets a visible editor answer before a hidden one with a lower id", async () => {
+    const group = awarenessGroup();
+    const h = hub();
+    const answered: number[] = [];
+    for (const [id, visible] of [
+      [3, false],
+      [40, true],
+    ] as const) {
+      const { game } = fakeGame();
+      createLiveResponder().attach(h.peer(group(id)), {
+        enabled: () => true,
+        visible: () => visible,
+        game: () => game,
+        render: async () => {
+          answered.push(id);
+          return png();
+        },
+      });
+    }
+    expect(await liveRequest(h.peer(group(99)), { t: "frame", id: "f", opts: {} })).toMatchObject({
+      ok: true,
+    });
+    expect(answered).toEqual([40]);
+  });
+
+  it("re-advertises when its watch says the toggle changed, moving the election", async () => {
+    const group = awarenessGroup();
+    const h = hub();
+    let on = false;
+    let changed = () => {};
+    const { game } = fakeGame();
+    const low = group(3);
+    const detach = createLiveResponder().attach(h.peer(low), {
+      enabled: () => on,
+      watch: (fn) => {
+        changed = fn;
+        return () => {
+          changed = () => {};
+        };
+      },
+      game: () => game,
+      render: async () => png(),
+    });
+    createLiveResponder().attach(h.peer(group(40)), {
+      enabled: () => true,
+      game: () => game,
+      render: async () => png(),
+    });
+    expect(electResponder(livePresence(low))).toBe(40);
+    on = true;
+    changed();
+    expect(low.getLocalState()).toMatchObject({ scene: { live: true, drives: true } });
+    expect(electResponder(livePresence(low))).toBe(3);
+    detach();
+    on = false;
+    changed();
+    expect(low.getLocalState()).toMatchObject({ scene: { live: false } });
+  });
+
+  it("still answers live-refused from a lone editor with its toggle off", async () => {
+    const group = awarenessGroup();
+    const h = hub();
+    const { game } = fakeGame();
+    createLiveResponder().attach(h.peer(group(5)), {
+      enabled: () => false,
+      game: () => game,
+      render: async () => png(),
+    });
+    expect(await liveRequest(h.peer(group(6)), { t: "state", id: "s" })).toMatchObject({
+      ok: false,
+      code: "live-refused",
+    });
   });
 
   it("is what decides which of two attached editors answers", async () => {
@@ -209,6 +333,7 @@ describe("the responder", () => {
       store: { phase: "running", tick: 7, mode: "play", game: { score: 3 }, dialogue: null },
       entities: [{ id: "hero", type: "player", at: [1, 2] }],
       events: [{ type: "hit", tick: 3 }],
+      eventsTotal: 1,
       timings: null,
     });
   });
@@ -330,11 +455,133 @@ describe("the responder", () => {
       game: () => game,
       render: async () => png(),
     });
-    expect(editor.getLocalState()).toEqual({ scene: { live: true } });
+    expect(editor.getLocalState()).toEqual({ scene: { live: true, drives: true, hidden: false } });
     detach();
-    expect(editor.getLocalState()).toEqual({ scene: { live: false } });
+    expect(editor.getLocalState()).toEqual({
+      scene: { live: false, drives: false, hidden: false },
+    });
     const res = await liveRequest(h.peer(group(4)), { t: "state", id: "gone" });
     expect(res).toMatchObject({ ok: false, code: "live-no-editor" });
+  });
+});
+
+describe("a state answer's size", () => {
+  const fullLog = (n: number, pad: number) => {
+    const events = Array.from({ length: n }, (_, i) => ({
+      type: "contact",
+      tick: i,
+      entityId: `entity-${i}`,
+      other: `other-${i}`,
+      at: [i, i],
+      data: { note: "x".repeat(pad) },
+    }));
+    return {
+      list: (f?: { limit?: number }) =>
+        f?.limit !== undefined ? events.slice(Math.max(0, events.length - f.limit)) : events,
+    };
+  };
+
+  it("carries the newest LIVE_STATE_EVENTS events by default, with the log's total", async () => {
+    const h = hub();
+    const { game } = fakeGame({
+      debug: { entities: async () => [], events: fullLog(10_000, 100) },
+    } as unknown as Partial<GameInstance>);
+    createLiveResponder().attach(h.peer(), {
+      enabled: () => true,
+      game: () => game,
+      render: async () => png(),
+    });
+    const res = await liveRequest(h.peer(), { t: "state", id: "s", select: ["events"] });
+    if (res.t !== "state" || !res.ok) throw new Error("expected a state answer");
+    expect(res.events).toHaveLength(LIVE_STATE_EVENTS);
+    expect(res.events?.at(-1)?.tick).toBe(9_999);
+    expect(res.eventsTotal).toBe(10_000);
+    const limited = await liveRequest(h.peer(), {
+      t: "state",
+      id: "l",
+      select: ["events"],
+      limit: 3,
+    });
+    expect(limited).toMatchObject({ ok: true, eventsTotal: 10_000 });
+    expect((limited as { events?: unknown[] }).events).toHaveLength(3);
+  });
+
+  it("keeps a full log under the relay cap, trimming the oldest events", async () => {
+    const h = hub();
+    const { game } = fakeGame({
+      debug: { entities: async () => [], events: fullLog(10_000, 200) },
+    } as unknown as Partial<GameInstance>);
+    createLiveResponder().attach(h.peer(), {
+      enabled: () => true,
+      game: () => game,
+      render: async () => png(),
+    });
+    const res = await liveRequest(h.peer(), {
+      t: "state",
+      id: "all",
+      select: ["store", "entities", "events", "timings"],
+      limit: 10_000,
+    });
+    if (res.t !== "state" || !res.ok) throw new Error("expected a state answer");
+    expect(relayableStateless(h.sent.at(-1)!)).toBe(true);
+    expect(res.events!.length).toBeGreaterThan(0);
+    expect(res.events!.length).toBeLessThan(10_000);
+    expect(res.events?.at(-1)?.tick).toBe(9_999);
+    expect(res.eventsTotal).toBe(10_000);
+  });
+
+  it("refuses an answer it can't fit rather than letting the relay drop it", async () => {
+    const h = hub();
+    const huge = Array.from({ length: 4 }, (_, i) => ({ id: `e${i}`, blob: "y".repeat(500_000) }));
+    const { game } = fakeGame({
+      debug: { entities: async () => huge, events: fullLog(0, 0) },
+    } as unknown as Partial<GameInstance>);
+    createLiveResponder().attach(h.peer(), {
+      enabled: () => true,
+      game: () => game,
+      render: async () => png(),
+    });
+    const res = await liveRequest(h.peer(), { t: "state", id: "big", select: ["entities"] });
+    expect(res).toMatchObject({ ok: false, code: "live-refused" });
+    if (!res.ok) expect(res.message).toContain(`${LIVE_MESSAGE_MAX_BYTES}-byte cap`);
+    expect(relayableStateless(h.sent.at(-1)!)).toBe(true);
+  });
+});
+
+describe("a step's wait", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("grows with the ticks asked for, so a long step isn't taken for no editor", async () => {
+    vi.useFakeTimers();
+    const h = hub();
+    const settled: LiveResponse[] = [];
+    void liveRequest(h.peer(), { t: "play", id: "p", action: "step", ticks: 6_000 }).then((r) =>
+      settled.push(r),
+    );
+    await vi.advanceTimersByTimeAsync(LIVE_REQUEST_TIMEOUT_MS + 1);
+    expect(settled).toEqual([]);
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(settled).toMatchObject([
+      {
+        ok: false,
+        code: "live-no-editor",
+        message: expect.stringContaining(`${LIVE_REQUEST_TIMEOUT_MS + 6_000} ms`),
+      },
+    ]);
+  });
+});
+
+describe("isLiveMessage", () => {
+  it("passes live requests and answers and nothing else", () => {
+    expect(isLiveMessage(JSON.stringify({ t: "state", id: "a" }))).toBe(true);
+    expect(isLiveMessage(JSON.stringify({ t: "frame", id: "a", ok: false }))).toBe(true);
+    expect(isLiveMessage(JSON.stringify({ type: "asset:changed", project: "p", id: "a" }))).toBe(
+      false,
+    );
+    expect(isLiveMessage(JSON.stringify({ t: "other", id: "a" }))).toBe(false);
+    expect(isLiveMessage(JSON.stringify({ t: "play", id: 3 }))).toBe(false);
+    expect(isLiveMessage("after")).toBe(false);
+    expect(isLiveMessage("[1]")).toBe(false);
   });
 });
 

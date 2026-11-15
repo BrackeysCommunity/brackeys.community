@@ -2,7 +2,7 @@ import { type Extension, Hocuspocus } from "@hocuspocus/server";
 import crossws from "crossws/adapters/bun";
 import * as Y from "yjs";
 
-import { relayableStateless } from "../../../packages/engine/collab/live-channel.ts";
+import { isLiveMessage, relayableStateless } from "../../../packages/engine/collab/live-channel.ts";
 import type { KindRegistry, QuotaPolicy } from "../../../packages/engine/project/index.ts";
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
@@ -33,6 +33,7 @@ import {
 import {
   ConnectionCaps,
   createMessageLimiter,
+  createStatelessLimiter,
   DocumentGrowth,
   localLedger,
   SyncRefusal,
@@ -239,6 +240,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     now,
   });
   const limitMessage = createMessageLimiter(now);
+  const limitStateless = createStatelessLimiter(now);
   const growth = new DocumentGrowth();
   const awarenessHolds = new Map<string, () => void>();
   // A revoke can land while a connect is still awaiting the canvas row, the
@@ -293,12 +295,12 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         const kind = kinds.get(context.kind);
         const docLimits =
           context.kind === "asset" && assetKind ? assetKind.limitsFor(context.docId) : kind?.limits;
-        // A relayed stateless message is capped where it's relayed, without closing the socket.
+        // A relayed stateless message is capped and rate-limited where it's relayed, without
+        // closing the socket: an editor answering an agent's burst mustn't lose its connection.
+        const relayed = relaysStateless(context.kind) && isStatelessMessage(update);
         const limits =
-          docLimits && relaysStateless(context.kind) && isStatelessMessage(update)
-            ? { ...docLimits, maxMessageBytes: MAX_FRAME_BYTES }
-            : docLimits;
-        limitMessage(connection, update, limits);
+          docLimits && relayed ? { ...docLimits, maxMessageBytes: MAX_FRAME_BYTES } : docLimits;
+        limitMessage(connection, update, limits, { bucket: !relayed });
         if (
           !context.readOnly &&
           growth.exceeds(
@@ -323,10 +325,16 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
       const context = connection.context as SyncContext;
       // Read-only connections only listen: an agent driving Play needs a token that may write.
       if (!relaysStateless(context.kind) || context.readOnly || isRevoked(context)) return;
+      if (!limitStateless(connection)) {
+        metrics.refused("rate");
+        return;
+      }
       if (!relayableStateless(payload)) {
         metrics.refused("size");
         return;
       }
+      // Only the live channel's messages pass: an asset notice is the server's alone to send.
+      if (!isLiveMessage(payload)) return;
       document.broadcastStateless(payload, (other) => other !== connection);
     },
     async beforeHandleAwareness({ connection, context, document, states }) {

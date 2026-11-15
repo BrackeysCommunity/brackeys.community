@@ -104,10 +104,18 @@ export function messageByteCap(
   return firstStep2 && isSyncStep2(message) ? limits.maxStateBytes : limits.maxMessageBytes;
 }
 
-/** Checks one incoming message against its byte cap and its connection's bucket. */
+/**
+ * Checks one incoming message against its byte cap and its connection's
+ * bucket; `bucket: false` skips the bucket for a message limited elsewhere.
+ */
 export function createMessageLimiter(now: () => number) {
   const state = new WeakMap<object, { bucket: TokenBucket; step2Seen: boolean }>();
-  return (connection: object, message: Uint8Array, limits: MessageLimits = CANVAS_LIMITS): void => {
+  return (
+    connection: object,
+    message: Uint8Array,
+    limits: MessageLimits = CANVAS_LIMITS,
+    opts: { bucket?: boolean } = {},
+  ): void => {
     let entry = state.get(connection);
     if (!entry) {
       entry = {
@@ -121,9 +129,26 @@ export function createMessageLimiter(now: () => number) {
     if (message.byteLength > cap) {
       throw new SyncRefusal(SYNC_CLOSE.tooLarge, "message too large", "size");
     }
-    if (!entry.bucket.take(now())) {
+    if (opts.bucket !== false && !entry.bucket.take(now())) {
       throw new SyncRefusal(SYNC_CLOSE.rateLimited, "too many messages", "rate");
     }
+  };
+}
+
+/**
+ * Relayed stateless messages per connection, in a bucket of their own at
+ * the sync rate: one over it is dropped rather than closing the socket, so
+ * an agent's burst of requests can't cut the answering editor off.
+ */
+export function createStatelessLimiter(now: () => number) {
+  const buckets = new WeakMap<object, TokenBucket>();
+  return (connection: object): boolean => {
+    let bucket = buckets.get(connection);
+    if (!bucket) {
+      bucket = new TokenBucket(SYNC_LIMITS.messagesPerSecond, SYNC_LIMITS.messageBurst, now());
+      buckets.set(connection, bucket);
+    }
+    return bucket.take(now());
   };
 }
 

@@ -257,7 +257,8 @@ engine-package:
     # No tag clause — see the note on `lint` above; `engine-pack` runs both on an engine tag.
 
 # Ticks per second for the kitchen sink and the large scenes against the
-# baseline recorded for this runner's arch and Node major; fails below 80%.
+# baseline recorded for this runner's arch and runtime (x64/bun1 on CI);
+# fails below 80%.
 engine-perf:
   stage: test
   image: node:24

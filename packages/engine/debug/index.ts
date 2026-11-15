@@ -50,6 +50,7 @@ export {
   type PerfPlan,
   type PerfRow,
 } from "./perf";
+export { TICK_PHASES, formatMs } from "../runtime/timings";
 export type { RuntimeTimings, TickPhase, TimingStat } from "../runtime/timings";
 
 /** The loaded scene's world, as the physics wireframes and the grid read it. */

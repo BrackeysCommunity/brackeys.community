@@ -2,7 +2,7 @@ import type { EntityRow } from "../../debug/inspect";
 import type { EditorSession } from "../../editor/index";
 import type { GameInstance } from "../../types";
 import { MicroLabel, Text } from "../kit/index";
-import { PlayEmpty, PlayPickRow, useLiveRead } from "./PlayInspector";
+import { PlayEmpty, PlayPending, PlayPickRow, useLiveRead } from "./PlayInspector";
 
 /** The parts of the game the Spawned group reads. */
 export type SpawnedGroupGame = Pick<GameInstance, "debug" | "getStore">;
@@ -30,8 +30,12 @@ export function SpawnedGroup(props: { game: SpawnedGroupGame; session: EditorSes
           </Text>
         ) : null}
       </div>
-      {rows.length === 0 ? (
-        <PlayEmpty>{read.status === "done" ? "Nothing spawned yet" : "Reading…"}</PlayEmpty>
+      {read.status === "failed" ? (
+        <PlayEmpty>Couldn't read the spawned entities: {read.message}</PlayEmpty>
+      ) : read.status !== "done" ? (
+        <PlayPending>Reading…</PlayPending>
+      ) : rows.length === 0 ? (
+        <PlayEmpty>Nothing spawned yet</PlayEmpty>
       ) : (
         <ul className="je-spawned-list">
           {rows.map((row) => (

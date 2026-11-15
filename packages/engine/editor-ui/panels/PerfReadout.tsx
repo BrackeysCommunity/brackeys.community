@@ -10,6 +10,7 @@ import { useStoreValue, type ReadableStore } from "../session/use-store-value";
 export type PerfReadoutGame = Pick<GameInstance, "getStore" | "debug">;
 
 const ms = (v: number) => `${formatMs(v)} ms`;
+const meanAndWorst = (s: { mean: number; max: number }) => `${ms(s.mean)} · worst ${ms(s.max)}`;
 
 /** Never a store: a stand-in so the hook runs the same way without a game. */
 const NO_STORE: ReadableStore<Pick<GameStoreState, "timings">> = {
@@ -41,8 +42,8 @@ export function PerfReadout(props: { game: PerfReadoutGame | null }) {
   return (
     <section className="je-insp-stack" aria-label="Perf">
       <Text as="p" size="xs" variant="muted">
-        Mean per tick over the last {plan.ticks} ticks; the bar is the mean against the slowest
-        phase's worst tick.
+        Average time per tick over the last {plan.ticks} ticks. A full bar is the slowest tick any
+        phase took.
       </Text>
       {plan.bars.map((bar) => (
         <div key={bar.phase} className="je-insp-stack" data-gap="tight" data-phase={bar.phase}>
@@ -50,7 +51,7 @@ export function PerfReadout(props: { game: PerfReadoutGame | null }) {
             value={bar.meanFrac * 100}
             label={
               <MicroLabel>
-                {bar.phase} · {ms(bar.mean)} · worst {ms(bar.max)}
+                {bar.phase} · {meanAndWorst(bar)}
               </MicroLabel>
             }
           />
@@ -63,7 +64,7 @@ export function PerfReadout(props: { game: PerfReadoutGame | null }) {
             <div key={part} className="je-insp-row" data-name={part}>
               <Text size="xs">{part === "render" ? "Render" : "Present"}</Text>
               <Text size="xs" variant="muted" tabular>
-                {ms(frame[part].mean)} · worst {ms(frame[part].max)}
+                {meanAndWorst(frame[part])}
               </Text>
             </div>
           ))}
@@ -86,7 +87,7 @@ function Slowest({ title, rows }: { title: string; rows: readonly PerfRow[] }) {
             {row.name}
           </Text>
           <Text size="xs" variant="muted" tabular>
-            {ms(row.mean)} · worst {ms(row.max)}
+            {meanAndWorst(row)}
           </Text>
         </div>
       ))}

@@ -14,6 +14,7 @@ import { DEFAULT_LAYOUT } from "../layout/model";
 import { LAYOUT_KEY } from "../layout/use-layout";
 import type { EditorHostState } from "../session/live-scene-editor";
 import type { EditorChromeGame, EditorProjectLink } from "../session/use-scene-editor";
+import { fakeGameDebug } from "./fake-world-game";
 
 const settingsProps = vi.hoisted(() => [] as { publish?: unknown }[]);
 vi.mock("../panels/settings/ProjectSettings", () => ({
@@ -83,6 +84,7 @@ function chromeFor(publish?: EditorPublishHost) {
     pointerWorld: () => null,
     router: createToolRouter(),
     getStore: () => new Store({ camera: { x: 0, y: 0, scale: 1 } }),
+    debug: fakeGameDebug(),
   } as unknown as EditorChromeGame;
   const project = {
     session: {

@@ -12,6 +12,7 @@ import {
   assetKindLimits,
   ConnectionCaps,
   createMessageLimiter,
+  createStatelessLimiter,
   DocumentGrowth,
   isSyncStep2,
   localLedger,
@@ -116,6 +117,37 @@ describe("message limiter", () => {
       refusal = refusalOf(() => limit(flooder, UPDATE(10)));
     expect(refusal?.code).toBe(SYNC_CLOSE.rateLimited);
     expect(refusalOf(() => limit({}, UPDATE(10)))).toBeNull();
+  });
+
+  it("leaves a message limited elsewhere out of the connection's bucket, keeping its byte cap", () => {
+    const limit = createMessageLimiter(() => 0);
+    const editor = {};
+    for (let i = 0; i < SYNC_LIMITS.messageBurst * 2; i++)
+      expect(
+        refusalOf(() => limit(editor, UPDATE(10), CANVAS_LIMITS, { bucket: false })),
+      ).toBeNull();
+    expect(refusalOf(() => limit(editor, UPDATE(10)))).toBeNull();
+    expect(
+      refusalOf(() =>
+        limit(editor, UPDATE(CANVAS_LIMITS.maxMessageBytes), CANVAS_LIMITS, { bucket: false }),
+      )?.code,
+    ).toBe(SYNC_CLOSE.tooLarge);
+  });
+});
+
+describe("stateless limiter", () => {
+  it("drops relayed stateless messages past the burst, per connection, and refills at the sync rate", () => {
+    let t = 0;
+    const limit = createStatelessLimiter(() => t);
+    const agent = {};
+    let passed = 0;
+    for (let i = 0; i < SYNC_LIMITS.messageBurst + 50; i++) if (limit(agent)) passed++;
+    expect(passed).toBe(SYNC_LIMITS.messageBurst);
+    expect(limit({})).toBe(true);
+    t += 1000;
+    let refilled = 0;
+    while (limit(agent)) refilled++;
+    expect(refilled).toBe(SYNC_LIMITS.messagesPerSecond);
   });
 });
 

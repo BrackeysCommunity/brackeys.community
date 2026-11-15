@@ -828,22 +828,26 @@ const liveId = () => `cli-${Date.now().toString(36)}-${Math.random().toString(36
  * Sends `ask` on a doc's stateless channel and resolves with the elected
  * editor's answer. Presence can land just after the doc's first sync, so it
  * waits briefly for an editor advertising `live` before the channel's own
- * check reads it; the answer wait is `timeoutMs` (default `LIVE_REQUEST_TIMEOUT_MS`).
+ * check reads it; the answer wait is `timeoutMs`, by default the channel's
+ * (`LIVE_REQUEST_TIMEOUT_MS`, longer for a long `step`).
  */
 export async function requestOnProvider(
   provider: StatelessProvider,
   ask: LiveAsk,
   opts: { timeoutMs?: number; id?: string } = {},
 ): Promise<LiveResponse> {
-  const timeoutMs = opts.timeoutMs ?? LIVE_REQUEST_TIMEOUT_MS;
   const { awareness } = provider;
   if (awareness) {
-    const end = Date.now() + Math.min(PRESENCE_GRACE_MS, timeoutMs);
+    const end = Date.now() + Math.min(PRESENCE_GRACE_MS, opts.timeoutMs ?? LIVE_REQUEST_TIMEOUT_MS);
     while (electResponder(livePresence(awareness)) === null && Date.now() < end)
       await new Promise((r) => setTimeout(r, 20));
   }
   const req = { ...ask, id: opts.id ?? liveId() } as LiveRequest;
-  return sendLiveRequest(provider, req, { timeoutMs });
+  return sendLiveRequest(
+    provider,
+    req,
+    opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs },
+  );
 }
 
 export type LiveRequestOptions = Omit<
@@ -854,7 +858,7 @@ export type LiveRequestOptions = Omit<
   ask: LiveAsk;
   /** How long connecting and syncing the scene's doc may take. */
   connectTimeoutMs?: number;
-  /** How long the editor has to answer; default `LIVE_REQUEST_TIMEOUT_MS`. */
+  /** How long the editor has to answer; default `LIVE_REQUEST_TIMEOUT_MS`, longer for a long `step`. */
   timeoutMs?: number;
 };
 

@@ -343,6 +343,7 @@ describe("renderSynth", () => {
     expect(sustainStart).toBeLessThanOrEqual(1);
   });
 
+  // Ten fixed 5 s renders: about 0.65 s on a quiet machine, past 5 s on a loaded CI runner.
   it("stays finite and within ±1 with every block at its edge, each wave, 5 s at most", () => {
     for (const wave of SYNTH_WAVES) {
       for (const edge of [0, 1]) {
@@ -378,7 +379,7 @@ describe("renderSynth", () => {
         expect(Math.abs(out[out.length - 1]!)).toBeLessThan(0.01);
       }
     }
-  });
+  }, 30_000);
 
   it("cuts a sine two octaves above the ladder's cutoff about twice as deep as the 12 dB low-pass", () => {
     const base = patch({ wave: "sine", freq: 4_000, sustainMs: 500, decayMs: 0 });

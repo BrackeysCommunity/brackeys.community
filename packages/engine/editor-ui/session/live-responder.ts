@@ -1,13 +1,14 @@
+import { useCallback } from "react";
+
 import {
   createLiveResponder,
-  electResponder,
   LIVE_FRAME_MAX_BYTES,
-  livePresence,
   setProjectPresence,
   type AwarenessLike,
   type LiveRequest,
   type StatelessProvider,
 } from "../../collab/index";
+import { electedHere, parseLiveMessage, parseLiveRequest } from "../../collab/live-channel";
 import { DEBUG_OFF } from "../../debug/index";
 import type { GameInstance, PlayOptions } from "../../index";
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
@@ -32,12 +33,46 @@ export const agentsDrivePlayDefault = (hosted: boolean): boolean => !hosted;
 export const agentsDrivePlay = (storage: EditorStorage | null, hosted: boolean): boolean =>
   readStored(storage, AGENTS_DRIVE_PLAY_KEY, agentsDrivePlayDefault(hosted), storedFlag);
 
+/** Tells this tab's responders the choice changed; other tabs hear it as a storage event. */
+const AGENTS_DRIVE_PLAY_EVENT = "jams-editor:agents-drive-play-changed";
+
 /** The choice and its setter, following other tabs (`useStoredFlag`). */
 export const useAgentsDrivePlay = (
   storage: EditorStorage | null,
   hosted: boolean,
-): [boolean, (on: boolean) => void] =>
-  useStoredFlag(storage, AGENTS_DRIVE_PLAY_KEY, agentsDrivePlayDefault(hosted));
+): [boolean, (on: boolean) => void] => {
+  const [on, set] = useStoredFlag(storage, AGENTS_DRIVE_PLAY_KEY, agentsDrivePlayDefault(hosted));
+  const setAndTell = useCallback(
+    (next: boolean) => {
+      set(next);
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(AGENTS_DRIVE_PLAY_EVENT));
+    },
+    [set],
+  );
+  return [on, setAndTell];
+};
+
+/** Whether this page is on screen; true outside a browser. */
+const pageVisible = (): boolean =>
+  typeof document === "undefined" || document.visibilityState !== "hidden";
+
+/** Calls `changed` when the toggle may have changed here or in another tab, or the page shows or hides. */
+function watchDrivesPlay(changed: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === null || e.key === AGENTS_DRIVE_PLAY_KEY) changed();
+  };
+  window.addEventListener(AGENTS_DRIVE_PLAY_EVENT, changed);
+  window.addEventListener("storage", onStorage);
+  window.addEventListener("focus", changed);
+  document.addEventListener("visibilitychange", changed);
+  return () => {
+    window.removeEventListener(AGENTS_DRIVE_PLAY_EVENT, changed);
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("focus", changed);
+    document.removeEventListener("visibilitychange", changed);
+  };
+}
 
 // ─── Frames ──────────────────────────────────────────────
 
@@ -353,33 +388,21 @@ const REQUEST_LABELS: Record<LiveRequest["t"], string> = {
   state: "An agent is reading the game's state",
 };
 
-/** A live request's type and id, else null (answers and other messages). */
-function requestOf(payload: string): { t: LiveRequest["t"]; id: string } | null {
-  if (!payload.startsWith("{")) return null;
-  try {
-    const m = JSON.parse(payload) as { t?: unknown; id?: unknown; ok?: unknown };
-    if (typeof m.id !== "string" || m.ok !== undefined) return null;
-    return m.t === "frame" || m.t === "play" || m.t === "state" ? { t: m.t, id: m.id } : null;
-  } catch {
-    return null;
-  }
-}
-
 const answerId = (payload: string): string | null => {
-  try {
-    const m = JSON.parse(payload) as { id?: unknown; ok?: unknown };
-    return typeof m.id === "string" && typeof m.ok === "boolean" ? m.id : null;
-  } catch {
-    return null;
-  }
+  const m = parseLiveMessage(payload);
+  return m && typeof m.ok === "boolean" ? m.id : null;
 };
 
 export type EditorResponderOptions = {
   /** The open scene doc's live channel. */
   provider: StatelessProvider;
-  /** The project doc's awareness: the editor's project presence says it answers. */
+  /** The project doc's awareness: the editor's project presence shows `live` while agents can drive it. */
   projectAwareness?: AwarenessLike | null;
-  /** "Let agents drive Play", read for each request. */
+  /**
+   * "Let agents drive Play", read for each request and advertised again
+   * whenever it may have changed (`useAgentsDrivePlay`'s setter, another
+   * tab, focus) or the page shows or hides.
+   */
   enabled: () => boolean;
   /** The editor's own Play and Stop. */
   live: Pick<LiveEditor, "play" | "stop">;
@@ -398,8 +421,10 @@ const asCanvas = (el: HTMLElement | null | undefined): HTMLCanvasElement | null 
 /**
  * Answers agents' live requests on the open scene doc for this editor:
  * frames of its canvas, its own Play (a `play` runs it as a click on Play
- * does, `stop` returns to the edit world) and the game's state. Returns the
- * detach, which also takes `live: true` out of this client's presence.
+ * does, `stop` returns to the edit world) and the game's state. It
+ * advertises in the scene doc's presence whether its toggle is on and its
+ * scene on screen, and shows `live` in the project presence while agents
+ * can drive it. Returns the detach, which withdraws both.
  */
 export function attachEditorResponder(opts: EditorResponderOptions): () => void {
   const { provider, live, game, pending } = opts;
@@ -411,13 +436,10 @@ export function attachEditorResponder(opts: EditorResponderOptions): () => void 
       return el ? canvasPixels(el) : null;
     });
   const releases = new Map<string, () => void>();
-  const elected = () =>
-    !provider.awareness ||
-    electResponder(livePresence(provider.awareness)) === provider.awareness.clientID;
 
   const onRequest = ({ payload }: { payload: string }) => {
-    const req = requestOf(payload);
-    if (!req || !pending || !elected() || releases.has(req.id)) return;
+    const req = parseLiveRequest(payload);
+    if (!req || !pending || !electedHere(provider.awareness) || releases.has(req.id)) return;
     releases.set(
       req.id,
       pending.hold({ id: `live:${req.id}`, label: REQUEST_LABELS[req.t], scope: "editor" }),
@@ -461,9 +483,23 @@ export function attachEditorResponder(opts: EditorResponderOptions): () => void 
       throw new Error("The editor couldn't start Play; its notice says why.");
   };
 
+  let drives: boolean | null = null;
+  const advertiseProject = () => {
+    const next = opts.enabled() && pageVisible();
+    if (next === drives || !opts.projectAwareness) return;
+    drives = next;
+    setProjectPresence(opts.projectAwareness, { live: next });
+  };
+
   if (pending) provider.on("stateless", onRequest);
   const detach = createLiveResponder().attach(watched, {
     enabled: opts.enabled,
+    visible: pageVisible,
+    watch: (changed) =>
+      watchDrivesPlay(() => {
+        changed();
+        advertiseProject();
+      }),
     game: () => driven,
     render: async (req) => {
       const pixels = await (req.opts.debug ? withDebugLayers(game, capture) : capture());
@@ -473,7 +509,7 @@ export function attachEditorResponder(opts: EditorResponderOptions): () => void 
     },
     play,
   });
-  if (opts.projectAwareness) setProjectPresence(opts.projectAwareness, { live: true });
+  advertiseProject();
 
   return () => {
     detach();

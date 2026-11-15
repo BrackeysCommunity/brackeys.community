@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`DEBUG_DRAW_MAX`](#debug_draw_max) · [`DEBUG_OFF`](#debug_off) · [`DebugDeps`](#debugdeps) · [`DebugFrame`](#debugframe) · [`DebugLayer`](#debuglayer) · [`DebugLayerFactory`](#debuglayerfactory) · [`DebugLayerHost`](#debuglayerhost) · [`DebugNeeds`](#debugneeds) · [`DebugOverlay`](#debugoverlay) · [`DebugOverlayFactory`](#debugoverlayfactory) · [`DebugSceneSource`](#debugscenesource) · [`DebugTick`](#debugtick) · [`DebugTools`](#debugtools) · [`ENGINE_DEBUG_LAYERS`](#engine_debug_layers) · [`EVENT_LOG_CAPACITY`](#event_log_capacity) · [`EntityInspection`](#entityinspection) · [`EntityRow`](#entityrow) · [`EventLog`](#eventlog) · [`EventLogFilter`](#eventlogfilter) · [`EventLogWriter`](#eventlogwriter) · [`PERF_SLOWEST`](#perf_slowest) · [`PerfBar`](#perfbar) · [`PerfPlan`](#perfplan) · [`PerfRow`](#perfrow) · [`RuntimeTimings`](#runtimetimings) · [`TIMING_ATTRIBUTE`](#timing_attribute) · [`TIMING_STORAGE_KEY`](#timing_storage_key) · [`TickPhase`](#tickphase) · [`TimingStat`](#timingstat) · [`createDebugDrawSink`](#createdebugdrawsink) · [`createDebugOverlay`](#createdebugoverlay) · [`createEventLog`](#createeventlog) · [`debugDrawLayer`](#debugdrawlayer) · [`debugModes`](#debugmodes) · [`debugTools`](#debugtools-1) · [`inspectEntity`](#inspectentity) · [`listEntities`](#listentities) · [`perfLayer`](#perflayer) · [`perfLines`](#perflines) · [`perfPlan`](#perfplan-1) · [`pickEntity`](#pickentity)
+[`DEBUG_DRAW_MAX`](#debug_draw_max) · [`DEBUG_OFF`](#debug_off) · [`DebugDeps`](#debugdeps) · [`DebugFrame`](#debugframe) · [`DebugLayer`](#debuglayer) · [`DebugLayerFactory`](#debuglayerfactory) · [`DebugLayerHost`](#debuglayerhost) · [`DebugNeeds`](#debugneeds) · [`DebugOverlay`](#debugoverlay) · [`DebugOverlayFactory`](#debugoverlayfactory) · [`DebugSceneSource`](#debugscenesource) · [`DebugTick`](#debugtick) · [`DebugTools`](#debugtools) · [`ENGINE_DEBUG_LAYERS`](#engine_debug_layers) · [`EVENT_LOG_CAPACITY`](#event_log_capacity) · [`EntityInspection`](#entityinspection) · [`EntityRow`](#entityrow) · [`EventLog`](#eventlog) · [`EventLogFilter`](#eventlogfilter) · [`EventLogWriter`](#eventlogwriter) · [`PERF_SLOWEST`](#perf_slowest) · [`PerfBar`](#perfbar) · [`PerfPlan`](#perfplan) · [`PerfRow`](#perfrow) · [`RuntimeTimings`](#runtimetimings) · [`TICK_PHASES`](#tick_phases) · [`TIMING_ATTRIBUTE`](#timing_attribute) · [`TIMING_STORAGE_KEY`](#timing_storage_key) · [`TickPhase`](#tickphase) · [`TimingStat`](#timingstat) · [`createDebugDrawSink`](#createdebugdrawsink) · [`createDebugOverlay`](#createdebugoverlay) · [`createEventLog`](#createeventlog) · [`debugDrawLayer`](#debugdrawlayer) · [`debugModes`](#debugmodes) · [`debugTools`](#debugtools-1) · [`formatMs`](#formatms) · [`inspectEntity`](#inspectentity) · [`listEntities`](#listentities) · [`perfLayer`](#perflayer) · [`perfLines`](#perflines) · [`perfPlan`](#perfplan-1) · [`pickEntity`](#pickentity)
 
 ## `DEBUG_DRAW_MAX`
 
@@ -416,6 +416,28 @@ type RuntimeTimings = {
 
 Refers to [`TickPhase`](#tickphase), [`TimingStat`](#timingstat).
 
+## `TICK_PHASES`
+
+_const_ in `runtime/timings.ts`
+
+A step's phases, in tick order; the tick counter's own increment isn't timed.
+
+```ts
+declare const TICK_PHASES: readonly [
+    "systems-before",
+    "game-before",
+    "physics",
+    "systems-after",
+    "behaviors",
+    "timers",
+    "dispatch-1",
+    "game-after",
+    "destroy",
+    "dispatch-2",
+    "commit"
+];
+```
+
 ## `TIMING_ATTRIBUTE`
 
 _const_ in `debug/timing-readout.ts`
@@ -443,6 +465,8 @@ _type_ in `runtime/timings.ts`
 ```ts
 type TickPhase = (typeof TICK_PHASES)[number];
 ```
+
+Refers to [`TICK_PHASES`](#tick_phases).
 
 ## `TimingStat`
 
@@ -530,6 +554,16 @@ declare function debugTools(): DebugTools;
 ```
 
 Refers to [`DebugTools`](#debugtools).
+
+## `formatMs`
+
+_const_ in `runtime/timings.ts`
+
+Milliseconds as the timing views print them, to the microsecond: `1.250`.
+
+```ts
+declare const formatMs: (value: number) => string;
+```
 
 ## `inspectEntity`
 

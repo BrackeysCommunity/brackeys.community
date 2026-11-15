@@ -452,9 +452,9 @@ const DEFINITIONS = {
   frame: {
     usage: FRAME_USAGE,
     summary:
-      "with --live, the canvas of the editor that has the scene open, as a PNG (downscaled under 1 MiB, else frame-too-large); live-no-editor when no editor answers, live-refused when its Let agents drive Play is off",
+      "with --live, the canvas of the editor that has the scene open, as a PNG (downscaled under 1 MiB, else frame-too-large); --debug takes it with every debug layer showing, then puts the editor's overlay back; live-no-editor when no editor answers, live-refused when its Let agents drive Play is off",
     values: ["out", "viewport", "url", "token"],
-    switches: ["live"],
+    switches: ["live", "debug"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
       frame(
@@ -463,6 +463,7 @@ const DEFINITIONS = {
           ...liveReadFlags(flags),
           out: str(flags.out),
           viewport: str(flags.viewport),
+          ...(flags.debug === true ? { debug: true } : {}),
         },
         ctx,
       ),

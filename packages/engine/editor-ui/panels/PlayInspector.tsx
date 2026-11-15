@@ -9,7 +9,7 @@ import { TOOL_PRIORITY, type ToolEvent } from "../../tool-router";
 import type { GameInstance, GameStoreState, Vec2 } from "../../types";
 import type { EditorNotify } from "../host";
 import { formatLength, formatSpeed } from "../kit/format";
-import { Badge, Hotkey, Text } from "../kit/index";
+import { Badge, Hotkey, Spinner, Text } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 import { InspectorSection } from "./inspector/field-widgets";
@@ -144,6 +144,18 @@ export function PlayEmpty({ children }: { children: ReactNode }) {
     <Text as="p" size="xs" variant="muted" className="je-panel-empty">
       {children}
     </Text>
+  );
+}
+
+/** A Play view's line while its first read is on the way. */
+export function PlayPending({ children }: { children: ReactNode }) {
+  return (
+    <div role="status" className="je-insp-row je-panel-empty" data-gap="tight">
+      <Spinner size={12} label={null} />
+      <Text as="span" size="xs" variant="muted">
+        {children}
+      </Text>
+    </div>
   );
 }
 
@@ -327,7 +339,7 @@ export function PlayInspector(props: {
       </PlayEmpty>
     );
   } else if (read.status === "pending") {
-    body = <PlayEmpty>Reading {target}…</PlayEmpty>;
+    body = <PlayPending>Reading {target}…</PlayPending>;
   } else if (read.status === "failed") {
     body = (
       <PlayEmpty>

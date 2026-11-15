@@ -11,7 +11,12 @@ import {
   type PrefabWriter,
 } from "../../collab/index";
 import { isSeedStaleClose } from "../../collab/seed-identity";
-import type { ContentStore, KindRegistry, ProjectId } from "../../project/index";
+import {
+  parseDocName,
+  type ContentStore,
+  type KindRegistry,
+  type ProjectId,
+} from "../../project/index";
 import type { Registry } from "../../scene/index";
 import type {
   CloseReason,
@@ -279,6 +284,8 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
       let retries = 0;
       let timer: ReturnType<typeof setTimeout> | null = null;
       const listeners = new Set<StatelessListener>();
+      // Only the server sends asset notices, on the project doc; a peer's message on a scene doc is relayed.
+      const takesAssetNotices = parseDocName(name)?.kind === "project";
 
       const close = () => {
         if (closed) return;
@@ -332,7 +339,7 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
           },
           stateless(payload) {
             if (closed) return;
-            const message = assetChangedOf(payload, project);
+            const message = takesAssetNotices ? assetChangedOf(payload, project) : null;
             if (message) for (const l of [...assetListeners]) l(message);
             for (const l of [...listeners]) l({ payload });
           },

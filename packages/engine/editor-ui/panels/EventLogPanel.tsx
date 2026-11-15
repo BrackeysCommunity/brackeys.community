@@ -1,5 +1,5 @@
 import { Store } from "@tanstack/store";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { EventLog } from "../../debug/event-log";
 import type { EditorSession } from "../../editor/index";
@@ -51,6 +51,25 @@ function useLogRevision(log: EventLog | null): number {
     };
   }, [log]);
   return revision;
+}
+
+/**
+ * A React key per event that holds while the newest-N window slides, so a
+ * focused row keeps its node. Events are kept by identity, so the key is
+ * the order the panel first saw each one in.
+ */
+function useEventKeys(): (e: StepEvent) => number {
+  const keys = useRef<{ next: number; of: WeakMap<StepEvent, number> } | null>(null);
+  keys.current ??= { next: 0, of: new WeakMap() };
+  const held = keys.current;
+  return (e) => {
+    let key = held.of.get(e);
+    if (key === undefined) {
+      key = held.next++;
+      held.of.set(e, key);
+    }
+    return key;
+  };
 }
 
 /** A typed tick bound; ticks start at 0, so a negative one reads as 0. */
@@ -159,6 +178,7 @@ export function EventLogPanel(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the revision is the log's change signal
   }, [log, liveRevision, type, entity, since, until]);
   const shown = matched.length > EVENT_LOG_ROWS ? matched.slice(-EVENT_LOG_ROWS) : matched;
+  const keyOf = useEventKeys();
 
   /** What clicking the row does; null for a row that does nothing. */
   const actionOf = (e: StepEvent): (() => void) | null => {
@@ -233,7 +253,7 @@ export function EventLogPanel(props: {
             variant="ghost"
             disabled={!liveHas}
             onClick={() => events.clear()}
-            tooltip="Clear Play's events"
+            tooltip="Clear Play's events (can't be undone)"
           >
             Clear
           </Button>
@@ -255,8 +275,8 @@ export function EventLogPanel(props: {
             </Text>
           ) : null}
           <ul aria-label="Events">
-            {shown.map((e, i) => (
-              <EventRow key={`${e.tick}:${i}`} event={e} ppm={ppm} onClick={actionOf(e)} />
+            {shown.map((e) => (
+              <EventRow key={keyOf(e)} event={e} ppm={ppm} onClick={actionOf(e)} />
             ))}
           </ul>
         </div>

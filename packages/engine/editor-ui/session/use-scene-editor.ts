@@ -394,6 +394,8 @@ export function useSceneEditor({
   const unsynced = useSyncExternalStore(watchConnection, readUnsynced, readUnsynced);
   const readProjectOpen = () => connection?.getState().session != null;
   const projectOpen = useSyncExternalStore(watchConnection, readProjectOpen, readProjectOpen);
+  const readCanWrite = () => connection?.getState().access !== "read";
+  const canWrite = useSyncExternalStore(watchConnection, readCanWrite, readCanWrite);
   // A scene opened here holds until the host asks for another; a host following it asks for that one.
   const asked = scene ?? null;
   const [picked, setPicked] = useState<{ asked: string | null; id: string } | null>(null);
@@ -638,10 +640,11 @@ export function useSceneEditor({
     return () => game.off("play:recorded", show);
   }, [game, live, runStore]);
 
-  // Agents with the scene open see and drive this editor's Play over the doc's own connection.
+  // Agents with the scene open see and drive this editor's Play over the doc's own connection;
+  // a read-only connection's messages aren't relayed, so it doesn't stand for election.
   const hosted = connection?.hosted ?? false;
   useEffect(() => {
-    if (!live || !game || !ready || !connection?.liveChannel) return;
+    if (readOnly || !canWrite || !live || !game || !ready || !connection?.liveChannel) return;
     const provider = connection.liveChannel(ready.name);
     if (!provider) return;
     return attachEditorResponder({
@@ -653,7 +656,7 @@ export function useSceneEditor({
       canvas: getCanvas,
       pending: tasks ?? null,
     });
-  }, [live, game, ready, connection, storage, hosted, getCanvas, tasks]);
+  }, [readOnly, canWrite, live, game, ready, connection, storage, hosted, getCanvas, tasks]);
 
   const open = useStoreValue(live?.prefab ?? NO_PREFAB);
 

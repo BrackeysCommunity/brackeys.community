@@ -19,7 +19,14 @@ export {
 } from "../runtime/world-snapshot";
 export { SEEK_CHECKPOINT_EVERY, seekTarget } from "../runtime/seek";
 export type { SeekProgress } from "../runtime/seek";
-export type { Clock, RuntimeTimings, TimingsOptions } from "../runtime/timings";
+export { TICK_PHASES, formatMs } from "../runtime/timings";
+export type {
+  Clock,
+  RuntimeTimings,
+  TickPhase,
+  TimingStat,
+  TimingsOptions,
+} from "../runtime/timings";
 export type {
   HeadlessLive,
   HeadlessRuntime,

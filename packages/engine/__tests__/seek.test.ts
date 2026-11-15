@@ -4,6 +4,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 import { fakeAudioBackend } from "../audio/fake";
 import type { AudioSystemOptions } from "../audio/system";
+import { createDebugDrawSink } from "../debug/draw-sink";
+import { debugTools, type DebugOverlay, type DebugTick } from "../debug/index";
 import { createGame } from "../engine";
 import { createRegistry, defineGame } from "../game/define";
 import type { EngineContext, GameDefinition } from "../game/types";
@@ -78,9 +80,43 @@ const walker: GameDefinition<{ n: number }> = defineGame({
   },
 });
 
-const walkDoc = (): SceneDefinition => ({
+const LEAVE_AT = 150;
+
+/** Asks the flow for another scene on tick `LEAVE_AT`. */
+const leaver: GameDefinition<{ n: number }> = defineGame({
+  ...walker,
+  id: "leaver",
+  createRuntime(ctx: EngineContext) {
+    const inner = walker.createRuntime(ctx);
+    return {
+      ...inner,
+      afterStep(...args) {
+        inner.afterStep?.(...args);
+        if (ctx.tick === LEAVE_AT) ctx.flow.request({ to: "next" });
+      },
+    };
+  },
+});
+
+/** Draws a line at x = tick on every step, while a debug-draw layer shows it. */
+const drawer: GameDefinition<{ n: number }> = defineGame({
+  ...walker,
+  id: "drawer",
+  createRuntime(ctx: EngineContext) {
+    const inner = walker.createRuntime(ctx);
+    return {
+      ...inner,
+      afterStep(...args) {
+        inner.afterStep?.(...args);
+        if (ctx.debug.active) ctx.debug.line({ x: ctx.tick, y: 0 }, { x: ctx.tick, y: 1 });
+      },
+    };
+  },
+});
+
+const walkDoc = (game = "walker"): SceneDefinition => ({
   v: SCENE_FORMAT_VERSION,
-  game: "walker",
+  game,
   name: "walk",
   bounds: [0, 0, 40, 20],
   settings: { physics: "none" },
@@ -114,13 +150,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function editing(game: GameDefinition, scene: SceneDefinition): Promise<GameInstance> {
+async function editing(
+  game: GameDefinition,
+  scene: SceneDefinition,
+  debug?: () => DebugOverlay,
+): Promise<GameInstance> {
   const instance = await createGame(document.querySelector("canvas")!, {
     game,
     registry: createRegistry(game),
     rapier: async () => rapier,
     audio: { backend: () => fakeAudioBackend() },
     scene,
+    ...(debug ? { dev: true, debug } : {}),
   });
   games.push(instance);
   instance.start();
@@ -257,8 +298,61 @@ describe("seeking a replay", () => {
     const rec = walkSession(game, doc, 400);
     const at250 = stepped(game, doc, rec, 250);
     expect(game.replay(doc, rec, { seek: 250, paused: true })).toMatchObject({ ok: true });
-    await game.replayHandle()!.seek(250);
+    const handle = game.replayHandle()!;
+    await vi.waitFor(() => expect(handle.progress).toEqual({ target: 250, from: 0, tick: 250 }));
+    // The last step's yield and the settle can sit a slice apart.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(stateOf(game)).toEqual(at250);
+    expect(game.getStore().state.sim.paused).toBe(true);
+  }, 30_000);
+
+  it("a seek through a flow request ends the replay with its flow outcome, as stepping does", async () => {
+    const doc = walkDoc("leaver");
+    const game = await editing(leaver as GameDefinition, doc);
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    game.step(200);
+    const rec = game.recording()!;
+    expect(rec.outcome).toMatchObject({ result: "flow", tick: LEAVE_AT });
+    game.stop();
+
+    expect(game.replay(doc, rec, { paused: true })).toMatchObject({ ok: true });
+    game.step(200);
+    const steppedOutcome = game.getStore().state.session?.outcome;
+    expect(steppedOutcome).toEqual({ result: "flow", to: "next", tick: LEAVE_AT });
+
+    const outcomes: unknown[] = [];
+    game.on("play:outcome", (o) => outcomes.push(o));
+    expect(game.replay(doc, rec)).toMatchObject({ ok: true });
+    const handle = game.replayHandle()!;
+    await handle.seek(rec.ticks);
+    expect(game.getStore().state.session?.outcome).toEqual(steppedOutcome);
+    expect(outcomes).toEqual([steppedOutcome]);
+    expect(game.getStore().state.sim.paused).toBe(true);
+    expect(handle.tick).toBe(LEAVE_AT + 1);
+
+    // A seek back before it reopens the run.
+    await handle.seek(50);
+    expect(game.getStore().state.session?.outcome).toBeNull();
+  }, 30_000);
+
+  it("hands the debug overlay the sought tick's draws, not the ones from before the seek", async () => {
+    const doc = walkDoc("drawer");
+    const sink = createDebugDrawSink();
+    const seen: DebugTick[] = [];
+    const overlay = (): DebugOverlay => ({
+      setPhysics: () => {},
+      update: (t) => seen.push(t),
+      destroy: () => {},
+      debugDraw: () => sink,
+      tools: debugTools(),
+    });
+    const game = await editing(drawer as GameDefinition, doc, overlay);
+    const rec = walkSession(game, doc, 300);
+    expect(game.replay(doc, rec, { paused: true })).toMatchObject({ ok: true });
+    game.step(10);
+    expect(seen.at(-1)?.draws).toEqual([expect.objectContaining({ a: { x: 9, y: 0 } })]);
+    await game.replayHandle()!.seek(200);
+    expect(seen.at(-1)?.draws).toEqual([expect.objectContaining({ a: { x: 199, y: 0 } })]);
   }, 30_000);
 
   it("a seek back never publishes a re-recording that doesn't start at the run's start", async () => {

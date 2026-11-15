@@ -500,6 +500,7 @@ PerfBar
 PerfPlan
 PerfRow
 RuntimeTimings
+TICK_PHASES
 TIMING_ATTRIBUTE
 TIMING_STORAGE_KEY
 TickPhase
@@ -510,6 +511,7 @@ createEventLog
 debugDrawLayer
 debugModes
 debugTools
+formatMs
 inspectEntity
 listEntities
 perfLayer
@@ -1740,11 +1742,14 @@ SwapCheckRun
 SwapReport
 SynthPreset
 SystemEvent
+TICK_PHASES
 TickInput
+TickPhase
 TimingBucket
 TimingReport
 TimingScope
 TimingSpan
+TimingStat
 TimingsOptions
 UntilClause
 ValidatePhysicalOptions
@@ -1768,6 +1773,7 @@ dialogueCommands
 exploreDialogue
 fakeAudioBackend
 fileSchemaIssue
+formatMs
 fuzz
 gamePersistCell
 heldEdges
@@ -13882,6 +13888,7 @@ type TimingsOptions = {
     partial?: boolean;
     window?: number;
 };
+declare const formatMs: (value: number) => string;
 
 ## runtime/types.ts
 type AssetReloadError = {

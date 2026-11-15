@@ -31,7 +31,7 @@ export type FrameInput = {
 };
 
 export const FRAME_USAGE =
-  "frame <scene> --live [--out f.png] [--viewport n] [--url ws://…|https://site [--token t]]";
+  "frame <scene> --live [--out f.png] [--viewport n] [--debug] [--url ws://…|https://site [--token t]]";
 
 /**
  * The scene's schematic as a PNG, for when no editor gives a frame: written

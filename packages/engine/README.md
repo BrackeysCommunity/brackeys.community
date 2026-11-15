@@ -9328,17 +9328,31 @@ server ask (`vp run scene frame <scene> --live`, `vp run scene play <scene>
 - **The toggle.** "Let agents drive Play" in Project settings → Agents is
   per viewer, kept in that browser's storage and never in a doc. It is on
   against the dev server and off on a hosted project until the viewer turns
-  it on. While it is on, the editor advertises `live: true` in presence.
+  it on. An open editor advertises `live: true` in the scene doc's presence,
+  with `drives` while the toggle is on and `hidden` while its page is off
+  screen; it re-advertises as soon as either changes. A read-only
+  connection doesn't advertise, since the relays don't pass what it sends.
 - **What it shares.** A frame of its canvas (a PNG downscaled to fit 1 MiB,
   else `frame-too-large`); its own Play, Pause, Resume, Step and Stop (Stop
   returns to the edit world); and the game's state: the store, the entities
-  (`game.debug.entities`), the event log and the timings. It shares nothing
-  else, and every answer is plain data.
-- **Who answers.** With several editors open on the scene, the one with the
-  lowest client id among those advertising `live` answers
-  (`electResponder`). No answer within 2 s is `live-no-editor`; an editor
-  with the toggle off answers `live-refused`. `scene frame` then falls back
-  to the schematic render (`source: "schematic"`).
+  (`game.debug.entities`), the newest 500 events of the log (`limit` asks
+  for another count; `eventsTotal` says how many it holds) and the timings.
+  It shares nothing else, and every answer is plain data that fits the
+  relays' 1.5 MiB: a `state` answer over it drops its oldest events, and
+  one still over is `live-refused`.
+- **Who answers.** With several editors open on the scene, the election
+  (`electResponder`) picks among those advertising `live`: one with the
+  toggle on before one with it off, one on screen before a hidden one, then
+  the lowest client id. An editor with the toggle off answers only when no
+  open editor has it on, with `live-refused`. No answer in time is
+  `live-no-editor`: 2 s, plus a millisecond per tick a `step` asks for.
+  `scene frame` then falls back to the schematic render, with
+  `source: "schematic"`.
+- **The relays.** The dev server and the hosted service pass on only live
+  requests and answers (`t` of `frame`, `play` or `state`, a string `id`),
+  up to 1.5 MiB; anything else is dropped and the socket kept. The hosted
+  service gives them a rate limit of their own, so a burst of requests is
+  dropped rather than closing the agent's or the editor's connection.
 - **Co-edits during Play.** With Live in Play on, edits an agent applies
   while it drives Play (`apply --live`) reach the running world as other
   co-edits do.

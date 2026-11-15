@@ -618,11 +618,15 @@ type LiveErrorCode = "frame-too-large" | "live-no-editor" | "live-refused";
 
 _type_ in `collab/live-channel.ts`
 
-A presence entry as the election reads it.
+A presence entry as the election reads it: `live` while a responder is
+attached, `drives` while its "Let agents drive Play" is on, `hidden`
+while its scene is off screen.
 
 ```ts
 type LivePresence = {
     clientId: number;
+    drives?: boolean;
+    hidden?: boolean;
     live?: boolean;
 };
 ```
@@ -644,6 +648,8 @@ type LiveRequest = {
 } | {
     entities?: EntitySelector;
     id: string;
+    /** The newest this many events; default 500. */
+    limit?: number;
     select?: readonly ("entities" | "events" | "store" | "timings")[];
     t: "state";
 } | {
@@ -677,7 +683,7 @@ _type_ in `collab/live-channel.ts`
 
 ```ts
 type LiveResponderOptions = {
-    /** Read per request: false answers `live-refused`. */
+    /** "Let agents drive Play": false answers `live-refused`. Read per request and advertised. */
     enabled: () => boolean;
     game: () => GameInstance | null;
     /**
@@ -692,6 +698,10 @@ type LiveResponderOptions = {
     render: (req: LiveRequest & {
         t: "frame";
     }) => Promise<Uint8Array>;
+    /** Whether the scene is on screen here; default true. Advertised, so a visible editor wins the election. */
+    visible?: () => boolean;
+    /** Calls `changed` whenever `enabled()` or `visible()` may have changed, to re-advertise; returns the unsubscribe. */
+    watch?: (changed: () => void) => () => void;
 };
 ```
 
@@ -713,6 +723,8 @@ type LiveResponse = {
 } | {
     entities?: readonly unknown[];
     events?: readonly StepEvent[];
+    /** How many events the log holds; more than `events` when the answer carries only the newest. */
+    eventsTotal?: number;
     id: string;
     ok: true;
     store?: Pick<GameStoreState, "dialogue" | "game" | "mode" | "phase" | "tick">;
@@ -2357,7 +2369,9 @@ declare function docToScene(doc: Y.Doc): SceneDefinition;
 
 _function_ in `collab/live-channel.ts`
 
-Which client answers: the lowest client id among entries advertising `live: true`; null for none.
+Which client answers, among entries advertising `live: true`: one that
+drives Play before one that only refuses, a visible one before a hidden
+one, then the lowest client id. Null for none.
 
 ```ts
 declare function electResponder(entries: readonly LivePresence[]): null | number;
@@ -2572,7 +2586,7 @@ declare function liveMessageBytes(payload: string): number;
 
 _function_ in `collab/live-channel.ts`
 
-Every awareness state's `live` flag, this client's own included.
+Every awareness state's live flags, this client's own included.
 
 ```ts
 declare function livePresence(awareness: AwarenessLike): LivePresence[];
@@ -2585,8 +2599,9 @@ Refers to [`AwarenessLike`](#awarenesslike), [`LivePresence`](#livepresence).
 _function_ in `collab/live-channel.ts`
 
 Sends `req` and resolves with its answer, or `live-no-editor` after
-`timeoutMs` (default `LIVE_REQUEST_TIMEOUT_MS`), or at once when the
-provider's awareness shows no responder.
+`timeoutMs`, or at once when the provider's awareness shows no responder.
+The default wait is `LIVE_REQUEST_TIMEOUT_MS`, plus a millisecond per
+tick a `step` asks for.
 
 ```ts
 declare function liveRequest(provider: StatelessProvider, req: LiveRequest, opts?: {

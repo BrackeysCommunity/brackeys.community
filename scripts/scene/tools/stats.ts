@@ -1,4 +1,4 @@
-import { runStats, type InputScript, type StatsReport } from "@jams/engine/headless";
+import { formatMs, runStats, type InputScript, type StatsReport } from "@jams/engine/headless";
 
 import { failure, gameFlag, isToolResult, openScene, usage, type Tool } from "../context";
 import { projectRuntime } from "../projects";
@@ -19,7 +19,7 @@ export const DEFAULT_STATS_TICKS = 600;
 /** One input script's longest run. */
 const MAX_STATS_TICKS = 36_000;
 
-const ms = (value: number) => value.toFixed(3).padStart(8);
+const ms = (value: number) => formatMs(value).padStart(8);
 
 /** The report as text: counts first, then this machine's numbers. */
 export function statsLines(report: StatsReport): string[] {

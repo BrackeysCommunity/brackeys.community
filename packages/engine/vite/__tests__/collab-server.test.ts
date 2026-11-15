@@ -199,12 +199,45 @@ describe("the dev collab server: stateless messages between clients", () => {
   it("drops a message over the cap without closing the sender", async () => {
     const a = await open();
     const b = await open();
+    const after = JSON.stringify({ t: "state", id: "after" });
     a.provider.sendStateless("x".repeat(LIVE_MESSAGE_MAX_BYTES + 1));
-    a.provider.sendStateless("after");
+    a.provider.sendStateless(after);
     await until(() => b.stateless.length > 0, "the next message");
-    expect(b.stateless).toEqual(["after"]);
+    expect(b.stateless).toEqual([after]);
     expect(warnings.some((w) => w.includes("over the cap"))).toBe(true);
     expect(a.provider.isSynced).toBe(true);
+  });
+
+  it("relays only live messages, so a client can't pass off an asset notice as the server's", async () => {
+    const a = await open();
+    const b = await open();
+    const projectA = await open(PROJECT);
+    const projectB = await open(PROJECT);
+    const forged = JSON.stringify({
+      type: ASSET_CHANGED,
+      project: "engine",
+      id: "x",
+      sha256: "0".repeat(64),
+    });
+    const live = JSON.stringify({
+      t: "frame",
+      id: "f1",
+      ok: false,
+      code: "live-refused",
+      message: "",
+    });
+    for (const p of [a, projectA]) {
+      p.provider.sendStateless(forged);
+      p.provider.sendStateless("plain text");
+      p.provider.sendStateless(JSON.stringify({ t: "other", id: "o" }));
+    }
+    a.provider.sendStateless(live);
+    projectA.provider.sendStateless(live);
+    await until(() => b.stateless.length > 0 && projectB.stateless.length > 0, "the live answers");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(b.stateless).toEqual([live]);
+    expect(projectB.stateless).toEqual([live]);
+    expect(a.provider.isSynced && projectA.provider.isSynced).toBe(true);
   });
 });
 

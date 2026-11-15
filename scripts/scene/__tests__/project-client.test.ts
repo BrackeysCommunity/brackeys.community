@@ -20,7 +20,7 @@ import {
   type ProjectState,
 } from "@jams/engine/project";
 import { SCENE_COLLAB_PATH } from "@jams/engine/vite";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 import { z } from "zod";
 
@@ -351,6 +351,48 @@ describe("requestOnProvider", () => {
     const none = await requestOnProvider(nobody.provider, { t: "state" }, { timeoutMs: 150 });
     expect(none).toMatchObject({ ok: false, code: "live-no-editor" });
     expect(nobody.sent).toEqual([]);
+  });
+
+  it("waits longer by default for a long step, which runs in the editor's tab", async () => {
+    vi.useFakeTimers();
+    try {
+      const listeners = new Set<Listener>();
+      const states = new Map<number, Record<string, unknown>>([
+        [1, {}],
+        [7, { scene: { live: true, drives: true } }],
+      ]);
+      const provider: StatelessProvider = {
+        sendStateless(payload) {
+          const req = JSON.parse(payload) as { t: string; id: string };
+          const reply = {
+            t: req.t,
+            id: req.id,
+            ok: true,
+            tick: 6_000,
+            phase: "paused",
+            outcome: null,
+          };
+          setTimeout(() => {
+            for (const fn of [...listeners]) fn({ payload: JSON.stringify(reply) });
+          }, 4_000);
+        },
+        on: (_event, fn) => void listeners.add(fn),
+        off: (_event, fn) => void listeners.delete(fn),
+        awareness: {
+          clientID: 1,
+          getLocalState: () => states.get(1) ?? null,
+          setLocalStateField: () => undefined,
+          getStates: () => states,
+          on() {},
+          off() {},
+        },
+      };
+      const pending = requestOnProvider(provider, { t: "play", action: "step", ticks: 6_000 });
+      await vi.advanceTimersByTimeAsync(4_100);
+      expect(await pending).toMatchObject({ ok: true, tick: 6_000 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("gives a client's opened docs a stateless channel", async () => {

@@ -28,7 +28,7 @@ export type PlayLiveInput = {
   ticks?: string;
   url?: string;
   token?: string;
-  /** How long the editor has to answer; default `LIVE_REQUEST_TIMEOUT_MS`. */
+  /** How long the editor has to answer; default `LIVE_REQUEST_TIMEOUT_MS`, longer for a long `step`. */
   timeoutMs?: number;
 };
 
@@ -93,7 +93,11 @@ function stateText(scene: string, r: LiveResponse & { t: "state"; ok: true }): s
   const lines = [
     `${scene}: ${s ? `${s.mode} ${s.phase} at t${s.tick}` : "state"}`,
     ...(r.entities ? [`  entities ${r.entities.length}`] : []),
-    ...(r.events ? [`  events ${r.events.length}`] : []),
+    ...(r.events
+      ? [
+          `  events ${r.events.length}${r.eventsTotal !== undefined && r.eventsTotal > r.events.length ? ` (newest of ${r.eventsTotal})` : ""}`,
+        ]
+      : []),
   ];
   const t = r.timings;
   if (t) {

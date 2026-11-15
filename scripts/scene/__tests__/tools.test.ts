@@ -4166,6 +4166,17 @@ describe("frame and play --live", { timeout: 60_000 }, () => {
     expect(asked).toEqual([{ debug: true }]);
   });
 
+  it("asks for the debug layers from the command line with --debug", async () => {
+    const { asked } = await openEditor();
+    const r = await runCli(
+      ["frame", "engine-yard", "--live", "--debug", "--url", server.url, "--json"],
+      live,
+    );
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ source: "live", debug: true });
+    expect(asked).toEqual([{ debug: true }]);
+  });
+
   it("falls back to the schematic, saying so, when no editor answers", async () => {
     const out = join(liveRoot, "schematic.png");
     const r = await frame(

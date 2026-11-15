@@ -30,10 +30,12 @@ the owner.
   in `StepResult.debug`.
 - `SceneSystem.inspect?(id)` and `BehaviorSystem.inspect?(id)`: plain,
   read-only JSON for a debugger.
-- `runtime/timings.ts`: `TICK_PHASES`, `TickPhase`, `RuntimeTimings`,
-  `TimingStat`, `Clock`, `TimingsOptions`, `createTimings`, a windowed view
-  over the `RunTiming` collector (`partial` gives the ticks so far before a
-  window fills), `createFrameTimings`, `FrameTimings` and `formatMs`.
+- Windowed per-phase timings over the `RunTiming` collector: the types
+  `RuntimeTimings`, `TickPhase` and `TimingStat` in the root entry,
+  `./debug` and `./headless`; `TICK_PHASES` (the phases in tick order) and
+  `formatMs` (milliseconds as the timing views print them) in `./debug` and
+  `./headless`; `Clock` and `TimingsOptions` (`partial` gives the ticks so
+  far before a window fills) in `./headless`.
   `SceneRuntimeOptions.timings` and `SceneRuntimeHandle.timings()`;
   `GameStoreState.timings`, which carries the shell's `frame` (render and
   present ms per rendered frame).
@@ -138,14 +140,15 @@ the owner.
   `scene stats <scene> [--ticks n] [--json]` prints them.
 - `vp run engine:perf` judges the kitchen sink, large-5k and its
   physics-free twin (60 warm-up ticks, then 600 measured, 5 runs, median
-  ticks/s) against packages/engine/**tests**/perf/baseline.json, keyed by
-  arch and the runtime that ran it (`x64/bun1` under Bun, `arm64/node26`
+  ticks/s) against `packages/engine/__tests__/perf/baseline.json`, keyed
+  by arch and the runtime that ran it (`x64/bun1` under Bun, `arm64/node26`
   under Node; Bun's reported Node version moves with Bun, so it isn't the
   key): below 80% fails, below 90% warns, no baseline passes with a notice,
   printed as a banner on CI; `--update` / UPDATE_PERF_BASELINE=1 records the
-  key. The `x64/bun1` key is CI's first engine-perf run (pipeline 1135,
-  2026-11-15, Bun 1.4.4 on Linux x64, measured before the warm-up ticks
-  were added, so it errs low); the arm64 key is still to be recorded.
+  key. The baseline ships empty, so every case passes with a notice until
+  the owner records the `arm64/node26` key on their machine and the
+  `x64/bun1` key from a CI run's `engine-perf.json` (with the warm-up
+  ticks) in an owner MR.
 - `GameInstance.replay(doc, rec, { seek, checkpointEvery = 300, paused })`
   and `replayHandle()` seek. Seeking re-simulates with presentation muted
   (no step listeners, present requests, audio, effects or dialogue view)
@@ -210,11 +213,13 @@ the owner.
 - Command `stats <scene> [--ticks n] [--json]`; `render` gains
   `--debug-draw` and `--ticks` (default 60 ticks; its data gains
   `debugDraw: { ticks, draws }`).
-- `scene frame <scene> --live [--out f.png] [--viewport n] [--url …]
-[--token t]` writes the open editor's canvas (`source: "live"`), or the
+- `scene frame <scene> --live [--out f.png] [--viewport n] [--debug]
+[--url …] [--token t]` writes the open editor's canvas (`source: "live"`), or the
   schematic render (`source: "schematic"`) when no editor answers within
   2 s, no server is reachable, or the frame stays over the cap
   (`live-no-editor` / `frame-too-large` attached); `live-refused` exits 1.
+  `--debug` frames it with every debug layer showing, as MCP `scene_frame`'s
+  `debug` does.
 - `scene play <scene> --live play|pause|resume|step [--ticks n]|stop|state`
   drives the open editor's Play or reads its store, entities, events and
   timings; with no editor it reports `live-no-editor` (exit 1).
@@ -225,8 +230,10 @@ the owner.
   `ticks` with step, `url`): drives the open editor's Play over the live
   channel, or reads its state; `live-no-editor` / `live-refused` pass
   through.
-- MCP `scene_frame` (`scene`, `viewport`, `url`): the open editor's canvas
-  PNG with `source: "live"`; with no editor answering, the schematic
+- MCP `scene_frame` (`scene`, `viewport`, `debug`, `url`): the open
+  editor's canvas PNG with `source: "live"`; `debug: true` takes it with
+  every debug layer F3 cycles through showing, then puts the editor's
+  overlay back as it was; with no editor answering, the schematic
   `scene_render` PNG with `source: "schematic"`; `frame-too-large` and
   `live-refused` pass through.
 - MCP `scene_replay` gains `seek` (int >= 0, reports `at`); `scene_render`
