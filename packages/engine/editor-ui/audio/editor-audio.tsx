@@ -24,6 +24,7 @@ import { Rng } from "../../sim-kit/rng";
 import type { GameInstance } from "../../types";
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
 import { IconButton, type IconButtonProps } from "../kit/button";
+import { Text } from "../kit/text";
 import { useOptionalPending } from "../pending/use-pending";
 import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
@@ -230,6 +231,44 @@ export function AuditionButton({
         else void audio.play(id, patch ? { patch } : {});
       }}
     />
+  );
+}
+
+/**
+ * An audible asset's play button and how long it plays, the same wherever
+ * a clip, sound or patch is shown: a ghost button, the length in tabular
+ * figures, "No length yet" when it's unknown. Nothing outside an
+ * `EditorAudioProvider`.
+ */
+export function AssetAudition({
+  id,
+  name,
+  size = "icon-xs",
+  patch,
+  lengthMs,
+  actions,
+}: {
+  id: AssetId;
+  name: string;
+  size?: IconButtonProps["size"];
+  /** Plays this patch for `id` instead of the project's copy. */
+  patch?: SynthFile;
+  /** The length in place of the project's: a patch's draft. */
+  lengthMs?: number;
+  /** Controls at the end of the row. */
+  actions?: ReactNode;
+}) {
+  const audio = useEditorAudio();
+  if (!audio) return null;
+  const length = lengthMs !== undefined ? ([lengthMs, lengthMs] as const) : audio.lengthMs(id);
+  return (
+    <div className="je-asset-audition">
+      <AuditionButton id={id} name={name} size={size} {...(patch ? { patch } : {})} />
+      <Text size="xs" variant="muted" className="je-asset-audition-length">
+        {length ? formatLengthRange(length) : "No length yet"}
+      </Text>
+      {actions}
+    </div>
   );
 }
 

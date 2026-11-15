@@ -2992,6 +2992,32 @@
     min-width: 72px;
   }
 
+  .je-insp-slider > .je-slider {
+    flex: 1 1 auto;
+    min-width: 64px;
+  }
+
+  /* Wide enough for a five-digit cutoff, or "0 (default)". */
+  .je-insp-slider > .je-insp-number {
+    flex: 0 0 80px;
+  }
+
+  /* One width with or without a unit, so every row's value box ends at the same x. */
+  .je-insp-slider-unit {
+    flex: 0 0 2em;
+  }
+
+  .je-insp-record > .je-insp-number,
+  .je-insp-record > .je-input {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* Holds the remove button's place in the add row, so its inputs line up with the rows above. */
+  .je-insp-record-spacer {
+    flex: 0 0 20px;
+  }
+
   .je-insp-dial {
     position: relative;
     flex-shrink: 0;
@@ -3867,6 +3893,11 @@
     white-space: nowrap;
   }
 
+  /* In an asset's panel the row spans it, so trailing controls sit at its end. */
+  .je-asset-panel > .je-asset-audition {
+    display: flex;
+  }
+
   .je-doc-asset {
     display: flex;
     flex-direction: column;
@@ -3880,13 +3911,6 @@
   .je-sound-panel .je-insp-line {
     gap: 4px;
     min-width: 0;
-  }
-
-  .je-sound-variant,
-  .je-sound-trigger {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
   }
 
   .je-sound-variant + .je-sound-variant,
@@ -3925,14 +3949,43 @@
     gap: 4px;
   }
 
-  .je-synth-slider > .je-slider {
-    flex: 1 1 auto;
-    min-width: 64px;
+  .je-strings-keys {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 4px 8px;
+    margin: 0;
+    font-size: var(--je-text);
   }
 
-  /* Wide enough for a five-digit cutoff and its unit. */
-  .je-synth-slider > .je-insp-number {
-    flex: 0 0 88px;
+  .je-strings-keys > dt {
+    overflow: hidden;
+    color: var(--je-muted-fg);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .je-strings-keys > dd {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .je-strings-text {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .je-strings-locale {
+    flex: 0 0 2.5em;
+    color: var(--je-muted-fg);
+  }
+
+  .je-strings-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .je-synth-speaker {

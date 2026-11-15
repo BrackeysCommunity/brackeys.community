@@ -1,5 +1,10 @@
 import { drawText, type SceneView, type TextVisual, type ViewLayer } from "../../context";
-import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
+import {
+  behaviorKey,
+  bindTo,
+  type BehaviorSystem,
+  type BehaviorSystemFactory,
+} from "../../game/behaviors";
 import {
   measureFont,
   richSource,
@@ -40,7 +45,7 @@ export type TextSystem = BehaviorSystem<TextBlock> & {
 };
 
 /** The view id an entity's text draws under. */
-export const textViewId = (entityId: string): string => `${entityId}#${TEXT.name}`;
+export const textViewId = (entityId: string): string => behaviorKey(entityId, TEXT);
 
 type Attached = {
   entity: RuntimeEntity;

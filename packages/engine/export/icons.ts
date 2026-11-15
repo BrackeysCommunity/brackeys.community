@@ -4,7 +4,7 @@ import type { AssetId, ProjectFile, ProjectView, Sha256 } from "../project/types
 import { makeIssue } from "../scene/issues";
 import { locatePointer } from "../scene/parse";
 import type { SceneIssue } from "../scene/types";
-import { crc32 } from "./crc32";
+import { pngFile, zlibStream } from "./png-write";
 
 /** The icon sizes a build ships. */
 export type ExportIconSize = 192 | 512;
@@ -217,51 +217,18 @@ function deflateFixed(data: Uint8Array, stride: number): Uint8Array {
   return w.finish();
 }
 
-function adler32(data: Uint8Array): number {
-  let a = 1;
-  let b = 0;
-  for (const byte of data) {
-    a = (a + byte) % 65521;
-    b = (b + a) % 65521;
-  }
-  return ((b << 16) | a) >>> 0;
-}
-
-const u32 = (n: number): number[] => [
-  (n >>> 24) & 0xff,
-  (n >>> 16) & 0xff,
-  (n >>> 8) & 0xff,
-  n & 0xff,
-];
-
-function chunk(type: string, body: Uint8Array): number[] {
-  const typed = new Uint8Array(4 + body.length);
-  for (let i = 0; i < 4; i++) typed[i] = type.charCodeAt(i);
-  typed.set(body, 4);
-  return [...u32(body.length), ...typed, ...u32(crc32(typed))];
-}
-
 /** The engine's default icon of `size`: an 8-bit palette PNG built in code, byte-identical on every run. */
 export function defaultIconPng(size: ExportIconSize): Uint8Array {
   const pixels = iconPixels(size);
   const stride = size + 1;
   const raw = new Uint8Array(stride * size);
   for (let y = 0; y < size; y++) raw.set(pixels.subarray(y * size, (y + 1) * size), y * stride + 1);
-  const zlib = [0x78, 0x01, ...deflateFixed(raw, stride), ...u32(adler32(raw))];
-  const header = Uint8Array.from([...u32(size), ...u32(size), 8, 3, 0, 0, 0]);
-  const palette = Uint8Array.from(PALETTE().flat());
-  return Uint8Array.from([
-    0x89,
-    0x50,
-    0x4e,
-    0x47,
-    0x0d,
-    0x0a,
-    0x1a,
-    0x0a,
-    ...chunk("IHDR", header),
-    ...chunk("PLTE", palette),
-    ...chunk("IDAT", Uint8Array.from(zlib)),
-    ...chunk("IEND", new Uint8Array(0)),
-  ]);
+  return pngFile({
+    width: size,
+    height: size,
+    bitDepth: 8,
+    colorType: 3,
+    before: [["PLTE", PALETTE().flat()]],
+    zlib: zlibStream(deflateFixed(raw, stride), raw),
+  });
 }

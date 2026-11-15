@@ -1266,6 +1266,14 @@ type GizmoTarget = {
     shapeField?: string;
     /** The view's entities under it, which move and turn with it; absent when none is. */
     subtree?: Ref[];
+    /**
+     * The box a point entity's `text` block draws over, its height measured
+     * and its width estimated (the editor has no locale strings): its move
+     * handle sits under it, clear of the glyphs.
+     */
+    text?: Extract<ShapeObj, {
+        type: "box";
+    }>;
     /** The entity's type; `node` for an instance, which the runtime places as one. */
     type: string;
 };
@@ -5892,10 +5900,11 @@ Refers to [`Aabb`](#aabb), [`GizmoTarget`](#gizmotarget).
 _function_ in `editor/gizmos/handles.ts`
 
 Every handle of one selected target. Normally its shape's handles (or a
-point's move handle), with its path's waypoints drawn under them, so
-waypoint 0 sits beneath the move handle, and its behaviors' handles
-under both, so the entity's own win where they meet. In sub-object mode a path's
-waypoints and inserts, or else a poly's or chain's vertices and inserts.
+point's move handle, under its text when it carries one), with its path's
+waypoints drawn under them, so waypoint 0 sits beneath the move handle,
+and its behaviors' handles under both, so the entity's own win where they
+meet. In sub-object mode a path's waypoints and inserts, or else a poly's
+or chain's vertices and inserts.
 
 ```ts
 declare function targetHandles(t: GizmoTarget, opts: {

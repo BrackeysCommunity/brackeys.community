@@ -105,6 +105,37 @@ export const DIALOGUE_CHOICES = "dialogue:choices";
 /** The active dialogue ended: `data` is a `DialogueEndEvent`. */
 export const DIALOGUE_END = "dialogue:end";
 
+/**
+ * Every step event the engine raises, as an editor offers them to pick.
+ * The anim and tween events are spelled out: importing them would pull
+ * their systems (and an import cycle) into this module. A test pins the
+ * list to the exported constants.
+ */
+export const ENGINE_STEP_EVENTS: readonly string[] = Object.freeze([
+  CONTACT_START,
+  CONTACT_END,
+  SENSOR_ENTER,
+  SENSOR_EXIT,
+  "anim:frame",
+  "anim:end",
+  "tween:end",
+  CHARACTER_JUMPED,
+  CHARACTER_LANDED,
+  CHARACTER_LEFT_GROUND,
+  SPAWNER_SPAWNED,
+  ENTITY_SPAWNED,
+  ENTITY_DESTROYED,
+  ENTITY_ENABLED,
+  ENTITY_DISABLED,
+  NAV_ARRIVED,
+  NAV_BLOCKED,
+  PLAYER_JOINED,
+  PLAYER_LEFT,
+  DIALOGUE_LINE,
+  DIALOGUE_CHOICES,
+  DIALOGUE_END,
+]);
+
 export type DialogueLineEvent = { dialogue: AssetId; node: string; line: number };
 export type DialogueChoicesEvent = { dialogue: AssetId; node: string; count: number };
 export type DialogueEndEvent = { dialogue: AssetId; ending: string };

@@ -41,6 +41,7 @@ import { SoundPanel } from "../panels/assets/SoundPanel";
 import { EditorInspector } from "../panels/EditorInspector";
 import { EditorPlayBar } from "../panels/EditorPlayBar";
 import { EditorProject, type EditorProjectLink } from "../panels/EditorProject";
+import { AssetPanel } from "../panels/project-tree/asset-panel";
 import { createPending } from "../pending/pending";
 import { PendingProvider } from "../pending/use-pending";
 
@@ -424,5 +425,60 @@ describe("Sound in Play", () => {
     game.setMode("edit");
     expect(made[0]!.log.at(-1)?.op).toBe("close");
     expect(game.audio).toBeNull();
+  });
+});
+
+describe("the asset panels' play row", () => {
+  const selected = (session: ProjectSession, id: string) => ({
+    entry: session.view().byId.get(id)!,
+    readOnly: false,
+    onLicence: vi.fn(),
+    onClose: vi.fn(),
+    notify,
+  });
+
+  it("opens an audio clip with its rate and channels, a play button and its length", async () => {
+    const r = rig();
+    const { session } = await project();
+    r.useView(session);
+    render(
+      <r.Wrap>
+        <AssetPanel {...selected(session, "boom")} />
+      </r.Wrap>,
+    );
+    expect(screen.getByText("audio · 64 B · 44.1 kHz · mono")).toBeTruthy();
+    const row = document.querySelector(".je-asset-panel > .je-asset-audition")!;
+    expect(within(row as HTMLElement).getByText("0.42 s")).toBeTruthy();
+    await click(within(row as HTMLElement).getByRole("button", { name: "Play boom.wav" }));
+    await waitFor(() => expect(r.plays()).toHaveLength(1));
+  });
+
+  it("draws the same row for a sound as for a clip and the inspector's sound field", async () => {
+    const r = rig();
+    const { session } = await project();
+    r.useView(session);
+    const editor = createEditorSession({
+      doc: (await session.open(SCENE_DOC)).doc,
+      origin: ada,
+      name: "level",
+      registry,
+    });
+    editors.push(editor);
+    editor.select(["horn"]);
+    render(
+      <r.Wrap>
+        <SoundPanel asset={selected(session, "hit")} session={session} registry={registry} />
+        <EditorInspector session={editor} project={session} />
+      </r.Wrap>,
+    );
+    const rows = await waitFor(() => {
+      const found = [...document.querySelectorAll<HTMLElement>(".je-asset-audition")];
+      expect(found).toHaveLength(2);
+      return found;
+    });
+    for (const row of rows) {
+      expect(within(row).getByText("0.42 s").className).toContain("je-asset-audition-length");
+      expect(row.querySelector("[data-audition]")?.getAttribute("data-variant")).toBe("ghost");
+    }
   });
 });

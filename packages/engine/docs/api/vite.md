@@ -723,25 +723,15 @@ Refers to [`FileProject`](#fileproject), [`ProjectFileAdapter`](#projectfileadap
 
 _function_ in `vite/collab-server.ts`
 
-Hocuspocus over the projects' files, in this process. The server is each
-project's one writer: it seeds `project:<id>` from a scan and each
-`scene:` and `asset:` doc from its file (or from the state persisted in
-the project's cache dir, with the file's difference applied as one
-`disk` transaction), writes back canonical text, sidecars, moves and the
-trash on store, persists every doc, and turns file changes under the
-project into `disk` transactions and registry ops. On each store of a
-project doc it repairs binaries whose bytes the content store lacks
-(`hash-mismatch`), restores trashed assets a live doc it holds still
-names (`asset-in-use`; a doc it loads later is judged as it loads),
-re-inspects binaries whose meta lags their bytes or merged settings, and
-repairs duplicate ids and paths. It writes the code map and this build's
-schema stamps when a project doc loads, and sends `asset:changed` on the
-project doc whenever a binary's hash changes: on disk, by a client's
-`replaceContent`, or by a repair. Each doc it seeds carries its seed's
-stamp, and a client whose copy came from another seed (held across a
-reseed) is refused before anything merges, so it resets to the server's
-state. Needs `@hocuspocus/server`, imported here and only here, and
-Node: its websocket adapter refuses to run under Bun.
+Hocuspocus over the projects' files: the one writer of each project. It
+seeds docs from disk (or the cache dir's persisted state, the file's
+difference applied as one `disk` transaction), writes canonical text,
+sidecars, moves and the trash back on store, and turns file changes into
+`disk` transactions. On each project-doc store it repairs missing content,
+trashed in-use assets, stale meta and duplicate ids and paths, and it sends
+`asset:changed` when a binary's hash changes. A client whose copy came from
+another seed is refused before anything merges. Node only: its websocket
+adapter refuses Bun.
 
 ```ts
 declare function createSceneCollab(options: SceneCollabOptions): Promise<SceneCollab>;

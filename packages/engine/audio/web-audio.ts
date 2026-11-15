@@ -5,6 +5,7 @@
  * mono clip or patch and balances a stereo one, and nothing after it
  * downmixes, so the output stays two channels or more.
  */
+import { clamp } from "../math";
 import type { AudioBackend, AudioClipHandle, BusName, Voice, VoiceOptions } from "./types";
 
 type BufferSource = { kind: "buffer"; buffer: AudioBuffer };
@@ -14,8 +15,7 @@ type StreamHandle = AudioClipHandle & { duration: number };
 /** The time constant pan moves follow, s: quick enough to track a moving source, slow enough not to click. */
 const PAN_GLIDE_S = 0.015;
 
-const clampPan = (pan: number): number =>
-  Number.isFinite(pan) ? (pan < -1 ? -1 : pan > 1 ? 1 : pan) : 0;
+const clampPan = (pan: number): number => (Number.isFinite(pan) ? clamp(pan, -1, 1) : 0);
 const level = (volume: number): number => (Number.isFinite(volume) && volume > 0 ? volume : 0);
 const finite = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
@@ -27,6 +27,18 @@ function rampTo(param: AudioParam, to: number, now: number, ms = 0): void {
     param.linearRampToValueAtTime(to, now + ms / 1000);
   } else {
     param.setValueAtTime(to, now);
+  }
+}
+
+/**
+ * `webAudioBackend()`, or `false` where the browser has no Web Audio, so a
+ * host's `GameConfig.audio.backend` plays the game silent instead of failing it.
+ */
+export function tryWebAudioBackend(): AudioBackend | false {
+  try {
+    return webAudioBackend();
+  } catch {
+    return false;
   }
 }
 

@@ -336,23 +336,15 @@ const positiveInt = (name: string, v: number) => {
 const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * Seeded random rollouts of a scene: each starts the way the editor's Play
- * does and plays macros (the game's `play.macro`, else `defaultFuzzMacro`,
- * which also sets the game's axis and vector actions and moves and clicks
- * the pointer when an action is bound to it; a macro's `set` and `pointer`
- * drive seat 0; a game's macro gets the actions without the UI-only ones and
- * fails the run if it holds or sets one, `simActionError`) drawn from `@jams/engine/sim-kit`'s
- * `Rng`. A game that lists its commands and has no macro of its own gets
- * command macros: one slot sending one of `legalCommands` (nothing when it
- * is empty), every macro for a `turns` game and half of them otherwise,
- * counted in `legal`. Any other game gets them, picked from the dialogue's
- * commands, only while a conversation takes one. Rollouts run until the
- * game's outcome, `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
- * rollouts still end). Reports which scene entities the rollouts' events
- * named (never a runtime `#` id), how many rollouts reached each and how
- * early, the ones never touched, and how the rollouts ended. Rollout `i` draws from its own fork of the seed,
- * so the first rollouts of a longer fuzz are the same as a shorter one's.
- * With `fromSave` every rollout starts where that save left off.
+ * Seeded random rollouts of a scene from the editor's Play start, driven by
+ * the game's `play.macro` (else `defaultFuzzMacro`) on seat 0. A game that
+ * lists its commands and has no macro gets one-slot command macros from
+ * `legalCommands` (every slot for a `turns` game, half otherwise); any other
+ * game gets them only while a conversation takes a dialogue command. A
+ * rollout ends at the game's outcome, `stuck` or `ticks` slots. Rollout `i`
+ * draws from its own fork of the seed, so a longer fuzz extends a shorter
+ * one; `fromSave` starts every rollout there. Reports which scene entities
+ * events reached, how early, the ones never touched, and how runs ended.
  */
 export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun {
   const { registry, game } = resolveGame({

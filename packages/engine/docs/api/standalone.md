@@ -560,31 +560,13 @@ type StandaloneOptions = {
 
 _function_ in `standalone/boot.ts`
 
-Boots a released game from its `release.json`: the project's data, the
-asset loader over the build's files, the scene flow at the list's start,
-the UI and saves, and sound through the page's Web Audio from the
-player's first gesture. The player's bus volumes, locale and calibrated
-latency are kept in this browser (`browserPrefsStore`), the locale
-resolved from them, then the browser's languages, then the project's
-default; the page's `lang` follows it. Sets
-`document.documentElement.dataset.jamsState` to
-"loading", then "ready", or "error" with the refusal shown in `root`
-(the promise rejects then), and mirrors the renderer's state there too
-(`mirrorRenderState`). Every URL is resolved against the manifest's
-own, which resolves against the document's base URI, and none leaves its
-directory.
-
-With `?host=jams` on the page's URL it first looks for the page that
-frames it (`connectHost`). When one answers, saves, remaps and prefs go through
-that page, no service worker registers, the state is reported to it too
-and its `pause`/`resume` pause the game, and its `recording.request`
-gets the run's recording so far as a `download` (a hosted frame records
-each scene the flow loads); when none answers in 2 s the
-build plays as it would anywhere else. A hosted frame announces `"live"`:
-the welcome's live versions are staged before the first scene loads (the
-start scene waits for its own, the others stage in the background), the
-page's `live.update` snapshots go to `createLiveController`, and its
-reports go back as `live.state`.
+Boots a released game from its `release.json` and reports progress on
+`document.documentElement.dataset.jamsState` ("loading", "ready", or
+"error" with the refusal shown in `root`, the promise rejecting). Every URL
+resolves against the manifest's and none leaves its directory. Prefs, saves
+and remaps stay in this browser unless `?host=jams` finds a framing page
+within 2 s (`connectHost`), which then owns them, pause/resume, recordings
+and live updates.
 
 ```ts
 declare function bootStandalone(opts: StandaloneOptions): Promise<StandaloneGame>;

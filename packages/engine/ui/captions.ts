@@ -3,7 +3,7 @@ import type { JsonValue } from "../game/types";
 import { PREF_KEYS, setPref, type PrefsStore } from "../prefs";
 import { plainText } from "../text/rich";
 import type { GameEventMap } from "../types";
-import { followLocale, onLocale, UI_FONT_FAMILY, uiInset } from "./bind";
+import { followLocale, onLocale, styleElement, UI_FONT_FAMILY, UI_THEME, uiInset } from "./bind";
 import { DIALOGUE_INSET } from "./dialogue";
 import type { UiContext, UiHandle } from "./types";
 
@@ -56,6 +56,18 @@ export type CaptionsOptions = {
 
 type Shown = { key: string; el: HTMLElement; timer: ReturnType<typeof setTimeout> };
 
+/** Zero-specificity defaults for each caption, so a game's own stylesheet wins. */
+const CAPTION_CSS = `
+:where([data-jams-caption]) {
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: ${UI_THEME.radius};
+  color: ${UI_THEME.fg};
+  background: ${UI_THEME.bg};
+  white-space: pre-line;
+}
+`;
+
 /**
  * Each played sound's caption and each voiced line's text (`audio:caption`),
  * in a polite live region along the bottom of the layer, while the player's
@@ -85,7 +97,8 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
     textAlign: "center",
   });
   followLocale(region, ctx);
-  ctx.root.append(region);
+  const sheet = styleElement(doc, CAPTION_CSS);
+  ctx.root.append(sheet, region);
 
   let shown: Shown[] = [];
 
@@ -133,14 +146,6 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
     el.setAttribute("data-jams-caption", key);
     el.dir = ctx.strings().direction;
     el.textContent = textOf(key);
-    Object.assign(el.style, {
-      maxWidth: "100%",
-      padding: "2px 8px",
-      borderRadius: "4px",
-      color: "var(--jams-dialogue-fg, #ffffff)",
-      background: "var(--jams-dialogue-bg, rgb(0 0 0 / 0.72))",
-      whiteSpace: "pre-line",
-    });
     region.append(el);
     const entry: Shown = { key, el, timer: setTimeout(() => remove(entry), ms) };
     shown.push(entry);
@@ -172,6 +177,7 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
       unwatch();
       clear();
       region.remove();
+      sheet.remove();
     },
   };
 }

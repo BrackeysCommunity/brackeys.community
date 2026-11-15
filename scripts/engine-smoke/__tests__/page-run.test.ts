@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { PAGE_TIMEOUT_MS } from "../browser-compare";
 import { settledWithin, UNLOCK_CAP_MS } from "../browser/audio";
-import { FIREFOX_AUDIO_PREFS, judgeAudio } from "../browser/media-compare";
+import { FIREFOX_AUDIO_PREFS, judgeAudio, launchOptions } from "../browser/media-compare";
 import { PAGE_BUDGET_MS, pageSteps } from "../browser/run";
 import { audioPlayed } from "./media-probes";
 
@@ -74,7 +74,13 @@ describe("the audio run with no output device", () => {
     expect(judgeAudio({ ...audioPlayed, maxChannels: 0 })).toBeNull();
   });
 
-  it("gives Firefox the mock audio device", () => {
+  it("launches Firefox on the mock audio device, and the others as they are", () => {
     expect(FIREFOX_AUDIO_PREFS).toEqual({ "media.cubeb.force_mock_context": true });
+    expect(launchOptions("firefox")).toEqual({
+      headless: true,
+      firefoxUserPrefs: FIREFOX_AUDIO_PREFS,
+    });
+    expect(launchOptions("chromium")).toEqual({ headless: true });
+    expect(launchOptions("webkit")).toEqual({ headless: true });
   });
 });

@@ -13,7 +13,7 @@ import { hostedGamesFrom, type HostedGame, type HostedGameGlobs } from "../hoste
 const made = vi.hoisted(() => ({
   games: [] as GameInstance[],
   backends: [] as FakeAudioBackend[],
-  /** Whether the stand-in for `webAudioBackend` throws, as a browser without Web Audio does. */
+  /** Whether the stand-in for `tryWebAudioBackend` finds no Web Audio, as a browser without it does. */
   noWebAudio: false,
   hosted: null as HostedGame | null,
 }));
@@ -55,8 +55,8 @@ vi.mock("@jams/engine", async (original) => {
       made.games.push(game);
       return game;
     },
-    webAudioBackend: () => {
-      if (made.noWebAudio) throw new ReferenceError("AudioContext is not defined");
+    tryWebAudioBackend: () => {
+      if (made.noWebAudio) return false;
       const backend = fakeAudioBackend();
       made.backends.push(backend);
       return backend;
@@ -219,8 +219,8 @@ describe("GameCanvas audio", () => {
     localStorage.setItem(
       PREFS_KEY,
       JSON.stringify({
-        "audio.sfx": { volume: 0.5, muted: false },
-        "audio.music": { volume: 0.25, muted: true },
+        "audio.bus.sfx": { volume: 0.5, muted: false },
+        "audio.bus.music": { volume: 0.25, muted: true },
       }),
     );
     const { game } = await playing();
@@ -232,7 +232,7 @@ describe("GameCanvas audio", () => {
 
     game.audio?.setBus("sfx", 0.75, false);
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Record<string, unknown>;
-    expect(saved["audio.sfx"]).toEqual({ volume: 0.75, muted: false });
+    expect(saved["audio.bus.sfx"]).toEqual({ volume: 0.75, muted: false });
   }, 20_000);
 
   it("plays silent, and still plays, in a browser without Web Audio", async () => {

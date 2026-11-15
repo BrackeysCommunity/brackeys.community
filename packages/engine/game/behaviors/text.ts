@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import type { TextFont } from "../../context";
 import { FONT_KIND, type FontMeta } from "../../project/kinds/font";
-import { RTL_LETTER, STRING_KEY_PATTERN } from "../../project/kinds/strings";
+import { RTL_CHAR, STRING_KEY_PATTERN } from "../../project/kinds/strings";
 import type { AssetId, Sha256 } from "../../project/types";
 import type { ShapeObj } from "../../scene/types";
 import type { TextDirection } from "../../text/strings";
@@ -132,7 +132,7 @@ export function textDirection(lines: readonly RichLine[]): TextDirection {
   for (const line of lines)
     for (const span of line) {
       const letter = /\p{L}/u.exec(span.text)?.[0];
-      if (letter !== undefined) return RTL_LETTER.test(letter) ? "rtl" : "ltr";
+      if (letter !== undefined) return RTL_CHAR.test(letter) ? "rtl" : "ltr";
     }
   return "ltr";
 }

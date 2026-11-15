@@ -228,6 +228,83 @@ describe("the sound panel's fields", () => {
     ).toBeTruthy();
   });
 
+  it("shows an unknown bus in the bus row's error slot, as every field problem", async () => {
+    const session = await project({ sound: { ...HIT_SOUND, bus: "sfxx" } });
+    mountSound(session);
+    const bus = await screen.findByRole("combobox", { name: "bus" });
+    const row = bus.closest(".je-insp-field") as HTMLElement;
+    expect(row.querySelector(".je-insp-error")?.textContent).toMatch(/^No bus "sfxx"/);
+  });
+
+  it("draws the volume as a slider over its 0–1 range, unset reading as its full volume", async () => {
+    const session = await project();
+    mountSound(session);
+    const slider = await screen.findByRole("slider", { name: "volume slider" });
+    expect(slider.getAttribute("aria-valuenow")).toBe("1");
+    const volume = screen.getByRole("textbox", { name: "volume" }) as HTMLInputElement;
+    expect(volume.placeholder).toBe("1 (default)");
+    await act(async () => {
+      fireEvent.change(volume, { target: { value: "0.4" } });
+      fireEvent.keyDown(volume, { key: "Enter" });
+    });
+    await waitFor(() => expect(soundOf(session).volume).toBe(0.4));
+  });
+
+  it("edits a trigger's data filter as keys and values, added and removed", async () => {
+    const session = await project({ sound: { ...HIT_SOUND, on: [{ event: "anim:frame" }] } });
+    mountSound(session);
+    const key = await screen.findByRole("textbox", { name: "on.0.data new key" });
+    const value = screen.getByRole("textbox", { name: "on.0.data new value" });
+    await act(async () => {
+      fireEvent.change(key, { target: { value: "event" } });
+      fireEvent.blur(key);
+      fireEvent.change(value, { target: { value: "step" } });
+      fireEvent.keyDown(value, { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(soundOf(session).on).toEqual([{ event: "anim:frame", data: { event: "step" } }]),
+    );
+    const index = await screen.findByRole("textbox", { name: "on.0.data new key" });
+    await act(async () => {
+      fireEvent.change(index, { target: { value: "index" } });
+      fireEvent.keyDown(index, { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(soundOf(session).on?.[0]?.data).toEqual({ event: "step", index: "" }),
+    );
+    const typed = await screen.findByRole("textbox", { name: "on.0.data.index" });
+    await act(async () => {
+      fireEvent.change(typed, { target: { value: "2" } });
+      fireEvent.keyDown(typed, { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(soundOf(session).on?.[0]?.data).toEqual({ event: "step", index: 2 }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove event" }));
+    });
+    await waitFor(() => expect(soundOf(session).on?.[0]?.data).toEqual({ index: 2 }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove index" }));
+    });
+    await waitFor(() => expect(soundOf(session).on).toEqual([{ event: "anim:frame" }]));
+  });
+
+  it("stacks each variant and trigger with the inspector's own stack", async () => {
+    const session = await project({
+      sound: { ...HIT_SOUND, variants: [{ clip: "gate-talk" }], on: [{ event: "contact:start" }] },
+    });
+    mountSound(session);
+    const trigger = await waitFor(() => {
+      const found = document.querySelector('[data-trigger="0"]');
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(trigger.classList.contains("je-insp-stack")).toBe(true);
+    const variant = document.querySelector('[data-variant="gate-talk"]')!;
+    expect(variant.classList.contains("je-insp-stack")).toBe(true);
+  });
+
   it("collapses Variants and Triggers like every inspector section", async () => {
     const session = await project();
     mountSound(session);
@@ -246,13 +323,34 @@ describe("the string table and dialogue summaries", () => {
         <StringsPanel asset={asset(STRINGS)} session={session} />
       </KitProvider>,
     );
-    expect(await screen.findByText(/^6 keys\./)).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "6 keys. Change them in the file, or with vp run scene strings import.",
+      ),
+    ).toBeTruthy();
     const locales = document.querySelector<HTMLElement>('dl[aria-label="Locales"]')!;
     await waitFor(() => {
       expect(locales.querySelector('[data-locale="en"]')?.textContent).toBe("All keys");
       expect(locales.querySelector('[data-locale="fr"]')?.textContent).toBe("1 missing");
     });
     expect(within(locales).getByText("en (default)")).toBeTruthy();
+    // The note follows the list it sums up, under the section's title.
+    const section = screen.getByRole("region", { name: "Locales" });
+    const note = within(section).getByText(/^6 keys\./);
+    expect(locales.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("list each key with its text in every locale, a missing one said so", async () => {
+    const session = await project();
+    render(
+      <KitProvider host={{ storage: null }}>
+        <StringsPanel asset={asset(STRINGS)} session={session} />
+      </KitProvider>,
+    );
+    const keys = await screen.findByRole("region", { name: "Keys" });
+    const leave = within(keys).getByText("gate.leave").nextElementSibling as HTMLElement;
+    expect(leave.querySelector('[data-locale="en"]')?.textContent).toBe("enTurn back.");
+    expect(leave.querySelector('[data-locale="fr"]')?.textContent).toBe("frmissing");
   });
 
   it("sum up a dialogue's nodes and endings, and list what its checks find", async () => {
@@ -280,8 +378,12 @@ describe("the string table and dialogue summaries", () => {
         <DialoguePanel asset={asset(TALK)} session={session} />
       </KitProvider>,
     );
-    expect(
-      await screen.findByText("Every node is reached from the start and leads on or ends."),
-    ).toBeTruthy();
+    const note = await screen.findByText(
+      "Every node is reached from the start and leads on or ends.",
+    );
+    const section = screen.getByRole("region", { name: "Contents" });
+    const contents = section.querySelector('dl[aria-label="Contents"]')!;
+    expect(section.contains(note)).toBe(true);
+    expect(contents.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

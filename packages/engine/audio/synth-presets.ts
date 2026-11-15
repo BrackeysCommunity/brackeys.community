@@ -4,6 +4,8 @@ import {
   SYNTH_BOUNDS,
   SYNTH_KIND,
   SYNTH_VERSION,
+  synthField,
+  withSynthField,
   type SynthFile,
   type SynthNumberPath,
   type SynthWave,
@@ -42,38 +44,14 @@ function tidy(path: SynthNumberPath, v: number): number {
   return clamp(rounded, min, max);
 }
 
-function get(patch: SynthFile, path: SynthNumberPath): number | undefined {
-  const [head, leaf] = path.split(".") as [string, string | undefined];
-  const at = (patch as Record<string, unknown>)[head];
-  if (leaf === undefined) return typeof at === "number" ? at : undefined;
-  const v = at && typeof at === "object" ? (at as Record<string, unknown>)[leaf] : undefined;
-  return typeof v === "number" ? v : undefined;
-}
-
-function set(patch: SynthFile, path: SynthNumberPath, v: number): void {
-  const [head, leaf] = path.split(".") as [string, string | undefined];
-  const target = patch as Record<string, unknown>;
-  if (leaf === undefined) target[head] = v;
-  else (target[head] as Record<string, unknown>)[leaf] = v;
-}
-
-/** A copy whose nested objects are its own, so setting a field never reaches the original. */
-function copy(patch: SynthFile): SynthFile {
-  const out: SynthFile = { ...patch };
-  if (patch.jump) out.jump = { ...patch.jump };
-  if (patch.vibrato) out.vibrato = { ...patch.vibrato };
-  if (patch.lowpass) out.lowpass = { ...patch.lowpass };
-  if (patch.highpass) out.highpass = { ...patch.highpass };
-  return out;
-}
-
 /** Every numeric field the patch holds, rounded and held to the schema's bounds. */
 function settle(patch: SynthFile): SynthFile {
+  let out = patch;
   for (const path of Object.keys(SYNTH_BOUNDS) as SynthNumberPath[]) {
-    const v = get(patch, path);
-    if (v !== undefined) set(patch, path, tidy(path, v));
+    const v = synthField(out, path);
+    if (v !== undefined) out = withSynthField(out, path, tidy(path, v));
   }
-  return patch;
+  return out;
 }
 
 function draw(preset: SynthPreset, rng: Rng): SynthFile {
@@ -190,13 +168,13 @@ export function randomSynth(preset: SynthPreset, rng: Rng): SynthFile {
 
 /** Every numeric field moved by up to `amount` of its range (default 0.05), clamped to the schema. */
 export function mutateSynth(patch: SynthFile, rng: Rng, amount = 0.05): SynthFile {
-  const out = copy(patch);
+  let out = patch;
   const reach = clamp(amount, 0, 1);
   for (const path of Object.keys(SYNTH_BOUNDS) as SynthNumberPath[]) {
-    const v = get(out, path);
+    const v = synthField(out, path);
     if (v === undefined) continue;
     const [min, max] = SYNTH_BOUNDS[path];
-    set(out, path, v + between(rng, -1, 1) * reach * (max - min));
+    out = withSynthField(out, path, v + between(rng, -1, 1) * reach * (max - min));
   }
   return settle(out);
 }

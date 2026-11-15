@@ -6,7 +6,7 @@ import type { DialogueLine } from "../project/kinds/dialogue";
 import { parseRichText, richPlainText, type RichLine } from "../text/rich";
 import type { StringTable } from "../text/strings";
 import type { UiActionEvent } from "../types";
-import { followLocale, onLocale, UI_FONT_FAMILY, uiInset } from "./bind";
+import { followLocale, onLocale, styleElement, UI_FONT_FAMILY, UI_THEME, uiInset } from "./bind";
 import {
   renderRichText,
   renderRichTextPartly,
@@ -54,9 +54,9 @@ const BOX_CSS = `
   align-items: flex-start;
   box-sizing: border-box;
   padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--jams-dialogue-bg, rgba(14, 14, 22, 0.9));
-  color: var(--jams-dialogue-fg, #f4f4f8);
+  border-radius: ${UI_THEME.radius};
+  background: ${UI_THEME.bg};
+  color: ${UI_THEME.fg};
   font-family: ${UI_FONT_FAMILY};
   font-size: var(--jams-dialogue-font-size, 18px);
   line-height: 1.4;
@@ -66,7 +66,7 @@ const BOX_CSS = `
 :where([data-jams-dialogue])[hidden] { display: none; }
 :where([data-jams-dialogue-portrait]) { flex: none; width: 96px; height: 96px; }
 :where([data-jams-dialogue-body]) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-:where([data-jams-dialogue-speaker]) { font-weight: bold; color: var(--jams-dialogue-accent, #ffd36e); }
+:where([data-jams-dialogue-speaker]) { font-weight: bold; color: ${UI_THEME.accent}; }
 :where([data-jams-dialogue-line]) { min-height: 2.8em; white-space: pre-wrap; overflow-wrap: anywhere; }
 :where([data-jams-dialogue-hint]) { align-self: flex-end; opacity: 0.7; font-size: 0.75em; }
 :where([data-jams-dialogue-choices]) { display: flex; flex-direction: column; gap: 4px; }
@@ -76,17 +76,17 @@ const BOX_CSS = `
   text-align: start;
   padding: 6px 10px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: calc(${UI_THEME.radius} - 2px);
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
   pointer-events: auto;
 }
 :where([data-jams-dialogue-choices]) button[data-selected] {
-  border-color: var(--jams-dialogue-accent, #ffd36e);
+  border-color: ${UI_THEME.accent};
   background: rgba(255, 255, 255, 0.16);
 }
 :where([data-jams-dialogue-choices]) button:focus-visible {
-  outline: 2px solid var(--jams-dialogue-accent, #ffd36e);
+  outline: 2px solid ${UI_THEME.accent};
   outline-offset: 1px;
 }
 :where([data-jams-dialogue-choices]) button:disabled { opacity: 0.45; cursor: default; }
@@ -107,26 +107,20 @@ const LOG_CSS = `
   box-sizing: border-box;
   margin: 0;
   padding: 8px 12px;
-  border-radius: 8px;
-  background: var(--jams-dialogue-bg, rgba(14, 14, 22, 0.9));
-  color: var(--jams-dialogue-fg, #f4f4f8);
+  border-radius: ${UI_THEME.radius};
+  background: ${UI_THEME.bg};
+  color: ${UI_THEME.fg};
   font-family: ${UI_FONT_FAMILY};
   font-size: 14px;
   line-height: 1.4;
 }
 :where([data-jams-text-log])[hidden] { display: none; }
 :where([data-jams-text-log]) ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-:where([data-jams-text-log-speaker]) { font-weight: bold; color: var(--jams-dialogue-accent, #ffd36e); margin-inline-end: 0.4em; }
+:where([data-jams-text-log-speaker]) { font-weight: bold; color: ${UI_THEME.accent}; margin-inline-end: 0.4em; }
 `;
 
-function styleElement(doc: Document, css: string): HTMLStyleElement {
-  const style = doc.createElement("style");
-  style.textContent = css;
-  return style;
-}
-
 /** A line's or choice's text: a string key through the table, else the literal `say`. */
-function richSource(
+function lineMarkup(
   item: Pick<DialogueLine, "text" | "say">,
   strings: StringTable,
   vars?: Readonly<Record<string, string>>,
@@ -296,7 +290,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
       button.type = "button";
       button.dataset.jamsChoice = String(choice.index);
       button.disabled = !choice.enabled;
-      renderRichText(button, richSource(choice, strings), ctx);
+      renderRichText(button, lineMarkup(choice, strings), ctx);
       const at = buttons.length;
       button.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -370,7 +364,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     const strings = ctx.strings();
     followLocale(box, ctx);
     const current = view.current;
-    rich = richSource(current, strings, current.vars);
+    rich = lineMarkup(current, strings, current.vars);
     total = richTextLength(rich);
 
     const name = current.speakerName === undefined ? "" : strings.get(current.speakerName);
@@ -494,7 +488,7 @@ function logEntry(
     item.append(who);
   }
   const text = doc.createElement("span");
-  renderRichText(text, richSource(entry, strings, entry.vars), ctx);
+  renderRichText(text, lineMarkup(entry, strings, entry.vars), ctx);
   item.append(text);
   return item;
 }

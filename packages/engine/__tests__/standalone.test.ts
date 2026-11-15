@@ -80,8 +80,8 @@ vi.mock("../export/web-manifest", async (original) => ({
 // The page's Web Audio backend, as a fake that logs what it was asked to play.
 const audio = vi.hoisted(() => ({ backends: [] as FakeAudioBackend[], unavailable: false }));
 vi.mock("../audio/web-audio", () => ({
-  webAudioBackend: () => {
-    if (audio.unavailable) throw new ReferenceError("AudioContext is not defined");
+  tryWebAudioBackend: () => {
+    if (audio.unavailable) return false;
     const backend = fakeAudioBackend();
     audio.backends.push(backend);
     return backend;
@@ -786,7 +786,7 @@ describe("sound, prefs and the locale", () => {
   });
 
   it("reads saved bus volumes and the locale from this browser, and keeps a change there", async () => {
-    localStorage.setItem(KEY, JSON.stringify({ locale: "fr", "audio.sfx": { volume: 0.25 } }));
+    localStorage.setItem(KEY, JSON.stringify({ locale: "fr", "audio.bus.sfx": { volume: 0.25 } }));
     const game = await boot({ fetch: fakeFetch(sounding, DIR).fetch });
     expect(game.instance.locale.current()).toBe("fr");
     expect(game.instance.locale.strings().get("talk.hello")).toBe("Bonjour");
@@ -814,7 +814,7 @@ describe("sound, prefs and the locale", () => {
       welcome: welcomeOf({
         prefs: {
           remap: null,
-          prefs: { locale: "fr", "audio.music": { volume: 0.4, muted: true } },
+          prefs: { locale: "fr", "audio.bus.music": { volume: 0.4, muted: true } },
         },
       }),
     });
@@ -829,7 +829,7 @@ describe("sound, prefs and the locale", () => {
     const [saved] = await page.until("prefs.save");
     expect(saved!.params).toMatchObject({
       store: "prefs",
-      value: { locale: "fr", "audio.sfx": { volume: 0.5 }, "audio.music": { volume: 0.4 } },
+      value: { locale: "fr", "audio.bus.sfx": { volume: 0.5 }, "audio.bus.music": { volume: 0.4 } },
     });
     expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual({ locale: "en" });
   });

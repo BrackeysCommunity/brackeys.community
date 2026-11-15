@@ -8,7 +8,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import { parseRichText } from "../text/rich";
 import { localeDirection, type StringTable } from "../text/strings";
 import type { GameInstance, GameStoreState, UiActionEvent } from "../types";
-import { UI_FONT } from "../ui/bind";
+import { UI_FONT, UI_THEME } from "../ui/bind";
 import { createCaptions } from "../ui/captions";
 import { createDialogueBox, createTextLog, DIALOGUE_INSET } from "../ui/dialogue";
 import { createUiLayer } from "../ui/layer";
@@ -586,6 +586,39 @@ describe("the locale's font", () => {
     h.setDialogue(view());
     expect(box().style.getPropertyValue(UI_FONT)).toBe("");
     ui.destroy();
+  });
+});
+
+describe("an unthemed game", () => {
+  /** The declarations of the first rule for `selector` across the document's style elements. */
+  const ruleOf = (selector: string): string => {
+    const css = [...document.querySelectorAll("style")].map((s) => s.textContent).join("\n");
+    const at = css.indexOf(`:where([${selector}]) {`);
+    expect(at, selector).toBeGreaterThanOrEqual(0);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("draws the box, the log and each caption in one palette and corner, overridable by a game's CSS", () => {
+    const h = harness({ reducedMotion: true });
+    Object.assign(h.ctx.game, { captions: { enabled: () => true, set() {} } });
+    const ui = [createDialogueBox(h.ctx), createTextLog(h.ctx), createCaptions(h.ctx)];
+    h.setDialogue(view());
+    h.emit("audio:caption", { key: "guide.hello", at: 0 });
+
+    for (const selector of ["data-jams-dialogue", "data-jams-text-log", "data-jams-caption"]) {
+      const rule = ruleOf(selector);
+      expect(rule, selector).toContain(`background: ${UI_THEME.bg};`);
+      expect(rule, selector).toContain(`color: ${UI_THEME.fg};`);
+      expect(rule, selector).toContain(`border-radius: ${UI_THEME.radius};`);
+    }
+    const caption = document.querySelector<HTMLElement>("[data-jams-caption]")!;
+    expect([caption.style.color, caption.style.background, caption.style.borderRadius]).toEqual([
+      "",
+      "",
+      "",
+    ]);
+    for (const part of ui) part.destroy();
+    expect(document.querySelectorAll("style")).toHaveLength(0);
   });
 });
 

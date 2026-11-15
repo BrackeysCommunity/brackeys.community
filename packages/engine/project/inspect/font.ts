@@ -1,4 +1,4 @@
-import { hasAscii, u16be, u32be, u8 } from "./bytes";
+import { ascii4, hasAscii, u16be, u32be, u8 } from "./bytes";
 import { cmapCoverage, type CodePointRanges } from "./font-cmap";
 
 export type WebFontFormat = "woff2" | "woff" | "ttf" | "otf";
@@ -40,20 +40,11 @@ export type FontDecompress = {
   brotli?: (data: Uint8Array) => Uint8Array;
 };
 
-function tagAt(bytes: Uint8Array, at: number): string {
-  return String.fromCharCode(
-    bytes[at] ?? 0,
-    bytes[at + 1] ?? 0,
-    bytes[at + 2] ?? 0,
-    bytes[at + 3] ?? 0,
-  );
-}
-
 function sfntTable(bytes: Uint8Array, tag: string): Uint8Array | null {
   const tables = u16be(bytes, 4);
   for (let i = 0; i < tables; i++) {
     const record = 12 + i * 16;
-    if (tagAt(bytes, record) !== tag) continue;
+    if (ascii4(bytes, record) !== tag) continue;
     const at = u32be(bytes, record + 8);
     const length = u32be(bytes, record + 12);
     return at + length <= bytes.length ? bytes.subarray(at, at + length) : null;
@@ -66,7 +57,7 @@ function woffTable(bytes: Uint8Array, tag: string, decompress?: FontDecompress):
   for (let i = 0; i < tables; i++) {
     const record = 44 + i * 20;
     if (record + 20 > bytes.length) return null;
-    if (tagAt(bytes, record) !== tag) continue;
+    if (ascii4(bytes, record) !== tag) continue;
     const at = u32be(bytes, record + 4);
     const stored = u32be(bytes, record + 8);
     const length = u32be(bytes, record + 12);
@@ -113,7 +104,7 @@ function woff2Table(
     let name = WOFF2_TAG_INDEX[index] ?? "";
     if (index === 63) {
       if (at + 4 > bytes.length) return null;
-      name = tagAt(bytes, at);
+      name = ascii4(bytes, at);
       at += 4;
     }
     const orig = base128(bytes, at);

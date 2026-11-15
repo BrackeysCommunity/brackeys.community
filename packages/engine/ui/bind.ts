@@ -91,6 +91,25 @@ export const UI_FONT = "--jams-ui-font";
 export const UI_FONT_FAMILY = `var(${UI_FONT}, system-ui, sans-serif)`;
 
 /**
+ * The helpers' panel colours and corner, one set so the dialogue box, text
+ * log and captions match: the colours read custom properties a host may set
+ * on any ancestor.
+ */
+export const UI_THEME = {
+  bg: "var(--jams-dialogue-bg, rgba(14, 14, 22, 0.9))",
+  fg: "var(--jams-dialogue-fg, #f4f4f8)",
+  accent: "var(--jams-dialogue-accent, #ffd36e)",
+  radius: "8px",
+} as const;
+
+/** A `<style>` holding `css`, for a helper to mount beside its DOM. */
+export function styleElement(doc: Document, css: string): HTMLStyleElement {
+  const style = doc.createElement("style");
+  style.textContent = css;
+  return style;
+}
+
+/**
  * The CSS family the locale's font (`engine.locales.fonts`) draws in, added
  * to the document once per content hash; null for no font, a BMFont (the
  * DOM can't draw one), or one the host can't serve.

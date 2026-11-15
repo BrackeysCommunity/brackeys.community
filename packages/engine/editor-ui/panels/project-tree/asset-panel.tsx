@@ -1,5 +1,5 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ComponentProps } from "react";
 
 import { layoutFromDoc, type ProjectSession } from "../../../collab/index";
 import { capitalise } from "../../../game/live";
@@ -19,14 +19,21 @@ import {
   type DocLookup,
   type StringsFile,
 } from "../../../project/index";
-import { localeChain, localeFallbacks, stringRowText } from "../../../project/kinds/strings";
+import { docLookupOf } from "../../../project/kinds/define";
+import {
+  localeChain,
+  localeFallbacks,
+  localeFont,
+  stringRowText,
+} from "../../../project/kinds/strings";
 import { useAssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
+import { AssetAudition, isAudibleKind } from "../../audio/editor-audio";
 import { IconButton } from "../../kit/button";
 import { formatBytes } from "../../kit/format";
 import { Icon } from "../../kit/icon";
 import { Text } from "../../kit/index";
 import { useProjectView } from "../EditorProject";
-import type { StringKeyTable } from "../inspector/field-widgets";
+import { InspectorSection, type StringKeyTable } from "../inspector/field-widgets";
 import { DocGate } from "../settings/DocGate";
 import { SettingsNote } from "../settings/SettingsRows";
 import { kindIcon } from "./kind-icons";
@@ -43,26 +50,50 @@ export type SelectedAsset = Pick<
   onClose: () => void;
 };
 
-/** An image's or a font's size as its kind's inspection read it. */
+const CHANNELS: Readonly<Record<number, string>> = { 1: "mono", 2: "stereo" };
+
+/** What its kind's inspection read: an image's or a font's size, a clip's rate and channels. */
 function metaLine(entry: AssetEntry): string | null {
   const meta = entry.meta;
   if (!meta) return null;
-  const { width, height } = meta as { width?: unknown; height?: unknown };
-  return typeof width === "number" && typeof height === "number" ? `${width} × ${height}` : null;
+  const { width, height, sampleRate, channels } = meta as Record<string, unknown>;
+  if (typeof width === "number" && typeof height === "number") return `${width} × ${height}`;
+  const audio = [
+    typeof sampleRate === "number" ? `${Number((sampleRate / 1000).toFixed(2))} kHz` : null,
+    typeof channels === "number" ? (CHANNELS[channels] ?? `${channels} channels`) : null,
+  ].filter((part): part is string => part !== null);
+  return audio.length > 0 ? audio.join(" · ") : null;
 }
 
-/** One asset: what it is and where, and its licence fields. */
-export function AssetPanel({ entry, readOnly, onLicence, onClose, notify }: SelectedAsset) {
+/** The audition row's own patch, length and controls, where a panel has them. */
+export type AssetPanelAudition = Pick<
+  ComponentProps<typeof AssetAudition>,
+  "patch" | "lengthMs" | "actions"
+>;
+
+/**
+ * One asset: what it is and where, a play row for a clip, sound or patch,
+ * and its licence fields.
+ */
+export function AssetPanel({
+  entry,
+  readOnly,
+  onLicence,
+  onClose,
+  notify,
+  audition,
+}: SelectedAsset & { audition?: AssetPanelAudition }) {
   const details = [
     entry.kind,
     entry.bytes !== undefined ? formatBytes(entry.bytes) : null,
     metaLine(entry),
   ].filter((d): d is string => d !== null);
+  const name = entry.name ?? baseName(entry.path);
   return (
     <div className="je-asset-panel" aria-label="Asset">
       <header className="je-asset-panel-header">
         <Icon icon={kindIcon(entry.kind)} />
-        <span className="je-asset-panel-title">{entry.name ?? baseName(entry.path)}</span>
+        <span className="je-asset-panel-title">{name}</span>
         <IconButton
           size="icon-xs"
           icon={Cancel01Icon}
@@ -71,6 +102,9 @@ export function AssetPanel({ entry, readOnly, onLicence, onClose, notify }: Sele
           onClick={onClose}
         />
       </header>
+      {isAudibleKind(entry.kind) ? (
+        <AssetAudition id={entry.id} name={name} size="icon-sm" {...audition} />
+      ) : null}
       <dl className="je-asset-panel-details">
         <dt>Id</dt>
         <dd>{entry.id}</dd>
@@ -140,22 +174,17 @@ export function useProjectDocs(
   }, [session, key]);
   return useMemo(() => {
     if (!session || !view) return null;
-    const byKind = new Map<AssetKindName, Map<AssetId, unknown>>();
-    const ids = new Map<AssetKindName, AssetId[]>();
-    for (const entry of entries) {
-      ids.set(entry.kind, [...(ids.get(entry.kind) ?? []), entry.id]);
+    return docLookupOf(entries, (entry) => {
       const name = session.docNameFor(entry);
-      if (name === null || !values.has(name)) continue;
-      const docs = byKind.get(entry.kind) ?? new Map<AssetId, unknown>();
-      docs.set(entry.id, values.get(name));
-      byKind.set(entry.kind, docs);
-    }
-    return docLookup(byKind, ids);
+      return name === null ? undefined : values.get(name);
+    });
   }, [session, view, entries, values]);
 }
 
 /** What the string tables and the locales are read from. */
 const STRING_SOURCES: readonly AssetKindName[] = [STRINGS_KIND, GAME_SETTINGS_KIND];
+
+const withFont = (font: AssetId | undefined) => (font === undefined ? {} : { font });
 
 /** The project's string keys, by the shared string rules, as a string-key field picks them. */
 export function stringKeyTable(lookup: DocLookup): StringKeyTable {
@@ -172,6 +201,7 @@ export function stringKeyTable(lookup: DocLookup): StringKeyTable {
       const [issue] = stringKeyIssues(lookup, [{ key, kind: STRINGS_KIND, id: "", pointer: "" }]);
       return issue ? { message: capitalise(issue.message), severity: issue.severity } : null;
     },
+    ...withFont(localeFont(locales, locales.default)),
   };
 }
 
@@ -222,28 +252,61 @@ function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup
   const shown = [...listed, ...[...columns].filter((c) => !listed.includes(c)).sort(byCodeUnit)];
   return (
     <>
-      <Text as="p" size="xs" variant="muted">
-        {rows.length === 1 ? "1 key" : `${rows.length} keys`}. Edit the file to change them.
-      </Text>
-      <dl className="je-asset-panel-details" aria-label="Locales">
-        {shown.map((locale) => {
-          const chain = localeFallbacks(locales, locale);
-          const missing = rows.filter((row) => stringRowText(row, chain) === undefined).length;
-          const offered = locales.available.includes(locale);
-          return (
-            <Fragment key={locale}>
-              <dt>
-                {locale}
-                {locale === locales.default ? " (default)" : ""}
-              </dt>
-              <dd data-locale={locale}>
-                {missing === 0 ? "All keys" : `${missing} missing`}
-                {offered ? "" : ", not offered by the game settings"}
-              </dd>
-            </Fragment>
-          );
-        })}
-      </dl>
+      <InspectorSection id="strings:locales" title="Locales">
+        <div className="je-insp-stack">
+          <dl className="je-asset-panel-details" aria-label="Locales">
+            {shown.map((locale) => {
+              const chain = localeFallbacks(locales, locale);
+              const missing = rows.filter((row) => stringRowText(row, chain) === undefined).length;
+              const offered = locales.available.includes(locale);
+              return (
+                <Fragment key={locale}>
+                  <dt>
+                    {locale}
+                    {locale === locales.default ? " (default)" : ""}
+                  </dt>
+                  <dd data-locale={locale}>
+                    {missing === 0 ? "All keys" : `${missing} missing`}
+                    {offered ? "" : ", not offered by the game settings"}
+                  </dd>
+                </Fragment>
+              );
+            })}
+          </dl>
+          <Text as="p" size="xs" variant="muted">
+            {count(rows.length, "key")}. Change them in the file, or with vp run scene strings
+            import.
+          </Text>
+        </div>
+      </InspectorSection>
+      <InspectorSection id="strings:keys" title="Keys">
+        {rows.length === 0 ? (
+          <SettingsNote>This table has no keys yet.</SettingsNote>
+        ) : (
+          <dl className="je-strings-keys" aria-label="Keys">
+            {rows.map((row) => (
+              <Fragment key={row.key}>
+                <dt>{row.key}</dt>
+                <dd>
+                  {shown.map((locale) => {
+                    const text = row[locale];
+                    return (
+                      <span key={locale} className="je-strings-text" data-locale={locale}>
+                        <span className="je-strings-locale">{locale}</span>
+                        {typeof text === "string" && text !== "" ? (
+                          <span className="je-strings-value">{text}</span>
+                        ) : (
+                          <span className="je-insp-muted">missing</span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
+        )}
+      </InspectorSection>
     </>
   );
 }
@@ -280,34 +343,36 @@ function DialogueSummary({ file }: { file: DialogueFile }) {
   const endings = [...new Set(nodes.flatMap((node) => (node.end ? [node.end] : [])))];
   const issues = dialogueIssues(file);
   return (
-    <>
-      <dl className="je-asset-panel-details" aria-label="Contents">
-        <dt>Starts at</dt>
-        <dd>{file.start}</dd>
-        <dt>Nodes</dt>
-        <dd>
-          {count(nodes.length, "node")}, {count(lines, "line")}, {count(choices, "choice")}
-        </dd>
-        <dt>Speakers</dt>
-        <dd>{(file.speakers ?? []).map((s) => s.id).join(", ") || "None"}</dd>
-        <dt>Endings</dt>
-        <dd>{endings.join(", ") || "None"}</dd>
-      </dl>
-      {issues.length === 0 ? (
-        <Text as="p" size="xs" variant="muted">
-          Every node is reached from the start and leads on or ends.
-        </Text>
-      ) : (
-        <ul className="je-asset-panel-issues" aria-label="Problems">
-          {issues.map((issue, i) => (
-            <li key={i}>
-              <Text size="xs" variant={issue.severity === "error" ? "danger" : "warning"}>
-                {capitalise(issue.message)}
-              </Text>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+    <InspectorSection id="dialogue:contents" title="Contents">
+      <div className="je-insp-stack">
+        <dl className="je-asset-panel-details" aria-label="Contents">
+          <dt>Starts at</dt>
+          <dd>{file.start}</dd>
+          <dt>Nodes</dt>
+          <dd>
+            {count(nodes.length, "node")}, {count(lines, "line")}, {count(choices, "choice")}
+          </dd>
+          <dt>Speakers</dt>
+          <dd>{(file.speakers ?? []).map((s) => s.id).join(", ") || "None"}</dd>
+          <dt>Endings</dt>
+          <dd>{endings.join(", ") || "None"}</dd>
+        </dl>
+        {issues.length === 0 ? (
+          <Text as="p" size="xs" variant="muted">
+            Every node is reached from the start and leads on or ends.
+          </Text>
+        ) : (
+          <ul className="je-asset-panel-issues" aria-label="Problems">
+            {issues.map((issue, i) => (
+              <li key={i}>
+                <Text size="xs" variant={issue.severity === "error" ? "danger" : "warning"}>
+                  {capitalise(issue.message)}
+                </Text>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </InspectorSection>
   );
 }

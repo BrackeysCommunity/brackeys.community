@@ -193,8 +193,8 @@ import {
 } from "./store";
 import {
   resolveLocale,
-  stringTable,
   stringTableData,
+  stringTableOf,
   type StringTable,
   type StringTableData,
 } from "./text/strings";
@@ -2147,7 +2147,7 @@ export async function createGame(
     },
     strings() {
       const entry = localeEntry();
-      entry.table ??= stringTable(project ?? noProject, entry.locale);
+      entry.table ??= stringTableOf(entry.data);
       return entry.table;
     },
   };

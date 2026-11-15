@@ -271,6 +271,10 @@ describe("bitmap fonts", () => {
     expect(reverseRtlRuns("שלום")).toBe("םולש");
     expect(reverseRtlRuns("go שלום עולם now")).toBe("go םלוע םולש now");
     expect(reverseRtlRuns("A1")).toBe("A1");
+    // The Arabic question mark belongs to the run; a Latin letter's combining accent stays put.
+    expect(reverseRtlRuns("مرحبا؟")).toBe("؟ابحرم");
+    expect(reverseRtlRuns("a\u0303 b\u0301")).toBe("a\u0303 b\u0301");
+    expect(reverseRtlRuns("go 𐤀𐤁")).toBe("go 𐤁𐤀");
 
     const { loader, view } = setup();
     await loader.load(bundle([entry("mono", "font", FNT), entry("page", "texture", PAGE)]));
@@ -373,6 +377,13 @@ describe("keyed text", () => {
       .flatMap((l) => l.children)
       .find((c) => c.label === "hello")!;
     expect([display.position.x, display.position.y]).toEqual([100, 200]);
+  });
+
+  it("brackets a key its table only inherits, as a cloned table's plain object does", () => {
+    const { view } = setup();
+    view.locale!(structuredClone(en));
+    view.text!("proto", textVisual({ key: "constructor" }), "actor");
+    expect(runsOf(view, "proto").map((r) => r.text)).toEqual(["[constructor]"]);
   });
 
   it("parses a rich key's markup, and draws a fontless text in the table's font", async () => {

@@ -214,7 +214,7 @@ export type {
   VoiceOptions,
 } from "./audio/types";
 export type { AudioClock, CalibrateLatencyOptions, LatencyCalibration } from "./audio/clock";
-export { webAudioBackend } from "./audio/web-audio";
+export { tryWebAudioBackend, webAudioBackend } from "./audio/web-audio";
 export { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs, synthWav } from "./audio/synth";
 export {
   CLICK_PATCH,

@@ -151,6 +151,10 @@ export function createDialogueRunner(
     state.view = { ...state.view, ...patch };
   };
 
+  /** A choice of `node` the player could take now; without one its `next` or `end` goes on. */
+  const canChoose = (node: DialogueNode): boolean =>
+    node.choices?.some((c) => !c.if || holds(c.if)) ?? false;
+
   const offerChoices = (node: DialogueNode) => {
     const choices: DialogueViewChoice[] = [];
     node.choices?.forEach((choice, index) => {
@@ -197,12 +201,12 @@ export function createDialogueRunner(
     if (log.length > DIALOGUE_LOG_MAX) log.splice(0, log.length - DIALOGUE_LOG_MAX);
     set({ node: node.id, line: index, current, log });
     emit(DIALOGUE_LINE, { dialogue: id, node: node.id, line: index });
-    if (node.choices?.length && nextLine(node, index) < 0) offerChoices(node);
+    if (nextLine(node, index) < 0 && canChoose(node)) offerChoices(node);
   };
 
-  /** Goes on from `node` after its last line: its choices, `next` or `end`. */
+  /** Goes on from `node` after its last line: its choices while one can be taken, else `next` or `end`. */
   const leave = (node: DialogueNode, hops: number): boolean => {
-    if (node.choices?.length) {
+    if (canChoose(node)) {
       offerChoices(node);
       return true;
     }

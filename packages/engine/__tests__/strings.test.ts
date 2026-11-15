@@ -12,10 +12,12 @@ import { validateProject } from "../project/validate-project";
 import type { SceneIssue } from "../scene/types";
 import {
   bracketKey,
+  keyedText,
   localeDirection,
   resolveLocale,
   stringTable,
   stringTableData,
+  stringTableOf,
 } from "../text/strings";
 import { heldDocs } from "./fixtures/held-project";
 
@@ -110,6 +112,25 @@ describe("stringTable", () => {
       },
     });
     expect(() => structuredClone(data)).not.toThrow();
+  });
+
+  it("builds a table over that data that reads what the view's table reads", () => {
+    const data = stringTableData(VIEW, "ar", null);
+    const table = stringTableOf(data);
+    const fromView = stringTable(VIEW, "ar");
+    expect([table.locale, table.direction]).toEqual([fromView.locale, fromView.direction]);
+    for (const key of ["greet", "menu.play", "nope.missing"]) {
+      expect(table.get(key, { name: "Ann" }), key).toBe(fromView.get(key, { name: "Ann" }));
+      expect(table.has(key), key).toBe(fromView.has(key));
+    }
+  });
+
+  it("looks a key up as its own text only, else brackets it", () => {
+    const strings = { "menu.play": "Play" };
+    expect(keyedText(strings, "menu.play")).toBe("Play");
+    expect(keyedText(strings, "toString")).toBe(bracketKey("toString"));
+    expect(keyedText(null, "menu.play")).toBe("[menu.play]");
+    expect(keyedText(undefined, "menu.play")).toBe("[menu.play]");
   });
 });
 

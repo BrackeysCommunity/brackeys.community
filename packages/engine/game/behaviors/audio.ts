@@ -32,9 +32,14 @@ export type AudioBlock = z.infer<z.ZodObject<ReturnType<typeof audioFields>>>;
 
 /** Starts and stops one entity's sound. */
 export type AudioHandle = {
+  /** Plays the sound from its start, stopping the one this entity already plays. */
   play(): void;
   stop(): void;
-  /** Presentation state: headless the handle doesn't exist, so game logic must never branch on it. */
+  /**
+   * Whether the sound was asked to play (a loop, or the last `play`) and not
+   * stopped since, not whether it is still audible. Presentation state:
+   * headless the handle doesn't exist, so game logic must never branch on it.
+   */
   readonly playing: boolean;
 };
 

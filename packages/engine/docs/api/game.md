@@ -265,8 +265,13 @@ Starts and stops one entity's sound.
 
 ```ts
 type AudioHandle = {
+    /** Plays the sound from its start, stopping the one this entity already plays. */
     play(): void;
-    /** Presentation state: headless the handle doesn't exist, so game logic must never branch on it. */
+    /**
+     * Whether the sound was asked to play (a loop, or the last `play`) and not
+     * stopped since, not whether it is still audible. Presentation state:
+     * headless the handle doesn't exist, so game logic must never branch on it.
+     */
     readonly playing: boolean;
     stop(): void;
 };
@@ -5429,7 +5434,7 @@ Refers to [`TimeKind`](#timekind).
 
 ## `RichLine`
 
-_type_ in `text/rich.ts`
+_type_ in `game/rich-text.ts`
 
 ```ts
 type RichLine = readonly RichSpan[];
@@ -5439,7 +5444,7 @@ Refers to [`RichSpan`](#richspan).
 
 ## `RichSpan`
 
-_type_ in `text/rich.ts`
+_type_ in `game/rich-text.ts`
 
 ```ts
 type RichSpan = {
@@ -7162,7 +7167,7 @@ Refers to [`TextVars`](#textvars).
 
 ## `TextVars`
 
-_type_ in `text/rich.ts`
+_type_ in `game/rich-text.ts`
 
 Values a `{name}` placeholder is filled from.
 
@@ -8779,8 +8784,8 @@ Refers to [`Cell`](#cell), [`GridGeometry`](#gridgeometry).
 
 _function_ in `text/strings.ts`
 
-Right to left for the RTL languages and scripts above; a script subtag
-decides ("sd-Deva" ltr, "pa-Arab" rtl).
+Right to left for the RTL languages above and the strings kind's RTL
+scripts; a script subtag decides ("sd-Deva" ltr, "pa-Arab" rtl).
 
 ```ts
 declare function localeDirection(locale: string): TextDirection;
@@ -8930,7 +8935,7 @@ Refers to [`EngineContext`](#enginecontext).
 
 ## `parseRichText`
 
-_function_ in `text/rich.ts`
+_function_ in `game/rich-text.ts`
 
 `[b]…[/b]`, `[i]`, `[color=#rrggbb]`, `[size=n]`, `[icon=asset:frame]`,
 `[shake]`, `[wave]`, `\[` `\{` `\\` escapes; `{name}` filled from `vars`.
@@ -9049,7 +9054,7 @@ Refers to [`EngineContext`](#enginecontext), [`PhysicsWorld`](#physicsworld).
 
 ## `plainText`
 
-_function_ in `text/rich.ts`
+_function_ in `game/rich-text.ts`
 
 Plain text with the markup removed: for captions, screen readers and measuring.
 

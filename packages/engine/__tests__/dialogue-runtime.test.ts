@@ -10,6 +10,7 @@ import { createRegistry, defineGame } from "../game/define";
 import { formatSaveFile, parseSaveFile, type SaveFile } from "../game/save-file";
 import { resolveTime } from "../game/time";
 import type { GameCommand, GameDefinition } from "../game/types";
+import { legalCommands, startState } from "../headless/legal";
 import { tickWakes } from "../headless/play-loop";
 import { stableJson } from "../project/canonical";
 import { docLookup } from "../project/kinds/define";
@@ -79,8 +80,11 @@ const project: ProjectRuntimeView = {
 
 type TalkSnap = { seen: string[] };
 
-/** Starts the conversation on `talk`, and keeps every dialogue event it saw. */
-function talker(time?: GameDefinition["time"]): GameDefinition<TalkSnap> {
+/** Starts the conversation on `talk` (and on load with `onLoad`), and keeps every dialogue event it saw. */
+function talker(
+  time?: GameDefinition["time"],
+  opts: { onLoad?: boolean } = {},
+): GameDefinition<TalkSnap> {
   return defineGame<TalkSnap>({
     id: "talker",
     types: [],
@@ -95,6 +99,7 @@ function talker(time?: GameDefinition["time"]): GameDefinition<TalkSnap> {
     createRuntime(ctx) {
       let seen: string[] = [];
       return {
+        ...(opts.onLoad ? { onLoad: () => ctx.dialogue.start(TALK) } : {}),
         beforeStep(_dt, _actions, commands) {
           if (commands.some((c) => c.name === "talk")) ctx.dialogue.start(TALK);
         },
@@ -163,10 +168,15 @@ const step = (rt: SceneRuntimeHandle, commands: GameCommand[] = []): StepResult 
  * Steps ticks `from` to `to` on SCRIPT; the digest of each tick's events,
  * snapshot, persist and view, key order aside (a save's text sorts keys).
  */
-function run(rt: SceneRuntimeHandle, from: number, to: number): string {
+function run(
+  rt: SceneRuntimeHandle,
+  from: number,
+  to: number,
+  script: Readonly<Record<number, GameCommand[]>> = SCRIPT,
+): string {
   const frames: unknown[] = [];
   for (let t = from; t < to; t++) {
-    const result = step(rt, SCRIPT[t] ?? []);
+    const result = step(rt, script[t] ?? []);
     frames.push([
       result.tick,
       result.events,
@@ -178,10 +188,10 @@ function run(rt: SceneRuntimeHandle, from: number, to: number): string {
   return hashText(stableJson(frames));
 }
 
-const worldSave = (rt: SceneRuntimeHandle): SaveFile => {
+const worldSave = (rt: SceneRuntimeHandle, game: GameDefinition<TalkSnap> = talker()): SaveFile => {
   const captured = captureSave(rt, { depth: "world", slot: "s", now: 0 });
   if (!captured.ok) throw new Error(captured.issue.message);
-  const parsed = parseSaveFile(formatSaveFile(captured.file), talker() as GameDefinition);
+  const parsed = parseSaveFile(formatSaveFile(captured.file), game as GameDefinition);
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
   return parsed.file;
 };
@@ -354,6 +364,77 @@ describe("world saves of a conversation", () => {
     expect(restored.ok).toBe(false);
     if (!restored.ok) expect(restored.issue.message).toContain('no dialogue "talk"');
     bare.destroy();
+  });
+});
+
+describe("a conversation the load starts, ended before a world save", () => {
+  const opener = () => talker(undefined, { onLoad: true });
+  /** The load's conversation to its end by tick 6; the later commands find none to move. */
+  const ENDED: Readonly<Record<number, GameCommand[]>> = {
+    1: [advance],
+    3: [choose(0)],
+    5: [advance],
+    9: [advance],
+    11: [choose(0)],
+    13: [advance],
+  };
+
+  it("stays ended when the save is restored onto a fresh load", () => {
+    const a = runtime(opener());
+    run(a, 0, 8, ENDED);
+    expect(a.ctx.dialogue.view()).toBeNull();
+    const file = worldSave(a, opener());
+    expect(file.world!.systems).not.toHaveProperty(SAVE_DIALOGUE_KEY);
+    const digestA = run(a, 8, 20, ENDED);
+    const finalA = a.snapshot();
+    a.destroy();
+
+    const b = runtime(opener(), { record: true });
+    expect(b.ctx.dialogue.view()).toMatchObject({ node: "hello", line: 0 });
+    const restored = restoreSave(b, file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    expect(b.ctx.dialogue.view()).toBeNull();
+    expect(legalCommands(null, startState(b))).toBeNull();
+    const first = step(b, ENDED[8] ?? []);
+    expect(audioOf([first]).at(-1)).toEqual({
+      kind: "audio",
+      op: { op: "stop", key: DIALOGUE_VOICE_KEY },
+    });
+    run(b, 9, 20, ENDED);
+    expect(b.snapshot()).toEqual(finalA);
+    expect(b.ctx.persist.value).toEqual({ gold: 1 });
+    b.destroy();
+
+    const c = runtime(opener());
+    const again = restoreSave(c, file);
+    if (!again.ok) throw new Error(again.issue.message);
+    expect(run(c, 8, 20, ENDED)).toBe(digestA);
+    c.destroy();
+  });
+
+  it.each(["auto", "reload"] as const)("stays ended across a live swap (%s)", (strategy) => {
+    const a = runtime(opener());
+    const b = runtime(opener());
+    run(a, 0, 8, ENDED);
+    run(b, 0, 8, ENDED);
+    const moved = expandScene(
+      sceneOf([node("post", [2, 1]), node("lamp", [3, 3])]),
+      createRegistry(opener() as GameDefinition),
+    );
+    const report = b.swap(moved, { prefabs: new Map(), strategy });
+    if (!report.ok) throw new Error(report.issue.message);
+    expect(b.ctx.dialogue.view()).toBeNull();
+    expect(legalCommands(null, startState(b))).toBeNull();
+    const events = (rt: SceneRuntimeHandle) => {
+      const out: unknown[] = [];
+      for (let t = 8; t < 20; t++) out.push(step(rt, ENDED[t] ?? []).events);
+      return out;
+    };
+    expect(events(b)).toEqual(events(a));
+    expect(b.snapshot()).toEqual(a.snapshot());
+    expect(b.ctx.persist.value).toEqual({ gold: 1 });
+    a.destroy();
+    b.destroy();
   });
 });
 

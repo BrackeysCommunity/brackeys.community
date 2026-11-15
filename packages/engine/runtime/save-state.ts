@@ -325,9 +325,7 @@ export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): Scen
     const refused = host.restoreWorld(world, file.scene.sublevels);
     if (refused) return refused;
     tweenSystemOf(ctx)?.restoreCaptured(world.systems[SAVE_TWEENS_KEY]?.run);
-    const conversation = world.systems[SAVE_DIALOGUE_KEY]?.run;
-    const notResumed =
-      conversation === undefined ? null : dialogueSystemOf(ctx)?.restore(conversation);
+    const notResumed = dialogueSystemOf(ctx)?.restore(world.systems[SAVE_DIALOGUE_KEY]?.run);
     if (notResumed) {
       return makeIssue("schema", {
         message: notResumed,

@@ -570,20 +570,13 @@ const readsReferrers = (op: Record<string, unknown>) =>
     op.ops.some((o) => isPlainObject(o) && o.op === "definePrefab" && o.prefab === null));
 
 /**
- * Applies a project batch across docs. Every doc the batch touches is
- * opened first (for `changeAssetId` and `deleteAsset`, every doc that
- * can hold a reference), and the whole batch is checked with
- * `checkProjectBatch` against their plain JSON; a failing op, or a doc it
- * writes that this build may only read (`code-skew`), writes nothing
- * anywhere. Then each doc gets exactly one transaction with `origin` and
- * its own log entry: `editAsset` through `layoutPatch`, `editScene`
- * through `applyOpsToDoc` (ops that write prefabs through
- * `session.prefabWriter`), new assets' content as the first edit of their
- * docs. `changeAssetId` writes the entry, the prefab header of a prefab,
- * and every referrer the same way. A batch that wrote two or more docs
- * also appends one project log entry naming each doc's entry. When
- * `origin` is the session's, the batch is one undo step, unless it purges
- * an asset: then it is on no undo stack.
+ * Applies a project batch atomically: opens every doc it touches (and, for
+ * `changeAssetId` and `deleteAsset`, every doc that can hold a reference)
+ * and checks the batch with `checkProjectBatch`; a failing op or a
+ * `code-skew` doc writes nothing anywhere. Then each doc gets one
+ * transaction with `origin` and its own log entry, and a multi-doc batch
+ * adds one project log entry. Under the session's origin it is one undo
+ * step, unless it purges an asset: then it is on no undo stack.
  */
 export async function applyProjectBatch(
   session: ProjectSession,

@@ -25,6 +25,10 @@ export type HandleType<H> = { readonly [HANDLE]?: H };
 /** The `handle` of a definition: `handle: handleType<BodyHandle>()`. Nothing reads it at runtime. */
 export const handleType = <H>(): HandleType<H> => Object.freeze({});
 
+/** The id a behavior's view object or voice takes on one entity: `<entityId>#<behavior>`. */
+export const behaviorKey = (entityId: string, behavior: { readonly name: string }): string =>
+  `${entityId}#${behavior.name}`;
+
 export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape, H = unknown> = {
   name: BehaviorName;
   /** One sentence for the JSON Schema, `codes`, `show` and the inspector. */

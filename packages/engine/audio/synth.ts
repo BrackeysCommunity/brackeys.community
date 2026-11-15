@@ -6,6 +6,7 @@
 import { clamp } from "../math";
 import { SYNTH_DEFAULTS, type SynthFile } from "../project/kinds/synth";
 import { Rng, unitFloat } from "../sim-kit/rng";
+import { pcmWav } from "./wav";
 
 /** Every render's sample rate. */
 export const SYNTH_SAMPLE_RATE = 44_100;
@@ -138,28 +139,6 @@ export function renderSynth(patch: SynthFile): Float32Array {
 
 /** 16-bit PCM WAV bytes of a render (the CLI's `synth render`). */
 export function synthWav(patch: SynthFile): Uint8Array {
-  const samples = renderSynth(patch);
-  const dataBytes = samples.length * 2;
-  const bytes = new Uint8Array(44 + dataBytes);
-  const view = new DataView(bytes.buffer);
-  const ascii = (at: number, text: string) => {
-    for (let k = 0; k < text.length; k++) bytes[at + k] = text.charCodeAt(k);
-  };
-  ascii(0, "RIFF");
-  view.setUint32(4, 36 + dataBytes, true);
-  ascii(8, "WAVE");
-  ascii(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, SYNTH_SAMPLE_RATE, true);
-  view.setUint32(28, SYNTH_SAMPLE_RATE * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  ascii(36, "data");
-  view.setUint32(40, dataBytes, true);
-  for (let i = 0; i < samples.length; i++) {
-    view.setInt16(44 + i * 2, Math.round((samples[i] ?? 0) * 32_767), true);
-  }
-  return bytes;
+  const samples = Int16Array.from(renderSynth(patch), (s) => Math.round(s * 32_767));
+  return pcmWav({ channels: 1, sampleRate: SYNTH_SAMPLE_RATE, bits: 16, samples });
 }

@@ -52,21 +52,32 @@ export function emptyStringTable(locale: string): StringTable {
   });
 }
 
+/** `key`'s text in `strings`, else the key bracketed. */
+export const keyedText = (
+  strings: Readonly<Record<string, string>> | null | undefined,
+  key: string,
+): string => (strings && Object.hasOwn(strings, key) ? strings[key]! : bracketKey(key));
+
 /**
  * A locale's text by key across the view's strings files (a key in two
  * files keeps the first by path): `locale`, its fallback chain, then the
  * default (`localeChain`). A key with no text there shows bracketed.
  */
 export function stringTable(view: ProjectRuntimeView, locale: string): StringTable {
-  const strings = localeStrings(view, locale);
+  return stringTableOf(stringTableData(view, locale, null));
+}
+
+/** The table over strings already resolved for a locale, sharing them. */
+export function stringTableOf(data: StringTableData): StringTable {
+  const { strings } = data;
   return Object.freeze({
     get: (key: string, vars?: TextVars) => {
-      const text = Object.hasOwn(strings, key) ? strings[key] : undefined;
-      return text === undefined ? bracketKey(key) : vars ? fillVars(text, vars) : text;
+      const text = keyedText(strings, key);
+      return vars && Object.hasOwn(strings, key) ? fillVars(text, vars) : text;
     },
     has: (key: string) => Object.hasOwn(strings, key),
-    locale,
-    direction: localeDirection(locale),
+    locale: data.locale,
+    direction: data.direction,
   });
 }
 

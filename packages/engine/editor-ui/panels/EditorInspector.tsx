@@ -97,18 +97,14 @@ import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
 import { DIALOGUE_KIND } from "../../project/kinds/dialogue";
+import { FONT_KIND } from "../../project/kinds/font";
 import { SOUND_KIND } from "../../project/kinds/sound";
 import { STRINGS_KIND } from "../../project/kinds/strings";
 import { SYNTH_KIND } from "../../project/kinds/synth";
 import type { PrefabLibrary } from "../../scene/index";
 import { enclosingInstance, headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
-import {
-  AuditionButton,
-  formatLengthRange,
-  isAudibleKind,
-  useEditorAudio,
-} from "../audio/editor-audio";
+import { AssetAudition, isAudibleKind } from "../audio/editor-audio";
 import {
   Button,
   Combobox,
@@ -177,8 +173,10 @@ import {
   OptionsField,
   PointField,
   PT_BOUNDS,
+  isFlatRecord,
   RangeField,
   ReadonlyField,
+  RecordField,
   resolveNumber,
   StringKeyField,
   SwitchField,
@@ -1211,6 +1209,17 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     id === undefined || !ctx.sources ? null : (sourceClipsIn(ctx.sources, id)?.names ?? null);
   const clips = chosen ? clipsOf(chosen.id) : null;
 
+  // An unset text font draws in the project's font for the locale, so it says which.
+  const projectFont =
+    !field.mixed && field.value === undefined && w.kinds.length === 1 && w.kinds[0] === FONT_KIND
+      ? ctx.strings?.font
+      : undefined;
+  const placeholder = field.mixed
+    ? MIXED
+    : projectFont !== undefined
+      ? `Project font (${options.find((o) => o.id === projectFont)?.label ?? projectFont})`
+      : undefined;
+
   const pick = (id: string | undefined) => {
     const edits: [ModelField, unknown][] = [[field, id]];
     if (frameField) {
@@ -1234,7 +1243,7 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       mixed={field.mixed}
       optional={field.optional}
       invalid={problem !== null}
-      {...(field.mixed ? { placeholder: MIXED } : {})}
+      {...(placeholder !== undefined ? { placeholder } : {})}
       onPick={pick}
     />
   );
@@ -1271,21 +1280,6 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         )
       ) : null}
     </>
-  );
-}
-
-/** Play and stop beside an audible asset field's picker, and how long the pick plays. */
-function AssetAudition({ id, name }: { id: string; name: string }) {
-  const length = useEditorAudio()?.lengthMs(id) ?? null;
-  return (
-    <span className="je-asset-audition">
-      <AuditionButton id={id} name={name} />
-      {length ? (
-        <Text size="xs" variant="muted" className="je-asset-audition-length">
-          {formatLengthRange(length)}
-        </Text>
-      ) : null}
-    </span>
   );
 }
 
@@ -1534,6 +1528,7 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         field={field}
       />
     );
+  if (isFlatRecord(field)) return <RecordField field={field} commit={committer(ctx, field)} />;
   if (field.readonly && w.kind !== "custom")
     return (
       <ReadonlyField

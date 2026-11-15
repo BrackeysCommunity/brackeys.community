@@ -323,6 +323,7 @@ describe("text rules", () => {
     expect(textDirection(linesOf("12 שלום", false))).toBe("rtl");
     expect(textDirection(linesOf("مرحبا", false))).toBe("rtl");
     expect(textDirection(linesOf("1 Hi", false))).toBe("ltr");
+    expect(textDirection(linesOf("e\u0301t\u00e9", false))).toBe("ltr");
     expect(textDirection([])).toBe("ltr");
   });
 
@@ -331,6 +332,9 @@ describe("text rules", () => {
       ["ff-Adlm", "𞤀"],
       ["rhg-Rohg", "𐴀"],
       ["dv-Thaa", "ދ"],
+      ["smp-Samr", "ࠀ"],
+      ["myz-Mand", "ࡀ"],
+      ["phn-Phnx", "𐤀"],
     ] as const) {
       expect(localeDirection(locale)).toBe("rtl");
       expect(textDirection(linesOf(letter, false))).toBe("rtl");

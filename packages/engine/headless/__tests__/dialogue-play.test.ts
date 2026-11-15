@@ -3,9 +3,11 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { GATE_DIALOGUE, GATE_ID, gateLookup } from "../../__tests__/fixtures/dialogue/gate";
 import { exploreDialogue } from "../../dialogue/explore";
-import type { DialogueView } from "../../dialogue/runner";
+import { createDialogueRunner, type DialogueView } from "../../dialogue/runner";
+import { memoryVars } from "../../dialogue/vars";
 import { createRegistry, defineGame } from "../../game/define";
 import type { GameDefinition, JsonValue, PlayState } from "../../game/types";
+import type { DialogueFile, DialogueNode } from "../../project/kinds/dialogue";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { DIALOGUE_END, type DialogueEndEvent, type StepEvent } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
@@ -194,6 +196,37 @@ describe("legal commands walk a conversation", () => {
         ],
       }),
     ).toEqual([{ name: "@dialogue-choose", args: { choice: 2 } }]);
+  });
+
+  it("ask for an advance past choices none of which can be taken, and nothing once stuck", () => {
+    const file = (over: Partial<DialogueNode>): DialogueFile => ({
+      kind: "dialogue",
+      v: 1,
+      start: "ask",
+      nodes: [
+        {
+          id: "ask",
+          lines: [{ say: "toll?" }],
+          choices: [{ say: "pay", to: "away", if: { var: "/gold", gte: 3 } }],
+          ...over,
+        },
+        { id: "away", lines: [{ say: "off you go" }], end: "left" },
+      ],
+    });
+    const runner = (over: Partial<DialogueNode>) =>
+      createDialogueRunner(file(over), GATE_ID, memoryVars({ gold: 0 }), () => {});
+    const advance = [{ name: "@dialogue-advance" }];
+
+    const onward = runner({ next: "away" });
+    expect(dialogueCommands(onward.view())).toEqual(advance);
+    expect(onward.advance()).toBe(true);
+    expect(onward.view().node).toBe("away");
+    expect(dialogueCommands(onward.view())).toEqual(advance);
+
+    const dead = runner({});
+    expect(dialogueCommands(dead.view())).toEqual(advance);
+    expect(dead.advance()).toBe(false);
+    expect(dialogueCommands(dead.view())).toEqual([]);
   });
 
   it.each([

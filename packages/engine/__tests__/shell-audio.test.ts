@@ -483,15 +483,19 @@ describe("the audio behavior", () => {
     expect(system.size()).toBe(0);
   });
 
-  it("starts and stops through its handle by the same requests, once each", () => {
+  it("starts through its handle by the same requests, again on each play, and stops once", () => {
     const { system, take } = behaviorSystem();
     system.attach("e", { sound: "hum", playing: false }, entity);
     const handle = system.handle!("e") as { play(): void; stop(): void; playing: boolean };
     expect(handle.playing).toBe(false);
     handle.play();
+    expect(take()).toEqual([{ op: "play", sound: "hum", entity: "e", key: "e#audio" }]);
     handle.play();
     expect(handle.playing).toBe(true);
-    expect(take()).toEqual([{ op: "play", sound: "hum", entity: "e", key: "e#audio" }]);
+    expect(take()).toEqual([
+      { op: "stop", key: "e#audio" },
+      { op: "play", sound: "hum", entity: "e", key: "e#audio" },
+    ]);
     handle.stop();
     handle.stop();
     expect(handle.playing).toBe(false);

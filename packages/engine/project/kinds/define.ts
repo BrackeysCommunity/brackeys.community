@@ -102,6 +102,27 @@ export function docLookup(
   };
 }
 
+/**
+ * A `DocLookup` over `entries`, each kind's ids in the order given, holding
+ * each entry's parsed value as `valueOf` finds it (undefined: not parsed).
+ */
+export function docLookupOf(
+  entries: Iterable<AssetEntry>,
+  valueOf: (entry: AssetEntry) => unknown,
+): DocLookup {
+  const ids = new Map<AssetKindName, AssetId[]>();
+  const byKind = new Map<AssetKindName, Map<AssetId, unknown>>();
+  for (const entry of entries) {
+    const ofKind = ids.get(entry.kind) ?? [];
+    ids.set(entry.kind, [...ofKind, entry.id]);
+    const value = valueOf(entry);
+    if (value === undefined) continue;
+    const docs = byKind.get(entry.kind) ?? new Map<AssetId, unknown>();
+    byKind.set(entry.kind, docs.set(entry.id, value));
+  }
+  return docLookup(byKind, ids);
+}
+
 /** A doc kind's file read: its migrated value, or the issues that refuse it. */
 export type ParseAssetResult<J = unknown> =
   | { ok: true; value: J; migratedFrom?: number; issues: SceneIssue[] }

@@ -215,6 +215,7 @@ swapStrategyFor
 synthDurationMs
 synthWav
 timingWords
+tryWebAudioBackend
 utf8Bytes
 versionName
 viewportFor
@@ -2862,6 +2863,7 @@ type VoiceOptions = {
 };
 
 ## audio/web-audio.ts
+declare function tryWebAudioBackend(): AudioBackend | false;
 declare function webAudioBackend(opts?: {
     context?: BaseAudioContext;
 }): AudioBackend;
@@ -5045,6 +5047,9 @@ type GizmoTarget = {
     shape?: ShapeObj;
     shapeField?: string;
     subtree?: Ref[];
+    text?: Extract<ShapeObj, {
+        type: "box";
+    }>;
     type: string;
 };
 declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref, source?: EditSource): GizmoTarget | undefined;
@@ -7773,6 +7778,27 @@ type ResolvedFields<D> = D extends {
     fields: infer F;
 } ? F extends ((env: FieldEnv) => infer R) ? R : F : never;
 declare function primitiveFields<P extends PrimitiveType>(name: P, env: FieldEnv): ResolvedFields<(typeof PRIMITIVES)[P]>;
+
+## game/rich-text.ts
+type RichLine = readonly RichSpan[];
+type RichSpan = {
+    bold?: boolean;
+    color?: number;
+    effect?: "shake" | "wave";
+    icon?: {
+        asset: AssetId;
+        frame: string;
+    };
+    italic?: boolean;
+    size?: number;
+    text: string;
+};
+type TextVars = Readonly<Record<string, number | string>>;
+declare function parseRichText(source: string, vars?: TextVars): {
+    lines: readonly RichLine[];
+    warnings: readonly string[];
+};
+declare function plainText(source: string, vars?: TextVars): string;
 
 ## game/runtime-ids.ts
 declare const RUNTIME_ID_PATTERN: RegExp;
@@ -17819,27 +17845,6 @@ declare function measureText(lines: readonly RichLine[], font: FontMeta | null, 
     height: number;
     width: number;
 };
-
-## text/rich.ts
-type RichLine = readonly RichSpan[];
-type RichSpan = {
-    bold?: boolean;
-    color?: number;
-    effect?: "shake" | "wave";
-    icon?: {
-        asset: AssetId;
-        frame: string;
-    };
-    italic?: boolean;
-    size?: number;
-    text: string;
-};
-type TextVars = Readonly<Record<string, number | string>>;
-declare function parseRichText(source: string, vars?: TextVars): {
-    lines: readonly RichLine[];
-    warnings: readonly string[];
-};
-declare function plainText(source: string, vars?: TextVars): string;
 
 ## text/strings.ts
 interface StringTable {

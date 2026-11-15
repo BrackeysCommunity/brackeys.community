@@ -32,6 +32,16 @@ export function hasAscii(bytes: Uint8Array, at: number, tag: string): boolean {
   return true;
 }
 
+/** The four bytes at `at` as ASCII (a table tag or box type); a byte past the end reads as NUL. */
+export function ascii4(bytes: Uint8Array, at: number): string {
+  return String.fromCharCode(
+    u8(bytes, at),
+    u8(bytes, at + 1),
+    u8(bytes, at + 2),
+    u8(bytes, at + 3),
+  );
+}
+
 /** Positive dimensions only: a zero or deferred size is not a usable image. */
 export function imageSize(width: number, height: number): ImageSize | null {
   return width > 0 && height > 0 ? { width, height } : null;

@@ -8,10 +8,12 @@ import {
 } from "pixi.js";
 
 import type { TextFont, TextVisual } from "../context";
+import { richSource } from "../game/behaviors/text";
+import { RTL_CHAR } from "../project/kinds/strings";
 import type { Sha256 } from "../project/types";
 import { readFlag } from "../reduced-motion";
 import { parseRichText, type RichLine, type RichSpan } from "../text/rich";
-import { bracketKey, type StringTableData, type TextDirection } from "../text/strings";
+import { keyedText, type StringTableData, type TextDirection } from "../text/strings";
 
 /** Where text finds its loaded faces: the asset loader is one. */
 export type FontSource = {
@@ -44,16 +46,14 @@ export function resolveText(
 ): { lines: readonly RichLine[]; font: TextFont | null; direction: TextDirection } {
   const font = visual.font ?? table?.font ?? null;
   if ("lines" in visual) return { lines: visual.lines, font, direction: visual.direction };
-  const source = table?.strings[visual.key] ?? bracketKey(visual.key);
-  const markup = visual.rich ? source : source.replace(/[\\[]/g, "\\$&");
+  const source = keyedText(table?.strings, visual.key);
   return {
-    lines: parseRichText(markup, visual.vars).lines,
+    lines: parseRichText(richSource(source, visual.rich === true), visual.vars).lines,
     font,
     direction: table?.direction ?? visual.direction,
   };
 }
 
-const RTL_CHAR = /[֐-ࣿיִ-﷿ﹰ-ﻼ\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
 const LTR_CHAR = /[\p{L}\p{N}]/u;
 
 type Strong = "ltr" | "rtl" | null;

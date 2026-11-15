@@ -1,35 +1,13 @@
 /**
- * The engine's browser smoke: build the page in `browser/` with Vite, serve
- * it with `vite preview`, open it headless in each browser, and check that
- * every browser's digest of the shared run (`browser/run.ts`) equals the
- * one Bun computes in-process, that its physics-free run
- * (`browser/physics-free.ts`) gives Bun's digest too without ever loading
- * Rapier, that its tactics run (`browser/tactics.ts`) replays the tactics
- * game's golden recording to the game's one pin with no Rapier, and that its
- * render run (`browser/render.ts`) draws the kitchen sink's crate sprite where
- * it stands and nothing in the empty air beside it, then, split into two
- * viewports, the crate in the left half and the animated sprite in the right,
- * that sprite's frame changing a clip frame later. Its sign run
- * (`browser/sign-run.ts`) draws a world `text` sign in a bitmap font and one
- * in a web font, each showing its colour; its audio run (`browser/audio.ts`),
- * after the runner clicks the page's button, plays a synth patch through
- * `webAudioBackend` to its end on a stereo destination, and offline at
- * `pan: -1` almost wholly on the left. The preview server serves the engine
- * project's blobs, with the signs' two fonts added to a scratch copy, on the
- * dev route (`browser/project.ts`).
- *
- * Then, in the same browser, the editor page (`browser/editor.ts`): the
- * packed `dist` editor on the kitchen sink of a scratch copy of the engine
- * project, served by `listenSceneCollab` in a Node child (Hocuspocus won't
- * run under Bun) behind a second preview server's proxy. It is measured at
- * each of `EDITOR_VIEWPORTS`, switched to another tab, and its own renderer's
- * crate pixel read back.
+ * The engine's browser smoke: builds `browser/` with Vite, serves it, and
+ * runs each `browser/*.ts` probe headless in every installed browser (against
+ * Bun's in-process result where it has one), then the packed editor page.
+ * Each probe documents what it checks.
  *
  *   vp run engine:smoke:browser [--browsers chromium,firefox,webkit] [--out <file>]
  *
  * Writes `engine-browser-smoke.json` at the repo root, or to `--out`. A
- * browser Playwright hasn't installed is skipped locally and fails under
- * `CI=true`.
+ * missing browser is skipped locally and fails under `CI=true`.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -72,6 +50,7 @@ import {
   AUDIO_ENDED_SLACK_MS,
   AUDIO_LEFT_SHARE,
   judgeMedia,
+  launchOptions,
   type MediaOutcome,
 } from "./browser/media-compare";
 import { rapierSpy, runPhysicsFree } from "./browser/physics-free";
@@ -371,7 +350,7 @@ async function runIn(
 ): Promise<MediaOutcome> {
   let browser: Browser;
   try {
-    browser = await TYPES[name].launch({ headless: true });
+    browser = await TYPES[name].launch(launchOptions(name));
   } catch (err) {
     return judgeLaunchFailure(name, err instanceof Error ? err.message : String(err), ci);
   }

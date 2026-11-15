@@ -1,5 +1,5 @@
 import type { AudioFault, AudioHeader } from "./audio";
-import { hasAscii, u16be, u32be, u8 } from "./bytes";
+import { ascii4, hasAscii, u16be, u32be, u8 } from "./bytes";
 
 /** ISO base media brands an audio-only MPEG-4 file is written with. */
 const M4A_BRANDS = ["M4A ", "M4B ", "M4P ", "mp41", "mp42", "isom", "iso2", "iso4", "iso5", "iso6"];
@@ -32,7 +32,7 @@ function boxes(bytes: Uint8Array, from: number, to: number): Box[] | null {
     } else if (size === 0) size = to - at;
     if (size < body - at || at + size > to) return null;
     out.push({
-      type: String.fromCharCode(...bytes.subarray(at + 4, at + 8)),
+      type: ascii4(bytes, at + 4),
       body,
       end: at + size,
     });

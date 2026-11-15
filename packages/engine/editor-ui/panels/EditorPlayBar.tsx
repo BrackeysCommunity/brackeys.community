@@ -26,6 +26,7 @@ import type { EditorHostState } from "../session/live-scene-editor";
 import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
 import { LiveInPlayStatus, livePlayPending } from "./LiveInPlayStatus";
+import { PlayCaptions } from "./play-overlay/PlayCaptions";
 
 /** Where the viewer's Live in Play choice is kept. */
 export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;
@@ -69,7 +70,8 @@ export function flowRequestedScene(state: Pick<GameStoreState, "session">): stri
  * While playing: the chip, pause, step, time scale, stop, and above them the
  * Live in Play status, a restart when the scene moved on, and the scene a flow
  * request asked for when one ended Play, which opens it. Once the session has
- * an outcome, Resume and Step are off.
+ * an outcome, Resume and Step are off. A project without game code also gets
+ * its sounds' captions over the canvas while Sound in Play is on.
  */
 export function EditorPlayBar({
   game,
@@ -79,7 +81,10 @@ export function EditorPlayBar({
   onRestart,
   onLivePlay,
   project,
+  canvas,
 }: EditorControls) {
+  const { storage } = useKit();
+  const [sound, setSound] = useSoundInPlay(storage);
   const { paused, timeScale } = useStoreValue(game.getStore(), (s) => s.sim);
   // While Live in Play applies edits, the game already has them; Restart is offered when one didn't land.
   const sceneChanged = useStoreValue(
@@ -142,7 +147,7 @@ export function EditorPlayBar({
           ))}
         </div>
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
-        <SoundInPlayToggle game={game} onLater={setSoundLater} />
+        <SoundInPlayToggle game={game} on={sound} onChange={setSound} onLater={setSoundLater} />
         <LocalePicker game={game} />
         <Button
           variant="secondary"
@@ -181,6 +186,7 @@ export function EditorPlayBar({
           </Island>
         ) : null}
       </div>
+      <PlayCaptions game={game} canvas={canvas} sound={sound} />
     </div>
   );
 }
@@ -289,9 +295,17 @@ function LiveInPlayToggle({
  * changed mid-Play, off silences the game at once and on brings it back, or,
  * in a Play that started silent, says the sound starts at the next one.
  */
-function SoundInPlayToggle({ game, onLater }: { game: object; onLater: (later: boolean) => void }) {
-  const { storage } = useKit();
-  const [on, setOn] = useSoundInPlay(storage);
+function SoundInPlayToggle({
+  game,
+  on,
+  onChange,
+  onLater,
+}: {
+  game: object;
+  on: boolean;
+  onChange: (on: boolean) => void;
+  onLater: (later: boolean) => void;
+}) {
   useEffect(() => {
     onLater(!applySoundInPlay(game, on));
   }, [game, on, onLater]);
@@ -300,7 +314,7 @@ function SoundInPlayToggle({ game, onLater }: { game: object; onLater: (later: b
       label="Sound in Play"
       tooltip={`${SOUND_IN_PLAY_TOOLTIP}.`}
       checked={on}
-      onChange={setOn}
+      onChange={onChange}
     />
   );
 }
@@ -318,9 +332,27 @@ function localeName(code: string): string {
 }
 
 /**
+ * Puts the game back on the locale it had when Play started once Play stops.
+ * The play bar's picker only previews a language, and edit mode has no picker
+ * to switch it back, so neither edit mode nor the next Play keeps the preview.
+ */
+export function usePlayLocale(game: object, playing: boolean): void {
+  useEffect(() => {
+    const locale = (game as LocaleGame).locale;
+    if (!playing || !locale) return;
+    const atStart = locale.current();
+    return () => {
+      if (locale.current() !== atStart && locale.available().includes(atStart)) {
+        locale.set(atStart);
+      }
+    };
+  }, [game, playing]);
+}
+
+/**
  * Switches the game's locale while playing, so translated text and its font
- * can be checked; the choice is the viewer's, kept in the game's prefs. Shown
- * only when the project lists more than one locale.
+ * can be checked; Stop puts back the locale Play started in (`usePlayLocale`).
+ * Shown only when the project lists more than one locale.
  */
 function LocalePicker({ game }: { game: object }) {
   const { cue } = useKit();
@@ -346,7 +378,7 @@ function LocalePicker({ game }: { game: object }) {
       }}
     >
       <Hint content={LOCALE_TOOLTIP}>
-        <SelectTrigger size="xs" aria-label="Locale">
+        <SelectTrigger size="sm" aria-label="Locale" style={{ width: "auto" }}>
           <SelectValue>{localeName(current)}</SelectValue>
         </SelectTrigger>
       </Hint>

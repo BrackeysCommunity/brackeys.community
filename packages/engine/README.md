@@ -5934,8 +5934,10 @@ answers `timeOfTick`, `simPositionMs`, the last `driftMs` and `latencyMs`.
 attach plays (keyed by the entity, so detach stops it), `playing: false`
 waits for game code, and `volume` scales the sound's own. A positional
 sound on it pans with the entity. Its handle, `getBehavior(AUDIO)`, has
-`play()`, `stop()` and `playing`; what the handle changes is saved when it
-differs from the block. Headless the behavior isn't built, so the handle
+`play()` (from the start, stopping the sound it plays: a one-shot replays
+on each call), `stop()` and `playing` (asked to play and not stopped since,
+not still audible); what the handle changes is saved when it differs from
+the block. Headless the behavior isn't built, so the handle
 is undefined there: write `?.`. `playing` is presentation state, so game
 logic never branches on it: a headless replay or playtest would take the
 other branch.
@@ -6021,7 +6023,10 @@ sidecar written before the meta grew is read again by `assets reimport`.
 
 **Hosts.** `GameConfig.audio` is `{ backend?, prefs? }`: `webAudioBackend()`
 in a browser, `false` (or none) for silence, or a function the shell calls
-when Play starts and whose backend it closes when Play ends. Clips are
+when Play starts and whose backend it closes when Play ends.
+`tryWebAudioBackend` is that function for a page: `webAudioBackend()`, or
+`false` where the browser has no Web Audio, so the game plays silent
+instead of failing. Clips are
 fetched through `GameConfig.assets.url`; without it only synth patches
 sound. `prefs` keeps the player's choices (default: this page's life
 only); `browserPrefsStore()` keeps them in `localStorage` under
@@ -6034,7 +6039,7 @@ only); `browserPrefsStore()` keeps them in `localStorage` under
 - **Buses.** `GameDefinition.audio.buses` adds buses (`{ name, volume? }`),
   each routed into `master`. `GameInstance.audio` (null while no backend
   plays) has `buses()`, `setBus(bus, volume, muted?)`, saved under
-  `audio.<bus>`, `clock` and `stopAll(fadeMs?)`.
+  `audio.bus.<bus>`, `clock` and `stopAll(fadeMs?)`.
 - **Latency.** `game.calibrateLatency({ beats?, bpm?, sound? })` plays a
   click track (16 beats at 100 bpm by default, the engine's own click patch
   unless `sound` names one) and times the player's presses; the median

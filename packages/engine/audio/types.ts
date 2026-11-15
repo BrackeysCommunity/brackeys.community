@@ -1,9 +1,9 @@
-import type { AudioRequest } from "../runtime/present";
 /**
  * The audio system's contract. No Web Audio type is named here, so headless
  * code and the fake backend typecheck against it; `audio/web-audio.ts` is
  * the one file that reaches the browser's audio API.
  */
+import type { AudioRequest } from "../runtime/present";
 import type { StepEvent } from "../runtime/types";
 import type { Vec2 } from "../types";
 import type { AudioClock } from "./clock";

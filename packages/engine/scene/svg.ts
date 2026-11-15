@@ -15,8 +15,8 @@ import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
 import { assetInfo } from "../project/asset-info";
 import { measureText } from "../text/measure";
-import { parseRichText } from "../text/rich";
-import { bracketKey, type StringTableData } from "../text/strings";
+import { parseRichText, richPlainText } from "../text/rich";
+import { keyedText, type StringTableData } from "../text/strings";
 import {
   type DrawnGridCell,
   type DrawnGridCells,
@@ -268,13 +268,7 @@ export function textBoxOf(
   const pose = src.shape ? shapeCentre(src.shape) : geometryPose({ at: src.at, path: src.path });
   if (!read || !pose) return undefined;
   const { key } = read;
-  const strings = env.strings;
-  const source =
-    key === undefined
-      ? (read.text ?? "")
-      : strings && Object.hasOwn(strings, key)
-        ? strings[key]!
-        : bracketKey(key);
+  const source = key === undefined ? (read.text ?? "") : keyedText(env.strings, key);
   const lines = parseRichText(richSource(source, read.rich === true), read.vars).lines;
   const font = read.font === undefined ? (env.font ?? null) : textFontOf(env.asset, read.font);
   const m = measureText(lines, measureFont(font), read.size ?? TEXT_SIZE_DEFAULT, read.wrap);
@@ -282,7 +276,7 @@ export function textBoxOf(
   const deg = pose.rotDeg ?? src.transform?.rot ?? 0;
   const [cx, cy] = turnBy([box.cx, box.cy], deg * DEG);
   return {
-    label: lines.map((line) => line.map((span) => span.text).join("")).join("\n"),
+    label: richPlainText(lines),
     ...(key !== undefined ? { key } : {}),
     shape: { ...box, cx: pose.at[0] + cx, cy: pose.at[1] + cy, rotDeg: deg },
     exact: m.exact,

@@ -79,12 +79,45 @@ describe("the sounds a scene names, in its issues", () => {
     expect(issue).toMatchObject({ entityIds: ["porch/bell"], path: "/instances/0" });
   });
 
-  it("skips a sound no entity names, and one whose doc isn't open", () => {
-    const { project } = withSound(sound({ bus: "loud" }));
+  it("lists a sound only its triggers play, naming no entity", () => {
+    const { project } = withSound(
+      sound({ bus: "loud", variants: [{ clip: "gone" }], on: [{ event: "contact:start" }] }),
+    );
     const quiet: SceneDefinition = { ...yard(), entities: yard().entities?.slice(2) };
+    const issues = validateDoc(sceneToDoc(quiet), registry, { project });
+    expect(ofCode(issues, "sound-bus-unknown")).toEqual([
+      expect.objectContaining({
+        entityIds: [],
+        path: "",
+        got: "loud",
+        detail: expect.objectContaining({ asset: "clink", pointer: "/bus" }),
+      }),
+    ]);
+    expect(ofCode(issues, "asset-missing")).toEqual([
+      expect.objectContaining({
+        entityIds: [],
+        path: "",
+        got: "gone",
+        detail: expect.objectContaining({ asset: "clink", pointer: "/variants/0/clip" }),
+      }),
+    ]);
+  });
+
+  it("skips a sound neither named nor triggered, and one whose doc isn't open", () => {
+    const quiet: SceneDefinition = { ...yard(), entities: yard().entities?.slice(2) };
+    for (const file of [sound({ bus: "loud" }), sound({ bus: "loud", on: [] })]) {
+      const { project } = withSound(file);
+      expect(
+        ofCode(validateDoc(sceneToDoc(quiet), registry, { project }), "sound-bus-unknown"),
+      ).toEqual([]);
+    }
+  });
+
+  it("reports a named sound with triggers once, at the entities naming it", () => {
+    const { project } = withSound(sound({ bus: "loud", on: [{ event: "contact:start" }] }));
     expect(
-      ofCode(validateDoc(sceneToDoc(quiet), registry, { project }), "sound-bus-unknown"),
-    ).toEqual([]);
+      ofCode(validateDoc(sceneToDoc(yard()), registry, { project }), "sound-bus-unknown"),
+    ).toEqual([expect.objectContaining({ entityIds: ["bell", "gong"] })]);
   });
 
   it("revalidates when the sound doc changes", () => {

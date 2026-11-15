@@ -79,7 +79,10 @@ export type StringKeyUse = {
   pointer: string;
 };
 
-/** Scripts written right to left: their script subtag, and their Unicode Script name. */
+/**
+ * Scripts written right to left: their script subtag, and their Unicode
+ * Script name. Only scripts every supported browser's regex knows by name.
+ */
 const RTL_SCRIPTS: Readonly<Record<string, string>> = {
   arab: "Arabic",
   hebr: "Hebrew",
@@ -88,12 +91,40 @@ const RTL_SCRIPTS: Readonly<Record<string, string>> = {
   nkoo: "Nko",
   adlm: "Adlam",
   rohg: "Hanifi_Rohingya",
+  samr: "Samaritan",
+  mand: "Mandaic",
+  mend: "Mende_Kikakui",
+  armi: "Imperial_Aramaic",
+  avst: "Avestan",
+  cprt: "Cypriot",
+  hatr: "Hatran",
+  hung: "Old_Hungarian",
+  khar: "Kharoshthi",
+  lydi: "Lydian",
+  mani: "Manichaean",
+  merc: "Meroitic_Cursive",
+  mero: "Meroitic_Hieroglyphs",
+  narb: "Old_North_Arabian",
+  nbat: "Nabataean",
+  orkh: "Old_Turkic",
+  palm: "Palmyrene",
+  phli: "Inscriptional_Pahlavi",
+  phlp: "Psalter_Pahlavi",
+  phnx: "Phoenician",
+  prti: "Inscriptional_Parthian",
+  sarb: "Old_South_Arabian",
+  sogd: "Sogdian",
+  sogo: "Old_Sogdian",
 };
 
-/** A letter of a right-to-left script. */
-export const RTL_LETTER = new RegExp(
-  `[${Object.values(RTL_SCRIPTS)
-    .map((name) => `\\p{Script=${name}}`)
+/**
+ * A character of a right-to-left script, or punctuation only those scripts
+ * use (the Arabic comma and question mark). Combining marks shared with
+ * left-to-right scripts don't count, so a Latin letter's accent stays ltr.
+ */
+export const RTL_CHAR = new RegExp(
+  `(?!\\p{Script=Inherited})[${Object.values(RTL_SCRIPTS)
+    .map((name) => `\\p{Script_Extensions=${name}}`)
     .join("")}]`,
   "u",
 );

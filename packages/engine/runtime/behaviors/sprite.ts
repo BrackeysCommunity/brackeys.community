@@ -1,5 +1,10 @@
 import { drawSprite, type SceneView, type SpriteVisual, type ViewLayer } from "../../context";
-import type { BehaviorBlock, BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import {
+  behaviorKey,
+  type BehaviorBlock,
+  type BehaviorSystem,
+  type BehaviorSystemFactory,
+} from "../../game/behaviors";
 import {
   SPRITE,
   spriteAssets,
@@ -44,7 +49,7 @@ export type SpriteLook = { [C in LookChannel]?: number };
 const WHITE = 0xffffff;
 
 /** The view id an entity's sprite draws under. */
-export const spriteViewId = (entityId: string): string => `${entityId}#${SPRITE.name}`;
+export const spriteViewId = (entityId: string): string => behaviorKey(entityId, SPRITE);
 
 type Attached = {
   entity: RuntimeEntity;

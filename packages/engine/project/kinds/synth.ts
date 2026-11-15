@@ -98,6 +98,36 @@ export const SYNTH_BOUNDS: Readonly<Record<SynthNumberPath, readonly [min: numbe
     volume: [0, 1],
   });
 
+/** The number at `path` in `patch`; undefined when it or its block is unset. */
+export function synthField(patch: SynthFile, path: SynthNumberPath): number | undefined {
+  let node: unknown = patch;
+  for (const key of path.split(".")) {
+    node =
+      node !== null && typeof node === "object"
+        ? (node as Record<string, unknown>)[key]
+        : undefined;
+  }
+  return typeof node === "number" ? node : undefined;
+}
+
+/**
+ * A copy of `patch` with `value` at dot `path` (undefined removes it), the
+ * blocks on the way copied too, so `patch` itself never changes.
+ */
+export function withSynthField(patch: SynthFile, path: string, value: unknown): SynthFile {
+  const keys = path.split(".");
+  const write = (node: unknown, at: number): Record<string, unknown> => {
+    const copy: Record<string, unknown> =
+      node !== null && typeof node === "object" ? { ...(node as Record<string, unknown>) } : {};
+    const key = keys[at]!;
+    const next = at === keys.length - 1 ? value : write(copy[key], at + 1);
+    if (next === undefined) delete copy[key];
+    else copy[key] = next;
+    return copy;
+  };
+  return write(patch, 0) as SynthFile;
+}
+
 /** What the renderer reads for an unset `duty`, `volume` and `seed`; every other unset number is 0. */
 export const SYNTH_DEFAULTS: Readonly<{ duty: number; volume: number; seed: number }> =
   Object.freeze({ duty: 0.5, volume: 1, seed: 1 });

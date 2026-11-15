@@ -625,6 +625,67 @@ describe("conditions and effects", () => {
     expect(missing.runner.view()).toMatchObject({ node: "gone", stuck: true });
   });
 
+  describe("a node none of whose choices can be taken", () => {
+    const guarded = (over: Partial<DialogueNode>, hidden?: "disable") =>
+      talk(
+        {
+          id: "start",
+          lines: [{ say: "toll?" }],
+          choices: [
+            { say: "pay", to: "paid", if: { var: "/gold", gte: 3 }, ...(hidden && { hidden }) },
+            { say: "sneak", to: "paid", if: { visited: "paid" } },
+          ],
+          ...over,
+        },
+        { id: "paid", lines: [{ say: "go on" }], end: "through" },
+        { id: "away", lines: [{ say: "off you go" }], end: "turned-away" },
+      );
+
+    it("goes on through its next after its last line, offering nothing", () => {
+      for (const hidden of [undefined, "disable"] as const) {
+        const { runner, events } = run(guarded({ next: "away" }, hidden), memoryVars({ gold: 1 }));
+        expect(where(runner)).toEqual({ node: "start", line: 0, ended: null, choices: null });
+        expect(runner.advance()).toBe(true);
+        expect(where(runner)).toEqual({ node: "away", line: 0, ended: null, choices: null });
+        expect(runner.advance()).toBe(true);
+        expect(runner.view().ended).toBe("turned-away");
+        expect(events.map((e) => e.type)).not.toContain("dialogue:choices");
+      }
+    });
+
+    it("ends with its end", () => {
+      const { runner, events } = run(guarded({ end: "gave-up" }), memoryVars({ gold: 1 }));
+      expect(runner.advance()).toBe(true);
+      expect(runner.view()).toMatchObject({ node: "start", ended: "gave-up", choices: null });
+      expect(events.at(-1)).toEqual({
+        type: "dialogue:end",
+        data: { dialogue: GATE_ID, ending: "gave-up" },
+      });
+    });
+
+    it("is stuck with neither, with no choices offered", () => {
+      const { runner } = run(guarded({}), memoryVars({ gold: 1 }));
+      expect(runner.advance()).toBe(false);
+      expect(runner.view()).toMatchObject({ node: "start", line: 0, choices: null, stuck: true });
+      expect(runner.choose(0)).toBe(false);
+
+      const lineless = guarded({ lines: [] });
+      expect(run(lineless, memoryVars({ gold: 1 })).runner.view()).toMatchObject({
+        node: "start",
+        choices: null,
+        stuck: true,
+      });
+    });
+
+    it("still offers them once one can be taken", () => {
+      const { runner } = run(guarded({ next: "away" }), memoryVars({ gold: 3 }));
+      expect(runner.view().choices).toEqual([{ index: 0, say: "pay", enabled: true }]);
+      expect(runner.advance()).toBe(false);
+      expect(runner.choose(0)).toBe(true);
+      expect(runner.view().node).toBe("paid");
+    });
+  });
+
   it("keeps the last 200 lines in the log", () => {
     const { runner } = run(
       talk({ id: "start", lines: [{ say: "again" }, { say: "and" }], next: "start" }),

@@ -122,12 +122,14 @@ export function issueEngine(
 }
 
 /**
- * The issues of the sounds `def`'s entities (instance children included)
- * name, as the project judges them: each open sound doc's own checks
- * (`sound-bus-unknown` among them) and its clips that no live audio clip or
- * synth patch holds (`asset-missing`). Each points at the first entity
- * naming the sound (an instance child at its instance) and selects them
- * all; `detail` names the sound and where in it.
+ * The issues of the sounds `def` can play, as the project judges them: each
+ * open sound doc's own checks (`sound-bus-unknown` among them) and its clips
+ * that no live audio clip or synth patch holds (`asset-missing`). A sound
+ * counts when an entity (instance children included) names it or its `on`
+ * matchers play it on step events. One an entity names points at the first
+ * such entity (an instance child at its instance) and selects them all; one
+ * only its triggers play names no entity. `detail` names the sound and where
+ * in it.
  */
 function soundIssues(
   def: SceneDefinition,
@@ -156,10 +158,14 @@ function soundIssues(
     }
   });
   const values = new Map<AssetId, unknown>();
-  for (const id of users.keys()) {
-    const entry = view.byId.get(id);
-    const open = entry ? openDocOf(project, entry) : null;
-    if (open) values.set(id, layoutFromDoc(open.doc, open.layout));
+  for (const entry of view.byId.values()) {
+    if (entry.kind !== SOUND_KIND) continue;
+    const open = openDocOf(project, entry);
+    if (!open) continue;
+    const value = layoutFromDoc(open.doc, open.layout);
+    if (!users.has(entry.id) && !(Array.isArray(value.on) && value.on.length > 0)) continue;
+    users.set(entry.id, users.get(entry.id) ?? { ids: [], pointer: "" });
+    values.set(entry.id, value);
   }
   if (values.size === 0) return [];
   const env = { registry, project: view };

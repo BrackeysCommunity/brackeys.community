@@ -2,40 +2,17 @@ import { Delete02Icon } from "@hugeicons/core-free-icons";
 import type { ReactNode } from "react";
 
 import type { InspectorRow } from "../../../editor/inspector-model";
-import { settingsEdit, settingsRows, settingsValue } from "../../../editor/settings-model";
-import {
-  ANIM_END,
-  ANIM_FRAME,
-  CHARACTER_JUMPED,
-  CHARACTER_LANDED,
-  CHARACTER_LEFT_GROUND,
-  CONTACT_END,
-  CONTACT_START,
-  DIALOGUE_CHOICES,
-  DIALOGUE_END,
-  DIALOGUE_LINE,
-  ENTITY_DESTROYED,
-  ENTITY_DISABLED,
-  ENTITY_ENABLED,
-  ENTITY_SPAWNED,
-  NAV_ARRIVED,
-  NAV_BLOCKED,
-  PLAYER_JOINED,
-  PLAYER_LEFT,
-  SENSOR_ENTER,
-  SENSOR_EXIT,
-  SPAWNER_SPAWNED,
-  TWEEN_END,
-} from "../../../game/index";
+import { settingsRows } from "../../../editor/settings-model";
 import { capitalise } from "../../../game/live";
 import type { JsonEdit } from "../../../project/index";
 import { keyedItemPointer } from "../../../project/json-edit";
 import { AUDIO_KIND } from "../../../project/kinds/audio";
 import { audioBuses, soundBusProblem, type SoundFile } from "../../../project/kinds/sound";
 import { SYNTH_KIND } from "../../../project/kinds/synth";
+import { ENGINE_STEP_EVENTS } from "../../../runtime/types";
 import { jsonPointer } from "../../../scene/issues";
 import { useAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
-import { AuditionButton, formatLengthRange, useEditorAudio } from "../../audio/editor-audio";
+import { AuditionButton } from "../../audio/editor-audio";
 import { IconButton, Text } from "../../kit/index";
 import { useProjectView } from "../EditorProject";
 import { AssetCombobox, assetOptions, danglingAsset } from "../inspector/asset-picker";
@@ -44,10 +21,12 @@ import {
   FieldRow,
   IdCombobox,
   InspectorSection,
+  isBoundedNumber,
   Locked,
   NameField,
   OptionsField,
   RangeField,
+  SliderField,
   StringKeyField,
   type NameProblem,
   type StringKeyTable,
@@ -56,7 +35,7 @@ import { AssetPanel, useStringKeyTable } from "../project-tree/asset-panel";
 import { DocGate } from "../settings/DocGate";
 import { settingScope } from "../settings/settings-doc";
 import { soundShapes } from "../settings/settings-schemas";
-import { SettingsNote, SettingsRows } from "../settings/SettingsRows";
+import { commitSettingsRow, SettingsNote, SettingsRows } from "../settings/SettingsRows";
 
 /** What a sound's variants may name. */
 const VARIANT_KINDS = [AUDIO_KIND, SYNTH_KIND] as const;
@@ -64,38 +43,15 @@ const VARIANT_KINDS = [AUDIO_KIND, SYNTH_KIND] as const;
 /** The fields drawn by their own sections, not as plain rows. */
 const OWN_ROWS: readonly string[] = ["$schema", "kind", "v", "bus", "variants", "on"];
 
-/** The step events the engine raises, which a trigger's event is picked from. */
-const ENGINE_EVENTS: readonly string[] = [
-  CONTACT_START,
-  CONTACT_END,
-  SENSOR_ENTER,
-  SENSOR_EXIT,
-  ANIM_FRAME,
-  ANIM_END,
-  TWEEN_END,
-  CHARACTER_JUMPED,
-  CHARACTER_LANDED,
-  CHARACTER_LEFT_GROUND,
-  SPAWNER_SPAWNED,
-  ENTITY_SPAWNED,
-  ENTITY_DESTROYED,
-  ENTITY_ENABLED,
-  ENTITY_DISABLED,
-  NAV_ARRIVED,
-  NAV_BLOCKED,
-  PLAYER_JOINED,
-  PLAYER_LEFT,
-  DIALOGUE_LINE,
-  DIALOGUE_CHOICES,
-  DIALOGUE_END,
-];
+/** What the player reads for an unset field the schema gives no default. */
+const FALLBACKS: Readonly<Record<string, number>> = { volume: 1 };
 
 /** A typed event a game raises itself: anything without spaces. */
 const isEventName = (text: string) => /^\S+$/.test(text);
 
 /** An event the engine doesn't raise may still be the game's own, so it's noted, not refused. */
 const eventProblem = (event: string): NameProblem | null =>
-  ENGINE_EVENTS.includes(event)
+  ENGINE_STEP_EVENTS.includes(event)
     ? null
     : { message: `The engine raises no "${event}"; only the game can.`, severity: "info" };
 
@@ -103,24 +59,6 @@ const asSound = (value: Record<string, unknown>) => value as unknown as SoundFil
 
 /** An issue's message as a sentence: capitalised, and stopped unless it ends in a question. */
 const sentence = (message: string) => `${capitalise(message)}${/[.?!]$/.test(message) ? "" : "."}`;
-
-/** Writes `input` into `row` as one `editAsset` batch, checked by the row's schema. */
-async function commitRow(doc: AssetDoc, row: InspectorRow, input: unknown): Promise<string | null> {
-  if (doc.readOnly !== null) return doc.readOnly;
-  if (!doc.entry || !doc.value || !doc.layout) return "The sound hasn't opened yet.";
-  const checked = settingsValue(row, input);
-  if (!checked.ok) return checked.error;
-  const op = settingsEdit(doc.entry.id, row.path, checked.value, {
-    doc: doc.value,
-    layout: doc.layout,
-  });
-  await doc.edit(
-    [op],
-    `${checked.value === undefined ? "Reset" : "Set"} ${row.title}`,
-    settingScope(doc.docName, row.path),
-  );
-  return null;
-}
 
 /**
  * A `sound` asset: its bus, its plain fields (volume, pitch, loop and the
@@ -164,22 +102,13 @@ function SoundFields({
   registry: AssetDocPanelProps["registry"];
   strings: StringKeyTable | null;
 }) {
-  const audio = useEditorAudio();
-  const id = doc.entry!.id;
   const shapes = soundShapes(registry);
   if (!shapes.root) return null;
   const rows = settingsRows(shapes.root, value, "", { registry });
   const bus = rows.find((r) => r.path === "bus");
   const plain = rows.filter((r) => !OWN_ROWS.includes(r.path));
-  const length = audio?.lengthMs(id) ?? null;
   return (
     <>
-      <div className="je-insp-line">
-        <AuditionButton id={id} name={doc.entry!.name ?? id} size="icon-sm" variant="secondary" />
-        <Text size="xs" variant="muted">
-          {length ? formatLengthRange(length) : "No length yet"}
-        </Text>
-      </div>
       {bus ? <BusRow doc={doc} row={bus} registry={registry} /> : null}
       <Rows doc={doc} rows={plain} strings={strings} />
       <Variants doc={doc} value={value} shapes={shapes} registry={registry} />
@@ -189,8 +118,9 @@ function SoundFields({
 }
 
 /**
- * `rows` as the settings panels draw them, but a range (the pitch) and a
- * string key (the caption) through their own widgets, in their place.
+ * `rows` as the settings panels draw them, but a range (the pitch), a
+ * bounded number (the volume) and a string key (the caption) through their
+ * own widgets, in their place.
  */
 function Rows({
   doc,
@@ -209,9 +139,22 @@ function Rows({
   };
   for (const row of rows) {
     const scope = settingScope(doc.docName, row.path);
-    const commit = (input: unknown) => commitRow(doc, row, input);
+    const commit = (input: unknown) => commitSettingsRow(doc, row, input);
     const w = row.widget;
-    if (w.kind === "range") {
+    if (isBoundedNumber(row)) {
+      flush();
+      const fallback = FALLBACKS[row.path];
+      out.push(
+        <Locked key={row.path} disabled={doc.readOnly !== null}>
+          <SliderField
+            field={row}
+            scope={scope}
+            commit={commit}
+            {...(fallback !== undefined ? { fallback } : {})}
+          />
+        </Locked>,
+      );
+    } else if (w.kind === "range") {
       flush();
       out.push(
         <Locked key={row.path} disabled={doc.readOnly !== null}>
@@ -255,22 +198,15 @@ function BusRow({
     ...buses.map((b) => ({ value: b, label: b })),
     ...(problem && current !== null ? [{ value: current, label: `${current} (not a bus)` }] : []),
   ];
-  const scope = settingScope(doc.docName, "bus");
   return (
-    <>
-      <OptionsField
-        field={row}
-        scope={scope}
-        options={options}
-        segmented={false}
-        commit={(input) => commitRow(doc, row, input)}
-      />
-      {problem ? (
-        <Text as="p" size="xs" variant="danger">
-          {sentence(problem.message)} {problem.hint}
-        </Text>
-      ) : null}
-    </>
+    <OptionsField
+      field={row}
+      scope={settingScope(doc.docName, "bus")}
+      options={options}
+      segmented={false}
+      commit={(input) => commitSettingsRow(doc, row, input)}
+      problem={problem ? `${sentence(problem.message)} ${problem.hint}` : null}
+    />
   );
 }
 
@@ -312,7 +248,11 @@ function Variants({
               }).filter((r) => r.path.endsWith(".weight"))
             : [];
           return (
-            <div key={variant.clip} className="je-sound-variant" data-variant={variant.clip}>
+            <div
+              key={variant.clip}
+              className="je-insp-stack je-sound-variant"
+              data-variant={variant.clip}
+            >
               <FieldRow label="Clip" error={problem}>
                 <div className="je-insp-line">
                   <AssetCombobox
@@ -398,7 +338,7 @@ function Triggers({
             : [];
           const event = rows.find((r) => r.name === "event");
           return (
-            <div key={i} className="je-sound-trigger" data-trigger={i}>
+            <div key={i} className="je-insp-stack je-sound-trigger" data-trigger={i}>
               <div className="je-insp-line">
                 <Text size="xs" className="je-insp-grow je-sp-truncate">
                   On {trigger.event}
@@ -417,8 +357,8 @@ function Triggers({
                   <NameField
                     field={event}
                     scope={settingScope(doc.docName, event.path)}
-                    commit={(input) => commitRow(doc, event, input)}
-                    items={ENGINE_EVENTS}
+                    commit={(input) => commitSettingsRow(doc, event, input)}
+                    items={ENGINE_STEP_EVENTS}
                     typed={isEventName}
                     typedDetail="The game's own"
                     problem={eventProblem}
@@ -435,7 +375,7 @@ function Triggers({
           <FieldRow label="Add" scope={scope}>
             <IdCombobox
               label="on.add"
-              items={ENGINE_EVENTS}
+              items={ENGINE_STEP_EVENTS}
               value={null}
               onChange={(next) => {
                 if (next !== null)

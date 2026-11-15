@@ -10,11 +10,13 @@ import {
   asPt,
   EditError,
   FieldRow,
+  isFlatRecord,
   NestedField,
   NumberField,
   OptionsField,
   PointField,
   ReadonlyField,
+  RecordField,
   SwitchField,
   TextField,
 } from "../inspector/field-widgets";
@@ -43,23 +45,43 @@ const parentPath = (path: string) => {
   return at < 0 ? null : path.slice(0, at);
 };
 
+/** An edit's history label: "Set Volume", or "Reset Volume" when it unsets the row. */
+export const editLabel = (row: Pick<InspectorRow, "title">, value: unknown) =>
+  `${value === undefined ? "Reset" : "Set"} ${row.title}`;
+
+export type CommitRowOptions = {
+  /** The rows by path, for the object holding a row. */
+  rows?: ReadonlyMap<string, InspectorRow>;
+  /** An unset object row's whole value before one of its fields is set (seats need both of theirs). */
+  fills?: RowFallbacks;
+  /** The history label in place of `editLabel`'s. */
+  label?: string;
+  /** Called with the value written once the edit has landed. */
+  onCommitted?: (value: unknown) => void;
+};
+
 /**
  * Writes `input` into `row` as one batch: checked by the row's schema, set
  * where the doc's layout allows, and, under an unset object with a fill,
  * written as that whole object. Resolves to the problem, or null.
  */
-async function commitRow(ctx: RowsCtx, row: InspectorRow, input: unknown): Promise<string | null> {
-  const { doc } = ctx;
+export async function commitSettingsRow(
+  doc: SettingsDoc,
+  row: InspectorRow,
+  input: unknown,
+  opts: CommitRowOptions = {},
+): Promise<string | null> {
   if (doc.readOnly !== null) return doc.readOnly;
-  if (!doc.entry || !doc.value || !doc.layout) return "The settings haven't opened yet.";
+  if (!doc.entry || !doc.value || !doc.layout) return "This file hasn't opened yet.";
   const checked = settingsValue(row, input);
   if (!checked.ok) return checked.error;
   let path = row.path;
   let value = checked.value;
   const parent = parentPath(path);
-  const holder = parent ? ctx.rows.get(parent) : undefined;
-  if (holder && holder.value === undefined && ctx.fills[holder.path] !== undefined) {
-    const whole = { ...(ctx.fills[holder.path] as object), [row.name]: value };
+  const holder = parent ? opts.rows?.get(parent) : undefined;
+  const fill = holder ? opts.fills?.[holder.path] : undefined;
+  if (holder && holder.value === undefined && fill !== undefined) {
+    const whole = { ...(fill as object), [row.name]: value };
     const parsed = holder.schema.safeParse(whole);
     if (!parsed.success) return parsed.error.issues[0]?.message ?? "invalid value";
     path = holder.path;
@@ -67,13 +89,17 @@ async function commitRow(ctx: RowsCtx, row: InspectorRow, input: unknown): Promi
   }
   const op = settingsEdit(doc.entry.id, path, value, { doc: doc.value, layout: doc.layout });
   // A refused edit is announced by the pending task.
-  await doc.edit(
+  const landed = await doc.edit(
     [op],
-    `${value === undefined ? "Reset" : "Set"} ${row.title}`,
+    opts.label ?? editLabel(row, value),
     settingScope(doc.docName, row.path),
   );
+  if (landed) opts.onCommitted?.(checked.value);
   return null;
 }
+
+const commitRow = (ctx: RowsCtx, row: InspectorRow, input: unknown) =>
+  commitSettingsRow(ctx.doc, row, input, { rows: ctx.rows, fills: ctx.fills });
 
 function useCommit(ctx: RowsCtx, row: InspectorRow) {
   const [error, setError] = useState<string | null>(null);
@@ -204,9 +230,10 @@ function AxesRow({ row, ctx, axes }: { row: InspectorRow; ctx: RowsCtx; axes: Ax
 function RowView({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
   const axes = row.widget.kind === "readonly" ? unionAxes(row.schema) : null;
   if (axes) return <AxesRow row={row} ctx={ctx} axes={axes} />;
-  const readonly = <ReadonlyField field={row} unset={fallbackText(row, ctx.fallbacks)} />;
-  if (row.readonly) return readonly;
   const props = widgetProps(ctx, row);
+  if (isFlatRecord(row)) return <RecordField {...props} />;
+  const readonly = <ReadonlyField field={row} unset={props.unset} />;
+  if (row.readonly) return readonly;
   switch (row.widget.kind) {
     case "number":
       return <NumberField {...props} />;

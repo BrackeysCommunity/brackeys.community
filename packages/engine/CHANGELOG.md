@@ -32,8 +32,10 @@ owner.
   project with no dialogue docs hashes its runs as before.
 - The `text` and `audio` behaviors (visual only, after `emitter`), with
   `TextHandle` (`set`, `setKey`) and `AudioHandle` (`play`, `stop`,
-  `playing`). Neither moves the entity or keeps a pose of its own; what
-  each draws or plays is below.
+  `playing`). `play` stops the entity's sound and starts it again, so a
+  one-shot replays on each call; `playing` says the sound was asked to play
+  and not stopped since, not that it is still audible. Neither moves the
+  entity or keeps a pose of its own; what each draws or plays is below.
 - Engine commands `@latency { ms }` (−500 to 500; delivered with the next
   tick and never waking a turns or event game on its own),
   `@dialogue-advance` and `@dialogue-choose { choice }`. The runtime hands
@@ -122,9 +124,10 @@ owner.
   `Content-Range` and `Content-Length`, or 416 with `Content-Range: bytes
 */size` outside it. A multi-range or malformed header gets the whole body.
   A partial network answer is never cached: only a 200 is.
-- `parseRichText`/`plainText` (text/rich.ts) parse the engine's rich-text
-  markup: `[b]`, `[i]`, `[color=#rrggbb]`, `[size=n]` (0 < n <= 512),
-  `[icon=asset:frame]`, `[shake]`, `[wave]`, nesting (closing tags may be
+- `parseRichText`/`plainText` (game/rich-text.ts, re-exported by
+  text/rich.ts) parse the engine's rich-text markup: `[b]`, `[i]`,
+  `[color=#rrggbb]`, `[size=n]` (0 < n <= 512), `[icon=asset:frame]`,
+  `[shake]`, `[wave]`, nesting (closing tags may be
   out of order), `\[` `\{` `\\` escapes and `{name}` placeholders filled
   from `vars` as plain text; unknown or malformed tags and missing vars stay
   literal with a warning, and unclosed tags warn. `measureText`
@@ -147,7 +150,8 @@ owner.
   `(x − centre) / halfWidth` clamped to ±1, with `range` linear falloff,
   and an `entity` source is read from the pose index each frame. One-shots
   before unlock are dropped and music waits for unlock. Bus volumes and
-  mutes persist through `PrefsStore` under `audio.<bus>`. A synth-patch
+  mutes persist through `PrefsStore` under `audio.bus.<bus>` (the `bus.`
+  segment keeps a game bus name apart from `audio.latencyMs`). A synth-patch
   variant is rendered once with `renderSynth` and handed to
   `backend.buffer` as one channel, re-rendered when its doc changes, and
   rendered at load for a `preload` sound. It returns `AudioSystemHandle`,
@@ -169,6 +173,9 @@ owner.
   through `createBuffer`/`copyToChannel` one channel per array, `stream`
   routes an HTMLAudioElement into the bus graph, `latency` is outputLatency
   - baseLatency; `opts.context` takes an OfflineAudioContext for tests.
+- `tryWebAudioBackend()` is `webAudioBackend()`, or `false` where the
+  browser has no Web Audio, so a host's `audio.backend` plays the game
+  silent instead of failing it; the site and the standalone host pass it.
 - The shell builds the audio system in Play when `GameConfig.audio.backend`
   gives one: the function form is asked each time Play starts and what it
   built is closed when Play ends; a backend handed over as is lasts the
@@ -460,8 +467,8 @@ other docs:` line and in `data.project`, without changing the exit code.
   runs out of room they go to its overflow menu after the game tools. Its
   menus open downward, under the top bar.
 - On jams.team the site menu island draws compact in the editor's top bar,
-  without a title (the scene picker names what is open); the site's
-  `SiteEditorHostOptions` loses `title`.
+  without a title (the scene picker names what is open).
+- **Breaking:** the site's `SiteEditorHostOptions` loses `title`.
 - An XML `.fnt` imports instead of being refused. A binary BMFont's
   import-failed message now says to export it as text or XML.
 - **Breaking:** `TextFont`'s bitmap arm is `{ kind: "bitmap", hash, pages,
@@ -513,6 +520,11 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   twice under two `@latency` commands (25 ms, then 40 ms). The same taps
   grade differently in each pass, and every run replays identically. The
   rhythm row has nothing pending. Every other probe's pin is unchanged.
+- In the editor, a selected point entity carrying a `text` block (a
+  marker sign) has its move handle just under the text, in line with its
+  anchor, instead of on the anchor where it hid the glyphs.
+  `GizmoTarget.text` is the box it goes by: its height measured, its width
+  estimated, since the editor has no locale strings.
 
 ### Fixed
 

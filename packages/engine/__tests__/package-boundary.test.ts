@@ -196,9 +196,15 @@ const WEB_AUDIO_NAMES =
   /\b(\w*AudioContext|HTMLAudioElement|AudioNode|AudioBuffer\w*|MediaElementAudioSourceNode|StereoPannerNode|GainNode)\b/;
 /** The one file that reaches the browser's audio API. */
 const WEB_AUDIO_FILE = "audio/web-audio.ts";
-/** The synth renderer and presets: pure over the patch's kind and the seeded RNG. */
+/** The synth renderer and presets: pure over the patch's kind, the seeded RNG and the pure math and WAV helpers. */
 const SYNTH_FILES = ["audio/synth.ts", "audio/synth-presets.ts"];
-const SYNTH_IMPORTS = ["project/kinds/synth.ts", "sim-kit/rng.ts", "audio/synth.ts"];
+const SYNTH_IMPORTS = [
+  "project/kinds/synth.ts",
+  "sim-kit/rng.ts",
+  "audio/synth.ts",
+  "audio/wav.ts",
+  "math.ts",
+];
 /** The DOM helpers for dialogue, rich text and captions: DOM only, never Pixi. */
 const DOM_HELPERS = ["ui/dialogue.ts", "ui/rich-dom.ts", "ui/captions.ts"];
 
@@ -938,6 +944,13 @@ describe("package boundary", () => {
         const target = imp.spec.startsWith(".") ? resolveRelative(file, imp.spec) : null;
         if (!target || !SYNTH_IMPORTS.includes(rel(target)))
           bad.push(`${path}:${imp.line} imports ${imp.spec}`);
+      }
+      const { files, bare } = runtimeGraph(path);
+      for (const spec of bare.keys()) if (spec !== "zod") bad.push(`${path} reaches ${spec}`);
+      for (const reached of files) {
+        const source = stripStrings(stripComments(readFileSync(join(ENGINE, reached), "utf8")));
+        const named = WEB_AUDIO_NAMES.exec(source) ?? DOM_GLOBALS.exec(source);
+        if (named) bad.push(`${path} reaches ${reached}, which names ${named[1]}`);
       }
     }
     violations(bad);

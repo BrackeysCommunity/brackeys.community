@@ -2,7 +2,7 @@
  * What the page's sign and audio runs report, and how the runner judges
  * them; pure, so the runner, the page and the tests share it.
  */
-import type { BrowserOutcome } from "../browser-compare";
+import type { BrowserName, BrowserOutcome } from "../browser-compare";
 import type { EngineSmokeResult } from "./main";
 import { SIGN_GRID, SIGN_WAIT_MS, SIGNS, type SignFont } from "./signs";
 import { SMOKE_BACKGROUND } from "./sink";
@@ -58,6 +58,16 @@ export const AUDIO_LEFT_SHARE = 0.95;
 export const FIREFOX_AUDIO_PREFS: Readonly<Record<string, boolean>> = {
   "media.cubeb.force_mock_context": true,
 };
+
+/** How the runner launches `name`: headless, and Firefox on its mock audio device. */
+export function launchOptions(name: BrowserName): {
+  headless: true;
+  firefoxUserPrefs?: Readonly<Record<string, boolean>>;
+} {
+  return name === "firefox"
+    ? { headless: true, firefoxUserPrefs: FIREFOX_AUDIO_PREFS }
+    : { headless: true };
+}
 
 /** The button the runner clicks to give the page the gesture audio needs. */
 export const AUDIO_BUTTON_ID = "smoke-audio";

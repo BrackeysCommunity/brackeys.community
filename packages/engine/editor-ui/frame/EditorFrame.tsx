@@ -51,7 +51,7 @@ import {
 } from "../panels/canvas-layer/tool-host";
 import { CodeSkewNotice } from "../panels/CodeSkewNotice";
 import { EditorCanvasOverlay } from "../panels/EditorCanvasOverlay";
-import { EditorPlayBar } from "../panels/EditorPlayBar";
+import { EditorPlayBar, usePlayLocale } from "../panels/EditorPlayBar";
 import { EditorStatusBar } from "../panels/EditorStatusBar";
 import { EditorToolbar } from "../panels/EditorToolbar";
 import { PeerColorProvider } from "../panels/peer-faces";
@@ -944,6 +944,7 @@ function EditorDock({ publish, ...controls }: EditorControls & { publish?: Edito
   const host = useToolHost(tools);
   useEditorKeys(controls, host);
   useEditorClipboard(session, host);
+  usePlayLocale(game, mode === "play");
 
   if (mode === "play") return <EditorPlayBar {...controls} />;
   return (

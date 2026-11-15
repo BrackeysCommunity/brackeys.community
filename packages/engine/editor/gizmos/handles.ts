@@ -309,10 +309,11 @@ function clearSpot(at: Pt, toward: Pt, taken: readonly Pt[], scale: number): Pt 
 
 /**
  * Every handle of one selected target. Normally its shape's handles (or a
- * point's move handle), with its path's waypoints drawn under them, so
- * waypoint 0 sits beneath the move handle, and its behaviors' handles
- * under both, so the entity's own win where they meet. In sub-object mode a path's
- * waypoints and inserts, or else a poly's or chain's vertices and inserts.
+ * point's move handle, under its text when it carries one), with its path's
+ * waypoints drawn under them, so waypoint 0 sits beneath the move handle,
+ * and its behaviors' handles under both, so the entity's own win where they
+ * meet. In sub-object mode a path's waypoints and inserts, or else a poly's
+ * or chain's vertices and inserts.
  */
 export function targetHandles(
   t: GizmoTarget,
@@ -326,7 +327,23 @@ export function targetHandles(
   const behaviors = t.behaviors ? behaviorHandles(t.behaviors, opts.scale) : [];
   if (t.shape) return [...behaviors, ...path, ...shapeHandles(t.shape, opts.scale)];
   if (t.frame) return [...behaviors, ...frameHandles(t.frame, t.box, opts.scale)];
-  return t.at ? [...behaviors, handle("move", "move", t.at, "move")] : behaviors;
+  if (!t.at) return behaviors;
+  const at = t.text ? underText(t.at, t.text, opts.scale) : t.at;
+  return [...behaviors, handle("move", "move", at, "move")];
+}
+
+/** Screen px between a text's box and the move handle under it. */
+const TEXT_GAP_PX = 2;
+
+/**
+ * The spot just under a text's box, in line with its anchor `at` and turned
+ * with it, where a point's move handle covers none of the glyphs. Only the
+ * box's height goes into it, which the editor measures without the strings.
+ */
+function underText(at: Pt, box: Extract<ShapeObj, { type: "box" }>, scale: number): Pt {
+  const [ax] = turn([at[0] - box.cx, at[1] - box.cy], -box.rotDeg);
+  const below = box.hh + (HANDLE_PX / 2 + TEXT_GAP_PX) / scale;
+  return add([box.cx, box.cy], turn([ax, below], box.rotDeg));
 }
 
 /**

@@ -39,8 +39,12 @@ export type DialogueSystem = DialogueContext & {
   unsaveable(): boolean;
   /** The active conversation's state for a world save; undefined with none. */
   save(): JsonValue | undefined;
-  /** Puts a saved conversation back, raising no event: why it couldn't, else null. */
-  restore(state: JsonValue): string | null;
+  /**
+   * Puts a saved conversation back, raising no event: why it couldn't, else
+   * null. Undefined, a save without one, ends whatever conversation the
+   * fresh load started and cuts its voice.
+   */
+  restore(state: JsonValue | undefined): string | null;
   /** Ends any conversation silently, as an unload does. */
   clear(): void;
 };
@@ -192,6 +196,10 @@ export function createDialogueSystem(opts: {
     },
     restore(state) {
       active = null;
+      if (state === undefined) {
+        stopVoice();
+        return null;
+      }
       voiced = false;
       if (!isPlainObject(state) || typeof state.dialogue !== "string" || !("runner" in state)) {
         return "the saved conversation isn't a dialogue system's state";

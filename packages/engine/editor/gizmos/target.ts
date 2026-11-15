@@ -1,9 +1,22 @@
+import { TEXT } from "../../game/behaviors/text";
 import { isNodeTypeIn, NODE_TYPE } from "../../game/primitives";
 import type { Registry } from "../../game/types";
+import { pxPerMetreOf } from "../../game/units";
+import { isPlainObject } from "../../project/kinds/define";
+import { behaviorBlocks } from "../../scene/expand";
 import { entityFrame, instanceTransform } from "../../scene/resolve";
 import { aabb, aabbUnion } from "../../scene/shape-geometry";
+import { textBoxOf } from "../../scene/svg";
 import { asFrame, type Frame } from "../../scene/transform";
-import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../../scene/types";
+import type {
+  Aabb,
+  EntityDef,
+  OpBatch,
+  Pt,
+  Ref,
+  SceneDefinition,
+  ShapeObj,
+} from "../../scene/types";
 import { geometryOfRef } from "../spatial-index";
 import { behaviorGizmo, type BehaviorGizmo } from "./behavior-target";
 import { carryPreview } from "./carry";
@@ -25,6 +38,12 @@ export type GizmoTarget = {
   at?: Pt;
   /** Where `at` is written; an instance has none, since a `move` places it. */
   pointField?: string;
+  /**
+   * The box a point entity's `text` block draws over, its height measured
+   * and its width estimated (the editor has no locale strings): its move
+   * handle sits under it, clear of the glyphs.
+   */
+  text?: Extract<ShapeObj, { type: "box" }>;
   /** The path the shape rides, waypoints in world metres. */
   path?: { field: string; pts: Pt[]; loop: boolean };
   /** Its collider, joint, force area and spawner, when it carries any. */
@@ -50,6 +69,20 @@ export type GizmoTarget = {
 };
 
 const pointBox = ([x, y]: Pt): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
+
+/** Where a point entity's `text` block (its type's default merged with its own) draws at `at`. */
+function textBox(
+  registry: Registry,
+  type: string,
+  at: Pt,
+  entity: EntityDef | undefined,
+): Extract<ShapeObj, { type: "box" }> | undefined {
+  const block = behaviorBlocks(registry, type, entity?.behaviors)[TEXT.name];
+  if (block === undefined) return undefined;
+  const rot = isPlainObject(entity?.transform) ? entity.transform.rot : undefined;
+  const pose = { at, ...(typeof rot === "number" ? { transform: { rot, flip: false } } : {}) };
+  return textBoxOf(block, pose, { pxPerUnit: pxPerMetreOf(registry) })?.shape;
+}
 
 /** The box over `refs`' own geometry in `view`; null when none has any. */
 function subtreeBox(view: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null {
@@ -146,7 +179,15 @@ function ownTarget(
   }
   if (g.at && g.pointField) {
     const f = isNodeTypeIn(registry, g.type) ? frameOfRef(def, registry, ref, source) : undefined;
-    return { ...base, at: g.at, pointField: g.pointField, ...(f ? { frame: f } : {}) };
+    const entity = g.bulk ? undefined : (def.entities ?? []).find((e) => e.id === ref);
+    const text = f ? undefined : textBox(registry, g.type, g.at, entity);
+    return {
+      ...base,
+      at: g.at,
+      pointField: g.pointField,
+      ...(f ? { frame: f } : {}),
+      ...(text ? { text } : {}),
+    };
   }
   return undefined;
 }

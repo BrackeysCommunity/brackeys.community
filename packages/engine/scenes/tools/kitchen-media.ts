@@ -11,47 +11,25 @@
  * writes the three files into `<dir>`, for `vp run scene assets import`.
  */
 
+import { pcmWav, triangleLevel } from "../../audio/wav";
+import { pngFile, zlibStream } from "../../export/png-write";
+
 /** A generated file: its path inside the engine project, and its bytes. */
 export type KitchenMediaFile = { path: string; bytes: Uint8Array };
 
 const CLIP_RATE = 22_050;
 const CLIP_FRAMES = 3_300;
 
-const le = (value: number, bytes: number) =>
-  Array.from({ length: bytes }, (_, i) => Math.floor(value / 256 ** i) % 256);
-const be = (value: number, bytes: number) => le(value, bytes).reverse();
-const ascii = (text: string) => [...text].map((c) => c.charCodeAt(0));
-
-/** A triangle wave of `period` samples at `phase`, from -full to full. */
-function triangle(phase: number, period: number, full: number): number {
-  const at = phase % period;
-  const rise = at < period / 2 ? at : period - at;
-  return Math.floor((rise * 4 * full) / period) - full;
-}
-
 /** 16-bit mono PCM: two triangle partials under a squared decay. */
 export function clinkWav(): Uint8Array {
   const full = 2 ** 15 - 1;
-  const data: number[] = [];
+  const samples = new Int16Array(CLIP_FRAMES);
   for (let i = 0; i < CLIP_FRAMES; i++) {
     const left = CLIP_FRAMES - i;
-    const mix = triangle(i, 17, full) * 3 + triangle(i, 23, full) * 2;
-    const level = Math.trunc((mix * left * left) / (5 * CLIP_FRAMES * CLIP_FRAMES) / 2);
-    data.push(...le(level < 0 ? level + 65_536 : level, 2));
+    const mix = triangleLevel(i, 17, full) * 3 + triangleLevel(i, 23, full) * 2;
+    samples[i] = Math.trunc((mix * left * left) / (5 * CLIP_FRAMES * CLIP_FRAMES) / 2);
   }
-  const fmt = [...le(1, 2), ...le(1, 2), ...le(CLIP_RATE, 4), ...le(CLIP_RATE * 2, 4)];
-  const body = [
-    ...ascii("WAVE"),
-    ...ascii("fmt "),
-    ...le(16, 4),
-    ...fmt,
-    ...le(2, 2),
-    ...le(16, 2),
-    ...ascii("data"),
-    ...le(data.length, 4),
-    ...data,
-  ];
-  return new Uint8Array([...ascii("RIFF"), ...le(body.length, 4), ...body]);
+  return pcmWav({ channels: 1, sampleRate: CLIP_RATE, bits: 16, samples });
 }
 
 /**
@@ -187,41 +165,17 @@ function pageSize(count: number) {
   return { width: PAGE_COLUMNS * PITCH_X, height: Math.ceil(count / PAGE_COLUMNS) * PITCH_Y };
 }
 
-function crc32(bytes: readonly number[]): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let k = 0; k < 8; k++) crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function adler32(bytes: readonly number[]): number {
-  let a = 1;
-  let b = 0;
-  for (const byte of bytes) {
-    a = (a + byte) % 65_521;
-    b = (b + a) % 65_521;
-  }
-  return (b * 65_536 + a) >>> 0;
-}
-
-/** A zlib stream of stored deflate blocks: no compression, so no encoder to drift. */
-function zlibStored(raw: readonly number[]): number[] {
-  const out = [0x78, 0x01];
+/** Stored (uncompressed) deflate blocks of `raw`: no encoder to drift. */
+function deflateStored(raw: Uint8Array): number[] {
+  const out: number[] = [];
   const max = 65_535;
   for (let at = 0; at < raw.length; at += max) {
-    const block = raw.slice(at, at + max);
+    const block = raw.subarray(at, at + max);
+    const n = block.length;
     const last = at + max >= raw.length ? 1 : 0;
-    out.push(last, ...le(block.length, 2), ...le(block.length ^ 0xffff, 2), ...block);
+    out.push(last, n & 0xff, n >>> 8, ~n & 0xff, (~n >>> 8) & 0xff, ...block);
   }
-  out.push(...be(adler32(raw), 4));
   return out;
-}
-
-function pngChunk(tag: string, body: readonly number[]): number[] {
-  const typed = [...ascii(tag), ...body];
-  return [...be(body.length, 4), ...typed, ...be(crc32(typed), 4)];
 }
 
 /** The font's page: white glyphs on transparent, 8-bit grey and alpha. */
@@ -234,19 +188,14 @@ export function kitchenFontPng(): Uint8Array {
       for (let dx = 0; dx < row.length; dx++)
         if (row[dx] === "#") lit[(g.y + dy) * width + g.x + dx] = 1;
     });
-  const raw: number[] = [];
-  for (let y = 0; y < height; y++) {
-    raw.push(0);
-    for (let x = 0; x < width; x++) raw.push(255, lit[y * width + x] ? 255 : 0);
-  }
-  const header = [...be(width, 4), ...be(height, 4), 8, 4, 0, 0, 0];
-  return new Uint8Array([
-    0x89,
-    ...ascii("PNG\r\n\x1a\n"),
-    ...pngChunk("IHDR", header),
-    ...pngChunk("IDAT", zlibStored(raw)),
-    ...pngChunk("IEND", []),
-  ]);
+  const raw = new Uint8Array(height * (1 + width * 2));
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const at = y * (1 + width * 2) + 1 + x * 2;
+      raw[at] = 255;
+      raw[at + 1] = lit[y * width + x] ? 255 : 0;
+    }
+  return pngFile({ width, height, bitDepth: 8, colorType: 4, zlib: zlibStream(deflateStored(raw), raw) });
 }
 
 /** The font's BMFont text file, its page named beside it. */

@@ -7,10 +7,13 @@ import { renderSynth, synthDurationMs, SYNTH_SAMPLE_RATE } from "../audio/synth"
 import { createAudioSystem, type AudioSystemOptions } from "../audio/system";
 import { soundTriggers } from "../audio/triggers";
 import type { AudioClipHandle, Voice, VoiceOptions } from "../audio/types";
+import { tryWebAudioBackend } from "../audio/web-audio";
+import type { BehaviorSystem } from "../game/behaviors";
+import type { AudioBlock, AudioHandle } from "../game/behaviors/audio";
 import { defineEntityType, createRegistry, defineGame } from "../game/define";
 import { tagsField } from "../game/fields";
 import { primitiveFields } from "../game/primitives";
-import type { GameDefinition, Registry } from "../game/types";
+import type { EngineContext, GameDefinition, Registry } from "../game/types";
 import { createHeadlessRuntime } from "../headless/headless";
 import { memoryRuntimeView } from "../headless/runtime-view";
 import { browserPrefsStore, memoryPrefsStore, PREF_KEYS, snapshotPrefsStore } from "../prefs";
@@ -21,6 +24,7 @@ import type { SynthFile } from "../project/kinds/synth";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry, AssetId } from "../project/types";
 import { projectView } from "../project/view";
+import { audioVoiceKey, createAudioBehaviorSystem } from "../runtime/behaviors/audio";
 import type { Pose } from "../runtime/poses";
 import type { AudioRequest } from "../runtime/present";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -584,6 +588,37 @@ describe("the audio system", () => {
     ]);
   });
 
+  it("plays an audio block's one-shot again on each play through its handle", () => {
+    const r = rig(
+      audioProject({ sound: { s: sound({ variants: [{ clip: "p" }] }) }, synth: { p: patch() } }),
+    );
+    const asked: AudioRequest[] = [];
+    const ctx = {
+      present: {
+        audio: {
+          play: (sound: string, o: object = {}) =>
+            void asked.push({ op: "play", sound, ...o } as AudioRequest),
+          stop: (key: string) => void asked.push({ op: "stop", key }),
+        },
+      },
+    } as unknown as EngineContext;
+    const behavior = createAudioBehaviorSystem(ctx, {} as never) as BehaviorSystem<AudioBlock>;
+    behavior.attach("e", { sound: "s", playing: false }, { id: "e", type: "marker" });
+    const handle = behavior.handle!("e") as AudioHandle;
+
+    handle.play();
+    r.system.tick(1, [], asked.splice(0));
+    r.backend.advance(1);
+    handle.play();
+    r.system.tick(2, [], asked.splice(0));
+    expect(plays(r.backend.log)).toHaveLength(2);
+    expect(plays(r.backend.log).map((p) => p.opts.key)).toEqual([
+      audioVoiceKey("e"),
+      audioVoiceKey("e"),
+    ]);
+    expect(handle.playing).toBe(true);
+  });
+
   it("decodes an audio clip once, then plays it, and a stopAll cancels a play still decoding", async () => {
     const r = rig(audioProject({ sound: { s: sound({ variants: [{ clip: "c" }] }) } }, ["c"]));
     r.system.tick(1, [], [playReq("s")]);
@@ -894,11 +929,12 @@ describe("snapshotPrefsStore", () => {
     vi.useFakeTimers();
     try {
       const saved: unknown[] = [];
-      const store = snapshotPrefsStore({ "audio.music": { volume: 0.5, muted: false } }, (id, p) =>
-        saved.push([id, p]),
+      const store = snapshotPrefsStore(
+        { "audio.bus.music": { volume: 0.5, muted: false } },
+        (id, p) => saved.push([id, p]),
       );
-      expect(store.load("g")).toEqual({ "audio.music": { volume: 0.5, muted: false } });
-      store.save("g", { "audio.music": { volume: 0.4, muted: false } });
+      expect(store.load("g")).toEqual({ "audio.bus.music": { volume: 0.5, muted: false } });
+      store.save("g", { "audio.bus.music": { volume: 0.4, muted: false } });
       store.save("g", { "audio.music": { volume: 0.3, muted: false } });
       expect(store.load("g")).toEqual({ "audio.music": { volume: 0.3, muted: false } });
       expect(saved).toEqual([]);
@@ -907,6 +943,26 @@ describe("snapshotPrefsStore", () => {
       expect(snapshotPrefsStore([1], () => {}).load("g")).toEqual({});
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("tryWebAudioBackend", () => {
+  it("is false where the browser has no Web Audio or its context can't start", () => {
+    expect(typeof globalThis.AudioContext).toBe("undefined");
+    expect(tryWebAudioBackend()).toBe(false);
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        constructor() {
+          throw new DOMException("no device", "NotSupportedError");
+        }
+      },
+    );
+    try {
+      expect(tryWebAudioBackend()).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

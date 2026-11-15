@@ -1,4 +1,4 @@
-import { ArrowDown01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, ArrowRight01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import {
   useEffect,
   useRef,
@@ -8,12 +8,14 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { z } from "zod";
 
 import type { Pt } from "../../../editor/index";
 import { lengthStep, parseRelative, type InspectorRow } from "../../../editor/inspector-model";
 import { DEFAULT_LENGTH_UNIT } from "../../../game/defaults";
 import { STRING_KEY_PATTERN } from "../../../project/kinds/strings";
 import { fieldKind } from "../../../scene/index";
+import { unwrapSchema } from "../../../scene/schema";
 import { LENGTH_UNITS, roundLength, type LengthUnitName } from "../../../scene/units";
 import { STORAGE_PREFIX } from "../../host";
 import { formatQuantity } from "../../kit/format";
@@ -26,6 +28,7 @@ import {
   ComboboxList,
   Hint,
   Icon,
+  IconButton,
   Input,
   MicroLabel,
   SegmentedControl,
@@ -34,6 +37,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Slider,
   Spinner,
   Switch,
   useKit,
@@ -541,6 +545,80 @@ export function NumberField({
   );
 }
 
+/** Whether `row` is a number with both a least and a most value, as a slider draws it. */
+export const isBoundedNumber = (row: Pick<InspectorRow, "widget">): boolean =>
+  row.widget.kind === "number" && row.widget.min !== undefined && row.widget.max !== undefined;
+
+/**
+ * A bounded number (`isBoundedNumber`): a slider over its range that writes
+ * on release, the typed value, and a unit slot of one width in every row,
+ * so the value boxes line up whether or not a row has a unit. An unset
+ * field sits at its default, else `fallback`, else 0.
+ */
+export function SliderField({
+  field,
+  commit,
+  scope,
+  label: name,
+  fallback,
+}: Pick<FieldWidgetProps, "field" | "commit" | "scope" | "label"> & {
+  /** What an unset field with no schema default plays as. */
+  fallback?: number;
+}) {
+  const w = field.widget as NumberWidget;
+  const min = w.min ?? 0;
+  const max = w.max ?? 1;
+  const [drag, setDrag] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const label = name ?? field.path;
+  const value = typeof field.value === "number" ? field.value : undefined;
+  const rest = typeof field.defaultValue === "number" ? field.defaultValue : fallback;
+  const shown = drag ?? value ?? Math.min(max, Math.max(min, rest ?? 0));
+  const unset =
+    field.defaultValue === undefined && rest !== undefined
+      ? `${shownNumber(rest, w.decimals)} (default)`
+      : unsetText(field);
+  const write = (input: unknown) => settle(commit(input), setError);
+  return (
+    <FieldRow field={field} scope={scope} error={error}>
+      <div className="je-insp-row je-insp-slider" data-gap="tight">
+        <Slider
+          aria-label={`${label} slider`}
+          min={min}
+          max={max}
+          step={w.step}
+          value={shown}
+          onValueChange={(v) => setDrag(Array.isArray(v) ? (v[0] ?? null) : v)}
+          onValueCommitted={(v) => {
+            setDrag(null);
+            const n = Array.isArray(v) ? v[0] : v;
+            if (typeof n === "number" && n !== value) write(n);
+          }}
+        />
+        <NumberInput
+          label={label}
+          value={value}
+          unset={unset}
+          mixed={field.mixed}
+          step={w.step}
+          bigStep={w.bigStep}
+          decimals={w.decimals}
+          preview={drag === null ? null : String(drag)}
+          onCommit={(text) =>
+            text.trim() === "" && field.optional ? commit(undefined) : commit(text)
+          }
+        />
+        <span
+          className="je-insp-suffix je-insp-slider-unit"
+          aria-hidden={w.unit ? undefined : true}
+        >
+          {w.unit ?? ""}
+        </span>
+      </div>
+    </FieldRow>
+  );
+}
+
 /** Degrees: a dial (snapping to `snapDeg`, Shift for free) beside the field. */
 export function AngleField({ field, commit, unset, scope, disabled }: FieldWidgetProps) {
   const w = field.widget as Extract<InspectorRow["widget"], { kind: "angle" }>;
@@ -621,8 +699,15 @@ export function OptionsField({
   options,
   segmented,
   label,
-}: FieldWidgetProps & { options: readonly FieldOption[]; segmented: boolean }) {
-  const [error, setError] = useState<string | null>(null);
+  problem = null,
+}: FieldWidgetProps & {
+  options: readonly FieldOption[];
+  segmented: boolean;
+  /** What is wrong with the value as it stands, in the error slot until an edit's own error. */
+  problem?: string | null;
+}) {
+  const [own, setError] = useState<string | null>(null);
+  const error = own ?? problem;
   // An optional side's unset state is a choice of its own, so it gets a segment.
   const anySide = segmented && field.optional && fieldKind(field.schema) === "side";
   const set = typeof field.value === "string" || typeof field.value === "number";
@@ -856,6 +941,165 @@ export function ReadonlyField({
   return (
     <FieldRow field={field} {...(hint !== undefined ? { hint } : {})}>
       <span className="je-insp-line je-sp-truncate">{text}</span>
+    </FieldRow>
+  );
+}
+
+// ─── Flat records ────────────────────────────────────────
+
+type Flat = string | number | boolean | null;
+
+const isFlat = (v: unknown): v is Flat =>
+  v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+
+/** A record's value schema when it takes some string, number, boolean or null; null for any other schema. */
+const recordValueType = (schema: z.ZodType): z.ZodType | null => {
+  const inner = unwrapSchema(schema);
+  if (!(inner instanceof z.ZodRecord)) return null;
+  const values = inner.valueType as z.ZodType;
+  return ["x", 0, true, null].some((v) => values.safeParse(v).success) ? values : null;
+};
+
+/** Whether `row` is a record whose every value is a string, number, boolean or null, as `RecordField` edits it. */
+export function isFlatRecord(row: Pick<InspectorRow, "schema" | "value" | "mixed">): boolean {
+  if (row.mixed || !recordValueType(row.schema)) return false;
+  if (row.value === undefined) return true;
+  return (
+    row.value !== null &&
+    typeof row.value === "object" &&
+    !Array.isArray(row.value) &&
+    Object.values(row.value).every(isFlat)
+  );
+}
+
+/** A typed value: JSON's number, boolean or null, or a quoted string, where the record takes it; else the text. */
+function flatValue(text: string, valueType: z.ZodType): Flat {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (isFlat(parsed) && valueType.safeParse(parsed).success) return parsed;
+  } catch {
+    // Not JSON: the text itself.
+  }
+  return text;
+}
+
+/** A value as it is typed back: a string as it reads, unless typing it would give another type. */
+const flatText = (value: Flat, valueType: z.ZodType): string =>
+  typeof value === "string" && flatValue(value, valueType) === value
+    ? value
+    : JSON.stringify(value);
+
+/** One entry's key or value: a draft committed on Enter or blur, dropped on Escape. */
+function RecordInput({
+  label,
+  value,
+  placeholder,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onCommit: (text: string, by: "enter" | "blur") => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const run = (by: "enter" | "blur") => {
+    if (draft === null) return;
+    setDraft(null);
+    if (draft !== value) onCommit(draft, by);
+  };
+  return (
+    <Input
+      aria-label={label}
+      placeholder={placeholder}
+      value={draft ?? value}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => run("blur")}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") run("enter");
+        else if (e.key === "Escape") setDraft(null);
+      }}
+    />
+  );
+}
+
+/**
+ * A flat record (`isFlatRecord`) as key and value rows, each with a remove,
+ * and a row to add one. Every change commits the whole record; the last
+ * key removed unsets an optional field.
+ */
+export function RecordField({
+  field,
+  commit,
+  scope,
+}: Pick<FieldWidgetProps, "field" | "commit" | "scope">) {
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState({ key: "", value: "" });
+  const valueType = recordValueType(field.schema) ?? z.unknown();
+  const entries = Object.entries((field.value ?? {}) as Record<string, Flat>);
+  const write = (next: [string, Flat][]) =>
+    settle(
+      commit(next.length === 0 && field.optional ? undefined : Object.fromEntries(next)),
+      setError,
+    );
+  const rename = (from: string, to: string) => {
+    const key = to.trim();
+    if (key === "") return setError("A key can't be empty.");
+    if (key !== from && entries.some(([k]) => k === key))
+      return setError(`There is already a key "${key}".`);
+    write(entries.map(([k, v]) => [k === from ? key : k, v]));
+  };
+  const add = (draft: { key: string; value: string }) => {
+    setAdding(draft);
+    const key = draft.key.trim();
+    if (key === "") return;
+    if (entries.some(([k]) => k === key)) return setError(`There is already a key "${key}".`);
+    setAdding({ key: "", value: "" });
+    write([...entries, [key, flatValue(draft.value, valueType)]]);
+  };
+  return (
+    <FieldRow field={field} scope={scope} error={error}>
+      <div className="je-insp-stack" data-gap="tight" role="group" aria-label={field.path}>
+        {entries.map(([key, value]) => (
+          <div key={key} className="je-insp-row je-insp-record" data-gap="tight">
+            <RecordInput
+              label={`${field.path} key ${key}`}
+              value={key}
+              onCommit={(text) => rename(key, text)}
+            />
+            <RecordInput
+              label={`${field.path}.${key}`}
+              value={flatText(value, valueType)}
+              onCommit={(text) =>
+                write(entries.map(([k, v]) => [k, k === key ? flatValue(text, valueType) : v]))
+              }
+            />
+            <IconButton
+              size="icon-xs"
+              icon={Delete02Icon}
+              label={`Remove ${key}`}
+              tooltip="Remove the key"
+              onClick={() => write(entries.filter(([k]) => k !== key))}
+            />
+          </div>
+        ))}
+        <div className="je-insp-row je-insp-record" data-gap="tight">
+          <RecordInput
+            label={`${field.path} new key`}
+            value={adding.key}
+            placeholder="Add a key"
+            onCommit={(text, by) =>
+              by === "enter" ? add({ ...adding, key: text }) : setAdding({ ...adding, key: text })
+            }
+          />
+          <RecordInput
+            label={`${field.path} new value`}
+            value={adding.value}
+            placeholder="Value"
+            onCommit={(text) => add({ ...adding, value: text })}
+          />
+          <span className="je-insp-record-spacer" aria-hidden />
+        </div>
+      </div>
     </FieldRow>
   );
 }
@@ -1131,6 +1375,8 @@ export type StringKeyTable = {
   text: (key: string) => string | undefined;
   /** Why `key` falls short: no text in some locale, by the one string-key rule. */
   problem: (key: string) => NameProblem | null;
+  /** The default locale's font, which text with no font of its own draws in. */
+  font?: string;
 };
 
 const isStringKey = (text: string) => STRING_KEY_PATTERN.test(text);

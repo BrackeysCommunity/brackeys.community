@@ -1,5 +1,5 @@
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
-import type { AudioBlock, AudioHandle } from "../../game/behaviors/audio";
+import { AUDIO, type AudioBlock, type AudioHandle } from "../../game/behaviors/audio";
 import type { JsonValue } from "../../game/types";
 
 /** What the audio behavior's system answers by entity id; its handle reaches these. */
@@ -10,7 +10,7 @@ export type AudioBehaviorSystem = BehaviorSystem<AudioBlock> & {
 };
 
 /** The key an entity's `audio` sound plays under, which its `stop` names. */
-export const audioVoiceKey = (entityId: string): string => `${entityId}#audio`;
+export const audioVoiceKey = (entityId: string): string => `${entityId}#${AUDIO.name}`;
 
 type Attached = { block: AudioBlock; playing: boolean };
 
@@ -21,8 +21,9 @@ const playsFromAttach = (block: AudioBlock): boolean => block.playing !== false;
  * never headless, and it only writes presentation requests. Attach plays the
  * block's sound keyed by the entity (looping as the sound says, panned from
  * the entity's world pose when the sound is positional), detach stops it,
- * and a block change does both. What the handle starts or stops is saved
- * when it differs from the block, so a world save or a live swap puts it back.
+ * and a block change does both. The handle's `play` asks again each time, so
+ * a one-shot replays. What the handle starts or stops is saved when it
+ * differs from the block, so a world save or a live swap puts it back.
  */
 export const createAudioBehaviorSystem: BehaviorSystemFactory = (ctx) => {
   const attached = new Map<string, Attached>();
@@ -64,7 +65,9 @@ export const createAudioBehaviorSystem: BehaviorSystemFactory = (ctx) => {
     detach: hide,
     play(id) {
       const a = attached.get(id);
-      if (a && !a.playing) start(id, a);
+      if (!a) return;
+      if (a.playing) ctx.present.audio.stop(audioVoiceKey(id));
+      start(id, a);
     },
     stop(id) {
       const a = attached.get(id);
@@ -77,12 +80,14 @@ export const createAudioBehaviorSystem: BehaviorSystemFactory = (ctx) => {
       return { playing: a.playing };
     },
     restore(id, state) {
+      const a = attached.get(id);
       const playing =
-        state !== null && typeof state === "object" && !Array.isArray(state)
+        typeof state === "object" && state !== null && !Array.isArray(state)
           ? state.playing
           : undefined;
-      if (playing === true) system.play(id);
-      else if (playing === false) system.stop(id);
+      if (!a || typeof playing !== "boolean" || a.playing === playing) return;
+      if (playing) start(id, a);
+      else halt(id, a);
     },
     handle: (id): AudioHandle => ({
       play: () => system.play(id),

@@ -6658,21 +6658,14 @@ Refers to [`AssetEntry`](#assetentry), [`InspectEnv`](#inspectenv), [`InspectRes
 
 _function_ in `project/bundle.ts`
 
-The bundle of an expanded scene: every asset field of its entities
-(instances resolved and defaults applied, so an id only a type's or a
-behavior's default names counts), its settings' asset fields, and the
-`assets` headers of `def` and of every prefab it reaches
-(`prefabsUsedBy`: nesting and variant bases included), with each asset's
-own references followed. A prefab a field names (a spawner's `prefab`)
-that `prefabs` holds brings its children's asset fields and its header
-too, and so on through what those name (`namedPrefabs`). Entries are the
-textures and fonts among them, sorted by id, each once. A reference no live asset
-of its kinds resolves, or a texture or font with no content, is `asset-missing`
-with the closest live id; a texture whose entry records a hash but no
-size is left out and is `asset-missing` too, saying so. With `docs`, a
-runtime doc a field names (an `anim`'s animation) is followed into the
-blobs its kind's `bundleRefs` name; blobs reached only through runtime
-docs no field names stay out, and load on demand.
+The textures and fonts an expanded scene needs, sorted by id, each once:
+every asset field after instances and defaults, its settings, the
+`assets` headers of `def` and every prefab it reaches, what named prefabs
+(a spawner's `prefab`) bring, and what those assets reference. A reference
+nothing live resolves, a texture or font with no content, or a texture
+with a hash but no size is `asset-missing` with the closest live id. With
+`docs`, a runtime doc a field names is followed through its kind's
+`bundleRefs`; blobs reached only through docs no field names load on demand.
 
 ```ts
 declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry, docs?: BundleDocs): {
