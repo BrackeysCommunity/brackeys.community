@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 
-import { colliderOutlines, pathFollowPath } from "../../../editor/gizmos/behavior-marks";
+import {
+  colliderOutlines,
+  jointKindOf,
+  pathFollowPath,
+} from "../../../editor/gizmos/behavior-marks";
 import {
   behaviorMarks,
   gizmoTarget,
@@ -9,6 +13,7 @@ import {
   type Pt,
   type ToolOverlay,
 } from "../../../editor/index";
+import { jointGlyph } from "../../../scene/render-geometry";
 import { useEditorResolved, useEditorStore } from "../../session/use-editor-store";
 import { sessionSource } from "./tool-host";
 import { num, polylinePath, shapePath, worldPx, type View } from "./view";
@@ -19,6 +24,8 @@ const HEAD_PX = 8;
 const CHEVRON_PX = 5;
 /** Screen px radius of a path-follow waypoint's dot. */
 const WAYPOINT_PX = 3;
+/** Screen px radius of the disc a joint's kind glyph sits on. */
+const JOINT_GLYPH_PX = 7;
 /** How strongly an unselected entity's collider outline draws. */
 const FAINT_OPACITY = 0.4;
 
@@ -104,7 +111,7 @@ export function ColliderOutlines({
 /**
  * The selected entity's behavior gizmo, under the tool's handles: its
  * collider's outline (dashed for a sensor), its joint's line to the entity
- * it links and between its anchors, its path-follow path and waypoints, its
+ * it links and between its anchors with its kind's glyph, its path-follow path and waypoints, its
  * force area's arrow or strength ring, its spawner's spread ring and
  * velocity arrow. The marks follow the host's handles, so a drag in
  * progress draws where it is before it commits.
@@ -135,6 +142,10 @@ export function BehaviorMarks({
     () => (only === undefined ? undefined : pathFollowPath(doc, session.registry, only)),
     [doc, session, only],
   );
+  const jointKind = useMemo(
+    () => (only === undefined ? undefined : jointKindOf(doc, session.registry, only)),
+    [doc, session, only],
+  );
   if (!target || (!target.behaviors && !path)) return null;
   const handles = overlay.handles ?? [];
   const was = targetHandles(target, { scale: view.scale }).find((h) => h.id === "move")?.at;
@@ -145,6 +156,13 @@ export function BehaviorMarks({
     : { outlines: [], lines: [], arrows: [], rings: [] };
   const dot = worldPx(view, WAYPOINT_PX);
   const waypoints = path?.pts.map((p): Pt => [p[0] + shift[0], p[1] + shift[1]]) ?? [];
+  // On the anchors' line when it draws, else on the link to the partner.
+  const jointLine = marks.lines.find((l) => l.kind === "anchors") ?? marks.lines[0];
+  const glyphAt: Pt | undefined =
+    jointKind === undefined || !jointLine
+      ? undefined
+      : [(jointLine.from[0] + jointLine.to[0]) / 2, (jointLine.from[1] + jointLine.to[1]) / 2];
+  const glyphR = worldPx(view, JOINT_GLYPH_PX);
   return (
     <g
       data-behavior-marks=""
@@ -198,6 +216,29 @@ export function BehaviorMarks({
           vectorEffect="non-scaling-stroke"
         />
       ))}
+      {glyphAt && jointKind !== undefined ? (
+        <g data-joint-glyph={jointKind}>
+          <circle
+            cx={num(glyphAt[0])}
+            cy={num(glyphAt[1])}
+            r={glyphR}
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+            style={{ fill: "var(--je-bg)" }}
+          />
+          <text
+            x={num(glyphAt[0])}
+            y={num(glyphAt[1])}
+            fontSize={glyphR * 1.4}
+            textAnchor="middle"
+            dominantBaseline="central"
+            stroke="none"
+            style={{ fill: "var(--je-info)" }}
+          >
+            {jointGlyph(jointKind).mark}
+          </text>
+        </g>
+      ) : null}
       {marks.arrows.map((a, i) => (
         <path
           key={`arrow-${i}`}

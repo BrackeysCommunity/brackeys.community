@@ -135,9 +135,9 @@
 <path data-one-way="latch-3/bar" data-side="up" d="M3420 1140L3500 1140"/>
 </g>
 <g id="joints" fill="none" stroke="#c792ea" stroke-width="3.38">
-<g data-joint="std-joint" data-kind="revolute" data-to="std-collider"><path d="M1600 310L1600 310"/><circle cx="1600" cy="310" r="13.5" fill="#101218"/><text x="1600" y="317.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">j</text></g>
-<g data-joint="hinged-door" data-kind="revolute" data-to="lintel"><path d="M190 440L190 440"/><circle cx="190" cy="440" r="13.5" fill="#101218"/><text x="190" y="447.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">j</text></g>
-<g data-joint="peg" data-kind="rope" data-to="bob"><path d="M420 420L480 420"/><circle cx="450" cy="420" r="13.5" fill="#101218"/><text x="450" y="427.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">j</text></g>
+<g data-joint="std-joint" data-kind="revolute" data-to="std-collider"><path d="M1600 310L1600 310"/><circle cx="1600" cy="310" r="13.5" fill="#101218"/><text x="1600" y="317.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">○</text></g>
+<g data-joint="hinged-door" data-kind="revolute" data-to="lintel"><path d="M190 440L190 440"/><circle cx="190" cy="440" r="13.5" fill="#101218"/><text x="190" y="447.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">○</text></g>
+<g data-joint="peg" data-kind="rope" data-to="bob"><path d="M420 420L480 420"/><circle cx="450" cy="420" r="13.5" fill="#101218"/><text x="450" y="427.2" font-size="20.25" text-anchor="middle" fill="#c792ea" stroke="none">~</text></g>
 </g>
 <g id="sprites" fill="none" stroke-width="2.81" stroke-dasharray="9 6.75">
 <path data-sprite="ledge" data-asset="hero" data-frame="hero-1" d="M740 890L900 890L900 910L740 910Z" stroke="#8899aa"/>

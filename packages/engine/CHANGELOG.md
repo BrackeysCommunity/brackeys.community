@@ -19,45 +19,60 @@ surface 26) are not yet confirmed by the owner.
   a body by a kinematic anchor (no collider) and a rest-length-0 spring at
   the body-local point under `at`; `stiffness` default 200 N/m, `damping`
   default 20 N·s/m, `maxForce` (N) caps spring plus damping together by
-  placing the anchor; `release()` is idempotent; a destroyed body or
-  replaced world releases on the next `update`; throws `physics-required`
-  outside Rapier, `body-missing` for an entity with no body, and `schema`
-  for a `stiffness` or `maxForce` not above 0 or a negative `damping`.
+  placing the anchor; `release()` is idempotent; a destroyed body, a
+  replaced world or an entity that no longer owns the body releases on the
+  next `update`; a live drag survives a world snapshot and restore and a
+  replay seek; throws `physics-required` outside Rapier, `body-missing` for
+  an entity with no body, and `schema` for a `stiffness` or `maxForce` not
+  above 0 or a negative `damping`.
 - `bodyOf(ctx, physics, id)` (`./game`): the body holding an entity's first
   enabled non-sensor collider, the one rule the joint behavior and the drag
   joint find an entity's body by.
 - `decomposePolygon`, `decomposeBatch`, `canDecompose`, `splittableSite`
-  and the `DecomposeResult`, `ShapeSite` and `SplittableSite` types
-  (`./scene`): splitting a concave `poly` into convex pieces.
-  `splittableSite(registry, entity)` is the one rule for which shape splits
-  (the entity's first simple concave `poly` over its type's shape fields and
-  its behavior blocks, never a polygon field such as a nav area's, judged at
-  the game's px per metre), shared by `decomposeBatch`, `poly-invalid`, the
-  editor and the CLI's area check. `decomposeBatch` refuses with
-  `op-invalid`, naming the referrers, while a joint or another behavior
-  names the entity, since the pieces take new ids. `DecomposeResult` carries
-  each piece's `pieceArea2`.
+  and the `DecomposeOptions`, `DecomposeResult`, `DecomposeBatchResult`,
+  `ShapeSite` and `SplittableSite` types (`./scene`): splitting a concave
+  `poly` into convex pieces. `splittableSite(registry, entity)` is the one rule for
+  which shape splits (the entity's first simple concave `poly` over its
+  type's shape fields and its behavior blocks, never a polygon field such
+  as a nav area's, judged at the game's px per metre), shared by
+  `decomposeBatch`, `poly-invalid`, the editor and the CLI's area check.
+  A point off the game's whole-px grid is refused (`poly-invalid`, snap it
+  first) rather than moved, and pieces hold the caller's own points.
+  `decomposeBatch` refuses with `op-invalid`, naming the
+  referrers, while a joint or another behavior names the entity, since the
+  pieces take new ids, and refuses `group: true` with `parent-type` when
+  the game has no node type to hold the pieces. `DecomposeResult` and
+  `DecomposeBatchResult` carry each piece's `pieceArea2`.
 - Schematic renders draw joints: `renderSceneSvg` draws a line from the
   entity's anchorA to the `to` entity's anchorB (or the point under
-  anchorA) with a `j` glyph at the midpoint; `renderSceneAscii` draws the
-  line in `-` with `j` at its middle. `scene show` lists joints
-  (`id  kind  id ↔ to`) and its JSON carries `joints: [{ id, kind, to }]`.
+  anchorA) with the joint kind's glyph at the midpoint; `renderSceneAscii`
+  draws the line in `-` with the kind's letter at its middle. The editor's
+  joint line carries the same glyph. One glyph per kind (SVG and editor /
+  ASCII): revolute `○` / `R`, prismatic `↔` / `P`, rope `~` / `O`, weld
+  `■` / `W`, spring `≈` / `Z`; an unknown kind draws `j`. `scene show`
+  lists joints (`id  kind  id ↔ to`) and its JSON carries
+  `joints: [{ id, kind, to }]`.
 - The inspector's shape widget offers "Split into convex pieces" beside the
   type row of the one shape `splittableSite` would split: one batch, one
   undo step, with the editor's pending feedback and the refusal's message as
   a toast (inline outside an editor, cleared when the selection changes).
-  It lives in the inspector only: the editor has no entity context menu.
-  `splitConvex(session, id, { group })` and
-  `canSplitConvex(def, id, registry)` in `@jams/engine/editor`.
+  The spec's context-menu entry isn't built, since the editor has no entity
+  context menu. `splitConvex(session, id, { group })` and
+  `canSplitConvex(def, id, registry)` in `@jams/engine/editor`;
+  `canSplitConvex` is `decomposeBatch`'s own check, so a shape another
+  entity's ref still names isn't offered.
 - The physics-sandbox genre probe: a motorised crane of revolute joints, a
   rope bridge, a concave bin split with `decomposeBatch` before load, and
   three runtime-spawned crates dragged by a recorded pointer
   (`createDragJoint`) into a goal sensor, with crate contacts counted. Its
   genre pin is new; every existing pin and the platformer's golden traces
   are unchanged.
-- The kitchen sink gains joints: hinged-door, a body hinged to the lintel
-  whose revolute limits stop it at ±0.5 rad, and bob, a prop on a 1 m rope
-  from the static peg; the sink's goldens draw both.
+- The kitchen sink gains joints and a concave shape: hinged-door, a body
+  hinged to the lintel whose revolute limits stop it at ±0.5 rad; bob, a
+  prop on a 1 m rope from the static peg; and an L-shaped solid ledge
+  whose concave `poly` offers the split. Its golden SVG and ASCII draw the
+  three joints (std-joint, hinged-door, peg) with their kind glyphs, and
+  the ledge.
 
 ### Changed
 
@@ -70,23 +85,23 @@ surface 26) are not yet confirmed by the owner.
   path-follow movers, character controllers and children under a moving
   parent, with and without look-ahead, at 50/75/90/120/144/165 Hz frames
   (±2 ms jitter) against the 60 Hz tick, and through frames that run zero
-  or two ticks. A teleport (`ctx.setPose` with `snap`) is one jump with no
-  lerped streak: the pose index marks it (`teleports`), sprites, texts and
-  body-drawn shapes redraw at it on that frame and ease on from it, and a
-  camera whose every target teleported jumps with them keeping its lag. A
-  replay seek snaps the cameras. Any teleport (a `ctx.setPose` snap, a
-  spawn, a restore or a live swap) clears `prev` and snaps the rig. The browser smoke records a followed prop's
-  drawn x over 120 settled frames in Chromium, Firefox and WebKit and fails
-  a step of 0.5 px or more.
+  or two ticks. A teleport (a `ctx.setPose` snap, a spawn, or what a live
+  swap re-posed) clears `prev`, so it is one jump with no lerped streak:
+  the pose index marks it (`teleports`), sprites, texts and body-drawn
+  shapes redraw at it on that frame and ease on from it, and a camera whose
+  every target teleported jumps with them, keeping its lag. A replay seek
+  snaps the cameras; a save load, like any scene load, builds a fresh rig
+  and snaps the camera to its targets. The browser smoke records a
+  followed prop's drawn x over 120 settled frames in Chromium, Firefox and
+  WebKit and fails a step of 0.5 px or more.
 - `poly-invalid` gains "Split into convex pieces": for the entity shape
   `splittableSite` picks, its hint names the split, and where the field
   can't be a chain its fix is the `decomposeBatch` split instead of the
   lossy convex hull (the hull stays the fix while a ref blocks the split; a
   field that takes a chain keeps the chain fix). An issue carries one fix,
-  so the split isn't offered beside the chain. `poly-invalid` now also checks concave polys written in
-  behavior blocks (for example `behaviors.collider.shape`), which Rapier
-  used to hull silently.
-- The kitchen-sink golden SVG and ASCII gain std-joint's line and glyph.
+  so the split isn't offered beside the chain. `poly-invalid` now also
+  checks concave polys written in behavior blocks (for example
+  `behaviors.collider.shape`), which Rapier used to hull silently.
 - Internal: navigation and decomposition share one ear clipper (`earClip`
   in `scene/shape-geometry.ts`).
 
@@ -95,19 +110,27 @@ surface 26) are not yet confirmed by the owner.
 - Renaming an entity now rewrites every behavior field that references it
   (a joint's `to`, a nav agent's target) as well as a type's `refs`, and
   demote refuses an entity a behavior still names.
+- In Play, a scene with no camera settings keeps the camera where the host
+  puts it again: the rig that stands in for the plain follow keeps the
+  camera's zoom and follows on from a `frame`, `zoomAt` or `panBy`, as the
+  plain follow did, rather than snapping back to zoom 1.
 
 ### Agent surface
 
 - `AGENT_SURFACE_VERSION` 25 → 26, with the `decompose` command, the MCP
   `scene_decompose` tool and the new public `bodyOf`, `createDragJoint`
-  (with its `DragJointOptions`), `decomposePolygon`, `decomposeBatch`
-  (returning an `OpBatch`), `canDecompose` and `splittableSite`, and in
-  `./editor` `splitConvex` and `canSplitConvex`; `scene show --json` gains
-  `joints: [{ id, kind, to }]`, and `poly-invalid`'s fix becomes the split
-  where the field can't be a chain; no new issue code, op or schema field.
+  (with its `DragJointOptions`), `decomposePolygon` (with its
+  `DecomposeOptions`), `decomposeBatch` (returning
+  `DecomposeBatchResult` with an `OpBatch`), `canDecompose` and
+  `splittableSite`, and in `./editor` `splitConvex` and `canSplitConvex`;
+  `scene show --json` gains `joints: [{ id, kind, to }]`, and
+  `poly-invalid`'s fix becomes the split where the field can't be a chain;
+  no new issue code, op or schema field.
 - CLI `decompose <scene> <id> [--group] [--live]` and MCP `scene_decompose`;
   the area check is in m², and `--group` refuses with `parent-type` for a
-  type that can't be in the tree (a nav area).
+  type that can't be in the tree (a nav area) or a game with no node type.
+  `scene_decompose`, like every MCP writer, is a dry run unless
+  `dryRun: false`.
 
 ## [0.19.0] — unreleased
 

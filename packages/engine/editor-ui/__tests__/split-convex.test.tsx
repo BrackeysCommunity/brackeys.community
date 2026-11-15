@@ -68,6 +68,9 @@ describe("Split into convex pieces", () => {
     await waitFor(() => expect(ids(session)).not.toContain("ell"));
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(ids(session).filter((id) => id?.startsWith("ell-")).length).toBeGreaterThan(1);
+    // The pieces are selected, so the inspector shows what the split made.
+    expect(session.store.state.selection).toEqual(["ell-1", "ell-2"]);
+    expect(screen.queryByRole("button", { name: SPLIT })).toBeNull();
     expect(session.undo()).toBe(true);
     expect(session.getDoc()).toEqual(before);
     session.destroy();

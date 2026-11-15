@@ -2,6 +2,7 @@ import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import {
   drawnJoints,
+  jointGlyph,
   gridCellsIn,
   metresToPx,
   num,
@@ -66,7 +67,6 @@ const MORE = "…";
 const TEXT = '"';
 const OPEN_TILE = ":";
 const JOINT_LINE = "-";
-const JOINT = "j";
 const RULER_EVERY = 8;
 
 /**
@@ -165,7 +165,7 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
  * scene's metres times the game's px per metre): each
  * entity in its type's character (`EntityTypeDef.ascii`, else its base
  * primitive's), camera regions as their box's outline under everything else, `=` for one-way solids, tag characters for tagged ones,
- * `~` along paths, `-` along a joint's line between its anchors with `j` at its middle, each sprite's box in its entity's character under
+ * `~` along paths, `-` along a joint's line between its anchors with its kind's character at its middle (`R` revolute, `P` prismatic, `O` rope, `W` weld, `Z` spring), each sprite's box in its entity's character under
  * everything else, each `text` block's measured box in `"` (labelled "≈"
  * where its size is an estimate), grid fields' filled cells in their entity's character
  * (a tilemap's solid tiles by `opts.tileTraits`; its other tiles `:`; at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
@@ -326,7 +326,11 @@ export function sceneAsciiMap(
   }
 
   for (const j of joints)
-    put(j.mid, { char: JOINT, label: `joint ${j.kind}`, priority: PRIORITY.point });
+    put(j.mid, {
+      char: jointGlyph(j.kind).ascii,
+      label: `joint ${j.kind}`,
+      priority: PRIORITY.point,
+    });
 
   const outcome = opts.overlay?.outcome;
   if (outcome?.at) {

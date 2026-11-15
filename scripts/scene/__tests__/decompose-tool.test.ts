@@ -25,11 +25,22 @@ const ELL = ["poly", 40, 0, 44, 0, 44, 1, 41, 1, 41, 3, 40, 3];
 const SQUARE = ["poly", 50, 0, 52, 0, 52, 2, 50, 2];
 const SEED = {
   label: "Seed shapes",
-  ops: [
-    { op: "add", entity: { id: "ell", type: "nav", shape: ELL } },
-    { op: "add", entity: { id: "square", type: "nav", shape: SQUARE } },
-  ],
+  ops: [{ op: "add", entity: { id: "square", type: "nav", shape: SQUARE } }],
 };
+/** A nav area's own polygon may be concave, so a nav splits only a concave collider. */
+const NAV_ELL = {
+  id: "nav-ell",
+  type: "nav",
+  shape: ["poly", 40, 0, 44, 0, 44, 3, 40, 3],
+  behaviors: { collider: { shape: ELL } },
+};
+
+/** A concave poly is already an error, which `apply` refuses, so it goes in as text. */
+async function addAsText(file: string, entity: object) {
+  const doc = JSON.parse(await readFile(file, "utf8")) as { entities: object[] };
+  doc.entities.push(entity);
+  await writeFile(file, JSON.stringify(doc));
+}
 
 async function seededProject(prefix: string) {
   const root = await mkdtemp(join(tmpdir(), prefix));
@@ -42,7 +53,9 @@ async function seededProject(prefix: string) {
     readStdin: async () => JSON.stringify(SEED),
   });
   expect(seeded.exitCode, seeded.stdout + seeded.stderr).toBe(0);
-  return { root, dir, handle, ctx, file: join(dir, `${SCENE}.json`) };
+  const file = join(dir, `${SCENE}.json`);
+  await addAsText(file, { id: "ell", type: "solid", shape: ELL });
+  return { root, dir, handle, ctx, file };
 }
 
 describe("scene decompose", { timeout: 60_000 }, () => {
@@ -90,10 +103,8 @@ describe("scene decompose", { timeout: 60_000 }, () => {
   });
 
   it("--group puts the pieces under one group", async () => {
-    // a concave solid is already an error, which `apply` refuses, so it goes in as text
-    const doc = JSON.parse(await readFile(env.file, "utf8")) as { entities: object[] };
-    doc.entities.push({ id: "wall", type: "solid", shape: ELL });
-    await writeFile(env.file, JSON.stringify(doc));
+    await runCli(["decompose", SCENE, "ell"], env.ctx);
+    await addAsText(env.file, { id: "wall", type: "solid", shape: ELL });
     const r = await runCli(["decompose", SCENE, "wall", "--group", "--json"], env.ctx);
     expect(r.exitCode, r.stdout + r.stderr).toBe(0);
     const { pieces } = JSON.parse(r.stdout) as { pieces: string[] };
@@ -106,8 +117,9 @@ describe("scene decompose", { timeout: 60_000 }, () => {
   });
 
   it("refuses --group for a type that can't be in the tree", async () => {
+    await addAsText(env.file, NAV_ELL);
     const before = await readFile(env.file, "utf8");
-    const r = await runCli(["decompose", SCENE, "ell", "--group"], env.ctx);
+    const r = await runCli(["decompose", SCENE, "nav-ell", "--group"], env.ctx);
     expect(r.exitCode).toBe(1);
     expect(r.stdout + r.stderr).toContain("parent-type");
     expect(await readFile(env.file, "utf8")).toBe(before);

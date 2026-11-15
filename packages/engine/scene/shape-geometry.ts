@@ -567,7 +567,7 @@ export function topSpan(s: ShapeObj): [x0: number, x1: number, y: number] {
 /** A convex piece of a shape: a point, a segment or a convex polygon, grown by `r`. */
 type Core = { pts: Pt[]; r: number };
 
-const samePt = (a: Pt, b: Pt) => a[0] === b[0] && a[1] === b[1];
+export const samePt = (a: Pt, b: Pt) => a[0] === b[0] && a[1] === b[1];
 const dist2 = (a: Pt, b: Pt) => (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]);
 
 /** `pts` without repeated points, consecutive or closing. */

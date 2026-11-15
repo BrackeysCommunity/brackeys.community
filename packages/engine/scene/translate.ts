@@ -400,18 +400,33 @@ export function scopeBehaviorRefs(
   const blocks = def[BEHAVIORS_FIELD];
   if (!isPlainObject(blocks) || !def.id.includes("/")) return def;
   let out: Record<string, unknown> | null = null;
+  for (const { segs, value } of behaviorRefFields(registry, def)) {
+    const scope = (v: unknown) => (typeof v === "string" ? scopedRef(def.id, v, has) : v);
+    const next = Array.isArray(value) ? value.map(scope) : scope(value);
+    if (JSON.stringify(next) === JSON.stringify(value)) continue;
+    out ??= clone(blocks);
+    (out[segs[1]!] as Record<string, unknown>)[segs[2]!] = next;
+  }
+  return out ? { ...def, [BEHAVIORS_FIELD]: out } : def;
+}
+
+/** Each behavior field of `e` that holds an entity ref (`holdsEntityRef`) and is set, as dot-path segments. */
+export function behaviorRefFields(
+  registry: Registry,
+  e: EntityDef,
+): { field: string; segs: string[]; value: unknown }[] {
+  const blocks = e[BEHAVIORS_FIELD];
+  if (!isPlainObject(blocks)) return [];
+  const out: { field: string; segs: string[]; value: unknown }[] = [];
   for (const [behavior, block] of Object.entries(blocks)) {
     const shape = registry.behaviors.get(behavior)?.shape;
     if (!shape || !isPlainObject(block)) continue;
     for (const [field, schema] of Object.entries(shape)) {
       const value = block[field];
       if (value === undefined || !holdsEntityRef(schema)) continue;
-      const scope = (v: unknown) => (typeof v === "string" ? scopedRef(def.id, v, has) : v);
-      const next = Array.isArray(value) ? value.map(scope) : scope(value);
-      if (JSON.stringify(next) === JSON.stringify(value)) continue;
-      out ??= clone(blocks);
-      (out[behavior] as Record<string, unknown>)[field] = next;
+      const segs = [BEHAVIORS_FIELD, behavior, field];
+      out.push({ field: segs.join("."), segs, value });
     }
   }
-  return out ? { ...def, [BEHAVIORS_FIELD]: out } : def;
+  return out;
 }

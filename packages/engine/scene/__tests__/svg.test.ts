@@ -16,7 +16,7 @@ import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
 import { tileTraits } from "../../tiles/chunks";
 import { parseScene, parseSceneOrThrow } from "../parse";
-import { drawnEntities, expandedOf, oneWayEdges } from "../render-geometry";
+import { drawnEntities, expandedOf, jointGlyph, oneWayEdges } from "../render-geometry";
 import { shapeOutline } from "../shape-outline";
 import {
   renderSceneSvg,
@@ -878,7 +878,7 @@ describe("joints", () => {
     entities,
   });
 
-  it("draws each kind as a line from anchorA to the other's anchorB with a j glyph at the middle", () => {
+  it("draws each kind as a line from anchorA to the other's anchorB with its kind's glyph at the middle", () => {
     const svg = renderSceneSvg(
       scene(
         kinds.flatMap((kind, i) => [
@@ -897,10 +897,11 @@ describe("joints", () => {
       const x = 100 + 200 * i;
       const joint = new RegExp(
         `<g data-joint="a-${kind}" data-kind="${kind}" data-to="b-${kind}"><path d="M${x + 50} 100L${x} 250"/>` +
-          `<circle cx="${x + 25}" cy="175" [^>]*/><text [^>]*>j</text></g>`,
+          `<circle cx="${x + 25}" cy="175" [^>]*/><text [^>]*>${jointGlyph(kind).mark}</text></g>`,
       );
       expect(svg).toMatch(joint);
     });
+    expect(kinds.map((k) => jointGlyph(k).mark)).toEqual(["○", "↔", "~", "■", "≈"]);
   });
 
   it("ends a joint without anchorB under anchorA and draws nothing when `to` is missing", () => {

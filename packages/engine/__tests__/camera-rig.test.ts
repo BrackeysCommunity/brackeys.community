@@ -470,6 +470,26 @@ describe("the rig in Play", () => {
     expect(game.getStore().state.camera.zoom).toBe(1);
   });
 
+  it("keeps the zoom a host framed before Play's first frame, as the plain follow did", async () => {
+    const plain = defineGame({
+      id: "plain",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const game = await create(plain, sceneOf([followed("hero", 20, -4)], "plain"));
+    game.pause();
+    game.step(1);
+    game.frame({ minX: 19, minY: -5, maxX: 21, maxY: -3 }, 0);
+    const framed = game.getStore().state.camera.zoom;
+    expect(framed).toBeGreaterThan(1);
+    game.start();
+    advance(3);
+    expect(lastFrame().zoom).toBeCloseTo(framed, 9);
+    expect(lastFrame().x).toBeCloseTo(20, 6);
+  });
+
   /** A game with no camera settings that runs what `asks` holds after its next step. */
   const asking = (asks: ((ctx: EngineContext) => void)[]) =>
     defineGame({

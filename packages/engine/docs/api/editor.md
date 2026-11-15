@@ -3769,7 +3769,8 @@ Refers to [`BulkKey`](#bulkkey), [`EditGeometry`](#editgeometry), [`Registry`](#
 
 _function_ in `editor/commands.ts`
 
-Whether entity `id` has a poly "Split into convex pieces" splits: the rule `decomposeBatch` uses.
+Whether `splitConvex` would split entity `id` now: `decomposeBatch`'s own
+check, so a split shape that another entity's ref still names is refused.
 
 ```ts
 declare function canSplitConvex(def: SceneDefinition, id: string, registry: Registry): boolean;
@@ -6174,8 +6175,9 @@ declare function snapToGrid(v: number, step: number, pxPerMetre: number): number
 _function_ in `editor/commands.ts`
 
 Replaces entity `id`'s concave poly with its convex pieces (or a group of
-them) in one batch, so one undo restores it. The refusal's issue when the
-shape can't split or the document refuses the batch.
+them) in one batch, so one undo restores it, and selects what replaced it:
+the pieces, or the group. The refusal's issue when the shape can't split
+or the document refuses the batch.
 
 ```ts
 declare function splitConvex(session: EditorSession, id: string, opts?: {
@@ -6185,10 +6187,11 @@ declare function splitConvex(session: EditorSession, id: string, opts?: {
     ok: false;
 } | {
     ok: true;
+    selected: Ref[];
 };
 ```
 
-Refers to [`EditorSession`](#editorsession), [`SceneIssue`](#sceneissue).
+Refers to [`EditorSession`](#editorsession), [`Ref`](#ref), [`SceneIssue`](#sceneissue).
 
 ## `stampCells`
 

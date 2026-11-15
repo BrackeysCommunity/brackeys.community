@@ -537,18 +537,19 @@ describe("joints", () => {
     ],
   });
 
-  it("draws each kind as a line between its anchors with j at the middle", () => {
+  it("draws each kind as a line between its anchors with its kind's character at the middle", () => {
     const map = sceneAsciiMap(hinged(), { registry, cell: 50 });
     // 100 px per metre at 50 px a cell: the markers sit on rows 2 and 6, the glyph on row 4.
     for (let i = 0; i < kinds.length; i++) {
       const col = 2 + 4 * i;
       expect(map.lines[2]![col]).toBe("+");
       expect(map.lines[3]![col]).toBe("-");
-      expect(map.lines[4]![col]).toBe("j");
+      expect(map.lines[4]![col]).toBe("RPOWZ"[i]);
       expect(map.lines[5]![col]).toBe("-");
       expect(map.lines[6]![col]).toBe("+");
     }
-    expect(legendOf(map).j).toBe(kinds.map((k) => `joint ${k}`).join(", "));
+    for (const [i, kind] of kinds.entries())
+      expect(legendOf(map)["RPOWZ"[i]!]).toBe(`joint ${kind}`);
   });
 
   it("draws nothing for a joint whose `to` is missing", () => {
@@ -564,7 +565,7 @@ describe("joints", () => {
       ],
     };
     const map = sceneAsciiMap(scene, { registry, cell: 50 });
-    expect(map.lines.join("")).not.toMatch(/[j-]/);
+    expect(map.lines.join("")).not.toMatch(/[RPOWZj-]/);
   });
 
   it("turns anchorA with its entity's pose and, without anchorB, draws the glyph on it", () => {
@@ -583,7 +584,7 @@ describe("joints", () => {
     };
     const map = sceneAsciiMap(scene, { registry, cell: 50 });
     // A quarter turn puts anchorA [2, 0] two metres below the arm, at (100, 300) px.
-    expect(map.lines[6]![2]).toBe("j");
+    expect(map.lines[6]![2]).toBe("O");
     expect(map.lines.join("")).not.toContain("-");
   });
 });

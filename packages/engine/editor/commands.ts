@@ -1,7 +1,7 @@
 import { isNodeTypeIn, NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
-import { decomposeBatch, splittableSite } from "../scene/decompose";
+import { decomposeBatch } from "../scene/decompose";
 import { parseBulkId } from "../scene/expand";
 import { takenIds } from "../scene/fragment";
 import { plural } from "../scene/plural";
@@ -494,24 +494,32 @@ export function hierarchyDown(
   return below ? [below.id] : null;
 }
 
-/** Whether entity `id` has a poly "Split into convex pieces" splits: the rule `decomposeBatch` uses. */
+/**
+ * Whether `splitConvex` would split entity `id` now: `decomposeBatch`'s own
+ * check, so a split shape that another entity's ref still names is refused.
+ */
 export function canSplitConvex(def: SceneDefinition, id: string, registry: Registry): boolean {
-  const entity = def.entities?.find((e) => e.id === id);
-  return entity !== undefined && splittableSite(registry, entity) !== null;
+  return decomposeBatch(def, id, registry).ok;
 }
 
 /**
  * Replaces entity `id`'s concave poly with its convex pieces (or a group of
- * them) in one batch, so one undo restores it. The refusal's issue when the
- * shape can't split or the document refuses the batch.
+ * them) in one batch, so one undo restores it, and selects what replaced it:
+ * the pieces, or the group. The refusal's issue when the shape can't split
+ * or the document refuses the batch.
  */
 export function splitConvex(
   session: EditorSession,
   id: string,
   opts: { group?: boolean } = {},
-): { ok: true } | { ok: false; issue: SceneIssue } {
+): { ok: true; selected: Ref[] } | { ok: false; issue: SceneIssue } {
   const built = decomposeBatch(session.getDoc(), id, session.registry, opts);
   if (!built.ok) return built;
-  const result = session.dispatch({ label: `Split ${id} into convex pieces`, ...built.batch });
-  return result.ok ? { ok: true } : { ok: false, issue: result.issue };
+  const selected = opts.group
+    ? [id]
+    : built.batch.ops.flatMap((op) =>
+        op.op === "add" && typeof op.entity.id === "string" ? [op.entity.id] : [],
+      );
+  const result = session.dispatch(built.batch, { selectionAfter: selected });
+  return result.ok ? { ok: true, selected } : { ok: false, issue: result.issue };
 }

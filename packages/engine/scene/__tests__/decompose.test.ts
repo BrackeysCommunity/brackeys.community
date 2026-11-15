@@ -1,11 +1,13 @@
+// @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
 import { loadCompatRapier } from "../../__tests__/fixtures/compat-rapier";
 import { createRegistry, defineGame } from "../../game/define";
+import type { Registry } from "../../game/types";
 import { canDecompose, decomposeBatch, decomposePolygon, splittableSite } from "../decompose";
 import { expandScene } from "../expand";
 import { applyOps } from "../ops";
-import { isConvex, isSimplePolygon } from "../shape-geometry";
+import { cross3, isConvex, isSimplePolygon, segmentsMeet } from "../shape-geometry";
 import type { EntityDef, Pt, SceneDefinition } from "../types";
 import { validateScene } from "../validate";
 import { engine } from "./fixtures/fake-game";
@@ -34,6 +36,58 @@ function randomPolygon(next: () => number): Pt[] {
   }
 }
 
+/**
+ * A random simple integer polygon that needn't be star-shaped: random points
+ * joined in a random order, then untangled by 2-opt (reversing the run
+ * between two crossing edges) until no edges cross.
+ */
+function untangledPolygon(next: () => number): Pt[] {
+  for (;;) {
+    const n = 5 + Math.floor(next() * 16);
+    const pts = Array.from(
+      { length: n },
+      (): Pt => [Math.floor(next() * 400), Math.floor(next() * 400)],
+    );
+    for (let pass = 0, crossed = true; crossed && pass < 500; pass++) {
+      crossed = false;
+      for (let i = 0; i < n - 2 && !crossed; i++)
+        for (let j = i + 2; j < n && !crossed; j++) {
+          if (i === 0 && j === n - 1) continue;
+          if (!segmentsMeet(pts[i]!, pts[i + 1]!, pts[j]!, pts[(j + 1) % n]!)) continue;
+          pts.splice(i + 1, j - i, ...pts.slice(i + 1, j + 1).reverse());
+          crossed = true;
+        }
+    }
+    if (isSimplePolygon(pts) && !isConvex(pts)) return pts;
+  }
+}
+
+/** A comb: a bar with `teeth` upright teeth, `w` px wide and as far apart. */
+function comb(teeth: number, w: number): Pt[] {
+  const pts: Pt[] = [
+    [0, 0],
+    [(2 * teeth - 1) * w, 0],
+  ];
+  for (let t = teeth - 1; t >= 0; t--) {
+    pts.push([2 * t * w + w, 100], [2 * t * w, 100]);
+    if (t > 0) pts.push([2 * t * w, 20], [2 * t * w - w, 20]);
+  }
+  return pts;
+}
+
+/** An arm wound `turns` times about the origin, `width` px thick. */
+function spiral(turns: number, width: number): Pt[] {
+  const steps = Math.round(turns * 32);
+  const arm = (k: number, r0: number): Pt => {
+    const a = (k / 32) * 2 * Math.PI;
+    const r = r0 + 60 * a;
+    return [Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r)];
+  };
+  const outer = Array.from({ length: steps + 1 }, (_, k) => arm(k, 40 + width));
+  const inner = Array.from({ length: steps + 1 }, (_, k) => arm(steps - k, 40));
+  return [...outer, ...inner];
+}
+
 const twiceArea = (pts: readonly Pt[]) => {
   let a = 0;
   for (let i = 0; i < pts.length; i++) {
@@ -59,28 +113,68 @@ const ell: Pt[] = metres([
 ]);
 
 describe("decomposePolygon", () => {
-  it("splits 1,000 random simple polygons into convex pieces of the original vertices, area exact", () => {
-    const next = rng(26);
-    for (let k = 0; k < 1000; k++) {
-      const poly = randomPolygon(next);
-      const input = metres(poly);
-      const result = decomposePolygon(input);
-      if (!result.ok) throw new Error(`refused polygon ${k}: ${result.issue.message}`);
-      expect(result.area2).toBe(Math.abs(twiceArea(poly)));
-      const vertices = new Set(input.map(key));
-      let sum = 0;
-      for (const piece of result.pieces) {
-        expect(piece.length).toBeGreaterThanOrEqual(3);
-        expect(piece.length).toBeLessThanOrEqual(8);
-        expect(isConvex(px(piece))).toBe(true);
-        for (const p of piece) expect(vertices.has(key(p))).toBe(true);
-        const a = twiceArea(px(piece));
-        expect(Math.sign(a)).toBe(Math.sign(twiceArea(poly)));
-        sum += Math.abs(a);
-      }
-      expect(sum).toBe(result.area2);
+  /** Checks `poly` (whole px) splits into convex pieces of its own vertices whose areas sum exactly. */
+  const expectExactSplit = (poly: readonly Pt[], label: string) => {
+    const input = metres(poly);
+    const result = decomposePolygon(input);
+    if (!result.ok) throw new Error(`refused ${label}: ${result.issue.message}`);
+    expect(result.area2, label).toBe(Math.abs(twiceArea(poly)));
+    const vertices = new Set(input.map(key));
+    let sum = 0;
+    for (const piece of result.pieces) {
+      expect(piece.length, label).toBeGreaterThanOrEqual(3);
+      expect(piece.length, label).toBeLessThanOrEqual(8);
+      expect(isConvex(px(piece)), label).toBe(true);
+      for (const p of piece) expect(vertices.has(key(p)), label).toBe(true);
+      const a = twiceArea(px(piece));
+      expect(Math.sign(a), label).toBe(Math.sign(twiceArea(poly)));
+      sum += Math.abs(a);
     }
+    expect(sum, label).toBe(result.area2);
+    return result;
+  };
+
+  /**
+   * Splits 1,000 polygons `draw` gives. One that leaves a sliver Rapier
+   * refuses (two parts nearly meeting) is refused instead, and is rare.
+   */
+  const splitThousand = (draw: () => Pt[], label: string) => {
+    let refused = 0;
+    for (let k = 0; k < 1000; ) {
+      const poly = draw();
+      const result = decomposePolygon(metres(poly));
+      if (!result.ok) {
+        expect(result.issue.message, `${label} ${k}`).toContain("too thin");
+        refused++;
+        continue;
+      }
+      expectExactSplit(poly, `${label} ${k++}`);
+    }
+    expect(refused).toBeLessThan(50);
+  };
+
+  it("splits 1,000 random star-shaped polygons into convex pieces of the original vertices, area exact", () => {
+    const next = rng(26);
+    splitThousand(() => randomPolygon(next), "star");
   }, 30_000);
+
+  it("splits 1,000 random simple polygons that aren't star-shaped the same way", () => {
+    const next = rng(54);
+    splitThousand(() => untangledPolygon(next), "untangled");
+  }, 60_000);
+
+  it("splits a comb and a spiral exactly", () => {
+    const teeth = comb(6, 10);
+    expect(isSimplePolygon(teeth)).toBe(true);
+    const combed = expectExactSplit(teeth, "comb");
+    expect(combed.ok && combed.pieces.length).toBeGreaterThanOrEqual(6);
+    for (const turns of [1.5, 2.5]) {
+      const arm = spiral(turns, 50);
+      expect(isSimplePolygon(arm), `spiral ${turns}`).toBe(true);
+      expectExactSplit(arm, `spiral ${turns}`);
+      expectExactSplit([...arm].reverse(), `spiral ${turns} reversed`);
+    }
+  });
 
   it("keeps pieces at most maxVertices and merges an L into two", () => {
     const result = decomposePolygon(ell);
@@ -135,17 +229,100 @@ describe("decomposePolygon", () => {
     ).toBe(false);
   });
 
-  it("gives pieces Rapier takes as convex hulls", async () => {
+  it("gives pieces Rapier builds as the engine does, keeping every corner", async () => {
     const R = await loadCompatRapier();
+    const world = new R.World(new R.Vector2(0, 0));
     const next = rng(7);
-    for (let k = 0; k < 50; k++) {
-      const result = decomposePolygon(metres(randomPolygon(next)));
-      if (!result.ok) throw new Error("refused");
+    // A corner turning under about 1.5° Rapier drops from any poly, so these turn more.
+    const turnsEnough = (poly: readonly Pt[]) =>
+      poly.every((b, i) => {
+        const a = poly[(i + poly.length - 1) % poly.length]!;
+        const c = poly[(i + 1) % poly.length]!;
+        const turn = Math.atan2(
+          Math.abs(cross3(a, b, c)),
+          (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]),
+        );
+        return turn > (2 * Math.PI) / 180;
+      });
+    const draw = (gen: () => Pt[]) => {
+      for (;;) {
+        const poly = gen();
+        if (turnsEnough(poly) && decomposePolygon(metres(poly)).ok) return poly;
+      }
+    };
+    const polys = [
+      ...Array.from({ length: 25 }, () => draw(() => randomPolygon(next))),
+      ...Array.from({ length: 25 }, () => draw(() => untangledPolygon(next))),
+      comb(4, 10),
+      spiral(2, 50),
+      // In-line points on an edge leave the pieces, as Rapier would drop them.
+      [
+        [0, 0],
+        [200, 0],
+        [400, 0],
+        [400, 100],
+        [100, 100],
+        [100, 300],
+        [0, 300],
+        [0, 150],
+      ] as Pt[],
+    ];
+    for (const [k, poly] of polys.entries()) {
+      const result = decomposePolygon(metres(poly));
+      if (!result.ok) throw new Error(`polygon ${k}: ${result.issue.message}`);
       for (const piece of result.pieces) {
-        const desc = R.ColliderDesc.convexHull(new Float32Array(piece.flat()));
-        expect(desc).not.toBeNull();
+        // physics.ts builds a poly collider this way: counter-clockwise, no hull.
+        const ccw = twiceArea(piece) < 0 ? [...piece].reverse() : piece;
+        const desc = R.ColliderDesc.convexPolyline(new Float32Array(ccw.flat()))!.setDensity(1);
+        const collider = world.createCollider(desc);
+        // A dropped corner would cut a sliver off the mass.
+        const area = Math.abs(twiceArea(piece)) / 2;
+        expect(Math.abs(collider.mass() - area) / area, `polygon ${k}`).toBeLessThan(1e-3);
       }
     }
+    world.free();
+  });
+
+  it("refuses a polygon that forces a sliver Rapier would refuse", () => {
+    // The dip sits 1 px over the floor, so the floor's piece is a triangle 179° wide.
+    const dip = metres([
+      [0, 0],
+      [400, 0],
+      [400, 100],
+      [200, 1],
+      [0, 100],
+    ]);
+    const result = decomposePolygon(dip);
+    expect(!result.ok && result.issue.code).toBe("poly-invalid");
+    expect(!result.ok && result.issue.message).toContain("too thin");
+    expect(canDecompose(dip)).toBe(false);
+  });
+
+  it("refuses a point off the whole-px grid rather than moving it", () => {
+    const off: Pt[] = ell.map(([x, y], k): Pt => (k === 3 ? [x + 0.123, y] : [x, y]));
+    expect(canDecompose(off)).toBe(false);
+    const result = decomposePolygon(off);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issue.code).toBe("poly-invalid");
+      expect(result.issue.message).toContain("snap it first");
+    }
+  });
+
+  it("returns the caller's own points, not re-derived ones", () => {
+    const result = decomposePolygon(ell);
+    if (!result.ok) throw new Error(result.issue.message);
+    for (const piece of result.pieces)
+      for (const p of piece) expect(ell.some((q) => q[0] === p[0] && q[1] === p[1])).toBe(true);
+    for (const piece of result.pieces)
+      for (let i = 0; i < piece.length; i++)
+        expect(
+          cross3(
+            px([piece[(i + piece.length - 1) % piece.length]!])[0]!,
+            px([piece[i]!])[0]!,
+            px([piece[(i + 1) % piece.length]!])[0]!,
+          ),
+        ).not.toBe(0);
   });
 });
 
@@ -195,6 +372,22 @@ describe("decomposeBatch", () => {
       ["rock-2", "prop", "rock"],
     ]);
     expect(polyIssues(applied.def)).toEqual([]);
+  });
+
+  it("refuses group where the game has no node type to group under", () => {
+    const types = new Map([...engine.types].filter(([name]) => name !== "node"));
+    const nodeless = Object.create(engine, { types: { value: types } }) as Registry;
+    const made = decomposeBatch(scene([rock()]), "rock", nodeless, { group: true });
+    expect(!made.ok && made.issue.code).toBe("parent-type");
+    expect(!made.ok && made.issue.message).toContain("no node type");
+    expect(decomposeBatch(scene([rock()]), "rock", nodeless).ok).toBe(true);
+  });
+
+  it("reports the split's areas with the batch, summing exactly", () => {
+    const made = decomposeBatch(scene([rock()]), "rock", engine);
+    if (!made.ok) throw new Error(made.issue.message);
+    expect(made.area2).toBe(2 * (400 * 100 + 100 * 200));
+    expect(made.pieceArea2.reduce((a, b) => a + Math.abs(b), 0)).toBe(made.area2);
   });
 
   it("refuses while another entity's behavior names it, naming the referrer", () => {
@@ -252,7 +445,7 @@ describe("splittableSite", () => {
         createRuntime: () => ({ snapshot: () => null }),
       }),
     );
-    // A 0.2 m notch vanishes at 1 px per metre, leaving a square.
+    // A 0.2 m notch is off the whole-px grid at 1 px per metre.
     const notched = ["poly", 0, 0, 4, 0, 4, 4, 2, 4, 2, 3.8, 1.9, 4, 0, 4];
     const rock: EntityDef = {
       id: "rock",

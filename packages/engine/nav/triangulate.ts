@@ -1,7 +1,5 @@
-import { earClip, intoCorner, segmentsMeet, signedArea } from "../scene/shape-geometry";
+import { earClip, intoCorner, samePt, segmentsMeet, signedArea } from "../scene/shape-geometry";
 import type { Pt } from "../scene/types";
-
-const same = (a: Pt, b: Pt) => a[0] === b[0] && a[1] === b[1];
 
 const oriented = (pts: readonly Pt[], positive: boolean): Pt[] => {
   const copy = pts.map(([x, y]): Pt => [x, y]);
@@ -43,7 +41,11 @@ function bridge(ring: Pt[], hole: Pt[], others: readonly Pt[][]): Pt[] {
     if (!intoCorner(prev, p, next, m) || !intoCorner(holePrev, m, holeNext, p)) continue;
     const blocked = blockers.some(
       ([a, b]) =>
-        !same(a, p) && !same(b, p) && !same(a, m) && !same(b, m) && segmentsMeet(m, p, a, b),
+        !samePt(a, p) &&
+        !samePt(b, p) &&
+        !samePt(a, m) &&
+        !samePt(b, m) &&
+        segmentsMeet(m, p, a, b),
     );
     if (blocked) continue;
     return [...ring.slice(0, i + 1), ...hole, m, p, ...ring.slice(i + 1)];

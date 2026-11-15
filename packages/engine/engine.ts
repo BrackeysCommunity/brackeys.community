@@ -30,8 +30,6 @@ import type { EventLog, EventLogWriter } from "./debug/event-log";
 import { GameEventEmitter } from "./events";
 import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
-import { SPRITE } from "./game/behaviors/sprite";
-import { TEXT } from "./game/behaviors/text";
 import { LATENCY_COMMAND, LATENCY_MS_LIMIT } from "./game/commands";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
@@ -130,8 +128,6 @@ import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import type { CameraTargetSystem } from "./runtime/behaviors/camera-target";
 import { emitterPreset } from "./runtime/behaviors/emitter";
-import type { SpriteSystem } from "./runtime/behaviors/sprite";
-import type { TextSystem } from "./runtime/behaviors/text";
 import { loadListed } from "./runtime/flow";
 import {
   createLiveLayer,
@@ -151,7 +147,13 @@ import {
   type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
-import { isWatched, lerpPose, samePose, type PoseIndex } from "./runtime/poses";
+import {
+  isWatched,
+  lerpPose,
+  samePose,
+  type PoseIndex,
+  type WatchedPoseIndex,
+} from "./runtime/poses";
 import type { AudioRequest, EffectRequest, PresentRequest } from "./runtime/present";
 import { emptyTick, recordingRapier, recordingStart } from "./runtime/recorder";
 import {
@@ -160,6 +162,7 @@ import {
   NOOP_DEBUG_DRAW,
   resolveGame,
   SAVE_INPUT_KEY,
+  settleViews,
   type ProjectOption,
 } from "./runtime/runtime";
 import { captureSave, restoreSave } from "./runtime/save-state";
@@ -433,6 +436,8 @@ export async function createGame(
   let mainMask: Graphics | null = null;
   /** The first viewport's border, when it has one. */
   let mainBorder: ViewportSurface | null = null;
+  /** The first viewport's rig while it stands in for the plain follow. */
+  let plainRig: CameraRig | null = null;
   /** The regions read from the runtime's scene, kept while it hands back the same scene. */
   let regionsMemo: { scene: ExpandedScene; regions: CameraRegion[] } | null = null;
 
@@ -2082,8 +2087,26 @@ export async function createGame(
     if (loaded === null || getMode() !== "play") return false;
     if (frameOf(0) === "scene") return true;
     const scene = loaded.runtime.scene();
-    if (!main.rig && scene) startMainRig(plainFollowRig(loaded.runtime.ctx.time.tickMs), scene);
+    if (!main.rig && scene) startPlainRig(loaded.runtime, scene);
     return main.rig !== null;
+  }
+
+  /**
+   * The first viewport's rig standing in for the plain follow, which keeps
+   * the camera's zoom and follows on from wherever the host moves it.
+   */
+  function startPlainRig(runtime: SceneRuntimeHandle, scene: ExpandedScene): CameraRig {
+    const rig = startMainRig(plainFollowRig(runtime.ctx.time.tickMs), scene);
+    rig.request({ op: "zoom", zoom: camera.getState().zoom });
+    plainRig = rig;
+    return rig;
+  }
+
+  /** Seats the plain follow's rig where the host just put the camera. */
+  function reseatPlainRig(): void {
+    if (!plainRig || plainRig !== main.rig) return;
+    plainRig.request({ op: "snap", at: camera.getPosition() });
+    plainRig.request({ op: "zoom", zoom: camera.getState().zoom });
   }
 
   /** A rig def whose damping eases as `cfg.camera.lerpSpeed` per tick does, at any frame rate. */
@@ -2453,12 +2476,10 @@ export async function createGame(
           if (!runtime || !scene) break;
           let rig = vc.rig;
           if (!rig) {
-            const def =
-              rigDefOf(scene, index) ??
-              (index === 0 ? plainFollowRig(runtime.ctx.time.tickMs) : {});
+            const def = rigDefOf(scene, index);
             // A viewport past the first has no plain follow, so its rig starts on its targets.
-            rig =
-              index === 0 ? startMainRig(def, scene) : (vc.rig = createCameraRig(def, scene.name));
+            if (index > 0) rig = vc.rig = createCameraRig(def ?? {}, scene.name);
+            else rig = def ? startMainRig(def, scene) : startPlainRig(runtime, scene);
           }
           rig.request(req.op);
           break;
@@ -2830,7 +2851,7 @@ export async function createGame(
   /** When the last rendered frame ran, for the particles' wall time; null before the first. */
   let lastFrameAt: number | null = null;
   /** The pose index's teleport count when the visuals last settled at a frame. */
-  let settledTeleports: { poses: PoseIndex; count: number } | null = null;
+  let settledTeleports: SeenTeleports | null = null;
 
   /**
    * Settles the pose-index visuals at a frame after a teleport since the
@@ -2840,13 +2861,9 @@ export async function createGame(
   function settleTeleported(runtime: SceneRuntimeHandle): void {
     const { poses } = runtime.ctx;
     if (!isWatched(poses)) return;
-    const count = poses.teleports();
-    if (settledTeleports?.poses === poses && settledTeleports.count === count) return;
-    const first = settledTeleports?.poses !== poses;
-    settledTeleports = { poses, count };
-    if (first) return;
-    runtime.ctx.behavior<SpriteSystem>(SPRITE.name)?.settle();
-    runtime.ctx.behavior<TextSystem>(TEXT.name)?.settle();
+    const since = teleportsSince(settledTeleports, poses);
+    settledTeleports = since.next;
+    if (since.changed && !since.first) settleViews(runtime.ctx);
   }
   /** Sim time `step` advanced while paused, owed to the particles on the next rendered frame. */
   let steppedMs = 0;
@@ -3429,6 +3446,7 @@ export async function createGame(
 
   function moveCamera(to: Vec2): void {
     camera.snapTo(to);
+    reseatPlainRig();
     updateCamera(store, camera.getState());
   }
 
@@ -4145,6 +4163,22 @@ function flowUnavailable(): FlowResult {
  */
 type FollowTarget = RigInput["targets"][number] & { teleports?: number };
 
+/** A pose index's teleport count as a reader last saw it. */
+type SeenTeleports = { poses: PoseIndex; count: number };
+
+/**
+ * `poses`'s teleport count against what `seen` held: `first` for an index
+ * not seen before, `changed` once it moved; `next` is what to keep.
+ */
+function teleportsSince(
+  seen: SeenTeleports | null,
+  poses: WatchedPoseIndex,
+): { next: SeenTeleports; first: boolean; changed: boolean } {
+  const count = poses.teleports();
+  const first = seen?.poses !== poses;
+  return { next: { poses, count }, first, changed: first || seen.count !== count };
+}
+
 /**
  * How far the targets `vc` follows jumped when every one is an entity
  * teleported since its last frame, else null: the camera jumps with them,
@@ -4158,8 +4192,9 @@ function teleported(
   if (!isWatched(poses)) return null;
   const seen = vc.seenTeleports;
   const centre = centreOf(targets)?.at ?? null;
-  vc.seenTeleports = { poses, count: poses.teleports(), centre };
-  if (seen?.poses !== poses || !seen.centre || !centre) return null;
+  const since = teleportsSince(seen, poses);
+  vc.seenTeleports = { ...since.next, centre };
+  if (since.first || !seen?.centre || !centre) return null;
   if (!targets.every((t) => t.teleports !== undefined && t.teleports > seen.count)) return null;
   return { x: centre.x - seen.centre.x, y: centre.y - seen.centre.y };
 }
@@ -4194,7 +4229,7 @@ type ViewCamera = {
   /** The game's `cameraTarget()` point as this view last read it, for its velocity. */
   track: PointTrack;
   /** The pose index's teleport count and the targets' centre at the rig's last frame; null before its first. */
-  seenTeleports: { poses: PoseIndex; count: number; centre: Vec2 | null } | null;
+  seenTeleports: (SeenTeleports & { centre: Vec2 | null }) | null;
   /** Its rectangle on the canvas, px. */
   rect: ViewportRect;
   /** What a later viewport's camera places, whose transform draws the world into its surface; null for the first. */

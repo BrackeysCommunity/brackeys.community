@@ -8,11 +8,14 @@ import type { InputScriptV2, PlaytestReport } from "../headless/playtest-types";
 import { replayRecording } from "../headless/recording";
 import { createDragJoint, type DragJoint, type DragJointOptions } from "../physics/drag";
 import { createSceneRuntime } from "../runtime/runtime";
+import { createCheckpoints, type SeekWorld } from "../runtime/seek";
 import type { SceneRuntimeHandle } from "../runtime/types";
+import { snapshotWorld } from "../runtime/world-snapshot";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
+import { loadTree } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -197,6 +200,63 @@ describe("createDragJoint", () => {
     drag.update({ x: 1, y: 0 });
     expect(world.impulseJoints.len()).toBe(0);
     expect(world.bodies.len()).toBe(0);
+    drag.release();
+  });
+
+  it("releases once the child it drags by no longer owns its parent's body", () => {
+    const game = dragGame({});
+    const rt = loadTree({
+      registry: createRegistry(game),
+      physics: "rapier",
+      rapier,
+      bounds: [-10, -10, 10, 10],
+      entities: [
+        crate,
+        { id: "grip", type: "marker", at: [0.5, 0], behaviors: { collider: CRATE_COLLIDER } },
+      ],
+      parents: { grip: PROP },
+    });
+    const world = rt.ctx.physics!.world;
+    expect(world.bodies.len()).toBe(1);
+    const drag = createDragJoint(rt.ctx, "grip", { x: 0.5, y: 0 });
+    for (let i = 0; i < 10; i++) {
+      drag.update({ x: 3, y: 0 });
+      rt.step(rt.ctx.time.tickMs, []);
+    }
+    expect(rt.ctx.poses.get(PROP)!.x).toBeGreaterThan(0);
+    rt.ctx.destroy("grip");
+    rt.step(rt.ctx.time.tickMs, []);
+    drag.update({ x: 3, y: 0 });
+    expect(world.impulseJoints.len()).toBe(0);
+    expect(world.bodies.len()).toBe(1);
+    expect(rt.ctx.bodies.has(PROP)).toBe(true);
+  });
+
+  it("is never held by a world snapshot: its Rapier world refuses one, so a seek re-simulates from the start", () => {
+    const rt = load();
+    const drag = createDragJoint(rt.ctx, PROP, { x: 0, y: 0 });
+    drag.update({ x: 1, y: 0 });
+    rt.step(rt.ctx.time.tickMs, []);
+    const taken = snapshotWorld(rt);
+    expect(taken.ok).toBe(false);
+    if (!taken.ok) {
+      expect(taken.issue.code).toBe("save-unsupported");
+      expect((taken.issue.detail as { causes: { cause: string }[] }).causes).toContainEqual(
+        expect.objectContaining({ cause: "physics" }),
+      );
+    }
+    const checkpoints = createCheckpoints(1);
+    const world: SeekWorld = {
+      tick: () => rt.ctx.tick,
+      step: () => (rt.step(rt.ctx.time.tickMs, []), true),
+      snapshot: () => snapshotWorld(rt),
+      version: () => null,
+      restore: () => false,
+      restart: () => false,
+    };
+    checkpoints.take(world);
+    expect(checkpoints.refused).toBe(true);
+    expect(checkpoints.ticks()).toEqual([]);
     drag.release();
   });
 

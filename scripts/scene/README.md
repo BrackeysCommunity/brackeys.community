@@ -2102,6 +2102,9 @@ false`) and mirrored by its flip. Nothing
   is decoded; the box is all a schematic shows of the art. With `--json`
   the report lists them as `sprites`: each one's `ref`, `type`, `label` and
   world `box`.
+- A joint draws as a line between its two anchors with its kind's glyph
+  on a disc at the middle: `○` revolute, `↔` prismatic, `~` rope, `■`
+  weld, `≈` spring.
 - `--debug-draw` runs the scene headless for `--ticks n` (default 60) and
   draws the last tick's `ctx.debug` shapes over the schematic, in metres
   at the game's px per metre; `--json` adds `debugDraw: { ticks, draws }`.
@@ -2114,8 +2117,10 @@ false`) and mirrored by its flip. Nothing
   so the ruler and row labels read as world coordinates. Each type's
   character comes from the type (`EntityTypeDef.ascii`, else its base
   primitive's): `#` solid, `=` one-way solids and the platformer's clouds,
-  `~` along paths, `G` goal, `S` spawn, `x` hazard, `o` anchor; the legend
-  under the map lists what each character stands for. A sprite's box is
+  `~` along paths, `G` goal, `S` spawn, `x` hazard, `o` anchor, a joint's
+  line in `-` with its kind's character at the middle (`R` revolute, `P`
+  prismatic, `O` rope, `W` weld, `Z` spring); the legend under the map
+  lists what each character stands for. A sprite's box is
   marked with its entity's character (`d` for a `decor`). `--region`,
   `--around`, `--margin` and `--overlay` (`*` trail, `!` outcome) work the
   same; `--out file.txt` writes it to a file.

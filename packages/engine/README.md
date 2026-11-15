@@ -4044,6 +4044,11 @@ N·s/m).
   with it and is made again, holding where the first one did, once both
   ends are back. `ctx.behavior<JointSystem>("joint")?.joined(id)` says
   whether an entity's joint exists now.
+- **How they draw.** The editor draws a selected entity's joint as a line
+  between its anchors (or to `to`'s pose while they coincide) with its
+  kind's glyph at the middle, the same one the SVG render uses: `○`
+  revolute, `↔` prismatic, `~` rope, `■` weld, `≈` spring. The ASCII map
+  marks it `R`, `P`, `O`, `W` or `Z`.
 
 The yard below hangs one of each from a static beam:
 

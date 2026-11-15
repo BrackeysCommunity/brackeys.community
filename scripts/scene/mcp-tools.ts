@@ -16,7 +16,6 @@ import { z } from "zod";
 import { LIVE_LIMITS } from "../../src/lib/engine/limits";
 import {
   failure,
-  hostedOptions,
   isFileArg,
   isToolResult,
   locateScene,
@@ -34,7 +33,7 @@ import {
   isHostedUrl,
   isLocalHost,
 } from "./hosted";
-import { DEFAULT_PROJECT_URL, ProjectClientError, readLiveScene } from "./project-client";
+import { DEFAULT_PROJECT_URL } from "./project-client";
 import { rasterizeSvg } from "./raster";
 import { apply } from "./tools/apply";
 import { applyLive } from "./tools/apply-live";
@@ -78,6 +77,7 @@ import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { DEFAULT_STATS_TICKS, stats } from "./tools/stats";
 import { validate } from "./tools/validate";
+import { liveSceneText } from "./tools/write-batch";
 
 /** The agent id a live batch is logged under when `agentId` is left out. */
 export const DEFAULT_MCP_AGENT_ID = "mcp";
@@ -309,22 +309,9 @@ async function withSource(
       return usage("live takes a scene name; file paths are read-only");
     const url = liveUrl(input.url, ctx);
     if (isToolResult(url)) return url;
-    let text: string;
-    try {
-      ({ text } = await readLiveScene({
-        projects: ctx.projects,
-        project: ctx.project,
-        url,
-        scene: input.scene,
-        ...hostedOptions(ctx, undefined),
-      }));
-    } catch (e) {
-      if (e instanceof ProjectClientError)
-        return e.exitCode === 2
-          ? usage(e.message)
-          : failure(e.message, { scene: input.scene, url });
-      throw e;
-    }
+    const live = await liveSceneText(ctx, { scene: input.scene, url }, { url });
+    if (isToolResult(live)) return live;
+    const { text } = live;
     const arg = opts.asFile ? await tmp.write(`${input.scene}.json`, text) : "-";
     const result = await run(arg, opts.asFile ? ctx : { ...ctx, readStdin: async () => text }, tmp);
     relabel(result.data, arg, input.scene);
@@ -870,7 +857,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_decompose",
     title: "Split a concave polygon",
     description:
-      "Replace an entity's concave `poly` shape with convex pieces, as the CLI's `decompose` does: one entity per piece (same type and fields, ids `<id>-1`…), or with group one group holding them, written as one batch. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. A self-intersecting, zero-area or already convex polygon is refused, writing nothing.",
+      "Replace an entity's concave `poly` shape with convex pieces, as the CLI's `decompose` does: one entity per piece (same type and fields, ids `<id>-1`…), or with group one group holding them, written as one batch. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. Refused, writing nothing: a self-intersecting, zero-area or already convex polygon, one with a point off the whole-pixel grid, one whose pieces would hold a sliver Rapier cuts away, and an entity another entity's ref still names.",
     annotations: WRITE,
     input: {
       scene: sceneName,

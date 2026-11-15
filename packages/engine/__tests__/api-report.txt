@@ -2399,6 +2399,8 @@ DEFAULT_TOUCH_ROLLOUTS
 DEFAULT_TOUCH_SEED
 DEFAULT_TOUCH_TICKS
 DEFAULT_UNTIL_MAX
+DecomposeBatchResult
+DecomposeOptions
 DecomposeResult
 Dihedral
 DrawnSprite
@@ -5414,6 +5416,7 @@ declare function splitConvex(session: EditorSession, id: string, opts?: {
     ok: false;
 } | {
     ok: true;
+    selected: Ref[];
 };
 declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[], source?: GizmoSource): GizmoTarget[];
 declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 | 1): OpBatch | null;
@@ -14709,6 +14712,15 @@ declare function createScene(name: string, registry: Registry, opts?: {
 }): SceneDefinition;
 
 ## scene/decompose.ts
+type DecomposeBatchResult = {
+    area2: number;
+    batch: OpBatch;
+    ok: true;
+    pieceArea2: readonly number[];
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
 type DecomposeOptions = {
     maxVertices?: number;
     pxPerMetre?: number;
@@ -14737,13 +14749,7 @@ declare function canDecompose(points: readonly Pt[], opts?: {
 }): boolean;
 declare function decomposeBatch(def: SceneDefinition, id: string, registry: Registry, opts?: {
     group?: boolean;
-}): {
-    batch: OpBatch;
-    ok: true;
-} | {
-    issue: SceneIssue;
-    ok: false;
-};
+}): DecomposeBatchResult;
 declare function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions): DecomposeResult;
 declare function splittableSite(registry: Registry, e: EntityDef): SplittableSite | null;
 

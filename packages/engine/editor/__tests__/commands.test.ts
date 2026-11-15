@@ -593,15 +593,38 @@ describe("splitConvex", () => {
     expect(canSplitConvex(polys, "square", registry)).toBe(false);
   });
 
+  it("is disabled while another entity's ref names the entity, as decomposeBatch refuses it", () => {
+    const named: SceneDefinition = {
+      ...polys,
+      entities: [
+        ...polys.entities!,
+        {
+          id: "hinge",
+          type: "marker",
+          at: [1, 1],
+          behaviors: { joint: { kind: "revolute", to: "ell" } },
+        },
+      ],
+    };
+    expect(canSplitConvex(named, "ell", registry)).toBe(false);
+    expect(canSplitConvex(named, "room", registry)).toBe(true);
+  });
+
   it("dispatches one batch that one undo restores", () => {
     const s = session();
     const before = s.getDoc();
     const dispatch = vi.spyOn(s, "dispatch");
-    expect(splitConvex(s, "ell")).toEqual({ ok: true });
+    const result = splitConvex(s, "ell");
+    expect(result).toEqual({ ok: true, selected: ["ell-1", "ell-2"] });
     expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch.mock.calls[0]![0].label).toBe("Split ell into 2 convex pieces");
     const after = s.getDoc().entities!;
     expect(after.some((e) => e.id === "ell")).toBe(false);
-    expect(after.filter((e) => e.id?.startsWith("ell-")).length).toBeGreaterThan(1);
+    expect(after.filter((e) => e.id?.startsWith("ell-")).map((e) => e.id)).toEqual([
+      "ell-1",
+      "ell-2",
+    ]);
+    expect(s.store.state.selection).toEqual(["ell-1", "ell-2"]);
     expect(s.undo()).toBe(true);
     expect(s.getDoc()).toEqual(before);
     s.destroy();

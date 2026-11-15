@@ -120,6 +120,15 @@ export function judgeSmoothFollow(probe: SmoothFollowProbe | undefined): string 
     if (Math.abs(step) >= FOLLOW_STEP_PX)
       return `the followed hero moved ${step.toFixed(2)} px on screen between frames ${i - 1} and ${i} (${probe.renderer})`;
   }
+  // The world must pass at one steady rate too: a camera that stalls and catches up can still hold the hero still on screen.
+  const travel = probe.origin.at(-1)! - probe.origin[0]!;
+  const pxPerMs = travel / (seconds * 1000);
+  for (let i = 1; i < probe.origin.length; i++) {
+    const step = probe.origin[i]! - probe.origin[i - 1]!;
+    const ideal = pxPerMs * (probe.at[i]! - probe.at[i - 1]!);
+    if (step * Math.sign(travel) < 0 || Math.abs(step - ideal) >= FOLLOW_STEP_PX)
+      return `the camera carried the world ${step.toFixed(2)} px between frames ${i - 1} and ${i}, not the steady ${ideal.toFixed(2)} px (${probe.renderer})`;
+  }
   return null;
 }
 

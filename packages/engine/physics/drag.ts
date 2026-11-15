@@ -23,12 +23,11 @@ const DEFAULT_DRAG_STIFFNESS = 200;
 const DEFAULT_DRAG_DAMPING = 20;
 
 /**
- * Drags `body` toward a pointer: a kinematic anchor at `at` (m) on a
- * zero-length spring (`stiffness` 200 N/m, `damping` 20 N·s/m), capped at
- * `maxForce` N. Call `update` every tick; `release` is idempotent, and the
- * drag releases itself once its body or world is gone. Throws
- * `PhysicsRequiredError` outside a Rapier scene, and `schema` for a
- * stiffness or maxForce that isn't above 0 or a negative damping.
+ * Drags `body` toward a pointer through a kinematic anchor on a zero-length
+ * spring, capped at `maxForce`. Call `update` each tick; `release` is
+ * idempotent and happens by itself once the body or world is gone, or once
+ * `body` no longer owns it. Throws `PhysicsRequiredError` outside a Rapier
+ * scene and `schema` for a bad stiffness, damping or maxForce.
  */
 export function createDragJoint(
   ctx: EngineContext,
@@ -79,7 +78,7 @@ export function createDragJoint(
     const b = p.world.bodies.get(targetHandle);
     const j = p.world.impulseJoints.get(jointHandle);
     if (!a || !b?.isEnabled() || !j) return null;
-    if (bodyOf(ctx, p, body, targetHandle)?.handle !== targetHandle) return null;
+    if (bodyOf(ctx, p, body)?.handle !== targetHandle) return null;
     return { anchor: a, target: b, joint: j };
   }
 

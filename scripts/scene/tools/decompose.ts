@@ -1,27 +1,9 @@
 import { pxPerMetreOf } from "@jams/engine/game";
-import {
-  decomposeBatch,
-  decomposePolygon,
-  splittableSite,
-  type OpBatch,
-  type Pt,
-  type SceneDefinition,
-} from "@jams/engine/scene";
+import { decomposeBatch, type OpBatch, type SceneDefinition } from "@jams/engine/scene";
 
-import {
-  failure,
-  hostedOptions,
-  isFileArg,
-  issueLine,
-  openScene,
-  usage,
-  type Tool,
-  type ToolResult,
-} from "../context";
-import { ProjectClientError, readLiveScene } from "../project-client";
-import { apply } from "./apply";
-import { applyLive } from "./apply-live";
+import { isFileArg, isToolResult, issueLine, openScene, usage, type Tool } from "../context";
 import type { WriterFlags } from "./assets-apply";
+import { liveSceneText, writeSceneBatch } from "./write-batch";
 
 export const DECOMPOSE_USAGE = "decompose <scene> <id> [--group] [--live]";
 
@@ -32,18 +14,6 @@ export type DecomposeInput = WriterFlags & {
   /** Put the pieces under one group instead of side by side. */
   group?: boolean;
 };
-
-/** The polygon's area and the pieces' summed, in m², from the decomposer's whole-px measure. */
-function areaCheck(
-  points: readonly Pt[],
-  pxPerMetre: number,
-): { area: number; pieces: number } | null {
-  const whole = decomposePolygon(points, { pxPerMetre });
-  if (!whole.ok) return null;
-  const pieces2 = whole.pieceArea2.reduce((sum, a) => sum + Math.abs(a), 0);
-  const toM2 = (area2: number) => area2 / 2 / (pxPerMetre * pxPerMetre);
-  return { area: toM2(whole.area2), pieces: toM2(pieces2) };
-}
 
 const addedIds = (batch: OpBatch) =>
   batch.ops.flatMap((op) =>
@@ -64,21 +34,9 @@ export const decompose: Tool<DecomposeInput> = async (input, ctx) => {
   if (!loaded.ok) return loaded.result;
   let def = loaded.def;
   if (input.live) {
-    try {
-      const live = await readLiveScene({
-        projects: ctx.projects,
-        url: input.url,
-        project: ctx.project,
-        scene: input.scene,
-        timeoutMs: input.timeoutMs,
-        ...hostedOptions(ctx, input.token),
-      });
-      def = JSON.parse(live.text) as SceneDefinition;
-    } catch (e) {
-      if (e instanceof ProjectClientError)
-        return e.exitCode === 2 ? usage(e.message) : failure(e.message, { scene: input.scene });
-      throw e;
-    }
+    const live = await liveSceneText(ctx, { ...input, scene: input.scene });
+    if (isToolResult(live)) return live;
+    def = JSON.parse(live.text) as SceneDefinition;
   }
 
   const built = decomposeBatch(def, input.id, loaded.registry, { group: input.group });
@@ -90,38 +48,21 @@ export const decompose: Tool<DecomposeInput> = async (input, ctx) => {
     };
 
   const pieces = addedIds(built.batch);
-  const entity = def.entities?.find((e) => e.id === input.id);
-  const site = entity ? splittableSite(loaded.registry, entity) : null;
-  const area = site ? areaCheck(site.pts, pxPerMetreOf(loaded.registry)) : null;
-  const text = JSON.stringify(built.batch);
-  const via = { ...ctx, readStdin: async () => text };
-  const result: ToolResult = input.live
-    ? await applyLive(
-        {
-          scene: input.scene,
-          ops: "-",
-          url: input.url,
-          agent: input.agent,
-          onBehalfOf: input.onBehalfOf,
-          token: input.token,
-          dryRun: input.dryRun,
-          base: input.base,
-          timeoutMs: input.timeoutMs,
-        },
-        via,
-      )
-    : await apply({ scene: input.scene, ops: "-", dryRun: input.dryRun, base: input.base }, via);
+  const ppm = pxPerMetreOf(loaded.registry);
+  const toM2 = (area2: number) => area2 / 2 / (ppm * ppm);
+  const area = toM2(built.area2);
+  const piecesArea = toM2(built.pieceArea2.reduce((sum, a) => sum + Math.abs(a), 0));
+  const result = await writeSceneBatch({ ...input, scene: input.scene }, ctx, built.batch);
 
-  const areaLine = area
-    ? `area ${area.area} → pieces ${area.pieces} (${area.area === area.pieces ? "preserved" : "MISMATCH"})`
-    : "";
+  const areaLine = `area ${area} → pieces ${piecesArea} (${area === piecesArea ? "preserved" : "MISMATCH"})`;
   return {
     ...result,
     data: {
       ...(result.data as Record<string, unknown>),
       id: input.id,
       pieces,
-      ...(area ? { area: area.area, piecesArea: area.pieces } : {}),
+      area,
+      piecesArea,
       batch: built.batch,
     },
     text: [result.text, `pieces: ${pieces.join(", ")}`, areaLine].filter(Boolean).join("\n"),

@@ -801,6 +801,28 @@ export type DrawnJoint = {
 };
 
 /**
+ * The character a joint's kind marks the middle of its line with: `mark` in
+ * the SVG render and the editor, `ascii` on the character map, which keeps
+ * clear of the primitives' own characters. An unknown kind draws `j`.
+ */
+export function jointGlyph(kind: string): { mark: string; ascii: string } {
+  switch (kind) {
+    case "revolute":
+      return { mark: "○", ascii: "R" };
+    case "prismatic":
+      return { mark: "↔", ascii: "P" };
+    case "rope":
+      return { mark: "~", ascii: "O" };
+    case "weld":
+      return { mark: "■", ascii: "W" };
+    case "spring":
+      return { mark: "≈", ascii: "Z" };
+    default:
+      return { mark: "j", ascii: "j" };
+  }
+}
+
+/**
  * Every joint among `entities` whose `to` is one of them, each anchor
  * placed from its entity's pose as the joint system does. `pxPerMetre`
  * scales the anchors (metres) to the entities' units: 1 for metre-space

@@ -778,23 +778,14 @@ describe("tilemaps", { timeout: 60_000 }, () => {
   });
 
   it("scene_decompose returns the batch as a dry run, and applies it when dryRun is false", async () => {
-    const seeded = await tileCall("scene_apply_ops", {
-      scene: "kitchen-sink",
-      ops: {
-        ops: [
-          {
-            op: "add",
-            entity: {
-              id: "ell",
-              type: "nav",
-              shape: ["poly", 40, 0, 44, 0, 44, 1, 41, 1, 41, 3, 40, 3],
-            },
-          },
-        ],
-      },
-      dryRun: false,
+    // A concave solid is already an error, which `scene_apply_ops` refuses, so it goes in as text.
+    const doc = JSON.parse(await sink()) as { entities: object[] };
+    doc.entities.push({
+      id: "ell",
+      type: "solid",
+      shape: ["poly", 40, 0, 44, 0, 44, 1, 41, 1, 41, 3, 40, 3],
     });
-    expect(seeded.structuredContent.exitCode, JSON.stringify(seeded.structuredContent)).toBe(0);
+    await writeFile(join(deck, "engine/kitchen-sink.json"), JSON.stringify(doc));
     const before = await sink();
     const dry = await tileCall("scene_decompose", { scene: "kitchen-sink", id: "ell" });
     expect(dry.structuredContent.exitCode, JSON.stringify(dry.structuredContent)).toBe(0);

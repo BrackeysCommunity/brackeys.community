@@ -1,5 +1,6 @@
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import { COLLIDER } from "../../game/behaviors/collider";
+import { JOINT } from "../../game/behaviors/joint";
 import { PATH_FOLLOW } from "../../game/behaviors/path-follow";
 import type { Registry } from "../../game/types";
 import { behaviorBlocks } from "../../scene/expand";
@@ -208,6 +209,18 @@ export function pathFollowPath(
   const pts = Array.isArray(path?.pts) ? path.pts.filter(isPt) : [];
   if (pts.length < 2) return undefined;
   return { pts: pts.map(([x, y]) => [x, y] as Pt), closed: path?.mode === "loop" };
+}
+
+/** The kind the `joint` block of entity `ref` writes, for its glyph; undefined without one. */
+export function jointKindOf(
+  def: SceneDefinition,
+  registry: Registry,
+  ref: Ref,
+): string | undefined {
+  const e = (def.entities ?? []).find((x) => x.id === ref);
+  if (!e || !registry.types.has(e.type)) return undefined;
+  const kind = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[JOINT.name]?.kind;
+  return typeof kind === "string" ? kind : undefined;
 }
 
 const isPt = (v: unknown): v is Pt =>

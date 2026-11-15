@@ -349,6 +349,8 @@ export {
   decomposeBatch,
   decomposePolygon,
   splittableSite,
+  type DecomposeBatchResult,
+  type DecomposeOptions,
   type DecomposeResult,
   type ShapeSite,
   type SplittableSite,

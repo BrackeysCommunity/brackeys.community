@@ -35,11 +35,7 @@ export type WatchedPoseIndex = PoseIndex & {
   /** Marks `id`'s latest snap a teleport, which a following camera jumps with, and tells `onTeleport`'s listeners. */
   teleport(id: string): void;
   onTeleport(fn: (id: string) => void): void;
-  /**
-   * A count of teleports that only grows: with `id`, the count as of that
-   * entity's latest (0 for none), else the latest. A follower compares the
-   * two to tell a teleport since it last looked.
-   */
+  /** A teleport counter that only grows; with `id`, its value at that entity's latest teleport (0 for none). */
   teleports(id?: string): number;
 };
 

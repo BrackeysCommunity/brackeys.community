@@ -213,6 +213,18 @@ type RuntimeLive = NonNullable<SceneRuntimeOptions["live"]> & {
   loading?(scene: AssetId, back?: boolean): Sha256 | null;
 };
 
+/**
+ * Settles the views drawn from the pose index (sprites, then text) at the
+ * poses they hold now; false when the runtime has none.
+ */
+export function settleViews(ctx: EngineContext): boolean {
+  const sprites = ctx.behavior<SpriteSystem>(SPRITE.name);
+  const texts = ctx.behavior<TextSystem>(TEXT.name);
+  sprites?.settle();
+  texts?.settle();
+  return !!(sprites || texts);
+}
+
 export function saveHostOf(ctx: EngineContext): SaveHost | undefined {
   return (ctx as EngineContext & { [SAVE_HOST]?: SaveHost })[SAVE_HOST];
 }
@@ -638,8 +650,6 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const tilesPart = tilemaps ? afterStepParts[ordered.indexOf(tilemaps)]! : "";
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
-  const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
-  const texts = behaviors.system<TextSystem>(TEXT.name);
   const colliders = behaviors.system<ColliderSystem>(COLLIDER.name);
   lifecycle = createLifecycle({
     ctx,
@@ -1154,9 +1164,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       stepping = false;
       bodies.endTick();
     }
-    if (sprites || texts || ctx.view?.commit) {
-      sprites?.settle();
-      texts?.settle();
+    if (settleViews(ctx) || ctx.view?.commit) {
       ctx.view?.commit?.(t);
       timed?.lap("view.commit");
     }

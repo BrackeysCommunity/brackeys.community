@@ -27,10 +27,9 @@ import {
   type ToolResult,
 } from "../context";
 import { findScene, openLiveProject, ProjectClientError } from "../project-client";
-import { apply } from "./apply";
-import { applyLive } from "./apply-live";
 import type { WriterFlags } from "./assets-apply";
 import { loadProject } from "./project-show";
+import { writeSceneBatch } from "./write-batch";
 
 export type PaintInput = WriterFlags & {
   scene?: string;
@@ -240,6 +239,7 @@ async function liveState(
  */
 export const paint: Tool<PaintInput> = async (input, ctx) => {
   if (!input.scene || !input.map) return usage(PAINT_USAGE);
+  const scene = input.scene;
   const given = [input.cells?.length, input.rect?.length, input.fill, input.auto].filter(
     (v) => v !== undefined && v !== 0,
   );
@@ -275,22 +275,5 @@ export const paint: Tool<PaintInput> = async (input, ctx) => {
       text: `${input.scene}: nothing to autotile on ${input.map}; --auto re-tiles terrain already there, so paint it first (e.g. --rect c0,r0,c1,r1=<terrain tag>)`,
     };
 
-  const text = JSON.stringify(batch);
-  const via = { ...ctx, readStdin: async () => text };
-  if (input.live)
-    return applyLive(
-      {
-        scene: input.scene,
-        ops: "-",
-        url: input.url,
-        agent: input.agent,
-        onBehalfOf: input.onBehalfOf,
-        token: input.token,
-        dryRun: input.dryRun,
-        base: input.base,
-        timeoutMs: input.timeoutMs,
-      },
-      via,
-    );
-  return apply({ scene: input.scene, ops: "-", dryRun: input.dryRun, base: input.base }, via);
+  return writeSceneBatch({ ...input, scene }, ctx, batch);
 };

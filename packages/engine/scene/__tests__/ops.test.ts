@@ -539,6 +539,49 @@ describe("applyOps: rename, promote, demote", () => {
     expect(r.issue.message).toContain("referenced by pull");
   });
 
+  it("won't demote an entity a behavior's ref names, naming the referrer", () => {
+    const added = ok(
+      apply(engineYard(), {
+        ops: [
+          { op: "add", entity: { id: "slab", type: "solid", shape: ["box", 500, 500, 20, 20] } },
+          {
+            op: "add",
+            entity: {
+              id: "hinge",
+              type: "marker",
+              at: [500, 480],
+              behaviors: { joint: { kind: "revolute", to: "slab" } },
+            },
+          },
+        ],
+      }),
+    );
+    const r = failed(apply(added.def, { ops: [{ op: "demote", id: "slab" }] }));
+    expect(r.issue.code).toBe("op-invalid");
+    expect(r.issue.message).toContain("referenced by hinge");
+    expect(r.issue.entityIds).toEqual(["slab", "hinge"]);
+  });
+
+  it("rewrites a nav agent's target to a renamed entity, and undoes it", () => {
+    const def = ok(
+      apply(engineYard(), {
+        ops: [
+          {
+            op: "add",
+            entity: {
+              id: "guard",
+              type: "marker",
+              at: [100, 960],
+              behaviors: { "nav-agent": { to: "crate" } },
+            },
+          },
+        ],
+      }),
+    ).def;
+    const r = roundTrip(def, { ops: [{ op: "rename", from: "crate", to: "box" }] });
+    expect(entity(r.def, "guard")?.behaviors).toMatchObject({ "nav-agent": { to: "box" } });
+  });
+
   it("refuses to promote an id", () => {
     expect(
       failed(apply(engineYard(), { ops: [{ op: "promote", ref: "lift", id: "x" }] })).issue.code,

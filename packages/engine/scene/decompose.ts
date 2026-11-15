@@ -6,13 +6,12 @@ import { isPolygonField } from "../game/fields";
 import { NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
-import { takenIds } from "./fragment";
+import { refFields, setAt, takenIds } from "./fragment";
 import { jsonPointer, makeIssue } from "./issues";
 import { canBeInTree } from "./nav-type";
 import { fieldKind, geometryFields } from "./schema";
 import { cross3, earClip, isConvex, isSimplePolygon, signedArea2 } from "./shape-geometry";
 import { parseShape } from "./shapes";
-import { holdsEntityRef } from "./translate";
 import type {
   EntityDef,
   EntityInput,
@@ -23,7 +22,7 @@ import type {
   SceneOp,
   ShapeTuple,
 } from "./types";
-import { roundLength } from "./units";
+import { isWholePixel } from "./units";
 
 export type DecomposeResult =
   | {
@@ -36,10 +35,10 @@ export type DecomposeResult =
     }
   | { ok: false; issue: SceneIssue };
 
-type DecomposeOptions = {
+export type DecomposeOptions = {
   /** The most vertices a piece may have; default 8. */
   maxVertices?: number;
-  /** The game's px per metre the points are snapped to; default the engine's. */
+  /** The game's px per metre, whose whole px every point must sit on; default the engine's. */
   pxPerMetre?: number;
 };
 
@@ -51,11 +50,34 @@ const toPx = (pts: readonly Pt[], ppm: number): Pt[] =>
 const finitePts = (pts: readonly Pt[]) =>
   pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 
-/** Whether `points` (metres) is a simple polygon with area that isn't already convex, judged on whole world px. */
+const onWholePx = (pts: readonly Pt[], ppm: number) =>
+  pts.every(([x, y]) => isWholePixel(x, ppm) && isWholePixel(y, ppm));
+
+/**
+ * Whether `points` (metres) is a polygon `decomposePolygon` splits that isn't
+ * already convex.
+ */
 export function canDecompose(points: readonly Pt[], opts?: { pxPerMetre?: number }): boolean {
-  if (!finitePts(points)) return false;
-  const px = toPx(points, opts?.pxPerMetre ?? DEFAULT_LENGTH_UNIT);
-  return isSimplePolygon(px) && !isConvex(px);
+  const ppm = opts?.pxPerMetre ?? DEFAULT_LENGTH_UNIT;
+  if (!finitePts(points) || !onWholePx(points, ppm)) return false;
+  const px = toPx(points, ppm);
+  return isSimplePolygon(px) && !isConvex(px) && decomposePolygon(points, opts).ok;
+}
+
+/**
+ * Rapier's convex polygon drops a corner whose neighbouring edges' unit
+ * normals dot to more than 1 minus this (parry's `sqrt(f32::EPSILON)`), a
+ * turn under about 1.5°, and refuses a triangle that loses one.
+ */
+const RAPIER_MIN_TURN = Math.sqrt(2 ** -23);
+
+/** Whether Rapier keeps corner `b` between `a` and `c`: it turns by at least about 1.5°. */
+function rapierKeeps(a: Pt, b: Pt, c: Pt): boolean {
+  const ux = b[0] - a[0];
+  const uy = b[1] - a[1];
+  const vx = c[0] - b[0];
+  const vy = c[1] - b[1];
+  return (ux * vx + uy * vy) / (Math.hypot(ux, uy) * Math.hypot(vx, vy)) <= 1 - RAPIER_MIN_TURN;
 }
 
 /** Merges two convex index rings across their shared edge `a`–`b`. */
@@ -76,12 +98,64 @@ const runs = (ring: readonly number[], a: number, b: number) => {
   return k >= 0 && ring[(k + 1) % ring.length] === b;
 };
 
+type Tri = [number, number, number];
+
+/** Whether `d` lies strictly inside the circle through the positively wound `a`, `b`, `c`. */
+function inCircle(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
+  const ax = a[0] - d[0];
+  const ay = a[1] - d[1];
+  const bx = b[0] - d[0];
+  const by = b[1] - d[1];
+  const cx = c[0] - d[0];
+  const cy = c[1] - d[1];
+  return (
+    (ax * ax + ay * ay) * (bx * cy - cx * by) -
+      (bx * bx + by * by) * (ax * cy - cx * ay) +
+      (cx * cx + cy * cy) * (ax * by - bx * ay) >
+    0
+  );
+}
+
 /**
- * Ear clipping, then Hertel–Mehlhorn merging into convex pieces of at most
- * `maxVertices` (default 8), using only the original vertices. Points are
- * metres, snapped to whole world px at `pxPerMetre` so every test is an
- * exact integer cross product; pieces come back in metres wound as the
- * input is.
+ * Flips diagonals of the triangulation of `px` until it's constrained
+ * Delaunay, which leaves no flat triangle the polygon doesn't force. A
+ * diagonal flips only inside a strictly convex quad, so the triangles stay
+ * inside the polygon and their areas still sum to its.
+ */
+function delaunayFlips(px: readonly Pt[], tris: Tri[]): Tri[] {
+  const n = px.length;
+  const at = (t: Tri, a: number, b: number) =>
+    t.findIndex((v, k) => v === a && t[(k + 1) % 3] === b);
+  for (let pass = 0, flipped = true; flipped && pass < n * n; pass++) {
+    flipped = false;
+    for (let i = 0; i < tris.length; i++)
+      for (let k = 0; k < 3; k++) {
+        const [a, b, c] = [tris[i]![k]!, tris[i]![(k + 1) % 3]!, tris[i]![(k + 2) % 3]!];
+        if ((a + 1) % n === b || (b + 1) % n === a) continue;
+        const j = tris.findIndex((u, m) => m !== i && at(u, b, a) >= 0);
+        if (j < 0) continue;
+        const u = tris[j]!;
+        const d = u[(at(u, b, a) + 2) % 3]!;
+        if (cross3(px[c]!, px[a]!, px[d]!) <= 0 || cross3(px[d]!, px[b]!, px[c]!) <= 0) continue;
+        if (!inCircle(px[a]!, px[b]!, px[c]!, px[d]!)) continue;
+        tris[i] = [a, d, c];
+        tris[j] = [d, b, c];
+        flipped = true;
+      }
+  }
+  return tris;
+}
+
+/**
+ * Ear clipping (made Delaunay when its own triangles leave a sliver), then
+ * Hertel–Mehlhorn merging into convex pieces of at most `maxVertices`
+ * (default 8), using only the original vertices. Points are metres on whole
+ * world px at `pxPerMetre`, so every convexity test is an exact integer cross
+ * product. Refused: a point off that grid (snap it first, rather than have it
+ * moved), and a polygon whose pieces would still hold a sliver Rapier cuts
+ * away, a corner within about 1.5° of straight that isn't one of the input's
+ * own (Rapier drops those from any poly). Pieces hold the caller's own
+ * points, wound as the input is.
  */
 export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions): DecomposeResult {
   const ppm = opts?.pxPerMetre ?? DEFAULT_LENGTH_UNIT;
@@ -92,6 +166,8 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
   });
   if (points.length < 3) return refuse("it has fewer than 3 points.");
   if (!finitePts(points)) return refuse("a point isn't a finite number.");
+  if (!onWholePx(points, ppm))
+    return refuse(`a point isn't on a whole world pixel at ${ppm} px per metre; snap it first.`);
   const input = toPx(points, ppm);
   const area2 = signedArea2(input);
   if (area2 === 0) return refuse("it has zero area.");
@@ -99,18 +175,56 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
 
   const flipped = area2 < 0;
   const px = flipped ? [...input].reverse() : input;
+  const original = flipped ? [...points].reverse() : points;
   const indexOf = new Map(px.map((p, i) => [`${p[0]},${p[1]}`, i]));
   const idx = (p: Pt) => indexOf.get(`${p[0]},${p[1]}`)!;
 
-  // Pieces start as the ear clipper's triangles, in its order.
-  const rings: (number[] | null)[] = earClip(px).map(([a, b, c]) => [idx(a), idx(b), idx(c)]);
+  const tris = earClip(px).map(([a, b, c]): Tri => [idx(a), idx(b), idx(c)]);
+  // Delaunay flips only when the ear clipper's own triangles leave a sliver, so other splits keep their pieces.
+  const rings =
+    convexPieces(px, tris, maxVertices) ??
+    convexPieces(
+      px,
+      delaunayFlips(
+        px,
+        tris.map((t): Tri => [...t]),
+      ),
+      maxVertices,
+    );
+  if (!rings)
+    return refuse(
+      "it's too thin in places: a piece would hold a sliver Rapier cuts away, a corner within about 1.5° of straight. Move apart the points that nearly meet, or split it by hand.",
+    );
+  const pieces = rings.map((ring) => {
+    const out = ring.map((i): Pt => [original[i]![0], original[i]![1]]);
+    return flipped ? out.reverse() : out;
+  });
+  const pieceArea2 = rings.map((ring) => signedArea2(ring.map((i) => px[i]!)));
+  return { ok: true, pieces, area2: Math.abs(area2), pieceArea2 };
+}
+
+/**
+ * Hertel–Mehlhorn over `tris` (index triangles of the positively wound `px`,
+ * in order): each diagonal is removed when the merged piece stays convex,
+ * within `maxVertices`, with no new corner Rapier would drop. Pieces come back
+ * as index rings with dead-straight corners left out; null when one would
+ * hold a sliver Rapier cuts away.
+ */
+function convexPieces(
+  px: readonly Pt[],
+  tris: readonly Tri[],
+  maxVertices: number,
+): number[][] | null {
+  const n = px.length;
+  const rings: (number[] | null)[] = tris.map((t) => [...t]);
   const diagonals: [number, number][] = [];
   const seen = new Set<string>();
-  for (const ring of rings) {
-    for (let k = 0; k < 3; k++) {
-      const a = ring![k]!;
-      const b = ring![(k + 1) % 3]!;
-      const n = px.length;
+  for (const [a0, b0, c0] of tris) {
+    for (const [a, b] of [
+      [a0, b0],
+      [b0, c0],
+      [c0, a0],
+    ] as const) {
       if ((a + 1) % n === b || (b + 1) % n === a) continue;
       const key = a < b ? `${a},${b}` : `${b},${a}`;
       if (seen.has(key)) continue;
@@ -119,10 +233,13 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
     }
   }
 
+  // A merged corner must stay convex and, unless dead straight (left out below), turn enough for Rapier.
   const convexAt = (ring: readonly number[], v: number) => {
     const k = ring.indexOf(v);
-    const n = ring.length;
-    return cross3(px[ring[(k + n - 1) % n]!]!, px[v]!, px[ring[(k + 1) % n]!]!) >= 0;
+    const a = px[ring[(k + ring.length - 1) % ring.length]!]!;
+    const c = px[ring[(k + 1) % ring.length]!]!;
+    const turn = cross3(a, px[v]!, c);
+    return turn === 0 || (turn > 0 && rapierKeeps(a, px[v]!, c));
   };
   for (const [u, v] of diagonals) {
     const li = rings.findIndex((r) => r !== null && runs(r, u, v));
@@ -134,21 +251,25 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
     rings[Math.max(li, ri)] = null;
   }
 
-  const pieces: Pt[][] = [];
-  const pieceArea2: number[] = [];
+  const out: number[][] = [];
   for (const ring of rings) {
     if (ring === null) continue;
-    let pts = ring.map((i) => px[i]!);
-    if (!isConvex(pts))
-      pts = pts.filter(
-        (p, k) =>
-          cross3(pts[(k + pts.length - 1) % pts.length]!, p, pts[(k + 1) % pts.length]!) !== 0,
-      );
-    pieceArea2.push(signedArea2(pts));
-    const out = pts.map(([x, y]): Pt => [roundLength(x / ppm), roundLength(y / ppm)]);
-    pieces.push(flipped ? out.reverse() : out);
+    const m0 = ring.length;
+    const kept = ring.filter(
+      (v, k) => cross3(px[ring[(k + m0 - 1) % m0]!]!, px[v]!, px[ring[(k + 1) % m0]!]!) !== 0,
+    );
+    const m = kept.length;
+    // Rapier drops an input corner within about 1.5° of straight from any poly; any other such corner is a sliver.
+    const sliver = kept.some((v, k) => {
+      const a = kept[(k + m - 1) % m]!;
+      const c = kept[(k + 1) % m]!;
+      if (rapierKeeps(px[a]!, px[v]!, px[c]!)) return false;
+      return !(a === (v + n - 1) % n && c === (v + 1) % n);
+    });
+    if (sliver || m < 3) return null;
+    out.push(kept);
   }
-  return { ok: true, pieces, area2: Math.abs(area2), pieceArea2 };
+  return out;
 }
 
 /** One shape-valued field an entity writes: on its type, or in one of its behavior blocks. */
@@ -232,52 +353,27 @@ export function entityRefSites(
   e: EntityDef,
   id: string,
 ): { segs: string[]; value: unknown }[] {
-  const names = (value: unknown) => value === id || (Array.isArray(value) && value.includes(id));
-  const out: { segs: string[]; value: unknown }[] = [];
-  for (const { field } of registry.types.get(e.type)?.refs ?? []) {
-    const segs = field.split(".");
-    let value: unknown = e;
-    for (const seg of segs)
-      value =
-        value !== null && typeof value === "object"
-          ? (value as Record<string, unknown>)[seg]
-          : undefined;
-    if (names(value)) out.push({ segs, value });
-  }
-  const blocks = e[BEHAVIORS_FIELD];
-  if (blocks === null || typeof blocks !== "object" || Array.isArray(blocks)) return out;
-  for (const [behavior, block] of Object.entries(blocks as Record<string, unknown>)) {
-    const shape = registry.behaviors.get(behavior)?.shape;
-    if (!shape || block === null || typeof block !== "object" || Array.isArray(block)) continue;
-    for (const [field, schema] of Object.entries(shape)) {
-      const value = (block as Record<string, unknown>)[field];
-      if (holdsEntityRef(schema) && names(value))
-        out.push({ segs: [BEHAVIORS_FIELD, behavior, field], value });
-    }
-  }
-  return out;
+  return refFields(registry, e, { behaviors: true })
+    .filter(({ value }) => value === id || (Array.isArray(value) && value.includes(id)))
+    .map(({ segs, value }) => ({ segs, value }));
 }
 
-/** `entity` with the dot path `field` set to `value`, cloned along the way. */
-function withField(entity: EntityDef, field: string, value: unknown): EntityDef {
-  const segs = field.split(".");
-  const out = structuredClone(entity) as Record<string, unknown>;
-  let at = out;
-  for (const s of segs.slice(0, -1)) at = at[s] as Record<string, unknown>;
-  at[segs[segs.length - 1]!] = value;
-  return out as EntityDef;
-}
+/** What `decomposeBatch` builds: the batch, and the split's areas as `decomposePolygon` measures them. */
+export type DecomposeBatchResult =
+  | { ok: true; batch: OpBatch; area2: number; pieceArea2: readonly number[] }
+  | { ok: false; issue: SceneIssue };
 
 /**
  * The batch replacing `id`'s splittable poly (`splittableSite`) with one entity per
  * piece, ids `<id>-n`, or a `group` node named `id` holding them; children move with it.
+ * Refused while another entity names `id`, since the pieces take new ids.
  */
 export function decomposeBatch(
   def: SceneDefinition,
   id: string,
   registry: Registry,
   opts?: { group?: boolean },
-): { ok: true; batch: OpBatch } | { ok: false; issue: SceneIssue } {
+): DecomposeBatchResult {
   const entities = def.entities ?? [];
   const index = entities.findIndex((e) => e.id === id);
   const entity = entities[index];
@@ -320,7 +416,17 @@ export function decomposeBatch(
       }),
     };
 
-  if (opts?.group === true && !canBeInTree(registry.types.get(entity.type)))
+  const group = opts?.group === true;
+  if (group && !registry.types.has(NODE_TYPE))
+    return {
+      ok: false,
+      issue: makeIssue("parent-type", {
+        message: `This game has no ${NODE_TYPE} type to group ${id}'s pieces under; split it without a group.`,
+        path: at,
+        entityIds: [id],
+      }),
+    };
+  if (group && !canBeInTree(registry.types.get(entity.type)))
     return {
       ok: false,
       issue: makeIssue("parent-type", {
@@ -329,7 +435,6 @@ export function decomposeBatch(
         entityIds: [id],
       }),
     };
-  const group = opts?.group === true && registry.types.has(NODE_TYPE);
   const taken = takenIds(def);
   taken.delete(id);
   const ids: string[] = [];
@@ -354,7 +459,8 @@ export function decomposeBatch(
   }
   result.pieces.forEach((piece, k) => {
     const shape = ["poly", ...piece.flat()] as ShapeTuple;
-    const e = withField(entity, site.field, shape) as EntityInput;
+    const e = structuredClone(entity) as EntityInput;
+    setAt(e, site.field.split("."), shape);
     e.id = ids[k]!;
     if (group) e.parent = id;
     ops.push({ op: "add", entity: e, index: slot++ });
@@ -367,5 +473,7 @@ export function decomposeBatch(
       label: group ? `Split ${id} into a group of ${into}` : `Split ${id} into ${into}`,
       ops,
     },
+    area2: result.area2,
+    pieceArea2: result.pieceArea2,
   };
 }

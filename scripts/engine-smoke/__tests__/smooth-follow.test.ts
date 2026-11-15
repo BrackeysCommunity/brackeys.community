@@ -57,6 +57,23 @@ describe("judgeSmoothFollow", () => {
     expect(judgeSmoothFollow(undefined)).toMatch(/no smooth-follow run/);
   });
 
+  it("fails a world that stutters or reverses under a hero held still", () => {
+    const stutter = probe(144);
+    // The camera stalls a frame then catches up: the travel overall still matches the speed.
+    stutter.origin = stutter.origin.map((x, i, all) => (i === 40 ? all[39]! : x));
+    expect(judgeSmoothFollow(stutter)).toMatch(
+      /between frames 39 and 40, not the steady -2\.08 px/,
+    );
+    const back = probe(60);
+    back.origin = back.origin.map((x, i) => (i === 10 ? x + 5.2 : x));
+    expect(judgeSmoothFollow(back)).toMatch(/between frames 9 and 10/);
+    const jitter = probe(90);
+    jitter.at = jitter.at.map((ms, i) => ms + (i % 2) * 3);
+    expect(judgeSmoothFollow(jitter)).toMatch(/carried the world .* between frames 0 and 1/);
+    jitter.origin = jitter.at.map((ms) => 120 - (FOLLOW_SPEED * 100 * ms) / 1000);
+    expect(judgeSmoothFollow(jitter)).toBeNull();
+  });
+
   it("fails a passing outcome by its probe, and leaves a failed one's reason", () => {
     const bad = probe(144, (i) => 120 + i);
     expect(judgeSmoothOutcome({ status: "pass" as const }, bad)).toMatchObject({

@@ -29,7 +29,7 @@ import {
 import { aabb, aabbUnion, translateShape } from "./shape-geometry";
 import { parseShape } from "./shapes";
 import { composeSteps } from "./transform";
-import { isZeroPt, translateBulkEntry, translateEntityDef } from "./translate";
+import { behaviorRefFields, isZeroPt, translateBulkEntry, translateEntityDef } from "./translate";
 import {
   RESERVED_SCENE_KEYS,
   SCENE_FORMAT_VERSION,
@@ -540,17 +540,26 @@ export function takenIds(def: SceneDefinition): Set<string> {
   ]);
 }
 
-/** Each reference field of an entity, as dot-path segments and the ids it names. */
-function refFields(registry: Registry, e: EntityDef) {
-  return (registry.types.get(e.type)?.refs ?? []).flatMap(({ field }) => {
+/**
+ * Each set reference field of an entity, as dot-path segments and the ids it
+ * names: its type's refs, then with `behaviors` its behavior blocks' refs.
+ */
+export function refFields(
+  registry: Registry,
+  e: EntityDef,
+  opts?: { behaviors?: boolean },
+): { field: string; segs: string[]; value: unknown }[] {
+  const typed = (registry.types.get(e.type)?.refs ?? []).flatMap(({ field }) => {
     const segs = field.split(".");
     let value: unknown = e;
     for (const s of segs) value = (value as Record<string, unknown> | undefined)?.[s];
     return value === undefined ? [] : [{ field, segs, value }];
   });
+  return opts?.behaviors ? [...typed, ...behaviorRefFields(registry, e)] : typed;
 }
 
-function setAt(root: object, segs: string[], value: unknown): void {
+/** Sets (or, for `undefined`, deletes) the dot path `segs` below `root`, in place. */
+export function setAt(root: object, segs: string[], value: unknown): void {
   let cur = root as Record<string, unknown>;
   for (const s of segs.slice(0, -1)) cur = cur[s] as Record<string, unknown>;
   const last = segs[segs.length - 1]!;

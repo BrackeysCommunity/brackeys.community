@@ -958,8 +958,9 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 
 /**
  * "Split into convex pieces" under the one shape field `splittableSite` would
- * split: one batch, so one undo restores it. A refusal toasts through the
- * editor's pending tasks, or shows inline outside an editor.
+ * split: one batch, so one undo restores it, that selects the pieces. A
+ * refusal (a ref still naming the entity, say) toasts through the editor's
+ * pending tasks, or shows inline outside an editor.
  */
 function SplitConvexAction({ ctx, path }: { ctx: Ctx; path: string }) {
   const target = ctx.targets.length === 1 && !ctx.edit ? ctx.targets[0] : undefined;
