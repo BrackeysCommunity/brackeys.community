@@ -1,10 +1,20 @@
 /**
  * The synth patch renderer: pure, no Web Audio, noise from the seeded Rng.
  * A patch renders one channel, a point the voice's panner places in the
- * stereo field.
+ * stereo field. The voice is a subtractive mono synth: up to three
+ * oscillators and noise into a ladder filter with its own envelope, an amp
+ * envelope and an LFO. A patch that sets none of the later fields renders
+ * as the plain one-oscillator sound effect it always did.
  */
 import { clamp } from "../math";
-import { SYNTH_DEFAULTS, type SynthFile } from "../project/kinds/synth";
+import {
+  SYNTH_DEFAULTS,
+  type SynthAdsr,
+  type SynthFile,
+  type SynthLfoWave,
+  type SynthOsc,
+  type SynthOscWave,
+} from "../project/kinds/synth";
 import { Rng, unitFloat } from "../sim-kit/rng";
 import { pcmWav } from "./wav";
 
@@ -51,6 +61,104 @@ function svf(damping: number): (x: number, hz: number) => { low: number; high: n
   };
 }
 
+/**
+ * A four-pole ladder low-pass in zero-delay-feedback form: four trapezoidal
+ * one-poles with the fourth's output fed back, solved for the same sample, so
+ * it stays in tune and stable up to self-oscillation at `k` = 4. A tanh on
+ * the feedback sum bounds the ring and gives the drive its grit.
+ */
+function ladder(): (x: number, hz: number, k: number, drive: number) => number {
+  let s1 = 0;
+  let s2 = 0;
+  let s3 = 0;
+  let s4 = 0;
+  return (x, hz, k, drive) => {
+    const g = Math.tan((Math.PI * clamp(hz, CUTOFF_MIN_HZ, CUTOFF_MAX_HZ)) / SYNTH_SAMPLE_RATE);
+    const G = g / (1 + g);
+    const G2 = G * G;
+    const S = (G2 * G * s1 + G2 * s2 + G * s3 + s4) / (1 + g);
+    const y4 = (G2 * G2 * x + S) / (1 + k * G2 * G2);
+    const u = Math.tanh(drive * (x - k * y4)) / Math.tanh(drive);
+    let v = (u - s1) * G;
+    let y = v + s1;
+    s1 = y + v;
+    v = (y - s2) * G;
+    y = v + s2;
+    s2 = y + v;
+    v = (y - s3) * G;
+    y = v + s3;
+    s3 = y + v;
+    v = (y - s4) * G;
+    y = v + s4;
+    s4 = y + v;
+    return y;
+  };
+}
+
+/** A pitched wave at `phase` (0–1); a square's high part is `duty`. */
+function oscSample(wave: SynthOscWave, phase: number, duty = 0.5): number {
+  switch (wave) {
+    case "square":
+      return phase < duty ? 1 : -1;
+    case "saw":
+      return 2 * phase - 1;
+    case "triangle":
+      return phase < 0.5 ? 4 * phase - 1 : 3 - 4 * phase;
+    case "sine":
+      return Math.sin(2 * Math.PI * phase);
+  }
+}
+
+/**
+ * An ADSR's level at sample `i` for a gate of `gate` samples: up to 1, down
+ * to the sustain level, held, then released to 0 from wherever it was.
+ */
+function adsr(env: SynthAdsr): (i: number, gate: number) => number {
+  const attack = samplesIn(env.attackMs ?? 0);
+  const decay = samplesIn(env.decayMs ?? 0);
+  const sustain = env.sustain ?? 0;
+  const release = samplesIn(env.releaseMs ?? 0);
+  const held = (i: number) => {
+    if (i < attack) return i / attack;
+    if (i < attack + decay) return 1 - ((1 - sustain) * (i - attack)) / decay;
+    return sustain;
+  };
+  return (i, gate) => {
+    if (i < gate) return held(i);
+    return release === 0 ? 0 : held(gate) * Math.max(0, 1 - (i - gate) / release);
+  };
+}
+
+/** The LFO's swing at time `t`, −1 to 1; `random` draws a new seeded value each cycle. */
+function lfoAt(wave: SynthLfoWave, hz: number, rng: Rng): (t: number) => number {
+  let cycle = -1;
+  let held = 0;
+  return (t) => {
+    const p = hz * t;
+    const f = p - Math.floor(p);
+    if (wave === "random") {
+      if (Math.floor(p) !== cycle) {
+        cycle = Math.floor(p);
+        held = unitFloat(rng) * 2 - 1;
+      }
+      return held;
+    }
+    return wave === "sine" ? Math.sin(2 * Math.PI * f) : oscSample(wave, f);
+  };
+}
+
+/** Middle C: where key tracking leaves the cutoff where it's set. */
+const KEY_TRACK_HZ = 261.63;
+
+type ExtraOsc = { wave: SynthOscWave; ratio: number; level: number; phase: number };
+
+const extraOsc = (osc: SynthOsc): ExtraOsc => ({
+  wave: osc.wave,
+  ratio: 2 ** ((osc.octave ?? 0) + (osc.detune ?? 0) / 1200),
+  level: osc.level ?? SYNTH_DEFAULTS.oscLevel,
+  phase: 0,
+});
+
 /** One channel, −1 to 1, round(synthDurationMs × 44.1) samples. */
 export function renderSynth(patch: SynthFile): Float32Array {
   const rate = SYNTH_SAMPLE_RATE;
@@ -78,6 +186,42 @@ export function renderSynth(patch: SynthFile): Float32Array {
   const low = lowpass ? svf(Math.SQRT2 * (1 - 0.95 * (lowpass.resonance ?? 0))) : null;
   const high = highpass ? svf(Math.SQRT2) : null;
 
+  const level = patch.level ?? SYNTH_DEFAULTS.level;
+  const extras = [patch.osc2, patch.osc3].flatMap((o) => (o ? [extraOsc(o)] : []));
+  const noiseLevel = patch.noise ?? 0;
+  // Only a patch that mixes more than the one oscillator is mixed down, so a plain one renders as it did.
+  const mixed = extras.length > 0 || noiseLevel > 0;
+  const mixScale = mixed
+    ? 1 / Math.max(1, level + noiseLevel + extras.reduce((sum, o) => sum + o.level, 0))
+    : 1;
+
+  const ampSustain = patch.ampSustain ?? SYNTH_DEFAULTS.ampSustain;
+  const ampDecay = samplesIn(patch.ampDecayMs ?? 0);
+  const held = (k: number) =>
+    k < ampDecay ? ampSustain + (1 - ampSustain) * (1 - k / ampDecay) ** 2 : ampSustain;
+  const releaseFrom = held(sustain);
+
+  const filter = patch.filter;
+  const ladderLow = filter ? ladder() : null;
+  const resonanceK = 4 * (filter?.resonance ?? 0);
+  const drive = 1 + 4 * (filter?.drive ?? 0);
+  // A ladder loses bass as its resonance rises; this gives part of it back.
+  const filterGain = 1 + 0.25 * resonanceK;
+  const filterEnv = patch.filterEnv ? adsr(patch.filterEnv) : null;
+  const envAmount = filter?.envAmount ?? 0;
+  const keyTrack = filter?.keyTrack ?? 0;
+  const gate = attack + sustain;
+
+  const lfo = patch.lfo;
+  const lfoWave = lfo
+    ? lfoAt(lfo.wave, lfo.hz, Rng.from(`${patch.seed ?? SYNTH_DEFAULTS.seed}:lfo`))
+    : null;
+  const lfoPitch = (lfo?.pitch ?? 0) / 12;
+  const lfoCutoff = lfo?.cutoff ?? 0;
+  const lfoAmp = lfo?.amp ?? 0;
+
+  const whiteRng = Rng.from(`${patch.seed ?? SYNTH_DEFAULTS.seed}:noise`);
+
   const rng = Rng.from(patch.seed ?? SYNTH_DEFAULTS.seed);
   const noise = new Float32Array(NOISE_STEPS);
   const refillNoise = () => {
@@ -94,6 +238,8 @@ export function renderSynth(patch: SynthFile): Float32Array {
     let hz = patch.freq * 2 ** (slide * lt + 0.5 * slideAccel * lt * lt);
     if (jumpAt >= 0 && local >= jumpAt) hz *= jumpRatio;
     if (vibratoDepth) hz *= 2 ** (vibratoDepth * Math.sin(2 * Math.PI * vibratoHz * t));
+    const swing = lfoWave ? lfoWave(t) : 0;
+    if (lfoPitch) hz *= 2 ** (lfoPitch * swing);
     hz = clamp(hz, PITCH_MIN_HZ, PITCH_MAX_HZ);
 
     let s: number;
@@ -121,16 +267,36 @@ export function renderSynth(patch: SynthFile): Float32Array {
       if (patch.wave === "noise") refillNoise();
     }
 
+    if (mixed) {
+      s *= level;
+      for (const o of extras) {
+        s += o.level * oscSample(o.wave, o.phase);
+        o.phase += clamp(hz * o.ratio, PITCH_MIN_HZ, PITCH_MAX_HZ) / rate;
+        o.phase -= Math.floor(o.phase);
+      }
+      if (noiseLevel) s += noiseLevel * (unitFloat(whiteRng) * 2 - 1);
+      s *= mixScale;
+    } else if (level !== 1) s *= level;
+
+    if (ladderLow && filter) {
+      let octaves = 0;
+      if (filterEnv) octaves += envAmount * filterEnv(i, gate);
+      if (lfoCutoff) octaves += lfoCutoff * swing;
+      if (keyTrack) octaves += keyTrack * Math.log2(hz / KEY_TRACK_HZ);
+      s = ladderLow(s * filterGain, filter.cutoff * 2 ** octaves, resonanceK, drive);
+    }
+
     if (low && lowpass) s = low(s, lowpass.hz * 2 ** ((lowpass.sweep ?? 0) * t)).low;
     if (high && highpass) s = high(s, highpass.hz * 2 ** ((highpass.sweep ?? 0) * t)).high;
 
     // Punch lifts the start of the sustain; the whole envelope is scaled so its peak is 1.
     let env: number;
     if (i < attack) env = i / attack;
-    else if (i < attack + sustain) env = 1 + punch * (1 - (i - attack) / sustain);
-    else env = Math.max(0, 1 - (i - attack - sustain) / decay);
+    else if (i < attack + sustain) env = held(i - attack) + punch * (1 - (i - attack) / sustain);
+    else env = releaseFrom * Math.max(0, 1 - (i - attack - sustain) / decay);
     if (i === length - 1) env = 0;
     env /= 1 + punch;
+    if (lfoAmp) env *= 1 - (lfoAmp * (1 - swing)) / 2;
 
     out[i] = clamp(s * env * volume, -1, 1);
   }

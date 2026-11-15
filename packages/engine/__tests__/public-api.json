@@ -1222,6 +1222,8 @@
       "STRING_KEY_PATTERN",
       "SYNTH_BOUNDS",
       "SYNTH_KIND",
+      "SYNTH_LFO_WAVES",
+      "SYNTH_OSC_WAVES",
       "SYNTH_SCHEMA_ID",
       "SYNTH_VERSION",
       "SYNTH_WAVES",

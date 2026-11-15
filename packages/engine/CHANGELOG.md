@@ -30,6 +30,19 @@ owner.
   and locale; `view`). The sound, strings and dialogue kinds' checks and
   references are below; the synth kind's are empty. A
   project with no dialogue docs hashes its runs as before.
+- `synth:v1` patches can be a subtractive mono synth: `osc2` and `osc3`
+  (wave, octave, detune, level), a first-oscillator `level` and white
+  `noise` in the mixer, a resonant 24 dB per octave ladder low-pass
+  (`filter`: cutoff, resonance, envelope amount, key tracking, drive) with
+  its own ADSR (`filterEnv`), an amp decay to a sustain level (`ampDecayMs`,
+  `ampSustain`) and an `lfo` on pitch, cutoff or volume (`SYNTH_OSC_WAVES`,
+  `SYNTH_LFO_WAVES`). Every field is optional and a patch without them
+  renders byte for byte as before; renders stay mono, seeded and at most
+  5 s. A `bass` preset joins the others, and laser, explosion, hit, jump,
+  pickup and power-up draws use the new modules some of the time. The
+  editor kit has a `Knob` (drag, wheel while focused, keys, double-click
+  reset, typed value), and an asset's file and licence sections collapse,
+  closed by default above a kind's own editor.
 - The `text` and `audio` behaviors (visual only, after `emitter`), with
   `TextHandle` (`set`, `setKey`) and `AudioHandle` (`play`, `stop`,
   `playing`). `play` stops the entity's sound and starts it again, so a
@@ -337,8 +350,8 @@ other docs:` line and in `data.project`, without changing the exit code.
   and frames the entities naming the sound; it has no fix, and `detail`
   names the sound and the pointer into it. An edit to the sound doc
   revalidates.
-- The synth patch panel: every field with the schema's bounds (sliders, the
-  wave select, a switch per optional block), a waveform strip from
+- The synth patch panel: every field with the schema's bounds as a knob in
+  a synth module (a switch per optional block), a waveform strip from
   `renderSynth`, a button per preset (`randomSynth`) and Mutate
   (`mutateSynth`), each one undo step, and a per-viewer speaker toggle (on
   by default) that auditions a change 150 ms later through the editor's

@@ -75,7 +75,8 @@ export type AssetPanelAudition = Pick<
 
 /**
  * One asset: what it is and where, a play row for a clip, sound or patch,
- * and its licence fields.
+ * and its licence fields. Where the kind has its own editor below, the file
+ * and licence sections start collapsed to leave it the room.
  */
 export function AssetPanel({
   entry,
@@ -84,7 +85,8 @@ export function AssetPanel({
   onClose,
   notify,
   audition,
-}: SelectedAsset & { audition?: AssetPanelAudition }) {
+  editor = false,
+}: SelectedAsset & { audition?: AssetPanelAudition; editor?: boolean }) {
   const details = [
     entry.kind,
     entry.bytes !== undefined ? formatBytes(entry.bytes) : null,
@@ -107,20 +109,25 @@ export function AssetPanel({
       {isAudibleKind(entry.kind) ? (
         <AssetAudition id={entry.id} name={name} size="icon-sm" {...audition} />
       ) : null}
-      <dl className="je-asset-panel-details">
-        <dt>Id</dt>
-        <dd>{entry.id}</dd>
-        <dt>Path</dt>
-        <dd>{entry.path}</dd>
-        <dt>Kind</dt>
-        <dd>{details.join(" · ")}</dd>
-      </dl>
-      <LicenceFields
-        entry={entry}
-        readOnly={readOnly}
-        onLicence={onLicence}
-        {...(notify ? { notify } : {})}
-      />
+      <InspectorSection id={`asset:${entry.kind}:details`} title="File" defaultOpen={!editor}>
+        <dl className="je-asset-panel-details">
+          <dt>Id</dt>
+          <dd>{entry.id}</dd>
+          <dt>Path</dt>
+          <dd>{entry.path}</dd>
+          <dt>Kind</dt>
+          <dd>{details.join(" · ")}</dd>
+        </dl>
+      </InspectorSection>
+      <InspectorSection id={`asset:${entry.kind}:licence`} title="Licence" defaultOpen={!editor}>
+        <LicenceFields
+          entry={entry}
+          readOnly={readOnly}
+          onLicence={onLicence}
+          titled={false}
+          {...(notify ? { notify } : {})}
+        />
+      </InspectorSection>
     </div>
   );
 }
@@ -151,7 +158,7 @@ export function DocAssetShell({
 }) {
   return (
     <div {...root} className="je-doc-asset">
-      <AssetPanel {...asset} {...(audition ? { audition } : {})} />
+      <AssetPanel {...asset} editor {...(audition ? { audition } : {})} />
       <div
         className={className ? `je-asset-panel ${className}` : "je-asset-panel"}
         aria-label={label}

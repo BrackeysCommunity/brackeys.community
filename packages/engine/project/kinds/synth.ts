@@ -17,6 +17,33 @@ export const SYNTH_SCHEMA_ID = `urn:jams-engine:synth:v${SYNTH_VERSION}`;
 export const SYNTH_WAVES = ["square", "saw", "triangle", "sine", "noise"] as const;
 export type SynthWave = (typeof SYNTH_WAVES)[number];
 
+/** The pitched waves a second or third oscillator plays; noise has its own mixer level. */
+export const SYNTH_OSC_WAVES = ["square", "saw", "triangle", "sine"] as const;
+export type SynthOscWave = (typeof SYNTH_OSC_WAVES)[number];
+
+/** The LFO's shapes; `random` holds a new seeded value each cycle (sample and hold). */
+export const SYNTH_LFO_WAVES = ["sine", "triangle", "square", "saw", "random"] as const;
+export type SynthLfoWave = (typeof SYNTH_LFO_WAVES)[number];
+
+/** An oscillator beside the first, tuned from it. */
+export type SynthOsc = {
+  wave: SynthOscWave;
+  /** Whole octaves from the first oscillator. */
+  octave?: number;
+  /** Cents from the first oscillator. */
+  detune?: number;
+  /** Its mixer level, default 1. */
+  level?: number;
+};
+
+/** Attack, decay, sustain level and release; the gate is the patch's attack plus sustain. */
+export type SynthAdsr = {
+  attackMs?: number;
+  decayMs?: number;
+  sustain?: number;
+  releaseMs?: number;
+};
+
 /** A `synth:v1` file. Times are ms, pitch Hz, slides octaves per second. */
 export type SynthFile = {
   $schema?: string;
@@ -44,6 +71,33 @@ export type SynthFile = {
   highpass?: { hz: number; sweep?: number };
   /** Restart pitch and duty every this many ms (a stutter). */
   retriggerMs?: number;
+  /** The first oscillator's mixer level, default 1. */
+  level?: number;
+  osc2?: SynthOsc;
+  osc3?: SynthOsc;
+  /** White noise in the mixer, 0–1. */
+  noise?: number;
+  /**
+   * The amp envelope's decay to `ampSustain` (default 1, so no decay) during
+   * `sustainMs`, the gate; `decayMs` is then its release.
+   */
+  ampDecayMs?: number;
+  ampSustain?: number;
+  /**
+   * A resonant four-pole (24 dB per octave) ladder low-pass after the mixer.
+   * `envAmount` is octaves at the filter envelope's peak, `keyTrack` how far
+   * the cutoff follows the pitch from middle C, `drive` how hard it's pushed.
+   */
+  filter?: {
+    cutoff: number;
+    resonance?: number;
+    envAmount?: number;
+    keyTrack?: number;
+    drive?: number;
+  };
+  filterEnv?: SynthAdsr;
+  /** `pitch` semitones, `cutoff` octaves and `amp` (0–1) of modulation at full swing. */
+  lfo?: { wave: SynthLfoWave; hz: number; pitch?: number; cutoff?: number; amp?: number };
   /** Seeds `noise`; default `SYNTH_DEFAULTS.seed`. */
   seed?: number;
   /** 0–1, default `SYNTH_DEFAULTS.volume`. */
@@ -71,7 +125,30 @@ export type SynthNumberPath =
   | "highpass.hz"
   | "highpass.sweep"
   | "retriggerMs"
-  | "volume";
+  | "volume"
+  | "level"
+  | "osc2.octave"
+  | "osc2.detune"
+  | "osc2.level"
+  | "osc3.octave"
+  | "osc3.detune"
+  | "osc3.level"
+  | "noise"
+  | "ampDecayMs"
+  | "ampSustain"
+  | "filter.cutoff"
+  | "filter.resonance"
+  | "filter.envAmount"
+  | "filter.keyTrack"
+  | "filter.drive"
+  | "filterEnv.attackMs"
+  | "filterEnv.decayMs"
+  | "filterEnv.sustain"
+  | "filterEnv.releaseMs"
+  | "lfo.hz"
+  | "lfo.pitch"
+  | "lfo.cutoff"
+  | "lfo.amp";
 
 /** Every numeric field's least and most value: what the schema holds a patch to and a mutation clamps to. */
 export const SYNTH_BOUNDS: Readonly<Record<SynthNumberPath, readonly [min: number, max: number]>> =
@@ -96,7 +173,33 @@ export const SYNTH_BOUNDS: Readonly<Record<SynthNumberPath, readonly [min: numbe
     "highpass.sweep": [-8, 8],
     retriggerMs: [10, 5_000],
     volume: [0, 1],
+    level: [0, 1],
+    "osc2.octave": [-3, 3],
+    "osc2.detune": [-100, 100],
+    "osc2.level": [0, 1],
+    "osc3.octave": [-3, 3],
+    "osc3.detune": [-100, 100],
+    "osc3.level": [0, 1],
+    noise: [0, 1],
+    ampDecayMs: [0, 2_000],
+    ampSustain: [0, 1],
+    "filter.cutoff": [20, 20_000],
+    "filter.resonance": [0, 1],
+    "filter.envAmount": [-8, 8],
+    "filter.keyTrack": [0, 1],
+    "filter.drive": [0, 1],
+    "filterEnv.attackMs": [0, 2_000],
+    "filterEnv.decayMs": [0, 2_000],
+    "filterEnv.sustain": [0, 1],
+    "filterEnv.releaseMs": [0, 2_000],
+    "lfo.hz": [0, 40],
+    "lfo.pitch": [0, 12],
+    "lfo.cutoff": [0, 4],
+    "lfo.amp": [0, 1],
   });
+
+/** Whether the numeric field at `path` holds whole numbers (an oscillator's octave). */
+export const isWholeSynthField = (path: SynthNumberPath): boolean => path.endsWith(".octave");
 
 /** The number at `path` in `patch`; undefined when it or its block is unset. */
 export function synthField(patch: SynthFile, path: SynthNumberPath): number | undefined {
@@ -128,9 +231,15 @@ export function withSynthField(patch: SynthFile, path: string, value: unknown): 
   return write(patch, 0) as SynthFile;
 }
 
-/** What the renderer reads for an unset `duty`, `volume` and `seed`; every other unset number is 0. */
-export const SYNTH_DEFAULTS: Readonly<{ duty: number; volume: number; seed: number }> =
-  Object.freeze({ duty: 0.5, volume: 1, seed: 1 });
+/** What the renderer reads for these when unset; every other unset number is 0. */
+export const SYNTH_DEFAULTS: Readonly<{
+  duty: number;
+  volume: number;
+  seed: number;
+  level: number;
+  oscLevel: number;
+  ampSustain: number;
+}> = Object.freeze({ duty: 0.5, volume: 1, seed: 1, level: 1, oscLevel: 1, ampSustain: 1 });
 
 type BoundedMeta = {
   unit?: string;
@@ -146,9 +255,26 @@ const WHOLE_HZ = { unit: "Hz", step: 1, decimals: 0 } as const;
 
 const bounded = (path: SynthNumberPath, description: string, meta: BoundedMeta = {}) => {
   const [min, max] = SYNTH_BOUNDS[path];
-  const n = z.number().min(min).max(max).describe(`${description} ${min} to ${max}.`);
+  const number = isWholeSynthField(path) ? z.number().int() : z.number();
+  const n = number.min(min).max(max).describe(`${description} ${min} to ${max}.`);
   return Object.keys(meta).length > 0 ? n.meta(meta) : n;
 };
+
+function oscSchema(osc: "osc2" | "osc3") {
+  return z.strictObject({
+    wave: z.enum(SYNTH_OSC_WAVES).describe("Its wave: square, saw, triangle or sine."),
+    octave: bounded(`${osc}.octave`, "Whole octaves from the first oscillator; default 0.", {
+      title: "Octave",
+    }).optional(),
+    detune: bounded(`${osc}.detune`, "Cents from the first oscillator; default 0.", {
+      unit: "ct",
+      title: "Detune",
+    }).optional(),
+    level: bounded(`${osc}.level`, `Its mixer level; default ${SYNTH_DEFAULTS.oscLevel}.`, {
+      default: SYNTH_DEFAULTS.oscLevel,
+    }).optional(),
+  });
+}
 
 const synthSchema: z.ZodType<SynthFile> = z
   .strictObject({
@@ -229,6 +355,78 @@ const synthSchema: z.ZodType<SynthFile> = z
     volume: bounded("volume", `Loudness; default ${SYNTH_DEFAULTS.volume}.`, {
       default: SYNTH_DEFAULTS.volume,
     }).optional(),
+    level: bounded(
+      "level",
+      `The first oscillator's mixer level; default ${SYNTH_DEFAULTS.level}.`,
+      {
+        default: SYNTH_DEFAULTS.level,
+        title: "Osc 1 level",
+      },
+    ).optional(),
+    osc2: oscSchema("osc2").optional().describe("A second oscillator, tuned from the first."),
+    osc3: oscSchema("osc3").optional().describe("A third oscillator, tuned from the first."),
+    noise: bounded("noise", "White noise in the mixer; default 0.").optional(),
+    ampDecayMs: bounded(
+      "ampDecayMs",
+      "The volume's fall to the amp sustain level during the sustain, ms; default 0.",
+      { unit: "ms", title: "Amp decay" },
+    ).optional(),
+    ampSustain: bounded(
+      "ampSustain",
+      `The level the volume falls to during the sustain; default ${SYNTH_DEFAULTS.ampSustain}.`,
+      { default: SYNTH_DEFAULTS.ampSustain, title: "Amp sustain" },
+    ).optional(),
+    filter: z
+      .strictObject({
+        cutoff: bounded("filter.cutoff", "Cutoff, Hz.", { ...WHOLE_HZ, title: "Cutoff" }),
+        resonance: bounded(
+          "filter.resonance",
+          "Peak at the cutoff, ringing near 1; default 0.",
+        ).optional(),
+        envAmount: bounded(
+          "filter.envAmount",
+          "Octaves the filter envelope moves the cutoff at its peak; default 0.",
+          { title: "Envelope" },
+        ).optional(),
+        keyTrack: bounded(
+          "filter.keyTrack",
+          "How far the cutoff follows the pitch from middle C; default 0.",
+          { title: "Key track" },
+        ).optional(),
+        drive: bounded("filter.drive", "Pushes the filter into saturation; default 0.").optional(),
+      })
+      .optional()
+      .describe("A resonant 24 dB per octave ladder low-pass after the mixer."),
+    filterEnv: z
+      .strictObject({
+        attackMs: bounded("filterEnv.attackMs", "Rise, ms; default 0.", {
+          unit: "ms",
+          title: "Attack",
+        }).optional(),
+        decayMs: bounded("filterEnv.decayMs", "Fall to the sustain level, ms; default 0.", {
+          unit: "ms",
+          title: "Decay",
+        }).optional(),
+        sustain: bounded("filterEnv.sustain", "Level held until the gate ends; default 0.", {
+          title: "Sustain",
+        }).optional(),
+        releaseMs: bounded("filterEnv.releaseMs", "Fall to 0 after the gate, ms; default 0.", {
+          unit: "ms",
+          title: "Release",
+        }).optional(),
+      })
+      .optional()
+      .describe("The filter's envelope; the gate is the attack plus the sustain."),
+    lfo: z
+      .strictObject({
+        wave: z.enum(SYNTH_LFO_WAVES).describe("Its shape: sine, triangle, square, saw or random."),
+        hz: bounded("lfo.hz", "Rate, Hz.", { unit: "Hz", title: "Rate" }),
+        pitch: bounded("lfo.pitch", "Pitch swing, semitones; default 0.").optional(),
+        cutoff: bounded("lfo.cutoff", "Cutoff swing, octaves; default 0.").optional(),
+        amp: bounded("lfo.amp", "Volume swing; default 0.", { title: "Amp" }).optional(),
+      })
+      .optional()
+      .describe("A slow oscillator that moves the pitch, the cutoff or the volume."),
   })
   .describe(
     "A sound effect's recipe, rendered once to a one-channel buffer and played like any clip. Presentation only.",
@@ -239,7 +437,7 @@ export const synthKind = defineAssetKind({
   kind: SYNTH_KIND,
   title: "Synth patch",
   description:
-    "A sound effect's recipe (wave, pitch slide, envelope, vibrato, filters), rendered once to a buffer and played like a clip.",
+    "A sound effect's recipe (oscillators, pitch slide, envelopes, a ladder filter, an LFO), rendered once to a buffer and played like a clip.",
   match: { jsonKind: SYNTH_KIND },
   defaultFolder: (_env, near) => folderOf(near),
   storage: "doc",

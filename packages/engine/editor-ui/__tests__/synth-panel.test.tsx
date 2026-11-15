@@ -137,8 +137,20 @@ async function settle() {
   });
 }
 
+/** A key on the named knob, and the write it makes. */
+async function press(panel: Panel, name: string, key: string) {
+  await act(async () => {
+    fireEvent.keyDown(panel.getByRole("slider", { name }), { key });
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+/** Types `text` into the named knob's value, as Enter on it opens. */
 async function typeInto(panel: Panel, name: string, text: string) {
-  const input = panel.getByRole("textbox", { name });
+  await act(async () => {
+    fireEvent.keyDown(panel.getByRole("slider", { name }), { key: "Enter" });
+  });
+  const input = panel.getByRole("textbox", { name: `${name} value` });
   await act(async () => {
     fireEvent.change(input, { target: { value: text } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -167,45 +179,129 @@ afterEach(() => {
 });
 
 describe("the synth patch panel", () => {
-  it("draws every field of the patch with the schema's bounds", async () => {
+  it("lays the patch out as a synth's modules, a knob per field with the schema's bounds", async () => {
     const panel = mount(await open());
     await settle();
-    const freq = panel.getByRole("slider", { name: "Frequency slider" });
-    expect([freq.getAttribute("min"), freq.getAttribute("max")]).toEqual(["20", "8000"]);
-    for (const name of ["Sustain", "Decay", "Attack", "Punch", "Volume", "Duty", "Seed"])
-      expect(panel.getByRole("textbox", { name })).toBeTruthy();
-    for (const block of ["Jump", "Vibrato", "Lowpass", "Highpass"])
+    const rack = panel.getByRole("group", { name: "Synth controls" });
+    const modules = [...rack.querySelectorAll("section")].map((m) => m.getAttribute("aria-label"));
+    expect(modules).toEqual([
+      "Osc 1",
+      "Osc 2",
+      "Osc 3",
+      "Mixer",
+      "Filter",
+      "Filter envelope",
+      "Amp envelope",
+      "Pitch",
+      "Jump",
+      "LFO",
+      "Vibrato",
+      "Low-pass 12",
+      "High-pass",
+    ]);
+    const freq = panel.getByRole("slider", { name: "Osc 1 freq" });
+    expect([freq.getAttribute("aria-valuemin"), freq.getAttribute("aria-valuemax")]).toEqual([
+      "20",
+      "8000",
+    ]);
+    // 440 Hz is where a reset puts it, so it reads as the default.
+    expect(freq.getAttribute("aria-valuetext")).toBe("440 Hz, default");
+    for (const block of ["Osc 2", "Osc 3", "Filter", "Filter envelope", "LFO", "Jump", "Vibrato"])
       expect(panel.getByRole("switch", { name: `${block} on` })).toBeTruthy();
-    expect(panel.getByRole("combobox", { name: "Wave" })).toBeTruthy();
-    // Titles carry no unit; the suffix shows it once.
-    expect(panel.queryByText(/ ms$/)).toBeNull();
-    expect(panel.getByText("Sustain")).toBeTruthy();
-    // An unset duty or volume shows the renderer's default.
-    expect((panel.getByRole("textbox", { name: "Duty" }) as HTMLInputElement).placeholder).toBe(
-      `${SYNTH_DEFAULTS.duty} (default)`,
+    expect(panel.getByRole("slider", { name: "Osc 1 wave" }).getAttribute("aria-valuetext")).toBe(
+      "Square",
     );
-    expect(panel.getByRole("slider", { name: "Volume slider" }).getAttribute("value")).toBe(
-      String(SYNTH_DEFAULTS.volume),
+    // An unset duty or volume shows the renderer's default, marked as one.
+    expect(panel.getByRole("slider", { name: "Osc 1 width" }).getAttribute("aria-valuetext")).toBe(
+      `${SYNTH_DEFAULTS.duty}, default`,
     );
+    expect(
+      panel.getByRole("slider", { name: "Amp envelope volume" }).getAttribute("aria-valuenow"),
+    ).toBe(String(SYNTH_DEFAULTS.volume));
+    // A switched-off module's knobs show what switching it on sets, and take no turns.
+    const cutoff = panel.getByRole("slider", { name: "Filter cutoff" });
+    expect(cutoff.getAttribute("aria-disabled")).toBe("true");
+    expect(cutoff.getAttribute("aria-valuenow")).toBe("2000");
   });
 
-  it("a slider writes the field on release, and a block's switch adds it", async () => {
+  it("a knob writes the field, a module's switch adds its block, each one undo step", async () => {
     const session = await open();
     const panel = mount(session);
     await settle();
-    await act(async () => {
-      fireEvent.keyDown(panel.getByRole("slider", { name: "Punch slider" }), { key: "End" });
-      await vi.advanceTimersByTimeAsync(0);
-    });
+    await press(panel, "Amp envelope punch", "End");
     expect(patchOf(session).punch).toBe(1);
     await act(async () => {
       fireEvent.click(panel.getByRole("switch", { name: "Vibrato on" }));
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(patchOf(session).vibrato).toEqual({ semitones: 0.5, hz: 6 });
-    expect(panel.getByRole("textbox", { name: "Vibrato rate" })).toBeTruthy();
-    expect(panel.getByRole("slider", { name: "Vibrato depth slider" })).toBeTruthy();
-    expect(readLog(session.get(DOC)!.doc)).toHaveLength(2);
+    await press(panel, "Vibrato rate", "ArrowUp");
+    expect(patchOf(session).vibrato).toEqual({ semitones: 0.5, hz: 6.1 });
+    await act(async () => {
+      fireEvent.click(panel.getByRole("switch", { name: "Filter on" }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await press(panel, "Filter emphasis", "End");
+    expect(patchOf(session).filter).toEqual({ cutoff: 2_000, resonance: 1 });
+    expect(parseAssetDoc(synthKind, patchOf(session), { registry, project: null }).ok).toBe(true);
+    expect(readLog(session.get(DOC)!.doc)).toHaveLength(5);
+    act(() => void session.undo());
+    expect(patchOf(session).filter).toEqual({ cutoff: 2_000, resonance: 0.3 });
+  });
+
+  it("a drag previews the waveform and writes once, on release", async () => {
+    const session = await open();
+    const panel = mount(session);
+    await settle();
+    const wave = panel.getByRole("img", { name: "Waveform" });
+    const gate = panel.getByRole("slider", { name: "Amp envelope gate" });
+    await act(async () => {
+      fireEvent.pointerDown(gate, { clientY: 300, button: 0, pointerId: 1 });
+      fireEvent.pointerMove(window, { clientY: 280, pointerId: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(Number(wave.getAttribute("data-samples"))).toBeGreaterThan(renderSynth(PATCH).length);
+    expect(patchOf(session).sustainMs).toBe(PATCH.sustainMs);
+    await act(async () => {
+      fireEvent.pointerMove(window, { clientY: 260, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientY: 260, pointerId: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(patchOf(session).sustainMs).toBe(460);
+    expect(readLog(session.get(DOC)!.doc)).toHaveLength(1);
+    expect(wave.getAttribute("data-samples")).toBe(
+      String(renderSynth({ ...PATCH, sustainMs: 460 }).length),
+    );
+  });
+
+  it("double-click unsets an optional field and puts a required one back to its start", async () => {
+    const session = await open();
+    const panel = mount(session);
+    await settle();
+    await press(panel, "Amp envelope punch", "End");
+    await typeInto(panel, "Osc 1 freq", "1000");
+    expect(patchOf(session)).toMatchObject({ punch: 1, freq: 1_000 });
+    for (const name of ["Amp envelope punch", "Osc 1 freq"])
+      await act(async () => {
+        fireEvent.doubleClick(panel.getByRole("slider", { name }));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    expect(patchOf(session).punch).toBeUndefined();
+    expect(patchOf(session).freq).toBe(440);
+  });
+
+  it("turns a wave knob through the waves, and rolls the noise seed from the mixer", async () => {
+    const session = await open();
+    const panel = mount(session);
+    await settle();
+    await press(panel, "Osc 1 wave", "ArrowUp");
+    expect(patchOf(session).wave).toBe("saw");
+    await act(async () => {
+      fireEvent.click(panel.getByRole("button", { name: "New noise" }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(patchOf(session).seed).toBeGreaterThanOrEqual(1);
+    expect(parseAssetDoc(synthKind, patchOf(session), { registry, project: null }).ok).toBe(true);
   });
 
   it("a preset button writes a valid patch as one undo step and auditions it once", async () => {
@@ -238,7 +334,7 @@ describe("the synth patch panel", () => {
     await advance(SYNTH_AUDITION_DELAY_MS * 2);
     expect(made).toBe(0);
 
-    await typeInto(panel, "Frequency", "600");
+    await typeInto(panel, "Osc 1 freq", "600");
     expect(patchOf(session).freq).toBe(600);
     await advance(SYNTH_AUDITION_DELAY_MS - 1);
     expect(plays()).toHaveLength(0);
@@ -249,8 +345,8 @@ describe("the synth patch panel", () => {
       length: renderSynth({ ...PATCH, freq: 600 }).length,
     });
 
-    await typeInto(panel, "Frequency", "700");
-    await typeInto(panel, "Frequency", "800");
+    await typeInto(panel, "Osc 1 freq", "700");
+    await typeInto(panel, "Osc 1 freq", "800");
     await advance(SYNTH_AUDITION_DELAY_MS);
     expect(plays()).toHaveLength(2);
   });
@@ -264,7 +360,7 @@ describe("the synth patch panel", () => {
     fireEvent.click(speaker);
     expect(speaker.getAttribute("aria-pressed")).toBe("false");
     expect(stored.get(SYNTH_SPEAKER_KEY)).toBe("false");
-    await typeInto(panel, "Decay", "300");
+    await typeInto(panel, "Amp envelope release", "300");
     await act(async () => {
       fireEvent.click(panel.getByRole("button", { name: "Mutate" }));
       await vi.advanceTimersByTimeAsync(SYNTH_AUDITION_DELAY_MS * 4);
@@ -319,7 +415,7 @@ describe("the synth patch panel", () => {
     expect(path().getAttribute("fill")).toBe("currentColor");
     const before = path().getAttribute("d");
     expect(before).toBe(waveformPath(renderSynth(PATCH)));
-    await typeInto(panel, "Sustain", "900");
+    await typeInto(panel, "Amp envelope gate", "900");
     const next = { ...PATCH, sustainMs: 900 };
     expect(wave.getAttribute("data-samples")).toBe(String(renderSynth(next).length));
     expect(path().getAttribute("d")).toBe(waveformPath(renderSynth(next)));

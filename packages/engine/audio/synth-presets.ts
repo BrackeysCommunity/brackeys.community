@@ -4,6 +4,7 @@ import {
   SYNTH_BOUNDS,
   SYNTH_KIND,
   SYNTH_VERSION,
+  isWholeSynthField,
   synthField,
   withSynthField,
   type SynthFile,
@@ -20,6 +21,7 @@ export const SYNTH_PRESETS = [
   "laser",
   "powerup",
   "blip",
+  "bass",
 ] as const;
 export type SynthPreset = (typeof SYNTH_PRESETS)[number];
 
@@ -34,12 +36,15 @@ export const CLICK_PATCH: SynthFile = Object.freeze({
 });
 
 const between = (rng: Rng, lo: number, hi: number): number => lo + (hi - lo) * unitFloat(rng);
-const pickWave = (rng: Rng, waves: readonly SynthWave[]): SynthWave => rng.pick(waves);
+const pickWave = <W extends SynthWave>(rng: Rng, waves: readonly W[]): W => rng.pick(waves);
 
-/** Whole ms, Hz to a tenth, everything else to a thousandth: a patch file stays readable. */
+const isHz = (path: SynthNumberPath) =>
+  path === "freq" || path.endsWith(".hz") || path === "filter.cutoff";
+
+/** Whole ms and octaves, Hz to a tenth, everything else to a thousandth: a patch file stays readable. */
 function tidy(path: SynthNumberPath, v: number): number {
   const [min, max] = SYNTH_BOUNDS[path];
-  const step = path.endsWith("Ms") ? 1 : path === "freq" || path.endsWith(".hz") ? 10 : 1_000;
+  const step = path.endsWith("Ms") || isWholeSynthField(path) ? 1 : isHz(path) ? 10 : 1_000;
   const rounded = step === 1 ? Math.round(v) : Math.round(v * step) / step;
   return clamp(rounded, min, max);
 }
@@ -64,6 +69,10 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         duty: between(rng, 0.2, 0.6),
         freq: between(rng, 600, 1_600),
         jump: { atMs: between(rng, 40, 120), semitones: rng.range(3, 12) },
+        osc2:
+          unitFloat(rng) < 0.4
+            ? { wave: pickWave(rng, ["square", "sine"]), octave: 1, level: between(rng, 0.2, 0.6) }
+            : undefined,
         sustainMs: between(rng, 40, 120),
         punch: between(rng, 0.2, 0.6),
         decayMs: between(rng, 120, 400),
@@ -78,6 +87,15 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         sustainMs: between(rng, 60, 160),
         decayMs: between(rng, 80, 260),
         highpass: unitFloat(rng) < 0.5 ? { hz: between(rng, 40, 300) } : undefined,
+        ...(unitFloat(rng) < 0.4
+          ? {
+              filter: {
+                cutoff: between(rng, 600, 2_500),
+                resonance: between(rng, 0, 0.5),
+                keyTrack: between(rng, 0.5, 1),
+              },
+            }
+          : {}),
       };
     case "hit":
       return {
@@ -89,6 +107,7 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         punch: between(rng, 0, 0.6),
         decayMs: between(rng, 60, 260),
         lowpass: unitFloat(rng) < 0.5 ? { hz: between(rng, 800, 6_000) } : undefined,
+        noise: unitFloat(rng) < 0.4 ? between(rng, 0.2, 0.7) : undefined,
       };
     case "explosion":
       return {
@@ -99,10 +118,22 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         sustainMs: between(rng, 80, 400),
         punch: between(rng, 0.3, 0.9),
         decayMs: between(rng, 400, 1_600),
-        lowpass:
-          unitFloat(rng) < 0.6
-            ? { hz: between(rng, 600, 4_000), sweep: between(rng, -3, 0) }
-            : undefined,
+        ...(unitFloat(rng) < 0.5
+          ? {
+              filter: {
+                cutoff: between(rng, 120, 600),
+                resonance: between(rng, 0, 0.4),
+                envAmount: between(rng, 2, 5),
+                drive: between(rng, 0.2, 0.8),
+              },
+              filterEnv: { decayMs: between(rng, 200, 900) },
+            }
+          : {
+              lowpass:
+                unitFloat(rng) < 0.6
+                  ? { hz: between(rng, 600, 4_000), sweep: between(rng, -3, 0) }
+                  : undefined,
+            }),
         vibrato:
           unitFloat(rng) < 0.3
             ? { semitones: between(rng, 0.5, 4), hz: between(rng, 4, 20) }
@@ -121,6 +152,17 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         sustainMs: between(rng, 40, 200),
         decayMs: between(rng, 40, 300),
         highpass: unitFloat(rng) < 0.3 ? { hz: between(rng, 100, 800) } : undefined,
+        // The classic zap: a resonant filter snapping shut over the falling pitch.
+        ...(unitFloat(rng) < 0.5
+          ? {
+              filter: {
+                cutoff: between(rng, 300, 1_200),
+                resonance: between(rng, 0.4, 0.85),
+                envAmount: between(rng, 3, 6),
+              },
+              filterEnv: { decayMs: between(rng, 60, 200) },
+            }
+          : {}),
       };
     case "powerup":
       return {
@@ -134,6 +176,10 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
             ? { semitones: between(rng, 0.2, 2), hz: between(rng, 6, 18) }
             : undefined,
         retriggerMs: unitFloat(rng) < 0.5 ? between(rng, 60, 160) : undefined,
+        osc2:
+          unitFloat(rng) < 0.5
+            ? { wave: pickWave(rng, ["saw", "square"]), detune: between(rng, 5, 20) }
+            : undefined,
         sustainMs: between(rng, 200, 500),
         decayMs: between(rng, 100, 500),
       };
@@ -146,13 +192,43 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         sustainMs: between(rng, 20, 80),
         decayMs: between(rng, 20, 120),
       };
+    case "bass":
+      // A mono-synth bass: two saws and a sub through the ladder, its envelope plucking the cutoff.
+      return {
+        ...base,
+        wave: pickWave(rng, ["saw", "square"]),
+        duty: between(rng, 0.3, 0.5),
+        freq: between(rng, 40, 130),
+        osc2: { wave: "saw", detune: between(rng, -12, 12), level: between(rng, 0.5, 1) },
+        osc3: {
+          wave: pickWave(rng, ["square", "sine"]),
+          octave: -1,
+          level: between(rng, 0.3, 0.8),
+        },
+        attackMs: between(rng, 0, 8),
+        ampDecayMs: between(rng, 100, 400),
+        ampSustain: between(rng, 0.4, 0.8),
+        sustainMs: between(rng, 150, 400),
+        decayMs: between(rng, 40, 200),
+        filter: {
+          cutoff: between(rng, 120, 500),
+          resonance: between(rng, 0.2, 0.7),
+          envAmount: between(rng, 2, 4.5),
+          drive: between(rng, 0, 0.5),
+        },
+        filterEnv: { decayMs: between(rng, 80, 350), sustain: between(rng, 0, 0.3) },
+      };
   }
 }
 
-/** Drops the optional blocks a preset left out, so the patch carries no `undefined` keys. */
+/** Drops the optional blocks and fields a preset left out, so the patch carries no `undefined` keys. */
 function dropUnset(patch: SynthFile): SynthFile {
   const record = patch as Record<string, unknown>;
-  for (const key of Object.keys(record)) if (record[key] === undefined) delete record[key];
+  for (const key of Object.keys(record)) {
+    const value = record[key];
+    if (value === undefined) delete record[key];
+    else if (value !== null && typeof value === "object") dropUnset(value as SynthFile);
+  }
   return patch;
 }
 

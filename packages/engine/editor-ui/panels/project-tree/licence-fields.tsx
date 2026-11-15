@@ -152,7 +152,11 @@ export function LicenceFields({
   readOnly,
   onLicence,
   notify = consoleErrors,
-}: LicenceFieldsProps) {
+  titled = true,
+}: LicenceFieldsProps & {
+  /** False where a section heading around it already says "Licence". */
+  titled?: boolean;
+}) {
   const listId = useId();
   const pending = useTreePending(notify);
   const editable = !readOnly && !!onLicence;
@@ -173,8 +177,8 @@ export function LicenceFields({
   };
   return (
     <PendingProvider pending={pending}>
-      <section aria-label="Licence" className="je-licence">
-        <MicroLabel>Licence</MicroLabel>
+      <section aria-label={titled ? "Licence" : undefined} className="je-licence">
+        {titled ? <MicroLabel>Licence</MicroLabel> : null}
         {FIELDS.map(({ field, title, hint, placeholder }) => (
           <LicenceField
             key={`${entry.key}:${field}`}

@@ -119,12 +119,18 @@ export {
 export {
   SYNTH_BOUNDS,
   SYNTH_KIND,
+  SYNTH_LFO_WAVES,
+  SYNTH_OSC_WAVES,
   SYNTH_SCHEMA_ID,
   SYNTH_VERSION,
   SYNTH_WAVES,
   synthKind,
+  type SynthAdsr,
   type SynthFile,
+  type SynthLfoWave,
   type SynthNumberPath,
+  type SynthOsc,
+  type SynthOscWave,
   type SynthWave,
 } from "./kinds/synth";
 export {

@@ -45,6 +45,7 @@ export { HINT_DELAY_MS, Hint, type HintProps, type HintSide } from "./hint";
 export { Icon, type IconSvgElement } from "./icon";
 export { Input, Textarea, type InputProps } from "./input";
 export { chordKeys, Hotkey, KeyHint, keyLabel } from "./key-hint";
+export { Knob, KNOB_WHEEL_SETTLE_MS, type KnobProps } from "./knob";
 export {
   Menu,
   MenuCheckboxItem,
