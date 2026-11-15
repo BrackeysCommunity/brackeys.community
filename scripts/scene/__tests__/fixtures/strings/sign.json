@@ -1,0 +1,26 @@
+{
+  "v": 5,
+  "name": "sign",
+  "bounds": [0, 0, 4, 3],
+  "settings": { "physics": "none" },
+  "entities": [
+    {
+      "id": "welcome",
+      "type": "marker",
+      "at": [1, 1],
+      "behaviors": { "text": { "key": "sign.welcome" } }
+    },
+    {
+      "id": "exit",
+      "type": "marker",
+      "at": [3, 1],
+      "behaviors": { "text": { "key": "sign.exit" } }
+    },
+    {
+      "id": "plain",
+      "type": "marker",
+      "at": [2, 2],
+      "behaviors": { "text": { "text": "No key here." } }
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import {
   probeTimeout,
   probesFrom,
   runGenreProbe,
+  variantFlow,
   variantScene,
   variantScript,
   type GenreProbe,
@@ -156,15 +157,33 @@ function auditedGame(game: GameDefinition): GameDefinition {
   };
 }
 
-/** The probe with the audited entity, its atlas and the code tween added. */
+/** A scene of the probe with the audited entity and the door added. */
+function withAudit(probe: GenreProbe, scene: SceneDefinition): SceneDefinition {
+  return {
+    ...scene,
+    entities: [...(scene.entities ?? []), auditedEntity(probe), auditedDoor(probe)],
+  };
+}
+
+/** The probe with the audited entity, its atlas and the code tween added; with a scene list, in every listed scene. */
 function audited(probe: GenreProbe): GenreProbe {
   return {
     ...probe,
     game: auditedGame(probe.game as GameDefinition),
-    scene: {
-      ...probe.scene,
-      entities: [...(probe.scene.entities ?? []), auditedEntity(probe), auditedDoor(probe)],
-    },
+    scene: withAudit(probe, probe.scene),
+    ...(probe.flow
+      ? {
+          flow: {
+            list: probe.flow.list,
+            scenes: new Map(
+              [...probe.flow.scenes].map(([id, listed]) => [
+                id,
+                { ...listed, def: withAudit(probe, listed.def) },
+              ]),
+            ),
+          },
+        }
+      : {}),
     project: { ...probe.project, files: [...(probe.project?.files ?? []), ...AUDIT_FILES] },
   };
 }
@@ -203,6 +222,7 @@ async function auditRun(
     prefabs: a.prefabs,
     library: a.prefabs,
     project: probeProjectView(a),
+    ...(a.flow ? { flow: variantFlow(a, variant) } : {}),
     script: variantScript(a, variant),
     ...(a.ticks ? { ticks: a.ticks } : {}),
     at: variant.saveAt,
@@ -355,6 +375,7 @@ function chain(probe: GenreProbe, variant: ProbeVariant, at: number, again: numb
     prefabs: probe.prefabs,
     library: probe.prefabs,
     project: probeProjectView(probe),
+    ...(probe.flow ? { flow: variantFlow(probe, variant) } : {}),
     script: variantScript(probe, variant),
     ...(probe.ticks ? { ticks: probe.ticks } : {}),
     at,

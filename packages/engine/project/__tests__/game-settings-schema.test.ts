@@ -46,6 +46,7 @@ describe("game-settings.schema.json", () => {
     expect(engine.additionalProperties).toBe(false);
     expect(Object.keys(engine.properties).sort()).toEqual([
       "gravity",
+      "locales",
       "physics",
       "resolution",
       "tickRate",
@@ -53,6 +54,37 @@ describe("game-settings.schema.json", () => {
     expect(engine.properties.physics?.enum).toEqual(["rapier", "none"]);
     expect(engine.properties.tickRate?.type).toBe("number");
     expect(engine.properties.gravity?.type).toBe("array");
+  });
+
+  it("describes engine.locales: the default and available required, fallback and fonts optional", () => {
+    type Obj = {
+      required?: string[];
+      additionalProperties?: unknown;
+      properties: Record<string, { type?: string; propertyNames?: unknown }>;
+    };
+    const locales = (fresh() as { properties: { engine: { properties: { locales: Obj } } } })
+      .properties.engine.properties.locales;
+    expect(locales.additionalProperties).toBe(false);
+    expect(locales.required?.sort()).toEqual(["available", "default"]);
+    expect(Object.keys(locales.properties).sort()).toEqual([
+      "available",
+      "default",
+      "fallback",
+      "fonts",
+    ]);
+    expect(locales.properties.available?.type).toBe("array");
+    expect(locales.properties.fallback?.type).toBe("object");
+    expect(locales.properties.fonts?.propertyNames).toBeDefined();
+  });
+
+  it("takes a file without engine.locales, as before it existed", () => {
+    const file = { kind: "game-settings", v: 2, engine: { tickRate: 60 }, game: {} };
+    expect(validateAssetDoc(gameSettingsKind, file, env)).toEqual([]);
+    const withLocales = {
+      ...file,
+      engine: { locales: { default: "en", available: ["en", "fr"], fonts: { default: "body" } } },
+    };
+    expect(validateAssetDoc(gameSettingsKind, withLocales, env)).toEqual([]);
   });
 
   it("has an empty `game` block without a game", () => {

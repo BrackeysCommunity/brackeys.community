@@ -11,11 +11,15 @@ import { SAVE_SCHEMA_ID } from "../game/save-file";
 import { docKindJsonSchema } from "../project/kinds";
 import { animationKind } from "../project/kinds/animation";
 import { dataTableKind } from "../project/kinds/data-table";
+import { dialogueKind } from "../project/kinds/dialogue";
 import { emitterKind } from "../project/kinds/emitter";
 import { gameSettingsKind } from "../project/kinds/game-settings";
 import { inputMapKind } from "../project/kinds/input-map";
 import { materialKind } from "../project/kinds/material";
 import { sceneListKind } from "../project/kinds/scene-list";
+import { soundKind } from "../project/kinds/sound";
+import { stringsKind } from "../project/kinds/strings";
+import { synthKind } from "../project/kinds/synth";
 import { PROJECT_OP_NAMES, projectOpsJsonSchema } from "../project/ops";
 import { projectJsonSchema } from "../project/project-file";
 import { RELEASE_SCHEMA_ID } from "../project/release";
@@ -114,7 +118,7 @@ const FILE_EXPORTS = ["@jams/engine/editor-ui/style.css"];
  * What the canvas-sync service image copies of the engine. None of it may
  * import the editor UI, which the image doesn't have.
  */
-const SERVICE_COPIED = ["scene/", "collab/", "game/", "project/", "version.ts"];
+const SERVICE_COPIED = ["scene/", "collab/", "game/", "project/", "text/", "version.ts"];
 const isServiceCopied = (path: string) =>
   SERVICE_COPIED.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
 /**
@@ -136,6 +140,8 @@ const SERVICE_TYPE_ONLY = [
   "camera/",
   "render/",
   "systems/",
+  "audio/",
+  "dialogue/",
 ];
 const isServiceTypeTarget = (path: string) =>
   isServiceCopied(path) ||
@@ -184,6 +190,36 @@ const GAME_WORDS = /\b(shaper|grapple|wind|constructs?|cheese|cloud|mover)\b/i;
 /** Globals only a browser has, which the pure input modules never touch. */
 const DOM_GLOBALS =
   /\b(window|document|navigator|localStorage|sessionStorage|matchMedia|requestAnimationFrame|HTMLElement|KeyboardEvent|PointerEvent|Gamepad)\b/;
+
+/** Names of the browser's audio API, which only the Web Audio backend may use. */
+const WEB_AUDIO_NAMES =
+  /\b(\w*AudioContext|HTMLAudioElement|AudioNode|AudioBuffer\w*|MediaElementAudioSourceNode|StereoPannerNode|GainNode)\b/;
+/** The one file that reaches the browser's audio API. */
+const WEB_AUDIO_FILE = "audio/web-audio.ts";
+/** The synth renderer and presets: pure over the patch's kind and the seeded RNG. */
+const SYNTH_FILES = ["audio/synth.ts", "audio/synth-presets.ts"];
+const SYNTH_IMPORTS = ["project/kinds/synth.ts", "sim-kit/rng.ts", "audio/synth.ts"];
+/** The DOM helpers for dialogue, rich text and captions: DOM only, never Pixi. */
+const DOM_HELPERS = ["ui/dialogue.ts", "ui/rich-dom.ts", "ui/captions.ts"];
+
+/**
+ * Each place `source` names `localStorage` outside a `try` block's braces,
+ * by line. Reads code with comments and strings emptied.
+ */
+function storageOutsideTry(source: string): number[] {
+  const src = stripStrings(stripComments(source));
+  const blocks: boolean[] = [];
+  const out: number[] = [];
+  const tokens = /\btry\s*\{|\{|\}|\blocalStorage\b/g;
+  for (const m of src.matchAll(tokens)) {
+    if (m[0] === "}") blocks.pop();
+    else if (m[0] === "{") blocks.push(false);
+    else if (m[0] === "localStorage") {
+      if (!blocks.includes(true)) out.push(src.slice(0, m.index).split("\n").length);
+    } else blocks.push(true);
+  }
+  return out;
+}
 
 /** Module-level empty arrays, Maps and Sets that are constants, not registries. */
 const MODULE_STATE_ALLOWLIST: string[] = [];
@@ -356,11 +392,12 @@ const expandBraces = (pattern: string): string[] => {
 };
 
 /**
- * A hosted game's art and the sidecars that describe it, the one deep glob
- * the site may make into src/games, and only from a call that leaves out
- * every game's tests.
+ * A hosted game's binaries, the sidecars that describe them and its sound,
+ * synth, strings and dialogue docs: the one deep glob the site may make into
+ * src/games, and only from a call that leaves out every game's tests.
  */
-const SITE_ART_GLOB = /^\/src\/games\/\*\/\*\*\/\*\.(asset\.json|png|jpe?g|webp|gif)$/;
+const SITE_ART_GLOB =
+  /^\/src\/games\/\*\/\*\*\/\*\.(asset\.json|(sound|synth|strings|dialogue)\.json|png|jpe?g|webp|gif|wav|ogg|mp3|m4a|fnt|woff2?|ttf|otf)$/;
 const NO_GAME_TESTS = "!/src/games/*/**/__tests__/**";
 
 /**
@@ -652,6 +689,7 @@ describe("package boundary", () => {
       "render/asset-loader.ts",
       "render/sprite-textures.ts",
       "render/particles.ts",
+      "render/text.ts",
     ];
     const bad = sourceFiles
       .map((f) => rel(f))
@@ -871,6 +909,90 @@ describe("package boundary", () => {
       }
     }
     violations(bad);
+  });
+
+  it("keeps audio/ off Pixi, and names the browser's audio API only in the Web Audio backend", () => {
+    const bad: string[] = [];
+    const audioFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith("audio/"));
+    expect(audioFiles).toContain(WEB_AUDIO_FILE);
+    for (const path of audioFiles) {
+      for (const imp of importsOf(join(ENGINE, path)))
+        if (isPackage(imp.spec, "pixi.js")) bad.push(`${path}:${imp.line} imports pixi.js`);
+      if (runtimeGraph(path).bare.has("pixi.js")) bad.push(`${path} reaches pixi.js`);
+    }
+    for (const file of sourceFiles) {
+      const path = rel(file);
+      if (path === WEB_AUDIO_FILE) continue;
+      const named = WEB_AUDIO_NAMES.exec(stripStrings(stripComments(readFileSync(file, "utf8"))));
+      if (named) bad.push(`${path} names ${named[1]}`);
+    }
+    violations(bad);
+  });
+
+  it("keeps the synth renderer and presets on the patch's kind and the seeded RNG", () => {
+    const bad: string[] = [];
+    for (const path of SYNTH_FILES) {
+      const file = join(ENGINE, path);
+      expect(existsSync(file), path).toBe(true);
+      for (const imp of importsOf(file)) {
+        const target = imp.spec.startsWith(".") ? resolveRelative(file, imp.spec) : null;
+        if (!target || !SYNTH_IMPORTS.includes(rel(target)))
+          bad.push(`${path}:${imp.line} imports ${imp.spec}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("keeps text/ and dialogue/ pure: no Pixi, no DOM, no Web Audio", () => {
+    const bad: string[] = [];
+    const pure = sourceFiles
+      .map((f) => rel(f))
+      .filter((p) => p.startsWith("text/") || p.startsWith("dialogue/"));
+    expect(pure).toEqual(expect.arrayContaining(["text/index.ts", "dialogue/index.ts"]));
+    for (const path of pure) {
+      const { files, bare } = runtimeGraph(path);
+      for (const spec of bare.keys()) if (spec !== "zod") bad.push(`${path} reaches ${spec}`);
+      for (const f of files) {
+        const code = stripStrings(stripComments(readFileSync(join(ENGINE, f), "utf8")));
+        const dom = DOM_GLOBALS.exec(code) ?? WEB_AUDIO_NAMES.exec(code);
+        if (dom) bad.push(`${path} reaches ${dom[1]} in ${f}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("keeps the dialogue, rich-text and caption helpers on the DOM, off Pixi", () => {
+    const bad: string[] = [];
+    for (const path of DOM_HELPERS) {
+      expect(existsSync(join(ENGINE, path)), path).toBe(true);
+      for (const imp of importsOf(join(ENGINE, path)))
+        if (isPackage(imp.spec, "pixi.js")) bad.push(`${path}:${imp.line} imports pixi.js`);
+      if (runtimeGraph(path).bare.has("pixi.js")) bad.push(`${path} reaches pixi.js`);
+    }
+    violations(bad);
+  });
+
+  it("reaches localStorage from prefs.ts only inside try/catch", () => {
+    const lines = storageOutsideTry(readFileSync(join(ENGINE, "prefs.ts"), "utf8"));
+    violations(lines.map((line) => `prefs.ts:${line} names localStorage outside try`));
+    expect(
+      storageOutsideTry(
+        [
+          "const a = () => localStorage;",
+          "try {",
+          "  if (x) { localStorage.getItem(k); }",
+          "} catch {}",
+          "localStorage.clear();",
+        ].join("\n"),
+      ),
+    ).toEqual([1, 5]);
+  });
+
+  it("never builds an audio backend or system headless", () => {
+    const { files } = runtimeGraph("headless/index.ts");
+    violations(
+      [WEB_AUDIO_FILE, "audio/system.ts"].filter((f) => files.has(f)).map((f) => `reaches ${f}`),
+    );
   });
 
   it("loads game/behaviors.ts on a server: zod and the game and scene files only", () => {
@@ -1136,6 +1258,8 @@ describe("package boundary", () => {
       "anim.ts",
       "tween.ts",
       "emitter.ts",
+      "text.ts",
+      "dialogue.ts",
       "index.ts",
     ];
     const files = sourceFiles.filter((f) => {
@@ -1329,6 +1453,12 @@ describe("package boundary", () => {
       join(ENGINE, "project/save.schema.json"),
       join(ENGINE, "project/data-table.schema.json"),
       join(ENGINE, "project/project-snapshot.schema.json"),
+      join(ENGINE, "project/animation.schema.json"),
+      join(ENGINE, "project/emitter.schema.json"),
+      join(ENGINE, "project/sound.schema.json"),
+      join(ENGINE, "project/synth.schema.json"),
+      join(ENGINE, "project/dialogue.schema.json"),
+      join(ENGINE, "project/strings.schema.json"),
       ...walk(join(ENGINE, "scenes"), /\.json$/),
     ];
     const named = shipped
@@ -1457,6 +1587,10 @@ async function surface() {
       SCENE_VERSION_SCHEMA_ID,
       docKindJsonSchema(animationKind, kindEnv).$id as string,
       docKindJsonSchema(emitterKind, kindEnv).$id as string,
+      docKindJsonSchema(soundKind, kindEnv).$id as string,
+      docKindJsonSchema(synthKind, kindEnv).$id as string,
+      docKindJsonSchema(dialogueKind, kindEnv).$id as string,
+      docKindJsonSchema(stringsKind, kindEnv).$id as string,
     ],
     cliCommands: Object.fromEntries(
       Object.entries(cli.COMMANDS)

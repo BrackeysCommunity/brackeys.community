@@ -71,9 +71,12 @@ export const DEFAULT_LAYOUT: EditorLayout = {
 export type Viewport = {
   width: number;
   height: number;
-  /** The heights of the host's islands over each column's top. */
+  /** The heights of what lies over each column's top: the top bar. */
   topLeft: number;
   topRight: number;
+  /** What covers the canvas area's top from the inset down: the top bar and the context under it. */
+  top?: number;
+  /** The status bar's height, over the canvas area's bottom. */
   bottom: number;
 };
 export type FittedColumn = {
@@ -181,7 +184,7 @@ function fitColumn(
  * under `LIMITS.phone` the frame uses its phone layout and draws no column.
  */
 export const fitLayout = (layout: EditorLayout, viewport: Viewport): FittedLayout => {
-  const top = Math.max(viewport.topLeft, viewport.topRight);
+  const top = Math.max(viewport.topLeft, viewport.topRight, viewport.top ?? 0);
   const canvasTop = top > 0 ? INSET + top : 0;
   const canvasBottom = viewport.bottom > 0 ? INSET + viewport.bottom : 0;
 

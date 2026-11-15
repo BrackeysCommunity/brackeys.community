@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, expectTypeOf, it, vi } from "vite-plus/tes
 
 import type { BehaviorBlock } from "../game/behaviors";
 import { ANIM, type AnimBlock, type AnimHandle } from "../game/behaviors/anim";
+import { AUDIO, type AudioBlock, type AudioHandle } from "../game/behaviors/audio";
 import { BODY, type BodyBlock, type BodyHandle } from "../game/behaviors/body";
 import { CAMERA_TARGET, type CameraTargetBlock } from "../game/behaviors/camera-target";
 import { CHARACTER_SIDE_VIEW } from "../game/behaviors/character-side-view";
@@ -34,6 +35,7 @@ import {
   type SpawnerSystem,
 } from "../game/behaviors/spawner";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
+import { TEXT, type TextBlock, type TextHandle } from "../game/behaviors/text";
 import { TWEEN, type TweenBlock, type TweenHandle } from "../game/behaviors/tween";
 import { createRegistry } from "../game/define";
 import type { Entity } from "../game/entity";
@@ -140,7 +142,12 @@ const ENTITIES: EntityDef[] = [
     at: [6, 10],
     behaviors: { emitter: { preset: "sparks" } },
   },
+  { id: "sign", type: "marker", at: [8, 10], behaviors: { text: { text: "Gate" } } },
+  { id: "hum", type: "marker", at: [10, 10], behaviors: { audio: { sound: "hum" } } },
 ];
+
+/** What the view runtime loads: entities whose behaviors build only with a view. */
+const VIEW_ENTITIES = ["anim", "emitter", "lifetime", "sign", "hum"];
 
 function load(opts: { view?: boolean } = {}): SceneRuntimeHandle {
   const rt = createSceneRuntime({
@@ -154,9 +161,7 @@ function load(opts: { view?: boolean } = {}): SceneRuntimeHandle {
     name: "handles",
     bounds: [-20, -20, 20, 20],
     settings: { physics: opts.view ? "none" : "rapier", gravity: [0, 0] },
-    entities: opts.view
-      ? ENTITIES.filter((e) => e.id === "anim" || e.id === "emitter" || e.id === "lifetime")
-      : ENTITIES,
+    entities: opts.view ? ENTITIES.filter((e) => VIEW_ENTITIES.includes(e.id)) : ENTITIES,
   };
   const report = rt.load(expandScene(scene, registry));
   if (!report.ok) throw new Error(report.error);
@@ -281,15 +286,32 @@ const FIELDS_ONLY = [
   { name: EMITTER.name, id: "emitter", view: true },
 ] as const;
 
+/** Visual behaviors whose handle reaches their system, and the calls to make through it. */
+const VIEW_BY_ID = [
+  {
+    name: TEXT.name,
+    id: "sign",
+    calls: { set: { args: ["Open"] }, setKey: { args: ["gate.open", { n: 2 }] } },
+    getters: [] as string[],
+  },
+  {
+    name: AUDIO.name,
+    id: "hum",
+    calls: { play: none, stop: none },
+    getters: ["playing"],
+  },
+] as const;
+
 describe("behavior handles", () => {
-  it("covers all 17 standard behaviors", () => {
+  it("covers all 19 standard behaviors", () => {
     const covered = new Set([
       ...BY_ID.map((c) => c.name),
       ...FIELDS_ONLY.map((c) => c.name),
+      ...VIEW_BY_ID.map((c) => c.name),
       PLAYER_INPUT.name,
     ]);
     const standard = [...registry.behaviors.values()].filter((b) => b.origin === "engine");
-    expect(standard).toHaveLength(17);
+    expect(standard).toHaveLength(19);
     expect([...covered].sort()).toEqual(standard.map((b) => b.name).sort());
   });
 
@@ -316,6 +338,35 @@ describe("behavior handles", () => {
       const handle = e.getBehavior(name);
       expect(e.getBehavior(name) === handle).toBe(true);
       expect(handle?.fields).toBe(rt.get(id)?.behaviors?.[name]);
+      rt.destroy();
+    });
+  });
+
+  describe.each(VIEW_BY_ID)("$name", ({ name, id, calls, getters }) => {
+    it("reaches its system by id with a view, and holds no pose of its own", () => {
+      const rt = load({ view: true });
+      const handle = entity(rt, id).getBehavior(name) as unknown as Record<string, unknown>;
+      expect(Object.keys(handle).sort()).toEqual(
+        [...Object.keys(calls), ...getters, "fields"].sort(),
+      );
+      const system = rt.ctx.behavior(name) as unknown as Record<
+        string,
+        (...a: unknown[]) => unknown
+      >;
+      for (const [method, { args }] of Object.entries(calls)) {
+        const spy = vi.spyOn(system, method);
+        (handle[method] as (...a: unknown[]) => unknown)(...args);
+        expect(spy, method).toHaveBeenCalledExactlyOnceWith(id, ...args);
+        spy.mockRestore();
+      }
+      for (const getter of getters) {
+        const spy = vi.spyOn(system, getter).mockReturnValue(true);
+        expect(handle[getter], getter).toBe(true);
+        expect(spy, getter).toHaveBeenCalledExactlyOnceWith(id);
+        spy.mockRestore();
+      }
+      expect(system.posed).toBeUndefined();
+      expect(system.selfMoving).toBeUndefined();
       rt.destroy();
     });
   });
@@ -360,6 +411,8 @@ describe("behavior handles", () => {
     const rt = load();
     expect(entity(rt, "anim").getBehavior(SPRITE)).toBeUndefined();
     expect(entity(rt, "emitter").getBehavior(EMITTER)).toBeUndefined();
+    expect(entity(rt, "sign").getBehavior(TEXT)).toBeUndefined();
+    expect(entity(rt, "hum").getBehavior(AUDIO)).toBeUndefined();
     expect(entity(rt, "anim").getBehavior(ANIM)).toBeDefined();
     rt.destroy();
   });
@@ -395,6 +448,10 @@ describe("behavior handles", () => {
       expectTypeOf(e.getBehavior(TWEEN)!.fields).toEqualTypeOf<Readonly<TweenBlock>>();
       expectTypeOf(e.getBehavior(SPRITE)!.fields).toEqualTypeOf<Readonly<SpriteBlock>>();
       expectTypeOf(e.getBehavior(EMITTER)!.fields).toEqualTypeOf<Readonly<EmitterBlock>>();
+      expectTypeOf(e.getBehavior(TEXT)!).toExtend<TextHandle>();
+      expectTypeOf(e.getBehavior(TEXT)!.fields).toEqualTypeOf<Readonly<TextBlock>>();
+      expectTypeOf(e.getBehavior(AUDIO)!).toExtend<AudioHandle>();
+      expectTypeOf(e.getBehavior(AUDIO)!.fields).toEqualTypeOf<Readonly<AudioBlock>>();
       expectTypeOf(e.getBehavior(LIFETIME)!.fields).toEqualTypeOf<Readonly<LifetimeBlock>>();
       expectTypeOf(e.getBehavior(CAMERA_TARGET)!.fields).toEqualTypeOf<
         Readonly<CameraTargetBlock>

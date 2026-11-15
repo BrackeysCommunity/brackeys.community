@@ -44,6 +44,7 @@ const registry = createRegistry();
 const NEEDS_ASSET = [
   { name: "anim", why: "Animation needs an animation or an atlas asset in the project." },
   { name: "emitter", why: "Emitter needs an emitter asset in the project." },
+  { name: "audio", why: "Audio needs a sound asset in the project." },
 ];
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 

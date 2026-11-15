@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { RigidBody } from "@dimforge/rapier2d";
 import { DEFAULT_ZIP_TARGET, exportTargetNames } from "@jams/engine/export";
 import { defineGame, parseSaveFile } from "@jams/engine/game";
-import type { RapierModule } from "@jams/engine/headless";
+import { synthDurationMs, type RapierModule } from "@jams/engine/headless";
 import {
   checksKind,
   dataTableKind,
@@ -32,12 +32,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { gateStrings, gateTalk } from "../../engine-readme/examples/gate-game";
 import { COMMAND_NAMES, runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { apply } from "../tools/apply";
 import { assetsInfo } from "../tools/assets-info";
 import { check } from "../tools/check";
 import { codes } from "../tools/codes";
+import { dialogueWalk, walkDialogue } from "../tools/dialogue-walk";
 import { diff } from "../tools/diff";
 import { flow } from "../tools/flow";
 import { fmt } from "../tools/fmt";
@@ -66,6 +68,10 @@ const ENGINE_YARD_V3 = repoFile("packages/engine/scene/__tests__/fixtures/v3/eng
 const ENGINE_SCENES = repoFile("packages/engine/scenes");
 /** The nested-prefab fixtures as v3 (px) files, for the commands that migrate them. */
 const PREFAB_FIXTURES = repoFile("packages/engine/scene/__tests__/fixtures/prefabs-v3");
+/** The readme's gate conversation and its strings, as the dialogue tools' fixture. */
+const GATE_ID = "gate-talk";
+const GATE_STRINGS_ID = "gate-strings";
+const GATE_ENDINGS = ["paid", "left"];
 const NEW_OPS = [
   "transform",
   "setZ",
@@ -1321,7 +1327,8 @@ describe("step", () => {
     expect(fixed.exitCode).toBe(2);
     expect(fixed.text).toContain("--elapse 1:500: elapse needs the game's time.catchUp");
     const gameless = await step({ scene: "engine-yard", ticks: "10", command: ["1:reset"] }, ctx);
-    expect(gameless.text).toContain("(commands: none)");
+    // The engine project holds a dialogue, so its two commands are all a gameless scene takes.
+    expect(gameless.text).toContain("(commands: @dialogue-advance, @dialogue-choose)");
   });
 
   it("judges --command tick@seat against the project input map's seats over the game's", async () => {
@@ -2872,6 +2879,13 @@ describe("runCli", () => {
       "assets change-id",
       "assets set-import",
       "assets apply",
+      "assets reimport",
+      "dialogue walk",
+      "strings missing",
+      "strings export",
+      "strings import",
+      "synth new",
+      "synth render",
       "game new",
       "game build",
       "game export",
@@ -3615,5 +3629,258 @@ describe("animation, camera regions and presentation", { timeout: 60_000 }, () =
     const help = await runCli(["help"], sinkCtx);
     expect(help.stdout).toContain("[--anim id]");
     expect(help.stdout).toContain("[--present]");
+  });
+});
+
+/** The avatar game, playing, stopping and changing music on its third and fourth ticks. */
+const soundGame = defineGame({
+  ...avatarGame,
+  id: "sound-game",
+  createRuntime(ctx) {
+    const base = avatarGame.createRuntime(ctx);
+    let tick = 0;
+    return {
+      ...base,
+      beforeStep(dt, actions, ...rest) {
+        base.beforeStep?.(dt, actions, ...rest);
+        const now = tick++;
+        if (now === 2) ctx.present.audio.play("clink", { at: { x: 1.25, y: 2 }, key: "door" });
+        if (now === 3) {
+          ctx.present.audio.stop("door", { fadeMs: 120 });
+          ctx.present.audio.music("theme", { at: "tick" });
+        }
+      },
+    };
+  },
+});
+
+describe("audio, text and dialogue", { timeout: 60_000 }, () => {
+  let sink: string;
+  let sinkCtx: ToolContext;
+
+  beforeEach(async () => {
+    sink = join(root, "engine");
+    await cp(ENGINE_SCENES, sink, { recursive: true });
+    sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
+    const ops = join(root, "gate-ops.json");
+    await writeFile(
+      ops,
+      JSON.stringify({
+        v: 1,
+        ops: [
+          {
+            op: "createAsset",
+            kind: "dialogue",
+            path: "text/gate.dialogue.json",
+            id: GATE_ID,
+            content: gateTalk,
+          },
+          {
+            op: "createAsset",
+            kind: "strings",
+            path: "text/gate.strings.json",
+            id: GATE_STRINGS_ID,
+            content: gateStrings,
+          },
+        ],
+      }),
+    );
+    const created = await runCli(["assets", "apply", "--ops", ops], sinkCtx);
+    expect(created.exitCode, created.stderr || created.stdout).toBe(0);
+  });
+
+  it("dialogue walk prints every ending with the choices and nodes that reach it", async () => {
+    const r = await dialogueWalk({ id: GATE_ID, vars: '{"gold":5}' }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({
+      ok: true,
+      project: "engine",
+      id: GATE_ID,
+      start: "gate",
+      vars: { gold: 5 },
+      endings: [
+        { ending: "paid", path: [0], choices: ["gate.pay"], nodes: ["gate", "through"] },
+        { ending: "left", path: [1], choices: ["gate.leave"], nodes: ["gate", "turned-away"] },
+      ],
+      unreached: [],
+      truncated: false,
+    });
+    const endings = (r.data as { endings: { ending: string }[] }).endings.map((e) => e.ending);
+    expect(endings.sort()).toEqual([...GATE_ENDINGS].sort());
+    expect(r.text).toBe(
+      [
+        `${GATE_ID}: 2 endings from gate, vars {"gold":5}`,
+        "  paid  choices 0 gate.pay  nodes gate > through",
+        "  left  choices 1 gate.leave  nodes gate > turned-away",
+      ].join("\n"),
+    );
+  });
+
+  it("dialogue walk offers only what the variables allow, and names the endings it never reached", async () => {
+    const poor = await dialogueWalk({ id: GATE_ID }, sinkCtx);
+    expect(poor.exitCode, poor.text).toBe(0);
+    expect(poor.data).toMatchObject({
+      vars: {},
+      endings: [{ ending: "left", path: [1], choices: ["gate.leave"] }],
+      unreached: ["paid"],
+    });
+    expect(poor.text).toContain("  not reached: paid");
+    // An MCP call hands the variables over parsed.
+    expect((await dialogueWalk({ id: GATE_ID, vars: { gold: 3 } }, sinkCtx)).data).toMatchObject({
+      unreached: [],
+    });
+    const cut = await dialogueWalk({ id: GATE_ID, vars: { gold: 5 }, maxDepth: 0 }, sinkCtx);
+    expect(cut.data).toMatchObject({ endings: [], truncated: true, unreached: ["paid", "left"] });
+    expect(cut.text).toContain("truncated: a path ran past 0 choices");
+    expect(walkDialogue(gateTalk, { vars: { gold: 5 } }).endings.map((e) => e.ending)).toEqual([
+      "paid",
+      "left",
+    ]);
+  });
+
+  it("dialogue walk walks the kitchen sink's conversation", async () => {
+    const r = await dialogueWalk({ id: "kitchen-dialogue" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({
+      start: "hello",
+      endings: [
+        { ending: "toured", path: [0], choices: ["talk.yes"], nodes: ["hello", "tour"] },
+        { ending: "done", path: [1], choices: ["talk.no"], nodes: ["hello", "bye"] },
+      ],
+    });
+  });
+
+  it("dialogue walk runs through the CLI with --vars", async () => {
+    const r = await runCli(
+      ["dialogue", "walk", GATE_ID, "--vars", '{"gold":5}', "--json"],
+      sinkCtx,
+    );
+    expect(r.exitCode, r.stderr || r.stdout).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ id: GATE_ID, unreached: [] });
+    const bad = await runCli(["dialogue", "walk", GATE_ID, "--vars", "[1]"], sinkCtx);
+    expect(bad.exitCode).toBe(2);
+  });
+
+  it("dialogue walk refuses what it can't walk", async () => {
+    const typo = await dialogueWalk({ id: "gate-tlak" }, sinkCtx);
+    expect(typo.exitCode).toBe(1);
+    const sound = await dialogueWalk({ id: "clink" }, sinkCtx);
+    expect(sound.exitCode).toBe(1);
+    expect(sound.text).toContain('"clink" is a sound asset, not a dialogue');
+    for (const vars of ["{gold", "[1]", "3"]) {
+      const bad = await dialogueWalk({ id: GATE_ID, vars }, sinkCtx);
+      expect(bad.exitCode, vars).toBe(2);
+    }
+    expect((await dialogueWalk({ id: GATE_ID, maxDepth: -1 }, sinkCtx)).exitCode).toBe(2);
+    expect((await dialogueWalk({}, sinkCtx)).exitCode).toBe(2);
+  });
+
+  it("assets info prints a clip's length, channels and rate from its headers", async () => {
+    const r = await assetsInfo({ id: "clink-wav" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    const { audio } = r.data as { audio: Record<string, number | string> };
+    expect(audio).toMatchObject({ format: "wav", channels: 1, sampleRate: 22050 });
+    expect(audio.durationMs).toBeCloseTo(149.66, 2);
+    expect(r.text).toContain("  wav, 149.7 ms, mono, 22050 Hz");
+  });
+
+  it("assets info prints a patch's length as synthDurationMs gives it, and a sound's variants", async () => {
+    const patch = JSON.parse(await readFile(join(sink, "audio", "clink.synth.json"), "utf8"));
+    const length = synthDurationMs(patch);
+    const synth = await assetsInfo({ id: "clink-synth" }, sinkCtx);
+    expect(synth.exitCode, synth.text).toBe(0);
+    expect((synth.data as { synth: unknown }).synth).toEqual({
+      wave: "saw",
+      durationMs: length,
+      sampleRate: 44100,
+    });
+    expect(synth.text).toContain(`  saw patch, ${length} ms, rendered mono at 44100 Hz`);
+
+    const sound = await assetsInfo({ id: "clink" }, sinkCtx);
+    expect(sound.exitCode, sound.text).toBe(0);
+    const info = (sound.data as { sound: { variants: { durationMs: number }[] } }).sound;
+    expect(info).toMatchObject({
+      bus: "sfx",
+      loop: false,
+      variants: [
+        { clip: "clink-wav", kind: "audio", weight: 2 },
+        { clip: "clink-synth", kind: "synth", weight: 1, durationMs: length },
+      ],
+    });
+    expect(info.variants[0]!.durationMs).toBeCloseTo(149.66, 2);
+    expect(sound.text).toContain("  bus sfx; 2 variants:");
+    expect(sound.text).toContain(`    clink-synth  synth  ${length} ms  weight 1`);
+  });
+
+  it("assets info prints a font's coverage and distance field", async () => {
+    const r = await assetsInfo({ id: "kitchen-font" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    const { font } = r.data as {
+      font: { format: string; codePoints: number; coverage: number[][]; distanceField: unknown };
+    };
+    expect(font).toMatchObject({ format: "bmfont", distanceField: null });
+    expect(font.coverage).toContainEqual([65, 90]);
+    expect(font.codePoints).toBe(font.coverage.reduce((n, [a, b]) => n + b! - a! + 1, 0));
+    expect(r.text).toContain("  bmfont, size 10 px, line 12 px, pages kitchen-font-page");
+    expect(r.text).toMatch(
+      new RegExp(`^  covers ${font.codePoints} code points: .*U\\+0041-U\\+005A`, "m"),
+    );
+    expect(r.text).toContain("  distance field none");
+  });
+
+  it("playtest --present lists the sounds a run asks for, which change nothing in it", async () => {
+    const dir = join(root, soundGame.id);
+    await mkdir(dir);
+    const yard = JSON.parse(await engineYardText()) as Record<string, unknown>;
+    await writeFile(
+      join(dir, "sound-yard.json"),
+      JSON.stringify({ ...yard, name: "sound-yard", game: soundGame.id }),
+    );
+    const soundCtx = {
+      ...ctx,
+      projects: [...ctx.projects, await tempProject(dir, { game: soundGame })],
+    };
+    const script = join(root, "wait.json");
+    await writeFile(script, JSON.stringify({ v: 2, steps: [{ wait: 5 }] }));
+    const presented = await playtest({ scene: "sound-yard", script, present: true }, soundCtx);
+    expect(presented.exitCode, presented.text).toBe(0);
+    const { present, ...run } = presented.data as { present: unknown[] };
+    expect(present).toEqual([
+      {
+        kind: "audio",
+        op: { op: "play", sound: "clink", at: { x: 1.25, y: 2 }, key: "door" },
+        tick: 2,
+      },
+      { kind: "audio", op: { op: "stop", key: "door", fadeMs: 120 }, tick: 3 },
+      { kind: "audio", op: { op: "music", sound: "theme", at: "tick", tick: 3 }, tick: 3 },
+    ]);
+    expect(presented.text).toContain(
+      [
+        "  present (3, points in metres):",
+        '    t2 audio play {"sound":"clink","at":{"x":1.25,"y":2},"key":"door"}',
+        '    t3 audio stop {"key":"door","fadeMs":120}',
+        '    t3 audio music {"sound":"theme","at":"tick","tick":3}',
+      ].join("\n"),
+    );
+    const plain = await playtest({ scene: "sound-yard", script }, soundCtx);
+    expect(run).toEqual(plain.data);
+  });
+
+  it("codes lists the audio, text, dialogue and locale codes", async () => {
+    const r = await codes({}, sinkCtx);
+    const engine = (r.data as { codes: { engine: Record<string, { severity: string }> } }).codes
+      .engine;
+    const added = {
+      "font-missing": "warn",
+      "string-key-missing": "error",
+      "dialogue-dead-end": "error",
+      "dialogue-unreachable": "warn",
+      "sound-bus-unknown": "error",
+      "locale-unknown": "warn",
+    };
+    for (const [code, severity] of Object.entries(added)) {
+      expect(engine[code]?.severity, code).toBe(severity);
+      expect(r.text, code).toMatch(new RegExp(`^  ${code} +${severity} +\\S`, "m"));
+    }
   });
 });

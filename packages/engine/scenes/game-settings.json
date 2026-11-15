@@ -2,6 +2,9 @@
   "$schema": "../project/game-settings.schema.json",
   "kind": "game-settings",
   "v": 2,
-  "engine": {},
+  "engine": {
+    "locales": { "available": ["en", "fr"], "default": "en", "fonts": { "default": "kitchen-font" } },
+    "physics": "rapier"
+  },
   "game": {}
 }

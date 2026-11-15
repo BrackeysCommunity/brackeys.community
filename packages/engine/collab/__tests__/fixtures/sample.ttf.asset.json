@@ -1,0 +1,12 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "k-font",
+  "id": "my-font",
+  "name": "Shown name",
+  "sha256": "235bd56f04fef5e05b7f045c8ba63c874e9a95b821a9568869a04597abb39a16",
+  "bytes": 892,
+  "meta": { "coverage": [[32, 32], [65, 67], [233, 233], [128512, 128512]], "format": "ttf" },
+  "metaVersion": 2,
+  "licence": { "spdx": "CC-BY-4.0", "author": "Ana", "attribution": "Art by Ana" }
+}

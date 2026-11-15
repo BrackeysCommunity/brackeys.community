@@ -1,0 +1,24 @@
+{
+  "kind": "dialogue",
+  "v": 1,
+  "start": "hello",
+  "speakers": [{ "id": "guide", "name": "speaker.guide" }],
+  "nodes": [
+    {
+      "id": "hello",
+      "lines": [
+        { "speaker": "guide", "text": "intro.hello" },
+        { "speaker": "guide", "text": "intro.ask" }
+      ],
+      "choices": [
+        { "text": "intro.yes", "to": "bye" },
+        { "text": "intro.no", "to": "bye" }
+      ]
+    },
+    {
+      "id": "bye",
+      "lines": [{ "text": "intro.bye" }, { "say": "Literal, not a key." }],
+      "end": "done"
+    }
+  ]
+}

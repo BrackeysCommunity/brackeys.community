@@ -1,7 +1,7 @@
 // @vitest-environment node
-import { copyFile, cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -131,6 +131,36 @@ const SPARKS = {
   speed: [0.5, 1.5],
   angle: [-120, -60],
 };
+
+const STRINGS_FILE = "text/deck.strings.json";
+const DIALOGUE_FILE = "talk/deck-gate.dialogue.json";
+const SOUND_FILE = "sfx/deck-chime.sound.json";
+const DECK_STRINGS = {
+  kind: "strings",
+  v: 1,
+  strings: [
+    { key: "deck.keeper", en: "Keeper" },
+    { key: "deck.hello", en: "Hello there.", fr: "Bonjour." },
+    { key: "deck.bye", en: "Goodbye." },
+    { key: "deck.stay", en: "Stay a while." },
+  ],
+};
+const DECK_DIALOGUE = {
+  kind: "dialogue",
+  v: 1,
+  start: "hello",
+  speakers: [{ id: "keeper", name: "deck.keeper" }],
+  nodes: [
+    {
+      id: "hello",
+      lines: [{ speaker: "keeper", text: "deck.hello" }],
+      choices: [{ text: "deck.bye", to: "bye" }],
+    },
+    { id: "bye", lines: [{ speaker: "keeper", text: "deck.bye" }], end: "left" },
+  ],
+};
+/** A sound with no clip yet: the test names a patch an agent makes. */
+const DECK_SOUND = { kind: "sound", v: 1, bus: "sfx", variants: [] };
 
 type Called = {
   content: { type: string; text?: string }[];
@@ -289,6 +319,14 @@ beforeAll(async () => {
   await writeFile(join(deck, "tiles-room.json"), `${JSON.stringify(TILES_ROOM)}\n`);
   await writeFile(join(deck, ANIMATION_FILE), `${JSON.stringify(MOVES)}\n`);
   await writeFile(join(deck, EMITTER_FILE), `${JSON.stringify(SPARKS)}\n`);
+  for (const [path, value] of [
+    [STRINGS_FILE, DECK_STRINGS],
+    [DIALOGUE_FILE, DECK_DIALOGUE],
+    [SOUND_FILE, DECK_SOUND],
+  ] as const) {
+    await mkdir(dirname(join(deck, path)), { recursive: true });
+    await writeFile(join(deck, path), `${JSON.stringify(value)}\n`);
+  }
   for (const name of [
     "texture.png",
     "texture.webp",
@@ -329,6 +367,9 @@ beforeAll(async () => {
   for (const id of [
     idAt(ANIMATION_FILE),
     idAt(EMITTER_FILE),
+    idAt(STRINGS_FILE),
+    idAt(DIALOGUE_FILE),
+    idAt(SOUND_FILE),
     "kitchen-sink",
     "tiles-room",
     "post",
@@ -1085,6 +1126,117 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
           );
         }
       }
+    },
+  );
+
+  it(
+    "strings, dialogue, synth and sound: strings import, editAsset and synth new land as the agent, off the human's undo stack; an unknown bus is refused",
+    { timeout: 60_000 },
+    async () => {
+      type Row = { key: string; [locale: string]: string | undefined };
+      const stringsId = idAt(STRINGS_FILE);
+      const dialogueId = idAt(DIALOGUE_FILE);
+      const soundId = idAt(SOUND_FILE);
+      const fr = (key: string) =>
+        (valueOf(stringsId).strings as Row[]).find((r) => r.key === key)?.fr;
+      const historyOf = (id: string) => {
+        const d = heldDoc(id);
+        return historyRows(readLog(d.doc), readProjectLog(human.session.projectDoc), d.name);
+      };
+
+      const csv = join(root, "deck-fr.csv");
+      await writeFile(
+        csv,
+        [
+          "key,en,fr,note",
+          "deck.keeper,Keeper,Gardien,",
+          'deck.hello,Hello there.,"Bonjour, toi.",',
+          "deck.bye,Goodbye.,Au revoir.,",
+          "deck.stay,Stay a while.,,",
+          "",
+        ].join("\n"),
+      );
+      const rowsBefore = historyOf(stringsId).length;
+      const imported = await cli("strings", "import", csv);
+      expect(imported.exitCode, JSON.stringify(imported.data)).toBe(0);
+      expect(imported.data).toMatchObject({
+        written: true,
+        locale: "fr",
+        changed: ["deck.keeper", "deck.hello", "deck.bye"],
+      });
+      await landsInDoc(
+        stringsId,
+        () => fr("deck.bye") === "Au revoir.",
+        CLI_AGENT,
+        "the CLI's strings import",
+      );
+      expect([fr("deck.keeper"), fr("deck.hello"), fr("deck.bye"), fr("deck.stay")]).toEqual([
+        "Gardien",
+        "Bonjour, toi.",
+        "Au revoir.",
+        undefined,
+      ]);
+      const imports = historyOf(stringsId).slice(rowsBefore);
+      expect(imports).toHaveLength(1);
+      expect(imports[0]).toMatchObject({ actor: CLI_AGENT, label: "strings import fr" });
+
+      const choices = () =>
+        (valueOf(dialogueId).nodes as { id: string; choices?: { to: string }[] }[]).find(
+          (n) => n.id === "hello",
+        )?.choices ?? [];
+      const choice = await mcp("asset_apply_ops", {
+        ops: editAsset(dialogueId, [
+          { insert: "/nodes/@hello/choices/-", value: { text: "deck.stay", to: "hello" } },
+        ]),
+      });
+      expect(choice.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(dialogueId, () => choices().length === 2, MCP_AGENT, "the MCP choice");
+      expect(choices()).toEqual([
+        { text: "deck.bye", to: "bye" },
+        { text: "deck.stay", to: "hello" },
+      ]);
+
+      const patch = await cli("synth", "new", "pickup", "--seed", "7", "--id", "deck-coin");
+      expect(patch.exitCode, JSON.stringify(patch.data)).toBe(0);
+      expect(patch.data).toMatchObject({ written: true, preset: "pickup", seed: 7 });
+      await landsInRegistry(
+        (v) => v.byId.get("deck-coin")?.kind === "synth",
+        CLI_AGENT,
+        "the CLI's synth patch",
+      );
+      const variants = () => valueOf(soundId).variants as { clip: string }[];
+      const named = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(editAsset(soundId, [{ insert: "/variants", value: { clip: "deck-coin" } }])),
+      );
+      expect(named.exitCode, JSON.stringify(named.data)).toBe(0);
+      await landsInDoc(
+        soundId,
+        () => variants().some((v) => v.clip === "deck-coin"),
+        CLI_AGENT,
+        "the CLI's sound variant",
+      );
+
+      const thunder = editAsset(soundId, [{ set: "/bus", value: "thunder" }]);
+      const badCli = await cli("assets", "apply", "--ops", await jsonFile(thunder));
+      expect(badCli.exitCode).toBe(1);
+      expect(badCli.data).toMatchObject({ written: false, issue: { code: "sound-bus-unknown" } });
+      const badMcp = await mcp("asset_apply_ops", { ops: thunder });
+      expect(badMcp.structuredContent).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code: "sound-bus-unknown" },
+      });
+      expect(valueOf(soundId).bus).toBe("sfx");
+      expect(human.session.canUndo()).toBe(false);
+
+      await until(async () => {
+        const strings = await readOrEmpty(join(deck, STRINGS_FILE));
+        const sound = await readOrEmpty(join(deck, SOUND_FILE));
+        return strings.includes('"Au revoir."') && sound.includes('"deck-coin"');
+      }, "the server to write the strings and the sound back");
     },
   );
 

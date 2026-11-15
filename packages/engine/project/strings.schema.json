@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:strings:v1",
+  "x-agent-surface": 23,
+  "title": "jams engine strings, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The strings JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "strings",
+      "description": "Always \"strings\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Strings format version."
+    },
+    "strings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+            "description": "The key game code, text blocks and dialogue name, e.g. `intro.hello`."
+          },
+          "note": {
+            "description": "For translators; never shown.",
+            "type": "string"
+          }
+        },
+        "required": ["key"],
+        "additionalProperties": {
+          "type": "string",
+          "description": "The text in the locale this column names (BCP 47)."
+        },
+        "description": "One key's text in each locale, by locale column."
+      },
+      "description": "Rows keyed by `key`; every strings file in a project merges by key."
+    }
+  },
+  "required": ["kind", "v", "strings"],
+  "additionalProperties": false,
+  "description": "A string table: text by key and locale, merged across a project's strings files. Presentation only."
+}

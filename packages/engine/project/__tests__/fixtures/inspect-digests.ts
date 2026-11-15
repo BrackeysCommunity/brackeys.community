@@ -22,6 +22,14 @@ export function fixtureFiles(): string[] {
     .sort();
 }
 
+/** The generated and edited audio files in `media/` (see `make-media-fixtures.ts`), as `media/<name>`. */
+export function mediaFiles(): string[] {
+  return readdirSync(new URL("media/", DIR))
+    .filter((name) => !name.startsWith("."))
+    .sort()
+    .map((name) => `media/${name}`);
+}
+
 /** The fixtures as a project folder: each file's path is `art/<name>` and its id is its name's stem. */
 export function fixtureEnv(name: string): InspectEnv {
   const ids = new Map(
@@ -50,7 +58,7 @@ export const SETTINGS: Readonly<Record<string, readonly Record<string, unknown>[
   texture: [{}, { filter: "linear", pivot: [0.5, 1], nineSlice: [1, 1, 1, 1] }],
   atlas: [{}, { pivotDefault: [0.5, 1] }, { texture: "items" }],
   font: [{}, { pages: ["texture"] }],
-  audio: [{}],
+  audio: [{}, { stream: true, loopStart: 0.01, loopEnd: 0.04 }],
   recording: [{}],
   save: [{}],
 };
@@ -63,7 +71,7 @@ export type InspectDigest = { ok: boolean; meta: string | null; result: string }
  */
 export async function inspectDigests(): Promise<Record<string, InspectDigest>> {
   const out: Record<string, InspectDigest> = {};
-  for (const name of fixtureFiles()) {
+  for (const name of [...fixtureFiles(), ...mediaFiles()]) {
     const bytes = new Uint8Array(readFileSync(new URL(name, DIR)));
     for (const kind of BLOB_KINDS) {
       const variants = SETTINGS[kind.kind] ?? [{}];

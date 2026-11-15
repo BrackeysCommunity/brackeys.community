@@ -1,0 +1,11 @@
+{
+  "$schema": "../../engine/project/strings.schema.json",
+  "kind": "strings",
+  "v": 1,
+  "strings": [
+    { "key": "speaker.guard", "de": "Wache", "en": "Guard", "fr": "Garde" },
+    { "key": "gate.halt", "de": "Halt.", "en": "Halt.", "fr": "Halte." },
+    { "key": "gate.toll", "en": "The toll is {gold} gold.", "fr": "Le péage est de {gold} pièces.", "note": "{gold} is a whole number." },
+    { "key": "caption.hit", "en": "[Thud]", "note": "Caption for crate hits." }
+  ]
+}

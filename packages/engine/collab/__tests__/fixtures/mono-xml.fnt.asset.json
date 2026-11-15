@@ -1,0 +1,28 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "k-font",
+  "id": "my-font",
+  "name": "Shown name",
+  "sha256": "f29131f49736fddc41a2bea3d02cffe4a29f79878d52f8685098d7f1f96a24d4",
+  "bytes": 1071,
+  "import": { "pages": ["font-0"] },
+  "meta": {
+    "advances": { "32": 3, "65": 5, "66": 5, "233": 4 },
+    "coverage": [
+      [32, 32],
+      [65, 66],
+      [233, 233]
+    ],
+    "format": "bmfont",
+    "kerning": [
+      [65, 66, -1],
+      [66, 65, -2]
+    ],
+    "lineHeight": 14,
+    "pages": ["fonts/font_0.png"],
+    "size": 12
+  },
+  "metaVersion": 2,
+  "licence": { "spdx": "CC-BY-4.0", "author": "Ana", "attribution": "Art by Ana" }
+}

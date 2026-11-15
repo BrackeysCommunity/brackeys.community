@@ -8,9 +8,14 @@
  * each half's sprite is read, the animated one again a clip frame later.
  */
 import { createAssetLoader, createGame, type GameInstance } from "@jams/engine";
-import { createRegistry, withProject } from "@jams/engine/game";
-import { createKindRegistry, projectView, runtimeView } from "@jams/engine/project";
-import type { SceneDefinition } from "@jams/engine/scene";
+import { createRegistry, withProject, type Registry } from "@jams/engine/game";
+import {
+  createKindRegistry,
+  projectView,
+  runtimeView,
+  type ProjectView,
+} from "@jams/engine/project";
+import type { Prefab, SceneDefinition } from "@jams/engine/scene";
 
 import { devAssetUrl } from "../../../packages/engine/editor-ui/connect/dev";
 import type { RenderProbe, SplitProbe } from "../browser-compare";
@@ -32,7 +37,8 @@ import {
 } from "./sink";
 import { parseSinkScene, sinkPrefabs, withoutCameraRig } from "./sink-prefabs";
 
-const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+export const nextFrame = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 async function sinkData(): Promise<SinkProjectData> {
   const res = await fetch(SINK_DATA_ROUTE);
@@ -40,21 +46,36 @@ async function sinkData(): Promise<SinkProjectData> {
   return (await res.json()) as SinkProjectData;
 }
 
-export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: SplitProbe }> {
+/** The sink project as the page builds it from the data route, and a game on a fresh canvas over it. */
+export type SinkGame = {
+  game: GameInstance;
+  canvas: HTMLCanvasElement;
+  view: ProjectView;
+  values: ReadonlyMap<string, unknown>;
+  registry: Registry;
+  prefabs: ReadonlyMap<string, Prefab>;
+  /** Destroys the game and the loader and removes the canvas. */
+  destroy(): void;
+};
+
+export async function startSinkGame(): Promise<SinkGame> {
   const data = await sinkData();
   const kinds = createKindRegistry(smokeGame);
   const view = projectView(data.state, kinds);
   const values = new Map(Object.entries(data.values));
   const registry = withProject(createRegistry(smokeGame), view, values);
   const prefabs = sinkPrefabs(view, values, registry);
-  const scene = parseSinkScene(values.get(SINK_SCENE), registry, prefabs);
 
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
   const loader = createAssetLoader({ project: SINK_PROJECT, url: devAssetUrl() });
-  let game: GameInstance | null = null;
+  const destroy = (game?: GameInstance) => {
+    game?.destroy();
+    loader.destroy();
+    canvas.remove();
+  };
   try {
-    game = await createGame(canvas, {
+    const game = await createGame(canvas, {
       game: smokeGame,
       registry,
       rapier: loadRapier,
@@ -65,6 +86,18 @@ export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: Sp
       displayHeight: SINK_CANVAS.height,
       backgroundColor: SMOKE_BACKGROUND,
     });
+    return { game, canvas, view, values, registry, prefabs, destroy: () => destroy(game) };
+  } catch (err) {
+    destroy();
+    throw err;
+  }
+}
+
+export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: SplitProbe }> {
+  const sink = await startSinkGame();
+  try {
+    const { game, canvas, values, registry, prefabs } = sink;
+    const scene = parseSinkScene(values.get(SINK_SCENE), registry, prefabs);
     const { failed } = await game.preload(scene);
     if (failed.length > 0)
       throw new Error(`textures failed to load: ${failed.map((e) => e.id).join(", ")}`);
@@ -79,9 +112,7 @@ export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: Sp
 
     return { render, split: await runSplit(game, canvas, scene) };
   } finally {
-    game?.destroy();
-    loader.destroy();
-    canvas.remove();
+    sink.destroy();
   }
 }
 

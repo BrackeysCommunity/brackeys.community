@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../../game/commands";
 import type { InputScriptV2 } from "../../headless/playtest-types";
 import { runGenreProbe, type GenreProbe } from "./harness";
 import {
@@ -19,14 +20,23 @@ function usingInstead(hotspot: string): GenreProbe<PointAndClickSnapshot> {
 }
 
 describe(`${probe.id} probe`, () => {
-  it("fires a hotspot through the `use` command sent for the press that picked it", async () => {
+  it("fires a hotspot through the `use` sent for the press that picked it, and its conversation ends opened", async () => {
     const run = await runGenreProbe(probe);
     const { report } = run;
     const final = report.final as PointAndClickSnapshot;
     expect(report.outcome.result).toBe("won");
-    expect(final).toMatchObject({ clicks: 3, ignored: 1, picked: null, triggered: ["door"] });
+    expect(final).toMatchObject({
+      clicks: 3,
+      ignored: 1,
+      picked: null,
+      triggered: ["door"],
+      endings: ["opened"],
+    });
     expect(report.commands.map(([, name, args]) => [name, args])).toEqual([
       [USE, { hotspot: "door" }],
+      [DIALOGUE_ADVANCE_COMMAND, undefined],
+      [DIALOGUE_CHOOSE_COMMAND, { choice: 0 }],
+      [DIALOGUE_ADVANCE_COMMAND, undefined],
     ]);
     expect(report.events.filter((e) => e.type === TRIGGERED).map((e) => e.entityId)).toEqual([
       "door",

@@ -20,6 +20,7 @@ import {
   type ProbeVariant,
 } from "./harness";
 import { GENRE_PINS } from "./pins";
+import { rhythmAudioMismatch, rhythmTapProbe } from "./rhythm-tap.probe";
 
 vi.mock("../../renderer", async () => (await import("./harness")).stubbedRenderer());
 
@@ -84,11 +85,13 @@ async function expectViewRun(probe: GenreProbe, run: ProbeRun, variant?: ProbeVa
   expect(view.viewports, label).toStrictEqual(declared.map((_, i) => i));
   expect(view.surfaces, label).toHaveLength(Math.max(0, declared.length - 1));
   for (const draws of view.surfaces) expect(draws, label).toBeGreaterThan(0);
+  expect(view.audio !== undefined, label).toBe(probe.audio !== undefined);
+  return view;
 }
 
 /**
  * The view run's own check, never pinned: a game that shakes the camera and
- * flashes every few ticks, under a main viewport and a minimap.
+ * flashes every few ticks and beeps once, under a main viewport and a minimap.
  */
 const viewed: GenreProbe<{ ticks: number }> = {
   id: "harness-viewed",
@@ -110,6 +113,7 @@ const viewed: GenreProbe<{ ticks: number }> = {
           if (ticks % 7 === 0) ctx.present.camera.shake(0.4);
           if (ticks % 10 === 0) ctx.present.effects.flash({ ms: 40 });
           if (ticks % 5 === 0) ctx.emit({ type: "beat", at: { x: 1, y: 1 }, data: { ticks } });
+          if (ticks === 12) ctx.present.audio.play("beep");
         },
         snapshot: () => ({ ticks }),
         restore: (s) => void (ticks = s.ticks),
@@ -126,6 +130,18 @@ const viewed: GenreProbe<{ ticks: number }> = {
       { id: "far", type: "marker", at: [7, 3.5] },
     ],
   },
+  project: {
+    files: [
+      {
+        path: "audio/beep.json",
+        json: { kind: "sound", v: 1, bus: "sfx", variants: [{ clip: "beep-patch" }] },
+      },
+      {
+        path: "audio/beep-patch.json",
+        json: { kind: "synth", v: 1, wave: "square", freq: 880, sustainMs: 40, decayMs: 20 },
+      },
+    ],
+  },
   script: { v: 1, steps: [{ hold: ["go"], for: 4 }, { wait: 60 }] },
   expect: { result: "won", maxTicks: 31 },
   recordPresentation: true,
@@ -134,6 +150,7 @@ const viewed: GenreProbe<{ ticks: number }> = {
     { rect: [0, 0, 1, 1], frame: "main" },
     { rect: [0.75, 0, 0.25, 0.25], frame: "scene", border: { width: 2, color: 0x202020 } },
   ],
+  audio: true,
 };
 
 describe("the view run", () => {
@@ -145,6 +162,7 @@ describe("the view run", () => {
     expect(kinds).toStrictEqual([
       "6:shake",
       "9:flash",
+      "11:play",
       "13:shake",
       "19:flash",
       "20:shake",
@@ -152,6 +170,19 @@ describe("the view run", () => {
       "29:flash",
     ]);
     await expectViewRun(viewed, run);
+  });
+
+  it("plays the run's sounds through a fake backend on the shell's clock, and none without one", async () => {
+    const run = await runGenreProbe(viewed);
+    const heard = await viewGenreProbe(viewed, run);
+    const plays = (heard.audio ?? []).filter((c) => c.op === "play");
+    expect(plays).toHaveLength(1);
+    expect(heard.audio?.some((c) => c.op === "buffer")).toBe(true);
+    // Tick 11 steps in the twelfth frame, after eleven frames of the clock.
+    expect(plays[0]!.at).toBeCloseTo(11 / run.report.recording.time.rate, 6);
+    const silent = await viewGenreProbe(viewed, run, undefined, { audio: false });
+    expect(silent.audio).toBeUndefined();
+    expect(silent.recording.end).toBe(heard.recording.end);
   });
 });
 
@@ -170,6 +201,7 @@ describe("genre probes", () => {
       "top-down",
       "tower-defense",
       "turn-tactics",
+      "visual-novel",
     ])
       expect(ids).toContain(id);
   });
@@ -203,6 +235,10 @@ describe("genre probes", () => {
           expect(run.replay.divergence, label).toBeNull();
           expect(run.replay.matches, label).toBe(true);
           expect(run.replay.recording.end, label).toBe(run.report.recording.end);
+          for (const seg of run.segments ?? []) {
+            expect(seg.replay.divergence, `${label} ${seg.scene}`).toBeNull();
+            expect(seg.replay.matches, `${label} ${seg.scene}`).toBe(true);
+          }
           expect(run.usedRapier, label).toBe(probePhysics(probe, variant) === "rapier");
           if (variant?.saveAt !== undefined) {
             const saved = run.fromSave!;
@@ -214,7 +250,11 @@ describe("genre probes", () => {
             expect(run.report.present, label).toBeDefined();
             expect(run.withoutPresentation, `${label} without presentation`).toBe(run.digest);
           }
-          if (probe.view) await expectViewRun(probe, run, variant);
+          if (probe.view) {
+            const view = await expectViewRun(probe, run, variant);
+            if (probe.id === rhythmTapProbe.id)
+              expect(rhythmAudioMismatch(view, run.report.recording.time.rate), label).toBeNull();
+          }
           if (UPDATE) (fresh[probe.id] ??= {})[name] = run.digest;
           else
             expect(run.digest, `${label}: rerun with UPDATE_GENRE_PINS=1`).toBe(

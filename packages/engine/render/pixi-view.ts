@@ -14,16 +14,19 @@ import {
   layerOrder,
   type SceneView,
   type SpriteVisual,
+  type TextVisual,
   type ViewLayer,
   type ViewLayerHandle,
 } from "../context";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { Sha256 } from "../project/types";
-import { lerpPose, type Pose } from "../runtime/poses";
+import { lerpPose, type Pose, type PoseIndex } from "../runtime/poses";
 import type { SceneLayerDef } from "../scene/layers";
+import type { StringTableData } from "../text/strings";
 import { drawShape } from "./draw-shape";
 import { createParticleLayer, type ParticleLayer, type ParticleLayerOptions } from "./particles";
 import { createSpriteTextures } from "./sprite-textures";
+import { createRichText, type FontSource } from "./text";
 
 /** Textures by content hash, for the view's sprites. */
 export type TextureSource = {
@@ -44,6 +47,10 @@ export type PixiViewOptions = {
   layers?: readonly SceneLayerDef[];
   /** Textures by content hash; a miss draws the fallback and retries when the loader says it arrived. */
   textures?: TextureSource;
+  /** Loaded fonts for text; default `textures` when it is a font source too, as the asset loader is. */
+  fonts?: FontSource;
+  /** True holds text's `shake` and `wave` still; default the particles' setting. */
+  reducedMotion?: boolean | (() => boolean);
   /** True in edit mode: editor-only layers show. */
   editing?: () => boolean;
   /** Round visual positions to whole canvas pixels each frame. */
@@ -57,15 +64,21 @@ export type PixiViewOptions = {
    */
   pxPerMetre?: number;
   /**
-   * Gives the view a particle layer, made at the first `particles()`: an
-   * emitter draws on its own layer, a burst on the scene's `gameplay`
-   * layer (the body order without one).
+   * Gives the view a particle layer, made at the first `particles()` or
+   * `emitter`: an emitter draws on its own layer, a burst on the scene's
+   * `gameplay` layer (the body order without one). `poses` is where an
+   * emitter's followed entity is, read each frame and interpolated by the
+   * last `frame`'s alpha; without it emitters emit nothing.
    */
-  particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture">;
+  particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture"> & {
+    poses?: () => Pick<PoseIndex, "get" | "prev"> | null | undefined;
+  };
 };
 
 export type PixiView = SceneView & {
   readonly container: Container;
+  /** The view's particle layer, for the shell's bursts and per-frame update; null without `particles`. */
+  particles(): ParticleLayer | null;
   /**
    * Offsets the `scroll` layers for a camera at (x, y) metres, as `frame`
    * does: what a viewport past the first sets before it draws the world.
@@ -93,6 +106,8 @@ type Visual = {
   snapped: boolean;
   /** Set while `id` shows a sprite, or its fallback box while the texture loads. */
   sprite: { visual: SpriteVisual; texture: Texture | null } | null;
+  /** Set while `id` shows text: what a new string table redraws. */
+  text: TextVisual | null;
   /** The order inside its layer; null until `depth` places it as an entity's visual. */
   z: number | null;
   /** When it was first drawn: the tiebreak inside a layer. */
@@ -162,6 +177,10 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   let seq = 0;
   const textures = opts.textures;
   const spriteTextures = textures ? createSpriteTextures(textures) : null;
+  const fonts = opts.fonts ?? (isFontSource(textures) ? textures : null);
+  const reducedMotion = opts.reducedMotion ?? opts.particles?.reducedMotion;
+  /** The locale's strings and font, as the shell last handed them. */
+  let table: StringTableData | null = null;
   /** Ids showing a fallback until their texture loads. */
   const pending = new Set<string>();
   let unsubscribe: (() => void) | null = null;
@@ -170,6 +189,8 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   /** The scene layers `showLayers` named; null shows all. */
   let shown: ReadonlySet<string> | null = null;
   let particles: ParticleLayer | null = null;
+  /** The last `frame`'s alpha, which an emitter's followed pose interpolates by. */
+  let frameAlpha = 1;
   container.sortableChildren = true;
   container.scale.set(1 / ppm);
 
@@ -222,6 +243,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
         fresh: true,
         snapped: false,
         sprite: null,
+        text: null,
         z: null,
         seq: seq++,
         y: 0,
@@ -325,6 +347,14 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     }
     if (v.sprite?.texture) spriteTextures?.release(v.sprite.texture);
     v.sprite = { visual, texture };
+    v.text = null;
+  }
+
+  function drawTextVisual(id: string, visual: TextVisual, layer: ViewLayer): void {
+    const v = show(id, createRichText(visual, fonts, { table, reducedMotion }), layer);
+    releaseSprite(v);
+    settle(id);
+    v.text = visual;
   }
 
   /** Where `v` sits this frame: between its last two poses when the last committed tick moved it. */
@@ -361,6 +391,28 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     }
   }
 
+  function followedPose(entity: string): Pose | undefined {
+    const poses = opts.particles?.poses?.();
+    const cur = poses?.get(entity);
+    if (!poses || !cur) return undefined;
+    return lerpPose(poses.prev(entity) ?? cur, cur, frameAlpha);
+  }
+
+  function particleLayer(): ParticleLayer | null {
+    const def = opts.particles;
+    if (!def) return null;
+    if (particles) return particles;
+    const gameplay = opts.layers?.find((l) => l.name === "gameplay")?.draw ?? DRAW_LAYERS.body;
+    const { poses: _, ...layerOpts } = def;
+    particles = createParticleLayer(layerContainer(gameplay), textures, {
+      ...layerOpts,
+      pxPerMetre: ppm,
+      layer: layerContainer,
+      pose: followedPose,
+    });
+    return particles;
+  }
+
   return {
     container,
     draw(id, shape, style, layer) {
@@ -369,8 +421,16 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       const v = show(id, g, layer);
       releaseSprite(v);
       settle(id);
+      v.text = null;
     },
     sprite: drawSpriteVisual,
+    text: drawTextVisual,
+    locale(next) {
+      table = next;
+      for (const [id, v] of [...visuals])
+        if (v.text && ("key" in v.text || v.text.font === null))
+          drawTextVisual(id, v.text, v.layer);
+    },
     pose(id, x, y, rot = 0, snap = false) {
       const v = visuals.get(id);
       if (!v) return;
@@ -395,6 +455,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       for (const [order, layer] of layers) applyShown(order, layer);
     },
     frame({ alpha, camera }) {
+      frameAlpha = alpha;
       parallax(camera);
       placeVisuals(alpha);
       for (const [order, layer] of layers) if (ySorted(order)) ySort(layer);
@@ -416,17 +477,15 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       visuals.delete(id);
     },
     layer: (layer) => layerContainer(layer) as unknown as ViewLayerHandle,
-    particles() {
-      const def = opts.particles;
-      if (!def) return null;
-      if (particles) return particles;
-      const gameplay = opts.layers?.find((l) => l.name === "gameplay")?.draw ?? DRAW_LAYERS.body;
-      particles = createParticleLayer(layerContainer(gameplay), textures, {
-        ...def,
-        pxPerMetre: ppm,
-        layer: layerContainer,
-      });
-      return particles;
+    particles: particleLayer,
+    emitter(id, { preset, follow, layer, restart }) {
+      const target = particleLayer();
+      if (!target) return;
+      if (!restart && target.retune(id, preset, follow, layer)) return;
+      target.emitter(id, preset, follow, layer);
+    },
+    removeEmitter(id) {
+      particles?.remove(id);
     },
     destroy() {
       particles?.clear();
@@ -441,6 +500,11 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       container.destroy({ children: true });
     },
   };
+}
+
+function isFontSource(source: TextureSource | undefined): source is TextureSource & FontSource {
+  const fonts = source as Partial<FontSource> | undefined;
+  return typeof fonts?.bitmapFamily === "function" && typeof fonts.webFamily === "function";
 }
 
 /** The Pixi container behind a Pixi view's layer handle, in world px, for a game drawing what the view can't. */

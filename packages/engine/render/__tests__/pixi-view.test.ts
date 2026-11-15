@@ -15,6 +15,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { DRAW_LAYERS, type SpriteVisual, type ViewLayerHandle } from "../../context";
 import type { EmitterFile } from "../../project/kinds/emitter";
 import type { Sha256 } from "../../project/types";
+import type { Pose } from "../../runtime/poses";
 import type { SceneLayerDef } from "../../scene/layers";
 import type { ShapeObj } from "../../scene/types";
 import {
@@ -643,7 +644,7 @@ describe("viewport surfaces", () => {
   });
 });
 
-describe("SceneView.particles", () => {
+describe("the view's particles", () => {
   const preset: EmitterFile = {
     kind: "emitter",
     v: 1,
@@ -657,24 +658,33 @@ describe("SceneView.particles", () => {
     { name: "back", description: "", draw: 2 },
     { name: "gameplay", description: "", draw: 12 },
   ];
+  /** A pose source holding entity `a` at `cur`, one tick after `prev`. */
+  const posesAt = (cur: Pose, prev: Pose = cur) => ({
+    get: (id: string) => (id === "a" ? cur : undefined),
+    prev: (id: string) => (id === "a" ? prev : undefined),
+  });
   const particlesIn = (c: Container) =>
     c.children
       .filter((k): k is ParticleContainer => k instanceof ParticleContainer)
       .reduce((n, k) => n + k.particleChildren.length, 0);
 
   it("is null for a view made without particles", () => {
-    expect(createPixiView(new Container()).particles?.()).toBeNull();
+    const view = createPixiView(new Container());
+    expect(view.particles()).toBeNull();
+    view.emitter!("e", { preset: { ...preset }, follow: { entity: "a" }, layer: 2, restart: true });
+    view.removeEmitter!("e");
+    expect(view.particles()).toBeNull();
   });
 
   it("gives one layer: emitters on their own layer, bursts on gameplay, in world px", () => {
     const view = createPixiView(new Container(), {
       layers: sceneLayers,
       pxPerMetre: 50,
-      particles: { reducedMotion: false, seed: "s" },
+      particles: { reducedMotion: false, seed: "s", poses: () => posesAt({ x: 1, y: 2, rot: 0 }) },
     });
-    const layer = view.particles!()!;
-    expect(view.particles!()).toBe(layer);
-    layer.emitter("e", { ...preset }, () => ({ x: 1, y: 2, rot: 0 }), 2);
+    const layer = view.particles()!;
+    expect(view.particles()).toBe(layer);
+    layer.emitter("e", { ...preset }, { entity: "a" }, 2);
     layer.burst({ ...preset }, { x: 3, y: 0 }, { count: 5 });
     layer.update(16);
     const back = pixiContainer(view.layer(2));
@@ -684,6 +694,38 @@ describe("SceneView.particles", () => {
     expect((drawn as ParticleContainer).particleChildren[0]).toMatchObject({ x: 50, y: 100 });
     view.destroy();
     expect(layer.stats()).toEqual({ emitters: 0, particles: 0 });
+  });
+
+  it("runs emitters from data: following an entity at the frame's alpha, retuned in place, removed by id", () => {
+    const world = { ...preset, bursts: [{ atMs: 0, count: 1 }] };
+    const view = createPixiView(new Container(), {
+      particles: {
+        reducedMotion: false,
+        seed: "s",
+        poses: () => posesAt({ x: 2, y: 0, rot: Math.PI / 2 }, { x: 0, y: 0, rot: Math.PI / 2 }),
+      },
+    });
+    const follow = { entity: "a", offset: [1, 0] as [number, number], flip: true };
+    view.emitter!("e", { preset: world, follow, layer: DRAW_LAYERS.body, restart: false });
+    view.frame!({ alpha: 0.5, camera: { x: 0, y: 0, zoom: 1 } });
+    const layer = view.particles()!;
+    layer.update(16);
+    const holder = pixiContainer(view.layer(DRAW_LAYERS.body));
+    const born = (holder.children.find((k) => k instanceof ParticleContainer) as ParticleContainer)
+      .particleChildren;
+    // Halfway along x, the offset mirrored and turned a quarter: one metre up.
+    expect(born.map((p) => [Math.round(p.x), Math.round(p.y)])).toEqual([[100, -100]]);
+    // Not a restart: the burst at 0 has fired and stays passed.
+    view.emitter!("e", { preset: world, follow, layer: DRAW_LAYERS.body, restart: false });
+    layer.update(16);
+    expect(layer.stats()).toEqual({ emitters: 1, particles: 1 });
+    view.emitter!("e", { preset: world, follow, layer: DRAW_LAYERS.body, restart: true });
+    layer.update(16);
+    expect(layer.stats()).toEqual({ emitters: 1, particles: 2 });
+    view.removeEmitter!("e");
+    view.removeEmitter!("e");
+    expect(layer.stats()).toEqual({ emitters: 0, particles: 2 });
+    view.destroy();
   });
 
   it("draws a preset's texture once it loads, squares until then", () => {
@@ -700,10 +742,11 @@ describe("SceneView.particles", () => {
         reducedMotion: false,
         seed: "s",
         texture: () => ({ hash, sampling: "linear" }),
+        poses: () => posesAt({ x: 0, y: 0, rot: 0 }),
       },
     });
-    const layer = view.particles!()!;
-    layer.emitter("e", { ...preset }, () => ({ x: 0, y: 0, rot: 0 }));
+    const layer = view.particles()!;
+    layer.emitter("e", { ...preset }, { entity: "a" });
     layer.update(16);
     const holder = pixiContainer(view.layer(DRAW_LAYERS.body));
     const pc = holder.children.find((k) => k instanceof ParticleContainer) as ParticleContainer;

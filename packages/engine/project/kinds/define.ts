@@ -4,6 +4,7 @@ import type { Registry } from "../../game/types";
 import { makeIssue } from "../../scene/issues";
 import type { Migration, MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
+import type { FontDecompress } from "../inspect/font";
 import type { RefSite } from "../refs";
 import type { AssetEntry, AssetId, AssetKindName, AssetPath, ProjectView } from "../types";
 import type { InputMapFile } from "./input-map";
@@ -177,6 +178,8 @@ export type InspectEnv = {
   idAt(path: AssetPath): AssetId | undefined;
   /** The path of the asset being inspected. */
   path: AssetPath;
+  /** Decompressors a Node or Bun host lends a reader (a WOFF's zlib tables, a WOFF2's Brotli stream); absent in the browser. */
+  decompress?: FontDecompress;
 };
 
 export type InspectResult<M> =
@@ -193,7 +196,7 @@ export type BlobKindDef<M = unknown, S = unknown> = KindBase & {
   /** Pure and deterministic: the same bytes and settings give the same meta everywhere, from headers alone. */
   inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
   refs?(entry: AssetEntry): readonly RefSite[];
-  /** Bumped when `inspect` learns more. Sidecars don't record it yet, so nothing re-inspects by it. */
+  /** Bumped when `inspect` learns more; a sidecar recording an older one is inspected again (`isMetaStale`). */
   metaVersion?: number;
 };
 

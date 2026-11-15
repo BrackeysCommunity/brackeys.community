@@ -1,4 +1,4 @@
-import type { ViewLayer } from "../../context";
+import type { EmitterFollow, ViewLayer } from "../../context";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import type { EmitterBlock } from "../../game/behaviors/emitter";
 import { spriteOffset } from "../../game/behaviors/sprite";
@@ -40,10 +40,11 @@ export const emitterPreset = (
 
 /**
  * The `emitter` behavior's system: visual only, built with a view and never
- * headless. Each entity carrying the block runs an emitter on the view's
- * particle layer from its preset (`ctx.project.doc("emitter", …)`), on the
- * entity's draw layer, at its pose plus the block's offset, interpolated
- * between the last two ticks on each rendered frame. `emitting: false`
+ * headless. Each entity carrying the block runs an emitter through the
+ * view's `emitter` member from its preset (`ctx.project.doc("emitter", …)`),
+ * on the entity's draw layer, following the entity plus the block's offset:
+ * the view resolves that pose on each rendered frame, so nothing but data
+ * reaches it. `emitting: false`
  * stops it, its particles living out their life; a block without a preset
  * the project has emits nothing. A block update restarts it only when its
  * preset (the id or the doc) changes or it starts emitting again; a new
@@ -57,7 +58,7 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   const view = ctx.view;
   const glyphLayer = editorGlyphLayer(view, ctx.registry.layers);
   const attached = new Map<string, Attached>();
-  /** Each entity's pose as the last rendered frame placed it. */
+  /** Each entity's pose as the last rendered frame placed it, for its glyph. */
   const framed = new Map<string, Pose>();
 
   function offsetFrom(a: Attached, pose: Pose): Pose {
@@ -79,21 +80,28 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
     view.pose(emitterGlyphId(id), p.x, p.y, p.rot, true);
   }
 
+  function follow(id: string, a: Attached): EmitterFollow {
+    const offset = a.block.offset;
+    return {
+      entity: id,
+      ...(offset ? { offset: [offset[0], offset[1]] } : {}),
+      ...(a.entity.transform?.flip ? { flip: true } : {}),
+    };
+  }
+
   /** Runs `a`'s emitter: from its start when `restart` or its preset changed, else retuned as it runs. */
   function start(id: string, a: Attached, restart: boolean): void {
-    const layer = view.particles?.();
-    if (!layer) return;
+    if (!view.emitter) return;
     const preset = emitterPreset(ctx, a.block.preset);
     const fresh = restart || preset !== a.started;
     a.started = preset;
     if (!preset || a.block.emitting === false) {
-      layer.remove(id);
+      view.removeEmitter?.(id);
       return;
     }
     const rate = a.block.rate;
     const tuned = rate === undefined ? preset : { ...preset, rate };
-    if (!fresh && layer.retune(id, tuned, a.layer)) return;
-    layer.emitter(id, tuned, () => at(id), a.layer);
+    view.emitter(id, { preset: tuned, follow: follow(id, a), layer: a.layer, restart: fresh });
   }
 
   function show(id: string, block: EmitterBlock, entity: RuntimeEntity, restart: boolean): void {
@@ -115,7 +123,7 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   function hide(id: string): void {
     if (!attached.delete(id)) return;
     framed.delete(id);
-    view.particles?.()?.remove(id);
+    view.removeEmitter?.(id);
     if (glyphLayer !== undefined) view.remove(emitterGlyphId(id));
   }
 

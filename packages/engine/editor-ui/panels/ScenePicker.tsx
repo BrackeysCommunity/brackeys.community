@@ -281,7 +281,7 @@ export function ScenePicker({
         <span className="je-sp-truncate">{label}</span>
         <Icon icon={ArrowDown01Icon} size={13} />
       </MenuTrigger>
-      <MenuContent side="top" align="start" className="je-option-menu">
+      <MenuContent side="bottom" align="start" className="je-option-menu">
         <SceneMenuItems
           project={project}
           rows={rows}

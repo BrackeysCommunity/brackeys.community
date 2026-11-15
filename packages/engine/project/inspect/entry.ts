@@ -1,5 +1,6 @@
 import type { BlobKindDef, InspectResult } from "../kinds/define";
 import type { AssetEntry, AssetId, AssetPath } from "../types";
+import type { FontDecompress } from "./font";
 import { importFailed } from "./result";
 
 /**
@@ -13,8 +14,9 @@ export function inspectEntry(
   entry: Pick<AssetEntry, "path" | "import">,
   bytes: Uint8Array,
   idAt: (path: AssetPath) => AssetId | undefined,
+  decompress?: FontDecompress,
 ): InspectResult<unknown> {
-  const env = { path: entry.path, idAt };
+  const env = decompress ? { path: entry.path, idAt, decompress } : { path: entry.path, idAt };
   let result: InspectResult<unknown>;
   try {
     result = def.inspect(bytes, entry.import ?? {}, env);

@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:synth:v1",
+  "x-agent-surface": 23,
+  "title": "jams engine synth patch, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The synth JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "synth",
+      "description": "Always \"synth\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Synth format version."
+    },
+    "wave": {
+      "type": "string",
+      "enum": ["square", "saw", "triangle", "sine", "noise"],
+      "description": "The oscillator: square, saw, triangle, sine or noise."
+    },
+    "duty": {
+      "type": "number",
+      "minimum": 0.05,
+      "maximum": 0.95,
+      "description": "Square only: the high part of the cycle; default 0.5. 0.05 to 0.95."
+    },
+    "dutySweep": {
+      "type": "number",
+      "minimum": -4,
+      "maximum": 4,
+      "description": "Square only: the duty's change per second. -4 to 4."
+    },
+    "freq": {
+      "type": "number",
+      "minimum": 20,
+      "maximum": 8000,
+      "description": "The pitch at the start, Hz. 20 to 8000.",
+      "unit": "Hz"
+    },
+    "slide": {
+      "type": "number",
+      "minimum": -8,
+      "maximum": 8,
+      "description": "Pitch slide, octaves per second; negative falls. -8 to 8."
+    },
+    "slideAccel": {
+      "type": "number",
+      "minimum": -32,
+      "maximum": 32,
+      "description": "The slide's change, octaves per second². -32 to 32."
+    },
+    "jump": {
+      "description": "One pitch step part way through, as a pickup's second note.",
+      "type": "object",
+      "properties": {
+        "atMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "When the step happens, ms in. 0 to 5000.",
+          "unit": "ms"
+        },
+        "semitones": {
+          "type": "number",
+          "minimum": -24,
+          "maximum": 24,
+          "description": "The step, semitones. -24 to 24."
+        }
+      },
+      "required": ["atMs", "semitones"],
+      "additionalProperties": false
+    },
+    "vibrato": {
+      "description": "A wobble in pitch.",
+      "type": "object",
+      "properties": {
+        "semitones": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 12,
+          "description": "Depth, semitones. 0 to 12."
+        },
+        "hz": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Rate, Hz. 0 to 40.",
+          "unit": "Hz"
+        }
+      },
+      "required": ["semitones", "hz"],
+      "additionalProperties": false
+    },
+    "attackMs": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000,
+      "description": "Rise to full volume, ms; default 0. 0 to 1000.",
+      "unit": "ms"
+    },
+    "sustainMs": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2000,
+      "description": "Time at full volume, ms. 0 to 2000.",
+      "unit": "ms"
+    },
+    "punch": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Lifts the start of the sustain; default 0. 0 to 1."
+    },
+    "decayMs": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2000,
+      "description": "Fall to silence, ms. 0 to 2000.",
+      "unit": "ms"
+    },
+    "lowpass": {
+      "description": "Cuts what is above the cutoff.",
+      "type": "object",
+      "properties": {
+        "hz": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 20000,
+          "description": "Cutoff, Hz. 20 to 20000.",
+          "unit": "Hz"
+        },
+        "sweep": {
+          "type": "number",
+          "minimum": -8,
+          "maximum": 8,
+          "description": "Cutoff change, octaves per second. -8 to 8."
+        },
+        "resonance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Peak at the cutoff; default 0. 0 to 1."
+        }
+      },
+      "required": ["hz"],
+      "additionalProperties": false
+    },
+    "highpass": {
+      "description": "Cuts what is below the cutoff.",
+      "type": "object",
+      "properties": {
+        "hz": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 20000,
+          "description": "Cutoff, Hz. 20 to 20000.",
+          "unit": "Hz"
+        },
+        "sweep": {
+          "type": "number",
+          "minimum": -8,
+          "maximum": 8,
+          "description": "Cutoff change, octaves per second. -8 to 8."
+        }
+      },
+      "required": ["hz"],
+      "additionalProperties": false
+    },
+    "retriggerMs": {
+      "type": "number",
+      "minimum": 10,
+      "maximum": 5000,
+      "description": "Restarts pitch and duty every this many ms (a stutter). 10 to 5000.",
+      "unit": "ms"
+    },
+    "seed": {
+      "description": "Seeds the noise wave; default 1.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "volume": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Loudness; default 1. 0 to 1."
+    }
+  },
+  "required": ["kind", "v", "wave", "freq", "sustainMs", "decayMs"],
+  "additionalProperties": false,
+  "description": "A sound effect's recipe, rendered once to a one-channel buffer and played like any clip. Presentation only."
+}

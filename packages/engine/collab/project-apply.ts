@@ -4,6 +4,7 @@ import { stableJson } from "../project/canonical";
 import type { ContentStore } from "../project/content-store";
 import { docNameOf } from "../project/doc-names";
 import { inspectEntry } from "../project/inspect/entry";
+import type { FontDecompress } from "../project/inspect/font";
 import type { BlobKindDef, KindRegistry } from "../project/kinds";
 import { isPlainObject } from "../project/kinds/define";
 import type { BlobInspect } from "../project/ops";
@@ -18,6 +19,7 @@ import {
   type ProjectOpBatch,
   type ProjectOpName,
 } from "../project/ops";
+import { reinspectBlob } from "../project/sidecar";
 import type {
   AssetEntry,
   AssetId,
@@ -280,14 +282,15 @@ const contentBasis = (e: AssetEntry) =>
 /**
  * What the project's one writer runs on store, beside `applyRepairs`: every
  * live binary whose bytes `store` holds gets the meta (and filled settings)
- * its bytes and current settings give, in one transaction with a `repair`
- * origin and a project log entry. Settings merge per field, so after two
- * concurrent `setImport`s the meta either client wrote may lag the merged
- * settings; this puts it back, as it does after a move for meta that names
- * paths. Inspection is a pure function, so concurrent
- * writers write the same values, and a second call writes nothing. Bytes the
- * store lacks and inspections that fail are left alone. Pass one `checked`
- * map per doc to skip entries unchanged since the last call.
+ * `reinspectBlob` gives under its kind's current inspector, so meta an
+ * older `metaVersion` wrote is brought up too, in one transaction with a
+ * `repair` origin and a project log entry. Settings merge per field, so
+ * after two concurrent `setImport`s the meta either client wrote may lag the
+ * merged settings; this puts it back, as it does after a move for meta that
+ * names paths. Inspection is a pure function, so concurrent writers write
+ * the same values, and a second call writes nothing. Bytes the store lacks
+ * and inspections that fail are left alone. Pass one `checked` map per doc
+ * to skip entries unchanged since the last call.
  */
 export async function reinspectBlobs(
   doc: Y.Doc,
@@ -297,6 +300,8 @@ export async function reinspectBlobs(
     origin?: Extract<DocOrigin, { kind: "repair" }>;
     now?: number;
     checked?: Map<AssetKey, string>;
+    /** Lent to the font reader for WOFF and WOFF2 coverage (`InspectEnv.decompress`). */
+    decompress?: FontDecompress;
   },
 ): Promise<ReinspectResult> {
   const checked = opts.checked ?? new Map<AssetKey, string>();
@@ -310,12 +315,8 @@ export async function reinspectBlobs(
     if (checked.get(entry.key) === basis) continue;
     const bytes = await opts.store.get(entry.sha256);
     if (!bytes) continue;
-    const result = inspectEntry(def as BlobKindDef, entry, bytes, idAt);
-    const same =
-      !result.ok ||
-      (sameValue(entry.meta ?? null, result.meta) &&
-        sameValue(entry.import ?? {}, result.import ?? {}));
-    if (same) checked.set(entry.key, basis);
+    const result = reinspectBlob(def as BlobKindDef, entry, bytes, idAt, opts.decompress);
+    if (!result.ok || !result.changed) checked.set(entry.key, basis);
     else fixes.set(entry.key, { basis, meta: result.meta, import: result.import });
   }
 

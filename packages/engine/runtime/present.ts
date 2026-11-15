@@ -45,6 +45,8 @@ export type AudioRequest =
       volume?: number;
       pitch?: number;
       key?: string;
+      /** A string key shown as a caption while it plays, over the sound's own. */
+      caption?: string;
     }
   | { op: "stop"; key: string; fadeMs?: number }
   /** `tick` is the tick the request was made on, so music `at: "tick"` can line up with it. */
@@ -75,7 +77,17 @@ export interface PresentationQueue {
     burst(preset: AssetId, at: Vec2, opts?: BurstOptions): void;
   };
   audio: {
-    play(sound: AssetId, opts?: { at?: Vec2; volume?: number; pitch?: number; key?: string }): void;
+    play(
+      sound: AssetId,
+      opts?: {
+        at?: Vec2;
+        entity?: string;
+        volume?: number;
+        pitch?: number;
+        key?: string;
+        caption?: string;
+      },
+    ): void;
     stop(key: string, opts?: { fadeMs?: number }): void;
     music(sound: AssetId | null, opts?: { fadeMs?: number; at?: "start" | "tick" }): void;
   };

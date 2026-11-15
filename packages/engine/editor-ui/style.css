@@ -25,6 +25,8 @@
     --je-chart-5: #4338ca;
     --je-radius: 10px;
     --je-radius-sm: 6px;
+    /* Every surface and what nests in it share the smaller radius, so stacked corners line up. */
+    --je-radius-nested: min(var(--je-radius), var(--je-radius-sm));
     --je-shadow: 0 8px 24px #0006;
     --je-font: "Rubik Variable", "Rubik", ui-sans-serif, system-ui, sans-serif;
     --je-font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -155,6 +157,20 @@
     outline: 2px solid var(--je-ring);
     outline-offset: 1px;
   }
+
+  /* Lists that scroll edge to edge would clip a ring drawn outside their rows: it is drawn inside. */
+  .je-root
+    :where(
+      .je-outliner-list,
+      .je-scene-panel-scroll,
+      .je-ptree-files,
+      .je-ptree-referrers,
+      .je-trash-list,
+      .je-tab-list
+    )
+    :focus-visible:where(:not(.je-host *)) {
+    outline-offset: -2px;
+  }
 }
 
 /* ─── Kit ──────────────────────────────────────────────── */
@@ -204,7 +220,7 @@
     height: var(--je-control);
     padding: 0 8px;
     border: 1px solid transparent;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     font-size: var(--je-text);
     font-weight: 500;
     white-space: nowrap;
@@ -345,7 +361,7 @@
   .je-hint {
     width: max-content;
     padding: 4px 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: var(--je-panel-fg);
     color: var(--je-panel);
     font-family: var(--je-font);
@@ -481,7 +497,7 @@
     padding: 0 6px;
     overflow: hidden;
     border: 1px solid transparent;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     font-size: var(--je-text-sm);
     font-weight: 500;
     white-space: nowrap;
@@ -530,7 +546,7 @@
   /* Skeleton, progress */
 
   .je-skeleton {
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: var(--je-muted);
     animation: je-pulse 1.6s ease-in-out infinite;
   }
@@ -608,7 +624,7 @@
     width: 100%;
     min-width: 0;
     border: 1px solid var(--je-border);
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: var(--je-bg);
     color: var(--je-panel-fg);
     font-size: var(--je-text);
@@ -715,7 +731,7 @@
   .je-popover {
     max-height: var(--available-height);
     border: 1px solid var(--je-border);
-    border-radius: var(--je-radius);
+    border-radius: var(--je-radius-nested);
     background: var(--je-panel);
     color: var(--je-panel-fg);
     font-family: var(--je-font);
@@ -759,7 +775,7 @@
     width: 100%;
     min-height: var(--je-row);
     padding: 0 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     cursor: default;
     user-select: none;
     outline: none;
@@ -853,7 +869,7 @@
     justify-content: center;
     width: 20px;
     height: 20px;
-    border-radius: 4px;
+    border-radius: var(--je-radius-nested);
     color: var(--je-muted-fg);
   }
 
@@ -882,7 +898,7 @@
     gap: 2px;
     height: 20px;
     padding: 0 0 0 6px;
-    border-radius: 4px;
+    border-radius: var(--je-radius-nested);
     background: var(--je-muted);
     font-size: var(--je-text-sm);
     font-weight: 500;
@@ -1080,7 +1096,7 @@
     width: fit-content;
     overflow: hidden;
     border: 1px solid var(--je-border);
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   .je-segmented-item {
@@ -1187,7 +1203,7 @@
     gap: 5px;
     height: calc(var(--je-tab) - 6px);
     padding: 0 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     color: var(--je-muted-fg);
     font-size: var(--je-text);
     font-weight: 500;
@@ -1282,7 +1298,7 @@
     padding: 16px;
     overflow-y: auto;
     border: 1px solid var(--je-border);
-    border-radius: var(--je-radius);
+    border-radius: var(--je-radius-nested);
     background: var(--je-panel);
     color: var(--je-panel-fg);
     font-family: var(--je-font);
@@ -1368,7 +1384,7 @@
     padding: 8px 8px 8px 10px;
     border: 1px solid var(--je-border);
     border-left: 3px solid var(--je-muted-fg);
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: var(--je-panel);
     color: var(--je-panel-fg);
     box-shadow: var(--je-shadow);
@@ -1406,7 +1422,7 @@
     display: inline-flex;
     flex-shrink: 0;
     padding: 2px;
-    border-radius: 4px;
+    border-radius: var(--je-radius-nested);
     color: var(--je-muted-fg);
   }
 
@@ -1442,20 +1458,41 @@
     pointer-events: none;
   }
 
-  .je-frame-top-left {
+  /* The top bar: the host's chrome at its ends, the toolbar or the play controls between */
+
+  .je-frame-topbar {
     position: absolute;
-    top: var(--je-inset);
-    left: var(--je-inset);
     display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: calc(var(--je-control) + 10px);
+    padding: 4px;
+    border: 1px solid var(--je-border);
+    border-radius: var(--je-radius-nested);
+    background: var(--je-panel);
+    color: var(--je-panel-fg);
+    box-shadow: var(--je-shadow);
+    pointer-events: auto;
+  }
+
+  .je-frame-top-left,
+  .je-frame-top-right {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
     min-width: 0;
-    max-width: calc(100% - 2 * var(--je-inset));
+  }
+
+  /* The host's chrome is set off from the toolbar by a rule. */
+  .je-frame-top-left {
+    max-width: 50%;
+    padding-right: 8px;
+    border-right: 1px solid var(--je-border);
   }
 
   .je-frame-top-right {
-    position: absolute;
-    top: var(--je-inset);
-    right: var(--je-inset);
-    display: flex;
+    padding-left: 8px;
+    border-left: 1px solid var(--je-border);
   }
 
   .je-frame-columns {
@@ -1507,7 +1544,7 @@
     color: var(--je-danger);
   }
 
-  /* A boot that stopped short offers Reload beside its status, whose error wraps to make room, or under it where the row is narrow. */
+  /* A boot that stopped short offers Reload beside its status, whose error wraps to make room, or under it where the bar is narrow. */
   .je-frame-status:has(> .je-boot-reload) {
     flex-wrap: wrap;
     align-items: flex-end;
@@ -1537,6 +1574,7 @@
   /* A rebuild keeps the last editor's panels on screen, dimmed and inert, until the next one opens. */
   .je-session[aria-busy="true"] .je-panel-group,
   .je-session[aria-busy="true"] .je-frame-dock,
+  .je-session[aria-busy="true"] .je-frame-status,
   .je-session[aria-busy="true"] .je-frame-context {
     opacity: 0.6;
     transition: opacity 120ms ease-out;
@@ -1673,33 +1711,50 @@
     pointer-events: none;
   }
 
-  /* The bottom row: status at its left, the dock centred in what remains */
+  /* The toolbar spans the top bar's middle; the play controls are centred in it. Their islands lie flat in the bar. */
 
-  .je-frame-bottom {
-    position: absolute;
-    bottom: var(--je-inset);
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: end;
-    gap: var(--je-gap);
-    padding: 0 var(--je-gap);
-    pointer-events: none;
-  }
-
-  .je-frame-dock,
-  .je-frame-status {
+  .je-frame-dock {
+    position: relative;
     display: flex;
-    grid-row: 1;
+    flex: 1;
+    justify-content: center;
     min-width: 0;
   }
 
-  .je-frame-bottom > .je-frame-status {
-    grid-column: 1;
+  .je-frame-dock > .je-island,
+  .je-frame-dock .je-play-bar > .je-island {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
   }
 
-  .je-frame-bottom > .je-frame-dock {
-    grid-column: 2;
-    justify-self: center;
+  .je-frame-topbar:not([data-playing]) .je-frame-dock > .je-island {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* The status bar: across the canvas area's bottom, between the columns, as tall as the top bar */
+
+  .je-frame-status {
+    position: absolute;
+    bottom: var(--je-inset);
+    display: flex;
+    min-width: 0;
+    pointer-events: none;
+  }
+
+  .je-frame-status > .je-island {
+    flex: 1;
+    min-width: 0;
+    min-height: calc(var(--je-control) + 10px);
+  }
+
+  .je-statusbar {
+    padding: 4px 4px 4px 10px;
+    color: var(--je-muted-fg);
+    font-size: var(--je-text-sm);
   }
 
   /* The phone layout: a panel bar over the bottom row, one group at a time in a sheet */
@@ -1737,7 +1792,7 @@
     gap: 4px;
     padding: 4px;
     border: 1px solid var(--je-border);
-    border-radius: var(--je-radius);
+    border-radius: var(--je-radius-nested);
     background: var(--je-panel);
     color: var(--je-panel-fg);
     box-shadow: var(--je-shadow);
@@ -1819,36 +1874,86 @@
     padding: 4px;
   }
 
-  /* The status: an activity label that ellipsizes, and the dot and counts when the row is short */
+  /* The status bar's content: the state on the left, each part cut short in turn; the problems on the right */
 
-  .je-frame-status > .je-island {
+  .je-status {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     min-width: 0;
-    max-width: 100%;
+  }
+
+  .je-status-start {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
     overflow: hidden;
   }
 
-  .je-status {
-    min-width: 0;
-  }
-
-  .je-status > * {
+  .je-status-start > * {
     flex-shrink: 0;
   }
 
-  .je-status > .je-activity {
+  .je-status-start > .je-status-notice,
+  .je-status-start > .je-status-peers,
+  .je-status-start > .je-activity {
     flex-shrink: 1;
   }
 
   .je-status .je-activity-label {
     min-width: 0;
-    max-width: 160px;
+    max-width: 240px;
+  }
+
+  .je-status-scene {
+    color: var(--je-panel-fg);
+    font-weight: 500;
+  }
+
+  .je-status-text,
+  .je-status-notice {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .je-status[data-compact] {
+  .je-status-peers {
+    display: flex;
+    align-items: center;
     gap: 6px;
+    min-width: 0;
+  }
+
+  .je-status-problems {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .je-status [data-tone="muted"] {
+    color: var(--je-muted-fg);
+  }
+
+  .je-status [data-tone="success"] {
+    color: var(--je-success);
+  }
+
+  .je-status [data-tone="warning"] {
+    color: var(--je-warning);
+  }
+
+  .je-status [data-tone="danger"] {
+    color: var(--je-danger);
+  }
+
+  .je-status [data-tone="info"] {
+    color: var(--je-info);
   }
 
   .je-status-dot {
@@ -1859,16 +1964,7 @@
     background: currentColor;
   }
 
-  .je-status-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .je-sr-only,
-  .je-status[data-compact] .je-activity-progress,
-  .je-status[data-compact] .je-activity-more {
+  .je-sr-only {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1907,11 +2003,17 @@
   .je-panel-body {
     display: flex;
     flex-direction: column;
-    padding: var(--je-pad);
+    padding: var(--je-pad) var(--je-gap) var(--je-gap);
   }
 
+  /* Content grows to its own height, so the body scrolls it with its padding below the last row. */
   .je-panel-body > * {
-    flex: 1;
+    flex: 1 0 auto;
+  }
+
+  /* Panels that scroll a list of their own under a fixed header fill the body exactly. */
+  .je-panel-body > :is(.je-outliner, .je-ptree, .je-scene-panel) {
+    flex: 1 1 0;
     min-height: 0;
   }
 
@@ -1981,8 +2083,14 @@
 
   .je-toolbar {
     display: flex;
+    flex: 1;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+  }
+
+  .je-toolbar-spacer {
+    flex: 1;
   }
 
   .je-toolbar-divider {
@@ -2029,11 +2137,11 @@
     align-self: stretch;
   }
 
-  /* The statuses stack above the controls, out of their row, so one coming, going or changing never moves them. */
+  /* The statuses stack under the controls, out of their row, so one coming, going or changing never moves them. */
   .je-play-notes {
     position: absolute;
+    top: calc(100% + var(--je-gap));
     right: var(--je-gap);
-    bottom: calc(100% + var(--je-gap));
     left: var(--je-gap);
     display: flex;
     flex-wrap: wrap;
@@ -2082,61 +2190,25 @@
     padding-right: 12px;
   }
 
-  /* Status */
-
-  .je-status {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 8px;
-    font-size: var(--je-text);
-  }
-
-  .je-status-scene {
-    font-weight: 500;
-  }
-
-  .je-status-notice {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .je-status > .je-status-notice {
-    flex-shrink: 1;
-  }
-
-  .je-status[data-compact] .je-status-notice {
-    max-width: 200px;
-  }
-
-  .je-status-peers {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .je-status [data-tone="muted"] {
-    color: var(--je-muted-fg);
-  }
-
-  .je-status [data-tone="success"] {
-    color: var(--je-success);
-  }
-
-  .je-status [data-tone="warning"] {
-    color: var(--je-warning);
-  }
-
-  .je-status [data-tone="danger"] {
-    color: var(--je-danger);
-  }
-
   /* Save state and activity */
 
   .je-save-state {
     white-space: nowrap;
+  }
+
+  /* In the status bar the save state leads with its tone's dot. */
+  .je-status .je-save-state:not([data-compact]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .je-status .je-save-state:not([data-compact])::before {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+    content: "";
   }
 
   .je-save-state[data-compact] {
@@ -2379,7 +2451,7 @@
     top: 0;
     left: 0;
     padding: 2px 6px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     font-size: 11px;
     line-height: 1.25;
     white-space: nowrap;
@@ -2503,7 +2575,7 @@
 
   .je-outliner-item {
     position: relative;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   /* Over the row, so the aimed row's own hover background can't hide the mark. */
@@ -2537,7 +2609,7 @@
   .je-outliner-item[data-drop-refused]::after,
   .je-outliner-list[data-drop-refused],
   .je-outliner-root[data-drop-refused] {
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: color-mix(in srgb, var(--je-danger) 10%, transparent);
     box-shadow: inset 0 0 0 1px var(--je-danger);
   }
@@ -2550,7 +2622,7 @@
   }
 
   .je-outliner-list {
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   /* Over the list's foot while dragging, so it reserves no room at rest. */
@@ -2564,7 +2636,7 @@
     align-items: center;
     justify-content: center;
     min-height: var(--je-row);
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: var(--je-muted);
   }
 
@@ -2587,7 +2659,7 @@
     margin: 2px 0 0;
     padding: 2px 6px;
     border: 1px solid color-mix(in srgb, var(--je-danger) 40%, transparent);
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: color-mix(in srgb, var(--je-danger) 10%, var(--je-panel));
     pointer-events: none;
   }
@@ -2611,7 +2683,7 @@
     min-height: var(--je-row);
     padding-block: 0;
     padding-right: 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     text-align: left;
   }
 
@@ -2697,10 +2769,19 @@
     opacity: 1;
   }
 
-  /* The Open button lies over the detail, so the detail steps aside while it shows. */
+  /* The Open button lies over the row's end, so the detail steps aside and the label stops short of it while it shows. */
   .je-outliner-entity:hover:has(.je-outliner-open) .je-outliner-detail,
   .je-outliner-entity:has(.je-outliner-open:is(:focus-visible, [data-busy])) .je-outliner-detail {
     visibility: hidden;
+  }
+
+  .je-outliner-open {
+    min-width: 44px;
+  }
+
+  .je-outliner-entity:hover:has(.je-outliner-open) .je-outliner-row,
+  .je-outliner-entity:has(.je-outliner-open:is(:focus-visible, [data-busy])) .je-outliner-row {
+    padding-right: 52px;
   }
 
   /* Inspector */
@@ -2709,7 +2790,7 @@
   .je-inspector {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--je-gap);
     width: 100%;
   }
 
@@ -2728,7 +2809,13 @@
   .je-insp-section {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--je-pad);
+  }
+
+  /* Sections after the first are ruled off from the one above. */
+  .je-insp-section ~ .je-insp-section {
+    padding-top: var(--je-pad);
+    border-top: 1px solid var(--je-border);
   }
 
   .je-insp-section-head {
@@ -2753,7 +2840,7 @@
     height: var(--je-row);
     margin-left: -2px;
     padding: 0 2px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     color: var(--je-muted-fg);
     cursor: pointer;
     user-select: none;
@@ -2840,7 +2927,7 @@
 
   .je-scene-entry {
     position: relative;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   .je-scene-entry-moves {
@@ -2943,7 +3030,7 @@
   .je-insp-slots {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
+    gap: 4px calc(2 * var(--je-pad));
   }
 
   .je-insp-slot-name {
@@ -2987,7 +3074,7 @@
     width: var(--je-control);
     height: var(--je-control);
     border: 1px solid var(--je-border);
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   /* An unset colour: a diagonal stroke instead of a fill. */
@@ -3141,7 +3228,7 @@
     gap: 4px;
     min-height: var(--je-row);
     padding: 0 2px 0 4px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   .je-problems-row:hover,
@@ -3245,7 +3332,7 @@
     gap: 4px;
     height: var(--je-row);
     padding: 0 2px 0 6px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     white-space: nowrap;
   }
 
@@ -3337,7 +3424,7 @@
 
   .je-run-stale {
     padding: 4px 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: color-mix(in srgb, var(--je-warning) 15%, transparent);
   }
 
@@ -3431,7 +3518,7 @@
   }
 
   .je-ptree-drop {
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   /* Every whole-panel drop zone: the tint is an image so the root strip stays
@@ -3454,7 +3541,7 @@
 
   .je-ptree-row {
     position: relative;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
   }
 
   .je-ptree-row[data-drop-over] {
@@ -3490,7 +3577,7 @@
     width: 100%;
     padding-block: 4px;
     padding-right: 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     font-size: var(--je-text);
     text-align: left;
   }
@@ -3583,7 +3670,7 @@
     right: 4px;
     display: flex;
     gap: 2px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     background: var(--je-muted);
     opacity: 0;
     transform: translateY(-50%);
@@ -3654,7 +3741,7 @@
     gap: 4px;
     width: 100%;
     padding: 4px 8px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     text-align: left;
   }
 
@@ -3672,7 +3759,7 @@
     align-items: center;
     gap: 8px;
     padding: 4px 4px 4px 20px;
-    border-radius: var(--je-radius-sm);
+    border-radius: var(--je-radius-nested);
     color: var(--je-muted-fg);
     font-size: var(--je-text);
   }
@@ -3747,6 +3834,107 @@
 
   .je-licence-field {
     align-items: center;
+  }
+
+  /* Audio previews and the sound panel */
+
+  /* A row that is decoding or playing keeps its play button in view off hover. */
+  .je-ptree-actions[data-auditioning] {
+    opacity: 1;
+  }
+
+  .je-asset-audible {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .je-asset-audible > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .je-asset-audition {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .je-asset-audition-length {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .je-doc-asset {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .je-doc-asset > .je-asset-panel + .je-asset-panel {
+    border-top: 1px solid var(--je-border);
+  }
+
+  .je-sound-panel .je-insp-line {
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .je-sound-section-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .je-sound-variant,
+  .je-sound-trigger {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .je-sound-variant + .je-sound-variant,
+  .je-sound-trigger + .je-sound-trigger {
+    padding-top: 4px;
+    border-top: 1px dashed var(--je-border);
+  }
+
+  .je-sound-variant .je-insp-line > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .je-synth-wave {
+    display: block;
+    width: 100%;
+    height: 48px;
+    color: var(--je-primary);
+    background: var(--je-muted);
+    border-radius: var(--je-radius-nested);
+  }
+
+  .je-synth-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .je-synth-slider > .je-slider {
+    flex: 1 1 auto;
+    min-width: 64px;
+  }
+
+  .je-synth-slider > .je-insp-number {
+    flex: 0 0 72px;
+  }
+
+  .je-synth-speaker {
+    margin-left: auto;
+  }
+
+  .je-synth-speaker[aria-pressed="false"] {
+    color: var(--je-muted-fg);
   }
 
   .je-ptree-drop[data-busy] {

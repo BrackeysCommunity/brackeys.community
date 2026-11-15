@@ -1,0 +1,16 @@
+{
+  "$schema": "../../engine/project/dialogue.schema.json",
+  "kind": "dialogue",
+  "v": 1,
+  "speakers": [
+    { "id": "guard", "name": "speaker.guard", "portrait": { "asset": "faces", "frame": "guard" } },
+    { "id": "hero", "name": "speaker.hero" }
+  ],
+  "nodes": [
+    { "id": "gate", "lines": [{ "speaker": "guard", "text": "gate.halt", "voice": "guard-halt" }, { "if": { "not": { "visited": "through" } }, "speaker": "guard", "text": "gate.toll", "vars": { "gold": "/gold" } }, { "portrait": { "asset": "hero-face" }, "say": "Hm.", "speaker": "hero" }], "choices": [{ "do": [{ "add": "/gold", "by": -3 }, { "push": "/paid", "value": "gate" }], "hidden": "disable", "if": { "all": [{ "gte": 3, "var": "/gold" }, { "any": [{ "truthy": false, "var": "/pass" }, { "eq": "knight", "var": "/rank" }] }] }, "text": "gate.pay", "to": "through" }, { "text": "gate.leave", "to": "turned-away" }], "do": [{ "set": "/met", "to": true }] },
+    { "id": "through", "lines": [{ "speaker": "guard", "text": "gate.go-on" }], "else": "turned-away", "if": { "ne": true, "var": "/banned" }, "next": "yard" },
+    { "id": "yard", "lines": [], "do": [{ "data": { "gate": "north" }, "emit": "gate:open" }], "end": "paid" },
+    { "id": "turned-away", "lines": [{ "speaker": "guard", "text": "gate.later" }], "end": "left" }
+  ],
+  "start": "gate"
+}

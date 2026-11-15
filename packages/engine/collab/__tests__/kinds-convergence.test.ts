@@ -15,6 +15,7 @@ import {
   type DocKindDef,
   type DocLayout,
   type KindEnv,
+  validateAssetDoc,
 } from "../../project/kinds";
 import type { AssetEntry } from "../../project/types";
 import { rng } from "../../scene/__tests__/fixtures/random-ops";
@@ -356,6 +357,37 @@ describe("the engine's doc kinds and a game's converge", () => {
         [1, 0],
       ],
     },
+    sound: {
+      kind: "sound",
+      v: 1,
+      bus: "sfx",
+      volume: 0.8,
+      variants: [{ clip: "hit-1", weight: 2 }, { clip: "hit-2" }],
+      on: [{ event: "contact:start", type: "crate" }],
+    },
+    synth: { kind: "synth", v: 1, wave: "square", freq: 880, sustainMs: 60, decayMs: 240 },
+    dialogue: {
+      kind: "dialogue",
+      v: 1,
+      start: "gate",
+      speakers: [{ id: "guard", name: "speaker.guard" }],
+      nodes: [
+        {
+          id: "gate",
+          lines: [{ speaker: "guard", text: "gate.halt" }],
+          choices: [{ text: "gate.leave", to: "away" }],
+        },
+        { id: "away", lines: [{ speaker: "guard", text: "gate.later" }], end: "left" },
+      ],
+    },
+    strings: {
+      kind: "strings",
+      v: 1,
+      strings: [
+        { key: "intro.hello", en: "Hello.", fr: "Bonjour." },
+        { key: "caption.hit", en: "[Thud]" },
+      ],
+    },
     checks: {
       v: 1,
       checks: [
@@ -419,7 +451,8 @@ describe("the engine's doc kinds and a game's converge", () => {
     });
   }
 
-  const offline = (name: string, edits: ((v: Obj) => Obj)[], start: Obj = START[name]!) => {
+  /** Each edit from its own client while all are cut off from one another, then merged. */
+  const merge = (name: string, edits: ((v: Obj) => Obj)[], start: Obj = START[name]!) => {
     const { layout } = kind(name);
     const s = network(layout, start, edits.length, rng(7));
     s.net.partition([0]);
@@ -427,7 +460,10 @@ describe("the engine's doc kinds and a game's converge", () => {
     s.net.settle();
     const vs = s.values();
     expectConverged(vs, name);
-    const merged = vs[0]!;
+    return vs[0]!;
+  };
+  const offline = (name: string, edits: ((v: Obj) => Obj)[], start: Obj = START[name]!) => {
+    const merged = merge(name, edits, start);
     const parsed = parseAssetDoc(kind(name), merged, env);
     if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
     return merged;
@@ -675,6 +711,152 @@ describe("the engine's doc kinds and a game's converge", () => {
       { atMs: 100, count: 3 },
       { atMs: 200, count: 2 },
       { atMs: 400, count: 8 },
+    ]);
+  });
+
+  it("sound: one client's volume, another's new variant and a third's new trigger all survive", () => {
+    const v = offline("sound", [
+      (x) => ({ ...x, volume: 0.5 }),
+      (x) => ({ ...x, variants: [...items(x, "variants"), { clip: "hit-3", weight: 3 }] }),
+      (x) => ({ ...x, on: [...items(x, "on"), { event: "contact:start", tag: "metal" }] }),
+    ]);
+    expect(v.volume).toBe(0.5);
+    expect(v.variants).toEqual([
+      { clip: "hit-1", weight: 2 },
+      { clip: "hit-2" },
+      { clip: "hit-3", weight: 3 },
+    ]);
+    expect(v.on).toEqual([
+      { event: "contact:start", type: "crate" },
+      { event: "contact:start", tag: "metal" },
+    ]);
+    expect(v.bus).toBe("sfx");
+  });
+
+  it("synth: one client's freq, another's decayMs and a third's vibrato all survive", () => {
+    const vibrato = { semitones: 0.5, hz: 6 };
+    const v = offline("synth", [
+      (x) => ({ ...x, freq: 660 }),
+      (x) => ({ ...x, decayMs: 400 }),
+      (x) => ({ ...x, vibrato }),
+    ]);
+    expect(v).toEqual({ ...START.synth!, freq: 660, decayMs: 400, vibrato });
+  });
+
+  it("synth: two writes of freq leave one of them, whole, and the rest untouched", () => {
+    const v = offline("synth", [(x) => ({ ...x, freq: 660 }), (x) => ({ ...x, freq: 990 })]);
+    expect([660, 990]).toContain(v.freq);
+    expect(v).toEqual({ ...START.synth!, freq: v.freq });
+  });
+
+  const node = (x: Obj, id: string) => items(x, "nodes").find((n) => n.id === id)!;
+  const withNode = (x: Obj, id: string, change: (n: Obj) => Obj) => ({
+    ...x,
+    nodes: items(x, "nodes").map((n) => (n.id === id ? change(n) : n)),
+  });
+
+  it("dialogue: two clients editing different nodes both survive", () => {
+    const v = offline("dialogue", [
+      (x) =>
+        withNode(x, "gate", (n) => ({
+          ...n,
+          choices: [...(n.choices as Obj[]), { text: "gate.wait", to: "gate", hidden: "disable" }],
+        })),
+      (x) =>
+        withNode(x, "away", (n) => ({
+          ...n,
+          end: "fled",
+          lines: [...(n.lines as Obj[]), { speaker: "guard", text: "gate.bye" }],
+        })),
+    ]);
+    expect(node(v, "gate").choices).toEqual([
+      { text: "gate.leave", to: "away" },
+      { text: "gate.wait", to: "gate", hidden: "disable" },
+    ]);
+    expect(node(v, "away")).toEqual({
+      id: "away",
+      lines: [
+        { speaker: "guard", text: "gate.later" },
+        { speaker: "guard", text: "gate.bye" },
+      ],
+      end: "fled",
+    });
+    expect(items(v, "nodes").map((n) => n.id)).toEqual(["gate", "away"]);
+  });
+
+  it("dialogue: two clients adding a line to one node keep both, in the order they were inserted", () => {
+    const line = (text: string) => ({ speaker: "guard", text });
+    const lines = (x: Obj) => node(x, "gate").lines as Obj[];
+    const v = offline("dialogue", [
+      (x) => withNode(x, "gate", (n) => ({ ...n, lines: [...lines(x), line("gate.toll")] })),
+      (x) => withNode(x, "gate", (n) => ({ ...n, lines: [line("gate.who"), ...lines(x)] })),
+      (x) => withNode(x, "gate", (n) => ({ ...n, lines: [...lines(x), line("gate.move")] })),
+    ]);
+    const merged = lines(v).map((l) => String(l.text));
+    expect(merged).toHaveLength(4);
+    expect(merged.slice(0, 2)).toEqual(["gate.who", "gate.halt"]);
+    expect(merged.slice(2).sort((a, b) => a.localeCompare(b))).toEqual(["gate.move", "gate.toll"]);
+    expect(node(v, "gate").choices).toEqual([{ text: "gate.leave", to: "away" }]);
+  });
+
+  it("dialogue: a node renamed by id while another client takes that id is a dup-id pair, never a lost node", () => {
+    const refused = { id: "refused", lines: [{ speaker: "guard", text: "gate.no" }], end: "no" };
+    const rename = (x: Obj) => withNode(x, "away", (n) => ({ ...n, id: "refused" }));
+    const v = merge("dialogue", [
+      rename,
+      (x) => ({ ...x, nodes: [...items(x, "nodes"), refused] }),
+      rename,
+    ]);
+    const nodes = items(v, "nodes");
+    expect(nodes.map((n) => String(n.id)).sort((a, b) => a.localeCompare(b))).toEqual([
+      "gate",
+      "refused",
+      "refused",
+      "refused",
+    ]);
+    expect(nodes.filter((n) => n.id === "refused")).toEqual(
+      expect.arrayContaining([refused, { ...node(START.dialogue!, "away"), id: "refused" }]),
+    );
+    const dups = validateAssetDoc(kind("dialogue"), v, env).filter((i) => i.code === "dup-id");
+    expect(dups.map((i) => [i.path, i.entityIds])).toEqual([
+      ["/nodes/2/id", ["refused"]],
+      ["/nodes/3/id", ["refused"]],
+    ]);
+  });
+
+  const row = (x: Obj, key: string) => items(x, "strings").find((r) => r.key === key)!;
+  const withRow = (x: Obj, key: string, change: (r: Obj) => Obj) => ({
+    ...x,
+    strings: items(x, "strings").map((r) => (r.key === key ? change(r) : r)),
+  });
+
+  it("strings: one client's fr and another's de of one key both survive", () => {
+    const v = offline("strings", [
+      (x) => withRow(x, "intro.hello", (r) => ({ ...r, fr: "Salut." })),
+      (x) => withRow(x, "intro.hello", (r) => ({ ...r, de: "Hallo." })),
+    ]);
+    expect(row(v, "intro.hello")).toEqual({
+      key: "intro.hello",
+      en: "Hello.",
+      fr: "Salut.",
+      de: "Hallo.",
+    });
+    expect(row(v, "caption.hit")).toEqual({ key: "caption.hit", en: "[Thud]" });
+  });
+
+  it("strings: two clients adding the same key keep both rows and report dup-id", () => {
+    const v = merge("strings", [
+      (x) => ({ ...x, strings: [...items(x, "strings"), { key: "gate.halt", en: "Halt." }] }),
+      (x) => ({ ...x, strings: [...items(x, "strings"), { key: "gate.halt", en: "Stop." }] }),
+    ]);
+    const rows = items(v, "strings").filter((r) => r.key === "gate.halt");
+    expect(rows.map((r) => String(r.en)).sort((a, b) => a.localeCompare(b))).toEqual([
+      "Halt.",
+      "Stop.",
+    ]);
+    const issues = validateAssetDoc(kind("strings"), v, env);
+    expect(issues.map((i) => [i.code, i.path, i.entityIds])).toEqual([
+      ["dup-id", "/strings/3/key", ["gate.halt"]],
     ]);
   });
 

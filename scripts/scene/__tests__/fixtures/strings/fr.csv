@@ -1,0 +1,10 @@
+key,en,fr,note
+caption.hit,[Thud],[Choc],Caption for crate hits.
+intro.hello,Hello again.,Rebonjour.,
+intro.ask,"Say ""yes"", or no?","Dis « oui », ou ""non"" ?","A question, with a comma."
+intro.yes,Yes.,Oui.,
+intro.no,"No,
+never.","Non,
+jamais.",Two lines.
+sign.welcome,Welcome,Bienvenue,
+speaker.guide,Guide,Guide,

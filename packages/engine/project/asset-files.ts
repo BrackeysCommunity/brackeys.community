@@ -1,6 +1,7 @@
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import { inspectEntry } from "./inspect/entry";
+import type { FontDecompress } from "./inspect/font";
 import { isSkippedAssetPath, type KindRegistry } from "./kinds";
 import type { AssetKindDef } from "./kinds/define";
 import { projectGlobs } from "./project-file";
@@ -151,6 +152,7 @@ export function assetFileEntry(
   key: AssetKey,
   created: AssetEntry["created"],
   idAt: (path: AssetPath) => AssetId | undefined,
+  decompress?: FontDecompress,
 ): { entry: AssetEntry; issue: SceneIssue | null } {
   const entry: AssetEntry = {
     key,
@@ -166,7 +168,7 @@ export function assetFileEntry(
     if (settings && Object.keys(settings).length > 0) entry.import = { ...settings };
     entry.sha256 = file.blob.sha256;
     entry.bytes = file.blob.data.byteLength;
-    const result = inspectEntry(file.def, entry, file.blob.data, idAt);
+    const result = inspectEntry(file.def, entry, file.blob.data, idAt, decompress);
     if (result.ok) {
       entry.meta = result.meta as Record<string, unknown>;
       if (result.import) entry.import = result.import;
@@ -185,6 +187,7 @@ export function assetFileEntry(
 export function assetFileEntries<F extends AssetFile>(
   files: readonly F[],
   created: AssetEntry["created"],
+  decompress?: FontDecompress,
 ): { file: F; key: AssetKey; entry: AssetEntry; issue: SceneIssue | null }[] {
   const taken = new Set<AssetKey>();
   const keys = files.map((file) => {
@@ -197,6 +200,6 @@ export function assetFileEntries<F extends AssetFile>(
   const idAt = idsAtPaths(files);
   return files.map((file, i) => {
     const key = keys[i]!;
-    return { file, key, ...assetFileEntry(file, key, created, idAt) };
+    return { file, key, ...assetFileEntry(file, key, created, idAt, decompress) };
   });
 }

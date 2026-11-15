@@ -1,0 +1,13 @@
+{
+  "kind": "dialogue",
+  "v": 1,
+  "speakers": [
+    { "id": "keeper", "name": "talk.keeper", "portrait": { "asset": "hero", "frame": "hero-0" } }
+  ],
+  "nodes": [
+    { "id": "hello", "lines": [{ "speaker": "keeper", "text": "talk.hello" }, { "speaker": "keeper", "text": "talk.ask" }], "choices": [{ "do": [{ "set": "/toured", "to": true }], "text": "talk.yes", "to": "tour" }, { "text": "talk.no", "to": "bye" }] },
+    { "id": "tour", "lines": [{ "speaker": "keeper", "text": "talk.tour" }, { "speaker": "keeper", "text": "talk.bye" }], "end": "toured" },
+    { "id": "bye", "lines": [{ "speaker": "keeper", "text": "talk.bye" }], "end": "done" }
+  ],
+  "start": "hello"
+}

@@ -547,3 +547,81 @@ describe("a world save of spawners", () => {
     resumed.destroy();
   });
 });
+
+describe("spawning as children", () => {
+  const hub = (block: BehaviorBlock): RuntimeEntity => ({
+    id: "hub",
+    type: "node",
+    at: [5, 5],
+    behaviors: { spawner: block },
+  });
+
+  it("puts each spawn under the spawner at the spawn point, moving with it after", () => {
+    const { ctx, steps, system, rt } = setup([
+      hub({ type: "marker", rate: 60, cap: 2, asChildren: true }),
+      {
+        id: "rack",
+        type: "node",
+        at: [-5, 0],
+        behaviors: { spawner: { prefab: "pair", rate: 60, cap: 1, asChildren: true } },
+      },
+    ]);
+    steps(3);
+    const dots = system.live("hub");
+    expect(dots).toHaveLength(2);
+    expect(ctx.tree.children("hub")).toEqual(dots);
+    const [pair] = system.live("rack");
+    expect(ctx.tree.parent(pair!)).toBe("rack");
+    expect(ctx.poses.get(`${pair}/right`)).toMatchObject({ x: -4, y: 0 });
+    ctx.setPose("hub", 8, 5);
+    for (const id of dots) expect(ctx.poses.get(id)).toMatchObject({ x: 8, y: 5 });
+    ctx.destroy("hub");
+    steps(1);
+    for (const id of dots) expect(ctx.exists(id)).toBe(false);
+    rt.destroy();
+  });
+
+  it("leaves spawns at the root without it, as before", () => {
+    const { ctx, steps, system, rt } = setup([hub({ type: "dot", rate: 60, cap: 1 })]);
+    steps(2);
+    expect(ctx.tree.parent(system.live("hub")[0]!)).toBeNull();
+    rt.destroy();
+  });
+
+  it("refuses fields that set a parent of their own", () => {
+    expect(SPAWNER.refine?.({ type: "dot", fields: { parent: "x" }, asChildren: true })).toMatch(
+      /can't set `parent` with `asChildren`/,
+    );
+    expect(SPAWNER.refine?.({ type: "dot", fields: { parent: "x" } })).toBeUndefined();
+  });
+
+  it("keeps its spawns under it through a world save, the handle listing them", () => {
+    const game = spawnGame();
+    const registry = createRegistry(game);
+    const entities = [hub({ type: "marker", rate: 30, cap: 4, lifeMs: 500, asChildren: true })];
+    const open = (fromSave?: Parameters<typeof createHeadlessRuntime>[0]["fromSave"]) =>
+      createHeadlessRuntime({
+        game,
+        registry,
+        prefabs: PREFABS,
+        scene: scene(entities),
+        ...(fromSave ? { fromSave } : {}),
+      });
+    const whole = open();
+    for (let i = 0; i < 20; i++) whole.step(whole.ctx.time.tickMs, []);
+    const saved = whole.save({ depth: "world", slot: "mid", now: 0 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    const resumed = open(saved.file);
+    const live = whole.ctx.behavior<SpawnerSystem>("spawner")!.live("hub");
+    expect(live.length).toBeGreaterThan(0);
+    expect(resumed.ctx.entity("hub")!.getBehavior(SPAWNER)?.live()).toEqual(live);
+    expect(resumed.ctx.tree.children("hub")).toEqual(whole.ctx.tree.children("hub"));
+    for (let i = 0; i < 40; i++) {
+      whole.step(whole.ctx.time.tickMs, []);
+      resumed.step(resumed.ctx.time.tickMs, []);
+      expect(resumed.ctx.tree.children("hub")).toEqual(whole.ctx.tree.children("hub"));
+    }
+    whole.destroy();
+    resumed.destroy();
+  });
+});

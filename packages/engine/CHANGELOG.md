@@ -7,6 +7,610 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.17.0] — unreleased
+
+Audio, text, dialogue and localisation: sounds played by step events or
+requests through buses, synth patches rendered in plain code, music on an
+audio clock with latency calibration, world text in bitmap and web fonts
+with rich-text markup, string tables per locale with fallbacks, branching
+dialogue in the runtime, saves and playtests, and DOM helpers for a
+dialogue box, a text log and captions. Headless runs make no audio calls,
+and a project with none of the new docs runs and hashes as before; every
+golden trace is unchanged. The version and the agent-surface step
+(0.17.0, agent surface 23) follow 0.16.0 and are not yet confirmed by the
+owner.
+
+### Added
+
+- Four asset kinds, registered with their layouts, limits and schemas:
+  `sound:v1` (a sound's bus, volume, pitch range, variants and the step
+  events that play it; `view`), `synth:v1` (a sound effect's recipe, its
+  bounds in `SYNTH_BOUNDS`; `view`), `dialogue:v1` (nodes, lines by string
+  key, choices, conditions and effects; `sim`) and `strings:v1` (text by key
+  and locale; `view`). The sound, strings and dialogue kinds' checks and
+  references are below; the synth kind's are empty. A
+  project with no dialogue docs hashes its runs as before.
+- The `text` and `audio` behaviors (visual only, after `emitter`), with
+  `TextHandle` (`set`, `setKey`) and `AudioHandle` (`play`, `stop`,
+  `playing`). Neither moves the entity or keeps a pose of its own; what
+  each draws or plays is below.
+- Engine commands `@latency { ms }` (−500 to 500; delivered with the next
+  tick and never waking a turns or event game on its own),
+  `@dialogue-advance` and `@dialogue-choose { choice }`. The runtime hands
+  the dialogue commands to its dialogue system before the game's
+  `beforeStep`; with no conversation running they are ignored and logged
+  in dev.
+- `EngineContext.dialogue` (`start`, `view`, `stop`) over the runtime's
+  dialogue system. `PlayState.dialogue`,
+  `GameStoreState.dialogue` (null), `selectDialogue`, and the step events
+  `dialogue:line`, `dialogue:choices` and `dialogue:end`.
+- `GameDefinition.audio.buses`, `audioBuses(registry)` (the engine's five,
+  then the game's), `GameConfig.audio` (`backend`, which may be a function
+  the shell calls when Play starts, or false; `prefs`), `GameInstance.audio`,
+  `GameInstance.locale` and `GameInstance.calibrateLatency` (all below); host events `locale:change`, `audio:unlocked`, `audio:caption`.
+- The audio types in `audio/` (`AudioBackend`, `Voice`, `AudioSystem`,
+  `AudioClock`, `FakeAudioCall`), `webAudioBackend`, `fakeAudioBackend`,
+  the synth renderer and presets (`SYNTH_SAMPLE_RATE`, `SYNTH_PRESETS`,
+  `synthDurationMs`), and `PrefsStore` with `memoryPrefsStore`,
+  `browserPrefsStore` and `snapshotPrefsStore` (all below).
+- Text and dialogue contracts: `RichSpan`, `RichLine`, `parseRichText`,
+  `plainText`, `measureText`, `StringTable`, `emptyStringTable`,
+  `localeDirection`, `resolveLocale`, `stringTable`; `DialogueView`,
+  `DialogueRunner`, `DialogueVars`, `createDialogueRunner`, `persistVars`,
+  `exploreDialogue`; the DOM helpers `createDialogueBox`, `createTextLog`,
+  `createCaptions` and `renderRichText` (below).
+- `SceneView.text?(id, visual, layer)` with `TextVisual`, whose text is
+  data: parsed `lines`, or a `{ key, vars }` the view resolves through the
+  locale's table, which the shell hands it as data through
+  `SceneView.locale?(table)`; `drawText` falls back to the measured box.
+  A view member takes data and returns nothing the simulation reads, so it
+  can cross a worker link; later view members (the tilemap's) follow the
+  same rule.
+- `UiContext.assetUrl(id, frame?)` and `UiContext.strings()` (below);
+  `InputState.latencyMs()` (below); `AudioRequest`'s `play` and
+  `present.audio.play` take `caption` and `entity`.
+- Audio assets' meta gains `durationMs`, `channels` and `sampleRate`, read
+  by pure header readers in `project/inspect/{wav,ogg,mp3,m4a}.ts` without
+  decoding: WAV from `fmt `/`data` (or `fact` for compressed formats), Ogg
+  Vorbis or Opus from the id header and the last page's granule less Opus
+  pre-skip, MP3 from the first frame plus a Xing/Info count with LAME's
+  delay and padding trimmed or a VBRI count, else by walking the frames, and
+  M4A from `mvhd` and the sound track's sample entry. A truncated clip (cut
+  inside a chunk, page, frame or box, before an Ogg end-of-stream page, or
+  before `moov`) is `import-failed`, and so is an Ogg stream that is neither
+  Vorbis nor Opus. `AudioSettings` gains `stream`, `loopStart` and `loopEnd`
+  (seconds; loopEnd must come after loopStart). `audioKind.metaVersion` is 2.
+- Font meta (metaVersion 2): `parseBmfont` reads the XML BMFont format as
+  well as text, plus the face size, advances by code point, kerning pairs,
+  `distanceField` (msdf/sdf with its range; mtsdf reads as msdf) and
+  coverage. A new pure `cmapCoverage` reads code point coverage from an sfnt
+  `cmap` table (formats 0, 4, 6, 10, 12, 13; Unicode subtables only). TTF
+  and OTF fonts record `coverage`. WOFF and WOFF2 record it only when the
+  host passes `InspectEnv.decompress` (zlib and Brotli); otherwise it stays
+  absent and raises no issue. The dev server, its watcher and the scene CLI
+  pass node:zlib; the browser and the exported runtime pass nothing. New
+  exports `cmapCoverage`, `codePointRanges`, `mergeRanges`,
+  `CodePointRanges`, `fontCoverage`, `fontTable`, `FontDecompress`, `Bmfont`
+  and `BmfontDistanceField` (project); `inspectEntry`, `reinspectBlob`,
+  `assetFileEntry` and `assetFileEntries` take an optional `decompress`.
+- Asset sidecars record the `metaVersion` their meta was inspected under
+  (optional, absent = 1, additive to asset-sidecar:v1). A sidecar recording
+  an older version than its kind's is inspected again: by the dev watcher
+  (`ProjectFileAdapter.reinspectSidecars`, when the dev server loads a
+  project, and when a stale sidecar lands on disk), on store
+  (`reinspectBlobs`), and by `scene assets reimport <id...> | --all
+[--dry-run]`. All three use one rule (`isMetaStale`) and one re-inspection
+  (`reinspectBlob`). Only `meta` and `metaVersion` change, with one `disk`
+  transaction per entry whose meta moves. A kind without `metaVersion`
+  records none, so existing sidecars stay byte-identical. New exports
+  `isMetaStale`, `kindMetaVersion`, `sidecarMetaVersion`, `reinspectBlob`,
+  `withReinspectedMeta` and `Reinspection` (project), `SidecarReinspection`
+  (vite); `AssetSidecar.metaVersion`.
+- The `sound` kind checks its bus against `audioBuses(registry)` (the
+  engine's five plus `GameDefinition.audio.buses`) and refuses an unknown
+  one as `sound-bus-unknown` with a did-you-mean; `refs` names each
+  variant's clip as an audio clip or a synth patch; `bundleRefs` gives a
+  `preload` sound's audio clips only (never a synth patch); a `caption` must
+  be a string key.
+- Exports ship every sound with every clip and synth patch it names; a patch
+  ships as a runtime doc in data/ and adds no file to assets/. A preloaded
+  sound's audio clips join the release bundle of each scene whose entities'
+  audio blocks name it, and the project bundle when the game settings name
+  it. Other clips ship and load on first play.
+- The generated sw.js answers a single `Range: bytes=a-b` (also `a-` and
+  `-n`) request for a cached file from the cached body: 206 with the slice,
+  `Content-Range` and `Content-Length`, or 416 with `Content-Range: bytes
+*/size` outside it. A multi-range or malformed header gets the whole body.
+  A partial network answer is never cached: only a 200 is.
+- `parseRichText`/`plainText` (text/rich.ts) parse the engine's rich-text
+  markup: `[b]`, `[i]`, `[color=#rrggbb]`, `[size=n]` (0 < n <= 512),
+  `[icon=asset:frame]`, `[shake]`, `[wave]`, nesting (closing tags may be
+  out of order), `\[` `\{` `\\` escapes and `{name}` placeholders filled
+  from `vars` as plain text; unknown or malformed tags and missing vars stay
+  literal with a warning, and unclosed tags warn. `measureText`
+  (text/measure.ts) measures BMFont meta exactly from `advances` (keyed by
+  decimal code point) and `kerning` scaled by `size / meta.size`, wraps
+  greedily at spaces, and estimates 0.55 x size per character and 1.2 x size
+  lines (with `exact: false`) for web fonts, glyphs a face lacks and inline
+  icons.
+- `renderSynth`, `synthWav`, `randomSynth`, `mutateSynth` and `CLICK_PATCH`:
+  a `synth:v1` patch renders in plain code (square/saw/triangle/sine/seeded
+  noise, slide, jump, vibrato, retrigger, attack-sustain-decay with punch,
+  resonant low-pass and high-pass with sweeps) to one 44,100 Hz channel of
+  round(duration x 44.1) samples, and to 16-bit mono WAV.
+- The shell's audio system (`createAudioSystem`, not exported) plays
+  sounds from step events through each sound's `on` matchers, in sound-id order, then the tick's `present.audio`
+  requests. Variants are picked by weight from an Rng seeded by the game
+  id. `cooldownMs` is wall time on the backend clock, and `maxVoices` stops
+  the sound's oldest voice. Music is one voice, crossfaded over `fadeMs`
+  (default 800, `MUSIC_FADE_MS_DEFAULT`). Positional pan is
+  `(x − centre) / halfWidth` clamped to ±1, with `range` linear falloff,
+  and an `entity` source is read from the pose index each frame. One-shots
+  before unlock are dropped and music waits for unlock. Bus volumes and
+  mutes persist through `PrefsStore` under `audio.<bus>`. A synth-patch
+  variant is rendered once with `renderSynth` and handed to
+  `backend.buffer` as one channel, re-rendered when its doc changes, and
+  rendered at load for a `preload` sound. It returns `AudioSystemHandle`,
+  which adds `unlock()` and `reload(project)` to `AudioSystem`; it takes an
+  optional `entity` lookup for `type`/`tag` matchers. A clip's `stream`,
+  `loopStart` and `loopEnd` import settings reach it through `AssetInfo`.
+- `browserPrefsStore` (localStorage under `jams-engine:prefs:<gameId>`,
+  every access in try/catch) and `snapshotPrefsStore(initial, save)` (a
+  host's snapshot; changes handed back once, 500 ms after the last) are
+  built.
+- `fakeAudioBackend(opts?)` logs every call with its context time `at`, has
+  `advance(seconds)` and `busVolumes`, and logs a buffer by channel count,
+  length and rate, never samples. `FakeAudioBackend`, `FakeAudioLogEntry`
+  and `FakeAudioOptions` are exported from `./headless`.
+- `webAudioBackend()` plays through Web Audio: one context, a gain node per
+  bus into master, and every voice source → gain → StereoPannerNode → its
+  bus, so the output stays two channels or more and nothing downmixes;
+  `decode` goes through `decodeAudioData` (on a copy of the bytes), `buffer`
+  through `createBuffer`/`copyToChannel` one channel per array, `stream`
+  routes an HTMLAudioElement into the bus graph, `latency` is outputLatency
+  - baseLatency; `opts.context` takes an OfflineAudioContext for tests.
+- The shell builds the audio system in Play when `GameConfig.audio.backend`
+  gives one: the function form is asked each time Play starts and what it
+  built is closed when Play ends; a backend handed over as is lasts the
+  instance and is closed by `destroy`. Each tick's step events and
+  `present.audio` requests reach it after the tick, positional voices pan
+  from the main viewport each frame, and the first pointer press, key press
+  or touch end unlocks it (`audio:unlocked`). `GameInstance.audio` is
+  non-null while a backend plays. Keyed sounds of a world that is torn down
+  (an entity's loop) stop with it.
+- `GameConfig.assets.url`: where the host serves a blob's bytes; the audio
+  system fetches and streams clips through it. The site, the editor and the
+  standalone host pass it. Without it, sounds whose variants are audio
+  clips stay silent; synth patches still play.
+- `ToolRouter.onGesture(listener)`: each pointer or key press it dispatches
+  and each touch end on the attached target, the gestures a browser lets
+  start audio.
+- The `audio` behavior plays its sound keyed `<id>#audio` (looping per the
+  sound, positional by entity) on attach, stops it on detach and restarts
+  it on a block change; what its handle's `play()`/`stop()` changed is
+  saved, so a world save or live swap taken in a view puts it back.
+  Headless the behavior isn't built and saves are unchanged.
+- The `text` behavior draws: one data-only `TextVisual` per block through
+  `SceneView.text` (the fallback box without it), redrawn when the block
+  changes or its handle's `set(text)`/`setKey(key, vars?)` replaces what it
+  shows, never on a locale change (the view holds the table). A set text
+  rides world saves and live swaps. It sits at the entity's pose, settled
+  after each tick, so a child's text follows its parent. Literal text shows
+  as written, `{name}` filled from `vars`; `rich` reads the markup. A
+  block's `font` resolves through `textFontOf`: a BMFont by its .fnt's hash
+  and its pages', a web font by its content hash. `TEXT_COLOR_DEFAULT`,
+  `textFontOf`, `FontAssetInfo` and `TextShown` are exported from `./game`.
+- `AssetInfo` carries a font's `font` meta and `pages` ids, and an audio
+  clip's `stream`, `loopStart` and `loopEnd`. Scene and project bundles
+  include `font` blobs as entries beside textures.
+- World text in Pixi: `SceneView.text` draws a BMFont as `BitmapText`
+  (installed once per loader from its loaded page textures; MSDF/SDF
+  through Pixi's distance-field shader, the default face under the Canvas2D
+  renderer), a web font as `Text` (one `FontFace` per content hash,
+  registered as `jams-font-<hash>`), and a fallback face while either
+  loads. `SceneView.locale` takes the locale's strings as data, and the
+  view redraws every keyed or fontless text when it changes. Bitmap text
+  reverses pure right-to-left runs without shaping.
+  `createRichText(visual, fonts, opts?)` (with `FontSource`,
+  `RichTextOptions` and `DEFAULT_TEXT_FACE`) draws the same for game code.
+- The asset loader loads `font` bundle entries: it fetches their bytes and
+  gains `bitmapFamily`/`webFamily` (optional on a host's own AssetLoader)
+  and a `fetch` option. `PixiViewOptions` gains `fonts` and
+  `reducedMotion`.
+- Schematic renders (svg, ascii) draw each text block's measured box,
+  labelled ≈ where the size is an estimate (web fonts, no font); `strings`
+  (`SceneTextOptions`) measures key texts in a locale.
+- `usedStringKeys(lookup, scenes?)` collects the string keys dialogues
+  (lines' and choices' `text`, speakers' `name`), sounds (`caption`), and
+  scenes' and prefabs' `text` blocks name, overrides and the prefab params
+  that feed one included; `missingStringKeys(lookup, locales, locale,
+uses?)` keeps the uses with no text in the locale or along its fallback
+  chain (the default's text doesn't count for another locale; an empty
+  text is none). `mergedStrings`, `projectLocales` and `stringLocales` read
+  a project's merged rows (first by path wins), its `engine.locales`
+  (default `en` without one) and the locales its strings speak.
+  `byPathThenKey`, `docLookup` and `MergedStringRow` are exported from
+  `./project`.
+- `spawner` takes `asChildren` (default false): each spawn, a type's or a
+  prefab instance, goes under the spawner in the scene tree in world terms,
+  so it moves, hides and is destroyed with it; a gameless scene can spawn
+  into the tree. `fields.parent` together with `asChildren` is refused.
+- A nested instance on the resolved view (`room-1/door-1`) moves and turns:
+  `toSourceBatch` maps `move` and `transform` on it to overrides of
+  `<path>.at`, `<path>.rot` and `<path>.flip` on the scene instance, in its
+  holder prefab's frame, reverting each one back to its prefab's value; the
+  editor's move and turn dispatch it as one undo step.
+- The audio clock: `present.audio.music(sound, { at: "tick" })` is
+  scheduled at the context time of its tick, and each frame the shell
+  reseeks that music (never the simulation) once it drifts more than 40 ms
+  (`MUSIC_DRIFT_LIMIT_MS`) from the ticks. `GameAudio.clock` reports
+  `timeOfTick`, `simPositionMs`, `driftMs` and `latencyMs`. Music started
+  `at: "start"` plays free and isn't followed.
+- `ctx.input.latencyMs()` reads the last `@latency` command, 0 before one.
+- `GameInstance.calibrateLatency({ beats = 16, bpm = 100, sound })` plays a
+  click track (the sound's first variant, or `CLICK_PATCH` rendered once)
+  and times presses of the game's UI-only actions (any button when it
+  declares none). The median offset is sent as `@latency` and saved under
+  `audio.latencyMs`. It resolves null with fewer than 8 taps, outside Play,
+  or without audio. Every new world (Play, a save's load, Stop) starts with
+  the saved latency as `@latency` on its first tick, so a recording replays
+  with it. `CalibrationRun` (audio) types `AudioSystemHandle.calibrate`.
+- `GameInstance.locale` works: the initial locale is the saved `locale`
+  pref, else the first of `navigator.languages` the project offers (matched
+  by language subtag), else the default (`resolveLocale`). `set` saves under
+  `locale` in the same PrefsStore as the bus volumes (`audio.prefs`), raises
+  `locale:change` and hands each scene view the new table as data
+  (`SceneView.locale`), which redraws keyed text. `strings()` returns the
+  current table. A locale the project doesn't offer is refused. The
+  simulation never sees the locale.
+- `stringTable(view, locale)` (the locale, its `engine.locales.fallback`
+  chain, then the default; a missing key shows `[key]`; `get(key, vars)`
+  fills `{name}` placeholders with escaped text), `stringTableData(view,
+locale, font)` (the same table as plain data for a scene view's
+  `locale`), `resolveLocale` (a saved preference the game offers, else the
+  first `navigator.languages` entry matching exactly or by language subtag,
+  else the default), and `localeDirection` now also reads script subtags
+  (`sd-Deva` ltr, `pa-Arab` rtl).
+- game-settings `engine.locales` { default, available, fallback?, fonts? }
+  is additive (no `v` change), and its fonts are references. The strings
+  kind's crossValidate raises `locale-unknown` (warn, once per column
+  outside `available`), `dup-id` (warn, a key an earlier file by path
+  holds; the first wins) and `font-missing` (warn, per locale: the text its
+  winning rows show uses code points outside its font's, or else the
+  default font's, `coverage`; markup, placeholders and control/format
+  characters are skipped, as is a font without `coverage`). The scene,
+  prefab, sound and dialogue kinds' crossValidate raise `string-key-missing`
+  for the keys the doc names (`text` blocks, a caption, lines, choices and
+  speakers) through the one shared `stringKeyIssues`: one issue per use, an
+  error when the default locale lacks it, else info, at an indexed pointer
+  so it gets a line. `localeFont` and `stringKeyIssues` are exported
+  from `./project`. The Engine settings panel shows a `locales` row, last.
+- `scene validate <scene>` runs `validateProject` over the scene's project:
+  the scene's own cross-doc issues join its issues (with lines) and count
+  toward the exit code, and other docs' issues print under a `project <id>,
+other docs:` line and in `data.project`, without changing the exit code.
+- The `dialogue` kind's checks: `dialogue-dead-end` (an error for a node
+  with no choices, `next` or `end`; a warning when every choice has an `if`
+  and the node has no `next` or `end` to fall back on),
+  `dialogue-unreachable` (warn), `asset-missing` with `detail.kind: "node"`
+  for a `start`, `to`, `next` or `else` naming no node, and a `schema` error
+  naming JSON Pointer for a variable that isn't one. Its `refs` name
+  portraits (a speaker's or a line's) as an atlas or a texture and a line's
+  voice as a sound or an audio clip. Its `crossValidate` raises the shared
+  `string-key-missing` above, and only a warning for a line or choice with
+  literal `say` text. The graph helpers (`dialogueExits`,
+  `dialogueNodes`, `reachableNodes`, `dialogueDeadEnd`, `dialogueIssues`,
+  `dialogueStringIssues`, `dialogueRefs`, `DialogueExit`) are exported from
+  `./project` for the explorer. A dialogue doc joins a run's hash only in a
+  project that has one, so existing pins don't move.
+- `synth new <preset> [--seed n] [--id id] [--path p|folder/]` writes a
+  synth patch drawn from a preset by a seed through the project ops (the
+  same seed writes the same bytes; `--dry-run` writes nothing; an unknown
+  preset is refused with the list), and `synth render <id> --wav <file>`
+  writes its 16-bit PCM WAV.
+- Audio in the editor: clip, sound and synth-patch rows in the project
+  tree carry a play/stop button (the editor's audio context is made on the
+  first click; Decoding shows until the voice starts), and after a click a
+  400 ms hover previews a row's first second. An `audio` behavior's sound
+  field shows play and stop and how long the sound plays. A `sound` doc
+  opens in the sound panel: its bus, volume and pitch rows, its variants
+  (an audio clip or a synth patch each, with weights) and its triggers, each
+  edit one undo step, with the sound's project issues inline. The play bar's
+  per-viewer Sound in Play toggle (off by default) gives Play a Web Audio
+  backend; turning it off mid-Play mutes and stops the game's sound, and
+  turning it on in a Play that started without sound waits for the next
+  Play.
+- The synth patch panel: every field with the schema's bounds (sliders, the
+  wave select, a switch per optional block), a waveform strip from
+  `renderSynth`, a button per preset (`randomSynth`) and Mutate
+  (`mutateSynth`), each one undo step, and a per-viewer speaker toggle (on
+  by default) that auditions a change 150 ms later through the editor's
+  audio.
+- `lineAt` (scene) is exported: the line of a JSON Pointer, or of its
+  nearest ancestor that has one.
+- The dialogue runner: `createDialogueRunner(file, id, vars, emit, { node?, visited? })`
+  plays a `dialogue:v1` conversation over a `DialogueVars` host: lines
+  filtered by `if`, choices after a node's last line (`hidden` is
+  `"hide"` or `"disable"`), a node's `if`/`else` and `do` effects (`set`, `add`, `push`,
+  `emit`) on entry, `visited` over the conversation and a saved history, a
+  200-line log, `advance`/`choose` answering false on an illegal step, and
+  `save`/`restore`. It raises `dialogue:line`, `dialogue:choices` and
+  `dialogue:end` through `emit`. `persistVars(ctx)` reads and writes JSON
+  pointers into `ctx.persist`; `memoryVars(value)` keeps its own value.
+- `ctx.dialogue` runs the one active conversation: `start` (a second
+  `start` replaces the running one, with a dev warning),
+  `@dialogue-advance` / `@dialogue-choose` applied before the game's
+  `beforeStep` (a command with no dialogue, or a choice that isn't visible
+  and enabled, is ignored and logged in dev), the `dialogue:line` /
+  `dialogue:choices` / `dialogue:end` step events, and a voiced line's
+  `play` request keyed `dialogue-voice` carrying its text key as `caption`,
+  sent after a `stop` of the last line's voice. An ended conversation is no
+  longer active (`view()` is null).
+- World saves and live swaps keep the active conversation under
+  `world.systems["@dialogue"]`. A save without one is unchanged.
+  `SaveBlocker` gains `cause: "dialogue"`: a world save is refused while a
+  conversation reads `vars` passed to `start`.
+- `until: { dialogue: { node?, ended?, active? } }` joins the engine's
+  predicates; `PlayState.dialogue`, `startState` and playtest reports carry
+  the active conversation.
+- Legal commands lead with the dialogue's: `@dialogue-advance`, or each
+  enabled `@dialogue-choose`, while a conversation runs
+  (`dialogueCommands`), so fuzz walks conversations in every game.
+- A script's `command` step sends `@dialogue-advance` and
+  `@dialogue-choose`.
+- `exploreDialogue(file, { vars, maxDepth })` lists each reachable ending
+  with its shortest choice path.
+- `createDialogueBox` draws the store's `dialogue` in a `role="dialog"`
+  box: the line typed at `speed` characters a second (default 40; whole
+  under reduced motion or at `Infinity`), the whole line in a polite live
+  region, and choices as buttons. The `confirm`, `up` and `down` UI-only
+  actions (or names it is given) move focus and send `@dialogue-advance` or
+  `@dialogue-choose`, and a click on the box advances; one command goes per
+  dialogue view. Portraits are CSS backgrounds of the frame's rect from
+  `assetUrl`; `dir` and `lang` follow the locale and redraw on
+  `locale:change`. Restyle it with `className` or the `--jams-dialogue-bg`,
+  `-fg`, `-accent` and `-font-size` custom properties.
+- `createTextLog` lists the conversation's shown lines with their speakers,
+  at most `max`, shown and hidden by a `toggle` UI action.
+- `renderRichText` renders bold, italic, colour, size and icons (as CSS
+  backgrounds); `[shake]` and `[wave]` carry `data-jams-effect` for a
+  stylesheet and are drawn still.
+- `createCaptions(ctx, { ms })`: each played sound's `caption` and each
+  voiced dialogue line's text, shown for `ms` (default `CAPTION_MS_DEFAULT`,
+  2,500) in an `aria-live="polite"` region along the bottom of the UI layer,
+  text from `UiContext.strings()` with markup stripped, `dir` from the
+  locale, at most three at once, a repeating key restarting its time; it
+  takes no pointer input. A voiced line's caption fills its `{name}` values
+  from the dialogue view, and the region sits above a shown dialogue box,
+  which keeps its height plus a gap in `--jams-dialogue-inset` on the UI
+  root.
+- `GameInstance.captions` (`enabled()`, `set(on)`): the player's captions
+  choice, kept in the prefs under `captions`; off by default, since no
+  browser exposes the OS's captions request to a page; `set` raises
+  `captions:change`.
+- The audio system raises `audio:caption { key, at }` when a voice starts
+  with a caption: a `play` request's `caption`, else the sound's own (music
+  included); `at` is the audio clock's seconds.
+- `UiContext.assetUrl(id, frame?)`: a blob's URL through the host (an atlas
+  through its texture) and an atlas frame's rect, else null;
+  `UiContext.strings()` follows `locale.set`. `mountUi` takes
+  `opts.blobUrl`, defaulting to the new `GameInstance.blobUrl`; `uiAssetUrl`
+  and `BlobUrl` are exported from `@jams/engine/ui`.
+- The engine project's kitchen sink carries the audio, text, dialogue and
+  locale features: `std-text`, a `text` sign by the key `kitchen.sign`;
+  `kitchen.strings.json` in English and French, with `engine.locales`
+  (default en, available en and fr, `fonts.default` `kitchen-font`) in the
+  project's game settings; the `clink` sound, played on a prop's
+  `contact:start` and on `character:landed`, whose variants are the
+  generated `clink-wav` clip and the `clink-synth` patch (`synth new pickup
+--seed 7`), and `std-audio`, an `audio` block on it; `kitchen.dialogue.json`,
+  two endings, which `talk-mark` names by tag and the scene's assets header
+  lists. The clip and the 5×7 bitmap font (`kitchen-font` with its page
+  `kitchen-font-page`) are written byte for byte by
+  `packages/engine/scenes/tools/kitchen-media.ts`, CC0-1.0.
+- The `visual-novel` genre probe: three listed scenes on the event clock,
+  one conversation per scene with portraits and choices backed by persist,
+  a progress save request at each chapter's end, a world save restored in
+  the second scene, and the good ending reached through `@dialogue-advance`
+  and `@dialogue-choose` only; it completes the visual novel row.
+
+### Changed
+
+- **Breaking:** `ParticleLayer.emitter(id, preset, follow, layer?)` takes
+  the followed entity as data (`EmitterFollow`: `{ entity, offset?, flip?
+}`) in place of an `at: () => Pose | undefined` callback; the layer
+  resolves it on each frame through the new `ParticleLayerOptions.pose`, the
+  offset turning with the pose and mirroring when `flip`.
+  `ParticleLayer.retune(id, preset, follow?, layer?)` takes the follow ahead
+  of the layer. `PixiViewOptions.particles.poses` hands the Pixi view the
+  poses an emitter follows, interpolated by the last `frame`'s alpha.
+  Particles draw where they did.
+- **Breaking:** `SceneView.particles?()` is gone. The `emitter` behavior
+  reaches the particle layer only through data members:
+  `SceneView.emitter?(id, ViewEmitter)` (`{ preset, follow, layer, restart
+}`; without `restart` it retunes a running emitter in place, starting one
+  when none runs) and `SceneView.removeEmitter?(id)`. `PixiView.particles()`
+  stays, for the shell's bursts and per-frame update. `EmitterFollow` and
+  `ViewEmitter` are exported beside `SceneView`.
+- Every view handle method takes data, never a callback, and returns nothing
+  the simulation reads, so a view can sit across a worker link: the emitter
+  members follow it, the text members (`text?`, `locale?`) follow it, and
+  the tilemap view handle must.
+- An XML `.fnt` imports instead of being refused. A binary BMFont's
+  import-failed message now says to export it as text or XML.
+- **Breaking:** `TextFont`'s bitmap arm is `{ kind: "bitmap", hash, pages,
+meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
+  hashes in page order. A web font's `family` is its content hash (or asset
+  id), which the loader resolves to the family it registered.
+- The text block's `size`, `wrap` and `outline.width` are px at zoom 1
+  (were "world px"), and so are `TextVisual.size` and `wrap`. The
+  canvas-sync image copies `text/`.
+- `quarter-turn-only` on an instance under a frame off the quarter turns
+  has a fix: reparent to the nearest ancestor on the quarter turns, then
+  turn the instance onto the nearest world quarter turn (reparenting keeps
+  its world angle).
+- The scene tree measures a parented entity's local pose when it is next
+  read (by its parent's move, `tree.local`, `setLocal`, `setParent` or
+  `drive`) instead of on every pose write; results, saves and digests are
+  unchanged.
+- `createMarkerSystem` is the data system: `MarkerSystem` is
+  `DataSystem<MarkerEntity>`, its `setPose` the data system's.
+- The standalone host builds sound, prefs and the locale: `bootStandalone`
+  passes `webAudioBackend()` (built when Play starts, unlocked by the first
+  gesture; a browser without Web Audio plays silently) and a prefs store,
+  `browserPrefsStore()` unhosted or, in a hosted frame, a
+  `snapshotPrefsStore` over `welcome.prefs.prefs` saved back through
+  `prefs.save` with `store: "prefs"`. The locale resolves from the saved
+  preference, then `navigator.languages`, then the project's default, and
+  the page's `<html lang>` follows `locale:change`.
+- The site's play host (`GameCanvas`) builds a `webAudioBackend` each time
+  Play starts (unlocked by the first gesture; a browser without Web Audio
+  plays silent) and keeps bus volumes and the locale in the player's browser
+  through `browserPrefsStore`, so a hosted game starts in the locale
+  `resolveLocale` picks. Hosted games now load their sound, synth, strings
+  and dialogue docs, and their audio and font files are served by URL like
+  textures.
+- The kitchen sink's render goldens add std-text, std-audio and talk-mark
+  and the sign's text box; nothing else moved.
+- Genre pins: the `point-and-click` probe gains a dialogue on a hotspot.
+  The door it uses starts a conversation (`ctx.dialogue.start`) that the
+  run walks to its `opened` ending through `@dialogue-advance` and
+  `@dialogue-choose`, and that ending wins. Its pins move for this reason
+  (c5ebb0dcd62a5eb9 -> c7e11bc7913bc936 for every run), it gains a
+  `saved-mid-dialogue` variant, and the point-and-click row has nothing
+  pending.
+- Genre pins: `rhythm-tap`'s pins move (127621617ae3b5ea ->
+  c40d8254d18f8d75), and it gains a `saved-between-passes` variant. The
+  probe now judges against the audio clock. Its chart is a data table, each
+  tap is judged in song ms from `simPositionMs` plus its sub-tick
+  `InputAction.offset` less `ctx.input.latencyMs()`, and the chart plays
+  twice under two `@latency` commands (25 ms, then 40 ms). The same taps
+  grade differently in each pass, and every run replays identically. The
+  rhythm row has nothing pending. Every other probe's pin is unchanged.
+
+### Fixed
+
+- A live writer's trial (`--live`, `--live --dry-run`, MCP
+  `asset_apply_ops` with `live`) no longer fails with permission-denied
+  when its batch creates a doc (`synth new --live`, a live `createAsset`):
+  the trial starts a doc the registry doesn't name yet empty instead of
+  asking the server for it.
+- Docs and the `tween-target-invalid` hint: a `node` and a `prop` can be
+  tweened on their pose channels; only a `follower` can't (its path moves
+  it).
+
+### Notes
+
+- `stress/combined`'s run moved with the scene tree (600 ticks: enters
+  3392, exits 3367, occupied 23, against 3226 / 3211 / 14 at 0.15.0), as
+  intended. An instance's fixed children now enter the physics world after
+  the scene's own entities (they spawn under their instance's node), which
+  changes the order the broad phase finds contact pairs. A riding
+  collider's offset is measured from where its host's body is in the
+  physics world (f32), at most one f32 ulp from the old f64 origin.
+  Contacts' float round-off differs, and the counts of this chaotic scene
+  follow; nothing else changed, and no golden pins it.
+- Without physics, a character on a collider riding a kinematic body is
+  carried as with Rapier, starting a tick after the body gets a velocity;
+  on a root kinematic body's own collider moved by `setVelocity` neither
+  backend carries it.
+- A script that starts mid-tick (item 11 of the tree follow-ups) keeps its
+  current timing; whether it should wait for the next tick is the owner's
+  call.
+- The browser smoke draws a world `text` sign in a bitmap font and one in a
+  web font and checks that each shows its colour, and after a click plays
+  a synth patch through `webAudioBackend`: the context runs, the voice ends
+  within the patch's length plus 100 ms, the destination has two channels
+  or more, and the patch at `pan: -1` through an offline context puts over
+  95% of its energy on the left. `engine-browser-smoke.json` gains
+  top-level `signs` and `audio` blocks and per-browser `signs` and `audio`
+  probes.
+- Tests: export-plan.test.ts and game-build.test.ts gain the
+  sound-and-text export row: sounds, clips (.wav/.ogg/.mp3), a synth
+  patch, a BMFont with its page, strings and a dialogue. Runtime docs ship
+  in data/ and blobs in assets/ by extension, release.json checks clean
+  with its doc refs, and firstLoadBytes leaves out clips that no sound
+  preloads.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 23, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- Schemas `sound:v1`, `synth:v1`, `dialogue:v1`, `strings:v1`, exported as
+  `./schemas/{sound,synth,dialogue,strings}.schema.json`; the scene schemas
+  gain the `text` and `audio` blocks.
+- Issue codes `sound-bus-unknown` (error), `locale-unknown` (warn),
+  `font-missing` (warn), `string-key-missing` (error), `dialogue-dead-end`
+  (error), `dialogue-unreachable` (warn); `sound-bus-unknown`, the strings
+  and dialogue codes are raised by the checks above.
+- `synth new` and `synth render` run. `assets reimport <id...> |
+--all [--dry-run]` runs.
+- `vp run scene dialogue walk <id> [--vars json]` prints each ending a
+  dialogue reaches from its start, with its choice path (indices and text
+  keys) and nodes, and the endings no path reached (`exploreDialogue`).
+  `assets info` prints an audio clip's length, channels and rate, a synth
+  patch's length (`synthDurationMs`), a sound's variants with their
+  lengths, and a font's coverage and distance field. `playtest --present`
+  lists `audio` play, stop and music requests beside camera and effect
+  requests.
+- MCP `dialogue_walk`: walks a dialogue's choices from its start with the
+  given `vars` (an object or JSON text) and `maxDepth`. It returns the same
+  data as `dialogue walk --json`: `endings` (each with `ending`, `path`,
+  `choices`, `nodes`), `unreached` and `truncated`.
+- MCP `asset_apply_ops` describes edits to sounds (`/variants/@<clip>`,
+  `/bus`, refused as `sound-bus-unknown`), synth patches (flat fields,
+  refused as `schema` when out of bounds), dialogue (`/nodes/@<id>/…`,
+  refused as `dialogue-dead-end`) and strings (`/strings/@<key>/<locale>`).
+- Scene CLI: `strings missing [--locale l]`, `strings export <locale>
+--csv` (key,<default>,<locale>,note, RFC 4180 quoting) and `strings
+import <file.csv>` (one batch, one editAsset per strings file) run.
+- The text block's `size`, `wrap` and `outline.width` descriptions say px
+  at zoom 1; the spawner block gains `asChildren`.
+- The asset sidecar schema gains `metaVersion`; the `sound:v1` schema's
+  `bus` takes any name (checked against the game's buses) and `caption`
+  takes the string-key pattern.
+- The input-script schema's `until` gains `dialogue`; its command step
+  names the dialogue's two commands; an unknown-command message lists
+  them.
+- `game build`, and every path that plans an export through it
+  (`game export`, `game release`, `game live`), runs `validateProject`
+  over the project's docs first. A project with an error issue is refused before
+  anything is written, and each issue is printed with its code (for
+  example `sound-bus-unknown` for a sound on an undeclared bus, or
+  `string-key-missing` for a key with no text in the default locale).
+
+### Docs
+
+- The engine README gains Audio (buses, triggers, synth patches and
+  presets, stereo and positional pan, unlock, music, the audio clock,
+  latency), Text and fonts (moved out of Sprites and rendering and
+  widened), Dialogue, Localisation (bitmap fonts don't shape, so joined
+  scripts need a web font; a live scene version whose text keys the
+  release's strings lack shows them bracketed) and Accessibility (the
+  floor and captions). It also gains the storage line "Sounds and strings
+  are documents; clips and fonts count as asset bytes", what `visualOnly`
+  means for `audio` and `text`, the `text` and `audio` handles, the four
+  doc kinds in the kinds table, and a visual-novel row and an updated
+  rhythm-tap row in the genre probes.
+- The scene README gains Sound, text, dialogue and strings (dialogue walk,
+  strings missing/export/import, synth new/render, assets reimport, assets
+  info's clip, patch and font meta, the six codes and the dialogue
+  predicate), a `dialogue walk` row in the commands table, a
+  `sound-bus-unknown` row in the issue table and a `dialogue_walk` row in
+  the MCP table.
+
+### Internal
+
+- The genre harness follows a probe's scene list (`GenreProbe.flow`) in
+  `runGenreProbe` and `playFromSave`, and replays each scene of a flow run
+  (`ProbeRun.segments`); a run's digest ends on its final snapshot, which
+  is the recording's end for every run without a flow.
+- The genre harness's view run takes an `audio` option (a
+  `fakeAudioBackend` handed to the shell as `GameConfig.audio.backend`) and
+  returns the backend's call log as `ViewRun.audio`; the genre matrix dates
+  M23 at 0.17.0, the visual-novel row names its `visual-novel` probe, and
+  the platformer and top-down rows wait only on M25.
+
 ## [0.16.0] — unreleased
 
 Entity handles, scripts and the scene tree: one way to move any entity,

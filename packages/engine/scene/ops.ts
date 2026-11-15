@@ -69,6 +69,7 @@ import {
   resolvePrefab,
   sceneFrames,
   splitOverridePath,
+  transformOpMatrix,
   withKey,
   withOrientation,
   type ChildApply,
@@ -92,10 +93,8 @@ import {
   asFrame,
   compose,
   composeSteps,
-  dihedral,
   frame,
   frameOf,
-  IDENTITY_2D,
   invert,
   translation,
   type Transform2D,
@@ -1677,19 +1676,7 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
   }
 }
 
-/** The world transform a `transform` op applies about `at`: its flip after its turn. */
-export function transformOpMatrix(
-  op: Pick<Extract<SceneOp, { op: "transform" }>, "turn" | "rotate" | "flip">,
-  at: Pt,
-): Transform2D {
-  const deg = op.rotate ?? 90 * (op.turn === -1 ? 3 : (op.turn ?? 0));
-  const mirror =
-    op.flip === undefined
-      ? IDENTITY_2D
-      : dihedral({ rot: op.flip === "x" ? 0 : 2, flip: true }, [0, 0]);
-  const world = compose(mirror, frame({ at: [0, 0], rot: deg, flip: false }));
-  return compose(translation(at), compose(world, translation([-at[0], -at[1]])));
-}
+export { transformOpMatrix };
 
 /**
  * Turns and flips instances and nodes in world terms about `about` (each

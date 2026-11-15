@@ -1,0 +1,515 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+
+import type { DialogueLogEntry, DialogueView, DialogueViewChoice } from "../dialogue/runner";
+import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
+import type { GameCommand } from "../game/types";
+import { parseRichText } from "../text/rich";
+import { localeDirection, type StringTable } from "../text/strings";
+import type { GameInstance, GameStoreState, UiActionEvent } from "../types";
+import { createCaptions } from "../ui/captions";
+import { createDialogueBox, createTextLog, DIALOGUE_INSET } from "../ui/dialogue";
+import { createUiLayer } from "../ui/layer";
+import { renderRichText } from "../ui/rich-dom";
+import type { UiAssetUrl, UiContext } from "../ui/types";
+
+const STRINGS: Record<string, Record<string, string>> = {
+  en: {
+    "guide.name": "Guide",
+    "guide.hello": "Hello, {who}!",
+    "choice.stay": "Stay a while",
+    "choice.leave": "Leave",
+  },
+  ar: {
+    "guide.name": "المرشد",
+    "guide.hello": "مرحبا {who}",
+    "choice.stay": "ابق قليلا",
+    "choice.leave": "غادر",
+  },
+};
+
+function table(locale: string): StringTable {
+  const strings = STRINGS[locale] ?? {};
+  return {
+    get: (key) => strings[key] ?? `[${key}]`,
+    has: (key) => key in strings,
+    locale,
+    direction: localeDirection(locale),
+  };
+}
+
+const CHOICES: DialogueViewChoice[] = [
+  { index: 0, text: "choice.stay", enabled: true },
+  { index: 1, text: "choice.leave", enabled: true },
+  { index: 2, say: "Locked", enabled: false },
+  { index: 4, say: "[b]Wave[/b]", enabled: true },
+];
+
+function view(patch: Partial<DialogueView> = {}): DialogueView {
+  return {
+    dialogue: "intro",
+    node: "start",
+    line: 0,
+    current: { speakerName: "guide.name", text: "guide.hello", vars: { who: "Ada" } },
+    choices: null,
+    log: [
+      { node: "start", line: 0, speaker: "guide.name", text: "guide.hello", vars: { who: "Ada" } },
+    ],
+    ended: null,
+    ...patch,
+  };
+}
+
+/** A UiContext over a real UI layer, with a fake game that records what it's sent. */
+function harness(
+  opts: { reducedMotion?: boolean; locale?: string; assets?: Record<string, UiAssetUrl> } = {},
+) {
+  const canvas = document.createElement("canvas");
+  canvas.tabIndex = 0;
+  document.body.append(canvas);
+  const layer = createUiLayer(canvas);
+
+  let state = { dialogue: null } as unknown as GameStoreState;
+  const listeners = new Set<() => void>();
+  const setDialogue = (dialogue: DialogueView | null) => {
+    state = { ...state, dialogue };
+    for (const l of [...listeners]) l();
+  };
+
+  const actionListeners = new Set<{
+    fn: (e: UiActionEvent) => void;
+    actions?: readonly string[];
+  }>();
+  const act = (action: string, e: Partial<UiActionEvent> = {}) => {
+    for (const l of [...actionListeners])
+      if (!l.actions || l.actions.includes(action))
+        l.fn({ action, player: 0, kind: "button", device: "keyboard", down: true, ...e });
+  };
+
+  const handlers = new Map<string, Set<(p: unknown) => void>>();
+  let locale = opts.locale ?? "en";
+  const sent: GameCommand[] = [];
+  const send = vi.fn((c: GameCommand) => {
+    sent.push(c);
+    return true;
+  });
+
+  const game = {
+    send,
+    on: (event: string, fn: (p: unknown) => void) => {
+      if (!handlers.has(event)) handlers.set(event, new Set());
+      handlers.get(event)!.add(fn);
+    },
+    off: (event: string, fn: (p: unknown) => void) => handlers.get(event)?.delete(fn),
+    input: {
+      onAction: (fn: (e: UiActionEvent) => void, o?: { actions?: readonly string[] }) => {
+        const entry = { fn, ...(o?.actions && { actions: o.actions }) };
+        actionListeners.add(entry);
+        return () => actionListeners.delete(entry);
+      },
+    },
+  } as unknown as GameInstance;
+
+  const ctx: UiContext = {
+    root: layer.root,
+    canvas,
+    game,
+    slice: () => null,
+    watch(select, fn) {
+      let current = select(state);
+      const l = () => {
+        const next = select(state);
+        if (Object.is(next, current)) return;
+        const prev = current;
+        current = next;
+        fn(next, prev);
+      };
+      listeners.add(l);
+      fn(current, undefined);
+      return () => listeners.delete(l);
+    },
+    settings: {},
+    reducedMotion: opts.reducedMotion ?? false,
+    assetUrl: (id, frame) => opts.assets?.[frame === undefined ? id : `${id}:${frame}`] ?? null,
+    strings: () => table(locale),
+  };
+
+  const setLocale = (to: string) => {
+    const from = locale;
+    locale = to;
+    for (const fn of handlers.get("locale:change") ?? []) fn({ from, to });
+  };
+
+  const emit = (event: string, payload: unknown) => {
+    for (const fn of handlers.get(event) ?? []) fn(payload);
+  };
+
+  return { ctx, layer, setDialogue, act, send, sent, setLocale, emit };
+}
+
+const box = () => document.querySelector<HTMLElement>("[data-jams-dialogue]")!;
+const buttons = () => [
+  ...document.querySelectorAll<HTMLButtonElement>("[data-jams-dialogue-choices] button"),
+];
+const live = () => document.querySelector<HTMLElement>("[aria-live]")!;
+const lineEl = () => document.querySelector<HTMLElement>("[data-jams-dialogue-line]")!;
+/** The typed line's characters still hidden. */
+const hiddenText = () =>
+  [...lineEl().querySelectorAll<HTMLElement>("span")]
+    .filter((s) => s.style.visibility === "hidden")
+    .map((s) => s.textContent)
+    .join("");
+
+/** The pointer-events a click meets at `el`: its own value, else the nearest ancestor's. */
+function pointerEventsAt(el: Element): string {
+  for (let at: Element | null = el; at; at = at.parentElement) {
+    const own = getComputedStyle(at).pointerEvents;
+    if (own !== "" && own !== "inherit") return own;
+  }
+  return "auto";
+}
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
+describe("createDialogueBox", () => {
+  it("renders the line in a live region and the choices as buttons", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    expect(box().hidden).toBe(true);
+
+    h.setDialogue(view({ choices: CHOICES }));
+    expect(box().hidden).toBe(false);
+    expect(box().getAttribute("role")).toBe("dialog");
+    expect(box().getAttribute("aria-label")).toBe("Guide");
+    expect(live().getAttribute("aria-live")).toBe("polite");
+    expect(live().textContent).toBe("Guide: Hello, Ada!");
+    expect(lineEl().textContent).toBe("Hello, Ada!");
+    expect(document.querySelector("[data-jams-dialogue-speaker]")!.textContent).toBe("Guide");
+
+    const bs = buttons();
+    expect(bs.map((b) => b.textContent)).toEqual(["Stay a while", "Leave", "Locked", "Wave"]);
+    expect(bs.every((b) => b.tagName === "BUTTON" && b.type === "button")).toBe(true);
+    expect(bs.map((b) => b.disabled)).toEqual([false, false, true, false]);
+    // `say` is literal markup: the bold span renders, not the tags.
+    expect(bs[3]!.querySelector("span")!.style.fontWeight).toBe("bold");
+    ui.destroy();
+    expect(box()).toBeNull();
+  });
+
+  it("shows `say` lines literally and a missing key bracketed", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view({ current: { say: "[i]psst[/i]" } }));
+    expect(lineEl().textContent).toBe("psst");
+    expect(lineEl().querySelector("span")!.style.fontStyle).toBe("italic");
+    expect(document.querySelector<HTMLElement>("[data-jams-dialogue-speaker]")!.hidden).toBe(true);
+    h.setDialogue(view({ line: 1, current: { text: "nope" } }));
+    expect(lineEl().textContent).toBe("[nope]");
+    ui.destroy();
+  });
+
+  it("moves focus with up and down past disabled choices, and confirm sends @dialogue-choose", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view({ choices: CHOICES }));
+    h.ctx.canvas.focus();
+    const bs = buttons();
+    expect(bs[0]!.hasAttribute("data-selected")).toBe(true);
+
+    h.act("down");
+    expect(document.activeElement).toBe(bs[1]);
+    h.act("down");
+    expect(document.activeElement).toBe(bs[3]);
+    h.act("down");
+    expect(document.activeElement).toBe(bs[0]);
+    h.act("up");
+    expect(document.activeElement).toBe(bs[3]);
+    h.act("up");
+    expect(document.activeElement).toBe(bs[1]);
+    expect(bs[1]!.hasAttribute("data-selected")).toBe(true);
+    expect(h.send).not.toHaveBeenCalled();
+
+    h.act("confirm");
+    expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 1 }, player: 0 }]);
+    // One command per view: a repeat press, or the button's own Enter, sends nothing more.
+    h.act("confirm");
+    bs[1]!.click();
+    expect(h.send).toHaveBeenCalledTimes(1);
+
+    // The next line drops the choices and gives focus back.
+    h.setDialogue(view({ node: "stay", line: 0, log: [...view().log, view().log[0]!] }));
+    expect(buttons()).toHaveLength(0);
+    expect(document.activeElement).toBe(h.ctx.canvas);
+    ui.destroy();
+  });
+
+  it("chooses on a click, by the choice's own index, and the arrows move focus once it's inside", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view({ choices: CHOICES }));
+    const bs = buttons();
+    bs[0]!.focus();
+    bs[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement).toBe(bs[1]);
+    bs[3]!.click();
+    expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 4 } }]);
+    // A disabled choice can't be clicked into a command.
+    h.setDialogue(view({ choices: CHOICES, line: 1 }));
+    buttons()[2]!.click();
+    expect(h.send).toHaveBeenCalledTimes(1);
+    ui.destroy();
+  });
+
+  it("types the line out and completes it on the first advance, before advancing", async () => {
+    const h = harness();
+    const ui = createDialogueBox(h.ctx);
+    const long = "x".repeat(400);
+    h.setDialogue(view({ current: { say: long }, choices: CHOICES }));
+    expect(hiddenText()).toBe(long);
+    expect(buttons()).toHaveLength(0);
+    // The live region holds the whole line from the start, so a reader hears it once.
+    expect(live().textContent).toBe(long);
+
+    await vi.waitFor(() => expect(hiddenText().length).toBeLessThan(long.length), {
+      timeout: 5000,
+    });
+    expect(hiddenText().length).toBeGreaterThan(0);
+    expect(lineEl().textContent).toBe(long);
+
+    h.act("confirm");
+    expect(hiddenText()).toBe("");
+    expect(buttons()).toHaveLength(4);
+    expect(h.send).not.toHaveBeenCalled();
+    ui.destroy();
+  });
+
+  it("sends @dialogue-advance on the advance after a whole line, and on a click of the box", () => {
+    const h = harness();
+    const ui = createDialogueBox(h.ctx, { speed: 40 });
+    h.setDialogue(view());
+    expect(hiddenText()).not.toBe("");
+    box().click();
+    expect(hiddenText()).toBe("");
+    expect(h.send).not.toHaveBeenCalled();
+    h.act("confirm");
+    expect(h.sent).toEqual([{ name: DIALOGUE_ADVANCE_COMMAND, player: 0 }]);
+    h.setDialogue(view({ line: 1, log: [...view().log, view().log[0]!] }));
+    h.act("confirm");
+    expect(h.send).toHaveBeenCalledTimes(1);
+    box().click();
+    box().click();
+    expect(h.sent.map((c) => c.name)).toEqual([DIALOGUE_ADVANCE_COMMAND, DIALOGUE_ADVANCE_COMMAND]);
+    ui.destroy();
+  });
+
+  it("shows lines whole under reduced motion and at speed Infinity", () => {
+    for (const setup of [{ reducedMotion: true }, { speed: Infinity }]) {
+      const h = harness({ reducedMotion: "reducedMotion" in setup });
+      const ui = createDialogueBox(h.ctx, "speed" in setup ? { speed: setup.speed } : {});
+      h.setDialogue(view({ choices: CHOICES }));
+      expect(hiddenText()).toBe("");
+      expect(buttons()).toHaveLength(4);
+      ui.destroy();
+      document.body.replaceChildren();
+    }
+  });
+
+  it("uses custom action names", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx, { actions: { advance: "talk", up: "prev", down: "next" } });
+    h.setDialogue(view({ choices: CHOICES }));
+    h.act("confirm");
+    h.act("down");
+    expect(h.send).not.toHaveBeenCalled();
+    h.act("next");
+    h.act("talk");
+    expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 1 }, player: 0 }]);
+    ui.destroy();
+  });
+
+  it("sets dir and lang from the locale, rtl for ar, and follows a locale change", () => {
+    const h = harness({ reducedMotion: true, locale: "ar" });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view({ choices: CHOICES }));
+    expect(box().dir).toBe("rtl");
+    expect(box().lang).toBe("ar");
+    expect(lineEl().textContent).toBe("مرحبا Ada");
+    expect(buttons()[0]!.textContent).toBe("ابق قليلا");
+
+    h.setLocale("en");
+    expect(box().dir).toBe("ltr");
+    expect(lineEl().textContent).toBe("Hello, Ada!");
+    expect(buttons()[0]!.textContent).toBe("Stay a while");
+    ui.destroy();
+  });
+
+  it("draws the portrait as a CSS background of the frame's rect", () => {
+    const h = harness({
+      reducedMotion: true,
+      assets: { "faces:guide": { url: "blob:faces", rect: { x: 64, y: 32, w: 48, h: 40 } } },
+    });
+    const ui = createDialogueBox(h.ctx);
+    const portrait = () => document.querySelector<HTMLElement>("[data-jams-dialogue-portrait]")!;
+    h.setDialogue(view({ current: { say: "hi", portrait: { asset: "faces", frame: "guide" } } }));
+    expect(portrait().hidden).toBe(false);
+    expect(portrait().style.backgroundImage).toContain("blob:faces");
+    expect(portrait().style.backgroundPosition).toBe("-64px -32px");
+    expect(portrait().style.width).toBe("48px");
+    expect(portrait().style.height).toBe("40px");
+    // An asset the host doesn't hold shows no portrait.
+    h.setDialogue(view({ line: 1, current: { say: "hi", portrait: { asset: "gone" } } }));
+    expect(portrait().hidden).toBe(true);
+    ui.destroy();
+  });
+
+  it("hides when the conversation ends or stops", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view());
+    expect(box().hidden).toBe(false);
+    h.setDialogue(view({ ended: "bye" }));
+    expect(box().hidden).toBe(true);
+    h.act("confirm");
+    h.setDialogue(null);
+    expect(box().hidden).toBe(true);
+    expect(h.send).not.toHaveBeenCalled();
+    ui.destroy();
+  });
+
+  it("only ever sends the two dialogue commands", () => {
+    const h = harness();
+    const ui = createDialogueBox(h.ctx);
+    const log: DialogueLogEntry[] = [];
+    for (let line = 0; line < 6; line++) {
+      log.push({ node: "start", line, say: `line ${line}` });
+      h.setDialogue(
+        view({
+          line,
+          current: { say: `line ${line}` },
+          log: [...log],
+          choices: line === 5 ? CHOICES : null,
+        }),
+      );
+      for (const action of ["confirm", "up", "down", "confirm", "confirm"]) h.act(action);
+      box().click();
+      buttons()[0]?.click();
+    }
+    expect(h.send.mock.calls.length).toBeGreaterThan(0);
+    for (const [command] of h.send.mock.calls)
+      expect([DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND]).toContain(command.name);
+    ui.destroy();
+  });
+
+  it("takes pointer events in the pointer-events:none UI layer", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view({ choices: CHOICES }));
+    expect(pointerEventsAt(h.layer.root)).toBe("none");
+    expect(pointerEventsAt(box())).toBe("auto");
+    for (const b of buttons()) expect(pointerEventsAt(b)).toBe("auto");
+    ui.destroy();
+  });
+});
+
+describe("captions with the dialogue box", () => {
+  it("sit above the shown box and fill a voiced line's values", () => {
+    const h = harness({ reducedMotion: true });
+    Object.assign(h.ctx.game, { captions: { enabled: () => true, set() {} } });
+    const ui = createDialogueBox(h.ctx);
+    const captions = createCaptions(h.ctx);
+    const region = document.querySelector<HTMLElement>("[data-jams-captions]")!;
+    expect(region.style.bottom).toContain(`var(${DIALOGUE_INSET}, 0px)`);
+    expect(h.layer.root.style.getPropertyValue(DIALOGUE_INSET)).toBe("");
+
+    h.setDialogue(view());
+    expect(h.layer.root.style.getPropertyValue(DIALOGUE_INSET)).toMatch(/^\d+px$/);
+    h.emit("audio:caption", { key: "guide.hello", at: 0 });
+    expect(region.textContent).toBe("Hello, Ada!");
+
+    h.setDialogue(null);
+    expect(h.layer.root.style.getPropertyValue(DIALOGUE_INSET)).toBe("");
+    captions.destroy();
+    ui.destroy();
+  });
+});
+
+describe("createTextLog", () => {
+  const entries: DialogueLogEntry[] = [
+    { node: "start", line: 0, speaker: "guide.name", text: "guide.hello", vars: { who: "Ada" } },
+    { node: "start", line: 1, say: "[b]Second[/b]" },
+    { node: "next", line: 0, say: "Third" },
+  ];
+  const items = () => [...document.querySelectorAll<HTMLElement>("[data-jams-text-log] li")];
+  const logRoot = () => document.querySelector<HTMLElement>("[data-jams-text-log]")!;
+
+  it("lists the lines shown so far, with speakers, and keeps up as lines arrive", () => {
+    const h = harness();
+    const ui = createTextLog(h.ctx);
+    expect(logRoot().hidden).toBe(true);
+    h.setDialogue(view({ log: entries.slice(0, 2) }));
+    expect(items().map((li) => li.textContent)).toEqual(["GuideHello, Ada!", "Second"]);
+    expect(items()[1]!.querySelector<HTMLElement>("span span")!.style.fontWeight).toBe("bold");
+    h.setDialogue(view({ log: entries }));
+    expect(items()).toHaveLength(3);
+    expect(pointerEventsAt(logRoot())).toBe("auto");
+    h.setDialogue(null);
+    expect(items()).toHaveLength(0);
+    ui.destroy();
+    expect(logRoot()).toBeNull();
+  });
+
+  it("keeps the last `max` lines, follows the locale and shows on its toggle action", () => {
+    const h = harness({ locale: "ar" });
+    const ui = createTextLog(h.ctx, { max: 2, toggle: "log" });
+    h.setDialogue(view({ log: entries }));
+    expect(logRoot().hidden).toBe(true);
+    h.act("log");
+    expect(logRoot().hidden).toBe(false);
+    expect(logRoot().dir).toBe("rtl");
+    expect(items().map((li) => li.textContent)).toEqual(["Second", "Third"]);
+    h.act("log", { repeat: true });
+    expect(logRoot().hidden).toBe(false);
+    h.act("log");
+    expect(logRoot().hidden).toBe(true);
+    expect(h.send).not.toHaveBeenCalled();
+    ui.destroy();
+  });
+});
+
+describe("renderRichText", () => {
+  it("renders bold, italic, colour, size and icons as spans", () => {
+    const el = document.createElement("p");
+    const { lines } = parseRichText(
+      "[b]bold[/b] [i]it[/i] [color=#ff8800]hot[/color] [size=24]big[/size] [icon=ui:coin] [wave]w[/wave]\nnext",
+    );
+    renderRichText(el, lines, {
+      assetUrl: (id, frame) =>
+        id === "ui" && frame === "coin"
+          ? { url: "blob:ui", rect: { x: 16, y: 0, w: 12, h: 12 } }
+          : null,
+    });
+    const spans = [...el.children].filter((c) => c.tagName === "SPAN") as HTMLElement[];
+    const by = (text: string) => spans.find((s) => s.textContent === text)!;
+    expect(by("bold").style.fontWeight).toBe("bold");
+    expect(by("it").style.fontStyle).toBe("italic");
+    expect(by("hot").style.color).toBe("rgb(255, 136, 0)");
+    expect(by("big").style.fontSize).toBe("24px");
+    expect(by("w").dataset.jamsEffect).toBe("wave");
+    const icon = el.querySelector<HTMLElement>("[data-jams-icon]")!;
+    expect(icon.dataset.jamsIcon).toBe("ui:coin");
+    expect(icon.style.backgroundImage).toContain("blob:ui");
+    expect(icon.style.backgroundPosition).toBe("-16px 0px");
+    expect(icon.getAttribute("aria-hidden")).toBe("true");
+    expect(el.querySelectorAll("br")).toHaveLength(1);
+    expect(el.textContent).toBe("bold it hot big  wnext");
+  });
+
+  it("replaces what was there", () => {
+    const el = document.createElement("p");
+    el.textContent = "old";
+    renderRichText(el, parseRichText("new").lines, { assetUrl: () => null });
+    expect(el.textContent).toBe("new");
+  });
+});

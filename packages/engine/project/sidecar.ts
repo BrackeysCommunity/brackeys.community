@@ -4,6 +4,10 @@ import { ID_PATTERN } from "../game/fields";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import type { SceneIssue } from "../scene/types";
+import { stableJson } from "./canonical";
+import { inspectEntry } from "./inspect/entry";
+import type { FontDecompress } from "./inspect/font";
+import type { BlobKindDef } from "./kinds/define";
 import {
   formatJsonDocument,
   orderKeys,
@@ -11,7 +15,15 @@ import {
   sortKeysDeep,
   zodSceneIssues,
 } from "./project-file";
-import type { AssetId, AssetKey, AssetKindName, AssetPath, Licence, Sha256 } from "./types";
+import type {
+  AssetEntry,
+  AssetId,
+  AssetKey,
+  AssetKindName,
+  AssetPath,
+  Licence,
+  Sha256,
+} from "./types";
 
 /** The sidecar format version, the `v` every `<file>.asset.json` carries. */
 export const SIDECAR_VERSION = 1;
@@ -39,6 +51,8 @@ export type AssetSidecar = {
   bytes?: number;
   import?: Record<string, unknown>;
   meta?: Record<string, unknown>;
+  /** The kind's `metaVersion` that `meta` was inspected under; absent means 1. */
+  metaVersion?: number;
   licence?: Licence;
 };
 
@@ -98,6 +112,14 @@ export const sidecarSchema = z
       .record(z.string(), z.unknown())
       .optional()
       .describe("What the kind's inspector read from the file; never hand-edited."),
+    metaVersion: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        "The version of the kind's inspector `meta` was read under; omitted for 1. An older one than the kind's is inspected again.",
+      ),
     licence: licenceSchema.optional(),
   })
   .refine((s) => (s.sha256 === undefined) === (s.bytes === undefined), {
@@ -146,6 +168,7 @@ const SIDECAR_KEYS = [
   "bytes",
   "import",
   "meta",
+  "metaVersion",
   "licence",
 ];
 const LICENCE_KEYS = ["spdx", "author", "source", "attribution"];
@@ -165,7 +188,77 @@ export function formatSidecar(
     delete value.assetKind;
   if (sidecar.import) value.import = sortKeysDeep(sidecar.import);
   if (sidecar.meta) value.meta = sortKeysDeep(sidecar.meta);
+  if (sidecar.metaVersion === 1) delete value.metaVersion;
   if (sidecar.licence)
     value.licence = orderKeys(sidecar.licence as Record<string, unknown>, LICENCE_KEYS);
   return formatJsonDocument(value);
+}
+
+// ─── Meta versions ───────────────────────────────────────
+
+/** The meta version a blob kind's inspector writes: its `metaVersion`, else 1. */
+export const kindMetaVersion = (def: Pick<BlobKindDef, "metaVersion">): number =>
+  def.metaVersion ?? 1;
+
+/** The meta version a sidecar records for its meta; 1 when it records none. */
+export const sidecarMetaVersion = (sidecar: Pick<AssetSidecar, "metaVersion">): number =>
+  sidecar.metaVersion ?? 1;
+
+/** Whether a sidecar's meta was inspected under an older version of its kind's inspector, so it is inspected again. */
+export const isMetaStale = (
+  sidecar: Pick<AssetSidecar, "metaVersion">,
+  def: Pick<BlobKindDef, "metaVersion">,
+): boolean => sidecarMetaVersion(sidecar) < kindMetaVersion(def);
+
+export type Reinspection =
+  | {
+      ok: true;
+      meta: Record<string, unknown>;
+      /** The entry's settings with the ones the inspection fills; absent when there are none. */
+      import?: Record<string, unknown>;
+      /** The version `meta` is inspected under. */
+      metaVersion: number;
+      /** Whether `meta` or `import` differs from the entry's. */
+      changed: boolean;
+    }
+  | { ok: false; issue: SceneIssue };
+
+/**
+ * A binary's meta inspected again from its bytes under its kind's current
+ * inspector: what the dev watcher, the project's writer on store and
+ * `assets reimport` all run. `changed` compares with the entry's meta and
+ * settings, so a caller writes only what moved.
+ */
+export function reinspectBlob(
+  def: BlobKindDef,
+  entry: Pick<AssetEntry, "path" | "import" | "meta">,
+  bytes: Uint8Array,
+  idAt: (path: AssetPath) => AssetId | undefined,
+  decompress?: FontDecompress,
+): Reinspection {
+  const result = inspectEntry(def, entry, bytes, idAt, decompress);
+  if (!result.ok) return result;
+  const meta = result.meta as Record<string, unknown>;
+  const settings = result.import;
+  const changed =
+    stableJson(entry.meta ?? null) !== stableJson(meta) ||
+    stableJson(entry.import ?? {}) !== stableJson(settings ?? {});
+  return {
+    ok: true,
+    meta,
+    ...(settings ? { import: settings } : {}),
+    metaVersion: kindMetaVersion(def),
+    changed,
+  };
+}
+
+/** `sidecar` with a re-inspection's meta and the version it was read under; nothing else changes. */
+export function withReinspectedMeta(
+  sidecar: AssetSidecar,
+  result: Extract<Reinspection, { ok: true }>,
+): AssetSidecar {
+  const { metaVersion: _was, ...rest } = sidecar;
+  const next: AssetSidecar = { ...rest, meta: result.meta };
+  if (result.metaVersion > 1) next.metaVersion = result.metaVersion;
+  return next;
 }

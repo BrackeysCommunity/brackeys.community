@@ -45,7 +45,7 @@ export function EditorLoading({ roomId }: { roomId: string }) {
   if (!EditorSkeleton) return shell;
   return (
     <Suspense fallback={shell}>
-      <EditorSkeleton topLeft={<GameSiteIsland title={roomId} />} />
+      <EditorSkeleton topLeft={<GameSiteIsland compact />} />
     </Suspense>
   );
 }

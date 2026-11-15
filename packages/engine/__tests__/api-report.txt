@@ -6,25 +6,42 @@ ActionBindings
 AssetLoader
 AssetReloadError
 AssetUrl
+AudioBackend
+AudioClipHandle
+AudioClock
+AudioSystem
 BindingLayerName
 BindingLayers
 BlendMode
 BoundInput
 BurstOptions
+BusLevel
+BusName
+CLICK_PATCH
+CalibrateLatencyOptions
 CameraMode
 CameraState
+CaptionsOptions
 DEFAULT_INDEXED_DB_NAME
 DEFAULT_LOCAL_STORAGE_PREFIX
 DEFAULT_RESOLUTION
+DEFAULT_TEXT_FACE
 DeviceTables
+DialogueBoxOptions
+DialogueView
 Dihedral
 ENGINE_VERSION
 EffectLayer
+EmitterFollow
 ExpandedScene
+FakeAudioCall
 FlashOptions
 FlowRequest
 FlowResult
+FontSource
 FrameRect
+GameAudio
+GameCaptions
 GameCommand
 GameConfig
 GameDefinition
@@ -33,6 +50,7 @@ GameFlow
 GameInput
 GameInstance
 GameLive
+GameLocale
 GameMode
 GamePhase
 GameStoreState
@@ -41,6 +59,7 @@ InputAction
 InputBinding
 LIVE_CHECK_AGAIN_TICKS
 LIVE_DEFAULTS
+LatencyCalibration
 LiveContext
 LiveDeclaration
 LiveSceneVersions
@@ -61,6 +80,7 @@ PlayOutcome
 PlayReport
 PlaySession
 PointerKind
+PrefsStore
 RapierModule
 Registry
 RemapState
@@ -70,10 +90,15 @@ RendererConfig
 ResolutionPolicy
 ResolutionViewport
 ResolvedBindings
+RichLine
+RichSpan
+RichTextOptions
 RunRecording
 RuntimeEntity
 SPRITE
 SPRITE_FALLBACK_SIZE
+SYNTH_PRESETS
+SYNTH_SAMPLE_RATE
 SaveDepth
 SaveLimits
 SaveMeta
@@ -94,10 +119,18 @@ SpriteVisual
 StagedVersion
 StepEvent
 StepResult
+StringTable
+StringTableData
 SwapSide
 SwapStrategy
 SwapTiming
+SynthPreset
 TOOL_PRIORITY
+TextContent
+TextDirection
+TextFont
+TextLogOptions
+TextVisual
 TextureSource
 ToolConsumer
 ToolEvent
@@ -109,49 +142,65 @@ Transform2D
 TransitionRunner
 TransitionSpec
 UiActionEvent
+UiAssetUrl
 UiContext
 UiHandle
 Vec2
+ViewEmitter
 ViewportDef
 ViewportRect
+Voice
+VoiceOptions
 acceptedTimings
 acceptedTimingsWords
 applyPt
 applyVec
 bindText
 bindToWorld
+browserPrefsStore
 browserRemapStore
 browserSaveStore
 clampTiming
 compose
 composeDihedral
 createAssetLoader
+createCaptions
+createDialogueBox
 createEffectLayer
 createGame
 createLoadingOverlay
 createParticleLayer
 createPixiView
+createRichText
+createTextLog
 createTouchControls
 createUiLayer
 diffWords
 dihedral
 dihedralOf
 drawSprite
+drawText
 fadeTransition
 flipWorld
 indexedDbSaveStore
 invert
 liveSceneSource
 localStorageSaveStore
+memoryPrefsStore
 memoryRemapStore
 memorySaveStore
 mountUi
+mutateSynth
 pixiContainer
+randomSynth
+renderRichText
+renderSynth
 resolveBindings
 resolvePlayers
 resolveResolution
 selectCamera
 selectDebugMode
+selectDialogue
 selectFPS
 selectGame
 selectMode
@@ -159,15 +208,19 @@ selectPhase
 selectSession
 selectSim
 selectTick
+snapshotPrefsStore
 snapshotRemapStore
 spriteGeometry
 swapStrategyFor
+synthDurationMs
+synthWav
 timingWords
 utf8Bytes
 versionName
 viewportFor
 viewportRect
 watchView
+webAudioBackend
 
 ## @jams/engine/collab
 ASSETS_KEY
@@ -871,6 +924,7 @@ ACTION_KINDS
 ANIM
 ANIM_END
 ANIM_FRAME
+AUDIO
 ActionDef
 ActionKind
 AnimBlock
@@ -882,6 +936,8 @@ AssetIdSchema
 AssetKindDef
 Attachment
 AttachmentHub
+AudioBlock
+AudioHandle
 AudioRequest
 BASE_FIELDS
 BEHAVIOR_NAME_PATTERN
@@ -956,6 +1012,7 @@ DEFAULT_ACTIONS
 DEFAULT_GRAVITY
 DEFAULT_LAYERS
 DEFAULT_LENGTH_UNIT
+DEFAULT_LOCALE
 DEFAULT_PHYSICS
 DEFAULT_ROTATE_STEP
 DEFAULT_SAVE_LIMITS
@@ -963,11 +1020,26 @@ DEFAULT_SPAWN_CAST
 DEFAULT_SWAP_TIMING
 DEFAULT_TICK_RATE
 DEFAULT_TIME
+DIALOGUE_ADVANCE_COMMAND
+DIALOGUE_CHOICES
+DIALOGUE_CHOOSE_COMMAND
+DIALOGUE_END
+DIALOGUE_LINE
+DIALOGUE_LOG_MAX
 DRAW_LAYERS
 DataSystem
 DecorEntity
 Delay
 DeviceId
+DialogueChoicesEvent
+DialogueContext
+DialogueEndEvent
+DialogueLineEvent
+DialogueLogEntry
+DialogueRunner
+DialogueVars
+DialogueView
+DialogueViewChoice
 DrawLayer
 EASE_NAMES
 EMITTER
@@ -986,9 +1058,11 @@ EaseName
 EditorToolDef
 EffectRequest
 EmitterBlock
+EmitterFollow
 EmitterHandle
 EngineCheckKind
 EngineCollisionGroup
+EngineCommandName
 EngineContext
 EngineError
 EngineRunResult
@@ -1009,12 +1083,14 @@ FlowRequest
 FlowUse
 FollowerOptions
 FollowerSystem
+FontAssetInfo
 ForceAreaBlock
 ForceAreaHandle
 ForceAreaSystem
 FrameRect
 GRID_STEP_SAVE_OWNER
 GameAttachment
+GameAudioDef
 GameCommand
 GameDefinition
 GameEditorDef
@@ -1055,6 +1131,7 @@ JsonValue
 KEY_CODES
 KEY_TO_CODE
 KinematicMotion
+LATENCY_COMMAND
 LIFETIME
 LIVE_CHECK_AGAIN_TICKS
 LIVE_DEFAULTS
@@ -1153,6 +1230,8 @@ Registry
 RegistryError
 ResolvedClip
 ResolvedTime
+RichLine
+RichSpan
 RunResult
 RuntimeGrid
 RuntimeNav
@@ -1225,6 +1304,8 @@ SpriteGeometry
 SpriteHandle
 StepEvent
 StepResult
+StringTable
+StringTableData
 Style
 SublevelInfo
 SublevelOptions
@@ -1233,10 +1314,18 @@ SwapSide
 SwapStrategy
 SwapTiming
 SystemFactory
+TEXT
+TEXT_COLOR_DEFAULT
+TEXT_SIZE_DEFAULT
 TOOL_PRIORITY
 TOP_DOWN_CONTROLLER
 TWEEN
 TWEEN_END
+TextBlock
+TextDirection
+TextHandle
+TextShown
+TextVars
 TimeKind
 TimeModel
 TimerAction
@@ -1254,6 +1343,7 @@ TweenSpec
 TweenSystem
 Tweens
 UnsaveableTween
+ViewEmitter
 ViewLayer
 ViewLayerHandle
 VisualOptions
@@ -1272,6 +1362,7 @@ bindingProblems
 bodyLocalShape
 bodyShapeField
 boundsCells
+bracketKey
 buildNavMesh
 capitalise
 carrierDelta
@@ -1287,6 +1378,7 @@ clipFrameAt
 composePose
 createDataSystem
 createDecorSystem
+createDialogueRunner
 createFollowerSystem
 createGridStepper
 createMarkerSystem
@@ -1314,6 +1406,7 @@ drawEntity
 drawShape
 ease
 effectiveSaveLimits
+emptyStringTable
 fieldOfView
 findPath
 flowField
@@ -1331,6 +1424,7 @@ inCellBounds
 initialWaypointState
 inputFor
 interpolatePosition
+isDialogueCommand
 isNavSystem
 isPolygonField
 isRuntimeId
@@ -1342,7 +1436,10 @@ lengthUnitOf
 lerp
 lerpVec2
 lineOfSight
+localeDirection
 materialField
+measureText
+memoryVars
 mirrorField
 moveBodyNow
 navContains
@@ -1350,13 +1447,16 @@ navNearest
 navPath
 oneWayPasses
 overlapFrameShapes
+parseRichText
 parseRuntimeId
 parseSaveFile
 parseShape
 parseSublevelId
 pathPosition
 pathWaypoints
+persistVars
 physicsOf
+plainText
 playersProblems
 pointField
 pointerBit
@@ -1374,6 +1474,7 @@ releasePromoteMessage
 releaseReplacesMessage
 releaseRollbackMessage
 resolveClips
+resolveLocale
 resolveTime
 restoreOverlaps
 rotate
@@ -1394,10 +1495,13 @@ shapePose
 sideField
 spawnPose
 spriteGeometry
+stringTable
+stringTableData
 styleOf
 sublevelId
 swapTimingSchema
 tagsField
+textFontOf
 tickRateProblem
 ticksFor
 traceShape
@@ -1413,6 +1517,7 @@ ANIM_FRAME
 AnalogValues
 AssetInfo
 AssetReloadError
+AudioBackend
 CONTACT_END
 CONTACT_START
 CameraRegion
@@ -1427,12 +1532,22 @@ CompiledScript
 CompiledScriptStep
 CompiledStep
 CompiledTrack
+DIALOGUE_CHOICES
+DIALOGUE_END
+DIALOGUE_LINE
 DecodeOptions
+DialogueEnding
+DialogueExploration
+DialogueMatch
 ENTITY_DESTROYED
 ENTITY_DISABLED
 ENTITY_ENABLED
 ENTITY_SPAWNED
 EventMatch
+FakeAudioBackend
+FakeAudioCall
+FakeAudioLogEntry
+FakeAudioOptions
 FilesLoadInput
 FuzzLegal
 FuzzMacroInputs
@@ -1476,6 +1591,7 @@ PlaytestSegmentEnd
 PlaytestStart
 PlaytestStep
 PointerBindings
+PrefsStore
 PreparedPlay
 PresentRequest
 PresentedRequest
@@ -1510,6 +1626,8 @@ SENSOR_ENTER
 SENSOR_EXIT
 STUCK_METRES
 STUCK_TICKS
+SYNTH_PRESETS
+SYNTH_SAMPLE_RATE
 SaveBlocker
 SaveStart
 SceneRuntime
@@ -1529,6 +1647,7 @@ SwapCheckOptions
 SwapCheckReport
 SwapCheckRun
 SwapReport
+SynthPreset
 SystemEvent
 TickInput
 TimingBucket
@@ -1551,14 +1670,19 @@ createRunTiming
 decodeStreams
 defaultFuzzMacro
 defaultSeed
+dialogueCommands
+exploreDialogue
+fakeAudioBackend
 fileSchemaIssue
 fuzz
 gamePersistCell
 heldEdges
 loadHeadless
+memoryPrefsStore
 memoryRuntimeView
 memorySaveStore
 mergeTick
+mutateSynth
 parseRecording
 physicalEnv
 plainJsonProblem
@@ -1568,8 +1692,10 @@ pointerAt
 pointerHeld
 preparePlay
 probeConfigHash
+randomSynth
 recordedSwap
 recordingDivergence
+renderSynth
 replayRecording
 restoreSave
 runBlocked
@@ -1580,6 +1706,8 @@ runProbe
 scriptSource
 simActionError
 swapCheck
+synthDurationMs
+synthWav
 tickWakes
 unknownActionError
 untilHolds
@@ -1617,8 +1745,11 @@ AtlasTag
 AtlasTool
 AudioMeta
 AudioSettings
+BUS_NAME_PATTERN
 BlobInspect
 BlobKindDef
+Bmfont
+BmfontDistanceField
 BuildSceneVersionOptions
 BuildSceneVersionResult
 BuildStamp
@@ -1631,15 +1762,28 @@ ClipDef
 ClipLoop
 CodeKindDef
 CodeModuleInfo
+CodePointRanges
 ContentStore
 ContentStoreError
 DATA_TABLE_KIND
 DATA_TABLE_SCHEMA_ID
 DATA_TABLE_VERSION
+DIALOGUE_KIND
+DIALOGUE_SCHEMA_ID
+DIALOGUE_VERSION
 DOC_NAME_KINDS
 DOC_NAME_MAX_LENGTH
 DataTableFile
 DataTableRow
+DialogueChoice
+DialogueCondition
+DialogueEffect
+DialogueExit
+DialogueFile
+DialogueLine
+DialogueNode
+DialoguePortrait
+DialogueSpeaker
 DocKindDef
 DocLayout
 DocLookup
@@ -1651,12 +1795,14 @@ EMITTER_MAX_DEFAULT
 EMITTER_SCHEMA_ID
 EMITTER_VERSION
 ENGINE_ASSET_KINDS
+ENGINE_BUSES
 EditSceneOp
 EmitterCurve
 EmitterFile
 ExportBudget
 ExportBudgetReport
 FONT_KIND
+FontDecompress
 FontFormat
 FontMeta
 FontSettings
@@ -1685,12 +1831,15 @@ JsonEditResult
 JsonPointer
 KindEnv
 KindRegistry
+LOCALE_PATTERN
 Licence
 LiveCompat
+LocaleSettings
 MATERIAL_KIND
 MATERIAL_SCHEMA_ID
 MATERIAL_VERSION
 MaterialFile
+MergedStringRow
 PREFAB_SCENE_OPS
 PROJECT_FILE
 PROJECT_FILE_DEFAULTS
@@ -1736,6 +1885,7 @@ RecordingSettings
 RefIndex
 RefSite
 Referrer
+Reinspection
 ReleaseAsset
 ReleaseBudgetContent
 ReleaseCredit
@@ -1758,6 +1908,19 @@ SHAPE_SET_NAME
 SIDECAR_SCHEMA_ID
 SIDECAR_SUFFIX
 SIDECAR_VERSION
+SOUND_KIND
+SOUND_MAX_VOICES_DEFAULT
+SOUND_SCHEMA_ID
+SOUND_VERSION
+STRINGS_KIND
+STRINGS_SCHEMA_ID
+STRINGS_VERSION
+STRING_KEY_PATTERN
+SYNTH_BOUNDS
+SYNTH_KIND
+SYNTH_SCHEMA_ID
+SYNTH_VERSION
+SYNTH_WAVES
 SaveFixtureMeta
 SaveFixtureSettings
 SceneListEntry
@@ -1772,6 +1935,14 @@ SceneWrite
 Sha256
 SnapshotAsset
 SnapshotError
+SoundFile
+SoundMatcher
+StringKeyUse
+StringRow
+StringsFile
+SynthFile
+SynthNumberPath
+SynthWave
 TEXTURE_KIND
 TextureFormat
 TextureMeta
@@ -1795,35 +1966,49 @@ atlasKind
 atlasMetaSchema
 atlasSettingsSchema
 atlasTool
+audioBuses
 audioKind
 audioMetaSchema
 audioSettingsSchema
 buildRefIndex
 buildSceneVersion
 byCodeUnit
+byPathThenKey
 canonicalJson
 checkProjectBatch
 checkReleaseManifest
 checkSceneVersion
 checkSnapshot
 checksKind
+cmapCoverage
 codeKind
+codePointRanges
 compareEntries
 createKindRegistry
 dataTableIssues
 dataTableKind
 defineAssetKind
 detectImport
+dialogueDeadEnd
+dialogueExits
+dialogueIssues
+dialogueKind
+dialogueNodes
+dialogueRefs
+dialogueStringIssues
 docKindJsonSchema
+docLookup
 docNameOf
 emitterIssues
 emitterKind
 engineResolution
 findRelease
 findSceneVersion
+fontCoverage
 fontKind
 fontMetaSchema
 fontSettingsSchema
+fontTable
 formatAssetDoc
 formatBytes
 formatProjectFile
@@ -1844,19 +2029,25 @@ inputMapKind
 inputMapProblems
 inputScriptKind
 inspectEntry
+isMetaStale
 isRuntimeKind
 isSha256
 isSkippedAssetPath
 keyedItemPointer
 kindInputMap
+kindMetaVersion
 liveCompat
 liveCompatKey
 liveFiles
+localeFont
 manifestDocRefs
 materialKind
 materialSchema
 mayBeAssetFile
 memoryContentStore
+mergeRanges
+mergedStrings
+missingStringKeys
 orphanSidecarIssue
 ownAssetId
 parseAsepriteJson
@@ -1875,6 +2066,7 @@ projectBundle
 projectFileSchema
 projectGlobs
 projectJsonSchema
+projectLocales
 projectMaterialOf
 projectOpBatchSchema
 projectOpsJsonSchema
@@ -1883,6 +2075,7 @@ projectSnapshotJsonSchema
 projectSnapshotSchema
 projectUsage
 projectView
+reachableNodes
 readGifSize
 readJpegSize
 readPngSize
@@ -1894,6 +2087,7 @@ recordingKind
 recordingMetaSchema
 recordingSettingsSchema
 referencedTrash
+reinspectBlob
 releaseBuildHash
 releaseId
 releaseJsonSchema
@@ -1922,22 +2116,30 @@ sceneVersionSnapshot
 schemaRefSites
 sha256
 sidecarJsonSchema
+sidecarMetaVersion
 sidecarPathOf
 sidecarSchema
 snapshotProject
 snapshotScene
+soundKind
 stableJson
+stringKeyIssues
+stringLocales
+stringsKind
 suffixedId
 suffixedPath
+synthKind
 tableAssets
 textureKind
 textureMetaSchema
 textureSettingsSchema
 unreferencedBlobs
 usableInputMap
+usedStringKeys
 utf8Bytes
 validateAssetDoc
 validateProject
+withReinspectedMeta
 writesPrefabs
 
 ## @jams/engine/scene
@@ -2105,6 +2307,7 @@ SceneRegionOptions
 SceneSettings
 SceneSprite
 SceneSvgOptions
+SceneTextOptions
 SceneVersionError
 SceneViewport
 ScriptPointer
@@ -2220,6 +2423,7 @@ isWholePixel
 jsonPointer
 layerNames
 lengthDecimals
+lineAt
 liveIssue
 localChild
 localChildren
@@ -2433,6 +2637,7 @@ SceneCollab
 SceneCollabOptions
 SceneCollabPlugin
 ScenePathError
+SidecarReinspection
 applyProjectBatchToFiles
 codeModules
 createExportBuild
@@ -2496,6 +2701,170 @@ interface Tweens {
     cancelAll(entityId: string): void;
     readonly size: number;
 }
+
+## audio/clock.ts
+interface AudioClock {
+    timeOfTick(tick: number): null | number;
+    simPositionMs(tick: number): null | number;
+    readonly driftMs: number;
+    readonly latencyMs: number;
+}
+type CalibrateLatencyOptions = {
+    beats?: number;
+    bpm?: number;
+    sound?: AssetId;
+};
+type LatencyCalibration = {
+    ms: number;
+    spread: number;
+};
+
+## audio/fake.ts
+type FakeAudioBackend = AudioBackend & {
+    advance(seconds: number): void;
+    readonly busVolumes: ReadonlyMap<string, number>;
+    readonly log: readonly FakeAudioLogEntry[];
+};
+type FakeAudioLogEntry = FakeAudioCall & {
+    at: number;
+};
+type FakeAudioOptions = {
+    decodedSeconds?: number;
+    state?: "locked" | "running";
+};
+declare function fakeAudioBackend(opts?: FakeAudioOptions): FakeAudioBackend;
+
+## audio/synth-presets.ts
+declare const CLICK_PATCH: SynthFile;
+declare const SYNTH_PRESETS: readonly [
+    "pickup",
+    "jump",
+    "hit",
+    "explosion",
+    "laser",
+    "powerup",
+    "blip"
+];
+type SynthPreset = (typeof SYNTH_PRESETS)[number];
+declare function mutateSynth(patch: SynthFile, rng: Rng, amount?: number): SynthFile;
+declare function randomSynth(preset: SynthPreset, rng: Rng): SynthFile;
+
+## audio/synth.ts
+declare const SYNTH_SAMPLE_RATE = 44100;
+declare function renderSynth(patch: SynthFile): Float32Array;
+declare function synthDurationMs(patch: SynthFile): number;
+declare function synthWav(patch: SynthFile): Uint8Array;
+
+## audio/types.ts
+interface AudioBackend {
+    readonly now: number;
+    readonly state: "closed" | "locked" | "running" | "suspended";
+    readonly latency: number;
+    unlock(): Promise<void>;
+    decode(bytes: ArrayBuffer): Promise<AudioClipHandle>;
+    buffer(channels: readonly Float32Array[], sampleRate: number): AudioClipHandle;
+    stream(url: string): AudioClipHandle;
+    play(clip: AudioClipHandle, opts: VoiceOptions): Voice;
+    setBusVolume(bus: BusName, volume: number, rampMs?: number): void;
+    close(): void;
+}
+interface AudioClipHandle {
+    readonly duration: number;
+    readonly channels: number;
+    readonly streamed: boolean;
+}
+interface AudioSystem {
+    tick(tick: number, events: readonly StepEvent[], requests: readonly AudioRequest[]): void;
+    frame(view: {
+        centre: Vec2;
+        halfWidth: number;
+    }, simMs: number): void;
+    readonly unlocked: boolean;
+    buses(): Readonly<Record<BusName, BusLevel>>;
+    setBus(bus: BusName, volume: number, muted?: boolean): void;
+    readonly clock: AudioClock;
+    stopAll(fadeMs?: number): void;
+    destroy(): void;
+}
+type BusLevel = {
+    muted: boolean;
+    volume: number;
+};
+type BusName = "master" | "music" | "sfx" | "ui" | "voice" | (string & {});
+type FakeAudioCall = {
+    bus: BusName;
+    op: "bus";
+    rampMs?: number;
+    volume: number;
+} | {
+    bytes: number;
+    clip: number;
+    op: "decode";
+} | {
+    channels: number;
+    clip: number;
+    length: number;
+    op: "buffer";
+    sampleRate: number;
+} | {
+    clip: number;
+    op: "play";
+    opts: VoiceOptions;
+    voice: number;
+} | {
+    clip: number;
+    op: "stream";
+    url: string;
+} | {
+    fadeMs?: number;
+    op: "stop";
+    voice: number;
+} | {
+    op: "close";
+} | {
+    op: "pan";
+    pan: number;
+    voice: number;
+} | {
+    op: "seek";
+    seconds: number;
+    voice: number;
+} | {
+    op: "unlock";
+} | {
+    op: "volume";
+    rampMs?: number;
+    voice: number;
+    volume: number;
+};
+type GameAudio = Pick<AudioSystem, "buses" | "clock" | "setBus" | "stopAll" | "unlocked">;
+interface Voice {
+    readonly key: null | string;
+    stop(fadeMs?: number): void;
+    setPan(pan: number): void;
+    setVolume(volume: number, rampMs?: number): void;
+    position(): number;
+    seek(seconds: number): void;
+    readonly ended: boolean;
+}
+type VoiceOptions = {
+    bus: BusName;
+    fadeInMs?: number;
+    key?: string;
+    loop: boolean;
+    loopEnd?: number;
+    loopStart?: number;
+    offset?: number;
+    pan: number;
+    rate: number;
+    volume: number;
+    when?: number;
+};
+
+## audio/web-audio.ts
+declare function webAudioBackend(opts?: {
+    context?: BaseAudioContext;
+}): AudioBackend;
 
 ## camera.ts
 type Viewport = {
@@ -2905,6 +3274,7 @@ declare function applyRepairs(doc: Y.Doc, opts?: {
 }): RepairResult;
 declare function reinspectBlobs(doc: Y.Doc, opts: {
     checked?: Map<AssetKey, string>;
+    decompress?: FontDecompress;
     kinds: KindRegistry;
     now?: number;
     origin?: Extract<DocOrigin, {
@@ -3344,6 +3714,14 @@ declare const DRAW_LAYERS: {
     readonly terrain: 0;
 };
 type DrawLayer = keyof typeof DRAW_LAYERS;
+type EmitterFollow = {
+    entity: string;
+    flip?: boolean;
+    offset?: [
+        x: number,
+        y: number
+    ];
+};
 interface SceneView {
     draw(id: string, shape: ShapeObj, style: Style, layer: ViewLayer): void;
     pose(id: string, x: number, y: number, rot?: number, snap?: boolean): void;
@@ -3360,7 +3738,10 @@ interface SceneView {
             zoom: number;
         };
     }): void;
-    particles?(): ParticleLayer | null;
+    emitter?(id: string, emitter: ViewEmitter): void;
+    removeEmitter?(id: string): void;
+    text?(id: string, visual: TextVisual, layer: ViewLayer): void;
+    locale?(table: StringTableData): void;
 }
 type SpriteVisual = {
     alpha?: number;
@@ -3396,11 +3777,54 @@ type SpriteVisual = {
     tile?: boolean;
     tint?: number;
 };
+type TextContent = {
+    key: string;
+    rich?: boolean;
+    vars?: TextVars;
+} | {
+    lines: readonly RichLine[];
+};
+type TextFont = {
+    family: string;
+    kind: "web";
+} | {
+    hash: Sha256;
+    kind: "bitmap";
+    meta: FontMeta;
+    pages: readonly Sha256[];
+};
+type TextVisual = TextContent & {
+    align: "center" | "left" | "right";
+    anchor: [
+        x: number,
+        y: number
+    ];
+    color: number;
+    direction: TextDirection;
+    fallback: {
+        shape: ShapeObj;
+        style: Style;
+    };
+    font: TextFont | null;
+    outline?: {
+        color: number;
+        width: number;
+    };
+    size: number;
+    wrap?: number;
+};
+type ViewEmitter = {
+    follow: EmitterFollow;
+    layer: ViewLayer;
+    preset: EmitterFile;
+    restart: boolean;
+};
 type ViewLayer = DrawLayer | number;
 type ViewLayerHandle = {
     readonly __viewLayer: true;
 };
 declare function drawSprite(view: SceneView, id: string, visual: SpriteVisual, layer: ViewLayer): void;
+declare function drawText(view: SceneView, id: string, visual: TextVisual, layer: ViewLayer): void;
 
 ## debug/index.ts
 declare const DEBUG_OFF = "off";
@@ -3448,6 +3872,70 @@ declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
 ## debug/timing-readout.ts
 declare const TIMING_ATTRIBUTE = "data-jams-timing";
 declare const TIMING_STORAGE_KEY = "debug-timing";
+
+## dialogue/explore.ts
+type DialogueEnding = {
+    ending: string;
+    nodes: readonly string[];
+    path: readonly number[];
+};
+type DialogueExploration = {
+    endings: readonly DialogueEnding[];
+    truncated: boolean;
+};
+declare function exploreDialogue(file: DialogueFile, opts?: {
+    maxDepth?: number;
+    vars?: JsonValue;
+}): DialogueExploration;
+
+## dialogue/runner.ts
+declare const DIALOGUE_LOG_MAX = 200;
+type DialogueLogEntry = {
+    line: number;
+    node: string;
+    say?: string;
+    speaker?: string;
+    text?: string;
+    vars?: Readonly<Record<string, string>>;
+};
+interface DialogueRunner {
+    view(): DialogueView;
+    advance(): boolean;
+    choose(index: number): boolean;
+    save(): JsonValue;
+    restore(state: JsonValue): void;
+}
+type DialogueView = {
+    choices: null | readonly DialogueViewChoice[];
+    current: DialogueLine & {
+        speakerName?: string;
+    };
+    dialogue: AssetId;
+    ended: null | string;
+    line: number;
+    log: readonly DialogueLogEntry[];
+    node: string;
+};
+type DialogueViewChoice = {
+    enabled: boolean;
+    index: number;
+    say?: string;
+    text?: string;
+};
+declare function createDialogueRunner(file: DialogueFile, id: AssetId, vars: DialogueVars, emit: (type: string, data?: JsonValue) => void, opts?: {
+    node?: string;
+    visited?: readonly string[];
+}): DialogueRunner;
+
+## dialogue/vars.ts
+interface DialogueVars {
+    get(pointer: string): JsonValue | undefined;
+    set(pointer: string, value: JsonValue): void;
+}
+declare function memoryVars(initial?: JsonValue): DialogueVars & {
+    readonly value: JsonValue;
+};
+declare function persistVars(ctx: Pick<EngineContext, "persist">): DialogueVars;
 
 ## editor-ui/SceneEditor.ts
 declare function SceneEditor(props: SceneEditorProps): ReactElement;
@@ -3967,6 +4455,7 @@ type Side = "left" | "right";
 type Viewport = {
     bottom: number;
     height: number;
+    top?: number;
     topLeft: number;
     topRight: number;
     width: number;
@@ -5787,6 +6276,24 @@ declare const animFields: (env: FieldEnv) => {
     speed: z.ZodOptional<z.ZodNumber>;
 };
 
+## game/behaviors/audio.ts
+declare const AUDIO: BehaviorDef<{
+    playing: z.ZodOptional<z.ZodBoolean>;
+    sound: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    volume: z.ZodOptional<z.ZodNumber>;
+}, AudioHandle>;
+type AudioBlock = z.infer<z.ZodObject<ReturnType<typeof audioFields>>>;
+type AudioHandle = {
+    play(): void;
+    readonly playing: boolean;
+    stop(): void;
+};
+declare const audioFields: (env: FieldEnv) => {
+    playing: z.ZodOptional<z.ZodBoolean>;
+    sound: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    volume: z.ZodOptional<z.ZodNumber>;
+};
+
 ## game/behaviors/body.ts
 declare const BODY: BehaviorDef<{
     angularDamping: z.ZodOptional<z.ZodNumber>;
@@ -6187,6 +6694,7 @@ declare const playerInputFields: {
 ## game/behaviors/spawner.ts
 declare const SPAWNER: BehaviorDef<{
     active: z.ZodDefault<z.ZodBoolean>;
+    asChildren: z.ZodOptional<z.ZodBoolean>;
     burst: z.ZodDefault<z.ZodNumber>;
     cap: z.ZodDefault<z.ZodNumber>;
     fields: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
@@ -6207,6 +6715,7 @@ type SpawnerSystem = BehaviorSystem<SpawnerBlock> & {
 };
 declare const spawnerFields: (env: FieldEnv) => {
     active: z.ZodDefault<z.ZodBoolean>;
+    asChildren: z.ZodOptional<z.ZodBoolean>;
     burst: z.ZodDefault<z.ZodNumber>;
     cap: z.ZodDefault<z.ZodNumber>;
     fields: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
@@ -6318,6 +6827,80 @@ declare const spriteFields: (env: FieldEnv) => {
     turn: z.ZodOptional<z.ZodBoolean>;
 };
 declare function spriteGeometry(block: Partial<SpriteBlock>, info?: SpriteAssetInfo | null, pxPerMetre?: number): SpriteGeometry;
+
+## game/behaviors/text.ts
+type FontAssetInfo = {
+    font?: FontMeta;
+    kind: string;
+    pages?: readonly AssetId[];
+    sha256?: Sha256;
+};
+declare const TEXT: BehaviorDef<{
+    align: z.ZodOptional<z.ZodEnum<{
+        center: "center";
+        left: "left";
+        right: "right";
+    }>>;
+    anchor: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    color: z.ZodOptional<z.ZodNumber>;
+    font: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    key: z.ZodOptional<z.ZodString>;
+    outline: z.ZodOptional<z.ZodObject<{
+        color: z.ZodNumber;
+        width: z.ZodNumber;
+    }, z.core.$strict>>;
+    rich: z.ZodOptional<z.ZodBoolean>;
+    size: z.ZodOptional<z.ZodNumber>;
+    text: z.ZodOptional<z.ZodString>;
+    vars: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [
+        z.ZodString,
+        z.ZodNumber
+    ]>>>;
+    wrap: z.ZodOptional<z.ZodNumber>;
+}, TextHandle>;
+declare const TEXT_COLOR_DEFAULT = 16777215;
+declare const TEXT_SIZE_DEFAULT = 16;
+type TextBlock = z.infer<z.ZodObject<ReturnType<typeof textFields>>>;
+type TextHandle = {
+    set(text: string): void;
+    setKey(key: string, vars?: Readonly<Record<string, number | string>>): void;
+};
+type TextShown = {
+    key: string;
+    vars?: TextVars;
+} | {
+    text: string;
+};
+declare const textFields: (env: FieldEnv) => {
+    align: z.ZodOptional<z.ZodEnum<{
+        center: "center";
+        left: "left";
+        right: "right";
+    }>>;
+    anchor: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    color: z.ZodOptional<z.ZodNumber>;
+    font: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    key: z.ZodOptional<z.ZodString>;
+    outline: z.ZodOptional<z.ZodObject<{
+        color: z.ZodNumber;
+        width: z.ZodNumber;
+    }, z.core.$strict>>;
+    rich: z.ZodOptional<z.ZodBoolean>;
+    size: z.ZodOptional<z.ZodNumber>;
+    text: z.ZodOptional<z.ZodString>;
+    vars: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [
+        z.ZodString,
+        z.ZodNumber
+    ]>>>;
+    wrap: z.ZodOptional<z.ZodNumber>;
+};
+declare function textFontOf(asset: ((id: AssetId) => FontAssetInfo | null | undefined) | undefined, id: AssetId | undefined): TextFont | null;
 
 ## game/behaviors/tween.ts
 declare const EASE_ENDS: readonly [
@@ -6560,7 +7143,11 @@ declare const tweenSpecSchema: z.ZodObject<{
 
 ## game/commands.ts
 declare const COMMAND_NAME_PATTERN: RegExp;
-declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, CommandDef>>;
+declare const DIALOGUE_ADVANCE_COMMAND = "@dialogue-advance";
+declare const DIALOGUE_CHOOSE_COMMAND = "@dialogue-choose";
+declare const ENGINE_COMMANDS: Readonly<Record<EngineCommandName, CommandDef>>;
+type EngineCommandName = "@elapsed" | typeof DIALOGUE_ADVANCE_COMMAND | typeof DIALOGUE_CHOOSE_COMMAND | typeof LATENCY_COMMAND | typeof NAV_COMMAND;
+declare const LATENCY_COMMAND = "@latency";
 declare const NAV_COMMAND = "@nav";
 type NavDestination = {
     id: string;
@@ -6569,6 +7156,7 @@ type NavDestination = {
         y: number
     ] | string;
 };
+declare const isDialogueCommand: (name: string) => boolean;
 
 ## game/defaults.ts
 declare const DEFAULT_ACTIONS: readonly ActionDef[];
@@ -7494,6 +8082,14 @@ type Delay = number | {
     ms: number;
 };
 type DeviceId = "keyboard" | "pointer" | "touch" | `pad:${number}`;
+type DialogueContext = {
+    start(dialogue: AssetId, opts?: {
+        node?: string;
+        vars?: DialogueVars;
+    }): void;
+    stop(): void;
+    view(): Readonly<DialogueView> | null;
+};
 declare const ENGINE_CHECK_KINDS: readonly [
     "valid",
     "reaches",
@@ -7512,7 +8108,8 @@ declare const ENGINE_PREDICATES: readonly [
     "count",
     "near",
     "scene",
-    "persist"
+    "persist",
+    "dialogue"
 ];
 declare const ENGINE_REGISTRY_ID = "engine";
 declare const ENGINE_RUN_RESULTS: readonly [
@@ -7562,6 +8159,7 @@ type EngineContext = {
     rapier: RapierModule | null;
     readonly anim: AnimContext;
     readonly bodies: BodyControl;
+    readonly dialogue: DialogueContext;
     readonly grid: RuntimeGrid | null;
     readonly live: LiveContext;
     readonly nav: RuntimeNav | null;
@@ -7676,6 +8274,12 @@ type GameAttachment = {
     onModeChange?(mode: GameMode): void;
     onTick?(dtMs: number, mouseWorld: Vec2): void;
 };
+type GameAudioDef = {
+    buses?: readonly {
+        name: string;
+        volume?: number;
+    }[];
+};
 type GameCommand = {
     args?: unknown;
     name: string;
@@ -7685,6 +8289,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     actions: readonly ActionDef[];
     assetKinds?: readonly AssetKindDef[];
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
+    audio?: GameAudioDef;
     behaviors?: readonly (BehaviorDef | ScriptClass)[];
     camera?: CameraRigDef;
     checks?: Readonly<Record<string, CheckKindDef>>;
@@ -7911,6 +8516,7 @@ type PlayStart = {
     timeOffsetMs: number;
 };
 type PlayState<S = unknown> = {
+    dialogue?: Readonly<DialogueView> | null;
     events: readonly StepEvent[];
     persist?: JsonValue;
     snapshot: S;
@@ -8250,6 +8856,9 @@ declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): P
 declare function simActionError(registry: Registry, action: string): null | string;
 declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
 
+## headless/legal.ts
+declare function dialogueCommands(view: Readonly<DialogueView> | null | undefined): GameCommand[];
+
 ## headless/load.ts
 type FilesLoadInput = LoadCommon & {
     files: {
@@ -8323,6 +8932,11 @@ type CompiledStep = {
     max?: number;
     ticks?: number;
     until?: UntilClause;
+};
+type DialogueMatch = {
+    active?: boolean;
+    ended?: string | true;
+    node?: string;
 };
 type EventMatch = string | {
     entityId?: string;
@@ -8487,6 +9101,7 @@ type PlaytestReport<S = unknown> = {
     blocked: false;
     commands: RecordingCommand[];
     configHash: string;
+    dialogue?: Readonly<DialogueView> | null;
     events: StepEvent[];
     final: S | null;
     inputs: InputEdge[];
@@ -8548,6 +9163,7 @@ type StepDuration = {
 type UntilClause = {
     [predicate: string]: unknown;
     count?: CountMatch;
+    dialogue?: DialogueMatch;
     event?: EventMatch;
     exists?: ExistsMatch;
     near?: NearMatch;
@@ -8837,6 +9453,7 @@ interface InputState {
     pointer(player?: number): PointerState | null;
     players(): readonly PlayerInfo[];
     commands(): readonly GameCommand[];
+    latencyMs(): number;
 }
 type PointerState = {
     buttons: number;
@@ -9142,6 +9759,15 @@ type PlacementToolOptions<T> = {
 };
 declare function createPlacementTool<T>(opts: PlacementToolOptions<T>): PlacementTool<T>;
 
+## prefs.ts
+interface PrefsStore {
+    load(gameId: string): Readonly<Record<string, JsonValue>>;
+    save(gameId: string, prefs: Readonly<Record<string, JsonValue>>): void;
+}
+declare function browserPrefsStore(prefix?: string): PrefsStore;
+declare function memoryPrefsStore(): PrefsStore;
+declare function snapshotPrefsStore(initial: unknown, save: (gameId: string, prefs: Readonly<Record<string, JsonValue>>) => void): PrefsStore;
+
 ## project/asset-files.ts
 type AssetFile = {
     blob: null | {
@@ -9158,13 +9784,13 @@ type ProjectPathMatcher = {
     isAsset: (path: AssetPath) => boolean;
     isCode: (path: string) => boolean;
 };
-declare function assetFileEntries<F extends AssetFile>(files: readonly F[], created: AssetEntry["created"]): {
+declare function assetFileEntries<F extends AssetFile>(files: readonly F[], created: AssetEntry["created"], decompress?: FontDecompress): {
     entry: AssetEntry;
     file: F;
     issue: SceneIssue | null;
     key: AssetKey;
 }[];
-declare function assetFileEntry(file: AssetFile, key: AssetKey, created: AssetEntry["created"], idAt: (path: AssetPath) => AssetId | undefined): {
+declare function assetFileEntry(file: AssetFile, key: AssetKey, created: AssetEntry["created"], idAt: (path: AssetPath) => AssetId | undefined, decompress?: FontDecompress): {
     entry: AssetEntry;
     issue: SceneIssue | null;
 };
@@ -9181,15 +9807,19 @@ type AssetInfo = {
     bytes?: number;
     durations?: readonly (null | number)[];
     filter?: "linear" | "nearest";
+    font?: FontMeta;
     frames?: readonly string[];
     id: AssetId;
     kind: AssetKindName;
+    loopEnd?: number;
+    loopStart?: number;
     nineSlice?: [
         number,
         number,
         number,
         number
     ];
+    pages?: readonly AssetId[];
     pivot?: [
         x: number,
         y: number
@@ -9205,6 +9835,7 @@ type AssetInfo = {
         w: number,
         h: number
     ];
+    stream?: boolean;
     tags?: readonly {
         direction: string;
         from: number;
@@ -9338,10 +9969,24 @@ declare function atlasTool(json: unknown): "aseprite" | "texturepacker" | null;
 type AudioFormat = "m4a" | "mp3" | "ogg" | "wav";
 
 ## project/inspect/bmfont.ts
-declare function parseBmfont(text: string): null | {
+type Bmfont = {
+    advances?: Record<string, number>;
+    coverage?: CodePointRanges;
+    distanceField?: BmfontDistanceField;
+    kerning?: [
+        first: number,
+        second: number,
+        amount: number
+    ][];
     lineHeight: number;
     pages: string[];
+    size?: number;
 };
+type BmfontDistanceField = {
+    range: number;
+    type: "msdf" | "sdf";
+};
+declare function parseBmfont(text: string): Bmfont | null;
 
 ## project/inspect/bytes.ts
 type ImageSize = {
@@ -9350,10 +9995,28 @@ type ImageSize = {
 };
 
 ## project/inspect/entry.ts
-declare function inspectEntry(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined): InspectResult<unknown>;
+declare function inspectEntry(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined, decompress?: FontDecompress): InspectResult<unknown>;
+
+## project/inspect/font-cmap.ts
+type CodePointRanges = [
+    from: number,
+    to: number
+][];
+declare function cmapCoverage(cmap: Uint8Array): CodePointRanges | null;
+declare function codePointRanges(codePoints: Iterable<number>): CodePointRanges;
+declare function mergeRanges(ranges: readonly (readonly [
+    number,
+    number
+])[]): CodePointRanges;
 
 ## project/inspect/font.ts
+type FontDecompress = {
+    brotli?: (data: Uint8Array) => Uint8Array;
+    inflate?: (data: Uint8Array) => Uint8Array;
+};
 type WebFontFormat = "otf" | "ttf" | "woff" | "woff2";
+declare function fontCoverage(bytes: Uint8Array, format: WebFontFormat, decompress?: FontDecompress): CodePointRanges | null;
+declare function fontTable(bytes: Uint8Array, format: WebFontFormat, tag: string, decompress?: FontDecompress): Uint8Array | null;
 
 ## project/inspect/gif.ts
 declare function readGifSize(bytes: Uint8Array): ImageSize | null;
@@ -9536,9 +10199,16 @@ declare const atlasSettingsSchema: z.ZodType<AtlasSettings>;
 ## project/kinds/audio.ts
 declare const AUDIO_KIND = "audio";
 type AudioMeta = {
+    channels?: number;
+    durationMs?: number;
     format: AudioFormat;
+    sampleRate?: number;
 };
-type AudioSettings = Record<string, never>;
+type AudioSettings = {
+    loopEnd?: number;
+    loopStart?: number;
+    stream?: boolean;
+};
 declare const audioKind: {
     contentTypes: string[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
@@ -9550,6 +10220,7 @@ declare const audioKind: {
     };
     maxBytes: number;
     meta: z.ZodType<AudioMeta, unknown, z.core.$ZodTypeInternals<AudioMeta, unknown>>;
+    metaVersion: number;
     settings: z.ZodType<AudioSettings, unknown, z.core.$ZodTypeInternals<AudioSettings, unknown>>;
     storage: "blob";
     title: string;
@@ -9736,6 +10407,7 @@ type DocLookup = {
     read: <T = unknown>(kind: AssetKindName, id: AssetId) => T | undefined;
 };
 type InspectEnv = {
+    decompress?: FontDecompress;
     idAt(path: AssetPath): AssetId | undefined;
     path: AssetPath;
 };
@@ -9775,11 +10447,166 @@ type PerProjectWords = {
     noun: string;
 };
 declare const byCodeUnit: (a: string, b: string) => number;
+declare const byPathThenKey: (a: AssetEntry, b: AssetEntry) => number;
 declare function defineAssetKind<K extends AssetKindDef>(def: K): K;
+declare function docLookup(byKind: ReadonlyMap<AssetKindName, ReadonlyMap<AssetId, unknown>>, ids?: ReadonlyMap<AssetKindName, readonly AssetId[]>): DocLookup;
 declare const isRuntimeKind: (def: AssetKindDef | undefined) => def is DocKindDef<any>;
 declare function runtimeKindNames(kinds: {
     list(): readonly AssetKindDef[];
 }): AssetKindName[];
+
+## project/kinds/dialogue.ts
+declare const DIALOGUE_KIND = "dialogue";
+declare const DIALOGUE_SCHEMA_ID = "urn:jams-engine:dialogue:v1";
+declare const DIALOGUE_VERSION = 1;
+type DialogueChoice = {
+    do?: readonly DialogueEffect[];
+    hidden?: "disable" | "hide";
+    if?: DialogueCondition;
+    say?: string;
+    text?: string;
+    to: string;
+};
+type DialogueCondition = {
+    all: readonly DialogueCondition[];
+} | {
+    any: readonly DialogueCondition[];
+} | {
+    eq?: JsonValue;
+    gt?: number;
+    gte?: number;
+    lt?: number;
+    lte?: number;
+    ne?: JsonValue;
+    truthy?: boolean;
+    var: string;
+} | {
+    not: DialogueCondition;
+} | {
+    visited: string;
+};
+type DialogueEffect = {
+    add: string;
+    by: number;
+} | {
+    data?: JsonValue;
+    emit: string;
+} | {
+    push: string;
+    value: JsonValue;
+} | {
+    set: string;
+    to: JsonValue;
+};
+type DialogueExit = {
+    at: readonly (number | string)[];
+    to: string;
+};
+type DialogueFile = {
+    $schema?: string;
+    kind: typeof DIALOGUE_KIND;
+    nodes: DialogueNode[];
+    speakers?: DialogueSpeaker[];
+    start: string;
+    v: typeof DIALOGUE_VERSION;
+};
+type DialogueLine = {
+    if?: DialogueCondition;
+    portrait?: DialoguePortrait;
+    say?: string;
+    speaker?: string;
+    text?: string;
+    vars?: Readonly<Record<string, string>>;
+    voice?: AssetId;
+};
+type DialogueNode = {
+    choices?: readonly DialogueChoice[];
+    do?: readonly DialogueEffect[];
+    else?: string;
+    end?: string;
+    id: string;
+    if?: DialogueCondition;
+    lines: readonly DialogueLine[];
+    next?: string;
+};
+type DialoguePortrait = {
+    asset: AssetId;
+    frame?: string;
+};
+type DialogueSpeaker = {
+    id: string;
+    name: string;
+    portrait?: DialoguePortrait;
+};
+declare function dialogueDeadEnd(node: DialogueNode): "guarded" | "none" | null;
+declare function dialogueExits(node: DialogueNode): DialogueExit[];
+declare function dialogueIssues(file: DialogueFile): SceneIssue[];
+declare const dialogueKind: {
+    crossValidate: (file: DialogueFile, lookup: DocLookup) => SceneIssue[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => DialogueFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            nodes: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    fields: {
+                        choices: {
+                            as: "list";
+                            item: {
+                                as: "atomic";
+                            };
+                        };
+                        lines: {
+                            as: "list";
+                            item: {
+                                as: "atomic";
+                            };
+                        };
+                    };
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+            speakers: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: DialogueFile) => RefSite[];
+    runtime: "sim";
+    schema: () => z.ZodType<DialogueFile, unknown, z.core.$ZodTypeInternals<DialogueFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: DialogueFile) => SceneIssue[];
+    version: number;
+};
+declare function dialogueNodes(file: DialogueFile): Map<string, DialogueNode>;
+declare function dialogueRefs(file: DialogueFile): RefSite[];
+declare function dialogueStringIssues(file: DialogueFile, lookup: DocLookup): SceneIssue[];
+declare function reachableNodes(file: DialogueFile): Set<string>;
 
 ## project/kinds/emitter.ts
 declare const EMITTER_KIND = "emitter";
@@ -9877,9 +10704,24 @@ declare const emitterKind: {
 declare const FONT_KIND = "font";
 type FontFormat = "bmfont" | WebFontFormat;
 type FontMeta = {
+    advances?: Readonly<Record<string, number>>;
+    coverage?: readonly (readonly [
+        from: number,
+        to: number
+    ])[];
+    distanceField?: {
+        range: number;
+        type: "msdf" | "sdf";
+    };
     format: FontFormat;
+    kerning?: readonly (readonly [
+        first: number,
+        second: number,
+        amount: number
+    ])[];
     lineHeight?: number;
     pages?: AssetPath[];
+    size?: number;
 };
 type FontSettings = {
     pages?: AssetId[];
@@ -9895,6 +10737,7 @@ declare const fontKind: {
     };
     maxBytes: number;
     meta: z.ZodType<FontMeta, unknown, z.core.$ZodTypeInternals<FontMeta, unknown>>;
+    metaVersion: number;
     refs: (entry: AssetEntry) => RefSite[];
     settings: z.ZodType<FontSettings, unknown, z.core.$ZodTypeInternals<FontSettings, unknown>>;
     storage: "blob";
@@ -9909,6 +10752,7 @@ declare const GAME_SETTINGS_SCHEMA_ID = "urn:jams-engine:game-settings:v2";
 declare const GAME_SETTINGS_VERSION = 2;
 type GameSettingsEngine = {
     gravity?: GameWorldDef["gravity"];
+    locales?: LocaleSettings;
     physics?: GameWorldDef["physics"];
     resolution?: Partial<ResolutionPolicy>;
     tickRate?: number;
@@ -10246,6 +11090,7 @@ declare function projectMaterialOf(value: unknown, registry?: Registry): Project
 
 ## project/kinds/prefab.ts
 declare const prefabKind: {
+    crossValidate: (prefab: Prefab, lookup: DocLookup) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {
@@ -10416,6 +11261,7 @@ declare const sceneListKind: {
 
 ## project/kinds/scene.ts
 declare const sceneKind: {
+    crossValidate: (def: SceneDefinition, lookup: DocLookup) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {
@@ -10448,6 +11294,258 @@ declare const sceneKind: {
     schemaId: string;
     storage: "doc";
     title: string;
+    version: number;
+};
+
+## project/kinds/sound.ts
+declare const BUS_NAME_PATTERN: RegExp;
+declare const ENGINE_BUSES: readonly [
+    "master",
+    "music",
+    "sfx",
+    "voice",
+    "ui"
+];
+declare const SOUND_KIND = "sound";
+declare const SOUND_MAX_VOICES_DEFAULT = 8;
+declare const SOUND_SCHEMA_ID = "urn:jams-engine:sound:v1";
+declare const SOUND_VERSION = 1;
+type SoundFile = {
+    $schema?: string;
+    bus: BusName;
+    caption?: string;
+    cooldownMs?: number;
+    kind: typeof SOUND_KIND;
+    loop?: boolean;
+    maxVoices?: number;
+    on?: SoundMatcher[];
+    pitch?: [
+        min: number,
+        max: number
+    ];
+    positional?: boolean;
+    preload?: boolean;
+    range?: number;
+    v: typeof SOUND_VERSION;
+    variants: {
+        clip: AssetId;
+        weight?: number;
+    }[];
+    volume?: number;
+};
+type SoundMatcher = {
+    data?: Readonly<Record<string, JsonValue>>;
+    event: string;
+    tag?: string;
+    type?: string;
+};
+declare function audioBuses(registry: Pick<Registry, "game">): readonly BusName[];
+declare const soundKind: {
+    bundleRefs: (file: SoundFile, env: KindEnv) => RefSite[];
+    crossValidate: (file: SoundFile, lookup: DocLookup) => SceneIssue[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => SoundFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            on: {
+                as: "list";
+                item: {
+                    as: "atomic";
+                };
+            };
+            variants: {
+                as: "keyed";
+                id: string;
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: SoundFile) => RefSite[];
+    runtime: "view";
+    schema: (env: KindEnv) => z.ZodType<SoundFile, unknown, z.core.$ZodTypeInternals<SoundFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+
+## project/kinds/strings.ts
+declare const DEFAULT_LOCALE = "en";
+declare const LOCALE_PATTERN: RegExp;
+type LocaleSettings = {
+    available: readonly string[];
+    default: string;
+    fallback?: Readonly<Record<string, readonly string[]>>;
+    fonts?: Readonly<Record<string, AssetId>> & {
+        default?: AssetId;
+    };
+};
+type MergedStringRow = {
+    id: AssetId;
+    index: number;
+    row: StringRow;
+};
+declare const STRINGS_KIND = "strings";
+declare const STRINGS_SCHEMA_ID = "urn:jams-engine:strings:v1";
+declare const STRINGS_VERSION = 1;
+declare const STRING_KEY_PATTERN: RegExp;
+type StringKeyUse = {
+    id: AssetId;
+    key: string;
+    kind: AssetKindName;
+    pointer: string;
+};
+type StringRow = {
+    key: string;
+    note?: string;
+} & {
+    [locale: string]: string | undefined;
+};
+type StringsFile = {
+    $schema?: string;
+    kind: typeof STRINGS_KIND;
+    strings: StringRow[];
+    v: typeof STRINGS_VERSION;
+};
+declare function localeFont(locales: LocaleSettings, locale: string): AssetId | undefined;
+declare function mergedStrings(lookup: DocLookup): Map<string, MergedStringRow>;
+declare function missingStringKeys(lookup: DocLookup, locales: LocaleSettings, locale: string, uses?: readonly StringKeyUse[]): StringKeyUse[];
+declare function projectLocales(lookup: DocLookup): LocaleSettings;
+declare function stringKeyIssues(lookup: DocLookup, uses: readonly StringKeyUse[]): SceneIssue[];
+declare function stringLocales(lookup: DocLookup, locales: LocaleSettings): string[];
+declare const stringsKind: {
+    crossValidate: (file: StringsFile, lookup: DocLookup, env: KindEnv) => SceneIssue[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => StringsFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            strings: {
+                as: "keyed";
+                id: string;
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    runtime: "view";
+    schema: () => z.ZodType<StringsFile, unknown, z.core.$ZodTypeInternals<StringsFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+declare function usedStringKeys(lookup: DocLookup, scenes?: ReadonlyMap<AssetId, unknown>): StringKeyUse[];
+
+## project/kinds/synth.ts
+declare const SYNTH_BOUNDS: Readonly<Record<SynthNumberPath, readonly [
+    min: number,
+    max: number
+]>>;
+declare const SYNTH_KIND = "synth";
+declare const SYNTH_SCHEMA_ID = "urn:jams-engine:synth:v1";
+declare const SYNTH_VERSION = 1;
+declare const SYNTH_WAVES: readonly [
+    "square",
+    "saw",
+    "triangle",
+    "sine",
+    "noise"
+];
+type SynthFile = {
+    $schema?: string;
+    attackMs?: number;
+    decayMs: number;
+    duty?: number;
+    dutySweep?: number;
+    freq: number;
+    highpass?: {
+        hz: number;
+        sweep?: number;
+    };
+    jump?: {
+        atMs: number;
+        semitones: number;
+    };
+    kind: typeof SYNTH_KIND;
+    lowpass?: {
+        hz: number;
+        resonance?: number;
+        sweep?: number;
+    };
+    punch?: number;
+    retriggerMs?: number;
+    seed?: number;
+    slide?: number;
+    slideAccel?: number;
+    sustainMs: number;
+    v: typeof SYNTH_VERSION;
+    vibrato?: {
+        hz: number;
+        semitones: number;
+    };
+    volume?: number;
+    wave: SynthWave;
+};
+type SynthNumberPath = "attackMs" | "decayMs" | "duty" | "dutySweep" | "freq" | "highpass.hz" | "highpass.sweep" | "jump.atMs" | "jump.semitones" | "lowpass.hz" | "lowpass.resonance" | "lowpass.sweep" | "punch" | "retriggerMs" | "slide" | "slideAccel" | "sustainMs" | "vibrato.hz" | "vibrato.semitones" | "volume";
+type SynthWave = (typeof SYNTH_WAVES)[number];
+declare const synthKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => SynthFile;
+    kind: string;
+    layout: {
+        as: "map";
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    runtime: "view";
+    schema: () => z.ZodType<SynthFile, unknown, z.core.$ZodTypeInternals<SynthFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: () => SceneIssue[];
     version: number;
 };
 
@@ -11215,6 +12313,7 @@ type AssetSidecar = {
     kind: "asset-sidecar";
     licence?: Licence;
     meta?: Record<string, unknown>;
+    metaVersion?: number;
     name?: string;
     sha256?: Sha256;
     v: 1;
@@ -11226,6 +12325,16 @@ type ParseSidecarResult = {
     ok: true;
     sidecar: AssetSidecar;
 };
+type Reinspection = {
+    changed: boolean;
+    import?: Record<string, unknown>;
+    meta: Record<string, unknown>;
+    metaVersion: number;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
 declare const SIDECAR_SCHEMA_ID = "urn:jams-engine:asset-sidecar:v1";
 declare const SIDECAR_SUFFIX = ".asset.json";
 declare const SIDECAR_VERSION = 1;
@@ -11234,8 +12343,12 @@ declare function formatSidecar(sidecar: Omit<AssetSidecar, "key"> & {
 }, options?: {
     detectedKind?: AssetKindName | null;
 }): string;
+declare const isMetaStale: (sidecar: Pick<AssetSidecar, "metaVersion">, def: Pick<BlobKindDef, "metaVersion">) => boolean;
+declare const kindMetaVersion: (def: Pick<BlobKindDef, "metaVersion">) => number;
 declare function parseSidecar(input: unknown): ParseSidecarResult;
+declare function reinspectBlob(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "meta" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined, decompress?: FontDecompress): Reinspection;
 declare function sidecarJsonSchema(): Record<string, unknown>;
+declare const sidecarMetaVersion: (sidecar: Pick<AssetSidecar, "metaVersion">) => number;
 declare const sidecarPathOf: (path: AssetPath) => AssetPath;
 declare const sidecarSchema: z.ZodObject<{
     $schema: z.ZodOptional<z.ZodString>;
@@ -11252,10 +12365,14 @@ declare const sidecarSchema: z.ZodObject<{
         spdx: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    metaVersion: z.ZodOptional<z.ZodNumber>;
     name: z.ZodOptional<z.ZodString>;
     sha256: z.ZodOptional<z.ZodString>;
     v: z.ZodLiteral<1>;
 }, z.core.$strict>;
+declare function withReinspectedMeta(sidecar: AssetSidecar, result: Extract<Reinspection, {
+    ok: true;
+}>): AssetSidecar;
 
 ## project/snapshot.ts
 declare const PROJECT_SNAPSHOT_SCHEMA_ID = "urn:jams-engine:project-snapshot:v1";
@@ -11493,7 +12610,7 @@ declare function suffixedId(id: AssetId, n: number): AssetId;
 declare function suffixedPath(path: AssetPath, n: number): AssetPath;
 
 ## render/asset-loader.ts
-type AssetLoader = TextureSource & {
+type AssetLoader = TextureSource & Partial<Pick<FontSource, "bitmapFamily" | "webFamily">> & {
     destroy(): void;
     load(bundle: AssetBundle, onProgress?: (p: LoadProgress) => void): Promise<{
         failed: BundleEntry[];
@@ -11517,9 +12634,10 @@ type LoadProgress = {
 };
 declare function createAssetLoader(opts: {
     budgetBytes?: number;
+    fetch?: (url: string) => Promise<Response>;
     project: ProjectId;
     url: AssetUrl;
-}): AssetLoader;
+}): AssetLoader & FontSource;
 
 ## render/draw-shape.ts
 declare function drawShape(g: Graphics, shape: ShapeObj, style: Style, scale?: number): void;
@@ -11537,8 +12655,8 @@ declare function createEffectLayer(layer: HTMLElement, loop: Pick<GameLoop, "get
 
 ## render/particles.ts
 interface ParticleLayer {
-    emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
-    retune(id: string, preset: EmitterFile, layer?: ViewLayer): boolean;
+    emitter(id: string, preset: EmitterFile, follow: EmitterFollow, layer?: ViewLayer): void;
+    retune(id: string, preset: EmitterFile, follow?: EmitterFollow, layer?: ViewLayer): boolean;
     remove(id: string): void;
     burst(preset: EmitterFile, at: Vec2, opts?: BurstOptions): void;
     update(dtMs: number): void;
@@ -11550,6 +12668,7 @@ interface ParticleLayer {
 }
 type ParticleLayerOptions = {
     layer?: (layer: ViewLayer) => Container;
+    pose?: (entity: string) => Pose | undefined;
     pxPerMetre?: number;
     reducedMotion: (() => boolean) | boolean;
     seed: string;
@@ -11569,15 +12688,20 @@ type PixiView = SceneView & {
         x: number;
         y: number;
     }): void;
+    particles(): ParticleLayer | null;
     readonly container: Container;
     showLayers(names: null | readonly string[]): void;
 };
 type PixiViewOptions = {
     editing?: () => boolean;
+    fonts?: FontSource;
     layers?: readonly SceneLayerDef[];
-    particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture">;
+    particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture"> & {
+        poses?: () => Pick<PoseIndex, "get" | "prev"> | null | undefined;
+    };
     pixelSnap?: boolean;
     pxPerMetre?: number;
+    reducedMotion?: (() => boolean) | boolean;
     textures?: TextureSource;
 };
 type TextureSource = {
@@ -11586,6 +12710,19 @@ type TextureSource = {
 };
 declare function createPixiView(container: Container, opts?: PixiViewOptions): PixiView;
 declare function pixiContainer(handle: ViewLayerHandle): Container;
+
+## render/text.ts
+declare const DEFAULT_TEXT_FACE: string[];
+type FontSource = {
+    bitmapFamily(hash: Sha256, pages: readonly Sha256[]): null | string;
+    onLoad(cb: (hash: Sha256) => void): () => void;
+    webFamily(ref: string): null | string;
+};
+type RichTextOptions = {
+    reducedMotion?: (() => boolean) | boolean;
+    table?: StringTableData | null;
+};
+declare function createRichText(visual: TextVisual, fonts: FontSource | null, opts?: RichTextOptions): Container;
 
 ## resolution.ts
 declare const DEFAULT_RESOLUTION: ResolutionPolicy;
@@ -11833,6 +12970,7 @@ type AudioRequest = {
     tick: number;
 } | {
     at?: Vec2;
+    caption?: string;
     entity?: string;
     key?: string;
     op: "play";
@@ -11922,6 +13060,8 @@ interface PresentationQueue {
         }): void;
         play(sound: AssetId, opts?: {
             at?: Vec2;
+            caption?: string;
+            entity?: string;
             key?: string;
             pitch?: number;
             volume?: number;
@@ -11995,6 +13135,9 @@ type SaveBlocker = {
     id: number;
     message: string;
     owner?: string;
+} | {
+    cause: "dialogue";
+    message: string;
 } | {
     cause: "physics";
     message: string;
@@ -12101,6 +13244,23 @@ declare const CHARACTER_LANDED = "character:landed";
 declare const CHARACTER_LEFT_GROUND = "character:left-ground";
 declare const CONTACT_END = "contact:end";
 declare const CONTACT_START = "contact:start";
+declare const DIALOGUE_CHOICES = "dialogue:choices";
+declare const DIALOGUE_END = "dialogue:end";
+declare const DIALOGUE_LINE = "dialogue:line";
+type DialogueChoicesEvent = {
+    count: number;
+    dialogue: AssetId;
+    node: string;
+};
+type DialogueEndEvent = {
+    dialogue: AssetId;
+    ending: string;
+};
+type DialogueLineEvent = {
+    dialogue: AssetId;
+    line: number;
+    node: string;
+};
 declare const ENTITY_DESTROYED = "entity:destroyed";
 declare const ENTITY_DISABLED = "entity:disabled";
 declare const ENTITY_ENABLED = "entity:enabled";
@@ -12279,7 +13439,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 22;
+declare const AGENT_SURFACE_VERSION = 23;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -12296,7 +13456,7 @@ type SceneAsciiMap = {
     region: Bounds;
     rows: number;
 };
-type SceneAsciiOptions = SceneRegionOptions & {
+type SceneAsciiOptions = SceneRegionOptions & SceneTextOptions & {
     cell?: number;
     maxCells?: number;
     overlay?: Pick<SceneOverlay, "outcome" | "trail">;
@@ -12765,6 +13925,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 max: z.ZodOptional<z.ZodNumber>;
                 until: z.ZodObject<{
                     count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                    dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                     event: z.ZodOptional<z.ZodUnion<readonly [
                         z.ZodString,
                         z.ZodObject<{
@@ -12811,6 +13972,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 max: z.ZodOptional<z.ZodNumber>;
                 until: z.ZodObject<{
                     count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                    dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                     event: z.ZodOptional<z.ZodUnion<readonly [
                         z.ZodString,
                         z.ZodObject<{
@@ -12921,6 +14083,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 max: z.ZodOptional<z.ZodNumber>;
                 until: z.ZodObject<{
                     count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                    dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                     event: z.ZodOptional<z.ZodUnion<readonly [
                         z.ZodString,
                         z.ZodObject<{
@@ -13016,6 +14179,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     max: z.ZodOptional<z.ZodNumber>;
                     until: z.ZodObject<{
                         count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                        dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                         event: z.ZodOptional<z.ZodUnion<readonly [
                             z.ZodString,
                             z.ZodObject<{
@@ -13062,6 +14226,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     max: z.ZodOptional<z.ZodNumber>;
                     until: z.ZodObject<{
                         count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                        dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                         event: z.ZodOptional<z.ZodUnion<readonly [
                             z.ZodString,
                             z.ZodObject<{
@@ -13172,6 +14337,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     max: z.ZodOptional<z.ZodNumber>;
                     until: z.ZodObject<{
                         count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                        dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                         event: z.ZodOptional<z.ZodUnion<readonly [
                             z.ZodString,
                             z.ZodObject<{
@@ -13276,6 +14442,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
             max: z.ZodOptional<z.ZodNumber>;
             until: z.ZodObject<{
                 count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                 event: z.ZodOptional<z.ZodUnion<readonly [
                     z.ZodString,
                     z.ZodObject<{
@@ -13409,6 +14576,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
             max: z.ZodOptional<z.ZodNumber>;
             until: z.ZodObject<{
                 count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                 event: z.ZodOptional<z.ZodUnion<readonly [
                     z.ZodString,
                     z.ZodObject<{
@@ -13461,6 +14629,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
             max: z.ZodOptional<z.ZodNumber>;
             until: z.ZodObject<{
                 count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                 event: z.ZodOptional<z.ZodUnion<readonly [
                     z.ZodString,
                     z.ZodObject<{
@@ -13517,6 +14686,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 max: z.ZodOptional<z.ZodNumber>;
                 until: z.ZodObject<{
                     count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                    dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                     event: z.ZodOptional<z.ZodUnion<readonly [
                         z.ZodString,
                         z.ZodObject<{
@@ -13563,6 +14733,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 max: z.ZodOptional<z.ZodNumber>;
                 until: z.ZodObject<{
                     count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                    dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                     event: z.ZodOptional<z.ZodUnion<readonly [
                         z.ZodString,
                         z.ZodObject<{
@@ -13673,6 +14844,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 max: z.ZodOptional<z.ZodNumber>;
                 until: z.ZodObject<{
                     count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+                    dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
                     event: z.ZodOptional<z.ZodUnion<readonly [
                         z.ZodString,
                         z.ZodObject<{
@@ -13737,6 +14909,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
     }, z.core.$strict>;
     until: z.ZodObject<{
         count: z.ZodOptional<z.ZodType<CountMatch, unknown, z.core.$ZodTypeInternals<CountMatch, unknown>>>;
+        dialogue: z.ZodOptional<z.ZodType<DialogueMatch, unknown, z.core.$ZodTypeInternals<DialogueMatch, unknown>>>;
         event: z.ZodOptional<z.ZodUnion<readonly [
             z.ZodString,
             z.ZodObject<{
@@ -13823,6 +14996,7 @@ type LiveIssueInput = {
 type LiveSwapPhase = "after" | "onSwap" | "stage" | "swap";
 declare const isErrorIssue: (issue: SceneIssue) => boolean;
 declare function jsonPointer(segments: readonly (number | string)[]): string;
+declare function lineAt(lines: ReadonlyMap<string, number>, pointer: string): number | undefined;
 declare function liveIssue(input: LiveIssueInput): SceneIssue;
 declare function makeIssue(code: IssueCode, fields: Partial<Omit<SceneIssue, "code">> & {
     message: string;
@@ -15193,13 +16367,16 @@ declare function createSpatialHash<K>(cell?: number): SpatialHash<K>;
 ## scene/svg.ts
 declare const SCENE_SVG_MAX_SIZE = 1600;
 type SceneLabels = "all" | "entities" | "none";
-type SceneSvgOptions = SceneRegionOptions & {
+type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
     labels?: SceneLabels;
     maxSize?: number;
     overlay?: SceneOverlay;
     paths?: boolean;
     registry: Registry;
     scale?: number;
+};
+type SceneTextOptions = {
+    strings?: StringTableData;
 };
 type SceneViewport = {
     height: number;
@@ -15419,7 +16596,13 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "live-asset-conflict",
     "live-swap-failed",
     "live-timing-unsupported",
-    "scene-version-removed"
+    "scene-version-removed",
+    "sound-bus-unknown",
+    "locale-unknown",
+    "font-missing",
+    "string-key-missing",
+    "dialogue-dead-end",
+    "dialogue-unreachable"
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
@@ -16438,6 +17621,7 @@ declare function manifestView(m: ReleaseManifest): ProjectView;
 ## store.ts
 declare function selectCamera(state: GameStoreState): CameraState;
 declare function selectDebugMode(state: GameStoreState): string;
+declare function selectDialogue(state: GameStoreState): Readonly<DialogueView> | null;
 declare function selectFPS(state: GameStoreState): number;
 declare function selectGame<G = unknown>(state: GameStoreState): G;
 declare function selectMode(state: GameStoreState): GameMode;
@@ -16566,9 +17750,7 @@ type MarkerEntity = RuntimeEntity<{
     at: Pt;
     tags?: string[];
 }>;
-type MarkerSystem = DataSystem<MarkerEntity> & {
-    setPose(id: string, x: number, y: number, rot: number): void;
-};
+type MarkerSystem = DataSystem<MarkerEntity>;
 declare function createMarkerSystem(ctx: EngineContext, type: RegisteredType): MarkerSystem;
 
 ## systems/nav.ts
@@ -16632,6 +17814,58 @@ declare function seekAlongPath(state: WaypointState, waypoints: Vec2[], path: Pa
     tickMs: number;
 }): WaypointState;
 
+## text/measure.ts
+declare function measureText(lines: readonly RichLine[], font: FontMeta | null, size: number, wrap?: number): {
+    exact: boolean;
+    height: number;
+    width: number;
+};
+
+## text/rich.ts
+type RichLine = readonly RichSpan[];
+type RichSpan = {
+    bold?: boolean;
+    color?: number;
+    effect?: "shake" | "wave";
+    icon?: {
+        asset: AssetId;
+        frame: string;
+    };
+    italic?: boolean;
+    size?: number;
+    text: string;
+};
+type TextVars = Readonly<Record<string, number | string>>;
+declare function parseRichText(source: string, vars?: TextVars): {
+    lines: readonly RichLine[];
+    warnings: readonly string[];
+};
+declare function plainText(source: string, vars?: TextVars): string;
+
+## text/strings.ts
+interface StringTable {
+    get(key: string, vars?: TextVars): string;
+    has(key: string): boolean;
+    readonly locale: string;
+    readonly direction: TextDirection;
+}
+type StringTableData = {
+    direction: TextDirection;
+    font: TextFont | null;
+    locale: string;
+    strings: Readonly<Record<string, string>>;
+};
+type TextDirection = "ltr" | "rtl";
+declare const bracketKey: (key: string) => string;
+declare function emptyStringTable(locale: string): StringTable;
+declare function localeDirection(locale: string): TextDirection;
+declare function resolveLocale(locales: LocaleSettings | null, opts: {
+    languages?: readonly string[];
+    saved?: null | string;
+}): string;
+declare function stringTable(view: ProjectRuntimeView, locale: string): StringTable;
+declare function stringTableData(view: ProjectRuntimeView, locale: string, font: TextFont | null): StringTableData;
+
 ## tool-router.ts
 type PointerKind = "mouse" | "pen" | "touch";
 declare const TOOL_PRIORITY: {
@@ -16671,6 +17905,7 @@ type ToolRouter = {
     destroy(): void;
     detach(): void;
     dispatch(e: ToolEvent): null | string;
+    onGesture(listener: (native: Event) => void): () => void;
     register(c: ToolConsumer): () => void;
 };
 
@@ -16706,7 +17941,12 @@ type GameConfig = {
     assets?: {
         kinds: KindRegistry;
         loader: AssetLoader;
+        url?: AssetUrl;
         view: ProjectView;
+    };
+    audio?: {
+        backend?: (() => AudioBackend | false) | AudioBackend | false;
+        prefs?: PrefsStore;
     };
     backgroundColor: number;
     bindings?: readonly InputBinding[];
@@ -16749,6 +17989,14 @@ type GameConfig = {
     viewports?: readonly ViewportDef[];
 };
 type GameEventMap = {
+    "audio:caption": {
+        at: number;
+        key: string;
+    };
+    "audio:unlocked": undefined;
+    "captions:change": {
+        enabled: boolean;
+    };
     "flow:change": {
         entry: null | string;
         from: AssetId | null;
@@ -16767,6 +18015,10 @@ type GameEventMap = {
         version: Sha256 | null;
     };
     "live:swapped": SceneSwap;
+    "locale:change": {
+        from: string;
+        to: string;
+    };
     "play:outcome": PlayOutcome;
     "play:recorded": RunRecording;
     "render:failed": {
@@ -16825,6 +18077,8 @@ type GameInput = {
     trackPointer: (on: boolean) => void;
 };
 type GameInstance = {
+    blobUrl: (id: AssetId) => null | string;
+    calibrateLatency: (opts?: CalibrateLatencyOptions) => Promise<LatencyCalibration | null>;
     cancel: () => boolean;
     clientToWorld: (clientX: number, clientY: number, viewport?: number) => Vec2;
     command: (name: string) => boolean;
@@ -16858,6 +18112,9 @@ type GameInstance = {
         failed: BundleEntry[];
     }>;
     project: () => ProjectRuntimeView | null;
+    readonly audio: GameAudio | null;
+    readonly captions: GameCaptions;
+    readonly locale: GameLocale;
     readonly reducedMotion: boolean;
     recording: (opts?: {
         running?: boolean;
@@ -16920,11 +18177,18 @@ type GameLive = {
     }>;
     unpin(): void;
 };
+type GameLocale = {
+    available(): readonly string[];
+    current(): string;
+    set(locale: string): void;
+    strings(): StringTable;
+};
 type GameMode = "edit" | "play";
 type GamePhase = "destroyed" | "idle" | "loading" | "paused" | "running";
 type GameStoreState = {
     camera: CameraState;
     debugMode: string;
+    dialogue: Readonly<DialogueView> | null;
     fps: number;
     game: unknown;
     mode: GameMode;
@@ -17016,6 +18280,34 @@ declare function bindText<T>(el: HTMLElement, ctx: UiContext, select: (s: GameSt
 declare function bindToWorld(el: HTMLElement, ctx: UiContext, at: () => Vec2 | null): () => void;
 declare function watchView(ctx: UiContext, fn: () => void): () => void;
 
+## ui/captions.ts
+type CaptionsOptions = {
+    ms?: number;
+};
+type GameCaptions = {
+    enabled(): boolean;
+    set(on: boolean): void;
+};
+declare function createCaptions(ctx: UiContext, opts?: CaptionsOptions): UiHandle;
+
+## ui/dialogue.ts
+type DialogueBoxOptions = {
+    actions?: {
+        advance?: string;
+        down?: string;
+        up?: string;
+    };
+    className?: string;
+    portraits?: boolean;
+    speed?: number;
+};
+type TextLogOptions = {
+    max?: number;
+    toggle?: string;
+};
+declare function createDialogueBox(ctx: UiContext, opts?: DialogueBoxOptions): UiHandle;
+declare function createTextLog(ctx: UiContext, opts?: TextLogOptions): UiHandle;
+
 ## ui/flow-views.ts
 declare function createLoadingOverlay(opts?: {
     label?: string;
@@ -17025,17 +18317,32 @@ declare function fadeTransition(opts?: {
 }): TransitionRunner;
 
 ## ui/layer.ts
+type BlobUrl = (id: AssetId) => null | string;
 declare function createUiLayer(canvas: HTMLCanvasElement): {
     destroy(): void;
     root: HTMLElement;
 };
 declare function mountUi<G>(game: GameInstance, canvas: HTMLCanvasElement, mount: MountUi<G>, opts?: {
+    blobUrl?: BlobUrl;
     links?: UiContext["links"];
 }): () => void;
 
+## ui/rich-dom.ts
+declare function renderRichText(el: HTMLElement, lines: readonly RichLine[], ctx: Pick<UiContext, "assetUrl">): void;
+
 ## ui/types.ts
 type MountUi<G = unknown> = (ctx: UiContext<G>) => UiHandle;
+type UiAssetUrl = {
+    rect?: {
+        h: number;
+        w: number;
+        x: number;
+        y: number;
+    };
+    url: string;
+};
 type UiContext<G = unknown> = {
+    assetUrl(id: AssetId, frame?: string): UiAssetUrl | null;
     canvas: HTMLCanvasElement;
     game: GameInstance;
     install?: {
@@ -17049,6 +18356,7 @@ type UiContext<G = unknown> = {
     root: HTMLElement;
     settings: Readonly<Record<string, unknown>>;
     slice(): G | null;
+    strings(): StringTable;
     watch<T>(select: (s: GameStoreState) => T, fn: (value: T, prev: T | undefined) => void): () => void;
 };
 type UiHandle = {
@@ -17058,7 +18366,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.16.0";
+declare const ENGINE_VERSION = "0.17.0";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts
@@ -17265,6 +18573,10 @@ type ProjectFileAdapter = {
     loadDoc(name: string, doc: Y.Doc): Promise<void>;
     loadProject(doc: Y.Doc): Promise<ProjectProblem[]>;
     persist(name: string, doc: Y.Doc): Promise<void>;
+    reinspectSidecars(doc: Y.Doc, opts?: {
+        dryRun?: boolean;
+        ids?: readonly AssetId[];
+    }): Promise<SidecarReinspection[]>;
     repairBlobs(doc: Y.Doc, origin: DocOrigin): Promise<BlobRepair[]>;
     scan(): Promise<ProjectScan>;
     settle(docs: (name: string) => Y.Doc | undefined, project: Y.Doc): Promise<ProjectSync[]>;
@@ -17290,6 +18602,16 @@ type ProjectSync = DiskSync | {
     changed: AssetChange;
     kind: "applied";
     ops: number;
+};
+type SidecarReinspection = {
+    from: number;
+    id: AssetId;
+    issue?: SceneIssue;
+    key: AssetKey;
+    meta: boolean;
+    path: AssetPath;
+    sidecar: boolean;
+    to: number;
 };
 declare function codeModules(project: FileProject): Promise<Record<string, CodeModuleInfo>>;
 declare function createProjectFileAdapter(project: FileProject, options?: ProjectFileAdapterOptions): ProjectFileAdapter;

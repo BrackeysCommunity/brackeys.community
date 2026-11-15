@@ -1,0 +1,8 @@
+{
+  "kind": "strings",
+  "v": 1,
+  "strings": [
+    { "key": "caption.hit", "en": "[Thud]", "note": "Caption for crate hits." },
+    { "key": "intro.hello", "en": "Hello again.", "fr": "Rebonjour." }
+  ]
+}

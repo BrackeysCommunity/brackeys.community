@@ -1,0 +1,482 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:dialogue:v1",
+  "x-agent-surface": 23,
+  "title": "jams engine dialogue, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The dialogue JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "dialogue",
+      "description": "Always \"dialogue\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Dialogue format version."
+    },
+    "start": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The node it starts at."
+    },
+    "speakers": {
+      "description": "Who speaks, by id.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "The id lines name."
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+            "description": "A string key for the speaker's name."
+          },
+          "portrait": {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "A texture or an atlas."
+              },
+              "frame": {
+                "description": "With an atlas: the frame it shows.",
+                "type": "string"
+              }
+            },
+            "required": ["asset"],
+            "additionalProperties": false,
+            "description": "A portrait: a texture, or an atlas frame."
+          }
+        },
+        "required": ["id", "name"],
+        "additionalProperties": false,
+        "description": "One speaker."
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "The node's id, which `start`, `to`, `next` and `else` name."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "speaker": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                  "description": "A speaker's id."
+                },
+                "text": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                  "description": "A string key for the line's text."
+                },
+                "say": {
+                  "description": "Literal text, for prototypes; `text` wins.",
+                  "type": "string"
+                },
+                "voice": {
+                  "description": "A sound or clip played with the line.",
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                },
+                "portrait": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "A texture or an atlas."
+                    },
+                    "frame": {
+                      "description": "With an atlas: the frame it shows.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["asset"],
+                  "additionalProperties": false,
+                  "description": "A portrait: a texture, or an atlas frame."
+                },
+                "if": {
+                  "description": "The line shows only when this holds.",
+                  "$ref": "#/$defs/DialogueCondition"
+                },
+                "vars": {
+                  "description": "`{name}` placeholders and the variables that fill them.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string",
+                    "pattern": "^(?:\\/(?:[^~/]|~[01])*)+$",
+                    "description": "The variable it fills in."
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "description": "One line of a node."
+            },
+            "description": "Its lines, shown in order."
+          },
+          "choices": {
+            "description": "Offered after its last line.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+                  "description": "A string key for the choice's text."
+                },
+                "say": {
+                  "description": "Literal text, for prototypes; `text` wins.",
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                  "description": "The node it leads to."
+                },
+                "if": {
+                  "description": "The choice is offered only when this holds.",
+                  "$ref": "#/$defs/DialogueCondition"
+                },
+                "do": {
+                  "description": "Effects when it is picked.",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/DialogueEffect"
+                  }
+                },
+                "hidden": {
+                  "description": "When its `if` fails: hidden, or shown disabled. Default hide.",
+                  "type": "string",
+                  "enum": ["hide", "disable"]
+                }
+              },
+              "required": ["to"],
+              "additionalProperties": false,
+              "description": "One choice after a node's last line."
+            }
+          },
+          "next": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "Without choices: the next node."
+          },
+          "do": {
+            "description": "Effects when the node is entered.",
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DialogueEffect"
+            }
+          },
+          "if": {
+            "description": "Entering a node whose `if` fails goes to `else`.",
+            "$ref": "#/$defs/DialogueCondition"
+          },
+          "else": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "Where a failed `if` goes."
+          },
+          "end": {
+            "description": "Ends the conversation after its lines, with this ending's name.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "lines"],
+        "additionalProperties": false,
+        "description": "One node of the conversation."
+      },
+      "description": "The conversation's nodes, by id."
+    }
+  },
+  "required": ["kind", "v", "start", "nodes"],
+  "additionalProperties": false,
+  "description": "A conversation: nodes of lines by string key, choices, conditions and effects over JSON variables. Advanced only by recorded commands.",
+  "$defs": {
+    "DialogueCondition": {
+      "description": "A condition over the dialogue's variables.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "var": {
+              "type": "string",
+              "pattern": "^(?:\\/(?:[^~/]|~[01])*)+$",
+              "description": "The variable it reads, a JSON Pointer."
+            },
+            "eq": {
+              "description": "True when the value equals this.",
+              "$ref": "#/$defs/__schema0"
+            },
+            "ne": {
+              "description": "True when the value differs from this.",
+              "$ref": "#/$defs/__schema0"
+            },
+            "gt": {
+              "description": "True when the value is a number above this.",
+              "type": "number"
+            },
+            "gte": {
+              "description": "True when the value is a number at or above this.",
+              "type": "number"
+            },
+            "lt": {
+              "description": "True when the value is a number below this.",
+              "type": "number"
+            },
+            "lte": {
+              "description": "True when the value is a number at or below this.",
+              "type": "number"
+            },
+            "truthy": {
+              "description": "True when the value is (or, with false, isn't) truthy.",
+              "type": "boolean"
+            }
+          },
+          "required": ["var"],
+          "additionalProperties": false,
+          "description": "A test of one variable; every bound given must hold."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DialogueCondition"
+              },
+              "description": "Every one must hold."
+            }
+          },
+          "required": ["all"],
+          "additionalProperties": false,
+          "description": "All of several conditions."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DialogueCondition"
+              },
+              "description": "At least one must hold."
+            }
+          },
+          "required": ["any"],
+          "additionalProperties": false,
+          "description": "Any of several conditions."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/DialogueCondition"
+            }
+          },
+          "required": ["not"],
+          "additionalProperties": false,
+          "description": "The opposite of a condition."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "visited": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "A node seen in this conversation or saved history."
+            }
+          },
+          "required": ["visited"],
+          "additionalProperties": false,
+          "description": "Whether a node was seen."
+        }
+      ]
+    },
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    },
+    "DialogueEffect": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "set": {
+              "type": "string",
+              "pattern": "^(?:\\/(?:[^~/]|~[01])*)+$",
+              "description": "The variable it sets."
+            },
+            "to": {
+              "description": "Its new value.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              ],
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "required": ["set", "to"],
+          "additionalProperties": false,
+          "description": "Sets a variable."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "add": {
+              "type": "string",
+              "pattern": "^(?:\\/(?:[^~/]|~[01])*)+$",
+              "description": "The number variable it adds to."
+            },
+            "by": {
+              "type": "number",
+              "description": "What it adds; negative subtracts."
+            }
+          },
+          "required": ["add", "by"],
+          "additionalProperties": false,
+          "description": "Adds to a number variable."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "push": {
+              "type": "string",
+              "pattern": "^(?:\\/(?:[^~/]|~[01])*)+$",
+              "description": "The list variable it appends to."
+            },
+            "value": {
+              "description": "What it appends.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              ],
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "required": ["push", "value"],
+          "additionalProperties": false,
+          "description": "Appends to a list variable."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "emit": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The step event's type."
+            },
+            "data": {
+              "description": "The event's data.",
+              "$ref": "#/$defs/__schema0"
+            }
+          },
+          "required": ["emit"],
+          "additionalProperties": false,
+          "description": "Raises a step event game code handles."
+        }
+      ],
+      "description": "An effect on the dialogue's variables, or a step event."
+    }
+  }
+}

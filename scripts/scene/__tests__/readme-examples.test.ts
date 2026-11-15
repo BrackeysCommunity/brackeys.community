@@ -24,6 +24,7 @@ import {
 import { formatBytes } from "../../../src/lib/format-bytes";
 import { duelGame, field } from "../../engine-readme/examples/duel-game";
 import { basin, fountainGame, twinSpout } from "../../engine-readme/examples/fountain-game";
+import * as gate from "../../engine-readme/examples/gate-game";
 import { lookoutGame, ridge } from "../../engine-readme/examples/lookout-game";
 import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
 import { walkerGame } from "../../engine-readme/examples/walker-game";
@@ -134,7 +135,8 @@ function isPure(argv: string[]): boolean {
     return name === "assets list" || name === "assets info" || rest.includes("--dry-run");
   if (name === "render") return !rest.includes("--out");
   if (name === "project snapshot") return !rest.includes("--out") || rest.includes("-");
-  if (name === "game new") return rest.includes("--dry-run");
+  if (name === "game new" || name === "synth new" || name === "strings import")
+    return rest.includes("--dry-run");
   // A save writes only its fixture, which `inRoot` moves to the scratch root.
   if (name === "save") return !rest[rest.indexOf("--out") + 1]?.startsWith("scripts/");
   return name !== "new";
@@ -144,10 +146,11 @@ const placeholder = (arg: string) => arg.startsWith("<") || arg.includes("...");
 
 /**
  * A recording or save fixture a doc example writes and the next one reads,
- * kept in the scratch root, not the repo; one the repo ships under
- * `scripts/` is read where it is. `--out` is a scratch file only for `save`.
+ * or a rendered WAV, kept in the scratch root, not the repo; one the repo
+ * ships under `scripts/` is read where it is. `--out` is a scratch file only
+ * for `save`.
  */
-const SCRATCH_FLAGS = new Set(["--record", "--run", "--from-save"]);
+const SCRATCH_FLAGS = new Set(["--record", "--run", "--from-save", "--wav"]);
 const inRoot = (argv: readonly string[]) =>
   argv.map((arg, i) => {
     const flag = argv[i - 1];
@@ -160,13 +163,16 @@ const inRoot = (argv: readonly string[]) =>
  * runs against, `scene=<id>` (`apply --dry-run`) or `project=<id>` (`assets
  * apply --dry-run`), and with `expect=<code>` the issue code it reports.
  * `checks=<scene>` is a checks file instead, which `check <scene> --checks`
- * runs.
+ * runs. With `validate=<scene>` the batch is written to a fresh copy of the
+ * projects and `validate <scene>` runs after it, for the issues only the
+ * project-wide checks raise.
  */
 type Batch = {
   doc: string;
   line: number;
   target: { scene: string } | { project: string } | { checks: string };
   expect?: string;
+  validate?: string;
   text: string;
 };
 
@@ -193,6 +199,7 @@ function batches(doc: string, text: string): Batch[] {
       line,
       target,
       expect: attrs.expect,
+      ...(attrs.validate ? { validate: attrs.validate } : {}),
       text: m[2]!,
     });
   }
@@ -302,6 +309,15 @@ const ANIM_CODES = [
   "frame-shape-invalid",
   "tween-target-invalid",
 ];
+/** The codes sound, strings and dialogue added: a doc batch reproduces each, and each is in the issue table. */
+const CONTENT_CODES = [
+  "sound-bus-unknown",
+  "string-key-missing",
+  "locale-unknown",
+  "font-missing",
+  "dialogue-dead-end",
+  "dialogue-unreachable",
+];
 /** The scene tree's file codes, each listed in the issue table; a doc batch reproduces all but `parent-depth`. */
 const TREE_CODES = ["parent-cycle", "parent-type", "quarter-turn-only"];
 const TREE_LISTED = [...TREE_CODES, "parent-depth"];
@@ -328,6 +344,19 @@ const CARD_TABLE: SceneDefinition = {
   ],
 };
 
+/** The gate example game's docs, each written as `<id>.json` so the file name is its id. */
+const GATE_DOCS: Record<string, unknown> = {
+  "gate-talk": gate.gateTalk,
+  "gate-strings": gate.gateStrings,
+  "coin-patch": gate.coinPatch,
+  "coin-sound": gate.coinSound,
+  "hum-patch": gate.humPatch,
+  "hum-sound": gate.humSound,
+  "tune-patch": gate.tunePatch,
+  "tune-sound": gate.tuneSound,
+  "game-settings": { kind: "game-settings", v: 2, engine: gate.gateProject.engine, game: {} },
+};
+
 let root: string;
 let ctx: ToolContext;
 
@@ -343,6 +372,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
     duel: join(base, duelGame.id),
     tactics: join(base, tacticsGame.id),
     lookout: join(base, lookoutGame.id),
+    gate: join(base, gate.gateGame.id),
   };
   await cp(repoFile("packages/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
@@ -363,6 +393,10 @@ async function projectsIn(base: string): Promise<ToolContext> {
   );
   await mkdir(dirs.lookout);
   await writeFile(join(dirs.lookout, "ridge.json"), formatScene(ridge).text);
+  await mkdir(dirs.gate);
+  await writeFile(join(dirs.gate, "gate.json"), formatScene(gate.gateScene).text);
+  for (const [id, doc] of Object.entries(GATE_DOCS))
+    await writeFile(join(dirs.gate, `${id}.json`), `${JSON.stringify(doc, null, 2)}\n`);
   await copyGame(tacticsGame.id, dirs.tactics);
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
@@ -378,6 +412,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
       await tempProject(dirs.fountain, { game: fountainGame }),
       await tempProject(dirs.duel, { game: duelGame }),
       await tempProject(dirs.lookout, { game: lookoutGame }),
+      await tempProject(dirs.gate, { game: gate.gateGame }),
       await openProject(dirs.tactics, {
         game: tacticsGame,
         cacheDir: join(base, ".jams-cache", tacticsGame.id),
@@ -456,9 +491,28 @@ describe("op batches in the docs", () => {
           ? `checks of ${b.target.checks}`
           : `project ${b.target.project}`;
     const outcome = b.expect ? `reports ${b.expect}` : "applies";
-    it(`${b.doc}:${b.line}: the batch on ${on} ${outcome}`, async () => {
+    const then = b.validate ? ` once written, in validate ${b.validate}` : "";
+    it(`${b.doc}:${b.line}: the batch on ${on} ${outcome}${then}`, async () => {
       const file = join(root, `batch-${n}.json`);
       await writeFile(file, b.text);
+      if (b.validate) {
+        // Only the engine project's docs carry these batches; a copy of it alone keeps each write apart.
+        const dir = join(await mkdtemp(join(root, "written-")), "engine");
+        await cp(repoFile("packages/engine/scenes"), dir, { recursive: true });
+        const fresh: ToolContext = {
+          projects: [await tempProject(dir, { id: "engine" })],
+          loadRapier: loadCompatRapier,
+        };
+        const write =
+          "scene" in b.target
+            ? ["apply", b.target.scene, "--ops", file, "--json"]
+            : ["assets", "apply", "--ops", file, "--json"];
+        const applied = await runCli(write, fresh);
+        expect(applied.exitCode, applied.stdout + applied.stderr).toBe(0);
+        const r = await runCli(["validate", b.validate, "--json"], fresh);
+        expect([...codesIn(JSON.parse(r.stdout))], r.stdout).toContain(b.expect);
+        return;
+      }
       const argv =
         "scene" in b.target
           ? ["apply", b.target.scene, "--ops", file, "--dry-run", "--json"]
@@ -770,6 +824,100 @@ describe("op batches in the docs", () => {
     expect(ANIM_CODES.filter((code) => !expected.has(code))).toEqual([]);
     for (const code of ANIM_CODES)
       expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("reproduces the codes sound, strings and dialogue added, and lists each in the issue table", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(CONTENT_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of CONTENT_CODES)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+    const written = new Set(allBatches.filter((b) => b.validate).map((b) => b.expect));
+    expect(written).toEqual(
+      new Set(["dialogue-unreachable", "font-missing", "locale-unknown", "string-key-missing"]),
+    );
+  });
+
+  it("edits a sound, a synth patch, a dialogue, strings and the locales, and adds text and audio blocks, in batches that apply", () => {
+    const applied = allBatches.filter((b) => !b.expect);
+    const edits = applied.flatMap(
+      (b) => (JSON.parse(b.text) as { ops: { op: string; id?: string }[] }).ops,
+    );
+    for (const id of [
+      "clink",
+      "clink-synth",
+      "kitchen-dialogue",
+      "kitchen-strings",
+      "game-settings",
+    ])
+      expect(edits).toContainEqual(expect.objectContaining({ op: "editAsset", id }));
+    expect(edits).toContainEqual(expect.objectContaining({ op: "setLicence", id: "clink-wav" }));
+    const blocks = applied
+      .filter((b) => "scene" in b.target)
+      .flatMap((b) => (JSON.parse(b.text) as { ops: { entity?: { behaviors?: object } }[] }).ops)
+      .flatMap((op) => Object.keys(op.entity?.behaviors ?? {}));
+    expect(blocks).toEqual(expect.arrayContaining(["text", "audio"]));
+  });
+
+  it("runs every command sound, strings and dialogue added, and a playtest through the dialogue predicate", async () => {
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    const names = new Set(run.map((e) => split(e.argv)[0]));
+    for (const name of [
+      "dialogue walk",
+      "strings missing",
+      "strings export",
+      "strings import",
+      "synth new",
+      "synth render",
+      "assets reimport",
+      "assets info",
+    ])
+      expect(names, name).toContain(name);
+    for (const id of ["clink-wav", "clink-synth", "kitchen-font"])
+      expect(
+        run.some((e) => e.line.includes(`assets info ${id}`)),
+        id,
+      ).toBe(true);
+    expect(run.some((e) => e.line.includes("strings missing --locale fr"))).toBe(true);
+    expect(run.some((e) => split(e.argv)[0] === "dialogue walk" && e.argv.includes("--vars"))).toBe(
+      true,
+    );
+    const script = JSON.parse(
+      await readFile(repoFile("scripts/scene/examples/pay-the-toll.json"), "utf8"),
+    ) as {
+      steps: { until?: { dialogue?: object } }[];
+    };
+    expect(script.steps.filter((s) => s.until?.dialogue)).toHaveLength(3);
+    const r = await runCli(
+      [
+        "playtest",
+        "gate",
+        "--script",
+        "scripts/scene/examples/pay-the-toll.json",
+        "--present",
+        "--json",
+      ],
+      ctx,
+    );
+    const report = JSON.parse(r.stdout) as {
+      outcome: { result: string };
+      present: { kind: string }[];
+    };
+    expect(report.outcome.result).toBe("paid");
+    expect(report.present.map((p) => p.kind)).toEqual(["audio", "audio"]);
+  });
+
+  it("documents dialogue walk and assets info's meta in the commands table, and dialogue_walk in the MCP table", () => {
+    const row = (prefix: string) => texts[0]!.split("\n").find((l) => l.startsWith(prefix)) ?? "";
+    expect(row("| `dialogue walk ")).toContain("--vars");
+    for (const meta of [
+      "duration, channels and sample rate",
+      "a synth patch's duration",
+      "coverage and distance field",
+    ])
+      expect(row("| `assets info "), meta).toContain(meta);
+    expect(row("| `dialogue_walk`")).toContain("`dialogue walk`");
+    for (const kind of ["sounds", "synth patches", "dialogue", "strings"])
+      expect(row("| `asset_apply_ops`"), kind).toContain(kind);
   });
 
   it("reproduces the scene tree's codes, and lists each in the issue table", () => {

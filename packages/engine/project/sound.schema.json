@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:sound:v1",
+  "x-agent-surface": 23,
+  "title": "jams engine sound, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The sound JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "sound",
+      "description": "Always \"sound\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Sound format version."
+    },
+    "bus": {
+      "type": "string",
+      "description": "The bus it plays through: master, music, sfx, voice, ui; a game adds its own in GameDefinition.audio.buses."
+    },
+    "volume": {
+      "description": "Loudness, 0–1; default 1.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "pitch": {
+      "description": "Playback rate picked per play, [min, max]; 1 is the clip's own pitch. Default [1, 1].",
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The lowest playback rate."
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The highest playback rate."
+        }
+      ]
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "clip": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "An audio clip or a synth patch."
+          },
+          "weight": {
+            "description": "How often it's picked against the others; default 1.",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": ["clip"],
+        "additionalProperties": false,
+        "description": "One clip the sound may play."
+      },
+      "description": "The clips it picks from on each play, by weight; none plays nothing."
+    },
+    "loop": {
+      "description": "Loop until stopped; default false.",
+      "type": "boolean"
+    },
+    "cooldownMs": {
+      "description": "A second play inside this many ms of wall time is dropped.",
+      "unit": "ms",
+      "type": "number",
+      "minimum": 0
+    },
+    "maxVoices": {
+      "description": "At most this many playing at once, the oldest stopped; default 8.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64
+    },
+    "positional": {
+      "description": "Pan from where it plays against the main view; default false.",
+      "type": "boolean"
+    },
+    "range": {
+      "description": "A positional sound fades out linearly over this distance; omitted, no falloff.",
+      "unit": "m",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "caption": {
+      "description": "A string key shown as a caption when it plays.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "on": {
+      "description": "The step events that play it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A step event type: \"contact:start\", \"anim:frame\", a game's own."
+          },
+          "type": {
+            "description": "Only when the event's entity is of this type.",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Only when the event's entity carries this tag.",
+            "type": "string"
+          },
+          "data": {
+            "description": "Only when the event's data equals each of these keys (shallow).",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Any JSON value.",
+              "$ref": "#/$defs/__schema0"
+            }
+          }
+        },
+        "required": ["event"],
+        "additionalProperties": false,
+        "description": "A step event that plays the sound."
+      }
+    },
+    "preload": {
+      "description": "Load its clips with the scene bundle instead of on first play.",
+      "type": "boolean"
+    }
+  },
+  "required": ["kind", "v", "bus", "variants"],
+  "additionalProperties": false,
+  "description": "One sound: its bus, volume, pitch range and variants, and the step events that play it. Presentation only.",
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    }
+  }
+}

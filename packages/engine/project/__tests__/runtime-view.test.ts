@@ -328,6 +328,10 @@ describe("ProjectRuntimeView.doc and docs", () => {
       "scene-list",
       "animation",
       "emitter",
+      "sound",
+      "synth",
+      "dialogue",
+      "strings",
     ]);
   });
 });

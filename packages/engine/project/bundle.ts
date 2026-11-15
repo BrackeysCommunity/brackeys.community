@@ -15,6 +15,7 @@ import {
 import type { KindRegistry } from "./kinds";
 import { byCodeUnit, isPlainObject, isRuntimeKind, type KindEnv } from "./kinds/define";
 import { entityRefSites, headerAssetRefs } from "./kinds/fields";
+import { FONT_KIND } from "./kinds/font";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
 import { MATERIAL_KIND } from "./kinds/material";
 import { TEXTURE_KIND } from "./kinds/texture";
@@ -61,9 +62,13 @@ export function blobContent(
  * hash but no size: its bytes exist, but there's no size to pin. Carries
  * `detail.unsized`, the hash, so the export can tell it from other issues.
  */
-function unsizedIssue({ site, where, entityIds }: Source, sha256: Sha256): SceneIssue {
+function unsizedIssue(
+  { site, where, entityIds }: Source,
+  sha256: Sha256,
+  kind: AssetKindName,
+): SceneIssue {
   return makeIssue("asset-missing", {
-    message: `${where} names texture "${site.id}", whose entry records no size for blob ${sha256}`,
+    message: `${where} names ${kind} "${site.id}", whose entry records no size for blob ${sha256}`,
     path: site.pointer,
     entityIds,
     got: site.id,
@@ -125,8 +130,8 @@ type DocFollow = { docs: BundleDocs; env: KindEnv };
  * references through its kind's `refs` (an atlas's texture, a font's
  * pages), and, with `follow`, each runtime doc's through its kind's
  * `bundleRefs` (default `refs`), so an animation a behavior names brings
- * its atlas and texture. Only textures are entries: an atlas's or font's
- * data is its meta. Material sites are skipped, since materials ride in the
+ * its atlas and texture. Only textures and fonts are entries: an atlas's
+ * data is its meta, and a font's bytes are what a view draws it from. Material sites are skipped, since materials ride in the
  * registry.
  */
 function resolve(
@@ -162,13 +167,13 @@ function resolve(
       continue;
     }
     if (def?.storage !== "blob") continue;
-    if (live.kind === TEXTURE_KIND) {
+    if (live.kind === TEXTURE_KIND || live.kind === FONT_KIND) {
       const content = blobContent(live);
       if (!content) {
         issues.push(
           live.sha256 === undefined
             ? missingIssue(view, source)
-            : unsizedIssue(source, live.sha256),
+            : unsizedIssue(source, live.sha256, live.kind),
         );
         continue;
       }
@@ -315,8 +320,8 @@ function namedPrefabSources(
  * own references followed. A prefab a field names (a spawner's `prefab`)
  * that `prefabs` holds brings its children's asset fields and its header
  * too, and so on through what those name (`namedPrefabs`). Entries are the
- * textures among them, sorted by id, each once. A reference no live asset
- * of its kinds resolves, or a texture with no content, is `asset-missing`
+ * textures and fonts among them, sorted by id, each once. A reference no live asset
+ * of its kinds resolves, or a texture or font with no content, is `asset-missing`
  * with the closest live id; a texture whose entry records a hash but no
  * size is left out and is `asset-missing` too, saying so. With `docs`, a
  * runtime doc a field names (an `anim`'s animation) is followed into the
@@ -368,7 +373,10 @@ export function projectBundle(
   );
   const owner = gameSettingsEntries(view)[0]?.id ?? GAME_SETTINGS_KIND;
   const sources = def
-    .refs({ ...settings, game }, { registry, project: view })
+    .refs(
+      { ...settings, engine: isPlainObject(settings.engine) ? settings.engine : {}, game },
+      { registry, project: view },
+    )
     .map((site) => ({ site, where: `${owner} ${fieldOf(site, 0)}`, entityIds: [owner] }));
   return resolve("project", sources, view, kinds);
 }

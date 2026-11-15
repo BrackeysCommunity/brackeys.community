@@ -28,7 +28,7 @@ import { contentMap, layoutFromDoc, layoutPatch } from "../../collab/layout";
 import { logArray, readLog } from "../../collab/log";
 import { docToPrefab, prefabPatch } from "../../collab/prefab-doc";
 import { applyRegistryBatch, applyRepairs } from "../../collab/project-apply";
-import { projectAssetsMap, readProject } from "../../collab/project-doc";
+import { projectAssetsMap, readProject, writeEntry } from "../../collab/project-doc";
 import { readProjectLog } from "../../collab/project-log";
 import { COLLAB_LAYOUT_VERSION } from "../../collab/types";
 import { createRegistry } from "../../game/define";
@@ -56,6 +56,7 @@ import { type Prefab, SCENE_FORMAT_VERSION, type SceneDefinition } from "../../s
 import { fileContentStore } from "../content-store";
 import {
   createProjectFileAdapter,
+  DISK_ORIGIN,
   gameRegisters,
   pairDiskEvents,
   PERSISTED_ORIGIN,
@@ -428,7 +429,11 @@ describe("scan", () => {
     expect(problems).toEqual([]);
     expect(state.meta).toEqual({ projectId: "engine", layout: 1, name: "Engine" });
     const entries = Object.values(state.assets);
-    const files = await walk(ENGINE_HOME);
+    // tools/ holds the script that generates the home's media, which no kind claims;
+    // a local scene CLI run may leave its gitignored cache in node_modules/.
+    const files = (await walk(ENGINE_HOME)).filter(
+      (p) => !p.startsWith("tools/") && !p.startsWith("node_modules/"),
+    );
     const sidecars = files.filter((p) => p.endsWith(".asset.json"));
     const carried = entries.filter((e) => e.sha256 !== undefined || e.key !== e.id);
     expect(sidecars).toEqual(carried.map((e) => `${e.path}.asset.json`).sort());
@@ -2625,6 +2630,210 @@ describe("write-back: animations and emitters", () => {
   });
 });
 
+describe("write-back: strings, synth patches, dialogue and audio", () => {
+  const STRINGS = "text/intro.strings.json";
+  const PATCH = "sfx/coin.synth.json";
+  const TALK = "talk/gate.dialogue.json";
+  const CLIP = "sfx/tone.ogg";
+  const strings = {
+    kind: "strings",
+    v: 1,
+    strings: [
+      { key: "intro.hello", en: "Hello", fr: "Bonjour", de: "Hallo" },
+      { key: "intro.bye", en: "Bye", fr: "Salut" },
+    ],
+  };
+  const patch = {
+    kind: "synth",
+    v: 1,
+    wave: "square",
+    freq: 660,
+    sustainMs: 40,
+    decayMs: 120,
+    vibrato: { semitones: 1, hz: 6 },
+  };
+  const talk = {
+    kind: "dialogue",
+    v: 1,
+    start: "hello",
+    speakers: [{ id: "keeper", name: "speaker.keeper" }],
+    nodes: [
+      {
+        id: "hello",
+        lines: [{ speaker: "keeper", text: "intro.hello" }],
+        choices: [{ text: "intro.bye", to: "bye" }],
+      },
+      { id: "bye", lines: [{ speaker: "keeper", say: "Off you go." }], end: "left" },
+    ],
+  };
+
+  beforeEach(async () => {
+    await put(STRINGS, formatAssetDoc(kindOf("strings"), strings));
+    await put(PATCH, formatAssetDoc(kindOf("synth"), patch));
+    await put(TALK, formatAssetDoc(kindOf("dialogue"), talk));
+  });
+
+  const keyAt = (s: Session, path: string) =>
+    Object.values(readProject(s.project).assets).find((e) => e.path === path)!.key;
+
+  /** Every field path a change in `doc`'s content touches. */
+  const touchedIn = (doc: Y.Doc) => {
+    const touched: string[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events)
+        for (const key of e.changes.keys.keys()) touched.push([...e.path, key].join("."));
+    });
+    return touched;
+  };
+
+  it("strings: a disk edit to one string's fr is one disk transaction touching only that key and locale", async () => {
+    const s = await session();
+    const key = keyAt(s, STRINGS);
+    expect(s.entry(key)).toMatchObject({ kind: "strings" });
+    const doc = await s.open(key);
+    expect(textOf("strings", doc)).toBe(await read(STRINGS));
+    const rows = contentMap(doc).get("strings") as Y.Map<Y.Map<unknown>>;
+    const rowKey = (k: string) =>
+      [...rows.entries()].find(([, e]) => (e.get("item") as Y.Map<unknown>).get("key") === k)![0];
+    const bye = rows.get(rowKey("intro.bye"));
+    const touched = touchedIn(doc);
+
+    const value = structuredClone(strings);
+    value.strings[0]!.fr = "Salut !";
+    const after = formatAssetDoc(kindOf("strings"), value);
+    await put(STRINGS, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(STRINGS, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched).toEqual([`strings.${rowKey("intro.hello")}.item.fr`]);
+    expect(rows.get(rowKey("intro.bye"))).toBe(bye);
+    expect(textOf("strings", doc)).toBe(after);
+    expect(await s.adapter.syncPath(STRINGS, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry(key)!), doc)).toBe(false);
+  });
+
+  it("synth: a disk edit to a patch's freq is one disk transaction touching only that field", async () => {
+    const s = await session();
+    const key = keyAt(s, PATCH);
+    expect(s.entry(key)).toMatchObject({ kind: "synth" });
+    const doc = await s.open(key);
+    const touched = touchedIn(doc);
+
+    const after = formatAssetDoc(kindOf("synth"), { ...patch, freq: 880 });
+    await put(PATCH, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(PATCH, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched).toEqual(["freq"]);
+    expect(textOf("synth", doc)).toBe(after);
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry(key)!), doc)).toBe(false);
+  });
+
+  it("dialogue: a file reformatted by hand is rewritten canonically on the next store", async () => {
+    const s = await session();
+    const key = keyAt(s, TALK);
+    expect(s.entry(key)).toMatchObject({ kind: "dialogue" });
+    const doc = await s.open(key);
+    const canonicalText = await read(TALK);
+    expect(textOf("dialogue", doc)).toBe(canonicalText);
+
+    const { nodes, kind, ...rest } = talk;
+    const hand = `${JSON.stringify({ nodes, ...rest, kind }, null, 4)}\n`;
+    expect(hand).not.toBe(canonicalText);
+    await put(TALK, hand);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(TALK, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+    });
+    expect(origins).toEqual([]);
+    expect(await read(TALK)).toBe(hand);
+
+    const name = s.adapter.docNameOf(s.entry(key)!);
+    expect(await s.adapter.storeDoc(name, doc)).toBe(true);
+    expect(await read(TALK)).toBe(canonicalText);
+    expect(await s.adapter.storeDoc(name, doc)).toBe(false);
+    expect(await s.adapter.syncPath(TALK, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+  });
+
+  it("audio: a re-encoded .ogg is rehashed and re-inspected, its durationMs changing", async () => {
+    const vorbis = await fixture("tone.ogg");
+    const opus = await fixture("media/tone-opus.ogg");
+    await putBytes(CLIP, vorbis);
+    const s = await session();
+    const key = keyAt(s, CLIP);
+    const before = s.entry(key)!;
+    expect(before).toMatchObject({ kind: "audio", sha256: sha(vorbis), meta: { format: "ogg" } });
+    const durationBefore = (before.meta as { durationMs: number }).durationMs;
+    expect(durationBefore).toBeCloseTo(101.587, 2);
+    await s.adapter.storeProject(s.project);
+
+    await putBytes(CLIP, opus);
+    const origins = await transactions(s.project, async () => {
+      expect(await s.adapter.syncPath(CLIP, s.lookup, s.project)).toMatchObject({
+        kind: "applied",
+        changed: { sha256: sha(opus), previous: sha(vorbis) },
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    const after = s.entry(key)!;
+    expect(after).toMatchObject({ sha256: sha(opus), bytes: opus.byteLength });
+    expect(after.meta).toMatchObject({ format: "ogg", channels: 2, sampleRate: 48_000 });
+    const durationAfter = (after.meta as { durationMs: number }).durationMs;
+    expect(durationAfter).toBeCloseTo(100, 2);
+    expect(durationAfter).not.toBe(durationBefore);
+
+    expect(await s.adapter.storeProject(s.project)).toBe(true);
+    expect(await sidecarAt(CLIP)).toMatchObject({
+      sha256: sha(opus),
+      metaVersion: 2,
+      meta: { durationMs: durationAfter },
+    });
+    expect(await s.adapter.syncPath(CLIP, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+  });
+
+  it("audio: a meta-version-1 sidecar is re-inspected once, gaining the clip's length", async () => {
+    const vorbis = await fixture("tone.ogg");
+    await putBytes(CLIP, vorbis);
+    const first = await session();
+    expect(await first.adapter.storeProject(first.project)).toBe(true);
+    const current = await sidecarAt(CLIP);
+    expect(current).toMatchObject({ metaVersion: 2, meta: { format: "ogg" } });
+    const { metaVersion: _version, meta, ...kept } = current;
+    const versionOne = `${JSON.stringify({ ...kept, meta: { format: (meta as { format: string }).format } }, null, 2)}\n`;
+    await writeFile(join(dir, `${CLIP}.asset.json`), versionOne);
+
+    const adapter = createProjectFileAdapter({ ...project, cacheDir: join(root, "fresh-cache") });
+    const doc = new Y.Doc();
+    let disk = 0;
+    doc.on("update", (_u: Uint8Array, origin: unknown) => {
+      if (origin === DISK_ORIGIN) disk++;
+    });
+    await adapter.loadProject(doc);
+    const key = Object.values(readProject(doc).assets).find((e) => e.path === CLIP)!.key;
+    expect(readProject(doc).assets[key]!.meta).toEqual(meta);
+    const atLoad = disk;
+
+    expect(await adapter.reinspectSidecars(doc)).toEqual([
+      expect.objectContaining({ path: CLIP, from: 1, to: 2, sidecar: true }),
+    ]);
+    const rewritten = await sidecarAt(CLIP);
+    expect(rewritten).toEqual(current);
+    expect(await adapter.reinspectSidecars(doc)).toEqual([]);
+    expect(await adapter.storeProject(doc)).toBe(false);
+    expect(await adapter.syncPath(`${CLIP}.asset.json`, () => undefined, doc)).toEqual({
+      kind: "unchanged",
+    });
+    expect(disk).toBe(atLoad);
+  });
+});
+
 describe("gameRegisters", () => {
   it("lists the game's layers and its own collision groups, sorted, for the Layers tab", () => {
     const game = {
@@ -2647,5 +2856,159 @@ describe("gameRegisters", () => {
     expect(gameRegisters(bare)).not.toHaveProperty("layers");
     expect(gameRegisters(bare)).not.toHaveProperty("collisionGroups");
     expect(gameRegisters(null)).toEqual({});
+  });
+});
+
+describe("re-inspection by meta version", { timeout: 30_000 }, () => {
+  const BYTES = new TextEncoder().encode("one\ntwo\nthree\n");
+  /** A binary kind whose inspector learns `lines` at version 2. */
+  const probe = (metaVersion?: number) =>
+    defineAssetKind({
+      kind: "probe",
+      title: "Probe",
+      description: "A test binary kind whose meta grows with its version.",
+      match: { suffixes: [".probe"] },
+      storage: "blob",
+      contentTypes: ["application/octet-stream"],
+      maxBytes: 1024,
+      settings: z.strictObject({}),
+      meta: z.looseObject({}),
+      inspect: (bytes) => ({
+        ok: true,
+        meta:
+          (metaVersion ?? 1) >= 2
+            ? {
+                size: bytes.byteLength,
+                lines: new TextDecoder().decode(bytes).split("\n").length - 1,
+              }
+            : { size: bytes.byteLength },
+      }),
+      ...(metaVersion === undefined ? {} : { metaVersion }),
+    });
+  const probeProject = (metaVersion?: number): FileProject => ({
+    ...project,
+    kinds: createKindRegistry(checkedTestGame, [...ENGINE_ASSET_KINDS, probe(metaVersion)]),
+  });
+  const SIDECAR = "data/sample.probe.asset.json";
+
+  /** The project as an older inspector left it: its sidecar written with version-1 meta and no recorded version. */
+  async function writtenByVersion1(): Promise<string> {
+    await mkdir(join(dir, "data"), { recursive: true });
+    await writeFile(join(dir, "data/sample.probe"), BYTES);
+    const old = await session(createProjectFileAdapter(probeProject()));
+    expect(await old.adapter.storeProject(old.project)).toBe(true);
+    const text = await read(SIDECAR);
+    expect(JSON.parse(text)).toMatchObject({ meta: { size: BYTES.byteLength } });
+    expect(JSON.parse(text)).not.toHaveProperty("metaVersion");
+    return text;
+  }
+
+  const diskUpdates = (doc: Y.Doc) => {
+    let n = 0;
+    doc.on("update", (_u: Uint8Array, origin: unknown) => {
+      if (origin === DISK_ORIGIN) n++;
+    });
+    return () => n;
+  };
+
+  it("a meta-version-1 sidecar is re-inspected once: only its meta and version change, in one disk transaction", async () => {
+    const before = await writtenByVersion1();
+    const adapter = createProjectFileAdapter(probeProject(2));
+    const doc = new Y.Doc();
+    const updates = diskUpdates(doc);
+    await adapter.loadProject(doc);
+    expect(readProject(doc).assets.sample!.meta).toEqual({ size: BYTES.byteLength, lines: 3 });
+    expect(updates()).toBe(1);
+
+    expect(await adapter.reinspectSidecars(doc)).toEqual([
+      {
+        key: "sample",
+        id: "sample",
+        path: "data/sample.probe",
+        from: 1,
+        to: 2,
+        meta: false,
+        sidecar: true,
+      },
+    ]);
+    const after = await read(SIDECAR);
+    const { metaVersion, meta, ...rest } = JSON.parse(after) as Record<string, unknown>;
+    const { meta: oldMeta, ...oldRest } = JSON.parse(before) as Record<string, unknown>;
+    expect(rest).toEqual(oldRest);
+    expect(oldMeta).toEqual({ size: BYTES.byteLength });
+    expect(meta).toEqual({ size: BYTES.byteLength, lines: 3 });
+    expect(metaVersion).toBe(2);
+    expect(updates()).toBe(1);
+
+    expect(await adapter.reinspectSidecars(doc)).toEqual([]);
+    expect(await adapter.syncPath(SIDECAR, () => undefined, doc)).toEqual({ kind: "unchanged" });
+    expect(await adapter.storeProject(doc)).toBe(false);
+    expect(await read(SIDECAR)).toBe(after);
+    expect(updates()).toBe(1);
+  });
+
+  it("the watcher re-inspects a stale sidecar that lands on disk, writing stale registry meta back in one disk transaction", async () => {
+    const before = await writtenByVersion1();
+    const adapter = createProjectFileAdapter(probeProject(2));
+    const s = await session(adapter);
+    await adapter.reinspectSidecars(s.project);
+    const current = await read(SIDECAR);
+    const entry = s.entry("sample")!;
+    writeEntry(s.project, { ...entry, meta: { size: BYTES.byteLength } }, user);
+    const updates = diskUpdates(s.project);
+
+    await writeFile(join(dir, SIDECAR), before);
+    expect(await adapter.syncPath(SIDECAR, s.lookup, s.project)).toEqual({
+      kind: "applied",
+      ops: 1,
+    });
+    expect(s.entry("sample")!.meta).toEqual({ size: BYTES.byteLength, lines: 3 });
+    expect(await read(SIDECAR)).toBe(current);
+    expect(updates()).toBe(1);
+    expect(await adapter.syncPath(SIDECAR, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+    expect(updates()).toBe(1);
+  });
+
+  it("named ids are inspected again whatever their version; a dry run writes nothing", async () => {
+    const before = await writtenByVersion1();
+    const adapter = createProjectFileAdapter(probeProject(2));
+    const s = await session(adapter);
+    const updates = diskUpdates(s.project);
+    expect(await adapter.reinspectSidecars(s.project, { dryRun: true })).toEqual([
+      expect.objectContaining({ id: "sample", from: 1, to: 2, sidecar: true }),
+    ]);
+    expect(await read(SIDECAR)).toBe(before);
+    await adapter.reinspectSidecars(s.project, { ids: ["sample"] });
+    expect(await adapter.reinspectSidecars(s.project, { ids: ["sample", "ice", "nope"] })).toEqual([
+      {
+        key: "sample",
+        id: "sample",
+        path: "data/sample.probe",
+        from: 2,
+        to: 2,
+        meta: false,
+        sidecar: false,
+      },
+    ]);
+    expect(updates()).toBe(0);
+  });
+
+  it("a kind without metaVersion records none, so existing sidecars stay byte-identical", async () => {
+    const before = await writtenByVersion1();
+    const s = await session(createProjectFileAdapter(probeProject()));
+    expect(await s.adapter.reinspectSidecars(s.project)).toEqual([]);
+    expect(await s.adapter.storeProject(s.project)).toBe(false);
+    expect(await read(SIDECAR)).toBe(before);
+  });
+
+  it("a store after a version bump writes the recorded version with the meta", async () => {
+    await writtenByVersion1();
+    const s = await session(createProjectFileAdapter(probeProject(2)));
+    expect(await s.adapter.storeProject(s.project)).toBe(true);
+    expect(JSON.parse(await read(SIDECAR))).toMatchObject({
+      metaVersion: 2,
+      meta: { size: BYTES.byteLength, lines: 3 },
+    });
+    expect(await s.adapter.reinspectSidecars(s.project)).toEqual([]);
   });
 });

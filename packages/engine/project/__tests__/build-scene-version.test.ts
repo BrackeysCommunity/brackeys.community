@@ -98,7 +98,7 @@ describe("buildSceneVersion over the engine project", () => {
       if (a.storage === "doc") {
         expect(a.file, id).toBe(`live/${a.sha256}.json`);
         expect(texts.get(a.sha256), id).toBe(input.texts.get(id));
-      } else expect(a.file, id).toMatch(new RegExp(`^live/${a.sha256}\\.(png|json)$`));
+      } else expect(a.file, id).toMatch(new RegExp(`^live/${a.sha256}\\.(png|json|wav)$`));
     }
     expect(
       Object.values(version.assets).some((a) => a.kind === "scene" && a.path !== SINK_PATH),

@@ -1,6 +1,9 @@
 import type { Store } from "@tanstack/store";
 import { Container, Graphics } from "pixi.js";
 
+import type { CalibrateLatencyOptions, LatencyCalibration } from "./audio/clock";
+import { createAudioSystem, type AudioSystemHandle } from "./audio/system";
+import type { AudioBackend, GameAudio } from "./audio/types";
 import { boxCentre, createCamera, type Camera } from "./camera";
 import { cameraRegionsOf, type CameraRegion } from "./camera/regions";
 import {
@@ -26,6 +29,8 @@ import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
 import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
+import { textFontOf } from "./game/behaviors/text";
+import { LATENCY_COMMAND, LATENCY_MS_LIMIT } from "./game/commands";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
   actionProblem,
@@ -87,6 +92,7 @@ import { createInputSystem } from "./input/system";
 import { createTouchControls, type TouchControls } from "./input/touch-controls";
 import { createGameLoop } from "./loop";
 import { rotate } from "./math";
+import { memoryPrefsStore } from "./prefs";
 import {
   bundleOf,
   projectBundle,
@@ -97,6 +103,7 @@ import {
 import { ownValue, sameValue } from "./project/canonical";
 import type { KindRegistry } from "./project/kinds";
 import { engineResolution } from "./project/kinds/game-settings";
+import { localeSettingsOf, type LocaleSettings } from "./project/kinds/strings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ReleaseAsset } from "./project/release";
 import { assetEntryOf } from "./project/release-assets";
@@ -139,7 +146,7 @@ import {
   type SessionRecording,
 } from "./runtime/play-session";
 import { lerpPose } from "./runtime/poses";
-import type { EffectRequest, PresentRequest } from "./runtime/present";
+import type { AudioRequest, EffectRequest, PresentRequest } from "./runtime/present";
 import { recordingRapier, recordingStart } from "./runtime/recorder";
 import {
   createSceneRuntime,
@@ -173,6 +180,7 @@ import {
   createGameStore,
   incrementTick,
   resetGameStore,
+  setDialogue,
   setFPS,
   setGameSlice,
   setMode as setStoreMode,
@@ -182,6 +190,13 @@ import {
   setSimTimeScale,
   updateCamera,
 } from "./store";
+import {
+  resolveLocale,
+  stringTable,
+  stringTableData,
+  type StringTable,
+  type StringTableData,
+} from "./text/strings";
 import { createToolRouter, resolveInputTarget, type ToolEvent } from "./tool-router";
 import type {
   CameraState,
@@ -203,6 +218,7 @@ import type {
   Vec2,
 } from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
+import { captionsPreference } from "./ui/captions";
 import { cancelMountedUi, createEffectOverlay, createTransitionLayer } from "./ui/layer";
 
 /** The scene that is playing: its runtime, the view it draws into, and the game's tools on it. */
@@ -654,6 +670,7 @@ export async function createGame(
 
   function teardownScene(): void {
     if (!loaded) return;
+    stopWorldSounds();
     debugOverlay?.setPhysics(null);
     loaded.attachment?.destroy();
     loaded.runtime.destroy();
@@ -697,7 +714,7 @@ export async function createGame(
   function buildRuntime(name: string): BuiltRuntime {
     const container = new Container();
     container.label = `scene:${name}`;
-    /** Set once made: the particle layer reads its project's textures through it. */
+    /** Set once made: the particle layer reads its project's textures and its poses through it. */
     let built: SceneRuntimeHandle | null = null;
     const view = createPixiView(container, {
       layers: registry.layers,
@@ -708,9 +725,11 @@ export async function createGame(
         reducedMotion: motionReduced,
         seed: name,
         texture: (preset) => (built ? particleTexture(built.ctx, preset) : null),
+        poses: () => built?.ctx.poses,
       },
       ...(resolution.pixelSnap ? { pixelSnap: true } : {}),
     });
+    handTable(view);
     const runtime = createSceneRuntime({
       rapier,
       view,
@@ -752,6 +771,7 @@ export async function createGame(
     teardownScene();
     if (bundle && assets) void loadBundle(bundle);
     sceneLayer.addChild(container);
+    handTable(view);
     const shell: GameShell = { view, router, dev: cfg.dev, getMode, send };
     loaded = { runtime, view, attachment: game?.attach?.(shell, runtime) ?? null, bundle };
     debugOverlay?.setPhysics(runtime.ctx);
@@ -991,6 +1011,8 @@ export async function createGame(
     layoutViewports();
     updateCamera(store, camera.getState());
     loaded?.attachment?.onModeChange?.(mode);
+    if (mode === "play") openAudio();
+    else closeAudio();
     if (mode === "play" && store.state.phase === "running") focusInput();
   }
 
@@ -1341,6 +1363,7 @@ export async function createGame(
     enterMode("edit");
     if (remembered) restoreCamera(remembered.camera);
     setSession(store, null);
+    setDialogue(store, null);
     // Edit mode's camera and overlays tick too, so the loop runs on at 1x, with no flash left over.
     effects?.layer.clear();
     loop.setTimeScale(1);
@@ -1382,6 +1405,7 @@ export async function createGame(
       events: result.events,
       world: playWorld(runtime.ctx),
       persist: runtime.ctx.persist.value,
+      dialogue: runtime.ctx.dialogue.view(),
     });
     if (!verdict) return null;
     const recorded = { ...verdict, tick: result.tick };
@@ -1432,6 +1456,8 @@ export async function createGame(
     input.flush();
     heldInput = [];
     pendingCommands = [];
+    const latency = savedLatency();
+    if (latency) pendingCommands.push(latency);
     tickPointer = input.getMousePosition();
     pointerNow = null;
     pointerSent = null;
@@ -1569,7 +1595,8 @@ export async function createGame(
    */
   function wakePending(time: ResolvedTime): boolean {
     sampleDevices();
-    if (pendingCommands.length > 0) return true;
+    // `@latency` rides the next tick without waking one.
+    if (pendingCommands.some((c) => c.name !== LATENCY_COMMAND)) return true;
     if (time.kind !== "event") return false;
     const polled = input.poll(store.state.tick);
     if (polled.length > 0) heldInput.push(...polled);
@@ -1924,11 +1951,12 @@ export async function createGame(
    * makes it when the scene declares none; a viewport fitted to the scene
    * takes none, and under reduced motion no shake is kept), effects to the
    * effect layer and bursts to the scene view's particle layer, in that
-   * order. Audio has nowhere to go yet, so it is dropped, as are requests
-   * for a viewport that isn't there.
+   * order; requests for a viewport that isn't there are dropped. The audio
+   * requests are returned, in order, for the audio system.
    */
-  function presentTick(requests: readonly PresentRequest[] | undefined): void {
-    if (!requests) return;
+  function presentTick(requests: readonly PresentRequest[] | undefined): AudioRequest[] {
+    const sounds: AudioRequest[] = [];
+    if (!requests) return sounds;
     for (const req of requests) {
       switch (req.kind) {
         case "camera": {
@@ -1954,9 +1982,284 @@ export async function createGame(
           presentEffect(req.op);
           break;
         case "audio":
+          sounds.push(req.op);
           break;
       }
     }
+    return sounds;
+  }
+
+  // ─── Audio ────────────────────────────────────────────────
+
+  /** Bus volumes, the locale and the calibrated latency, kept for this instance's life when the host keeps none. */
+  const prefs = cfg.audio?.prefs ?? memoryPrefsStore();
+  /** The id this game's prefs are saved under. */
+  const prefsId = () => game?.id ?? assets?.view.state.meta.projectId ?? "engine";
+  /**
+   * Play's audio system and its backend; null in edit mode or with no
+   * backend. A backend the config's function built is `owned`: closed when
+   * Play ends. One handed over as is lasts the instance's life.
+   */
+  let audio: {
+    system: AudioSystemHandle;
+    backend: AudioBackend;
+    owned: boolean;
+    pick: GameAudio;
+  } | null = null;
+  /** The backend was asked for in this Play, whatever it answered. */
+  let audioAsked = false;
+  /** A gesture reached the input target, so a backend built later may unlock at once. */
+  let gestured = false;
+  /** The keys of the loaded world's keyed sounds, stopped when that world goes. */
+  const keyedSounds = new Set<string>();
+  const assetUrl = assets?.url ?? null;
+
+  const noProject: ProjectRuntimeView = Object.freeze({
+    settings: Object.freeze({}),
+    engine: Object.freeze({}),
+    table: () => [],
+    asset: () => undefined,
+    inputMap: null,
+    doc: () => undefined,
+    docs: () => [],
+  });
+
+  // ─── Latency ──────────────────────────────────────────────
+
+  /** A latency as `@latency` carries it: whole ms within its bounds. */
+  const latencyArg = (ms: number): number =>
+    Math.max(-LATENCY_MS_LIMIT, Math.min(LATENCY_MS_LIMIT, Math.round(ms)));
+
+  /** The saved calibration as the `@latency` each new world starts with; null with none saved, or 0. */
+  function savedLatency(): GameCommand | null {
+    const saved = prefs.load(prefsId())["audio.latencyMs"];
+    if (typeof saved !== "number" || !Number.isFinite(saved)) return null;
+    const ms = latencyArg(saved);
+    return ms === 0 ? null : { name: LATENCY_COMMAND, args: { ms } };
+  }
+
+  /**
+   * Plays the click track and takes taps on any UI-only action's press (any
+   * button's, for a game that declares none). The result is sent as
+   * `@latency` and saved, so the next world starts with it.
+   */
+  async function calibrateLatency(
+    opts: CalibrateLatencyOptions = {},
+  ): Promise<LatencyCalibration | null> {
+    const open = openAudio();
+    if (!open) return null;
+    try {
+      await open.system.unlock();
+    } catch {
+      return null;
+    }
+    const uiOnly = registry.uiActionNames;
+    const result = await open.system.calibrate({
+      ...opts,
+      onTap: (tap) =>
+        onAction(
+          (e) => {
+            if (e.kind === "button" && e.down === true && e.repeat !== true) tap();
+          },
+          uiOnly.length > 0 ? { actions: uiOnly } : undefined,
+        ),
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
+    if (!result || destroyed) return null;
+    const ms = latencyArg(result.ms);
+    send({ name: LATENCY_COMMAND, args: { ms } });
+    prefs.save(prefsId(), { ...prefs.load(prefsId()), "audio.latencyMs": ms });
+    return result;
+  }
+
+  // ─── Locale ───────────────────────────────────────────────
+
+  const localeSettings = (): LocaleSettings => localeSettingsOf(project?.engine.locales);
+  /** Resolved at the first read, and again when the project no longer offers it. */
+  let chosenLocale: string | null = null;
+  let localeCache: {
+    project: ProjectRuntimeView | null;
+    locale: string;
+    data: StringTableData;
+    table: StringTable | null;
+  } | null = null;
+  /** The table each scene view was last handed. */
+  const handedTables = new WeakMap<object, StringTableData>();
+
+  function currentLocale(): string {
+    const locales = localeSettings();
+    if (chosenLocale === null || !locales.available.includes(chosenLocale)) {
+      const saved = prefs.load(prefsId()).locale;
+      chosenLocale = resolveLocale(locales, {
+        saved: typeof saved === "string" ? saved : null,
+        languages: typeof navigator === "undefined" ? [] : navigator.languages,
+      });
+    }
+    return chosenLocale;
+  }
+
+  /** The current locale's table, built again when the locale or the project changes. */
+  function localeEntry(): NonNullable<typeof localeCache> {
+    const locale = currentLocale();
+    if (localeCache?.project === project && localeCache.locale === locale) return localeCache;
+    const view = project ?? noProject;
+    const { fonts } = localeSettings();
+    const font = textFontOf((id) => view.asset(id), fonts?.[locale] ?? fonts?.default);
+    localeCache = { project, locale, data: stringTableData(view, locale, font), table: null };
+    return localeCache;
+  }
+
+  /** Hands a scene view the current table as data, when it doesn't hold it already. */
+  function handTable(view: { locale?(table: StringTableData): void }): void {
+    const { data } = localeEntry();
+    if (handedTables.get(view) === data) return;
+    handedTables.set(view, data);
+    view.locale?.(data);
+  }
+
+  const locale: GameInstance["locale"] = {
+    current: currentLocale,
+    available: () => localeSettings().available,
+    set(to) {
+      if (destroyed) return;
+      if (!localeSettings().available.includes(to)) {
+        if (cfg.dev) console.warn(`[game] locale.set("${to}"): not in engine.locales.available`);
+        return;
+      }
+      const from = currentLocale();
+      prefs.save(prefsId(), { ...prefs.load(prefsId()), locale: to });
+      if (to === from) return;
+      chosenLocale = to;
+      if (loaded) handTable(loaded.view);
+      events.emit("locale:change", { from, to });
+    },
+    strings() {
+      const entry = localeEntry();
+      entry.table ??= stringTable(project ?? noProject, entry.locale);
+      return entry.table;
+    },
+  };
+
+  const captions = captionsPreference({
+    prefs,
+    gameId: prefsId,
+    changed: (enabled) => events.emit("captions:change", { enabled }),
+  });
+
+  /** Where the host serves `id`'s bytes; null for an asset it has no blob of, or with no host URLs. */
+  function blobUrl(id: AssetId): string | null {
+    const info = project?.asset(id);
+    if (!assets || !assetUrl || !info?.sha256) return null;
+    const entry: BundleEntry = { id, kind: info.kind, sha256: info.sha256, bytes: info.bytes ?? 0 };
+    return assetUrl(assets.view.state.meta.projectId, entry);
+  }
+
+  async function fetchClip(id: AssetId): Promise<ArrayBuffer> {
+    const url = blobUrl(id);
+    if (url === null) throw new Error(`no URL for the clip "${id}"`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`the clip "${id}" failed to load (${res.status})`);
+    return res.arrayBuffer();
+  }
+
+  /** Builds the audio system when Play has none yet and the config gives a backend; asks once per Play. */
+  function openAudio(): typeof audio {
+    if (audio || audioAsked || destroyed || getMode() !== "play") return audio;
+    audioAsked = true;
+    const option = cfg.audio?.backend;
+    const owned = typeof option === "function";
+    const backend = owned ? option() : option;
+    if (!backend) return null;
+    const system = createAudioSystem({
+      backend,
+      project: project ?? noProject,
+      registry,
+      fetchClip,
+      clipUrl: (id) => blobUrl(id) ?? "about:blank",
+      poses: { get: (id) => loaded?.runtime.ctx.poses.get(id) },
+      entity: (id) => loaded?.runtime.get(id),
+      prefs,
+      gameId: prefsId(),
+      latencyMs: () => loaded?.runtime.ctx.input.latencyMs() ?? 0,
+      tickMs: clock().tickMs,
+      reducedMotion: motionReduced,
+      emit: (event, payload) => {
+        if (event === "audio:unlocked") events.emit("audio:unlocked");
+        else events.emit("audio:caption", payload as GameEventMap["audio:caption"]);
+      },
+    });
+    const pick: GameAudio = {
+      buses: () => system.buses(),
+      setBus: (bus, volume, muted) => system.setBus(bus, volume, muted),
+      get unlocked() {
+        return system.unlocked;
+      },
+      get clock() {
+        return system.clock;
+      },
+      stopAll: (fadeMs) => system.stopAll(fadeMs),
+    };
+    audio = { system, backend, owned, pick };
+    if (gestured) unlockAudio();
+    return audio;
+  }
+
+  /** Leaving Play: an owned backend closes with its system; a handed-over one goes quiet. `final` closes either. */
+  function closeAudio(final = false): void {
+    audioAsked = false;
+    keyedSounds.clear();
+    const open = audio;
+    if (!open) return;
+    if (!open.owned && !final) {
+      open.system.stopAll();
+      return;
+    }
+    audio = null;
+    open.system.destroy();
+    open.backend.close();
+  }
+
+  function unlockAudio(): void {
+    const open = audio;
+    if (!open || open.system.unlocked) return;
+    open.system.unlock().catch((err: unknown) => {
+      if (cfg.dev) console.warn("[audio] unlock failed", err);
+    });
+  }
+
+  router.onGesture(() => {
+    gestured = true;
+    unlockAudio();
+  });
+
+  /** After a step: the tick's events and its audio requests to the audio system. */
+  function playTick(result: StepResult, sounds: readonly AudioRequest[]): void {
+    const open = openAudio();
+    if (!open) return;
+    for (const r of sounds) {
+      if (r.op === "play" && r.key !== undefined) keyedSounds.add(r.key);
+      else if (r.op === "stop") keyedSounds.delete(r.key);
+    }
+    open.system.tick(result.tick, result.events, sounds);
+  }
+
+  /** The world is going: its keyed sounds (an entity's loop) stop with it; one-shots and music play on. */
+  function stopWorldSounds(): void {
+    if (!audio || keyedSounds.size === 0) return;
+    const stops: AudioRequest[] = [...keyedSounds].map((key) => ({ op: "stop", key }));
+    keyedSounds.clear();
+    audio.system.tick(store.state.tick, [], stops);
+  }
+
+  /** Each rendered frame in Play: positional voices pan from the main viewport. */
+  function frameAudio(runtime: SceneRuntimeHandle, alpha: number): void {
+    if (!audio || getMode() !== "play") return;
+    const { width } = camera.getViewport();
+    const { tick, time } = runtime.ctx;
+    audio.system.frame(
+      { centre: camera.getPosition(), halfWidth: width / 2 },
+      Math.max(0, tick - 1 + alpha) * time.tickMs,
+    );
   }
 
   // ─── Effects ──────────────────────────────────────────────
@@ -2061,9 +2364,10 @@ export async function createGame(
         loaded.attachment?.onTick?.(dt, mouseWorld);
         shellTiming.lap("input");
         const result = loaded.runtime.step(dt, tickInput);
-        presentTick(result.present);
+        playTick(result, presentTick(result.present));
         shellTiming.lap("step");
         incrementTick(store);
+        setDialogue(store, loaded.runtime.ctx.dialogue.view());
         events.emit("scene:step", result);
         shellTiming.lap("listeners");
         const requests = loaded.runtime.takeRequests();
@@ -2124,6 +2428,7 @@ export async function createGame(
         loaded.view.frame?.({ alpha: a, camera: { x: position.x, y: position.y, zoom } });
         frameTiming.lap("view.frame");
         loaded.runtime.render(a);
+        frameAudio(loaded.runtime, a);
         // Particles run on the loop's scaled wall time: still while paused or editing, except
         // by the ticks a paused `step` advanced.
         const still = loop.isPaused() || getMode() === "edit";
@@ -3099,6 +3404,8 @@ export async function createGame(
     const mapMoved = !sameValue(update.project?.inputMap ?? null, project?.inputMap ?? null);
     project = update.project;
     if (mapMoved) reloadInputMap();
+    if (projectMoved) audio?.system.reload(project ?? noProject);
+    if (projectMoved && loaded) handTable(loaded.view);
     if (assets) reloaded = { view: update.view, over: assets.view };
     let failed: BundleEntry[] = [];
     if (assets) {
@@ -3139,6 +3446,7 @@ export async function createGame(
     mainBorder?.destroy();
     mainMask?.destroy();
     teardownScene();
+    closeAudio(true);
     if (editState?.bundle) assets?.loader.release(editState.bundle);
     editState = null;
     if (projectAssets) assets?.loader.release(projectAssets);
@@ -3223,6 +3531,7 @@ export async function createGame(
     clientToWorld,
     worldToClient,
     project: () => project,
+    blobUrl,
     input: playerInput,
     panBy,
     zoomAt,
@@ -3246,6 +3555,12 @@ export async function createGame(
     },
     setViewports,
     viewportAt,
+    get audio() {
+      return openAudio()?.pick ?? null;
+    },
+    locale,
+    captions,
+    calibrateLatency,
   };
   return self;
 }

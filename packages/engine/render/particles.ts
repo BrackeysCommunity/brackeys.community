@@ -6,8 +6,8 @@
  */
 import { type Container, Particle, ParticleContainer, Texture } from "pixi.js";
 
-import { layerOrder, type SpriteVisual, type ViewLayer } from "../context";
-import { spriteAssets } from "../game/behaviors/sprite";
+import { type EmitterFollow, layerOrder, type SpriteVisual, type ViewLayer } from "../context";
+import { spriteAssets, spriteOffset } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
 import { clamp, lerp, lerpRgb } from "../math";
@@ -30,17 +30,18 @@ import { createSpriteTextures, type SpriteTextures } from "./sprite-textures";
 export interface ParticleLayer {
   /**
    * Starts (or restarts) the emitter `id` on `layer` (default the layer's
-   * own container), following `at` each frame; while `at` gives undefined
-   * it emits nothing. A restart keeps the particles it has alive.
+   * own container), at the pose `follow` names each frame (through the
+   * layer's `pose`); while it has none it emits nothing. A restart keeps
+   * the particles it has alive.
    */
-  emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+  emitter(id: string, preset: EmitterFile, follow: EmitterFollow, layer?: ViewLayer): void;
   /**
-   * Moves the running emitter `id` onto `preset` and `layer` without
-   * restarting it: it keeps its clock, its point and its particles, and a
-   * burst due by its clock stays passed. False, changing nothing, when no
-   * emitter `id` runs.
+   * Moves the running emitter `id` onto `preset`, `follow` (when given) and
+   * `layer` without restarting it: it keeps its clock, its point and its
+   * particles, and a burst due by its clock stays passed. False, changing
+   * nothing, when no emitter `id` runs.
    */
-  retune(id: string, preset: EmitterFile, layer?: ViewLayer): boolean;
+  retune(id: string, preset: EmitterFile, follow?: EmitterFollow, layer?: ViewLayer): boolean;
   /** Stops the emitter `id`: what it put in world space lives out its life, what it put in local space goes. */
   remove(id: string): void;
   /**
@@ -74,6 +75,8 @@ export type ParticleLayerOptions = {
   layer?: (layer: ViewLayer) => Container;
   /** The preset's texture; null (or omitted) draws small squares. */
   texture?: (preset: EmitterFile) => ParticleTexture | null;
+  /** An entity's pose on this frame, interpolated; without it, or while it gives undefined, emitters emit nothing. */
+  pose?: (entity: string) => Pose | undefined;
 };
 
 /** How big an untextured particle is at scale 1, metres. */
@@ -169,7 +172,7 @@ type Group = {
   held: Bucket | null;
   /** An emitter's own state; null for a burst or a stopped emitter's leftovers. */
   source: {
-    at: () => Pose | undefined;
+    follow: EmitterFollow;
     owed: number;
     elapsedMs: number;
     /** The next of `bursts` (sorted by atMs) still to fire. */
@@ -197,6 +200,13 @@ export function createParticleLayer(
   let sprites: SpriteTextures | null = null;
   /** Buckets whose texture is still loading. */
   const pending = new Set<Bucket>();
+
+  function followed(follow: EmitterFollow): Pose | undefined {
+    const pose = opts.pose?.(follow.entity);
+    if (!pose || !follow.offset) return pose;
+    const [dx, dy] = spriteOffset(follow.offset, { rot: 0, flip: follow.flip === true }, pose.rot);
+    return { x: pose.x + dx, y: pose.y + dy, rot: pose.rot };
+  }
 
   const parentOf = (layer: ViewLayer | null): Container =>
     layer !== null && opts.layer ? opts.layer(layer) : container;
@@ -363,7 +373,7 @@ export function createParticleLayer(
 
   function emit(g: Group, dtMs: number): void {
     const s = g.source!;
-    const pose = s.at();
+    const pose = followed(s.follow);
     if (pose) s.origin = pose;
     if (!pose) return;
     const { preset } = g;
@@ -423,24 +433,29 @@ export function createParticleLayer(
   }
 
   return {
-    emitter(id, preset, at, layer) {
+    emitter(id, preset, follow, layer) {
       place(id, preset, layer, (bursts) => ({
-        at,
+        follow,
         owed: 0,
         elapsedMs: 0,
         nextBurst: 0,
         bursts,
-        origin: at() ?? null,
+        origin: followed(follow) ?? null,
       }));
     },
-    retune(id, preset, layer) {
+    retune(id, preset, follow, layer) {
       const running = emitters.get(id)?.source;
       if (!running) return false;
       // Nothing has fired before its first emitting frame, so a burst at 0 stays due.
       const passed = running.elapsedMs > 0 ? running.elapsedMs : -Infinity;
       place(id, preset, layer, (bursts) => {
         const next = bursts.findIndex((b) => b.atMs > passed);
-        return { ...running, bursts, nextBurst: next === -1 ? bursts.length : next };
+        return {
+          ...running,
+          ...(follow ? { follow } : {}),
+          bursts,
+          nextBurst: next === -1 ? bursts.length : next,
+        };
       });
       return true;
     },

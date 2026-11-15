@@ -2,16 +2,27 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { resolveClips, type ResolvedClip } from "@jams/engine/game";
+import { SYNTH_SAMPLE_RATE, synthDurationMs } from "@jams/engine/headless";
 import {
   animationIssues,
   animationKind,
   ANIMATION_KIND,
+  AUDIO_KIND,
+  audioMetaSchema,
   assetInfo,
+  FONT_KIND,
   parseAssetDoc,
   projectView,
+  SOUND_KIND,
+  SYNTH_KIND,
   type AnimationFile,
+  type AssetId,
   type AssetInfo,
+  type AudioMeta,
+  type FontMeta,
   type ProjectView,
+  type SoundFile,
+  type SynthFile,
 } from "@jams/engine/project";
 import {
   aabb,
@@ -25,6 +36,7 @@ import {
 
 import { failure, issueLine, usage, type ToolContext, type ToolResult } from "../context";
 import { locateInProjects, scanProject, type ProjectHandle } from "../projects";
+import { loadProject } from "./project-show";
 import { roundBox } from "./render";
 import { boxText } from "./show";
 import { projectEngine } from "./step";
@@ -183,13 +195,142 @@ function animationLines(anim: AnimationInfo): string[] {
   return lines;
 }
 
+// ─── Audio, patches, sounds and fonts ────────────────────
+
+/** A synth patch: its wave and its length as `synthDurationMs` gives it, rendered mono at `sampleRate`. */
+export type PatchInfo = { wave: SynthFile["wave"]; durationMs: number; sampleRate: number };
+
+/** One variant of a sound: its clip or patch and that one's length, null when unknown. */
+export type SoundVariantInfo = {
+  clip: AssetId;
+  kind: string | null;
+  weight: number;
+  durationMs: number | null;
+};
+
+export type SoundInfo = { bus: string; loop: boolean; variants: SoundVariantInfo[] };
+
+/** A font's code point coverage, counted, and its distance field; null where the meta gives none. */
+export type FontInfo = {
+  format: FontMeta["format"];
+  codePoints: number | null;
+  coverage: readonly (readonly [number, number])[] | null;
+  distanceField: FontMeta["distanceField"] | null;
+};
+
+const ms = (n: number) => `${Math.round(n * 10) / 10} ms`;
+const hex = (cp: number) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+
+function channelsText(channels: number): string {
+  if (channels === 1) return "mono";
+  if (channels === 2) return "stereo";
+  return `${channels} channels`;
+}
+
+/** A clip's facts from its sidecar meta; null for meta the audio kind's schema refuses. */
+function clipMeta(view: ProjectView, id: AssetId): AudioMeta | null {
+  const read = audioMetaSchema.safeParse(view.byId.get(id)?.meta);
+  return read.success ? read.data : null;
+}
+
+function clipLines(meta: AudioMeta | null, info: AssetInfo): string[] {
+  const facts = meta
+    ? [
+        meta.format,
+        meta.durationMs === undefined ? "length unknown" : ms(meta.durationMs),
+        meta.channels === undefined ? undefined : channelsText(meta.channels),
+        meta.sampleRate === undefined ? undefined : `${meta.sampleRate} Hz`,
+      ]
+    : ["no header facts; run assets reimport"];
+  const play = [
+    info.stream ? "streamed" : undefined,
+    info.loopStart !== undefined || info.loopEnd !== undefined
+      ? `loop ${info.loopStart ?? 0}..${info.loopEnd ?? "end"} s`
+      : undefined,
+  ];
+  return [`  ${[...facts, ...play].filter((s) => s !== undefined).join(", ")}`];
+}
+
+const patchInfo = (patch: SynthFile): PatchInfo => ({
+  wave: patch.wave,
+  durationMs: synthDurationMs(patch),
+  sampleRate: SYNTH_SAMPLE_RATE,
+});
+
+const patchLines = (p: PatchInfo): string[] => [
+  `  ${p.wave} patch, ${ms(p.durationMs)}, rendered mono at ${p.sampleRate} Hz`,
+];
+
+function soundInfo(
+  sound: SoundFile,
+  view: ProjectView,
+  values: ReadonlyMap<AssetId, unknown>,
+): SoundInfo {
+  return {
+    bus: sound.bus,
+    loop: sound.loop === true,
+    variants: sound.variants.map(({ clip, weight }) => {
+      const kind = view.byId.get(clip)?.kind ?? null;
+      const patch = kind === SYNTH_KIND ? (values.get(clip) as SynthFile | undefined) : undefined;
+      const durationMs =
+        kind === AUDIO_KIND
+          ? (clipMeta(view, clip)?.durationMs ?? null)
+          : patch
+            ? synthDurationMs(patch)
+            : null;
+      return { clip, kind, weight: weight ?? 1, durationMs };
+    }),
+  };
+}
+
+function soundLines(s: SoundInfo): string[] {
+  const clipWidth = Math.max(...s.variants.map((v) => v.clip.length));
+  const kindWidth = Math.max(...s.variants.map((v) => (v.kind ?? "missing").length));
+  const variant = (v: SoundVariantInfo) =>
+    `    ${v.clip.padEnd(clipWidth)}  ${(v.kind ?? "missing").padEnd(kindWidth)}  ${v.durationMs === null ? "length unknown" : ms(v.durationMs)}  weight ${v.weight}`;
+  return [
+    `  bus ${s.bus}${s.loop ? ", loops" : ""}; ${s.variants.length === 1 ? "1 variant" : `${s.variants.length} variants`}:`,
+    ...s.variants.map(variant),
+  ];
+}
+
+function fontInfo(font: FontMeta): FontInfo {
+  const coverage = font.coverage ?? null;
+  return {
+    format: font.format,
+    codePoints: coverage ? coverage.reduce((n, [from, to]) => n + to - from + 1, 0) : null,
+    coverage,
+    distanceField: font.distanceField ?? null,
+  };
+}
+
+function fontLines(f: FontInfo, meta: FontMeta, pages: readonly AssetId[] | undefined): string[] {
+  const face = [
+    f.format,
+    meta.size === undefined ? undefined : `size ${meta.size} px`,
+    meta.lineHeight === undefined ? undefined : `line ${meta.lineHeight} px`,
+    pages && pages.length > 0 ? `pages ${pages.join(", ")}` : undefined,
+  ];
+  const range = ([from, to]: readonly [number, number]) =>
+    from === to ? hex(from) : `${hex(from)}-${hex(to)}`;
+  return [
+    `  ${face.filter((s) => s !== undefined).join(", ")}`,
+    f.coverage
+      ? `  covers ${f.codePoints} code point${f.codePoints === 1 ? "" : "s"}: ${f.coverage.map(range).join(" ")}`
+      : "  coverage unknown",
+    `  distance field ${f.distanceField ? `${f.distanceField.type}, range ${f.distanceField.range}` : "none"}`,
+  ];
+}
+
 /**
  * `assetInfo` of a live asset from its project's files: kind, hash and
  * bytes, a texture's size and import pivot, nine-slice and filter, an
  * atlas's frames, tags and texture, and with `--frame` that frame's size
  * and pivot; an animation's clips with their frames, ticks at the
- * project's rate, events, shape sets and issues. The id is looked up across
- * projects, `--project` picking one.
+ * project's rate, events, shape sets and issues; an audio clip's length,
+ * channels and rate from its headers; a synth patch's length; a sound's bus
+ * and each variant's length; a font's coverage and distance field. The id
+ * is looked up across projects, `--project` picking one.
  */
 export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Promise<ToolResult> {
   const id = input.id;
@@ -228,6 +369,30 @@ export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Prom
     info.kind === ANIMATION_KIND && input.frame === undefined
       ? await animationInfo(found.project, view, path)
       : null;
+  const extra: Record<string, unknown> = {};
+  const lines: string[] = [];
+  if (info.kind === AUDIO_KIND) {
+    const audio = clipMeta(view, id);
+    extra.audio = audio;
+    lines.push(...clipLines(audio, info));
+  } else if (info.kind === FONT_KIND && info.font) {
+    const font = fontInfo(info.font);
+    extra.font = font;
+    lines.push(...fontLines(font, info.font, info.pages));
+  } else if (info.kind === SYNTH_KIND || info.kind === SOUND_KIND) {
+    const { values } = await loadProject(found.project);
+    const doc = values.get(id);
+    if (doc === undefined) lines.push(`  ${path} doesn't parse as a ${info.kind}; run validate`);
+    else if (info.kind === SYNTH_KIND) {
+      const synth = patchInfo(doc as SynthFile);
+      extra.synth = synth;
+      lines.push(...patchLines(synth));
+    } else {
+      const sound = soundInfo(doc as SoundFile, view, values);
+      extra.sound = sound;
+      lines.push(...soundLines(sound));
+    }
+  }
   return {
     exitCode: 0,
     data: {
@@ -238,10 +403,12 @@ export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Prom
       ...(input.frame !== undefined ? { frame: input.frame } : {}),
       info,
       ...(animation ? { animation } : {}),
+      ...extra,
     },
     text: [
       ...infoLines(info, path, input.frame),
       ...(animation ? animationLines(animation) : []),
+      ...lines,
     ].join("\n"),
   };
 }

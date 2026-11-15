@@ -1,0 +1,13 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "k-audio",
+  "id": "my-audio",
+  "name": "Shown name",
+  "sha256": "175e3a6b8f044e330fd5991f776b664c78a32af1a26d7a96a8a79b761601556c",
+  "bytes": 3542,
+  "import": { "loopEnd": 0.09, "loopStart": 0.02, "stream": true },
+  "meta": { "channels": 2, "durationMs": 101.58730158730158, "format": "ogg", "sampleRate": 22050 },
+  "metaVersion": 2,
+  "licence": { "spdx": "CC-BY-4.0", "author": "Ana", "attribution": "Art by Ana" }
+}

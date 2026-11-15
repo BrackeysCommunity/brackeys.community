@@ -26,9 +26,10 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-mid-round": "940edf933971dec4",
   },
   "point-and-click": {
-    default: "c5ebb0dcd62a5eb9",
-    "gravity-sideways": "c5ebb0dcd62a5eb9",
-    "saved-mid-walk": "c5ebb0dcd62a5eb9",
+    default: "c7e11bc7913bc936",
+    "gravity-sideways": "c7e11bc7913bc936",
+    "saved-mid-dialogue": "c7e11bc7913bc936",
+    "saved-mid-walk": "c7e11bc7913bc936",
   },
   racing: {
     default: "179b3c36684efd03",
@@ -36,8 +37,9 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-mid-lap": "c3837ee675ecd921",
   },
   "rhythm-tap": {
-    default: "127621617ae3b5ea",
-    "saved-mid-chart": "127621617ae3b5ea",
+    default: "c40d8254d18f8d75",
+    "saved-between-passes": "c40d8254d18f8d75",
+    "saved-mid-chart": "c40d8254d18f8d75",
   },
   roguelike: {
     default: "972e5b44222b3c85",
@@ -80,5 +82,9 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     default: "5d5b88a286a37749",
     "saved-after-the-leave": "5d5b88a286a37749",
     "saved-mid-run": "5d5b88a286a37749",
+  },
+  "visual-novel": {
+    default: "9d80925921e99d54",
+    "saved-at-market": "9d80925921e99d54",
   },
 };

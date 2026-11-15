@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Container, type Particle } from "pixi.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import type { EmitterFollow, SceneView, ViewEmitter } from "../context";
 import { createGame } from "../engine";
 import { createRegistry, defineGame } from "../game/define";
 import type { GameDefinition } from "../game/types";
@@ -29,6 +30,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import { createParticleLayer, curveAt, tintAt, type ParticleLayer } from "../render/particles";
 import { createPixiView } from "../render/pixi-view";
 import { emitterGlyphId } from "../runtime/behaviors/emitter";
+import type { Pose } from "../runtime/poses";
 import { snapshotDigest } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
@@ -37,6 +39,7 @@ import { DEFAULT_LAYERS } from "../scene/layers";
 import type { ExpandedScene, SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
 import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
+import { recordingView } from "./fixtures/recording-view";
 
 /** Every particle container made, so the shell's particles can be counted from outside. */
 const made = vi.hoisted(() => [] as { particleChildren: unknown[]; destroyed: boolean }[]);
@@ -325,31 +328,35 @@ const file = (over: Partial<EmitterFile> = {}): EmitterFile => ({
   ...over,
 });
 
+const still = { x: 0, y: 0, rot: 0 };
+const STILL: EmitterFollow = { entity: "still" };
+
 function layerOf(opts: { reducedMotion?: boolean | (() => boolean) } = {}) {
   const container = new Container();
+  /** The poses a followed entity resolves to, as a view would hand them. */
+  const poses = new Map<string, Pose>([["still", still]]);
   const layer = createParticleLayer(container, undefined, {
     reducedMotion: opts.reducedMotion ?? false,
     seed: "particles",
+    pose: (entity) => poses.get(entity),
   });
   /** Every particle drawn now, wherever it sits. */
   const drawn = () =>
     container.children.flatMap(
       (c) => (c as unknown as { particleChildren: Particle[] }).particleChildren,
     );
-  return { container, layer, drawn };
+  return { container, layer, drawn, poses };
 }
 
 const run = (layer: ParticleLayer, ms: number, step = FRAME_MS) => {
   for (let t = 0; t < ms - 1e-9; t += step) layer.update(Math.min(step, ms - t));
 };
 
-const still = { x: 0, y: 0, rot: 0 };
-
 describe("the particle layer", () => {
   it("emits within one of its rate over a second of frames", () => {
     for (const rate of [7, 40, 120]) {
       const { layer } = layerOf();
-      layer.emitter("e", file({ rate }), () => still);
+      layer.emitter("e", file({ rate }), STILL);
       run(layer, 1000);
       expect(Math.abs(layer.stats().particles - rate)).toBeLessThanOrEqual(1);
       expect(layer.stats().emitters).toBe(1);
@@ -362,7 +369,7 @@ describe("the particle layer", () => {
       { atMs: 250, count: 3 },
       { atMs: 0, count: 5 },
     ];
-    layer.emitter("e", file({ bursts }), () => still);
+    layer.emitter("e", file({ bursts }), STILL);
     run(layer, 100, 100);
     expect(layer.stats().particles).toBe(5);
     run(layer, 100, 100);
@@ -379,7 +386,7 @@ describe("the particle layer", () => {
       { atMs: 0, count: 5 },
       { atMs: 800, count: 7 },
     ];
-    layer.emitter("e", file({ rate: 40, durationMs: 500, bursts }), () => still);
+    layer.emitter("e", file({ rate: 40, durationMs: 500, bursts }), STILL);
     run(layer, 500);
     const atEnd = layer.stats().particles;
     expect(Math.abs(atEnd - (5 + 20))).toBeLessThanOrEqual(1);
@@ -390,14 +397,14 @@ describe("the particle layer", () => {
 
   it("splits a frame that crosses durationMs, emitting only up to it", () => {
     const { layer } = layerOf();
-    layer.emitter("e", file({ rate: 100, durationMs: 250 }), () => still);
+    layer.emitter("e", file({ rate: 100, durationMs: 250 }), STILL);
     run(layer, 1000, 200);
     expect(layer.stats().particles).toBe(25);
   });
 
   it("keeps no more than max alive, and lets particles die at the end of their life", () => {
     const { layer, drawn } = layerOf();
-    layer.emitter("e", file({ rate: 1000, max: 30 }), () => still);
+    layer.emitter("e", file({ rate: 1000, max: 30 }), STILL);
     for (let i = 0; i < 60; i++) {
       layer.update(FRAME_MS);
       expect(layer.stats().particles).toBeLessThanOrEqual(30);
@@ -406,11 +413,7 @@ describe("the particle layer", () => {
     expect(drawn()).toHaveLength(30);
 
     const short = layerOf();
-    short.layer.emitter(
-      "e",
-      file({ bursts: [{ atMs: 0, count: 4 }], lifeMs: [100, 100] }),
-      () => still,
-    );
+    short.layer.emitter("e", file({ bursts: [{ atMs: 0, count: 4 }], lifeMs: [100, 100] }), STILL);
     run(short.layer, 50, 50);
     expect(short.layer.stats().particles).toBe(4);
     run(short.layer, 60, 60);
@@ -422,11 +425,11 @@ describe("the particle layer", () => {
 
   it("moves local particles with the pose; world particles stay where they were born", () => {
     const pose = { x: 0, y: 0, rot: 0 };
-    const at = () => pose;
-    const { layer, drawn } = layerOf();
+    const { layer, drawn, poses } = layerOf();
+    poses.set("mover", pose);
     const once = { bursts: [{ atMs: 0, count: 1 }] };
-    layer.emitter("local", file({ ...once, space: "local" }), at);
-    layer.emitter("world", file(once), at);
+    layer.emitter("local", file({ ...once, space: "local" }), { entity: "mover" });
+    layer.emitter("world", file(once), { entity: "mover" });
     layer.update(10);
     expect(drawn().map((p) => [p.x, p.y])).toEqual([
       [0, 0],
@@ -534,7 +537,7 @@ describe("the particle layer", () => {
 
   it("freezes at a time scale of 0: nothing is born, ages or moves", () => {
     const { layer, drawn } = layerOf();
-    layer.emitter("e", file({ rate: 60, speed: [1, 2], lifeMs: [300, 300] }), () => still);
+    layer.emitter("e", file({ rate: 60, speed: [1, 2], lifeMs: [300, 300] }), STILL);
     run(layer, 200);
     const count = layer.stats().particles;
     const where = drawn().map((p) => [p.x, p.y, p.alpha]);
@@ -545,7 +548,7 @@ describe("the particle layer", () => {
 
   it("quarters the rate and the bursts under reduced motion", () => {
     const { layer } = layerOf({ reducedMotion: true });
-    layer.emitter("e", file({ rate: 40 }), () => still);
+    layer.emitter("e", file({ rate: 40 }), STILL);
     run(layer, 1000);
     expect(Math.abs(layer.stats().particles - 10)).toBeLessThanOrEqual(1);
 
@@ -567,7 +570,7 @@ describe("the particle layer", () => {
   it("keeps a running emitter's container in its place between its particles", () => {
     const { container, layer } = layerOf();
     const blink = file({ bursts: [{ atMs: 0, count: 1 }], lifeMs: [50, 50] });
-    layer.emitter("e", blink, () => still);
+    layer.emitter("e", blink, STILL);
     const bucket = container.children[0];
     expect(bucket).toBeDefined();
     const sprite = new Container();
@@ -576,7 +579,7 @@ describe("the particle layer", () => {
     expect(layer.stats().particles).toBe(0);
     // Its last particle died, but the emitter still runs: the same container, under the sprite.
     expect(container.children).toEqual([bucket, sprite]);
-    layer.emitter("e", blink, () => still);
+    layer.emitter("e", blink, STILL);
     expect(container.children).toEqual([bucket, sprite]);
     layer.update(FRAME_MS);
     expect(layer.stats().particles).toBe(1);
@@ -595,7 +598,7 @@ describe("the particle layer", () => {
       { atMs: 0, count: 5 },
       { atMs: 300, count: 7 },
     ];
-    layer.emitter("e", file({ durationMs: 500, bursts }), () => still);
+    layer.emitter("e", file({ durationMs: 500, bursts }), STILL);
     run(layer, 100, 100);
     expect(layer.stats().particles).toBe(5);
     expect(layer.retune("e", file({ rate: 40, durationMs: 500, bursts }))).toBe(true);
@@ -609,7 +612,7 @@ describe("the particle layer", () => {
 
     // Retuned before its first frame, a burst at 0 is still to come.
     const fresh = layerOf();
-    fresh.layer.emitter("e", file({ bursts }), () => still);
+    fresh.layer.emitter("e", file({ bursts }), STILL);
     fresh.layer.retune("e", file({ rate: 0, bursts }));
     run(fresh.layer, 100, 100);
     expect(fresh.layer.stats().particles).toBe(5);
@@ -617,8 +620,8 @@ describe("the particle layer", () => {
 
   it("keeps a stopped emitter's world particles to the end of their life, and clear drops all", () => {
     const { layer } = layerOf();
-    layer.emitter("w", file({ bursts: [{ atMs: 0, count: 2 }] }), () => still);
-    layer.emitter("l", file({ bursts: [{ atMs: 0, count: 3 }], space: "local" }), () => still);
+    layer.emitter("w", file({ bursts: [{ atMs: 0, count: 2 }] }), STILL);
+    layer.emitter("l", file({ bursts: [{ atMs: 0, count: 3 }], space: "local" }), STILL);
     layer.update(10);
     layer.remove("w");
     layer.remove("l");
@@ -633,7 +636,7 @@ describe("the particle layer", () => {
     const spray = file({ rate: 50, speed: [0, 3], angle: [0, 360] });
     const where = () => {
       const { layer, drawn } = layerOf();
-      layer.emitter("e", spray, () => still);
+      layer.emitter("e", spray, STILL);
       run(layer, 500);
       return drawn().map((p) => [p.x, p.y]);
     };
@@ -707,8 +710,9 @@ function viewedRuntime(
   projectView: ProjectRuntimeView = project,
 ) {
   const container = new Container();
+  let built: ReturnType<typeof createSceneRuntime> | null = null;
   const view = createPixiView(container, {
-    particles: { reducedMotion: false, seed: "fountain" },
+    particles: { reducedMotion: false, seed: "fountain", poses: () => built?.ctx.poses },
     layers: DEFAULT_LAYERS,
     editing,
   });
@@ -718,6 +722,7 @@ function viewedRuntime(
     game: counting as GameDefinition,
     project: projectView,
   });
+  built = rt;
   const report = rt.load({ ...fountain, entities });
   expect(report.ok, JSON.stringify(report)).toBe(true);
   return { rt, view };
@@ -735,7 +740,7 @@ describe("the emitter behavior", () => {
 
     const { rt, view } = viewedRuntime();
     expect(rt.ctx.behavior("emitter")).toBeDefined();
-    const layer = view.particles!()!;
+    const layer = view.particles()!;
     expect(layer.stats().emitters).toBe(1);
     for (let i = 0; i < 30; i++) {
       rt.step(rt.ctx.time.tickMs, []);
@@ -753,7 +758,7 @@ describe("the emitter behavior", () => {
       { ...emitting({ preset: "spray", rate: 120 }), id: "fast" },
       { ...emitting({ preset: "missing" }), id: "none" },
     ]);
-    const layer = view.particles!()!;
+    const layer = view.particles()!;
     expect(layer.stats().emitters).toBe(1);
     rt.render(1);
     run(layer, 500);
@@ -772,7 +777,7 @@ describe("the emitter behavior", () => {
       ...project,
       doc: <T>(kind: string, id: string) => (kind === "emitter" ? (docs[id] as T) : undefined),
     });
-    const layer = view.particles!()!;
+    const layer = view.particles()!;
     const tick = () => {
       rt.render(1);
       layer.update(FRAME_MS);
@@ -796,6 +801,73 @@ describe("the emitter behavior", () => {
     expect(layer.stats().particles).toBe(12);
     rt.destroy();
     view.destroy();
+  });
+
+  it("reaches the view with data only: no function crosses to it", () => {
+    const sent: { member: string; args: unknown[] }[] = [];
+    const base: SceneView = {
+      ...recordingView({ sprites: true }).view,
+      emitter() {},
+      removeEmitter() {},
+    };
+    const view = Object.fromEntries(
+      Object.entries(base).map(([member, fn]) => [
+        member,
+        (...args: unknown[]) => {
+          sent.push({ member, args });
+          return (fn as (...a: unknown[]) => unknown)(...args);
+        },
+      ]),
+    ) as unknown as SceneView;
+    const rt = createSceneRuntime({
+      rapier: null,
+      view,
+      game: counting as GameDefinition,
+      project,
+    });
+    const at = (offset: [number, number]) => emitting({ preset: "spray", offset });
+    expect(rt.load({ ...fountain, entities: [at([1, 0])] }).ok).toBe(true);
+    rt.step(rt.ctx.time.tickMs, []);
+    rt.render(0.5);
+    expect(rt.update([at([2, 0])]).ok).toBe(true);
+    rt.ctx.destroy("fountain");
+    rt.step(rt.ctx.time.tickMs, []);
+
+    const hasFunction = (v: unknown): boolean =>
+      typeof v === "function" ||
+      (v !== null && typeof v === "object" && Object.values(v).some(hasFunction));
+    expect(sent.filter((s) => s.args.some(hasFunction))).toEqual([]);
+    expect(() => structuredClone(sent)).not.toThrow();
+    const emitted = sent
+      .filter((s) => s.member === "emitter")
+      .map(({ args: [id, e] }) => [id, (e as ViewEmitter).follow, (e as ViewEmitter).restart]);
+    // Attached, then restarted by the load's reset, then retuned by the update.
+    expect(emitted).toEqual([
+      ["fountain", { entity: "fountain", offset: [1, 0] }, true],
+      ["fountain", { entity: "fountain", offset: [1, 0] }, true],
+      ["fountain", { entity: "fountain", offset: [2, 0] }, false],
+    ]);
+    expect(sent.filter((s) => s.member === "removeEmitter").map((s) => s.args)).toEqual([
+      ["fountain"],
+    ]);
+    rt.destroy();
+  });
+
+  it("runs against a view without the emitter members", () => {
+    const { view } = recordingView({ sprites: true });
+    const rt = createSceneRuntime({
+      rapier: null,
+      view,
+      game: counting as GameDefinition,
+      project,
+    });
+    expect(rt.load(fountain).ok).toBe(true);
+    expect(rt.ctx.behavior("emitter")).toBeDefined();
+    rt.step(rt.ctx.time.tickMs, []);
+    rt.render(1);
+    rt.ctx.destroy("fountain");
+    rt.step(rt.ctx.time.tickMs, []);
+    rt.destroy();
   });
 
   it("marks every emitter with a glyph at its point, shown only while editing, gone with its entity", () => {
@@ -837,7 +909,7 @@ describe("the emitter behavior", () => {
     if (headless.blocked) throw new Error(JSON.stringify(headless.issues));
 
     const { rt, view } = viewedRuntime();
-    const layer = view.particles!()!;
+    const layer = view.particles()!;
     let last: unknown = null;
     for (let i = 0; i < headless.recording.ticks; i++) {
       last = rt.step(rt.ctx.time.tickMs, []).game;

@@ -1,5 +1,8 @@
+import { ATLAS_KIND } from "../project/kinds/atlas";
+import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId } from "../project/types";
 import type { GameInstance, GameStoreState } from "../types";
-import type { MountUi, UiContext, UiHandle } from "./types";
+import type { MountUi, UiAssetUrl, UiContext, UiHandle } from "./types";
 
 const mountedCancels = new WeakMap<GameInstance, (() => boolean)[]>();
 
@@ -133,16 +136,42 @@ export function createEffectOverlay(canvas: HTMLCanvasElement): {
   return layer;
 }
 
+/** Where a host serves an asset's bytes; null for one it has no blob of. */
+export type BlobUrl = (id: AssetId) => string | null;
+
+/**
+ * `UiContext.assetUrl`: `id`'s blob URL through `blobUrl`, an atlas's
+ * through its texture, with `frame`'s rectangle in that texture. Null for
+ * an unknown id or frame, a frame on an asset that isn't an atlas, or a
+ * blob the host can't serve.
+ */
+export function uiAssetUrl(
+  project: ProjectRuntimeView | null,
+  blobUrl: BlobUrl | null,
+  id: AssetId,
+  frame?: string,
+): UiAssetUrl | null {
+  if (!project || !blobUrl) return null;
+  const info = project.asset(id, frame);
+  if (!info) return null;
+  if (frame !== undefined && (info.kind !== ATLAS_KIND || !info.rect)) return null;
+  const blob = info.kind === ATLAS_KIND ? info.texture : id;
+  const url = blob === undefined ? null : blobUrl(blob);
+  if (url === null) return null;
+  return info.rect && frame !== undefined ? { url, rect: { ...info.rect } } : { url };
+}
+
 /**
  * createUiLayer + the context + mount; the returned function unmounts and
  * removes the layer. `opts.links` is the host's pages, given to the UI as
- * `UiContext.links`.
+ * `UiContext.links`; `opts.blobUrl`, where `UiContext.assetUrl` finds an
+ * asset's bytes, overrides `GameInstance.blobUrl`.
  */
 export function mountUi<G>(
   game: GameInstance,
   canvas: HTMLCanvasElement,
   mount: MountUi<G>,
-  opts: { links?: UiContext["links"] } = {},
+  opts: { links?: UiContext["links"]; blobUrl?: BlobUrl } = {},
 ): () => void {
   const layer = createUiLayer(canvas);
   const store = game.getStore();
@@ -180,6 +209,8 @@ export function mountUi<G>(
     get reducedMotion() {
       return game.reducedMotion;
     },
+    assetUrl: (id, frame) => uiAssetUrl(game.project(), opts.blobUrl ?? game.blobUrl, id, frame),
+    strings: () => game.locale.strings(),
     ...(opts.links ? { links: { ...opts.links } } : {}),
   };
 

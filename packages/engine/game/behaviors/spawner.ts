@@ -68,6 +68,13 @@ const spawnerFields = (env: FieldEnv) => ({
     .optional()
     .describe("The velocity a spawn with a dynamic body starts with, m/s; turns with the entity.")
     .meta({ title: "Velocity", unit: "m/s", kind: "vector", group: "placement" }),
+  asChildren: z
+    .boolean()
+    .optional()
+    .describe(
+      "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+    )
+    .meta({ title: "As children", group: "placement" }),
   active: z
     .boolean()
     .default(true)
@@ -108,6 +115,7 @@ export const SPAWNER = defineBehavior({
       "lifeMs",
       "spread",
       "velocity",
+      "asChildren",
       "active",
     ],
   },
@@ -117,6 +125,8 @@ export const SPAWNER = defineBehavior({
     if (given !== 1) return "spawner takes exactly one of `type` or `prefab`";
     if (block.fields === undefined) return undefined;
     if (block.type === undefined) return "spawner's `fields` go with `type`, not `prefab`";
+    if (block.asChildren === true && Object.hasOwn(block.fields as object, "parent"))
+      return "spawner's `fields` can't set `parent` with `asChildren`: each spawn goes under the spawner";
     const own = SPAWN_OWN_KEYS.filter((k) => Object.hasOwn(block.fields as object, k));
     return own.length === 0
       ? undefined

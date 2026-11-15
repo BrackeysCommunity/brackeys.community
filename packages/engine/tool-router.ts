@@ -53,6 +53,12 @@ export type ToolRouter = {
   /** The id of the consumer that took the event, or null. */
   dispatch(e: ToolEvent): string | null;
   /**
+   * Calls `listener` on each user gesture a browser lets start audio: a
+   * pointer or key press dispatched here, or a touch ending on the attached
+   * target. Returns the unsubscribe function.
+   */
+  onGesture(listener: (native: Event) => void): () => void;
+  /**
    * Turns the target's DOM events into `ToolEvent`s; a Window target has no
    * offset. Keys come from `keyTarget` when given (an element holding the
    * target and the panels beside it), pointers always from `target`.
@@ -114,7 +120,20 @@ function wheelDeltaPx(native: Pick<WheelEvent, "deltaY" | "deltaMode">): number 
 export function createToolRouter(): ToolRouter {
   // Highest priority first; equal priorities keep registration order.
   const consumers: ToolConsumer[] = [];
+  const gestureListeners: ((native: Event) => void)[] = [];
   let removeListeners: (() => void) | null = null;
+
+  function gesture(native: Event): void {
+    for (const listener of gestureListeners.slice()) listener(native);
+  }
+
+  function onGesture(listener: (native: Event) => void): () => void {
+    gestureListeners.push(listener);
+    return () => {
+      const i = gestureListeners.indexOf(listener);
+      if (i !== -1) gestureListeners.splice(i, 1);
+    };
+  }
 
   function register(c: ToolConsumer): () => void {
     if (consumers.some((other) => other.id === c.id)) {
@@ -129,6 +148,7 @@ export function createToolRouter(): ToolRouter {
   }
 
   function dispatch(e: ToolEvent): string | null {
+    if (e.type === "down") gesture(e.native);
     const editable = e.kind === "key" && e.editable === true;
     for (const c of consumers.slice()) {
       if (editable && !c.editable) continue;
@@ -184,6 +204,8 @@ export function createToolRouter(): ToolRouter {
       [target, "wheel", pointer("wheel") as EventListener, { passive: false }],
       [keyTarget, "keydown", key("down") as EventListener],
       [keyTarget, "keyup", key("up") as EventListener],
+      // iOS lets audio start on a touch's end, never its pointerdown.
+      [target, "touchend", gesture as EventListener, { passive: true }],
     ];
     for (const [on, type, fn, options] of listeners) on.addEventListener(type, fn, options);
     removeListeners = () => {
@@ -199,7 +221,8 @@ export function createToolRouter(): ToolRouter {
   function destroy(): void {
     detach();
     consumers.length = 0;
+    gestureListeners.length = 0;
   }
 
-  return { register, dispatch, attach, detach, destroy };
+  return { register, dispatch, onGesture, attach, detach, destroy };
 }

@@ -265,6 +265,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
           events: result.events,
           world,
           persist: runtime.ctx.persist.value,
+          dialogue: runtime.ctx.dialogue.view(),
         };
         if (play?.outcome && !outcome) {
           const verdict = play.outcome(last as PlayState<S>);

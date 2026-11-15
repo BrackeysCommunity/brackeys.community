@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { DEFAULT_BUILD_TARGET, exportTargetNames } from "@jams/engine/export";
-import { DEFAULT_SWAP_TIMING, SWAP_TIMINGS, swapTimingSchema } from "@jams/engine/game";
+import {
+  DEFAULT_SWAP_TIMING,
+  SWAP_TIMINGS,
+  swapTimingSchema,
+  type JsonValue,
+} from "@jams/engine/game";
 import { RELEASE_FILE } from "@jams/engine/project";
 import { checksPathOf, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { z } from "zod";
@@ -37,6 +42,7 @@ import { assetsApply, type WriterFlags } from "./tools/assets-apply";
 import { assetsImport } from "./tools/assets-import";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
+import { dialogueWalk } from "./tools/dialogue-walk";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fuzz } from "./tools/fuzz";
@@ -845,7 +851,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "asset_apply_ops",
     title: "Apply a project op batch",
     description:
-      'Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server\'s docs (or a hosted project\'s) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing. The input map is a doc like any other: `{ op: "editAsset", id, edits: [{ insert: "/actions/@fire/bindings", value: { device: "key", code: "KeyF" } }] }` appends a binding to `fire` (the insert names the list; `before` an index places it), and a binding the game can\'t read (an unknown code, button, axis or control, or a shape that doesn\'t fit the action\'s kind) is refused as `binding-unknown`, a seat past the map\'s as `player-unknown`. The scene list is one too: `{ op: "editAsset", id: "scene-list", edits: [{ insert: "/scenes", value: { scene: "level-2", title: "Level 2" } }, { set: "/start", value: "level-2" }] }` lists a scene and starts there (`remove: "/scenes/@level-2"` unlists it); a start that isn\'t listed, or is a sublevel, is refused as `start-scene-missing`, a scene listed twice as `id-taken`, and an entry naming no scene is a dangling reference `asset_refs` reports (`asset-missing`). An animation doc keys its clips by name: `{ op: "editAsset", id: "hero-moves", edits: [{ insert: "/clips", value: { name: "jab", frames: [{ frame: "hero-1", ms: 60 }], loop: "once", next: "idle" }, before: "strike" }] }` adds a clip (`remove: "/clips/@jab"` drops it); a tag the atlas lacks is refused as `anim-tag-unknown`, a frame as `asset-frame-unknown`, a `next` naming no clip as `anim-clip-unknown` and a shape set that doesn\'t parse as `frame-shape-invalid`. An emitter preset is a doc too: `{ op: "editAsset", id: "sparks", edits: [{ set: "/rate", value: 45 }] }` sets its rate.',
+      'Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server\'s docs (or a hosted project\'s) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing. The input map is a doc like any other: `{ op: "editAsset", id, edits: [{ insert: "/actions/@fire/bindings", value: { device: "key", code: "KeyF" } }] }` appends a binding to `fire` (the insert names the list; `before` an index places it), and a binding the game can\'t read (an unknown code, button, axis or control, or a shape that doesn\'t fit the action\'s kind) is refused as `binding-unknown`, a seat past the map\'s as `player-unknown`. The scene list is one too: `{ op: "editAsset", id: "scene-list", edits: [{ insert: "/scenes", value: { scene: "level-2", title: "Level 2" } }, { set: "/start", value: "level-2" }] }` lists a scene and starts there (`remove: "/scenes/@level-2"` unlists it); a start that isn\'t listed, or is a sublevel, is refused as `start-scene-missing`, a scene listed twice as `id-taken`, and an entry naming no scene is a dangling reference `asset_refs` reports (`asset-missing`). An animation doc keys its clips by name: `{ op: "editAsset", id: "hero-moves", edits: [{ insert: "/clips", value: { name: "jab", frames: [{ frame: "hero-1", ms: 60 }], loop: "once", next: "idle" }, before: "strike" }] }` adds a clip (`remove: "/clips/@jab"` drops it); a tag the atlas lacks is refused as `anim-tag-unknown`, a frame as `asset-frame-unknown`, a `next` naming no clip as `anim-clip-unknown` and a shape set that doesn\'t parse as `frame-shape-invalid`. An emitter preset is a doc too: `{ op: "editAsset", id: "sparks", edits: [{ set: "/rate", value: 45 }] }` sets its rate. A sound keys its variants by clip: `{ op: "editAsset", id: "clink", edits: [{ set: "/variants/@clink-synth/weight", value: 3 }, { set: "/bus", value: "ui" }] }` reweighs one and moves it to another bus (`insert: "/variants"` adds a clip or synth patch), and a bus neither the engine nor the game lists is refused as `sound-bus-unknown`. A synth patch is flat: `{ op: "editAsset", id: "clink-synth", edits: [{ set: "/freq", value: 880 }] }` retunes it, and a value outside the field\'s bounds is refused as `schema`. A dialogue keys its nodes by id: `{ op: "editAsset", id: "intro", edits: [{ insert: "/nodes/@hello/choices/-", value: { text: "talk.stay", to: "hello" } }] }` adds a choice, and a node left able to stall is refused as `dialogue-dead-end`; `dialogue_walk` then lists the endings it reaches. Strings key their rows by key: `{ op: "editAsset", id: "intro-strings", edits: [{ set: "/strings/@talk.bye/fr", value: "Au revoir." }] }` sets one locale\'s text (`insert: "/strings"` adds a row).',
     annotations: { ...WRITE, destructiveHint: true },
     input: {
       ops: z
@@ -868,6 +874,30 @@ export const MCP_TOOLS: readonly McpTool[] = [
         await tmp.close();
       }
     },
+  }),
+  defineTool({
+    name: "dialogue_walk",
+    title: "Walk a dialogue",
+    description:
+      "Walk every choice of a dialogue breadth-first from its `start`, through the dialogue runner, so conditions, effects and `visited` decide what is offered as they do in play. Returns each ending it reaches once, as `endings`: `{ ending, path, choices, nodes }`, `path` being the shortest list of choice indices (into each node's `choices`) that reaches it, `choices` each of those choices' string key and `nodes` the nodes it passes. `unreached` lists the endings the file names that no path reached with these variables; `truncated` is true when `maxDepth`, the walk's state cap, or a loop of lines with no choice cut a path short. The CLI's `dialogue walk`.",
+    annotations: READ,
+    input: {
+      id: z.string().describe("The dialogue's asset id."),
+      vars: z
+        .union([z.string(), z.record(z.string(), z.unknown())])
+        .optional()
+        .describe(
+          "The variables the walk starts from, as conditions read them (`{ gold: 5 }` for `/gold`), or that as JSON text. Default `{}`.",
+        ),
+      maxDepth: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("The most choices one path makes. Default 32."),
+    },
+    run: (i, ctx) =>
+      dialogueWalk({ id: i.id, vars: i.vars as JsonValue, maxDepth: i.maxDepth }, ctx),
   }),
   defineTool({
     name: "game_new",

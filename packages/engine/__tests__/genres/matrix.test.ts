@@ -47,6 +47,7 @@ describe("the genre matrix", () => {
       expect(compareVersions(at, ENGINE_VERSION), `M${m} at ${at}`).toBeLessThanOrEqual(0);
     }
     expect(MILESTONE_VERSIONS[22]).toBe("0.15.0");
+    expect(MILESTONE_VERSIONS[23]).toBe("0.17.0");
   });
 
   it("counts a milestone landed once the engine's version reaches its own", () => {
@@ -88,6 +89,13 @@ describe("the genre matrix", () => {
     expect(completing("idle")).toContain("idle");
   });
 
+  it("completes the rows audio, text and dialogue finish", () => {
+    expect(GENRE_MATRIX["visual-novel"].probes).toStrictEqual(["visual-novel"]);
+    expect(completing("visual-novel")).toContain("visual-novel");
+    expect(completing("rhythm")).toContain("rhythm-tap");
+    expect(completing("point-and-click")).toContain("point-and-click");
+  });
+
   it("lands exactly those rows with the milestone that finishes them", () => {
     const before = new Set(landedRows("0.14.5"));
     expect([...before].sort()).toStrictEqual(["idle", "tactics", "tower-defense"]);
@@ -99,6 +107,9 @@ describe("the genre matrix", () => {
       "racing",
       "twin-stick",
     ]);
+    const atM43 = new Set(landedRows(MILESTONE_VERSIONS[43]));
+    const byM23 = landedRows(MILESTONE_VERSIONS[23]).filter((row) => !atM43.has(row));
+    expect(byM23.sort()).toStrictEqual(["point-and-click", "rhythm", "visual-novel"]);
   });
 
   it("leaves turn-tactics nothing pending on the tactics row", () => {

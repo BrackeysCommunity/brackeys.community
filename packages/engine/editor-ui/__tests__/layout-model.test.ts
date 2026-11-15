@@ -173,6 +173,13 @@ describe("fitLayout across viewports", () => {
     expect(fit.right!.groups[1]!.height).toBe(240);
   });
 
+  it("counts the top bar over the canvas area in what the chrome covers, not in the columns", () => {
+    const fit = fitLayout(DEFAULT_LAYOUT, view(1440, 900, { topLeft: 40, top: 52 }));
+    expect(fit.canvas.top).toBe(INSET + 52);
+    expect(fit.left!.y).toBe(INSET + 40 + 8);
+    expect(fit.right!.y).toBe(INSET);
+  });
+
   it("reports what the columns cover for framing", () => {
     const fit = fitLayout(DEFAULT_LAYOUT, view(1440, 900));
     expect(fit.canvas).toEqual({

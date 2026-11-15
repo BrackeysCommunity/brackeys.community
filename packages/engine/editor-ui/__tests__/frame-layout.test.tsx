@@ -495,7 +495,7 @@ describe("the frame's layout", () => {
     }
   });
 
-  it("places the default toasts inside the canvas area, above the bottom row", () => {
+  it("places the default toasts inside the canvas area, above the status bar", () => {
     const { mode } = setup();
     const frame = document.querySelector<HTMLElement>(".je-frame")!;
     const fitted = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
@@ -505,14 +505,14 @@ describe("the frame's layout", () => {
     expect(frame.style.getPropertyValue("--je-toasts-right")).toBe("8px");
   });
 
-  it("places the bottom row between the columns", () => {
+  it("places the top bar between the columns and the status bar along the bottom edge", () => {
     setup();
     const fitted = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
-    const row = document.querySelector<HTMLElement>(".je-frame-bottom")!;
-    expect(px(row, "left")).toBe(fitted.canvas.left);
-    expect(Number.parseFloat(row.style.right)).toBe(fitted.canvas.right);
-    expect(row.querySelector(".je-frame-dock")).toBeTruthy();
-    expect(row.querySelector(".je-frame-status")).toBeTruthy();
+    const dock = document.querySelector<HTMLElement>(".je-frame-dock")!;
+    expect(px(dock, "left")).toBe(fitted.canvas.left + 8);
+    expect(Number.parseFloat(dock.style.right)).toBe(fitted.canvas.right + 8);
+    expect(px(dock, "top")).toBe(8);
+    expect(document.querySelector(".je-frame-statusbar .je-status")).toBeTruthy();
   });
 
   it("opens a panel through its handle wherever it is, and resets the layout", () => {
@@ -684,17 +684,17 @@ describe("framing in the editor's frame", () => {
 });
 
 describe("a boot that stopped short", () => {
-  it("lets its status shrink and wrap so Reload fits beside it, until the row is too narrow", () => {
+  it("lets its status shrink and wrap so Reload fits beside it, until the bar is too narrow", () => {
     const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
-    const row = /\.je-frame-status:has\(> \.je-boot-reload\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    const row = /\.je-frame-statusbar:has\(> \.je-boot-reload\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(row).toContain("flex-wrap: wrap");
     const connecting =
-      /\.je-frame-status:has\(> \.je-boot-reload\) > \.je-editor-connecting \{([^}]*)\}/.exec(
+      /\.je-frame-statusbar:has\(> \.je-boot-reload\) > \.je-editor-connecting \{([^}]*)\}/.exec(
         css,
       )?.[1] ?? "";
     expect(connecting).toContain("flex: 1 1 0");
     expect(connecting).toMatch(/min-width: min\(\d+px, 100%\)/);
-    expect(/\.je-frame-status > \.je-boot-reload \{([^}]*)\}/.exec(css)?.[1]).toContain(
+    expect(/\.je-frame-statusbar > \.je-boot-reload \{([^}]*)\}/.exec(css)?.[1]).toContain(
       "flex-shrink: 0",
     );
   });

@@ -14,9 +14,12 @@ import {
 } from "../../project/kinds";
 import { animationKind, type AnimationFile } from "../../project/kinds/animation";
 import { dataTableKind } from "../../project/kinds/data-table";
+import { dialogueKind, type DialogueFile } from "../../project/kinds/dialogue";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
 import { sceneListKind, type SceneListFile } from "../../project/kinds/scene-list";
+import { soundKind, type SoundFile } from "../../project/kinds/sound";
+import { synthKind } from "../../project/kinds/synth";
 import type { ProjectOp, ProjectOpBatch } from "../../project/ops";
 import { buildRefIndex, referencedTrash } from "../../project/refs";
 import type { AssetEntry, AssetId, ProjectState } from "../../project/types";
@@ -1258,4 +1261,196 @@ describe("an animation's atlas reference", () => {
       expect(changedIds, "the runs must change the atlas's id").toBeGreaterThan(5);
     },
   );
+});
+
+describe("a sound's and a dialogue line's clip references", () => {
+  const SOUND_LAYOUT = soundKind.layout as DocLayout;
+  const DIALOGUE_LAYOUT = dialogueKind.layout as DocLayout;
+  const clipEntry = (id: string) =>
+    entry(id, "audio", `sfx/${id}.wav`, { sha256: H("c"), bytes: 4, meta: { format: "wav" } });
+  const clipState: ProjectState = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(
+      [
+        clipEntry("halt"),
+        clipEntry("thud"),
+        clipEntry("clank"),
+        entry("blip", "synth", "sfx/blip.synth.json"),
+        entry("hit", "sound", "sfx/hit.sound.json"),
+        entry("gate", "dialogue", "talk/gate.dialogue.json"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  };
+  const startSound: SoundFile = {
+    kind: "sound",
+    v: 1,
+    bus: "sfx",
+    variants: [{ clip: "halt", weight: 2 }, { clip: "thud" }, { clip: "blip" }],
+  };
+  const startDialogue: DialogueFile = {
+    kind: "dialogue",
+    v: 1,
+    start: "gate",
+    nodes: [
+      {
+        id: "gate",
+        lines: [{ say: "Halt.", voice: "halt" }, { say: "Who goes there?" }],
+        end: "met",
+      },
+    ],
+  };
+  const docs: Record<string, [DocLayout, unknown]> = {
+    hit: [SOUND_LAYOUT, startSound],
+    gate: [DIALOGUE_LAYOUT, startDialogue],
+    blip: [synthKind.layout as DocLayout, synthKind.empty()],
+  };
+
+  const valueOf = (doc: (name: string) => Y.Doc, key: string) =>
+    layoutFromDoc(doc(`asset:p.${key}`), docs[key]![0]);
+
+  function clipRefs(state: ProjectState, doc: (name: string) => Y.Doc) {
+    const view = projectView(state, kinds);
+    const values = new Map<AssetId, unknown>();
+    for (const e of Object.values(state.assets))
+      if (!e.deleted && (e.kind === "sound" || e.kind === "dialogue"))
+        values.set(e.id, valueOf(doc, e.key));
+    return { view, index: buildRefIndex(view, values, kinds, { registry, project: view }) };
+  }
+
+  function simClips(clients: number, seed: number) {
+    const initial: Record<string, Y.Doc> = {};
+    const doc = (name: string) => {
+      const d = (initial[name] ??= new Y.Doc());
+      d.clientID = 1;
+      return d;
+    };
+    seedProjectDoc(doc("project:p"), clipState, { kind: "migration" });
+    for (const [key, [layout, value]] of Object.entries(docs))
+      layoutToDoc(doc(`asset:p.${key}`), layout, value, { kind: "migration" });
+    const sim = new SimProject(clients + 1, rng(seed), initial);
+    return {
+      sim,
+      join: (i: number, origin: DocOrigin) =>
+        createProjectSession({ project: "p", openDoc: sim.openDoc(i), origin, registry, kinds }),
+    };
+  }
+
+  const cases = [
+    { what: "a clip the sound and a dialogue line both name", target: "halt", voiced: true },
+    { what: "a synth patch the sound names", target: "blip", voiced: false },
+  ];
+  for (const { what, target, voiced } of cases)
+    it(
+      `renaming ${what} while another client edits the sound leaves both resolving`,
+      { timeout: 30_000 },
+      async () => {
+        let partitions = 0;
+        let changedIds = 0;
+        for (const seed of [1, 2, 3, 4, 5, 6]) {
+          const { sim, join } = simClips(2, seed);
+          const [mover, editor] = await Promise.all([join(0, ada), join(1, bo)]);
+          for (const s of [mover, editor])
+            for (const key of Object.keys(docs)) await s.open(`asset:p.${key}`);
+          let id = target;
+          let volume: number | undefined;
+          let thudWeight: number | undefined;
+          const added: string[] = [];
+          const on: { event: string; tag: string }[] = [];
+          for (let step = 0; step < 12; step++) {
+            const at = mover.view().byId.get(id)!;
+            const roll = sim.rand();
+            if (roll < 0.4) {
+              const to = `${target}-${step}`;
+              await applied(mover, [{ op: "changeAssetId", id, to }]);
+              id = to;
+              changedIds++;
+            } else if (roll < 0.7)
+              await applied(mover, [
+                {
+                  op: "renameAsset",
+                  id,
+                  file: `s${step}-${at.path.slice(at.path.lastIndexOf("/") + 1)}`,
+                },
+              ]);
+            else await applied(mover, [{ op: "moveAsset", ids: [id], to: `moved-${step}/` }]);
+
+            const edit = step % 4;
+            if (edit === 0) {
+              volume = 0.5 + step / 40;
+              await applied(editor, [
+                { op: "editAsset", id: "hit", edits: [{ set: "/volume", value: volume }] },
+              ]);
+            } else if (edit === 1) {
+              thudWeight = 1 + step;
+              await applied(editor, [
+                {
+                  op: "editAsset",
+                  id: "hit",
+                  edits: [{ set: "/variants/@thud/weight", value: thudWeight }],
+                },
+              ]);
+            } else if (edit === 2) {
+              const trigger = { event: "contact:start", tag: `t${step}` };
+              on.push(trigger);
+              await applied(editor, [
+                { op: "editAsset", id: "hit", edits: [{ insert: "/on/-", value: trigger }] },
+              ]);
+            } else if (!added.includes("clank")) {
+              added.push("clank");
+              await applied(editor, [
+                {
+                  op: "editAsset",
+                  id: "hit",
+                  edits: [{ insert: "/variants/-", value: { clip: "clank" } }],
+                },
+              ]);
+            }
+            sim.deliver(Math.floor(sim.rand() * 3));
+            sim.weather(0.2, 0.2);
+          }
+          sim.settle();
+
+          const states = [mover, editor].map((s) => readProject(s.projectDoc));
+          expect(states[1], `seed ${seed}`).toEqual(states[0]);
+          for (const s of [mover, editor]) {
+            const doc = sessionDoc(s);
+            const sound = valueOf(doc, "hit") as SoundFile;
+            const dialogue = valueOf(doc, "gate") as DialogueFile;
+            const others = { halt: "halt", blip: "blip" };
+            const expected = { ...others, [target]: id };
+            expect(
+              sound.variants.map((v) => v.clip).sort(),
+              `seed ${seed}: the sound follows the id`,
+            ).toEqual([expected.halt, "thud", expected.blip, ...added].sort());
+            expect(sound.variants.find((v) => v.clip === expected.halt)?.weight).toBe(2);
+            expect(sound.variants.find((v) => v.clip === "thud")?.weight).toBe(thudWeight);
+            expect(sound.volume).toBe(volume);
+            expect(sound.on ?? []).toEqual(on);
+            expect(dialogue.nodes[0]!.lines[0]!.voice, `seed ${seed}: the line follows`).toBe(
+              expected.halt,
+            );
+            const { view, index } = clipRefs(readProject(s.projectDoc), doc);
+            expect(view.byId.get(id)?.kind).toBe(voiced ? "audio" : "synth");
+            expect(index.dangling(), `seed ${seed}`).toEqual([]);
+            const at = sound.variants.findIndex((v) => v.clip === id);
+            expect(index.referrers(id).map((r) => [r.id, r.pointer])).toEqual(
+              expect.arrayContaining([
+                ["hit", `/variants/${at}/clip`],
+                ...(voiced ? [["gate", "/nodes/@gate/lines/0/voice"]] : []),
+              ]),
+            );
+            expect(index.referrers(id)).toHaveLength(voiced ? 2 : 1);
+          }
+          for (const key of Object.keys(docs))
+            expect(valueOf(sessionDoc(editor), key)).toEqual(valueOf(sessionDoc(mover), key));
+          partitions += sim.partitions;
+          for (const s of [mover, editor]) s.destroy();
+        }
+        expect(partitions, "the runs must cut clients off").toBeGreaterThan(3);
+        expect(changedIds, `the runs must change ${target}'s id`).toBeGreaterThan(5);
+      },
+    );
 });

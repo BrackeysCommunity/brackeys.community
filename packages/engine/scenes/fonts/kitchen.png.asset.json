@@ -1,0 +1,14 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "1a715qhtrwgz",
+  "id": "kitchen-font-page",
+  "sha256": "06eaf91ef2aac694672fb321c37cac38b0610c114a81d5c2575e005b75a676c7",
+  "bytes": 13964,
+  "meta": { "format": "png", "height": 72, "width": 96 },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository by scenes/tools/kitchen-media.ts: the kitchen font's glyphs, written by a stored-deflate PNG writer."
+  }
+}

@@ -306,7 +306,7 @@ type EditorSkeletonProps = Omit<EditorFrameProps, "children" | "panels"> & {
     panels?: FramePanels;
     /** What the skeleton's empty scene is built with; default the engine's own registry. */
     registry?: Registry;
-    /** The bottom-left island; default the loading status while there are no `panels`, `null` for none. */
+    /** The status bar's content; default the loading status while there are no `panels`, `null` for none. */
     status?: ReactNode;
 };
 ```

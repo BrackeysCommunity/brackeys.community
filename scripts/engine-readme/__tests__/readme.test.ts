@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   mountUi,
+  SYNTH_PRESETS,
   type GameInstance,
   type GameStoreState,
   type SaveSlots,
@@ -23,7 +24,17 @@ import {
   ANIM_END,
   ANIM_FRAME,
   clampTiming,
+  createDialogueRunner,
   createRegistry,
+  DIALOGUE_ADVANCE_COMMAND,
+  DIALOGUE_CHOICES,
+  DIALOGUE_CHOOSE_COMMAND,
+  DIALOGUE_END,
+  DIALOGUE_LINE,
+  DIALOGUE_LOG_MAX,
+  memoryVars,
+  stringTable,
+  type DialogueView,
   EASE_NAMES,
   LIVE_DEFAULTS,
   SLOT_MAX_LENGTH,
@@ -37,6 +48,8 @@ import {
   EMITTER_MAX_CAP,
   EMITTER_MAX_DEFAULT,
   ENGINE_ASSET_KINDS,
+  ENGINE_BUSES,
+  SOUND_MAX_VOICES_DEFAULT,
   type AssetEntry,
 } from "@jams/engine/project";
 import { expandScene, type SceneDefinition } from "@jams/engine/scene";
@@ -44,11 +57,19 @@ import { Store } from "@tanstack/store";
 import { describe, expect, it, vi } from "vite-plus/test";
 import type * as Y from "yjs";
 
+import {
+  CALIBRATION_BEATS_DEFAULT,
+  CALIBRATION_BPM_DEFAULT,
+  MUSIC_DRIFT_LIMIT_MS,
+} from "../../../packages/engine/audio/clock";
+import { MUSIC_FADE_MS_DEFAULT } from "../../../packages/engine/audio/system";
 import { liveAppliedText } from "../../../packages/engine/editor-ui/session/live-scene-editor";
+import { CAPTION_MS_DEFAULT } from "../../../packages/engine/ui/captions";
 import { SITE } from "../../../src/lib/legal-meta";
 import { loadCompatRapier } from "../../scene/rapier-compat";
 import { GAME_LIVE_BUILD_USAGE, GAME_LIVE_CHECK_USAGE } from "../../scene/tools/game-live";
 import type { FerrySlice } from "../examples/dom-hud";
+import { gateProject } from "../examples/gate-game";
 import {
   formatReference,
   REFERENCE_END,
@@ -1078,7 +1099,7 @@ describe("the live levels examples run", () => {
 });
 
 describe("the presentation sections", () => {
-  it("come in order before Genre probes", () => {
+  it("come in order before Audio", () => {
     const readme = readFileSync(README, "utf8");
     const headings = [...readme.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
     const at = headings.indexOf("Presentation");
@@ -1090,7 +1111,7 @@ describe("the presentation sections", () => {
       "Split screen",
       "Effects and particles",
       "Reduced motion",
-      "Genre probes",
+      "Audio",
     ]);
   });
 
@@ -1126,6 +1147,8 @@ describe("the presentation sections", () => {
       "Particles",
       "Scene transitions",
       "The game's HUD",
+      "Rich text [shake] and [wave]",
+      "The dialogue box's typewriter",
       "Hit-stop",
       "Camera follow, zoom and regions",
       "anim and tweens",
@@ -1252,5 +1275,277 @@ describe("the presentation examples run", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the audio, text, dialogue and localisation sections", () => {
+  const flat = (name: string) => readmeSection(name).replace(/\s+/g, " ");
+
+  it("come after Reduced motion and before Genre probes", () => {
+    const headings = [...readFileSync(README, "utf8").matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+    const at = headings.indexOf("Reduced motion");
+    expect(headings.slice(at, at + 7)).toEqual([
+      "Reduced motion",
+      "Audio",
+      "Text and fonts",
+      "Dialogue",
+      "Localisation",
+      "Accessibility",
+      "Genre probes",
+    ]);
+  });
+
+  it("carries the storage line and what visualOnly means for sound and text", () => {
+    const line = "Sounds and strings are documents; clips and fonts count as asset bytes.";
+    expect(flat("## Audio")).toContain(line);
+    expect(flat("### Storage limits").replace(/\*\*/g, "")).toContain(line);
+    expect(flat("## Audio")).toContain(
+      '`visualOnly`, which means "never changes simulation state, built only with a view"',
+    );
+  });
+
+  it("names the buses, the presets and the numbers as the engine has them", () => {
+    const audio = flat("## Audio");
+    for (const bus of ENGINE_BUSES) expect(audio).toContain(`\`${bus}\``);
+    for (const preset of SYNTH_PRESETS) expect(audio).toContain(`\`${preset}\``);
+    expect(audio).toContain(`default ${SOUND_MAX_VOICES_DEFAULT}`);
+    expect(audio).toContain(`(default ${MUSIC_FADE_MS_DEFAULT})`);
+    expect(audio).toContain(`more than ${MUSIC_DRIFT_LIMIT_MS} ms apart`);
+    expect(audio).toContain(
+      `${CALIBRATION_BEATS_DEFAULT} beats at ${CALIBRATION_BPM_DEFAULT} bpm by default`,
+    );
+    expect(audio).toContain("`@latency { ms }`");
+    expect(flat("## Accessibility")).toContain(
+      `(default ${CAPTION_MS_DEFAULT.toLocaleString("en")})`,
+    );
+  });
+
+  it("names the dialogue commands and step events as the engine has them", () => {
+    const text = flat("## Dialogue");
+    for (const name of [DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND, DIALOGUE_LINE])
+      expect(text).toContain(`\`${name}`);
+    for (const type of [DIALOGUE_CHOICES, DIALOGUE_END]) expect(text).toContain(`\`${type} {`);
+    expect(text).toContain(`at most ${DIALOGUE_LOG_MAX}`);
+  });
+
+  it("lists the six issue codes, the shaping limit, live versions' keys and where project issues show", () => {
+    const all = ["## Audio", "## Dialogue", "## Localisation"].map(flat).join(" ");
+    for (const code of [
+      "sound-bus-unknown",
+      "string-key-missing",
+      "locale-unknown",
+      "font-missing",
+      "dialogue-dead-end",
+      "dialogue-unreachable",
+    ])
+      expect(all).toContain(`\`${code}\``);
+    const l10n = flat("## Localisation");
+    expect(l10n).toContain("Bitmap fonts don't shape.");
+    expect(l10n).toContain("need a web font");
+    expect(l10n).toContain("players see those keys bracketed");
+    expect(l10n).toContain(
+      "`vp run scene validate <scene>` inside a project runs the project-wide checks",
+    );
+    expect(flat("## Text and fonts")).toContain("Arabic and other joined scripts need a web font");
+  });
+
+  it("states the floor", () => {
+    const floor = flat("## Accessibility");
+    for (const part of [
+      "Remappable input.",
+      "Reduced motion",
+      "Captions for sounds and voice.",
+      "HUD and dialogue as DOM",
+      "Volume per bus",
+      "Colour is never the only cue",
+    ])
+      expect(floor).toContain(part);
+  });
+
+  it("lists what rich text and the typewriter do under reduced motion", () => {
+    const rows = tableRows(readmeSection("## Reduced motion"), "| What").map((r) => r[0]);
+    expect(rows).toContain("Rich text [shake] and [wave]");
+    expect(rows).toContain("The dialogue box's typewriter");
+  });
+});
+
+describe("the audio, text, dialogue and localisation examples run", () => {
+  it("chime-synth.ts draws the same pickup for a seed, and logs a mono buffer panned right", async () => {
+    const { chime } = await import("../examples/chime-synth");
+    const r = chime();
+    expect(r.presets).toEqual([...SYNTH_PRESETS]);
+    expect(r.sameSeedSamePatch).toBe(true);
+    expect(r.ms).toBe(306);
+    expect(r.samples).toBe(Math.round(306 * 44.1));
+    expect(r.wavBytes).toBe(44 + r.samples * 2);
+    expect(r.sameWave).toBe(true);
+    expect(r.log).toEqual([`buffer 1ch ${r.samples}`, "play pan 0.5"]);
+    const audio = readmeSection("## Audio").replace(/\s+/g, " ");
+    expect(audio).toContain(`${r.ms} ms patch of ${r.samples.toLocaleString("en")} samples`);
+    expect(audio).toContain(`(${r.wavBytes.toLocaleString("en")} WAV bytes)`);
+  });
+
+  it("sign-text.ts parses the sign's markup and measures it exactly in the bitmap face", async () => {
+    const { shopSign } = await import("../examples/sign-text");
+    expect(shopSign()).toEqual({
+      spans: [
+        ["Shop", " open"],
+        ["12", " coins ", "!"],
+      ],
+      bold: true,
+      gold: 0xffd24a,
+      plain: "Shop open\n12 coins !",
+      warnings: [],
+      unknown: 2,
+      pixel: { width: 60, height: 24, exact: true },
+      big: { width: 120, height: 48, exact: true },
+      estimated: true,
+      wrapped: 24,
+    });
+  });
+
+  it("gate-playtest.ts pays the toll by command, keeps the music requests and walks every ending", async () => {
+    const { payAndWalk } = await import("../examples/gate-playtest");
+    expect(payAndWalk()).toEqual({
+      result: "paid",
+      nodes: ["through"],
+      paid: true,
+      audio: ["0 music tune-sound", "3 music null"],
+      rich: ["paid via [0]", "left via [1]"],
+      poor: ["left via [1]"],
+    });
+  });
+
+  it("gate-strings.ts falls back to the default, brackets a missing key and picks each player's locale", async () => {
+    const { gateInThreeLocales } = await import("../examples/gate-strings");
+    expect(gateInThreeLocales()).toEqual({
+      en: "Halt. The toll is 3 gold.",
+      fr: "Halte. Le péage coûte 3 or.",
+      ar: ["الحارس", "Pay the toll.", "rtl"],
+      missing: "[gate.closed]",
+      hasMissing: false,
+      saved: "fr",
+      browser: "fr",
+      neither: "en",
+      hebrew: "rtl",
+    });
+  });
+
+  /** A game instance over a store holding `dialogue`, recording what it is sent and which host events it has. */
+  function talkingGame(view: DialogueView | null, opts: { locale?: string } = {}) {
+    const store = new Store({ game: null, dialogue: view } as unknown as GameStoreState);
+    const sent: unknown[] = [];
+    const handlers = new Map<string, Set<(payload: unknown) => void>>();
+    const bus = new Map([
+      ["music", { volume: 0.5, muted: false }],
+      ["sfx", { volume: 1, muted: true }],
+    ]);
+    const prefs: Record<string, unknown> = {};
+    let locale = opts.locale ?? "en";
+    const fire = (event: string, payload: unknown) => {
+      for (const fn of [...(handlers.get(event) ?? [])]) fn(payload);
+    };
+    const game = {
+      reducedMotion: true,
+      getStore: () => store,
+      project: () => null,
+      send: (command: unknown) => (sent.push(command), true),
+      on(event: string, fn: (payload: unknown) => void) {
+        if (!handlers.has(event)) handlers.set(event, new Set());
+        handlers.get(event)!.add(fn);
+      },
+      off: (event: string, fn: (payload: unknown) => void) => void handlers.get(event)?.delete(fn),
+      input: { onAction: () => () => {} },
+      audio: {
+        buses: () => Object.fromEntries(bus),
+        setBus: (name: string, volume: number, muted?: boolean) =>
+          void bus.set(name, { volume, muted: muted ?? false }),
+      },
+      locale: {
+        current: () => locale,
+        available: () => ["en", "fr", "ar"],
+        set(next: string) {
+          const from = locale;
+          locale = next;
+          prefs.locale = next;
+          fire("locale:change", { from, to: next });
+        },
+        strings: () => stringTable(gateProject, locale),
+      },
+      captions: {
+        enabled: () => prefs.captions === true,
+        set: (on: boolean) => void (prefs.captions = on),
+      },
+    } as unknown as GameInstance;
+    const show = (next: DialogueView | null) => store.setState((s) => ({ ...s, dialogue: next }));
+    return { game, sent, fire, bus, prefs, show, handlers };
+  }
+
+  it("talk-hud.ts shows the guard's line and choices, sends the choice, captions the coin and turns right to left", async () => {
+    const { mountTalkHud } = await import("../examples/talk-hud");
+    const { gateTalk } = await import("../examples/gate-game");
+    const { window } = await dom(`<div style="position: relative"><canvas></canvas></div>`);
+    const q = (sel: string) => window.document.querySelector<HTMLElement>(sel);
+    const runner = createDialogueRunner(
+      gateTalk,
+      "gate-talk",
+      memoryVars({ gold: 3, toll: 3 }),
+      () => {},
+    );
+    const h = talkingGame(runner.view());
+    h.game.captions.set(true);
+    const unmount = mountUi(h.game, window.document.querySelector("canvas")!, mountTalkHud);
+
+    const box = q('[role="dialog"]')!;
+    expect(box.getAttribute("aria-label")).toBe("Guard");
+    expect(q("[data-jams-dialogue-live]")?.getAttribute("aria-live")).toBe("polite");
+    expect(q("[data-jams-dialogue-line]")?.textContent).toBe("Halt. The toll is 3 gold.");
+    const choices = [...window.document.querySelectorAll<HTMLButtonElement>("[data-jams-choice]")];
+    expect(choices.map((b) => b.textContent)).toEqual(["Pay the toll.", "Turn back."]);
+    choices[0]!.click();
+    expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 0 } }]);
+    runner.choose(0);
+    h.show(runner.view());
+    expect(q("[data-jams-dialogue-line]")?.textContent).toBe("Go on, then.");
+    expect(window.document.querySelectorAll("[data-jams-text-log] li")).toHaveLength(2);
+
+    h.fire("audio:caption", { key: "caption.coin", at: 0 });
+    expect(q('[data-jams-caption="caption.coin"]')?.textContent).toBe("[Coins clink]");
+    h.game.locale.set("ar");
+    expect(box.getAttribute("dir")).toBe("rtl");
+    expect(box.getAttribute("aria-label")).toBe("الحارس");
+    expect(q("[data-jams-text-log]")?.getAttribute("dir")).toBe("rtl");
+
+    unmount();
+    expect(q("[data-jams-ui]")).toBeNull();
+    expect([...h.handlers.values()].every((set) => set.size === 0)).toBe(true);
+  });
+
+  it("sound-options.ts writes bus levels, the language and captions through the game", async () => {
+    const { mountSoundOptions } = await import("../examples/sound-options");
+    const { window } = await dom(`<div style="position: relative"><canvas></canvas></div>`);
+    const h = talkingGame(null);
+    const unmount = mountUi(h.game, window.document.querySelector("canvas")!, mountSoundOptions);
+    const input = (name: string) =>
+      window.document.querySelector<HTMLInputElement>(`[name="${name}"]`)!;
+    expect(input("music").value).toBe("0.5");
+    expect(input("sfx-muted").checked).toBe(true);
+    input("music").value = "0.25";
+    input("music").dispatchEvent(new window.Event("input"));
+    expect(h.bus.get("music")).toEqual({ volume: 0.25, muted: false });
+    input("sfx-muted").checked = false;
+    input("sfx-muted").dispatchEvent(new window.Event("change"));
+    expect(h.bus.get("sfx")).toEqual({ volume: 1, muted: false });
+
+    const language = window.document.querySelector<HTMLSelectElement>('[name="locale"]')!;
+    expect([...language.options].map((o) => o.value)).toEqual(["en", "fr", "ar"]);
+    language.value = "fr";
+    language.dispatchEvent(new window.Event("change"));
+    expect(h.game.locale.current()).toBe("fr");
+    input("captions").checked = true;
+    input("captions").dispatchEvent(new window.Event("change"));
+    expect(h.prefs).toEqual({ locale: "fr", captions: true });
+    expect(window.document.querySelector("form")?.style.pointerEvents).toBe("auto");
+    unmount();
   });
 });

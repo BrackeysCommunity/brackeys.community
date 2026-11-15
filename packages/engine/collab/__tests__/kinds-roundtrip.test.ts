@@ -16,15 +16,23 @@ import {
   createKindRegistry,
   formatAssetDoc,
   parseAssetDoc,
+  type BlobKindDef,
   type DocKindDef,
   type DocLayout,
   type KindEnv,
 } from "../../project/kinds";
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
-import { formatSidecar, parseSidecar, sidecarPathOf } from "../../project/sidecar";
+import {
+  formatSidecar,
+  kindMetaVersion,
+  parseSidecar,
+  sidecarMetaVersion,
+  sidecarPathOf,
+} from "../../project/sidecar";
 import type { ProjectFile } from "../../project/types";
 import type { Prefab, SceneDefinition } from "../../scene/types";
 import { fileContentStore } from "../../vite/content-store";
+import { NODE_DECOMPRESS } from "../../vite/font-decompress";
 import { createProjectFileAdapter, type FileProject } from "../../vite/project-files";
 import { applyOpsToDoc } from "../apply";
 import { docToScene, entitiesMap, gridRowKey, metaMap, sceneToDoc } from "../convert";
@@ -92,6 +100,14 @@ const FIXTURES: Record<string, string> = {
   animation: readFileSync(new URL("./fixtures/hero.animation.json", import.meta.url), "utf8"),
   /** Frozen: a change to the emitter's layout or formatter that moves a byte of it is a format change. */
   emitter: readFileSync(new URL("./fixtures/sparks.emitter.json", import.meta.url), "utf8"),
+  /** Frozen, every field set: a change to the sound's layout or formatter that moves a byte of it is a format change. */
+  sound: readFileSync(new URL("./fixtures/hit.sound.json", import.meta.url), "utf8"),
+  /** Frozen, every field set: a change to the patch's layout or formatter that moves a byte of it is a format change. */
+  synth: readFileSync(new URL("./fixtures/blip.synth.json", import.meta.url), "utf8"),
+  /** Frozen: a change to the dialogue's layout or formatter that moves a byte of it is a format change. */
+  dialogue: readFileSync(new URL("./fixtures/gate.dialogue.json", import.meta.url), "utf8"),
+  /** Frozen: a change to the strings layout or formatter that moves a byte of it is a format change. */
+  strings: readFileSync(new URL("./fixtures/gate.strings.json", import.meta.url), "utf8"),
   /** Frozen: a change to the scene list's layout or formatter that moves a byte of it is a format change. */
   "scene-list": readFileSync(new URL("./fixtures/scene-list.json", import.meta.url), "utf8"),
   checks: lines(
@@ -356,6 +372,105 @@ describe("file → doc → file, per kind", () => {
     expect((value.shape as { kind: string }).kind).toBe("circle");
   });
 
+  const frozen = (name: string) => {
+    const parsed = parseAssetDoc(kinds.get(name) as DocKindDef, FIXTURES[name]!, env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(parsed.issues).toEqual([]);
+    return parsed.value as Record<string, unknown>;
+  };
+  const keysOf = (items: readonly object[]) => [...new Set(items.flatMap(Object.keys))].sort();
+
+  it("sound: the frozen fixture sets every field, weighted variants and each matcher filter", () => {
+    const value = frozen("sound");
+    expect(Object.keys(value).sort()).toEqual(
+      [
+        "$schema",
+        "kind",
+        "v",
+        "bus",
+        "volume",
+        "pitch",
+        "variants",
+        "loop",
+        "cooldownMs",
+        "maxVoices",
+        "positional",
+        "range",
+        "caption",
+        "on",
+        "preload",
+      ].sort(),
+    );
+    expect(keysOf(value.variants as object[])).toEqual(["clip", "weight"]);
+    expect(keysOf(value.on as object[])).toEqual(["data", "event", "tag", "type"]);
+  });
+
+  it("synth: the frozen fixture sets every field and every nested one", () => {
+    const value = frozen("synth");
+    expect(Object.keys(value).sort()).toEqual(
+      [
+        "$schema",
+        "kind",
+        "v",
+        "wave",
+        "duty",
+        "dutySweep",
+        "freq",
+        "slide",
+        "slideAccel",
+        "jump",
+        "vibrato",
+        "attackMs",
+        "sustainMs",
+        "punch",
+        "decayMs",
+        "lowpass",
+        "highpass",
+        "retriggerMs",
+        "seed",
+        "volume",
+      ].sort(),
+    );
+    expect(Object.keys(value.lowpass as object).sort()).toEqual(["hz", "resonance", "sweep"]);
+    expect(Object.keys(value.highpass as object).sort()).toEqual(["hz", "sweep"]);
+  });
+
+  it("dialogue: the frozen fixture sets every speaker, line, choice and node field, each condition and effect", () => {
+    const value = frozen("dialogue");
+    type Node = Record<string, unknown> & { lines: object[]; choices?: object[] };
+    const nodes = value.nodes as Node[];
+    expect(keysOf(value.speakers as object[])).toEqual(["id", "name", "portrait"]);
+    expect(keysOf(nodes)).toEqual(
+      ["choices", "do", "else", "end", "id", "if", "lines", "next"].sort(),
+    );
+    expect(keysOf(nodes.flatMap((n) => n.lines))).toEqual(
+      ["if", "portrait", "say", "speaker", "text", "vars", "voice"].sort(),
+    );
+    expect(keysOf(nodes.flatMap((n) => n.choices ?? []))).toEqual(
+      ["do", "hidden", "if", "text", "to"].sort(),
+    );
+    const text = FIXTURES.dialogue!;
+    for (const form of [
+      '"all"',
+      '"any"',
+      '"not"',
+      '"visited"',
+      '"gte"',
+      '"eq"',
+      '"ne"',
+      '"truthy"',
+    ])
+      expect(text, `condition ${form}`).toContain(form);
+    for (const form of ['"set"', '"add"', '"push"', '"emit"'])
+      expect(text, `effect ${form}`).toContain(form);
+  });
+
+  it("strings: the frozen fixture holds three locales, a translator's note and a placeholder", () => {
+    const rows = frozen("strings").strings as Record<string, string>[];
+    expect(keysOf(rows)).toEqual(["de", "en", "fr", "key", "note"]);
+    expect(rows.some((r) => r.en?.includes("{gold}"))).toBe(true);
+  });
+
   for (const [name, text] of Object.entries(WORLD_PREDICATES)) {
     it(`${name}: a script with exists and count is byte-identical, also after the doc crosses the wire`, () => {
       const kind = kinds.get(name) as DocKindDef;
@@ -490,7 +605,16 @@ const blobFixture = (name: string) =>
       import.meta.url,
     ),
   );
+const frozenSidecar = (name: string) =>
+  readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+const SAMPLE_COVERAGE = [
+  [32, 32],
+  [65, 67],
+  [233, 233],
+  [0x1f600, 0x1f600],
+];
 
 /** Each blob kind's file (by its kind, or a case naming `kind`), the files its import resolves beside it, the settings its sidecar sets and the meta it inspects to. */
 const BLOBS: Record<
@@ -503,6 +627,8 @@ const BLOBS: Record<
     beside?: Record<string, string>;
     import?: object;
     meta?: object;
+    /** A frozen sidecar the writer's must match byte for byte, under `./fixtures/`. */
+    frozen?: string;
   }
 > = {
   texture: {
@@ -516,8 +642,107 @@ const BLOBS: Record<
     beside: { "art/hero.png": "hero.png" },
     import: { pivotDefault: [0.5, 1] },
   },
-  font: { path: "fonts/font.fnt", file: "font.fnt", beside: { "fonts/font_0.png": "font_0.png" } },
-  audio: { path: "sfx/tone.wav", file: "tone.wav" },
+  font: {
+    path: "fonts/font.fnt",
+    file: "font.fnt",
+    beside: { "fonts/font_0.png": "font_0.png" },
+    meta: {
+      format: "bmfont",
+      lineHeight: 9,
+      pages: ["fonts/font_0.png"],
+      size: 8,
+      advances: { "65": 4, "66": 4, "67": 4, "68": 4 },
+      coverage: [[65, 68]],
+    },
+  },
+  "font, an XML BMFont with kerning": {
+    kind: "font",
+    path: "fonts/mono/mono-xml.fnt",
+    file: "fonts/mono-xml.fnt",
+    beside: { "fonts/font_0.png": "font_0.png" },
+    meta: {
+      format: "bmfont",
+      lineHeight: 14,
+      pages: ["fonts/font_0.png"],
+      size: 12,
+      advances: { "32": 3, "65": 5, "66": 5, "233": 4 },
+      coverage: [
+        [32, 32],
+        [65, 66],
+        [233, 233],
+      ],
+      kerning: [
+        [65, 66, -1],
+        [66, 65, -2],
+      ],
+    },
+    frozen: "mono-xml.fnt.asset.json",
+  },
+  "font, an MSDF BMFont": {
+    kind: "font",
+    path: "fonts/msdf/msdf.fnt",
+    file: "fonts/msdf.fnt",
+    beside: { "fonts/font_0.png": "font_0.png" },
+    meta: {
+      format: "bmfont",
+      lineHeight: 40,
+      pages: ["fonts/font_0.png"],
+      size: 32,
+      advances: { "65": 21, "66": 20 },
+      coverage: [[65, 66]],
+      distanceField: { type: "msdf", range: 4 },
+    },
+  },
+  "font, TrueType": {
+    kind: "font",
+    path: "fonts/sample.ttf",
+    file: "fonts/sample.ttf",
+    meta: { format: "ttf", coverage: SAMPLE_COVERAGE },
+    frozen: "sample.ttf.asset.json",
+  },
+  "font, WOFF2": {
+    kind: "font",
+    path: "fonts/sample.woff2",
+    file: "fonts/sample.woff2",
+    meta: { format: "woff2", coverage: SAMPLE_COVERAGE },
+  },
+  audio: {
+    path: "sfx/tone.wav",
+    file: "tone.wav",
+    meta: { format: "wav", durationMs: 50, channels: 1, sampleRate: 8000 },
+  },
+  "audio, streamed with a loop": {
+    kind: "audio",
+    path: "music/tone.ogg",
+    file: "tone.ogg",
+    import: { stream: true, loopStart: 0.02, loopEnd: 0.09 },
+    meta: { format: "ogg", durationMs: 101.58730158730158, channels: 2, sampleRate: 22_050 },
+    frozen: "tone.ogg.asset.json",
+  },
+  "audio, Opus": {
+    kind: "audio",
+    path: "sfx/tone-opus.ogg",
+    file: "media/tone-opus.ogg",
+    meta: { format: "ogg", durationMs: 100, channels: 2, sampleRate: 48_000 },
+  },
+  "audio, MP3": {
+    kind: "audio",
+    path: "sfx/tone-cbr.mp3",
+    file: "media/tone-cbr.mp3",
+    meta: { format: "mp3", durationMs: 130.6122448979592, channels: 2, sampleRate: 44_100 },
+  },
+  "audio, M4A": {
+    kind: "audio",
+    path: "sfx/tone.m4a",
+    file: "tone.m4a",
+    meta: { format: "m4a", durationMs: 100, channels: 1, sampleRate: 8000 },
+  },
+  "audio, 24-bit stereo WAV": {
+    kind: "audio",
+    path: "sfx/stereo.wav",
+    file: "media/stereo-48k-24bit.wav",
+    meta: { format: "wav", durationMs: 75, channels: 2, sampleRate: 48_000 },
+  },
   recording: {
     path: "runs/run.recording.json",
     file: "run.recording.json",
@@ -626,6 +851,9 @@ describe("sidecar → registry → sidecar, per blob kind", () => {
         expect(parsed.sidecar.meta).toBeDefined();
         if (spec.meta) expect(parsed.sidecar.meta).toEqual(spec.meta);
         expect(formatSidecar(parsed.sidecar, { detectedKind: kind })).toBe(text);
+        const def = kinds.get(kind) as BlobKindDef;
+        expect(sidecarMetaVersion(parsed.sidecar)).toBe(kindMetaVersion(def));
+        if (spec.frozen) expect(text).toBe(await frozenSidecar(spec.frozen));
 
         const host = createProjectFileAdapter(project("cache-b"));
         const doc = new Y.Doc();
@@ -672,7 +900,11 @@ describe("sidecar → registry → sidecar, per blob kind", () => {
         expect(moved.ok).toBe(true);
         Y.applyUpdate(doc, Y.encodeStateAsUpdate(remote, Y.encodeStateVector(doc)));
         // As the one writer stores: meta that names paths (a font's pages) follows the move.
-        await reinspectBlobs(doc, { kinds, store: fileContentStore(join(root, "cache-b")) });
+        await reinspectBlobs(doc, {
+          kinds,
+          store: fileContentStore(join(root, "cache-b")),
+          decompress: NODE_DECOMPRESS,
+        });
         expect(await host.storeProject(doc)).toBe(true);
         const to = `moved/${spec.path.split("/").pop()}`;
         const after = readProject(doc).assets[key]!;

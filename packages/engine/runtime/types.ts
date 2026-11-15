@@ -98,6 +98,16 @@ export const CONTACT_END = "contact:end";
 export const PLAYER_JOINED = "player:joined";
 /** A seat's device left it (a pad disconnected, or the host freed it). */
 export const PLAYER_LEFT = "player:left";
+/** The active dialogue shows a line: `data` is a `DialogueLineEvent`. */
+export const DIALOGUE_LINE = "dialogue:line";
+/** The active dialogue offers its choices: `data` is a `DialogueChoicesEvent`. */
+export const DIALOGUE_CHOICES = "dialogue:choices";
+/** The active dialogue ended: `data` is a `DialogueEndEvent`. */
+export const DIALOGUE_END = "dialogue:end";
+
+export type DialogueLineEvent = { dialogue: AssetId; node: string; line: number };
+export type DialogueChoicesEvent = { dialogue: AssetId; node: string; count: number };
+export type DialogueEndEvent = { dialogue: AssetId; ending: string };
 
 export type StepResult = {
   /** The tick just simulated, counting from 0 after each load. */

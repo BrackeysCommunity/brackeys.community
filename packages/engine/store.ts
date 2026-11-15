@@ -1,5 +1,6 @@
 import { Store } from "@tanstack/store";
 
+import type { DialogueView } from "./dialogue/runner";
 import type {
   CameraState,
   GameMode,
@@ -35,6 +36,7 @@ function createInitialState(): GameStoreState {
     debugMode: "off",
     mode: "play",
     session: null,
+    dialogue: null,
   };
 }
 
@@ -91,6 +93,15 @@ export function setSession(store: Store<GameStoreState>, session: PlaySession | 
   store.setState((s) => ({ ...s, session }));
 }
 
+/** Stores the active conversation's view; an unchanged reference leaves the store alone. */
+export function setDialogue(
+  store: Store<GameStoreState>,
+  dialogue: Readonly<DialogueView> | null,
+): void {
+  if (store.state.dialogue === dialogue) return;
+  store.setState((s) => ({ ...s, dialogue }));
+}
+
 export function resetGameStore(store: Store<GameStoreState>): void {
   store.setState(() => createInitialState());
 }
@@ -132,4 +143,8 @@ export function selectMode(state: GameStoreState): GameMode {
 
 export function selectSession(state: GameStoreState): PlaySession | null {
   return state.session;
+}
+
+export function selectDialogue(state: GameStoreState): Readonly<DialogueView> | null {
+  return state.dialogue;
 }

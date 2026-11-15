@@ -50,4 +50,5 @@ export {
   type ProjectProblem,
   type ProjectScan,
   type ProjectSync,
+  type SidecarReinspection,
 } from "./project-files";

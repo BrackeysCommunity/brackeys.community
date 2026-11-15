@@ -153,13 +153,10 @@ function useRegionCycling(root: RefObject<HTMLDivElement | null>) {
 }
 
 export type EditorFrameSlots = {
-  /** The host's chrome: a site menu, a title, a way out. */
+  /** The host's chrome at the ends of the top bar: a site menu, a way out. */
   topLeft?: ReactNode;
   topRight?: ReactNode;
-  /**
-   * Where the editor is (the prefab breadcrumb): beside the host's top-left
-   * chrome, or below it when the top row has no room.
-   */
+  /** Where the editor is (the prefab breadcrumb): under the top bar, in the canvas area. */
   context?: ReactNode;
   /** A notice about the whole editor (read only), centred at the top of the canvas area. */
   banner?: ReactNode;
@@ -172,9 +169,9 @@ export type EditorFrameSlots = {
   left?: ReactNode;
   /** The right column's content when there are no `panels`. */
   right?: ReactNode;
-  /** The toolbar, or the play controls while playing. */
+  /** The toolbar, or the play controls while playing: the top bar's middle, between the host's chrome. */
   dock?: ReactNode;
-  /** The scene, its connection and who is here, bottom left. */
+  /** The status bar: across the canvas area's bottom, between the columns; hidden while playing. */
   status?: ReactNode;
   /** Chrome placed over the canvas by the scene itself: cursors, the tools' overlay. */
   overlay?: ReactNode;
@@ -225,10 +222,11 @@ const isPlaying = (s: { readonly mode: string }) => s.mode === "play";
 
 /**
  * The editor's shell: the canvas fills the frame and the chrome floats over
- * it in islands. The columns, their tab groups, the context and the bottom
- * row are placed in px from `fitLayout`, so the viewer's sizes hold across
- * window sizes. Islands come first in the DOM, so Tab reaches the host's
- * chrome, the columns and the dock before the canvas. Kit portals render
+ * it in islands: a top bar across the frame (the host's chrome and the
+ * toolbar), the columns under it, and the status bar between the columns.
+ * They are placed in px from `fitLayout`, so the viewer's sizes hold across
+ * window sizes. Islands come first in the DOM, so Tab reaches the top bar,
+ * the columns and the status bar before the canvas. Kit portals render
  * into a `.je-root` container beside it.
  */
 export function EditorFrame({ host = NO_HOST, theme, ...props }: EditorFrameProps) {
@@ -241,107 +239,107 @@ export function EditorFrame({ host = NO_HOST, theme, ...props }: EditorFrameProp
   );
 }
 
-type Size = { width: number; height: number };
-
 /** The sizes of what the frame places around the columns. */
 type Measured = {
   width: number;
   height: number;
-  hostTopLeft: Size;
-  topRight: Size;
+  /** The top bar's height. */
+  bar: number;
+  /** The widths of the host's chrome at each end of the top bar. */
+  hostLeft: number;
+  hostRight: number;
   context: number;
+  /** The status bar's height. */
   bottom: number;
-  /** The phone layout's panel bar and sheet, over the bottom row. */
+  /** The phone layout's panel bar and sheet, over the status bar. */
   phone: number;
 };
 
 const { inset: INSET, gap: GAP } = FRAME;
 
-/** The least width the context takes beside the host's chrome before it moves below it. */
-const CONTEXT_MIN = 240;
+/** The gap between the host's chrome and the toolbar in the top bar, matching `.je-frame-topbar`. */
+const BAR_GAP = 8;
 
 const box = (el: HTMLElement | null | undefined) => el?.getBoundingClientRect();
 
 /**
- * The frame's size and what its host chrome, context and bottom row take,
- * kept current as any of them resizes. An element the browser hasn't laid
- * out (or jsdom) measures as the window.
+ * The frame's size and what its top bar, the host's chrome in it, the
+ * context and the status bar take, kept current as any of them resizes. An
+ * element the browser hasn't laid out (or jsdom) measures as the window.
  */
 function measure(
   root: HTMLElement | null,
-  [topLeft, topRight, context, bottom, phone]: readonly (HTMLElement | null)[],
+  [bar, topLeft, topRight, context, bottom, phone]: readonly (HTMLElement | null)[],
 ): Measured {
   const frame = box(root);
-  const size = (el: HTMLElement | null | undefined): Size => {
-    const r = box(el);
-    return { width: r?.width ?? 0, height: r?.height ?? 0 };
-  };
   return {
     width: frame?.width || window.innerWidth,
     height: frame?.height || window.innerHeight,
-    hostTopLeft: size(topLeft),
-    topRight: size(topRight),
+    bar: box(bar)?.height ?? 0,
+    hostLeft: box(topLeft)?.width ?? 0,
+    hostRight: box(topRight)?.width ?? 0,
     context: box(context)?.height ?? 0,
     bottom: box(bottom)?.height ?? 0,
     phone: box(phone)?.height ?? 0,
   };
 }
 
-const sameSize = (a: Size, b: Size) => a.width === b.width && a.height === b.height;
-
 const sameMeasure = (a: Measured, b: Measured) =>
-  a.width === b.width &&
-  a.height === b.height &&
-  sameSize(a.hostTopLeft, b.hostTopLeft) &&
-  sameSize(a.topRight, b.topRight) &&
-  a.context === b.context &&
-  a.bottom === b.bottom &&
-  a.phone === b.phone;
+  (Object.keys(a) as (keyof Measured)[]).every((k) => a[k] === b[k]);
 
 type ContextPlace = { left: number; top: number; maxWidth: number };
 
+/** A part's left and right edges, in px from the frame's. */
+type Span = { left: number; right: number };
+
 /**
- * The viewport the columns fit into, and where the context goes: beside the
- * host's top-left chrome while the top row leaves it `CONTEXT_MIN` before the
- * right column, so it takes no column space; else below the chrome, as wide
- * as the left column.
+ * The viewport the columns fit into, the canvas area between them (where the
+ * context and the status bar go), the top bar's right edge and the toolbar's
+ * room in it. The bar runs from the left edge over the left column and stops
+ * short of the right one, which keeps the frame's full height; the context
+ * sits under it in the canvas area.
  */
-function placeTop(
+function placeChrome(
   layout: EditorLayout,
   m: Measured,
+  playing: boolean,
   hasContext: boolean,
-): { viewport: Viewport; context: ContextPlace | null } {
-  const host = m.hostTopLeft;
+): {
+  viewport: Viewport;
+  area: Span;
+  barRight: number;
+  context: ContextPlace | null;
+  dockRoom: number;
+} {
   const base: Viewport = {
     width: m.width,
     height: m.height,
-    topLeft: host.height,
-    topRight: m.topRight.height,
+    topLeft: m.bar,
+    topRight: 0,
     bottom: m.bottom,
   };
-  if (!hasContext) return { viewport: base, context: null };
-  const right = fitLayout(layout, base).right;
-  const edge = (right ? right.x : m.width) - GAP;
-  const besideLeft = INSET + (host.width > 0 ? host.width + GAP : 0);
-  if (edge - besideLeft >= CONTEXT_MIN || host.height === 0) {
-    return {
-      viewport: { ...base, topLeft: Math.max(host.height, m.context) },
-      context: { left: besideLeft, top: INSET, maxWidth: Math.max(0, edge - besideLeft) },
-    };
-  }
-  const viewport = {
-    ...base,
-    topLeft: host.height + (m.context > 0 ? GAP + m.context : 0),
+  const fitted = fitLayout(layout, base);
+  const columns = !playing && fitted.mode !== "phone";
+  const area = {
+    left: columns && fitted.left ? fitted.left.x + fitted.left.width + GAP : INSET,
+    right: columns && fitted.right ? m.width - fitted.right.x + GAP : INSET,
   };
-  const left = fitLayout(layout, viewport).left;
-  return {
-    viewport,
-    context: {
-      left: INSET,
-      top: INSET + host.height + GAP,
-      maxWidth: left && !left.rail ? left.width : Math.max(0, edge - INSET),
-    },
-  };
+  const context =
+    hasContext && !playing
+      ? {
+          left: area.left,
+          top: INSET + (m.bar > 0 ? m.bar + GAP : 0),
+          maxWidth: Math.max(0, m.width - area.left - area.right),
+        }
+      : null;
+  const top = m.bar + (context && m.context > 0 ? GAP + m.context : 0);
+  const barRight = area.right;
+  const hosts = [m.hostLeft, m.hostRight].filter((w) => w > 0);
+  const dockRoom = Math.max(
+    0,
+    m.width - INSET - barRight - hosts.reduce((sum, w) => sum + w + BAR_GAP, 0),
+  );
+  return { viewport: { ...base, top }, area, barRight, context, dockRoom };
 }
 
 /** What a server render lays the frame out for: a desktop window, until the browser measures. */
@@ -349,8 +347,9 @@ const SERVER_WINDOW = { width: 1280, height: 800 };
 
 const UNMEASURED: Measured = {
   ...SERVER_WINDOW,
-  hostTopLeft: { width: 0, height: 0 },
-  topRight: { width: 0, height: 0 },
+  bar: 0,
+  hostLeft: 0,
+  hostRight: 0,
   context: 0,
   bottom: 0,
   phone: 0,
@@ -428,82 +427,11 @@ export function usePanelOpener(id: PanelId): (() => void) | null {
   return useMemo(() => (opener?.known.includes(id) ? () => opener.open(id) : null), [opener, id]);
 }
 
-type Widths = { full: number; least: number };
+const DockRoomContext = createContext(Infinity);
 
-/** What the dock and the status each take of the bottom row: drawn in full, and at their least. */
-export type BottomPartWidths = Widths & {
-  /** The status's running activity, beside its own words: in full, and with its label cut short. */
-  activity?: Widths;
-};
-
-/** The bottom row's room, as the frame shares it with the dock and the status. */
-export type BottomRow = {
-  /** px the dock may take; `Infinity` outside a frame. */
-  dock: number;
-  /** The status draws its dot and counts in place of its words. */
-  compactStatus: boolean;
-  /** px the status may take, its activity included; `Infinity` while nothing runs or outside a frame. */
-  status: number;
-};
-
-const WIDE_ROW: BottomRow = { dock: Infinity, compactStatus: false, status: Infinity };
-
-const BottomRowContext = createContext<{
-  row: BottomRow;
-  report: (part: "dock" | "status", widths: BottomPartWidths | null) => void;
-}>({ row: WIDE_ROW, report: () => {} });
-
-/**
- * The bottom row's room for this part, after telling the frame what the part
- * takes. The status gives way first: it shrinks to its dot and counts when it
- * and the whole dock don't fit side by side; the dock then fits in what is left.
- */
-export function useBottomRow(part: "dock" | "status", widths: BottomPartWidths): BottomRow {
-  const { row, report } = useContext(BottomRowContext);
-  const { full, least } = widths;
-  const activityFull = widths.activity?.full ?? 0;
-  const activityLeast = widths.activity?.least ?? 0;
-  useIsomorphicLayoutEffect(
-    () =>
-      report(part, {
-        full,
-        least,
-        ...(activityFull > 0 ? { activity: { full: activityFull, least: activityLeast } } : {}),
-      }),
-    [report, part, full, least, activityFull, activityLeast],
-  );
-  useIsomorphicLayoutEffect(() => () => report(part, null), [report, part]);
-  return row;
-}
-
-export type PartWidths = Record<"dock" | "status", BottomPartWidths | null>;
-
-const sameWidths = (a: Widths | undefined, b: Widths | undefined) =>
-  a === b || (!!a && !!b && a.full === b.full && a.least === b.least);
-
-/**
- * How the bottom row's `room` is shared. The status's words give way first,
- * to their dot and counts, when they and the whole dock don't fit side by
- * side. A running activity then takes its room from the dock's tools, which
- * move into the overflow menu, and is cut short only once the dock is at its
- * least; the words give way for it only when even that isn't enough.
- */
-export function bottomRow(room: number, parts: PartWidths, statusShown: boolean): BottomRow {
-  const status = statusShown ? parts.status : null;
-  if (!status) return { dock: Math.max(0, room), compactStatus: false, status: Infinity };
-  const dock = parts.dock ?? { full: 0, least: 0 };
-  const activity = status.activity;
-  const besideDock = (own: number) => room - own - GAP - dock.least;
-  let compactStatus = status.full + GAP + dock.full > room;
-  if (!compactStatus && activity && besideDock(status.full) < activity.least) compactStatus = true;
-  const own = compactStatus ? status.least : status.full;
-  const running = activity ? Math.min(activity.full, Math.max(activity.least, besideDock(own))) : 0;
-  const taken = own + running;
-  return {
-    dock: Math.max(0, room - taken - GAP),
-    compactStatus,
-    status: activity ? Math.max(0, Math.min(taken, room)) : Infinity,
-  };
+/** px the toolbar may take in the top bar; `Infinity` outside a frame. */
+export function useDockRoom(): number {
+  return useContext(DockRoomContext);
 }
 
 /** Keeps `frameInView` for `game` fitting into what the frame around it leaves visible. */
@@ -530,12 +458,16 @@ function FrameBody({
   children,
 }: Omit<EditorFrameProps, "host">) {
   const root = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const topLeftRef = useRef<HTMLDivElement>(null);
   const topRightRef = useRef<HTMLDivElement>(null);
   const contextRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const phoneRef = useRef<HTMLDivElement>(null);
-  const parts = useMemo(() => [topLeftRef, topRightRef, contextRef, bottomRef, phoneRef], []);
+  const parts = useMemo(
+    () => [barRef, topLeftRef, topRightRef, contextRef, bottomRef, phoneRef],
+    [],
+  );
   useRegionCycling(root);
 
   const { storage } = useKit();
@@ -547,8 +479,8 @@ function FrameBody({
   const playing = useStoreValue(mode, isPlaying, Object.is);
   const showContext = Boolean(context) && !playing;
   const top = useMemo(
-    () => placeTop(layout, measured, showContext),
-    [layout, measured, showContext],
+    () => placeChrome(layout, measured, playing, showContext),
+    [layout, measured, playing, showContext],
   );
   const { viewport } = top;
   const fitted = useMemo(() => fitLayout(layout, viewport), [layout, viewport]);
@@ -608,27 +540,7 @@ function FrameBody({
     [base, opener],
   );
 
-  const [partWidths, setPartWidths] = useState<PartWidths>({ dock: null, status: null });
-  const reportPart = useCallback((part: "dock" | "status", widths: BottomPartWidths | null) => {
-    setPartWidths((last) => {
-      const was = last[part];
-      if (
-        was === widths ||
-        (was && widths && sameWidths(was, widths) && sameWidths(was.activity, widths.activity))
-      )
-        return last;
-      return { ...last, [part]: widths };
-    });
-  }, []);
-  const rowWidth =
-    (playing ? viewport.width : viewport.width - fitted.canvas.left - fitted.canvas.right) -
-    2 * GAP;
   const statusShown = Boolean(status) && !playing;
-  const row = useMemo(
-    () => bottomRow(rowWidth, partWidths, statusShown),
-    [rowWidth, partWidths, statusShown],
-  );
-  const bottom = useMemo(() => ({ row, report: reportPart }), [row, reportPart]);
 
   const readArea = useCallback((): VisibleArea | null => {
     const now = live.current;
@@ -735,18 +647,13 @@ function FrameBody({
   };
 
   const bottomInset = viewport.bottom > 0 ? INSET + viewport.bottom + GAP : INSET;
-  // The host's two corners share the top row: the left one stops short of the right one.
-  const topLeftMax =
-    measured.topRight.width > 0
-      ? Math.max(0, measured.width - 2 * INSET - GAP - measured.topRight.width)
-      : undefined;
-  // The default toasts sit in the canvas area, over the bottom row and the phone's panel bar.
+  // The default toasts sit in the canvas area, over the status bar and the phone's panel bar.
   const toasts = {
     "--je-toasts-right": `${(playing ? 0 : fitted.canvas.right) + INSET}px`,
     "--je-toasts-bottom": `${bottomInset + (phone && !playing && measured.phone > 0 ? measured.phone + GAP : 0)}px`,
   } as CSSProperties;
   // What the chrome covers of the canvas, as the safe area a game's HUD reads
-  // (UiContext.root); in Play only the host's corners and the dock stay.
+  // (UiContext.root); in Play only the host's corners and the top bar stay.
   const covered = playing ? { ...fitted.canvas, left: 0, right: 0 } : fitted.canvas;
   const safeArea = {
     "--jams-ui-safe-top": `${covered.top}px`,
@@ -763,94 +670,85 @@ function FrameBody({
         data-je-theme={theme}
         style={toasts}
       >
-        <div className="je-frame-chrome" data-je-mode={fitted.mode}>
-          {topLeft ? (
-            <div
-              ref={topLeftRef}
-              className="je-frame-top-left je-host"
-              data-je-region=""
-              style={topLeftMax === undefined ? undefined : { maxWidth: topLeftMax }}
-            >
-              {topLeft}
-            </div>
-          ) : null}
-          {topRight ? (
-            <div ref={topRightRef} className="je-frame-top-right je-host" data-je-region="">
-              {topRight}
-            </div>
-          ) : null}
-          {showContext && top.context ? (
-            <div
-              ref={contextRef}
-              className="je-frame-context"
-              style={{
-                left: top.context.left,
-                top: top.context.top,
-                maxWidth: top.context.maxWidth,
-              }}
-            >
-              {context}
-            </div>
-          ) : null}
-          {banner && !playing ? (
-            <div
-              className="je-frame-banner"
-              style={{
-                left: fitted.canvas.left,
-                right: fitted.canvas.right,
-                top: fitted.canvas.top > 0 ? fitted.canvas.top + GAP : INSET,
-              }}
-            >
-              {banner}
-            </div>
-          ) : null}
-          {/* Kept mounted in play mode, so the panels' scroll, filters and drafts survive a playtest. */}
-          <div className="je-frame-columns" hidden={playing} inert={playing}>
-            <RevealContext.Provider value={panels?.reveal ?? null}>
-              {phone ? (
-                <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
-                  {phoneSheet()}
-                  <div className="je-frame-phone-bar">
-                    {phoneRail("left")}
-                    {phoneRail("right")}
+        <PanelOpenerContext.Provider value={panelOpener}>
+          <div className="je-frame-chrome" data-je-mode={fitted.mode}>
+            {topLeft || topRight || dock ? (
+              <div
+                ref={barRef}
+                className="je-frame-topbar"
+                data-playing={playing ? "" : undefined}
+                style={{ left: INSET, right: top.barRight, top: INSET }}
+              >
+                {topLeft ? (
+                  <div ref={topLeftRef} className="je-frame-top-left je-host" data-je-region="">
+                    {topLeft}
                   </div>
+                ) : null}
+                <div className="je-frame-dock">
+                  <DockRoomContext.Provider value={top.dockRoom}>{dock}</DockRoomContext.Provider>
                 </div>
-              ) : (
-                <>
-                  {column("left")}
-                  {column("right")}
-                </>
-              )}
-            </RevealContext.Provider>
-          </div>
-          {dock || (status && !playing) ? (
-            <div
-              ref={bottomRef}
-              className="je-frame-bottom"
-              style={
-                playing
-                  ? { left: 0, right: 0 }
-                  : { left: fitted.canvas.left, right: fitted.canvas.right }
-              }
-            >
-              <BottomRowContext.Provider value={bottom}>
-                {dock ? (
-                  <PanelOpenerContext.Provider value={panelOpener}>
-                    <div className="je-frame-dock">{dock}</div>
-                  </PanelOpenerContext.Provider>
-                ) : null}
-                {statusShown ? (
-                  <div
-                    className="je-frame-status"
-                    style={Number.isFinite(row.status) ? { maxWidth: row.status } : undefined}
-                  >
-                    {status}
+                {topRight ? (
+                  <div ref={topRightRef} className="je-frame-top-right je-host" data-je-region="">
+                    {topRight}
                   </div>
                 ) : null}
-              </BottomRowContext.Provider>
+              </div>
+            ) : null}
+            {showContext && top.context ? (
+              <div
+                ref={contextRef}
+                className="je-frame-context"
+                style={{
+                  left: top.context.left,
+                  top: top.context.top,
+                  maxWidth: top.context.maxWidth,
+                }}
+              >
+                {context}
+              </div>
+            ) : null}
+            {banner && !playing ? (
+              <div
+                className="je-frame-banner"
+                style={{
+                  left: fitted.canvas.left,
+                  right: fitted.canvas.right,
+                  top: fitted.canvas.top > 0 ? fitted.canvas.top + GAP : INSET,
+                }}
+              >
+                {banner}
+              </div>
+            ) : null}
+            {/* Kept mounted in play mode, so the panels' scroll, filters and drafts survive a playtest. */}
+            <div className="je-frame-columns" hidden={playing} inert={playing}>
+              <RevealContext.Provider value={panels?.reveal ?? null}>
+                {phone ? (
+                  <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
+                    {phoneSheet()}
+                    <div className="je-frame-phone-bar">
+                      {phoneRail("left")}
+                      {phoneRail("right")}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {column("left")}
+                    {column("right")}
+                  </>
+                )}
+              </RevealContext.Provider>
             </div>
-          ) : null}
-        </div>
+            {statusShown ? (
+              <div
+                ref={bottomRef}
+                className="je-frame-status"
+                style={{ left: top.area.left, right: top.area.right }}
+              >
+                {status}
+              </div>
+            ) : null}
+          </div>
+        </PanelOpenerContext.Provider>
         <div
           data-je-region=""
           data-je-document=""
@@ -948,10 +846,12 @@ export function editorChrome(
     dock: <EditorDock {...controls} {...(publish ? { publish } : {})} />,
     status: (
       <EditMode session={session}>
-        <Island>
+        <Island className="je-statusbar">
           <EditorStatusBar
             session={session}
             host={host}
+            physical={physical}
+            named={!props.project}
             {...(props.project?.notice ? { notice: props.project.notice } : {})}
           />
         </Island>

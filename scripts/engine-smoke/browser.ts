@@ -9,8 +9,14 @@
  * render run (`browser/render.ts`) draws the kitchen sink's crate sprite where
  * it stands and nothing in the empty air beside it, then, split into two
  * viewports, the crate in the left half and the animated sprite in the right,
- * that sprite's frame changing a clip frame later. The preview server serves
- * the engine project's blobs on the dev route (`browser/project.ts`).
+ * that sprite's frame changing a clip frame later. Its sign run
+ * (`browser/sign-run.ts`) draws a world `text` sign in a bitmap font and one
+ * in a web font, each showing its colour; its audio run (`browser/audio.ts`),
+ * after the runner clicks the page's button, plays a synth patch through
+ * `webAudioBackend` to its end on a stereo destination, and offline at
+ * `pan: -1` almost wholly on the left. The preview server serves the engine
+ * project's blobs, with the signs' two fonts added to a scratch copy, on the
+ * dev route (`browser/project.ts`).
  *
  * Then, in the same browser, the editor page (`browser/editor.ts`): the
  * packed `dist` editor on the kitchen sink of a scratch copy of the engine
@@ -53,17 +59,33 @@ import {
   parseBrowsers,
   withTimeout,
   type BrowserName,
-  type BrowserOutcome,
   type EditorOutcome,
   type EditorTabProbe,
   type PhysicsFreeProbe,
   type SmokeExpected,
 } from "./browser-compare";
+import { SMOKE_PATCH } from "./browser/audio";
 import type { EngineEditorPage } from "./browser/editor";
 import type { EngineSmokeResult } from "./browser/main";
+import {
+  AUDIO_BUTTON_ID,
+  AUDIO_ENDED_SLACK_MS,
+  AUDIO_LEFT_SHARE,
+  judgeMedia,
+  type MediaOutcome,
+} from "./browser/media-compare";
 import { rapierSpy, runPhysicsFree } from "./browser/physics-free";
-import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/project";
+import { loadSinkProject, signFiles, sinkPreviewPlugin, type SinkProject } from "./browser/project";
 import { loadRapier, runSmokeDigest } from "./browser/run";
+import {
+  SIGN_BITMAP_PATH,
+  SIGN_GRID,
+  SIGN_TEXT,
+  SIGN_WEB_LICENCE,
+  SIGN_WEB_PATH,
+  SIGN_WEB_SOURCE,
+  SIGNS,
+} from "./browser/signs";
 import {
   ANIM_COLOURS,
   ANIM_ENTITY,
@@ -231,7 +253,7 @@ async function runEngine(
   name: BrowserName,
   url: string,
   expected: SmokeExpected,
-): Promise<BrowserOutcome> {
+): Promise<MediaOutcome> {
   const started = performance.now();
   const page = await browser.newPage();
   try {
@@ -240,9 +262,14 @@ async function runEngine(
       Promise.race([
         (async () => {
           await page.goto(url);
-          await page.waitForFunction(() => window.__engineSmoke !== undefined, null, {
+          const done = page.waitForFunction(() => window.__engineSmoke !== undefined, null, {
             timeout: 0,
           });
+          // The audio run waits on a real click; a page that fails first never shows the button.
+          const clicked = page.locator(`#${AUDIO_BUTTON_ID}`).click({ timeout: 0 });
+          clicked.catch(() => {});
+          await Promise.race([clicked, done]);
+          await done;
           return page.evaluate(() => window.__engineSmoke) as Promise<EngineSmokeResult>;
         })(),
         errors,
@@ -250,7 +277,10 @@ async function runEngine(
       PAGE_TIMEOUT_MS,
       `${name}'s window.__engineSmoke`,
     );
-    return { ...judgeResult(name, result, expected), ms: Math.round(performance.now() - started) };
+    return {
+      ...judgeMedia(judgeResult(name, result, expected), result),
+      ms: Math.round(performance.now() - started),
+    };
   } finally {
     await page.close().catch(() => {});
   }
@@ -338,7 +368,7 @@ async function runIn(
   url: string,
   expected: SmokeExpected,
   editorUrl: string,
-): Promise<BrowserOutcome> {
+): Promise<MediaOutcome> {
   let browser: Browser;
   try {
     browser = await TYPES[name].launch({ headless: true });
@@ -348,7 +378,7 @@ async function runIn(
   open.add(browser);
   try {
     const engine = await runEngine(browser, name, url, expected).catch(
-      (err: unknown): BrowserOutcome => ({
+      (err: unknown): MediaOutcome => ({
         browser: name,
         status: "fail",
         reason: err instanceof Error ? err.message : String(err),
@@ -361,7 +391,7 @@ async function runIn(
   }
 }
 
-let outcomes: BrowserOutcome[] = [];
+let outcomes: MediaOutcome[] = [];
 let node: Awaited<ReturnType<typeof runSmokeDigest>> | null = null;
 let physicsFree: PhysicsFreeProbe | null = null;
 let tactics: TacticsProbe | null = null;
@@ -381,7 +411,7 @@ try {
   if (offPin) throw new Error(`in-process: ${offPin}`);
   console.log(`in-process tactics: ${tactics.digest}`);
   const expected: SmokeExpected = { digest: node.digest, physicsFree: physicsFree.digest };
-  const project = await loadSinkProject(join(ENGINE, "scenes"));
+  const project = await loadSinkProject(join(ENGINE, "scenes"), { extra: await signFiles() });
   sink = project;
 
   await build({
@@ -451,9 +481,15 @@ try {
       : "";
     const free = outcome.physicsFree ? `; physics-free ${outcome.physicsFree.digest}` : "";
     const second = outcome.tactics ? `; tactics ${outcome.tactics.digest}` : "";
+    const signs = outcome.signs
+      ? `; signs lit ${outcome.signs.bitmap.lit} bitmap and ${outcome.signs.web.lit} web points`
+      : "";
+    const heard = outcome.audio
+      ? `; patch ended in ${outcome.audio.endedMs} ms of ${outcome.audio.patchMs}, ${(outcome.audio.leftShare * 100).toFixed(1)}% left at pan -1`
+      : "";
     const detail =
       outcome.status === "pass"
-        ? `${outcome.digest}${free}${second}${drew}${split} in ${outcome.ms} ms`
+        ? `${outcome.digest}${free}${second}${drew}${split}${signs}${heard} in ${outcome.ms} ms`
         : outcome.reason;
     console.log(`${name}: ${outcome.status}${detail ? ` — ${detail}` : ""}`);
     const ed = outcome.editor;
@@ -492,6 +528,23 @@ writeFileSync(
           colours: ANIM_COLOURS.map(hexOf),
         },
       },
+      signs: {
+        text: SIGN_TEXT,
+        grid: SIGN_GRID,
+        bitmap: { font: SIGN_BITMAP_PATH, ...SIGNS.bitmap, colour: hexOf(SIGNS.bitmap.colour) },
+        web: {
+          font: SIGN_WEB_PATH,
+          source: SIGN_WEB_SOURCE,
+          licence: SIGN_WEB_LICENCE,
+          ...SIGNS.web,
+          colour: hexOf(SIGNS.web.colour),
+        },
+      },
+      audio: {
+        patch: SMOKE_PATCH,
+        endedSlackMs: AUDIO_ENDED_SLACK_MS,
+        leftShare: AUDIO_LEFT_SHARE,
+      },
       editor: {
         scene: SINK_SCENE,
         viewports: EDITOR_VIEWPORTS,
@@ -518,6 +571,7 @@ if (ok) {
   console.log(
     `engine browser smoke passed${skipped.length ? ` (skipped: ${skipped.join(", ")})` : ""}`,
   );
+  process.exit(0);
 } else {
   if (!error) console.error("\nengine browser smoke failed");
   process.exit(1);

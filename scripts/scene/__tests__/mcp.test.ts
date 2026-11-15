@@ -23,6 +23,7 @@ import {
   plannedRelease,
   type PlannedRelease,
 } from "../../../src/lib/engine/__tests__/release-fixture";
+import { gateStrings, gateTalk } from "../../engine-readme/examples/gate-game";
 import type { ToolContext } from "../context";
 import { REPO_ROOT } from "../default-context";
 import { AGENT_SITE_ENV, AGENT_TOKEN_ENV } from "../hosted";
@@ -49,6 +50,9 @@ const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
 const DOT = repoFile("scripts/scene/examples/dot.png");
 const SPRITES = repoFile("packages/engine/scene/__tests__/fixtures/sprites.json");
 const ENGINE_ART = repoFile("packages/engine/scenes/art");
+const ENGINE_AUDIO = repoFile("packages/engine/scenes/audio");
+const ENGINE_TEXT = repoFile("packages/engine/scenes/text");
+const ENGINE_SETTINGS = repoFile("packages/engine/scenes/game-settings.json");
 const V1_RECORDINGS = "packages/engine/headless/__tests__/fixtures/recordings/v1";
 const V1_ENGINE_YARD = repoFile(`${V1_RECORDINGS}/scenes/engine-yard.json`);
 const V1_SETTLES = repoFile(`${V1_RECORDINGS}/engine-yard.settles.recording.json`);
@@ -67,6 +71,10 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<C
   return (await client.callTool({ name, arguments: args })) as Called;
 }
 
+/** The readme's gate conversation and its strings, as the dialogue tools' fixture. */
+const GATE_ID = "gate-talk";
+const GATE_STRINGS_ID = "gate-strings";
+const GATE_ENDINGS = ["paid", "left"];
 const SLOW_LIFT = { ops: [{ op: "update", ref: "lift", set: { "path.speed": 0.3 } }] };
 
 beforeAll(async () => {
@@ -104,6 +112,7 @@ describe("scene MCP server", () => {
       "asset_apply_ops",
       "asset_import",
       "asset_refs",
+      "dialogue_walk",
       "game_build",
       "game_live_build",
       "game_live_check",
@@ -1564,6 +1573,220 @@ describe("presentation and animation docs", { timeout: 20_000 }, () => {
     });
     expect(dropped.structuredContent).toMatchObject({ exitCode: 0, written: true });
     expect(await clipNames()).toEqual(["idle", "jab"]);
+  });
+});
+
+describe("sounds, synth patches, dialogue and strings", { timeout: 20_000 }, () => {
+  let talk: Client;
+  let dir: string;
+  const callTalk = async (name: string, args: Record<string, unknown>) =>
+    (await talk.callTool({ name, arguments: args })) as Called;
+  const readDoc = async (file: string) => JSON.parse(await readFile(join(dir, file), "utf8"));
+  const edit = (id: string, ...edits: object[]) => ({
+    v: 1,
+    ops: [{ op: "editAsset", id, edits }],
+  });
+  /** Applies `batch` for real, expecting it written cleanly. */
+  const applied = async (batch: object) => {
+    const r = await callTalk("asset_apply_ops", { ops: batch, dryRun: false });
+    expect(r.structuredContent, JSON.stringify(r.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: true,
+    });
+  };
+  /** Applies `batch` for real, expecting the engine to refuse it as `code` and write nothing. */
+  const refused = async (batch: object, code: string) => {
+    const r = await callTalk("asset_apply_ops", { ops: batch, dryRun: false });
+    expect(r.structuredContent, JSON.stringify(r.structuredContent)).toMatchObject({
+      exitCode: 1,
+      written: false,
+      issue: { code },
+    });
+  };
+
+  beforeAll(async () => {
+    dir = join(root, "talk");
+    await cp(ENGINE_AUDIO, join(dir, "audio"), { recursive: true });
+    await cp(ENGINE_TEXT, join(dir, "text"), { recursive: true });
+    await copyFile(ENGINE_SETTINGS, join(dir, "game-settings.json"));
+    const ctx: ToolContext = {
+      projects: [await tempProject(dir, { id: "talk" })],
+      loadRapier: () => Promise.reject(new Error("a physics-free tool loaded Rapier")),
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    talk = new Client({ name: "scene-mcp-talk-test", version: "0" });
+    await talk.connect(clientSide);
+    await applied({
+      v: 1,
+      ops: [
+        {
+          op: "createAsset",
+          kind: "dialogue",
+          path: "text/gate.dialogue.json",
+          id: GATE_ID,
+          content: gateTalk,
+        },
+        {
+          op: "createAsset",
+          kind: "strings",
+          path: "text/gate.strings.json",
+          id: GATE_STRINGS_ID,
+          content: gateStrings,
+        },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await talk.close();
+  });
+
+  it("describes dialogue_walk and the four kinds' edits", async () => {
+    const { tools } = await talk.listTools();
+    const tool = (name: string) => tools.find((t) => t.name === name)!;
+    const walk = tool("dialogue_walk");
+    expect(Object.keys(walk.inputSchema.properties ?? {}).sort()).toEqual([
+      "id",
+      "maxDepth",
+      "project",
+      "vars",
+    ]);
+    expect(walk.inputSchema.required).toEqual(["id"]);
+    const assets = tool("asset_apply_ops").description!;
+    for (const needle of [
+      "sound-bus-unknown",
+      '"/freq"',
+      "/nodes/@",
+      "dialogue-dead-end",
+      "/strings/@",
+    ])
+      expect(assets).toContain(needle);
+  });
+
+  it("dialogue_walk returns every ending with the choices that reach it", async () => {
+    const rich = await callTalk("dialogue_walk", { id: GATE_ID, vars: { gold: 5 } });
+    expect(rich.isError).toBe(false);
+    expect(rich.structuredContent, JSON.stringify(rich.structuredContent)).toMatchObject({
+      exitCode: 0,
+      project: "talk",
+      id: GATE_ID,
+      truncated: false,
+      unreached: [],
+      endings: [
+        { ending: "paid", path: [0], choices: ["gate.pay"], nodes: ["gate", "through"] },
+        { ending: "left", path: [1], choices: ["gate.leave"], nodes: ["gate", "turned-away"] },
+      ],
+    });
+    const endings = (rich.structuredContent.endings as { ending: string }[]).map((e) => e.ending);
+    expect(endings.sort()).toEqual([...GATE_ENDINGS].sort());
+
+    // Too poor to pay: the toll's choice is never offered, so the walk only turns back.
+    const poor = await callTalk("dialogue_walk", { id: GATE_ID, vars: '{"gold":1}' });
+    expect(poor.structuredContent).toMatchObject({
+      exitCode: 0,
+      endings: [{ ending: "left", path: [1] }],
+      unreached: ["paid"],
+    });
+    expect(poor.structuredContent.endings).toHaveLength(1);
+
+    const cut = await callTalk("dialogue_walk", { id: GATE_ID, vars: { gold: 5 }, maxDepth: 0 });
+    expect(cut.structuredContent).toMatchObject({ exitCode: 0, endings: [], truncated: true });
+  });
+
+  it("dialogue_walk refuses an id that isn't a dialogue, and vars that aren't JSON", async () => {
+    const missing = await callTalk("dialogue_walk", { id: "gate-tlak" });
+    expect(missing.isError).toBe(true);
+    expect(missing.structuredContent.exitCode).toBe(1);
+
+    const sound = await callTalk("dialogue_walk", { id: "clink" });
+    expect(sound.isError).toBe(true);
+    expect(JSON.stringify(sound.structuredContent)).toContain("sound");
+
+    const bad = await callTalk("dialogue_walk", { id: GATE_ID, vars: "{gold" });
+    expect(bad.isError).toBe(true);
+    expect(bad.structuredContent.exitCode).toBe(2);
+  });
+
+  it("asset_apply_ops edits a sound, refusing a bus nobody lists", async () => {
+    const sound = () => readDoc("audio/clink.sound.json");
+    const planned = await callTalk("asset_apply_ops", {
+      ops: edit("clink", { set: "/volume", value: 0.5 }),
+    });
+    expect(planned.structuredContent).toMatchObject({ exitCode: 0, written: false });
+    expect((await sound()).volume).toBe(0.8);
+    await applied(
+      edit(
+        "clink",
+        { set: "/volume", value: 0.5 },
+        { set: "/variants/@clink-synth/weight", value: 3 },
+      ),
+    );
+    expect(await sound()).toMatchObject({
+      volume: 0.5,
+      variants: [
+        { clip: "clink-wav", weight: 2 },
+        { clip: "clink-synth", weight: 3 },
+      ],
+    });
+    await refused(edit("clink", { set: "/bus", value: "thunder" }), "sound-bus-unknown");
+    expect((await sound()).bus).toBe("sfx");
+  });
+
+  it("asset_apply_ops edits a synth patch, refusing a value out of its bounds", async () => {
+    const patch = () => readDoc("audio/clink.synth.json");
+    await applied(
+      edit("clink-synth", { set: "/freq", value: 880 }, { set: "/wave", value: "square" }),
+    );
+    expect(await patch()).toMatchObject({ freq: 880, wave: "square", decayMs: 262 });
+    await refused(edit("clink-synth", { set: "/punch", value: 7 }), "schema");
+    expect((await patch()).punch).toBe(0.416);
+  });
+
+  it("asset_apply_ops edits a dialogue, refusing one that can stall", async () => {
+    const choices = async () =>
+      (
+        (await readDoc("text/kitchen.dialogue.json")).nodes as { id: string; choices?: object[] }[]
+      ).find((n) => n.id === "hello")?.choices?.length;
+    await applied(
+      edit("kitchen-dialogue", {
+        insert: "/nodes/@hello/choices/-",
+        value: { text: "talk.no", to: "tour" },
+      }),
+    );
+    expect(await choices()).toBe(3);
+    await refused(edit("kitchen-dialogue", { unset: "/nodes/@bye/end" }), "dialogue-dead-end");
+    expect(
+      ((await readDoc("text/kitchen.dialogue.json")).nodes as { id: string; end?: string }[]).find(
+        (n) => n.id === "bye",
+      )?.end,
+    ).toBe("done");
+  });
+
+  it("asset_apply_ops edits strings by key, and the walk reads the edited dialogue", async () => {
+    await applied(
+      edit(GATE_STRINGS_ID, { set: "/strings/@gate.leave/fr", value: "Rebrousser chemin." }),
+    );
+    const rows = (await readDoc("text/gate.strings.json")).strings as {
+      key: string;
+      fr?: string;
+    }[];
+    expect(rows.find((r) => r.key === "gate.leave")?.fr).toBe("Rebrousser chemin.");
+    expect(rows).toHaveLength(gateStrings.strings.length);
+
+    await applied(
+      edit(GATE_ID, {
+        set: "/nodes/@gate/choices/0",
+        value: { ...gateTalk.nodes[0]!.choices![0]!, if: { var: "/gold", gte: 10 } },
+      }),
+    );
+    const walked = await callTalk("dialogue_walk", { id: GATE_ID, vars: { gold: 5 } });
+    expect(walked.structuredContent).toMatchObject({
+      exitCode: 0,
+      endings: [{ ending: "left" }],
+      unreached: ["paid"],
+    });
+    expect(walked.structuredContent.endings).toHaveLength(1);
   });
 });
 

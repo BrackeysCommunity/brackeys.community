@@ -7,11 +7,13 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { stableJson } from "../canonical";
 import { sha256 } from "../hash";
+import { audioKind } from "../kinds/audio";
 import {
   BLOB_KINDS,
   fixtureEnv,
   fixtureFiles,
   inspectDigests,
+  mediaFiles,
   SETTINGS,
   type InspectDigest,
 } from "./fixtures/inspect-digests";
@@ -22,7 +24,7 @@ const fixture = (name: string) =>
 
 describe("inspection is deterministic", () => {
   it("gives the same meta for the same bytes and settings, run after run", () => {
-    for (const name of fixtureFiles()) {
+    for (const name of [...fixtureFiles(), ...mediaFiles()]) {
       for (const kind of BLOB_KINDS) {
         for (const settings of SETTINGS[kind.kind] ?? [{}]) {
           const first = kind.inspect(fixture(name), structuredClone(settings), fixtureEnv(name));
@@ -46,6 +48,27 @@ describe("inspection is deterministic", () => {
         ok.some(([key]) => key.split("|")[1] === name),
         name,
       ).toBe(true);
+  });
+
+  it("reads every audio fixture's length, channels and rate, the same on every run", async () => {
+    const audio = [...fixtureFiles(), ...mediaFiles()].filter((name) =>
+      /\.(wav|ogg|mp3|m4a)$/.test(name),
+    );
+    const digests = await inspectDigests();
+    for (const name of audio) {
+      const result = audioKind.inspect(fixture(name), {}, fixtureEnv(name));
+      if (/truncated|header-only/.test(name)) {
+        expect(result.ok, name).toBe(false);
+        continue;
+      }
+      expect(result.ok && Object.keys(result.meta).sort(), name).toEqual([
+        "channels",
+        "durationMs",
+        "format",
+        "sampleRate",
+      ]);
+      expect(digests[`audio|${name}|0`]?.result, name).toBe(await sha256(stableJson(result)));
+    }
   });
 
   it("gives the same sha256(stableJson(meta)) across runs", async () => {

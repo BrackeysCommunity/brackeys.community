@@ -531,6 +531,7 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
       events: result.events,
       world,
       persist: runtime.ctx.persist.value,
+      dialogue: runtime.ctx.dialogue.view(),
     };
     const focus = play?.focus ? play.focus(result.game) : null;
     input.after?.(state);

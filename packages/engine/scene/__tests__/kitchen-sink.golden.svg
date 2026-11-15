@@ -89,6 +89,9 @@
 <g data-ref="cap-flag" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1010" r="11.25"/><path d="M1622 1010H1658M1640 992V1028"/></g>
 <g data-ref="hook-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1500" cy="420" r="11.25"/><path d="M1482 420H1518M1500 402V438"/></g>
 <g data-ref="pivot-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="991.96" cy="850" r="11.25"/><path d="M973.96 850H1009.96M991.96 832V868"/></g>
+<g data-ref="std-text" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="540" cy="120" r="11.25"/><path d="M522 120H558M540 102V138"/></g>
+<g data-ref="std-audio" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="440" cy="220" r="11.25"/><path d="M422 220H458M440 202V238"/></g>
+<g data-ref="talk-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="640" cy="220" r="11.25"/><path d="M622 220H658M640 202V238"/></g>
 <g data-ref="post-1/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1030" r="11.25"/><path d="M1622 1030H1658M1640 1012V1048"/></g>
 <g data-ref="post-2/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1760" cy="1030" r="11.25"/><path d="M1742 1030H1778M1760 1012V1048"/></g>
 <g data-ref="room-1/lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2720" cy="700" r="11.25"/><path d="M2702 700H2738M2720 682V718"/></g>
@@ -110,6 +113,9 @@
 <path data-sprite="lamp" data-asset="backdrop" d="M552 1008L648 1008L648 1072L552 1072Z" stroke="#cc99ff"/>
 <path data-sprite="spark" data-asset="crates" data-frame="crate-1" d="M1328 1028L1352 1028L1352 1052L1328 1052Z" stroke="#cc99ff"/>
 <path data-sprite="std-tween" data-asset="crates" data-frame="crate-0" d="M1142 502L1178 502L1178 538L1142 538Z" stroke="#cc99ff"/>
+</g>
+<g id="texts" fill="none" stroke-width="2.25" stroke-dasharray="4.5 4.5">
+<path data-text="std-text" data-key="kitchen.sign" data-exact="false" d="M463 108L617 108L617 132L463 132Z" stroke="#ffcc44"/>
 </g>
 <g id="paths" fill="none">
 <g data-path="carrier" stroke="#ffffff">
@@ -204,6 +210,9 @@
 <text x="1660.25" y="989.75" font-size="24.75" text-anchor="start">cap-flag</text>
 <text x="1520.25" y="399.75" font-size="24.75" text-anchor="start">hook-mark</text>
 <text x="1012.21" y="829.75" font-size="24.75" text-anchor="start">pivot-mark</text>
+<text x="560.25" y="99.75" font-size="24.75" text-anchor="start">std-text</text>
+<text x="460.25" y="199.75" font-size="24.75" text-anchor="start">std-audio</text>
+<text x="660.25" y="199.75" font-size="24.75" text-anchor="start">talk-mark</text>
 <text x="1660.25" y="1009.75" font-size="24.75" text-anchor="start">post-1/cap</text>
 <text x="1780.25" y="1009.75" font-size="24.75" text-anchor="start">post-2/cap</text>
 <text x="2740.25" y="679.75" font-size="24.75" text-anchor="start">room-1/lamp</text>
@@ -226,6 +235,7 @@
 <text x="2100" y="433.84" font-size="24.75">floor-plan</text>
 <text x="2150" y="358.84" font-size="24.75">pillar</text>
 <text x="1500" y="408.84" font-size="24.75">framing</text>
+<text class="text-label" data-text="std-text" x="540" y="154.5" font-size="20.25" fill-opacity="0.8">≈ &quot;[kitchen.sign]&quot;</text>
 </g>
 <g id="ticks" font-size="22.5" fill="#c8ccd6" stroke="#101218" stroke-width="5.63" paint-order="stroke">
 <text x="6.75" y="24.75">0</text>

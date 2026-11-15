@@ -20,11 +20,12 @@ import { renderWebManifest } from "../export/web-manifest";
 import { defineBehavior } from "../game/behaviors";
 import { defineEntityType, defineGame } from "../game/define";
 import { assetField, pointField } from "../game/fields";
+import { resolveTime } from "../game/time";
 import type { FieldEnv } from "../game/types";
 import { ENGINE_DIR, ENGINE_PROJECT } from "../project/__tests__/fixtures/scene-version/held-files";
 import { stableJson } from "../project/canonical";
 import { sha256 } from "../project/hash";
-import { defineAssetKind } from "../project/kinds";
+import { createKindRegistry, defineAssetKind } from "../project/kinds";
 import { parseProjectFile } from "../project/project-file";
 import {
   checkReleaseManifest,
@@ -36,8 +37,11 @@ import {
   releaseSnapshot,
   type ReleaseManifest,
 } from "../project/release";
+import { heldProject } from "../project/runtime-view";
 import type { AssetSidecar } from "../project/sidecar";
 import { snapshotProject } from "../project/snapshot";
+import { runHash } from "../runtime/play-session";
+import { expandScene } from "../scene/expand";
 import { bootStandalone } from "../standalone/boot";
 import {
   CC0,
@@ -49,6 +53,7 @@ import {
   physicsFreeFiles,
   readHeld,
   scene,
+  withHeldDoc,
 } from "./fixtures/held-project";
 import { world } from "./fixtures/live-game";
 import { testGame } from "./fixtures/test-game";
@@ -189,7 +194,7 @@ describe("the content plan over the engine project", () => {
       if (a.storage === "doc") {
         expect(a.file, id).toBe(`data/${a.sha256}.json`);
         expect(a.sha256).toBe(await sha256(input.texts.get(id)!));
-      } else expect(a.file, id).toMatch(new RegExp(`^assets/${a.sha256}\\.(png|json)$`));
+      } else expect(a.file, id).toMatch(new RegExp(`^assets/${a.sha256}\\.(png|json|wav|fnt)$`));
     }
   });
 
@@ -729,6 +734,515 @@ describe("an export with an animation and an emitter preset", () => {
   });
 });
 
+/** An audio or font blob's sidecar at its kind's default, `bytes` long. */
+const media = (
+  id: string,
+  sha: string,
+  bytes: number,
+  meta: Record<string, unknown>,
+): AssetSidecar => ({
+  kind: "asset-sidecar",
+  v: 1,
+  key: `key-${id}`,
+  id,
+  sha256: sha,
+  bytes,
+  meta,
+  licence: CC0,
+});
+
+describe("an export with sounds and a synth patch", () => {
+  const fieldEnv: FieldEnv = {
+    materials: [],
+    materialDefs: new Map(),
+    types: [],
+    assets: () => [],
+  };
+  const soundGame = defineGame({
+    ...testGame,
+    projectSettings: {
+      ...testGame.projectSettings,
+      theme: assetField(fieldEnv, "sound", "The title theme.").optional(),
+    },
+  });
+  const sound = (variants: string[], extra: Record<string, unknown> = {}) => ({
+    kind: "sound",
+    v: 1,
+    bus: "sfx",
+    variants: variants.map((clip) => ({ clip })),
+    ...extra,
+  });
+  const patch = {
+    kind: "synth",
+    v: 1,
+    wave: "square",
+    freq: 440,
+    sustainMs: 80,
+    decayMs: 120,
+  };
+
+  /**
+   * The physics-free project, its start scene "yard" holding a lamp whose
+   * `audio` block plays "hum-sound" (clip "hum-clip") and a crate whose block
+   * plays the preloaded "steps-sound" (clips "step-a", "step-b" and the patch
+   * "blip-synth"); the hall's entity plays nothing. The settings' theme is
+   * the preloaded "theme-sound" (clip "theme-clip"); "spare-sound" (clip
+   * "spare-clip", preloaded) is named by nothing.
+   */
+  function soundFiles(): HeldFiles {
+    const held = physicsFreeFiles();
+    const yard = {
+      ...scene("yard", ["tiles"]),
+      game: testGame.id,
+      entities: [
+        { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+        { id: "lamp", type: "marker", at: [2, 1], behaviors: { audio: { sound: "hum-sound" } } },
+        { id: "crate", type: "marker", at: [3, 1], behaviors: { audio: { sound: "steps-sound" } } },
+      ],
+    };
+    const docs = heldDocs({
+      "yard.json": yard,
+      "game-settings.json": {
+        kind: "game-settings",
+        v: 2,
+        engine: {},
+        game: { theme: "theme-sound" },
+      },
+      "audio/hum.sound.json": sound(["hum-clip"], { loop: true }),
+      "audio/steps.sound.json": sound(["step-a", "step-b", "blip-synth"], { preload: true }),
+      "audio/theme.sound.json": sound(["theme-clip"], { bus: "music", preload: true }),
+      "audio/spare.sound.json": sound(["spare-clip"], { preload: true }),
+      "audio/blip.synth.json": patch,
+    });
+    const replaced = new Set(docs.files.map((f) => f.path));
+    held.files = [...held.files.filter((f) => !replaced.has(f.path)), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    const ogg = { format: "ogg" };
+    held.files.push(
+      { path: "audio/hum.ogg", sidecar: media("hum-clip", "1".repeat(64), 4000, ogg) },
+      {
+        path: "audio/step-a.wav",
+        sidecar: media("step-a", "2".repeat(64), 500, { format: "wav" }),
+      },
+      {
+        path: "audio/step-b.mp3",
+        sidecar: media("step-b", "3".repeat(64), 600, { format: "mp3" }),
+      },
+      {
+        path: "audio/theme.m4a",
+        sidecar: media("theme-clip", "4".repeat(64), 9000, { format: "m4a" }),
+      },
+      { path: "audio/spare.ogg", sidecar: media("spare-clip", "5".repeat(64), 700, ogg) },
+    );
+    return held;
+  }
+
+  let input: ExportInput;
+  let plan: ExportPlan;
+  beforeAll(async () => {
+    input = await heldInput(FREE_PROJECT, soundFiles(), soundGame);
+    plan = await finishExport(await planContent(input), builtCode(), input);
+  });
+
+  it("plans with no error and ships every sound with every clip it names", () => {
+    expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
+    const { assets } = plan.manifest;
+    for (const id of ["hum-sound", "steps-sound", "theme-sound", "spare-sound"])
+      expect(assets[id], id).toMatchObject({ kind: "sound", storage: "doc" });
+    for (const id of ["hum-clip", "step-a", "step-b", "theme-clip", "spare-clip"]) {
+      const asset = assets[id];
+      expect(asset, id).toMatchObject({ kind: "audio", storage: "blob" });
+      expect(plan.files.find((f) => f.path === asset!.file)?.source, id).toEqual({
+        kind: "blob",
+        sha256: asset!.sha256,
+      });
+    }
+  });
+
+  it("ships a patch a sound names as a runtime doc in data/, adding no file to assets/", () => {
+    const blip = plan.manifest.assets["blip-synth"];
+    expect(blip).toMatchObject({
+      kind: "synth",
+      storage: "doc",
+      file: `data/${blip?.sha256}.json`,
+    });
+    expect(plan.files.find((f) => f.path === blip!.file)).toEqual({
+      path: blip!.file,
+      role: "data",
+      source: { kind: "text", text: input.texts.get("blip-synth") },
+    });
+    const inAssets = plan.files.filter((f) => f.path.startsWith("assets/")).map((f) => f.path);
+    const blobs = Object.values(plan.manifest.assets).filter((a) => a.storage === "blob");
+    expect(inAssets.sort()).toEqual(blobs.map((a) => a.file).sort());
+    expect(inAssets.filter((path) => path.includes(blip!.sha256))).toEqual([]);
+  });
+
+  it("bundles a preloaded sound's clips where an entity's audio block or the settings name it, and no other clip", () => {
+    const yard = plan.manifest.flow.scenes.find((s) => s.id === "yard")!;
+    expect(yard.bundle).toEqual({ entries: ["step-a", "step-b", "tiles"], bytes: 500 + 600 + 300 });
+    const hall = plan.manifest.flow.scenes.find((s) => s.id === "hall")!;
+    expect(hall.bundle.entries).toEqual(["rocks", "tiles"]);
+    expect(plan.manifest.projectBundle).toEqual({ entries: ["theme-clip"], bytes: 9000 });
+    const bundled = [
+      ...plan.manifest.projectBundle.entries,
+      ...plan.manifest.flow.scenes.flatMap((s) => s.bundle.entries),
+    ];
+    for (const id of ["hum-clip", "spare-clip", "blip-synth"])
+      expect(bundled, id).not.toContain(id);
+  });
+
+  it("keeps a sound's clips out of every bundle once it stops preloading", async () => {
+    const held = soundFiles();
+    const off = withHeldDoc(
+      held,
+      "audio/steps.sound.json",
+      sound(["step-a", "step-b", "blip-synth"]),
+    );
+    const content = await planContent(await heldInput(FREE_PROJECT, off, soundGame));
+    expect(content.scenes.find((s) => s.id === "yard")?.bundle).toEqual({
+      entries: ["tiles"],
+      bytes: 300,
+    });
+    for (const id of ["step-a", "step-b"]) expect(content.assets[id], id).toBeDefined();
+  });
+
+  it("writes a release.json that checks clean, each sound's clips and patch shipped", async () => {
+    const text = formatReleaseManifest(plan.manifest);
+    const parsed = parseReleaseManifest(text);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const files = new Map<string, string>();
+    for (const f of plan.files) {
+      const { source } = f;
+      if (source.kind === "text") files.set(f.path, await sha256(source.text));
+      else if (source.kind === "bytes") files.set(f.path, await sha256(source.bytes));
+      else if (source.kind === "blob") files.set(f.path, source.sha256);
+      else files.set(f.path, plan.manifest.build.files.find((r) => r.path === f.path)!.sha256);
+    }
+    const docRefs = manifestDocRefs(input.texts, input.registry, input.kinds);
+    expect(await checkReleaseManifest(parsed.manifest, files, { docRefs })).toEqual([]);
+    expect(docRefs("steps-sound", plan.manifest.assets["steps-sound"]!).map((s) => s.id)).toEqual([
+      "step-a",
+      "step-b",
+      "blip-synth",
+    ]);
+  });
+
+  it("never hashes a view kind's docs into a run: sounds, patches and strings", () => {
+    for (const kind of ["sound", "synth", "strings"])
+      expect(input.kinds.get(kind), kind).toMatchObject({ storage: "doc", runtime: "view" });
+    const registry = input.registry;
+    const yard = expandScene(scene("yard"), registry);
+    const time = resolveTime({});
+    const base = physicsFreeFiles();
+    const withView = soundFiles();
+    const strings = heldDocs({
+      "text.strings.json": { kind: "strings", v: 1, strings: [{ key: "hello", en: "Hello" }] },
+    });
+    withView.files.push(...strings.files);
+    const runOf = (held: HeldFiles) =>
+      runHash(
+        yard,
+        time,
+        registry,
+        heldProject(held.files, registry, { projectId: "free", name: "Free" }).runtime,
+      );
+    const settingsOnly = withHeldDoc(base, "game-settings.json", {
+      kind: "game-settings",
+      v: 2,
+      engine: {},
+      game: { theme: "theme-sound" },
+    });
+    expect(runOf(withView)).toBe(runOf(settingsOnly));
+  });
+});
+
+describe("an export with sounds, clips, a synth patch, a font, strings and a dialogue", () => {
+  const DOCS = {
+    "bell-sound": "sound",
+    "drone-sound": "sound",
+    "blip-synth": "synth",
+    "menu-strings": "strings",
+    "greeting-dialogue": "dialogue",
+  };
+  const BLOBS = {
+    "chime-clip": ".wav",
+    "drone-clip": ".ogg",
+    "voice-clip": ".mp3",
+    "sign-font": ".fnt",
+    "sign-font-page": ".png",
+  };
+  const drone = (preload: boolean) => ({
+    kind: "sound",
+    v: 1,
+    bus: "music",
+    loop: true,
+    variants: [{ clip: "drone-clip" }],
+    ...(preload ? { preload: true } : {}),
+  });
+
+  /**
+   * The physics-free project, its start scene "yard" holding a bell playing
+   * the preloaded "bell-sound" (clip "chime-clip" and the patch
+   * "blip-synth"), a speaker playing "drone-sound" (clip "drone-clip", not
+   * preloaded) and a title showing a key of "menu-strings" in the BMFont
+   * "sign-font"; "greeting-dialogue" speaks the voice line "voice-clip".
+   * The settings offer en and fr in that font.
+   */
+  function contentFiles(preloadDrone = false): HeldFiles {
+    const held = physicsFreeFiles();
+    const yard = {
+      ...scene("yard", ["tiles"]),
+      game: testGame.id,
+      entities: [
+        { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+        { id: "bell", type: "marker", at: [2, 1], behaviors: { audio: { sound: "bell-sound" } } },
+        {
+          id: "speaker",
+          type: "marker",
+          at: [3, 1],
+          behaviors: { audio: { sound: "drone-sound" } },
+        },
+        {
+          id: "title",
+          type: "marker",
+          at: [4, 1],
+          behaviors: { text: { key: "menu.title", font: "sign-font" } },
+        },
+      ],
+    };
+    const docs = heldDocs({
+      "yard.json": yard,
+      "game-settings.json": {
+        kind: "game-settings",
+        v: 2,
+        engine: {
+          locales: { default: "en", available: ["en", "fr"], fonts: { default: "sign-font" } },
+        },
+        game: {},
+      },
+      "audio/bell.sound.json": {
+        kind: "sound",
+        v: 1,
+        bus: "sfx",
+        preload: true,
+        variants: [{ clip: "chime-clip" }, { clip: "blip-synth" }],
+      },
+      "audio/drone.sound.json": drone(preloadDrone),
+      "audio/blip.synth.json": {
+        kind: "synth",
+        v: 1,
+        wave: "square",
+        freq: 660,
+        sustainMs: 30,
+        decayMs: 60,
+      },
+      "text/menu.strings.json": {
+        kind: "strings",
+        v: 1,
+        strings: [
+          { key: "menu.title", en: "Yard", fr: "Cour" },
+          { key: "talk.hello", en: "Hello there.", fr: "Bonjour." },
+          { key: "talk.bye", en: "Goodbye.", fr: "Au revoir." },
+        ],
+      },
+      "text/greeting.dialogue.json": {
+        kind: "dialogue",
+        v: 1,
+        start: "hello",
+        nodes: [
+          { id: "hello", lines: [{ text: "talk.hello", voice: "voice-clip" }], next: "bye" },
+          { id: "bye", lines: [{ text: "talk.bye" }], end: "done" },
+        ],
+      },
+    });
+    const replaced = new Set(docs.files.map((f) => f.path));
+    held.files = [...held.files.filter((f) => !replaced.has(f.path)), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    held.files.push(
+      {
+        path: "audio/chime.wav",
+        sidecar: media("chime-clip", "1".repeat(64), 800, { format: "wav" }),
+      },
+      {
+        path: "audio/drone.ogg",
+        sidecar: media("drone-clip", "2".repeat(64), 5000, { format: "ogg" }),
+      },
+      {
+        path: "audio/voice.mp3",
+        sidecar: media("voice-clip", "3".repeat(64), 1200, { format: "mp3" }),
+      },
+      { path: "fonts/sign_0.png", sidecar: png("sign-font-page", "4".repeat(64), 400, 64, CC0) },
+      {
+        path: "fonts/sign.fnt",
+        sidecar: {
+          ...media("sign-font", "5".repeat(64), 600, {
+            format: "bmfont",
+            lineHeight: 8,
+            pages: ["fonts/sign_0.png"],
+            coverage: [[32, 126]],
+          }),
+          import: { pages: ["sign-font-page"] },
+        },
+      },
+    );
+    return held;
+  }
+
+  let input: ExportInput;
+  let plan: ExportPlan;
+  beforeAll(async () => {
+    input = await heldInput(FREE_PROJECT, contentFiles(), testGame);
+    plan = await finishExport(await planContent(input), builtCode(), input);
+  });
+
+  it("plans with no error and ships every runtime doc, the patch among them, in data/ as written", () => {
+    expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
+    for (const [id, kind] of Object.entries(DOCS)) {
+      const asset = plan.manifest.assets[id];
+      expect(asset, id).toMatchObject({ kind, storage: "doc", file: `data/${asset?.sha256}.json` });
+      expect(
+        plan.files.find((f) => f.path === asset!.file),
+        id,
+      ).toEqual({
+        path: asset!.file,
+        role: "data",
+        source: { kind: "text", text: input.texts.get(id) },
+      });
+    }
+  });
+
+  it("ships every clip and font in assets/ under its extension, and nothing else there", () => {
+    for (const [id, ext] of Object.entries(BLOBS)) {
+      const asset = plan.manifest.assets[id];
+      expect(asset, id).toMatchObject({ storage: "blob", file: `assets/${asset?.sha256}${ext}` });
+      expect(plan.files.find((f) => f.path === asset!.file)?.source, id).toEqual({
+        kind: "blob",
+        sha256: asset!.sha256,
+      });
+    }
+    const inAssets = plan.files.filter((f) => f.path.startsWith("assets/")).map((f) => f.path);
+    const blobs = Object.values(plan.manifest.assets).filter((a) => a.storage === "blob");
+    expect(inAssets.sort()).toEqual(blobs.map((a) => a.file).sort());
+  });
+
+  it("writes a release.json that checks clean, its doc refs naming the clips, the patch and the font", async () => {
+    const parsed = parseReleaseManifest(formatReleaseManifest(plan.manifest));
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const files = new Map<string, string>();
+    for (const f of plan.files) {
+      const { source } = f;
+      if (source.kind === "text") files.set(f.path, await sha256(source.text));
+      else if (source.kind === "bytes") files.set(f.path, await sha256(source.bytes));
+      else if (source.kind === "blob") files.set(f.path, source.sha256);
+      else files.set(f.path, plan.manifest.build.files.find((r) => r.path === f.path)!.sha256);
+    }
+    const docRefs = manifestDocRefs(input.texts, input.registry, input.kinds);
+    expect(await checkReleaseManifest(parsed.manifest, files, { docRefs })).toEqual([]);
+    const refsOf = (id: string) =>
+      docRefs(id, plan.manifest.assets[id]!)
+        .map((r) => r.id)
+        .sort();
+    expect(refsOf("bell-sound")).toEqual(["blip-synth", "chime-clip"]);
+    expect(refsOf("drone-sound")).toEqual(["drone-clip"]);
+    expect(refsOf("greeting-dialogue")).toEqual(["voice-clip"]);
+    const settings = Object.entries(plan.manifest.assets).find(
+      ([, a]) => a.kind === "game-settings",
+    );
+    expect(refsOf(settings![0])).toContain("sign-font");
+    expect(refsOf("yard")).toEqual(
+      expect.arrayContaining(["bell-sound", "drone-sound", "sign-font"]),
+    );
+  });
+
+  it("bundles the preloaded clip and the font, and no clip a sound doesn't preload or only the dialogue names", () => {
+    const yard = plan.manifest.flow.scenes.find((s) => s.id === "yard")!;
+    expect(yard.bundle.entries).toEqual(expect.arrayContaining(["chime-clip", "sign-font"]));
+    const bundled = [
+      ...plan.manifest.projectBundle.entries,
+      ...plan.manifest.flow.scenes.flatMap((s) => s.bundle.entries),
+    ];
+    for (const id of ["drone-clip", "voice-clip", "blip-synth"])
+      expect(bundled, id).not.toContain(id);
+  });
+
+  it("leaves a clip out of firstLoadBytes until its sound preloads", async () => {
+    const { measured } = plan.manifest.budget;
+    const byId = (id: string) => plan.manifest.assets[id]!.bytes;
+    const counted = new Map<string, number>();
+    for (const f of plan.manifest.build.files)
+      if (f.role === "code" || f.role === "style" || f.role === "data")
+        counted.set(f.path, f.bytes);
+    const start = plan.manifest.flow.scenes.find((s) => s.id === plan.manifest.flow.start)!;
+    for (const id of [...plan.manifest.projectBundle.entries, ...start.bundle.entries])
+      counted.set(plan.manifest.assets[id]!.file, byId(id));
+    expect(measured.firstLoadBytes).toBe([...counted.values()].reduce((a, b) => a + b, 0));
+
+    const preloading = await heldInput(FREE_PROJECT, contentFiles(true), testGame);
+    const preloaded = await finishExport(await planContent(preloading), builtCode(), preloading);
+    const docGrowth =
+      preloading.texts.get("drone-sound")!.length - input.texts.get("drone-sound")!.length;
+    expect(preloaded.manifest.budget.measured.firstLoadBytes - measured.firstLoadBytes).toBe(
+      byId("drone-clip") + docGrowth,
+    );
+  });
+});
+
+describe("the file each audio and font content type ships as", () => {
+  const EXTENSION: Readonly<Record<string, string>> = {
+    "audio/ogg": ".ogg",
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    "audio/mp4": ".m4a",
+    "font/woff2": ".woff2",
+    "font/woff": ".woff",
+    "font/ttf": ".ttf",
+    "font/otf": ".otf",
+    "text/plain": ".fnt",
+  };
+
+  it("names a shipped blob of each declared content type by its extension, lower-cased", async () => {
+    const kinds = createKindRegistry(testGame);
+    const rows: { kind: string; type: string; ext: string }[] = [];
+    for (const kind of ["audio", "font"]) {
+      const def = kinds.get(kind);
+      if (def?.storage !== "blob") throw new Error(`${kind} isn't a blob kind`);
+      for (const type of def.contentTypes) {
+        const ext = EXTENSION[type];
+        expect(ext, `${kind} ${type}`).toBeDefined();
+        expect(def.match.suffixes, `${kind} ${type}`).toContain(ext);
+        rows.push({ kind, type, ext: ext! });
+      }
+    }
+    expect(rows.map((r) => r.type).sort()).toEqual(Object.keys(EXTENSION).sort());
+
+    const held = physicsFreeFiles();
+    const ids = rows.map((_, i) => `media-${i}`);
+    const docs = heldDocs({ "yard.json": scene("yard", ["tiles", ...ids]) });
+    held.files = [...held.files.filter((f) => f.path !== "yard.json"), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    rows.forEach(({ kind, ext }, i) => {
+      const written = i % 2 === 1 ? ext.toUpperCase() : ext;
+      const format = ext === ".fnt" ? "bmfont" : ext.slice(1);
+      held.files.push({
+        path: `media/file-${i}${written}`,
+        sidecar: {
+          ...media(ids[i]!, i.toString(16).padStart(64, "a"), 100 + i, { format }),
+          assetKind: kind,
+        },
+      });
+    });
+    const content = await planContent(await heldInput(FREE_PROJECT, held, testGame));
+    rows.forEach(({ kind, ext }, i) => {
+      const asset = content.assets[ids[i]!];
+      expect(asset, `${kind} ${ext}`).toMatchObject({
+        kind,
+        storage: "blob",
+        file: `assets/${i.toString(16).padStart(64, "a")}${ext}`,
+      });
+    });
+  });
+});
+
 describe("icons", () => {
   it("falls back to the default, with export-asset-missing at warn, for an icon that isn't a PNG of its size", async () => {
     const input = await heldInput(
@@ -1000,6 +1514,8 @@ function serviceWorkerHarness(text: string, scope: string) {
     fetch: fakeFetch,
     Request,
     Response,
+    Headers,
+    Blob,
     URL,
     Map,
     Set,
@@ -1010,18 +1526,21 @@ function serviceWorkerHarness(text: string, scope: string) {
     handlers.get(type)!({ waitUntil: (p: Promise<unknown>) => void (done = p) });
     await done;
   };
-  /** The response the worker answers `url` with, or null when it leaves it to the network. */
-  const request = async (url: string, method = "GET"): Promise<string | null> => {
+  /** The response the worker answers `init`'s request for `url` with, or null when it leaves it to the network. */
+  const respond = async (url: string, init: RequestInit = {}): Promise<Response | null> => {
     let answer = null as Promise<Response> | null;
     handlers.get("fetch")!({
-      request: new Request(url, { method }),
+      request: new Request(url, init),
       respondWith: (p: Promise<Response>) => void (answer = p),
     });
-    if (answer === null) return null;
-    const response = await answer;
+    return answer;
+  };
+  const request = async (url: string, method = "GET"): Promise<string | null> => {
+    const response = await respond(url, { method });
+    if (response === null) return null;
     return response.type === "error" ? "(error)" : await response.text();
   };
-  return { stores, served, net, lifecycle, request, claimed: () => claimed };
+  return { stores, served, net, lifecycle, request, respond, claimed: () => claimed };
 }
 
 describe("the shell renderers", () => {
@@ -1228,6 +1747,68 @@ describe("the shell renderers", () => {
     expect(await sw.request(scope + "data/" + "a".repeat(64) + ".json")).toBeNull();
     expect(await sw.request("https://elsewhere.test/x.js")).toBeNull();
     expect(await sw.request(scope + "release.json", "POST")).toBeNull();
+  });
+
+  it("answers a Range request for a cached clip from the cached body: 206 and the slice, 416 outside it", async () => {
+    const clip = `assets/${"7".repeat(64)}.ogg`;
+    const withClip = {
+      ...m,
+      build: {
+        ...m.build,
+        files: [
+          ...m.build.files,
+          { path: clip, sha256: "7".repeat(64), bytes: 1000, role: "asset" },
+        ],
+      },
+    } as ReleaseManifest;
+    const scope = "https://games.test/free/";
+    const sw = serviceWorkerHarness(renderServiceWorker(withClip), scope);
+    const body = Array.from({ length: 1000 }, (_, i) => String.fromCharCode(48 + (i % 43))).join(
+      "",
+    );
+    for (const path of [...withClip.build.files.map((f) => f.path), "release.json"])
+      sw.served.set(scope + path, path === clip ? body : `v1 ${path}`);
+    await sw.lifecycle("install");
+    sw.net.online = false;
+    sw.net.requests.length = 0;
+    const ranged = async (range: string) => {
+      const response = (await sw.respond(scope + clip, { headers: { Range: range } }))!;
+      return {
+        status: response.status,
+        range: response.headers.get("Content-Range"),
+        length: response.headers.get("Content-Length"),
+        text: await response.text(),
+      };
+    };
+
+    expect(await ranged("bytes=100-199")).toEqual({
+      status: 206,
+      range: "bytes 100-199/1000",
+      length: "100",
+      text: body.slice(100, 200),
+    });
+    expect(await ranged("bytes=990-")).toMatchObject({
+      status: 206,
+      range: "bytes 990-999/1000",
+      text: body.slice(990),
+    });
+    expect(await ranged("bytes=-5")).toMatchObject({
+      status: 206,
+      range: "bytes 995-999/1000",
+      text: body.slice(995),
+    });
+    expect(await ranged("bytes=900-5000")).toMatchObject({
+      status: 206,
+      range: "bytes 900-999/1000",
+    });
+    expect(await ranged("bytes=1000-1099")).toMatchObject({
+      status: 416,
+      range: "bytes */1000",
+      text: "",
+    });
+    expect(await ranged("bytes=0-1,5-6")).toMatchObject({ status: 200, range: null, text: body });
+    expect(await ranged("bytes=50-10")).toMatchObject({ status: 200, text: body });
+    expect(sw.net.requests).toEqual([]);
   });
 
   it("prints the credits page's sections, with no script", async () => {

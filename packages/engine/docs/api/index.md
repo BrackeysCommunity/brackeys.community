@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`BurstOptions`](#burstoptions) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DeviceTables`](#devicetables) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`ExpandedScene`](#expandedscene) · [`FlashOptions`](#flashoptions) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FrameRect`](#framerect) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`TOOL_PRIORITY`](#tool_priority) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewportDef`](#viewportdef) · [`ViewportRect`](#viewportrect) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`pixiContainer`](#pixicontainer) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`timingWords`](#timingwords) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`viewportRect`](#viewportrect-1) · [`watchView`](#watchview)
+[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`AudioBackend`](#audiobackend) · [`AudioClipHandle`](#audiocliphandle) · [`AudioClock`](#audioclock) · [`AudioSystem`](#audiosystem) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`BurstOptions`](#burstoptions) · [`BusLevel`](#buslevel) · [`BusName`](#busname) · [`CLICK_PATCH`](#click_patch) · [`CalibrateLatencyOptions`](#calibratelatencyoptions) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`CaptionsOptions`](#captionsoptions) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DEFAULT_TEXT_FACE`](#default_text_face) · [`DeviceTables`](#devicetables) · [`DialogueBoxOptions`](#dialogueboxoptions) · [`DialogueView`](#dialogueview) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`EmitterFollow`](#emitterfollow) · [`ExpandedScene`](#expandedscene) · [`FakeAudioCall`](#fakeaudiocall) · [`FlashOptions`](#flashoptions) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FontSource`](#fontsource) · [`FrameRect`](#framerect) · [`GameAudio`](#gameaudio) · [`GameCaptions`](#gamecaptions) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameLocale`](#gamelocale) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LatencyCalibration`](#latencycalibration) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`PrefsStore`](#prefsstore) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RichTextOptions`](#richtextoptions) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SynthPreset`](#synthpreset) · [`TOOL_PRIORITY`](#tool_priority) · [`TextContent`](#textcontent) · [`TextDirection`](#textdirection) · [`TextFont`](#textfont) · [`TextLogOptions`](#textlogoptions) · [`TextVisual`](#textvisual) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiAssetUrl`](#uiasseturl) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewEmitter`](#viewemitter) · [`ViewportDef`](#viewportdef) · [`ViewportRect`](#viewportrect) · [`Voice`](#voice) · [`VoiceOptions`](#voiceoptions) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserPrefsStore`](#browserprefsstore) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createCaptions`](#createcaptions) · [`createDialogueBox`](#createdialoguebox) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createRichText`](#createrichtext) · [`createTextLog`](#createtextlog) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`drawText`](#drawtext) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`mutateSynth`](#mutatesynth) · [`pixiContainer`](#pixicontainer) · [`randomSynth`](#randomsynth) · [`renderRichText`](#renderrichtext) · [`renderSynth`](#rendersynth) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectDialogue`](#selectdialogue) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotPrefsStore`](#snapshotprefsstore) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`timingWords`](#timingwords) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`viewportRect`](#viewportrect-1) · [`watchView`](#watchview) · [`webAudioBackend`](#webaudiobackend)
 
 ## `ActionBindings`
 
@@ -18,12 +18,13 @@ type ActionBindings = Readonly<Record<string, readonly Binding[]>>;
 
 _type_ in `render/asset-loader.ts`
 
-Textures by content hash, shared by every bundle that holds the hash,
-counted per resident bundle and evicted least-recently-used past a byte
-budget once no resident bundle holds them.
+Textures and fonts by content hash, shared by every bundle that holds the
+hash, counted per resident bundle and evicted least-recently-used past a
+byte budget once no resident bundle holds them. A host's own loader may
+leave the font members out; its text then draws in the default face.
 
 ```ts
-type AssetLoader = TextureSource & {
+type AssetLoader = TextureSource & Partial<Pick<FontSource, "bitmapFamily" | "webFamily">> & {
     destroy(): void;
     /** Loads every entry not resident; resolves when all are (failures reported, never thrown). */
     load(bundle: AssetBundle, onProgress?: (p: LoadProgress) => void): Promise<{
@@ -48,7 +49,7 @@ type AssetLoader = TextureSource & {
 };
 ```
 
-Refers to [`LoadProgress`](#loadprogress), [`TextureSource`](#texturesource).
+Refers to [`FontSource`](#fontsource), [`LoadProgress`](#loadprogress), [`TextureSource`](#texturesource).
 
 ## `AssetReloadError`
 
@@ -77,6 +78,93 @@ Where the host serves a bundle entry's bytes: dev server, site API or an exporte
 ```ts
 type AssetUrl = (project: ProjectId, entry: BundleEntry) => string;
 ```
+
+## `AudioBackend`
+
+_interface_ in `audio/types.ts`
+
+Where voices play: a Web Audio context in a browser, a logging fake in tests.
+
+```ts
+interface AudioBackend {
+    /** Seconds, the context's clock. */
+    readonly now: number;
+    readonly state: "closed" | "locked" | "running" | "suspended";
+    /** Output latency in seconds (outputLatency + baseLatency where known, else 0). */
+    readonly latency: number;
+    unlock(): Promise<void>;
+    decode(bytes: ArrayBuffer): Promise<AudioClipHandle>;
+    /** One array per channel, samples in −1 to 1 at `sampleRate`; a rendered synth patch is one channel. */
+    buffer(channels: readonly Float32Array[], sampleRate: number): AudioClipHandle;
+    stream(url: string): AudioClipHandle;
+    play(clip: AudioClipHandle, opts: VoiceOptions): Voice;
+    setBusVolume(bus: BusName, volume: number, rampMs?: number): void;
+    close(): void;
+}
+```
+
+Refers to [`AudioClipHandle`](#audiocliphandle), [`BusName`](#busname), [`Voice`](#voice), [`VoiceOptions`](#voiceoptions).
+
+## `AudioClipHandle`
+
+_interface_ in `audio/types.ts`
+
+A decoded, rendered or streamed clip a backend can play; opaque beyond its shape.
+
+```ts
+interface AudioClipHandle {
+    /** Seconds; NaN for a stream whose length isn't known yet. */
+    readonly duration: number;
+    readonly channels: number;
+    /** Played through a media element rather than a decoded buffer. */
+    readonly streamed: boolean;
+}
+```
+
+## `AudioClock`
+
+_interface_ in `audio/clock.ts`
+
+The music's clock against the simulation's: the audio follows the ticks, never the reverse.
+
+```ts
+interface AudioClock {
+    /** The context time at which simulation tick `tick` began, for the playing music; null with none. */
+    timeOfTick(tick: number): null | number;
+    /** The music's position in ms, as the simulation sees it (tick × tickMs since its start tick, plus the start offset). */
+    simPositionMs(tick: number): null | number;
+    /** The last measured drift, ms (audio minus simulation). */
+    readonly driftMs: number;
+    /** Calibrated input latency in ms (the last @latency sent). */
+    readonly latencyMs: number;
+}
+```
+
+## `AudioSystem`
+
+_interface_ in `audio/types.ts`
+
+The shell's presentation listener: it plays what each tick asks and never writes the simulation.
+
+```ts
+interface AudioSystem {
+    /** After each tick: step events through the sound map, then present.audio requests, in order. */
+    tick(tick: number, events: readonly StepEvent[], requests: readonly AudioRequest[]): void;
+    /** Each frame: pan positional voices from the main viewport, resync music. */
+    frame(view: {
+        centre: Vec2;
+        halfWidth: number;
+    }, simMs: number): void;
+    readonly unlocked: boolean;
+    buses(): Readonly<Record<BusName, BusLevel>>;
+    setBus(bus: BusName, volume: number, muted?: boolean): void;
+    readonly clock: AudioClock;
+    stopAll(fadeMs?: number): void;
+    destroy(): void;
+}
+```
+
+Refers to [`AudioClock`](#audioclock), [`BusLevel`](#buslevel), [`BusName`](#busname), [`StepEvent`](#stepevent), [`Vec2`](#vec2).
 
 ## `BindingLayerName`
 
@@ -155,6 +243,56 @@ type BurstOptions = {
 };
 ```
 
+## `BusLevel`
+
+_type_ in `audio/types.ts`
+
+A bus's level as the player set it.
+
+```ts
+type BusLevel = {
+    muted: boolean;
+    volume: number;
+};
+```
+
+## `BusName`
+
+_type_ in `audio/types.ts`
+
+The engine's five buses, or one a game declares (`GameDefinition.audio.buses`).
+
+```ts
+type BusName = "master" | "music" | "sfx" | "ui" | "voice" | (string & {});
+```
+
+## `CLICK_PATCH`
+
+_const_ in `audio/synth-presets.ts`
+
+The calibration click when `calibrateLatency` is given no sound: a short square blip.
+
+```ts
+declare const CLICK_PATCH: SynthFile;
+```
+
+## `CalibrateLatencyOptions`
+
+_type_ in `audio/clock.ts`
+
+How `GameInstance.calibrateLatency` runs its click track.
+
+```ts
+type CalibrateLatencyOptions = {
+    /** Clicks to tap along to; default 16. */
+    beats?: number;
+    /** Default 100. */
+    bpm?: number;
+    /** The click; default the engine's click patch. */
+    sound?: AssetId;
+};
+```
+
 ## `CameraMode`
 
 _type_ in `types.ts`
@@ -185,6 +323,17 @@ type CameraState = {
 
 Refers to [`CameraMode`](#cameramode), [`Vec2`](#vec2).
 
+## `CaptionsOptions`
+
+_type_ in `ui/captions.ts`
+
+```ts
+type CaptionsOptions = {
+    /** How long each caption shows, ms; default 2,500. */
+    ms?: number;
+};
+```
+
 ## `DEFAULT_INDEXED_DB_NAME`
 
 _const_ in `saves/store.ts`
@@ -213,6 +362,16 @@ declare const DEFAULT_RESOLUTION: ResolutionPolicy;
 
 Refers to [`ResolutionPolicy`](#resolutionpolicy).
 
+## `DEFAULT_TEXT_FACE`
+
+_const_ in `render/text.ts`
+
+The face text draws in while its own font loads, and where it has none.
+
+```ts
+declare const DEFAULT_TEXT_FACE: string[];
+```
+
 ## `DeviceTables`
 
 _type_ in `input/bindings.ts`
@@ -229,6 +388,53 @@ type DeviceTables = {
     pointer: Table<PointerButton>;
     /** By touch control id. */
     touch: Table<string>;
+};
+```
+
+## `DialogueBoxOptions`
+
+_type_ in `ui/dialogue.ts`
+
+```ts
+type DialogueBoxOptions = {
+    /** UI-only actions that advance and move between choices; default "confirm", "up", "down". */
+    actions?: {
+        advance?: string;
+        down?: string;
+        up?: string;
+    };
+    className?: string;
+    portraits?: boolean;
+    /** Characters per second; Infinity, or reduced motion, shows lines whole. Default 40. */
+    speed?: number;
+};
+```
+
+## `DialogueView`
+
+_type_ in `dialogue/runner.ts`
+
+Where a conversation stands, as the store and the DOM helpers read it.
+
+```ts
+type DialogueView = {
+    /** Present after the node's last line, when it has choices. */
+    choices: null | readonly DialogueViewChoice[];
+    /**
+     * The line on screen, `{}` before any. `speakerName` is the speaker's
+     * name (a string key); `portrait` falls back to the speaker's; `vars`
+     * holds each `{name}`'s value as text, read when the line was shown.
+     */
+    current: DialogueLine & {
+        speakerName?: string;
+    };
+    dialogue: AssetId;
+    ended: null | string;
+    /** The line index in the node; -1 while the node has shown none. */
+    line: number;
+    /** Lines shown so far in this conversation, oldest first, at most 200. */
+    log: readonly DialogueLogEntry[];
+    node: string;
 };
 ```
 
@@ -250,7 +456,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.16.0";
+declare const ENGINE_VERSION = "0.17.0";
 ```
 
 ## `EffectLayer`
@@ -269,6 +475,25 @@ interface EffectLayer {
 
 Refers to [`FlashOptions`](#flashoptions).
 
+## `EmitterFollow`
+
+_type_ in `context.ts`
+
+What an emitter follows, as data: an entity the view resolves to its
+interpolated pose on each rendered frame, plus an offset in metres that
+turns with that pose and mirrors when `flip`.
+
+```ts
+type EmitterFollow = {
+    entity: string;
+    flip?: boolean;
+    offset?: [
+        x: number,
+        y: number
+    ];
+};
+```
+
 ## `ExpandedScene`
 
 _type_ in `scene/types.ts`
@@ -285,6 +510,63 @@ type ExpandedScene = {
 ```
 
 Refers to [`RuntimeEntity`](#runtimeentity).
+
+## `FakeAudioCall`
+
+_type_ in `audio/types.ts`
+
+What `fakeAudioBackend` logs, in call order; a buffer's samples are never logged.
+
+```ts
+type FakeAudioCall = {
+    bus: BusName;
+    op: "bus";
+    rampMs?: number;
+    volume: number;
+} | {
+    bytes: number;
+    clip: number;
+    op: "decode";
+} | {
+    channels: number;
+    clip: number;
+    length: number;
+    op: "buffer";
+    sampleRate: number;
+} | {
+    clip: number;
+    op: "play";
+    opts: VoiceOptions;
+    voice: number;
+} | {
+    clip: number;
+    op: "stream";
+    url: string;
+} | {
+    fadeMs?: number;
+    op: "stop";
+    voice: number;
+} | {
+    op: "close";
+} | {
+    op: "pan";
+    pan: number;
+    voice: number;
+} | {
+    op: "seek";
+    seconds: number;
+    voice: number;
+} | {
+    op: "unlock";
+} | {
+    op: "volume";
+    rampMs?: number;
+    voice: number;
+    volume: number;
+};
+```
+
+Refers to [`BusName`](#busname), [`VoiceOptions`](#voiceoptions).
 
 ## `FlashOptions`
 
@@ -338,6 +620,27 @@ type FlowResult = {
 
 Refers to [`LoadReport`](#loadreport).
 
+## `FontSource`
+
+_type_ in `render/text.ts`
+
+Where text finds its loaded faces: the asset loader is one.
+
+```ts
+type FontSource = {
+    /**
+     * The installed `BitmapText` family of the BMFont whose `.fnt` hashes to
+     * `hash`, drawn from `pages` (page texture hashes, in page order),
+     * installed once; null until the font and all its pages have loaded.
+     */
+    bitmapFamily(hash: Sha256, pages: readonly Sha256[]): null | string;
+    /** Fires with each hash as it loads; returns unsubscribe. */
+    onLoad(cb: (hash: Sha256) => void): () => void;
+    /** The CSS family a loaded web font was registered under, by its content hash or asset id; null until it loads. */
+    webFamily(ref: string): null | string;
+};
+```
+
 ## `FrameRect`
 
 _type_ in `game/behaviors/sprite.ts`
@@ -350,6 +653,32 @@ type FrameRect = {
     w: number;
     x: number;
     y: number;
+};
+```
+
+## `GameAudio`
+
+_type_ in `audio/types.ts`
+
+What `GameInstance.audio` lets a host reach of the shell's audio system.
+
+```ts
+type GameAudio = Pick<AudioSystem, "buses" | "clock" | "setBus" | "stopAll" | "unlocked">;
+```
+
+Refers to [`AudioSystem`](#audiosystem).
+
+## `GameCaptions`
+
+_type_ in `ui/captions.ts`
+
+`GameInstance.captions`: whether the player wants sounds and voiced lines captioned.
+
+```ts
+type GameCaptions = {
+    enabled(): boolean;
+    /** Saved in the prefs under "captions"; raises `captions:change` when it changes. */
+    set(on: boolean): void;
 };
 ```
 
@@ -386,7 +715,24 @@ type GameConfig = {
     assets?: {
         kinds: KindRegistry;
         loader: AssetLoader;
+        /**
+         * Where the host serves a blob's bytes (the URL function its loader was
+         * made with); the audio system fetches and streams clips through it.
+         * Without it, sounds whose variants are audio clips stay silent; synth
+         * patches still play.
+         */
+        url?: AssetUrl;
         view: ProjectView;
+    };
+    /**
+     * Sound: the backend the shell plays through, built when Play starts
+     * when it is a function and closed when Play ends; false (or none) plays
+     * nothing, as tests and a muted editor Play want. `prefs` keeps the
+     * player's bus volumes and locale; default for this page's life only.
+     */
+    audio?: {
+        backend?: (() => AudioBackend | false) | AudioBackend | false;
+        prefs?: PrefsStore;
     };
     backgroundColor: number;
     /**
@@ -487,7 +833,7 @@ type GameConfig = {
 };
 ```
 
-Refers to [`AssetLoader`](#assetloader), [`ExpandedScene`](#expandedscene), [`GameDefinition`](#gamedefinition), [`InputBinding`](#inputbinding), [`LoadingViewFactory`](#loadingviewfactory), [`RapierModule`](#rapiermodule), [`Registry`](#registry), [`RemapStore`](#remapstore), [`RendererConfig`](#rendererconfig), [`ResolutionPolicy`](#resolutionpolicy), [`SaveStore`](#savestore), [`SceneSource`](#scenesource), [`TransitionRunner`](#transitionrunner), [`ViewportDef`](#viewportdef).
+Refers to [`AssetLoader`](#assetloader), [`AssetUrl`](#asseturl), [`AudioBackend`](#audiobackend), [`ExpandedScene`](#expandedscene), [`GameDefinition`](#gamedefinition), [`InputBinding`](#inputbinding), [`LoadingViewFactory`](#loadingviewfactory), [`PrefsStore`](#prefsstore), [`RapierModule`](#rapiermodule), [`Registry`](#registry), [`RemapStore`](#remapstore), [`RendererConfig`](#rendererconfig), [`ResolutionPolicy`](#resolutionpolicy), [`SaveStore`](#savestore), [`SceneSource`](#scenesource), [`TransitionRunner`](#transitionrunner), [`ViewportDef`](#viewportdef).
 
 ## `GameDefinition`
 
@@ -501,6 +847,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     assetKinds?: readonly AssetKindDef[];
     /** Play-mode tools in the browser shell, attached after each load. */
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
+    /** The game's audio beyond the engine's. */
+    audio?: GameAudioDef;
     /**
      * The game's behaviors, after the engine's in registration order; names are
      * `<id>/<name>`. A script class registers its `behavior`.
@@ -588,6 +936,17 @@ _type_ in `types.ts`
 
 ```ts
 type GameEventMap = {
+    /** A sound or a voiced line with a caption started: `key` its string key, `at` the audio clock's seconds. */
+    "audio:caption": {
+        at: number;
+        key: string;
+    };
+    /** The first gesture let the page play sound. */
+    "audio:unlocked": undefined;
+    /** The player turned captions on or off (`GameInstance.captions.set`). */
+    "captions:change": {
+        enabled: boolean;
+    };
     /** A scene change finished. */
     "flow:change": {
         entry: null | string;
@@ -615,6 +974,11 @@ type GameEventMap = {
     };
     /** A new version of the running scene was applied between ticks, after the game's `onSwap`. */
     "live:swapped": SceneSwap;
+    /** The player changed the locale (`GameInstance.locale.set`); the simulation never sees it. */
+    "locale:change": {
+        from: string;
+        to: string;
+    };
     /** The game's first verdict in a play session, from its `play.outcome`. */
     "play:outcome": PlayOutcome;
     /** A play session's recording, finished at the game's first verdict, a replay's last tick, or Stop. */
@@ -723,6 +1087,15 @@ _type_ in `types.ts`
 
 ```ts
 type GameInstance = {
+    /** Where the host serves an asset's bytes (`GameConfig.assets.url`); null without one, or for an asset it has no blob of. */
+    blobUrl: (id: AssetId) => null | string;
+    /**
+     * Plays a click track and times presses of the game's UI-only actions (any
+     * button when it declares none); the median offset becomes `@latency` and
+     * is kept in the prefs under `audio.latencyMs`. Null with fewer than 8
+     * taps, outside Play, or without sound.
+     */
+    calibrateLatency: (opts?: CalibrateLatencyOptions) => Promise<LatencyCalibration | null>;
     /** Offers Escape to the game in play (a tool's selection); true when it used it, so play goes on. */
     cancel: () => boolean;
     /**
@@ -805,6 +1178,12 @@ type GameInstance = {
     }>;
     /** The project's runtime view: the one `createGame` was given, or the last `reloadAssets` passed; null without one. */
     project: () => ProjectRuntimeView | null;
+    /** Bus volumes, mutes, the audio clock and stopping everything; null while no backend plays. */
+    readonly audio: GameAudio | null;
+    /** The player's captions choice, a browser preference kept in the prefs under "captions"; `createCaptions` shows captions only while it is on. */
+    readonly captions: GameCaptions;
+    /** The player's language: a browser preference the simulation never sees. */
+    readonly locale: GameLocale;
     /**
      * `GameConfig.reducedMotion` as it stands now (under "auto", the page's
      * setting at this moment): what the effects, the camera and the UI read.
@@ -924,7 +1303,7 @@ type GameInstance = {
 };
 ```
 
-Refers to [`AssetReloadError`](#assetreloaderror), [`ExpandedScene`](#expandedscene), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`StagedVersion`](#stagedversion), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2), [`ViewportDef`](#viewportdef).
+Refers to [`AssetReloadError`](#assetreloaderror), [`CalibrateLatencyOptions`](#calibratelatencyoptions), [`ExpandedScene`](#expandedscene), [`GameAudio`](#gameaudio), [`GameCaptions`](#gamecaptions), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameLocale`](#gamelocale), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LatencyCalibration`](#latencycalibration), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`StagedVersion`](#stagedversion), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2), [`ViewportDef`](#viewportdef).
 
 ## `GameLive`
 
@@ -974,6 +1353,24 @@ type GameLive = {
 
 Refers to [`StagedVersion`](#stagedversion), [`SwapTiming`](#swaptiming).
 
+## `GameLocale`
+
+_type_ in `types.ts`
+
+`GameInstance.locale`.
+
+```ts
+type GameLocale = {
+    available(): readonly string[];
+    current(): string;
+    /** Saved in the prefs under "locale"; raises `locale:change`. */
+    set(locale: string): void;
+    strings(): StringTable;
+};
+```
+
+Refers to [`StringTable`](#stringtable).
+
 ## `GameMode`
 
 _type_ in `types.ts`
@@ -1001,6 +1398,8 @@ type GameStoreState = {
     camera: CameraState;
     /** `off`, or the id of the last debug layer shown; every layer before it shows too. */
     debugMode: string;
+    /** The active conversation after the last tick; null with none. */
+    dialogue: Readonly<DialogueView> | null;
     fps: number;
     /** The game's `storeSlice()`, refreshed each tick; null without a scene or a slice. */
     game: unknown;
@@ -1013,7 +1412,7 @@ type GameStoreState = {
 };
 ```
 
-Refers to [`CameraState`](#camerastate), [`GameMode`](#gamemode), [`GamePhase`](#gamephase), [`PlaySession`](#playsession), [`SimState`](#simstate).
+Refers to [`CameraState`](#camerastate), [`DialogueView`](#dialogueview), [`GameMode`](#gamemode), [`GamePhase`](#gamephase), [`PlaySession`](#playsession), [`SimState`](#simstate).
 
 ## `IDENTITY_2D`
 
@@ -1090,6 +1489,19 @@ declare const LIVE_DEFAULTS: {
     readonly checkTicks: 120;
     readonly livePlayDebounceMs: 300;
     readonly preloadTimeoutMs: 60000;
+};
+```
+
+## `LatencyCalibration`
+
+_type_ in `audio/clock.ts`
+
+What `GameInstance.calibrateLatency` resolves with: the median offset and its spread, ms.
+
+```ts
+type LatencyCalibration = {
+    ms: number;
+    spread: number;
 };
 ```
 
@@ -1241,17 +1653,18 @@ _interface_ in `render/particles.ts`
 interface ParticleLayer {
     /**
      * Starts (or restarts) the emitter `id` on `layer` (default the layer's
-     * own container), following `at` each frame; while `at` gives undefined
-     * it emits nothing. A restart keeps the particles it has alive.
+     * own container), at the pose `follow` names each frame (through the
+     * layer's `pose`); while it has none it emits nothing. A restart keeps
+     * the particles it has alive.
      */
-    emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+    emitter(id: string, preset: EmitterFile, follow: EmitterFollow, layer?: ViewLayer): void;
     /**
-     * Moves the running emitter `id` onto `preset` and `layer` without
-     * restarting it: it keeps its clock, its point and its particles, and a
-     * burst due by its clock stays passed. False, changing nothing, when no
-     * emitter `id` runs.
+     * Moves the running emitter `id` onto `preset`, `follow` (when given) and
+     * `layer` without restarting it: it keeps its clock, its point and its
+     * particles, and a burst due by its clock stays passed. False, changing
+     * nothing, when no emitter `id` runs.
      */
-    retune(id: string, preset: EmitterFile, layer?: ViewLayer): boolean;
+    retune(id: string, preset: EmitterFile, follow?: EmitterFollow, layer?: ViewLayer): boolean;
     /** Stops the emitter `id`: what it put in world space lives out its life, what it put in local space goes. */
     remove(id: string): void;
     /**
@@ -1271,7 +1684,7 @@ interface ParticleLayer {
 }
 ```
 
-Refers to [`BurstOptions`](#burstoptions), [`Vec2`](#vec2).
+Refers to [`BurstOptions`](#burstoptions), [`EmitterFollow`](#emitterfollow), [`Vec2`](#vec2).
 
 ## `ParticleLayerOptions`
 
@@ -1281,6 +1694,8 @@ _type_ in `render/particles.ts`
 type ParticleLayerOptions = {
     /** The container an emitter's `layer` draws in; without it, everything draws in `container`. */
     layer?: (layer: ViewLayer) => Container;
+    /** An entity's pose on this frame, interpolated; without it, or while it gives undefined, emitters emit nothing. */
+    pose?: (entity: string) => Pose | undefined;
     /** The game's px per metre; default 100. `container` and the layer containers draw in world px. */
     pxPerMetre?: number;
     /** Rates and burst counts are quartered while it holds; a function is read on each use. */
@@ -1326,11 +1741,15 @@ type PixiView = SceneView & {
         x: number;
         y: number;
     }): void;
+    /** The view's particle layer, for the shell's bursts and per-frame update; null without `particles`. */
+    particles(): ParticleLayer | null;
     readonly container: Container;
     /** Shows only the named scene layers (draw orders no layer names hide too); null shows every layer. */
     showLayers(names: null | readonly string[]): void;
 };
 ```
+
+Refers to [`ParticleLayer`](#particlelayer).
 
 ## `PixiViewOptions`
 
@@ -1340,6 +1759,8 @@ _type_ in `render/pixi-view.ts`
 type PixiViewOptions = {
     /** True in edit mode: editor-only layers show. */
     editing?: () => boolean;
+    /** Loaded fonts for text; default `textures` when it is a font source too, as the asset loader is. */
+    fonts?: FontSource;
     /**
      * Scene layers, matched to draws by their `draw` order (the first layer
      * with an order wins): a `sort: "y"` layer orders its visuals by (z, y,
@@ -1350,11 +1771,15 @@ type PixiViewOptions = {
      */
     layers?: readonly SceneLayerDef[];
     /**
-     * Gives the view a particle layer, made at the first `particles()`: an
-     * emitter draws on its own layer, a burst on the scene's `gameplay`
-     * layer (the body order without one).
+     * Gives the view a particle layer, made at the first `particles()` or
+     * `emitter`: an emitter draws on its own layer, a burst on the scene's
+     * `gameplay` layer (the body order without one). `poses` is where an
+     * emitter's followed entity is, read each frame and interpolated by the
+     * last `frame`'s alpha; without it emitters emit nothing.
      */
-    particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture">;
+    particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture"> & {
+        poses?: () => Pick<PoseIndex, "get" | "prev"> | null | undefined;
+    };
     /** Round visual positions to whole canvas pixels each frame. */
     pixelSnap?: boolean;
     /**
@@ -1365,12 +1790,14 @@ type PixiViewOptions = {
      * keep their px and arcs their smoothness.
      */
     pxPerMetre?: number;
+    /** True holds text's `shake` and `wave` still; default the particles' setting. */
+    reducedMotion?: (() => boolean) | boolean;
     /** Textures by content hash; a miss draws the fallback and retries when the loader says it arrived. */
     textures?: TextureSource;
 };
 ```
 
-Refers to [`ParticleLayerOptions`](#particlelayeroptions), [`TextureSource`](#texturesource).
+Refers to [`FontSource`](#fontsource), [`ParticleLayerOptions`](#particlelayeroptions), [`TextureSource`](#texturesource).
 
 ## `PlayOptions`
 
@@ -1452,6 +1879,19 @@ _type_ in `tool-router.ts`
 
 ```ts
 type PointerKind = "mouse" | "pen" | "touch";
+```
+
+## `PrefsStore`
+
+_interface_ in `prefs.ts`
+
+Where a player's preferences persist between sessions, by game.
+
+```ts
+interface PrefsStore {
+    load(gameId: string): Readonly<Record<string, JsonValue>>;
+    save(gameId: string, prefs: Readonly<Record<string, JsonValue>>): void;
+}
 ```
 
 ## `RapierModule`
@@ -1664,6 +2104,53 @@ type ResolvedBindings = {
 
 Refers to [`ActionBindings`](#actionbindings), [`BindingLayerName`](#bindinglayername), [`DeviceTables`](#devicetables).
 
+## `RichLine`
+
+_type_ in `text/rich.ts`
+
+```ts
+type RichLine = readonly RichSpan[];
+```
+
+Refers to [`RichSpan`](#richspan).
+
+## `RichSpan`
+
+_type_ in `text/rich.ts`
+
+```ts
+type RichSpan = {
+    bold?: boolean;
+    /** 0xRRGGBB. */
+    color?: number;
+    /** Animated per glyph; still under reduced motion. */
+    effect?: "shake" | "wave";
+    /** An inline atlas frame. */
+    icon?: {
+        asset: AssetId;
+        frame: string;
+    };
+    italic?: boolean;
+    size?: number;
+    text: string;
+};
+```
+
+## `RichTextOptions`
+
+_type_ in `render/text.ts`
+
+```ts
+type RichTextOptions = {
+    /** True holds `shake` and `wave` still. */
+    reducedMotion?: (() => boolean) | boolean;
+    /** The locale's table: what a `key` text resolves through and a fontless text's face; null shows keys bracketed. */
+    table?: StringTableData | null;
+};
+```
+
+Refers to [`StringTableData`](#stringtabledata).
+
 ## `RunRecording`
 
 _type_ in `scene/recording-schema.ts`
@@ -1756,6 +2243,32 @@ declare const SPRITE_FALLBACK_SIZE: readonly [
     w: number,
     h: number
 ];
+```
+
+## `SYNTH_PRESETS`
+
+_const_ in `audio/synth-presets.ts`
+
+```ts
+declare const SYNTH_PRESETS: readonly [
+    "pickup",
+    "jump",
+    "hit",
+    "explosion",
+    "laser",
+    "powerup",
+    "blip"
+];
+```
+
+## `SYNTH_SAMPLE_RATE`
+
+_const_ in `audio/synth.ts`
+
+Every render's sample rate.
+
+```ts
+declare const SYNTH_SAMPLE_RATE = 44100;
 ```
 
 ## `SaveDepth`
@@ -2153,6 +2666,40 @@ type StepResult = {
 
 Refers to [`StepEvent`](#stepevent).
 
+## `StringTable`
+
+_interface_ in `text/strings.ts`
+
+```ts
+interface StringTable {
+    /** The text for `key` in the locale, its fallbacks, then default; the key itself, bracketed, when missing. */
+    get(key: string, vars?: TextVars): string;
+    has(key: string): boolean;
+    readonly locale: string;
+    readonly direction: TextDirection;
+}
+```
+
+Refers to [`TextDirection`](#textdirection).
+
+## `StringTableData`
+
+_type_ in `text/strings.ts`
+
+A locale's strings as plain data, what the shell hands a scene view: the
+text of each key after the fallback chain, and the locale's font.
+
+```ts
+type StringTableData = {
+    direction: TextDirection;
+    font: TextFont | null;
+    locale: string;
+    strings: Readonly<Record<string, string>>;
+};
+```
+
+Refers to [`TextDirection`](#textdirection), [`TextFont`](#textfont).
+
 ## `SwapSide`
 
 _type_ in `game/live.ts`
@@ -2189,6 +2736,16 @@ of that scene, after the tick in which game code called
 type SwapTiming = "boundary" | "next-load" | "now";
 ```
 
+## `SynthPreset`
+
+_type_ in `audio/synth-presets.ts`
+
+```ts
+type SynthPreset = (typeof SYNTH_PRESETS)[number];
+```
+
+Refers to [`SYNTH_PRESETS`](#synth_presets).
+
 ## `TOOL_PRIORITY`
 
 _const_ in `tool-router.ts`
@@ -2201,6 +2758,105 @@ declare const TOOL_PRIORITY: {
     readonly play: 0;
 };
 ```
+
+## `TextContent`
+
+_type_ in `context.ts`
+
+What a text visual shows, as data: lines already parsed, or a string key
+the view resolves through the locale's table it holds, redrawn when the
+table changes.
+
+```ts
+type TextContent = {
+    key: string;
+    rich?: boolean;
+    vars?: TextVars;
+} | {
+    lines: readonly RichLine[];
+};
+```
+
+Refers to [`RichLine`](#richline).
+
+## `TextDirection`
+
+_type_ in `text/strings.ts`
+
+```ts
+type TextDirection = "ltr" | "rtl";
+```
+
+## `TextFont`
+
+_type_ in `context.ts`
+
+A face text draws in: a BMFont (bitmap or MSDF) by its .fnt's hash and its
+pages', or a web font by its content hash (or asset id), which the loader
+registers as a FontFace; any other family is a CSS family.
+
+```ts
+type TextFont = {
+    family: string;
+    kind: "web";
+} | {
+    /** The .fnt's content hash. */
+    hash: Sha256;
+    kind: "bitmap";
+    meta: FontMeta;
+    /** Its page textures' content hashes, in page order. */
+    pages: readonly Sha256[];
+};
+```
+
+## `TextLogOptions`
+
+_type_ in `ui/dialogue.ts`
+
+```ts
+type TextLogOptions = {
+    max?: number;
+    /** A UI-only action that shows and hides it. */
+    toggle?: string;
+};
+```
+
+## `TextVisual`
+
+_type_ in `context.ts`
+
+World-space text, as a view draws it at a visual's pose.
+
+```ts
+type TextVisual = TextContent & {
+    align: "center" | "left" | "right";
+    /** In the text box's own 0–1 space. */
+    anchor: [
+        x: number,
+        y: number
+    ];
+    color: number;
+    /** For `lines`; a key's text takes its table's direction. */
+    direction: TextDirection;
+    /** Drawn when the view can't draw text: the measured box. */
+    fallback: {
+        shape: ShapeObj;
+        style: Style;
+    };
+    /** Null: the locale's font from the view's table, else the view's default face. */
+    font: TextFont | null;
+    outline?: {
+        color: number;
+        width: number;
+    };
+    /** Px at zoom 1. */
+    size: number;
+    /** Wrap width, px at zoom 1. */
+    wrap?: number;
+};
+```
+
+Refers to [`TextContent`](#textcontent), [`TextDirection`](#textdirection), [`TextFont`](#textfont).
 
 ## `TextureSource`
 
@@ -2293,6 +2949,12 @@ type ToolRouter = {
     detach(): void;
     /** The id of the consumer that took the event, or null. */
     dispatch(e: ToolEvent): null | string;
+    /**
+     * Calls `listener` on each user gesture a browser lets start audio: a
+     * pointer or key press dispatched here, or a touch ending on the attached
+     * target. Returns the unsubscribe function.
+     */
+    onGesture(listener: (native: Event) => void): () => void;
     /** Returns the unregister function. Ids are unique per router. */
     register(c: ToolConsumer): () => void;
 };
@@ -2442,6 +3104,24 @@ type UiActionEvent = {
 
 Refers to [`Vec2`](#vec2).
 
+## `UiAssetUrl`
+
+_type_ in `ui/types.ts`
+
+A blob's URL through the host's loader, and the frame's rectangle in it for an atlas frame.
+
+```ts
+type UiAssetUrl = {
+    rect?: {
+        h: number;
+        w: number;
+        x: number;
+        y: number;
+    };
+    url: string;
+};
+```
+
 ## `UiContext`
 
 _type_ in `ui/types.ts`
@@ -2450,6 +3130,8 @@ What a game's DOM UI is given when a host mounts it over the canvas.
 
 ```ts
 type UiContext<G = unknown> = {
+    /** A blob's URL through the host's loader (portraits, icons); null where the host has none or doesn't hold it. */
+    assetUrl(id: AssetId, frame?: string): UiAssetUrl | null;
     canvas: HTMLCanvasElement;
     game: GameInstance;
     /**
@@ -2485,12 +3167,14 @@ type UiContext<G = unknown> = {
     settings: Readonly<Record<string, unknown>>;
     /** The store's `game` field (GameRuntime.storeSlice), typed by the game; null before the first load. */
     slice(): G | null;
+    /** The locale's string table now (`GameInstance.locale.strings`). */
+    strings(): StringTable;
     /** Calls `fn` now and whenever `select`'s result changes by identity; returns the unsubscribe. */
     watch<T>(select: (s: GameStoreState) => T, fn: (value: T, prev: T | undefined) => void): () => void;
 };
 ```
 
-Refers to [`GameInstance`](#gameinstance), [`GameStoreState`](#gamestorestate).
+Refers to [`GameInstance`](#gameinstance), [`GameStoreState`](#gamestorestate), [`StringTable`](#stringtable), [`UiAssetUrl`](#uiasseturl).
 
 ## `UiHandle`
 
@@ -2518,6 +3202,28 @@ type Vec2 = {
     y: number;
 };
 ```
+
+## `ViewEmitter`
+
+_type_ in `context.ts`
+
+An emitter as a view runs it on its particle layer.
+
+```ts
+type ViewEmitter = {
+    follow: EmitterFollow;
+    layer: ViewLayer;
+    preset: EmitterFile;
+    /**
+     * From its start, keeping the particles it has alive; false retunes a
+     * running emitter in place (its clock, its point, its particles), and
+     * starts one when none runs.
+     */
+    restart: boolean;
+};
+```
+
+Refers to [`EmitterFollow`](#emitterfollow).
 
 ## `ViewportDef`
 
@@ -2565,6 +3271,52 @@ type ViewportRect = {
     y: number;
 };
 ```
+
+## `Voice`
+
+_interface_ in `audio/types.ts`
+
+One playing clip, panned on its own ahead of its bus.
+
+```ts
+interface Voice {
+    readonly key: null | string;
+    stop(fadeMs?: number): void;
+    setPan(pan: number): void;
+    setVolume(volume: number, rampMs?: number): void;
+    /** Seconds into the clip now. */
+    position(): number;
+    seek(seconds: number): void;
+    readonly ended: boolean;
+}
+```
+
+## `VoiceOptions`
+
+_type_ in `audio/types.ts`
+
+```ts
+type VoiceOptions = {
+    bus: BusName;
+    fadeInMs?: number;
+    /** The request's key, which a `stop` names. */
+    key?: string;
+    loop: boolean;
+    loopEnd?: number;
+    loopStart?: number;
+    /** Seconds into the clip. */
+    offset?: number;
+    /** -1 (left) to 1 (right); balances a stereo clip. */
+    pan: number;
+    /** Playback rate; 1 = original pitch. */
+    rate: number;
+    volume: number;
+    /** Context time to start at; default now. */
+    when?: number;
+};
+```
+
+Refers to [`BusName`](#busname).
 
 ## `acceptedTimings`
 
@@ -2640,6 +3392,20 @@ declare function bindToWorld(el: HTMLElement, ctx: UiContext, at: () => Vec2 | n
 
 Refers to [`UiContext`](#uicontext), [`Vec2`](#vec2).
 
+## `browserPrefsStore`
+
+_function_ in `prefs.ts`
+
+Preferences in `localStorage` under `<prefix><gameId>`. Every access is in
+try/catch: storage that is missing, blocked or full, or a stored value
+that isn't a JSON object, loads as none and never throws.
+
+```ts
+declare function browserPrefsStore(prefix?: string): PrefsStore;
+```
+
+Refers to [`PrefsStore`](#prefsstore).
+
 ## `browserRemapStore`
 
 _function_ in `input/remap.ts`
@@ -2713,19 +3479,57 @@ Refers to [`Dihedral`](#dihedral).
 _function_ in `render/asset-loader.ts`
 
 Loads textures through Pixi's `Assets` with the texture parser forced,
-since hash URLs carry no extension. Retaining and releasing are by bundle
-object: retain the bundle you later release. `release` trims.
+since hash URLs carry no extension, and fonts by fetching their bytes: a
+web font becomes a `FontFace` once per hash, a BMFont is installed into
+Pixi's cache once its pages have loaded too. Retaining and releasing are
+by bundle object: retain the bundle you later release. `release` trims.
 
 ```ts
 declare function createAssetLoader(opts: {
-    /** Default 256 MiB of decoded texture bytes. */
+    /** Default 256 MiB of decoded texture bytes and font file bytes. */
     budgetBytes?: number;
+    /** How a font's bytes are fetched; default the global `fetch`. */
+    fetch?: (url: string) => Promise<Response>;
     project: ProjectId;
     url: AssetUrl;
-}): AssetLoader;
+}): AssetLoader & FontSource;
 ```
 
-Refers to [`AssetLoader`](#assetloader), [`AssetUrl`](#asseturl).
+Refers to [`AssetLoader`](#assetloader), [`AssetUrl`](#asseturl), [`FontSource`](#fontsource).
+
+## `createCaptions`
+
+_function_ in `ui/captions.ts`
+
+Each played sound's caption and each voiced line's text (`audio:caption`),
+in a polite live region along the bottom of the layer, while the player's
+captions preference is on. A key already showing restarts its time rather
+than showing twice. It takes no pointer input.
+
+```ts
+declare function createCaptions(ctx: UiContext, opts?: CaptionsOptions): UiHandle;
+```
+
+Refers to [`CaptionsOptions`](#captionsoptions), [`UiContext`](#uicontext), [`UiHandle`](#uihandle).
+
+## `createDialogueBox`
+
+_function_ in `ui/dialogue.ts`
+
+The active conversation's line, speaker and choices, sending the dialogue commands.
+
+The line types out at `speed`; the advance action, or a click on the box,
+first shows it whole, then sends `@dialogue-advance`. Choices show once
+the line is whole, as buttons: `up` and `down` move focus between the
+enabled ones and the advance action sends `@dialogue-choose` for the
+focused one. The box only ever sends those two commands; the store's
+`dialogue` field is what it draws.
+
+```ts
+declare function createDialogueBox(ctx: UiContext, opts?: DialogueBoxOptions): UiHandle;
+```
+
+Refers to [`DialogueBoxOptions`](#dialogueboxoptions), [`UiContext`](#uicontext), [`UiHandle`](#uihandle).
 
 ## `createEffectLayer`
 
@@ -2797,6 +3601,35 @@ declare function createPixiView(container: Container, opts?: PixiViewOptions): P
 ```
 
 Refers to [`PixiView`](#pixiview), [`PixiViewOptions`](#pixiviewoptions).
+
+## `createRichText`
+
+_function_ in `render/text.ts`
+
+World-space text as Pixi draws it, in world px: a BMFont through
+`BitmapText` (its distance field when the font has one, the default face
+under the Canvas2D renderer, which can't draw one), a web font through
+`Text`. Until its font loads it draws in the default face, and it redraws
+itself when the font arrives. Destroying the container lets go of the
+font source.
+
+```ts
+declare function createRichText(visual: TextVisual, fonts: FontSource | null, opts?: RichTextOptions): Container;
+```
+
+Refers to [`FontSource`](#fontsource), [`RichTextOptions`](#richtextoptions), [`TextVisual`](#textvisual).
+
+## `createTextLog`
+
+_function_ in `ui/dialogue.ts`
+
+The lines shown so far in the active conversation.
+
+```ts
+declare function createTextLog(ctx: UiContext, opts?: TextLogOptions): UiHandle;
+```
+
+Refers to [`TextLogOptions`](#textlogoptions), [`UiContext`](#uicontext), [`UiHandle`](#uihandle).
 
 ## `createTouchControls`
 
@@ -2873,6 +3706,18 @@ declare function drawSprite(view: SceneView, id: string, visual: SpriteVisual, l
 ```
 
 Refers to [`SpriteVisual`](#spritevisual).
+
+## `drawText`
+
+_function_ in `context.ts`
+
+Draws text through any view: `text` when it has one, else the fallback box.
+
+```ts
+declare function drawText(view: SceneView, id: string, visual: TextVisual, layer: ViewLayer): void;
+```
+
+Refers to [`TextVisual`](#textvisual).
 
 ## `fadeTransition`
 
@@ -2956,6 +3801,18 @@ declare function localStorageSaveStore(opts?: {
 
 Refers to [`SaveStore`](#savestore).
 
+## `memoryPrefsStore`
+
+_function_ in `prefs.ts`
+
+Preferences kept for this page's life: tests, and hosts that don't persist them.
+
+```ts
+declare function memoryPrefsStore(): PrefsStore;
+```
+
+Refers to [`PrefsStore`](#prefsstore).
+
 ## `memoryRemapStore`
 
 _function_ in `input/remap.ts`
@@ -2986,15 +3843,27 @@ _function_ in `ui/layer.ts`
 
 createUiLayer + the context + mount; the returned function unmounts and
 removes the layer. `opts.links` is the host's pages, given to the UI as
-`UiContext.links`.
+`UiContext.links`; `opts.blobUrl`, where `UiContext.assetUrl` finds an
+asset's bytes, overrides `GameInstance.blobUrl`.
 
 ```ts
 declare function mountUi<G>(game: GameInstance, canvas: HTMLCanvasElement, mount: MountUi<G>, opts?: {
+    blobUrl?: BlobUrl;
     links?: UiContext["links"];
 }): () => void;
 ```
 
 Refers to [`GameInstance`](#gameinstance), [`MountUi`](#mountui), [`UiContext`](#uicontext).
+
+## `mutateSynth`
+
+_function_ in `audio/synth-presets.ts`
+
+Every numeric field moved by up to `amount` of its range (default 0.05), clamped to the schema.
+
+```ts
+declare function mutateSynth(patch: SynthFile, rng: Rng, amount?: number): SynthFile;
+```
 
 ## `pixiContainer`
 
@@ -3004,6 +3873,40 @@ The Pixi container behind a Pixi view's layer handle, in world px, for a game dr
 
 ```ts
 declare function pixiContainer(handle: ViewLayerHandle): Container;
+```
+
+## `randomSynth`
+
+_function_ in `audio/synth-presets.ts`
+
+A random patch inside the preset's ranges.
+
+```ts
+declare function randomSynth(preset: SynthPreset, rng: Rng): SynthFile;
+```
+
+Refers to [`SynthPreset`](#synthpreset).
+
+## `renderRichText`
+
+_function_ in `ui/rich-dom.ts`
+
+Renders rich text as spans: bold, italic, colour, size, and icons as CSS backgrounds from `assetUrl`.
+
+```ts
+declare function renderRichText(el: HTMLElement, lines: readonly RichLine[], ctx: Pick<UiContext, "assetUrl">): void;
+```
+
+Refers to [`RichLine`](#richline), [`UiContext`](#uicontext).
+
+## `renderSynth`
+
+_function_ in `audio/synth.ts`
+
+One channel, −1 to 1, round(synthDurationMs × 44.1) samples.
+
+```ts
+declare function renderSynth(patch: SynthFile): Float32Array;
 ```
 
 ## `resolveBindings`
@@ -3073,6 +3976,16 @@ declare function selectDebugMode(state: GameStoreState): string;
 ```
 
 Refers to [`GameStoreState`](#gamestorestate).
+
+## `selectDialogue`
+
+_function_ in `store.ts`
+
+```ts
+declare function selectDialogue(state: GameStoreState): Readonly<DialogueView> | null;
+```
+
+Refers to [`DialogueView`](#dialogueview), [`GameStoreState`](#gamestorestate).
 
 ## `selectFPS`
 
@@ -3146,6 +4059,21 @@ declare function selectTick(state: GameStoreState): number;
 
 Refers to [`GameStoreState`](#gamestorestate).
 
+## `snapshotPrefsStore`
+
+_function_ in `prefs.ts`
+
+Preferences a host keeps for the game: `load` reads the snapshot it
+handed over at start (none when it isn't a JSON object), then the latest
+change; `save` hands the latest back through `save` once no change has
+come for `SNAPSHOT_PREFS_SAVE_DELAY_MS`, so a run of changes posts once.
+
+```ts
+declare function snapshotPrefsStore(initial: unknown, save: (gameId: string, prefs: Readonly<Record<string, JsonValue>>) => void): PrefsStore;
+```
+
+Refers to [`PrefsStore`](#prefsstore).
+
 ## `snapshotRemapStore`
 
 _function_ in `input/remap.ts`
@@ -3188,6 +4116,26 @@ declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto"
 ```
 
 Refers to [`SceneDiff`](#scenediff), [`SwapStrategy`](#swapstrategy).
+
+## `synthDurationMs`
+
+_function_ in `audio/synth.ts`
+
+attackMs + sustainMs + decayMs: what headless and the inspector show without rendering.
+
+```ts
+declare function synthDurationMs(patch: SynthFile): number;
+```
+
+## `synthWav`
+
+_function_ in `audio/synth.ts`
+
+16-bit PCM WAV bytes of a render (the CLI's `synth render`).
+
+```ts
+declare function synthWav(patch: SynthFile): Uint8Array;
+```
 
 ## `timingWords`
 
@@ -3263,3 +4211,17 @@ declare function watchView(ctx: UiContext, fn: () => void): () => void;
 ```
 
 Refers to [`UiContext`](#uicontext).
+
+## `webAudioBackend`
+
+_function_ in `audio/web-audio.ts`
+
+The browser's audio backend; `context` is for tests (an OfflineAudioContext), hosts pass nothing.
+
+```ts
+declare function webAudioBackend(opts?: {
+    context?: BaseAudioContext;
+}): AudioBackend;
+```
+
+Refers to [`AudioBackend`](#audiobackend).

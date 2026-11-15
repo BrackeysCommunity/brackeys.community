@@ -7,7 +7,11 @@ import { sequentialKeys } from "../../collab/keys";
 import { layoutFromDoc, layoutToDoc } from "../../collab/layout";
 import { readLog } from "../../collab/log";
 import { docToPrefab, prefabToDoc } from "../../collab/prefab-doc";
-import { sessionPrefabSource, type PrefabSource } from "../../collab/prefab-source";
+import {
+  sessionPrefabSource,
+  staticPrefabSource,
+  type PrefabSource,
+} from "../../collab/prefab-source";
 import { applyProjectBatch } from "../../collab/project-apply";
 import { seedProjectDoc } from "../../collab/project-doc";
 import { readProject } from "../../collab/project-doc";
@@ -704,6 +708,52 @@ describe("a prefab doc's session", () => {
       ops: [{ op: "move", refs: ["~solid:0"], by: [2, 0] }],
     });
     expect(r.ok || r.issue).toBe(true);
+    session.destroy();
+  });
+});
+
+describe("a nested instance on the resolved view", () => {
+  it("moves and turns as overrides on its scene instance, and undoes", () => {
+    const lib = prefabLibrary([room, door, gate] as unknown as Prefab[]);
+    const doc = sceneToDoc({
+      v: 5,
+      name: "nest",
+      bounds: [-2000, -2000, 2000, 2000],
+      instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 90 }],
+    });
+    const session = createEditorSession({
+      doc,
+      origin: ada,
+      name: "nest",
+      registry: engine,
+      prefabs: staticPrefabSource(lib),
+    });
+    const start = text(session.getDoc());
+    const latch = () =>
+      (session.getResolved().entities ?? []).find((e) => e.id === "room-1/door-1/latch/door")
+        ?.path as { pts: [number, number][] } | undefined;
+    const was = latch()!.pts[0]!;
+    session.select(["room-1/door-1"]);
+    const moved = session.dispatch(
+      { ops: [{ op: "move", refs: ["room-1/door-1"], by: [10, 0] }] },
+      { resolved: true },
+    );
+    expect(moved.ok || moved.issue).toBe(true);
+    expect(session.getDoc().instances![0]!.overrides).toEqual({ "door-1.at": [0, 30] });
+    expect(latch()!.pts[0]).toEqual([was[0] + 10, was[1]]);
+    const turned = session.dispatch(
+      { ops: [{ op: "transform", refs: ["room-1/door-1"], rotate: 90 }] },
+      { resolved: true },
+    );
+    expect(turned.ok || turned.issue).toBe(true);
+    expect(session.getDoc().instances![0]!.overrides).toEqual({
+      "door-1.at": [0, 30],
+      "door-1.rot": 90,
+    });
+    expect(session.store.state.selection).toEqual(["room-1/door-1"]);
+    session.undo();
+    session.undo();
+    expect(text(session.getDoc())).toBe(start);
     session.destroy();
   });
 });

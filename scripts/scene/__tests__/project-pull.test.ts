@@ -155,7 +155,10 @@ describe("project pull", () => {
     const r = await pull("--out", out);
     expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
     expect(r.data).toMatchObject({ ok: true, project: PROJECT, written: true, skipped: [] });
-    const want = await tree(deck);
+    // A push sends assets only, so the media generator in tools/ stays behind.
+    const want = Object.fromEntries(
+      Object.entries(await tree(deck)).filter(([path]) => !path.startsWith("tools/")),
+    );
     expect(Object.keys(want)).toEqual(
       expect.arrayContaining([
         "art/dot.png",

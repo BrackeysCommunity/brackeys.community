@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { createRegistry, defineGame } from "../../game/define";
-import type { GameCommand, PlayWorld } from "../../game/types";
+import type { GameCommand, PlayState, PlayWorld } from "../../game/types";
 import type { Cell } from "../../grid/geometry";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { playWorld } from "../../runtime/play-session";
@@ -159,5 +159,19 @@ describe("legal commands read the world", () => {
       ]),
       { name: "ring", args: { bell: "south" } },
     ]);
+  });
+});
+
+describe("legal commands without a conversation", () => {
+  it("are the game's alone, and absent for a game that lists none", () => {
+    const rt = createHeadlessRuntime({ game: boardGame, registry, scene: scene() });
+    const state = startState(rt) as PlayState<null>;
+    expect(state.dialogue).toBeNull();
+    expect(legalCommands(boardGame.play, state)?.legal).toEqual(boardGame.play!.commands!(state));
+    expect(legalCommands({}, state)).toBeNull();
+    expect(legalCommands(null, state)).toBeNull();
+    rt.destroy();
+    const report = runProbe({ game: { ...boardGame, play: {} }, scene: scene(), ticks: 2 });
+    expect(report).not.toHaveProperty("legal");
   });
 });

@@ -137,6 +137,10 @@ describe("the blob kinds", () => {
       "code",
       "animation",
       "emitter",
+      "sound",
+      "synth",
+      "dialogue",
+      "strings",
     ]);
     const kinds = createKindRegistry();
     const kindOf = (path: string, json?: unknown, sidecar?: string) =>
@@ -302,14 +306,21 @@ describe("atlas", () => {
 });
 
 describe("font", () => {
-  it("reads a text BMFont's line height and pages as project paths, and finds the page textures", () => {
+  it("reads a BMFont's line height, size, advances and pages as project paths, and finds the page textures", () => {
     const result = meta(
       fontKind,
       fixture("font.fnt"),
       {},
       at("fonts/mono.fnt", { "fonts/font_0.png": "font-0" }),
     );
-    expect(result.meta).toEqual({ format: "bmfont", lineHeight: 9, pages: ["fonts/font_0.png"] });
+    expect(result.meta).toEqual({
+      format: "bmfont",
+      lineHeight: 9,
+      pages: ["fonts/font_0.png"],
+      size: 8,
+      advances: { "65": 4, "66": 4, "67": 4, "68": 4 },
+      coverage: [[65, 68]],
+    });
     expect(result.import).toEqual({ pages: ["font-0"] });
   });
 
@@ -365,10 +376,10 @@ describe("font", () => {
     failure(fontKind, bytes);
   });
 
-  it("refuses the binary and XML BMFont variants, saying to export text", () => {
-    expect(failure(fontKind, encode("BMF\u0003\u0001")).message).toMatch(/binary BMFont/);
-    const xml = '<?xml version="1.0"?><font><common lineHeight="9" pages="1"/></font>';
-    expect(failure(fontKind, encode(xml)).message).toMatch(/XML BMFont/);
+  it("refuses the binary BMFont variant, saying to export text or XML", () => {
+    expect(failure(fontKind, encode("BMF\u0003\u0001")).message).toMatch(
+      /binary BMFont; export it as text or XML/,
+    );
   });
 
   it("references a bitmap font's page textures", () => {
@@ -387,13 +398,18 @@ describe("audio", () => {
     ["tone.mp3", "mp3"],
     ["tone.m4a", "m4a"],
   ])("%s is %s", (name, format) => {
-    expect(meta(audioKind, fixture(name))).toEqual({ ok: true, meta: { format } });
+    expect(meta(audioKind, fixture(name))).toMatchObject({ ok: true, meta: { format } });
   });
 
   it("reads an MP3 behind an ID3v2 tag", () => {
     const mp3 = fixture("tone.mp3");
     const tag = [...encode("ID3"), 4, 0, 0, 0, 0, 0, 3, 0, 0, 0];
-    expect(meta(audioKind, new Uint8Array([...tag, ...mp3])).meta).toEqual({ format: "mp3" });
+    expect(meta(audioKind, new Uint8Array([...tag, ...mp3])).meta).toEqual({
+      format: "mp3",
+      durationMs: 100,
+      channels: 1,
+      sampleRate: 8000,
+    });
     const bad = [...encode("ID3"), 4, 0, 0, 0, 0, 0, 0x80, 0, 0, 0];
     failure(audioKind, new Uint8Array([...bad, ...mp3]));
   });

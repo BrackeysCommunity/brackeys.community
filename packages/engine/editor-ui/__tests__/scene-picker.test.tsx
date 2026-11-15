@@ -544,11 +544,8 @@ describe("ScenePicker", () => {
     // Nothing else holds the yard's doc now: only the warm hold keeps it.
     expect(session.pinned()).not.toContain("scene:p.yard");
     expect(session.openDocs()).toContain("scene:p.yard");
-    await waitFor(() =>
-      expect(screen.getAllByRole("status").some((s) => s.textContent?.includes("attic"))).toBe(
-        true,
-      ),
-    );
+    // In a project the picker names the open scene; the status bar doesn't repeat it.
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Scene: Attic/ })).toBeTruthy());
   }, 20_000);
 
   it("on an undo whose step is in a scene that isn't open, switches there and says so", async () => {

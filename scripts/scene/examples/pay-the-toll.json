@@ -1,0 +1,10 @@
+{
+  "v": 2,
+  "steps": [
+    { "hold": [], "until": { "dialogue": { "node": "gate", "active": true } }, "max": 10 },
+    { "command": "@dialogue-choose", "args": { "choice": 0 } },
+    { "hold": [], "until": { "dialogue": { "node": "through" } }, "max": 10 },
+    { "command": "@dialogue-advance" },
+    { "hold": [], "until": { "dialogue": { "ended": "paid" } }, "max": 10 }
+  ]
+}

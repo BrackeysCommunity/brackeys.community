@@ -3,6 +3,7 @@ import type { Store } from "@tanstack/store";
 import { useEffect, useId, useState } from "react";
 
 import type { GameStoreState } from "../../types";
+import { applySoundInPlay, SOUND_IN_PLAY_KEY, soundInPlay } from "../audio/editor-audio";
 import { Island } from "../frame/EditorFrame";
 import type { EditorControls } from "../frame/keys";
 import { STORAGE_PREFIX } from "../host";
@@ -21,6 +22,12 @@ export const LIVE_PLAY_TOOLTIP =
 /** Where those edits come from, since the editing panels are hidden while you play. */
 export const LIVE_PLAY_SOURCES =
   "While you play, they come from other editors, agents and the files on disk.";
+
+export const SOUND_IN_PLAY_TOOLTIP =
+  "Hear the game while you play here. Off by default, so a shared session stays quiet";
+
+/** Said when Sound in Play is turned on in a Play that started without it. */
+export const SOUND_NEXT_PLAY = "Sound starts at the next Play";
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -65,6 +72,7 @@ export function EditorPlayBar({
   );
   const requested = useStoreValue(game.getStore(), flowRequestedScene);
   const ended = useStoreValue(game.getStore(), (s) => (s.session?.outcome ?? null) !== null);
+  const [soundLater, setSoundLater] = useState(false);
   const openScene = project?.openScene;
   const openRequested =
     requested !== null && openScene && requested !== project?.scene
@@ -118,6 +126,7 @@ export function EditorPlayBar({
           ))}
         </div>
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
+        <SoundInPlayToggle game={game} onLater={setSoundLater} />
         <Button
           variant="secondary"
           size="sm"
@@ -131,6 +140,11 @@ export function EditorPlayBar({
       {/* Out of the row's flow, so a status coming or going never moves the controls under the pointer. */}
       <div className="je-play-notes">
         <LiveInPlayStatus host={host} />
+        {soundLater ? (
+          <Island role="status" className="je-scene-changed" data-sound-later="">
+            {SOUND_NEXT_PLAY}
+          </Island>
+        ) : null}
         {requested !== null ? (
           <Island role="status" className="je-scene-changed" data-flow-requested="">
             Ended: requested {requested}
@@ -221,6 +235,47 @@ function LiveInPlayToggle({
           }}
         />
         {label}
+      </label>
+    </Hint>
+  );
+}
+
+/**
+ * The Sound in Play switch: off by default, kept per viewer. The editor's
+ * game reads it when Play starts; flipped mid-Play, off silences the game
+ * at once and on brings it back, or, in a Play that started silent, says
+ * the sound starts at the next one.
+ */
+function SoundInPlayToggle({ game, onLater }: { game: object; onLater: (later: boolean) => void }) {
+  const { storage } = useKit();
+  const id = useId();
+  const [on, setOn] = useState(() => soundInPlay(storage));
+  const [flipped, setFlipped] = useState(false);
+  useEffect(() => {
+    if (soundInPlay(storage)) applySoundInPlay(game, true);
+  }, [game, storage]);
+  return (
+    <Hint content={`${SOUND_IN_PLAY_TOOLTIP}.`} closed={flipped}>
+      <label
+        className="je-live-toggle"
+        htmlFor={id}
+        onPointerLeave={() => setFlipped(false)}
+        onBlur={() => setFlipped(false)}
+      >
+        <Switch
+          id={id}
+          aria-label="Sound in Play"
+          checked={on}
+          onCheckedChange={(next) => {
+            setFlipped(true);
+            setOn(next);
+            writeStored(storage, SOUND_IN_PLAY_KEY, next);
+            onLater(!applySoundInPlay(game, next));
+          }}
+        />
+        <Text size="sm" variant="primary" aria-hidden>
+          Sound in Play
+        </Text>
       </label>
     </Hint>
   );

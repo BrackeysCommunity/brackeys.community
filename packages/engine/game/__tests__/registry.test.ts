@@ -82,6 +82,7 @@ describe("createRegistry play hooks", () => {
       "near",
       "scene",
       "persist",
+      "dialogue",
       "grounded",
     ]);
     expect(createRegistry().runResults).toEqual(["timeout", "script-end", "stuck", "quit", "flow"]);
@@ -538,6 +539,8 @@ describe("createRegistry behavior conflicts and default actions", () => {
       "anim",
       "tween",
       "emitter",
+      "text",
+      "audio",
     ]);
     expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(createRegistry().behaviorNames);
     const movers = ["character-top-down", "character-side-view", "nav-agent", "path-follow"];
@@ -1026,7 +1029,15 @@ describe("createRegistry commands", () => {
 
   it("registers the engine's commands, then the game's", () => {
     const registry = createRegistry(game({ commands: { end: command, "move-to": command } }));
-    expect(registry.commandNames).toEqual(["@elapsed", "@nav", "end", "move-to"]);
+    expect(registry.commandNames).toEqual([
+      "@elapsed",
+      "@nav",
+      "@latency",
+      "@dialogue-advance",
+      "@dialogue-choose",
+      "end",
+      "move-to",
+    ]);
     expect(registry.commands.get("move-to")).toBe(command);
   });
 

@@ -17,6 +17,7 @@ import {
   compose,
   composeOrientations,
   composeSteps,
+  dihedral,
   dihedralOf,
   frame,
   frameOf,
@@ -26,6 +27,7 @@ import {
   isUnturned,
   normDeg,
   sameFrame,
+  translation,
   turns,
   type Frame,
   type Orientation,
@@ -1679,18 +1681,13 @@ function ownFrameChild(
   let z = 0;
   let p = prefab;
   let at = inst;
-  for (const seg of segs.slice(0, -1)) {
-    const level = unplacedChildren(p, at, ctx);
-    if (!level.ok) return null;
-    const n = nestedThrough(level.patched, [], seg, library);
-    const next = n && library?.get(n.prefab);
-    if (!n || !next) return null;
-    const under = level.children.find((c) => headOfRef(c.child) === seg && c.child !== seg);
-    const chain = (under && level.pending.get(under)?.steps) ?? [];
-    steps.unshift(frame(instanceFrame(n)), ...chain);
-    z += n.z ?? 0;
-    p = next;
-    at = n;
+  if (segs.length > 1) {
+    const n = nestedAlong(prefab, inst, segs.slice(0, -1), ctx, library);
+    if (!n) return null;
+    steps.push(frame(instanceFrame(n.instance)), ...n.steps);
+    z = n.z + (n.instance.z ?? 0);
+    p = n.prefab;
+    at = n.instance;
   }
   const leaf = segs[segs.length - 1]!;
   const level = unplacedChildren(p, at, ctx);
@@ -1700,6 +1697,137 @@ function ownFrameChild(
   const own: LocalChild = { ...child, child: ref };
   delete own.under;
   return { child: own, steps, z };
+}
+
+/**
+ * The nested instance `segs` names below `inst` of `prefab`, the overrides
+ * of every level above applied, with its own prefab, the transforms that
+ * place the frame its `at` is written in into `prefab`'s (innermost first:
+ * its parent chain, then each nested instance above it and that one's
+ * chain) and the z the instances above it add.
+ */
+function nestedAlong(
+  prefab: Prefab,
+  inst: InstanceDef,
+  segs: readonly string[],
+  ctx: Ctx,
+  library: PrefabLibrary | undefined,
+): { instance: InstanceDef; prefab: Prefab; steps: Transform2D[]; z: number } | null {
+  const steps: Transform2D[] = [];
+  let z = 0;
+  let p = prefab;
+  let at = inst;
+  let found: { instance: InstanceDef; prefab: Prefab } | null = null;
+  for (const seg of segs) {
+    if (found) {
+      steps.unshift(frame(instanceFrame(found.instance)));
+      z += found.instance.z ?? 0;
+      p = found.prefab;
+      at = found.instance;
+    }
+    const level = unplacedChildren(p, at, ctx);
+    if (!level.ok) return null;
+    const n = nestedThrough(level.patched, [], seg, library);
+    const next = n && library?.get(n.prefab);
+    if (!n || !next) return null;
+    const under = level.children.find((c) => headOfRef(c.child) === seg && c.child !== seg);
+    steps.unshift(...((under && level.pending.get(under)?.steps) ?? []));
+    found = { instance: n, prefab: next };
+  }
+  return found && { ...found, steps, z };
+}
+
+/**
+ * A nested instance a resolved ref names (`room-1/door-1`), as overrides
+ * on its scene instance write it: its fields now and without the scene
+ * instance's overrides, its path there (`door-1`), and the transform that
+ * places the frame its `at` is written in into the world. Null for any
+ * other ref.
+ */
+function nestedTarget(
+  def: SceneDefinition,
+  ref: Ref,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  frames: SceneFrames,
+) {
+  const split = parseChildRef(ref);
+  const inst = split && instanceOf(def, split.instance);
+  const prefab = inst && prefabs?.get(inst.prefab);
+  const segs = split && splitChildRef(split.child);
+  if (!split || !inst || !prefab || !segs) return null;
+  const ctx = localCtx(registry, prefabs, { cells: gridTurns(def) });
+  const now = nestedAlong(prefab, inst, segs, ctx, prefabs);
+  const base = now && nestedAlong(prefab, { ...inst, overrides: {} }, segs, ctx, prefabs);
+  if (!now || !base) return null;
+  const steps = [...now.steps, frame(instanceFrame(inst)), ...frames.stepsFor(inst)];
+  return {
+    inst,
+    path: split.child,
+    now: now.instance,
+    base: base.instance,
+    toWorld: composeSteps(steps),
+  };
+}
+
+type NestedTarget = NonNullable<ReturnType<typeof nestedTarget>>;
+
+/**
+ * Overrides on the scene instance that give a nested instance `next`'s
+ * `at`, `rot` and `flip`, each reverted instead where that is the value its
+ * prefab gives it.
+ */
+function nestedPlaceOps(
+  { inst, path, now, base }: NestedTarget,
+  next: { at: Pt; rot: number; flip: boolean },
+): SceneOp[] {
+  const value = (n: InstanceDef) => ({ at: n.at, rot: n.rot ?? 0, flip: n.flip === true });
+  const was = value(now);
+  const prefab = value(base);
+  const held = Object.keys(inst.overrides ?? {});
+  const set: Record<string, unknown> = {};
+  const revert: string[] = [];
+  for (const field of ["at", "rot", "flip"] as const) {
+    if (JSON.stringify(next[field]) === JSON.stringify(was[field])) continue;
+    const key = `${path}.${field}`;
+    if (JSON.stringify(next[field]) !== JSON.stringify(prefab[field]))
+      set[key] = clone(next[field]);
+    else if (held.includes(key)) revert.push(key);
+  }
+  const ops: SceneOp[] = [];
+  if (revert.length > 0) ops.push({ op: "revertOverride", ref: inst.id, paths: revert });
+  if (Object.keys(set).length > 0) ops.push({ op: "override", ref: inst.id, set });
+  return ops;
+}
+
+/** A nested instance moved by `by` in the world. */
+function nestedMoveOps(t: NestedTarget, by: Pt): SceneOp[] {
+  const [dx, dy] = placeVector(invert(t.toWorld), by);
+  const at: Pt = [roundLength(t.now.at[0] + dx), roundLength(t.now.at[1] + dy)];
+  return nestedPlaceOps(t, { at, rot: t.now.rot ?? 0, flip: t.now.flip === true });
+}
+
+/** A nested instance turned and flipped in the world, as `transform` turns a scene instance. */
+function nestedTransformOps(t: NestedTarget, op: Extract<SceneOp, { op: "transform" }>): SceneOp[] {
+  const placed = compose(t.toWorld, frame(instanceFrame(t.now)));
+  const about = transformOpMatrix(op, op.about ?? [placed.tx, placed.ty]);
+  const local = compose(invert(t.toWorld), compose(about, placed));
+  const { rot, flip } = frameOf(local);
+  return nestedPlaceOps(t, { at: [roundLength(local.tx), roundLength(local.ty)], rot, flip });
+}
+
+/** The world transform a `transform` op applies about `at`: its flip after its turn. */
+export function transformOpMatrix(
+  op: Pick<Extract<SceneOp, { op: "transform" }>, "turn" | "rotate" | "flip">,
+  at: Pt,
+): Transform2D {
+  const deg = op.rotate ?? 90 * (op.turn === -1 ? 3 : (op.turn ?? 0));
+  const mirror =
+    op.flip === undefined
+      ? IDENTITY_2D
+      : dihedral({ rot: op.flip === "x" ? 0 : 2, flip: true }, [0, 0]);
+  const world = compose(mirror, frame({ at: [0, 0], rot: deg, flip: false }));
+  return compose(translation(at), compose(world, translation([-at[0], -at[1]])));
 }
 
 /** An instance's children with its overrides applied, those with a parent in the prefab still in that parent's frame, and the chains that place them. */
@@ -2006,7 +2134,12 @@ function mapOp(
       if (children.length === 0 && turned.size === 0) return [op];
       if (plain.length > 0) out.push({ ...op, refs: plain });
       for (const { by, refs } of turned.values()) out.push({ ...op, refs, by });
-      for (const r of children)
+      for (const r of children) {
+        const nested = nestedTarget(def, r, registry, prefabs, frames);
+        if (nested) {
+          out.push(...nestedMoveOps(nested, op.by));
+          continue;
+        }
         out.push(
           ...onChild(r, (t) => ({
             op: "move",
@@ -2014,7 +2147,21 @@ function mapOp(
             by: placeVector(t.toLocal, op.by),
           }))!,
         );
+      }
       return out;
+    }
+    case "transform": {
+      const nested = op.refs.flatMap((r) => {
+        const t = parseChildRef(r) ? nestedTarget(def, r, registry, prefabs, frames) : null;
+        return t ? [[r, t] as const] : [];
+      });
+      if (nested.length === 0) return [op];
+      const taken = new Set(nested.map(([r]) => r));
+      const rest = op.refs.filter((r) => !taken.has(r));
+      return [
+        ...(rest.length > 0 ? [{ ...op, refs: rest }] : []),
+        ...nested.flatMap(([, t]) => nestedTransformOps(t, op)),
+      ];
     }
     case "place": {
       const placed = (inv: Transform2D): SceneOp => {

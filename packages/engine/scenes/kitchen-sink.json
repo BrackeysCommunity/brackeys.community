@@ -4,7 +4,7 @@
   "name": "kitchen-sink",
   "bounds": [0, 0, 36, 12],
   "settings": { "camera": { "damping": 0.2 }, "gravity": [0, 12] },
-  "assets": ["cards"],
+  "assets": ["cards", "kitchen-dialogue"],
   "instances": [
     { "id": "post-1", "prefab": "post", "at": [16.4, 11.6] },
     { "id": "post-2", "prefab": "post", "at": [17.6, 11.6], "params": { "mark": "peak" } },
@@ -41,7 +41,7 @@
     { "id": "shelf-board", "type": "solid", "parent": "shelf", "shape": ["box", 0, 0, 1, 0.1] },
     { "id": "shelf-box", "type": "prop", "parent": "shelf", "shape": ["box", -0.4, -0.3, 0.2, 0.2], "density": 1, "restitution": 0 },
     { "id": "shelf-mark", "type": "marker", "parent": "shelf", "at": [0.4, -0.2], "tags": ["shelf"] },
-    { "id": "about", "type": "note", "at": [0.6, 0.4], "text": "Kitchen sink: every engine primitive, bulk shape form, node, prefab and parented entity in one scene, with turned and flipped instances and nodes, nested prefabs, variants, params, child refs, z, the assets header (naming the cards table) and sprites of the art folder's atlas, sheet and texture. Each region has a note." },
+    { "id": "about", "type": "note", "at": [0.6, 0.4], "text": "Kitchen sink: every engine primitive, bulk shape form, node, prefab and parented entity in one scene, with turned and flipped instances and nodes, nested prefabs, variants, params, child refs, z, the assets header (naming the cards table and the kitchen dialogue), sprites of the art folder's atlas, sheet and texture, and world text, sound and dialogue. Each region has a note." },
     { "id": "about-bulk", "type": "note", "at": [0.6, 6.4], "text": "Bulk solids, one per shape form: the floor and walls (box), a rotated box, circle, capsule, poly and chain." },
     { "id": "about-primitives", "type": "note", "at": [7.4, 8.2], "text": "Entity primitives: a one-way solid ledge of the project's bouncy material, a sensor zone the ball falls into, a spawn marker and two props (box and circle)." },
     { "id": "about-follower", "type": "note", "at": [7.4, 2.6], "text": "Followers: carrier ping-pongs carrying its children, a solid deck and a sensor; orbit loops a closed triangle." },
@@ -85,6 +85,10 @@
     { "id": "cap-flag", "type": "marker", "parent": "post-1/cap", "at": [0, -0.2], "tags": ["flag"] },
     { "id": "hook", "type": "node", "name": "Hook", "at": [15, 3.6], "rot": 90 },
     { "id": "hook-mark", "type": "marker", "parent": "hook", "at": [0.6, 0], "tags": ["hook"] },
-    { "id": "pivot-mark", "type": "marker", "parent": "pivot", "at": [0.6, 0], "tags": ["pivot"] }
+    { "id": "pivot-mark", "type": "marker", "parent": "pivot", "at": [0.6, 0], "tags": ["pivot"] },
+    { "id": "std-text", "type": "marker", "at": [5.4, 1.2], "behaviors": { "text": { "color": 16771496, "key": "kitchen.sign", "outline": { "color": 2105376, "width": 2 }, "size": 20 } } },
+    { "id": "std-audio", "type": "marker", "at": [4.4, 2.2], "behaviors": { "audio": { "sound": "clink", "volume": 0.5 } } },
+    { "id": "talk-mark", "type": "marker", "at": [6.4, 2.2], "tags": ["dialogue", "kitchen-dialogue"] },
+    { "id": "about-words", "type": "note", "at": [3.8, 2.8], "text": "Text, sound and dialogue: std-text is a sign drawing the kitchen.sign string in the project's kitchen font, in English or French by the locale; the clink sound plays its WAV clip or its synth patch on a prop's contact start and on a character landing, and std-audio plays it once from attach; talk-mark is tagged with the kitchen-dialogue it names, which the assets header lists for game code to start." }
   ]
 }

@@ -1,0 +1,19 @@
+{
+  "kind": "sound",
+  "v": 1,
+  "variants": [
+    { "clip": "clink-wav", "weight": 2 },
+    { "clip": "clink-synth" }
+  ],
+  "on": [
+    { "event": "contact:start", "type": "prop" },
+    { "event": "character:landed" }
+  ],
+  "bus": "sfx",
+  "caption": "caption.clink",
+  "cooldownMs": 80,
+  "maxVoices": 4,
+  "pitch": [0.95, 1.05],
+  "positional": true,
+  "volume": 0.8
+}

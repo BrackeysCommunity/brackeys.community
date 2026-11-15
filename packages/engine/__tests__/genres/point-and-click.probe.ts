@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../../game/commands";
 import { defineEntityType, defineGame } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import type { EngineContext } from "../../game/types";
 import type { InputScriptStepV2, InputScriptV2 } from "../../headless/playtest-types";
 import { createMotionBody, type MotionBody } from "../../motion/body";
+import { DIALOGUE_KIND, DIALOGUE_VERSION, type DialogueFile } from "../../project/kinds/dialogue";
+import { DIALOGUE_END, type DialogueEndEvent } from "../../runtime/types";
 import { SCENE_FORMAT_VERSION, type Pt, type SceneDefinition } from "../../scene/types";
 import type { Vec2 } from "../../types";
 import type { GenreProbe } from "./harness";
@@ -19,6 +22,10 @@ export const ARRIVED = `${ID}:arrived`;
 export const TRIGGERED = `${ID}:triggered`;
 /** Walks to the hotspot the last press picked, which fires on arrival. */
 export const USE = "use";
+/** The conversation a fired hotspot starts, by the hotspot's id. */
+export const DOOR_DIALOGUE = "door";
+/** The ending that wins. */
+export const OPENED = "opened";
 
 /** Walking speed, m/s. */
 const SPEED = 3;
@@ -38,23 +45,28 @@ export type PointAndClickSnapshot = {
   picked: string | null;
   /** The hotspots fired, in order. */
   triggered: string[];
+  /** Each ending a hotspot's conversation reached, in order. */
+  endings: string[];
   /** Every path the walker took, from where it stood, corners included. */
   paths: Vec2[][];
   /**
    * Present only while they hold something, so a finished run's end state
    * stays the same: the corners still ahead, the hotspot the walk is
-   * going to use, and the pointer buttons read last tick.
+   * going to use, the pointer buttons read last tick, and the dialogue
+   * running.
    */
   route?: Vec2[];
   goal?: string;
   buttons?: number;
+  talking?: string;
 };
 
 const pt = (p: Vec2): Vec2 => ({ x: p.x, y: p.y });
 
 const hotspot = defineEntityType({
   type: HOTSPOT,
-  description: "Something to click: the walker goes to it, and it fires when the walker arrives.",
+  description:
+    "Something to click: the walker goes to it, and when the walker arrives it fires and starts the dialogue named after it.",
   base: "sensor",
   fields: { shape: shapeField("The clickable area.") },
 });
@@ -66,10 +78,13 @@ const dist = (a: Vec2, b: Vec2) => Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - 
  * (`ctx.space.pointAt`, sensors of the hotspot type only) picks it, and the
  * host sends `use { hotspot }` for the pick: that sends the walker to the
  * walk area's nearest point to the hotspot, and the hotspot fires when it
- * arrives. A press elsewhere on a walk area sends the walker there along
- * `ctx.nav`'s path; any other press, and a `use` of anything but the pick,
- * is ignored. Presses come from `ctx.input.pointer()` and `use` from the
- * command stream, so a replay rebuilds both from the recording.
+ * arrives and starts the dialogue named after it (`ctx.dialogue.start`),
+ * which only `@dialogue-advance` and `@dialogue-choose` walk on. Clicks
+ * wait while it runs. A press elsewhere on a walk area sends the walker
+ * there along `ctx.nav`'s path; any other press, and a `use` of anything
+ * but the pick, is ignored. Presses come from `ctx.input.pointer()` and
+ * the commands from the command stream, so a replay rebuilds both from
+ * the recording.
  */
 const game = defineGame<PointAndClickSnapshot>({
   id: ID,
@@ -88,8 +103,8 @@ const game = defineGame<PointAndClickSnapshot>({
     markers: [ARRIVED, TRIGGERED],
     focus: (snap) => snap.at,
     outcome: ({ snapshot }) =>
-      snapshot.triggered.length > 0
-        ? { result: "won", cause: `the walker used ${snapshot.triggered[0]}` }
+      snapshot.endings.includes(OPENED)
+        ? { result: "won", cause: `the walker used ${snapshot.triggered[0]} and it ${OPENED}` }
         : null,
   },
   createRuntime(ctx: EngineContext) {
@@ -101,6 +116,7 @@ const game = defineGame<PointAndClickSnapshot>({
     let ignored = 0;
     let picked: string | null = null;
     const triggered: string[] = [];
+    const endings: string[] = [];
     const paths: Vec2[][] = [];
 
     const centreOf = (id: string): Vec2 | null => {
@@ -141,6 +157,7 @@ const game = defineGame<PointAndClickSnapshot>({
       if (goal === null) return;
       triggered.push(goal);
       ctx.emit({ type: TRIGGERED, entityId: goal, other: walker.entityId, at: p });
+      ctx.dialogue.start(goal);
       goal = null;
     }
 
@@ -191,29 +208,40 @@ const game = defineGame<PointAndClickSnapshot>({
       beforeStep(dtMs, _actions, commands) {
         const pointer = ctx.input.pointer();
         const now = pointer?.buttons ?? 0;
-        if (pointer && now & PRIMARY && !(buttons & PRIMARY)) click(pointer);
+        const talking = ctx.dialogue.view() !== null;
+        if (pointer && now & PRIMARY && !(buttons & PRIMARY) && !talking) click(pointer);
         buttons = now;
         for (const c of commands) if (c.name === USE) use((c.args as { hotspot: string }).hotspot);
         walk(dtMs);
       },
-      snapshot: () => ({
-        at: walker?.position() ?? null,
-        walking: route.length > 0,
-        clicks,
-        ignored,
-        picked,
-        triggered: [...triggered],
-        paths: paths.map((p) => [...p]),
-        ...(route.length > 0 ? { route: route.map(pt) } : {}),
-        ...(goal !== null ? { goal } : {}),
-        ...(buttons !== 0 ? { buttons } : {}),
-      }),
-      // The walker's body comes back with the world save; points are rebuilt because the save's text sorts keys.
+      afterStep(_dtMs, events) {
+        for (const e of events)
+          if (e.type === DIALOGUE_END) endings.push((e.data as DialogueEndEvent).ending);
+      },
+      snapshot: () => {
+        const talk = ctx.dialogue.view();
+        return {
+          at: walker?.position() ?? null,
+          walking: route.length > 0,
+          clicks,
+          ignored,
+          picked,
+          triggered: [...triggered],
+          endings: [...endings],
+          paths: paths.map((p) => [...p]),
+          ...(route.length > 0 ? { route: route.map(pt) } : {}),
+          ...(goal !== null ? { goal } : {}),
+          ...(buttons !== 0 ? { buttons } : {}),
+          ...(talk ? { talking: talk.dialogue } : {}),
+        };
+      },
+      // The walker's body and the dialogue come back with the world save; points are rebuilt because the save's text sorts keys.
       restore(s) {
         clicks = s.clicks;
         ignored = s.ignored;
         picked = s.picked;
         triggered.splice(0, triggered.length, ...s.triggered);
+        endings.splice(0, endings.length, ...s.endings);
         paths.splice(0, paths.length, ...s.paths.map((p) => p.map(pt)));
         route = (s.route ?? []).map(pt);
         goal = s.goal ?? null;
@@ -246,6 +274,28 @@ const scene: SceneDefinition = {
   ],
 };
 
+/**
+ * The door's conversation: two lines, then a choice. Knocking ends it
+ * `opened`, which wins; walking away ends it `left`.
+ */
+const doorDialogue: DialogueFile = {
+  kind: DIALOGUE_KIND,
+  v: DIALOGUE_VERSION,
+  start: "locked",
+  nodes: [
+    {
+      id: "locked",
+      lines: [{ say: "The door is locked." }, { say: "Someone moves behind it." }],
+      choices: [
+        { say: "Knock.", to: "knock" },
+        { say: "Walk away.", to: "leave" },
+      ],
+    },
+    { id: "knock", lines: [{ say: "The door opens." }], end: OPENED },
+    { id: "leave", lines: [{ say: "You step back." }], end: "left" },
+  ],
+};
+
 const click = (at: Pt): InputScriptStepV2 => ({
   pointer: { at, press: "primary", release: "primary" },
   for: 2,
@@ -257,7 +307,8 @@ const awaitEvent = (event: string): InputScriptStepV2 => ({ hold: [], until: { e
  * Three clicks: one in the room's empty notch (ignored), one at the foot of
  * the left arm (a walk round the inner corner), and one on the door, which
  * picks it; the `use` the host sends for the pick walks back round the
- * corner to the door, which then fires.
+ * corner to the door, which then fires and starts its conversation. The
+ * run reads both lines, knocks, and reads the line that ends it opened.
  */
 const script: InputScriptV2 = {
   v: 2,
@@ -272,6 +323,12 @@ const script: InputScriptV2 = {
     click([7.8, 1.4]),
     { command: USE, args: { hotspot: "door" } },
     awaitEvent(TRIGGERED),
+    { wait: 3 },
+    { command: DIALOGUE_ADVANCE_COMMAND },
+    { wait: 3 },
+    { command: DIALOGUE_CHOOSE_COMMAND, args: { choice: 0 } },
+    { wait: 3 },
+    { command: DIALOGUE_ADVANCE_COMMAND },
   ],
 };
 
@@ -279,16 +336,18 @@ export const pointAndClickProbe: GenreProbe<PointAndClickSnapshot> = {
   id: ID,
   rows: ["point-and-click", "rts"],
   pending: {
-    "point-and-click": "M23 (dialogue)",
     rts: "M24 (many units: culling, profiling), M25 (tilemaps)",
   },
   game,
   scene,
+  project: { files: [{ path: `dialogue/${DOOR_DIALOGUE}.json`, json: doorDialogue }] },
   script,
-  expect: { result: "won", maxTicks: 300 },
+  expect: { result: "won", maxTicks: 330 },
   variants: [
     { name: "gravity-sideways", settings: { gravity: [12, 0] } },
     // Walking back round the corner to use the door.
     { name: "saved-mid-walk", saveAt: 200 },
+    // At the door's choice, before the knock.
+    { name: "saved-mid-dialogue", saveAt: 294 },
   ],
 };

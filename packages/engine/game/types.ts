@@ -2,6 +2,8 @@ import type { z } from "zod";
 
 import type { Tweens } from "../anim/tweens";
 import type { BlendMode, SceneView } from "../context";
+import type { DialogueView } from "../dialogue/runner";
+import type { DialogueVars } from "../dialogue/vars";
 import type { AssetDrop } from "../editor/asset-drop";
 import type { EditorToolDef } from "../editor/tools";
 import type { InputState } from "../input/state";
@@ -414,6 +416,20 @@ export type EngineContext = {
   findBehaviors: <D extends BehaviorKey = never>(def: D | BehaviorName) => readonly HandleOf<D>[];
   /** Parents and children at runtime, by id. */
   readonly tree: SceneTree;
+  /** The active conversation. */
+  readonly dialogue: DialogueContext;
+};
+
+/**
+ * `EngineContext.dialogue`: the runtime's one active conversation,
+ * advanced only by the recorded `@dialogue-advance` and `@dialogue-choose`.
+ */
+export type DialogueContext = {
+  /** Starts `dialogue` (replacing one that runs); variables default to `persist`. */
+  start(dialogue: AssetId, opts?: { node?: string; vars?: DialogueVars }): void;
+  /** Where the active conversation stands; null with none. */
+  view(): Readonly<DialogueView> | null;
+  stop(): void;
 };
 
 /** `EngineContext.tree`: the entities' parents and children, and poses in a parent's frame. */
@@ -1021,6 +1037,7 @@ export const ENGINE_PREDICATES = [
   "near",
   "scene",
   "persist",
+  "dialogue",
 ] as const;
 
 /** What a game's outcome hook and script predicates see after each tick. */
@@ -1034,6 +1051,8 @@ export type PlayState<S = unknown> = {
   world: PlayWorld;
   /** The persistent value after the tick (`EngineContext.persist`); absent where the host doesn't track it. */
   persist?: JsonValue;
+  /** The active conversation after the tick (`EngineContext.dialogue.view`), null with none; absent where the host doesn't track it. */
+  dialogue?: Readonly<DialogueView> | null;
 };
 
 /** What `PlayState.world` answers about the entities live after a tick. */
@@ -1251,6 +1270,14 @@ export type GameDefinition<S = unknown, G = unknown> = {
   live?: LiveDeclaration;
   /** How the camera follows in Play; a scene's `settings.camera` wins over it. */
   camera?: CameraRigDef;
+  /** The game's audio beyond the engine's. */
+  audio?: GameAudioDef;
+};
+
+/** `GameDefinition.audio`. */
+export type GameAudioDef = {
+  /** Buses beyond the engine's five; each routes into master. */
+  buses?: readonly { name: string; volume?: number }[];
 };
 
 /** `GameDefinition.persist`. */

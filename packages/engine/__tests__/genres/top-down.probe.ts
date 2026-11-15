@@ -142,7 +142,7 @@ export const topDownProbe: GenreProbe<TopDownSnapshot> = {
   id: ID,
   rows: ["top-down", "racing"],
   pending: {
-    "top-down": "M23 (dialogue), M25 (tilemaps)",
+    "top-down": "M25 (tilemaps)",
   },
   game,
   scene,

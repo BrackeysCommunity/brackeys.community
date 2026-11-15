@@ -43,7 +43,8 @@ const isCount = (n: unknown): n is number => typeof n === "number" && Number.isI
  * spawns a second while active, and spawns one at its pose (plus a random
  * offset within `spread`) for each it owes while under `cap`. Its live
  * spawns are counted back from `entity:destroyed`; a prefab instance counts
- * once, until its last child goes, and then its node goes too. A world
+ * once, until its last child goes, and then its node goes too. With
+ * `asChildren` each spawn goes under the spawner, in world terms. A world
  * save holds what it owes, its live ids and whether the burst is still to
  * come; its random stream is saved with `ctx.random`'s forks.
  */
@@ -147,8 +148,9 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
     const y = pose.y + dy;
     let id: string;
     let bodies: readonly string[];
+    const parent = block.asChildren ? { parent: s.id } : undefined;
     if (block.prefab !== undefined) {
-      const placed = ctx.instantiate(block.prefab, [x, y]);
+      const placed = ctx.instantiate(block.prefab, [x, y], parent);
       id = placed.id;
       bodies = placed.entities;
       if (lifeTicks !== undefined) s.left.set(id, lifeTicks + 1);
@@ -161,6 +163,7 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
             ? { ms: block.lifeMs }
             : undefined;
       const input = typeSpawn(block, x, y);
+      if (parent) input.parent = parent.parent;
       if (lifetime) {
         const own = input.behaviors;
         const blocks = typeof own === "object" && own !== null && !Array.isArray(own) ? own : {};

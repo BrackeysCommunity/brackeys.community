@@ -1,3 +1,4 @@
+import type { LATENCY_COMMAND } from "../game/commands";
 import type { ActionKind, GameCommand, PlayerInfo, PlayersDef, Registry } from "../game/types";
 import { PLAYER_JOINED, PLAYER_LEFT, type StepEvent } from "../runtime/types";
 import type { InputAction, Vec2 } from "../types";
@@ -29,6 +30,8 @@ export interface InputState {
   players(): readonly PlayerInfo[];
   /** The tick's commands, the engine's (`@elapsed`, `@nav`) among them, in the order the tick holds them. */
   commands(): readonly GameCommand[];
+  /** The latency the last `@latency` command carried, ms; 0 before one. */
+  latencyMs(): number;
 }
 
 /** The runtime's side: each step feeds the tick's input and raises the seat events it returns. */
@@ -46,6 +49,8 @@ type Seat = {
 };
 
 const ZERO: Vec2 = Object.freeze({ x: 0, y: 0 });
+/** Named here rather than imported, so the input state stays off zod. */
+const LATENCY: typeof LATENCY_COMMAND = "@latency";
 
 /** The declared kind, else what the action carries: x/y a vector, a value an axis. */
 function kindOf(kinds: ReadonlyMap<string, ActionKind>, a: InputAction): ActionKind {
@@ -102,6 +107,7 @@ export function createInputState(
   const seats = new Map<number, Seat>();
   const book = createSeatBook(players);
   let commands: readonly GameCommand[] = [];
+  let latency = 0;
 
   const seat = (player: number): Seat => {
     let s = seats.get(player);
@@ -123,8 +129,13 @@ export function createInputState(
     pointer: (player = 0) => seats.get(player)?.pointer ?? null,
     players: book.players,
     commands: () => commands,
+    latencyMs: () => latency,
     update(input) {
       commands = input.commands;
+      for (const c of commands) {
+        const ms = c.name === LATENCY ? (c.args as { ms?: unknown } | undefined)?.ms : undefined;
+        if (typeof ms === "number") latency = ms;
+      }
       const events: Omit<StepEvent, "tick">[] = [];
       for (const change of input.joins) {
         for (const done of book.apply(change)) {

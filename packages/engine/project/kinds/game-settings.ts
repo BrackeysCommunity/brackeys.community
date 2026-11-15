@@ -1,11 +1,12 @@
 import { z } from "zod";
 
 import { rgbSchema } from "../../game/color";
+import { ID_PATTERN } from "../../game/fields";
 import { MAX_TICK_RATE, MIN_TICK_RATE, tickRateProblem } from "../../game/time";
 import type { GameWorldDef, Registry } from "../../game/types";
 import { pxPerMetreOf, scaleLengths } from "../../game/units";
 import type { ResolutionPolicy } from "../../resolution";
-import { makeIssue, unitsRefusal } from "../../scene/issues";
+import { jsonPointer, makeIssue, unitsRefusal } from "../../scene/issues";
 import type { MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import { schemaRefSites, type RefSite } from "../refs";
@@ -17,6 +18,7 @@ import {
   perProjectIssues,
   type KindEnv,
 } from "./define";
+import { LOCALE_PATTERN, type LocaleSettings } from "./strings";
 
 export const GAME_SETTINGS_KIND = "game-settings";
 export const GAME_SETTINGS_VERSION = 2;
@@ -37,6 +39,8 @@ export type GameSettingsEngine = {
   gravity?: GameWorldDef["gravity"];
   /** Ticks per second for every scene; checked by the kind's `validate`, not the schema. */
   tickRate?: number;
+  /** The locales the game's strings offer; presentation only, never a run's input. */
+  locales?: LocaleSettings;
 };
 
 const virtualPx = (description: string) =>
@@ -110,6 +114,35 @@ function gameSettingsV1ToV2(raw: unknown, env: MigrateEnv): unknown {
   return out;
 }
 
+const localeTag = z.string().regex(LOCALE_PATTERN);
+
+const LocalesSchema = z
+  .strictObject({
+    default: localeTag.describe(
+      'The locale a player starts in when neither a saved choice nor the browser\'s languages match one available, and the last step of every fallback chain; BCP 47, e.g. "en".',
+    ),
+    available: z
+      .array(localeTag)
+      .describe(
+        "The locales the game offers, BCP 47; the default is always among them. A strings column outside them never shows.",
+      ),
+    fallback: z
+      .record(localeTag, z.array(localeTag))
+      .optional()
+      .describe(
+        'Each locale\'s fallback chain before the default, e.g. { "pt-BR": ["pt"] }: a key with no text in the locale shows the first of these that has some.',
+      ),
+    fonts: z
+      .record(z.union([localeTag, z.literal("default")]), z.string().regex(ID_PATTERN))
+      .optional()
+      .describe(
+        'The font each locale\'s text draws in, by font asset id; "default" serves every locale without its own.',
+      ),
+  })
+  .describe(
+    "The game's locales: the default, what it offers, fallbacks and fonts. A browser preference: switching never changes a run.",
+  ) as unknown as z.ZodType<LocaleSettings>;
+
 const engineFields = {
   resolution: ResolutionSchema.optional(),
   physics: z
@@ -127,6 +160,7 @@ const engineFields = {
     .describe(
       `Ticks per second for every scene, an integer from ${MIN_TICK_RATE} to ${MAX_TICK_RATE}; the game's time model keeps its kind. Omitted: the game's rate.`,
     ),
+  locales: LocalesSchema.optional(),
 };
 
 /**
@@ -218,7 +252,18 @@ function engineIssues(engine: GameSettingsEngine): SceneIssue[] {
       ];
 }
 
-/** Project-wide settings: the engine's block (resolution, physics, gravity, tick rate) and the game's `projectSettings`. */
+/** The font assets `engine.locales.fonts` names. */
+function localeFontRefs(engine: GameSettingsEngine): RefSite[] {
+  const fonts = engine.locales?.fonts;
+  if (!fonts) return [];
+  return Object.entries(fonts).flatMap(([locale, id]) =>
+    typeof id === "string"
+      ? [{ pointer: jsonPointer(["engine", "locales", "fonts", locale]), id, kinds: ["font"] }]
+      : [],
+  );
+}
+
+/** Project-wide settings: the engine's block (resolution, physics, gravity, tick rate, locales) and the game's `projectSettings`. */
 export const gameSettingsKind = defineAssetKind({
   kind: GAME_SETTINGS_KIND,
   title: "Game settings",
@@ -241,8 +286,10 @@ export const gameSettingsKind = defineAssetKind({
     },
   },
   validate: (file: GameSettingsFile): SceneIssue[] => engineIssues(file.engine),
-  refs: (file: GameSettingsFile, env: KindEnv): RefSite[] =>
-    schemaRefSites(env.registry.game?.projectSettings ?? {}, file.game, "/game"),
+  refs: (file: GameSettingsFile, env: KindEnv): RefSite[] => [
+    ...localeFontRefs(file.engine),
+    ...schemaRefSites(env.registry.game?.projectSettings ?? {}, file.game, "/game"),
+  ],
   empty: (): GameSettingsFile => ({
     kind: GAME_SETTINGS_KIND,
     v: GAME_SETTINGS_VERSION,

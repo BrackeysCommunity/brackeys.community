@@ -28,7 +28,12 @@ import {
 import { renderSceneAscii, sceneAsciiMap } from "../ascii";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import { SCENE_GRID_MAX_CELLS } from "../svg";
-import { SCENE_FORMAT_VERSION, type GridSettings, type SceneDefinition } from "../types";
+import {
+  SCENE_FORMAT_VERSION,
+  type ExpandedScene,
+  type GridSettings,
+  type SceneDefinition,
+} from "../types";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
@@ -447,5 +452,48 @@ describe("the kitchen sink", () => {
     if (process.env.UPDATE_GOLDENS) writeFileSync(sinkGolden, text);
     expect(text).toBe(readFileSync(sinkGolden, "utf8"));
     expect(renderSceneAscii(sink.scene, opts)).toBe(text);
+  });
+});
+
+describe("text boxes", () => {
+  const registry = createRegistry();
+  const signs = (texts: Record<string, Record<string, unknown>>): ExpandedScene => ({
+    name: "signs",
+    bounds: [0, 0, 8, 4],
+    settings: { gravity: [0, 0], physics: "none", grid: null, view: { projection: "orthogonal" } },
+    entities: Object.entries(texts).map(([id, text], i) => ({
+      id,
+      type: "marker",
+      at: [1 + 4 * i, 2],
+      behaviors: { text },
+    })),
+  });
+
+  it("marks each text box's cells with \", labelled ≈ for an estimated size, under the entity's point", () => {
+    const map = sceneAsciiMap(signs({ wide: { text: "A long sign", size: 32 } }), {
+      registry,
+      cell: 32,
+    });
+    // 11 characters at 0.55 em of 32 px: 193.6 px wide, centred on the marker at (100, 200) px.
+    expect(map.lines[6]!.slice(0, 7)).toBe('"""+"".');
+    expect(legendOf(map)['"']).toBe("text ≈ (size estimated)");
+  });
+
+  it("measures a key in the default locale's strings", () => {
+    const scene = signs({ door: { key: "door.open", size: 32 } });
+    const strings = {
+      locale: "en",
+      direction: "ltr" as const,
+      strings: { "door.open": "A much longer sign" },
+      font: null,
+    };
+    const short = sceneAsciiMap(scene, { registry, cell: 32 });
+    const long = sceneAsciiMap(scene, { registry, cell: 32, strings });
+    const width = (m: typeof short) => (m.lines[6]!.match(/["+]/g) ?? []).length;
+    expect(width(long)).toBeGreaterThan(width(short));
+  });
+
+  it("leaves a scene without text as it was", () => {
+    expect(legendOf(sceneAsciiMap(yard, { registry: engine }))['"']).toBeUndefined();
   });
 });

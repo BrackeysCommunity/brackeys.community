@@ -1,0 +1,15 @@
+{
+  "kind": "strings",
+  "v": 1,
+  "strings": [
+    { "key": "kitchen.sign", "en": "Kitchen sink", "fr": "Évier de cuisine", "note": "The sign over the text, audio and dialogue corner." },
+    { "key": "caption.clink", "en": "Clink!", "fr": "Tintement !" },
+    { "key": "talk.keeper", "en": "Keeper", "fr": "Gardien", "note": "The speaker's name." },
+    { "key": "talk.hello", "en": "Welcome to the kitchen sink.", "fr": "Bienvenue dans l'évier." },
+    { "key": "talk.ask", "en": "Want the tour?", "fr": "Une visite ?" },
+    { "key": "talk.yes", "en": "Yes, please.", "fr": "Oui, merci." },
+    { "key": "talk.no", "en": "Not now.", "fr": "Pas maintenant." },
+    { "key": "talk.tour", "en": "Every feature has a spot here.", "fr": "Chaque fonction a sa place ici." },
+    { "key": "talk.bye", "en": "Come back any time.", "fr": "Reviens quand tu veux." }
+  ]
+}

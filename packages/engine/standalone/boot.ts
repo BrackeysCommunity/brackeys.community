@@ -1,11 +1,14 @@
 // A hosted release runs under a CSP without 'unsafe-eval'; Pixi's eval-free shader and uniform sync works there and anywhere else.
 import "pixi.js/unsafe-eval";
+import type { AudioBackend } from "../audio/types";
+import { webAudioBackend } from "../audio/web-audio";
 import { createGame } from "../engine";
 import { createRegistry, withProject } from "../game/define";
 import type { LibraryScene, SceneListEntry } from "../game/flow";
 import { resolveTime } from "../game/time";
 import type { GameDefinition, Registry } from "../game/types";
 import { browserRemapStore, snapshotRemapStore } from "../input/remap";
+import { browserPrefsStore, snapshotPrefsStore, type PrefsStore } from "../prefs";
 import { ownValue, stableJson } from "../project/canonical";
 import { ContentStoreError, memoryContentStore } from "../project/content-store";
 import { createKindRegistry } from "../project/kinds";
@@ -23,7 +26,7 @@ import {
 } from "../project/release";
 import { jsonValues, snapshotScene, SnapshotError } from "../project/snapshot";
 import type { AssetId, Sha256 } from "../project/types";
-import { createAssetLoader } from "../render/asset-loader";
+import { createAssetLoader, type AssetUrl } from "../render/asset-loader";
 import { browserSaveStore } from "../saves/browser";
 import { channelSaveStore, type SaveStore } from "../saves/store";
 import { errorText, isErrorIssue, makeIssue } from "../scene/issues";
@@ -322,7 +325,12 @@ async function shippedScenes(
 /**
  * Boots a released game from its `release.json`: the project's data, the
  * asset loader over the build's files, the scene flow at the list's start,
- * the UI and saves. Sets `document.documentElement.dataset.jamsState` to
+ * the UI and saves, and sound through the page's Web Audio from the
+ * player's first gesture. The player's bus volumes, locale and calibrated
+ * latency are kept in this browser (`browserPrefsStore`), the locale
+ * resolved from them, then the browser's languages, then the project's
+ * default; the page's `lang` follows it. Sets
+ * `document.documentElement.dataset.jamsState` to
  * "loading", then "ready", or "error" with the refusal shown in `root`
  * (the promise rejects then), and mirrors the renderer's state there too
  * (`mirrorRenderState`). Every URL is resolved against the manifest's
@@ -330,7 +338,7 @@ async function shippedScenes(
  * directory.
  *
  * With `?host=jams` on the page's URL it first looks for the page that
- * frames it (`connectHost`). When one answers, saves and remaps go through
+ * frames it (`connectHost`). When one answers, saves, remaps and prefs go through
  * that page, no service worker registers, the state is reported to it too
  * and its `pause`/`resume` pause the game, and its `recording.request`
  * gets the run's recording so far as a `download` (a hosted frame records
@@ -354,6 +362,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
   let instance: GameInstance | null = null;
   let unmountUi: (() => void) | null = null;
   let unmirror: (() => void) | null = null;
+  let unfollowLocale: (() => void) | null = null;
   let loader: ReturnType<typeof createAssetLoader> | null = null;
   let host: HostChannel | null = null;
   let live: LiveController | null = null;
@@ -374,6 +383,8 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     unmountUi = null;
     unmirror?.();
     unmirror = null;
+    unfollowLocale?.();
+    unfollowLocale = null;
     live?.dispose();
     live = null;
     instance?.destroy();
@@ -455,10 +466,8 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       const file = asset?.sha256 === hash ? asset.file : liveFiles.get(hash);
       return releaseUrl(base, file ?? asset?.file ?? `assets/${hash}`).href;
     };
-    loader = createAssetLoader({
-      project: manifest.project.id,
-      url: (_, entry) => assetUrl(entry.id, entry.sha256),
-    });
+    const url: AssetUrl = (_, entry) => assetUrl(entry.id, entry.sha256);
+    loader = createAssetLoader({ project: manifest.project.id, url });
     const renderer = rendererPreference(doc);
     const size = sizeOf(root);
     canvas = doc.createElement("canvas");
@@ -476,13 +485,15 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       input: { touch: "auto", remaps: remapsFor(host) },
       flow: { source },
       project,
-      assets: { loader, view, kinds },
+      assets: { loader, view, kinds, url },
       saves: opts.saves ?? (host ? channelSaveStore(host) : browserSaveStore()),
+      audio: { backend: pageAudio, prefs: prefsFor(host) },
       release: { id, manifest },
       ...(host ? { recording: { flow: true } } : {}),
       ...(renderer ? { renderer } : {}),
     });
     unmirror = mirrorRenderState(instance, doc.documentElement);
+    unfollowLocale = followLocale(instance, doc.documentElement);
     if (opts.ui) {
       const credits = manifest.build.files.some((f) => f.path === CREDITS_FILE)
         ? { credits: releaseUrl(base, CREDITS_FILE).href }
@@ -567,6 +578,38 @@ function remapsFor(host: HostChannel | null) {
     // A remap the page couldn't keep still applies for this session.
     channel.request("prefs.save", { store: "remap", value: state }).catch(() => {});
   });
+}
+
+/** The host's prefs snapshot (bus volumes, locale, latency), saved back over its channel; else this browser's. */
+function prefsFor(host: HostChannel | null): PrefsStore {
+  if (!host) return browserPrefsStore();
+  const channel = host;
+  return snapshotPrefsStore(channel.welcome.prefs.prefs, (_gameId, prefs) => {
+    // A preference the page couldn't keep still applies for this session.
+    channel.request("prefs.save", { store: "prefs", value: prefs }).catch(() => {});
+  });
+}
+
+/**
+ * The page's Web Audio backend, built when Play starts. A browser without
+ * Web Audio plays the game silently.
+ */
+function pageAudio(): AudioBackend | false {
+  try {
+    return webAudioBackend();
+  } catch {
+    return false;
+  }
+}
+
+/** Keeps the page's `lang` on the game's locale, so assistive tech reads its text in that language. */
+function followLocale(instance: GameInstance, root: HTMLElement): () => void {
+  const set = () => {
+    root.lang = instance.locale.current();
+  };
+  set();
+  instance.on("locale:change", set);
+  return () => instance.off("locale:change", set);
 }
 
 /**

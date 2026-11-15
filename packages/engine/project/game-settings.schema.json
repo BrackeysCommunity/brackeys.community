@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:game-settings:v2",
-  "x-agent-surface": 22,
+  "x-agent-surface": 23,
   "title": "jams engine game settings, format v2",
   "type": "object",
   "properties": {
@@ -132,6 +132,62 @@
         "tickRate": {
           "description": "Ticks per second for every scene, an integer from 1 to 240; the game's time model keeps its kind. Omitted: the game's rate.",
           "type": "number"
+        },
+        "locales": {
+          "type": "object",
+          "properties": {
+            "default": {
+              "type": "string",
+              "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+              "description": "The locale a player starts in when neither a saved choice nor the browser's languages match one available, and the last step of every fallback chain; BCP 47, e.g. \"en\"."
+            },
+            "available": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+              },
+              "description": "The locales the game offers, BCP 47; the default is always among them. A strings column outside them never shows."
+            },
+            "fallback": {
+              "description": "Each locale's fallback chain before the default, e.g. { \"pt-BR\": [\"pt\"] }: a key with no text in the locale shows the first of these that has some.",
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+                }
+              }
+            },
+            "fonts": {
+              "description": "The font each locale's text draws in, by font asset id; \"default\" serves every locale without its own.",
+              "type": "object",
+              "propertyNames": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+                  },
+                  {
+                    "type": "string",
+                    "const": "default"
+                  }
+                ]
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            }
+          },
+          "required": ["default", "available"],
+          "additionalProperties": false,
+          "description": "The game's locales: the default, what it offers, fallbacks and fonts. A browser preference: switching never changes a run."
         }
       },
       "additionalProperties": false,

@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,8 @@ import {
   projectView,
   RELEASE_FILE,
   releaseId,
+  validateProject,
+  type AssetId,
   type ReleaseTarget,
 } from "@jams/engine/project";
 import { closest, type SceneIssue } from "@jams/engine/scene";
@@ -35,7 +37,7 @@ import {
 import { ensurePackedEngine } from "../engine-dist";
 import { projectById, type ProjectHandle } from "../projects";
 import { manifestSummary, shownPath } from "./game-manifest";
-import { loadProject, problemLines } from "./project-show";
+import { loadProject, problemLines, type LoadedProject } from "./project-show";
 
 export type GameBuildInput = {
   id?: string;
@@ -104,11 +106,32 @@ export function projectOf(
 }
 
 /**
+ * `validateProject` over every live doc as its file holds it: the issues
+ * `validate` reports, from a doc's own schema (a sound's unknown bus) and
+ * from the cross-doc checks (a string key with no default-locale text).
+ * Each names its doc first.
+ */
+export async function projectIssues(loaded: LoadedProject): Promise<SceneIssue[]> {
+  const { project, view } = loaded;
+  const texts = new Map<AssetId, string>();
+  for (const entry of view.byId.values()) {
+    if (project.kinds.get(entry.kind)?.storage !== "doc") continue;
+    try {
+      texts.set(entry.id, await readFile(join(project.dir, entry.path), "utf8"));
+    } catch {
+      // A file gone since the scan has nothing to check.
+    }
+  }
+  return validateProject(view, texts, project.kinds, loaded.env);
+}
+
+/**
  * The project's files as an export plans them: its view (with this code's
  * schema hashes as the build stamps, so the release pins what
  * `project snapshot` pins), canonical doc texts, the registry with its
  * materials and asset choices, the game-settings `engine` block and the
- * snapshot. A doc that doesn't parse can't be pinned, so it fails here.
+ * snapshot. A project `validateProject` finds an error in can't ship, nor
+ * can a doc that doesn't parse, so either fails here.
  */
 export async function exportInputOf(
   project: ProjectHandle,
@@ -120,6 +143,13 @@ export async function exportInputOf(
       project: project.file.id,
     });
   const loaded = await loadProject(project);
+  const errors = (await projectIssues(loaded)).filter(isError);
+  if (errors.length > 0)
+    return {
+      exitCode: 1,
+      data: { ok: false, project: project.file.id, target, issues: errors },
+      text: [`${project.file.id} ${target}: can't build`, ...errors.map(issueLine)].join("\n"),
+    };
   const unpinned = [...loaded.view.byId.values()].filter(
     (e) => e.sha256 === undefined && !loaded.texts.has(e.id),
   );

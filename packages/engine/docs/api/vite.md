@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ASSET_CHANGED`](#asset_changed) · [`AssetChange`](#assetchange) · [`AssetChangedMessage`](#assetchangedmessage) · [`BlobRepair`](#blobrepair) · [`DEV_CACHE_ROOT`](#dev_cache_root) · [`DISK_ORIGIN`](#disk_origin) · [`DiskChange`](#diskchange) · [`DiskEvent`](#diskevent) · [`DiskSync`](#disksync) · [`EXPORT_ENTRY_ID`](#export_entry_id) · [`ExportBuildConfig`](#exportbuildconfig) · [`ExportBuildOptions`](#exportbuildoptions) · [`ExportPluginLike`](#exportpluginlike) · [`FileApplyOptions`](#fileapplyoptions) · [`FileProject`](#fileproject) · [`ListeningSceneCollab`](#listeningscenecollab) · [`MOVE_SETTLE_MS`](#move_settle_ms) · [`PERSISTED_ORIGIN`](#persisted_origin) · [`PROJECT_ROUTE`](#project_route) · [`PrefabFiles`](#prefabfiles) · [`ProjectDiskSync`](#projectdisksync) · [`ProjectFileAdapter`](#projectfileadapter) · [`ProjectFileAdapterOptions`](#projectfileadapteroptions) · [`ProjectProblem`](#projectproblem) · [`ProjectScan`](#projectscan) · [`ProjectSync`](#projectsync) · [`SCENE_COLLAB_PATH`](#scene_collab_path) · [`SCENE_NAME_PATTERN`](#scene_name_pattern) · [`SCENE_ROUTE`](#scene_route) · [`SceneCollab`](#scenecollab) · [`SceneCollabOptions`](#scenecollaboptions) · [`SceneCollabPlugin`](#scenecollabplugin) · [`ScenePathError`](#scenepatherror) · [`applyProjectBatchToFiles`](#applyprojectbatchtofiles) · [`codeModules`](#codemodules) · [`createExportBuild`](#createexportbuild) · [`createProjectFileAdapter`](#createprojectfileadapter) · [`createSceneCollab`](#createscenecollab) · [`defaultCacheDir`](#defaultcachedir) · [`exportEntrySource`](#exportentrysource) · [`fileContentStore`](#filecontentstore) · [`gameRegisters`](#gameregisters) · [`isCodePath`](#iscodepath) · [`listenSceneCollab`](#listenscenecollab) · [`pairDiskEvents`](#pairdiskevents) · [`prefabPath`](#prefabpath) · [`prefabsDirOf`](#prefabsdirof) · [`readFileProject`](#readfileproject) · [`readPrefabFiles`](#readprefabfiles) · [`readProjectPrefabFiles`](#readprojectprefabfiles) · [`resolveScenePath`](#resolvescenepath) · [`sceneCollabServer`](#scenecollabserver) · [`sceneNameOf`](#scenenameof) · [`snapshotFiles`](#snapshotfiles)
+[`ASSET_CHANGED`](#asset_changed) · [`AssetChange`](#assetchange) · [`AssetChangedMessage`](#assetchangedmessage) · [`BlobRepair`](#blobrepair) · [`DEV_CACHE_ROOT`](#dev_cache_root) · [`DISK_ORIGIN`](#disk_origin) · [`DiskChange`](#diskchange) · [`DiskEvent`](#diskevent) · [`DiskSync`](#disksync) · [`EXPORT_ENTRY_ID`](#export_entry_id) · [`ExportBuildConfig`](#exportbuildconfig) · [`ExportBuildOptions`](#exportbuildoptions) · [`ExportPluginLike`](#exportpluginlike) · [`FileApplyOptions`](#fileapplyoptions) · [`FileProject`](#fileproject) · [`ListeningSceneCollab`](#listeningscenecollab) · [`MOVE_SETTLE_MS`](#move_settle_ms) · [`PERSISTED_ORIGIN`](#persisted_origin) · [`PROJECT_ROUTE`](#project_route) · [`PrefabFiles`](#prefabfiles) · [`ProjectDiskSync`](#projectdisksync) · [`ProjectFileAdapter`](#projectfileadapter) · [`ProjectFileAdapterOptions`](#projectfileadapteroptions) · [`ProjectProblem`](#projectproblem) · [`ProjectScan`](#projectscan) · [`ProjectSync`](#projectsync) · [`SCENE_COLLAB_PATH`](#scene_collab_path) · [`SCENE_NAME_PATTERN`](#scene_name_pattern) · [`SCENE_ROUTE`](#scene_route) · [`SceneCollab`](#scenecollab) · [`SceneCollabOptions`](#scenecollaboptions) · [`SceneCollabPlugin`](#scenecollabplugin) · [`ScenePathError`](#scenepatherror) · [`SidecarReinspection`](#sidecarreinspection) · [`applyProjectBatchToFiles`](#applyprojectbatchtofiles) · [`codeModules`](#codemodules) · [`createExportBuild`](#createexportbuild) · [`createProjectFileAdapter`](#createprojectfileadapter) · [`createSceneCollab`](#createscenecollab) · [`defaultCacheDir`](#defaultcachedir) · [`exportEntrySource`](#exportentrysource) · [`fileContentStore`](#filecontentstore) · [`gameRegisters`](#gameregisters) · [`isCodePath`](#iscodepath) · [`listenSceneCollab`](#listenscenecollab) · [`pairDiskEvents`](#pairdiskevents) · [`prefabPath`](#prefabpath) · [`prefabsDirOf`](#prefabsdirof) · [`readFileProject`](#readfileproject) · [`readPrefabFiles`](#readprefabfiles) · [`readProjectPrefabFiles`](#readprojectprefabfiles) · [`resolveScenePath`](#resolvescenepath) · [`sceneCollabServer`](#scenecollabserver) · [`sceneNameOf`](#scenenameof) · [`snapshotFiles`](#snapshotfiles)
 
 ## `ASSET_CHANGED`
 
@@ -403,6 +403,19 @@ type ProjectFileAdapter = {
      */
     persist(name: string, doc: Y.Doc): Promise<void>;
     /**
+     * Inspects binaries again (`reinspectBlob`) and rewrites only their
+     * sidecars' meta and meta version: the live binaries `ids` names, else
+     * every one whose sidecar records an older meta version than its kind's
+     * (`isMetaStale`). An entry whose meta or filled settings move gets one
+     * `disk` transaction of its own; one already current gets none. With
+     * `dryRun` nothing is written. Unknown ids and non-binaries are skipped;
+     * the watcher runs it for a stale sidecar that lands on disk.
+     */
+    reinspectSidecars(doc: Y.Doc, opts?: {
+        dryRun?: boolean;
+        ids?: readonly AssetId[];
+    }): Promise<SidecarReinspection[]>;
+    /**
      * Points every live binary whose hash the content store doesn't hold back
      * at bytes it does (the file's, else the newest held in its history),
      * with re-inspected meta and a project log entry, in one transaction
@@ -444,7 +457,7 @@ type ProjectFileAdapter = {
 };
 ```
 
-Refers to [`BlobRepair`](#blobrepair), [`ProjectDiskSync`](#projectdisksync), [`ProjectProblem`](#projectproblem), [`ProjectScan`](#projectscan), [`ProjectSync`](#projectsync).
+Refers to [`BlobRepair`](#blobrepair), [`ProjectDiskSync`](#projectdisksync), [`ProjectProblem`](#projectproblem), [`ProjectScan`](#projectscan), [`ProjectSync`](#projectsync), [`SidecarReinspection`](#sidecarreinspection).
 
 ## `ProjectFileAdapterOptions`
 
@@ -616,6 +629,29 @@ _class_ in `vite/scene-paths.ts`
 declare class ScenePathError extends Error {
     constructor(message: string);
 }
+```
+
+## `SidecarReinspection`
+
+_type_ in `vite/project-files.ts`
+
+One binary `reinspectSidecars` inspected again, or would have.
+
+```ts
+type SidecarReinspection = {
+    /** The meta version the sidecar recorded, and the one its meta is now read under. */
+    from: number;
+    id: AssetId;
+    /** Set when the inspection failed; nothing is written for it. */
+    issue?: SceneIssue;
+    key: AssetKey;
+    /** Whether the registry entry's meta or filled settings changed. */
+    meta: boolean;
+    path: AssetPath;
+    /** Whether the sidecar's text changed. */
+    sidecar: boolean;
+    to: number;
+};
 ```
 
 ## `applyProjectBatchToFiles`

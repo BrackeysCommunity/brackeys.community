@@ -34,6 +34,7 @@ import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
   type Aabb,
+  type ExpandedScene,
   type GridSettings,
   type Prefab,
   type SceneDefinition,
@@ -680,5 +681,77 @@ describe("the kitchen sink", () => {
     expect(svg).toMatch(/<path data-sprite="ball" [^>]*data-asset="crates" data-frame="crate-1"/);
     expect(svg).toMatch(/<path data-sprite="ledge" [^>]*data-asset="hero" data-frame="hero-1"/);
     expect(svg).toMatch(/<path data-sprite="lamp" [^>]*data-asset="backdrop"/);
+  });
+});
+
+describe("text boxes", () => {
+  const registry = createRegistry();
+  const signs = (texts: Record<string, Record<string, unknown>>): ExpandedScene => ({
+    name: "signs",
+    bounds: [0, 0, 8, 4],
+    settings: { gravity: [0, 0], physics: "none", grid: null, view: { projection: "orthogonal" } },
+    entities: Object.entries(texts).map(([id, text], i) => ({
+      id,
+      type: "marker",
+      at: [1 + 2 * i, 2],
+      behaviors: { text },
+    })),
+  });
+  const fontProject = () =>
+    projectView({
+      meta: { projectId: "p", layout: 2, name: "P" },
+      assets: {
+        "k-rounded": {
+          key: "k-rounded",
+          id: "rounded",
+          kind: "font",
+          path: "rounded.woff2",
+          sha256: "c".repeat(64),
+          meta: { format: "woff2" },
+          created: { at: 0, by: "t" },
+        },
+      },
+      history: {},
+      code: {},
+      build: {},
+    });
+  const textEl = (svg: string, ref: string) =>
+    new RegExp(`<path data-text="${ref}"[^>]*>`).exec(svg)?.[0];
+  const labelOf = (svg: string, ref: string) =>
+    new RegExp(`<text class="text-label" data-text="${ref}"[^>]*>([^<]*)</text>`).exec(svg)?.[1];
+
+  it("draws each text block's measured box at its pose, labelled ≈ for a web font's estimate", () => {
+    const svg = renderSceneSvg(
+      signs({ plain: { text: "Gate" }, web: { text: "Gate", font: "rounded", size: 20 } }),
+      { registry, project: fontProject() },
+    );
+    // Four characters at 0.55 em of 16 px, 1.2 em tall, centred on (100, 200) px.
+    expect(textEl(svg, "plain")).toContain(
+      'data-exact="false" d="M82.4 190.4L117.6 190.4L117.6 209.6L82.4 209.6Z"',
+    );
+    expect(textEl(svg, "web")).toContain('data-exact="false"');
+    expect(labelOf(svg, "plain")).toBe("≈ &quot;Gate&quot;");
+    expect(labelOf(svg, "web")).toBe("≈ &quot;Gate&quot;");
+  });
+
+  it("measures a key in the default locale's strings, bracketed without them", () => {
+    const scene = signs({ door: { key: "door.open" } });
+    const strings = {
+      locale: "en",
+      direction: "ltr" as const,
+      strings: { "door.open": "Open sesame" },
+      font: null,
+    };
+    const svg = renderSceneSvg(scene, { registry, strings });
+    expect(textEl(svg, "door")).toContain('data-key="door.open"');
+    expect(labelOf(svg, "door")).toBe("≈ &quot;Open sesame&quot;");
+    expect(labelOf(renderSceneSvg(scene, { registry }), "door")).toBe("≈ &quot;[door.open]&quot;");
+  });
+
+  it("keeps labels off with labels: none, and draws nothing for a scene without text", () => {
+    const svg = renderSceneSvg(signs({ a: { text: "Hi" } }), { registry, labels: "none" });
+    expect(textEl(svg, "a")).toBeDefined();
+    expect(labelOf(svg, "a")).toBeUndefined();
+    expect(renderSceneSvg(yard, { registry: engine })).not.toContain('id="texts"');
   });
 });

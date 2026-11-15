@@ -1,0 +1,22 @@
+{
+  "$schema": "../../engine/project/synth.schema.json",
+  "kind": "synth",
+  "v": 1,
+  "attackMs": 4,
+  "decayMs": 240,
+  "duty": 0.5,
+  "dutySweep": -0.1,
+  "freq": 880,
+  "highpass": { "hz": 120, "sweep": 0.5 },
+  "jump": { "atMs": 60, "semitones": 5 },
+  "lowpass": { "hz": 4000, "resonance": 0.3, "sweep": -1 },
+  "punch": 0.4,
+  "retriggerMs": 80,
+  "seed": 7,
+  "slide": -1.5,
+  "slideAccel": 0.5,
+  "sustainMs": 60,
+  "vibrato": { "hz": 6, "semitones": 0.5 },
+  "volume": 0.9,
+  "wave": "square"
+}

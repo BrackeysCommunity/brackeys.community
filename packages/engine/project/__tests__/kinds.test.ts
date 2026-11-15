@@ -226,6 +226,10 @@ describe("ENGINE_ASSET_KINDS", () => {
       "code",
       "animation",
       "emitter",
+      "sound",
+      "synth",
+      "dialogue",
+      "strings",
     ]);
     expect(
       createKindRegistry()
@@ -266,6 +270,10 @@ describe("ENGINE_ASSET_KINDS", () => {
           "recording",
           "save",
           "emitter",
+          "sound",
+          "synth",
+          "dialogue",
+          "strings",
         )
         .sort(),
     );

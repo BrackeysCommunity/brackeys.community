@@ -32,7 +32,7 @@ import {
   type PointerBindings,
 } from "./compile-input-script";
 import { probeConfigHash, simActionError } from "./headless";
-import { legalCommands, startState } from "./legal";
+import { dialogueCommands, legalCommands, startState } from "./legal";
 import {
   blockedRun,
   prepareRun,
@@ -162,12 +162,15 @@ type MacroContext = {
 };
 
 /**
- * How a game that lists its commands is explored: each macro is, with
- * probability `chance` (1 or 0.5), one slot sending one command picked from
+ * How a run's commands are explored: each macro is, with probability
+ * `chance` (1 or 0.5), one slot sending one command picked from
  * `list(state)`, or nothing when the list is empty; `counts` tallies them.
+ * Without `always`, only while a conversation takes a command, so a game
+ * that lists none draws as it did before one starts.
  */
 type CommandMacros = {
   chance: 1 | 0.5;
+  always: boolean;
   list(state: PlayState): readonly GameCommand[];
   start: PlayState;
   counts: FuzzLegal;
@@ -215,7 +218,9 @@ function macroInput(
 
   function draw(slot: number, out: InputAction[]): void {
     const next =
-      commands && (commands.chance === 1 || rng.below(2) === 0)
+      commands &&
+      (commands.always || dialogueCommands(state?.dialogue).length > 0) &&
+      (commands.chance === 1 || rng.below(2) === 0)
         ? commandMacro()
         : macro(rng, actions);
     if (!Number.isInteger(next.ticks) || next.ticks < 1) {
@@ -340,8 +345,9 @@ const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * `Rng`. A game that lists its commands and has no macro of its own gets
  * command macros: one slot sending one of `legalCommands` (nothing when it
  * is empty), every macro for a `turns` game and half of them otherwise,
- * counted in `legal`. Rollouts run until the game's outcome,
- * `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
+ * counted in `legal`. Any other game gets them, picked from the dialogue's
+ * commands, only while a conversation takes one. Rollouts run until the
+ * game's outcome, `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
  * rollouts still end). Reports which scene entities the rollouts' events
  * named (never a runtime `#` id), how many rollouts reached each and how
  * early, the ones never touched, and how the rollouts ended. Rollout `i` draws from its own fork of the seed,
@@ -419,14 +425,15 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
         started.load,
       );
     time = started.runtime.ctx.time;
-    const commands: CommandMacros | null = listsCommands
-      ? {
-          chance: time.kind === "turns" ? 1 : 0.5,
-          list: (state) => legalCommands(play, state, Infinity)?.legal ?? [],
-          start: startState(started.runtime),
-          counts: legal,
-        }
-      : null;
+    const commands: CommandMacros = {
+      chance: time.kind === "turns" ? 1 : 0.5,
+      always: listsCommands,
+      list: listsCommands
+        ? (state) => legalCommands(play, state, Infinity)?.legal ?? []
+        : (state) => dialogueCommands(state.dialogue),
+      start: startState(started.runtime),
+      counts: legal,
+    };
     const seen = new Set<Ref>();
     const touch = (id: string | undefined, tick: number) => {
       if (id === undefined || isRuntimeId(id) || seen.has(id) || !types.has(id)) return;
@@ -492,7 +499,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       .sort((a, b) => byRef(a.ref, b.ref)),
     untouched: [...types.keys()].filter((ref) => !touched.has(ref)).sort(byRef),
     results,
-    ...(listsCommands ? { legal } : {}),
+    ...(listsCommands || legal.sent > 0 ? { legal } : {}),
     timing: {
       elapsedMs: Math.round(elapsedMs * 100) / 100,
       ticksPerSecond: elapsedMs > 0 ? Math.round((ticks * 1000) / elapsedMs) : 0,

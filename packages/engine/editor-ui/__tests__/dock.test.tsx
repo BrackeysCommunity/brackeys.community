@@ -16,17 +16,10 @@ import { DEFAULT_SNAP } from "../../editor/tools";
 import { createRegistry } from "../../game/index";
 import type { AssetKey } from "../../project/index";
 import { createToolRouter } from "../../tool-router";
-import {
-  bottomRow,
-  EditorFrame,
-  editorChrome,
-  Island,
-  useBottomRow,
-  type FramePanels,
-} from "../frame/EditorFrame";
+import { EditorFrame, editorChrome, Island, type FramePanels } from "../frame/EditorFrame";
 import type { EditorNotify } from "../host";
 import { DEFAULT_LAYOUT, fitLayout, type Viewport } from "../layout/model";
-import { EditorStatusBar } from "../panels/EditorStatusBar";
+import { EditorStatusBar, problemsSummary } from "../panels/EditorStatusBar";
 import {
   dockParts,
   dockWidth,
@@ -88,7 +81,7 @@ const viewportOf = (width: number, height = 900): Viewport => ({
   bottom: 0,
 });
 
-/** The bottom row's inner width at `width`: the canvas between the columns, less its padding. */
+/** The top bar's width at `width`: the canvas between the columns, less a gap at each side. */
 const rowAt = (width: number) => {
   const { canvas } = fitLayout(DEFAULT_LAYOUT, viewportOf(width));
   return width - canvas.left - canvas.right - 16;
@@ -128,11 +121,7 @@ function setup() {
           />
         </Island>
       }
-      status={
-        <Island>
-          <EditorStatusBar session={session} host={host} />
-        </Island>
-      }
+      status={<EditorStatusBar session={session} host={host} named />}
     >
       <canvas />
     </EditorFrame>,
@@ -161,17 +150,18 @@ describe("the dock's fit", () => {
     16,
   );
 
-  it("moves game tools out first, last first, then the grid step, then the shape tools", () => {
+  it("moves game tools out first, last first, then Group, Ungroup and Frame, the grid step and toggle, then the shape tools", () => {
     const full = dockWidth(parts, new Set());
     expect(fitDock(parts, full).size).toBe(0);
     expect([...fitDock(parts, full - 1)]).toEqual(["tool:springs"]);
     const noGame = dockWidth(parts, new Set(["tool:springs", "tool:constructs"]));
     expect([...fitDock(parts, noGame)]).toEqual(["tool:springs", "tool:constructs"]);
-    expect([...fitDock(parts, noGame - 1)]).toEqual(["tool:springs", "tool:constructs", "step"]);
+    expect([...fitDock(parts, noGame - 1)]).toEqual(["tool:springs", "tool:constructs", "group"]);
     const least = [...fitDock(parts, 0)];
     expect(least).not.toContain("tool:select");
     expect(least).not.toContain("tool:pan");
-    expect(least.slice(3)).toEqual([
+    expect(least.slice(2, 7)).toEqual(["group", "ungroup", "frame", "step", "grid"]);
+    expect(least.slice(7)).toEqual([
       "tool:rotate",
       "tool:waypoints",
       "tool:pen",
@@ -237,7 +227,8 @@ describe("the dock's fit", () => {
 });
 
 describe("the dock in the frame", () => {
-  it("draws every tool at 1440, Play and Play from here as icon buttons with key hints", async () => {
+  it("draws every tool at 1600, Play and Play from here as icon buttons with key hints", async () => {
+    resizeWindow(1600);
     const { onPlay } = setup();
     const bar = within(toolbar());
     expect(bar.getByRole("button", { name: "Constructs" })).toBeTruthy();
@@ -296,78 +287,80 @@ describe("the dock in the frame", () => {
     resizeWindow(1024);
     setup();
     expect(within(toolbar()).queryByRole("button", { name: "Constructs" })).toBeNull();
-    resizeWindow(1440);
+    resizeWindow(1600);
     expect(within(toolbar()).getByRole("button", { name: "Constructs" })).toBeTruthy();
     expect(within(toolbar()).queryByRole("button", { name: "More tools" })).toBeNull();
   });
 
-  it("keeps the shape tools and the grid step behind More tools at 760, the toolbar inside the row", () => {
+  it("fits the toolbar into the top bar at 760, the rest behind More tools", () => {
     resizeWindow(760);
     const { tools } = setup();
     const bar = within(toolbar());
     expect(bar.getByRole("button", { name: "Select" })).toBeTruthy();
     expect(bar.getByRole("button", { name: "Pan" })).toBeTruthy();
     expect(bar.getByRole("button", { name: "More tools" })).toBeTruthy();
+    const parts = dockParts(tools.tools(), DEFAULT_SNAP.step);
+    const hidden = fitDock(parts, rowAt(760));
+    expect(hidden.has("tool:constructs")).toBe(true);
+    expect(dockWidth(parts, hidden)).toBeLessThanOrEqual(rowAt(760));
     const drawn = new Set(bar.getAllByRole("button").map((b) => b.getAttribute("aria-label")));
-    const hidden = new Set(
-      tools
-        .tools()
-        .filter((t) => !drawn.has(t.label))
-        .map((t) => `tool:${t.id}`),
-    );
-    expect(hidden).toEqual(
-      new Set([
-        "tool:constructs",
-        "tool:springs",
-        "tool:rotate",
-        "tool:waypoints",
-        "tool:pen",
-        "tool:circle",
-      ]),
-    );
-    expect([...drawn].some((l) => l?.startsWith("Grid step"))).toBe(false);
-    hidden.add("step");
-    const shown = dockParts(tools.tools(), DEFAULT_SNAP.step);
-    expect(dockWidth(shown, hidden)).toBeLessThanOrEqual(rowAt(760));
+    for (const t of tools.tools())
+      expect(drawn.has(t.label), t.id).toBe(!hidden.has(`tool:${t.id}`));
+  });
+
+  it("offers Group, Ungroup and Frame, the selection ones only with a selection", () => {
+    const { session, tools } = setup();
+    const bar = within(toolbar());
+    const group = bar.getByRole("button", { name: "Group" }) as HTMLButtonElement;
+    const ungroup = bar.getByRole("button", { name: "Ungroup" }) as HTMLButtonElement;
+    expect(group.disabled).toBe(true);
+    expect(ungroup.disabled).toBe(true);
+    expect((bar.getByRole("button", { name: "Frame" }) as HTMLButtonElement).disabled).toBe(false);
+    const run = vi.spyOn(tools, "command");
+    act(() => session.select(["pad"]));
+    expect(group.disabled).toBe(false);
+    fireEvent.click(group);
+    expect(run).toHaveBeenCalledWith("group");
+  });
+
+  it("toggles the grid layer for this viewer", () => {
+    setup();
+    const grid = within(toolbar()).getByRole("button", { name: "Show the grid" });
+    const pressed = grid.getAttribute("aria-pressed");
+    fireEvent.click(grid);
+    expect(grid.getAttribute("aria-pressed")).not.toBe(pressed);
   });
 });
 
-describe("the status in the bottom row", () => {
-  it("names the scene, its save state and its warnings when the row has room", async () => {
-    resizeWindow(1600);
+describe("the status bar", () => {
+  it("spans the frame's bottom edge with the save state first and the problems last", async () => {
     setup();
     await waitFor(() => expect(status().textContent).toContain("1 warning"));
-    expect(status().hasAttribute("data-compact")).toBe(false);
-    expect(within(status()).getByText("dock-yard")).toBeTruthy();
-    expect(within(status()).getByText("Saved")).toBeTruthy();
-    expect(within(status()).getByText("Just you").className).toBe("je-sr-only");
+    const bar = status().closest<HTMLElement>(".je-frame-statusbar")!;
+    expect(bar).toBeTruthy();
+    const start = status().querySelector<HTMLElement>(".je-status-start")!;
+    expect(within(start).getByText("dock-yard")).toBeTruthy();
+    expect(within(start).getByText("Saved")).toBeTruthy();
+    expect(within(start).getByText("Just you").className).toBe("je-sr-only");
+    const problems = status().querySelector<HTMLElement>(".je-status-problems")!;
+    expect(problems.textContent).toBe("1 warning");
+    expect(problems.getAttribute("data-tone")).toBe("warning");
   });
 
-  it("draws a dot and counts when the row is short, keeping the words for screen readers", async () => {
-    resizeWindow(1024);
-    setup();
-    await waitFor(() => expect(document.querySelector(".je-status-count")).toBeTruthy());
-    const row = status();
-    expect(row.hasAttribute("data-compact")).toBe(true);
-    expect(row.querySelector(".je-status-dot")?.getAttribute("data-tone")).toBe("success");
-    const count = row.querySelector<HTMLElement>(".je-status-count")!;
-    expect(count.getAttribute("data-tone")).toBe("warning");
-    expect(count.querySelector("[aria-hidden]:not(svg)")?.textContent).toBe("1");
-    expect(within(row).getByText("1 warning").className).toBe("je-sr-only");
-    expect(within(row).getByText("Saved").closest(".je-sr-only")).toBeTruthy();
-    expect(within(row).getByText("dock-yard").className).toBe("je-sr-only");
-    expect(row.querySelector(".je-save-state-short")).toBeNull();
+  it("sums the problems in one line, or says there are none", () => {
+    const issue = (severity: SceneIssue["severity"]) =>
+      ({ severity, code: "x", message: "", entityIds: [] }) as unknown as SceneIssue;
+    expect(problemsSummary([])).toBe("No problems");
+    expect(problemsSummary([issue("warn")])).toBe("1 warning");
+    expect(problemsSummary([issue("error"), issue("error"), issue("warn"), issue("info")])).toBe(
+      "2 errors · 1 warning · 1 info",
+    );
   });
 
-  it("names a dropped connection in a short word beside the dot when the row is short", async () => {
-    resizeWindow(1024);
+  it("names a dropped connection in its words", async () => {
     const { host } = setup();
     act(() => host.setState((s) => ({ ...s, connection: "reconnecting", unsynced: 1 })));
-    await waitFor(() => expect(status().hasAttribute("data-compact")).toBe(true));
-    const save = status().querySelector<HTMLElement>(".je-save-state[data-compact]")!;
-    expect(save.querySelector(".je-status-dot")?.getAttribute("data-tone")).toBe("warning");
-    expect(save.querySelector(".je-save-state-short")?.textContent).toBe("Retrying");
-    expect(within(save).getByText("Reconnecting…").className).toBe("je-sr-only");
+    await waitFor(() => expect(status().textContent).toContain("Reconnecting…"));
   });
 });
 
@@ -396,8 +389,14 @@ describe("the Problems count off the tab strip", () => {
         pickedAsset: new Store<AssetKey | null>(null),
       },
     };
+    const host = new Store<EditorHostState>({ connection: "live", sceneChanged: false });
     render(
-      <EditorFrame host={{ storage: null }} panels={panels} dock={<Island>dock</Island>}>
+      <EditorFrame
+        host={{ storage: null }}
+        panels={panels}
+        dock={<Island>dock</Island>}
+        status={<EditorStatusBar session={session} host={host} physical={physical} />}
+      >
         <canvas />
       </EditorFrame>,
     );
@@ -450,6 +449,26 @@ describe("the Problems count off the tab strip", () => {
     ).toBe("true");
   });
 
+  it("counts the physical problems in the status bar too, and opens Problems from it, expanded", async () => {
+    framed(1440);
+    const overview = await screen.findByRole("button", {
+      name: /^1 warning\. Show the Problems panel/,
+    });
+    expect(overview.closest(".je-frame-statusbar")).toBeTruthy();
+    const group = () => within(document.querySelector<HTMLElement>(".je-frame-group-right-1")!);
+    fireEvent.click(group().getByRole("tab", { name: /History/ }));
+    fireEvent.click(group().getByRole("button", { name: "Collapse group" }));
+    expect(group().getByRole("button", { name: "Expand group" })).toBeTruthy();
+
+    fireEvent.click(overview);
+    expect(
+      group()
+        .getByRole("tab", { name: /Problems/ })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(group().getByRole("button", { name: "Collapse group" })).toBeTruthy();
+  });
+
   it("badges a single-column layout's rail too", async () => {
     framed(760);
     const left = screen.getByRole("navigation", { name: "Left panels" });
@@ -461,54 +480,9 @@ describe("the Problems count off the tab strip", () => {
   });
 });
 
-describe("sharing the bottom row with a running activity", () => {
-  const dock = { full: 535, least: 220 };
-  const words = { full: 229, least: 60 };
-
-  it("keeps the status's words beside the whole dock while nothing runs", () => {
-    expect(bottomRow(816, { dock, status: words }, true)).toEqual({
-      dock: 816 - 229 - 8,
-      compactStatus: false,
-      status: Infinity,
-    });
-  });
-
-  it("takes a running activity's room from the dock's tools before the status's words", () => {
-    const activity = { full: 260, least: 120 };
-    const row = bottomRow(816, { dock, status: { ...words, activity } }, true);
-    expect(row.compactStatus).toBe(false);
-    expect(row.status).toBe(229 + 260);
-    expect(row.dock).toBe(816 - 229 - 260 - 8);
-    expect(row.dock).toBeGreaterThanOrEqual(dock.least);
-  });
-
-  it("cuts the activity short once the dock is at its least, then gives way the words", () => {
-    const activity = { full: 400, least: 120 };
-    const short = bottomRow(800, { dock, status: { ...words, activity } }, true);
-    expect(short.compactStatus).toBe(false);
-    expect(short.status).toBe(800 - 8 - dock.least);
-    expect(short.dock).toBe(dock.least);
-
-    const wideDock = { full: 535, least: 500 };
-    const shorter = bottomRow(800, { dock: wideDock, status: { ...words, activity } }, true);
-    expect(shorter.compactStatus).toBe(true);
-    expect(shorter.status).toBe(800 - 8 - wideDock.least);
-    expect(shorter.status).toBeGreaterThanOrEqual(words.least + activity.least);
-  });
-
-  function FixedDock() {
-    const { dock: room } = useBottomRow("dock", dock);
-    return (
-      <Island>
-        <span data-room={room}>dock</span>
-      </Island>
-    );
-  }
-
-  it("shows a running import's label and count at the site's 816 px row beside a 535 px dock", () => {
+describe("a running activity in the status bar", () => {
+  it("shows a running import's label and count beside the save state", () => {
     vi.useFakeTimers();
-    // The default columns take 624 px and the row's padding 16: an 816 px row.
-    resizeWindow(816 + 624 + 16);
     const session = createEditorSession({
       doc: sceneToDoc(scene, { key: sequentialKeys("t") }),
       origin: { kind: "user", userId: "ada", name: "Ada" },
@@ -521,14 +495,7 @@ describe("sharing the bottom row with a running activity", () => {
     const pending = createPending({ notify: say as EditorNotify });
     render(
       <PendingProvider pending={pending}>
-        <EditorFrame
-          dock={<FixedDock />}
-          status={
-            <Island>
-              <EditorStatusBar session={session} host={host} />
-            </Island>
-          }
-        >
+        <EditorFrame status={<EditorStatusBar session={session} host={host} />}>
           <canvas />
         </EditorFrame>
       </PendingProvider>,
@@ -548,17 +515,10 @@ describe("sharing the bottom row with a running activity", () => {
     expect(status().textContent).not.toContain("Reading");
     act(() => vi.advanceTimersByTime(ACTIVITY_DELAY_MS));
 
-    expect(status().hasAttribute("data-compact")).toBe(false);
-    expect(within(status()).getByText("dock-yard").className).toBe("je-status-scene");
-    expect(within(status()).getByText("Saved")).toBeTruthy();
-    const label = status().querySelector(".je-activity-label")!;
-    expect(label.textContent).toBe("Reading review-big-2.png");
-    expect(status().querySelector(".je-activity-count")!.textContent).toBe("1 of 5");
-    const cell = status().closest<HTMLElement>(".je-frame-status")!;
-    const room = Number.parseFloat(cell.style.maxWidth);
-    const dockRoom = Number(document.querySelector("[data-room]")!.getAttribute("data-room"));
-    expect(room + 8 + dockRoom).toBeLessThanOrEqual(816);
-    expect(dockRoom).toBeGreaterThanOrEqual(dock.least);
+    const start = status().querySelector<HTMLElement>(".je-status-start")!;
+    expect(within(start).getByText("Saved")).toBeTruthy();
+    expect(start.querySelector(".je-activity-label")!.textContent).toBe("Reading review-big-2.png");
+    expect(start.querySelector(".je-activity-count")!.textContent).toBe("1 of 5");
   });
 });
 
@@ -628,16 +588,19 @@ describe("the context and the banner", () => {
     expect(context).toBeTruthy();
     expect(context.querySelectorAll(".je-prefab-header-row")).toHaveLength(0);
     expect(within(context).getByRole("button", { name: "Create variant" })).toBeTruthy();
-    // jsdom lays out nothing, so the host's chrome measures 0 wide: the context starts at the inset.
+    // jsdom lays out nothing, so the top bar measures 0 tall: the context starts at its top, beside the left column.
+    const { canvas } = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
     expect(context.style.top).toBe("8px");
-    expect(context.style.left).toBe("8px");
+    expect(context.style.left).toBe(`${canvas.left + 8}px`);
     // With no top-right chrome the right column starts at the top inset.
     expect(document.querySelector<HTMLElement>(".je-frame-right")?.style.top).toBe("8px");
   });
-  it("sits beside the host's chrome while the top row has room, and below it when not", () => {
+
+  it("sits under the top bar, which sits beside the host's chrome while the row has room, and below it when not", () => {
     const sizes: Record<string, [number, number]> = {
       "je-frame-top-left": [420, 40],
       "je-frame-context": [300, 34],
+      "je-frame-dock": [500, 40],
     };
     const real = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
       .value as (this: Element) => DOMRect;
@@ -649,16 +612,20 @@ describe("the context and the banner", () => {
     );
     try {
       editor({ prefab: true });
+      const dock = document.querySelector<HTMLElement>(".je-frame-dock")!;
       const context = document.querySelector<HTMLElement>(".je-frame-context")!;
-      expect(context.style.left).toBe(`${8 + 420 + 8}px`);
-      expect(context.style.top).toBe("8px");
+      expect(dock.style.left).toBe(`${8 + 420 + 8}px`);
+      expect(dock.style.top).toBe("8px");
+      expect(context.style.left).toBe(dock.style.left);
+      expect(context.style.top).toBe(`${8 + 40 + 8}px`);
       const left = document.querySelector<HTMLElement>(".je-frame-left")!;
       expect(left.style.top).toBe(`${8 + 40 + 8}px`);
 
-      // At 760 one column is drawn and the right one leaves the context too little room beside.
+      // At 760 the left column is a rail and the host's chrome leaves the bar too little room beside it.
       resizeWindow(760);
-      expect(context.style.left).toBe("8px");
-      expect(context.style.top).toBe(`${8 + 40 + 8}px`);
+      expect(dock.style.left).toBe(`${8 + 36 + 8}px`);
+      expect(dock.style.top).toBe(`${8 + 40 + 8}px`);
+      expect(context.style.top).toBe(`${8 + 40 + 8 + 40 + 8}px`);
     } finally {
       vi.restoreAllMocks();
     }

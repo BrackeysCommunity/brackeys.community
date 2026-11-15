@@ -301,7 +301,13 @@ describe("parseTexturePackerJson", () => {
 
 describe("parseBmfont", () => {
   it("reads the fixture's line height and page", () => {
-    expect(parseBmfont(fixtureText("font.fnt"))).toEqual({ lineHeight: 9, pages: ["font_0.png"] });
+    expect(parseBmfont(fixtureText("font.fnt"))).toEqual({
+      lineHeight: 9,
+      pages: ["font_0.png"],
+      size: 8,
+      advances: { "65": 4, "66": 4, "67": 4, "68": 4 },
+      coverage: [[65, 68]],
+    });
   });
 
   it("orders pages by id and keeps spaces in quoted file names", () => {
@@ -311,7 +317,11 @@ describe("parseBmfont", () => {
       'page id=1 file="font 1.png"',
       "page id=0 file=font_0.png",
     ].join("\r\n");
-    expect(parseBmfont(text)).toEqual({ lineHeight: 14, pages: ["font_0.png", "font 1.png"] });
+    expect(parseBmfont(text)).toEqual({
+      lineHeight: 14,
+      pages: ["font_0.png", "font 1.png"],
+      size: 12,
+    });
   });
 
   it.each([
@@ -324,7 +334,10 @@ describe("parseBmfont", () => {
     ["a non-numeric line height", 'common lineHeight=big\npage id=0 file="a.png"'],
     ["a zero line height", 'common lineHeight=0\npage id=0 file="a.png"'],
     ["two common lines", 'common lineHeight=9\ncommon lineHeight=8\npage id=0 file="a"'],
-    ["the XML variant", '<?xml version="1.0"?><font><common lineHeight="9" pages="1"/></font>'],
+    [
+      "an XML file with no pages",
+      '<?xml version="1.0"?><font><common lineHeight="9" pages="1"/></font>',
+    ],
     ["the binary variant", "BMF\u0003\u0001"],
   ])("refuses %s", (_, text) => {
     expect(parseBmfont(text)).toBeNull();

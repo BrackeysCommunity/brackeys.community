@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { Store } from "@tanstack/store";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import { createEditorSession, defineEditorTool, type SceneDefinition } from "../../editor/index";
 import { createRegistry } from "../../game/index";
-import { EditorFrame, Island, useBottomRow } from "../frame/EditorFrame";
+import { EditorFrame } from "../frame/EditorFrame";
 import { EditorStatusBar } from "../panels/EditorStatusBar";
 import { dockParts, dockWidth, fitDock } from "../panels/EditorToolbar";
 import type { EditorHostState } from "../session/live-scene-editor";
@@ -26,12 +26,6 @@ function resizeWindow(width: number, height = 800) {
   });
 }
 
-/** A toolbar as wide as a full one at 1280: it leaves the status a short row. */
-function WideDock() {
-  useBottomRow("dock", { full: 900, least: 400 });
-  return <div />;
-}
-
 function setup(notice: Store<SceneNotice | null>) {
   const session = createEditorSession({
     doc: sceneToDoc(scene, { key: sequentialKeys("t") }),
@@ -42,47 +36,26 @@ function setup(notice: Store<SceneNotice | null>) {
   });
   const host = new Store<EditorHostState>({ connection: "live", sceneChanged: false });
   render(
-    <EditorFrame
-      dock={
-        <Island>
-          <WideDock />
-        </Island>
-      }
-      status={
-        <Island>
-          <EditorStatusBar session={session} host={host} notice={notice} />
-        </Island>
-      }
-    >
+    <EditorFrame status={<EditorStatusBar session={session} host={host} notice={notice} />}>
       <canvas />
     </EditorFrame>,
   );
 }
 
-const status = () => screen.getAllByRole("status").find((s) => s.classList.contains("je-status"))!;
+const status = () =>
+  screen.getAllByRole("status").find((s) => s.classList.contains("je-status-start"))!;
 
 afterEach(cleanup);
 
-describe("a scene notice in the status", () => {
-  it("stays visible, not only for screen readers, when the bottom row is short", async () => {
+describe("a scene notice in the status bar", () => {
+  it("shows beside the save state, not only for screen readers", async () => {
     resizeWindow(1280);
     const notice = new Store<SceneNotice | null>(null);
     setup(notice);
-    await waitFor(() => expect(status().hasAttribute("data-compact")).toBe(true));
     act(() => notice.setState(() => ({ text: "Undid Move pad in Cellar" })));
-    const row = status();
-    await waitFor(() => expect(row.hasAttribute("data-compact")).toBe(true));
-    const shown = within(row).getByText("Undid Move pad in Cellar");
+    const shown = await within(status()).findByText("Undid Move pad in Cellar");
     expect(shown.className).toBe("je-status-notice");
     expect(shown.closest(".je-sr-only")).toBeNull();
-  });
-
-  it("is drawn the same way in the full row", async () => {
-    resizeWindow(2400);
-    const notice = new Store<SceneNotice | null>({ text: "Redid Add gate in Yard" });
-    setup(notice);
-    await waitFor(() => expect(status().hasAttribute("data-compact")).toBe(false));
-    expect(within(status()).getByText("Redid Add gate in Yard").className).toBe("je-status-notice");
   });
 });
 

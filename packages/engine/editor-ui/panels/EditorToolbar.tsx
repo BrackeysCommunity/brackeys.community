@@ -1,10 +1,13 @@
 import {
   ArrowDown01Icon,
+  CenterFocusIcon,
   CircleIcon,
   CloudUploadIcon,
   Cursor01Icon,
   CursorMove01Icon,
   CursorPointer01Icon,
+  GridIcon,
+  GroupItemsIcon,
   Magnet01Icon,
   MoreHorizontalIcon,
   PenTool01Icon,
@@ -14,6 +17,7 @@ import {
   Route01Icon,
   SquareIcon,
   Undo02Icon,
+  UngroupItemsIcon,
 } from "@hugeicons/core-free-icons";
 import { useMemo, useState, type ReactNode } from "react";
 
@@ -33,7 +37,7 @@ import {
 import { DEFAULT_LENGTH_UNIT } from "../../game/defaults";
 import { pxPerMetreOf } from "../../game/units";
 import type { Registry } from "../../scene/index";
-import { useBottomRow, usePanelOpener } from "../frame/EditorFrame";
+import { useDockRoom, usePanelOpener } from "../frame/EditorFrame";
 import type { EditorLiveHost, EditorNotify } from "../host";
 import { formatLength } from "../kit/format";
 import {
@@ -47,6 +51,7 @@ import {
   MenuCheckboxItem,
   MenuContent,
   MenuGroup,
+  MenuItem,
   MenuLabel,
   MenuRadioGroup,
   MenuRadioItem,
@@ -96,6 +101,49 @@ function toolChord(keymap: Keymap, id: string): string | undefined {
 }
 
 const Divider = () => <span className="je-toolbar-divider" aria-hidden />;
+
+/** The selection commands the toolbar offers beside the tools, each also on a key. */
+const ARRANGE = [
+  { key: "group", icon: GroupItemsIcon, label: "Group", selection: true },
+  { key: "ungroup", icon: UngroupItemsIcon, label: "Ungroup", selection: true },
+  { key: "frame", icon: CenterFocusIcon, label: "Frame", selection: false },
+] as const satisfies readonly {
+  key: EditorCommand;
+  icon: IconSvgElement;
+  label: string;
+  selection: boolean;
+}[];
+
+type ArrangeCommand = (typeof ARRANGE)[number];
+
+/** What an arrange command says it does, now: framing takes the whole scene when nothing is selected. */
+const arrangeText = (command: ArrangeCommand, hasSelection: boolean) =>
+  command.key === "frame"
+    ? hasSelection
+      ? "Frame the selection"
+      : "Frame the whole scene"
+    : command.key === "group"
+      ? "Group the selection"
+      : "Ungroup the selection";
+
+/** The edit overlay's grid on or off for this viewer; off and disabled while the scene has none to draw. */
+function GridToggle({ session }: { session: EditorSession }) {
+  const [layers, setLayer] = useEditLayers(session);
+  const scene = useExpandedScene(session);
+  const missing = unavailableLayers(scene, session.registry).grid;
+  const on = layers.grid;
+  return (
+    <IconButton
+      icon={GridIcon}
+      label="Show the grid"
+      variant={on ? "secondary" : "ghost"}
+      aria-pressed={on}
+      disabled={missing !== undefined && !on}
+      onClick={() => setLayer("grid", !on)}
+      tooltip={missing ?? "Show the grid"}
+    />
+  );
+}
 
 function ToolButton({
   tool,
@@ -201,7 +249,7 @@ function PickerMenu({
         {text}
         <Icon icon={ArrowDown01Icon} size={13} />
       </MenuTrigger>
-      <MenuContent side="top" align="center" className={cx("je-snap-menu", menuClassName)}>
+      <MenuContent side="bottom" align="center" className={cx("je-snap-menu", menuClassName)}>
         {children}
       </MenuContent>
     </Menu>
@@ -467,9 +515,13 @@ export function dockParts(
       { key: "divider:snap", width: W.divider },
       { key: "snap", width: W.icon },
       { key: "step", width: stepWidth(step, ppm), drop: 100 },
+      { key: "grid", width: W.icon, drop: 105 },
     );
   }
-  if (parts.length > 0) parts.push({ key: "divider:history", width: W.divider });
+  if (tools.length > 0) {
+    parts.push({ key: "divider:arrange", width: W.divider });
+    ARRANGE.forEach((c, i) => parts.push({ key: c.key, width: W.icon, drop: 60 + i }));
+  }
   parts.push(
     { key: "undo", width: W.icon },
     { key: "redo", width: W.icon },
@@ -485,10 +537,12 @@ export function dockParts(
 /** The toolbar's width with `hidden` in the overflow menu (and its trigger drawn when any is). */
 export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string>): number {
   const anyGame = parts.some((p) => p.game && !hidden.has(p.key));
+  const anyArrange = ARRANGE.some((c) => parts.some((p) => p.key === c.key) && !hidden.has(c.key));
   const shown = parts.filter(
     (p) =>
       !hidden.has(p.key) &&
       (p.key !== "divider:game" || anyGame) &&
+      (p.key !== "divider:arrange" || anyArrange) &&
       (p.key !== "divider:option" || !hidden.has("option")) &&
       (p.key !== "divider:scene" || !hidden.has("scene")),
   );
@@ -502,8 +556,8 @@ export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string
 /**
  * What gives way so the toolbar fits in `room`: first the parts that can
  * narrow do (their `narrowed` keys), then these move into the overflow menu:
- * game tools, the grid step, the tool's option, the scene picker, then shape
- * tools.
+ * game tools, Group, Ungroup and Frame, the grid step, the grid toggle, the
+ * tool's option, the scene picker, then shape tools.
  */
 export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   const hidden = new Set<string>();
@@ -522,9 +576,6 @@ export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   }
   return hidden;
 }
-
-const allDroppable = (parts: readonly DockPart[]) =>
-  new Set(parts.filter((p) => p.drop !== undefined).map((p) => p.key));
 
 /** The scene picker as "More tools" holds it: a submenu naming the open scene. */
 type OverflowScene = {
@@ -551,6 +602,8 @@ function OverflowMenu({
   option,
   ppm,
   scene,
+  arrange,
+  hasSelection,
 }: {
   session: EditorSession;
   tools: readonly EditorToolDef[];
@@ -561,6 +614,9 @@ function OverflowMenu({
   option: ToolOption | null;
   ppm: number;
   scene: OverflowScene | null;
+  /** The selection commands that didn't fit. */
+  arrange: readonly ArrangeCommand[];
+  hasSelection: boolean;
 }) {
   return (
     <Menu>
@@ -575,7 +631,7 @@ function OverflowMenu({
           />
         }
       />
-      <MenuContent side="top" align="center" className="je-dock-overflow">
+      <MenuContent side="bottom" align="end" className="je-dock-overflow">
         {tools.length > 0 ? (
           <MenuRadioGroup value={active} onValueChange={(id) => host.setTool(String(id))}>
             {tools.map((tool) => {
@@ -595,9 +651,34 @@ function OverflowMenu({
             })}
           </MenuRadioGroup>
         ) : null}
-        {option ? (
+        {arrange.length > 0 ? (
           <>
             {tools.length > 0 ? <MenuSeparator /> : null}
+            <MenuGroup>
+              {arrange.map((c) => {
+                const chord = keymap.chordOf(c.key);
+                return (
+                  <MenuItem
+                    key={c.key}
+                    disabled={c.selection && !hasSelection}
+                    onClick={() => host.command(c.key)}
+                  >
+                    <Icon icon={c.icon} size={14} />
+                    {arrangeText(c, hasSelection)}
+                    {chord ? (
+                      <MenuShortcut>
+                        <Hotkey chord={chord} />
+                      </MenuShortcut>
+                    ) : null}
+                  </MenuItem>
+                );
+              })}
+            </MenuGroup>
+          </>
+        ) : null}
+        {option ? (
+          <>
+            {tools.length > 0 || arrange.length > 0 ? <MenuSeparator /> : null}
             <MenuGroup>
               <MenuLabel>{option.label}</MenuLabel>
               <OptionItems host={host} option={option} />
@@ -606,7 +687,7 @@ function OverflowMenu({
         ) : null}
         {snap ? (
           <>
-            {tools.length > 0 || option ? <MenuSeparator /> : null}
+            {tools.length > 0 || arrange.length > 0 || option ? <MenuSeparator /> : null}
             <MenuGroup>
               <MenuLabel>Grid step</MenuLabel>
               <StepItems host={host} snap={snap} ppm={ppm} />
@@ -617,7 +698,7 @@ function OverflowMenu({
         ) : null}
         {scene ? (
           <>
-            {tools.length > 0 || option || snap ? <MenuSeparator /> : null}
+            {tools.length > 0 || arrange.length > 0 || option || snap ? <MenuSeparator /> : null}
             <MenuSub>
               <MenuSubTrigger>Scene: {scene.label}</MenuSubTrigger>
               <MenuSubContent className="je-option-menu">
@@ -682,6 +763,7 @@ export function EditorToolbar({
   const undoLabel = useEditorStore(session, (s) => s.undoLabel);
   const redoLabel = useEditorStore(session, (s) => s.redoLabel);
   const active = useEditorStore(session, (s) => s.tool);
+  const hasSelection = useEditorStore(session, (s) => s.selection.length > 0);
   const tools = useMemo(() => host?.tools() ?? [], [host]);
   const snap = useHostValue(host, (h) => h.snap(), host?.snap() ?? NO_SNAP);
   const option = useHostValue(host, (h) => h.option() ?? NO_OPTION, NO_OPTION);
@@ -703,9 +785,7 @@ export function EditorToolbar({
     () => dockParts(tools, snap?.step ?? null, slot, ppm, sceneLabel, canPublish),
     [tools, snap?.step, slot, ppm, sceneLabel, canPublish],
   );
-  const full = useMemo(() => dockWidth(parts, new Set()), [parts]);
-  const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
-  const room = useBottomRow("dock", { full, least }).dock;
+  const room = useDockRoom();
   const hidden = useMemo(() => fitDock(parts, room), [parts, room]);
   const slotPart = parts.find((p) => p.key === "option");
   const slotWidth =
@@ -740,6 +820,8 @@ export function EditorToolbar({
         snap={hidden.has("step") ? snap : null}
         option={hidden.has("option") ? option : null}
         ppm={ppm}
+        arrange={ARRANGE.filter((c) => hidden.has(c.key))}
+        hasSelection={hasSelection}
         scene={
           picker && project && hidden.has("scene")
             ? {
@@ -800,11 +882,29 @@ export function EditorToolbar({
               {hidden.has("step") ? null : (
                 <GridStep session={session} host={host} snap={snap} ppm={ppm} />
               )}
+              {hidden.has("grid") ? null : <GridToggle session={session} />}
             </>
           ) : null}
-          <Divider />
+          {tools.length > 0 && ARRANGE.some((c) => !hidden.has(c.key)) ? (
+            <>
+              <Divider />
+              {ARRANGE.filter((c) => !hidden.has(c.key)).map((c) => (
+                <IconButton
+                  key={c.key}
+                  icon={c.icon}
+                  label={c.label}
+                  disabled={c.selection && !hasSelection}
+                  onClick={() => host.command(c.key)}
+                  tooltip={
+                    <KeyHint text={arrangeText(c, hasSelection)} chord={keymap.chordOf(c.key)} />
+                  }
+                />
+              ))}
+            </>
+          ) : null}
         </>
       ) : null}
+      <span className="je-toolbar-spacer" aria-hidden />
       <IconButton
         icon={Undo02Icon}
         label="Undo"

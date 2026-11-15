@@ -73,9 +73,14 @@ import type { BlobInspect, ProjectOp } from "../project/ops";
 import { parseProjectFile, projectGlobs } from "../project/project-file";
 import {
   formatSidecar,
+  isMetaStale,
+  kindMetaVersion,
   parseSidecar,
+  reinspectBlob,
   SIDECAR_SUFFIX,
+  sidecarMetaVersion,
   sidecarPathOf,
+  withReinspectedMeta,
   type AssetSidecar,
 } from "../project/sidecar";
 import {
@@ -101,6 +106,7 @@ import {
   type SceneIssue,
 } from "../scene/types";
 import { defaultCacheDir, fileContentStore } from "./content-store";
+import { NODE_DECOMPRESS } from "./font-decompress";
 import { resolveScenePath, sceneNameOf } from "./scene-paths";
 
 /** The origin of every write the file adapter makes: seeding a doc and outside file changes. */
@@ -325,6 +331,35 @@ export type ProjectFileAdapter = {
    * with `origin`. Returns what it repaired.
    */
   repairBlobs(doc: Y.Doc, origin: DocOrigin): Promise<BlobRepair[]>;
+  /**
+   * Inspects binaries again (`reinspectBlob`) and rewrites only their
+   * sidecars' meta and meta version: the live binaries `ids` names, else
+   * every one whose sidecar records an older meta version than its kind's
+   * (`isMetaStale`). An entry whose meta or filled settings move gets one
+   * `disk` transaction of its own; one already current gets none. With
+   * `dryRun` nothing is written. Unknown ids and non-binaries are skipped;
+   * the watcher runs it for a stale sidecar that lands on disk.
+   */
+  reinspectSidecars(
+    doc: Y.Doc,
+    opts?: { ids?: readonly AssetId[]; dryRun?: boolean },
+  ): Promise<SidecarReinspection[]>;
+};
+
+/** One binary `reinspectSidecars` inspected again, or would have. */
+export type SidecarReinspection = {
+  key: AssetKey;
+  id: AssetId;
+  path: AssetPath;
+  /** The meta version the sidecar recorded, and the one its meta is now read under. */
+  from: number;
+  to: number;
+  /** Whether the registry entry's meta or filled settings changed. */
+  meta: boolean;
+  /** Whether the sidecar's text changed. */
+  sidecar: boolean;
+  /** Set when the inspection failed; nothing is written for it. */
+  issue?: SceneIssue;
 };
 
 /** A binary entry `repairBlobs` pointed back at bytes the store holds. */
@@ -799,7 +834,7 @@ export function createProjectFileAdapter(
       if (read.def.storage === "doc") docs.push({ at: problems.length, read });
       reads.push(read);
     }
-    const keyed = assetFileEntries(reads, SEEDED);
+    const keyed = assetFileEntries(reads, SEEDED, NODE_DECOMPRESS);
     const disk = new Map<AssetKey, OnDisk>();
     const json = new Map<AssetKey, unknown>();
     for (const { file, key } of keyed) {
@@ -967,7 +1002,12 @@ export function createProjectFileAdapter(
       sidecar.bytes = entry.bytes ?? 0;
     }
     if (!isEmpty(entry.import)) sidecar.import = entry.import;
-    if (entry.meta !== undefined) sidecar.meta = entry.meta;
+    if (entry.meta !== undefined) {
+      sidecar.meta = entry.meta;
+      // The registry's meta is always the current inspector's: every host inspects with these kinds.
+      const def = kinds.get(entry.kind);
+      if (isBlobKind(def)) sidecar.metaVersion = kindMetaVersion(def);
+    }
     if (entry.licence !== undefined) sidecar.licence = entry.licence;
     return formatSidecar(sidecar, { detectedKind: kinds.detect(entry.path)?.kind ?? null });
   }
@@ -1457,7 +1497,7 @@ export function createProjectFileAdapter(
     def: BlobKindDef,
     blob: BlobContent & { data: Uint8Array },
   ): AssetChange {
-    const result = inspectEntry(def, entry, blob.data, idsIn(doc));
+    const result = inspectEntry(def, entry, blob.data, idsIn(doc), NODE_DECOMPRESS);
     const next = withBlob(entry, blob, result);
     const content = { sha256: blob.sha256, bytes: blob.bytes };
     const previous =
@@ -1542,7 +1582,11 @@ export function createProjectFileAdapter(
         if (!sameValue(current.import ?? {}, settings)) {
           const { import: _import, ...rest } = next;
           const base: AssetEntry = isEmpty(settings) ? rest : { ...rest, import: { ...settings } };
-          next = withBlob(base, read.blob, inspectEntry(def, base, read.blob.data, idsIn(doc)));
+          next = withBlob(
+            base,
+            read.blob,
+            inspectEntry(def, base, read.blob.data, idsIn(doc), NODE_DECOMPRESS),
+          );
         }
       }
       if (read.sidecar?.licence !== undefined) next.licence = read.sidecar.licence;
@@ -1551,8 +1595,88 @@ export function createProjectFileAdapter(
         writeEntry(doc, next, DISK_ORIGIN);
         result = bump(result);
       }
+      if (isBlobKind(def) && read.sidecar && isMetaStale(read.sidecar, def)) {
+        const fresh = entryOf(key, doc);
+        const again = fresh && (await reinspectOne(doc, fresh, def, disk, false));
+        if (again?.meta) result = bump(result);
+      }
     }
     return result;
+  }
+
+  /** The sidecar a binary's file has on disk, else the one its entry gives. */
+  function diskSidecarOf(entry: AssetEntry, disk: OnDisk): AssetSidecar | null {
+    const parsed = disk.sidecar === null ? null : parseSidecar(disk.sidecar);
+    if (parsed?.ok) return parsed.sidecar;
+    const own = parseSidecar(blobSidecar(entry));
+    return own.ok ? own.sidecar : null;
+  }
+
+  async function reinspectOne(
+    doc: Y.Doc,
+    entry: AssetEntry,
+    def: BlobKindDef,
+    disk: OnDisk,
+    dryRun: boolean,
+  ): Promise<SidecarReinspection | null> {
+    if (entry.sha256 === undefined) return null;
+    const sidecar = diskSidecarOf(entry, disk);
+    if (!sidecar) return null;
+    const bytes =
+      (await blobs.get(entry.sha256)) ??
+      (disk.blob?.sha256 === entry.sha256 ? await readBytes(abs(disk.path)) : null);
+    if (!bytes) return null;
+    const base = {
+      key: entry.key,
+      id: entry.id,
+      path: entry.path,
+      from: sidecarMetaVersion(sidecar),
+    };
+    const result = reinspectBlob(def, entry, new Uint8Array(bytes), idsIn(doc), NODE_DECOMPRESS);
+    if (!result.ok)
+      return { ...base, to: base.from, meta: false, sidecar: false, issue: result.issue };
+    const text = formatSidecar(withReinspectedMeta(sidecar, result), {
+      detectedKind: kinds.detect(entry.path)?.kind ?? null,
+    });
+    const out = {
+      ...base,
+      to: result.metaVersion,
+      meta: result.changed,
+      sidecar: text !== disk.sidecar,
+    };
+    if (dryRun) return out;
+    if (result.changed) {
+      const next: AssetEntry = { ...entry, meta: result.meta };
+      if (result.import) next.import = result.import;
+      writeEntry(doc, next, DISK_ORIGIN);
+    }
+    await writeSidecar(disk.path, disk, text);
+    return out;
+  }
+
+  async function reinspectSidecars(
+    doc: Y.Doc,
+    opts: { ids?: readonly AssetId[]; dryRun?: boolean } = {},
+  ): Promise<SidecarReinspection[]> {
+    const state = readProject(doc);
+    const live = Object.values(state.assets)
+      .filter((e) => !e.deleted)
+      .sort((a, b) => byCodeUnit(a.path, b.path) || byCodeUnit(a.key, b.key));
+    const named = opts.ids && new Set(opts.ids);
+    const out: SidecarReinspection[] = [];
+    for (const entry of live) {
+      if (named && !named.has(entry.id)) continue;
+      const def = kinds.get(entry.kind);
+      const disk = files.get(entry.key);
+      if (!isBlobKind(def) || !disk || disk.path !== entry.path) continue;
+      if (!named) {
+        const sidecar = diskSidecarOf(entry, disk);
+        if (!sidecar || !isMetaStale(sidecar, def)) continue;
+      }
+      const done = await reinspectOne(doc, entry, def, disk, opts.dryRun === true);
+      if (done) out.push(done);
+    }
+    return out;
   }
 
   async function syncPath(
@@ -1647,7 +1771,13 @@ export function createProjectFileAdapter(
         const holder = state.assets[key];
         if (holder && !holder.deleted) key = randomKey();
         const trashed = state.assets[key];
-        const fresh = assetFileEntry(read, key, { at: now(), by: "disk" }, idsIn(doc)).entry;
+        const fresh = assetFileEntry(
+          read,
+          key,
+          { at: now(), by: "disk" },
+          idsIn(doc),
+          NODE_DECOMPRESS,
+        ).entry;
         const next: AssetEntry = trashed ? { ...fresh, created: trashed.created } : fresh;
         doc.transact(() => {
           writeEntry(doc, next);
@@ -1694,7 +1824,13 @@ export function createProjectFileAdapter(
         }
       }
       if (!fallback) continue;
-      fixes.push(withBlob(entry, fallback, inspectEntry(def, entry, fallback.data, idsIn(doc))));
+      fixes.push(
+        withBlob(
+          entry,
+          fallback,
+          inspectEntry(def, entry, fallback.data, idsIn(doc), NODE_DECOMPRESS),
+        ),
+      );
       repaired.push({ key: entry.key, id: entry.id, from: entry.sha256, to: fallback.sha256 });
     }
     if (fixes.length === 0) return repaired;
@@ -1724,6 +1860,7 @@ export function createProjectFileAdapter(
     settle,
     persist,
     repairBlobs,
+    reinspectSidecars,
     valueOf(name, doc) {
       const { def } = docRef(name);
       const codec = codecOf(def);

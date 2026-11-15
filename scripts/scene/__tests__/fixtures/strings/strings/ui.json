@@ -1,0 +1,17 @@
+{
+  "kind": "strings",
+  "v": 1,
+  "strings": [
+    {
+      "key": "intro.hello",
+      "en": "Hello, {name}.",
+      "fr": "Bonjour, {name}.",
+      "ar": "مرحبا، {name}."
+    },
+    { "key": "intro.ask", "en": "Say \"yes\", or no?", "note": "A question, with a comma." },
+    { "key": "intro.yes", "en": "Yes.", "fr": "Oui." },
+    { "key": "intro.no", "en": "No,\nnever.", "note": "Two lines." },
+    { "key": "sign.welcome", "en": "Welcome", "fr": "" },
+    { "key": "speaker.guide", "en": "Guide" }
+  ]
+}

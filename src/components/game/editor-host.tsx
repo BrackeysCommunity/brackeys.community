@@ -18,7 +18,7 @@ import {
 import type { GameDefinition } from "@jams/engine/game";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasShell } from "@/components/canvas/shell/CanvasShell";
 import { Button } from "@/components/ui/button";
@@ -193,8 +193,6 @@ const DEV_OPTIONS = {
 const devProject = () => devProjectHost(DEV_OPTIONS);
 
 export type SiteEditorHostOptions = {
-  /** What the site menu's island names: the room, then the scene once the editor is up. */
-  title: ReactNode;
   onSceneChange?: (id: string) => void;
   /** A project picked in the Project panel's switcher, or a scene's own project from the fallback notice. */
   onProjectChange?: (id: string, opts?: { scene?: string }) => void;
@@ -216,7 +214,6 @@ export type SiteEditorHostOptions = {
 
 /** jams.team as the editor's host: the site's toasts, sounds, identity, colours, flags and menu. */
 export function useSiteEditorHost({
-  title,
   onSceneChange,
   onProjectChange,
   projectNames,
@@ -287,7 +284,7 @@ export function useSiteEditorHost({
       chrome: {
         topLeft: (
           <>
-            <GameSiteIsland title={title} onProjectSettings={projectSettings} />
+            <GameSiteIsland compact onProjectSettings={projectSettings} />
             {publish ? <AgentTokenDialog project={publish.project} bind={openTokenDialog} /> : null}
           </>
         ),
@@ -303,7 +300,6 @@ export function useSiteEditorHost({
       projectChange,
       projectSettings,
       projects,
-      title,
       publish,
       openTokenDialog,
     ],
@@ -590,7 +586,6 @@ export function useHostedGame(
 }
 
 function LoadedSceneEditor({
-  roomId,
   project,
   scene,
   panel,
@@ -606,7 +601,6 @@ function LoadedSceneEditor({
   const [debug] = useState(() => debugFor(project));
   const hosted = useHostedGame(project.id);
   const host = useSiteEditorHost({
-    title: ready ? (editing ?? roomId) : roomId,
     onSceneChange,
     onProjectChange,
     onProjectSettings: () => editor.current?.openPanel("settings"),

@@ -80,7 +80,7 @@ export type EditorSkeletonProps = Omit<EditorFrameProps, "children" | "panels"> 
   registry?: Registry;
   /** What the skeleton's inert controls report through; default nowhere. */
   notify?: EditorNotify;
-  /** The bottom-left island; default the loading status while there are no `panels`, `null` for none. */
+  /** The status bar's content; default the loading status while there are no `panels`, `null` for none. */
   status?: ReactNode;
   /** The canvas; default a blank one. */
   children?: ReactNode;

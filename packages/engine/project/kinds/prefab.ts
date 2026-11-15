@@ -7,8 +7,9 @@ import { parsePrefab, PREFABS_DIR, prefabOf, prefabSchemaFor } from "../../scene
 import { sceneRegistry } from "../../scene/schema";
 import { PREFAB_KIND, SCENE_FORMAT_VERSION, type Prefab } from "../../scene/types";
 import type { RefSite } from "../refs";
-import { defineAssetKind, folderOf, joinFolder } from "./define";
+import { defineAssetKind, folderOf, joinFolder, type DocLookup } from "./define";
 import { bodyRefs, bulkMaterialRefs } from "./fields";
+import { docStringKeyIssues } from "./strings";
 
 /** A reusable piece of a level placed by instances, co-edited per child and field. */
 export const prefabKind = defineAssetKind({
@@ -38,6 +39,8 @@ export const prefabKind = defineAssetKind({
       : { ok: true, value: prefab, migratedFrom, issues };
   },
   format: (prefab: Prefab) => formatPrefab(prefab),
+  crossValidate: (prefab: Prefab, lookup: DocLookup) =>
+    docStringKeyIssues(PREFAB_KIND, prefab, lookup),
   empty: (env, { id }) =>
     prefabOf(
       id,

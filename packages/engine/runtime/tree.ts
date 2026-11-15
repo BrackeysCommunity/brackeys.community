@@ -101,9 +101,9 @@ export type RuntimeSceneTree = SceneTree & {
 
 /**
  * Parents, children and local poses. It follows the pose index: a write to
- * an entity that isn't the tree's own recomputes its local pose, then each
- * enabled, driven child is moved to its parent's pose composed with its
- * local one, in child order, and so on down.
+ * an entity that isn't the tree's own marks its local pose for measuring
+ * when next read, then each enabled, driven child is moved to its parent's
+ * pose composed with its local one, in child order, and so on down.
  */
 export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
   /**
@@ -115,8 +115,15 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     parent: Link | null;
     kids: readonly Link[];
     ids: readonly string[];
-    /** Its pose in its parent's frame; null without a parent. */
+    /** Its pose in its parent's frame; null without a parent. Read through `localOf`. */
     local: Readonly<Pose> | null;
+    /**
+     * Its own last write, with its parent's pose at that moment, not yet
+     * measured into `local`. Both are the pose index's frozen entries, so
+     * measuring later gives what measuring then would have.
+     */
+    wrotePose: Readonly<Pose> | null;
+    wroteFrame: Readonly<Pose> | undefined;
     /** The tree is posing it now: its writes are the tree's, not its own. */
     driving: boolean;
   };
@@ -144,6 +151,8 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
         kids: noKids,
         ids: none,
         local: null,
+        wrotePose: null,
+        wroteFrame: undefined,
         driving: false,
         held: undefined,
       };
@@ -171,7 +180,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     const p = c?.parent;
     if (!c || !p) return;
     c.parent = null;
-    c.local = null;
+    setLocal(c, null);
     p.kids = p.kids.filter((k) => k !== c);
     p.ids = p.kids.length > 0 ? p.kids.map((k) => k.id) : none;
     if (p.kids.length === 0) p.kids = noKids;
@@ -187,10 +196,26 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     return frame ? relativePose(pose, frame) : plainPose(pose);
   }
 
+  function setLocal(link: Link, local: Readonly<Pose> | null): void {
+    link.local = local;
+    link.wrotePose = null;
+    link.wroteFrame = undefined;
+  }
+
   function remeasure(link: Link): void {
     if (!link.parent) return;
     const local = measured(link.id, link.parent.id);
-    if (local) link.local = local;
+    if (local) setLocal(link, local);
+  }
+
+  /** `link`'s local pose, measured from its last own write if it has one pending. */
+  function localOf(link: Link): Readonly<Pose> | null {
+    const pose = link.wrotePose;
+    if (pose) {
+      const frame = link.wroteFrame;
+      setLocal(link, frame ? relativePose(pose, frame) : plainPose(pose));
+    }
+    return link.local;
   }
 
   /** The nearest entity above `id` whose body carries colliders. */
@@ -232,7 +257,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     const frame = poseOf(link.id);
     if (!frame) return;
     for (const child of list) {
-      const local = child.local;
+      const local = localOf(child);
       if (!local) continue;
       const pose = composePose(frame.x, frame.y, frame.rot, local);
       const outer = carrying;
@@ -252,7 +277,14 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     if (quiet > 0 || id === carrying) return;
     const link = links.get(id);
     if (!link || link.driving) return;
-    remeasure(link);
+    const parent = link.parent;
+    if (parent) {
+      const pose = poseOf(id);
+      if (pose) {
+        link.wrotePose = pose;
+        link.wroteFrame = poseOf(parent.id);
+      }
+    }
     follow(link, snap);
   }
 
@@ -315,7 +347,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     local(id) {
       const link = links.get(id);
       if (!link?.parent) return deps.poses.get(id);
-      return deps.selfMoving(id) ? measured(id, link.parent.id) : (link.local ?? undefined);
+      return deps.selfMoving(id) ? measured(id, link.parent.id) : (localOf(link) ?? undefined);
     },
     setLocal(id, x, y, rot) {
       const link = links.get(id);
@@ -324,8 +356,8 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
         return;
       }
       live(id, "pose");
-      const local = { x, y, rot: rot ?? link.local?.rot ?? 0 };
-      link.local = local;
+      const local = { x, y, rot: rot ?? localOf(link)?.rot ?? 0 };
+      setLocal(link, local);
       placeUnder(id, link.parent.id, local, false);
     },
     setParent(id, parent, opts) {
@@ -339,14 +371,15 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
       const was = parentOf(id);
       if ((was ?? null) === parent) return;
       const keepWorld = opts?.keepWorld ?? true;
-      const kept = links.get(id)?.local ?? measured(id, was);
+      const held = links.get(id);
+      const kept = (held && localOf(held)) ?? measured(id, was);
       dropChild(id);
       if (parent !== null) addChild(parent, id);
       const link = links.get(id);
       if (keepWorld || !kept) {
         if (link) remeasure(link);
       } else if (parent !== null && link) {
-        link.local = kept;
+        setLocal(link, kept);
         placeUnder(id, parent, kept, false);
       } else {
         place(id, kept, false);
@@ -384,7 +417,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
       dropChild(id);
       for (const child of link.kids) {
         child.parent = null;
-        child.local = null;
+        setLocal(child, null);
         prune(child);
       }
       link.kids = noKids;
@@ -393,7 +426,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     },
     drive(id, opts) {
       const link = links.get(id);
-      const local = link?.local;
+      const local = link && localOf(link);
       if (!link?.parent || !local || deps.selfMoving(id)) return false;
       return placeUnder(id, link.parent.id, local, opts?.snap === true);
     },

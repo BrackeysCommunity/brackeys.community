@@ -11,6 +11,7 @@ export type {
   GameInput,
   GameInstance,
   GameLive,
+  GameLocale,
   GameMode,
   GamePhase,
   GameStoreState,
@@ -47,8 +48,22 @@ export {
 export { createLoadingOverlay, fadeTransition } from "./ui/flow-views";
 export type { FlowRequest, SceneLibrary, SceneListEntry, TransitionSpec } from "./game/flow";
 export type { SaveDepth, SaveLimits, SaveMeta } from "./game/save-file";
-export { bindText, bindToWorld, createUiLayer, mountUi, watchView } from "./ui";
-export type { MountUi, UiContext, UiHandle } from "./ui";
+export {
+  bindText,
+  bindToWorld,
+  createCaptions,
+  createDialogueBox,
+  createTextLog,
+  createUiLayer,
+  mountUi,
+  renderRichText,
+  watchView,
+  type CaptionsOptions,
+  type DialogueBoxOptions,
+  type GameCaptions,
+  type TextLogOptions,
+} from "./ui";
+export type { MountUi, UiAssetUrl, UiContext, UiHandle } from "./ui";
 export {
   applyPt,
   applyVec,
@@ -99,6 +114,12 @@ export {
   type TextureSource,
 } from "./render/pixi-view";
 export {
+  createRichText,
+  DEFAULT_TEXT_FACE,
+  type FontSource,
+  type RichTextOptions,
+} from "./render/text";
+export {
   createAssetLoader,
   type AssetLoader,
   type AssetUrl,
@@ -111,7 +132,17 @@ export {
   type ResolutionPolicy,
   type ResolutionViewport,
 } from "./resolution";
-export { drawSprite, type BlendMode, type SpriteVisual } from "./context";
+export {
+  drawSprite,
+  drawText,
+  type BlendMode,
+  type EmitterFollow,
+  type SpriteVisual,
+  type TextContent,
+  type TextFont,
+  type TextVisual,
+  type ViewEmitter,
+} from "./context";
 export { viewportRect, type ViewportDef, type ViewportRect } from "./camera/viewports";
 export {
   createParticleLayer,
@@ -162,6 +193,7 @@ export { MAX_PLAYERS, resolvePlayers } from "./input/players";
 export {
   selectCamera,
   selectDebugMode,
+  selectDialogue,
   selectFPS,
   selectMode,
   selectGame,
@@ -170,3 +202,28 @@ export {
   selectSim,
   selectTick,
 } from "./store";
+export type {
+  AudioBackend,
+  AudioClipHandle,
+  AudioSystem,
+  BusLevel,
+  BusName,
+  FakeAudioCall,
+  GameAudio,
+  Voice,
+  VoiceOptions,
+} from "./audio/types";
+export type { AudioClock, CalibrateLatencyOptions, LatencyCalibration } from "./audio/clock";
+export { webAudioBackend } from "./audio/web-audio";
+export { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs, synthWav } from "./audio/synth";
+export {
+  CLICK_PATCH,
+  mutateSynth,
+  randomSynth,
+  SYNTH_PRESETS,
+  type SynthPreset,
+} from "./audio/synth-presets";
+export { browserPrefsStore, memoryPrefsStore, snapshotPrefsStore, type PrefsStore } from "./prefs";
+export type { StringTable, StringTableData, TextDirection } from "./text/strings";
+export type { RichLine, RichSpan } from "./text/rich";
+export type { DialogueView } from "./dialogue/runner";

@@ -24,6 +24,7 @@ import {
   type RegisteredBehavior,
 } from "./behaviors";
 import { ANIM } from "./behaviors/anim";
+import { AUDIO } from "./behaviors/audio";
 import { BODY } from "./behaviors/body";
 import { CAMERA_TARGET } from "./behaviors/camera-target";
 import { CHARACTER_SIDE_VIEW } from "./behaviors/character-side-view";
@@ -39,6 +40,7 @@ import { PATH_FOLLOW } from "./behaviors/path-follow";
 import { PLAYER_INPUT } from "./behaviors/player-input";
 import { SPAWNER } from "./behaviors/spawner";
 import { SPRITE } from "./behaviors/sprite";
+import { TEXT } from "./behaviors/text";
 import { TWEEN } from "./behaviors/tween";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 import { DEFAULT_ACTIONS, DEFAULT_TIME } from "./defaults";
@@ -172,6 +174,8 @@ export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([
   ANIM,
   TWEEN,
   EMITTER,
+  TEXT,
+  AUDIO,
 ]);
 
 /** Whether behaviors `a` and `b` may not share an entity: either names the other in `conflicts`. */

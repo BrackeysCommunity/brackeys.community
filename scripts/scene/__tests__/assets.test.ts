@@ -1,17 +1,26 @@
 // @vitest-environment node
-import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ContentStoreError, parseSidecar, sha256 } from "@jams/engine/project";
-import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
+import type { GameDefinition } from "@jams/engine/game";
+import { ContentStoreError, defineAssetKind, parseSidecar, sha256 } from "@jams/engine/project";
+import {
+  createProjectFileAdapter,
+  listenSceneCollab,
+  readFileProject,
+  type ListeningSceneCollab,
+} from "@jams/engine/vite";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import * as Y from "yjs";
+import { z } from "zod";
 
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { devContentStore, ProjectClientError, readLiveScene } from "../project-client";
 import { loadCompatRapier } from "../rapier-compat";
+import { assetsReimport, type AssetsReimportInput } from "../tools/assets-reimport";
 import { tempProject } from "./fixtures";
 
 const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
@@ -50,8 +59,8 @@ async function tree(dir: string): Promise<Record<string, string>> {
 
 const ids = (data: Data) => (data.assets as { id: string }[]).map((a) => a.id);
 
-/** The kitchen sink's art the copied engine project already holds, by kind. */
-const SINK_TEXTURES = ["backdrop", "crates-texture", "hero-texture"];
+/** The textures and atlases the copied engine project already holds, by kind. */
+const SINK_TEXTURES = ["backdrop", "crates-texture", "hero-texture", "kitchen-font-page"];
 const SINK_ATLASES = ["crates", "hero"];
 
 beforeEach(async () => {
@@ -79,12 +88,17 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "hero-texture",
       "kitchen-animation",
       "sparks",
+      "clink",
+      "clink-synth",
+      "clink-wav",
       "behavior-yard-checks",
       "behavior-yard",
       "behavior-yard-script",
       "cards",
       "engine-yard-checks",
       "engine-yard",
+      "kitchen-font",
+      "kitchen-font-page",
       "game-settings",
       "grid-annex",
       "grid-yard-checks",
@@ -105,6 +119,8 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "turret",
       "grid-yard-save",
       "scene-list",
+      "kitchen-dialogue",
+      "kitchen-strings",
       "tree-yard-checks",
       "tree-yard",
       "tree-yard-script",
@@ -701,6 +717,109 @@ describe("assets on files", { timeout: 60_000 }, () => {
     expect(missing.exitCode).toBe(1);
     expect(String(missing.data.error)).toMatch(/Did you mean "items"\?/);
     expect((await run("assets", "info")).exitCode).toBe(2);
+  });
+});
+
+describe("assets reimport", { timeout: 60_000 }, () => {
+  /** A game whose one binary kind's inspector learns `lines` at version 2. */
+  const probeGame = (metaVersion?: number) =>
+    ({
+      id: "probes",
+      types: [],
+      actions: [],
+      assetKinds: [
+        defineAssetKind({
+          kind: "probes/probe",
+          title: "Probe",
+          description: "A test binary kind whose meta grows with its version.",
+          match: { suffixes: [".probe"] },
+          storage: "blob",
+          contentTypes: ["application/octet-stream"],
+          maxBytes: 1024,
+          settings: z.strictObject({}),
+          meta: z.looseObject({}),
+          inspect: (bytes: Uint8Array) => {
+            const size = bytes.byteLength;
+            const lines = new TextDecoder().decode(bytes).split("\n").length - 1;
+            return { ok: true, meta: (metaVersion ?? 1) >= 2 ? { size, lines } : { size } };
+          },
+          ...(metaVersion === undefined ? {} : { metaVersion }),
+        }),
+      ],
+      createRuntime: () => ({}),
+    }) as unknown as GameDefinition;
+
+  let probes: string;
+  const sidecarOf = async (name: string) =>
+    JSON.parse(await readFile(join(probes, "data", `${name}.probe.asset.json`), "utf8")) as Data;
+  const reimport = (input: AssetsReimportInput) => assetsReimport(input, ctx);
+
+  beforeEach(async () => {
+    probes = join(root, "probes");
+    await mkdir(join(probes, "data"), { recursive: true });
+    await writeFile(join(probes, "data", "a.probe"), "one\n");
+    await writeFile(join(probes, "data", "b.probe"), "one\ntwo\n");
+    await writeFile(join(probes, "notes.json"), JSON.stringify(RUBBER));
+    const old = await tempProject(probes, { id: "probes", game: probeGame() });
+    const doc = new Y.Doc();
+    const adapter = createProjectFileAdapter(old);
+    await adapter.loadProject(doc);
+    await adapter.storeProject(doc);
+    doc.destroy();
+    ctx = {
+      projects: [await tempProject(probes, { id: "probes", game: probeGame(2) })],
+      loadRapier: loadCompatRapier,
+    };
+  });
+
+  it("--dry-run reports every stale sidecar and writes nothing", async () => {
+    const before = await tree(probes);
+    const r = await reimport({ all: true, dryRun: true });
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({ ok: true, dryRun: true, written: false });
+    expect(r.text).toContain("probes: would rewrite a (data/a.probe, meta v1 → v2)");
+    expect(r.text).toContain("probes: would rewrite b (data/b.probe, meta v1 → v2)");
+    expect(await tree(probes)).toEqual(before);
+    expect((await reimport({ ids: ["a"], dryRun: true })).exitCode).toBe(0);
+    expect(await tree(probes)).toEqual(before);
+  });
+
+  it("by id rewrites only that sidecar's meta and version", async () => {
+    const a = await sidecarOf("a");
+    const b = await sidecarOf("b");
+    expect(a).not.toHaveProperty("metaVersion");
+    const r = await reimport({ ids: ["a"] });
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toBe("probes: rewrote a (data/a.probe, meta v1 → v2)");
+    expect(await sidecarOf("a")).toEqual({ ...a, meta: { size: 4, lines: 1 }, metaVersion: 2 });
+    expect(await sidecarOf("b")).toEqual(b);
+    expect((await reimport({ ids: ["a"] })).text).toBe(
+      "probes: already current: a (data/a.probe, meta v2)",
+    );
+  });
+
+  it("--all rewrites the stale ones once, then finds every sidecar current", async () => {
+    await reimport({ ids: ["a"] });
+    const a = await sidecarOf("a");
+    const r = await reimport({ all: true });
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toBe("probes: rewrote b (data/b.probe, meta v1 → v2)");
+    expect(await sidecarOf("b")).toMatchObject({ meta: { size: 8, lines: 2 }, metaVersion: 2 });
+    expect(await sidecarOf("a")).toEqual(a);
+    const again = await reimport({ all: true });
+    expect(again.text).toBe("probes: every sidecar's meta is current");
+    expect(again.data).toMatchObject({ written: false });
+  });
+
+  it("exits 2 on usage and 1 on an id that isn't a binary", async () => {
+    expect((await reimport({})).exitCode).toBe(2);
+    expect((await reimport({ ids: ["a"], all: true })).exitCode).toBe(2);
+    expect((await reimport({ all: true, live: true })).exitCode).toBe(2);
+    expect((await reimport({ all: true, base: "x" })).exitCode).toBe(2);
+    expect((await reimport({ ids: ["nope"] })).exitCode).toBe(1);
+    const doc = await reimport({ ids: ["notes"] });
+    expect(doc.exitCode).toBe(1);
+    expect(String((doc.data as Data).error)).toMatch(/only binaries have meta/);
   });
 });
 

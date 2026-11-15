@@ -5,6 +5,7 @@ import { checksKind } from "./checks";
 import { codeKind } from "./code";
 import { dataTableKind } from "./data-table";
 import type { AssetKindDef } from "./define";
+import { dialogueKind } from "./dialogue";
 import { emitterKind } from "./emitter";
 import { fontKind } from "./font";
 import { gameSettingsKind } from "./game-settings";
@@ -16,6 +17,9 @@ import { recordingKind } from "./recording";
 import { saveKind } from "./save";
 import { sceneKind } from "./scene";
 import { sceneListKind } from "./scene-list";
+import { soundKind } from "./sound";
+import { stringsKind } from "./strings";
+import { synthKind } from "./synth";
 import { textureKind } from "./texture";
 
 export {
@@ -62,6 +66,28 @@ export {
   type DataTableFile,
   type DataTableRow,
 } from "./data-table";
+export {
+  DIALOGUE_KIND,
+  DIALOGUE_SCHEMA_ID,
+  DIALOGUE_VERSION,
+  dialogueDeadEnd,
+  dialogueExits,
+  dialogueIssues,
+  dialogueKind,
+  dialogueNodes,
+  dialogueRefs,
+  dialogueStringIssues,
+  reachableNodes,
+  type DialogueChoice,
+  type DialogueCondition,
+  type DialogueEffect,
+  type DialogueExit,
+  type DialogueFile,
+  type DialogueLine,
+  type DialogueNode,
+  type DialoguePortrait,
+  type DialogueSpeaker,
+} from "./dialogue";
 export {
   EMITTER_KIND,
   EMITTER_MAX_CAP,
@@ -149,6 +175,43 @@ export {
   type SceneListFlow,
 } from "./scene-list";
 export {
+  audioBuses,
+  BUS_NAME_PATTERN,
+  ENGINE_BUSES,
+  SOUND_KIND,
+  SOUND_MAX_VOICES_DEFAULT,
+  SOUND_SCHEMA_ID,
+  SOUND_VERSION,
+  soundKind,
+  type SoundFile,
+  type SoundMatcher,
+} from "./sound";
+export {
+  LOCALE_PATTERN,
+  missingStringKeys,
+  STRING_KEY_PATTERN,
+  STRINGS_KIND,
+  STRINGS_SCHEMA_ID,
+  STRINGS_VERSION,
+  stringsKind,
+  usedStringKeys,
+  type LocaleSettings,
+  type StringKeyUse,
+  type StringRow,
+  type StringsFile,
+} from "./strings";
+export {
+  SYNTH_BOUNDS,
+  SYNTH_KIND,
+  SYNTH_SCHEMA_ID,
+  SYNTH_VERSION,
+  SYNTH_WAVES,
+  synthKind,
+  type SynthFile,
+  type SynthNumberPath,
+  type SynthWave,
+} from "./synth";
+export {
   TEXTURE_KIND,
   textureKind,
   textureMetaSchema,
@@ -178,4 +241,8 @@ export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
   codeKind,
   animationKind,
   emitterKind,
+  soundKind,
+  synthKind,
+  dialogueKind,
+  stringsKind,
 ];

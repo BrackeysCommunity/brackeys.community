@@ -1,14 +1,16 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 /**
- * The runner's side of the render run, under Bun: the engine project read
- * from `packages/engine/scenes` through the dev server's own file scan, and the
+ * The runner's side of the render and sign runs, under Bun: the engine
+ * project read from `packages/engine/scenes` through the dev server's own
+ * file scan (from a scratch copy when files are added to it), and the
  * preview middleware that serves its blobs by hash on the dev route
  * (`/__project/<id>/blob/<sha256>`) with the dev server's handler, plus the
  * registry and doc values the page builds its project view from.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { AssetId, ProjectState } from "@jams/engine/project";
 import { projectView } from "@jams/engine/project";
@@ -20,6 +22,7 @@ import {
   type ProjectResponse,
   type ProjectSource,
 } from "../../../packages/engine/vite/handler";
+import { SIGN_BITMAP_PATH, SIGN_WEB_PATH, SIGN_WEB_SOURCE, signBmfont } from "./signs";
 import { SINK_DATA_ROUTE } from "./sink";
 
 /** What the page needs to build the project view, runtime view and registry: the scan's registry and every doc asset's JSON. */
@@ -31,11 +34,38 @@ export type SinkProject = {
   close(): Promise<void>;
 };
 
-/** The engine project as the dev server scans it, its blobs copied into a scratch content store. */
-export async function loadSinkProject(scenesDir: string): Promise<SinkProject> {
-  const cacheDir = await mkdtemp(join(tmpdir(), "jams-engine-smoke-project-"));
+/** The sign run's two fonts by project path: the generated BMFont and the web font's bytes. */
+export async function signFiles(): Promise<Record<string, Uint8Array>> {
+  const web = createRequire(import.meta.url).resolve(SIGN_WEB_SOURCE);
+  return {
+    [SIGN_BITMAP_PATH]: new TextEncoder().encode(signBmfont()),
+    [SIGN_WEB_PATH]: new Uint8Array(await readFile(web)),
+  };
+}
+
+/**
+ * The engine project as the dev server scans it, its blobs copied into a
+ * scratch content store. `extra` files (by project path) are written into a
+ * scratch copy of the project first; the repo's files are never touched.
+ */
+export async function loadSinkProject(
+  scenesDir: string,
+  opts: { extra?: Readonly<Record<string, Uint8Array>> } = {},
+): Promise<SinkProject> {
+  const scratch = await mkdtemp(join(tmpdir(), "jams-engine-smoke-project-"));
+  const cacheDir = join(scratch, "cache");
   try {
-    const project = await readFileProject(scenesDir, { cacheDir });
+    await mkdir(cacheDir);
+    let dir = scenesDir;
+    if (opts.extra) {
+      dir = join(scratch, "scenes");
+      await cp(scenesDir, dir, { recursive: true });
+      for (const [path, bytes] of Object.entries(opts.extra)) {
+        await mkdir(dirname(join(dir, path)), { recursive: true });
+        await writeFile(join(dir, path), bytes);
+      }
+    }
+    const project = await readFileProject(dir, { cacheDir });
     const scan = await createProjectFileAdapter(project).scan();
     if (scan.problems.length > 0)
       throw new Error(`the engine project scans with problems: ${JSON.stringify(scan.problems)}`);
@@ -47,10 +77,10 @@ export async function loadSinkProject(scenesDir: string): Promise<SinkProject> {
     return {
       source: { project, state: async () => scan.state, store: fileContentStore(cacheDir) },
       data: { state: scan.state, values },
-      close: () => rm(cacheDir, { recursive: true, force: true }),
+      close: () => rm(scratch, { recursive: true, force: true }),
     };
   } catch (err) {
-    await rm(cacheDir, { recursive: true, force: true });
+    await rm(scratch, { recursive: true, force: true });
     throw err;
   }
 }

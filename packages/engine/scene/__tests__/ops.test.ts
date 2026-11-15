@@ -9,7 +9,7 @@ import { projectView } from "../../project/view";
 import { formatScene } from "../format";
 import { readCell, type GridCells } from "../grid";
 import { sceneHash } from "../hash";
-import { applyOps } from "../ops";
+import { applyOps, toSourceBatch } from "../ops";
 import { formatPrefabs, prefabLibrary } from "../prefab";
 import { resolveScene } from "../resolve";
 import { aabb } from "../shape-geometry";
@@ -28,6 +28,9 @@ import {
   type SceneDefinition,
   type SceneOp,
 } from "../types";
+import door from "./fixtures/prefabs/door.json";
+import gate from "./fixtures/prefabs/gate.json";
+import room from "./fixtures/prefabs/room.json";
 import {
   engine,
   engineYard,
@@ -2399,5 +2402,101 @@ describe("spawn-only types in ops", () => {
     expect(r.issue.code).toBe("unknown-type");
     expect(r.issue.message).not.toContain("ember");
     expect(r.issue.hint ?? "").not.toContain("ember");
+  });
+});
+
+describe("toSourceBatch: a nested instance", () => {
+  const lib = () =>
+    prefabLibrary([room, door, gate] as unknown as Parameters<typeof prefabLibrary>[0]);
+  const start = (): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "nest",
+    bounds: [-2000, -2000, 2000, 2000],
+    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 90 }],
+  });
+  /** Where each of door-1's children sits in the world: a follower's first waypoint, else its shape's centre. */
+  const world = (def: SceneDefinition) =>
+    new Map(
+      (resolveScene(def, engine, lib()).entities ?? [])
+        .filter((e) => e.id.startsWith("room-1/door-1/"))
+        .map((e) => {
+          const path = e.path as { pts: Pt[] } | undefined;
+          const shape = e.shape as [string, number, number];
+          return [e.id, path ? path.pts[0]! : ([shape[1], shape[2]] as Pt)];
+        }),
+    );
+  const edit = (def: SceneDefinition, ops: SceneOp[]) => {
+    const mapped = toSourceBatch(def, { ops }, engine, lib());
+    if (!mapped.ok) throw new Error(mapped.issue.message);
+    const r = applyOps(def, mapped.batch, engine, { prefabs: lib() });
+    if (!r.ok) throw new Error(r.issue.message);
+    return { batch: mapped.batch, def: r.def };
+  };
+  const near = ([ax, ay]: Pt, [bx, by]: Pt) => Math.abs(ax - bx) < 1e-6 && Math.abs(ay - by) < 1e-6;
+
+  it("moves as an override of its at on the scene instance, and moving back reverts it", () => {
+    const def = start();
+    const was = world(def);
+    const moved = edit(def, [{ op: "move", refs: ["room-1/door-1"], by: [10, 0] }]);
+    expect(moved.batch.ops).toEqual([
+      { op: "override", ref: "room-1", set: { "door-1.at": [0, 30] } },
+    ]);
+    expect(was.size).toBe(5);
+    for (const [id, [x, y]] of world(moved.def))
+      expect(near([x, y], [was.get(id)![0] + 10, was.get(id)![1]]), id).toBe(true);
+    const back = edit(moved.def, [{ op: "move", refs: ["room-1/door-1"], by: [-10, 0] }]);
+    expect(back.batch.ops).toEqual([{ op: "revertOverride", ref: "room-1", paths: ["door-1.at"] }]);
+    expect(back.def).toEqual(def);
+  });
+
+  it("turns about its own origin as an override of its rot, and turning back reverts it", () => {
+    const def = start();
+    const was = world(def);
+    const turned = edit(def, [{ op: "transform", refs: ["room-1/door-1"], rotate: 90 }]);
+    expect(turned.batch.ops).toEqual([
+      { op: "override", ref: "room-1", set: { "door-1.rot": 90 } },
+    ]);
+    const [ox, oy] = was.get("room-1/door-1/panel")!;
+    // A quarter turn clockwise on screen (y down) takes [dx, dy] about the origin to [-dy, dx].
+    for (const [id, p] of world(turned.def)) {
+      const [x, y] = was.get(id)!;
+      expect(near(p, [ox - (y - oy), oy + (x - ox)]), id).toBe(true);
+    }
+    const back = edit(turned.def, [{ op: "transform", refs: ["room-1/door-1"], rotate: -90 }]);
+    expect(back.batch.ops).toEqual([
+      { op: "revertOverride", ref: "room-1", paths: ["door-1.rot"] },
+    ]);
+    expect(back.def).toEqual(def);
+  });
+
+  it("turns about a given point, moving its at too, beside a scene instance in the same op", () => {
+    const def: SceneDefinition = {
+      ...start(),
+      instances: [...start().instances!, { id: "gate-9", prefab: "gate", at: [0, 0] }],
+    };
+    const r = toSourceBatch(
+      def,
+      { ops: [{ op: "transform", refs: ["gate-9", "room-1/door-1"], turn: 1, about: [0, 0] }] },
+      engine,
+      lib(),
+    );
+    expect(r.ok && r.batch.ops[0]).toEqual({
+      op: "transform",
+      refs: ["gate-9"],
+      turn: 1,
+      about: [0, 0],
+    });
+    const set = r.ok && r.batch.ops[1]?.op === "override" ? r.batch.ops[1].set : {};
+    expect(Object.keys(set).sort()).toEqual(["door-1.at", "door-1.rot"]);
+  });
+
+  it("still refuses a move of something its prefab doesn't have", () => {
+    const r = toSourceBatch(
+      start(),
+      { ops: [{ op: "move", refs: ["room-1/door-9"], by: [1, 0] }] },
+      engine,
+      lib(),
+    );
+    expect(r.ok || r.issue.code).toBe("op-invalid");
   });
 });

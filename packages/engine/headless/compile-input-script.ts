@@ -411,7 +411,7 @@ function commandStepIssue(
   const name = raw.command;
   if (typeof name !== "string") return null;
   const names = scriptCommandNames(registry);
-  if (name.startsWith("@") && registry.commands.has(name)) {
+  if (name.startsWith("@") && registry.commands.has(name) && !names.includes(name)) {
     return issueAt(
       [...path, "command"],
       name === "@elapsed"

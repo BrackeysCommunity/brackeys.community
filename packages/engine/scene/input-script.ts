@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { NAV_COMMAND, navDestinationSchema, type NavDestination } from "../game/commands";
+import {
+  isDialogueCommand,
+  NAV_COMMAND,
+  navDestinationSchema,
+  type NavDestination,
+} from "../game/commands";
 import { ID_PATTERN } from "../game/fields";
 import {
   bindingProblems,
@@ -21,7 +26,12 @@ import {
   type Registry,
 } from "../game/types";
 import { pxPerMetreOf, scaleLengths } from "../game/units";
-import type { InputScriptV2, PersistMatch, ScriptIssue } from "../headless/playtest-types";
+import type {
+  DialogueMatch,
+  InputScriptV2,
+  PersistMatch,
+  ScriptIssue,
+} from "../headless/playtest-types";
 import { parseJsonPointer } from "../project/json-edit";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { deviceIdSchema } from "./device-id";
@@ -170,9 +180,13 @@ export function navCommand(nav: NavDestination): GameCommand {
   return { name: NAV_COMMAND, args: { id: nav.id, to } };
 }
 
-/** The commands a script's `command` step may send: the game's own, not the engine's `@` ones. */
+/**
+ * The commands a script's `command` step may send: the game's own, then the
+ * dialogue's (which a player sends by hand), not the engine's other `@` ones.
+ */
 export function scriptCommandNames(registry: Registry): string[] {
-  return registry.commandNames.filter((n) => !n.startsWith("@"));
+  const names = registry.commandNames;
+  return [...names.filter((n) => !n.startsWith("@")), ...names.filter(isDialogueCommand)];
 }
 
 const COUNT_BOUNDS = ["min", "max", "eq"] as const;
@@ -211,6 +225,34 @@ const persistMatch: z.ZodType<PersistMatch> = z
     "Holds while the persistent value (`ctx.persist`) at `pointer` keeps every bound given; a pointer naming nothing doesn't hold.",
   )
   .meta({ id: "PersistMatch" });
+
+/** The engine's `dialogue` predicate, over the active conversation. */
+const dialogueMatch: z.ZodType<DialogueMatch> = z
+  .strictObject({
+    node: z
+      .string()
+      .regex(ID_PATTERN, "a dialogue node's id: lowercase letters, digits and dashes")
+      .optional()
+      .describe("Holds while the conversation stands at this node."),
+    ended: z
+      .union([
+        z.string().min(1).describe("Holds once it ends with this ending."),
+        z.literal(true).describe("Holds once it ends with any ending."),
+      ])
+      .optional()
+      .describe("Holds once the conversation ends: with this ending, or any with true."),
+    active: z
+      .boolean()
+      .optional()
+      .describe("Holds while a conversation runs, or with false while none does."),
+  })
+  .refine((m) => m.node !== undefined || m.ended !== undefined || m.active !== undefined, {
+    message: "a dialogue predicate needs node, ended or active",
+  })
+  .describe(
+    "Holds while the active conversation (`ctx.dialogue`) keeps every key given: its node, its ending, whether one runs.",
+  )
+  .meta({ id: "DialogueMatch" });
 
 /** The engine's `exists`, `count` and `near` predicates, over `registry`'s entity types. */
 function worldPredicates(registry: Registry) {
@@ -559,6 +601,7 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
           "Holds once the main scene is this one (its asset id), after a flow request the run followed.",
         ),
       persist: persistMatch.optional(),
+      dialogue: dialogueMatch.optional(),
       ...Object.fromEntries(
         Object.entries(predicates).map(([name, p]) => [
           name,
@@ -643,7 +686,7 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
         : z.never()
       ).describe(
         commandNames.length > 0
-          ? `A command the game declares: ${commandNames
+          ? `A command the game declares, or the dialogue's: ${commandNames
               .map((n) => `${n} (${registry.commands.get(n)!.description})`)
               .join("; ")}.`
           : "A command name; this registry's game declares none.",

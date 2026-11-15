@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ANIMATION_KIND`](#animation_kind) · [`ANIMATION_SCHEMA_ID`](#animation_schema_id) · [`ANIMATION_VERSION`](#animation_version) · [`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AnimFrameDef`](#animframedef) · [`AnimationFile`](#animationfile) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetFiles`](#assetfiles) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CLIP_LOOPS`](#clip_loops) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`ClipDef`](#clipdef) · [`ClipLoop`](#cliploop) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocLookup`](#doclookup) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`EMITTER_KIND`](#emitter_kind) · [`EMITTER_MAX_CAP`](#emitter_max_cap) · [`EMITTER_MAX_DEFAULT`](#emitter_max_default) · [`EMITTER_SCHEMA_ID`](#emitter_schema_id) · [`EMITTER_VERSION`](#emitter_version) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`EditSceneOp`](#editsceneop) · [`EmitterCurve`](#emittercurve) · [`EmitterFile`](#emitterfile) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SHAPE_SET_NAME`](#shape_set_name) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionFitIssue`](#sceneversionfitissue) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneVersionSource`](#sceneversionsource) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`animationIssues`](#animationissues) · [`animationKind`](#animationkind) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`codeKind`](#codekind) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`docKindJsonSchema`](#dockindjsonschema) · [`docNameOf`](#docnameof) · [`emitterIssues`](#emitterissues) · [`emitterKind`](#emitterkind) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isRuntimeKind`](#isruntimekind) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`liveFiles`](#livefiles) · [`manifestDocRefs`](#manifestdocrefs) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readReleaseScene`](#readreleasescene) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeKindNames`](#runtimekindnames) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionDataBytes`](#sceneversiondatabytes) · [`sceneVersionFitIssue`](#sceneversionfitissue-1) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionOptions`](#sceneversionoptions) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`stableJson`](#stablejson) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`utf8Bytes`](#utf8bytes) · [`validateAssetDoc`](#validateassetdoc) · [`validateProject`](#validateproject) · [`writesPrefabs`](#writesprefabs)
+[`ANIMATION_KIND`](#animation_kind) · [`ANIMATION_SCHEMA_ID`](#animation_schema_id) · [`ANIMATION_VERSION`](#animation_version) · [`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AnimFrameDef`](#animframedef) · [`AnimationFile`](#animationfile) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetFiles`](#assetfiles) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BUS_NAME_PATTERN`](#bus_name_pattern) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`Bmfont`](#bmfont) · [`BmfontDistanceField`](#bmfontdistancefield) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CLIP_LOOPS`](#clip_loops) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`ClipDef`](#clipdef) · [`ClipLoop`](#cliploop) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`CodePointRanges`](#codepointranges) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DIALOGUE_KIND`](#dialogue_kind) · [`DIALOGUE_SCHEMA_ID`](#dialogue_schema_id) · [`DIALOGUE_VERSION`](#dialogue_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DialogueChoice`](#dialoguechoice) · [`DialogueCondition`](#dialoguecondition) · [`DialogueEffect`](#dialogueeffect) · [`DialogueExit`](#dialogueexit) · [`DialogueFile`](#dialoguefile) · [`DialogueLine`](#dialogueline) · [`DialogueNode`](#dialoguenode) · [`DialoguePortrait`](#dialogueportrait) · [`DialogueSpeaker`](#dialoguespeaker) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocLookup`](#doclookup) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`EMITTER_KIND`](#emitter_kind) · [`EMITTER_MAX_CAP`](#emitter_max_cap) · [`EMITTER_MAX_DEFAULT`](#emitter_max_default) · [`EMITTER_SCHEMA_ID`](#emitter_schema_id) · [`EMITTER_VERSION`](#emitter_version) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`ENGINE_BUSES`](#engine_buses) · [`EditSceneOp`](#editsceneop) · [`EmitterCurve`](#emittercurve) · [`EmitterFile`](#emitterfile) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontDecompress`](#fontdecompress) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`LOCALE_PATTERN`](#locale_pattern) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`LocaleSettings`](#localesettings) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`MergedStringRow`](#mergedstringrow) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`Reinspection`](#reinspection) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SHAPE_SET_NAME`](#shape_set_name) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SOUND_KIND`](#sound_kind) · [`SOUND_MAX_VOICES_DEFAULT`](#sound_max_voices_default) · [`SOUND_SCHEMA_ID`](#sound_schema_id) · [`SOUND_VERSION`](#sound_version) · [`STRINGS_KIND`](#strings_kind) · [`STRINGS_SCHEMA_ID`](#strings_schema_id) · [`STRINGS_VERSION`](#strings_version) · [`STRING_KEY_PATTERN`](#string_key_pattern) · [`SYNTH_BOUNDS`](#synth_bounds) · [`SYNTH_KIND`](#synth_kind) · [`SYNTH_SCHEMA_ID`](#synth_schema_id) · [`SYNTH_VERSION`](#synth_version) · [`SYNTH_WAVES`](#synth_waves) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionFitIssue`](#sceneversionfitissue) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneVersionSource`](#sceneversionsource) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`SoundFile`](#soundfile) · [`SoundMatcher`](#soundmatcher) · [`StringKeyUse`](#stringkeyuse) · [`StringRow`](#stringrow) · [`StringsFile`](#stringsfile) · [`SynthFile`](#synthfile) · [`SynthNumberPath`](#synthnumberpath) · [`SynthWave`](#synthwave) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`animationIssues`](#animationissues) · [`animationKind`](#animationkind) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioBuses`](#audiobuses) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`byPathThenKey`](#bypaththenkey) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`cmapCoverage`](#cmapcoverage) · [`codeKind`](#codekind) · [`codePointRanges`](#codepointranges-1) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`dialogueDeadEnd`](#dialoguedeadend) · [`dialogueExits`](#dialogueexits) · [`dialogueIssues`](#dialogueissues) · [`dialogueKind`](#dialoguekind) · [`dialogueNodes`](#dialoguenodes) · [`dialogueRefs`](#dialoguerefs) · [`dialogueStringIssues`](#dialoguestringissues) · [`docKindJsonSchema`](#dockindjsonschema) · [`docLookup`](#doclookup-1) · [`docNameOf`](#docnameof) · [`emitterIssues`](#emitterissues) · [`emitterKind`](#emitterkind) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontCoverage`](#fontcoverage) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`fontTable`](#fonttable) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isMetaStale`](#ismetastale) · [`isRuntimeKind`](#isruntimekind) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`kindMetaVersion`](#kindmetaversion) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`liveFiles`](#livefiles) · [`localeFont`](#localefont) · [`manifestDocRefs`](#manifestdocrefs) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`mergeRanges`](#mergeranges) · [`mergedStrings`](#mergedstrings) · [`missingStringKeys`](#missingstringkeys) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectLocales`](#projectlocales) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`reachableNodes`](#reachablenodes) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readReleaseScene`](#readreleasescene) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`reinspectBlob`](#reinspectblob) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeKindNames`](#runtimekindnames) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionDataBytes`](#sceneversiondatabytes) · [`sceneVersionFitIssue`](#sceneversionfitissue-1) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionOptions`](#sceneversionoptions) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarMetaVersion`](#sidecarmetaversion) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`soundKind`](#soundkind) · [`stableJson`](#stablejson) · [`stringKeyIssues`](#stringkeyissues) · [`stringLocales`](#stringlocales) · [`stringsKind`](#stringskind) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`synthKind`](#synthkind) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`usedStringKeys`](#usedstringkeys) · [`utf8Bytes`](#utf8bytes) · [`validateAssetDoc`](#validateassetdoc) · [`validateProject`](#validateproject) · [`withReinspectedMeta`](#withreinspectedmeta) · [`writesPrefabs`](#writesprefabs)
 
 ## `ANIMATION_KIND`
 
@@ -200,16 +200,23 @@ type AssetInfo = {
     /** An atlas: each frame's durationMs, in `frames` order; null where the export gives none. */
     durations?: readonly (null | number)[];
     filter?: "linear" | "nearest";
+    /** A font: its meta (format, BMFont metrics). */
+    font?: FontMeta;
     /** An atlas: its frame names in file order, its tags, its texture's id. */
     frames?: readonly string[];
     id: AssetId;
     kind: AssetKindName;
+    loopEnd?: number;
+    /** An audio clip's loop points, seconds from its start. */
+    loopStart?: number;
     nineSlice?: [
         number,
         number,
         number,
         number
     ];
+    /** A bitmap font: its page textures' ids, in page order. */
+    pages?: readonly AssetId[];
     pivot?: [
         x: number,
         y: number
@@ -227,6 +234,8 @@ type AssetInfo = {
         w: number,
         h: number
     ];
+    /** An audio clip played as a stream rather than decoded whole. */
+    stream?: boolean;
     tags?: readonly {
         direction: string;
         from: number;
@@ -237,7 +246,7 @@ type AssetInfo = {
 };
 ```
 
-Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`Sha256`](#sha256).
+Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`FontMeta`](#fontmeta), [`Sha256`](#sha256).
 
 ## `AssetKey`
 
@@ -315,6 +324,8 @@ type AssetSidecar = {
     kind: "asset-sidecar";
     licence?: Licence;
     meta?: Record<string, unknown>;
+    /** The kind's `metaVersion` that `meta` was inspected under; absent means 1. */
+    metaVersion?: number;
     /** Display name; absent means the file's stem. */
     name?: string;
     sha256?: Sha256;
@@ -448,7 +459,10 @@ _type_ in `project/kinds/audio.ts`
 
 ```ts
 type AudioMeta = {
+    channels?: number;
+    durationMs?: number;
     format: AudioFormat;
+    sampleRate?: number;
 };
 ```
 
@@ -457,7 +471,24 @@ type AudioMeta = {
 _type_ in `project/kinds/audio.ts`
 
 ```ts
-type AudioSettings = Record<string, never>;
+type AudioSettings = {
+    /** Seconds. */
+    loopEnd?: number;
+    /** Seconds. */
+    loopStart?: number;
+    /** Play through a media element instead of decoding whole. */
+    stream?: boolean;
+};
+```
+
+## `BUS_NAME_PATTERN`
+
+_const_ in `project/kinds/sound.ts`
+
+What a bus a game declares may be called.
+
+```ts
+declare const BUS_NAME_PATTERN: RegExp;
 ```
 
 ## `BlobInspect`
@@ -483,7 +514,7 @@ type BlobKindDef<M = unknown, S = unknown> = KindBase & {
     inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
     maxBytes: number;
     meta: z.ZodType<M>;
-    /** Bumped when `inspect` learns more. Sidecars don't record it yet, so nothing re-inspects by it. */
+    /** Bumped when `inspect` learns more; a sidecar recording an older one is inspected again (`isMetaStale`). */
     metaVersion?: number;
     refs?(entry: AssetEntry): readonly RefSite[];
     /** Import settings: every field optional with a default, so `{}` is valid. */
@@ -493,6 +524,44 @@ type BlobKindDef<M = unknown, S = unknown> = KindBase & {
 ```
 
 Refers to [`AssetEntry`](#assetentry), [`InspectEnv`](#inspectenv), [`InspectResult`](#inspectresult), [`RefSite`](#refsite).
+
+## `Bmfont`
+
+_type_ in `project/inspect/bmfont.ts`
+
+What a BMFont gives for layout: never the glyph rectangles, which only the renderer needs.
+
+```ts
+type Bmfont = {
+    /** `xadvance` by decimal code point, ascending. */
+    advances?: Record<string, number>;
+    coverage?: CodePointRanges;
+    distanceField?: BmfontDistanceField;
+    /** Non-zero pairs, by first then second code point. */
+    kerning?: [
+        first: number,
+        second: number,
+        amount: number
+    ][];
+    lineHeight: number;
+    /** Page files in page id order, relative to the .fnt. */
+    pages: string[];
+    size?: number;
+};
+```
+
+Refers to [`BmfontDistanceField`](#bmfontdistancefield), [`CodePointRanges`](#codepointranges).
+
+## `BmfontDistanceField`
+
+_type_ in `project/inspect/bmfont.ts`
+
+```ts
+type BmfontDistanceField = {
+    range: number;
+    type: "msdf" | "sdf";
+};
+```
 
 ## `BuildSceneVersionOptions`
 
@@ -705,6 +774,19 @@ type CodeModuleInfo = {
 };
 ```
 
+## `CodePointRanges`
+
+_type_ in `project/inspect/font-cmap.ts`
+
+Inclusive code point ranges, ascending, neither overlapping nor touching.
+
+```ts
+type CodePointRanges = [
+    from: number,
+    to: number
+][];
+```
+
 ## `ContentStore`
 
 _type_ in `project/content-store.ts`
@@ -759,6 +841,30 @@ _const_ in `project/kinds/data-table.ts`
 declare const DATA_TABLE_VERSION = 2;
 ```
 
+## `DIALOGUE_KIND`
+
+_const_ in `project/kinds/dialogue.ts`
+
+```ts
+declare const DIALOGUE_KIND = "dialogue";
+```
+
+## `DIALOGUE_SCHEMA_ID`
+
+_const_ in `project/kinds/dialogue.ts`
+
+```ts
+declare const DIALOGUE_SCHEMA_ID = "urn:jams-engine:dialogue:v1";
+```
+
+## `DIALOGUE_VERSION`
+
+_const_ in `project/kinds/dialogue.ts`
+
+```ts
+declare const DIALOGUE_VERSION = 1;
+```
+
 ## `DOC_NAME_KINDS`
 
 _const_ in `project/doc-names.ts`
@@ -806,6 +912,175 @@ type DataTableRow = Record<string, unknown> & {
     id: string;
 };
 ```
+
+## `DialogueChoice`
+
+_type_ in `project/kinds/dialogue.ts`
+
+```ts
+type DialogueChoice = {
+    do?: readonly DialogueEffect[];
+    /** What a choice whose `if` fails does: hidden, or shown disabled. Default hide. */
+    hidden?: "disable" | "hide";
+    if?: DialogueCondition;
+    say?: string;
+    text?: string;
+    to: string;
+};
+```
+
+Refers to [`DialogueCondition`](#dialoguecondition), [`DialogueEffect`](#dialogueeffect).
+
+## `DialogueCondition`
+
+_type_ in `project/kinds/dialogue.ts`
+
+Conditions over the dialogue's variables (JSON pointers into the host's value).
+
+```ts
+type DialogueCondition = {
+    all: readonly DialogueCondition[];
+} | {
+    any: readonly DialogueCondition[];
+} | {
+    eq?: JsonValue;
+    gt?: number;
+    gte?: number;
+    lt?: number;
+    lte?: number;
+    ne?: JsonValue;
+    truthy?: boolean;
+    var: string;
+} | {
+    not: DialogueCondition;
+} | {
+    visited: string;
+};
+```
+
+## `DialogueEffect`
+
+_type_ in `project/kinds/dialogue.ts`
+
+```ts
+type DialogueEffect = {
+    add: string;
+    by: number;
+} | {
+    data?: JsonValue;
+    emit: string;
+} | {
+    push: string;
+    value: JsonValue;
+} | {
+    set: string;
+    to: JsonValue;
+};
+```
+
+## `DialogueExit`
+
+_type_ in `project/kinds/dialogue.ts`
+
+One way out of a node: the node `to` names, and the pointer segments of the field naming it.
+
+```ts
+type DialogueExit = {
+    at: readonly (number | string)[];
+    to: string;
+};
+```
+
+## `DialogueFile`
+
+_type_ in `project/kinds/dialogue.ts`
+
+A `dialogue:v1` file.
+
+```ts
+type DialogueFile = {
+    $schema?: string;
+    kind: typeof DIALOGUE_KIND;
+    nodes: DialogueNode[];
+    speakers?: DialogueSpeaker[];
+    start: string;
+    v: typeof DIALOGUE_VERSION;
+};
+```
+
+Refers to [`DIALOGUE_KIND`](#dialogue_kind), [`DIALOGUE_VERSION`](#dialogue_version), [`DialogueNode`](#dialoguenode), [`DialogueSpeaker`](#dialoguespeaker).
+
+## `DialogueLine`
+
+_type_ in `project/kinds/dialogue.ts`
+
+```ts
+type DialogueLine = {
+    if?: DialogueCondition;
+    portrait?: DialoguePortrait;
+    say?: string;
+    speaker?: string;
+    /** A string key; `say` is literal text for prototypes. */
+    text?: string;
+    /** `{name}` → a JSON pointer into the variables. */
+    vars?: Readonly<Record<string, string>>;
+    voice?: AssetId;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`DialogueCondition`](#dialoguecondition), [`DialoguePortrait`](#dialogueportrait).
+
+## `DialogueNode`
+
+_type_ in `project/kinds/dialogue.ts`
+
+```ts
+type DialogueNode = {
+    choices?: readonly DialogueChoice[];
+    /** Effects when the node is entered. */
+    do?: readonly DialogueEffect[];
+    else?: string;
+    /** Ends the conversation with this ending's name. */
+    end?: string;
+    id: string;
+    /** Entering a node whose `if` fails goes to `else`. */
+    if?: DialogueCondition;
+    lines: readonly DialogueLine[];
+    /** Without choices: the next node. */
+    next?: string;
+};
+```
+
+Refers to [`DialogueChoice`](#dialoguechoice), [`DialogueCondition`](#dialoguecondition), [`DialogueEffect`](#dialogueeffect), [`DialogueLine`](#dialogueline).
+
+## `DialoguePortrait`
+
+_type_ in `project/kinds/dialogue.ts`
+
+An atlas frame or a texture a speaker or a line shows.
+
+```ts
+type DialoguePortrait = {
+    asset: AssetId;
+    frame?: string;
+};
+```
+
+Refers to [`AssetId`](#assetid).
+
+## `DialogueSpeaker`
+
+_type_ in `project/kinds/dialogue.ts`
+
+```ts
+type DialogueSpeaker = {
+    id: string;
+    name: string;
+    portrait?: DialoguePortrait;
+};
+```
+
+Refers to [`DialoguePortrait`](#dialogueportrait).
 
 ## `DocKindDef`
 
@@ -1015,6 +1290,22 @@ declare const ENGINE_ASSET_KINDS: readonly AssetKindDef[];
 
 Refers to [`AssetKindDef`](#assetkinddef).
 
+## `ENGINE_BUSES`
+
+_const_ in `project/kinds/sound.ts`
+
+The engine's buses; each but `master` routes into `master`.
+
+```ts
+declare const ENGINE_BUSES: readonly [
+    "master",
+    "music",
+    "sfx",
+    "voice",
+    "ui"
+];
+```
+
 ## `EditSceneOp`
 
 _type_ in `project/ops.ts`
@@ -1155,6 +1446,23 @@ _const_ in `project/kinds/font.ts`
 declare const FONT_KIND = "font";
 ```
 
+## `FontDecompress`
+
+_type_ in `project/inspect/font.ts`
+
+Decompressors a host can lend the font reader; the reader itself stays
+pure. Without them a WOFF's compressed tables and every WOFF2 table stay
+unread, and the face's coverage is unknown.
+
+```ts
+type FontDecompress = {
+    /** A Brotli stream, as WOFF2 stores all its tables. */
+    brotli?: (data: Uint8Array) => Uint8Array;
+    /** zlib (RFC 1950) data, as WOFF stores a compressed table. */
+    inflate?: (data: Uint8Array) => Uint8Array;
+};
+```
+
 ## `FontFormat`
 
 _type_ in `project/kinds/font.ts`
@@ -1169,9 +1477,26 @@ _type_ in `project/kinds/font.ts`
 
 ```ts
 type FontMeta = {
+    advances?: Readonly<Record<string, number>>;
+    /** Code point ranges the face covers; absent when they couldn't be read. */
+    coverage?: readonly (readonly [
+        from: number,
+        to: number
+    ])[];
+    distanceField?: {
+        range: number;
+        type: "msdf" | "sdf";
+    };
     format: FontFormat;
+    kerning?: readonly (readonly [
+        first: number,
+        second: number,
+        amount: number
+    ])[];
     lineHeight?: number;
     pages?: AssetPath[];
+    /** BMFont only: the face's size, advances by code point and kerning pairs, for exact headless measuring. */
+    size?: number;
 };
 ```
 
@@ -1222,12 +1547,16 @@ The engine's project-wide settings: each beats the game's default and loses to a
 ```ts
 type GameSettingsEngine = {
     gravity?: GameWorldDef["gravity"];
+    /** The locales the game's strings offer; presentation only, never a run's input. */
+    locales?: LocaleSettings;
     physics?: GameWorldDef["physics"];
     resolution?: Partial<ResolutionPolicy>;
     /** Ticks per second for every scene; checked by the kind's `validate`, not the schema. */
     tickRate?: number;
 };
 ```
+
+Refers to [`LocaleSettings`](#localesettings).
 
 ## `GameSettingsFile`
 
@@ -1428,6 +1757,8 @@ _type_ in `project/kinds/define.ts`
 
 ```ts
 type InspectEnv = {
+    /** Decompressors a Node or Bun host lends a reader (a WOFF's zlib tables, a WOFF2's Brotli stream); absent in the browser. */
+    decompress?: FontDecompress;
     /** The asset id at a project path, for references a file makes by name (an atlas's image). */
     idAt(path: AssetPath): AssetId | undefined;
     /** The path of the asset being inspected. */
@@ -1435,7 +1766,7 @@ type InspectEnv = {
 };
 ```
 
-Refers to [`AssetId`](#assetid), [`AssetPath`](#assetpath).
+Refers to [`AssetId`](#assetid), [`AssetPath`](#assetpath), [`FontDecompress`](#fontdecompress).
 
 ## `InspectResult`
 
@@ -1546,6 +1877,16 @@ type KindRegistry = {
 
 Refers to [`AssetKindDef`](#assetkinddef), [`AssetKindName`](#assetkindname), [`AssetPath`](#assetpath), [`KindEnv`](#kindenv), [`Sha256`](#sha256).
 
+## `LOCALE_PATTERN`
+
+_const_ in `project/kinds/strings.ts`
+
+A locale column's name: a BCP 47 tag such as `en`, `fr` or `pt-BR`.
+
+```ts
+declare const LOCALE_PATTERN: RegExp;
+```
+
 ## `Licence`
 
 _type_ in `project/types.ts`
@@ -1586,6 +1927,28 @@ type LiveCompat = {
 
 Refers to [`AssetKindName`](#assetkindname), [`Sha256`](#sha256).
 
+## `LocaleSettings`
+
+_type_ in `project/kinds/strings.ts`
+
+game-settings' `engine.locales`: the default, what the game offers, fallbacks and fonts.
+
+```ts
+type LocaleSettings = {
+    available: readonly string[];
+    /** BCP 47, e.g. "en". */
+    default: string;
+    /** A locale's fallback chain before default, e.g. { "pt-BR": ["pt"] }. */
+    fallback?: Readonly<Record<string, readonly string[]>>;
+    /** The font for each locale (asset ids), and the default. */
+    fonts?: Readonly<Record<string, AssetId>> & {
+        default?: AssetId;
+    };
+};
+```
+
+Refers to [`AssetId`](#assetid).
+
 ## `MATERIAL_KIND`
 
 _const_ in `project/kinds/material.ts`
@@ -1619,6 +1982,22 @@ type MaterialFile = z.infer<typeof materialSchema>;
 ```
 
 Refers to [`materialSchema`](#materialschema).
+
+## `MergedStringRow`
+
+_type_ in `project/kinds/strings.ts`
+
+One key's row as the project merges it: the strings file it comes from and its index there.
+
+```ts
+type MergedStringRow = {
+    id: AssetId;
+    index: number;
+    row: StringRow;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`StringRow`](#stringrow).
 
 ## `PREFAB_SCENE_OPS`
 
@@ -2466,6 +2845,26 @@ type Referrer = {
 
 Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`JsonPointer`](#jsonpointer).
 
+## `Reinspection`
+
+_type_ in `project/sidecar.ts`
+
+```ts
+type Reinspection = {
+    /** Whether `meta` or `import` differs from the entry's. */
+    changed: boolean;
+    /** The entry's settings with the ones the inspection fills; absent when there are none. */
+    import?: Record<string, unknown>;
+    meta: Record<string, unknown>;
+    /** The version `meta` is inspected under. */
+    metaVersion: number;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+```
+
 ## `ReleaseAsset`
 
 _type_ in `project/release.ts`
@@ -2828,6 +3227,127 @@ The sidecar format version, the `v` every `<file>.asset.json` carries.
 declare const SIDECAR_VERSION = 1;
 ```
 
+## `SOUND_KIND`
+
+_const_ in `project/kinds/sound.ts`
+
+```ts
+declare const SOUND_KIND = "sound";
+```
+
+## `SOUND_MAX_VOICES_DEFAULT`
+
+_const_ in `project/kinds/sound.ts`
+
+How many voices one sound keeps when its file gives no `maxVoices`.
+
+```ts
+declare const SOUND_MAX_VOICES_DEFAULT = 8;
+```
+
+## `SOUND_SCHEMA_ID`
+
+_const_ in `project/kinds/sound.ts`
+
+```ts
+declare const SOUND_SCHEMA_ID = "urn:jams-engine:sound:v1";
+```
+
+## `SOUND_VERSION`
+
+_const_ in `project/kinds/sound.ts`
+
+```ts
+declare const SOUND_VERSION = 1;
+```
+
+## `STRINGS_KIND`
+
+_const_ in `project/kinds/strings.ts`
+
+```ts
+declare const STRINGS_KIND = "strings";
+```
+
+## `STRINGS_SCHEMA_ID`
+
+_const_ in `project/kinds/strings.ts`
+
+```ts
+declare const STRINGS_SCHEMA_ID = "urn:jams-engine:strings:v1";
+```
+
+## `STRINGS_VERSION`
+
+_const_ in `project/kinds/strings.ts`
+
+```ts
+declare const STRINGS_VERSION = 1;
+```
+
+## `STRING_KEY_PATTERN`
+
+_const_ in `project/kinds/strings.ts`
+
+What a string key looks like: `intro.hello`, `caption.hit`.
+
+```ts
+declare const STRING_KEY_PATTERN: RegExp;
+```
+
+## `SYNTH_BOUNDS`
+
+_const_ in `project/kinds/synth.ts`
+
+Every numeric field's least and most value: what the schema holds a patch to and a mutation clamps to.
+
+```ts
+declare const SYNTH_BOUNDS: Readonly<Record<SynthNumberPath, readonly [
+    min: number,
+    max: number
+]>>;
+```
+
+Refers to [`SynthNumberPath`](#synthnumberpath).
+
+## `SYNTH_KIND`
+
+_const_ in `project/kinds/synth.ts`
+
+```ts
+declare const SYNTH_KIND = "synth";
+```
+
+## `SYNTH_SCHEMA_ID`
+
+_const_ in `project/kinds/synth.ts`
+
+```ts
+declare const SYNTH_SCHEMA_ID = "urn:jams-engine:synth:v1";
+```
+
+## `SYNTH_VERSION`
+
+_const_ in `project/kinds/synth.ts`
+
+```ts
+declare const SYNTH_VERSION = 1;
+```
+
+## `SYNTH_WAVES`
+
+_const_ in `project/kinds/synth.ts`
+
+```ts
+declare const SYNTH_WAVES: readonly [
+    "square",
+    "saw",
+    "triangle",
+    "sine",
+    "noise"
+];
+```
+
 ## `SaveFixtureMeta`
 
 _type_ in `project/kinds/save.ts`
@@ -3070,6 +3590,190 @@ declare class SnapshotError extends Error {
 }
 ```
 
+## `SoundFile`
+
+_type_ in `project/kinds/sound.ts`
+
+A `sound:v1` file.
+
+```ts
+type SoundFile = {
+    $schema?: string;
+    bus: BusName;
+    /** A string key. */
+    caption?: string;
+    cooldownMs?: number;
+    kind: typeof SOUND_KIND;
+    loop?: boolean;
+    /** Default 8. */
+    maxVoices?: number;
+    on?: SoundMatcher[];
+    /** Playback rate range, default [1, 1]. */
+    pitch?: [
+        min: number,
+        max: number
+    ];
+    positional?: boolean;
+    /** Load its clips with the scene bundle instead of on first play. */
+    preload?: boolean;
+    /** World metres a positional sound fades out over; omitted, no falloff. */
+    range?: number;
+    v: typeof SOUND_VERSION;
+    /** `clip`: an `audio` clip or a `synth` patch. */
+    variants: {
+        clip: AssetId;
+        weight?: number;
+    }[];
+    /** 0–1, default 1. */
+    volume?: number;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`SOUND_KIND`](#sound_kind), [`SOUND_VERSION`](#sound_version), [`SoundMatcher`](#soundmatcher).
+
+## `SoundMatcher`
+
+_type_ in `project/kinds/sound.ts`
+
+A step event a sound plays on.
+
+```ts
+type SoundMatcher = {
+    /** Every key must equal the event's data at that key (shallow). */
+    data?: Readonly<Record<string, JsonValue>>;
+    /** A step event type: "contact:start", "anim:frame", a game's own. */
+    event: string;
+    tag?: string;
+    /** The event's entity's type, or a tag of it. */
+    type?: string;
+};
+```
+
+## `StringKeyUse`
+
+_type_ in `project/kinds/strings.ts`
+
+One place a project names a string key: a scene's `text` block, a dialogue line, a sound's caption.
+
+```ts
+type StringKeyUse = {
+    id: AssetId;
+    key: string;
+    kind: AssetKindName;
+    /** JSON Pointer into that doc. */
+    pointer: string;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname).
+
+## `StringRow`
+
+_type_ in `project/kinds/strings.ts`
+
+One key's text per locale; `note` is for translators and never shown.
+
+```ts
+type StringRow = {
+    key: string;
+    note?: string;
+} & {
+    [locale: string]: string | undefined;
+};
+```
+
+## `StringsFile`
+
+_type_ in `project/kinds/strings.ts`
+
+A `strings:v1` file.
+
+```ts
+type StringsFile = {
+    $schema?: string;
+    kind: typeof STRINGS_KIND;
+    strings: StringRow[];
+    v: typeof STRINGS_VERSION;
+};
+```
+
+Refers to [`STRINGS_KIND`](#strings_kind), [`STRINGS_VERSION`](#strings_version), [`StringRow`](#stringrow).
+
+## `SynthFile`
+
+_type_ in `project/kinds/synth.ts`
+
+A `synth:v1` file. Times are ms, pitch Hz, slides octaves per second.
+
+```ts
+type SynthFile = {
+    $schema?: string;
+    /** The volume envelope; `punch` (0–1) lifts the start of the sustain. */
+    attackMs?: number;
+    decayMs: number;
+    /** Square only: the high part of the cycle (default 0.5), and its change per second. */
+    duty?: number;
+    dutySweep?: number;
+    /** Hz at the start. */
+    freq: number;
+    highpass?: {
+        hz: number;
+        sweep?: number;
+    };
+    /** One pitch step, `atMs` in (a pickup's second note). */
+    jump?: {
+        atMs: number;
+        semitones: number;
+    };
+    kind: typeof SYNTH_KIND;
+    /** `sweep` moves the cutoff, octaves per second. */
+    lowpass?: {
+        hz: number;
+        resonance?: number;
+        sweep?: number;
+    };
+    punch?: number;
+    /** Restart pitch and duty every this many ms (a stutter). */
+    retriggerMs?: number;
+    /** Seeds `noise`; default 1. */
+    seed?: number;
+    /** Octaves per second, negative falls; `slideAccel` changes it, octaves per second². */
+    slide?: number;
+    slideAccel?: number;
+    sustainMs: number;
+    v: typeof SYNTH_VERSION;
+    vibrato?: {
+        hz: number;
+        semitones: number;
+    };
+    /** 0–1, default 1. */
+    volume?: number;
+    wave: SynthWave;
+};
+```
+
+Refers to [`SYNTH_KIND`](#synth_kind), [`SYNTH_VERSION`](#synth_version), [`SynthWave`](#synthwave).
+
+## `SynthNumberPath`
+
+_type_ in `project/kinds/synth.ts`
+
+A numeric field's path in a patch, nested fields joined by a dot.
+
+```ts
+type SynthNumberPath = "attackMs" | "decayMs" | "duty" | "dutySweep" | "freq" | "highpass.hz" | "highpass.sweep" | "jump.atMs" | "jump.semitones" | "lowpass.hz" | "lowpass.resonance" | "lowpass.sweep" | "punch" | "retriggerMs" | "slide" | "slideAccel" | "sustainMs" | "vibrato.hz" | "vibrato.semitones" | "volume";
+```
+
+## `SynthWave`
+
+_type_ in `project/kinds/synth.ts`
+
+```ts
+type SynthWave = (typeof SYNTH_WAVES)[number];
+```
+
+Refers to [`SYNTH_WAVES`](#synth_waves).
+
 ## `TEXTURE_KIND`
 
 _const_ in `project/kinds/texture.ts`
@@ -3276,7 +3980,7 @@ suffixed when an earlier file holds it; binaries inspected against the
 ids the files take.
 
 ```ts
-declare function assetFileEntries<F extends AssetFile>(files: readonly F[], created: AssetEntry["created"]): {
+declare function assetFileEntries<F extends AssetFile>(files: readonly F[], created: AssetEntry["created"], decompress?: FontDecompress): {
     entry: AssetEntry;
     file: F;
     issue: SceneIssue | null;
@@ -3284,7 +3988,7 @@ declare function assetFileEntries<F extends AssetFile>(files: readonly F[], crea
 }[];
 ```
 
-Refers to [`AssetEntry`](#assetentry), [`AssetFile`](#assetfile), [`AssetKey`](#assetkey).
+Refers to [`AssetEntry`](#assetentry), [`AssetFile`](#assetfile), [`AssetKey`](#assetkey), [`FontDecompress`](#fontdecompress).
 
 ## `assetFileEntry`
 
@@ -3296,13 +4000,13 @@ inspection with `idAt` gives. An inspection that fails leaves the entry
 without meta and is returned as `issue`.
 
 ```ts
-declare function assetFileEntry(file: AssetFile, key: AssetKey, created: AssetEntry["created"], idAt: (path: AssetPath) => AssetId | undefined): {
+declare function assetFileEntry(file: AssetFile, key: AssetKey, created: AssetEntry["created"], idAt: (path: AssetPath) => AssetId | undefined, decompress?: FontDecompress): {
     entry: AssetEntry;
     issue: SceneIssue | null;
 };
 ```
 
-Refers to [`AssetEntry`](#assetentry), [`AssetFile`](#assetfile), [`AssetId`](#assetid), [`AssetKey`](#assetkey), [`AssetPath`](#assetpath).
+Refers to [`AssetEntry`](#assetentry), [`AssetFile`](#assetfile), [`AssetId`](#assetid), [`AssetKey`](#assetkey), [`AssetPath`](#assetpath), [`FontDecompress`](#fontdecompress).
 
 ## `assetFileKind`
 
@@ -3353,7 +4057,8 @@ _function_ in `project/asset-info.ts`
 
 `id`'s info from its live entry: kind, hash and size in bytes; a
 texture's pixel size and its import pivot, nine-slice and filter; an
-atlas's frame names in file order, tags and texture id. With `frame`, an
+atlas's frame names in file order, tags and texture id; a font's meta and
+pages; an audio clip's stream flag and loop points. With `frame`, an
 atlas's info with that frame's pixel size, rectangle and pivot (frames without their
 own carry the atlas's `pivotDefault`). Null for an id with no live asset
 and for a frame the asset doesn't have.
@@ -3458,11 +4163,21 @@ Which tool exported an atlas JSON: Aseprite by its `meta.app`, otherwise Texture
 declare function atlasTool(json: unknown): "aseprite" | "texturepacker" | null;
 ```
 
+## `audioBuses`
+
+_function_ in `project/kinds/sound.ts`
+
+Every bus a game's sounds may name: the engine's five, then the game's own in declared order.
+
+```ts
+declare function audioBuses(registry: Pick<Registry, "game">): readonly BusName[];
+```
+
 ## `audioKind`
 
 _const_ in `project/kinds/audio.ts`
 
-A sound: Ogg, MP3, WAV or M4A, its format read from the header.
+A sound: Ogg, MP3, WAV or M4A, its format, length, channels and rate read from its headers.
 
 ```ts
 declare const audioKind: {
@@ -3476,6 +4191,7 @@ declare const audioKind: {
     };
     maxBytes: number;
     meta: z.ZodType<AudioMeta, unknown, z.core.$ZodTypeInternals<AudioMeta, unknown>>;
+    metaVersion: number;
     settings: z.ZodType<AudioSettings, unknown, z.core.$ZodTypeInternals<AudioSettings, unknown>>;
     storage: "blob";
     title: string;
@@ -3547,6 +4263,18 @@ UTF-16 code-unit order, as `Array.prototype.sort` orders strings: the same on ev
 ```ts
 declare const byCodeUnit: (a: string, b: string) => number;
 ```
+
+## `byPathThenKey`
+
+_const_ in `project/kinds/define.ts`
+
+Path order, the key breaking a tie: how a project's assets of one kind are read in turn.
+
+```ts
+declare const byPathThenKey: (a: AssetEntry, b: AssetEntry) => number;
+```
+
+Refers to [`AssetEntry`](#assetentry).
 
 ## `canonicalJson`
 
@@ -3698,6 +4426,20 @@ declare const checksKind: {
 
 Refers to [`KindEnv`](#kindenv), [`RefSite`](#refsite).
 
+## `cmapCoverage`
+
+_function_ in `project/inspect/font-cmap.ts`
+
+The code points an sfnt `cmap` table maps to a glyph, merged over its
+Unicode subtables. Null when it has no Unicode subtable this can read,
+so the face's coverage stays unknown rather than empty.
+
+```ts
+declare function cmapCoverage(cmap: Uint8Array): CodePointRanges | null;
+```
+
+Refers to [`CodePointRanges`](#codepointranges).
+
 ## `codeKind`
 
 _const_ in `project/kinds/code.ts`
@@ -3713,6 +4455,18 @@ declare const codeKind: {
     title: string;
 };
 ```
+
+## `codePointRanges`
+
+_function_ in `project/inspect/font-cmap.ts`
+
+The ranges a set of code points makes.
+
+```ts
+declare function codePointRanges(codePoints: Iterable<number>): CodePointRanges;
+```
+
+Refers to [`CodePointRanges`](#codepointranges).
 
 ## `compareEntries`
 
@@ -3833,6 +4587,166 @@ declare function detectImport(kinds: KindRegistry, path: AssetPath, json?: unkno
 
 Refers to [`AssetKindDef`](#assetkinddef), [`AssetPath`](#assetpath), [`KindRegistry`](#kindregistry).
 
+## `dialogueDeadEnd`
+
+_function_ in `project/kinds/dialogue.ts`
+
+How a node can stall. "none": it has no choices, no `next` and no `end`,
+so the conversation stops with no ending. "guarded": it has only
+choices, and every one has an `if`, so with all of them failing nothing
+is offered. A choice without `if`, or the node's `next` or `end`, is the
+fallback. Null when it can't stall.
+
+```ts
+declare function dialogueDeadEnd(node: DialogueNode): "guarded" | "none" | null;
+```
+
+Refers to [`DialogueNode`](#dialoguenode).
+
+## `dialogueExits`
+
+_function_ in `project/kinds/dialogue.ts`
+
+The nodes a node can go to, in order: its choices' `to`, then `next`, then `else`.
+
+```ts
+declare function dialogueExits(node: DialogueNode): DialogueExit[];
+```
+
+Refers to [`DialogueExit`](#dialogueexit), [`DialogueNode`](#dialoguenode).
+
+## `dialogueIssues`
+
+_function_ in `project/kinds/dialogue.ts`
+
+A dialogue's graph checks, which need no other doc: `asset-missing`
+(`detail.kind: "node"`) for a `start`, `to`, `next` or `else` naming no
+node; `dialogue-dead-end` for a node that can stall (an error, or a
+warning when only its choices' conditions can strand it);
+`dialogue-unreachable` for a node no path from `start` reaches. Paths
+point into the file by node index. Never throws.
+
+```ts
+declare function dialogueIssues(file: DialogueFile): SceneIssue[];
+```
+
+Refers to [`DialogueFile`](#dialoguefile).
+
+## `dialogueKind`
+
+_const_ in `project/kinds/dialogue.ts`
+
+Conversations the dialogue runner plays; simulation data.
+
+```ts
+declare const dialogueKind: {
+    crossValidate: (file: DialogueFile, lookup: DocLookup) => SceneIssue[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    /** One node that ends at once. */
+    empty: () => DialogueFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            nodes: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    fields: {
+                        choices: {
+                            as: "list";
+                            item: {
+                                as: "atomic";
+                            };
+                        };
+                        lines: {
+                            as: "list";
+                            item: {
+                                as: "atomic";
+                            };
+                        };
+                    };
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+            speakers: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: DialogueFile) => RefSite[];
+    runtime: "sim";
+    schema: () => z.ZodType<DialogueFile, unknown, z.core.$ZodTypeInternals<DialogueFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: DialogueFile) => SceneIssue[];
+    version: number;
+};
+```
+
+Refers to [`DialogueFile`](#dialoguefile), [`DocLookup`](#doclookup), [`KindEnv`](#kindenv), [`RefSite`](#refsite).
+
+## `dialogueNodes`
+
+_function_ in `project/kinds/dialogue.ts`
+
+The file's nodes by id; of two nodes with one id, the first.
+
+```ts
+declare function dialogueNodes(file: DialogueFile): Map<string, DialogueNode>;
+```
+
+Refers to [`DialogueFile`](#dialoguefile), [`DialogueNode`](#dialoguenode).
+
+## `dialogueRefs`
+
+_function_ in `project/kinds/dialogue.ts`
+
+Portraits (a speaker's or a line's) name an atlas or a texture; a line's voice, a sound or an audio clip.
+
+```ts
+declare function dialogueRefs(file: DialogueFile): RefSite[];
+```
+
+Refers to [`DialogueFile`](#dialoguefile), [`RefSite`](#refsite).
+
+## `dialogueStringIssues`
+
+_function_ in `project/kinds/dialogue.ts`
+
+A dialogue's string checks over the project: `string-key-missing` for a
+line's, a choice's or a speaker's key with no text in a locale (along its
+fallback chain) through the shared `docStringKeyIssues`, an error for the
+default locale and info for the others; and a warning for a line or
+choice that shows literal `say` text with no key, which no locale
+translates.
+
+```ts
+declare function dialogueStringIssues(file: DialogueFile, lookup: DocLookup): SceneIssue[];
+```
+
+Refers to [`DialogueFile`](#dialoguefile), [`DocLookup`](#doclookup).
+
 ## `docKindJsonSchema`
 
 _function_ in `project/kinds.ts`
@@ -3846,6 +4760,20 @@ declare function docKindJsonSchema(def: DocKindDef, env: KindEnv): Record<string
 ```
 
 Refers to [`DocKindDef`](#dockinddef), [`KindEnv`](#kindenv).
+
+## `docLookup`
+
+_function_ in `project/kinds/define.ts`
+
+A `DocLookup` over parsed docs by kind, then id. `ids` gives a kind's
+ids from `ids` when given (every live entry, parsed or not), else the
+ids `byKind` holds, in its map's order.
+
+```ts
+declare function docLookup(byKind: ReadonlyMap<AssetKindName, ReadonlyMap<AssetId, unknown>>, ids?: ReadonlyMap<AssetKindName, readonly AssetId[]>): DocLookup;
+```
+
+Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`DocLookup`](#doclookup).
 
 ## `docNameOf`
 
@@ -3965,12 +4893,24 @@ declare function findSceneVersion<V extends {
 
 Refers to [`SceneVersion`](#sceneversion), [`Sha256`](#sha256).
 
+## `fontCoverage`
+
+_function_ in `project/inspect/font.ts`
+
+The code points a web or desktop font maps to glyphs, or null when its `cmap` can't be read here.
+
+```ts
+declare function fontCoverage(bytes: Uint8Array, format: WebFontFormat, decompress?: FontDecompress): CodePointRanges | null;
+```
+
+Refers to [`CodePointRanges`](#codepointranges), [`FontDecompress`](#fontdecompress).
+
 ## `fontKind`
 
 _const_ in `project/kinds/font.ts`
 
-A font: a text BMFont (.fnt), whose page images are texture assets named
-by `import.pages`, or a WOFF2, WOFF, TrueType or OpenType file.
+A font: a text or XML BMFont (.fnt), whose page images are texture assets
+named by `import.pages`, or a WOFF2, WOFF, TrueType or OpenType file.
 
 ```ts
 declare const fontKind: {
@@ -3984,6 +4924,7 @@ declare const fontKind: {
     };
     maxBytes: number;
     meta: z.ZodType<FontMeta, unknown, z.core.$ZodTypeInternals<FontMeta, unknown>>;
+    metaVersion: number;
     refs: (entry: AssetEntry) => RefSite[];
     settings: z.ZodType<FontSettings, unknown, z.core.$ZodTypeInternals<FontSettings, unknown>>;
     storage: "blob";
@@ -4012,6 +4953,20 @@ declare const fontSettingsSchema: z.ZodType<FontSettings>;
 ```
 
 Refers to [`FontSettings`](#fontsettings).
+
+## `fontTable`
+
+_function_ in `project/inspect/font.ts`
+
+One sfnt table's bytes from a font `readFontFormat` accepted, unpacked
+from WOFF or WOFF2 when `decompress` can. Null when the font has no such
+table or it can't be read here.
+
+```ts
+declare function fontTable(bytes: Uint8Array, format: WebFontFormat, tag: string, decompress?: FontDecompress): Uint8Array | null;
+```
+
+Refers to [`FontDecompress`](#fontdecompress).
 
 ## `formatAssetDoc`
 
@@ -4133,7 +5088,7 @@ Refers to [`ProjectView`](#projectview).
 
 _const_ in `project/kinds/game-settings.ts`
 
-Project-wide settings: the engine's block (resolution, physics, gravity, tick rate) and the game's `projectSettings`.
+Project-wide settings: the engine's block (resolution, physics, gravity, tick rate, locales) and the game's `projectSettings`.
 
 ```ts
 declare const gameSettingsKind: {
@@ -4444,10 +5399,22 @@ image), an inspector that throws is `import-failed`, and the settings the
 inspection fills join the entry's own, which win.
 
 ```ts
-declare function inspectEntry(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined): InspectResult<unknown>;
+declare function inspectEntry(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined, decompress?: FontDecompress): InspectResult<unknown>;
 ```
 
-Refers to [`AssetEntry`](#assetentry), [`AssetId`](#assetid), [`AssetPath`](#assetpath), [`BlobKindDef`](#blobkinddef), [`InspectResult`](#inspectresult).
+Refers to [`AssetEntry`](#assetentry), [`AssetId`](#assetid), [`AssetPath`](#assetpath), [`BlobKindDef`](#blobkinddef), [`FontDecompress`](#fontdecompress), [`InspectResult`](#inspectresult).
+
+## `isMetaStale`
+
+_const_ in `project/sidecar.ts`
+
+Whether a sidecar's meta was inspected under an older version of its kind's inspector, so it is inspected again.
+
+```ts
+declare const isMetaStale: (sidecar: Pick<AssetSidecar, "metaVersion">, def: Pick<BlobKindDef, "metaVersion">) => boolean;
+```
+
+Refers to [`AssetSidecar`](#assetsidecar), [`BlobKindDef`](#blobkinddef).
 
 ## `isRuntimeKind`
 
@@ -4509,6 +5476,18 @@ declare function kindInputMap(view: ProjectView, valueOf: (id: AssetId) => unkno
 
 Refers to [`AssetId`](#assetid), [`InputMapFile`](#inputmapfile), [`ProjectView`](#projectview).
 
+## `kindMetaVersion`
+
+_const_ in `project/sidecar.ts`
+
+The meta version a blob kind's inspector writes: its `metaVersion`, else 1.
+
+```ts
+declare const kindMetaVersion: (def: Pick<BlobKindDef, "metaVersion">) => number;
+```
+
+Refers to [`BlobKindDef`](#blobkinddef).
+
 ## `liveCompat`
 
 _function_ in `project/scene-version.ts`
@@ -4544,6 +5523,18 @@ declare const liveFiles: AssetFiles;
 ```
 
 Refers to [`AssetFiles`](#assetfiles).
+
+## `localeFont`
+
+_function_ in `project/kinds/strings.ts`
+
+The font a locale's text draws in: its own in `fonts`, else the default's.
+
+```ts
+declare function localeFont(locales: LocaleSettings, locale: string): AssetId | undefined;
+```
+
+Refers to [`AssetId`](#assetid), [`LocaleSettings`](#localesettings).
 
 ## `manifestDocRefs`
 
@@ -4698,6 +5689,49 @@ declare function memoryContentStore(): ContentStore;
 
 Refers to [`ContentStore`](#contentstore).
 
+## `mergeRanges`
+
+_function_ in `project/inspect/font-cmap.ts`
+
+`ranges` sorted, clamped to Unicode and coalesced where they overlap or touch.
+
+```ts
+declare function mergeRanges(ranges: readonly (readonly [
+    number,
+    number
+])[]): CodePointRanges;
+```
+
+Refers to [`CodePointRanges`](#codepointranges).
+
+## `mergedStrings`
+
+_function_ in `project/kinds/strings.ts`
+
+Every key's row across the project's strings files; a key in two files keeps the first by path.
+
+```ts
+declare function mergedStrings(lookup: DocLookup): Map<string, MergedStringRow>;
+```
+
+Refers to [`DocLookup`](#doclookup), [`MergedStringRow`](#mergedstringrow).
+
+## `missingStringKeys`
+
+_function_ in `project/kinds/strings.ts`
+
+The uses whose key has no text in `locale` nor along its fallback chain
+(`localeFallbacks`); the default's text doesn't count for another locale,
+so a key only the default holds is missing there. `uses` defaults to
+every use in the project (`usedStringKeys`); a kind's `crossValidate`
+passes its own doc's (`stringKeysIn`).
+
+```ts
+declare function missingStringKeys(lookup: DocLookup, locales: LocaleSettings, locale: string, uses?: readonly StringKeyUse[]): StringKeyUse[];
+```
+
+Refers to [`DocLookup`](#doclookup), [`LocaleSettings`](#localesettings), [`StringKeyUse`](#stringkeyuse).
+
 ## `orphanSidecarIssue`
 
 _function_ in `project/asset-files.ts`
@@ -4754,16 +5788,17 @@ Refers to [`DocKindDef`](#dockinddef), [`KindEnv`](#kindenv), [`ParseAssetResult
 
 _function_ in `project/inspect/bmfont.ts`
 
-A text BMFont's line height and page files (in page id order, relative to
-the .fnt). Null for the binary and XML variants, a missing `common` line,
-or page ids that aren't 0…n-1 matching `common pages`.
+A BMFont's layout from its text or XML format: line height, page files,
+face size, advances, kerning, a distance field and the code points it
+has glyphs for. Null for the binary variant, a missing `common`, page
+ids that aren't 0…n-1 matching `common pages`, a repeated char or
+kerning pair, or a distance field type it can't draw.
 
 ```ts
-declare function parseBmfont(text: string): null | {
-    lineHeight: number;
-    pages: string[];
-};
+declare function parseBmfont(text: string): Bmfont | null;
 ```
+
+Refers to [`Bmfont`](#bmfont).
 
 ## `parseDocName`
 
@@ -4880,6 +5915,7 @@ A reusable piece of a level placed by instances, co-edited per child and field.
 
 ```ts
 declare const prefabKind: {
+    crossValidate: (prefab: Prefab, lookup: DocLookup) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {
@@ -4916,7 +5952,7 @@ declare const prefabKind: {
 };
 ```
 
-Refers to [`AssetId`](#assetid), [`KindEnv`](#kindenv), [`RefSite`](#refsite).
+Refers to [`AssetId`](#assetid), [`DocLookup`](#doclookup), [`KindEnv`](#kindenv), [`RefSite`](#refsite).
 
 ## `projectBundle`
 
@@ -5019,6 +6055,18 @@ The draft 2020-12 JSON Schema of `jams.project.json`.
 ```ts
 declare function projectJsonSchema(): Record<string, unknown>;
 ```
+
+## `projectLocales`
+
+_function_ in `project/kinds/strings.ts`
+
+The project's locales: the game-settings in effect (first by path), read by `localeSettingsOf`.
+
+```ts
+declare function projectLocales(lookup: DocLookup): LocaleSettings;
+```
+
+Refers to [`DocLookup`](#doclookup), [`LocaleSettings`](#localesettings).
 
 ## `projectMaterialOf`
 
@@ -5253,6 +6301,18 @@ declare function projectView(state: ProjectState, kinds?: KindRegistry): Project
 
 Refers to [`KindRegistry`](#kindregistry), [`ProjectState`](#projectstate), [`ProjectView`](#projectview).
 
+## `reachableNodes`
+
+_function_ in `project/kinds/dialogue.ts`
+
+Every node a path from `start` reaches, `start` first, breadth-first; empty when `start` names no node.
+
+```ts
+declare function reachableNodes(file: DialogueFile): Set<string>;
+```
+
+Refers to [`DialogueFile`](#dialoguefile).
+
 ## `readGifSize`
 
 _function_ in `project/inspect/gif.ts`
@@ -5414,6 +6474,21 @@ declare function referencedTrash(view: ProjectView, index: RefIndex): AssetKey[]
 ```
 
 Refers to [`AssetKey`](#assetkey), [`ProjectView`](#projectview), [`RefIndex`](#refindex).
+
+## `reinspectBlob`
+
+_function_ in `project/sidecar.ts`
+
+A binary's meta inspected again from its bytes under its kind's current
+inspector: what the dev watcher, the project's writer on store and
+`assets reimport` all run. `changed` compares with the entry's meta and
+settings, so a caller writes only what moved.
+
+```ts
+declare function reinspectBlob(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "meta" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined, decompress?: FontDecompress): Reinspection;
+```
+
+Refers to [`AssetEntry`](#assetentry), [`AssetId`](#assetid), [`AssetPath`](#assetpath), [`BlobKindDef`](#blobkinddef), [`FontDecompress`](#fontdecompress), [`Reinspection`](#reinspection).
 
 ## `releaseBuildHash`
 
@@ -5596,8 +6671,8 @@ behavior's default names counts), its settings' asset fields, and the
 own references followed. A prefab a field names (a spawner's `prefab`)
 that `prefabs` holds brings its children's asset fields and its header
 too, and so on through what those name (`namedPrefabs`). Entries are the
-textures among them, sorted by id, each once. A reference no live asset
-of its kinds resolves, or a texture with no content, is `asset-missing`
+textures and fonts among them, sorted by id, each once. A reference no live asset
+of its kinds resolves, or a texture or font with no content, is `asset-missing`
 with the closest live id; a texture whose entry records a hash but no
 size is left out and is `asset-missing` too, saying so. With `docs`, a
 runtime doc a field names (an `anim`'s animation) is followed into the
@@ -5621,6 +6696,7 @@ A level: entities, instances and bulk geometry, co-edited per entity and field t
 
 ```ts
 declare const sceneKind: {
+    crossValidate: (def: SceneDefinition, lookup: DocLookup) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {
@@ -5657,7 +6733,7 @@ declare const sceneKind: {
 };
 ```
 
-Refers to [`AssetId`](#assetid), [`KindEnv`](#kindenv), [`RefSite`](#refsite).
+Refers to [`AssetId`](#assetid), [`DocLookup`](#doclookup), [`KindEnv`](#kindenv), [`RefSite`](#refsite).
 
 ## `sceneListEntries`
 
@@ -5911,6 +6987,18 @@ The draft 2020-12 JSON Schema of `<file>.asset.json`.
 declare function sidecarJsonSchema(): Record<string, unknown>;
 ```
 
+## `sidecarMetaVersion`
+
+_const_ in `project/sidecar.ts`
+
+The meta version a sidecar records for its meta; 1 when it records none.
+
+```ts
+declare const sidecarMetaVersion: (sidecar: Pick<AssetSidecar, "metaVersion">) => number;
+```
+
+Refers to [`AssetSidecar`](#assetsidecar).
+
 ## `sidecarPathOf`
 
 _const_ in `project/sidecar.ts`
@@ -5943,6 +7031,7 @@ declare const sidecarSchema: z.ZodObject<{
         spdx: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    metaVersion: z.ZodOptional<z.ZodNumber>;
     name: z.ZodOptional<z.ZodString>;
     sha256: z.ZodOptional<z.ZodString>;
     v: z.ZodLiteral<1>;
@@ -5987,6 +7076,69 @@ declare function snapshotScene(snapshot: ProjectSnapshot, sceneId: AssetId, stor
 
 Refers to [`AssetId`](#assetid), [`ContentStore`](#contentstore), [`ProjectSnapshot`](#projectsnapshot).
 
+## `soundKind`
+
+_const_ in `project/kinds/sound.ts`
+
+Sounds the audio system plays on step events and requests; presentation only.
+
+```ts
+declare const soundKind: {
+    /**
+     * With `preload`, the audio clips: a scene's first frame waits for them.
+     * A patch is a runtime doc rendered on demand, and without `preload`
+     * clips load on first play, so neither joins a bundle.
+     */
+    bundleRefs: (file: SoundFile, env: KindEnv) => RefSite[];
+    crossValidate: (file: SoundFile, lookup: DocLookup) => SceneIssue[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    /** An sfx sound with no clip yet; the author names one. */
+    empty: () => SoundFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            on: {
+                as: "list";
+                item: {
+                    as: "atomic";
+                };
+            };
+            variants: {
+                as: "keyed";
+                id: string;
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: SoundFile) => RefSite[];
+    runtime: "view";
+    schema: (env: KindEnv) => z.ZodType<SoundFile, unknown, z.core.$ZodTypeInternals<SoundFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+```
+
+Refers to [`DocLookup`](#doclookup), [`KindEnv`](#kindenv), [`RefSite`](#refsite), [`SoundFile`](#soundfile).
+
 ## `stableJson`
 
 _function_ in `project/canonical.ts`
@@ -5996,6 +7148,83 @@ JSON with object keys sorted, so equal values give equal text whatever order the
 ```ts
 declare function stableJson(value: unknown): string;
 ```
+
+## `stringKeyIssues`
+
+_function_ in `project/kinds/strings.ts`
+
+`string-key-missing` for each of `uses` with no text in some available
+locale (`missingStringKeys`): an error when the default is among them,
+else info. The one rule every kind's `crossValidate` reports keys by.
+
+```ts
+declare function stringKeyIssues(lookup: DocLookup, uses: readonly StringKeyUse[]): SceneIssue[];
+```
+
+Refers to [`DocLookup`](#doclookup), [`StringKeyUse`](#stringkeyuse).
+
+## `stringLocales`
+
+_function_ in `project/kinds/strings.ts`
+
+The locales a project's strings speak: the available ones, the default
+first, then any other locale column a strings file holds (a row that
+loses to another file's too), by name.
+
+```ts
+declare function stringLocales(lookup: DocLookup, locales: LocaleSettings): string[];
+```
+
+Refers to [`DocLookup`](#doclookup), [`LocaleSettings`](#localesettings).
+
+## `stringsKind`
+
+_const_ in `project/kinds/strings.ts`
+
+Text by key and locale for world text, dialogue and captions; presentation only.
+
+```ts
+declare const stringsKind: {
+    crossValidate: (file: StringsFile, lookup: DocLookup, env: KindEnv) => SceneIssue[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => StringsFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            strings: {
+                as: "keyed";
+                id: string;
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    runtime: "view";
+    schema: () => z.ZodType<StringsFile, unknown, z.core.$ZodTypeInternals<StringsFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+```
+
+Refers to [`DocLookup`](#doclookup), [`KindEnv`](#kindenv), [`StringsFile`](#stringsfile).
 
 ## `suffixedId`
 
@@ -6020,6 +7249,43 @@ declare function suffixedPath(path: AssetPath, n: number): AssetPath;
 ```
 
 Refers to [`AssetPath`](#assetpath).
+
+## `synthKind`
+
+_const_ in `project/kinds/synth.ts`
+
+Sound-effect recipes a sound's variants name in place of a clip; presentation only.
+
+```ts
+declare const synthKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    /** A short square blip. */
+    empty: () => SynthFile;
+    kind: string;
+    layout: {
+        as: "map";
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    runtime: "view";
+    schema: () => z.ZodType<SynthFile, unknown, z.core.$ZodTypeInternals<SynthFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: () => SceneIssue[];
+    version: number;
+};
+```
+
+Refers to [`KindEnv`](#kindenv), [`SynthFile`](#synthfile).
 
 ## `tableAssets`
 
@@ -6115,6 +7381,21 @@ declare function usableInputMap(raw: unknown, registry: Registry): InputMapFile 
 
 Refers to [`InputMapFile`](#inputmapfile).
 
+## `usedStringKeys`
+
+_function_ in `project/kinds/strings.ts`
+
+Every string key the project's docs name, by kind (dialogue, prefab,
+scene, sound), then each kind's docs in path order, then document order.
+`scenes`, when given, stands in for the lookup's scene docs (an editor's
+unsaved scene).
+
+```ts
+declare function usedStringKeys(lookup: DocLookup, scenes?: ReadonlyMap<AssetId, unknown>): StringKeyUse[];
+```
+
+Refers to [`AssetId`](#assetid), [`DocLookup`](#doclookup), [`StringKeyUse`](#stringkeyuse).
+
 ## `utf8Bytes`
 
 _const_ in `project/release-assets.ts`
@@ -6154,6 +7435,20 @@ declare function validateProject(view: ProjectView, texts: ReadonlyMap<AssetId, 
 ```
 
 Refers to [`AssetId`](#assetid), [`KindEnv`](#kindenv), [`KindRegistry`](#kindregistry), [`ProjectView`](#projectview).
+
+## `withReinspectedMeta`
+
+_function_ in `project/sidecar.ts`
+
+`sidecar` with a re-inspection's meta and the version it was read under; nothing else changes.
+
+```ts
+declare function withReinspectedMeta(sidecar: AssetSidecar, result: Extract<Reinspection, {
+    ok: true;
+}>): AssetSidecar;
+```
+
+Refers to [`AssetSidecar`](#assetsidecar), [`Reinspection`](#reinspection).
 
 ## `writesPrefabs`
 

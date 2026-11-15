@@ -107,6 +107,9 @@ describe("project push --dry-run", () => {
       { path: "art/dot.png", kind: "texture" },
       { path: "art/hero.json", kind: "atlas" },
       { path: "art/hero.png", kind: "texture" },
+      { path: "audio/clink.wav", kind: "audio" },
+      { path: "fonts/kitchen.fnt", kind: "font" },
+      { path: "fonts/kitchen.png", kind: "texture" },
       { path: "saves/grid-yard.save.json", kind: "save" },
     ];
     const want = await Promise.all(
@@ -131,6 +134,7 @@ describe("project push --dry-run", () => {
     expect(seeds).toContain("kitchen-sink.json");
     for (const b of binaries) expect(seeds).not.toContain(b.path);
     expect(seeds).not.toContain("art/make-art.ts");
+    expect(seeds).not.toContain("tools/kitchen-media.ts");
     expect(r.data.docs).toBe(seeds.length);
     expect(r.data.files).toBe(seeds.length + binaries.length);
     expect(requests[0]).toBe("GET bundle");

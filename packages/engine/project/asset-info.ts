@@ -2,6 +2,8 @@ import { didYouMean } from "../scene/did-you-mean";
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import { ATLAS_KIND, atlasMetaSchema, atlasSettingsSchema } from "./kinds/atlas";
+import { AUDIO_KIND, audioSettingsSchema } from "./kinds/audio";
+import { FONT_KIND, fontMetaSchema, fontSettingsSchema, type FontMeta } from "./kinds/font";
 import { TEXTURE_KIND, textureMetaSchema, textureSettingsSchema } from "./kinds/texture";
 import type { AssetEntry, AssetId, AssetKindName, ProjectView, Sha256 } from "./types";
 
@@ -24,6 +26,15 @@ export type AssetInfo = {
   texture?: AssetId;
   /** An atlas frame's rectangle in its texture, px; only with `frame`. */
   rect?: { x: number; y: number; w: number; h: number };
+  /** A font: its meta (format, BMFont metrics). */
+  font?: FontMeta;
+  /** A bitmap font: its page textures' ids, in page order. */
+  pages?: readonly AssetId[];
+  /** An audio clip played as a stream rather than decoded whole. */
+  stream?: boolean;
+  /** An audio clip's loop points, seconds from its start. */
+  loopStart?: number;
+  loopEnd?: number;
 };
 
 type FrameInfo = Pick<AssetInfo, "size" | "pivot" | "rect">;
@@ -84,13 +95,31 @@ export function entryInfo(entry: AssetEntry): EntryInfo {
       info.texture = settings.data.texture;
     return { info, frames };
   }
+  if (entry.kind === FONT_KIND) {
+    const meta = fontMetaSchema.safeParse(entry.meta);
+    const settings = fontSettingsSchema.safeParse(entry.import ?? {});
+    if (meta.success) info.font = meta.data;
+    if (settings.success && settings.data.pages) info.pages = [...settings.data.pages];
+    return { info, frames };
+  }
+  if (entry.kind === AUDIO_KIND) {
+    const settings = audioSettingsSchema.safeParse(entry.import ?? {});
+    if (settings.success) {
+      const { stream, loopStart, loopEnd } = settings.data;
+      if (stream !== undefined) info.stream = stream;
+      if (loopStart !== undefined) info.loopStart = loopStart;
+      if (loopEnd !== undefined) info.loopEnd = loopEnd;
+    }
+    return { info, frames };
+  }
   return { info, frames };
 }
 
 /**
  * `id`'s info from its live entry: kind, hash and size in bytes; a
  * texture's pixel size and its import pivot, nine-slice and filter; an
- * atlas's frame names in file order, tags and texture id. With `frame`, an
+ * atlas's frame names in file order, tags and texture id; a font's meta and
+ * pages; an audio clip's stream flag and loop points. With `frame`, an
  * atlas's info with that frame's pixel size, rectangle and pivot (frames without their
  * own carry the atlas's `pivotDefault`). Null for an id with no live asset
  * and for a frame the asset doesn't have.

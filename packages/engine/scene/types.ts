@@ -351,6 +351,13 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "live-swap-failed",
   "live-timing-unsupported",
   "scene-version-removed",
+  // audio, text and dialogue
+  "sound-bus-unknown",
+  "locale-unknown",
+  "font-missing",
+  "string-key-missing",
+  "dialogue-dead-end",
+  "dialogue-unreachable",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */

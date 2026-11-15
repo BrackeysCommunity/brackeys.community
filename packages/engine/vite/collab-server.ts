@@ -30,6 +30,7 @@ import { projectView } from "../project/view";
 import { ENGINE_VERSION } from "../version";
 import { guardAbortedRequestBodies } from "./aborted-requests";
 import { fileContentStore } from "./content-store";
+import { NODE_DECOMPRESS } from "./font-decompress";
 import {
   handleProjectRequest,
   handleSceneRequest,
@@ -314,7 +315,9 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       store: s.store,
       origin: REINSPECT_REPAIR,
       checked: s.checked,
+      decompress: NODE_DECOMPRESS,
     });
+    await s.adapter.reinspectSidecars(doc);
     restoreInUse(s, doc);
   }
 

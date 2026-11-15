@@ -134,6 +134,34 @@ describe("local poses", () => {
   });
 });
 
+describe("measuring a local pose when it is read", () => {
+  it("gives what measuring at each write would have, over writes to children and parents", () => {
+    const { tree, add, poses } = world();
+    add(
+      ["room", 0, 0, 0.3],
+      ["door", 2, 1, 0, "room"],
+      ["panel", 3, 1, 0.2, "door"],
+      ["lamp", -1, 4, 0, "room"],
+    );
+    const parents: Record<string, string> = { door: "room", panel: "door", lamp: "room" };
+    const ids = ["room", "door", "panel", "lamp"];
+    const eager = new Map<string, ReturnType<typeof relativePose>>();
+    for (const id of Object.keys(parents)) eager.set(id, tree.local(id)!);
+    let seed = 7;
+    const next = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648) * 8 - 4;
+    for (let i = 0; i < 400; i++) {
+      const id = ids[i % ids.length]!;
+      poses.set(id, next(), next(), next());
+      if (parents[id]) eager.set(id, relativePose(poses.get(id)!, poses.get(parents[id])!));
+      // Two writes in three are read by nothing, so they pile up unmeasured.
+      if (i % 3 !== 0) continue;
+      for (const [child, local] of eager)
+        expect(tree.local(child), `${child} at ${i}`).toEqual(local);
+    }
+    for (const [child, local] of eager) expect(tree.local(child)).toEqual(local);
+  });
+});
+
 describe("setParent", () => {
   it("keeps the world pose by default and recomputes the local one", () => {
     const { tree, add, poses, reparented } = world();

@@ -1,0 +1,10 @@
+{
+  "kind": "synth",
+  "v": 1,
+  "decayMs": 262,
+  "freq": 1209.8,
+  "jump": { "atMs": 46, "semitones": 7 },
+  "punch": 0.416,
+  "sustainMs": 44,
+  "wave": "saw"
+}

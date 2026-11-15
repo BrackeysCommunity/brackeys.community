@@ -1,0 +1,15 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "clink",
+  "id": "clink-wav",
+  "sha256": "af4f0d0e276ed1398d078cbe2198a251884d662dca2eb3954a50e37eed2409e4",
+  "bytes": 6644,
+  "meta": { "channels": 1, "durationMs": 149.65986394557822, "format": "wav", "sampleRate": 22050 },
+  "metaVersion": 2,
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository by scenes/tools/kitchen-media.ts: two triangle partials under a squared decay."
+  }
+}

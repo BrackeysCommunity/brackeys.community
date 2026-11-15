@@ -1,6 +1,6 @@
 {
   "name": "@jams/engine",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "files": [
     "dist",
@@ -89,6 +89,10 @@
     "./schemas/scene-version.schema.json": "./project/scene-version.schema.json",
     "./schemas/animation.schema.json": "./project/animation.schema.json",
     "./schemas/emitter.schema.json": "./project/emitter.schema.json",
+    "./schemas/sound.schema.json": "./project/sound.schema.json",
+    "./schemas/synth.schema.json": "./project/synth.schema.json",
+    "./schemas/dialogue.schema.json": "./project/dialogue.schema.json",
+    "./schemas/strings.schema.json": "./project/strings.schema.json",
     "./package.json": "./package.json"
   },
   "dependencies": {

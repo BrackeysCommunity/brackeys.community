@@ -1,4 +1,5 @@
 import {
+  browserPrefsStore,
   browserRemapStore,
   createAssetLoader,
   createGame,
@@ -8,6 +9,7 @@ import {
   selectPhase,
   type GameInstance,
   type GameStoreState,
+  webAudioBackend,
 } from "@jams/engine";
 import { scenePhysics } from "@jams/engine/scene";
 import { mirrorRenderState } from "@jams/engine/standalone";
@@ -38,6 +40,15 @@ import { LoadFailed } from "./load-failed";
 import { GameSiteIsland } from "./site-island";
 
 const loadRapier = () => import("@dimforge/rapier2d");
+
+/** Built each time Play starts; a browser with no Web Audio plays silent rather than failing the game. */
+function siteAudioBackend() {
+  try {
+    return webAudioBackend();
+  } catch {
+    return false;
+  }
+}
 
 /** `null` in production builds, so the editor's chunks (and the provider) are never emitted there. */
 const SiteSceneEditor = import.meta.env.DEV
@@ -142,12 +153,15 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         // The page is the game: debug keys work with focus fallen to the body,
         // while play input still needs the canvas focused.
         keyTarget: window,
-        // A player's remaps stay in their own browser.
+        // A player's remaps, bus volumes and locale stay in their own browser.
         input: { touch: "auto", remaps: browserRemapStore() },
+        audio: { backend: siteAudioBackend, prefs: browserPrefsStore() },
         prefabs,
         flow: { source: flow },
         project,
-        ...(assets && loader ? { assets: { loader, view: assets.view, kinds: assets.kinds } } : {}),
+        ...(assets && loader
+          ? { assets: { loader, view: assets.view, kinds: assets.kinds, url: assets.url } }
+          : {}),
         ...(resolution ? { resolution } : {}),
       });
 

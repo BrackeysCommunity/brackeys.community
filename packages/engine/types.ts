@@ -1,7 +1,10 @@
 import type { Store } from "@tanstack/store";
 
+import type { CalibrateLatencyOptions, LatencyCalibration } from "./audio/clock";
+import type { AudioBackend, GameAudio } from "./audio/types";
 import type { ViewportDef } from "./camera/viewports";
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
+import type { DialogueView } from "./dialogue/runner";
 import type { FlowRequest, LibraryScene, SceneListEntry, TransitionSpec } from "./game/flow";
 import type { SceneSwap, SwapTiming } from "./game/live";
 import type {
@@ -16,13 +19,14 @@ import type {
 } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
 import type { RemapStore } from "./input/remap";
+import type { PrefsStore } from "./prefs";
 import type { BundleEntry } from "./project/bundle";
 import type { KindRegistry } from "./project/kinds";
 import type { ReleaseManifest } from "./project/release";
 import type { ProjectRuntimeView } from "./project/runtime-view";
 import type { SceneVersion } from "./project/scene-version";
 import type { AssetId, ProjectView, Sha256 } from "./project/types";
-import type { AssetLoader, LoadProgress } from "./render/asset-loader";
+import type { AssetLoader, AssetUrl, LoadProgress } from "./render/asset-loader";
 import type { ResolutionPolicy } from "./resolution";
 import type { RecordingHost } from "./runtime/recorder";
 import type {
@@ -42,7 +46,9 @@ import type {
   SceneDefinition,
   SceneIssue,
 } from "./scene/types";
+import type { StringTable } from "./text/strings";
 import type { ToolRouter } from "./tool-router";
+import type { GameCaptions } from "./ui/captions";
 
 // ─── Primitives ──────────────────────────────────────────
 
@@ -128,7 +134,18 @@ export type GameConfig = {
    * is read each time a bundle is computed, so a getter can follow a live
    * project. The runtime view sprites size from is `createGame`'s `project`.
    */
-  assets?: { loader: AssetLoader; view: ProjectView; kinds: KindRegistry };
+  assets?: {
+    loader: AssetLoader;
+    view: ProjectView;
+    kinds: KindRegistry;
+    /**
+     * Where the host serves a blob's bytes (the URL function its loader was
+     * made with); the audio system fetches and streams clips through it.
+     * Without it, sounds whose variants are audio clips stay silent; synth
+     * patches still play.
+     */
+    url?: AssetUrl;
+  };
   /** The host's resolution policy, over the project's and the game's. */
   resolution?: Partial<ResolutionPolicy>;
   /** Scenes for `GameInstance.flow`, and how a change between them looks. */
@@ -154,6 +171,16 @@ export type GameConfig = {
   reducedMotion?: boolean | "auto";
   /** Split screen or a minimap: 1–4 viewports over the canvas; default one framing the main targets. */
   viewports?: readonly ViewportDef[];
+  /**
+   * Sound: the backend the shell plays through, built when Play starts
+   * when it is a function and closed when Play ends; false (or none) plays
+   * nothing, as tests and a muted editor Play want. `prefs` keeps the
+   * player's bus volumes and locale; default for this page's life only.
+   */
+  audio?: {
+    backend?: AudioBackend | false | (() => AudioBackend | false);
+    prefs?: PrefsStore;
+  };
 };
 
 export type RendererConfig = {
@@ -365,6 +392,14 @@ export type GameEventMap = {
    * and `scene-version-removed` stops the replay there.
    */
   "live:failed": { scene: AssetId; version: Sha256 | null; issue: SceneIssue };
+  /** The player changed the locale (`GameInstance.locale.set`); the simulation never sees it. */
+  "locale:change": { from: string; to: string };
+  /** The first gesture let the page play sound. */
+  "audio:unlocked": undefined;
+  /** A sound or a voiced line with a caption started: `key` its string key, `at` the audio clock's seconds. */
+  "audio:caption": { key: string; at: number };
+  /** The player turned captions on or off (`GameInstance.captions.set`). */
+  "captions:change": { enabled: boolean };
 };
 
 // ─── Store ───────────────────────────────────────────────
@@ -413,6 +448,8 @@ export type GameStoreState = {
   mode: GameMode;
   /** Set at Play, cleared at Stop. */
   session: PlaySession | null;
+  /** The active conversation after the last tick; null with none. */
+  dialogue: Readonly<DialogueView> | null;
 };
 
 // ─── Game Instance ───────────────────────────────────────
@@ -567,6 +604,8 @@ export type GameInstance = {
   worldToClient: (p: Vec2, viewport?: number) => { x: number; y: number };
   /** The project's runtime view: the one `createGame` was given, or the last `reloadAssets` passed; null without one. */
   project: () => ProjectRuntimeView | null;
+  /** Where the host serves an asset's bytes (`GameConfig.assets.url`); null without one, or for an asset it has no blob of. */
+  blobUrl: (id: AssetId) => string | null;
   /** Bindings, remapping, seats and pointer tracking. */
   input: GameInput;
   /**
@@ -609,6 +648,28 @@ export type GameInstance = {
   setViewports: (defs: readonly ViewportDef[]) => void;
   /** The index of the viewport under page coordinates (the topmost), or null off every viewport. */
   viewportAt: (clientX: number, clientY: number) => number | null;
+  /** Bus volumes, mutes, the audio clock and stopping everything; null while no backend plays. */
+  readonly audio: GameAudio | null;
+  /** The player's language: a browser preference the simulation never sees. */
+  readonly locale: GameLocale;
+  /** The player's captions choice, a browser preference kept in the prefs under "captions"; `createCaptions` shows captions only while it is on. */
+  readonly captions: GameCaptions;
+  /**
+   * Plays a click track and times presses of the game's UI-only actions (any
+   * button when it declares none); the median offset becomes `@latency` and
+   * is kept in the prefs under `audio.latencyMs`. Null with fewer than 8
+   * taps, outside Play, or without sound.
+   */
+  calibrateLatency: (opts?: CalibrateLatencyOptions) => Promise<LatencyCalibration | null>;
+};
+
+/** `GameInstance.locale`. */
+export type GameLocale = {
+  current(): string;
+  available(): readonly string[];
+  /** Saved in the prefs under "locale"; raises `locale:change`. */
+  set(locale: string): void;
+  strings(): StringTable;
 };
 
 /** A scene version the host fetched, ready to stage. */

@@ -7,12 +7,15 @@ import { parseScene } from "../../scene/parse";
 import { sceneGameOf, sceneRegistry, sceneSchemaFor } from "../../scene/schema";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import { schemaRefSites, type RefSite } from "../refs";
-import { defineAssetKind, folderOf, isPlainObject } from "./define";
+import { defineAssetKind, folderOf, isPlainObject, type DocLookup } from "./define";
 import { bodyRefs, bulkMaterialRefs } from "./fields";
+import { docStringKeyIssues } from "./strings";
+
+const SCENE_KIND = "scene";
 
 /** A level: entities, instances and bulk geometry, co-edited per entity and field through the scene codec. */
 export const sceneKind = defineAssetKind({
-  kind: "scene",
+  kind: SCENE_KIND,
   title: "Scene",
   description: "A level: entities, prefab instances and bulk geometry.",
   match: { test: (json) => isPlainObject(json) && !("kind" in json) && "v" in json },
@@ -33,6 +36,8 @@ export const sceneKind = defineAssetKind({
       : { ok: true, value: def, migratedFrom, issues };
   },
   format: (def: SceneDefinition) => formatScene(def).text,
+  crossValidate: (def: SceneDefinition, lookup: DocLookup) =>
+    docStringKeyIssues(SCENE_KIND, def, lookup),
   empty: (env, { id }) => createScene(id, env.registry),
   refs(def: SceneDefinition, env): RefSite[] {
     const registry = sceneRegistry(sceneGameOf(def), env.registry);

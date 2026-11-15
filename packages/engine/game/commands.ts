@@ -5,6 +5,15 @@ import type { CommandDef } from "./types";
 /** The engine command a script's or a check's `nav` sends: the `nav-agent` system reads it at the start of the tick. */
 export const NAV_COMMAND = "@nav";
 
+/** The player's calibrated audio-input latency; delivered with the next tick, never waking a turns or event game on its own. */
+export const LATENCY_COMMAND = "@latency";
+/** The largest `@latency` either way, ms. */
+export const LATENCY_MS_LIMIT = 500;
+/** Shows the active dialogue's next line. */
+export const DIALOGUE_ADVANCE_COMMAND = "@dialogue-advance";
+/** Picks one of the active dialogue's visible, enabled choices. */
+export const DIALOGUE_CHOOSE_COMMAND = "@dialogue-choose";
+
 /** Where a `nav` step, a check's `nav` or the `@nav` command sends a nav agent. */
 export type NavDestination = {
   /** The nav agent's entity id. */
@@ -38,8 +47,15 @@ export const navDestinationSchema: z.ZodType<NavDestination> = z
   )
   .meta({ id: "NavDestination" });
 
+export type EngineCommandName =
+  | "@elapsed"
+  | typeof NAV_COMMAND
+  | typeof LATENCY_COMMAND
+  | typeof DIALOGUE_ADVANCE_COMMAND
+  | typeof DIALOGUE_CHOOSE_COMMAND;
+
 /** Engine commands; game command names may not start with "@". */
-export const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, CommandDef>> = {
+export const ENGINE_COMMANDS: Readonly<Record<EngineCommandName, CommandDef>> = {
   "@elapsed": {
     description: "Wall time that passed while the game wasn't running, in ms.",
     args: z.strictObject({ ms: z.number().int().min(0) }),
@@ -49,7 +65,32 @@ export const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, C
       "Sends a nav agent to a point, world m, or after an entity; refused for an entity without a nav-agent.",
     args: navDestinationSchema,
   },
+  [LATENCY_COMMAND]: {
+    description: "The player's calibrated audio-input latency, ms.",
+    args: z.strictObject({
+      ms: z
+        .number()
+        .int()
+        .min(-LATENCY_MS_LIMIT)
+        .max(LATENCY_MS_LIMIT)
+        .describe("Positive when input arrives after the sound it answers.")
+        .meta({ unit: "ms" }),
+    }),
+  },
+  [DIALOGUE_ADVANCE_COMMAND]: {
+    description: "Shows the next line of the active dialogue.",
+  },
+  [DIALOGUE_CHOOSE_COMMAND]: {
+    description: "Picks a visible, enabled choice of the active dialogue.",
+    args: z.strictObject({
+      choice: z.number().int().min(0).describe("The choice's index in the dialogue's view."),
+    }),
+  },
 };
+
+/** Whether `name` is one of the dialogue's commands, which the dialogue system takes before the game's `beforeStep`. */
+export const isDialogueCommand = (name: string): boolean =>
+  name === DIALOGUE_ADVANCE_COMMAND || name === DIALOGUE_CHOOSE_COMMAND;
 
 /** What a game's command names look like. */
 export const COMMAND_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;

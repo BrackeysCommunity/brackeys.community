@@ -60,7 +60,6 @@ type Opts = { registry?: Registry; prefabs?: PrefabLibrary };
 /** The fix is one reparent, applies through applyOps and leaves the scene without a tree issue. */
 function expectFixClears(def: SceneDefinition, issue: SceneIssue, opts: Opts = {}) {
   const registry = opts.registry ?? engine;
-  expect(issue.fix?.ops).toHaveLength(1);
   expect(issue.fix!.ops[0]!.op).toBe("reparent");
   const applied = applyOps(def, issue.fix!, registry, { prefabs: opts.prefabs });
   expect(applied.ok, JSON.stringify(applied)).toBe(true);
@@ -358,7 +357,7 @@ describe("quarter-turn-only", () => {
     expect(only(box, "quarter-turn-only").entityIds).toEqual(["ledge"]);
   });
 
-  it("reports an instance whose children have side fields, under a turned node, with no fix", () => {
+  it("reports an instance whose children have side fields under a turned node, and turns it onto a quarter turn at the root", () => {
     const lib = prefabLibrary([
       prefab("step", {
         entities: [{ id: "ledge", type: "solid", shape: ["box", 0, 0, 2, 0.5], oneWay: "left" }],
@@ -371,7 +370,34 @@ describe("quarter-turn-only", () => {
     const issue = only(def, "quarter-turn-only", { prefabs: lib });
     expect(issue).toMatchObject({ path: "/instances/0/parent", entityIds: ["s"] });
     expect(issue.message).toContain("s/ledge.oneWay");
-    expect(issue.fix).toBeUndefined();
+    expect(issue.fix!.ops).toEqual([
+      { op: "reparent", refs: ["s"], parent: null },
+      { op: "transform", refs: ["s"], rotate: 45 },
+    ]);
+    const fixed = expectFixClears(def, issue, { prefabs: lib });
+    expect(fixed?.instances?.[0]).toMatchObject({ rot: 90 });
+    expect(fixed?.instances?.[0]?.parent).toBeUndefined();
+  });
+
+  it("turns an instance under a tilted node toward the nearer quarter turn", () => {
+    const lib = prefabLibrary([
+      prefab("step", {
+        entities: [{ id: "ledge", type: "solid", shape: ["box", 0, 0, 2, 0.5], oneWay: "left" }],
+      }),
+    ]);
+    const def = scene({
+      entities: [
+        { id: "outer", type: "node", at: [0, 0], rot: 90 },
+        { id: "tilt", type: "node", at: [2, 0], rot: 20, parent: "outer" },
+      ],
+      instances: [{ id: "s", prefab: "step", at: [1, 0], parent: "tilt" }],
+    });
+    const issue = only(def, "quarter-turn-only", { prefabs: lib });
+    expect(issue.fix!.ops).toEqual([
+      { op: "reparent", refs: ["s"], parent: "outer" },
+      { op: "transform", refs: ["s"], rotate: -20 },
+    ]);
+    expectFixClears(def, issue, { prefabs: lib });
   });
 });
 

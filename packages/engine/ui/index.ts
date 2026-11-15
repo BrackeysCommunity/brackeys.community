@@ -3,5 +3,18 @@
  * file's `ui` key names, and helpers for framework-free HUDs.
  */
 export { bindText, bindToWorld, watchView } from "./bind";
-export { createUiLayer, mountUi } from "./layer";
-export type { MountUi, UiContext, UiHandle } from "./types";
+export {
+  CAPTION_MS_DEFAULT,
+  createCaptions,
+  type CaptionsOptions,
+  type GameCaptions,
+} from "./captions";
+export {
+  createDialogueBox,
+  createTextLog,
+  type DialogueBoxOptions,
+  type TextLogOptions,
+} from "./dialogue";
+export { createUiLayer, mountUi, uiAssetUrl, type BlobUrl } from "./layer";
+export { renderRichText } from "./rich-dom";
+export type { MountUi, UiAssetUrl, UiContext, UiHandle } from "./types";

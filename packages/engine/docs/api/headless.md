@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DecodeOptions`](#decodeoptions) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`swapCheck`](#swapcheck) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
+[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`AudioBackend`](#audiobackend) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DecodeOptions`](#decodeoptions) · [`DialogueEnding`](#dialogueending) · [`DialogueExploration`](#dialogueexploration) · [`DialogueMatch`](#dialoguematch) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FakeAudioBackend`](#fakeaudiobackend) · [`FakeAudioCall`](#fakeaudiocall) · [`FakeAudioLogEntry`](#fakeaudiologentry) · [`FakeAudioOptions`](#fakeaudiooptions) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PrefsStore`](#prefsstore) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SynthPreset`](#synthpreset) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`dialogueCommands`](#dialoguecommands) · [`exploreDialogue`](#exploredialogue) · [`fakeAudioBackend`](#fakeaudiobackend-1) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`mutateSynth`](#mutatesynth) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`randomSynth`](#randomsynth) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`renderSynth`](#rendersynth) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`swapCheck`](#swapcheck) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
 
 ## `ANIM_END`
 
@@ -46,16 +46,23 @@ type AssetInfo = {
     /** An atlas: each frame's durationMs, in `frames` order; null where the export gives none. */
     durations?: readonly (null | number)[];
     filter?: "linear" | "nearest";
+    /** A font: its meta (format, BMFont metrics). */
+    font?: FontMeta;
     /** An atlas: its frame names in file order, its tags, its texture's id. */
     frames?: readonly string[];
     id: AssetId;
     kind: AssetKindName;
+    loopEnd?: number;
+    /** An audio clip's loop points, seconds from its start. */
+    loopStart?: number;
     nineSlice?: [
         number,
         number,
         number,
         number
     ];
+    /** A bitmap font: its page textures' ids, in page order. */
+    pages?: readonly AssetId[];
     pivot?: [
         x: number,
         y: number
@@ -73,6 +80,8 @@ type AssetInfo = {
         w: number,
         h: number
     ];
+    /** An audio clip played as a stream rather than decoded whole. */
+    stream?: boolean;
     tags?: readonly {
         direction: string;
         from: number;
@@ -99,6 +108,30 @@ type AssetReloadError = {
     error: string;
     reattached: boolean;
 };
+```
+
+## `AudioBackend`
+
+_interface_ in `audio/types.ts`
+
+Where voices play: a Web Audio context in a browser, a logging fake in tests.
+
+```ts
+interface AudioBackend {
+    /** Seconds, the context's clock. */
+    readonly now: number;
+    readonly state: "closed" | "locked" | "running" | "suspended";
+    /** Output latency in seconds (outputLatency + baseLatency where known, else 0). */
+    readonly latency: number;
+    unlock(): Promise<void>;
+    decode(bytes: ArrayBuffer): Promise<AudioClipHandle>;
+    /** One array per channel, samples in −1 to 1 at `sampleRate`; a rendered synth patch is one channel. */
+    buffer(channels: readonly Float32Array[], sampleRate: number): AudioClipHandle;
+    stream(url: string): AudioClipHandle;
+    play(clip: AudioClipHandle, opts: VoiceOptions): Voice;
+    setBusVolume(bus: BusName, volume: number, rampMs?: number): void;
+    close(): void;
+}
 ```
 
 ## `CONTACT_END`
@@ -342,6 +375,36 @@ type CompiledTrack = {
 
 Refers to [`CompiledScriptStep`](#compiledscriptstep).
 
+## `DIALOGUE_CHOICES`
+
+_const_ in `runtime/types.ts`
+
+The active dialogue offers its choices: `data` is a `DialogueChoicesEvent`.
+
+```ts
+declare const DIALOGUE_CHOICES = "dialogue:choices";
+```
+
+## `DIALOGUE_END`
+
+_const_ in `runtime/types.ts`
+
+The active dialogue ended: `data` is a `DialogueEndEvent`.
+
+```ts
+declare const DIALOGUE_END = "dialogue:end";
+```
+
+## `DIALOGUE_LINE`
+
+_const_ in `runtime/types.ts`
+
+The active dialogue shows a line: `data` is a `DialogueLineEvent`.
+
+```ts
+declare const DIALOGUE_LINE = "dialogue:line";
+```
+
 ## `DecodeOptions`
 
 _type_ in `input/stream.ts`
@@ -354,6 +417,53 @@ carries its `offset`, 0 when the event sits on the tick itself.
 type DecodeOptions = {
     subTick?: boolean;
     tickMs?: number;
+};
+```
+
+## `DialogueEnding`
+
+_type_ in `dialogue/explore.ts`
+
+One ending a walk reached, and the choice indices that reach it from `start`.
+
+```ts
+type DialogueEnding = {
+    ending: string;
+    nodes: readonly string[];
+    path: readonly number[];
+};
+```
+
+## `DialogueExploration`
+
+_type_ in `dialogue/explore.ts`
+
+What a breadth-first walk of every choice found.
+
+```ts
+type DialogueExploration = {
+    endings: readonly DialogueEnding[];
+    /** True when `maxDepth`, the state cap, or a loop of lines with no choice cut a path short. */
+    truncated: boolean;
+};
+```
+
+Refers to [`DialogueEnding`](#dialogueending).
+
+## `DialogueMatch`
+
+_type_ in `headless/playtest-types.ts`
+
+The engine's `dialogue` predicate over the active conversation: `node`
+while it stands at that node, `ended` once it ends (with that ending, or
+any with `true`), `active` while one runs (or, with false, while none
+does). Every key given must hold.
+
+```ts
+type DialogueMatch = {
+    active?: boolean;
+    ended?: string | true;
+    node?: string;
 };
 ```
 
@@ -404,6 +514,106 @@ type EventMatch = string | {
     entityId?: string;
     other?: string;
     type: string;
+};
+```
+
+## `FakeAudioBackend`
+
+_type_ in `audio/fake.ts`
+
+A fake backend, and the controls a test drives it with.
+
+```ts
+type FakeAudioBackend = AudioBackend & {
+    /** Moves the context clock on; voices that reach their clip's end end. */
+    advance(seconds: number): void;
+    /** Every bus volume as last set. */
+    readonly busVolumes: ReadonlyMap<string, number>;
+    readonly log: readonly FakeAudioLogEntry[];
+};
+```
+
+Refers to [`AudioBackend`](#audiobackend), [`FakeAudioLogEntry`](#fakeaudiologentry).
+
+## `FakeAudioCall`
+
+_type_ in `audio/types.ts`
+
+What `fakeAudioBackend` logs, in call order; a buffer's samples are never logged.
+
+```ts
+type FakeAudioCall = {
+    bus: BusName;
+    op: "bus";
+    rampMs?: number;
+    volume: number;
+} | {
+    bytes: number;
+    clip: number;
+    op: "decode";
+} | {
+    channels: number;
+    clip: number;
+    length: number;
+    op: "buffer";
+    sampleRate: number;
+} | {
+    clip: number;
+    op: "play";
+    opts: VoiceOptions;
+    voice: number;
+} | {
+    clip: number;
+    op: "stream";
+    url: string;
+} | {
+    fadeMs?: number;
+    op: "stop";
+    voice: number;
+} | {
+    op: "close";
+} | {
+    op: "pan";
+    pan: number;
+    voice: number;
+} | {
+    op: "seek";
+    seconds: number;
+    voice: number;
+} | {
+    op: "unlock";
+} | {
+    op: "volume";
+    rampMs?: number;
+    voice: number;
+    volume: number;
+};
+```
+
+## `FakeAudioLogEntry`
+
+_type_ in `audio/fake.ts`
+
+One logged call, with the context time it was made at.
+
+```ts
+type FakeAudioLogEntry = FakeAudioCall & {
+    at: number;
+};
+```
+
+Refers to [`FakeAudioCall`](#fakeaudiocall).
+
+## `FakeAudioOptions`
+
+_type_ in `audio/fake.ts`
+
+```ts
+type FakeAudioOptions = {
+    /** A decoded clip's length, seconds; default 1. */
+    decodedSeconds?: number;
+    /** "running" starts unlocked, as a context resumed by an earlier gesture is. */
+    state?: "locked" | "running";
 };
 ```
 
@@ -502,7 +712,7 @@ _type_ in `headless/playtest-types.ts`
 type FuzzReport = {
     blocked: false;
     configHash: string;
-    /** For a game that lists its commands and has no macro of its own: what the command macros did. */
+    /** For a game that lists its commands and has no macro of its own, or a run that sent the dialogue's: what the command macros did. */
     legal?: FuzzLegal;
     /** How many rollouts ended with each result. */
     results: Record<RunResult, number>;
@@ -1150,6 +1360,8 @@ type PlaytestReport<S = unknown> = {
     commands: RecordingCommand[];
     /** `probeConfigHash` of the game. */
     configHash: string;
+    /** The active conversation after the last tick, null with none; absent when the run had no dialogue. */
+    dialogue?: Readonly<DialogueView> | null;
     events: StepEvent[];
     /** The game's snapshot after the last tick; `null` without a game. */
     final: S | null;
@@ -1160,7 +1372,7 @@ type PlaytestReport<S = unknown> = {
     inputs: InputEdge[];
     /** Warnings and info the scene had; errors block instead. */
     issues: SceneIssue[];
-    /** The commands legal after the last tick (`GamePlayDef.commands`), at most 64; absent when the game declares none. */
+    /** The commands legal after the last tick (`legalCommands`: the dialogue's, then `GamePlayDef.commands`), at most 64; absent when there are none to list. */
     legal?: GameCommand[];
     /** True when `legal` was cut at 64 entries. */
     legalTruncated?: boolean;
@@ -1296,6 +1508,19 @@ type PointerBindings = Partial<Record<PointerButton, readonly {
     action: string;
     binding: Binding;
 }[]>>;
+```
+
+## `PrefsStore`
+
+_interface_ in `prefs.ts`
+
+Where a player's preferences persist between sessions, by game.
+
+```ts
+interface PrefsStore {
+    load(gameId: string): Readonly<Record<string, JsonValue>>;
+    save(gameId: string, prefs: Readonly<Record<string, JsonValue>>): void;
+}
 ```
 
 ## `PreparedPlay`
@@ -2028,6 +2253,32 @@ Holding a movement action with the focus moving under `STUCK_METRES` over `STUCK
 declare const STUCK_TICKS = 120;
 ```
 
+## `SYNTH_PRESETS`
+
+_const_ in `audio/synth-presets.ts`
+
+```ts
+declare const SYNTH_PRESETS: readonly [
+    "pickup",
+    "jump",
+    "hit",
+    "explosion",
+    "laser",
+    "powerup",
+    "blip"
+];
+```
+
+## `SYNTH_SAMPLE_RATE`
+
+_const_ in `audio/synth.ts`
+
+Every render's sample rate.
+
+```ts
+declare const SYNTH_SAMPLE_RATE = 44100;
+```
+
 ## `SaveBlocker`
 
 _type_ in `runtime/save-state.ts`
@@ -2040,6 +2291,9 @@ type SaveBlocker = {
     id: number;
     message: string;
     owner?: string;
+} | {
+    cause: "dialogue";
+    message: string;
 } | {
     cause: "physics";
     message: string;
@@ -2459,6 +2713,16 @@ type SwapReport = {
 };
 ```
 
+## `SynthPreset`
+
+_type_ in `audio/synth-presets.ts`
+
+```ts
+type SynthPreset = (typeof SYNTH_PRESETS)[number];
+```
+
+Refers to [`SYNTH_PRESETS`](#synth_presets).
+
 ## `SystemEvent`
 
 _type_ in `scene/recording-schema.ts`
@@ -2579,14 +2843,16 @@ Refers to [`TimingBucket`](#timingbucket).
 _type_ in `headless/playtest-types.ts`
 
 When a step ends early: every key must hold (AND). `event`, `tick` (an
-absolute tick, reached or passed), `exists`, `count`, `near`, `scene` and
-`persist` are the engine's; the rest are the game's `play.predicates`.
+absolute tick, reached or passed), `exists`, `count`, `near`, `scene`,
+`persist` and `dialogue` are the engine's; the rest are the game's
+`play.predicates`.
 
 ```ts
 type UntilClause = {
     [predicate: string]: unknown;
     /** The number of entities matching a selector keeps `min`, `max` or `eq`. */
     count?: CountMatch;
+    dialogue?: DialogueMatch;
     event?: EventMatch;
     /** True while the entity exists and is enabled; `{ id, enabled: false }` while it exists at all. */
     exists?: ExistsMatch;
@@ -2599,7 +2865,7 @@ type UntilClause = {
 };
 ```
 
-Refers to [`EventMatch`](#eventmatch), [`PersistMatch`](#persistmatch).
+Refers to [`DialogueMatch`](#dialoguematch), [`EventMatch`](#eventmatch), [`PersistMatch`](#persistmatch).
 
 ## `ValidatePhysicalOptions`
 
@@ -2653,7 +2919,8 @@ _function_ in `project/asset-info.ts`
 
 `id`'s info from its live entry: kind, hash and size in bytes; a
 texture's pixel size and its import pivot, nine-slice and filter; an
-atlas's frame names in file order, tags and texture id. With `frame`, an
+atlas's frame names in file order, tags and texture id; a font's meta and
+pages; an audio clip's stream flag and loop points. With `frame`, an
 atlas's info with that frame's pixel size, rectangle and pivot (frames without their
 own carry the atlas's `pivotDefault`). Null for an id with no live asset
 and for a frame the asset doesn't have.
@@ -2844,6 +3111,53 @@ _function_ in `runtime/seed.ts`
 declare function defaultSeed(gameId: null | string, sceneName: string): number;
 ```
 
+## `dialogueCommands`
+
+_function_ in `headless/legal.ts`
+
+The dialogue's commands legal now: each enabled `@dialogue-choose` once
+the conversation offers choices, else `@dialogue-advance`; none with no
+conversation running.
+
+```ts
+declare function dialogueCommands(view: Readonly<DialogueView> | null | undefined): GameCommand[];
+```
+
+## `exploreDialogue`
+
+_function_ in `dialogue/explore.ts`
+
+Walks every choice breadth-first from `start` with the given variables
+(default `{}`), through the dialogue runner, so conditions, effects and
+`visited` decide what is offered as they do in play. Returns each
+reachable ending once, with the shortest choice path (indices into the
+node's `choices`) and the nodes it passes, in the order the walk found
+them. A path stops at `maxDepth` choices (default 32); paths that reach
+the same choices with the same history and variables are walked once.
+
+```ts
+declare function exploreDialogue(file: DialogueFile, opts?: {
+    maxDepth?: number;
+    vars?: JsonValue;
+}): DialogueExploration;
+```
+
+Refers to [`DialogueExploration`](#dialogueexploration).
+
+## `fakeAudioBackend`
+
+_function_ in `audio/fake.ts`
+
+A backend that plays nothing and logs every call, for tests and headless
+checks. A buffer is logged by its channel count, length and rate, never
+its samples, so two runs compare equal across JS engines.
+
+```ts
+declare function fakeAudioBackend(opts?: FakeAudioOptions): FakeAudioBackend;
+```
+
+Refers to [`FakeAudioBackend`](#fakeaudiobackend), [`FakeAudioOptions`](#fakeaudiooptions).
+
 ## `fileSchemaIssue`
 
 _function_ in `headless/swap-check.ts`
@@ -2872,8 +3186,9 @@ fails the run if it holds or sets one, `simActionError`) drawn from `@jams/engin
 `Rng`. A game that lists its commands and has no macro of its own gets
 command macros: one slot sending one of `legalCommands` (nothing when it
 is empty), every macro for a `turns` game and half of them otherwise,
-counted in `legal`. Rollouts run until the game's outcome,
-`stuck` or `ticks` slots (an idle turns or event game skips slots, so its
+counted in `legal`. Any other game gets them, picked from the dialogue's
+commands, only while a conversation takes one. Rollouts run until the
+game's outcome, `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
 rollouts still end). Reports which scene entities the rollouts' events
 named (never a runtime `#` id), how many rollouts reached each and how
 early, the ones never touched, and how the rollouts ended. Rollout `i` draws from its own fork of the seed,
@@ -2928,6 +3243,18 @@ declare function loadHeadless(input: HeadlessLoadInput, opts?: HeadlessLoadOptio
 
 Refers to [`HeadlessLoad`](#headlessload), [`HeadlessLoadInput`](#headlessloadinput), [`HeadlessLoadOptions`](#headlessloadoptions).
 
+## `memoryPrefsStore`
+
+_function_ in `prefs.ts`
+
+Preferences kept for this page's life: tests, and hosts that don't persist them.
+
+```ts
+declare function memoryPrefsStore(): PrefsStore;
+```
+
+Refers to [`PrefsStore`](#prefsstore).
+
 ## `memoryRuntimeView`
 
 _function_ in `headless/runtime-view.ts`
@@ -2966,6 +3293,16 @@ declare function mergeTick(input: TickInput): TickInput;
 ```
 
 Refers to [`TickInput`](#tickinput).
+
+## `mutateSynth`
+
+_function_ in `audio/synth-presets.ts`
+
+Every numeric field moved by up to `amount` of its range (default 0.05), clamped to the schema.
+
+```ts
+declare function mutateSynth(patch: SynthFile, rng: Rng, amount?: number): SynthFile;
+```
 
 ## `parseRecording`
 
@@ -3102,6 +3439,18 @@ apart. `time` is the run's clock; omitted, the game's own.
 declare function probeConfigHash(game?: GameDefinition | null, time?: Pick<ResolvedTime, "rate">): string;
 ```
 
+## `randomSynth`
+
+_function_ in `audio/synth-presets.ts`
+
+A random patch inside the preset's ranges.
+
+```ts
+declare function randomSynth(preset: SynthPreset, rng: Rng): SynthFile;
+```
+
+Refers to [`SynthPreset`](#synthpreset).
+
 ## `recordedSwap`
 
 _function_ in `runtime/recorder.ts`
@@ -3125,6 +3474,16 @@ declare function recordingDivergence(a: RunRecording, b: RunRecording): null | s
 ```
 
 Refers to [`RunRecording`](#runrecording).
+
+## `renderSynth`
+
+_function_ in `audio/synth.ts`
+
+One channel, −1 to 1, round(synthDurationMs × 44.1) samples.
+
+```ts
+declare function renderSynth(patch: SynthFile): Float32Array;
+```
 
 ## `replayRecording`
 
@@ -3158,9 +3517,10 @@ in production too; a game that declares no persist takes only null. Progress dep
 with the saved data, then `persist` and the play clock. World depth puts
 the world back between the load and the game's `restore` (sublevels,
 spawns, destroys, counters, enabled flags, the tick, poses and each
-owner's state, timers, tweens, `ctx.random` and its forks, seats), raising no
-event. A scene whose run hash changed since the save loads with an info
-issue; a refused step leaves the scene freshly loaded.
+owner's state, timers, tweens, the active conversation, `ctx.random` and
+its forks, seats), raising no event. A scene whose run hash changed since
+the save loads with an info issue; a refused step leaves the scene freshly
+loaded.
 
 ```ts
 declare function restoreSave(runtime: SceneRuntimeHandle, file: SaveFile): {
@@ -3312,6 +3672,26 @@ declare function swapCheck(opts: SwapCheckOptions): SwapCheckReport;
 
 Refers to [`SwapCheckOptions`](#swapcheckoptions), [`SwapCheckReport`](#swapcheckreport).
 
+## `synthDurationMs`
+
+_function_ in `audio/synth.ts`
+
+attackMs + sustainMs + decayMs: what headless and the inspector show without rendering.
+
+```ts
+declare function synthDurationMs(patch: SynthFile): number;
+```
+
+## `synthWav`
+
+_function_ in `audio/synth.ts`
+
+16-bit PCM WAV bytes of a render (the CLI's `synth render`).
+
+```ts
+declare function synthWav(patch: SynthFile): Uint8Array;
+```
+
 ## `tickWakes`
 
 _function_ in `headless/play-loop.ts`
@@ -3345,7 +3725,7 @@ _function_ in `headless/playtest.ts`
 
 Whether every key of `until` holds on `state` (AND): the engine's `event`,
 `tick`, `exists`, `count`, `near`, `scene` (the main scene is `scene`, the run's
-listed id for it; never without one) and `persist`, then `registry`'s
+listed id for it; never without one), `persist` and `dialogue`, then `registry`'s
 game predicates. A key no predicate answers doesn't hold. `reaches` checks
 judge `expect` with it too.
 
@@ -3379,8 +3759,8 @@ _function_ in `runtime/save-state.ts`
 Whether `runtime`'s world may be saved at depth `world`: every cause that
 refuses it, none when it may. The main scene running on Rapier, a pending
 function-form timer or coroutine (named by owner), a pending value tween,
-or a game runtime without `restore`. Every world save is judged by this
-one rule.
+a conversation over variables given to `start`, or a game runtime
+without `restore`. Every world save is judged by this one rule.
 
 ```ts
 declare function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[];

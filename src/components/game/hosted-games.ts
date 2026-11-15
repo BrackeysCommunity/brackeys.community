@@ -68,11 +68,11 @@ export type HostedGameGlobs = {
   scenes: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/scenes/prefabs/*.json`. */
   prefabs: Readonly<Record<string, Lazy>>;
-  /** `/src/games/<dir>/game-settings.json`, `input-map.json`, `scene-list.json` and `data/*.json`: the docs its project view reads. */
+  /** `/src/games/<dir>/game-settings.json`, `input-map.json`, `scene-list.json`, `data/*.json` and its sound, synth, strings and dialogue docs: the docs its project view reads. */
   docs?: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/**\/*.asset.json`: the docs' ids, and each binary's hash, size and meta. */
   sidecars?: Readonly<Record<string, Lazy>>;
-  /** `/src/games/<dir>/**\/*.png` and the other texture files, eager: each one's URL as the build serves it. */
+  /** `/src/games/<dir>/**\/*.png` and the other texture, audio and font files, eager: each one's URL as the build serves it. */
   urls?: Readonly<Record<string, string>>;
   /** `/src/games/<dir>/debug/index.ts`; empty outside dev builds. */
   debug?: Readonly<Record<string, Lazy>>;
@@ -86,8 +86,8 @@ const PROJECT_FILE = /^\/src\/games\/([^/]+)\/jams\.project\.json$/;
 /** A scene file: one extension, since checks, input scripts, recordings and sidecars all add their own. */
 const SCENE_FILE = /\/scenes\/[^/.]+\.json$/;
 
-/** The files the `urls` glob holds: a texture held without its URL couldn't be fetched, so it's left out. */
-const TEXTURE_FILE = /\.(?:png|jpe?g|webp|gif)$/i;
+/** The files the `urls` glob holds: a binary held without its URL couldn't be fetched, so it's left out. */
+const SERVED_FILE = /\.(?:png|jpe?g|webp|gif|wav|ogg|mp3|m4a|fnt|woff2?|ttf|otf)$/i;
 
 const SIDECAR = ".asset.json";
 
@@ -129,8 +129,8 @@ const valuesUnder = (map: Readonly<Record<string, Lazy>>, root: string) =>
 /**
  * The project under `root` as the scene CLI reads its files, through
  * `heldProject`: its docs (its scenes among them) with their sidecars, and
- * each binary by its sidecar, a texture's bytes at the URL the build serves
- * it from. `sceneJson` is each scene doc's JSON by the id the view gives it.
+ * each binary by its sidecar, its bytes at the URL the build serves it
+ * from. `sceneJson` is each scene doc's JSON by the id the view gives it.
  */
 async function projectRuntime(
   root: string,
@@ -163,7 +163,7 @@ async function projectRuntime(
   for (const [path, sidecar] of sidecarOf) {
     if (sidecar.sha256 === undefined) continue;
     const url = globs.urls?.[path];
-    if (url === undefined && TEXTURE_FILE.test(path)) continue;
+    if (url === undefined && SERVED_FILE.test(path)) continue;
     files.push({ path: path.slice(root.length), sidecar });
     if (url !== undefined) urls.set(sidecar.sha256, url);
   }
@@ -318,11 +318,16 @@ const SITE_GLOBS: HostedGameGlobs = {
     "/src/games/*/input-map.json",
     "/src/games/*/scene-list.json",
     "/src/games/*/data/*.json",
+    "/src/games/*/**/*.{sound,synth,strings,dialogue}.json",
     "!/src/games/*/data/*.asset.json",
+    "!/src/games/*/**/__tests__/**",
   ]),
   sidecars: import.meta.glob(["/src/games/*/**/*.asset.json", "!/src/games/*/**/__tests__/**"]),
   urls: import.meta.glob(
-    ["/src/games/*/**/*.{png,jpg,jpeg,webp,gif}", "!/src/games/*/**/__tests__/**"],
+    [
+      "/src/games/*/**/*.{png,jpg,jpeg,webp,gif,wav,ogg,mp3,m4a,fnt,woff,woff2,ttf,otf}",
+      "!/src/games/*/**/__tests__/**",
+    ],
     { eager: true, query: "?url", import: "default" },
   ),
   debug: import.meta.env.DEV ? import.meta.glob("/src/games/*/debug/index.ts") : {},

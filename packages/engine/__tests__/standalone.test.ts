@@ -2,6 +2,7 @@
 import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { fakeAudioBackend, type FakeAudioBackend } from "../audio/fake";
 import { createGame } from "../engine";
 import { planContent } from "../export/content";
 import { finishExport, type BuiltCode, type ExportInput } from "../export/plan";
@@ -17,11 +18,19 @@ import {
 import { projectView } from "../project/view";
 import type { AssetUrl } from "../render/asset-loader";
 import type { RunRecording } from "../scene/recording-schema";
+import { fakeParent, unframe, welcomeOf } from "../standalone/__tests__/fake-parent";
 import { bootStandalone, type StandaloneGame, type StandaloneOptions } from "../standalone/boot";
 import { manifestView } from "../standalone/manifest-view";
 import type { UiContext } from "../ui/types";
 import { ENGINE_VERSION } from "../version";
-import { FREE_PROJECT, heldInput, physicsFreeFiles, scene } from "./fixtures/held-project";
+import {
+  FREE_PROJECT,
+  heldDocs,
+  heldInput,
+  physicsFreeFiles,
+  scene,
+  type HeldFiles,
+} from "./fixtures/held-project";
 import { testGame } from "./fixtures/test-game";
 
 type RendererHooks = {
@@ -68,6 +77,17 @@ vi.mock("../export/web-manifest", async (original) => ({
   renderWebManifest: () => "{}\n",
 }));
 
+// The page's Web Audio backend, as a fake that logs what it was asked to play.
+const audio = vi.hoisted(() => ({ backends: [] as FakeAudioBackend[], unavailable: false }));
+vi.mock("../audio/web-audio", () => ({
+  webAudioBackend: () => {
+    if (audio.unavailable) throw new ReferenceError("AudioContext is not defined");
+    const backend = fakeAudioBackend();
+    audio.backends.push(backend);
+    return backend;
+  },
+}));
+
 // Textures resolve through the loader's `url`; recording what it resolves stands in for Pixi's fetch.
 const { textureUrls } = vi.hoisted(() => ({ textureUrls: [] as string[] }));
 vi.mock("../render/asset-loader", async (original) => {
@@ -98,8 +118,11 @@ const CODE: BuiltCode = {
 /** A planned build in memory: every file's text by path, and its manifest. */
 type Build = { manifest: ReleaseManifest; files: Map<string, string> };
 
-async function plannedBuild(target: ExportInput["target"] = "web"): Promise<Build> {
-  const input = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame, target);
+async function plannedBuild(
+  target: ExportInput["target"] = "web",
+  held: HeldFiles = physicsFreeFiles(),
+): Promise<Build> {
+  const input = await heldInput(FREE_PROJECT, held, testGame, target);
   const plan = await finishExport(await planContent(input), CODE, input);
   expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
   const files = new Map<string, string>();
@@ -140,6 +163,8 @@ beforeAll(async () => {
 
 beforeEach(() => {
   textureUrls.length = 0;
+  audio.backends.length = 0;
+  audio.unavailable = false;
   root = document.createElement("div");
   root.id = "game";
   document.body.append(root);
@@ -165,6 +190,7 @@ afterEach(() => {
   document.documentElement.removeAttribute("style");
   document.body.removeAttribute("style");
   document.head.querySelector("base")?.remove();
+  document.documentElement.removeAttribute("lang");
   vi.unstubAllGlobals();
 });
 
@@ -625,5 +651,186 @@ describe("the PWA", () => {
     expect(game.install).toBeNull();
     const late = offerInstall("accepted");
     expect(late.event.defaultPrevented).toBe(false);
+  });
+});
+
+describe("sound, prefs and the locale", () => {
+  const KEY = "jams-engine:prefs:test-game";
+
+  /**
+   * The physics-free project with a sound, its synth patch, strings in two
+   * locales and a dialogue. The yard's bell rings twice from its tweens, at
+   * ticks 3 and 30, and each ring plays the sound "chime-sound".
+   */
+  function soundFiles(): HeldFiles {
+    const held = physicsFreeFiles();
+    const docs = heldDocs({
+      "yard.json": {
+        ...scene("yard", ["tiles"]),
+        entities: [
+          { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+          {
+            id: "bell",
+            type: "marker",
+            at: [2, 1],
+            behaviors: {
+              tween: {
+                tweens: [
+                  { to: { x: 2.5 }, duration: 3, emit: { type: "ring" } },
+                  { to: { y: 1.5 }, duration: 30, emit: { type: "ring" } },
+                ],
+              },
+            },
+          },
+        ],
+      },
+      "game-settings.json": {
+        kind: "game-settings",
+        v: 2,
+        engine: { locales: { default: "en", available: ["en", "fr"] } },
+        game: {},
+      },
+      "audio/chime.sound.json": {
+        kind: "sound",
+        v: 1,
+        bus: "sfx",
+        variants: [{ clip: "chime-synth" }],
+        on: [{ event: "ring" }],
+      },
+      "audio/chime.synth.json": {
+        kind: "synth",
+        v: 1,
+        wave: "square",
+        freq: 660,
+        sustainMs: 40,
+        decayMs: 80,
+      },
+      "text/talk.strings.json": {
+        kind: "strings",
+        v: 1,
+        strings: [
+          { key: "talk.hello", en: "Hello", fr: "Bonjour" },
+          { key: "talk.bye", en: "Goodbye", fr: "Au revoir" },
+        ],
+      },
+      "text/talk.dialogue.json": {
+        kind: "dialogue",
+        v: 1,
+        nodes: [
+          { id: "hello", lines: [{ text: "talk.hello" }, { text: "talk.bye" }], end: "done" },
+        ],
+        start: "hello",
+      },
+    });
+    const replaced = new Set(docs.files.map((f) => f.path));
+    held.files = [...held.files.filter((f) => !replaced.has(f.path)), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    return held;
+  }
+
+  let sounding: Build;
+
+  beforeAll(async () => {
+    sounding = await plannedBuild("web", soundFiles());
+  });
+
+  afterEach(() => {
+    unframe();
+    window.history.replaceState(null, "", window.location.pathname);
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      // jsdom without storage has nothing to clear.
+    }
+  });
+
+  const plays = (backend: FakeAudioBackend) => backend.log.filter((c) => c.op === "play");
+
+  it("fetches the sound, its patch, the strings and the dialogue, and plays the sound on its trigger after the first gesture", async () => {
+    const served = fakeFetch(sounding, DIR);
+    const game = await boot({ fetch: served.fetch });
+    const { assets } = sounding.manifest;
+    for (const [id, kind] of [
+      ["chime-sound", "sound"],
+      ["chime-synth", "synth"],
+      ["talk-strings", "strings"],
+      ["talk-dialogue", "dialogue"],
+    ] as const) {
+      expect(assets[id], id).toMatchObject({ kind, storage: "doc" });
+      expect(served.urls, id).toContain(`${DIR}${assets[id]!.file}`);
+    }
+    expect(game.instance.flow.current()).toBe("yard");
+
+    const { instance } = game;
+    instance.step(10);
+    const [backend] = audio.backends;
+    expect(audio.backends).toHaveLength(1);
+    expect(instance.audio?.unlocked).toBe(false);
+    expect(plays(backend!)).toEqual([]);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space" }));
+    await vi.waitFor(() => expect(instance.audio?.unlocked).toBe(true));
+    expect(backend!.log.filter((c) => c.op === "unlock")).toHaveLength(1);
+    instance.step(30);
+    await vi.waitFor(() => expect(plays(backend!)).toHaveLength(1));
+    expect(plays(backend!)[0]).toMatchObject({ opts: { bus: "sfx" } });
+    expect(backend!.log.find((c) => c.op === "buffer")).toMatchObject({ channels: 1 });
+  });
+
+  it("plays silently where the browser has no Web Audio", async () => {
+    audio.unavailable = true;
+    const game = await boot({ fetch: fakeFetch(sounding, DIR).fetch });
+    game.instance.step(40);
+    expect(game.instance.audio).toBeNull();
+    expect(document.documentElement.dataset.jamsState).toBe("ready");
+  });
+
+  it("reads saved bus volumes and the locale from this browser, and keeps a change there", async () => {
+    localStorage.setItem(KEY, JSON.stringify({ locale: "fr", "audio.sfx": { volume: 0.25 } }));
+    const game = await boot({ fetch: fakeFetch(sounding, DIR).fetch });
+    expect(game.instance.locale.current()).toBe("fr");
+    expect(game.instance.locale.strings().get("talk.hello")).toBe("Bonjour");
+    expect(document.documentElement.lang).toBe("fr");
+    game.instance.step(1);
+    expect(game.instance.audio?.buses().sfx).toEqual({ volume: 0.25, muted: false });
+    game.instance.locale.set("en");
+    expect(document.documentElement.lang).toBe("en");
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toMatchObject({ locale: "en" });
+  });
+
+  it("starts in the browser's language when no locale is saved", async () => {
+    vi.spyOn(navigator, "languages", "get").mockReturnValue(["fr-CA", "en"]);
+    try {
+      const game = await boot({ fetch: fakeFetch(sounding, DIR).fetch });
+      expect(game.instance.locale.current()).toBe("fr");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("hosted, loads bus volumes and the locale from the welcome and saves changes through prefs.save", async () => {
+    window.history.replaceState(null, "", "?host=jams");
+    const page = fakeParent({
+      welcome: welcomeOf({
+        prefs: {
+          remap: null,
+          prefs: { locale: "fr", "audio.music": { volume: 0.4, muted: true } },
+        },
+      }),
+    });
+    localStorage.setItem(KEY, JSON.stringify({ locale: "en" }));
+    const game = await boot({ fetch: fakeFetch(sounding, DIR).fetch });
+    expect(game.host).not.toBeNull();
+    expect(game.instance.locale.current()).toBe("fr");
+    game.instance.step(1);
+    const audioOf = game.instance.audio!;
+    expect(audioOf.buses().music).toEqual({ volume: 0.4, muted: true });
+    audioOf.setBus("sfx", 0.5);
+    const [saved] = await page.until("prefs.save");
+    expect(saved!.params).toMatchObject({
+      store: "prefs",
+      value: { locale: "fr", "audio.sfx": { volume: 0.5 }, "audio.music": { volume: 0.4 } },
+    });
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual({ locale: "en" });
   });
 });

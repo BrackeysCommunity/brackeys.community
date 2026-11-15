@@ -58,11 +58,30 @@ export {
   ENTITY_DISABLED,
   ENTITY_ENABLED,
   ENTITY_SPAWNED,
+  DIALOGUE_CHOICES,
+  DIALOGUE_END,
+  DIALOGUE_LINE,
   PLAYER_JOINED,
   PLAYER_LEFT,
   SENSOR_ENTER,
   SENSOR_EXIT,
 } from "../runtime/types";
+export {
+  fakeAudioBackend,
+  type FakeAudioBackend,
+  type FakeAudioLogEntry,
+  type FakeAudioOptions,
+} from "../audio/fake";
+export type { AudioBackend, FakeAudioCall } from "../audio/types";
+export { memoryPrefsStore, type PrefsStore } from "../prefs";
+export {
+  exploreDialogue,
+  type DialogueEnding,
+  type DialogueExploration,
+} from "../dialogue/explore";
+export { dialogueCommands } from "./legal";
+export { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs, synthWav } from "../audio/synth";
+export { mutateSynth, randomSynth, SYNTH_PRESETS, type SynthPreset } from "../audio/synth-presets";
 export { ANIM_END, ANIM_FRAME } from "../runtime/behaviors/anim";
 export {
   decodeStreams,
@@ -167,6 +186,7 @@ export type {
   CompiledInputScript,
   CompiledStep,
   CompileResult,
+  DialogueMatch,
   EventMatch,
   FuzzLegal,
   FuzzOptions,

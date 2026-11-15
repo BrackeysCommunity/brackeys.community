@@ -428,6 +428,56 @@ describe("character-side-view", () => {
     });
   }
 
+  describe("a kinematic body moved by setVelocity", () => {
+    const deckAt = (parent?: string): EntityDef =>
+      ({
+        id: "deck",
+        type: "marker",
+        at: [0, 4],
+        ...(parent !== undefined ? { parent } : {}),
+        behaviors: {
+          collider: { shape: ["box", 0, 0, 1.5, 0.1] },
+          ...(parent === undefined ? { body: { kind: "kinematic" } } : {}),
+        },
+      }) as EntityDef;
+    const cart = {
+      id: "cart",
+      type: "marker",
+      at: [0, 4],
+      behaviors: { collider: { shape: ["box", 5, 0, 0.1, 0.1] }, body: { kind: "kinematic" } },
+    } as EntityDef;
+    /** How far the hero and the deck under it move in 60 ticks once `mover` is set going. */
+    const ride = (entities: EntityDef[], mover: string, backend: Backend) => {
+      const rt = load(
+        [...entities, hero("hero", [0.3, 4 - 0.1 - HH - 0.0005], { seat: 0 })],
+        backend,
+      );
+      steps(rt, 40);
+      rt.ctx.bodies.setVelocity(mover, { x: 1.5, y: 0 });
+      const h = pose(rt, "hero").x;
+      const d = pose(rt, "deck").x;
+      steps(rt, 60);
+      const out = { hero: pose(rt, "hero").x - h, deck: pose(rt, "deck").x - d };
+      rt.destroy();
+      return out;
+    };
+
+    it("carries a character on a collider riding it, with and without physics", () => {
+      const [none, physics] = BACKENDS.map((b) => ride([cart, deckAt("cart")], "cart", b));
+      expect(none!.deck).toBeCloseTo(1.5, 3);
+      expect(physics!.hero).toBeCloseTo(physics!.deck, 3);
+      // Without physics the carry is the pose the riding collider moved the tick before, so it starts a tick late.
+      expect(none!.deck - none!.hero).toBeCloseTo(1.5 / 60, 6);
+    });
+
+    it("leaves a character on the body's own collider where it stands, with and without physics", () => {
+      const [none, physics] = BACKENDS.map((b) => ride([deckAt()], "deck", b));
+      expect(none!.deck).toBeCloseTo(1.5, 3);
+      expect(none!.hero).toBe(0);
+      expect(physics!.hero).toBe(0);
+    });
+  });
+
   describe("jump timing, through the seat (geometry backend)", () => {
     /** The ledge's right edge is x = 0; the floor below it is 1 m lower. */
     const ledge: EntityDef = {

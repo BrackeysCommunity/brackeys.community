@@ -96,6 +96,8 @@ const STANDARD = [
   "anim",
   "tween",
   "emitter",
+  "text",
+  "audio",
 ];
 
 describe("behavior registration", () => {

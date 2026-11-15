@@ -1,8 +1,10 @@
 import { vi } from "vite-plus/test";
 import { builtinEnvironments } from "vite-plus/test/runtime";
 
+import { fakeAudioBackend, type FakeAudioLogEntry, type FakeAudioOptions } from "../../audio/fake";
 import type { ViewportDef } from "../../camera/viewports";
 import { createRegistry } from "../../game/define";
+import { flowIssue, type FlowRequest, type SceneLibrary } from "../../game/flow";
 import { formatSaveFile, parseSaveFile, type SaveFile } from "../../game/save-file";
 import { resolveTime } from "../../game/time";
 import type { GameCommand, GameDefinition } from "../../game/types";
@@ -11,6 +13,8 @@ import { fuzz } from "../../headless/fuzz";
 import { probeConfigHash } from "../../headless/headless";
 import {
   blockedRun,
+  listedSceneId,
+  nextScenePlay,
   prepareRun,
   runBlocked,
   runLibrary,
@@ -34,6 +38,7 @@ import type { SeatChange, TickInput } from "../../input/stream";
 import { DATA_TABLE_KIND, DATA_TABLE_VERSION } from "../../project/kinds/data-table";
 import { GAME_SETTINGS_KIND, GAME_SETTINGS_VERSION } from "../../project/kinds/game-settings";
 import { heldProject, type HeldFile, type ProjectRuntimeView } from "../../project/runtime-view";
+import { gamePersistCell } from "../../runtime/persist";
 import type { PresentedRequest } from "../../runtime/present";
 import {
   createRunRecorder,
@@ -99,8 +104,14 @@ export type GenreProbe<S = unknown> = {
   /** Needs of those rows not yet delivered, with the milestone that will. */
   pending?: Partial<Record<GenreRow, string>>;
   game: GameDefinition<S>;
-  /** Built in code from primitives and the probe's own types. */
+  /** Built in code from primitives and the probe's own types; with `flow`, the listed scene the run starts in. */
   scene: SceneDefinition;
+  /**
+   * The scene list the run follows: each flow request loads the next listed
+   * scene in a fresh runtime, `persist` carried, and the same input goes on.
+   * Its entry for `scene` (by name) is replaced by the variant's scene.
+   */
+  flow?: SceneLibrary;
   /** Every prefab the run may place: the scene's instances and `ctx.instantiate` both draw on it. */
   prefabs?: PrefabLibrary;
   /** The project data the game reads as `ctx.project`; omitted, the run has no project. */
@@ -135,6 +146,24 @@ export type GenreProbe<S = unknown> = {
   view?: boolean;
   /** The view run's viewports (`GameConfig.viewports`); default the shell's one. */
   viewports?: readonly ViewportDef[];
+  /** The view run's fake audio backend (`ViewRunOptions.audio`); default none, so Play is silent. */
+  audio?: ViewRunAudio;
+};
+
+/**
+ * A fake audio backend for a view run: `true` starts it running, as a
+ * context an earlier gesture resumed, since a replay has no gesture of its
+ * own; options are `fakeAudioBackend`'s over that.
+ */
+export type ViewRunAudio = true | FakeAudioOptions;
+
+export type ViewRunOptions = {
+  /**
+   * Hands the shell a `fakeAudioBackend` as `GameConfig.audio.backend`; its
+   * clock advances a frame's time with each drawn frame, and `ViewRun.audio`
+   * is its call log. Default the probe's own `audio`; false runs without one.
+   */
+  audio?: ViewRunAudio | false;
 };
 
 /** A probe's project data: a game-settings doc's `game` block, each data table's rows, and any other files. */
@@ -165,6 +194,8 @@ export type ProbeRun = {
   fromSave?: SaveRun;
   /** With the probe's `recordPresentation`: the digest of the same run played without it. */
   withoutPresentation?: string;
+  /** With the probe's `flow`: each listed scene the run played, replayed on its own from its recording. */
+  segments?: { scene: string; replay: ReplayReport }[];
 };
 
 /** A run that was saved mid-way and finished in a fresh runtime restored from the save. */
@@ -207,6 +238,31 @@ export const loadRapier = vi.fn(() => (compat ??= loadCompatRapier()));
 export function variantScene(probe: GenreProbe, variant?: ProbeVariant): SceneDefinition {
   if (!variant?.settings) return probe.scene;
   return { ...probe.scene, settings: { ...probe.scene.settings, ...variant.settings } };
+}
+
+/**
+ * The probe's scene list under a variant: each listed scene with the
+ * variant's settings over its own, and the one `scene` names (by name)
+ * replaced by `scene` itself. Undefined for a probe without one.
+ */
+export function variantFlow(
+  probe: GenreProbe,
+  variant?: ProbeVariant,
+  scene: SceneDefinition = variantScene(probe, variant),
+): SceneLibrary | undefined {
+  if (!probe.flow) return undefined;
+  const scenes = new Map(
+    [...probe.flow.scenes].map(([id, listed]) => {
+      const def =
+        listed.def.name === scene.name
+          ? scene
+          : variant?.settings
+            ? { ...listed.def, settings: { ...listed.def.settings, ...variant.settings } }
+            : listed.def;
+      return [id, { ...listed, def }] as const;
+    }),
+  );
+  return { list: probe.flow.list, scenes };
 }
 
 /** The backend a probe's run resolves to, before anything loads. */
@@ -512,12 +568,15 @@ function probeDigest(run: DigestParts): string {
   );
 }
 
+// The final snapshot's digest, not the recording's: with flow the recording is the first scene's.
 const runDigest = (report: PlaytestReport): string =>
-  probeDigest({ ...report, end: report.recording.end, trail: report.trail.pts });
+  probeDigest({ ...report, end: snapshotDigest(report.final), trail: report.trail.pts });
 
 export type SaveRunOptions = Omit<TickRunOptions, "ticks"> & {
   /** Fed in place of the script's steps, as `playTicks` feeds them. */
   ticks?: readonly TickInput[];
+  /** The scene list the run follows, as `runPlaytest`'s `flow`: a save may be taken in any listed scene. */
+  flow?: SceneLibrary;
   /** The tick to capture the world save after. */
   at: number;
   /**
@@ -565,21 +624,34 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
   );
   if (!compiled.ok) return fail("the script", compiled.issues);
   const { play, maxTicks } = compiled.script;
-  const library = runLibrary(opts);
-  const prepared = prepareRun(opts.scene, registry, false, opts.prefabs, engine, {
-    library,
-    project: opts.project,
-  });
-  if (!prepared.ok) return fail("the scene", prepared.blocked.issues);
+  const flow = opts.flow;
+  // With flow every scene's runtime shares one value, as runPlaytest's do.
+  const persist = flow ? gamePersistCell(game, true) : undefined;
+  const prepare = (def: SceneDefinition, prefabs?: PrefabLibrary) =>
+    prepareRun(def, registry, false, prefabs, engine, {
+      library: runLibrary({ prefabs, library: opts.library }),
+      project: opts.project,
+    });
+  const first = prepare(opts.scene, opts.prefabs);
+  if (!first.ok) return fail("the scene", first.blocked.issues);
+  let scene = {
+    id: (flow && listedSceneId(flow, opts.scene)) ?? name,
+    prefabs: opts.prefabs,
+    entry: null as string | null,
+    play,
+    prepared: first,
+  };
   const start = (): SceneRuntimeHandle => {
     const started = startRun({
       rapier: opts.rapier,
       game,
       registry,
-      scene: prepared.scene,
-      play,
-      prefabs: library,
+      scene: scene.prepared.scene,
+      play: scene.play,
+      prefabs: runLibrary({ prefabs: scene.prefabs, library: opts.library }),
       project: opts.project,
+      ...(persist ? { persist } : {}),
+      ...(flow ? { flow: { scene: scene.id, entry: scene.entry, library: flow } } : {}),
     });
     return started.ok ? started.runtime : fail("the load", started.load);
   };
@@ -587,49 +659,87 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
   const events: StepEvent[] = [];
   const pts: Pt[] = [];
   const base = { ticks: 0, slots: 0 };
+  /** The run's tick the current scene loaded at; events after the first scene count from the run's start, as runPlaytest's do. */
+  let sceneAt = 0;
   let source: InputSource | null = null;
   const fed = (ticks: readonly TickInput[]) => {
     const length = waitSlots(opts.script);
     return tickSource(tickSlots(ticks, length, game), length);
   };
-  const leg = (runtime: SceneRuntimeHandle, ticks: number) => {
-    source ??= opts.ticks
-      ? fed(opts.ticks)
-      : scriptSource(
-          compiled.script,
-          (until, state) => untilHolds(until, state, registry, name),
-          runtime.ctx.time,
-        );
-    const from = source;
-    const at = { ...base };
-    return runLoop({
-      runtime,
-      game,
-      maxTicks: ticks,
-      input: {
-        done: () => from.done(),
-        tick: (slot) => from.tick!(at.slots + slot),
-        after: (state) => from.after?.({ ...state, tick: at.ticks + state.tick }),
-        skipped: (slot) => from.skipped?.(at.slots + slot),
-      },
-      onTick(state, focus) {
-        const tick = at.ticks + state.tick;
-        for (const e of state.events) if (events.length < DEFAULT_MAX_EVENTS) events.push(e);
-        if (focus && tick % TRAIL_EVERY === 0 && pts.length < DEFAULT_MAX_TRAIL)
-          pts.push(trailPoint(focus));
-      },
-    });
+  let current: SceneRuntimeHandle | null = null;
+  const runtime = () => current ?? fail("the run", "no runtime");
+
+  /** Loads the scene a flow request names in a fresh runtime, as runPlaytest follows one. */
+  const follow = (request: FlowRequest, at: number) => {
+    const refused = flowIssue(flow!.list, request.to, "go");
+    const listed = flow!.scenes.get(request.to);
+    if (refused || !listed) return fail("the flow request", refused ?? request);
+    const prepared = prepare(listed.def, listed.prefabs);
+    if (!prepared.ok) return fail(`the scene ${request.to}`, prepared.blocked.issues);
+    if (request.persist !== undefined) persist!.set(request.persist);
+    runtime().destroy();
+    current = null;
+    scene = {
+      id: request.to,
+      prefabs: listed.prefabs,
+      entry: request.entry ?? null,
+      play: nextScenePlay(play),
+      prepared,
+    };
+    sceneAt = at;
+    current = start();
   };
 
-  const capture = (runtime: SceneRuntimeHandle, tick: number) => {
-    const end = leg(runtime, tick + 1 - base.ticks);
+  /** Plays `ticks` ticks from where the run stands, following flow requests; the end counts from the leg's start. */
+  const leg = (ticks: number) => {
+    const done = { ticks: 0, slots: 0 };
+    for (;;) {
+      source ??= opts.ticks
+        ? fed(opts.ticks)
+        : scriptSource(
+            compiled.script,
+            (until, state) => untilHolds(until, state, registry, scene.id),
+            runtime().ctx.time,
+          );
+      const from = source;
+      const at = { ticks: base.ticks + done.ticks, slots: base.slots + done.slots };
+      const offset = sceneAt;
+      const end = runLoop({
+        runtime: runtime(),
+        game,
+        maxTicks: ticks - done.ticks,
+        input: {
+          done: () => from.done(),
+          tick: (slot) => from.tick!(at.slots + slot),
+          after: (state) => from.after?.({ ...state, tick: at.ticks + state.tick }),
+          skipped: (slot) => from.skipped?.(at.slots + slot),
+        },
+        onTick(state, focus) {
+          const tick = at.ticks + state.tick;
+          for (const e of state.events)
+            if (events.length < DEFAULT_MAX_EVENTS)
+              events.push(offset > 0 ? { ...e, tick: offset + e.tick } : e);
+          if (focus && tick % TRAIL_EVERY === 0 && pts.length < DEFAULT_MAX_TRAIL)
+            pts.push(trailPoint(focus));
+        },
+      });
+      done.ticks += end.ticks;
+      done.slots += end.slots;
+      if (end.result !== "flow" || !flow || !end.request)
+        return { ...end, tick: done.ticks - 1, ticks: done.ticks, slots: done.slots };
+      follow(end.request, base.ticks + done.ticks);
+    }
+  };
+
+  const capture = (tick: number) => {
+    const end = leg(tick + 1 - base.ticks);
     if (end.result !== "timeout" || end.ticks !== tick + 1 - base.ticks)
       fail(`the run ended before tick ${tick}`, {
         result: end.result,
         tick: base.ticks + end.tick,
       });
-    const snapshot = runtime.snapshot();
-    const captured = captureSave(runtime, { depth: "world", slot: "probe", now: 0 });
+    const snapshot = runtime().snapshot();
+    const captured = captureSave(runtime(), { depth: "world", slot: "probe", now: 0 });
     if (!captured.ok) return fail("the capture", captured.issue);
     const parsed = parseSaveFile(formatSaveFile(captured.file), game ?? undefined);
     if (!parsed.ok) return fail("the save's text", parsed.issues);
@@ -645,16 +755,19 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
 
   const saves: SaveFile[] = [];
   let saved: unknown;
-  let current = start();
+  current = start();
   for (const [i, tick] of points.entries()) {
     let carried = false;
     try {
-      const { file, snapshot } = capture(current, tick);
+      const { file, snapshot } = capture(tick);
       if (i === 0) saved = snapshot;
       saves.push(file);
       carried = keep;
     } finally {
-      if (!carried) current.destroy();
+      if (!carried) {
+        current?.destroy();
+        current = null;
+      }
     }
     if (keep) continue;
     current = start();
@@ -667,8 +780,8 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
   const [save, ...again] = saves as [SaveFile, ...SaveFile[]];
 
   try {
-    const end = leg(current, maxTicks - base.ticks);
-    const final = current.snapshot();
+    const end = leg(maxTicks - base.ticks);
+    const final = runtime().snapshot();
     const focus = game?.play?.focus && final !== null ? game.play.focus(final) : null;
     const outcome: PlaytestReport["outcome"] = {
       result: end.result,
@@ -689,10 +802,10 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
     });
     const run: SaveRun = { at: opts.at, save, saved, outcome, ticks, slots, final, digest };
     if (again.length > 0) run.again = again;
-    if (opts.observe) run.observed = opts.observe(current);
+    if (opts.observe) run.observed = opts.observe(runtime());
     return run;
   } finally {
-    current.destroy();
+    current?.destroy();
   }
 }
 
@@ -724,7 +837,18 @@ export async function runGenreProbe<S>(
 
   const script = variantScript(p, variant);
   const project = probeProjectView(p);
-  const runs = { rapier, game: p.game, scene, prefabs: p.prefabs, library: p.prefabs, project };
+  const flow = variantFlow(p, variant, scene);
+  if (flow && p.ticks)
+    throw new Error(`${label}: a probe that feeds ticks can't follow a scene list`);
+  const runs = {
+    rapier,
+    game: p.game,
+    scene,
+    prefabs: p.prefabs,
+    library: p.prefabs,
+    project,
+    ...(flow ? { flow } : {}),
+  };
   const play = (recordPresentation: boolean) => {
     const opts = { ...runs, script, ...(recordPresentation ? { recordPresentation } : {}) };
     const played = p.ticks ? playTicks({ ...opts, ticks: p.ticks }) : runPlaytest(opts);
@@ -733,23 +857,39 @@ export async function runGenreProbe<S>(
   };
   const report = play(p.recordPresentation === true);
 
-  const replay = replayRecording({
-    rapier,
-    game: p.game,
-    scene,
-    prefabs: p.prefabs,
-    library: p.prefabs,
-    project,
-    recording: report.recording,
-  });
-  if (replay.blocked) throw new Error(blockedMessage(`${label}: the replay`, replay));
+  const replayOf = (what: string, def: SceneDefinition, recording: unknown, sceneId?: string) => {
+    const replayed = replayRecording({
+      rapier,
+      game: p.game,
+      scene: def,
+      prefabs: p.prefabs,
+      library: p.prefabs,
+      project,
+      recording,
+      ...(flow ? { flow } : {}),
+      ...(sceneId !== undefined ? { sceneId } : {}),
+    });
+    if (replayed.blocked) throw new Error(blockedMessage(`${label}: ${what}`, replayed));
+    return replayed as ReplayReport;
+  };
+  const replay = replayOf("the replay", scene, report.recording);
 
   const run: ProbeRun = {
     report,
-    replay: replay as ReplayReport,
+    replay,
     digest: runDigest(report),
     usedRapier: rapier !== null,
   };
+  if (flow)
+    run.segments = (report.segments ?? []).map((seg) => {
+      const def = flow.scenes.get(seg.scene)?.def;
+      if (!def)
+        throw new Error(`${label}: the run played ${seg.scene}, which its scene list doesn't hold`);
+      return {
+        scene: seg.scene,
+        replay: replayOf(`the replay of ${seg.scene}`, def, seg.recording, seg.scene),
+      };
+    });
   if (p.recordPresentation) run.withoutPresentation = runDigest(play(false));
   if (variant?.saveAt !== undefined)
     run.fromSave = playFromSave({
@@ -803,13 +943,15 @@ export type ViewRun = {
   viewports: (number | null)[];
   /** How many times each texture a later viewport renders into was drawn. */
   surfaces: number[];
+  /** With an `audio` option: the fake backend's calls to the end of the replay, before the shell's teardown. */
+  audio?: FakeAudioLogEntry[];
 };
 
 /**
  * Replays a probe's headless run in the shell: `createGame` on a jsdom
  * canvas (a jsdom of its own for the run when the test has no DOM) with
  * the renderer stubbed (`stubbedRenderer`), the probe's
- * prefabs, project and `viewports`, then `replay` of the run's recording,
+ * prefabs, project, `viewports` and `audio`, then `replay` of the run's recording,
  * one tick and one drawn frame at a time until the shell finishes its
  * recording. The shell records presentation requests and presents them;
  * none may change how the run ends (`ViewRun.recording.end` against the
@@ -820,17 +962,24 @@ export async function viewGenreProbe<S>(
   probe: GenreProbe<S>,
   run: ProbeRun,
   variant?: ProbeVariant,
+  opts: ViewRunOptions = {},
 ): Promise<ViewRun> {
   const p = probe as GenreProbe;
   const label = `${probe.id} ${variant?.name ?? DEFAULT_VARIANT}: the view run`;
+  // The jsdom environment's teardown leaves its own Request and URL on the global, and a
+  // second setup over its Request makes every `instanceof Request` recurse: put them back.
+  const { Request, URL } = globalThis;
   const dom =
     typeof document === "undefined"
       ? await builtinEnvironments.jsdom.setup(globalThis, { jsdom: { pretendToBeVisual: true } })
       : null;
   try {
-    return await viewRun(p, run, variant, label);
+    return await viewRun(p, run, variant, label, opts.audio ?? p.audio);
   } finally {
-    await dom?.teardown(globalThis);
+    if (dom) {
+      await dom.teardown(globalThis);
+      Object.assign(globalThis, { Request, URL });
+    }
   }
 }
 
@@ -839,6 +988,7 @@ async function viewRun(
   run: ProbeRun,
   variant: ProbeVariant | undefined,
   label: string,
+  audioOpt: ViewRunAudio | false | undefined,
 ): Promise<ViewRun> {
   const { createGame } = await import("../../engine");
   const scene = variantScene(p, variant);
@@ -852,6 +1002,9 @@ async function viewRun(
     ({ left: 0, top: 0, x: 0, y: 0, width, height, right: width, bottom: height }) as DOMRect;
   document.body.appendChild(canvas);
   stubbedDraws = null;
+  const audio = audioOpt
+    ? fakeAudioBackend({ state: "running", ...(audioOpt === true ? {} : audioOpt) })
+    : null;
   let game: GameInstance | null = null;
   try {
     game = await createGame(canvas, {
@@ -860,6 +1013,7 @@ async function viewRun(
       project: probeProjectView(p),
       ...(rapier ? { rapier: async () => rapier } : {}),
       ...(p.viewports ? { viewports: p.viewports } : {}),
+      ...(audio ? { audio: { backend: audio } } : {}),
       reducedMotion: false,
     });
     const draws = stubbedDraws as StubbedDraws | null;
@@ -881,6 +1035,7 @@ async function viewRun(
     for (let i = 0; finished.recording === null && i <= recording.ticks; i++) {
       game.step(1);
       clock.advance(frameMs);
+      audio?.advance(frameMs / 1000);
     }
     const recorded = finished.recording;
     if (recorded === null)
@@ -894,6 +1049,7 @@ async function viewRun(
       present: present.present,
       viewports,
       surfaces: [...draws.surfaces.values()],
+      ...(audio ? { audio: structuredClone([...audio.log]) } : {}),
     };
   } finally {
     game?.destroy();

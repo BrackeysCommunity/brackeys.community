@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import { heldDocs } from "../../__tests__/fixtures/held-project";
 import { GLOW, LAMP, PLAIN, testGame } from "../../__tests__/fixtures/test-game";
 import { budgetIssues, DEFAULT_EXPORT_BUDGET, measureBudget } from "../../export/budget";
 import { planContent } from "../../export/content";
@@ -18,14 +19,17 @@ import { runChecks } from "../../headless/run-checks";
 import { validatePhysical } from "../../headless/validate-physical";
 import { createKindRegistry, parseAssetDoc } from "../../project/kinds";
 import { animationKind } from "../../project/kinds/animation";
+import { dialogueKind } from "../../project/kinds/dialogue";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { sceneListIssues, sceneListKind } from "../../project/kinds/scene-list";
+import { soundKind } from "../../project/kinds/sound";
 import { checkProjectBatch } from "../../project/ops";
 import { ENGINE_FORMATS, type ReleaseAsset, type ReleaseManifest } from "../../project/release";
-import { heldProject } from "../../project/runtime-view";
+import { heldProject, type HeldFile } from "../../project/runtime-view";
 import { checkSceneVersion, liveCompat, type SceneVersion } from "../../project/scene-version";
 import { jsonValues, snapshotProject } from "../../project/snapshot";
 import type { AssetEntry } from "../../project/types";
+import { validateProject } from "../../project/validate-project";
 import { projectView } from "../../project/view";
 import { createLiveLayer } from "../../runtime/live";
 import { createRunRecorder } from "../../runtime/recorder";
@@ -959,6 +963,73 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
     const { issue } = layer.activate(id, sha, "now");
     return issue ? [issue] : [];
   },
+  "sound-bus-unknown": () =>
+    parseAssetDoc(
+      soundKind,
+      JSON.stringify({ kind: "sound", v: 1, bus: "ambience", variants: [] }, null, 2),
+      { registry: engine, project: null },
+    ).issues,
+  "locale-unknown": () =>
+    crossChecked({
+      "strings/ui.json": { kind: "strings", v: 1, strings: [{ key: "a", en: "A", de: "A" }] },
+    }),
+  "font-missing": () =>
+    crossChecked(
+      {
+        "settings.json": localeSettings({ default: "en", available: ["en"], fonts: { en: "f" } }),
+        "strings/ui.json": { kind: "strings", v: 1, strings: [{ key: "a", en: "Ω" }] },
+      },
+      [
+        {
+          path: "fonts/f.woff2",
+          sidecar: {
+            kind: "asset-sidecar",
+            v: 1,
+            key: "key-f",
+            id: "f",
+            assetKind: "font",
+            sha256: "f".repeat(64),
+            bytes: 100,
+            meta: { format: "woff2", coverage: [[0x20, 0x7e]] },
+          },
+        },
+      ],
+    ),
+  "string-key-missing": () =>
+    crossChecked({
+      "level.json": {
+        ...scene({ v: 5, settings: { physics: "none" }, solid: [] }),
+        entities: [{ id: "sign", type: "marker", at: [1, 1], behaviors: { text: { key: "a" } } }],
+      },
+    }),
+  "dialogue-dead-end": () =>
+    parseAssetDoc(
+      dialogueKind,
+      JSON.stringify(
+        { kind: "dialogue", v: 1, start: "a", nodes: [{ id: "a", lines: [] }] },
+        null,
+        2,
+      ),
+      { registry: engine, project: null },
+    ).issues,
+  "dialogue-unreachable": () =>
+    parseAssetDoc(
+      dialogueKind,
+      JSON.stringify(
+        {
+          kind: "dialogue",
+          v: 1,
+          start: "a",
+          nodes: [
+            { id: "a", lines: [], end: "done" },
+            { id: "b", lines: [], end: "done" },
+          ],
+        },
+        null,
+        2,
+      ),
+      { registry: engine, project: null },
+    ).issues,
   "scene-version-removed": () => {
     const def = scene({ settings: { physics: "none" } });
     const recording = createRunRecorder({
@@ -978,6 +1049,29 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
   },
 };
 
+const localeSettings = (locales: unknown) => ({
+  kind: "game-settings",
+  v: 2,
+  engine: { locales },
+  game: {},
+});
+
+/** `validateProject`'s issues over docs by path and blob files, judged without a game. */
+function crossChecked(docs: Record<string, unknown>, blobs: HeldFile[] = []): SceneIssue[] {
+  const held = heldDocs(docs);
+  const registry = createRegistry();
+  const { view, kinds } = heldProject([...held.files, ...blobs], registry, {
+    projectId: "p",
+    name: "P",
+  });
+  const texts = new Map<string, string>();
+  for (const entry of view.byId.values()) {
+    const text = held.texts.get(entry.path);
+    if (text !== undefined) texts.set(entry.id, text);
+  }
+  return validateProject(view, texts, kinds, { registry, project: view });
+}
+
 /** Raised below the code's own severity on purpose: an icon that falls back to the default warns. */
 const SEVERITY_RAISED: Partial<Record<EngineIssueCode, SceneIssue["severity"]>> = {
   "export-asset-missing": "warn",
@@ -992,6 +1086,10 @@ const NO_LINE_CODES: readonly EngineIssueCode[] = [
   "export-over-budget",
   "export-itch-layout",
   "export-target-unsupported",
+  // Cross-doc checks run over parsed values and give a path; `scene validate` locates its line.
+  "locale-unknown",
+  "font-missing",
+  "string-key-missing",
 ];
 
 /** A build's target comes from the command line, not from a document a path could point into. */

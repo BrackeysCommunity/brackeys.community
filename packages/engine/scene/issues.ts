@@ -373,7 +373,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     severity: "error",
     summary:
       "A tween moves an entity whose type can't be posed, or animates a sprite channel on an entity without a sprite.",
-    hint: "Tween a marker, decor, solid or sensor; visual channels need a `sprite`.",
+    hint: "Tween a node, marker, decor, solid, sensor or prop; visual channels need a `sprite`.",
     fixable: false,
   },
   "tick-rate-invalid": {
@@ -675,6 +675,46 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary:
       "A replay needs a scene version that is gone: the segment's `sceneVersion` (the replay doesn't start), or a swap's (it replays to `detail.tick` and stops).",
     hint: "Scene versions are removed some days after publishing unless a channel points at them; a recording replays only while the versions it names are kept.",
+    fixable: false,
+  },
+  "sound-bus-unknown": {
+    severity: "error",
+    summary:
+      "A sound names a bus that is neither one of the engine's five nor one the game declares.",
+    hint: "Use master, music, sfx, voice, ui or a bus the game declares.",
+    fixable: false,
+  },
+  "locale-unknown": {
+    severity: "warn",
+    summary: "A strings file has a column for a locale the game settings don't offer.",
+    hint: "Add the locale to `engine.locales.available`.",
+    fixable: false,
+  },
+  "font-missing": {
+    severity: "warn",
+    summary:
+      "A locale's strings use characters its font doesn't cover, or the locale has no font and the default doesn't cover them.",
+    hint: "Give the locale a font that covers its text.",
+    fixable: false,
+  },
+  "string-key-missing": {
+    severity: "error",
+    summary:
+      "A text block, a dialogue line or a sound's caption names a string key with no text: an error for the default locale, info for the others.",
+    hint: "Add the key to a strings file.",
+    fixable: false,
+  },
+  "dialogue-dead-end": {
+    severity: "error",
+    summary:
+      "A dialogue node has no choices, no `next` and no `end`; as a warning, every choice's `if` can fail with nothing to fall back on.",
+    hint: "Give the node choices, `next` or `end`.",
+    fixable: false,
+  },
+  "dialogue-unreachable": {
+    severity: "warn",
+    summary: "No path from the dialogue's `start` reaches a node.",
+    hint: "Link the node from `start`, or remove it.",
     fixable: false,
   },
 };

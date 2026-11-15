@@ -289,6 +289,43 @@ describe("attach", () => {
   });
 });
 
+describe("onGesture", () => {
+  it("hears every press, claimed or not, a touch's end, and never a move or a release", () => {
+    const canvas = mountCanvas();
+    const router = createToolRouter();
+    router.register(consumer("play", 0, (e) => e.kind === "key"));
+    const heard: string[] = [];
+    const off = router.onGesture((native) => heard.push(native.type));
+    router.attach(canvas);
+
+    canvas.dispatchEvent(new MouseEvent("pointermove", { clientX: 5, clientY: 5 }));
+    canvas.dispatchEvent(new MouseEvent("pointerdown", { clientX: 5, clientY: 5 }));
+    canvas.dispatchEvent(new MouseEvent("pointerup", { clientX: 5, clientY: 5 }));
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+    canvas.dispatchEvent(new KeyboardEvent("keyup", { key: "a" }));
+    canvas.dispatchEvent(new Event("touchend"));
+    expect(router.dispatch(keyEvent("b"))).toBe("play");
+    expect(heard).toEqual(["pointerdown", "keydown", "touchend", "keydown"]);
+
+    off();
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+    expect(heard).toHaveLength(4);
+    router.destroy();
+  });
+
+  it("stops hearing a touch's end once detached", () => {
+    const canvas = mountCanvas();
+    const router = createToolRouter();
+    const heard = vi.fn();
+    router.onGesture(heard);
+    router.attach(canvas);
+    router.detach();
+    canvas.dispatchEvent(new Event("touchend"));
+    expect(heard).not.toHaveBeenCalled();
+    router.destroy();
+  });
+});
+
 describe("resolveInputTarget", () => {
   it("defaults to the canvas and makes it focusable", () => {
     const canvas = document.createElement("canvas");

@@ -27,6 +27,7 @@ import type { Registry } from "@jams/engine/game";
 import {
   ContentStoreError,
   isSha256,
+  parseDocName,
   SCENE_KIND_NAME,
   type AssetEntry,
   type AssetId,
@@ -337,11 +338,16 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
     throw e;
   }
 
-  /** A doc as the server has it now, copied from its pooled provider's. */
+  /**
+   * A doc as the server has it now, copied from its pooled provider's. A doc
+   * the registry doesn't name yet is one the trial's batch creates: the
+   * server admits it only once the registry names it, so it starts empty.
+   */
   const copyOf: OpenDoc = async (name) => {
-    const state = Y.encodeStateAsUpdate((await openDoc(name)).doc);
     const doc = new Y.Doc();
-    Y.applyUpdate(doc, state);
+    const ref = parseDocName(name);
+    if (!ref || ref.kind === "project" || session.state().assets[ref.key])
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate((await openDoc(name)).doc));
     return { doc, awareness: localAwareness(doc), close: () => doc.destroy() };
   };
 

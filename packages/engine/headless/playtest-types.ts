@@ -1,3 +1,4 @@
+import type { DialogueView } from "../dialogue/runner";
 import type { NavDestination } from "../game/commands";
 import type { SceneLibrary } from "../game/flow";
 import type {
@@ -59,9 +60,18 @@ export type EventMatch = string | { type: string; entityId?: string; other?: str
 export type PersistMatch = { pointer: string; eq?: JsonValue; gte?: number; lte?: number };
 
 /**
+ * The engine's `dialogue` predicate over the active conversation: `node`
+ * while it stands at that node, `ended` once it ends (with that ending, or
+ * any with `true`), `active` while one runs (or, with false, while none
+ * does). Every key given must hold.
+ */
+export type DialogueMatch = { node?: string; ended?: string | true; active?: boolean };
+
+/**
  * When a step ends early: every key must hold (AND). `event`, `tick` (an
- * absolute tick, reached or passed), `exists`, `count`, `near`, `scene` and
- * `persist` are the engine's; the rest are the game's `play.predicates`.
+ * absolute tick, reached or passed), `exists`, `count`, `near`, `scene`,
+ * `persist` and `dialogue` are the engine's; the rest are the game's
+ * `play.predicates`.
  */
 export type UntilClause = {
   event?: EventMatch;
@@ -75,6 +85,7 @@ export type UntilClause = {
   /** Holds once the main scene is this scene. */
   scene?: AssetId;
   persist?: PersistMatch;
+  dialogue?: DialogueMatch;
   [predicate: string]: unknown;
 };
 
@@ -302,7 +313,9 @@ export type PlaytestReport<S = unknown> = {
   steps: PlaytestStep[];
   /** The game's snapshot after the last tick; `null` without a game. */
   final: S | null;
-  /** The commands legal after the last tick (`GamePlayDef.commands`), at most 64; absent when the game declares none. */
+  /** The active conversation after the last tick, null with none; absent when the run had no dialogue. */
+  dialogue?: Readonly<DialogueView> | null;
+  /** The commands legal after the last tick (`legalCommands`: the dialogue's, then `GamePlayDef.commands`), at most 64; absent when there are none to list. */
   legal?: GameCommand[];
   /** True when `legal` was cut at 64 entries. */
   legalTruncated?: boolean;
@@ -398,7 +411,7 @@ export type FuzzReport = {
   untouched: Ref[];
   /** How many rollouts ended with each result. */
   results: Record<RunResult, number>;
-  /** For a game that lists its commands and has no macro of its own: what the command macros did. */
+  /** For a game that lists its commands and has no macro of its own, or a run that sent the dialogue's: what the command macros did. */
   legal?: FuzzLegal;
   /** Measured, so it differs run to run; compare reports without it. */
   timing: { elapsedMs: number; ticksPerSecond: number };

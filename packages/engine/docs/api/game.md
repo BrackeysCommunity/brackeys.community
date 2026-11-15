@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ACTION_KINDS`](#action_kinds) · [`ANIM`](#anim) · [`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AnimBlock`](#animblock) · [`AnimContext`](#animcontext) · [`AnimHandle`](#animhandle) · [`AnimState`](#animstate) · [`AnimSystem`](#animsystem) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`AudioRequest`](#audiorequest) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorKey`](#behaviorkey) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BlockOf`](#blockof) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyHandle`](#bodyhandle) · [`BodyKind`](#bodykind) · [`BodyStandIn`](#bodystandin) · [`Bound`](#bound) · [`BulkKeyInfo`](#bulkkeyinfo) · [`BurstOptions`](#burstoptions) · [`CAMERA_RIG_SCHEMA`](#camera_rig_schema) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraFrame`](#cameraframe) · [`CameraRequest`](#camerarequest) · [`CameraRigDef`](#camerarigdef) · [`CameraTargetBlock`](#cameratargetblock) · [`CameraTargetHandle`](#cameratargethandle) · [`CameraTargetSpec`](#cameratargetspec) · [`CastResult`](#castresult) · [`CastSpawnOptions`](#castspawnoptions) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterHandle`](#characterhandle) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ClipSource`](#clipsource) · [`ColliderBlock`](#colliderblock) · [`ColliderHandle`](#colliderhandle) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_SWAP_TIMING`](#default_swap_timing) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DrawLayer`](#drawlayer) · [`EASE_NAMES`](#ease_names) · [`EMITTER`](#emitter) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EaseName`](#easename) · [`EditorToolDef`](#editortooldef) · [`EffectRequest`](#effectrequest) · [`EmitterBlock`](#emitterblock) · [`EmitterHandle`](#emitterhandle) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`Entity`](#entity) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlashOptions`](#flashoptions) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaHandle`](#forceareahandle) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`HandleOf`](#handleof) · [`HandleType`](#handletype) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointHandle`](#jointhandle) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`KinematicMotion`](#kinematicmotion) · [`LIFETIME`](#lifetime) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LifetimeHandle`](#lifetimehandle) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NAV_COMMAND`](#nav_command) · [`NODE_TYPE`](#node_type) · [`NavAgentBlock`](#navagentblock) · [`NavAgentHandle`](#navagenthandle) · [`NavAgentSystem`](#navagentsystem) · [`NavDestination`](#navdestination) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OccupantHandle`](#occupanthandle) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`OwnedBody`](#ownedbody) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowHandle`](#pathfollowhandle) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputHandle`](#playerinputhandle) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PresentRequest`](#presentrequest) · [`PresentationQueue`](#presentationqueue) · [`PresentedRequest`](#presentedrequest) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedClip`](#resolvedclip) · [`ResolvedTime`](#resolvedtime) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SLOT_RULE`](#slot_rule) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SWAP_STRATEGY_WORDS`](#swap_strategy_words) · [`SWAP_TIMINGS`](#swap_timings) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneDiff`](#scenediff) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSwap`](#sceneswap) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneTree`](#scenetree) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`Script`](#script) · [`ScriptClass`](#scriptclass) · [`ScriptDef`](#scriptdef) · [`ScriptHooks`](#scripthooks) · [`ScriptPredicate`](#scriptpredicate) · [`ScriptSelf`](#scriptself) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerHandle`](#spawnerhandle) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteHandle`](#spritehandle) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SystemFactory`](#systemfactory) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TWEEN`](#tween) · [`TWEEN_END`](#tween_end) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`TweenBlock`](#tweenblock) · [`TweenChannel`](#tweenchannel) · [`TweenHandle`](#tweenhandle) · [`TweenSpec`](#tweenspec) · [`TweenSystem`](#tweensystem) · [`Tweens`](#tweens) · [`UnsaveableTween`](#unsaveabletween) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`arrivalWords`](#arrivalwords) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindTo`](#bindto) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`buildNavMesh`](#buildnavmesh) · [`capitalise`](#capitalise) · [`carrierDelta`](#carrierdelta) · [`castSpawn`](#castspawn) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`characterHandle`](#characterhandle-1) · [`characterPoseHooks`](#characterposehooks) · [`clamp`](#clamp) · [`clampTiming`](#clamptiming) · [`clampVec2`](#clampvec2) · [`clipFrameAt`](#clipframeat) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`defineScript`](#definescript) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`ease`](#ease) · [`effectiveSaveLimits`](#effectivesavelimits) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`forgetOneWayActor`](#forgetonewayactor) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`handleType`](#handletype-1) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`interpolatePosition`](#interpolateposition) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`materialField`](#materialfield) · [`mirrorField`](#mirrorfield) · [`moveBodyNow`](#movebodynow) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`overlapFrameShapes`](#overlapframeshapes) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`physicsOf`](#physicsof) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`releasePromoteMessage`](#releasepromotemessage) · [`releaseReplacesMessage`](#releasereplacesmessage) · [`releaseRollbackMessage`](#releaserollbackmessage) · [`resolveClips`](#resolveclips) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`rotate`](#rotate) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`sceneVersionName`](#sceneversionname) · [`scopedRef`](#scopedref) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`swapTimingSchema`](#swaptimingschema) · [`tagsField`](#tagsfield) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`tweenSpecSchema`](#tweenspecschema) · [`vectorField`](#vectorfield) · [`versionName`](#versionname) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
+[`ACTION_KINDS`](#action_kinds) · [`ANIM`](#anim) · [`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AUDIO`](#audio) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AnimBlock`](#animblock) · [`AnimContext`](#animcontext) · [`AnimHandle`](#animhandle) · [`AnimState`](#animstate) · [`AnimSystem`](#animsystem) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`AudioBlock`](#audioblock) · [`AudioHandle`](#audiohandle) · [`AudioRequest`](#audiorequest) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorKey`](#behaviorkey) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BlockOf`](#blockof) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyHandle`](#bodyhandle) · [`BodyKind`](#bodykind) · [`BodyStandIn`](#bodystandin) · [`Bound`](#bound) · [`BulkKeyInfo`](#bulkkeyinfo) · [`BurstOptions`](#burstoptions) · [`CAMERA_RIG_SCHEMA`](#camera_rig_schema) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraFrame`](#cameraframe) · [`CameraRequest`](#camerarequest) · [`CameraRigDef`](#camerarigdef) · [`CameraTargetBlock`](#cameratargetblock) · [`CameraTargetHandle`](#cameratargethandle) · [`CameraTargetSpec`](#cameratargetspec) · [`CastResult`](#castresult) · [`CastSpawnOptions`](#castspawnoptions) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterHandle`](#characterhandle) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ClipSource`](#clipsource) · [`ColliderBlock`](#colliderblock) · [`ColliderHandle`](#colliderhandle) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_LOCALE`](#default_locale) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_SWAP_TIMING`](#default_swap_timing) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DIALOGUE_ADVANCE_COMMAND`](#dialogue_advance_command) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_CHOOSE_COMMAND`](#dialogue_choose_command) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DIALOGUE_LOG_MAX`](#dialogue_log_max) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DialogueChoicesEvent`](#dialoguechoicesevent) · [`DialogueContext`](#dialoguecontext) · [`DialogueEndEvent`](#dialogueendevent) · [`DialogueLineEvent`](#dialoguelineevent) · [`DialogueLogEntry`](#dialoguelogentry) · [`DialogueRunner`](#dialoguerunner) · [`DialogueVars`](#dialoguevars) · [`DialogueView`](#dialogueview) · [`DialogueViewChoice`](#dialogueviewchoice) · [`DrawLayer`](#drawlayer) · [`EASE_NAMES`](#ease_names) · [`EMITTER`](#emitter) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EaseName`](#easename) · [`EditorToolDef`](#editortooldef) · [`EffectRequest`](#effectrequest) · [`EmitterBlock`](#emitterblock) · [`EmitterFollow`](#emitterfollow) · [`EmitterHandle`](#emitterhandle) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineCommandName`](#enginecommandname) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`Entity`](#entity) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlashOptions`](#flashoptions) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`FontAssetInfo`](#fontassetinfo) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaHandle`](#forceareahandle) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameAudioDef`](#gameaudiodef) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`HandleOf`](#handleof) · [`HandleType`](#handletype) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointHandle`](#jointhandle) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`KinematicMotion`](#kinematicmotion) · [`LATENCY_COMMAND`](#latency_command) · [`LIFETIME`](#lifetime) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LifetimeHandle`](#lifetimehandle) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NAV_COMMAND`](#nav_command) · [`NODE_TYPE`](#node_type) · [`NavAgentBlock`](#navagentblock) · [`NavAgentHandle`](#navagenthandle) · [`NavAgentSystem`](#navagentsystem) · [`NavDestination`](#navdestination) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OccupantHandle`](#occupanthandle) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`OwnedBody`](#ownedbody) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowHandle`](#pathfollowhandle) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputHandle`](#playerinputhandle) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PresentRequest`](#presentrequest) · [`PresentationQueue`](#presentationqueue) · [`PresentedRequest`](#presentedrequest) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedClip`](#resolvedclip) · [`ResolvedTime`](#resolvedtime) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SLOT_RULE`](#slot_rule) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SWAP_STRATEGY_WORDS`](#swap_strategy_words) · [`SWAP_TIMINGS`](#swap_timings) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneDiff`](#scenediff) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSwap`](#sceneswap) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneTree`](#scenetree) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`Script`](#script) · [`ScriptClass`](#scriptclass) · [`ScriptDef`](#scriptdef) · [`ScriptHooks`](#scripthooks) · [`ScriptPredicate`](#scriptpredicate) · [`ScriptSelf`](#scriptself) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerHandle`](#spawnerhandle) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteHandle`](#spritehandle) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SystemFactory`](#systemfactory) · [`TEXT`](#text) · [`TEXT_COLOR_DEFAULT`](#text_color_default) · [`TEXT_SIZE_DEFAULT`](#text_size_default) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TWEEN`](#tween) · [`TWEEN_END`](#tween_end) · [`TextBlock`](#textblock) · [`TextDirection`](#textdirection) · [`TextHandle`](#texthandle) · [`TextShown`](#textshown) · [`TextVars`](#textvars) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`TweenBlock`](#tweenblock) · [`TweenChannel`](#tweenchannel) · [`TweenHandle`](#tweenhandle) · [`TweenSpec`](#tweenspec) · [`TweenSystem`](#tweensystem) · [`Tweens`](#tweens) · [`UnsaveableTween`](#unsaveabletween) · [`ViewEmitter`](#viewemitter) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`arrivalWords`](#arrivalwords) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindTo`](#bindto) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`bracketKey`](#bracketkey) · [`buildNavMesh`](#buildnavmesh) · [`capitalise`](#capitalise) · [`carrierDelta`](#carrierdelta) · [`castSpawn`](#castspawn) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`characterHandle`](#characterhandle-1) · [`characterPoseHooks`](#characterposehooks) · [`clamp`](#clamp) · [`clampTiming`](#clamptiming) · [`clampVec2`](#clampvec2) · [`clipFrameAt`](#clipframeat) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createDialogueRunner`](#createdialoguerunner) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`defineScript`](#definescript) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`ease`](#ease) · [`effectiveSaveLimits`](#effectivesavelimits) · [`emptyStringTable`](#emptystringtable) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`forgetOneWayActor`](#forgetonewayactor) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`handleType`](#handletype-1) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`interpolatePosition`](#interpolateposition) · [`isDialogueCommand`](#isdialoguecommand) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`localeDirection`](#localedirection) · [`materialField`](#materialfield) · [`measureText`](#measuretext) · [`memoryVars`](#memoryvars) · [`mirrorField`](#mirrorfield) · [`moveBodyNow`](#movebodynow) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`overlapFrameShapes`](#overlapframeshapes) · [`parseRichText`](#parserichtext) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`persistVars`](#persistvars) · [`physicsOf`](#physicsof) · [`plainText`](#plaintext) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`releasePromoteMessage`](#releasepromotemessage) · [`releaseReplacesMessage`](#releasereplacesmessage) · [`releaseRollbackMessage`](#releaserollbackmessage) · [`resolveClips`](#resolveclips) · [`resolveLocale`](#resolvelocale) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`rotate`](#rotate) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`sceneVersionName`](#sceneversionname) · [`scopedRef`](#scopedref) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`stringTable`](#stringtable-1) · [`stringTableData`](#stringtabledata-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`swapTimingSchema`](#swaptimingschema) · [`tagsField`](#tagsfield) · [`textFontOf`](#textfontof) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`tweenSpecSchema`](#tweenspecschema) · [`vectorField`](#vectorfield) · [`versionName`](#versionname) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
 
 ## `ACTION_KINDS`
 
@@ -54,6 +54,20 @@ A frame that declares events was entered: `data` is `{ clip, frame, index, event
 ```ts
 declare const ANIM_FRAME = "anim:frame";
 ```
+
+## `AUDIO`
+
+_const_ in `game/behaviors/audio.ts`
+
+```ts
+declare const AUDIO: BehaviorDef<{
+    playing: z.ZodOptional<z.ZodBoolean>;
+    sound: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    volume: z.ZodOptional<z.ZodNumber>;
+}, AudioHandle>;
+```
+
+Refers to [`AudioHandle`](#audiohandle), [`BehaviorDef`](#behaviordef).
 
 ## `ActionDef`
 
@@ -233,6 +247,30 @@ type AttachmentHub = {
 
 Refers to [`Attachment`](#attachment).
 
+## `AudioBlock`
+
+_type_ in `game/behaviors/audio.ts`
+
+An `audio` block as an entity carries it.
+
+```ts
+type AudioBlock = z.infer<z.ZodObject<ReturnType<typeof audioFields>>>;
+```
+
+## `AudioHandle`
+
+_type_ in `game/behaviors/audio.ts`
+
+Starts and stops one entity's sound.
+
+```ts
+type AudioHandle = {
+    play(): void;
+    readonly playing: boolean;
+    stop(): void;
+};
+```
+
 ## `AudioRequest`
 
 _type_ in `runtime/present.ts`
@@ -248,6 +286,8 @@ type AudioRequest = {
     tick: number;
 } | {
     at?: Vec2;
+    /** A string key shown as a caption while it plays, over the sound's own. */
+    caption?: string;
     entity?: string;
     key?: string;
     op: "play";
@@ -1459,6 +1499,16 @@ A game's px per metre when its `world.lengthUnit` sets none.
 declare const DEFAULT_LENGTH_UNIT = 100;
 ```
 
+## `DEFAULT_LOCALE`
+
+_const_ in `project/kinds/strings.ts`
+
+The locale a project without `engine.locales` plays in.
+
+```ts
+declare const DEFAULT_LOCALE = "en";
+```
+
 ## `DEFAULT_PHYSICS`
 
 _const_ in `game/defaults.ts`
@@ -1526,6 +1576,66 @@ declare const DEFAULT_TIME: {
 };
 ```
 
+## `DIALOGUE_ADVANCE_COMMAND`
+
+_const_ in `game/commands.ts`
+
+Shows the active dialogue's next line.
+
+```ts
+declare const DIALOGUE_ADVANCE_COMMAND = "@dialogue-advance";
+```
+
+## `DIALOGUE_CHOICES`
+
+_const_ in `runtime/types.ts`
+
+The active dialogue offers its choices: `data` is a `DialogueChoicesEvent`.
+
+```ts
+declare const DIALOGUE_CHOICES = "dialogue:choices";
+```
+
+## `DIALOGUE_CHOOSE_COMMAND`
+
+_const_ in `game/commands.ts`
+
+Picks one of the active dialogue's visible, enabled choices.
+
+```ts
+declare const DIALOGUE_CHOOSE_COMMAND = "@dialogue-choose";
+```
+
+## `DIALOGUE_END`
+
+_const_ in `runtime/types.ts`
+
+The active dialogue ended: `data` is a `DialogueEndEvent`.
+
+```ts
+declare const DIALOGUE_END = "dialogue:end";
+```
+
+## `DIALOGUE_LINE`
+
+_const_ in `runtime/types.ts`
+
+The active dialogue shows a line: `data` is a `DialogueLineEvent`.
+
+```ts
+declare const DIALOGUE_LINE = "dialogue:line";
+```
+
+## `DIALOGUE_LOG_MAX`
+
+_const_ in `dialogue/runner.ts`
+
+How many lines `DialogueView.log` keeps.
+
+```ts
+declare const DIALOGUE_LOG_MAX = 200;
+```
+
 ## `DRAW_LAYERS`
 
 _const_ in `context.ts`
@@ -1590,6 +1700,160 @@ An input device, as seats own them.
 
 ```ts
 type DeviceId = "keyboard" | "pointer" | "touch" | `pad:${number}`;
+```
+
+## `DialogueChoicesEvent`
+
+_type_ in `runtime/types.ts`
+
+```ts
+type DialogueChoicesEvent = {
+    count: number;
+    dialogue: AssetId;
+    node: string;
+};
+```
+
+## `DialogueContext`
+
+_type_ in `game/types.ts`
+
+`EngineContext.dialogue`: the runtime's one active conversation,
+advanced only by the recorded `@dialogue-advance` and `@dialogue-choose`.
+
+```ts
+type DialogueContext = {
+    /** Starts `dialogue` (replacing one that runs); variables default to `persist`. */
+    start(dialogue: AssetId, opts?: {
+        node?: string;
+        vars?: DialogueVars;
+    }): void;
+    stop(): void;
+    /** Where the active conversation stands; null with none. */
+    view(): Readonly<DialogueView> | null;
+};
+```
+
+Refers to [`DialogueVars`](#dialoguevars), [`DialogueView`](#dialogueview).
+
+## `DialogueEndEvent`
+
+_type_ in `runtime/types.ts`
+
+```ts
+type DialogueEndEvent = {
+    dialogue: AssetId;
+    ending: string;
+};
+```
+
+## `DialogueLineEvent`
+
+_type_ in `runtime/types.ts`
+
+```ts
+type DialogueLineEvent = {
+    dialogue: AssetId;
+    line: number;
+    node: string;
+};
+```
+
+## `DialogueLogEntry`
+
+_type_ in `dialogue/runner.ts`
+
+One line shown so far in a conversation.
+
+```ts
+type DialogueLogEntry = {
+    line: number;
+    node: string;
+    say?: string;
+    /** The speaker's name, a string key, as `current.speakerName`. */
+    speaker?: string;
+    text?: string;
+    /** The line's `{name}` values when it was shown, as `current.vars`. */
+    vars?: Readonly<Record<string, string>>;
+};
+```
+
+## `DialogueRunner`
+
+_interface_ in `dialogue/runner.ts`
+
+```ts
+interface DialogueRunner {
+    view(): DialogueView;
+    /** False when there was no next line to show. */
+    advance(): boolean;
+    /** False for a choice that isn't visible and enabled. */
+    choose(index: number): boolean;
+    save(): JsonValue;
+    restore(state: JsonValue): void;
+}
+```
+
+Refers to [`DialogueView`](#dialogueview), [`JsonValue`](#jsonvalue).
+
+## `DialogueVars`
+
+_interface_ in `dialogue/vars.ts`
+
+Where a dialogue's conditions read and its effects write: JSON pointers into the host's value.
+
+```ts
+interface DialogueVars {
+    get(pointer: string): JsonValue | undefined;
+    set(pointer: string, value: JsonValue): void;
+}
+```
+
+Refers to [`JsonValue`](#jsonvalue).
+
+## `DialogueView`
+
+_type_ in `dialogue/runner.ts`
+
+Where a conversation stands, as the store and the DOM helpers read it.
+
+```ts
+type DialogueView = {
+    /** Present after the node's last line, when it has choices. */
+    choices: null | readonly DialogueViewChoice[];
+    /**
+     * The line on screen, `{}` before any. `speakerName` is the speaker's
+     * name (a string key); `portrait` falls back to the speaker's; `vars`
+     * holds each `{name}`'s value as text, read when the line was shown.
+     */
+    current: DialogueLine & {
+        speakerName?: string;
+    };
+    dialogue: AssetId;
+    ended: null | string;
+    /** The line index in the node; -1 while the node has shown none. */
+    line: number;
+    /** Lines shown so far in this conversation, oldest first, at most 200. */
+    log: readonly DialogueLogEntry[];
+    node: string;
+};
+```
+
+Refers to [`DialogueLogEntry`](#dialoguelogentry), [`DialogueViewChoice`](#dialogueviewchoice).
+
+## `DialogueViewChoice`
+
+_type_ in `dialogue/runner.ts`
+
+One choice as the player sees it; `index` is its place in the node's `choices`.
+
+```ts
+type DialogueViewChoice = {
+    enabled: boolean;
+    index: number;
+    say?: string;
+    text?: string;
+};
 ```
 
 ## `DrawLayer`
@@ -1665,10 +1929,10 @@ _const_ in `game/commands.ts`
 Engine commands; game command names may not start with "@".
 
 ```ts
-declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, CommandDef>>;
+declare const ENGINE_COMMANDS: Readonly<Record<EngineCommandName, CommandDef>>;
 ```
 
-Refers to [`CommandDef`](#commanddef), [`NAV_COMMAND`](#nav_command).
+Refers to [`CommandDef`](#commanddef), [`EngineCommandName`](#enginecommandname).
 
 ## `ENGINE_PREDICATES`
 
@@ -1684,7 +1948,8 @@ declare const ENGINE_PREDICATES: readonly [
     "count",
     "near",
     "scene",
-    "persist"
+    "persist",
+    "dialogue"
 ];
 ```
 
@@ -1829,6 +2094,25 @@ An `emitter` block as an entity carries it.
 type EmitterBlock = z.infer<z.ZodObject<ReturnType<typeof emitterFields>>>;
 ```
 
+## `EmitterFollow`
+
+_type_ in `context.ts`
+
+What an emitter follows, as data: an entity the view resolves to its
+interpolated pose on each rendered frame, plus an offset in metres that
+turns with that pose and mirrors when `flip`.
+
+```ts
+type EmitterFollow = {
+    entity: string;
+    flip?: boolean;
+    offset?: [
+        x: number,
+        y: number
+    ];
+};
+```
+
 ## `EmitterHandle`
 
 _type_ in `game/behaviors/emitter.ts`
@@ -1858,6 +2142,16 @@ type EngineCollisionGroup = (typeof ENGINE_COLLISION_GROUPS)[number];
 ```
 
 Refers to [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups).
+
+## `EngineCommandName`
+
+_type_ in `game/commands.ts`
+
+```ts
+type EngineCommandName = "@elapsed" | typeof DIALOGUE_ADVANCE_COMMAND | typeof DIALOGUE_CHOOSE_COMMAND | typeof LATENCY_COMMAND | typeof NAV_COMMAND;
+```
+
+Refers to [`DIALOGUE_ADVANCE_COMMAND`](#dialogue_advance_command), [`DIALOGUE_CHOOSE_COMMAND`](#dialogue_choose_command), [`LATENCY_COMMAND`](#latency_command), [`NAV_COMMAND`](#nav_command).
 
 ## `EngineContext`
 
@@ -1939,6 +2233,8 @@ type EngineContext = {
     readonly anim: AnimContext;
     /** Moves bodies by entity id, whichever system owns them. */
     readonly bodies: BodyControl;
+    /** The active conversation. */
+    readonly dialogue: DialogueContext;
     /** Present when the loaded scene's resolved settings have a grid. */
     readonly grid: RuntimeGrid | null;
     /** Which version of the main scene runs, and where game code marks a safe moment to change it. */
@@ -2011,7 +2307,7 @@ type EngineContext = {
 };
 ```
 
-Refers to [`AnimContext`](#animcontext), [`AttachmentHub`](#attachmenthub), [`BehaviorKey`](#behaviorkey), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`Entity`](#entity), [`EntityQuery`](#entityquery), [`EntitySelector`](#entityselector), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`HandleOf`](#handleof), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`LiveContext`](#livecontext), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`PresentationQueue`](#presentationqueue), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneTree`](#scenetree), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers), [`Tweens`](#tweens).
+Refers to [`AnimContext`](#animcontext), [`AttachmentHub`](#attachmenthub), [`BehaviorKey`](#behaviorkey), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`DialogueContext`](#dialoguecontext), [`Entity`](#entity), [`EntityQuery`](#entityquery), [`EntitySelector`](#entityselector), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`HandleOf`](#handleof), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`LiveContext`](#livecontext), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`PresentationQueue`](#presentationqueue), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneTree`](#scenetree), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers), [`Tweens`](#tweens).
 
 ## `EngineError`
 
@@ -2443,6 +2739,23 @@ type FollowerSystem = SceneSystem<FollowerEntity> & {
 
 Refers to [`SceneSystem`](#scenesystem).
 
+## `FontAssetInfo`
+
+_type_ in `game/behaviors/text.ts`
+
+What `textFontOf` reads of an asset; `AssetInfo` fits.
+
+```ts
+type FontAssetInfo = {
+    /** A font's meta. */
+    font?: FontMeta;
+    kind: string;
+    /** A bitmap font's page textures, by id. */
+    pages?: readonly AssetId[];
+    sha256?: Sha256;
+};
+```
+
 ## `ForceAreaBlock`
 
 _type_ in `game/behaviors/force-area.ts`
@@ -2525,6 +2838,22 @@ type GameAttachment = {
 };
 ```
 
+## `GameAudioDef`
+
+_type_ in `game/types.ts`
+
+`GameDefinition.audio`.
+
+```ts
+type GameAudioDef = {
+    /** Buses beyond the engine's five; each routes into master. */
+    buses?: readonly {
+        name: string;
+        volume?: number;
+    }[];
+};
+```
+
 ## `GameCommand`
 
 _type_ in `game/types.ts`
@@ -2554,6 +2883,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     assetKinds?: readonly AssetKindDef[];
     /** Play-mode tools in the browser shell, attached after each load. */
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
+    /** The game's audio beyond the engine's. */
+    audio?: GameAudioDef;
     /**
      * The game's behaviors, after the engine's in registration order; names are
      * `<id>/<name>`. A script class registers its `behavior`.
@@ -2633,7 +2964,7 @@ type GameDefinition<S = unknown, G = unknown> = {
 };
 ```
 
-Refers to [`ActionDef`](#actiondef), [`AssetKindDef`](#assetkinddef), [`BehaviorDef`](#behaviordef), [`CameraRigDef`](#camerarigdef), [`CheckKindDef`](#checkkinddef), [`CommandDef`](#commanddef), [`EngineContext`](#enginecontext), [`EntityTypeDef`](#entitytypedef), [`GameAttachment`](#gameattachment), [`GameEditorDef`](#gameeditordef), [`GameInputDef`](#gameinputdef), [`GameKeyBinding`](#gamekeybinding), [`GamePersistDef`](#gamepersistdef), [`GamePlayDef`](#gameplaydef), [`GameRuntime`](#gameruntime), [`GameSavesDef`](#gamesavesdef), [`GameShell`](#gameshell), [`GameTableDef`](#gametabledef), [`GameWorldDef`](#gameworlddef), [`IssueCodeDef`](#issuecodedef), [`LiveDeclaration`](#livedeclaration), [`MaterialDef`](#materialdef), [`PhysicalCheck`](#physicalcheck), [`SceneLayerDef`](#scenelayerdef), [`SceneRuntimeHandle`](#sceneruntimehandle), [`SceneTemplate`](#scenetemplate), [`SceneValidator`](#scenevalidator), [`ScriptClass`](#scriptclass), [`TimeModel`](#timemodel).
+Refers to [`ActionDef`](#actiondef), [`AssetKindDef`](#assetkinddef), [`BehaviorDef`](#behaviordef), [`CameraRigDef`](#camerarigdef), [`CheckKindDef`](#checkkinddef), [`CommandDef`](#commanddef), [`EngineContext`](#enginecontext), [`EntityTypeDef`](#entitytypedef), [`GameAttachment`](#gameattachment), [`GameAudioDef`](#gameaudiodef), [`GameEditorDef`](#gameeditordef), [`GameInputDef`](#gameinputdef), [`GameKeyBinding`](#gamekeybinding), [`GamePersistDef`](#gamepersistdef), [`GamePlayDef`](#gameplaydef), [`GameRuntime`](#gameruntime), [`GameSavesDef`](#gamesavesdef), [`GameShell`](#gameshell), [`GameTableDef`](#gametabledef), [`GameWorldDef`](#gameworlddef), [`IssueCodeDef`](#issuecodedef), [`LiveDeclaration`](#livedeclaration), [`MaterialDef`](#materialdef), [`PhysicalCheck`](#physicalcheck), [`SceneLayerDef`](#scenelayerdef), [`SceneRuntimeHandle`](#sceneruntimehandle), [`SceneTemplate`](#scenetemplate), [`SceneValidator`](#scenevalidator), [`ScriptClass`](#scriptclass), [`TimeModel`](#timemodel).
 
 ## `GameEditorDef`
 
@@ -3164,6 +3495,8 @@ interface InputState {
     players(): readonly PlayerInfo[];
     /** The tick's commands, the engine's (`@elapsed`, `@nav`) among them, in the order the tick holds them. */
     commands(): readonly GameCommand[];
+    /** The latency the last `@latency` command carried, ms; 0 before one. */
+    latencyMs(): number;
 }
 ```
 
@@ -3390,6 +3723,16 @@ type KinematicMotion = {
 };
 ```
 
+## `LATENCY_COMMAND`
+
+_const_ in `game/commands.ts`
+
+The player's calibrated audio-input latency; delivered with the next tick, never waking a turns or event game on its own.
+
+```ts
+declare const LATENCY_COMMAND = "@latency";
+```
+
 ## `LIFETIME`
 
 _const_ in `game/behaviors/lifetime.ts`
@@ -3601,9 +3944,7 @@ type MarkerEntity = RuntimeEntity<{
 _type_ in `systems/marker.ts`
 
 ```ts
-type MarkerSystem = DataSystem<MarkerEntity> & {
-    setPose(id: string, x: number, y: number, rot: number): void;
-};
+type MarkerSystem = DataSystem<MarkerEntity>;
 ```
 
 Refers to [`DataSystem`](#datasystem), [`MarkerEntity`](#markerentity).
@@ -4536,6 +4877,8 @@ What a game's outcome hook and script predicates see after each tick.
 
 ```ts
 type PlayState<S = unknown> = {
+    /** The active conversation after the tick (`EngineContext.dialogue.view`), null with none; absent where the host doesn't track it. */
+    dialogue?: Readonly<DialogueView> | null;
     /** This tick's events only; a game that needs history keeps it in its runtime and snapshot. */
     events: readonly StepEvent[];
     /** The persistent value after the tick (`EngineContext.persist`); absent where the host doesn't track it. */
@@ -4548,7 +4891,7 @@ type PlayState<S = unknown> = {
 };
 ```
 
-Refers to [`JsonValue`](#jsonvalue), [`PlayWorld`](#playworld), [`StepEvent`](#stepevent).
+Refers to [`DialogueView`](#dialogueview), [`JsonValue`](#jsonvalue), [`PlayWorld`](#playworld), [`StepEvent`](#stepevent).
 
 ## `PlayWorld`
 
@@ -4812,6 +5155,8 @@ interface PresentationQueue {
         }): void;
         play(sound: AssetId, opts?: {
             at?: Vec2;
+            caption?: string;
+            entity?: string;
             key?: string;
             pitch?: number;
             volume?: number;
@@ -5085,6 +5430,38 @@ type ResolvedTime = Readonly<{
 
 Refers to [`TimeKind`](#timekind).
 
+## `RichLine`
+
+_type_ in `text/rich.ts`
+
+```ts
+type RichLine = readonly RichSpan[];
+```
+
+Refers to [`RichSpan`](#richspan).
+
+## `RichSpan`
+
+_type_ in `text/rich.ts`
+
+```ts
+type RichSpan = {
+    bold?: boolean;
+    /** 0xRRGGBB. */
+    color?: number;
+    /** Animated per glyph; still under reduced motion. */
+    effect?: "shake" | "wave";
+    /** An inline atlas frame. */
+    icon?: {
+        asset: AssetId;
+        frame: string;
+    };
+    italic?: boolean;
+    size?: number;
+    text: string;
+};
+```
+
 ## `RunResult`
 
 _type_ in `game/types.ts`
@@ -5241,6 +5618,7 @@ _const_ in `game/behaviors/spawner.ts`
 ```ts
 declare const SPAWNER: BehaviorDef<{
     active: z.ZodDefault<z.ZodBoolean>;
+    asChildren: z.ZodOptional<z.ZodBoolean>;
     burst: z.ZodDefault<z.ZodNumber>;
     cap: z.ZodDefault<z.ZodNumber>;
     fields: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
@@ -5788,7 +6166,8 @@ runs. Shapes, poses and sprite sizes are world metres; a style's
 `strokeWidth` is world px, so a line keeps its weight at any px per metre. Ids are unique per runtime: an entity's id, or `${id}#<part>` for a
 system that draws several pieces of one entity. The optional members are
 additive: a view without them still draws everything, sprites as their
-fallback boxes.
+fallback boxes. Every member takes data, never a callback, so a view
+can sit across a worker link.
 
 ```ts
 interface SceneView {
@@ -5819,12 +6198,18 @@ interface SceneView {
             zoom: number;
         };
     }): void;
-    /** The view's particle layer, which the `emitter` behavior draws through; null in a view without one. */
-    particles?(): ParticleLayer | null;
+    /** Runs the emitter `id` on the view's particle layer; a view without one ignores it. */
+    emitter?(id: string, emitter: ViewEmitter): void;
+    /** Stops the emitter `id`: what it put in world space lives out its life. Idempotent. */
+    removeEmitter?(id: string): void;
+    /** Text under `id`, replacing what was drawn; a view without it draws the fallback box. */
+    text?(id: string, visual: TextVisual, layer: ViewLayer): void;
+    /** The locale's strings and font, as data: what keyed text resolves through. The shell hands one at start and on each locale change. */
+    locale?(table: StringTableData): void;
 }
 ```
 
-Refers to [`Style`](#style), [`ViewLayer`](#viewlayer), [`ViewLayerHandle`](#viewlayerhandle).
+Refers to [`StringTableData`](#stringtabledata), [`Style`](#style), [`ViewEmitter`](#viewemitter), [`ViewLayer`](#viewlayer), [`ViewLayerHandle`](#viewlayerhandle).
 
 ## `Script`
 
@@ -6421,6 +6806,40 @@ type StepResult = {
 
 Refers to [`PresentRequest`](#presentrequest), [`StepEvent`](#stepevent).
 
+## `StringTable`
+
+_interface_ in `text/strings.ts`
+
+```ts
+interface StringTable {
+    /** The text for `key` in the locale, its fallbacks, then default; the key itself, bracketed, when missing. */
+    get(key: string, vars?: TextVars): string;
+    has(key: string): boolean;
+    readonly locale: string;
+    readonly direction: TextDirection;
+}
+```
+
+Refers to [`TextDirection`](#textdirection), [`TextVars`](#textvars).
+
+## `StringTableData`
+
+_type_ in `text/strings.ts`
+
+A locale's strings as plain data, what the shell hands a scene view: the
+text of each key after the fallback chain, and the locale's font.
+
+```ts
+type StringTableData = {
+    direction: TextDirection;
+    font: TextFont | null;
+    locale: string;
+    strings: Readonly<Record<string, string>>;
+};
+```
+
+Refers to [`TextDirection`](#textdirection).
+
 ## `Style`
 
 _type_ in `game/types.ts`
@@ -6524,6 +6943,59 @@ type SystemFactory<E extends RuntimeEntity = RuntimeEntity> = (ctx: EngineContex
 ```
 
 Refers to [`EngineContext`](#enginecontext), [`RegisteredType`](#registeredtype), [`SceneSystem`](#scenesystem).
+
+## `TEXT`
+
+_const_ in `game/behaviors/text.ts`
+
+```ts
+declare const TEXT: BehaviorDef<{
+    align: z.ZodOptional<z.ZodEnum<{
+        center: "center";
+        left: "left";
+        right: "right";
+    }>>;
+    anchor: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    color: z.ZodOptional<z.ZodNumber>;
+    font: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    key: z.ZodOptional<z.ZodString>;
+    outline: z.ZodOptional<z.ZodObject<{
+        color: z.ZodNumber;
+        width: z.ZodNumber;
+    }, z.core.$strict>>;
+    rich: z.ZodOptional<z.ZodBoolean>;
+    size: z.ZodOptional<z.ZodNumber>;
+    text: z.ZodOptional<z.ZodString>;
+    vars: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [
+        z.ZodString,
+        z.ZodNumber
+    ]>>>;
+    wrap: z.ZodOptional<z.ZodNumber>;
+}, TextHandle>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef), [`TextHandle`](#texthandle).
+
+## `TEXT_COLOR_DEFAULT`
+
+_const_ in `game/behaviors/text.ts`
+
+```ts
+declare const TEXT_COLOR_DEFAULT = 16777215;
+```
+
+## `TEXT_SIZE_DEFAULT`
+
+_const_ in `game/behaviors/text.ts`
+
+The font size, px at zoom 1, when a block gives none.
+
+```ts
+declare const TEXT_SIZE_DEFAULT = 16;
+```
 
 ## `TOOL_PRIORITY`
 
@@ -6639,6 +7111,66 @@ A tween finished and its `emit` names no type: `data` is the emit's, else `{ id 
 
 ```ts
 declare const TWEEN_END = "tween:end";
+```
+
+## `TextBlock`
+
+_type_ in `game/behaviors/text.ts`
+
+A `text` block as an entity carries it.
+
+```ts
+type TextBlock = z.infer<z.ZodObject<ReturnType<typeof textFields>>>;
+```
+
+## `TextDirection`
+
+_type_ in `text/strings.ts`
+
+```ts
+type TextDirection = "ltr" | "rtl";
+```
+
+## `TextHandle`
+
+_type_ in `game/behaviors/text.ts`
+
+Changes what one entity's text shows, until the block changes.
+
+```ts
+type TextHandle = {
+    /** Shows literal text in place of the block's. */
+    set(text: string): void;
+    /** Shows a string key's text, filled from `vars`. */
+    setKey(key: string, vars?: Readonly<Record<string, number | string>>): void;
+};
+```
+
+## `TextShown`
+
+_type_ in `game/behaviors/text.ts`
+
+What a `set` or `setKey` shows in place of the block's own text.
+
+```ts
+type TextShown = {
+    key: string;
+    vars?: TextVars;
+} | {
+    text: string;
+};
+```
+
+Refers to [`TextVars`](#textvars).
+
+## `TextVars`
+
+_type_ in `text/rich.ts`
+
+Values a `{name}` placeholder is filled from.
+
+```ts
+type TextVars = Readonly<Record<string, number | string>>;
 ```
 
 ## `TimeKind`
@@ -6788,6 +7320,12 @@ type ToolRouter = {
     detach(): void;
     /** The id of the consumer that took the event, or null. */
     dispatch(e: ToolEvent): null | string;
+    /**
+     * Calls `listener` on each user gesture a browser lets start audio: a
+     * pointer or key press dispatched here, or a touch ending on the attached
+     * target. Returns the unsubscribe function.
+     */
+    onGesture(listener: (native: Event) => void): () => void;
     /** Returns the unregister function. Ids are unique per router. */
     register(c: ToolConsumer): () => void;
 };
@@ -6952,6 +7490,28 @@ type UnsaveableTween = {
     id: number;
 };
 ```
+
+## `ViewEmitter`
+
+_type_ in `context.ts`
+
+An emitter as a view runs it on its particle layer.
+
+```ts
+type ViewEmitter = {
+    follow: EmitterFollow;
+    layer: ViewLayer;
+    preset: EmitterFile;
+    /**
+     * From its start, keeping the particles it has alive; false retunes a
+     * running emitter in place (its clock, its point, its particles), and
+     * starts one when none runs.
+     */
+    restart: boolean;
+};
+```
+
+Refers to [`EmitterFollow`](#emitterfollow), [`ViewLayer`](#viewlayer).
 
 ## `ViewLayer`
 
@@ -7202,6 +7762,16 @@ declare function boundsCells(b: CellBounds): Cell[];
 
 Refers to [`Cell`](#cell), [`CellBounds`](#cellbounds).
 
+## `bracketKey`
+
+_const_ in `text/strings.ts`
+
+How a key with no text shows.
+
+```ts
+declare const bracketKey: (key: string) => string;
+```
+
 ## `buildNavMesh`
 
 _function_ in `nav/navmesh.ts`
@@ -7416,6 +7986,27 @@ declare function createDecorSystem(ctx: EngineContext, _type: RegisteredType): S
 ```
 
 Refers to [`DecorEntity`](#decorentity), [`EngineContext`](#enginecontext), [`RegisteredType`](#registeredtype), [`SceneSystem`](#scenesystem).
+
+## `createDialogueRunner`
+
+_function_ in `dialogue/runner.ts`
+
+Starts a conversation at `opts.node` (default the file's `start`) and
+shows its first line. `emit` receives the effects' `emit` events and the
+runner's own `dialogue:line { dialogue, node, line }`, `dialogue:choices
+{ dialogue, node, count }` and `dialogue:end { dialogue, ending }`.
+`opts.visited` is the saved history `visited` conditions also see.
+Where the file gives no way on, the conversation stops in place and
+`advance` answers false; the kind's checks report each such node.
+
+```ts
+declare function createDialogueRunner(file: DialogueFile, id: AssetId, vars: DialogueVars, emit: (type: string, data?: JsonValue) => void, opts?: {
+    node?: string;
+    visited?: readonly string[];
+}): DialogueRunner;
+```
+
+Refers to [`DialogueRunner`](#dialoguerunner), [`DialogueVars`](#dialoguevars), [`JsonValue`](#jsonvalue).
 
 ## `createFollowerSystem`
 
@@ -7810,6 +8401,18 @@ declare function effectiveSaveLimits(game: Pick<GameDefinition, "saves"> | null,
 
 Refers to [`GameDefinition`](#gamedefinition), [`SaveLimits`](#savelimits), [`SaveLimitsStore`](#savelimitsstore).
 
+## `emptyStringTable`
+
+_function_ in `text/strings.ts`
+
+A table with no strings: every key shows bracketed.
+
+```ts
+declare function emptyStringTable(locale: string): StringTable;
+```
+
+Refers to [`StringTable`](#stringtable).
+
 ## `fieldOfView`
 
 _function_ in `grid/fov.ts`
@@ -8025,6 +8628,16 @@ Interpolate position between two waypoints at progress t
 declare function interpolatePosition(a: Vec2, b: Vec2, t: number): Vec2;
 ```
 
+## `isDialogueCommand`
+
+_const_ in `game/commands.ts`
+
+Whether `name` is one of the dialogue's commands, which the dialogue system takes before the game's `beforeStep`.
+
+```ts
+declare const isDialogueCommand: (name: string) => boolean;
+```
+
 ## `isNavSystem`
 
 _function_ in `systems/nav.ts`
@@ -8164,6 +8777,19 @@ declare function lineOfSight(grid: GridGeometry, a: Cell, b: Cell, opaque: (c: C
 
 Refers to [`Cell`](#cell), [`GridGeometry`](#gridgeometry).
 
+## `localeDirection`
+
+_function_ in `text/strings.ts`
+
+"ar", "fa", "he", "ur", "yi", "ps", "sd", "ug", "dv", "ckb" and their
+regions; a script subtag decides when given ("sd-Deva" is ltr, "pa-Arab" rtl).
+
+```ts
+declare function localeDirection(locale: string): TextDirection;
+```
+
+Refers to [`TextDirection`](#textdirection).
+
 ## `materialField`
 
 _function_ in `game/fields.ts`
@@ -8177,6 +8803,42 @@ declare function materialField(env: FieldEnv, description?: string): z.ZodOption
 ```
 
 Refers to [`FieldEnv`](#fieldenv).
+
+## `measureText`
+
+_function_ in `text/measure.ts`
+
+Exact for BMFont meta (advances, kerning), an estimate otherwise.
+
+`size` and `wrap` are px at zoom 1; a span's own `size` wins. A line's
+width is its advances plus kerning. With `wrap`, lines break greedily at
+spaces, the spaces at a break are dropped, and a word wider than `wrap`
+overflows on a line of its own. A glyph the face lacks and an inline icon
+are estimated (an icon as one em square), which makes the result inexact.
+
+```ts
+declare function measureText(lines: readonly RichLine[], font: FontMeta | null, size: number, wrap?: number): {
+    exact: boolean;
+    height: number;
+    width: number;
+};
+```
+
+Refers to [`RichLine`](#richline).
+
+## `memoryVars`
+
+_function_ in `dialogue/vars.ts`
+
+Variables over a plain value this host keeps, for tests and games that hold their own.
+
+```ts
+declare function memoryVars(initial?: JsonValue): DialogueVars & {
+    readonly value: JsonValue;
+};
+```
+
+Refers to [`DialogueVars`](#dialoguevars), [`JsonValue`](#jsonvalue).
 
 ## `mirrorField`
 
@@ -8268,6 +8930,28 @@ declare function overlapFrameShapes(ctx: Pick<EngineContext, "anim">, a: string,
 
 Refers to [`EngineContext`](#enginecontext).
 
+## `parseRichText`
+
+_function_ in `text/rich.ts`
+
+`[b]…[/b]`, `[i]`, `[color=#rrggbb]`, `[size=n]`, `[icon=asset:frame]`,
+`[shake]`, `[wave]`, `\[` escapes; `{name}` filled from `vars`. Unknown
+tags stay literal with a warning.
+
+Tags nest and may close out of order; a closing tag ends the latest
+matching open one, and styles carry across line breaks. `\{` and `\\` escape
+too. A var's value is inserted as text, never parsed as markup; a missing
+var stays `{name}` with a warning.
+
+```ts
+declare function parseRichText(source: string, vars?: TextVars): {
+    lines: readonly RichLine[];
+    warnings: readonly string[];
+};
+```
+
+Refers to [`RichLine`](#richline), [`TextVars`](#textvars).
+
 ## `parseRuntimeId`
 
 _function_ in `game/runtime-ids.ts`
@@ -8342,6 +9026,18 @@ A path's points as vectors.
 declare function pathWaypoints(path: Pick<PathDef, "pts">): Vec2[];
 ```
 
+## `persistVars`
+
+_function_ in `dialogue/vars.ts`
+
+JSON pointers into `ctx.persist`: `set` replaces the value through `ctx.persist.set`.
+
+```ts
+declare function persistVars(ctx: Pick<EngineContext, "persist">): DialogueVars;
+```
+
+Refers to [`DialogueVars`](#dialoguevars), [`EngineContext`](#enginecontext).
+
 ## `physicsOf`
 
 _function_ in `game/physics-of.ts`
@@ -8356,6 +9052,18 @@ declare function physicsOf(ctx: Pick<EngineContext, "physics" | "rapier">, what:
 ```
 
 Refers to [`EngineContext`](#enginecontext), [`PhysicsWorld`](#physicsworld).
+
+## `plainText`
+
+_function_ in `text/rich.ts`
+
+Plain text with the markup removed: for captions, screen readers and measuring.
+
+```ts
+declare function plainText(source: string, vars?: TextVars): string;
+```
+
+Refers to [`TextVars`](#textvars).
 
 ## `playersProblems`
 
@@ -8565,6 +9273,20 @@ declare function resolveClips(source: ClipSource, atlas: AssetInfo, time: Pick<R
 ```
 
 Refers to [`ClipSource`](#clipsource), [`ResolvedClip`](#resolvedclip), [`ResolvedTime`](#resolvedtime).
+
+## `resolveLocale`
+
+_function_ in `text/strings.ts`
+
+The locale a player starts in: the saved preference, else the first of
+`languages` matching `available` by language subtag, else the default.
+
+```ts
+declare function resolveLocale(locales: LocaleSettings | null, opts: {
+    languages?: readonly string[];
+    saved?: null | string;
+}): string;
+```
 
 ## `resolveTime`
 
@@ -8819,6 +9541,32 @@ declare function spriteGeometry(block: Partial<SpriteBlock>, info?: SpriteAssetI
 
 Refers to [`SpriteAssetInfo`](#spriteassetinfo), [`SpriteBlock`](#spriteblock), [`SpriteGeometry`](#spritegeometry).
 
+## `stringTable`
+
+_function_ in `text/strings.ts`
+
+A locale's text by key across the view's strings files (a key in two
+files keeps the first by path): `locale`, its fallback chain, then the
+default (`localeChain`). A key with no text there shows bracketed.
+
+```ts
+declare function stringTable(view: ProjectRuntimeView, locale: string): StringTable;
+```
+
+Refers to [`ProjectRuntimeView`](#projectruntimeview), [`StringTable`](#stringtable).
+
+## `stringTableData`
+
+_function_ in `text/strings.ts`
+
+What a scene view resolves keyed text through: the table's text by key and `font`, as data.
+
+```ts
+declare function stringTableData(view: ProjectRuntimeView, locale: string, font: TextFont | null): StringTableData;
+```
+
+Refers to [`ProjectRuntimeView`](#projectruntimeview), [`StringTableData`](#stringtabledata).
+
 ## `styleOf`
 
 _function_ in `game/style.ts`
@@ -8864,6 +9612,21 @@ Free-form labels a game reads, e.g. `["spawn"]`.
 ```ts
 declare function tagsField(description: string): z.ZodOptional<z.ZodArray<z.ZodString>>;
 ```
+
+## `textFontOf`
+
+_function_ in `game/behaviors/text.ts`
+
+The face a font asset draws in: a BMFont by its .fnt's hash and its
+pages' hashes, a web font by its content hash, which the view's loader
+resolves to the family it registered. Null for no id, an asset that isn't
+a font, or one whose meta or files aren't known yet.
+
+```ts
+declare function textFontOf(asset: ((id: AssetId) => FontAssetInfo | null | undefined) | undefined, id: AssetId | undefined): TextFont | null;
+```
+
+Refers to [`FontAssetInfo`](#fontassetinfo).
 
 ## `tickRateProblem`
 

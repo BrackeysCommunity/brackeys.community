@@ -1,7 +1,22 @@
+import type { TextFont } from "../context";
+import {
+  measureFont,
+  richSource,
+  TEXT,
+  TEXT_SIZE_DEFAULT,
+  textBoxShape,
+  textFontOf,
+  type FontAssetInfo,
+  type TextBlock,
+} from "../game/behaviors/text";
 import { cssHex } from "../game/color";
 import { isCameraRegionType, outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
+import { assetInfo } from "../project/asset-info";
+import { measureText } from "../text/measure";
+import { parseRichText } from "../text/rich";
+import { bracketKey, type StringTableData } from "../text/strings";
 import {
   type DrawnGridCell,
   type DrawnGridCells,
@@ -17,9 +32,16 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, regionBox, translateShape } from "./shape-geometry";
+import {
+  aabb,
+  geometryPose,
+  regionBox,
+  shapeCentre,
+  translateShape,
+  turnBy,
+} from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
-import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
+import type { Bounds, ExpandedScene, Pt, RuntimeEntity, SceneDefinition, ShapeObj } from "./types";
 import { pxToMetres } from "./units";
 
 /** The longest side of a rendered scene, in image px. */
@@ -29,19 +51,30 @@ export { SCENE_GRID_MAX_CELLS } from "./render-geometry";
 
 export type SceneLabels = "entities" | "all" | "none";
 
-export type SceneSvgOptions = SceneRegionOptions & {
-  /** Types, styles and materials; the registry the scene was parsed with. */
-  registry: Registry;
-  /** Image px per world px, before the cap; default 1. */
-  scale?: number;
-  /** Cap on the longest side, image px; default `SCENE_SVG_MAX_SIZE`. */
-  maxSize?: number;
-  /** `entities` (default) labels entities that have ids; `all` adds bulk refs; `none` labels nothing. */
-  labels?: SceneLabels;
-  /** Waypoints, numbered ghosts and the line between them for every path rider; default true. */
-  paths?: boolean;
-  overlay?: SceneOverlay;
+/** What a schematic measures world text in. */
+export type SceneTextOptions = {
+  /**
+   * The locale a `text` block is measured in, the default: its text by key
+   * and the font a block without one draws in. Without it a key measures as
+   * its bracketed key, in an estimate.
+   */
+  strings?: StringTableData;
 };
+
+export type SceneSvgOptions = SceneRegionOptions &
+  SceneTextOptions & {
+    /** Types, styles and materials; the registry the scene was parsed with. */
+    registry: Registry;
+    /** Image px per world px, before the cap; default 1. */
+    scale?: number;
+    /** Cap on the longest side, image px; default `SCENE_SVG_MAX_SIZE`. */
+    maxSize?: number;
+    /** `entities` (default) labels entities that have ids; `all` adds bulk refs; `none` labels nothing. */
+    labels?: SceneLabels;
+    /** Waypoints, numbered ghosts and the line between them for every path rider; default true. */
+    paths?: boolean;
+    overlay?: SceneOverlay;
+  };
 
 /** The world rectangle a render covers and the image size it gets. */
 export type SceneViewport = {
@@ -159,6 +192,147 @@ export function svgPathData(cmds: readonly PathCommand[]): string {
   return out.join("");
 }
 
+/** The entity geometry a text is posed from: world shape, point and path, and its transform. */
+export type TextPoseSource = {
+  shape?: ShapeObj;
+  at?: Pt;
+  path?: { pts: readonly Pt[] };
+  transform?: RuntimeEntity["transform"];
+};
+
+/** A text block as a schematic render draws it, in the pose's units. */
+export type DrawnText = {
+  /** The text measured, markup removed: its key's in the given strings, else its literal. */
+  label: string;
+  key?: string;
+  /** The box in world space, turned with the entity. */
+  shape: Extract<ShapeObj, { type: "box" }>;
+  /** Measured from a BMFont's metrics; false for an estimate. */
+  exact: boolean;
+};
+
+/** What a schematic measures a text in: its locale's strings and font, its fonts and its units. */
+export type TextMeasureEnv = {
+  /** Text by key in the locale measured; a key without one measures bracketed. */
+  strings?: Readonly<Record<string, string>>;
+  /** The face a block without `font` draws in: the locale's. */
+  font?: TextFont | null;
+  asset?: (id: string) => FontAssetInfo | null | undefined;
+  /** Px at zoom 1 per unit of the pose: 1 for world px. */
+  pxPerUnit: number;
+};
+
+const isUnitPair = (v: unknown): v is [number, number] =>
+  Array.isArray(v) &&
+  v.length === 2 &&
+  v.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1);
+const isPositive = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
+
+/** The fields of a text block the box reads, each kept only when it has its schema's shape. */
+function readTextBlock(v: unknown): TextBlock | null {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
+  const b = v as Record<string, unknown>;
+  const out: TextBlock = {};
+  if (typeof b.text === "string") out.text = b.text;
+  if (typeof b.key === "string") out.key = b.key;
+  if (typeof b.font === "string") out.font = b.font;
+  if (isPositive(b.size)) out.size = b.size;
+  if (isPositive(b.wrap)) out.wrap = b.wrap;
+  if (isUnitPair(b.anchor)) out.anchor = b.anchor;
+  if (b.rich === true) out.rich = true;
+  if (b.vars !== null && typeof b.vars === "object" && !Array.isArray(b.vars)) {
+    const vars = Object.entries(b.vars).filter(
+      (e): e is [string, string | number] => typeof e[1] === "string" || typeof e[1] === "number",
+    );
+    out.vars = Object.fromEntries(vars);
+  }
+  return out;
+}
+
+const DEG = Math.PI / 180;
+
+/**
+ * Where a `text` block draws for an entity posed by `src`, as the text
+ * system places it: its lines measured at its size and wrap in its font,
+ * else `env.font`, its box placed by its anchor at the pose and turned
+ * with it. Undefined for a value that isn't a block or an entity with no
+ * pose.
+ */
+export function textBoxOf(
+  block: unknown,
+  src: TextPoseSource,
+  env: TextMeasureEnv,
+): DrawnText | undefined {
+  const read = readTextBlock(block);
+  const pose = src.shape ? shapeCentre(src.shape) : geometryPose({ at: src.at, path: src.path });
+  if (!read || !pose) return undefined;
+  const { key } = read;
+  const strings = env.strings;
+  const source =
+    key === undefined
+      ? (read.text ?? "")
+      : strings && Object.hasOwn(strings, key)
+        ? strings[key]!
+        : bracketKey(key);
+  const lines = parseRichText(richSource(source, read.rich === true), read.vars).lines;
+  const font = read.font === undefined ? (env.font ?? null) : textFontOf(env.asset, read.font);
+  const m = measureText(lines, measureFont(font), read.size ?? TEXT_SIZE_DEFAULT, read.wrap);
+  const box = textBoxShape(m, read.anchor, env.pxPerUnit);
+  const deg = pose.rotDeg ?? src.transform?.rot ?? 0;
+  const [cx, cy] = turnBy([box.cx, box.cy], deg * DEG);
+  return {
+    label: lines.map((line) => line.map((span) => span.text).join("")).join("\n"),
+    ...(key !== undefined ? { key } : {}),
+    shape: { ...box, cx: pose.at[0] + cx, cy: pose.at[1] + cy, rotDeg: deg },
+    exact: m.exact,
+  };
+}
+
+/** A drawn entity's `text` block, measured. */
+export type SceneText = { entity: DrawnEntity; text: DrawnText };
+
+/**
+ * The text boxes `entities` (in world px) draw, in their order: each
+ * `text` block measured as the text system places it, in `opts.strings`'
+ * locale, its font's metrics from `opts.project`.
+ */
+export function drawnTexts(
+  entities: readonly DrawnEntity[],
+  opts: SceneTextOptions & Pick<SceneRegionOptions, "project">,
+): SceneText[] {
+  const project = opts.project;
+  const env: TextMeasureEnv = {
+    pxPerUnit: 1,
+    ...(opts.strings ? { strings: opts.strings.strings, font: opts.strings.font } : {}),
+    ...(project ? { asset: (id: string) => assetInfo(project, id) } : {}),
+  };
+  const out: SceneText[] = [];
+  for (const d of entities) {
+    const block = d.entity.behaviors?.[TEXT.name];
+    if (block === undefined) continue;
+    const text = textBoxOf(
+      block,
+      {
+        ...(d.shape ? { shape: d.shape } : {}),
+        ...(d.at ? { at: d.at } : {}),
+        ...(d.path ? { path: d.path } : {}),
+        ...(d.entity.transform ? { transform: d.entity.transform } : {}),
+      },
+      env,
+    );
+    if (text) out.push({ entity: d, text });
+  }
+  return out;
+}
+
+/** A text box's label: its first line, cut at 40 characters, "≈" before an estimated size. */
+export function textLabel(text: DrawnText): string {
+  const first = text.label.split("\n")[0] ?? "";
+  const cut = first.length > 40 ? `${first.slice(0, 39)}…` : first;
+  return `${text.exact ? "" : "≈ "}"${cut}"`;
+}
+
 const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type === "spawn";
 
 /**
@@ -167,7 +341,8 @@ const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type 
  * through `shapeOutline` in its registered type's (and material's) style, each
  * one-way solid's landing face (as the edit overlay marks it), a
  * grid with axis ticks in world px, id labels, each sprite's box labelled `asset[:frame]` (sized
- * from `opts.project` when given), path waypoints with numbered ghosts, and overlays
+ * from `opts.project` when given), each `text` block's measured box labelled with its text
+ * ("≈" before an estimated size), path waypoints with numbered ghosts, and overlays
  * (issues, a playtest's trail, events and outcome). Pure and deterministic:
  * the same scene and options give the same text.
  */
@@ -298,6 +473,23 @@ export function renderSceneSvg(
     out.push(`</g>`);
   }
 
+  // World text: the box each block measures, labelled with "≈" where it's an estimate
+  const texts = drawnTexts(visible, opts);
+  if (texts.length > 0) {
+    out.push(
+      `<g id="texts" fill="none" stroke-width="${px(1)}" stroke-dasharray="${px(2)} ${px(2)}">`,
+    );
+    for (const { entity: d, text } of texts) {
+      const style = styleOf({ registry }, d.type, materialOf(d));
+      const color = cssHex(style?.stroke ?? style?.fill ?? POINT_COLOR);
+      const key = text.key === undefined ? "" : ` data-key="${esc(text.key)}"`;
+      out.push(
+        `<path data-text="${esc(d.id)}"${key} data-exact="${text.exact}" d="${svgPathData(shapeOutline(text.shape))}" stroke="${color}"/>`,
+      );
+    }
+    out.push(`</g>`);
+  }
+
   // Paths
   if (opts.paths !== false) {
     out.push(`<g id="paths" fill="none">`);
@@ -357,6 +549,13 @@ export function renderSceneSvg(
           `<text class="sprite-label" x="${num((b.minX + b.maxX) / 2)}" y="${num(b.minY - 3 * u)}" font-size="${px(9)}" fill-opacity="0.8">${esc(d.sprite.label)}</text>`,
         );
       }
+    }
+    for (const { entity: d, text } of texts) {
+      if (d.bulk && labels !== "all") continue;
+      const b = aabb(text.shape);
+      out.push(
+        `<text class="text-label" data-text="${esc(d.id)}" x="${num((b.minX + b.maxX) / 2)}" y="${num(b.maxY + 10 * u)}" font-size="${px(9)}" fill-opacity="0.8">${esc(textLabel(text))}</text>`,
+      );
     }
     out.push(`</g>`);
   }

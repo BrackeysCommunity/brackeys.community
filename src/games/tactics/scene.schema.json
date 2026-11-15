@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:scene:tactics:v5",
-  "x-agent-surface": 22,
+  "x-agent-surface": 23,
   "title": "jams engine scene for tactics, format v5",
   "type": "object",
   "properties": {
@@ -1829,6 +1829,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -2001,6 +2007,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -3000,6 +3162,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -3172,6 +3340,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -4159,6 +4483,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -4331,6 +4661,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -5562,6 +6048,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -5734,6 +6226,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -6779,6 +7427,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -6951,6 +7605,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -7938,6 +8748,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -8110,6 +8926,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -9332,6 +10304,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -9504,6 +10482,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -10742,6 +11876,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -10914,6 +12054,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -12159,6 +13455,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -12331,6 +13633,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -13634,6 +15092,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -13806,6 +15270,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -15036,6 +16656,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -15208,6 +16834,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },
@@ -16454,6 +18236,12 @@
                         }
                       ]
                     },
+                    "asChildren": {
+                      "description": "Each spawn goes under the spawner in the scene tree, where it moves, hides and is destroyed with it; false, a spawn is a root. Default false.",
+                      "title": "As children",
+                      "group": "placement",
+                      "type": "boolean"
+                    },
                     "active": {
                       "type": "boolean",
                       "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
@@ -16626,6 +18414,162 @@
                   "additionalProperties": false,
                   "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
                   "title": "Emitter",
+                  "group": "behaviors"
+                },
+                "text": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "description": "Literal text; rich markup when rich is set.",
+                      "group": "text",
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "key": {
+                      "description": "A string-table key; wins over text.",
+                      "group": "text",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                    },
+                    "font": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "Default: the project's font for the locale.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["font"]
+                    },
+                    "size": {
+                      "description": "Font size, px at zoom 1; default 16.",
+                      "unit": "px",
+                      "default": 16,
+                      "group": "look",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 512
+                    },
+                    "color": {
+                      "description": "0xRRGGBB; default white.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "align": {
+                      "description": "How lines line up; default center.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["left", "center", "right"]
+                    },
+                    "anchor": {
+                      "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the box's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the box's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "description": "Wrap width, px at zoom 1; omitted, lines break only where the text does.",
+                      "unit": "px",
+                      "group": "placement",
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "rich": {
+                      "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "group": "text",
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "description": "A stroke around each glyph.",
+                      "group": "look",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, px at zoom 1.",
+                          "unit": "px"
+                        },
+                        "color": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 16777215,
+                          "description": "0xRRGGBB.",
+                          "widget": "color"
+                        }
+                      },
+                      "required": ["width", "color"],
+                      "additionalProperties": false
+                    },
+                    "vars": {
+                      "description": "Values for {name} placeholders.",
+                      "group": "text",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+                  "title": "Text",
+                  "group": "behaviors"
+                },
+                "audio": {
+                  "type": "object",
+                  "properties": {
+                    "sound": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The sound it plays.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["sound"]
+                    },
+                    "playing": {
+                      "description": "Plays from attach while true; default true.",
+                      "default": true,
+                      "group": "playback",
+                      "type": "boolean"
+                    },
+                    "volume": {
+                      "description": "Scales the sound's own volume, 0–1; default 1.",
+                      "default": 1,
+                      "group": "playback",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": ["sound"],
+                  "additionalProperties": false,
+                  "description": "Plays a sound while the entity carries it: an ambient loop or a positional source, presentation only.",
+                  "title": "Audio",
                   "group": "behaviors"
                 }
               },

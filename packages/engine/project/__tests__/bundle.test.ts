@@ -196,13 +196,13 @@ describe("sceneBundle", () => {
       }),
     );
     expect(r.issues).toEqual([]);
-    expect(ids(r)).toEqual(["crates-art", "glyph-page", "icon-art", "sky-art"]);
+    expect(ids(r)).toEqual(["crates-art", "glyph-page", "glyphs", "icon-art", "sky-art"]);
   });
 
-  it("follows an atlas to its texture and a font to its pages, not fetching either file", () => {
+  it("follows an atlas to its texture and a font to its pages, loading the font but not the atlas", () => {
     const r = bundleOf(scene({ assets: ["crates", "glyphs"] }));
-    expect(ids(r)).toEqual(["crates-art", "glyph-page"]);
-    expect(r.bundle.entries.map((e) => e.kind)).toEqual(["texture", "texture"]);
+    expect(ids(r)).toEqual(["crates-art", "glyph-page", "glyphs"]);
+    expect(r.bundle.entries.map((e) => e.kind)).toEqual(["texture", "texture", "font"]);
   });
 
   it("takes the header of every prefab the scene reaches, nested and variant bases too", () => {
@@ -296,13 +296,13 @@ describe("sceneBundle and prefabs a field names", () => {
   it("follows a prefab a behavior field names into its children, its header and its nested prefabs", () => {
     const r = bundleOf(scene({ entities: [dropper("crate")] }));
     expect(r.issues).toEqual([]);
-    expect(ids(r)).toEqual(["crates-art", "glyph-page", "nested-art", "statue-art"]);
+    expect(ids(r)).toEqual(["crates-art", "glyph-page", "glyphs", "nested-art", "statue-art"]);
   });
 
   it("follows what a named prefab's own children name in turn", () => {
     const r = bundleOf(scene({ entities: [dropper("chute")] }));
     expect(r.issues).toEqual([]);
-    expect(ids(r)).toEqual(["crates-art", "glyph-page", "nested-art", "statue-art"]);
+    expect(ids(r)).toEqual(["crates-art", "glyph-page", "glyphs", "nested-art", "statue-art"]);
   });
 
   it("points a named prefab's dangling id at the field that named it", () => {
@@ -530,5 +530,10 @@ describe("projectBundle", () => {
       entries: [],
       bytes: 0,
     });
+  });
+
+  it("reads settings without an engine block", () => {
+    const { engine: _, ...bare } = file({ icon: "icon-art" });
+    expect(ids(projectBundle(view, bare, kinds, registry))).toEqual(["icon-art", "splash-art"]);
   });
 });

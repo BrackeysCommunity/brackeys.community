@@ -1,12 +1,16 @@
 import { flowIssue } from "../game/flow";
 import { resolveTime } from "../game/time";
 import {
+  blobContent,
+  bundleOf,
   namedPrefabs,
   projectBundle,
   sceneBundle,
   unsizedIds,
   type AssetBundle,
+  type BundleEntry,
 } from "../project/bundle";
+import { AUDIO_KIND } from "../project/kinds/audio";
 import { isRuntimeKind } from "../project/kinds/define";
 import { engineResolution, gameSettingsEntries } from "../project/kinds/game-settings";
 import { prefabKind } from "../project/kinds/prefab";
@@ -17,7 +21,7 @@ import {
   sceneListIssues,
   type SceneListEntry,
 } from "../project/kinds/scene-list";
-import { buildRefIndex, type RefIndex } from "../project/refs";
+import { buildRefIndex, siteFits, type RefIndex } from "../project/refs";
 import type { ReleaseAsset, ReleaseManifest, ReleaseScene } from "../project/release";
 import {
   listedFields,
@@ -40,6 +44,42 @@ import { exportTarget, exportTargetNames } from "./targets";
 
 /** A listed scene as it ships, its bundle's entries resolved for the blobs to ship. */
 type PlannedScene = { release: ReleaseScene; bundle: AssetBundle };
+
+/**
+ * The audio clips the runtime docs among `docs` need for their first frame
+ * (a preloaded sound's), through each kind's `bundleRefs` (default `refs`)
+ * and the runtime docs those name in turn. A bundle walk follows them but
+ * keeps only textures, so a release's bundles take the clips from here.
+ * A clip without a recorded size is left out: shipping it reports that.
+ */
+function preloadedClips(
+  docs: Iterable<AssetId>,
+  input: ExportInput,
+  values: ReadonlyMap<AssetId, unknown>,
+): BundleEntry[] {
+  const env = { registry: input.registry, project: input.view };
+  const isDoc = (id: AssetId) =>
+    isRuntimeKind(input.kinds.get(input.view.byId.get(id)?.kind ?? ""));
+  const out: BundleEntry[] = [];
+  const seen = new Set<AssetId>();
+  const pending = [...docs].filter(isDoc);
+  for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const def = input.kinds.get(input.view.byId.get(id)!.kind);
+    const value = values.get(id);
+    if (!isRuntimeKind(def) || value === undefined) continue;
+    const sites = def.bundleRefs ? def.bundleRefs(value, env) : def.refs?.(value, env);
+    for (const site of sites ?? []) {
+      const target = input.view.byId.get(site.id);
+      if (!target || !siteFits(site, target.kind)) continue;
+      if (isDoc(site.id)) pending.push(site.id);
+      const content = target.kind === AUDIO_KIND ? blobContent(target) : null;
+      if (content) out.push({ id: target.id, kind: target.kind, ...content });
+    }
+  }
+  return out;
+}
 
 function planScene(
   entry: SceneListEntry,
@@ -83,11 +123,19 @@ function planScene(
     const expanded = expandScene(def, input.registry, { prefabs: library, engine: input.engine });
     const named = namedPrefabs(expanded.entities, input.registry, prefabs.get);
     library = new Map([...library, ...named]);
+    const followed: AssetId[] = [];
     const read = sceneBundle(expanded, def, library, input.view, input.kinds, input.registry, {
-      read: (_kind, id) => values.get(id),
+      read: (_kind, id) => {
+        followed.push(id);
+        return values.get(id);
+      },
     });
     issues.push(...withId(entry.scene, read.issues));
-    bundle = read.bundle;
+    const clips = preloadedClips(followed, input, values);
+    bundle =
+      clips.length === 0
+        ? read.bundle
+        : bundleOf(read.bundle.name, [...read.bundle.entries, ...clips]);
   } catch (error) {
     issues.push(
       makeIssue("schema", {
@@ -221,7 +269,8 @@ function planPwa(input: ExportInput): ReleaseManifest["pwa"] {
 /**
  * What ships: every scene the scene list holds, every prefab they expand,
  * the runtime docs and the blobs of their bundles and the project bundle,
- * with whatever those reference. The only place an export chooses its
+ * with whatever those reference. A sound ships with every clip and patch it
+ * names; only a preloaded sound's clips join the bundles that name it. The only place an export chooses its
  * content. Its issues: the target, the list's start, each listed scene's
  * parse and bundle, `scene-unlisted` for checks naming a scene flow can't
  * go to, references out of shipped assets that don't resolve, the icons,
@@ -258,6 +307,10 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
   const planned = list.scenes.map((entry) => planScene(entry, input, prefabs, values, issues));
   const listed = new Set(list.scenes.map((e) => e.scene));
 
+  const index = buildRefIndex(input.view, values, input.kinds, {
+    registry: input.registry,
+    project: input.view,
+  });
   const [settingsEntry] = gameSettingsEntries(input.view);
   const project = projectBundle(
     input.view,
@@ -266,6 +319,14 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
     input.registry,
   );
   issues.push(...project.issues);
+  const projectClips = settingsEntry
+    ? preloadedClips(
+        index.targets(settingsEntry.id).map((s) => s.id),
+        input,
+        values,
+      )
+    : [];
+  const resident = bundleOf("project", [...project.bundle.entries, ...projectClips]);
 
   const runtimeDocs = [...input.view.byId.values()]
     .filter((e) => isRuntimeKind(input.kinds.get(e.kind)))
@@ -277,12 +338,8 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
       ...s.release.prefabs,
       ...s.bundle.entries.map((e) => e.id),
     ]),
-    ...project.bundle.entries.map((e) => e.id),
+    ...resident.entries.map((e) => e.id),
   ];
-  const index = buildRefIndex(input.view, values, input.kinds, {
-    registry: input.registry,
-    project: input.view,
-  });
   // A named icon ships at its icon path; one that something else also reaches ships at its own file too.
   const icons = planIcons(input);
   const reached = new Set(shippedIds(input, index, roots, listed));
@@ -320,8 +377,8 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
     start: list.start ?? "",
     scenes,
     projectBundle: {
-      entries: project.bundle.entries.map((e) => e.id),
-      bytes: project.bundle.bytes,
+      entries: resident.entries.map((e) => e.id),
+      bytes: resident.bytes,
     },
     assets,
     needsRapier: scenes.some((s) => s.physics === "rapier"),

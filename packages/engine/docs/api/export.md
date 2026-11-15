@@ -435,7 +435,8 @@ _function_ in `export/content.ts`
 
 What ships: every scene the scene list holds, every prefab they expand,
 the runtime docs and the blobs of their bundles and the project bundle,
-with whatever those reference. The only place an export chooses its
+with whatever those reference. A sound ships with every clip and patch it
+names; only a preloaded sound's clips join the bundles that name it. The only place an export chooses its
 content. Its issues: the target, the list's start, each listed scene's
 parse and bundle, `scene-unlisted` for checks naming a scene flow can't
 go to, references out of shipped assets that don't resolve, the icons,
@@ -506,8 +507,10 @@ _function_ in `export/service-worker.ts`
 `sw.js`, a plain script with its file list inline: `install` precaches
 the build, `activate` deletes this project's other caches, and `fetch`
 answers the build's files (a request for the directory is `index.html`),
-leaving every other request to the network. Its state lives in one
-closure, so nothing leaks onto the worker's global scope.
+leaving every other request to the network. A single `Range: bytes=…`
+request for a cached file (a streamed clip played offline) is answered
+from the cached body: 206 with the slice, or 416 outside it. Its state
+lives in one closure, so nothing leaks onto the worker's global scope.
 
 ```ts
 declare function renderServiceWorker(m: ReleaseManifest): string;

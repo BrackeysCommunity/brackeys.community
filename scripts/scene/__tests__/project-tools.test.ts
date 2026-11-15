@@ -73,6 +73,10 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "scene-list.json",
       "art/kitchen.animation.json",
       "art/sparks.emitter.json",
+      "audio/clink.sound.json",
+      "audio/clink.synth.json",
+      "text/kitchen.dialogue.json",
+      "text/kitchen.strings.json",
     ];
     const blobFiles = [
       "art/backdrop.png",
@@ -80,6 +84,9 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "audio/clink.wav",
+      "fonts/kitchen.fnt",
+      "fonts/kitchen.png",
       "saves/grid-yard.save.json",
     ];
     const size = async (list: string[]) => {
@@ -94,13 +101,16 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "packages/engine/scenes"),
-      assets: 36,
+      assets: 43,
       counts: {
         animation: 1,
         atlas: 2,
+        audio: 1,
         checks: 5,
         "data-table": 1,
+        dialogue: 1,
         emitter: 1,
+        font: 1,
         "game-settings": 1,
         "input-map": 1,
         "input-script": 2,
@@ -109,16 +119,19 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         save: 1,
         scene: 6,
         "scene-list": 1,
-        texture: 3,
+        sound: 1,
+        strings: 1,
+        synth: 1,
+        texture: 4,
       },
       deleted: 0,
       code: 0,
       problems: [],
       issues: [],
       usage: {
-        docs: 30,
+        docs: 34,
         docBytes: await size(files),
-        blobs: 6,
+        blobs: 9,
         blobBytes: await size(blobFiles),
         trashBytes: 0,
       },
@@ -169,8 +182,15 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "art/hero.png",
       "art/kitchen.animation.json",
       "art/sparks.emitter.json",
+      "audio",
+      "audio/clink.sound.json",
+      "audio/clink.synth.json",
+      "audio/clink.wav",
       "data",
       "data/cards.json",
+      "fonts",
+      "fonts/kitchen.fnt",
+      "fonts/kitchen.png",
       "materials",
       "materials/bouncy.json",
       "prefabs",
@@ -186,6 +206,9 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "prefabs/turret.json",
       "saves",
       "saves/grid-yard.save.json",
+      "text",
+      "text/kitchen.dialogue.json",
+      "text/kitchen.strings.json",
       "behavior-yard.checks.json",
       "behavior-yard.json",
       "behavior-yard.script.json",
@@ -234,16 +257,22 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     });
     const targets = data(sink).targets as { id: string; target: { path: string } | null }[];
     const art = ["backdrop", "crates", "hero", "kitchen-animation", "sparks"];
+    const others: Record<string, string> = {
+      bouncy: "materials/bouncy.json",
+      cards: "data/cards.json",
+      clink: "audio/clink.sound.json",
+      "kitchen-dialogue": "text/kitchen.dialogue.json",
+    };
     expect(new Set(targets.map((t) => t.id))).toEqual(
-      new Set(["post", "gate", "room", "doorway", "one-way-latch", "bouncy", "cards", ...art]),
+      new Set(["post", "gate", "room", "doorway", "one-way-latch", ...Object.keys(others), ...art]),
     );
-    expect(targets.find((t) => t.id === "bouncy")?.target?.path).toBe("materials/bouncy.json");
-    expect(targets.find((t) => t.id === "cards")?.target?.path).toBe("data/cards.json");
+    for (const [id, path] of Object.entries(others))
+      expect(targets.find((t) => t.id === id)?.target?.path, id).toBe(path);
     for (const id of art)
       expect(targets.find((t) => t.id === id)?.target?.path, id).toMatch(/^art\//);
     expect(
       targets
-        .filter((t) => !["bouncy", "cards", ...art].includes(t.id))
+        .filter((t) => !Object.hasOwn(others, t.id) && !art.includes(t.id))
         .every((t) => t.target?.path.startsWith("prefabs/")),
     ).toBe(true);
 
@@ -281,11 +310,14 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     expect(snap.hash).toBe(first.text);
     const blobs = [
       "backdrop",
+      "clink-wav",
       "crates",
       "crates-texture",
       "grid-yard-save",
       "hero",
       "hero-texture",
+      "kitchen-font",
+      "kitchen-font-page",
     ];
     expect(Object.keys(snap.assets).sort()).toEqual(
       [
@@ -294,6 +326,8 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "behavior-yard-script",
         "bouncy",
         "cards",
+        "clink",
+        "clink-synth",
         "crate",
         "doorway",
         "engine-yard",
@@ -307,8 +341,10 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "hero-top",
         "input-map",
         "kitchen-animation",
+        "kitchen-dialogue",
         "kitchen-sink",
         "kitchen-sink-checks",
+        "kitchen-strings",
         "latch",
         "one-way-latch",
         "post",

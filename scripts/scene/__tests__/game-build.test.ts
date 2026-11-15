@@ -15,6 +15,7 @@ import {
   type ReleaseManifest,
   type Sha256,
 } from "@jams/engine/project";
+import type { SceneIssue } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import type { ReportedChunk } from "../../engine-bundle-report";
@@ -28,6 +29,22 @@ import { bundleReportDir, gameBuild, type GameBuildInput } from "../tools/game-b
 import { gameExport } from "../tools/game-export";
 import { filesUnder, gameManifest, replayRelease } from "../tools/game-manifest";
 import { GAME_NEW_STAGE } from "../tools/game-new";
+import {
+  addContent,
+  chimeSound,
+  CONTENT_CHIME_CLIP,
+  CONTENT_CHIME_SOUND,
+  CONTENT_CLIPS,
+  CONTENT_DIALOGUE,
+  CONTENT_DRONE_CLIP,
+  CONTENT_DRONE_SOUND,
+  CONTENT_FONT,
+  CONTENT_FONT_PAGE,
+  CONTENT_PATCH,
+  CONTENT_STRINGS,
+  CONTENT_VOICE_CLIP,
+  menuStrings,
+} from "./fixtures/content-project";
 import { copyGame } from "./fixtures/copy-game";
 import { hostedSite } from "./fixtures/hosted-site";
 import {
@@ -478,6 +495,121 @@ describe("a build with an animation and emitter presets", () => {
       expect(await checkReleaseManifest(m, files, { docRefs })).toEqual([]);
       const checked = await gameManifest({ path: b.dir }, motion);
       expect(checked.exitCode, checked.text).toBe(0);
+    },
+    BUILD_MS,
+  );
+});
+
+describe("a build with sounds, clips, a synth patch, a font, strings and a dialogue", () => {
+  const dir = join(ROOT, "content", "tactics");
+  let project: ProjectHandle;
+  beforeAll(async () => {
+    await copyGame("tactics", dir);
+    await addContent(
+      { ...ctx, projects: [await projectAt(dir)] },
+      join(ROOT, "content", "staging"),
+    );
+    project = await projectAt(dir);
+  }, BUILD_MS);
+
+  it(
+    "ships the docs in data/, the clips and the font in assets/ by extension, a release.json that checks clean and a first load without the clips nothing preloads",
+    async () => {
+      const content: ToolContext = { ...ctx, projects: [project] };
+      const b = await buildWith(content, {
+        id: "tactics",
+        target: "web",
+        out: join(ASIDE, "content", "web"),
+        allowOverBudget: false,
+      });
+      expect(b.exitCode, b.text).toBe(0);
+      const m = b.manifest;
+      const files = await hashedFiles(b.dir);
+
+      const docs = {
+        [CONTENT_CHIME_SOUND]: "sound",
+        [CONTENT_DRONE_SOUND]: "sound",
+        [CONTENT_PATCH]: "synth",
+        [CONTENT_STRINGS]: "strings",
+        [CONTENT_DIALOGUE]: "dialogue",
+      };
+      for (const [id, kind] of Object.entries(docs)) {
+        const asset = m.assets[id]!;
+        expect(asset, id).toMatchObject({
+          kind,
+          storage: "doc",
+          file: `data/${asset.sha256}.json`,
+        });
+        expect(m.build.files.find((f) => f.path === asset.file)?.role, id).toBe("data");
+        expect(files.get(asset.file), id).toBe(asset.sha256);
+      }
+      const blobs = { ...CONTENT_CLIPS, [CONTENT_FONT]: ".fnt", [CONTENT_FONT_PAGE]: ".png" };
+      for (const [id, ext] of Object.entries(blobs)) {
+        const asset = m.assets[id]!;
+        expect(asset, id).toMatchObject({ storage: "blob", file: `assets/${asset.sha256}${ext}` });
+        expect(m.build.files.find((f) => f.path === asset.file)?.role, id).toBe("asset");
+        expect(files.get(asset.file), id).toBe(asset.sha256);
+      }
+      const patch = m.assets[CONTENT_PATCH]!;
+      expect(
+        [...files.keys()].filter((p) => p.startsWith("assets/") && p.includes(patch.sha256)),
+      ).toEqual([]);
+
+      const texts = new Map<string, string>();
+      for (const [id, asset] of Object.entries(m.assets))
+        if (asset.storage === "doc") texts.set(id, await readFile(join(b.dir, asset.file), "utf8"));
+      const env = { registry: project.registry, project: null };
+      const docRefs = (id: string, asset: ReleaseAsset) => {
+        const def = project.kinds.get(asset.kind);
+        return def?.storage === "doc" ? (def.refs?.(JSON.parse(texts.get(id)!), env) ?? []) : [];
+      };
+      expect(await checkReleaseManifest(m, files, { docRefs })).toEqual([]);
+      const refsOf = (id: string) => docRefs(id, m.assets[id]!).map((r) => r.id);
+      expect(refsOf(CONTENT_CHIME_SOUND)).toEqual([CONTENT_CHIME_CLIP, CONTENT_PATCH]);
+      expect(refsOf(CONTENT_DIALOGUE)).toEqual([CONTENT_VOICE_CLIP]);
+      expect(refsOf("tactics-settings")).toContain(CONTENT_FONT);
+      const checked = await gameManifest({ path: b.dir }, content);
+      expect(checked.exitCode, checked.text).toBe(0);
+
+      const menu = m.flow.scenes.find((s) => s.id === m.flow.start)!;
+      const firstLoad = new Map<string, number>();
+      for (const f of m.build.files)
+        if (f.role === "code" || f.role === "style" || f.role === "data")
+          firstLoad.set(f.path, f.bytes);
+      for (const id of [...m.projectBundle.entries, ...menu.bundle.entries])
+        firstLoad.set(m.assets[id]!.file, m.assets[id]!.bytes);
+      expect(menu.bundle.entries).toEqual(
+        expect.arrayContaining([CONTENT_CHIME_CLIP, CONTENT_FONT]),
+      );
+      for (const id of [CONTENT_DRONE_CLIP, CONTENT_VOICE_CLIP])
+        expect(firstLoad.has(m.assets[id]!.file), id).toBe(false);
+      expect(m.budget.measured.firstLoadBytes).toBe(
+        [...firstLoad.values()].reduce((a, b) => a + b, 0),
+      );
+    },
+    BUILD_MS,
+  );
+
+  it.each([
+    ["sound-bus-unknown", "data/bell.sound.json", chimeSound("nope"), CONTENT_CHIME_SOUND],
+    ["string-key-missing", "data/menu.strings.json", menuStrings(["fr"]), "menu"],
+  ] as const)(
+    "refuses %s before writing anything",
+    async (code, path, json, doc) => {
+      const broken = join(ROOT, "content", code);
+      await cp(dir, broken, { recursive: true });
+      // A hand edit the scene CLI would refuse.
+      await writeFile(join(broken, path), `${JSON.stringify(json, null, 2)}\n`);
+      const target = join(ASIDE, "content", code);
+      const result = await gameBuild(
+        { id: "tactics", target: "web", out: target, allowOverBudget: false },
+        { ...ctx, projects: [await projectAt(broken)] },
+      );
+      expect(result.exitCode, result.text).toBe(1);
+      expect(result.text).toContain(`error ${code}`);
+      const issues = (result.data as { issues: SceneIssue[] }).issues;
+      expect(issues.map((i) => [i.code, i.entityIds[0]])).toEqual([[code, doc]]);
+      await expect(stat(target)).rejects.toMatchObject({ code: "ENOENT" });
     },
     BUILD_MS,
   );

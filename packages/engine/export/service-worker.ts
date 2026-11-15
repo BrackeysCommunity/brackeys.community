@@ -36,8 +36,10 @@ export function serviceWorkerShell(m: ReleaseManifest): string[] {
  * `sw.js`, a plain script with its file list inline: `install` precaches
  * the build, `activate` deletes this project's other caches, and `fetch`
  * answers the build's files (a request for the directory is `index.html`),
- * leaving every other request to the network. Its state lives in one
- * closure, so nothing leaks onto the worker's global scope.
+ * leaving every other request to the network. A single `Range: bytes=…`
+ * request for a cached file (a streamed clip played offline) is answered
+ * from the cached body: 206 with the slice, or 416 outside it. Its state
+ * lives in one closure, so nothing leaks onto the worker's global scope.
  */
 export function renderServiceWorker(m: ReleaseManifest): string {
   const json = (value: unknown) => JSON.stringify(value);
@@ -54,6 +56,46 @@ export function renderServiceWorker(m: ReleaseManifest): string {
   const DIRECTORY = urlOf("./");
   const isOwnCache = (name) =>
     name.startsWith(PREFIX) && /^[0-9a-f]{12}-[0-9a-f]{12}$/.test(name.slice(PREFIX.length));
+
+  const RANGE = /^bytes=(\\d*)-(\\d*)$/i;
+
+  // [start, end] inclusive; null when the header isn't one range we read
+  // (the whole body answers), false when it lies outside the body.
+  function byteRange(header, size) {
+    const match = RANGE.exec(header.trim());
+    if (!match || (match[1] === "" && match[2] === "")) return null;
+    if (match[1] === "") {
+      const start = Math.max(0, size - Number(match[2]));
+      return Number(match[2]) === 0 || start >= size ? false : [start, size - 1];
+    }
+    const start = Number(match[1]);
+    if (match[2] !== "" && Number(match[2]) < start) return null;
+    if (start >= size) return false;
+    return [start, match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1)];
+  }
+
+  function partial(cached, header) {
+    return cached.blob().then((body) => {
+      const span = byteRange(header, body.size);
+      const headers = new Headers(cached.headers);
+      headers.set("Accept-Ranges", "bytes");
+      if (span === null)
+        return new Response(body, { status: cached.status, statusText: cached.statusText, headers });
+      if (span === false) {
+        headers.delete("Content-Length");
+        headers.set("Content-Range", "bytes */" + body.size);
+        return new Response(null, { status: 416, statusText: "Range Not Satisfiable", headers });
+      }
+      const [start, end] = span;
+      headers.set("Content-Range", "bytes " + start + "-" + end + "/" + body.size);
+      headers.set("Content-Length", String(end - start + 1));
+      return new Response(body.slice(start, end + 1), {
+        status: 206,
+        statusText: "Partial Content",
+        headers,
+      });
+    });
+  }
 
   function fileOf(request) {
     const url = new URL(request.url);
@@ -98,14 +140,14 @@ export function renderServiceWorker(m: ReleaseManifest): string {
           return fetch(request).catch(() =>
             cache.match(key).then((cached) => cached || Response.error()),
           );
-        return cache.match(key).then(
-          (cached) =>
-            cached ||
-            fetch(request).then((response) => {
-              if (response.ok) cache.put(key, response.clone());
-              return response;
-            }),
-        );
+        const range = request.headers.get("Range");
+        return cache.match(key).then((cached) => {
+          if (cached) return range ? partial(cached, range) : cached;
+          return fetch(request).then((response) => {
+            if (response.status === 200) cache.put(key, response.clone());
+            return response;
+          });
+        });
       }),
     );
   });

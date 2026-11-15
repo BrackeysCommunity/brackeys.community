@@ -11,6 +11,7 @@ import { errorText, makeIssue } from "../scene/issues";
 import { locatePointer } from "../scene/parse";
 import type { SceneIssue } from "../scene/types";
 import { ENGINE_VERSION } from "../version";
+import { dialogueSystemOf, SAVE_DIALOGUE_KEY } from "./behaviors/dialogue";
 import { SAVE_TWEENS_KEY, tweenSystemOf } from "./behaviors/tween";
 import { flowLoaderOf, loadListed, loadRefusalIssue } from "./flow";
 import { persistProblem, plainJsonProblem } from "./persist";
@@ -23,6 +24,7 @@ export type SaveBlocker =
   | { cause: "physics"; message: string }
   | { cause: "timer" | "coroutine"; id: number; owner?: string; message: string }
   | { cause: "tween"; id: number; message: string }
+  | { cause: "dialogue"; message: string }
   | { cause: "restore"; message: string };
 
 const PHYSICS_BLOCKER: SaveBlocker = {
@@ -35,8 +37,8 @@ const PHYSICS_BLOCKER: SaveBlocker = {
  * Whether `runtime`'s world may be saved at depth `world`: every cause that
  * refuses it, none when it may. The main scene running on Rapier, a pending
  * function-form timer or coroutine (named by owner), a pending value tween,
- * or a game runtime without `restore`. Every world save is judged by this
- * one rule.
+ * a conversation over variables given to `start`, or a game runtime
+ * without `restore`. Every world save is judged by this one rule.
  */
 export function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[] {
   const out: SaveBlocker[] = [];
@@ -56,6 +58,13 @@ export function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[] {
       cause: "tween",
       id,
       message: `a value tween (id ${id}) is pending: only tweens of an entity's channels can be saved`,
+    });
+  }
+  if (dialogueSystemOf(runtime.ctx)?.unsaveable()) {
+    out.push({
+      cause: "dialogue",
+      message:
+        "the running dialogue reads variables given to `start`, which a save can't carry: start it on the default `persist` variables",
     });
   }
   if (runtime.game && !runtime.game.restore) {
@@ -160,10 +169,18 @@ export function captureSave(
     return failed(unsupported(blockers, opts.slot, formatSaveFile(progress)));
   const captured = host.captureWorld();
   const tweens = tweenSystemOf(ctx)?.capture();
+  const dialogue = dialogueSystemOf(ctx)?.save();
   const world =
-    tweens === undefined
+    tweens === undefined && dialogue === undefined
       ? captured
-      : { ...captured, systems: { ...captured.systems, [SAVE_TWEENS_KEY]: { run: tweens } } };
+      : {
+          ...captured,
+          systems: {
+            ...captured.systems,
+            ...(tweens !== undefined ? { [SAVE_TWEENS_KEY]: { run: tweens } } : {}),
+            ...(dialogue !== undefined ? { [SAVE_DIALOGUE_KEY]: { run: dialogue } } : {}),
+          },
+        };
   const worldProblem = plainJsonProblem({ world });
   if (worldProblem) return notJson(opts.slot, worldProblem);
   return { ok: true, file: { ...progress, depth: "world", world: structuredClone(world) } };
@@ -219,9 +236,10 @@ const sameSublevels = (a: readonly SublevelInfo[], b: readonly SublevelInfo[]) =
  * with the saved data, then `persist` and the play clock. World depth puts
  * the world back between the load and the game's `restore` (sublevels,
  * spawns, destroys, counters, enabled flags, the tick, poses and each
- * owner's state, timers, tweens, `ctx.random` and its forks, seats), raising no
- * event. A scene whose run hash changed since the save loads with an info
- * issue; a refused step leaves the scene freshly loaded.
+ * owner's state, timers, tweens, the active conversation, `ctx.random` and
+ * its forks, seats), raising no event. A scene whose run hash changed since
+ * the save loads with an info issue; a refused step leaves the scene freshly
+ * loaded.
  */
 export function restoreSave(
   runtime: SceneRuntimeHandle,
@@ -293,8 +311,8 @@ export function restoreSave(
  * Puts `file` back onto `runtime`'s scene, just loaded fresh, in a
  * restore's order: the world at world depth (sublevels, spawns, destroys,
  * counters, enabled flags, the tick, poses and each owner's state, timers,
- * tweens, `ctx.random` and its forks, seats), the game's `restore` with the saved
- * data, `persist`, then the play clock. The issue of the first part that
+ * tweens, the active conversation, `ctx.random` and its forks, seats), the
+ * game's `restore` with the saved data, `persist`, then the play clock. The issue of the first part that
  * can't be put back, after which the scene is only partly restored.
  */
 export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): SceneIssue | null {
@@ -307,6 +325,15 @@ export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): Scen
     const refused = host.restoreWorld(world, file.scene.sublevels);
     if (refused) return refused;
     tweenSystemOf(ctx)?.restoreCaptured(world.systems[SAVE_TWEENS_KEY]?.run);
+    const conversation = world.systems[SAVE_DIALOGUE_KEY]?.run;
+    const notResumed =
+      conversation === undefined ? null : dialogueSystemOf(ctx)?.restore(conversation);
+    if (notResumed) {
+      return makeIssue("schema", {
+        message: notResumed,
+        path: `/world/systems/${SAVE_DIALOGUE_KEY}`,
+      });
+    }
     if (!sameSublevels(ctx.flow.sublevels(), file.scene.sublevels)) {
       return makeIssue("sublevel-invalid", {
         message: `the save's sublevels (${file.scene.sublevels.map((s) => s.label).join(", ") || "none"}) couldn't all be attached again`,

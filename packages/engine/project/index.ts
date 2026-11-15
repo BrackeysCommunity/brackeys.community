@@ -105,6 +105,71 @@ export {
 } from "./kinds/index";
 export { atlasExportApp } from "./kinds/atlas";
 export {
+  audioBuses,
+  BUS_NAME_PATTERN,
+  ENGINE_BUSES,
+  SOUND_KIND,
+  SOUND_MAX_VOICES_DEFAULT,
+  SOUND_SCHEMA_ID,
+  SOUND_VERSION,
+  soundKind,
+  type SoundFile,
+  type SoundMatcher,
+} from "./kinds/sound";
+export {
+  SYNTH_BOUNDS,
+  SYNTH_KIND,
+  SYNTH_SCHEMA_ID,
+  SYNTH_VERSION,
+  SYNTH_WAVES,
+  synthKind,
+  type SynthFile,
+  type SynthNumberPath,
+  type SynthWave,
+} from "./kinds/synth";
+export {
+  DIALOGUE_KIND,
+  DIALOGUE_SCHEMA_ID,
+  DIALOGUE_VERSION,
+  dialogueDeadEnd,
+  dialogueExits,
+  dialogueIssues,
+  dialogueKind,
+  dialogueNodes,
+  dialogueRefs,
+  dialogueStringIssues,
+  reachableNodes,
+  type DialogueChoice,
+  type DialogueCondition,
+  type DialogueEffect,
+  type DialogueExit,
+  type DialogueFile,
+  type DialogueLine,
+  type DialogueNode,
+  type DialoguePortrait,
+  type DialogueSpeaker,
+} from "./kinds/dialogue";
+export {
+  LOCALE_PATTERN,
+  localeFont,
+  mergedStrings,
+  missingStringKeys,
+  projectLocales,
+  STRING_KEY_PATTERN,
+  stringKeyIssues,
+  stringLocales,
+  STRINGS_KIND,
+  STRINGS_SCHEMA_ID,
+  STRINGS_VERSION,
+  stringsKind,
+  usedStringKeys,
+  type LocaleSettings,
+  type MergedStringRow,
+  type StringKeyUse,
+  type StringRow,
+  type StringsFile,
+} from "./kinds/strings";
+export {
   SCENE_LIST_KIND,
   SCENE_LIST_SCHEMA_ID,
   SCENE_LIST_VERSION,
@@ -140,7 +205,7 @@ export {
   type InputMapTouchControl,
 } from "./kinds/input-map";
 export { canonicalJson, stableJson } from "./canonical";
-export { byCodeUnit } from "./kinds/define";
+export { byCodeUnit, byPathThenKey, docLookup } from "./kinds/define";
 export {
   applyJsonEdits,
   keyedItemPointer,
@@ -338,15 +403,21 @@ export {
 } from "./asset-files";
 export {
   formatSidecar,
+  isMetaStale,
+  kindMetaVersion,
   parseSidecar,
+  reinspectBlob,
   SIDECAR_SCHEMA_ID,
   SIDECAR_SUFFIX,
   SIDECAR_VERSION,
   sidecarJsonSchema,
+  sidecarMetaVersion,
   sidecarPathOf,
   sidecarSchema,
+  withReinspectedMeta,
   type AssetSidecar,
   type ParseSidecarResult,
+  type Reinspection,
 } from "./sidecar";
 export type { ImageSize } from "./inspect/bytes";
 export { readPngSize } from "./inspect/png";
@@ -355,7 +426,14 @@ export { readWebpSize } from "./inspect/webp";
 export { readGifSize } from "./inspect/gif";
 export { parseAsepriteJson } from "./inspect/aseprite";
 export { parseTexturePackerJson } from "./inspect/texturepacker";
-export { parseBmfont } from "./inspect/bmfont";
+export { parseBmfont, type Bmfont, type BmfontDistanceField } from "./inspect/bmfont";
+export {
+  cmapCoverage,
+  codePointRanges,
+  mergeRanges,
+  type CodePointRanges,
+} from "./inspect/font-cmap";
+export { fontCoverage, fontTable, type FontDecompress } from "./inspect/font";
 export { inspectEntry } from "./inspect/entry";
 export {
   atlasImage,

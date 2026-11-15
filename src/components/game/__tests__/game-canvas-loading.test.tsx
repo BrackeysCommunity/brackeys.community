@@ -91,7 +91,7 @@ describe("GameCanvas while the editor loads", () => {
     expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
 
     await waitFor(() => expect(panelSkeletons(container)).toBeGreaterThan(0), { timeout: 10_000 });
-    expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "lobby-1" })).toBeNull();
     expect(screen.getByText("site menu")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("Loading the editor");
     expect(screen.queryByText("package editor")).toBeNull();
@@ -155,9 +155,10 @@ describe("GameCanvasLoading", () => {
   });
 
   it("says it is loading at once with edit, then draws the editor's loading frame", async () => {
-    render(<GameCanvasLoading roomId="lobby-1" edit />);
+    const { container } = render(<GameCanvasLoading roomId="lobby-1" edit />);
     expect(screen.getByRole("status").textContent).toContain("Loading the editor");
-    expect(await screen.findByRole("heading", { name: "lobby-1" })).toBeTruthy();
+    await waitFor(() => expect(panelSkeletons(container)).toBeGreaterThan(0), { timeout: 10_000 });
+    expect(screen.getByText("site menu")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("Loading the editor");
   });
 });

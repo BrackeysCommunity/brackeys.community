@@ -15,7 +15,7 @@ import {
   type RecordingHost,
 } from "../runtime/recorder";
 import { resolveGame } from "../runtime/runtime";
-import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
+import { DIALOGUE_END, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
 import type { CountMatch, ExistsMatch, NearMatch } from "../scene/input-script";
 import { makeIssue } from "../scene/issues";
 import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
@@ -42,6 +42,7 @@ import {
 import type {
   CompiledInputScript,
   CompileResult,
+  DialogueMatch,
   EventMatch,
   InputEdge,
   InputScript,
@@ -142,9 +143,32 @@ function persistHolds(match: PersistMatch, state: PlayState): boolean {
 }
 
 /**
+ * Every key given holds on the conversation after the tick. An ending holds
+ * on the view's `ended`, or on this tick's `dialogue:end`, so a host that
+ * drops an ended conversation's view still answers it.
+ */
+function dialogueHolds(match: DialogueMatch, state: PlayState): boolean {
+  const view = state.dialogue ?? null;
+  const running = view !== null && view.ended === null;
+  if (match.active !== undefined && match.active !== running) return false;
+  if (match.node !== undefined && view?.node !== match.node) return false;
+  if (match.ended !== undefined) {
+    const wanted = (ending: unknown) =>
+      typeof ending === "string" && (match.ended === true || ending === match.ended);
+    const ended =
+      wanted(view?.ended) ||
+      state.events.some(
+        (e) => e.type === DIALOGUE_END && wanted((e.data as { ending?: unknown } | null)?.ending),
+      );
+    if (!ended) return false;
+  }
+  return true;
+}
+
+/**
  * Whether every key of `until` holds on `state` (AND): the engine's `event`,
  * `tick`, `exists`, `count`, `near`, `scene` (the main scene is `scene`, the run's
- * listed id for it; never without one) and `persist`, then `registry`'s
+ * listed id for it; never without one), `persist` and `dialogue`, then `registry`'s
  * game predicates. A key no predicate answers doesn't hold. `reaches` checks
  * judge `expect` with it too.
  */
@@ -165,6 +189,7 @@ export function untilHolds(
     else if (key === "near") holds = nearHolds(arg as NearMatch, state);
     else if (key === "scene") holds = scene !== null && arg === scene;
     else if (key === "persist") holds = persistHolds(arg as PersistMatch, state);
+    else if (key === "dialogue") holds = dialogueHolds(arg as DialogueMatch, state);
     else holds = predicates[key]?.test(arg, state) ?? false;
     if (!holds) return false;
   }
@@ -332,6 +357,7 @@ export function runPlaytest<S = unknown, G = unknown>(
     ]);
   }
 
+  let talked = false;
   for (;;) {
     const seg = current;
     const segName = seg.def.name;
@@ -413,6 +439,7 @@ export function runPlaytest<S = unknown, G = unknown>(
           live: started.live,
           onTick(state, focus, edges, stepped, tickInput, requests) {
             last = state;
+            if (state.dialogue) talked = true;
             const at = base.ticks + state.tick;
             present.onTick(requests, at);
             standing!.step(tickInput);
@@ -503,6 +530,8 @@ export function runPlaytest<S = unknown, G = unknown>(
         issues,
         recording: firstRecording,
       };
+      const dialogue = runtime.ctx.dialogue.view();
+      if (talked || dialogue) report.dialogue = dialogue;
       if (flow) report.segments = segments;
       present.attach(report);
       return report;

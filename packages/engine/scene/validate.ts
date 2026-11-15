@@ -53,6 +53,7 @@ import {
   CHILD_SEPARATOR,
   childEntity,
   documentTree,
+  instanceFrame,
   issueOnSource,
   localChild,
   localChildren,
@@ -91,9 +92,14 @@ import {
 } from "./shape-geometry";
 import { parseShape } from "./shapes";
 import {
+  compose,
   composeDihedral,
+  composeSteps,
   dihedralOf,
+  frame,
+  frameOf,
   isIdentityTurn,
+  normDeg,
   turnOf,
   type Dihedral,
   type Transform2D,
@@ -982,15 +988,27 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
 
   // side and grid fields turn only by quarter turns
   const quarterUnder = (ref: Ref) => quarterChain(frames.under(ref)) !== null;
-  // Reparenting keeps an instance's world angle, so an instance gets no fix.
-  const offQuarter = (item: Item, fields: readonly string[], what: string, fixable = true) => {
+  const offQuarter = (item: Item, fields: readonly string[], what: string, inst?: InstanceDef) => {
     const to = parentsAbove(item.parent).find(quarterUnder) ?? null;
     push("quarter-turn-only", {
       message: `${what} under ${item.parent}, whose frame turns off the quarter turns, so ${fields.length === 1 ? "it stays" : "they stay"} unturned (${fields.join(", ")})`,
       path: pointer(item),
       entityIds: [item.id],
-      ...(fixable ? { fix: reparent(item.id, to) } : {}),
+      fix: inst ? quarterInstanceFix(inst, to) : reparent(item.id, to),
     });
+  };
+  // Reparenting keeps an instance's world angle, so the instance also turns to the nearest quarter turn.
+  const quarterInstanceFix = (inst: InstanceDef, to: Ref | null): OpBatch => {
+    const world = frameOf(compose(composeSteps(frames.stepsFor(inst)), frame(instanceFrame(inst))));
+    const off = normDeg(world.rot) % 90;
+    const by = off === 0 ? 0 : off < 45 ? -off : 90 - off;
+    const fix = reparent(inst.id, to);
+    return by === 0
+      ? fix
+      : {
+          label: `${fix.label}, turned ${by}° onto a quarter turn`,
+          ops: [...fix.ops, { op: "transform", refs: [inst.id], rotate: by }],
+        };
   };
   for (const item of items) {
     if (!linked.has(item.id) || inCycle.has(item.id) || quarterUnder(item.parent)) continue;
@@ -1013,7 +1031,7 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
           item,
           fields,
           `${item.id}'s children have side or grid fields, and it sits`,
-          false,
+          inst,
         );
     }
   }

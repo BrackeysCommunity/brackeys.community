@@ -165,7 +165,7 @@ afterEach(() => {
 
 describe("the site's editor host", () => {
   it("notifies with the site's toast, at the top centre clear of the editor's columns", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     const shown = vi.spyOn(toast, "error");
     result.current.notify?.error("Couldn't import", { description: "why", id: "import" });
     expect(shown).toHaveBeenCalledWith("Couldn't import", {
@@ -177,7 +177,7 @@ describe("the site's editor host", () => {
   });
 
   it("names the editor after the active user: guild nickname, else Discord username", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     expect(result.current.identity).toBeUndefined();
     signIn(profile());
     expect(result.current.identity).toEqual({
@@ -198,19 +198,17 @@ describe("the site's editor host", () => {
     expect(siteIdentity(profile({ discordUsername: null }))).toBeUndefined();
   });
 
-  it("renders the site menu, the lobby link and the title top left", () => {
-    const { result } = renderHook(() =>
-      useSiteEditorHost({ title: "test-yard", project: noServer }),
-    );
+  it("renders the site menu and the lobby link top left, untitled: the scene picker names the scene", () => {
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     render(<>{result.current.chrome?.topLeft}</>);
     expect(screen.getByRole("navigation", { name: "Site menu" }).textContent).toBe(
       "back to lobby from game",
     );
-    expect(screen.getByRole("heading", { name: "test-yard" })).toBeTruthy();
+    expect(screen.queryByRole("heading")).toBeNull();
   });
 
   it("colours peers as the site's presence does, and sounds cues through the site's palette", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     expect(result.current.peerColor?.("tab-1")).toBe(presenceColor("tab-1").color);
     result.current.cue?.("press");
     result.current.cue?.("tab");
@@ -219,13 +217,13 @@ describe("the site's editor host", () => {
   });
 
   it("answers flags from the site's flag store, off for names it doesn't know", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     expect(result.current.flag?.("engine-projects")).toBe(false);
     expect(result.current.flag?.("no-such-flag")).toBe(false);
   });
 
   it("leaves per-viewer storage to the package's guarded localStorage", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     expect(result.current.storage).toBeUndefined();
   });
 
@@ -233,7 +231,7 @@ describe("the site's editor host", () => {
     const first = vi.fn();
     const second = vi.fn();
     const { result, rerender } = renderHook(
-      ({ onSceneChange }) => useSiteEditorHost({ title: "room", project: noServer, onSceneChange }),
+      ({ onSceneChange }) => useSiteEditorHost({ project: noServer, onSceneChange }),
       { initialProps: { onSceneChange: first } },
     );
     const host = result.current;
@@ -254,7 +252,7 @@ describe("the site's publish host in the editor", () => {
   const gamesOn = withFlags({ "engine-games-enabled": true });
 
   it("has no publish host for the file-backed dev editor", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }), {
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }), {
       wrapper: gamesOn,
     });
     expect(result.current.publish).toBeUndefined();
@@ -262,7 +260,7 @@ describe("the site's publish host in the editor", () => {
 
   it("has none for a hosted project while engine-games-enabled is off", () => {
     const { result } = renderHook(
-      () => useSiteEditorHost({ title: "room", project: noServer, hosted: { project: "demo" } }),
+      () => useSiteEditorHost({ project: noServer, hosted: { project: "demo" } }),
       { wrapper: withFlags({}) },
     );
     expect(result.current.publish).toBeUndefined();
@@ -272,7 +270,6 @@ describe("the site's publish host in the editor", () => {
     const { result } = renderHook(
       () =>
         useSiteEditorHost({
-          title: "room",
           project: noServer,
           hosted: { project: "demo", team: "Bit Bakers" },
         }),
@@ -411,7 +408,7 @@ describe("SiteSceneEditor", () => {
     }
   });
 
-  it("opens the platformer project on the dev server, titled by the room until the editor is up", async () => {
+  it("opens the platformer project on the dev server", async () => {
     render(<SiteSceneEditor roomId="lobby-1" />);
     const props = await editorUp();
     expect(props).toMatchObject({ project: DEFAULT_PROJECT, scene: "test-yard" });
@@ -424,9 +421,6 @@ describe("SiteSceneEditor", () => {
         bytes: 1,
       }),
     ).toBe(`/__project/platformer/blob/${"ab".repeat(32)}`);
-    expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
-    act(() => props.onReady());
-    expect(screen.getByRole("heading", { name: "test-yard" })).toBeTruthy();
   });
 
   describe("?panel=publish", () => {
@@ -614,7 +608,7 @@ describe("SiteSceneEditor", () => {
   });
 
   it("passes the notice's action to the site's toast", () => {
-    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    const { result } = renderHook(() => useSiteEditorHost({ project: noServer }));
     const shown = vi.spyOn(toast, "warning");
     const onClick = vi.fn();
     result.current.notify?.warning("There's no scene", {

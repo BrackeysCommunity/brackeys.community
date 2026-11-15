@@ -10,12 +10,14 @@ import { assetsImport } from "./tools/assets-import";
 import { assetsInfo } from "./tools/assets-info";
 import { assetsList } from "./tools/assets-list";
 import { assetsMove } from "./tools/assets-move";
+import { assetsReimport } from "./tools/assets-reimport";
 import { assetsRename } from "./tools/assets-rename";
 import { assetsRestore } from "./tools/assets-restore";
 import { assetsSetImport } from "./tools/assets-set-import";
 import { bundle } from "./tools/bundle";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
+import { DIALOGUE_WALK_USAGE, dialogueWalk } from "./tools/dialogue-walk";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fmt } from "./tools/fmt";
@@ -67,6 +69,8 @@ import { save } from "./tools/save";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { step, STEP_FLAGS, type StepInput } from "./tools/step";
+import { stringsExport, stringsImport, stringsMissing } from "./tools/strings";
+import { synthNew, synthRender } from "./tools/synth";
 import { textconv } from "./tools/textconv";
 import { validate } from "./tools/validate";
 
@@ -113,7 +117,14 @@ function liveReadFlags(flags: ParsedArgs["flags"]) {
 }
 
 /** Commands named by two words (`project show`, `assets import`), or three (`game release create`). */
-export const COMMAND_GROUPS = ["project", "assets", "game"] as const;
+export const COMMAND_GROUPS = [
+  "project",
+  "assets",
+  "game",
+  "dialogue",
+  "strings",
+  "synth",
+] as const;
 
 const DEFINITIONS = {
   list: {
@@ -527,7 +538,7 @@ const DEFINITIONS = {
   "assets info": {
     usage: "assets info <id> [--frame f] [--project id]",
     summary:
-      "an asset's kind, hash and bytes, a texture's size, pivot, nine-slice and filter, an atlas's frames, tags and texture; an animation's clips with each frame's ticks at the project's tick rate, events and shape-set boxes in metres, and its issues against the atlas; --frame for one frame's size and pivot",
+      "an asset's kind, hash and bytes, a texture's size, pivot, nine-slice and filter, an atlas's frames, tags and texture; an animation's clips with each frame's ticks at the project's tick rate, events and shape-set boxes in metres, and its issues against the atlas; an audio clip's length, channels and rate from its headers (and stream and loop points); a synth patch's wave and length (synthDurationMs); a sound's bus and each variant's clip or patch with its length and weight; a font's format, size, line height, pages, code point coverage and distance field; --frame for one frame's size and pivot",
     values: ["frame"],
     switches: [],
     maxPositionals: 1,
@@ -617,6 +628,82 @@ const DEFINITIONS = {
     switches: [...WRITER_SWITCHES],
     maxPositionals: 0,
     run: ({ flags }, ctx) => assetsApply({ ...writerFlags(flags), ops: str(flags.ops) }, ctx),
+  },
+  "assets reimport": {
+    usage: "assets reimport <id...> | --all [--dry-run]",
+    summary:
+      "inspect binary assets' bytes again and rewrite only their sidecars' meta and meta version: the ids given, or with --all every one whose sidecar records an older meta version than its kind's; --dry-run writes nothing",
+    values: [],
+    switches: ["all", "dry-run"],
+    maxPositionals: 256,
+    run: ({ positionals: ids, flags }, ctx) =>
+      assetsReimport({ ids, all: flags.all === true, dryRun: flags["dry-run"] === true }, ctx),
+  },
+  "dialogue walk": {
+    usage: DIALOGUE_WALK_USAGE,
+    summary:
+      "walk every choice of a dialogue breadth-first from its start with --vars (a JSON object, default {}), as play offers them: each ending it reaches with its choice path (indices and text keys) and the nodes it passes, then the endings no path reached; exit 2 for vars that aren't a JSON object, 1 for an id that isn't a dialogue",
+    values: ["vars"],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) => dialogueWalk({ id, vars: str(flags.vars) }, ctx),
+  },
+  "strings missing": {
+    usage: "strings missing [--locale l] [--project id]",
+    summary:
+      "the string keys scenes, prefabs, dialogues and sounds name with no text in a locale or along its fallback chain (the default's text doesn't count for another locale), each with where it's used; every locale the strings speak without --locale; exit 1 when the default locale misses one",
+    values: ["locale"],
+    switches: [],
+    maxPositionals: 0,
+    run: ({ flags }, ctx) => stringsMissing({ locale: str(flags.locale) }, ctx),
+  },
+  "strings export": {
+    usage: "strings export <locale> --csv [--project id]",
+    summary:
+      "every string key's default-locale text, its own text in <locale> and its note, as key,<default>,<locale>,note CSV (RFC 4180) for a translator, in path then row order; --json carries it in csv",
+    values: [],
+    switches: ["csv"],
+    maxPositionals: 1,
+    run: ({ positionals: [locale], flags }, ctx) =>
+      stringsExport({ locale, csv: flags.csv === true }, ctx),
+  },
+  "strings import": {
+    usage: `strings import <file.csv> ${WRITER_USAGE}`,
+    summary:
+      "write a translator's CSV (strings export's columns) back into the strings files that hold each key, its <locale> column only, as one batch with one editAsset per file it changes; a blank cell or unchanged text writes nothing, a key no strings file holds is refused, and rows whose default text moved since the export are flagged",
+    values: [...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [file], flags }, ctx) =>
+      stringsImport({ ...writerFlags(flags), file }, ctx),
+  },
+  "synth new": {
+    usage: `synth new <preset> [--seed n] [--id id] [--path p|folder/] ${WRITER_USAGE}`,
+    summary:
+      "create a synth patch drawn from a preset's ranges (pickup, jump, hit, explosion, laser, powerup, blip) by --seed, a uint32 (the same seed writes the same bytes; without one a random seed is drawn and printed), as one createAsset at --path (a file, or a folder ending in /) or the kind's folder as <id>.json; an unknown preset is refused with the list of presets; --dry-run writes nothing",
+    values: ["seed", "id", "path", ...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [preset], flags }, ctx) =>
+      synthNew(
+        {
+          ...writerFlags(flags),
+          preset,
+          seed: str(flags.seed),
+          id: str(flags.id),
+          path: str(flags.path),
+        },
+        ctx,
+      ),
+  },
+  "synth render": {
+    usage: "synth render <id> --wav <file> [--project id]",
+    summary:
+      "render a synth patch to a 16-bit mono PCM WAV file at 44.1 kHz (synthWav's bytes) and print its length",
+    values: ["wav"],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) => synthRender({ id, wav: str(flags.wav) }, ctx),
   },
   "game new": {
     usage: `game new <id> ${GAME_NEW_FLAGS}`,

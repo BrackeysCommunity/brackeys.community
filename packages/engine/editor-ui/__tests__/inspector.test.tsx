@@ -153,6 +153,8 @@ const SENSOR_ENGINE_ITEMS = [
   "AnimationPlays an atlas's tags or an animation's clips on the simulation's ticks.Animation needs an animation or an atlas asset in the project.",
   "TweenPlays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
   "EmitterEmits particles from an emitter preset at the entity, drawn only (never in the simulation).Emitter needs an emitter asset in the project.",
+  "TextDraws text at the entity: a literal or a string key, in a bitmap, MSDF or web font, drawn only.",
+  "AudioPlays a sound while the entity carries it: an ambient loop or a positional source, presentation only.Audio needs a sound asset in the project.",
 ];
 
 describe("EditorInspector", () => {

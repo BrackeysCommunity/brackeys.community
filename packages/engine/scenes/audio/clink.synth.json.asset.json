@@ -1,0 +1,11 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "stj270mfslxq",
+  "id": "clink-synth",
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Drawn by `synth new pickup --seed 7` for this repository."
+  }
+}

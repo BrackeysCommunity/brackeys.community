@@ -1,4 +1,6 @@
 import {
+  AudioWave01Icon,
+  BubbleChatIcon,
   CheckListIcon,
   CubeIcon,
   File01Icon,
@@ -18,7 +20,9 @@ import {
   SparklesIcon,
   Table01Icon,
   TextFontIcon,
+  TranslateIcon,
   Video01Icon,
+  VolumeHighIcon,
 } from "@hugeicons/core-free-icons";
 
 import type { IconSvgElement } from "../../kit/icon";
@@ -43,6 +47,10 @@ const ICONS: Readonly<Record<string, IconSvgElement>> = {
   code: SourceCodeIcon,
   animation: FilmRoll01Icon,
   emitter: SparklesIcon,
+  sound: VolumeHighIcon,
+  synth: AudioWave01Icon,
+  dialogue: BubbleChatIcon,
+  strings: TranslateIcon,
 };
 
 /** A kind's icon; a game's own kinds (`<gameId>/<name>`) share one. */

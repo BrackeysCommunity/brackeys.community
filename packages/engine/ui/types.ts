@@ -1,4 +1,9 @@
+import type { AssetId } from "../project/types";
+import type { StringTable } from "../text/strings";
 import type { GameInstance, GameStoreState } from "../types";
+
+/** A blob's URL through the host's loader, and the frame's rectangle in it for an atlas frame. */
+export type UiAssetUrl = { url: string; rect?: { x: number; y: number; w: number; h: number } };
 
 /** What a game's DOM UI is given when a host mounts it over the canvas. */
 export type UiContext<G = unknown> = {
@@ -23,6 +28,10 @@ export type UiContext<G = unknown> = {
   settings: Readonly<Record<string, unknown>>;
   /** `GameInstance.reducedMotion`: when true, HUDs skip their own animations. */
   reducedMotion: boolean;
+  /** A blob's URL through the host's loader (portraits, icons); null where the host has none or doesn't hold it. */
+  assetUrl(id: AssetId, frame?: string): UiAssetUrl | null;
+  /** The locale's string table now (`GameInstance.locale.strings`). */
+  strings(): StringTable;
   /**
    * Pages the host ships beside the game, as URLs a link can open; absent
    * where the host has none. An exported build sets `credits` to its

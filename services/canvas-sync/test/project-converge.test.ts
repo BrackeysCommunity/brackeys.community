@@ -13,6 +13,8 @@ import {
 import {
   ANIMATION_KIND,
   animationKind,
+  DIALOGUE_KIND,
+  dialogueKind,
   EMITTER_KIND,
   emitterKind,
   formatAssetDoc,
@@ -21,14 +23,25 @@ import {
   projectView,
   SCENE_LIST_KIND,
   sceneListKind,
+  SOUND_KIND,
+  soundKind,
+  STRINGS_KIND,
+  stringsKind,
+  SYNTH_KIND,
+  synthKind,
   type AnimationFile,
+  type DialogueFile,
   type EmitterFile,
   type InputMapFile,
   type SceneListFile,
+  type SoundFile,
+  type StringsFile,
+  type SynthFile,
 } from "../../../packages/engine/project/index.ts";
 import type { AssetEntry, ProjectState } from "../../../packages/engine/project/types.ts";
 import { SCENE_FORMAT_VERSION } from "../../../packages/engine/scene/types.ts";
 import { engineAssetDocs, engineBlobs, engineProjects } from "../../../src/db/schema.ts";
+import { SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
 import {
   assetDocValue,
   emptyProjectState,
@@ -738,7 +751,7 @@ describe("a scene-list asset doc through the real server", () => {
   });
 });
 
-describe("animation and emitter asset docs through the real server", () => {
+describe("animation, emitter, sound, synth, dialogue and strings asset docs through the real server", () => {
   const stores = memoryEngineStores();
   let server: SyncServer;
   const clients: EngineClient[] = [];
@@ -942,5 +955,217 @@ describe("animation and emitter asset docs through the real server", () => {
     const { expected, row } = await snapshotted(docId, a, b, EMITTER_KIND);
     expect(expected.text).toBe(formatAssetDoc(emitterKind, merged));
     expect(JSON.parse(row.snapshot!)).toEqual(merged);
+  });
+
+  /** The item of a keyed collection's entry whose `field` is `value`. */
+  const keyedItem = (map: Y.Map<Y.Map<unknown>>, field: string, value: string) =>
+    [...map.values()]
+      .map((entry) => entry.get(KEYED_ITEM) as Y.Map<unknown>)
+      .find((item) => item.get(field) === value)!;
+
+  /** A new keyed entry after the last one, holding `fields`. */
+  function appendKeyed(map: Y.Map<Y.Map<unknown>>, key: string, fields: Record<string, unknown>) {
+    const zs = [...map.values()].map((e) => String(e.get(KEYED_Z))).sort();
+    const entry = new Y.Map<unknown>();
+    const item = new Y.Map<unknown>();
+    for (const [field, value] of Object.entries(fields)) item.set(field, value);
+    entry.set(KEYED_Z, assignZ([...zs, undefined]).at(-1)!);
+    entry.set(KEYED_ITEM, item);
+    map.set(key, entry);
+  }
+
+  it("a sound seeds once, merges a volume, a variant and a trigger from two clients and snapshots the canonical text", async () => {
+    const SEED: SoundFile = {
+      kind: SOUND_KIND,
+      v: 1,
+      bus: "sfx",
+      variants: [{ clip: "coin" }],
+      on: [{ event: "contact:start", type: "crate" }],
+    };
+    const { docId, a, b, live } = await seeded(SOUND_KIND, "sfx/coin.sound.json", SEED);
+    const variants = (doc: Y.Doc) => content(doc).get("variants") as Y.Map<Y.Map<unknown>>;
+    const on = (doc: Y.Doc) => content(doc).get("on") as Y.Array<unknown>;
+
+    a.doc.transact(() => {
+      content(a.doc).set("volume", 0.6);
+      on(a.doc).push([{ event: "anim:frame", data: { event: "land" } }]);
+    });
+    b.doc.transact(() => appendKeyed(variants(b.doc), "b-chime", { clip: "chime", weight: 2 }));
+
+    await converged(
+      [a.doc, b.doc, live()],
+      (doc) =>
+        valueOf<SoundFile>(doc).variants.length === 2 &&
+        valueOf<SoundFile>(doc).on?.length === 2 &&
+        valueOf<SoundFile>(doc).volume === 0.6,
+    );
+    const merged = valueOf<SoundFile>(a.doc);
+    expect(merged).toEqual({
+      ...SEED,
+      volume: 0.6,
+      variants: [{ clip: "coin" }, { clip: "chime", weight: 2 }],
+      on: [
+        { event: "contact:start", type: "crate" },
+        { event: "anim:frame", data: { event: "land" } },
+      ],
+    });
+
+    const { expected, row } = await snapshotted(docId, a, b, SOUND_KIND);
+    expect(expected.text).toBe(formatAssetDoc(soundKind, merged));
+    expect(JSON.parse(row.snapshot!)).toEqual(merged);
+  });
+
+  it("a synth patch seeds once, merges two clients' field edits and snapshots the canonical text", async () => {
+    const SEED: SynthFile = {
+      kind: SYNTH_KIND,
+      v: 1,
+      wave: "square",
+      freq: 660,
+      sustainMs: 40,
+      decayMs: 120,
+    };
+    const { docId, a, b, live } = await seeded(SYNTH_KIND, "sfx/coin.synth.json", SEED);
+
+    a.doc.transact(() => content(a.doc).set("freq", 880));
+    b.doc.transact(() => {
+      content(b.doc).set("decayMs", 200);
+      content(b.doc).set("vibrato", { semitones: 1, hz: 6 });
+    });
+
+    await converged(
+      [a.doc, b.doc, live()],
+      (doc) =>
+        valueOf<SynthFile>(doc).freq === 880 && valueOf<SynthFile>(doc).vibrato !== undefined,
+    );
+    const merged = valueOf<SynthFile>(a.doc);
+    expect(merged).toEqual({ ...SEED, freq: 880, decayMs: 200, vibrato: { semitones: 1, hz: 6 } });
+
+    const { expected, row } = await snapshotted(docId, a, b, SYNTH_KIND);
+    expect(expected.text).toBe(formatAssetDoc(synthKind, merged));
+    expect(JSON.parse(row.snapshot!)).toEqual(merged);
+  });
+
+  it("a dialogue seeds once, merges two clients' node edits, keeping both added lines, and snapshots the canonical text", async () => {
+    const SEED: DialogueFile = {
+      kind: DIALOGUE_KIND,
+      v: 1,
+      start: "hello",
+      speakers: [{ id: "keeper", name: "speaker.keeper" }],
+      nodes: [
+        {
+          id: "hello",
+          lines: [{ speaker: "keeper", text: "gate.hello" }],
+          choices: [{ text: "gate.leave", to: "bye" }],
+        },
+        { id: "bye", lines: [{ speaker: "keeper", text: "gate.bye" }], end: "left" },
+      ],
+    };
+    const { docId, a, b, live } = await seeded(DIALOGUE_KIND, "talk/gate.dialogue.json", SEED);
+    const node = (doc: Y.Doc, id: string) =>
+      keyedItem(content(doc).get("nodes") as Y.Map<Y.Map<unknown>>, "id", id);
+    const lines = (doc: Y.Doc, id: string) => node(doc, id).get("lines") as Y.Array<unknown>;
+
+    a.doc.transact(() => lines(a.doc, "hello").push([{ speaker: "keeper", text: "gate.wait" }]));
+    b.doc.transact(() => {
+      lines(b.doc, "hello").push([{ speaker: "keeper", text: "gate.ready" }]);
+      node(b.doc, "bye").set("end", "waved");
+    });
+
+    const hello = (doc: Y.Doc) => valueOf<DialogueFile>(doc).nodes.find((n) => n.id === "hello")!;
+    await converged(
+      [a.doc, b.doc, live()],
+      (doc) =>
+        hello(doc).lines.length === 3 &&
+        valueOf<DialogueFile>(doc).nodes.find((n) => n.id === "bye")?.end === "waved",
+    );
+    const merged = valueOf<DialogueFile>(a.doc);
+    expect(hello(a.doc).lines[0]).toEqual({ speaker: "keeper", text: "gate.hello" });
+    expect(hello(a.doc).lines).toContainEqual({ speaker: "keeper", text: "gate.wait" });
+    expect(hello(a.doc).lines).toContainEqual({ speaker: "keeper", text: "gate.ready" });
+    expect(merged.nodes.map((n) => n.id)).toEqual(["hello", "bye"]);
+    expect(merged.speakers).toEqual(SEED.speakers);
+
+    const { expected, row } = await snapshotted(docId, a, b, DIALOGUE_KIND);
+    expect(expected.text).toBe(formatAssetDoc(dialogueKind, merged));
+    expect(JSON.parse(row.snapshot!)).toEqual(merged);
+  });
+
+  it("a strings doc seeds once, keeps two clients' locales of one key and snapshots the canonical text", async () => {
+    const SEED: StringsFile = {
+      kind: STRINGS_KIND,
+      v: 1,
+      strings: [
+        { key: "gate.hello", en: "Hello" },
+        { key: "gate.bye", en: "Bye", fr: "Salut" },
+      ],
+    };
+    const { docId, a, b, live } = await seeded(STRINGS_KIND, "text/gate.strings.json", SEED);
+    const row = (doc: Y.Doc, key: string) =>
+      keyedItem(content(doc).get("strings") as Y.Map<Y.Map<unknown>>, "key", key);
+
+    a.doc.transact(() => row(a.doc, "gate.hello").set("fr", "Bonjour"));
+    b.doc.transact(() => row(b.doc, "gate.hello").set("de", "Hallo"));
+
+    await converged([a.doc, b.doc, live()], (doc) => {
+      const hello = valueOf<StringsFile>(doc).strings[0];
+      return hello?.fr === "Bonjour" && hello.de === "Hallo";
+    });
+    const merged = valueOf<StringsFile>(a.doc);
+    expect(merged).toEqual({
+      ...SEED,
+      strings: [
+        { key: "gate.hello", en: "Hello", fr: "Bonjour", de: "Hallo" },
+        { key: "gate.bye", en: "Bye", fr: "Salut" },
+      ],
+    });
+
+    const { expected, row: stored } = await snapshotted(docId, a, b, STRINGS_KIND);
+    expect(expected.text).toBe(formatAssetDoc(stringsKind, merged));
+    expect(JSON.parse(stored.snapshot!)).toEqual(merged);
+  });
+
+  it("admits a strings doc of 1 MiB and refuses one past the kind's limit", async () => {
+    const limit = stringsKind.limits!.maxStateBytes;
+    expect(limit).toBe(1024 * 1024);
+    const seed: StringsFile = { kind: STRINGS_KIND, v: 1, strings: [] };
+    const { docId, a, b } = await seeded(STRINGS_KIND, "text/big.strings.json", seed);
+    const rows = () => content(a.doc).get("strings") as Y.Map<Y.Map<unknown>>;
+    const size = () => Y.encodeStateAsUpdate(a.doc).byteLength;
+    const stored = () => stores.assets.rows.get(docId)?.state?.byteLength ?? 0;
+    // Under a message's cap each, so only the doc's total meets the kind's limit.
+    const CHUNK = 200_000;
+    const target = limit - 16 * 1024;
+    let n = 0;
+    while (size() + CHUNK < target) {
+      appendKeyed(rows(), `r${n}`, { key: `big.r${n}`, en: "x".repeat(CHUNK) });
+      n++;
+      await sleep(50);
+    }
+    const rest = target - size() - 256;
+    if (rest > 0) {
+      appendKeyed(rows(), `r${n}`, { key: `big.r${n}`, en: "y".repeat(rest) });
+      n++;
+    }
+    expect(size()).toBeGreaterThan(limit - 32 * 1024);
+    expect(size()).toBeLessThanOrEqual(limit);
+
+    expect(await until(() => stored() > limit - 48 * 1024, 10_000)).toBe(true);
+    expect(a.stopped()).toBeNull();
+    expect(b.stopped()).toBeNull();
+    expect(await until(() => valueOf<StringsFile>(b.doc).strings.length === n, 10_000)).toBe(true);
+    const admitted = stored();
+    expect(admitted).toBeLessThanOrEqual(limit);
+
+    const authenticated = a.authentications();
+    appendKeyed(rows(), `r${n}`, { key: "big.over", en: "z".repeat(64 * 1024) });
+    expect(
+      await until(
+        () => a.stopped() === SYNC_CLOSE.tooLarge && a.authentications() === authenticated,
+        10_000,
+      ),
+    ).toBe(true);
+    await sleep(500);
+    expect(a.authentications()).toBe(authenticated);
+    expect(stored()).toBe(admitted);
   });
 });

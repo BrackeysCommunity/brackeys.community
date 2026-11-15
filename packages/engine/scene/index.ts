@@ -203,6 +203,7 @@ export {
   isErrorIssue,
   ISSUE_CODES,
   jsonPointer,
+  lineAt,
   liveIssue,
   makeIssue,
   type LiveIssueInput,
@@ -272,6 +273,7 @@ export {
   sceneViewport,
   type SceneLabels,
   type SceneSvgOptions,
+  type SceneTextOptions,
   type SceneViewport,
 } from "./svg";
 export {

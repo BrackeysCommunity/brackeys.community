@@ -1,5 +1,6 @@
 import type { BehaviorSystemFactory } from "../../game/behaviors";
 import { createAnimSystem } from "./anim";
+import { createAudioBehaviorSystem } from "./audio";
 import { createBodySystem } from "./body";
 import { createCameraTargetSystem } from "./camera-target";
 import { createCharacterSideViewSystem } from "./character-side-view";
@@ -15,6 +16,7 @@ import { createPathFollowSystem } from "./path-follow";
 import { createPlayerInputSystem } from "./player-input";
 import { createSpawnerSystem } from "./spawner";
 import { createSpriteSystem } from "./sprite";
+import { createTextSystem } from "./text";
 import { createTweenSystem } from "./tween";
 
 /**
@@ -40,4 +42,6 @@ export const ENGINE_BEHAVIOR_SYSTEMS: Readonly<Record<string, BehaviorSystemFact
     anim: createAnimSystem,
     tween: createTweenSystem,
     emitter: createEmitterSystem,
+    text: createTextSystem,
+    audio: createAudioBehaviorSystem,
   });

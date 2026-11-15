@@ -39,6 +39,7 @@ describe("settingsRows", () => {
       "engine.physics",
       "engine.gravity",
       "engine.tickRate",
+      "engine.locales",
     ]);
     expect(rows.every((r) => !("section" in r))).toBe(true);
   });

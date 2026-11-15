@@ -87,6 +87,17 @@ export {
   type TweenSpec,
 } from "./behaviors/tween";
 export { EMITTER, type EmitterBlock, type EmitterHandle } from "./behaviors/emitter";
+export {
+  TEXT,
+  TEXT_COLOR_DEFAULT,
+  TEXT_SIZE_DEFAULT,
+  textFontOf,
+  type FontAssetInfo,
+  type TextBlock,
+  type TextHandle,
+  type TextShown,
+} from "./behaviors/text";
+export { AUDIO, type AudioBlock, type AudioHandle } from "./behaviors/audio";
 export { ease } from "../anim/ease";
 export { overlapFrameShapes } from "../anim/shapes";
 export { clipFrameAt, resolveClips, type ClipSource, type ResolvedClip } from "../anim/clips";
@@ -266,10 +277,44 @@ export { bindingKeyLabel, keycapLabel, pointerButtonLabel } from "../input/keyca
 export type { InputState, PointerState } from "../input/state";
 export {
   COMMAND_NAME_PATTERN,
+  DIALOGUE_ADVANCE_COMMAND,
+  DIALOGUE_CHOOSE_COMMAND,
   ENGINE_COMMANDS,
+  isDialogueCommand,
+  LATENCY_COMMAND,
   NAV_COMMAND,
+  type EngineCommandName,
   type NavDestination,
 } from "./commands";
+export {
+  createDialogueRunner,
+  DIALOGUE_LOG_MAX,
+  type DialogueLogEntry,
+  type DialogueRunner,
+  type DialogueView,
+  type DialogueViewChoice,
+} from "../dialogue/runner";
+export { memoryVars, persistVars, type DialogueVars } from "../dialogue/vars";
+export {
+  parseRichText,
+  plainText,
+  type RichLine,
+  type RichSpan,
+  type TextVars,
+} from "../text/rich";
+export { measureText } from "../text/measure";
+export {
+  bracketKey,
+  DEFAULT_LOCALE,
+  emptyStringTable,
+  localeDirection,
+  resolveLocale,
+  stringTable,
+  stringTableData,
+  type StringTable,
+  type StringTableData,
+  type TextDirection,
+} from "../text/strings";
 export {
   ENGINE_CHECK_KINDS,
   ENGINE_COLLISION_GROUPS,
@@ -300,6 +345,7 @@ export type {
   CoroutineYield,
   Delay,
   DeviceId,
+  DialogueContext,
   EngineCheckKind,
   EngineCollisionGroup,
   EngineContext,
@@ -307,6 +353,7 @@ export type {
   EntityTypeDef,
   FieldEnv,
   GameAttachment,
+  GameAudioDef,
   GameCommand,
   GameDefinition,
   GameEditorDef,
@@ -396,7 +443,14 @@ export { spawnPose } from "../runtime/spawn-pose";
 
 // ─── System authoring ────────────────────────────────────
 export { DRAW_LAYERS } from "../context";
-export type { DrawLayer, SceneView, ViewLayer, ViewLayerHandle } from "../context";
+export type {
+  DrawLayer,
+  EmitterFollow,
+  SceneView,
+  ViewEmitter,
+  ViewLayer,
+  ViewLayerHandle,
+} from "../context";
 export { createSensorCollider } from "../collisions";
 export { degToRad, posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 export type { CharacterControllerOptions, PhysicsWorld } from "../physics";
@@ -529,11 +583,17 @@ export {
   ENTITY_SPAWNED,
   NAV_ARRIVED,
   NAV_BLOCKED,
+  DIALOGUE_CHOICES,
+  DIALOGUE_END,
+  DIALOGUE_LINE,
   PLAYER_JOINED,
   PLAYER_LEFT,
   SENSOR_ENTER,
   SENSOR_EXIT,
   SPAWNER_SPAWNED,
+  type DialogueChoicesEvent,
+  type DialogueEndEvent,
+  type DialogueLineEvent,
 } from "../runtime/types";
 export {
   TOOL_PRIORITY,

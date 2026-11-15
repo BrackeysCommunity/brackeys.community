@@ -1,0 +1,25 @@
+{
+  "$schema": "../../engine/project/sound.schema.json",
+  "kind": "sound",
+  "v": 1,
+  "variants": [
+    { "clip": "hit-1", "weight": 2 },
+    { "clip": "hit-2" },
+    { "clip": "blip" }
+  ],
+  "on": [
+    { "event": "contact:start", "type": "crate" },
+    { "data": { "event": "swing" }, "event": "anim:frame" },
+    { "event": "contact:start", "tag": "metal" }
+  ],
+  "bus": "sfx",
+  "caption": "caption.hit",
+  "cooldownMs": 40,
+  "loop": false,
+  "maxVoices": 4,
+  "pitch": [0.95, 1.05],
+  "positional": true,
+  "preload": true,
+  "range": 12,
+  "volume": 0.8
+}

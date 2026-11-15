@@ -58,6 +58,7 @@ describe("input-script.schema.json", () => {
       "near",
       "scene",
       "persist",
+      "dialogue",
       "past",
     ]);
     expect(schema.properties).toHaveProperty("game");
@@ -71,6 +72,7 @@ describe("input-script.schema.json", () => {
       "near",
       "scene",
       "persist",
+      "dialogue",
     ]);
   });
 
@@ -91,10 +93,10 @@ describe("input-script.schema.json", () => {
     );
   });
 
-  it("has command and elapse steps: the game's commands, with their args checked", () => {
+  it("has command and elapse steps: the game's and the dialogue's commands, with their args checked", () => {
     const schema = inputScriptJsonSchema(game) as Defs;
     const json = JSON.stringify(schema.$defs.Step);
-    expect(json).toContain('"enum":["nudge"]');
+    expect(json).toContain('"enum":["nudge","@dialogue-advance","@dialogue-choose"]');
     expect(json).toContain("nudge (Move the avatar along x at once.)");
     expect(json).toContain('"elapse"');
     expect(json).not.toContain('"@elapsed"]');
@@ -104,6 +106,11 @@ describe("input-script.schema.json", () => {
     expect(script({ command: "nudge", args: { dx: "3" } })).toBe(false);
     expect(script({ command: "nudge" })).toBe(false);
     expect(script({ command: "@elapsed", args: { ms: 3 } })).toBe(false);
+    expect(script({ command: "@nav", args: { id: "a", to: "b" } })).toBe(false);
+    expect(script({ command: "@dialogue-advance" })).toBe(true);
+    expect(script({ command: "@dialogue-choose", args: { choice: 1 } })).toBe(true);
+    expect(script({ command: "@dialogue-choose", args: { choice: -1 } })).toBe(false);
+    expect(script({ command: "@dialogue-choose" })).toBe(false);
     expect(script({ elapse: 100 })).toBe(false);
     const away = createRegistry({ ...testGame, time: { kind: "fixed", catchUp: { maxMs: 10 } } });
     expect(inputScriptSchemaFor(away).safeParse({ v: 2, steps: [{ elapse: 100 }] }).success).toBe(
@@ -111,7 +118,32 @@ describe("input-script.schema.json", () => {
     );
     expect(JSON.stringify(inputScriptJsonSchema(away))).toContain("clamped to 10");
     const bare = JSON.stringify((inputScriptJsonSchema(engine) as Defs).$defs.Step);
-    expect(bare).toContain("this registry's game declares none");
+    expect(bare).toContain('"enum":["@dialogue-advance","@dialogue-choose"]');
+    expect(bare).toContain("@dialogue-advance (Shows the next line of the active dialogue.)");
+  });
+
+  it("has a dialogue predicate: a node, an ending or whether one runs", () => {
+    const schema = inputScriptJsonSchema(game) as Defs;
+    expect(Object.keys(schema.$defs.DialogueMatch!.properties!)).toEqual([
+      "node",
+      "ended",
+      "active",
+    ]);
+    expect(JSON.stringify(schema.$defs.Until)).toContain(
+      '"dialogue":{"$ref":"#/$defs/DialogueMatch"}',
+    );
+    const zod = inputScriptSchemaFor(game);
+    const until = (u: unknown) => zod.safeParse({ v: 2, steps: [{ hold: [], until: u }] }).success;
+    expect(until({ dialogue: { node: "through" } })).toBe(true);
+    expect(until({ dialogue: { ended: "paid" } })).toBe(true);
+    expect(until({ dialogue: { ended: true } })).toBe(true);
+    expect(until({ dialogue: { active: false } })).toBe(true);
+    expect(until({ dialogue: { node: "gate", active: true } })).toBe(true);
+    expect(until({ dialogue: {} })).toBe(false);
+    expect(until({ dialogue: { ended: false } })).toBe(false);
+    expect(until({ dialogue: { ended: "" } })).toBe(false);
+    expect(until({ dialogue: { node: "Through" } })).toBe(false);
+    expect(until({ dialogue: { node: "gate", line: 0 } })).toBe(false);
   });
 
   it("has exists and count predicates over the registry's entity types", () => {

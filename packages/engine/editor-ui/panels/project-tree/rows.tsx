@@ -19,6 +19,15 @@ import {
 import type { ProjectPeer } from "../../../collab/index";
 import type { AssetDrop, PeerPresence } from "../../../editor/index";
 import type { AssetEntry } from "../../../project/index";
+import { AUDIO_KIND } from "../../../project/kinds/audio";
+import { SOUND_KIND } from "../../../project/kinds/sound";
+import { SYNTH_KIND } from "../../../project/kinds/synth";
+import {
+  AuditionButton,
+  useAuditionStatus,
+  useEditorAudio,
+  useHoverPreview,
+} from "../../audio/editor-audio";
 import { IconButton } from "../../kit/button";
 import { Hint } from "../../kit/hint";
 import { Icon } from "../../kit/icon";
@@ -308,6 +317,9 @@ function RenameField({
   );
 }
 
+/** A row that previews: an audio clip, a sound or a synth patch. */
+const audible = (kind: string) => kind === AUDIO_KIND || kind === SOUND_KIND || kind === SYNTH_KIND;
+
 export function AssetItem({
   row,
   active,
@@ -353,6 +365,10 @@ export function AssetItem({
   });
   const indent = indentOf(row.depth);
   const display = entry.name && entry.name !== baseName(entry.path).replace(/\..*$/, "");
+  const audio = useEditorAudio();
+  const playable = audio !== null && audible(entry.kind);
+  const audition = useAuditionStatus(entry.id);
+  const preview = useHoverPreview(playable && !renaming ? entry.id : null);
   return (
     <li
       {...{ [DROP_FOLDER_ATTR]: row.folder }}
@@ -361,6 +377,7 @@ export function AssetItem({
       aria-busy={busy ? true : undefined}
       data-busy={busy ? "" : undefined}
       data-file-over={fileOver ? "" : undefined}
+      {...preview}
     >
       {renaming ? (
         <RenameField
@@ -420,8 +437,12 @@ export function AssetItem({
           <Icon icon={framesOpen ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
         </button>
       ) : null}
-      {!renaming && !busy && (editable.rename || editable.delete) ? (
-        <span className="je-ptree-actions">
+      {!renaming && !busy && (playable || editable.rename || editable.delete) ? (
+        <span
+          className="je-ptree-actions"
+          data-auditioning={playable && audition !== "idle" ? "" : undefined}
+        >
+          {playable ? <AuditionButton id={entry.id} name={row.name} /> : null}
           {editable.rename ? (
             <IconButton
               size="icon-xs"

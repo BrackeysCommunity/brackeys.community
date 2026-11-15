@@ -64,6 +64,13 @@ const prefabDef = (id: string): Prefab => {
   return parsed.prefab;
 };
 
+/** The kitchen sink's sound and dialogue, and the patch the sound plays: [id, kind, path]. */
+const SINK_DOCS = [
+  ["clink", "sound", "audio/clink.sound.json"],
+  ["clink-synth", "synth", "audio/clink.synth.json"],
+  ["kitchen-dialogue", "dialogue", "text/kitchen.dialogue.json"],
+] as const;
+
 /** A second scene, placing a home prefab, for snapshots whose lists start in different scenes. */
 const yardDef = (): SceneDefinition => ({
   v: SCENE_FORMAT_VERSION,
@@ -137,6 +144,12 @@ async function fixture(
     entry("scene-list", "scene-list", "scenes/scene-list.json", { created }),
     ...PREFAB_IDS.map((id) => entry(id, "prefab", `scenes/prefabs/${id}.json`, { created })),
     entry("cards", "data-table", "scenes/data/cards.json", { created }),
+    ...SINK_DOCS.map(([id, kind, path]) => entry(id, kind, `scenes/${path}`, { created })),
+    entry("clink-wav", "audio", "scenes/audio/clink.wav", {
+      created,
+      sha256: await sha256("clink samples"),
+      bytes: 13,
+    }),
     entry("hero", "texture", "art/hero.png", {
       created,
       sha256: heroHash,
@@ -178,6 +191,10 @@ async function fixture(
       formatAssetDoc(kinds.get("data-table") as DocKindDef, JSON.parse(read("data/cards.json"))),
     ],
     ["hero-skin", skinText("hero")],
+    ...SINK_DOCS.map(([id, kind, path]): [AssetId, string] => [
+      id,
+      formatAssetDoc(kinds.get(kind) as DocKindDef, JSON.parse(read(path))),
+    ]),
     ...[...materials.values].map(([id, value]): [AssetId, string] => [
       id,
       formatAssetDoc(kinds.get("material") as DocKindDef, value),
@@ -211,11 +228,13 @@ describe("snapshotProject", () => {
     expect(Object.keys(snap.assets).sort()).toEqual(
       [
         "cards",
+        "clink-wav",
         "hero",
         "hero-sheet",
         "hero-skin",
         "kitchen-sink",
         "scene-list",
+        ...SINK_DOCS.map(([id]) => id),
         ...PREFAB_IDS,
         ...materials.values.keys(),
       ].sort(),
@@ -326,10 +345,11 @@ describe("checkSnapshot", () => {
     f.texts.delete("gate");
     const snap = await snapshotProject(...args(f));
     const issues = await checkSnapshot(snap, await storeOf(f.texts), kinds, env);
-    expect(codes(issues)).toEqual(Array(4).fill("asset-missing"));
+    expect(codes(issues)).toEqual(Array(5).fill("asset-missing"));
     expect(issues.map((i) => [i.entityIds[0], i.got, i.path])).toEqual([
       ["hero-sheet", "hero", "/import/texture"],
       ["hero-skin", "hero", "/texture"],
+      ["kitchen-dialogue", "hero", "/speakers/@keeper/portrait/asset"],
       ["kitchen-sink", "gate", "/instances/@gate-1/prefab"],
       ["kitchen-sink", "gate", "/instances/@gate-2/prefab"],
     ]);
@@ -513,11 +533,12 @@ describe("snapshot pinning over the real texture kind", () => {
   const bytesOf = (name: string) =>
     new Uint8Array(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
-  /** The kitchen sink beside a real texture and the atlas cutting it, each inspected by its kind; bytes put in `store`. */
+  /** The kitchen sink beside a real texture, the atlas cutting it and its sound's clip, each inspected by its kind; bytes put in `store`. */
   async function project(store: ContentStore, png: Uint8Array) {
-    const f = await fixture({ drop: ["hero", "hero-sheet"] });
+    const f = await fixture({ drop: ["hero", "hero-sheet", "clink-wav"] });
     const blob = async (id: AssetId, path: string, bytes: Uint8Array) => {
-      const def = kinds.get(path.endsWith(".png") ? "texture" : "atlas") as BlobKindDef;
+      const kind = path.endsWith(".png") ? "texture" : path.endsWith(".wav") ? "audio" : "atlas";
+      const def = kinds.get(kind) as BlobKindDef;
       const e = entry(id, def.kind, path, { sha256: await store.put(bytes), bytes: bytes.length });
       const inspected = inspectEntry(def, e, bytes, (p) =>
         p === "art/hero.png" ? "hero" : undefined,
@@ -534,6 +555,11 @@ describe("snapshot pinning over the real texture kind", () => {
         ...f.view.byId.values(),
         await blob("hero", "art/hero.png", png),
         await blob("hero-sheet", "art/hero.atlas.json", bytesOf("hero.json")),
+        await blob(
+          "clink-wav",
+          "scenes/audio/clink.wav",
+          new Uint8Array(readFileSync(new URL("audio/clink.wav", scenes))),
+        ),
       ].map((e) => [e.key, e]),
     );
     const view = projectView({ ...f.view.state, assets }, kinds);

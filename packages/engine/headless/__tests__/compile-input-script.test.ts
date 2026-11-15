@@ -378,17 +378,42 @@ describe("command and elapse steps", () => {
     expect(found).toEqual([
       {
         path: "/steps/0/command",
-        message: 'unknown command "nuge"; did you mean "nudge"? (commands: nudge)',
-        expected: '"nudge"',
+        message:
+          'unknown command "nuge"; did you mean "nudge"? (commands: nudge, @dialogue-advance, @dialogue-choose)',
+        expected: '"nudge" | "@dialogue-advance" | "@dialogue-choose"',
         got: '"nuge"',
       },
     ]);
     expect(issues(compileInputScript({ v: 1, steps: [{ command: "go" }] }, engine))[0]).toEqual(
       expect.objectContaining({
         path: "/steps/0/command",
-        message: 'unknown command "go" (commands: none)',
+        message: 'unknown command "go" (commands: @dialogue-advance, @dialogue-choose)',
       }),
     );
+  });
+
+  it("sends the dialogue's commands from a command step", () => {
+    const result = compileInputScript(
+      {
+        v: 2,
+        steps: [
+          { command: "@dialogue-advance" },
+          { command: "@dialogue-choose", args: { choice: 1 } },
+        ],
+      },
+      engine,
+    );
+    expect(result.ok && result.script.steps.map((s) => s.commands)).toEqual([
+      [{ name: "@dialogue-advance" }],
+      [{ name: "@dialogue-choose", args: { choice: 1 } }],
+    ]);
+    const bad = issues(
+      compileInputScript(
+        { v: 2, steps: [{ command: "@dialogue-choose", args: { choice: "first" } }] },
+        engine,
+      ),
+    );
+    expect(bad[0]?.path).toBe("/steps/0/args");
   });
 
   it("refuses bad args, engine commands, stray args and elapse without catch-up", () => {

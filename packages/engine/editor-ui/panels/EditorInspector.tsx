@@ -99,9 +99,13 @@ import { ticksIn } from "../../game/time";
 import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
+import { AUDIO_KIND } from "../../project/kinds/audio";
+import { SOUND_KIND } from "../../project/kinds/sound";
+import { SYNTH_KIND } from "../../project/kinds/synth";
 import type { PrefabLibrary } from "../../scene/index";
 import { enclosingInstance, headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
+import { AuditionButton, formatLengthRange, useEditorAudio } from "../audio/editor-audio";
 import { STORAGE_PREFIX } from "../host";
 import {
   Button,
@@ -147,6 +151,8 @@ import {
   useEditorResolved,
   useEditorStore,
 } from "../session/use-editor-store";
+import { SoundPanel } from "./assets/SoundPanel";
+import { SynthPanel } from "./assets/SynthPanel";
 import { useProjectView } from "./EditorProject";
 import {
   AssetCombobox,
@@ -1364,6 +1370,19 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     setError(commitFields(ctx, `Set ${field.title}`, edits));
   };
 
+  const picker = (
+    <AssetCombobox
+      path={field.path}
+      kinds={w.kinds}
+      options={options}
+      value={field.value}
+      mixed={field.mixed}
+      optional={field.optional}
+      invalid={problem !== null}
+      {...(field.mixed ? { placeholder: MIXED } : {})}
+      onPick={pick}
+    />
+  );
   // A texture draws no frame, so its row shows only to clear a stale one.
   const showFrame =
     chosen?.frames !== undefined ||
@@ -1373,17 +1392,14 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   return (
     <>
       <FieldRow field={field} error={problem}>
-        <AssetCombobox
-          path={field.path}
-          kinds={w.kinds}
-          options={options}
-          value={field.value}
-          mixed={field.mixed}
-          optional={field.optional}
-          invalid={problem !== null}
-          {...(field.mixed ? { placeholder: MIXED } : {})}
-          onPick={pick}
-        />
+        {chosen && audible(w.kinds) ? (
+          <div className="je-asset-audible">
+            {picker}
+            <AssetAudition id={chosen.id} name={chosen.label} />
+          </div>
+        ) : (
+          picker
+        )}
       </FieldRow>
       {frameField && showFrame ? (
         chosen?.frames ? (
@@ -1400,6 +1416,25 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         )
       ) : null}
     </>
+  );
+}
+
+/** An asset field that names something to hear: a sound, an audio clip or a synth patch. */
+const audible = (kinds: readonly string[]) =>
+  kinds.length > 0 && kinds.every((k) => k === SOUND_KIND || k === AUDIO_KIND || k === SYNTH_KIND);
+
+/** Play and stop beside an audible asset field's picker, and how long the pick plays. */
+function AssetAudition({ id, name }: { id: string; name: string }) {
+  const length = useEditorAudio()?.lengthMs(id) ?? null;
+  return (
+    <span className="je-asset-audition">
+      <AuditionButton id={id} name={name} />
+      {length ? (
+        <Text size="xs" variant="muted" className="je-asset-audition-length">
+          {formatLengthRange(length)}
+        </Text>
+      ) : null}
+    </span>
   );
 }
 
@@ -1985,6 +2020,23 @@ export function EditorInspector({
   );
 }
 
+/** The asset picked in the project tree: a sound or a synth patch in its own editor, anything else as it is. */
+function PickedAsset({
+  asset,
+  project,
+  registry,
+}: {
+  asset: SelectedAsset;
+  project: ProjectSession | null;
+  registry: Registry;
+}) {
+  if (project && asset.entry.kind === SOUND_KIND)
+    return <SoundPanel asset={asset} session={project} registry={registry} />;
+  if (project && asset.entry.kind === SYNTH_KIND)
+    return <SynthPanel asset={asset} session={project} registry={registry} />;
+  return <AssetPanel {...asset} />;
+}
+
 // The fieldset only disables what is inside it; it draws nothing of its own.
 const LOCKED = { display: "contents" } as const;
 
@@ -2017,7 +2069,8 @@ function Inspector({
   const doc = useEditorDoc(session);
   const view = useEditorResolved(session);
   const prefabs = useEditorPrefabs(session);
-  if (asset) return <AssetPanel {...asset} />;
+  if (asset)
+    return <PickedAsset asset={asset} project={project ?? null} registry={session.registry} />;
 
   const targets = selection.flatMap((ref) => {
     const t = lookupRef(view, ref);

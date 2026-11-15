@@ -11,9 +11,14 @@ import {
   type GameInstance,
   type RapierModule,
 } from "../index";
-import type { ProjectId, ProjectRuntimeView } from "../project/index";
+import type { AssetId, ProjectId, ProjectRuntimeView } from "../project/index";
 import { mountUi } from "../ui/layer";
 import type { MountUi } from "../ui/types";
+import {
+  EditorAudioProvider,
+  playAudioBackend,
+  type EditorAudioSource,
+} from "./audio/editor-audio";
 import type { SceneDocStatus, SceneFallback } from "./connect/scene-doc";
 import {
   editorChrome,
@@ -22,7 +27,7 @@ import {
   type EditorFrameHandle,
 } from "./frame/EditorFrame";
 import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
-import { hostCue, type EditorHost, type NotifyOptions, type SceneHome } from "./host";
+import { hostCue, hostStorage, type EditorHost, type NotifyOptions, type SceneHome } from "./host";
 import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { ReloadButton } from "./panels/CodeSkewNotice";
@@ -297,11 +302,14 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
         // The page is the game: editor and debug keys work with focus on a panel
         // or fallen to the body, while play input still needs the canvas focused.
         keyTarget: window,
+        // Asked each time Play starts: Sound in Play is the viewer's, read from their storage then.
+        audio: { backend: playAudioBackend(hostStorage(latest.current.host)) },
         ...(open && loader
           ? {
               assets: {
                 loader,
                 kinds: open.kinds,
+                url: latest.current.host.assetUrl,
                 get view() {
                   return open.view();
                 },
@@ -357,6 +365,16 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   }, [definition, buildRegistry, projectData, loadRapier, notify, spent, canvasKey]);
 
   usePlayUi(game, getCanvas, props.ui);
+
+  const editingRef = useRef(editing);
+  useEffect(() => {
+    editingRef.current = editing;
+  });
+  const [audioSource] = useState<EditorAudioSource>(() => ({
+    runtime: () => editingRef.current.editor?.project?.runtime ?? editingRef.current.projectData,
+    view: () => assetsRef.current?.view() ?? null,
+    fetchClip: (id) => fetchClip(latest.current.host, assetsRef.current, id),
+  }));
 
   // Said once per fallback; a host's route that follows it to the opened scene keeps the same one.
   const fellBack = editing.fellBack;
@@ -473,49 +491,70 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
 
   return (
     <PendingProvider pending={pending}>
-      <InspectorReadOnly value={editing.editor?.project?.readOnly ?? false}>
-        <div
-          className="je-session"
-          style={{ display: "contents" }}
-          inert={inert}
-          aria-busy={inert || undefined}
-          data-boot={stopped ? "stopped" : undefined}
-        >
-          <EditorSkeleton
-            frameRef={frameRef}
-            host={host}
-            topLeft={host.chrome?.topLeft}
-            topRight={host.chrome?.topRight}
-            registry={registry}
-            notify={notify}
-            {...shown}
-            status={
-              shown ? (
-                (shown.status ?? null)
-              ) : booting ? (
-                <>
-                  <EditorBooting {...booting} />
-                  {booting.error ? (
-                    <Island className="je-boot-reload">
-                      <ReloadButton tooltip="Reload the editor to ask the scene server again" />
-                    </Island>
-                  ) : null}
-                </>
-              ) : undefined
-            }
-            overlay={
-              <>
-                {shown?.overlay}
-                {notify === toaster.notify ? <Toasts toaster={toaster} /> : null}
-              </>
-            }
+      <EditorAudioProvider source={audioSource}>
+        <InspectorReadOnly value={editing.editor?.project?.readOnly ?? false}>
+          <div
+            className="je-session"
+            style={{ display: "contents" }}
+            inert={inert}
+            aria-busy={inert || undefined}
+            data-boot={stopped ? "stopped" : undefined}
           >
-            <canvas key={canvasKey} ref={canvasRef} className="je-scene-canvas" />
-          </EditorSkeleton>
-        </div>
-      </InspectorReadOnly>
+            <EditorSkeleton
+              frameRef={frameRef}
+              host={host}
+              topLeft={host.chrome?.topLeft}
+              topRight={host.chrome?.topRight}
+              registry={registry}
+              notify={notify}
+              {...shown}
+              status={
+                shown ? (
+                  (shown.status ?? null)
+                ) : booting ? (
+                  <>
+                    <EditorBooting {...booting} />
+                    {booting.error ? (
+                      <Island className="je-boot-reload">
+                        <ReloadButton tooltip="Reload the editor to ask the scene server again" />
+                      </Island>
+                    ) : null}
+                  </>
+                ) : undefined
+              }
+              overlay={
+                <>
+                  {shown?.overlay}
+                  {notify === toaster.notify ? <Toasts toaster={toaster} /> : null}
+                </>
+              }
+            >
+              <canvas key={canvasKey} ref={canvasRef} className="je-scene-canvas" />
+            </EditorSkeleton>
+          </div>
+        </InspectorReadOnly>
+      </EditorAudioProvider>
     </PendingProvider>
   );
+}
+
+/** An audio clip's bytes for the editor's previews, from the host's blob URL for it. */
+async function fetchClip(
+  host: EditorHost,
+  assets: EditorAssets | null,
+  id: AssetId,
+): Promise<ArrayBuffer> {
+  const entry = assets?.view().byId.get(id);
+  if (!assets || !entry?.sha256) throw new Error(`no file for the clip "${id}"`);
+  const url = host.assetUrl(assets.project, {
+    id,
+    kind: entry.kind,
+    sha256: entry.sha256,
+    bytes: entry.bytes ?? 0,
+  });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`the clip "${id}" failed to load (${res.status})`);
+  return res.arrayBuffer();
 }
 
 /** Renders `SceneEditor` into `element` with its own React root. */

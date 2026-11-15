@@ -9,15 +9,21 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { resolveClips } from "../anim/clips";
+import { fakeAudioBackend } from "../audio/fake";
+import { createAudioSystem } from "../audio/system";
+import { soundTriggers } from "../audio/triggers";
 import { cameraRegionsOf, regionFor } from "../camera/regions";
 import { docToScene, sceneToDoc } from "../collab/convert";
 import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
+import { exploreDialogue } from "../dialogue/explore";
 import type { AnimBlock } from "../game/behaviors/anim";
+import { AUDIO, type AudioBlock } from "../game/behaviors/audio";
 import type { EmitterBlock } from "../game/behaviors/emitter";
 import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
 import { OCCUPANT } from "../game/behaviors/occupant";
 import type { SpawnerBlock, SpawnerSystem } from "../game/behaviors/spawner";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
+import { TEXT, type TextBlock } from "../game/behaviors/text";
 import { tweenChannels, tweenTargetProblem, type TweenBlock } from "../game/behaviors/tween";
 import { createRegistry, defineGame, ENGINE_BEHAVIORS, withProject } from "../game/define";
 import { parseSaveFile } from "../game/save-file";
@@ -29,6 +35,7 @@ import type { PlaytestReport } from "../headless/playtest-types";
 import { recordingDivergence, replayRecording } from "../headless/recording";
 import { runChecks } from "../headless/run-checks";
 import { validatePhysical } from "../headless/validate-physical";
+import { memoryPrefsStore } from "../prefs";
 import { assetInfo } from "../project/asset-info";
 import { sceneBundle } from "../project/bundle";
 import { memoryContentStore } from "../project/content-store";
@@ -45,27 +52,40 @@ import {
   type AnimationFile,
 } from "../project/kinds/animation";
 import { ATLAS_KIND } from "../project/kinds/atlas";
+import { AUDIO_KIND } from "../project/kinds/audio";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
+import { DIALOGUE_KIND, type DialogueFile } from "../project/kinds/dialogue";
 import {
   EMITTER_KIND,
   emitterIssues,
   emitterKind,
   type EmitterFile,
 } from "../project/kinds/emitter";
+import { FONT_KIND, type FontMeta } from "../project/kinds/font";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { inputScriptKind } from "../project/kinds/input-script";
 import { MATERIAL_KIND } from "../project/kinds/material";
 import { SAVE_KIND } from "../project/kinds/save";
 import { SCENE_LIST_KIND, type SceneListEntry } from "../project/kinds/scene-list";
+import { SOUND_KIND, type SoundFile } from "../project/kinds/sound";
+import { localeFont, localeSettingsOf, STRINGS_KIND } from "../project/kinds/strings";
+import { SYNTH_KIND } from "../project/kinds/synth";
 import { TEXTURE_KIND } from "../project/kinds/texture";
 import { runtimeView } from "../project/runtime-view";
 import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
+import { validateProject } from "../project/validate-project";
 import { projectView } from "../project/view";
 import { ANIM_FRAME } from "../runtime/behaviors/anim";
 import { createSceneRuntime } from "../runtime/runtime";
-import { ENTITY_DESTROYED, SENSOR_ENTER, SPAWNER_SPAWNED, type StepEvent } from "../runtime/types";
+import {
+  CONTACT_START,
+  ENTITY_DESTROYED,
+  SENSOR_ENTER,
+  SPAWNER_SPAWNED,
+  type StepEvent,
+} from "../runtime/types";
 import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
@@ -78,7 +98,9 @@ import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
 import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition, ShapeObj } from "../scene/types";
 import { sublevelIssue, validateScene } from "../scene/validate";
+import { kitchenMedia } from "../scenes/tools/kitchen-media";
 import type { SolidSystem } from "../systems/bodies";
+import { stringTable } from "../text/strings";
 import type { RapierModule } from "../types";
 import {
   createProjectFileAdapter,
@@ -261,6 +283,8 @@ describe("kitchen-sink.json", () => {
         "path-follow": "std-path-follow",
         "force-area": "std-force-area",
         joint: "std-joint",
+        [AUDIO.name]: "std-audio",
+        [TEXT.name]: "std-text",
       };
       for (const [name, id] of Object.entries(standard)) {
         expect(engineNames, name).toContain(name);
@@ -674,6 +698,53 @@ describe("kitchen-sink.json", () => {
       expect(emitterIssues(file, assetInfo(view, file.texture!))).toEqual([]);
     });
 
+    it("a text sign by a string key with text in both locales, drawn in the project's font, which covers it", () => {
+      const block = blockOf<TextBlock>("std-text", TEXT.name);
+      expect(block.text).toBeUndefined();
+      const project = runtimeView(view, values, engine);
+      const settings = values.get(entriesOf(GAME_SETTINGS_KIND)[0]!.id) as {
+        engine: { locales?: unknown };
+      };
+      const locales = localeSettingsOf(settings.engine.locales);
+      expect(locales.available).toEqual(["en", "fr"]);
+      const shown = locales.available.map((l) => stringTable(project, l).get(block.key!));
+      expect(shown).toEqual(["Kitchen sink", "Évier de cuisine"]);
+      locales.available.forEach((locale, i) => {
+        const font = view.byId.get(localeFont(locales, locale)!);
+        expect(font?.kind, locale).toBe(FONT_KIND);
+        const coverage = (font!.meta as FontMeta).coverage!;
+        for (const ch of shown[i]!) {
+          const cp = ch.codePointAt(0)!;
+          expect(
+            coverage.some(([from, to]) => cp >= from && cp <= to),
+            `${locale} ${ch}`,
+          ).toBe(true);
+        }
+      });
+    });
+
+    it("a sound on a prop's contact start, its variants a WAV clip and a synth patch", () => {
+      const [entry, ...more] = entriesOf(SOUND_KIND);
+      expect(more).toEqual([]);
+      const sound = values.get(entry!.id) as SoundFile;
+      expect(sound.on).toContainEqual({ event: CONTACT_START, type: "prop" });
+      expect(new Set(sound.variants.map((v) => view.byId.get(v.clip)?.kind))).toEqual(
+        new Set([AUDIO_KIND, SYNTH_KIND]),
+      );
+      expect(blockOf<AudioBlock>("std-audio", AUDIO.name).sound).toBe(entry!.id);
+    });
+
+    it("a dialogue a marker names by its tag, which the assets header lists, every choice reaching an ending", () => {
+      const [entry, ...more] = entriesOf(DIALOGUE_KIND);
+      expect(more).toEqual([]);
+      expect(def.assets).toContain(entry!.id);
+      const marker = entities().find((e) => (e.tags as string[] | undefined)?.includes(entry!.id));
+      expect(marker).toMatchObject({ id: "talk-mark", type: "marker" });
+      const explored = exploreDialogue(values.get(entry!.id) as DialogueFile);
+      expect(explored.truncated).toBe(false);
+      expect(new Set(explored.endings.map((e) => e.ending))).toEqual(new Set(["done", "toured"]));
+    });
+
     it("a camera region framing the camera target where it stands", () => {
       const regions = cameraRegionsOf(expanded().entities, engine);
       expect(regions.map((r) => r.id)).toEqual(["framing"]);
@@ -821,10 +892,85 @@ describe("kitchen-sink.json", () => {
     expect(validateScene(def, engine, { prefabs, project: view })).toEqual([]);
   });
 
+  it("validates as a project with no issue at all: its strings, fonts, sounds and dialogue cross-checked", async () => {
+    const texts = new Map<AssetId, string>();
+    for (const entry of docEntries())
+      texts.set(entry.id, await readFile(join(scenesPath, entry.path), "utf8"));
+    expect(
+      validateProject(view, texts, project.kinds, { registry: engine, project: view }),
+    ).toEqual([]);
+  });
+
+  it("plays its sound on the props' contact starts and the character's landing, from both variants, a rerun making the same calls", async () => {
+    const project = runtimeView(view, values, engine);
+    const clipBytes = await readFile(join(scenesPath, "audio/clink.wav"));
+    const sound = entriesOf(SOUND_KIND)[0]!.id;
+    async function run() {
+      const rt = createSceneRuntime({
+        rapier,
+        view: null,
+        game: null,
+        registry: engine,
+        project,
+      });
+      expect(rt.load(expanded()).ok).toBe(true);
+      // A game watches contacts; a gameless scene raises none.
+      rt.ctx.contacts.watch({ type: "prop" });
+      const backend = fakeAudioBackend({ state: "running" });
+      const system = createAudioSystem({
+        backend,
+        project,
+        registry: engine,
+        fetchClip: async () => clipBytes.buffer.slice(0) as ArrayBuffer,
+        clipUrl: (id) => `/clips/${id}`,
+        poses: rt.ctx.poses,
+        prefs: memoryPrefsStore(),
+        gameId: "kitchen-sink",
+        tickMs: rt.ctx.time.tickMs,
+        reducedMotion: () => false,
+        emit: () => {},
+        entity: rt.get,
+      });
+      const triggers = soundTriggers(project, (id) => {
+        const e = rt.get(id);
+        return e && { type: e.type, tags: new Set(e.tags as string[] | undefined) };
+      });
+      const triggered: StepEvent[] = [];
+      const playedOn: number[] = [];
+      for (let i = 0; i < 300; i++) {
+        const { tick, events } = rt.step(rt.ctx.time.tickMs, []);
+        triggered.push(...events.filter((e) => triggers.match(e).includes(sound)));
+        const before = backend.log.length;
+        system.tick(tick, events, []);
+        if (backend.log.slice(before).some((c) => c.op === "play")) playedOn.push(tick);
+        backend.advance(rt.ctx.time.tickMs / 1000);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      rt.destroy();
+      return { log: backend.log, triggered, playedOn };
+    }
+    const first = await run();
+    const types = new Set(first.triggered.map((e) => e.type));
+    expect(types).toEqual(new Set([CONTACT_START, "character:landed"]));
+    expect(first.playedOn.length).toBeGreaterThanOrEqual(2);
+    for (const tick of first.playedOn) expect(first.triggered.map((e) => e.tick)).toContain(tick);
+    const ops = new Set(first.log.map((c) => c.op));
+    for (const op of ["decode", "buffer", "play"] as const) expect(ops, op).toContain(op);
+    expect((await run()).log).toEqual(first.log);
+  });
+
+  it("holds the clip and the font exactly as its generator writes them", async () => {
+    for (const file of kitchenMedia())
+      expect(new Uint8Array(await readFile(join(scenesPath, file.path))), file.path).toEqual(
+        file.bytes,
+      );
+  });
+
   it("bundles exactly the three textures its sprites cut, each once, with no issues", () => {
     const { bundle, issues } = sceneBundle(expanded(), def, prefabs, view, project.kinds, engine);
     expect(issues).toEqual([]);
-    const textures = entriesOf(TEXTURE_KIND);
+    const fontPages = new Set(entriesOf(FONT_KIND).flatMap((f) => f.import?.pages ?? []));
+    const textures = entriesOf(TEXTURE_KIND).filter((t) => !fontPages.has(t.id));
     expect(textures).toHaveLength(3);
     expect(bundle.entries).toEqual(
       textures
@@ -1264,7 +1410,7 @@ describe("kitchen-sink.json", () => {
 });
 
 describe("the engine project", () => {
-  it("scans with no problems: docs keyed by id or by their sidecar, each blob with a sidecar naming its key, its art CC0", async () => {
+  it("scans with no problems: docs keyed by id or by their sidecar, each blob with a sidecar naming its key, its art, audio, fonts and text CC0", async () => {
     expect(scan.problems).toEqual([]);
     expect(scan.state.meta).toMatchObject({ projectId: "engine", name: "Engine" });
     const entries = Object.values(scan.state.assets);
@@ -1284,6 +1430,12 @@ describe("the engine project", () => {
         TEXTURE_KIND,
         ATLAS_KIND,
         SAVE_KIND,
+        AUDIO_KIND,
+        FONT_KIND,
+        SOUND_KIND,
+        SYNTH_KIND,
+        STRINGS_KIND,
+        DIALOGUE_KIND,
       ]),
     );
     const blobs = entries.filter((e) => e.sha256 !== undefined);
@@ -1293,6 +1445,9 @@ describe("the engine project", () => {
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "audio/clink.wav",
+      "fonts/kitchen.fnt",
+      "fonts/kitchen.png",
       "saves/grid-yard.save.json",
     ]);
     const sidecars = (await walk(scenesPath))
@@ -1312,7 +1467,8 @@ describe("the engine project", () => {
       ) as { key: string; id: string; sha256?: string; licence?: { spdx?: string } };
       expect(sidecar, e.path).toMatchObject({ key: e.key, id: e.id });
       expect(sidecar.sha256, e.path).toBe(e.sha256);
-      if (e.path.startsWith("art/")) expect(sidecar.licence?.spdx, e.path).toBe("CC0-1.0");
+      if (/^(art|audio|fonts|text)\//.test(e.path))
+        expect(sidecar.licence?.spdx, e.path).toBe("CC0-1.0");
     }
     expect([...sided].sort()).toEqual(
       entries

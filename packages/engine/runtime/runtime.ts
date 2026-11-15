@@ -1,6 +1,7 @@
 import { createColliderTags } from "../collider-tags";
 import { COLLIDER, type ColliderSystem } from "../game/behaviors/collider";
 import { SPRITE } from "../game/behaviors/sprite";
+import { TEXT } from "../game/behaviors/text";
 import { DEFAULT_GRAVITY } from "../game/defaults";
 import { createRegistry } from "../game/define";
 import {
@@ -51,7 +52,9 @@ import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import { animContext } from "./behaviors/anim";
+import { createDialogueSystem, DIALOGUE_SYSTEM } from "./behaviors/dialogue";
 import type { SpriteSystem } from "./behaviors/sprite";
+import type { TextSystem } from "./behaviors/text";
 import { tweensContext } from "./behaviors/tween";
 import { createBodyControl, type RuntimeBodyControl } from "./bodies-control";
 import { castSpawn } from "./cast";
@@ -377,6 +380,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     tick: () => tick,
   });
   const behaviorOf: EngineContext["behavior"] = (name) => host?.system(name);
+  const dialogue = createDialogueSystem({ dev: opts.dev ?? false, ctx: () => ctx });
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -526,6 +530,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     get tree() {
       return tree;
     },
+    dialogue: {
+      start: (id, startOpts) => dialogue.start(id, startOpts),
+      view: () => dialogue.view(),
+      stop: () => dialogue.stop(),
+    },
   };
   bodies = createBodyControl(ctx);
   timers = createTimers(ctx);
@@ -554,6 +563,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
   const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
+  const texts = behaviors.system<TextSystem>(TEXT.name);
   const colliders = behaviors.system<ColliderSystem>(COLLIDER.name);
   lifecycle = createLifecycle({
     ctx,
@@ -662,6 +672,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     sublevels.clear();
     for (const e of [...byId.values()].reverse()) leaving(e);
     behaviors.clear();
+    dialogue.clear();
     for (let i = ordered.length - 1; i >= 0; i--) ordered[i]!.clear();
     bodies.reset();
     for (const id of [...ctx.poses.ids()]) ctx.poses.remove(id);
@@ -996,6 +1007,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         system.beforeStep(dtMs);
         timed?.lap(beforeStepParts[i]!);
       }
+      dialogue.commands(tickInput.commands);
       if (game?.beforeStep) {
         inGame(() => game.beforeStep!(dtMs, tickInput.actions, tickInput.commands));
         timed?.lap("game.beforeStep");
@@ -1052,8 +1064,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       stepping = false;
       bodies.endTick();
     }
-    if (sprites || ctx.view?.commit) {
+    if (sprites || texts || ctx.view?.commit) {
       sprites?.settle();
+      texts?.settle();
       ctx.view?.commit?.(t);
       timed?.lap("view.commit");
     }
@@ -1496,6 +1509,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     playClock: () => playClock,
   };
   Object.defineProperty(ctx, SAVE_HOST, { value: saveHost });
+  Object.defineProperty(ctx, DIALOGUE_SYSTEM, { value: dialogue });
 
   const swapHost: SwapHost = {
     ctx,

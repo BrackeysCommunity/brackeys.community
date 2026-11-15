@@ -2103,21 +2103,25 @@ duplicate id or path), `checkProjectBatch` for project ops, and
   against exactly that version, its own materials included, without
   fetching an image.
 
-| Kind            | Stored as | Matched by                            | Notes                                                                        |
-| --------------- | --------- | ------------------------------------- | ---------------------------------------------------------------------------- |
-| `scene`         | doc       | a `.json` with no other kind          | Entities, prefab instances and bulk geometry                                 |
-| `prefab`        | doc       | `"kind": "prefab"`                    | Its own doc; instances follow its edits                                      |
-| `material`      | doc       | `"kind": "material"`                  | Friction, bounce and a fallback look; overlays code materials                |
-| `game-settings` | doc       | `"kind": "game-settings"`             | The engine's and the game's settings; one per project                        |
-| `data-table`    | doc       | `"kind": "data-table"`                | Rows of one of the game's tables, merged in path order; ids unique per table |
-| `input-script`  | doc       | `.script.json`                        | A headless playtest's held actions                                           |
-| `checks`        | doc       | `.checks.json`                        | The checks for the scene beside it                                           |
-| `texture`       | blob      | `.png` `.jpg` `.jpeg` `.webp` `.gif`  | 8 MiB; size and format read from the header                                  |
-| `atlas`         | blob      | `.atlas.json`                         | 2 MiB; Aseprite or TexturePacker frames, tags and slices                     |
-| `font`          | blob      | `.fnt` `.woff2` `.woff` `.ttf` `.otf` | 4 MiB; a text BMFont names its page textures                                 |
-| `audio`         | blob      | `.ogg` `.mp3` `.wav` `.m4a`           | 16 MiB                                                                       |
-| `recording`     | blob      | `.recording.json`                     | 4 MiB; immutable once imported                                               |
-| `code`          | code      | the project file's `code` globs       | Edited in git; listed read-only with what each module registers              |
+| Kind            | Stored as | Matched by                            | Notes                                                                                                              |
+| --------------- | --------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `scene`         | doc       | a `.json` with no other kind          | Entities, prefab instances and bulk geometry                                                                       |
+| `prefab`        | doc       | `"kind": "prefab"`                    | Its own doc; instances follow its edits                                                                            |
+| `material`      | doc       | `"kind": "material"`                  | Friction, bounce and a fallback look; overlays code materials                                                      |
+| `game-settings` | doc       | `"kind": "game-settings"`             | The engine's and the game's settings; one per project                                                              |
+| `data-table`    | doc       | `"kind": "data-table"`                | Rows of one of the game's tables, merged in path order; ids unique per table                                       |
+| `input-script`  | doc       | `.script.json`                        | A headless playtest's held actions                                                                                 |
+| `checks`        | doc       | `.checks.json`                        | The checks for the scene beside it                                                                                 |
+| `texture`       | blob      | `.png` `.jpg` `.jpeg` `.webp` `.gif`  | 8 MiB; size and format read from the header                                                                        |
+| `atlas`         | blob      | `.atlas.json`                         | 2 MiB; Aseprite or TexturePacker frames, tags and slices                                                           |
+| `font`          | blob      | `.fnt` `.woff2` `.woff` `.ttf` `.otf` | 4 MiB; a BMFont (text or XML) names its page textures; meta carries advances, kerning, distance field and coverage |
+| `audio`         | blob      | `.ogg` `.mp3` `.wav` `.m4a`           | 16 MiB; meta carries format, duration, channels and rate; `stream`, `loopStart` and `loopEnd` settings             |
+| `sound`         | doc       | `"kind": "sound"`                     | 32 KiB; a bus, variants (clips or synth patches) and the step events that play it                                  |
+| `synth`         | doc       | `"kind": "synth"`                     | 4 KiB; a generated sound effect, rendered in the browser                                                           |
+| `strings`       | doc       | `"kind": "strings"`                   | 1 MiB; rows of a string key and its text per locale, merged across files                                           |
+| `dialogue`      | doc       | `"kind": "dialogue"`                  | 512 KiB; a conversation's speakers, nodes, choices, conditions and effects                                         |
+| `recording`     | blob      | `.recording.json`                     | 4 MiB; immutable once imported                                                                                     |
+| `code`          | code      | the project file's `code` globs       | Edited in git; listed read-only with what each module registers                                                    |
 
 A game adds kinds of its own as `<game>/<name>` (`GameDefinition.assetKinds`,
 declarative layouts only). Binaries live in a content store keyed by
@@ -2141,6 +2145,10 @@ what to do next:
   `quota-exceeded`, naming the limit, what is used and the maximum. The
   per-project numbers come with plan 55's publishing work; until then
   hosted projects run under `UNLIMITED_QUOTA`.
+- **Sounds and strings are documents; clips and fonts count as asset
+  bytes.** A sound, synth patch, strings file or dialogue is a doc under
+  its kind's cap; the clips and fonts they name are blobs, counted in the
+  project's blob bytes and a build's asset bytes.
 - **Cleanup:** deleted assets go to the trash and stay restorable until
   a `purgeAsset` removes one with its hash history. `unreferencedBlobs`
   names the content-hash blobs nothing references: not a live or
@@ -2220,6 +2228,8 @@ every existing view and fake still satisfies it:
   through `draw` on a view without it.
 - `depth?(id, z)` orders a visual inside its layer: higher on top, ties by
   first draw.
+- `text?(id, visual, layer)` draws a `TextVisual` ([Text and fonts](#text-and-fonts)),
+  and `locale?(table)` takes the locale's strings and font as data.
 - `commit?(tick)` and `frame?({ alpha, camera })` drive interpolation.
 - `pose(id, x, y, rot?, snap?)`: `snap` places the visual with no
   interpolation from its last pose (new visuals always snap).
@@ -3304,7 +3314,8 @@ export function walkAround() {
 
 Every registry, a game's or a gameless project's, holds eleven gameplay
 behaviors next to `sprite`, `occupant`, `lifetime`, [`anim`](#animation),
-[`tween`](#tweens) and [`emitter`](#effects-and-particles), so a level gets a
+[`tween`](#tweens), [`emitter`](#effects-and-particles), [`text`](#text-and-fonts)
+and [`audio`](#audio), so a level gets a
 playable hero, physics props and moving parts from data alone. A behavior
 belongs here when a second, unrelated game would use it unchanged; health,
 damage, inventory, score and abilities stay in games. Each one is built on
@@ -3319,7 +3330,7 @@ whatever the engine's do ([Write your own controller](#write-your-own-controller
 | `character-top-down`  | Walks in the plane: a kinematic controller, stopped and slid along by walls.                                                                                 | `maxSpeed` (4 m/s), `accel` (40 m/s²), `decel` (40 m/s²), `pushDynamic` (false), `move` (the action, `"move"`)                                                                                                                                                                                                        | `collider`; a `body` only if kinematic; not with `character-side-view`, `nav-agent` or `path-follow`  |
 | `character-side-view` | Runs and jumps under gravity, with coyote time, a jump buffer, a variable jump height, slopes, steps and one-way platforms; rides moving platforms.          | `maxSpeed` (6), `accel` (60), `decel` (70), `airControl` (0.6), `jumpHeight` (1.2 m), `gravityScale` (1), `maxFallSpeed` (15 m/s), `coyoteMs` (100), `jumpBufferMs` (100), `jumpCut` (0.5), `maxSlopeDeg` (50), `stepHeight` (0.04 m), `snapToGround` (0.04 m), `pushDynamic` (true), `move` and `jump` (the actions) | `collider`; a `body` only if kinematic; not with `character-top-down`, `nav-agent` or `path-follow`   |
 | `camera-target`       | With no `cameraTarget()` from the game, the camera follows the weighted centre of the live entities carrying it, loaded or spawned.                          | `weight` (1), `seat` (omitted: every view)                                                                                                                                                                                                                                                                            | —                                                                                                     |
-| `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `fields` (a type spawn's own fields), `active` (true)                                                                                                       | —                                                                                                     |
+| `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `fields` (a type spawn's own fields), `asChildren` (false: spawns are roots; true: each goes under the spawner in the tree), `active` (true)                | —                                                                                                     |
 | `nav-agent`           | Walks the scene's walk areas to a point or after an entity, kept apart from other agents; through a motion body when it has a `collider`, else by pose.      | `speed` (1.2 m/s), `arrive` (0.12 m), `radius` (0.3 m), `separation` (1.5), `repathTicks` (180), `to` (a point or an entity's id it walks to from the start; none)                                                                                                                                                    | a `nav` walk area in the scene (`nav-missing` otherwise); not with a character or `path-follow`       |
 | `path-follow`         | Moves the entity along a waypoint path, with the `follower` type's path; with a kinematic `body` it carries what stands on it.                               | `path` (`pts`, `mode`, `speed`, as a follower's)                                                                                                                                                                                                                                                                      | not with a character or `nav-agent`                                                                   |
 | `force-area`          | Pushes the dynamic bodies inside its collider one way, or toward or away from its pose; the two characters add the same acceleration while they stand in it. | `kind` (`directional`), `force` (directional, m/s²) or `strength` (point, m/s²), `falloff` (`none`, `linear` or `inverse-square`), `drag` (0 /s), `affects` (`groups`, `tags`)                                                                                                                                        | `collider` with `sensor: true`; pushing bodies needs physics                                          |
@@ -3856,8 +3867,10 @@ nothing to save.
   definition: `fields`, plus the members its system binds by id
   (`getBehavior(BODY)` has `velocity`, `applyForce`, `applyImpulse`, `wake`
   and the rest of `ctx.bodies` for this entity; `NAV_AGENT`'s has
-  `setDestination` and `stop`; `ANIM`'s has `play` and `stop`), or the
-  script itself. Undefined when the entity doesn't carry it. `behaviors()`
+  `setDestination` and `stop`; `ANIM`'s has `play` and `stop`; `TEXT`'s
+  has `set` and `setKey`; `AUDIO`'s has `play`, `stop` and `playing`), or
+  the script itself. A `visualOnly` behavior's handle exists only with a
+  view, so headless it is undefined. Undefined when the entity doesn't carry it. `behaviors()`
   lists the names it carries.
 - `on(type, handler)` subscribes to step events about the entity; the
   subscription ends with it.
@@ -4963,7 +4976,7 @@ but the simulation never reads back: camera moves, flashes, hit-stop,
 particle bursts and sounds. Each call appends a request to the tick's list
 and returns nothing; there is no getter. After the tick the shell presents
 the list: camera requests go to their viewport's rig, effects to the effect
-layer, bursts to the particle layer. A request made outside a step (in
+layer, bursts to the particle layer, sounds to the audio system. A request made outside a step (in
 `onLoad`, `onSwap` or a hook between ticks) goes out with the next tick's.
 
 | Call                                                   | What it asks                                                                                                   |
@@ -4975,7 +4988,7 @@ layer, bursts to the particle layer. A request made outside a step (in
 | `effects.flash({ color?, ms?, alpha? })`               | a full-canvas colour fading out                                                                                |
 | `effects.hitStop(ms)`                                  | stop the loop's clock for `ms` of wall time                                                                    |
 | `effects.burst(preset, at, { count?, angle?, tint? })` | particles from an `emitter` preset at a world point                                                            |
-| `audio.play`, `audio.stop`, `audio.music`              | sounds; kept in the list, but the shell plays none yet                                                         |
+| `audio.play`, `audio.stop`, `audio.music`              | sounds and music through the audio system ([Audio](#audio))                                                    |
 
 `viewport` picks one of several [viewports](#split-screen) (default the
 first). Headless, the list is dropped unless asked for: `recordPresentation:
@@ -5344,13 +5357,13 @@ functions aren't guaranteed to, so a tweened puzzle replays everywhere.
 - A `tween` block lists 1–8 specs the entity plays from spawn, each on its
   own: bobbing pickups, swinging signs, pulsing lights.
 - **What can be tweened.** A pose channel needs a type that can be posed:
-  `marker`, `decor`, `solid` and `sensor`, and game types whose system
-  implements `SceneSystem.setPose` (or that sit on one of those bases with
-  no system of their own). `prop` and `follower` can't; a `solid` or
-  `sensor` under a host moves in the host's frame. A visual channel
-  needs a `sprite`. Anything else is `tween-target-invalid`: an error in a
-  scene's validation for a `tween` block, and an `EngineError` thrown from
-  `ctx.tweens.to`.
+  `node`, `marker`, `decor`, `solid`, `sensor` and `prop`, and game types
+  whose system implements `SceneSystem.setPose` (or that sit on one of
+  those bases with no system of their own). A `follower` can't (its path
+  moves it); a `solid` or `sensor` under a host moves in the host's frame.
+  A visual channel needs a `sprite`. Anything else is
+  `tween-target-invalid`: an error in a scene's validation for a `tween`
+  block, and an `EngineError` thrown from `ctx.tweens.to`.
 - `solid` and `sensor` move their collider with the pose, so a tweened
   door blocks where it is drawn, and the pose is written without a snap,
   so it draws smoothly between ticks.
@@ -5801,10 +5814,19 @@ rendered frames by the loop's scaled wall time, so pause and hit-stop
 freeze them, and they draw from the layer's own random stream; headless
 there are none.
 
+The behavior reaches the particle layer only through the view's
+`emitter(id, { preset, follow, layer, restart })` and `removeEmitter(id)`
+members, which take data: `follow` names the entity (`{ entity, offset?,
+flip? }`) and the view resolves its interpolated pose on each rendered
+frame. Every `SceneView` member takes data, never a callback, so a view
+can sit across a worker link.
+
 The shell makes both layers. A host that draws its own world uses them
 from `.`: `createParticleLayer(container, textures, { reducedMotion, seed,
-pxPerMetre?, layer?, texture? })` draws into a Pixi container
-(`reducedMotion` a boolean, or a function read on each use), and
+pxPerMetre?, layer?, texture?, pose? })` draws into a Pixi container
+(`reducedMotion` a boolean, or a function read on each use; `pose` gives
+a followed entity's pose this frame, for `emitter(id, preset, follow,
+layer?)`), and
 `createEffectLayer(layer, loop, { reducedMotion })` takes a DOM element
 over the canvas and anything with a time scale:
 
@@ -5839,16 +5861,873 @@ particles and transitions from their next frame, flash or fade on.
 `GameInstance.reducedMotion` reads it now; `UiContext.reducedMotion`
 carries it as it stood when the UI mounted.
 
-| What                            | Under reduced motion                                              |
-| ------------------------------- | ----------------------------------------------------------------- |
-| Camera shake                    | dropped: shake requests do nothing and trauma stays 0             |
-| Flash                           | alpha at most 0.3, and at most 80 ms                              |
-| Particles                       | emitter rates and burst counts quartered                          |
-| Scene transitions               | a fade is a cut                                                   |
-| The game's HUD                  | `UiContext.reducedMotion`, for the game's own animations to read  |
-| Hit-stop                        | unchanged: it is a pause, not motion                              |
-| Camera follow, zoom and regions | unchanged                                                         |
-| `anim` and tweens               | unchanged: they are simulation, and run the same for every player |
+| What                             | Under reduced motion                                              |
+| -------------------------------- | ----------------------------------------------------------------- |
+| Camera shake                     | dropped: shake requests do nothing and trauma stays 0             |
+| Flash                            | alpha at most 0.3, and at most 80 ms                              |
+| Particles                        | emitter rates and burst counts quartered                          |
+| Scene transitions                | a fade is a cut                                                   |
+| The game's HUD                   | `UiContext.reducedMotion`, for the game's own animations to read  |
+| Rich text `[shake]` and `[wave]` | drawn still                                                       |
+| The dialogue box's typewriter    | lines show whole                                                  |
+| Hit-stop                         | unchanged: it is a pause, not motion                              |
+| Camera follow, zoom and regions  | unchanged                                                         |
+| `anim` and tweens                | unchanged: they are simulation, and run the same for every player |
+
+## Audio
+
+Sound is presentation. Game code asks for it through `ctx.present.audio`,
+sound docs play on step events with no code at all, and the shell's audio
+system plays both through a backend after each tick. Nothing it does
+reaches the simulation: headless and the editor's edit mode build no
+backend, a run with sound and the same run silent end on one digest, and
+the `audio` and `text` behaviors are `visualOnly`, which means "never
+changes simulation state, built only with a view", for sound as much as
+for drawing.
+
+**Sounds and strings are documents; clips and fonts count as asset
+bytes.** A `sound` doc (`*.sound.json`, 32 KiB) says what to play and when;
+the bytes it plays are `audio` clips (blobs, 16 MiB each) or `synth`
+patches (docs, 4 KiB). Every sound, patch, strings file and dialogue is a
+runtime doc a build ships in `data/`; clips and fonts ship in `assets/`
+and count toward a project's and a build's bytes.
+
+| Field        | What it does                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `bus`        | where it plays: the engine's `master`, `music`, `sfx`, `voice` and `ui`, or one the game declares (`sound-bus-unknown` otherwise) |
+| `variants`   | clips or synth patches by id, each with a `weight` (default 1), picked by the audio system's own seeded random stream             |
+| `volume`     | 0–1, default 1, times the request's own                                                                                           |
+| `pitch`      | a playback-rate range, default `[1, 1]`; each play picks inside it                                                                |
+| `loop`       | loops the clip (an audio clip's `loopStart` and `loopEnd` settings bound it)                                                      |
+| `cooldownMs` | drops a second play inside the window, in wall time                                                                               |
+| `maxVoices`  | the most voices of this sound at once, default 8; a new one stops the oldest                                                      |
+| `positional` | pans from where the request or its entity is, across the main viewport                                                            |
+| `range`      | with `positional`, fades linearly to silence at this many metres from the view's centre                                           |
+| `caption`    | a string key shown by `createCaptions` while it plays ([Accessibility](#accessibility))                                           |
+| `on`         | triggers: each a step event `type`, optionally the event's entity's `type` or `tag`, and `data` keys that must equal the event's  |
+| `preload`    | loads (or renders) its clips with the scene's bundle instead of on first play                                                     |
+
+**Triggers.** At load, and whenever a sound doc changes, the system builds
+one index of every sound's `on` matchers; after each tick it matches the
+tick's step events against it, sounds in id order, and each match is one
+play. `{ "event": "contact:start", "type": "crate" }` clinks every crate's
+first touch, `{ "event": "anim:frame", "data": { "event": "swing" } }`
+plays on an animation's frame event, and a game's own events and a
+dialogue's `emit` effects match the same way.
+
+**Requests.** `ctx.present.audio.play(sound, { at?, entity?, volume?,
+pitch?, key?, caption? })` plays one now (`entity` follows the entity's
+interpolated world pose each frame, so a sound on a child moves with its
+parent); `stop(key, { fadeMs? })` stops what a `play` started under that
+`key`. A request names a sound doc, never a clip.
+
+**Music.** One music voice per game: `music(sound, { fadeMs?, at? })`
+crossfades to it over `fadeMs` (default 800), and `music(null)` fades it
+out. With `at: "tick"` the song's zero is scheduled on the audio clock at
+the time the request's tick began, so a rhythm game's chart lines up with
+ticks; each frame the system compares the voice's position with the
+simulation's (`clock.simPositionMs(tick)`) and seeks the voice, never the
+simulation, when they drift more than 40 ms apart. `GameInstance.audio.clock`
+answers `timeOfTick`, `simPositionMs`, the last `driftMs` and `latencyMs`.
+
+**The `audio` behavior** plays its `sound` while the entity carries it:
+attach plays (keyed by the entity, so detach stops it), `playing: false`
+waits for game code, and `volume` scales the sound's own. A positional
+sound on it pans with the entity. Its handle, `getBehavior(AUDIO)`, has
+`play()`, `stop()` and `playing`; what the handle changes is saved when it
+differs from the block. Headless the behavior isn't built, so the handle
+is undefined there: write `?.`.
+
+**Synth patches.** A `synth` doc is a short generated sound, rendered in
+the browser with no file to ship: a `wave` (`square`, `saw`, `triangle`,
+`sine`, `noise`), `freq` (20–8,000 Hz) with `slide`, `slideAccel`, `jump`
+and `vibrato`, an envelope (`attackMs`, `sustainMs`, `punch`,
+`decayMs`, at most 5 s in all), optional `lowpass` and `highpass`
+filters, `retriggerMs` and a `seed` for `noise`. A sound names a patch as a
+variant like a clip; the render is cached per patch and dropped when the
+doc changes, so a co-edited patch is heard on its next play. `renderSynth`
+gives the samples (one channel at `SYNTH_SAMPLE_RATE`), `synthDurationMs`
+its length without rendering, and `synthWav` 16-bit WAV bytes.
+`randomSynth(preset, rng)` draws a patch from one of `SYNTH_PRESETS`
+(`pickup`, `jump`, `hit`, `explosion`, `laser`, `powerup`, `blip`), the
+same patch for the same seed, and `mutateSynth(patch, rng, amount?)` nudges
+every number by up to `amount` of its range. A patch's sample count is
+integer arithmetic, but its values use `Math.sin`, so they can differ in
+the last bit between JS engines; nothing hashes them.
+
+**Stereo.** The backend's output is two channels or more and nothing
+downmixes to mono. Every voice has its own stereo panner ahead of its bus:
+a mono clip or a patch is placed left to right by its pan, and a stereo
+clip keeps both channels and is balanced by it. Positional pan is opt-in
+per sound, and distance falloff (`range`) a further opt-in.
+
+```ts chime-synth.ts
+import {
+  fakeAudioBackend,
+  mutateSynth,
+  randomSynth,
+  renderSynth,
+  SYNTH_PRESETS,
+  SYNTH_SAMPLE_RATE,
+  synthDurationMs,
+  synthWav,
+} from "@jams/engine/headless";
+import { Rng } from "@jams/engine/sim-kit";
+
+/**
+ * Draws a pickup from its preset, renders it, and plays the render through
+ * the fake backend panned right: the log a test reads instead of hearing it.
+ */
+export function chime() {
+  const patch = randomSynth("pickup", Rng.from(7));
+  const again = randomSynth("pickup", Rng.from(7));
+  const samples = renderSynth(patch);
+  const backend = fakeAudioBackend({ state: "running" });
+  const clip = backend.buffer([samples], SYNTH_SAMPLE_RATE);
+  backend.play(clip, { bus: "sfx", volume: 0.8, rate: 1, pan: 0.5, loop: false });
+  return {
+    presets: [...SYNTH_PRESETS],
+    sameSeedSamePatch: JSON.stringify(patch) === JSON.stringify(again),
+    ms: synthDurationMs(patch),
+    samples: samples.length,
+    wavBytes: synthWav(patch).length,
+    sameWave: mutateSynth(patch, Rng.from(1)).wave === patch.wave,
+    log: backend.log.map((c) =>
+      c.op === "buffer"
+        ? `buffer ${c.channels}ch ${c.length}`
+        : c.op === "play"
+          ? `play pan ${c.opts.pan}`
+          : c.op,
+    ),
+  };
+}
+```
+
+`chime()` gives a 306 ms patch of 13,495 samples (27,034 WAV bytes), the
+same patch for the same seed, and a log of `buffer 1ch 13495` then `play
+pan 0.5`. `fakeAudioBackend` plays nothing: it logs every call (a buffer
+by its channel count, length and rate, never its samples) and `advance`s a
+fake clock, for tests of anything that plays.
+
+**Clips.** `assets import` reads an `audio` clip's header (WAV, Ogg, MP3
+or M4A) into its sidecar's meta: format, `durationMs`, `channels` and
+`sampleRate`, which `assets info` prints and the editor shows without
+decoding. Its import settings are `stream` (play through a media element
+instead of decoding whole, for long music; a build's service worker
+answers range requests for it), `loopStart` and `loopEnd` (seconds). A
+sidecar written before the meta grew is read again by `assets reimport`.
+
+**Hosts.** `GameConfig.audio` is `{ backend?, prefs? }`: `webAudioBackend()`
+in a browser, `false` (or none) for silence, or a function the shell calls
+when Play starts and whose backend it closes when Play ends. Clips are
+fetched through `GameConfig.assets.url`; without it only synth patches
+sound. `prefs` keeps the player's choices (default: this page's life
+only); `browserPrefsStore()` keeps them in `localStorage` under
+`jams-engine:prefs:<gameId>`. The site and the standalone build pass both.
+
+- **Unlock.** Browsers start audio suspended. The shell resumes it on the
+  first pointer or key press on the canvas, raises `audio:unlocked`, and
+  `GameInstance.audio.unlocked` turns true. Sounds asked for before that
+  are dropped; music asked for before it starts then.
+- **Buses.** `GameDefinition.audio.buses` adds buses (`{ name, volume? }`),
+  each routed into `master`. `GameInstance.audio` (null while no backend
+  plays) has `buses()`, `setBus(bus, volume, muted?)`, saved under
+  `audio.<bus>`, `clock` and `stopAll(fadeMs?)`.
+- **Latency.** `game.calibrateLatency({ beats?, bpm?, sound? })` plays a
+  click track (16 beats at 100 bpm by default, the engine's own click patch
+  unless `sound` names one) and times the player's presses; the median
+  offset becomes the recorded `@latency { ms }` command, kept in the prefs
+  under `audio.latencyMs` so the host sends it at each start. It resolves
+  `{ ms, spread }`, or null under 8 taps. A rhythm game judges taps from
+  `ctx.input.latencyMs()` and its actions' sub-tick `offset`, and a replay
+  judges as the run did, since `@latency` is in the recording.
+- **The editor.** Edit mode never plays the game's sound. Audio, sound and
+  synth rows in the project tree have a play button (the editor's own
+  backend, made on that first click), asset fields of those kinds show
+  play, stop and the duration, and selecting a sound or a patch opens its
+  panel: a sound's bus, volume, pitch, variants with weights and triggers;
+  a patch's waveform, one button per preset, Mutate and every field, heard
+  shortly after each change while its speaker is on. Play is silent unless
+  "Sound in Play" is on in the play bar, so a shared session stays quiet.
+
+This page plays the gate game ([Dialogue](#dialogue)) with sound, and
+mounts an options panel that writes the player's volumes, language and
+captions through the game instance:
+
+```ts sound-options.ts
+import {
+  browserPrefsStore,
+  createGame,
+  webAudioBackend,
+  type GameInstance,
+  type MountUi,
+} from "@jams/engine";
+import { parseSceneOrThrow } from "@jams/engine/scene";
+
+import { gateGame, gateProject } from "./gate-game";
+
+/**
+ * A page playing the gate game with sound: Web Audio, unlocked by the
+ * player's first press on the canvas, and the player's volumes, language
+ * and captions kept in this browser.
+ */
+export async function startGateGame(canvas: HTMLCanvasElement, sceneText: string) {
+  const game = await createGame(canvas, {
+    game: gateGame,
+    project: gateProject,
+    displayWidth: canvas.clientWidth,
+    displayHeight: canvas.clientHeight,
+    audio: { backend: webAudioBackend(), prefs: browserPrefsStore() },
+  });
+  game.on("audio:unlocked", () => console.info("sound is on"));
+  const report = game.loadScene(parseSceneOrThrow(sceneText, game.registry));
+  if (!report.ok) throw new Error(`the scene didn't load: ${report.error}`);
+  game.start();
+  return game;
+}
+
+/**
+ * An options panel: a slider and a mute box per bus, the language and
+ * captions. Each control writes through `GameInstance`, which saves it in
+ * the prefs; nothing here reaches the simulation.
+ */
+export const mountSoundOptions: MountUi = (ctx) => {
+  const doc = ctx.root.ownerDocument;
+  const form = doc.createElement("form");
+  form.setAttribute("aria-label", "Sound and language");
+  // The layer takes no pointer events; whatever is clickable opts back in.
+  form.style.pointerEvents = "auto";
+  const game: GameInstance = ctx.game;
+
+  const field = (label: string, input: HTMLElement) => {
+    const row = doc.createElement("label");
+    row.append(label, input);
+    form.append(row);
+  };
+
+  // Null until a backend plays; a page that has none shows no sliders.
+  for (const [bus, level] of Object.entries(game.audio?.buses() ?? {})) {
+    const slider = doc.createElement("input");
+    slider.type = "range";
+    slider.name = bus;
+    slider.min = "0";
+    slider.max = "1";
+    slider.step = "0.05";
+    slider.value = String(level.volume);
+    const mute = doc.createElement("input");
+    mute.type = "checkbox";
+    mute.name = `${bus}-muted`;
+    mute.checked = level.muted;
+    const write = () => game.audio?.setBus(bus, Number(slider.value), mute.checked);
+    slider.addEventListener("input", write);
+    mute.addEventListener("change", write);
+    field(`${bus} volume`, slider);
+    field(`Mute ${bus}`, mute);
+  }
+
+  const language = doc.createElement("select");
+  language.name = "locale";
+  for (const locale of game.locale.available()) {
+    const option = doc.createElement("option");
+    option.value = option.textContent = locale;
+    language.append(option);
+  }
+  language.value = game.locale.current();
+  language.addEventListener("change", () => game.locale.set(language.value));
+  field("Language", language);
+
+  const captions = doc.createElement("input");
+  captions.type = "checkbox";
+  captions.name = "captions";
+  captions.checked = game.captions.enabled();
+  captions.addEventListener("change", () => game.captions.set(captions.checked));
+  field("Captions", captions);
+
+  ctx.root.append(form);
+  return { destroy: () => form.remove() };
+};
+```
+
+## Text and fonts
+
+The `text` behavior (`TEXT`, `visualOnly`) draws text at its entity:
+
+| Field     | What it does                                                                         |
+| --------- | ------------------------------------------------------------------------------------ |
+| `text`    | literal text, `{name}` filled from `vars`; read as rich markup when `rich` is set    |
+| `key`     | a string key, looked up in the player's locale ([Localisation](#localisation)); wins |
+| `font`    | a `font` asset; default the project's font for the locale, else a fallback face      |
+| `size`    | px at zoom 1, default 16                                                             |
+| `color`   | `0xRRGGBB`, default white                                                            |
+| `align`   | `left`, `center` (default) or `right`                                                |
+| `anchor`  | where the pose sits in the text's box, `[0–1, 0–1]`, default the centre              |
+| `wrap`    | wrap width, px at zoom 1; without it lines break only where the text does            |
+| `outline` | `{ width, color }`, a stroke round each glyph                                        |
+| `vars`    | values for `{name}` placeholders                                                     |
+
+It is drawn only: it follows its entity's interpolated world pose through
+the tree, so a sign on a cart rides it, and headless it isn't built. Its
+handle, `getBehavior(TEXT)`, has `set(text)` and `setKey(key, vars?)`,
+which show other text until the block changes (a score, a damage number);
+what they show is saved with a world save. Headless the handle is
+undefined, so game code writes `?.`.
+
+The system draws one data-only `TextVisual` per block through the view's
+`text` member: the parsed lines, the face, size, colour, alignment,
+anchor, wrap, outline, direction and a fallback box. Keyed text resolves
+through the locale's table the view holds (`SceneView.locale`, which the
+shell hands it at start and on each locale change), so a locale switch
+redraws every keyed text and nothing else.
+
+**Fonts.** A BMFont (`.fnt`, text or XML) draws as `BitmapText` from its
+page textures, MSDF and SDF faces (`distanceField` in its meta) through
+Pixi's distance-field shader; a web font (`.woff2`, `.woff`, `.ttf`,
+`.otf`) draws as `Text` once its `FontFace` loads from the loader, and a
+fallback face draws while either loads. A font's meta records its line
+height, a BMFont's advances and kerning, its `distanceField` and the code
+point ranges it covers (`coverage`), which `font-missing` checks the
+strings against. A scene's bundle loads the fonts its text blocks and its
+locales name. `createRichText(visual, fonts)` gives game code drawing its
+own Pixi the same `Container` a text block gets.
+
+**Rich text.** `parseRichText(source, vars?)` reads `[b]`, `[i]`,
+`[color=#rrggbb]`, `[size=n]`, `[icon=asset:frame]` (an atlas frame
+inline), `[shake]` and `[wave]` (animated per glyph, still under reduced
+motion), with `\[` escaping a bracket and `{name}` filled from `vars` as
+text, never markup; an unknown tag stays literal with a warning.
+`plainText` gives the text without markup, for captions, screen readers
+and measuring. `measureText(lines, font, size, wrap?)` is exact for a
+BMFont (its advances and kerning) and an estimate for a web font or none;
+the editor and the schematic renders (`renderSceneSvg`,
+`renderSceneAscii`) size a text's box with it, and `scene render` marks an
+estimate `≈`.
+
+```ts sign-text.ts
+import { measureText, parseRichText, plainText } from "@jams/engine/game";
+import type { FontMeta } from "@jams/engine/project";
+
+/** A 5×7 pixel face as `assets import` records a BMFont: every glyph 6 px wide at size 10. */
+const pixelFace: FontMeta = {
+  format: "bmfont",
+  size: 10,
+  lineHeight: 12,
+  advances: Object.fromEntries(
+    [..."Shop open, coins!0123456789"].map((c) => [c.codePointAt(0)!, 6]),
+  ),
+};
+
+/** Parses a shop sign's markup, and measures it in the pixel face and with no face at all. */
+export function shopSign() {
+  const source = "[b]Shop[/b] open\n[color=#ffd24a]{coins}[/color] coins [wave]![/wave]";
+  const { lines, warnings } = parseRichText(source, { coins: 12 });
+  return {
+    spans: lines.map((line) => line.map((s) => s.text)),
+    bold: lines[0]?.[0]?.bold === true,
+    gold: lines[1]?.[0]?.color,
+    plain: plainText(source, { coins: 12 }),
+    warnings,
+    unknown: parseRichText("[blink]Sale[/blink]").warnings.length,
+    // Exact from the face's advances at its own size, and scaled at size 20.
+    pixel: measureText(lines, pixelFace, 10),
+    big: measureText(lines, pixelFace, 20),
+    // A web font, or no font, is an estimate.
+    estimated: !measureText(lines, null, 10).exact,
+    wrapped: measureText(parseRichText("Shop open coins").lines, pixelFace, 10, 60).height,
+  };
+}
+```
+
+The sign parses into `Shop`, ` open` and `12`, `coins`, `!`, with no
+warnings (`[blink]` gives two), and measures exactly 60 × 24 px at size
+10 and 120 × 48 at 20; wrapped at 60 px, "Shop open coins" takes two lines.
+
+**Right to left.** Web-font text gets its base direction from the locale,
+and the browser shapes it. Bitmap fonts reverse pure right-to-left runs
+but don't shape glyphs, so Arabic and other joined scripts need a web
+font. HUD text is DOM, where the browser does both.
+
+`uiContainer` is for world-space text only; a HUD's text is DOM
+([UI](#ui)), as the dialogue box is.
+
+## Dialogue
+
+A `dialogue` doc (`*.dialogue.json`) is a conversation: `speakers` (an
+`id`, a `name` string key and a `portrait` atlas frame), `nodes` and a
+`start` node. A node has `lines` (each a `speaker`, a string key `text`
+or literal `say` for a prototype, a `voice` sound or clip, a `portrait`,
+an `if` and `vars` filling `{name}` from pointers), then `choices` (each
+`text` or `say`, `to`, an `if`, `do` effects, and `hidden: "hide" |
+"disable"` for a failed `if`, default hide), or `next`, or `end` with an
+ending's name. A node's `do` runs when it is entered, and a failed `if`
+on a node goes to its `else`.
+
+Conditions and effects read and write JSON pointers into the game's
+variables, `ctx.persist` by default, so saves carry them: conditions are
+`{ var, eq | ne | gt | gte | lt | lte | truthy }`, `all`, `any`, `not`
+and `{ visited: node }`; effects are `set`, `add` (the only arithmetic),
+`push` and `emit` (a step event game code, or a sound's trigger, handles).
+
+Dialogue is simulation: it runs headless, records, replays and saves.
+
+- **`ctx.dialogue`** has `start(id, { node?, vars? })`, `view()` and
+  `stop()`. One conversation is active per runtime; `start` while one runs
+  replaces it with a dev warning. A game needing barks or several
+  conversations at once calls `createDialogueRunner(file, id, vars, emit)`
+  itself and keeps the runner's `save()` in its state.
+- **Commands.** Only the recorded `@dialogue-advance` and
+  `@dialogue-choose { choice }` move it, applied before the game's
+  `beforeStep`. One with no conversation running, or a choice that isn't
+  visible and enabled, is ignored and logged. While a conversation runs,
+  legal commands ([Legal commands](#legal-commands)) lead with
+  `@dialogue-advance` or each enabled choice, so fuzz walks conversations,
+  and in a `turns` or `event` game a dialogue command wakes the loop.
+- **Events.** `dialogue:line { dialogue, node, line }`, `dialogue:choices
+{ dialogue, node, count }` and `dialogue:end { dialogue, ending }`
+  (`DIALOGUE_LINE`, `DIALOGUE_CHOICES`, `DIALOGUE_END`), plus each `emit`
+  effect's own.
+- **The view.** `ctx.dialogue.view()`, the store's `dialogue`
+  (`selectDialogue`) and `PlayState.dialogue` hold the `DialogueView`:
+  the node, line index, current line with its speaker's name, `choices`
+  once the node's last line shows (each with `enabled`), the `log` of lines
+  shown so far (at most 200) and `ended`.
+- **Saves.** A world save holds the runner's state; the variables are
+  where the host keeps them.
+- **Playtests.** `until: { dialogue: { node?, ended?, active? } }` waits
+  for a node, an ending (`true` for any) or the conversation to start or
+  stop. `exploreDialogue(file, { vars?, maxDepth? })` (`./headless`) walks
+  every choice breadth-first and returns each reachable ending with the
+  choice path to it; `vp run scene dialogue walk <id>` prints the same.
+- **Checks.** `dialogue-dead-end` (a node with no choices, `next` or
+  `end`; as a warning, every choice can be hidden with nothing to fall back
+  on), `dialogue-unreachable` (no path from `start` reaches a node),
+  `asset-missing` for a `to`, `next` or `else` naming no node, and
+  `string-key-missing` for its keys.
+
+The gate game opens the guard's conversation on load. Paying the toll
+emits `toll-paid`, which the coin sound's trigger plays; on the "paid"
+ending the game changes the sign through its `text` handle, stops the
+gate's hum through its `audio` handle and fades the music out:
+
+```ts gate-game.ts
+import { AUDIO, DIALOGUE_END, defineGame, TEXT, type DialogueEndEvent } from "@jams/engine/game";
+import { memoryRuntimeView } from "@jams/engine/headless";
+import type { DialogueFile, SoundFile, StringsFile, SynthFile } from "@jams/engine/project";
+import type { SceneDefinition } from "@jams/engine/scene";
+
+/**
+ * The guard's conversation: pay the toll to pass, or walk away. Conditions,
+ * effects and a line's `{toll}` read JSON pointers into the game's
+ * `persist` value.
+ */
+export const gateTalk: DialogueFile = {
+  kind: "dialogue",
+  v: 1,
+  start: "gate",
+  speakers: [{ id: "guard", name: "speaker.guard" }],
+  nodes: [
+    {
+      id: "gate",
+      lines: [{ speaker: "guard", text: "gate.halt", vars: { toll: "/toll" } }],
+      choices: [
+        {
+          text: "gate.pay",
+          if: { var: "/gold", gte: 3 },
+          do: [{ add: "/gold", by: -3 }, { emit: "toll-paid" }],
+          to: "through",
+        },
+        { text: "gate.leave", to: "turned-away" },
+      ],
+    },
+    {
+      id: "through",
+      lines: [{ speaker: "guard", text: "gate.go-on" }],
+      do: [{ set: "/flags/gate-open", to: true }],
+      end: "paid",
+    },
+    { id: "turned-away", lines: [{ speaker: "guard", text: "gate.later" }], end: "left" },
+  ],
+};
+
+export const gateStrings: StringsFile = {
+  kind: "strings",
+  v: 1,
+  strings: [
+    { key: "speaker.guard", en: "Guard", fr: "Garde", ar: "الحارس" },
+    {
+      key: "gate.halt",
+      en: "Halt. The toll is {toll} gold.",
+      fr: "Halte. Le péage coûte {toll} or.",
+    },
+    { key: "gate.pay", en: "Pay the toll.", fr: "Payer le péage." },
+    { key: "gate.leave", en: "Turn back.", fr: "Faire demi-tour." },
+    { key: "gate.go-on", en: "Go on, then.", fr: "Passe, alors." },
+    { key: "gate.later", en: "Come back with coin.", fr: "Reviens avec de l'or." },
+    { key: "gate.open", en: "Open", fr: "Ouvert", note: "The sign once the toll is paid." },
+    { key: "caption.coin", en: "[Coins clink]", fr: "[Tintement de pièces]" },
+  ],
+};
+
+/** A pickup-like blip, written by hand; `synth new pickup` draws one from the preset. */
+export const coinPatch: SynthFile = {
+  kind: "synth",
+  v: 1,
+  wave: "square",
+  duty: 0.5,
+  freq: 880,
+  jump: { atMs: 60, semitones: 5 },
+  sustainMs: 60,
+  punch: 0.4,
+  decayMs: 240,
+};
+
+/** Plays the patch on the dialogue's `toll-paid` event, captioned, with no game code. */
+export const coinSound: SoundFile = {
+  kind: "sound",
+  v: 1,
+  bus: "sfx",
+  volume: 0.8,
+  pitch: [0.95, 1.05],
+  variants: [{ clip: "coin-patch" }],
+  caption: "caption.coin",
+  on: [{ event: "toll-paid" }],
+};
+
+/** The gate's hum: a low looping tone, placed and faded by where the gate is on screen. */
+export const humSound: SoundFile = {
+  kind: "sound",
+  v: 1,
+  bus: "sfx",
+  volume: 0.4,
+  variants: [{ clip: "hum-patch" }],
+  loop: true,
+  positional: true,
+  range: 6,
+};
+
+export const humPatch: SynthFile = {
+  kind: "synth",
+  v: 1,
+  wave: "sine",
+  freq: 110,
+  sustainMs: 2000,
+  decayMs: 0,
+};
+
+/** The music while the guard talks: one voice on the music bus, crossfaded by `present.audio.music`. */
+export const tuneSound: SoundFile = {
+  kind: "sound",
+  v: 1,
+  bus: "music",
+  variants: [{ clip: "tune-patch" }],
+  loop: true,
+};
+
+export const tunePatch: SynthFile = {
+  kind: "synth",
+  v: 1,
+  wave: "triangle",
+  freq: 220,
+  vibrato: { semitones: 0.3, hz: 5 },
+  sustainMs: 2000,
+  decayMs: 0,
+};
+
+/** The project as a host passes it: English by default, French beside it, Arabic for the guard's name. */
+export const gateProject = memoryRuntimeView({
+  engine: { locales: { default: "en", available: ["en", "fr", "ar"] } },
+  docs: {
+    dialogue: { "gate-talk": gateTalk },
+    strings: { "gate-strings": gateStrings },
+    synth: { "coin-patch": coinPatch, "hum-patch": humPatch, "tune-patch": tunePatch },
+    sound: { "coin-sound": coinSound, "hum-sound": humSound, "tune-sound": tuneSound },
+  },
+});
+
+/**
+ * Opens the guard's conversation on load, with the wallet in `persist`
+ * where the dialogue's conditions and effects read and write. The run ends
+ * with the conversation's ending; on "paid" the sign shows its new key, the
+ * gate's hum stops and the music fades out. The sign and the hum are drawn
+ * and played only with a view, so headless their handles are undefined.
+ */
+export const gateGame = defineGame({
+  id: "gate",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  persist: { initial: () => ({ gold: 3, toll: 3 }) },
+  createRuntime: (ctx) => ({
+    onLoad() {
+      ctx.present.audio.music("tune-sound", { fadeMs: 800 });
+      ctx.dialogue.start("gate-talk");
+      ctx.events.on(DIALOGUE_END, (e) => {
+        if ((e.data as DialogueEndEvent).ending !== "paid") return;
+        ctx.entity("sign")?.getBehavior(TEXT)?.setKey("gate.open");
+        ctx.entity("gate")?.getBehavior(AUDIO)?.stop();
+        ctx.present.audio.music(null, { fadeMs: 1200 });
+      });
+    },
+    snapshot: () => null,
+  }),
+  play: {
+    results: ["paid", "left"],
+    outcome: ({ events }) => {
+      const end = events.find((e) => e.type === DIALOGUE_END);
+      return end ? { result: (end.data as DialogueEndEvent).ending } : null;
+    },
+  },
+});
+
+export const gateScene: SceneDefinition = {
+  v: 5,
+  game: "gate",
+  name: "gate",
+  bounds: [0, 0, 8, 4],
+  entities: [
+    {
+      id: "sign",
+      type: "marker",
+      at: [4, 1],
+      behaviors: { text: { key: "gate.halt", vars: { toll: 3 }, size: 14, wrap: 160 } },
+    },
+    { id: "gate", type: "marker", at: [6, 2], behaviors: { audio: { sound: "hum-sound" } } },
+  ],
+};
+```
+
+This pays the toll headless, through the dialogue predicate and the two
+commands, keeping the presentation requests, and walks every ending with
+and without the gold:
+
+```ts gate-playtest.ts
+import {
+  DIALOGUE_LINE,
+  exploreDialogue,
+  runPlaytest,
+  type InputScriptV2,
+} from "@jams/engine/headless";
+
+import { gateProject, gateGame, gateScene, gateTalk } from "./gate-game";
+
+/** Waits for the guard's question, pays, then reads the last line. */
+const payTheToll: InputScriptV2 = {
+  v: 2,
+  steps: [
+    { hold: [], until: { dialogue: { node: "gate", active: true } }, max: 10 },
+    { command: "@dialogue-choose", args: { choice: 0 } },
+    { hold: [], until: { dialogue: { node: "through" } }, max: 10 },
+    { command: "@dialogue-advance" },
+    { hold: [], until: { dialogue: { ended: "paid" } }, max: 10 },
+  ],
+};
+
+/** Plays the toll headless, then lists every ending the guard's talk can reach with and without the gold. */
+export function payAndWalk() {
+  const run = runPlaytest({
+    game: gateGame,
+    scene: gateScene,
+    project: gateProject,
+    script: payTheToll,
+    recordPresentation: true,
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run)}`);
+  const ending = (gold: number) =>
+    exploreDialogue(gateTalk, { vars: { gold } }).endings.map(
+      (e) => `${e.ending} via [${e.path.join(",")}]`,
+    );
+  return {
+    result: run.outcome.result,
+    nodes: run.events
+      .filter((e) => e.type === DIALOGUE_LINE)
+      .map((e) => (e.data as { node: string }).node),
+    // `toll-paid` is the step event the coin sound's trigger matches.
+    paid: run.events.some((e) => e.type === "toll-paid"),
+    audio: (run.present ?? [])
+      .filter((r) => r.kind === "audio")
+      .map(({ tick, op }) => `${tick} ${op.op} ${"sound" in op ? op.sound : ""}`),
+    rich: ending(3),
+    poor: ending(0),
+  };
+}
+```
+
+It ends `paid`, with `toll-paid` raised, the line event of the `through`
+node (the first line shows at load, before the run's first tick), and two
+music requests: `tune-sound` at tick 0 and `null` at the ending. With
+three gold the walk finds `paid via [0]` and `left via [1]`; with none,
+only `left via [1]`, since the toll's choice is hidden.
+
+**The dialogue box.** `createDialogueBox(ctx, { speed?, actions?,
+portraits?, className? })` (`.`, a `MountUi` helper) draws the store's
+dialogue as a `role="dialog"` region: the speaker, the line typing out at
+`speed` characters a second (default 40; whole under reduced motion or
+`Infinity`) with its text in a polite live region, the portrait as a CSS
+background of its atlas frame, and the choices as real buttons. The
+advance action (`confirm` by default) or a click first shows the
+line whole, then sends `@dialogue-advance`; `up` and `down` move between
+the enabled choices. It only ever sends those two commands.
+`createTextLog(ctx, { toggle?, max? })` lists the lines shown so far, shown
+and hidden by a UI-only action, and `renderRichText(el, lines, ctx)` draws
+rich text as spans. All three set `dir` and `lang` from the locale and
+redraw on a change. The box's defaults have no specificity, so a game's
+own class or stylesheet wins, and colours read custom properties
+(`--jams-dialogue-bg`, `--jams-dialogue-fg`, `--jams-dialogue-accent`,
+`--jams-dialogue-font-size`).
+
+```ts talk-hud.ts
+import { createCaptions, createDialogueBox, createTextLog, type MountUi } from "@jams/engine";
+
+/**
+ * The gate game's HUD: the engine's dialogue box with portraits, a text log
+ * the UI-only `log` action shows and hides, and captions for sounds and
+ * voiced lines. The box draws the store's `dialogue` and sends only
+ * `@dialogue-advance` and `@dialogue-choose`; all three follow the locale.
+ */
+export const mountTalkHud: MountUi = (ctx) => {
+  const parts = [
+    createDialogueBox(ctx, { speed: 40, portraits: true }),
+    createTextLog(ctx, { toggle: "log", max: 50 }),
+    createCaptions(ctx, { ms: 3000 }),
+  ];
+  return {
+    destroy() {
+      for (const part of parts) part.destroy();
+    },
+  };
+};
+```
+
+## Localisation
+
+A `strings` doc (`*.strings.json`) is rows of a `key`
+(`/^[a-z0-9][a-z0-9._-]{0,127}$/`), one column per locale and an optional
+`note` for translators. Every strings file in a project contributes rows;
+a key two files hold is `dup-id`, and the first by path wins. The game
+settings' `engine.locales` says which locales the game speaks:
+
+```json
+{
+  "engine": {
+    "locales": {
+      "default": "en",
+      "available": ["en", "fr", "pt", "pt-BR", "ar"],
+      "fallback": { "pt-BR": ["pt"] },
+      "fonts": { "default": "pixel-font", "ar": "naskh-web" }
+    }
+  }
+}
+```
+
+A key's text in a locale is its own column, then each locale in its
+`fallback` chain, then the default's. A key with no text anywhere shows
+as the key in brackets, `[gate.closed]`, so a gap is visible in play
+rather than blank. `{name}` placeholders fill from the caller's values.
+
+The player's locale is a browser preference, never simulation: the shell
+starts in the one saved in the prefs (under `locale`), else the first of
+`navigator.languages` the game offers (matched by language subtag, so
+`fr-CA` plays French), else the default. `GameInstance.locale` has
+`current()`, `available()`, `set(locale)` (saved, raising `locale:change
+{ from, to }`) and `strings()`, the current `StringTable` (`get(key,
+vars?)`, `has`, `locale`, `direction`); a UI reads it as
+`UiContext.strings()`. A switch redraws keyed text, the dialogue box, the
+text log and captions; a run's digest is the same in every locale.
+
+`stringTable(view, locale)`, `resolveLocale(locales, { saved?,
+languages? })` and `localeDirection(locale)` are the same rules as plain
+functions (`./game`); `localeDirection` answers `rtl` for `ar`, `fa`,
+`he`, `ur`, `yi`, `ps`, `sd`, `ug`, `dv`, `ckb` and their regions, and
+follows a script subtag when one is given:
+
+```ts gate-strings.ts
+import { localeDirection, resolveLocale, stringTable } from "@jams/engine/game";
+import type { LocaleSettings } from "@jams/engine/project";
+
+import { gateProject } from "./gate-game";
+
+/** The guard's lines in three locales, and which locale three players start in. */
+export function gateInThreeLocales() {
+  const en = stringTable(gateProject, "en");
+  const fr = stringTable(gateProject, "fr");
+  const ar = stringTable(gateProject, "ar");
+  const locales = gateProject.engine.locales as LocaleSettings;
+  return {
+    en: en.get("gate.halt", { toll: 3 }),
+    fr: fr.get("gate.halt", { toll: 3 }),
+    // Arabic has only the guard's name; every other key falls back to English.
+    ar: [ar.get("speaker.guard"), ar.get("gate.pay"), ar.direction],
+    missing: fr.get("gate.closed"),
+    hasMissing: fr.has("gate.closed"),
+    // A saved choice wins, then the browser's languages by language subtag, then the default.
+    saved: resolveLocale(locales, { saved: "fr", languages: ["ar-EG"] }),
+    browser: resolveLocale(locales, { languages: ["fr-CA", "en-GB"] }),
+    neither: resolveLocale(locales, { languages: ["de-DE"] }),
+    hebrew: localeDirection("he-IL"),
+  };
+}
+```
+
+**Checks.** `string-key-missing` is an error for a key the default locale
+lacks and info for another locale that falls back; `crossValidate` raises
+it for scenes' and prefabs' `text` keys, dialogue lines, choices and
+speakers, and sounds' captions. `locale-unknown` (warn) is a strings
+column for a locale the settings don't offer. `font-missing` (warn) is a
+locale whose strings use a character its font (or, with none, the
+default font) doesn't cover; a font whose coverage isn't known is skipped.
+`vp run scene strings missing [--locale l]` lists every missing key with
+where it's used, and `strings export <locale> --csv` and `strings import
+<file.csv>` hand a locale to a translator and back.
+
+**What a locale can't do yet.**
+
+- **Bitmap fonts don't shape.** They draw right-to-left runs reversed but
+  never join letters, so Arabic, Persian, Urdu and other joined scripts
+  need a web font for the locale (`engine.locales.fonts`). Hebrew draws
+  correctly in either.
+- **Live scene versions don't check their keys.** A live scene version
+  ([Live levels](#live-levels)) carries its scene only; strings, sounds
+  and dialogue stay the release's. A version whose `text` keys the
+  release's strings lack still validates and goes live, and players see
+  those keys bracketed until a release adds them. Run `vp run scene
+strings missing` before publishing one.
+
+**Project-wide issues.** `string-key-missing`, `locale-unknown`,
+`font-missing`, a strings `dup-id` and the dialogue checks span docs, so
+the editor's Problems panel, which shows the open scene's issues, doesn't
+list them. `vp run scene validate <scene>` inside a project runs the
+project-wide checks too: the scene's own cross-doc issues count toward
+its result, and other docs' print under `project <id>, other docs:`.
+
+## Accessibility
+
+Games own their content's accessibility. This is what the engine gives
+every game, its floor:
+
+- **Remappable input.** Every action rebinds per seat, saved in the
+  browser ([Remapping](#remapping)).
+- **Reduced motion** honoured by shake, flashes, particles, transitions,
+  rich text's `[shake]` and `[wave]`, and the dialogue box's typewriter
+  ([Reduced motion](#reduced-motion)).
+- **Captions for sounds and voice.** `createCaptions(ctx, { ms? })` shows
+  each played sound's `caption` and each voiced line's text, for `ms`
+  (default 2,500), in a polite live region along the bottom, above the
+  dialogue box. The audio system raises `audio:caption { key, at }` for
+  each. They show while the player's captions choice is on:
+  `GameInstance.captions.enabled()` and `set(on)`, saved in the prefs
+  under `captions`, off by default.
+- **HUD and dialogue as DOM** with roles and live regions: the dialogue
+  box is a `role="dialog"` region with its line in a live region and its
+  choices as buttons, so keyboards and screen readers reach them; the UI
+  seam ([UI](#ui)) puts every HUD in the DOM.
+- **Volume per bus**, muted or not, saved in the browser.
+- **Colour is never the only cue** in the engine's own debug and editor
+  overlays: an outline or a label goes with every colour.
+- **Right-to-left locales** set `dir` on the DOM helpers and the canvas
+  text's direction ([Localisation](#localisation) has the limits).
+
+Preferences (bindings, volumes, mutes, language, captions, latency) stay
+in the player's browser and are never part of a save
+([Saves](#saves)).
 
 ## Genre probes
 
@@ -5857,19 +6736,20 @@ tests from the primitives and the APIs above, under
 `packages/engine/__tests__/genres/`. Each probe is a game, a scene built in
 code, an input script and the result it must reach:
 
-| Probe             | Genres                                    | Physics | Time  | What it plays                                                                                                                                                                                                                                             |
-| ----------------- | ----------------------------------------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `grid-puzzle`     | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher, each push tweens the crate's picture; won with both crates on goals. `pointer-swap`: match-3, clicks pick two neighbours, a `swap` command trades them tweened, a line of three clears                   |
-| `top-down`        | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                                                                                                                                                                              |
-| `turn-tactics`    | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target                                                                                                                                                                  |
-| `shooter`         | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`, each trailing an `emitter`; each is destroyed on its first wall contact and shakes the camera. `runner`: course chunks built ahead of the runner and dropped behind it, over two parallax backdrops |
-| `roguelike`       | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs                                                                                                                                                      |
-| `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script and a split screen; the first knock-out wins                                                                                                                      |
-| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it                                                                                                                              |
-| `rhythm-tap`      | rhythm                                    | none    | fixed | sub-tick offsets on: taps between ticks are graded by their `offset`, and a replay grades them the same                                                                                                                                                   |
-| `tower-defense`   | tower defense                             | none    | fixed | waves from a data table spawn creeps along a flow field; legal `build` commands place towers firing `lifetime` bolts                                                                                                                                      |
-| `racing`          | racing                                    | rapier  | fixed | a damped car drives three laps through four gates in order behind a look-ahead camera rig, with a tweened ghost                                                                                                                                           |
-| `idle`            | idle / clicker                            | none    | event | generators from a data table earn coins; `time.catchUp` credits an hour offline through `@elapsed`                                                                                                                                                        |
+| Probe             | Genres                                    | Physics | Time  | What it plays                                                                                                                                                                                                                                                                                 |
+| ----------------- | ----------------------------------------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid-puzzle`     | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher, each push tweens the crate's picture; won with both crates on goals. `pointer-swap`: match-3, clicks pick two neighbours, a `swap` command trades them tweened, a line of three clears                                                       |
+| `top-down`        | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                                                                                                                                                                                                                  |
+| `turn-tactics`    | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target                                                                                                                                                                                                      |
+| `shooter`         | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`, each trailing an `emitter`; each is destroyed on its first wall contact and shakes the camera. `runner`: course chunks built ahead of the runner and dropped behind it, over two parallax backdrops                                     |
+| `roguelike`       | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs                                                                                                                                                                                          |
+| `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script and a split screen; the first knock-out wins                                                                                                                                                          |
+| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it                                                                                                                                                                  |
+| `rhythm-tap`      | rhythm                                    | none    | fixed | a chart from a data table against a tick-aligned song: taps between ticks are graded by their `offset` less the `@latency` in force, two passes under two calibrations grade the same taps differently, and a replay grades them the same; with a view, the song's clock must match the ticks |
+| `tower-defense`   | tower defense                             | none    | fixed | waves from a data table spawn creeps along a flow field; legal `build` commands place towers firing `lifetime` bolts                                                                                                                                                                          |
+| `racing`          | racing                                    | rapier  | fixed | a damped car drives three laps through four gates in order behind a look-ahead camera rig, with a tweened ghost                                                                                                                                                                               |
+| `idle`            | idle / clicker                            | none    | event | generators from a data table earn coins; `time.catchUp` credits an hour offline through `@elapsed`                                                                                                                                                                                            |
+| `visual-novel`    | visual novel                              | none    | event | three scenes of branching dialogue from a strings file, with portraits: choices set flags and trust in `persist` that later choices' conditions read, a progress save at each chapter's end, and the ending the choices earn                                                                  |
 
 `runGenreProbe` plays each, replays its recording, and compares a digest of
 the run with a pinned one, so CI on other machines checks the same numbers.
@@ -7107,7 +7987,8 @@ paths, sorted file lists, no sourcemaps.
 Only what the scene list reaches ships: the listed scenes, the prefabs
 their expansion uses, the blobs their bundles fetch, the project bundle
 and the runtime docs (game settings, input map, data tables, the scene
-list). Checks files, input scripts, saves, unlisted scenes and unused art
+list, and every sound, synth patch, strings file and dialogue, with the
+clips the sounds name). Checks files, input scripts, saves, unlisted scenes and unused art
 stay out; a check that names an unlisted scene warns `scene-unlisted`.
 Each listed scene's physics is decided once (`scenePhysics`) and recorded
 in the manifest; when none needs Rapier, the build holds no wasm at all.

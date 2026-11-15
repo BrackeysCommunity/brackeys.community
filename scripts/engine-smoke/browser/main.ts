@@ -1,9 +1,12 @@
 import type { PhysicsFreeProbe, RenderProbe, SplitProbe } from "../browser-compare";
+import { runAudioSmoke } from "./audio";
 import { readContact, type ContactRead } from "./contact";
+import type { AudioProbe, SignProbe } from "./media-compare";
 import { rapierSpy, runPhysicsFree, startPhysicsFree } from "./physics-free";
 import { runRenderSmoke } from "./render";
 import { loadRapier, runSmokeDigest, SMOKE_FLAVOUR, SMOKE_TICKS } from "./run";
 import { runSaves, type SavesProbe } from "./saves";
+import { runSignSmoke } from "./sign-run";
 import { runTactics, type TacticsProbe } from "./tactics";
 
 export type EngineSmokeResult =
@@ -24,6 +27,10 @@ export type EngineSmokeResult =
       tactics: TacticsProbe;
       /** A save round trip through IndexedDB and the browser store; the page fails when it does. */
       saves?: SavesProbe;
+      /** A world `text` sign in a bitmap font and one in a web font, each read for its colour. */
+      signs: SignProbe;
+      /** A synth patch through `webAudioBackend` after the runner's click, and offline at `pan: -1`. */
+      audio: AudioProbe;
       userAgent: string;
     }
   | { ok: false; error: string };
@@ -44,6 +51,8 @@ try {
   const tacticsSpy = rapierSpy(loadRapier);
   const tactics = await runTactics(tacticsSpy.load);
   const saves = await runSaves();
+  const signs = await runSignSmoke();
+  const audio = await runAudioSmoke();
   window.__engineSmoke = {
     ok: true,
     flavour: SMOKE_FLAVOUR,
@@ -55,6 +64,8 @@ try {
     contact,
     tactics: { ...tactics, rapierLoads: tacticsSpy.calls() },
     saves,
+    signs,
+    audio,
     userAgent: navigator.userAgent,
   };
 } catch (err) {
