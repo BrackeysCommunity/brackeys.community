@@ -330,10 +330,10 @@ function childLayout(layout: DocLayout | undefined, segment: string): DocLayout 
  * An array index from a pointer segment: a number, or "@<id>" for the item
  * whose id field (a keyed layout's `id`, else "id") holds that.
  */
-function indexOf(
+export function indexOf(
   list: readonly unknown[],
   segment: string,
-  layout: DocLayout | undefined,
+  layout?: DocLayout,
 ): number | undefined {
   if (segment.startsWith("@")) {
     const id = segment.slice(1);

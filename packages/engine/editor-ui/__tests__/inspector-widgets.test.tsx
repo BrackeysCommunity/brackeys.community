@@ -479,9 +479,7 @@ describe("the inspector's motion behaviors", () => {
     const playing = screen.getByRole("switch", { name: "behaviors.anim.playing" });
     expect(playing.getAttribute("aria-checked")).toBe("true");
     expect(within(rowOf("behaviors.anim.playing")).getByText("on (default)")).toBeTruthy();
-    expect(screen.getByLabelText("behaviors.anim.speed").getAttribute("placeholder")).toBe(
-      "1 (default)",
-    );
+    expect(screen.getByLabelText("Anim speed").getAttribute("placeholder")).toBe("1 (default)");
     fireEvent.click(playing);
     expect(block("lamp", "anim").playing).toBe(false);
 
@@ -548,7 +546,7 @@ describe("the inspector's motion behaviors", () => {
     expect(remove.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Add tween" }));
     expect(tweens()).toEqual([SPIN, SPIN]);
-    type("behaviors.tween.tweens.1.to.alpha", "1");
+    type("Tween tweens 2 to alpha", "1");
     fireEvent.click(screen.getByRole("button", { name: "Remove Tween 1" }));
     expect(tweens()).toEqual([{ ...SPIN, to: { y: 4.6, alpha: 1 } }]);
   });

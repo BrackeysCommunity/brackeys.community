@@ -69,7 +69,12 @@ const lamp = entry("lamp", "prefab");
 /** Just what the tool host reads of a project: its live view and its doc's updates. */
 function fakeProject(): ProjectSession {
   const view = { byId: new Map([[glow.id, glow]]) } as unknown as ProjectView;
-  return { view: () => view, projectDoc: new Y.Doc() } as unknown as ProjectSession;
+  return {
+    view: () => view,
+    projectDoc: new Y.Doc(),
+    openDocs: () => [],
+    subscribe: () => () => {},
+  } as unknown as ProjectSession;
 }
 
 function yard(): SceneDefinition {

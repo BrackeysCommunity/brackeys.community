@@ -38,10 +38,23 @@ describe("editor layout styles", () => {
     expect(select).toContain("flex-shrink: 0");
   });
 
-  it("holds every slider's unit column at one width, its longest unit included", () => {
-    const unit = declarations(".je-insp-slider-unit");
-    expect(unit).toContain("flex: 0 0 3em");
+  it("holds every number row's unit column at one width, its longest unit included", () => {
+    const unit = declarations(".je-insp-unit");
+    expect(unit).toContain("flex: 0 0 var(--je-unit-col)");
     expect(unit).toContain("min-width: 0");
+    expect(css).toMatch(/--je-unit-col: [\d.]+em;/);
+  });
+
+  it("draws the knob from tokens a host can set, its value boxes at the nested radius", () => {
+    expect(declarations(".je-knob-cap")).toContain("fill: var(--je-knob-cap)");
+    expect(declarations(".je-knob-pointer")).toContain("stroke: var(--je-knob-pointer)");
+    expect(declarations(".je-knob-dial:hover .je-knob-cap")).toContain(
+      "fill: var(--je-knob-cap-hover)",
+    );
+    for (const token of ["--je-knob-cap", "--je-knob-cap-hover", "--je-knob-pointer"])
+      expect(css).toMatch(new RegExp(`${token}: #[0-9a-f]{6};`));
+    expect(declarations(".je-knob-value")).toContain("border-radius: var(--je-radius-nested)");
+    expect(css.slice(css.indexOf(".je-knob"))).not.toMatch(/\.je-knob[^{]*\{[^}]*#[0-9a-f]{3,6}/);
   });
 
   it("lays out a locale code at one width in the locale settings and the strings panel", () => {

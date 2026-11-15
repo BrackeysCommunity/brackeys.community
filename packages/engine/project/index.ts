@@ -321,7 +321,8 @@ export {
   emitterKind,
 } from "./kinds/emitter";
 export type { EmitterCurve, EmitterFile } from "./kinds/emitter";
-export { assetInfo, type AssetInfo } from "./asset-info";
+export { assetInfo, audioChannelsText, type AssetInfo } from "./asset-info";
+export { loopPastEnd } from "./kinds/audio";
 export { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./bundle";
 export {
   formatProjectFile,

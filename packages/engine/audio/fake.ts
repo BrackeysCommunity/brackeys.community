@@ -1,3 +1,4 @@
+import { loopSpan } from "../project/kinds/audio";
 import type { AudioBackend, AudioClipHandle, FakeAudioCall, Voice, VoiceOptions } from "./types";
 
 /** One logged call, with the context time it was made at. */
@@ -47,13 +48,23 @@ export function fakeAudioBackend(opts: FakeAudioOptions = {}): FakeAudioBackend 
     let offset = voiceOpts.offset ?? 0;
     let stopped = false;
     const rate = voiceOpts.rate > 0 ? voiceOpts.rate : 1;
-    const position = () => offset + Math.max(0, now - startedAt) * rate;
+    const played = () => offset + Math.max(0, now - startedAt) * rate;
+    /** Wrapped into the loop as a real backend plays it, the stream's length unknown till then. */
+    const position = () => {
+      const at = played();
+      if (!voiceOpts.loop) return at;
+      const length = Number.isFinite(handle.duration) ? handle.duration : Number.POSITIVE_INFINITY;
+      const { from, to } = loopSpan(voiceOpts, length);
+      const span = to - from;
+      if (at < to || !(span > 0) || !Number.isFinite(span)) return at;
+      return from + ((at - from) % span);
+    };
     return {
       key: voiceOpts.key ?? null,
       get ended() {
         if (stopped) return true;
         if (voiceOpts.loop || !Number.isFinite(handle.duration)) return false;
-        return position() >= handle.duration;
+        return played() >= handle.duration;
       },
       stop(fadeMs) {
         if (stopped) return;

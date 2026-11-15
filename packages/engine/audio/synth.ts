@@ -4,7 +4,7 @@
  * stereo field. The voice is a subtractive mono synth: up to three
  * oscillators and noise into a ladder filter with its own envelope, an amp
  * envelope and an LFO. A patch that sets none of the later fields renders
- * as the plain one-oscillator sound effect it always did.
+ * one oscillator through the amp envelope.
  */
 import { clamp } from "../math";
 import {

@@ -316,12 +316,12 @@ describe("EditorInspector", () => {
 
     const physics = screen.getByRole("region", { name: "Physics" });
     expect(within(physics).getByText("Glow")).toBeTruthy();
-    const glow = physics.querySelector('input[type="range"][aria-label="glow slider"]')!;
+    const glow = physics.querySelector('input[type="range"][aria-label="Glow slider"]')!;
     expect(glow.getAttribute("aria-valuenow")).toBe("3");
     expect(glow.getAttribute("max")).toBe("10");
-    expect(input("glow").value).toBe("3");
-    fireEvent.change(input("glow"), { target: { value: "+=2" } });
-    fireEvent.keyDown(input("glow"), { key: "Enter" });
+    expect(input("Glow").value).toBe("3");
+    fireEvent.change(input("Glow"), { target: { value: "+=2" } });
+    fireEvent.keyDown(input("Glow"), { key: "Enter" });
     expect(entity(session, "gizmo").glow).toBe(5);
   });
 
@@ -463,7 +463,7 @@ describe("EditorInspector", () => {
     expect(navOf()).toEqual({});
     expect(pressed()).toEqual(["Entity"]);
 
-    expect(input("behaviors.camera-target.seat").placeholder).toBe("every view");
+    expect(input("Camera target seat").placeholder).toBe("every view");
   });
 
   it("hints with tooltips, never a native title", () => {

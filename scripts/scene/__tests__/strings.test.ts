@@ -6,11 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { COMMANDS } from "../commands";
 import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
 import {
   formatCsv,
   parseCsv,
+  STRINGS_EXPORT_USAGE,
+  STRINGS_IMPORT_USAGE,
   stringsExport,
   stringsImport,
   stringsMissing,
@@ -79,6 +82,20 @@ describe("CSV", () => {
   it("refuses an unclosed quote and text after a closing one", () => {
     expect(() => parseCsv('a,"b\nc')).toThrow(/line 1: a quoted field never closes/);
     expect(() => parseCsv('a\n"b"c,d')).toThrow(/line 2: text after a closing quote/);
+  });
+});
+
+describe("usage", () => {
+  it("is the tool's own line in the help and in a usage error", async () => {
+    expect(COMMANDS["strings export"].usage).toBe(STRINGS_EXPORT_USAGE);
+    expect(COMMANDS["strings import"].usage.startsWith(`${STRINGS_IMPORT_USAGE} `)).toBe(true);
+    const bare: ToolContext = { projects: [], loadRapier: loadCompatRapier };
+    expect((await stringsExport({ locale: "fr" }, bare)).text).toBe(
+      `usage: ${STRINGS_EXPORT_USAGE}`,
+    );
+    expect((await stringsImport({}, bare)).text).toBe(
+      `usage: ${STRINGS_IMPORT_USAGE} [writer flags]`,
+    );
   });
 });
 

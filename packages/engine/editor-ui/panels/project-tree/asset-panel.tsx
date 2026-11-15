@@ -3,7 +3,7 @@ import { Fragment, useEffect, useMemo, useState, type ComponentProps, type React
 
 import { layoutFromDoc, type ProjectSession } from "../../../collab/index";
 import { sentence } from "../../../game/live";
-import { audioChannelsText, entryInfo } from "../../../project/asset-info";
+import { audioChannelsText, entryInfo, type AssetInfo } from "../../../project/asset-info";
 import {
   byCodeUnit,
   dialogueIssues,
@@ -20,7 +20,9 @@ import {
   type DocLookup,
   type StringsFile,
 } from "../../../project/index";
+import { loopPastEnd } from "../../../project/kinds/audio";
 import { docLookupOf } from "../../../project/kinds/define";
+import type { FontMeta } from "../../../project/kinds/font";
 import {
   localeChain,
   localeFallbacks,
@@ -29,7 +31,6 @@ import {
   stringRowText,
 } from "../../../project/kinds/strings";
 import { plural } from "../../../scene/plural";
-import { useSelectedAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
 import { AssetAudition, isAudibleKind } from "../../audio/editor-audio";
 import { formatHz } from "../../audio/format-hz";
 import { IconButton } from "../../kit/button";
@@ -39,6 +40,11 @@ import { Text } from "../../kit/index";
 import { useProjectView } from "../EditorProject";
 import { InspectorSection, type StringKeyTable } from "../inspector/field-widgets";
 import { DocGate } from "../settings/DocGate";
+import {
+  useSelectedAssetDoc,
+  type AssetDoc,
+  type AssetDocPanelProps,
+} from "../settings/settings-doc";
 import { SettingsNote } from "../settings/SettingsRows";
 import { kindIcon } from "./kind-icons";
 import { LicenceFields } from "./licence-fields";
@@ -54,18 +60,68 @@ export type SelectedAsset = Pick<
   onClose: () => void;
 };
 
-/** What its kind's inspection read: an image's or a font's size, a clip's rate and channels. */
-function metaLine(entry: AssetEntry): string | null {
+const FONT_FORMATS: Readonly<Record<FontMeta["format"], string>> = {
+  bmfont: "BMFont",
+  woff2: "WOFF2",
+  woff: "WOFF",
+  ttf: "TrueType",
+  otf: "OpenType",
+};
+
+/** A font's face as one line: its format, size, line height and how many code points it covers. */
+function fontLine(font: FontMeta): string {
+  const glyphs = font.coverage?.reduce((n, [from, to]) => n + to - from + 1, 0);
+  return [
+    FONT_FORMATS[font.format],
+    font.distanceField ? font.distanceField.type.toUpperCase() : null,
+    font.size !== undefined ? `${font.size} px` : null,
+    font.lineHeight !== undefined ? `${font.lineHeight} px line` : null,
+    glyphs !== undefined ? plural(glyphs, "glyph") : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+}
+
+const codePointText = (cp: number) =>
+  cp > 0x20 && cp !== 0x7f && !(cp >= 0x80 && cp < 0xa0)
+    ? String.fromCodePoint(cp)
+    : `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+
+/** The code points a font covers, as characters: "A–Z a–z É". */
+export function coverageText(coverage: FontMeta["coverage"]): string | null {
+  if (!coverage || coverage.length === 0) return null;
+  return coverage
+    .map(([from, to]) =>
+      from === to ? codePointText(from) : `${codePointText(from)}–${codePointText(to)}`,
+    )
+    .join(" ");
+}
+
+/** What its kind's inspection read: an image's size, a clip's rate and channels. */
+function metaLine(entry: AssetEntry, info: AssetInfo): string | null {
   const meta = entry.meta;
   if (!meta) return null;
   const { width, height } = meta as Record<string, unknown>;
   if (typeof width === "number" && typeof height === "number") return `${width} × ${height}`;
-  const clip = entryInfo(entry).info.audio;
+  const clip = info.audio;
   const audio = [
     clip?.sampleRate !== undefined ? formatHz(clip.sampleRate) : null,
     clip?.channels !== undefined ? audioChannelsText(clip.channels) : null,
   ].filter((part): part is string => part !== null);
   return audio.length > 0 ? audio.join(" · ") : null;
+}
+
+/** Why a clip's loop points run past its end, its field name kept as written; null for anything else. */
+function loopWarning({ audio, loopStart, loopEnd }: AssetInfo): string | null {
+  if (!audio) return null;
+  const why = loopPastEnd(
+    {
+      ...(loopStart !== undefined ? { loopStart } : {}),
+      ...(loopEnd !== undefined ? { loopEnd } : {}),
+    },
+    audio,
+  );
+  return why === null ? null : `${why}.`;
 }
 
 /** The audition row's own patch, length and controls, where a panel has them. */
@@ -88,12 +144,16 @@ export function AssetPanel({
   audition,
   editor = false,
 }: SelectedAsset & { audition?: AssetPanelAudition; editor?: boolean }) {
+  const { info } = entryInfo(entry);
   const details = [
     entry.kind,
     entry.bytes !== undefined ? formatBytes(entry.bytes) : null,
-    metaLine(entry),
+    metaLine(entry, info),
   ].filter((d): d is string => d !== null);
   const name = entry.name ?? baseName(entry.path);
+  const face = info.font ? fontLine(info.font) : null;
+  const covers = coverageText(info.font?.coverage);
+  const loop = loopWarning(info);
   return (
     <div className="je-asset-panel" aria-label="Asset">
       <header className="je-asset-panel-header">
@@ -110,6 +170,11 @@ export function AssetPanel({
       {isAudibleKind(entry.kind) ? (
         <AssetAudition id={entry.id} name={name} size="icon-sm" {...audition} />
       ) : null}
+      {loop ? (
+        <Text as="p" size="xs" variant="warning" role="note">
+          {loop}
+        </Text>
+      ) : null}
       <InspectorSection id={`asset:${entry.kind}:details`} title="File" defaultOpen={!editor}>
         <dl className="je-asset-panel-details">
           <dt>Id</dt>
@@ -118,6 +183,18 @@ export function AssetPanel({
           <dd>{entry.path}</dd>
           <dt>Kind</dt>
           <dd>{details.join(" · ")}</dd>
+          {face ? (
+            <>
+              <dt>Face</dt>
+              <dd className="je-asset-panel-wrap">{face}</dd>
+            </>
+          ) : null}
+          {covers ? (
+            <>
+              <dt>Covers</dt>
+              <dd className="je-asset-panel-wrap">{covers}</dd>
+            </>
+          ) : null}
         </dl>
       </InspectorSection>
       <InspectorSection id={`asset:${entry.kind}:licence`} title="Licence" defaultOpen={!editor}>
@@ -312,7 +389,8 @@ function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup
             })}
           </dl>
           <Text as="p" size="xs" variant="muted">
-            {plural(rows.length, "key")}. Change them in the file, or with{" "}
+            {plural(rows.length, "key")}, read only here. They change in the project's files: the
+            strings file, or a translator's CSV through{" "}
             <Text size="xs" variant="inherit" textWrap="nowrap">
               <code>vp run scene strings import</code>
             </Text>

@@ -336,10 +336,15 @@ describe("text rules", () => {
   it("gives the block and its pieces one first-strong rule", () => {
     expect(firstStrong("3 שלום")).toBe("rtl");
     expect(firstStrong("Hi שלום")).toBe("ltr");
-    expect(firstStrong("\u060c")).toBe("rtl");
+    expect(firstStrong("\u060c")).toBeNull();
+    expect(firstStrong("\u0663 apples")).toBe("ltr");
+    expect(firstStrong("\u061f ok")).toBe("rtl");
+    expect(firstStrong("\u05be ok")).toBe("rtl");
+    expect(firstStrong("\u200f!")).toBe("rtl");
+    expect(firstStrong("\u200e\u0663 \u0661")).toBe("ltr");
     expect(firstStrong("12, !")).toBeNull();
     expect(firstStrong("\u0301")).toBeNull();
-    for (const text of ["3 שלום", "1 Hi", "؟ abc", "..."])
+    for (const text of ["3 שלום", "1 Hi", "؟ abc", "٣ apples", "، abc", "..."])
       expect(textDirection(linesOf(text, false))).toBe(firstStrong(text) ?? "ltr");
     // A number between right-to-left words keeps its place in their run.
     expect(visualOrder(["שלום", " ", "12", " ", "עולם"], firstStrong, "ltr")).toEqual([

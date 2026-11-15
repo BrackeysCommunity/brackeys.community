@@ -21,6 +21,9 @@ import type { FieldEnv } from "../types";
 
 /** The font size, px at zoom 1, when a block gives none. */
 export const TEXT_SIZE_DEFAULT = 16;
+/** The font sizes a block may name, px: a range a slider covers in whole pixels. */
+export const TEXT_SIZE_MIN = 1;
+export const TEXT_SIZE_MAX = 128;
 export const TEXT_COLOR_DEFAULT = 0xffffff;
 /** How a block's lines line up when it names no `align`. */
 export const TEXT_ALIGN_DEFAULT = "center";
@@ -50,8 +53,8 @@ const textFields = (env: FieldEnv) => ({
   ).optional(),
   size: z
     .number()
-    .positive()
-    .max(512)
+    .min(TEXT_SIZE_MIN)
+    .max(TEXT_SIZE_MAX)
     .optional()
     .describe(`Font size, px at zoom 1; default ${TEXT_SIZE_DEFAULT}.`)
     .meta({ unit: "px", default: TEXT_SIZE_DEFAULT, group: "look" }),

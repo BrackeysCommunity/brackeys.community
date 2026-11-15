@@ -243,6 +243,7 @@ describe("createDialogueBox", () => {
     h.ctx.canvas.focus();
     const bs = buttons();
     expect(bs[0]!.hasAttribute("data-selected")).toBe(true);
+    expect(bs[0]!.getAttribute("aria-current")).toBe("true");
 
     h.act("down");
     expect(document.activeElement).toBe(bs[1]);
@@ -255,6 +256,7 @@ describe("createDialogueBox", () => {
     h.act("up");
     expect(document.activeElement).toBe(bs[1]);
     expect(bs[1]!.hasAttribute("data-selected")).toBe(true);
+    expect(bs.map((b) => b.getAttribute("aria-current"))).toEqual([null, "true", null, null]);
     expect(h.send).not.toHaveBeenCalled();
 
     h.act("confirm");

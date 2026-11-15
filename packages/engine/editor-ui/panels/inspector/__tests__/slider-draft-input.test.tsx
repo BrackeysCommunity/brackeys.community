@@ -32,16 +32,16 @@ describe("SliderField", () => {
 
   it("sits an unset field at its schema default and says so", () => {
     render(<SliderField field={row("gain")} commit={vi.fn<FieldCommit>(() => null)} />);
-    expect(range("gain").getAttribute("aria-valuenow")).toBe("0.5");
-    expect((screen.getByRole("textbox", { name: "gain" }) as HTMLInputElement).placeholder).toBe(
+    expect(range("Gain").getAttribute("aria-valuenow")).toBe("0.5");
+    expect((screen.getByRole("textbox", { name: "Gain" }) as HTMLInputElement).placeholder).toBe(
       "0.5 (default)",
     );
   });
 
   it("sits an unset field with no default at the end of its range nearest 0", () => {
     render(<SliderField field={row("rate")} commit={vi.fn<FieldCommit>(() => null)} />);
-    expect(range("rate").getAttribute("aria-valuenow")).toBe("0.5");
-    expect((screen.getByRole("textbox", { name: "rate" }) as HTMLInputElement).placeholder).toBe(
+    expect(range("Rate").getAttribute("aria-valuenow")).toBe("0.5");
+    expect((screen.getByRole("textbox", { name: "Rate" }) as HTMLInputElement).placeholder).toBe(
       "unset",
     );
   });
@@ -49,7 +49,7 @@ describe("SliderField", () => {
   it("commits a typed value, and empty unsets an optional field", () => {
     const commit = vi.fn<FieldCommit>(() => null);
     render(<SliderField field={row("gain", { gain: 0.2 })} commit={commit} />);
-    const box = screen.getByRole("textbox", { name: "gain" });
+    const box = screen.getByRole("textbox", { name: "Gain" });
     fireEvent.change(box, { target: { value: "0.7" } });
     fireEvent.keyDown(box, { key: "Enter" });
     expect(commit).toHaveBeenLastCalledWith("0.7");

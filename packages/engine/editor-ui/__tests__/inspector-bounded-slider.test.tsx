@@ -64,16 +64,15 @@ describe("EditorInspector: a bounded number", () => {
 
   it("draws as the shared slider and typed box, as the asset panels draw one", () => {
     const session = setup();
-    const path = "behaviors.panels/chime.volume";
     const slider = document.querySelector(
-      `input[type="range"][aria-label="${path} slider"]`,
+      'input[type="range"][aria-label="Panels/chime volume slider"]',
     ) as HTMLInputElement;
     expect(slider.closest(".je-insp-slider")).not.toBeNull();
     expect(slider.getAttribute("aria-valuenow")).toBe("0.25");
     expect(slider.getAttribute("max")).toBe("1");
-    expect(field(path).value).toBe("0.25");
-    fireEvent.change(field(path), { target: { value: "0.75" } });
-    fireEvent.keyDown(field(path), { key: "Enter" });
+    expect(field("Panels/chime volume").value).toBe("0.25");
+    fireEvent.change(field("Panels/chime volume"), { target: { value: "0.75" } });
+    fireEvent.keyDown(field("Panels/chime volume"), { key: "Enter" });
     const bell = session.getDoc().entities!.find((e) => e.id === "bell");
     expect(bell?.behaviors).toEqual({ "panels/chime": { volume: 0.75 } });
   });
@@ -82,6 +81,6 @@ describe("EditorInspector: a bounded number", () => {
     setup();
     const path = "behaviors.panels/chime.rings";
     expect(field(path).closest(".je-insp-slider")).toBeNull();
-    expect(document.querySelector(`input[type="range"][aria-label="${path} slider"]`)).toBeNull();
+    expect(field(path).closest(".je-insp-field")?.querySelector('input[type="range"]')).toBeNull();
   });
 });

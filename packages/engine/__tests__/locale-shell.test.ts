@@ -5,7 +5,9 @@ import { createGame } from "../engine";
 import { defineGame } from "../game/define";
 import type { EngineContext, GameDefinition } from "../game/types";
 import { memoryPrefsStore, PREF_KEYS, type PrefsStore } from "../prefs";
+import { createKindRegistry } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import { projectView } from "../project/view";
 import type { PixiView } from "../render/pixi-view";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import type { StringTableData } from "../text/strings";
@@ -258,5 +260,51 @@ describe("locale.set", () => {
     expect(switched.ticks).toBe(plain.ticks);
     expect(switched.end).toBe(plain.end);
     expect(switched.inputs).toEqual(plain.inputs);
+  });
+});
+
+describe("a project edit", () => {
+  const view = projectView(
+    {
+      meta: { projectId: "p", layout: 1, name: "P" },
+      assets: {},
+      history: {},
+      code: {},
+      build: {},
+    },
+    createKindRegistry(counter as GameDefinition),
+  );
+  const offering = (available: string[]): ProjectRuntimeView => ({
+    ...project,
+    engine: { locales: { default: "en", available } },
+  });
+
+  it("that drops the locale in use raises locale:change and hands the view the new one's table", async () => {
+    stubLanguages(["fr"]);
+    const game = await makeGame(memoryPrefsStore(), { scene: doc });
+    expect(game.locale.current()).toBe("fr");
+    const changes: { from: string; to: string }[] = [];
+    game.on("locale:change", (e) => changes.push(e));
+    const heard = vi.fn();
+    onLocale(game, heard);
+
+    await game.reloadAssets({ project: offering(["en", "pt-BR"]), view, changed: [] });
+    expect(changes).toEqual([{ from: "fr", to: "en" }]);
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(game.locale.current()).toBe("en");
+    expect(handed.at(-1)).toMatchObject({ locale: "en", strings: { "sign.hello": "Hello" } });
+    expect(game.locale.strings().get("sign.hello")).toBe("Hello");
+  });
+
+  it("that keeps the locale in use raises nothing", async () => {
+    stubLanguages(["fr"]);
+    const game = await makeGame(memoryPrefsStore(), { scene: doc });
+    expect(game.locale.current()).toBe("fr");
+    const changes: unknown[] = [];
+    game.on("locale:change", (e) => changes.push(e));
+    await game.reloadAssets({ project: offering(["fr", "en"]), view, changed: [] });
+    expect(changes).toEqual([]);
+    expect(game.locale.current()).toBe("fr");
+    expect(handed.at(-1)).toMatchObject({ locale: "fr" });
   });
 });

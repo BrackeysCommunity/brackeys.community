@@ -11,7 +11,7 @@ import { z } from "zod";
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import { drawnText } from "../../game/rich-text";
 import { splitOverridePath } from "../../scene/field-path";
-import { jsonPointer, makeIssue } from "../../scene/issues";
+import { jsonPointer, makeIssue, pointerSegments } from "../../scene/issues";
 import { plural } from "../../scene/plural";
 import {
   PREFAB_KIND,
@@ -20,6 +20,7 @@ import {
   type PrefabParam,
   type SceneIssue,
 } from "../../scene/types";
+import { indexOf } from "../refs";
 import type { AssetId, AssetKindName } from "../types";
 import {
   byCodeUnit,
@@ -126,9 +127,11 @@ const RTL_SCRIPTS: Readonly<Record<string, string>> = {
 };
 
 /**
- * A character of a right-to-left script, or punctuation only those scripts
- * use (the Arabic comma and question mark). Combining marks shared with
- * left-to-right scripts don't count, so a Latin letter's accent stays ltr.
+ * A character of a right-to-left script, including the punctuation and
+ * digits only those scripts use (the Arabic comma, Arabic-Indic digits).
+ * Combining marks shared with left-to-right scripts don't count, so a
+ * Latin letter's accent stays ltr. Not every match is strong: see
+ * `firstStrong`.
  */
 export const RTL_CHAR = new RegExp(
   `(?!\\p{Script=Inherited})[${Object.values(RTL_SCRIPTS)
@@ -138,18 +141,26 @@ export const RTL_CHAR = new RegExp(
 );
 
 /**
- * The direction of `text`'s first strong character: a right-to-left
- * script's character, or any other letter. Digits, spaces, punctuation
- * and marks are neutral, so "3 שלום" reads right to left; null for none.
+ * The direction of `text`'s first strong character: a letter (right to
+ * left in a right-to-left script), a directional mark, or punctuation
+ * Unicode's bidi classes make strong (the Arabic question mark, Hebrew
+ * maqaf). Digits, spaces, marks and other punctuation (the Arabic comma)
+ * are neutral, so "3 שלום" and "٣ apples" each read by their word; null
+ * for none.
  */
 export function firstStrong(text: string): "ltr" | "rtl" | null {
   for (const ch of text) {
-    if (RTL_CHAR.test(ch)) return "rtl";
-    if (LETTER.test(ch)) return "ltr";
+    if (LETTER.test(ch)) return RTL_CHAR.test(ch) ? "rtl" : "ltr";
+    if (STRONG_RTL_NON_LETTER.test(ch)) return "rtl";
+    if (ch === LRM) return "ltr";
   }
   return null;
 }
 
+/** The right-to-left mark and the non-letters of bidi class R or AL in `RTL_SCRIPTS`' scripts. */
+const STRONG_RTL_NON_LETTER =
+  /[\u200F\u05BE\u05C0\u05C3\u05C6\u05F3-\u05F4\u0608\u060B\u060D\u061B-\u061F\u066D\u06D4\u06FD-\u06FE\u0700-\u070D\u070F\u07FE-\u07FF\u0830-\u083E\u085E\u0888\uFBB2-\uFBC2\uFDFC\u{10857}\u{10877}-\u{10878}\u{1093F}\u{10A50}-\u{10A58}\u{10A7F}\u{10AC8}\u{10AF0}-\u{10AF6}\u{10B99}-\u{10B9C}\u{10F55}-\u{10F59}\u{1E95E}-\u{1E95F}]/u;
+const LRM = "\u200E";
 const LETTER = /\p{L}/u;
 
 /** Whether a script subtag ("Arab", "Deva") names a script written right to left. */
@@ -373,22 +384,15 @@ export function stringKeyIssues(lookup: DocLookup, uses: readonly StringKeyUse[]
  */
 function indexedPointer(value: unknown, pointer: string): string {
   let at = value;
-  const tokens = pointer
-    .split("/")
-    .slice(1)
-    .map((raw): string | number => {
-      const token = raw.replace(/~1/g, "/").replace(/~0/g, "~");
-      const index =
-        Array.isArray(at) && token.startsWith("@")
-          ? at.findIndex((item) => isPlainObject(item) && item.id === token.slice(1))
-          : -1;
-      if (index >= 0) {
-        at = (at as unknown[])[index];
-        return index;
-      }
-      at = isPlainObject(at) ? at[token] : Array.isArray(at) ? at[Number(token)] : undefined;
-      return token;
-    });
+  const tokens = pointerSegments(pointer).map((token): string | number => {
+    if (Array.isArray(at)) {
+      const index = indexOf(at, token);
+      at = index === undefined ? undefined : at[index];
+      return index ?? token;
+    }
+    at = isPlainObject(at) ? at[token] : undefined;
+    return token;
+  });
   return jsonPointer(tokens);
 }
 

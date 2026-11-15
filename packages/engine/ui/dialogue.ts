@@ -265,10 +265,16 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     if (still && box.contains(still)) still.blur();
   };
 
+  /** The selected choice, marked for assistive tech too: focus can stay on the canvas while the arrows move it. */
   const markSelected = () => {
     buttons.forEach((b, i) => {
-      if (i === selected) b.dataset.selected = "";
-      else delete b.dataset.selected;
+      if (i === selected) {
+        b.dataset.selected = "";
+        b.setAttribute("aria-current", "true");
+      } else {
+        delete b.dataset.selected;
+        b.removeAttribute("aria-current");
+      }
     });
   };
 

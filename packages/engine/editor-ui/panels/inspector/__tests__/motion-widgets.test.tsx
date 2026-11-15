@@ -124,7 +124,7 @@ describe("the inspector's motion fields", () => {
     expect(placeholder("behaviors.tween.tweens.0.to.x")).toBe("not animated");
     expect(placeholder("behaviors.tween.tweens.0.to.scale")).toBe("not animated");
     expect(placeholder("behaviors.tween.tweens.0.from.x")).toBe("current");
-    expect(placeholder("behaviors.tween.tweens.0.from.alpha")).toBe("current");
+    expect(placeholder("Tween tweens 1 from alpha")).toBe("current");
   });
 
   it("disables removing a list's last allowed item, saying why in its hint", async () => {

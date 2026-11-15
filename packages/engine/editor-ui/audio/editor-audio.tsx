@@ -105,7 +105,7 @@ export function formatClipLength(ms: number): string {
     const s = Math.round(ms / 1000);
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }
-  return ms < 10_000 ? `${(ms / 1000).toFixed(2)} s` : `${(ms / 1000).toFixed(1)} s`;
+  return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;
 }
 
 /** `[min, max]` as words: one length, or "0.20–0.50 s". */

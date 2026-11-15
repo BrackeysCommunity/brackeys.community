@@ -1,3 +1,4 @@
+import { loopSpan } from "../project/kinds/audio";
 import type { AssetId } from "../project/types";
 
 /** The music's clock against the simulation's: the audio follows the ticks, never the reverse. */
@@ -85,13 +86,23 @@ export type ClipSpan = {
   loopEndMs?: number;
 };
 
-/** The loop a position wraps in, ms; null for a clip that doesn't loop or whose length isn't known. */
+/**
+ * The loop a position wraps in, ms, by the rule every backend plays loop
+ * points by (`loopSpan`); a length not known yet reads as endless, as a
+ * stream's does. Null for a clip that doesn't loop or has no finite loop.
+ */
 function loopOf(clip: ClipSpan): { start: number; span: number } | null {
-  if (!clip.loop || !Number.isFinite(clip.durationMs)) return null;
-  const start = clip.loopStartMs ?? 0;
-  const end =
-    clip.loopEndMs !== undefined && clip.loopEndMs > start ? clip.loopEndMs : clip.durationMs;
-  return end - start > 0 ? { start, span: end - start } : null;
+  if (!clip.loop) return null;
+  const length = Number.isFinite(clip.durationMs) ? clip.durationMs : Number.POSITIVE_INFINITY;
+  const { from, to } = loopSpan(
+    {
+      ...(clip.loopStartMs !== undefined ? { loopStart: clip.loopStartMs } : {}),
+      ...(clip.loopEndMs !== undefined ? { loopEnd: clip.loopEndMs } : {}),
+    },
+    length,
+  );
+  const span = to - from;
+  return span > 0 && Number.isFinite(span) ? { start: from, span } : null;
 }
 
 /** `ms` into the clip as it plays: wrapped into a looping clip's loop, else as is. */

@@ -18,8 +18,9 @@ import { runProjectBatch, type WriterFlags } from "./assets-apply";
 import { folderArg } from "./assets-move";
 import { loadProject } from "./project-show";
 
-const NEW_USAGE = "synth new <preset> [--seed n] [--id id] [--path p|folder/] [writer flags]";
-const RENDER_USAGE = "synth render <id> --wav <file> [--project id]";
+/** Without the writer flags, which each caller spells its own way. */
+export const SYNTH_NEW_USAGE = "synth new <preset> [--seed n] [--id id] [--path p|folder/]";
+export const SYNTH_RENDER_USAGE = "synth render <id> --wav <file> [--project id]";
 const SEED_MAX = 0xffff_ffff;
 
 const isPreset = (name: string): name is SynthPreset =>
@@ -64,7 +65,7 @@ export type SynthNewInput = WriterFlags & {
  */
 export const synthNew: Tool<SynthNewInput> = async (input, ctx) => {
   const { preset } = input;
-  if (preset === undefined) return usage(NEW_USAGE);
+  if (preset === undefined) return usage(`${SYNTH_NEW_USAGE} [writer flags]`);
   if (!isPreset(preset)) return unknownPreset(preset);
   let seed: number;
   if (input.seed === undefined) seed = Math.floor(Math.random() * SEED_MAX);
@@ -108,7 +109,7 @@ export type SynthRenderInput = { id?: string; wav?: string };
 /** Writes a synth patch's render as 16-bit PCM WAV (`synthWav`'s bytes) to `--wav`. */
 export const synthRender: Tool<SynthRenderInput> = async (input, ctx) => {
   const { id, wav } = input;
-  if (id === undefined || wav === undefined) return usage(RENDER_USAGE);
+  if (id === undefined || wav === undefined) return usage(SYNTH_RENDER_USAGE);
   const found = await locateInProjects(
     ctx.projects,
     id,

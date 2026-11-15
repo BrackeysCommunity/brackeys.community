@@ -1709,6 +1709,7 @@ runPlaytest
 runProbe
 scriptSource
 simActionError
+soundLeafMs
 swapCheck
 synthDurationMs
 synthWav
@@ -1978,6 +1979,7 @@ atlasMetaSchema
 atlasSettingsSchema
 atlasTool
 audioBuses
+audioChannelsText
 audioKind
 audioMetaSchema
 audioSettingsSchema
@@ -2055,6 +2057,7 @@ liveFiles
 localeFont
 localeSettingsOf
 localeTagProblem
+loopPastEnd
 manifestDocRefs
 materialKind
 materialSchema
@@ -2748,6 +2751,9 @@ type FakeAudioOptions = {
     state?: "locked" | "running";
 };
 declare function fakeAudioBackend(opts?: FakeAudioOptions): FakeAudioBackend;
+
+## audio/sound-length.ts
+declare function soundLeafMs(view: ProjectView | null, id: AssetId, synth: (id: AssetId) => SynthFile | undefined): null | number;
 
 ## audio/synth-presets.ts
 declare const CLICK_PATCH: SynthFile;
@@ -9900,6 +9906,7 @@ type AssetInfo = {
     texture?: AssetId;
 };
 declare function assetInfo(view: ProjectView, id: AssetId, frame?: string): AssetInfo | null;
+declare function audioChannelsText(channels: number): string;
 
 ## project/bundle.ts
 type AssetBundle = {
@@ -10282,6 +10289,7 @@ declare const audioKind: {
 };
 declare const audioMetaSchema: z.ZodType<AudioMeta>;
 declare const audioSettingsSchema: z.ZodType<AudioSettings>;
+declare function loopPastEnd(points: Pick<AudioSettings, "loopEnd" | "loopStart">, meta: Pick<AudioMeta, "durationMs">): null | string;
 
 ## project/kinds/checks.ts
 declare const checksKind: {

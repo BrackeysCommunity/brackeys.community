@@ -329,7 +329,14 @@ export function textLabel(text: DrawnText): string {
 
 const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type === "spawn";
 
-/** The scene as deterministic SVG text in world px (1/100 px): entities in their type's style, one-way faces, a grid, labels, sprite and text boxes ("≈" when estimated), paths and the given overlays. */
+/**
+ * The scene as SVG text in world px (written to 1/100 px): each entity in
+ * its type's and material's style, one-way landing faces, a grid with axis
+ * ticks, id labels, sprite boxes labelled `asset[:frame]` (sized from
+ * `opts.project` when given), text boxes labelled with their text ("≈"
+ * before an estimated size), path waypoints and the given overlays. The
+ * same scene and options give the same text.
+ */
 export function renderSceneSvg(
   scene: SceneDefinition | ExpandedScene,
   opts: SceneSvgOptions,

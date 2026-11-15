@@ -2039,8 +2039,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -3378,8 +3378,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -4705,8 +4705,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -6276,8 +6276,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -7661,8 +7661,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -8988,8 +8988,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -10550,8 +10550,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -12128,8 +12128,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -13713,8 +13713,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -15356,8 +15356,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -16926,8 +16926,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",
@@ -18512,8 +18512,8 @@
                       "default": 16,
                       "group": "look",
                       "type": "number",
-                      "exclusiveMinimum": 0,
-                      "maximum": 512
+                      "minimum": 1,
+                      "maximum": 128
                     },
                     "color": {
                       "description": "0xRRGGBB; default white.",

@@ -485,7 +485,7 @@ describe("the sound panel's variant picker", () => {
       </KitProvider>,
     );
     const add = await waitFor(() =>
-      within(view.container).getByRole("combobox", { name: "variants.add" }),
+      within(view.container).getByRole("combobox", { name: "Add a variant" }),
     );
     const row = add.closest(".je-insp-field") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Show options" }));

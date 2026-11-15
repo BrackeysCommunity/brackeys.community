@@ -2,14 +2,16 @@
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { SYNTH_PRESETS, synthDurationMs } from "@jams/engine/headless";
 import { audioKind, parseAssetDoc, synthKind, type SynthFile } from "@jams/engine/project";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { COMMANDS } from "../commands";
 import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
-import { synthNew, synthRender } from "../tools/synth";
+import { SYNTH_NEW_USAGE, SYNTH_RENDER_USAGE, synthNew, synthRender } from "../tools/synth";
 import { tempProject } from "./fixtures";
 
 let root: string;
@@ -97,6 +99,19 @@ describe("synth new", { timeout: 60_000 }, () => {
     expect(seed.exitCode).toBe(2);
     expect(seed.text).toContain("--seed");
     expect(await files(join(root, "refused"))).toEqual(before);
+  });
+});
+
+describe("synth docs", () => {
+  it("name every preset in the help and the README, and share the tool's usage lines", async () => {
+    for (const preset of SYNTH_PRESETS) expect(COMMANDS["synth new"].summary).toContain(preset);
+    expect(COMMANDS["synth new"].usage.startsWith(`${SYNTH_NEW_USAGE} `)).toBe(true);
+    expect(COMMANDS["synth render"].usage).toBe(SYNTH_RENDER_USAGE);
+    const readme = await readFile(fileURLToPath(new URL("../README.md", import.meta.url)), "utf8");
+    const lists = readme.match(/\(`pickup`(?:,\s+`[a-z]+`)+\)/g) ?? [];
+    expect(lists.length).toBeGreaterThanOrEqual(2);
+    for (const list of lists)
+      expect(list.match(/`([a-z]+)`/g)?.map((p) => p.slice(1, -1))).toEqual([...SYNTH_PRESETS]);
   });
 });
 

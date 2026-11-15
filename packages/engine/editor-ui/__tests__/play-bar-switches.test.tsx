@@ -142,7 +142,7 @@ describe("the locale picker", () => {
     expect(picker.textContent).toBe("en");
 
     fireEvent.click(picker);
-    const french = await screen.findByRole("option", { name: "fr" });
+    const french = await screen.findByRole("option", { name: "fr · français" });
     fireEvent.mouseMove(french);
     fireEvent.click(french);
     await waitFor(() => expect(game.locale.set).toHaveBeenCalledWith("fr"));

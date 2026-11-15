@@ -1,7 +1,7 @@
 import type { Registry } from "../game/types";
 import { clamp } from "../math";
 import { PREF_KEYS, setPref, type PrefsStore } from "../prefs";
-import { assetInfo, type AssetInfo } from "../project/asset-info";
+import type { AssetInfo } from "../project/asset-info";
 import { sameValue } from "../project/canonical";
 import { AUDIO_KIND } from "../project/kinds/audio";
 import { isPlainObject } from "../project/kinds/define";
@@ -13,7 +13,7 @@ import {
 } from "../project/kinds/sound";
 import { SYNTH_KIND, type SynthFile } from "../project/kinds/synth";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import type { AssetId, ProjectView } from "../project/types";
+import type { AssetId } from "../project/types";
 import type { PoseIndex } from "../runtime/poses";
 import type { AudioRequest } from "../runtime/present";
 import type { StepEvent } from "../runtime/types";
@@ -34,10 +34,12 @@ import {
   type LatencyCalibration,
   type MusicAnchor,
 } from "./clock";
-import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs } from "./synth";
+import { renderSynth, SYNTH_SAMPLE_RATE } from "./synth";
 import { CLICK_PATCH } from "./synth-presets";
 import { soundTriggers, triggerEntityOf, triggerSource, type SoundTriggers } from "./triggers";
 import type { AudioBackend, AudioClipHandle, AudioSystem, BusLevel, BusName, Voice } from "./types";
+
+export { soundLeafMs } from "./sound-length";
 
 /** The host events the audio system raises. */
 export type AudioHostEvent = "audio:unlocked" | "audio:caption";
@@ -128,21 +130,6 @@ export function pickSoundVariant<V extends Pick<Variant, "clip" | "weight">>(
     if (left < 0) return v;
   }
   return candidates[candidates.length - 1];
-}
-
-/**
- * A sound variant's length, ms: a synth patch's as `synthDurationMs` gives
- * it (`synth` finds the patch), else an audio clip's from its header meta;
- * null for a sound or an id whose length isn't known.
- */
-export function soundLeafMs(
-  view: ProjectView | null,
-  id: AssetId,
-  synth: (id: AssetId) => SynthFile | undefined,
-): number | null {
-  const patch = synth(id);
-  if (patch) return synthDurationMs(patch);
-  return (view && assetInfo(view, id)?.audio?.durationMs) ?? null;
 }
 
 /** A play's rate within the sound's pitch range; `roll` is drawn only for a range. */

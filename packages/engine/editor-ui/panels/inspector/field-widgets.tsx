@@ -17,7 +17,12 @@ import {
 import { z } from "zod";
 
 import type { Pt } from "../../../editor/index";
-import { lengthStep, parseRelative, type InspectorRow } from "../../../editor/inspector-model";
+import {
+  fieldTitle,
+  lengthStep,
+  parseRelative,
+  type InspectorRow,
+} from "../../../editor/inspector-model";
 import { DEFAULT_LENGTH_UNIT } from "../../../game/defaults";
 import { STRING_KEY_PATTERN } from "../../../project/kinds/strings";
 import { fieldKind } from "../../../scene/index";
@@ -141,6 +146,34 @@ export const metricUnit = (unit: unknown): LengthUnitName | undefined =>
 /** A unit after a pair of number inputs, centred on their line. */
 export const UnitSuffix = ({ unit }: { unit: string }) => (
   <span className="je-insp-line je-insp-suffix">{unit}</span>
+);
+
+/**
+ * A field's path read as words, its behavior's name first and indexes
+ * counted from 1: `behaviors.tween.tweens.1.to.alpha` reads "Tween tweens 2
+ * to alpha".
+ */
+export function pathWords(path: string): string {
+  const segments = path.split(".");
+  const from = segments[0] === "behaviors" && segments.length > 1 ? 1 : 0;
+  const words = segments.slice(from).map((segment) => {
+    if (/^\d+$/.test(segment)) return String(Number(segment) + 1);
+    const title = fieldTitle(segment.replace(/^@/, ""));
+    return /^[A-Z][a-z]/.test(title) ? title.charAt(0).toLowerCase() + title.slice(1) : title;
+  });
+  const text = words.join(" ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * A number row's unit in a slot of one width (`--je-unit-col`), so number,
+ * slider and range boxes with a unit end at one x whatever the unit; a
+ * slider or range row keeps the slot empty when it has none.
+ */
+export const UnitSlot = ({ unit }: { unit: string | undefined }) => (
+  <span className="je-insp-suffix je-insp-unit" aria-hidden={unit ? undefined : true}>
+    {unit ?? ""}
+  </span>
 );
 
 /** A number as an input shows it: to `decimals` places when given, trailing zeros dropped. */
@@ -314,6 +347,7 @@ export function NumberInput({
   bigStep,
   preview,
   suffix,
+  unit,
   decimals,
   named,
   onCommit,
@@ -328,7 +362,10 @@ export function NumberInput({
   step: number;
   bigStep: number;
   preview?: string | null;
+  /** A name after the box, as wide as it is: an axis's "x". */
   suffix?: string;
+  /** The field's unit, in its slot (`UnitSlot`). */
+  unit?: string;
   /** Decimals the value shows; all of them when omitted. */
   decimals?: number;
   /** Values shown as a word, which typing the word sets. */
@@ -376,6 +413,7 @@ export function NumberInput({
           }}
         />
         {suffix ? <span className="je-insp-suffix">{suffix}</span> : null}
+        {unit ? <UnitSlot unit={unit} /> : null}
       </div>
       {error ? <span className="je-insp-error">{error}</span> : null}
     </div>
@@ -392,7 +430,7 @@ export type FieldWidgetProps = {
   scope?: string;
   /** Number and angle fields: the scrub label and dial don't drag (a disabled fieldset disables the inputs). */
   disabled?: boolean;
-  /** Number and options fields: the control's accessible name; default the field's path. */
+  /** A single-control field's accessible name; default the field's path (a slider's, in words). */
   label?: string;
 };
 
@@ -416,7 +454,8 @@ function DraftField({
   shown,
   placeholder,
   parse,
-}: Pick<FieldWidgetProps, "field" | "commit" | "scope"> & {
+  label,
+}: Pick<FieldWidgetProps, "field" | "commit" | "scope" | "label"> & {
   /** The stored value as text. */
   shown: string;
   placeholder: string | undefined;
@@ -437,7 +476,7 @@ function DraftField({
   return (
     <FieldRow field={field} error={error} scope={scope}>
       <Input
-        aria-label={field.path}
+        aria-label={label ?? field.path}
         aria-invalid={error ? true : undefined}
         placeholder={placeholder}
         maxLength={field.widget.kind === "text" ? field.widget.maxLength : undefined}
@@ -459,12 +498,13 @@ function DraftField({
 const asText = (text: string): Parsed => ({ ok: true, value: text });
 
 /** A text draft committed on Enter or blur; empty unsets an optional field. */
-export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
+export function TextField({ field, commit, unset, scope, label }: FieldWidgetProps) {
   return (
     <DraftField
       field={field}
       commit={commit}
       scope={scope}
+      {...(label !== undefined ? { label } : {})}
       shown={typeof field.value === "string" ? field.value : ""}
       placeholder={placeholderOf(field, unset)}
       parse={asText}
@@ -487,12 +527,13 @@ function asJson(text: string): Parsed {
  * Plain JSON typed as text, committed on Enter or blur once it parses;
  * empty unsets an optional field.
  */
-export function JsonField({ field, commit, unset, scope }: FieldWidgetProps) {
+export function JsonField({ field, commit, unset, scope, label }: FieldWidgetProps) {
   return (
     <DraftField
       field={field}
       commit={commit}
       scope={scope}
+      {...(label !== undefined ? { label } : {})}
       shown={field.value === undefined ? "" : JSON.stringify(field.value)}
       placeholder={placeholderOf(field, unset)}
       parse={asJson}
@@ -538,7 +579,7 @@ export function NumberField({
         mixed={field.mixed}
         step={w.step}
         bigStep={w.bigStep}
-        suffix={w.unit}
+        {...(w.unit ? { unit: w.unit } : {})}
         decimals={w.decimals}
         {...(w.named ? { named: w.named } : {})}
         preview={
@@ -573,9 +614,9 @@ export const isBoundedNumber = (row: Pick<InspectorRow, "widget">): boolean => {
 
 /**
  * A bounded number (`isBoundedNumber`): a slider over its range that writes
- * on release, the typed value, and a unit slot of one width in every row,
- * so the value boxes line up whether or not a row has a unit. An unset
- * field sits at its default, else at the end of its range nearest 0.
+ * on release, and the typed value with its unit slot (`UnitSlot`). Named by
+ * its path in words (`pathWords`) unless given a `label`. An unset field
+ * sits at its default, else at the end of its range nearest 0.
  */
 export function SliderField({
   field,
@@ -589,7 +630,7 @@ export function SliderField({
   const max = w.max ?? 1;
   const [drag, setDrag] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const label = name ?? field.path;
+  const label = name ?? pathWords(field.path);
   const value = typeof field.value === "number" ? field.value : undefined;
   const rest = typeof field.defaultValue === "number" ? field.defaultValue : 0;
   const shown = drag ?? value ?? clamp(rest, min, max);
@@ -624,12 +665,7 @@ export function SliderField({
             text.trim() === "" && field.optional ? commit(undefined) : commit(text)
           }
         />
-        <span
-          className="je-insp-suffix je-insp-slider-unit"
-          aria-hidden={w.unit ? undefined : true}
-        >
-          {w.unit ?? ""}
-        </span>
+        <UnitSlot unit={w.unit} />
       </div>
     </FieldRow>
   );
@@ -827,6 +863,7 @@ export function SwitchField({
   unset,
   scope,
   fallback,
+  label,
 }: FieldWidgetProps & { fallback?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const checked =
@@ -841,7 +878,7 @@ export function SwitchField({
     <FieldRow field={field} error={error} scope={scope}>
       <div className="je-insp-row je-insp-line">
         <Switch
-          aria-label={field.path}
+          aria-label={label ?? field.path}
           checked={checked}
           onCheckedChange={(on) => settle(commit(on ? true : off), setError)}
         />
@@ -1123,9 +1160,6 @@ export function RecordField({
   );
 }
 
-/** The name the settings panels still import; `DraftInput` itself. */
-export const RecordInput = DraftInput;
-
 /** Typed tags as a list: split on spaces and commas, blanks dropped. */
 export const splitWords = (text: string): string[] => text.split(/[\s,]+/).filter(Boolean);
 
@@ -1339,6 +1373,7 @@ export function RangeField({
   field,
   scope,
   commitEach,
+  label,
 }: Omit<FieldWidgetProps, "commit"> & {
   commitEach: (next: (current: unknown) => Pt | EditError) => FieldResult;
 }) {
@@ -1362,7 +1397,7 @@ export function RangeField({
         {(["low", "high"] as const).map((name, i) => (
           <NumberInput
             key={name}
-            label={`${field.path}.${name}`}
+            label={label ? `${label} ${i === 0 ? "min" : "max"}` : `${field.path}.${name}`}
             value={at?.[i]}
             {...(at === undefined && declared
               ? { unset: `${declared[i]! * scale} (default)` }
@@ -1375,7 +1410,7 @@ export function RangeField({
             onCommit={end(i as 0 | 1)}
           />
         ))}
-        {w.unit ? <UnitSuffix unit={w.unit} /> : null}
+        <UnitSlot unit={w.unit} />
       </div>
     </FieldRow>
   );
@@ -1510,6 +1545,7 @@ export function NameField({
   problem,
   placeholder,
   empty,
+  label,
 }: FieldWidgetProps & {
   items: readonly string[];
   describe?: (id: string) => Described;
@@ -1526,7 +1562,7 @@ export function NameField({
   return (
     <FieldRow field={field} scope={scope} error={shown}>
       <IdCombobox
-        label={field.path}
+        label={label ?? field.path}
         items={value !== null && !items.includes(value) ? [...items, value] : items}
         value={value}
         onChange={(next) => {

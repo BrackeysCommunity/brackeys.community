@@ -81,6 +81,7 @@ export {
 } from "../dialogue/explore";
 export { dialogueCommands } from "./legal";
 export { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs, synthWav } from "../audio/synth";
+export { soundLeafMs } from "../audio/sound-length";
 export { mutateSynth, randomSynth, SYNTH_PRESETS, type SynthPreset } from "../audio/synth-presets";
 export { ANIM_END, ANIM_FRAME } from "../runtime/behaviors/anim";
 export {

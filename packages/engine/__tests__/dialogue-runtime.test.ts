@@ -502,6 +502,59 @@ describe("a conversation the load starts, ended before a world save", () => {
   });
 });
 
+describe("a world save restored over the load's voiced line", () => {
+  const opener = () => talker(undefined, { onLoad: true });
+  const stopVoice: PresentRequest = { kind: "audio", op: { op: "stop", key: DIALOGUE_VOICE_KEY } };
+  const stops = (result: StepResult) => audioOf([result]).filter((p) => p.op.op === "stop");
+
+  /** A save of the load's conversation after `script` runs to `ticks`. */
+  function saveAt(ticks: number, script: Readonly<Record<number, GameCommand[]>>): SaveFile {
+    const a = runtime(opener());
+    run(a, 0, ticks, script);
+    const file = worldSave(a, opener());
+    a.destroy();
+    return file;
+  }
+
+  function restoredOnLoad(file: SaveFile): SceneRuntimeHandle {
+    const b = runtime(opener(), { record: true });
+    expect(b.ctx.dialogue.view()).toMatchObject({ node: "hello", line: 0 });
+    const restored = restoreSave(b, file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    return b;
+  }
+
+  it("cuts that voice for another voiced line, and the next line cuts the saved one's", () => {
+    const file = saveAt(2, { 1: [advance] });
+    expect(file.world!.systems[SAVE_DIALOGUE_KEY]).toMatchObject({ run: { voiced: true } });
+    const b = restoredOnLoad(file);
+    expect(b.ctx.dialogue.view()).toMatchObject({ node: "hello", line: 1 });
+    expect(stops(step(b))).toEqual([stopVoice]);
+    expect(stops(step(b, [choose(0)]))).toEqual([stopVoice]);
+    b.destroy();
+  });
+
+  it("cuts that voice for an unvoiced line, and has none left for the end to stop", () => {
+    const file = saveAt(4, { 1: [advance], 3: [choose(0)] });
+    expect(file.world!.systems[SAVE_DIALOGUE_KEY]).toMatchObject({ run: { dialogue: TALK } });
+    expect(file.world!.systems[SAVE_DIALOGUE_KEY]).not.toHaveProperty("run.voiced");
+    const b = restoredOnLoad(file);
+    expect(b.ctx.dialogue.view()).toMatchObject({ node: "yes", line: 0 });
+    expect(stops(step(b))).toEqual([stopVoice]);
+    const end = step(b, [advance]);
+    expect(end.events.map((e) => e.type)).toContain(DIALOGUE_END);
+    expect(stops(end)).toEqual([]);
+    b.destroy();
+  });
+
+  it("lets it play on when the saved line is the one on screen, until the next line", () => {
+    const b = restoredOnLoad(saveAt(1, {}));
+    expect(stops(step(b))).toEqual([]);
+    expect(stops(step(b, [advance]))).toEqual([stopVoice]);
+    b.destroy();
+  });
+});
+
 describe("a live swap mid-conversation", () => {
   it.each(["auto", "reload"] as const)("keeps the conversation (%s)", (strategy) => {
     const a = runtime();

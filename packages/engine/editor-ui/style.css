@@ -44,8 +44,14 @@
     --je-label-col: clamp(64px, 30%, 120px);
     /* A locale code beside its value, wide enough for pt-BR or "default". */
     --je-locale-col: 3.75em;
+    /* A number row's unit column: wide enough for oct/s². */
+    --je-unit-col: 3em;
     --je-rail: 36px;
     --je-handle: 6px;
+    /* A knob's cap and pointer: black with a white line, as on a hardware synth, in either theme unless a host sets them. */
+    --je-knob-cap: #17171d;
+    --je-knob-cap-hover: #22222b;
+    --je-knob-pointer: #f2f2f6;
 
     color-scheme: dark;
   }
@@ -2179,9 +2185,13 @@
     width: 96px;
   }
 
-  /* Locale tags are short. */
+  /* Locale tags are short: room for five characters, as in pt-BR. */
   .je-play-select.je-play-locale {
-    width: 80px;
+    width: calc(5ch + 36px);
+  }
+
+  .je-play-pickers {
+    display: contents;
   }
 
   .je-play-switch-icon {
@@ -2207,8 +2217,7 @@
   }
 
   @container je-dock (max-width: 539px) {
-    .je-play-select,
-    .je-play-select.je-play-locale {
+    .je-play-select {
       width: 64px;
     }
 
@@ -2217,10 +2226,22 @@
     }
   }
 
-  /* Narrower still, the pickers wrap to a row of their own rather than Stop. */
+  /* Narrower still, the pickers take a row of their own under the transport, at full width again. */
   @container je-dock (max-width: 459px) {
-    .je-play-select {
+    .je-play-pickers {
+      display: flex;
+      flex-basis: 100%;
       order: 1;
+      justify-content: center;
+      gap: inherit;
+    }
+
+    .je-play-pickers:empty {
+      display: none;
+    }
+
+    .je-play-select {
+      width: 96px;
     }
   }
 
@@ -3062,9 +3083,9 @@
     flex: 0 0 80px;
   }
 
-  /* One width with or without a unit, so every row's value box ends at the same x; wide enough for oct/s². */
-  .je-insp-slider-unit {
-    flex: 0 0 3em;
+  /* One width for every number row's unit, so their value boxes end at the same x. */
+  .je-insp-unit {
+    flex: 0 0 var(--je-unit-col);
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -3921,6 +3942,11 @@
     white-space: nowrap;
   }
 
+  .je-asset-panel-details > .je-asset-panel-wrap {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
   .je-licence {
     display: flex;
     flex-direction: column;
@@ -4114,21 +4140,20 @@
     fill: var(--je-muted-fg);
   }
 
-  /* A black cap with a white line, as on a hardware mono synth, in either theme. */
   .je-knob-cap {
-    fill: #17171d;
+    fill: var(--je-knob-cap);
     stroke: color-mix(in srgb, var(--je-panel-fg) 18%, transparent);
     stroke-width: 1;
   }
 
   .je-knob-pointer {
-    stroke: #f2f2f6;
+    stroke: var(--je-knob-pointer);
     stroke-linecap: round;
     stroke-width: 2;
   }
 
   .je-knob-dial:hover .je-knob-cap {
-    fill: #22222b;
+    fill: var(--je-knob-cap-hover);
   }
 
   .je-knob-value,
@@ -4137,7 +4162,7 @@
     height: 16px;
     padding: 0 2px;
     border: 0;
-    border-radius: 3px;
+    border-radius: var(--je-radius-nested);
     background: none;
     color: var(--je-panel-fg);
     font: inherit;

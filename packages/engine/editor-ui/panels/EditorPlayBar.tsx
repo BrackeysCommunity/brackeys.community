@@ -176,14 +176,16 @@ export function EditorPlayBar({
         </div>
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
         <SoundInPlayToggle game={game} on={sound} onChange={setSound} onLater={setSoundLater} />
-        <LocalePicker game={game} canvas={canvas} />
-        <DialoguePicker
-          game={game}
-          canvas={canvas}
-          session={project?.session ?? null}
-          running={dialogue?.id ?? null}
-          onPick={(id) => setDialogue((was) => ({ id, run: (was?.run ?? 0) + 1 }))}
-        />
+        <div className="je-play-pickers">
+          <LocalePicker game={game} canvas={canvas} />
+          <DialoguePicker
+            game={game}
+            canvas={canvas}
+            session={project?.session ?? null}
+            running={dialogue?.id ?? null}
+            onPick={(id) => setDialogue((was) => ({ id, run: (was?.run ?? 0) + 1 }))}
+          />
+        </div>
         <Button
           variant="secondary"
           size="sm"
@@ -401,11 +403,23 @@ function useFocusCanvasOnPick(canvas: EditorControls["canvas"]) {
   };
 }
 
+/** `tag` with its language's own name, "fr · français"; the tag alone where none is known. */
+export function localeOption(tag: string): string {
+  let name: string | undefined;
+  try {
+    name = new Intl.DisplayNames([tag], { type: "language" }).of(tag);
+  } catch {
+    name = undefined;
+  }
+  return name && name !== tag ? `${tag} · ${name}` : tag;
+}
+
 /**
  * Switches the game's locale while playing, so translated text and its font
  * can be checked; Stop puts back the locale Play started in (`usePlayLocale`).
- * Locales read as their tags, as the game settings and string tables name
- * them. Shown only when the project lists more than one locale.
+ * The trigger shows the tag, as the game settings and string tables name it,
+ * and the list adds each language's name. Shown only when the project lists
+ * more than one locale.
  */
 function LocalePicker({ game, canvas }: { game: object; canvas: EditorControls["canvas"] }) {
   const { cue } = useKit();
@@ -438,7 +452,7 @@ function LocalePicker({ game, canvas }: { game: object; canvas: EditorControls["
       <SelectContent finalFocus={focus.finalFocus}>
         {available.map((code) => (
           <SelectItem key={code} value={code}>
-            {code}
+            {localeOption(code)}
           </SelectItem>
         ))}
       </SelectContent>

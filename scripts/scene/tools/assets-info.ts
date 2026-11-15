@@ -2,14 +2,16 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { resolveClips, type ResolvedClip } from "@jams/engine/game";
-import { SYNTH_SAMPLE_RATE, synthDurationMs } from "@jams/engine/headless";
+import { soundLeafMs, SYNTH_SAMPLE_RATE, synthDurationMs } from "@jams/engine/headless";
 import {
   animationIssues,
   animationKind,
   ANIMATION_KIND,
   AUDIO_KIND,
   assetInfo,
+  audioChannelsText,
   FONT_KIND,
+  loopPastEnd,
   parseAssetDoc,
   projectView,
   SOUND_KIND,
@@ -220,18 +222,13 @@ export type FontInfo = {
 const ms = (n: number) => `${Math.round(n * 10) / 10} ms`;
 const hex = (cp: number) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
 
-function channelsText(channels: number): string {
-  if (channels === 1) return "mono";
-  if (channels === 2) return "stereo";
-  return `${channels} channels`;
-}
-
-function clipLines(meta: AudioMeta | null, info: AssetInfo): string[] {
+/** `past`: why the clip's loop points run past its end, as `loopPastEnd` says. */
+function clipLines(meta: AudioMeta | null, info: AssetInfo, past: string | null): string[] {
   const facts = meta
     ? [
         meta.format,
         meta.durationMs === undefined ? "length unknown" : ms(meta.durationMs),
-        meta.channels === undefined ? undefined : channelsText(meta.channels),
+        meta.channels === undefined ? undefined : audioChannelsText(meta.channels),
         meta.sampleRate === undefined ? undefined : `${meta.sampleRate} Hz`,
       ]
     : ["no header facts; run assets reimport"];
@@ -241,7 +238,9 @@ function clipLines(meta: AudioMeta | null, info: AssetInfo): string[] {
       ? `loop ${info.loopStart ?? 0}..${info.loopEnd ?? "end"} s`
       : undefined,
   ];
-  return [`  ${[...facts, ...play].filter((s) => s !== undefined).join(", ")}`];
+  const lines = [`  ${[...facts, ...play].filter((s) => s !== undefined).join(", ")}`];
+  if (past !== null) lines.push(`  warning: ${past}`);
+  return lines;
 }
 
 const patchInfo = (patch: SynthFile): PatchInfo => ({
@@ -259,20 +258,17 @@ function soundInfo(
   view: ProjectView,
   values: ReadonlyMap<AssetId, unknown>,
 ): SoundInfo {
+  const patchOf = (id: AssetId) =>
+    view.byId.get(id)?.kind === SYNTH_KIND ? (values.get(id) as SynthFile | undefined) : undefined;
   return {
     bus: sound.bus,
     loop: sound.loop === true,
-    variants: sound.variants.map(({ clip, weight }) => {
-      const kind = view.byId.get(clip)?.kind ?? null;
-      const patch = kind === SYNTH_KIND ? (values.get(clip) as SynthFile | undefined) : undefined;
-      const durationMs =
-        kind === AUDIO_KIND
-          ? (assetInfo(view, clip)?.audio?.durationMs ?? null)
-          : patch
-            ? synthDurationMs(patch)
-            : null;
-      return { clip, kind, weight: weight ?? 1, durationMs };
-    }),
+    variants: sound.variants.map(({ clip, weight }) => ({
+      clip,
+      kind: view.byId.get(clip)?.kind ?? null,
+      weight: weight ?? 1,
+      durationMs: soundLeafMs(view, clip, patchOf),
+    })),
   };
 }
 
@@ -321,7 +317,8 @@ function fontLines(f: FontInfo, meta: FontMeta, pages: readonly AssetId[] | unde
  * atlas's frames, tags and texture, and with `--frame` that frame's size
  * and pivot; an animation's clips with their frames, ticks at the
  * project's rate, events, shape sets and issues; an audio clip's length,
- * channels and rate from its headers; a synth patch's length; a sound's bus
+ * channels and rate from its headers, and a warning when its loop points
+ * run past its end; a synth patch's length; a sound's bus
  * and each variant's length; a font's coverage and distance field. The id
  * is looked up across projects, `--project` picking one.
  */
@@ -367,7 +364,9 @@ export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Prom
   if (info.kind === AUDIO_KIND) {
     const audio = info.audio ?? null;
     extra.audio = audio;
-    lines.push(...clipLines(audio, info));
+    const past = audio ? loopPastEnd(info, audio) : null;
+    if (past !== null) extra.loopPastEnd = past;
+    lines.push(...clipLines(audio, info, past));
   } else if (info.kind === FONT_KIND && info.font) {
     const font = fontInfo(info.font);
     extra.font = font;

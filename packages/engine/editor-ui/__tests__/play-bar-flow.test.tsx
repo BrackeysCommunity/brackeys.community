@@ -159,11 +159,27 @@ describe("the play bar at narrow widths", () => {
     const chip = below(".je-play-bar > .je-badge");
     const labels = below(".je-play-switch-label");
     const stop = below(".je-play-stop-label");
-    const order = below(".je-play-select");
+    const order = below(".je-play-pickers");
     expect(chip).toBeGreaterThan(labels);
     expect(labels).toBeGreaterThan(stop);
     expect(stop).toBeGreaterThan(order);
     expect(order).toBeGreaterThan(0);
+  });
+
+  it("breaks the pickers onto their own row whole, leaving the switches and Stop on the transport's", () => {
+    const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    const at = css.indexOf(
+      ".je-play-pickers {",
+      css.indexOf("@container je-dock (max-width: 459px)"),
+    );
+    const rule = /\{([^}]*)\}/.exec(css.slice(at))?.[1] ?? "";
+    expect(rule).toContain("flex-basis: 100%");
+    expect(rule).toContain("order: 1");
+    expect(/\.je-play-pickers \{([^}]*)\}/.exec(css)?.[1]).toContain("display: contents");
+    bar({ outcome: false });
+    const pickers = document.querySelector(".je-play-pickers")!;
+    expect(pickers.contains(button("Stop"))).toBe(false);
+    expect(pickers.querySelector('[role="switch"]')).toBeNull();
   });
 
   it("names the switches and Stop for assistive tech whatever their labels show", () => {

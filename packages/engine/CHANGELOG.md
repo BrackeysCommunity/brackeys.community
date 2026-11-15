@@ -196,7 +196,10 @@ owner.
     ran stops. A buffered and a streamed clip play loop points by one rule:
     a `loopEnd` past the clip's end loops to the end, a `loopStart` at or
     past it loops the whole clip, and a lone `loopStart` loops to the end (a
-    buffer source is given both points).
+    buffer source is given both points). The music clock wraps tick-aligned
+    music by the same rule (`loopSpan`), so a resync never seeks past the
+    clip's end, and the fake backend's voices report their position wrapped
+    into the loop the same way.
 - `tryWebAudioBackend()` is `webAudioBackend()`, or `false` where the
   browser has no Web Audio, so a host's `audio.backend` plays the game
   silent instead of failing it; the site and the standalone host pass it.
@@ -234,8 +237,17 @@ owner.
   and its pages', a web font by its content hash. `TEXT_COLOR_DEFAULT`,
   `textFontOf`, `FontAssetInfo` and `TextShown` are exported from `./game`.
 - `AssetInfo` carries a font's `font` meta and `pages` ids, and an audio
-  clip's `stream`, `loopStart` and `loopEnd`. Scene and project bundles
+  clip's `audio` header facts (`format`, `durationMs`, `channels`,
+  `sampleRate`, read through `audioMetaSchema`; absent for meta the schema
+  refuses), `stream`, `loopStart` and `loopEnd`. Scene and project bundles
   include `font` blobs as entries beside textures.
+- `./project` exports `audioChannelsText(channels)` ("mono", "stereo", "N
+  channels") and `loopPastEnd(points, meta)`, which says why a clip's loop
+  points run past its measured end (null when they fit or the length isn't
+  known). `./headless` exports `soundLeafMs(view, id, synth)`: a sound
+  variant's length, a synth patch's `synthDurationMs` else the clip's
+  header length. The asset panel, the editor's audio and `assets info`
+  share them.
 - World text in Pixi: `SceneView.text` draws a BMFont as `BitmapText`
   (installed once per loader from its loaded page textures; MSDF/SDF
   through Pixi's distance-field shader, the default face under the Canvas2D
@@ -523,6 +535,10 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
 - The text block's `size`, `wrap` and `outline.width` are px at zoom 1
   (were "world px"), and so are `TextVisual.size` and `wrap`. The
   canvas-sync image copies `text/`.
+- **Breaking:** the text block's `size` runs 1 to 128 px (was above 0 up
+  to 512), so the inspector's whole-pixel slider puts everyday sizes inside
+  its track and refuses an invisible 0. No scene in the repo names a size
+  outside the range.
 - `quarter-turn-only` on an instance under a frame off the quarter turns
   has a fix: reparent to the nearest ancestor on the quarter turns, then
   turn the instance onto the nearest world quarter turn (reparenting keeps
@@ -653,8 +669,9 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
 - `vp run scene dialogue walk <id> [--vars json]` prints each ending a
   dialogue reaches from its start, with its choice path (indices and text
   keys) and nodes, and the endings no path reached (`exploreDialogue`).
-  `assets info` prints an audio clip's length, channels and rate, a synth
-  patch's length (`synthDurationMs`), a sound's variants with their
+  `assets info` prints an audio clip's length, channels and rate (with a
+  `warning:` line, and `loopPastEnd` in its JSON, when its loop points run
+  past its end), a synth patch's length (`synthDurationMs`), a sound's variants with their
   lengths, and a font's coverage and distance field. `playtest --present`
   lists `audio` play, stop and music requests beside camera and effect
   requests, and each sound a step event plays through a sound's `on`

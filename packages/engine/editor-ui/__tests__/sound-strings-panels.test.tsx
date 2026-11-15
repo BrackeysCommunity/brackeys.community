@@ -150,14 +150,14 @@ describe("the sound panel's fields", () => {
   it("draws the pitch as a low and high rate with no unit, editing from the default", async () => {
     const session = await project();
     mountSound(session);
-    const low = (await screen.findByRole("textbox", { name: "pitch.low" })) as HTMLInputElement;
+    const low = (await screen.findByRole("textbox", { name: "Pitch min" })) as HTMLInputElement;
     const row = low.closest(".je-insp-field") as HTMLElement;
     expect(within(row).getByText("Pitch")).toBeTruthy();
     expect(row.querySelector(".je-insp-line.je-insp-suffix")).toBeNull();
     expect(within(row).queryByText("x")).toBeNull();
     expect(within(row).queryByText("m")).toBeNull();
     expect(low.placeholder).toBe("1 (default)");
-    const high = within(row).getByRole("textbox", { name: "pitch.high" });
+    const high = within(row).getByRole("textbox", { name: "Pitch max" });
     await act(async () => {
       fireEvent.change(high, { target: { value: "1.2" } });
       fireEvent.keyDown(high, { key: "Enter" });
@@ -168,7 +168,7 @@ describe("the sound panel's fields", () => {
   it("picks the caption from the project's string keys, each with its default-locale text", async () => {
     const session = await project();
     mountSound(session);
-    const caption = await screen.findByRole("combobox", { name: "caption" });
+    const caption = await screen.findByRole("combobox", { name: "Caption" });
     await waitFor(() => expect((caption as HTMLInputElement).value).toBe("gate.halt"));
     const options = await optionsOf(caption);
     const leave = options.find((o) => o.textContent?.startsWith("gate.leave"))!;
@@ -203,14 +203,14 @@ describe("the sound panel's fields", () => {
   it("adds a trigger from the engine's step events, and notes an event only a game raises", async () => {
     const session = await project();
     mountSound(session);
-    const add = await screen.findByRole("combobox", { name: "on.add" });
+    const add = await screen.findByRole("combobox", { name: "Add a trigger" });
     const options = await optionsOf(add);
     const contact = options.find((o) => o.textContent === "contact:start")!;
     await choose(contact);
     await waitFor(() => expect(soundOf(session).on).toEqual([{ event: "contact:start" }]));
     const triggers = screen.getByRole("region", { name: "Triggers" });
     expect(within(triggers).getByText("On contact:start")).toBeTruthy();
-    const event = within(triggers).getByRole("combobox", { name: "on.0.event" });
+    const event = within(triggers).getByRole("combobox", { name: "Event of trigger 1" });
     await optionsOf(event);
     await act(async () => {
       fireEvent.change(event, { target: { value: "coin:taken" } });
@@ -231,7 +231,7 @@ describe("the sound panel's fields", () => {
   it("shows an unknown bus in the bus row's error slot, as every field problem", async () => {
     const session = await project({ sound: { ...HIT_SOUND, bus: "sfxx" } });
     mountSound(session);
-    const bus = await screen.findByRole("combobox", { name: "bus" });
+    const bus = await screen.findByRole("combobox", { name: "Bus" });
     const row = bus.closest(".je-insp-field") as HTMLElement;
     expect(row.querySelector(".je-insp-error")?.textContent).toMatch(/^No bus "sfxx"/);
   });
@@ -239,9 +239,9 @@ describe("the sound panel's fields", () => {
   it("draws the volume as a slider over its 0–1 range, unset reading as its full volume", async () => {
     const session = await project();
     mountSound(session);
-    const slider = await screen.findByRole("slider", { name: "volume slider" });
+    const slider = await screen.findByRole("slider", { name: "Volume slider" });
     expect(slider.getAttribute("aria-valuenow")).toBe("1");
-    const volume = screen.getByRole("textbox", { name: "volume" }) as HTMLInputElement;
+    const volume = screen.getByRole("textbox", { name: "Volume" }) as HTMLInputElement;
     expect(volume.placeholder).toBe("1 (default)");
     await act(async () => {
       fireEvent.change(volume, { target: { value: "0.4" } });
@@ -253,7 +253,7 @@ describe("the sound panel's fields", () => {
   it("reads an unset switch as on or off (default), as the entity inspector's switches do", async () => {
     const session = await project();
     mountSound(session);
-    const loop = await screen.findByRole("switch", { name: "loop" });
+    const loop = await screen.findByRole("switch", { name: "Loop" });
     expect(loop.closest(".je-insp-field")?.textContent).toContain("off (default)");
     expect(document.body.textContent).not.toContain("false (default)");
   });
@@ -319,7 +319,7 @@ describe("the sound panel's fields", () => {
     const variants = await screen.findByRole("region", { name: "Variants" });
     expect(variants.querySelector("summary")).not.toBeNull();
     fireEvent.click(variants.querySelector("summary")!);
-    expect(within(variants).queryByRole("combobox", { name: "variants.add" })).toBeNull();
+    expect(within(variants).queryByRole("combobox", { name: "Add a variant" })).toBeNull();
   });
 });
 
@@ -334,7 +334,7 @@ describe("the string table and dialogue summaries", () => {
     const command = await screen.findByText("vp run scene strings import");
     expect(command.tagName).toBe("CODE");
     expect(command.closest("p")?.textContent).toBe(
-      "6 keys. Change them in the file, or with vp run scene strings import.",
+      "6 keys, read only here. They change in the project's files: the strings file, or a translator's CSV through vp run scene strings import.",
     );
     const locales = document.querySelector<HTMLElement>('dl[aria-label="Locales"]')!;
     await waitFor(() => {
@@ -347,7 +347,7 @@ describe("the string table and dialogue summaries", () => {
     expect(within(locales).getByText("en (default)")).toBeTruthy();
     // The note follows the list it sums up, under the section's title.
     const section = screen.getByRole("region", { name: "Locales" });
-    const note = within(section).getByText(/^6 keys\./);
+    const note = within(section).getByText(/^6 keys, read only here\./);
     expect(locales.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import { createGame, type GameInstance, type RapierModule } from "../../index";
 import { EditorFrame, editorChrome } from "../frame/EditorFrame";
+import { localeOption } from "../panels/EditorPlayBar";
 import { editorIdentity, openLiveEditor, type LiveEditor } from "../session/live-scene-editor";
 
 // jsdom has no WebGL, so the Pixi application is a stand-in; the containers are real.
@@ -96,13 +97,20 @@ async function setup() {
 const picker = () => screen.getByRole("combobox", { name: "Locale" });
 
 describe("the play bar's locale picker", () => {
+  it("lists each locale by its tag and its language's own name, the tag alone where none is known", () => {
+    expect(localeOption("fr")).toBe("fr · français");
+    expect(localeOption("pt-BR")).toBe("pt-BR · português (Brasil)");
+    expect(localeOption("qaa")).toBe("qaa");
+    expect(localeOption("not a tag")).toBe("not a tag");
+  });
+
   it("previews a locale in Play, and Stop puts back the one Play started in", async () => {
     const { game, live, set, current } = await setup();
     live.play();
     await waitFor(() => expect(picker().textContent).toBe("en"));
 
     fireEvent.click(picker());
-    const french = await screen.findByRole("option", { name: "fr" });
+    const french = await screen.findByRole("option", { name: "fr · français" });
     fireEvent.mouseMove(french);
     fireEvent.click(french);
     await waitFor(() => expect(current()).toBe("fr"));
@@ -122,7 +130,7 @@ describe("the play bar's locale picker", () => {
     await waitFor(() => picker());
     picker().focus();
     fireEvent.click(picker());
-    const french = await screen.findByRole("option", { name: "fr" });
+    const french = await screen.findByRole("option", { name: "fr · français" });
     fireEvent.mouseMove(french);
     fireEvent.click(french);
     await waitFor(() => expect(document.activeElement).toBe(canvas));

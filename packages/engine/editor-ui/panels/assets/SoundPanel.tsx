@@ -15,12 +15,6 @@ import {
 import { SYNTH_KIND } from "../../../project/kinds/synth";
 import { ENGINE_STEP_EVENTS } from "../../../runtime/types";
 import { jsonPointer } from "../../../scene/issues";
-import {
-  editAssetJson,
-  useSelectedAssetDoc,
-  type AssetDoc,
-  type AssetDocPanelProps,
-} from "../../audio/asset-doc";
 import { AuditionButton } from "../../audio/editor-audio";
 import { IconButton, Text } from "../../kit/index";
 import { useProjectView } from "../EditorProject";
@@ -46,7 +40,13 @@ import {
   type StringKeyTable,
 } from "../inspector/field-widgets";
 import { DocAssetShell, useStringKeyTable } from "../project-tree/asset-panel";
-import { settingScope } from "../settings/settings-doc";
+import {
+  editAssetJson,
+  settingScope,
+  useSelectedAssetDoc,
+  type AssetDoc,
+  type AssetDocPanelProps,
+} from "../settings/settings-doc";
 import { soundShapes } from "../settings/settings-schemas";
 import { commitSettingsRow, SettingsNote, SettingsRows } from "../settings/SettingsRows";
 
@@ -127,7 +127,10 @@ function Rows({
   const out: ReactNode[] = [];
   let run: InspectorRow[] = [];
   const flush = () => {
-    if (run.length > 0) out.push(<SettingsRows key={run[0]!.path} doc={doc} rows={run} />);
+    if (run.length > 0)
+      out.push(
+        <SettingsRows key={run[0]!.path} doc={doc} rows={run} controlName={(r) => r.title} />,
+      );
     run = [];
   };
   for (const row of rows) {
@@ -138,7 +141,7 @@ function Rows({
       flush();
       out.push(
         <Locked key={row.path} disabled={doc.readOnly !== null}>
-          <SliderField field={row} scope={scope} commit={commit} />
+          <SliderField field={row} label={row.title} scope={scope} commit={commit} />
         </Locked>,
       );
     } else if (w.kind === "range") {
@@ -147,6 +150,7 @@ function Rows({
         <Locked key={row.path} disabled={doc.readOnly !== null}>
           <RangeField
             field={row}
+            label={row.title}
             scope={scope}
             commitEach={(next) => {
               const pair = next(row.value);
@@ -159,7 +163,13 @@ function Rows({
       flush();
       out.push(
         <Locked key={row.path} disabled={doc.readOnly !== null}>
-          <StringKeyField field={row} scope={scope} commit={commit} table={strings} />
+          <StringKeyField
+            field={row}
+            label={row.title}
+            scope={scope}
+            commit={commit}
+            table={strings}
+          />
         </Locked>,
       );
     } else run.push(row);
@@ -189,6 +199,7 @@ function BusRow({
     <Locked disabled={doc.readOnly !== null}>
       <OptionsField
         field={row}
+        label={row.title}
         scope={settingScope(doc.docName, "bus")}
         options={options}
         segmented={false}
@@ -298,7 +309,7 @@ function Variants({
               </ItemHead>
               <FieldRow label="Clip" error={problem}>
                 <AssetCombobox
-                  path={`variants.${variant.clip}.clip`}
+                  path={`Clip of ${name}`}
                   kinds={VARIANT_KINDS}
                   options={options.filter((o) => o.id === variant.clip || !taken.has(o.id))}
                   value={variant.clip}
@@ -316,14 +327,14 @@ function Variants({
                   }}
                 />
               </FieldRow>
-              <SettingsRows doc={doc} rows={weight} />
+              <SettingsRows doc={doc} rows={weight} controlName={(r) => `${r.title} of ${name}`} />
             </div>
           );
         })}
         {readOnly ? null : (
           <FieldRow label="Add" scope={scope}>
             <AssetCombobox
-              path="variants.add"
+              path="Add a variant"
               kinds={VARIANT_KINDS}
               options={options.filter((o) => !taken.has(o.id))}
               value={undefined}
@@ -399,6 +410,7 @@ function Triggers({
                 <Locked disabled={readOnly}>
                   <NameField
                     field={event}
+                    label={`Event of trigger ${i + 1}`}
                     scope={settingScope(doc.docName, event.path)}
                     commit={(input) => commitSettingsRow(doc, event, input)}
                     items={ENGINE_STEP_EVENTS}
@@ -410,14 +422,18 @@ function Triggers({
                   />
                 </Locked>
               ) : null}
-              <SettingsRows doc={doc} rows={rows.filter((r) => r !== event)} />
+              <SettingsRows
+                doc={doc}
+                rows={rows.filter((r) => r !== event)}
+                controlName={(r) => `${r.title} of trigger ${i + 1}`}
+              />
             </div>
           );
         })}
         {readOnly ? null : (
           <FieldRow label="Add" scope={scope}>
             <IdCombobox
-              label="on.add"
+              label="Add a trigger"
               items={ENGINE_STEP_EVENTS}
               value={null}
               onChange={(next) => {

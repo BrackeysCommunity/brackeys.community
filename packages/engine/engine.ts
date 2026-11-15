@@ -2139,6 +2139,15 @@ export async function createGame(
     view.locale?.(data);
   }
 
+  /** Re-resolves the locale against the current project, raising `locale:change` when an edit dropped `from`, the one in use. */
+  function settleLocale(from: string | null): void {
+    if (from === null) return;
+    const to = currentLocale();
+    if (to === from) return;
+    if (loaded) handTable(loaded.view);
+    events.emit("locale:change", { from, to });
+  }
+
   const locale: GameInstance["locale"] = {
     current: currentLocale,
     available: () => localeSettings().available,
@@ -3430,10 +3439,12 @@ export async function createGame(
     if (destroyed) return { failed: [], errors: [] };
     const projectMoved = update.project !== project;
     const mapMoved = !sameValue(update.project?.inputMap ?? null, project?.inputMap ?? null);
+    const localeBefore = chosenLocale;
     project = update.project;
     if (mapMoved) reloadInputMap();
     if (projectMoved) audio?.system.reload(project ?? noProject);
     if (projectMoved && loaded) handTable(loaded.view);
+    settleLocale(localeBefore);
     if (assets) reloaded = { view: update.view, over: assets.view };
     let failed: BundleEntry[] = [];
     if (assets) {

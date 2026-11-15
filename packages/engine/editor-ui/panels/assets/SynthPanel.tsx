@@ -31,12 +31,6 @@ import {
 } from "../../../project/kinds/synth";
 import { jsonPointer } from "../../../scene/issues";
 import { Rng } from "../../../sim-kit/rng";
-import {
-  editAssetJson,
-  useSelectedAssetDoc,
-  type AssetDoc,
-  type AssetDocPanelProps,
-} from "../../audio/asset-doc";
 import { useEditorAudio } from "../../audio/editor-audio";
 import { formatHz } from "../../audio/format-hz";
 import { STORAGE_PREFIX } from "../../host";
@@ -44,7 +38,13 @@ import { Button, IconButton, Knob, MicroLabel, Switch, useKit } from "../../kit/
 import { useStoredFlag } from "../../session/stored";
 import { InspectorSection, Locked } from "../inspector/field-widgets";
 import { DocAssetShell } from "../project-tree/asset-panel";
-import { settingScope } from "../settings/settings-doc";
+import {
+  editAssetJson,
+  settingScope,
+  useSelectedAssetDoc,
+  type AssetDoc,
+  type AssetDocPanelProps,
+} from "../settings/settings-doc";
 
 /** Where the viewer's choice to hear a patch as it changes is kept. */
 export const SYNTH_SPEAKER_KEY = `${STORAGE_PREFIX}synth-speaker`;

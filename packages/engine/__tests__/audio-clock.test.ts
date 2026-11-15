@@ -166,6 +166,32 @@ describe("the clock's arithmetic", () => {
     expect(musicDriftMs(1300, 1250, { durationMs: 2000, loop: false })).toBe(50);
   });
 
+  it("wraps by the backends' loop rule: an end past the clip loops to the end, a start past it loops it whole", () => {
+    expect(
+      wrapClipMs(5000, { durationMs: 4000, loop: true, loopStartMs: 1000, loopEndMs: 9000 }),
+    ).toBe(2000);
+    expect(wrapClipMs(4500, { durationMs: 4000, loop: true, loopStartMs: 4000 })).toBe(500);
+    expect(
+      wrapClipMs(4500, { durationMs: Number.NaN, loop: true, loopStartMs: 1000, loopEndMs: 3000 }),
+    ).toBe(2500);
+    expect(wrapClipMs(4500, { durationMs: Number.NaN, loop: true })).toBe(4500);
+  });
+
+  it("wraps a looping fake voice's position the same way", () => {
+    const backend = fakeAudioBackend({ state: "running", decodedSeconds: 4 });
+    const clip = backend.buffer([new Float32Array(4 * 100)], 100);
+    const base = { bus: "music", volume: 1, rate: 1, pan: 0, loop: true } as const;
+    const past = backend.play(clip, { ...base, loopStart: 1, loopEnd: 9 });
+    const whole = backend.play(clip, { ...base, loopStart: 5 });
+    const once = backend.play(clip, { ...base, loop: false });
+    backend.advance(5);
+    expect(past.position()).toBeCloseTo(2);
+    expect(whole.position()).toBeCloseTo(1);
+    expect(once.position()).toBeCloseTo(5);
+    expect(once.ended).toBe(true);
+    expect(past.ended).toBe(false);
+  });
+
   it("times taps against their nearest click within half a beat, keeping the nearer of two", () => {
     const clicks = clickTimes(0, 10, 120);
     expect(clicks[0]).toBeCloseTo(0.5);
@@ -228,6 +254,69 @@ describe("tick-aligned music", () => {
       );
     });
     expect(Math.abs(system.clock.driftMs)).toBeLessThanOrEqual(MUSIC_DRIFT_LIMIT_MS);
+  });
+
+  describe("over a decoded clip whose loop points run past its end", () => {
+    const CLIP_S = 4;
+    /** A tick-aligned song over a 4 s clip with `points`, its context clock 1% fast. */
+    async function songOver(points: { loopStart?: number; loopEnd?: number }) {
+      const backend = fakeAudioBackend({ state: "running", decodedSeconds: CLIP_S });
+      const clipped: ProjectRuntimeView = {
+        ...project,
+        asset: (id) =>
+          id === "song-clip" ? { id, kind: "audio", sha256: "a".repeat(64), ...points } : undefined,
+        doc: <T>(kind: string, id: string): T | undefined =>
+          kind === "sound" && id === "song"
+            ? ({
+                kind: "sound",
+                v: 1,
+                bus: "music",
+                loop: true,
+                variants: [{ clip: "song-clip" }],
+              } as T)
+            : undefined,
+      };
+      const system = createAudioSystem({
+        backend,
+        project: clipped,
+        registry,
+        fetchClip: () => Promise.resolve(new ArrayBuffer(8)),
+        clipUrl: () => "about:blank",
+        poses: { get: () => undefined },
+        prefs: memoryPrefsStore(),
+        gameId: "metronome",
+        tickMs: 1000 / 60,
+        reducedMotion: () => false,
+        emit: () => {},
+      });
+      system.tick(0, [], [{ op: "music", sound: "song", at: "tick", tick: 0 }]);
+      await vi.waitFor(() => expect(backend.log.some((c) => c.op === "play")).toBe(true));
+      const tickMs = 1000 / 60;
+      for (let i = 1; i < 1200; i++) {
+        backend.advance((1.01 * tickMs) / 1000);
+        system.frame(VIEW, i * tickMs);
+      }
+      return backend.log.flatMap((c) => (c.op === "seek" ? [c] : []));
+    }
+
+    it("wraps the clock at the clip's end when loopEnd is past it, never seeking past the end", async () => {
+      const seeks = await songOver({ loopStart: 1, loopEnd: 9 });
+      expect(seeks.length).toBeGreaterThan(0);
+      for (const seek of seeks) {
+        expect(seek.seconds).toBeGreaterThanOrEqual(1);
+        expect(seek.seconds).toBeLessThan(CLIP_S);
+      }
+      const span = { durationMs: CLIP_S * 1000, loop: true, loopStartMs: 1000, loopEndMs: 9000 };
+      expect(wrapClipMs(5000, span)).toBe(2000);
+    });
+
+    it("loops the whole clip when loopStart is at or past its end", async () => {
+      const seeks = await songOver({ loopStart: 5 });
+      expect(seeks.length).toBeGreaterThan(0);
+      for (const seek of seeks) expect(seek.seconds).toBeLessThan(CLIP_S);
+      const span = { durationMs: CLIP_S * 1000, loop: true, loopStartMs: CLIP_S * 1000 };
+      expect(wrapClipMs(9000, span)).toBe(1000);
+    });
   });
 
   it("leaves music started free alone", () => {

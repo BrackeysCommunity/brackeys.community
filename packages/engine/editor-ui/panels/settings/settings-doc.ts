@@ -2,13 +2,22 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { applyProjectBatch, setProjectPresence, type ProjectSession } from "../../../collab/index";
 import { PROJECT_PRESENCE_FIELD, type ProjectPresence } from "../../../collab/types";
-import type { AssetEntry, AssetKindName, DocLayout, ProjectOp } from "../../../project/index";
+import type { Registry } from "../../../game/types";
+import type {
+  AssetEntry,
+  AssetId,
+  AssetKindName,
+  DocLayout,
+  JsonEdit,
+  ProjectOp,
+} from "../../../project/index";
 import { perProjectEntries } from "../../../project/kinds/define";
 import type { EditorNotify } from "../../host";
-import { useOwnOrSharedPending } from "../../pending/use-pending";
+import { useOwnOrSharedPending, type OwnPendingNotify } from "../../pending/use-pending";
 import { useDocValue, useSessionDoc } from "../../session/use-project-session";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
 import { useProjectView } from "../EditorProject";
+import type { SelectedAsset } from "../project-tree/asset-panel";
 
 /** One of the project's one-per-project settings docs, as a panel edits it. */
 export type SettingsDoc = {
@@ -34,25 +43,21 @@ export const settingScope = (doc: string | null, path: string) => `settings:${do
 
 const READ_ONLY = "This project is read-only here.";
 
-/**
- * The project's `kind` asset (the first live one by path) with its doc held
- * open while the panel is mounted. Edits and Create run through the
- * editor's pending tasks, reporting a refusal through `notify`.
- */
-export function useSettingsDoc(
-  project: EditorProjectLink,
+/** A doc asset opened for editing by id; `entry` is null once the asset is gone, and `create` resolves false. */
+export type AssetDoc = SettingsDoc;
+
+function useHeldDoc(
+  session: ProjectSession,
+  entry: AssetEntry | null,
   kind: AssetKindName,
-  notify: EditorNotify,
-): SettingsDoc {
-  const { session } = project;
-  const view = useProjectView(session);
-  const entry = perProjectEntries(view, kind)[0] ?? null;
+  opts: { readOnly?: boolean; notify: OwnPendingNotify },
+) {
   const docName = entry ? session.docNameFor(entry) : null;
   const held = useSessionDoc(session, docName);
   const value = useDocValue(held.doc);
-  const pending = useOwnOrSharedPending(notify);
-  const skew = session.skewFor(kind);
-  const readOnly = project.readOnly
+  const pending = useOwnOrSharedPending(opts.notify);
+  const skew = kind ? session.skewFor(kind) : null;
+  const readOnly = opts.readOnly
     ? READ_ONLY
     : skew
       ? skew.message
@@ -72,7 +77,7 @@ export function useSettingsDoc(
     return result.ok;
   };
 
-  return {
+  const doc: SettingsDoc = {
     session,
     kind,
     entry,
@@ -85,17 +90,96 @@ export function useSettingsDoc(
       if (readOnly !== null) return Promise.resolve(false);
       return apply(ops, label, scope, "Couldn't change it");
     },
+    create: () => Promise.resolve(false),
+  };
+  return { doc, apply };
+}
+
+/**
+ * `entry`'s doc, held open while the caller is mounted. Each `edit` is one
+ * `applyProjectBatch`: one history entry and one undo step that co-edits
+ * like every other project edit, busy in its scope until it lands, a
+ * refusal reported through `notify`.
+ */
+export function useEntryDoc(
+  session: ProjectSession,
+  entry: AssetEntry | null,
+  opts: { readOnly?: boolean; notify: OwnPendingNotify },
+): AssetDoc {
+  return useHeldDoc(session, entry, entry?.kind ?? "", opts).doc;
+}
+
+/**
+ * The project's `kind` asset (the first live one by path) with its doc held
+ * open while the panel is mounted (`useEntryDoc`), and a Create for when
+ * the project has none.
+ */
+export function useSettingsDoc(
+  project: EditorProjectLink,
+  kind: AssetKindName,
+  notify: EditorNotify,
+): SettingsDoc {
+  const { session } = project;
+  const view = useProjectView(session);
+  const entry = perProjectEntries(view, kind)[0] ?? null;
+  const { doc, apply } = useHeldDoc(session, entry, kind, {
+    readOnly: project.readOnly,
+    notify,
+  });
+  return {
+    ...doc,
     create: () => {
-      const def = session.kinds.get(kind);
+      const title = session.kinds.get(kind)?.title.toLowerCase() ?? kind;
       return apply(
         [{ op: "createAsset", kind, path: "" }],
-        `Create ${def?.title.toLowerCase() ?? kind}`,
+        `Create ${title}`,
         `settings:create:${kind}`,
-        `Couldn't create the ${def?.title.toLowerCase() ?? kind}`,
+        `Couldn't create the ${title}`,
       );
     },
   };
 }
+
+/** The live asset `id`'s doc, held open while the caller is mounted (`useEntryDoc`). */
+export function useAssetDoc(
+  session: ProjectSession,
+  id: AssetId | null,
+  opts: { readOnly?: boolean; notify: OwnPendingNotify },
+): AssetDoc {
+  const view = useProjectView(session);
+  const entry = (id !== null ? view.byId.get(id) : undefined) ?? null;
+  return useEntryDoc(session, entry, opts);
+}
+
+/** The asset picked in the project tree, its doc held open (`useAssetDoc`); a refusal with no `notify` goes to the console. */
+export function useSelectedAssetDoc(asset: SelectedAsset, session: ProjectSession): AssetDoc {
+  const notify = asset.notify ?? { error: (message: string) => console.error(message) };
+  return useAssetDoc(session, asset.entry.id, {
+    ...(asset.readOnly ? { readOnly: true } : {}),
+    notify,
+  });
+}
+
+/** One `editAsset` batch of `edits` to the doc's asset, as one undo step. */
+export function editAssetJson(
+  doc: AssetDoc,
+  edits: readonly JsonEdit[],
+  label: string,
+  scope: string,
+): void {
+  if (!doc.entry) return;
+  void doc.edit([{ op: "editAsset", id: doc.entry.id, edits: [...edits] }], label, scope);
+}
+
+/** What a doc asset's own panel (`SoundPanel`, `SynthPanel`) takes where the inspector mounts it. */
+export type AssetDocPanelProps = {
+  /** The asset picked in the project tree, with its licence and close handlers. */
+  asset: SelectedAsset;
+  /** The project the asset is in. */
+  session: ProjectSession;
+  /** The game's registry: its buses, its px per metre for metric rows. */
+  registry: Registry;
+};
 
 const presenceDoc = (session: ProjectSession): string | null => {
   const own = session.awareness.getLocalState()?.[PROJECT_PRESENCE_FIELD] as

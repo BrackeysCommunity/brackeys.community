@@ -23,6 +23,7 @@ import { AssetCombobox, assetOptions, danglingAsset } from "../inspector/asset-p
 import {
   AngleField,
   asPt,
+  DraftInput,
   EditError,
   FieldRow,
   Hinted,
@@ -33,7 +34,6 @@ import {
   PointField,
   ReadonlyField,
   RecordField,
-  RecordInput,
   splitWords,
   SwitchField,
   TagChips,
@@ -51,6 +51,7 @@ type RowsCtx = {
   /** An unset object row's whole value before one of its fields is set (seats need both of theirs). */
   fills: RowFallbacks;
   rows: ReadonlyMap<string, InspectorRow>;
+  controlName?: (row: InspectorRow) => string;
 };
 
 const fallbackText = (row: InspectorRow, fallbacks: RowFallbacks): string => {
@@ -137,6 +138,7 @@ function widgetProps(ctx: RowsCtx, row: InspectorRow) {
     unset: fallbackText(row, ctx.fallbacks),
     scope: settingScope(ctx.doc.docName, row.path),
     disabled: ctx.doc.readOnly !== null,
+    ...(ctx.controlName ? { label: ctx.controlName(row) } : {}),
   };
 }
 
@@ -409,7 +411,7 @@ function FallbackChains({
         <div className="je-insp-stack" data-gap="tight" role="group" aria-label={row.path}>
           {keys.map((key) => (
             <LocaleEntry key={key} name={key}>
-              <RecordInput
+              <DraftInput
                 label={`${row.path}.${key}`}
                 value={(chains[key] ?? []).join(", ")}
                 placeholder="none"
@@ -597,14 +599,23 @@ export function SettingsRows({
   rows,
   fallbacks = {},
   fills = {},
+  controlName,
 }: {
   doc: SettingsDoc;
   rows: readonly InspectorRow[];
   /** By row path: what an unset row falls back to (the game's value). */
   fallbacks?: RowFallbacks;
   fills?: RowFallbacks;
+  /** Each row's control's accessible name, where its path alone wouldn't say; default the path. */
+  controlName?: (row: InspectorRow) => string;
 }) {
-  const ctx: RowsCtx = { doc, fallbacks, fills, rows: indexRows(rows) };
+  const ctx: RowsCtx = {
+    doc,
+    fallbacks,
+    fills,
+    rows: indexRows(rows),
+    ...(controlName ? { controlName } : {}),
+  };
   if (rows.length === 0) return null;
   return (
     <fieldset disabled={doc.readOnly !== null} style={{ display: "contents" }}>

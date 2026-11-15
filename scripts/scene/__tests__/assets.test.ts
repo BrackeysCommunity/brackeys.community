@@ -720,6 +720,31 @@ describe("assets on files", { timeout: 60_000 }, () => {
   });
 });
 
+describe("assets info on audio", { timeout: 60_000 }, () => {
+  it("warns when a clip's loop points run past its end, as the backends then play them", async () => {
+    const clean = await runCli(["assets", "info", "clink-wav"], ctx);
+    expect(clean.exitCode, clean.stdout).toBe(0);
+    expect(clean.stdout).not.toContain("warning:");
+
+    const set = await run("assets", "set-import", "clink-wav", "--set", "loopEnd=1");
+    expect(set.exitCode, JSON.stringify(set.data)).toBe(0);
+    const past = await run("assets", "info", "clink-wav");
+    expect(past.data.loopPastEnd).toBe(
+      "loopEnd 1 s is past the clip's 0.150 s end, so the loop jumps back at the end",
+    );
+    const text = await runCli(["assets", "info", "clink-wav"], ctx);
+    expect(text.stdout).toContain(`  warning: ${String(past.data.loopPastEnd)}`);
+
+    expect(
+      (await run("assets", "set-import", "clink-wav", "--set", "loopStart=0.5")).exitCode,
+    ).toBe(0);
+    const whole = await run("assets", "info", "clink-wav");
+    expect(String(whole.data.loopPastEnd)).toMatch(
+      /^loopStart 0.5 s is at or past .* whole clip loops$/,
+    );
+  });
+});
+
 describe("assets reimport", { timeout: 60_000 }, () => {
   /** A game whose one binary kind's inspector learns `lines` at version 2. */
   const probeGame = (metaVersion?: number) =>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { soundLeafMs } from "../audio/sound-length";
 import { synthDurationMs } from "../audio/synth";
-import { soundLeafMs } from "../audio/system";
 import type { SynthFile } from "../project/kinds/synth";
 import type { AssetEntry, ProjectState } from "../project/types";
 import { projectView } from "../project/view";

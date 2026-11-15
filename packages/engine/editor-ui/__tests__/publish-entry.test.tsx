@@ -88,6 +88,8 @@ function chromeFor(publish?: EditorPublishHost) {
     session: {
       view: () => ({ byId: new Map() }),
       projectDoc: { on: () => {}, off: () => {} },
+      openDocs: () => [],
+      subscribe: () => () => {},
     },
   } as unknown as EditorProjectLink;
   return editorChrome(

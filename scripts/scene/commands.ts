@@ -1,3 +1,4 @@
+import { SYNTH_PRESETS } from "@jams/engine/headless";
 import { closest } from "@jams/engine/scene";
 
 import { failure, scopeError, usage, type ToolContext, type ToolResult } from "./context";
@@ -69,8 +70,14 @@ import { save } from "./tools/save";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { step, STEP_FLAGS, type StepInput } from "./tools/step";
-import { stringsExport, stringsImport, stringsMissing } from "./tools/strings";
-import { synthNew, synthRender } from "./tools/synth";
+import {
+  STRINGS_EXPORT_USAGE,
+  STRINGS_IMPORT_USAGE,
+  stringsExport,
+  stringsImport,
+  stringsMissing,
+} from "./tools/strings";
+import { SYNTH_NEW_USAGE, SYNTH_RENDER_USAGE, synthNew, synthRender } from "./tools/synth";
 import { textconv } from "./tools/textconv";
 import { validate } from "./tools/validate";
 
@@ -658,7 +665,7 @@ const DEFINITIONS = {
     run: ({ flags }, ctx) => stringsMissing({ locale: str(flags.locale) }, ctx),
   },
   "strings export": {
-    usage: "strings export <locale> --csv [--project id]",
+    usage: STRINGS_EXPORT_USAGE,
     summary:
       "every string key's default-locale text, its own text in <locale> and its note, as key,<default>,<locale>,note CSV (RFC 4180) for a translator, in path then row order; --json carries it in csv",
     values: [],
@@ -668,7 +675,7 @@ const DEFINITIONS = {
       stringsExport({ locale, csv: flags.csv === true }, ctx),
   },
   "strings import": {
-    usage: `strings import <file.csv> ${WRITER_USAGE}`,
+    usage: `${STRINGS_IMPORT_USAGE} ${WRITER_USAGE}`,
     summary:
       "write a translator's CSV (strings export's columns) back into the strings files that hold each key, its <locale> column only, as one batch with one editAsset per file it changes; a blank cell or unchanged text writes nothing, a key no strings file holds is refused, and rows whose default text moved since the export are flagged",
     values: [...WRITER_VALUES],
@@ -678,9 +685,8 @@ const DEFINITIONS = {
       stringsImport({ ...writerFlags(flags), file }, ctx),
   },
   "synth new": {
-    usage: `synth new <preset> [--seed n] [--id id] [--path p|folder/] ${WRITER_USAGE}`,
-    summary:
-      "create a synth patch drawn from a preset's ranges (pickup, jump, hit, explosion, laser, powerup, blip) by --seed, a uint32 (the same seed writes the same bytes; without one a random seed is drawn and printed), as one createAsset at --path (a file, or a folder ending in /) or the kind's folder as <id>.json; an unknown preset is refused with the list of presets; --dry-run writes nothing",
+    usage: `${SYNTH_NEW_USAGE} ${WRITER_USAGE}`,
+    summary: `create a synth patch drawn from a preset's ranges (${SYNTH_PRESETS.join(", ")}) by --seed, a uint32 (the same seed writes the same bytes; without one a random seed is drawn and printed), as one createAsset at --path (a file, or a folder ending in /) or the kind's folder as <id>.json; an unknown preset is refused with the list of presets; --dry-run writes nothing`,
     values: ["seed", "id", "path", ...WRITER_VALUES],
     switches: [...WRITER_SWITCHES],
     maxPositionals: 1,
@@ -697,7 +703,7 @@ const DEFINITIONS = {
       ),
   },
   "synth render": {
-    usage: "synth render <id> --wav <file> [--project id]",
+    usage: SYNTH_RENDER_USAGE,
     summary:
       "render a synth patch to a 16-bit mono PCM WAV file at 44.1 kHz (synthWav's bytes) and print its length",
     values: ["wav"],

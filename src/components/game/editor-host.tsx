@@ -425,7 +425,15 @@ function patchSearch(prev: Search, patch: Search): Search {
   return next;
 }
 
-/** The room's `?edit=1`: the engine's scene editor on `?project=` (the platformer by default), keeping `?scene=` and the title in step with the scene it opens. */
+/**
+ * The room's `?edit=1`: the engine's scene editor on `?project=` (the
+ * platformer by default; an unknown one is said once and dropped from the
+ * route), the title naming the room until the editor is up, then the scene.
+ * When the editor opens another scene than `scene`, its notice shows as a
+ * toast and `?scene=` follows, replacing the history entry; a notice naming
+ * another project's scene opens it there. Picking a project in the Project
+ * panel opens its default scene as a new history entry.
+ */
 export function SiteSceneEditor({
   roomId,
   project,

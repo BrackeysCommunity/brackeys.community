@@ -48,8 +48,9 @@ export type DialogueSystem = DialogueContext & {
   save(): JsonValue | undefined;
   /**
    * Puts a saved conversation back, raising no event: why it couldn't, else
-   * null. Undefined, a save without one, ends whatever conversation the
-   * fresh load started and cuts its voice.
+   * null. It cuts the voice of the line on screen unless that line is the
+   * saved one; undefined, a save without one, ends whatever conversation
+   * the fresh load started.
    */
   restore(state: JsonValue | undefined): string | null;
   /** Ends any conversation silently, as an unload does. */
@@ -211,29 +212,48 @@ export function createDialogueSystem(opts: {
       return saved as unknown as JsonValue;
     },
     restore(state) {
+      const shown = active?.runner.view();
       active = null;
+      const refuse = (why: string) => {
+        stopVoice();
+        return why;
+      };
       if (state === undefined) {
         stopVoice();
         return null;
       }
-      voiced = false;
       if (!isPlainObject(state) || typeof state.dialogue !== "string" || !("runner" in state)) {
-        return "the saved conversation isn't a dialogue system's state";
+        return refuse("the saved conversation isn't a dialogue system's state");
       }
       const saved = state as unknown as SavedDialogue;
       const file = fileOf(saved.dialogue);
-      if (!file) return `the project has no dialogue "${saved.dialogue}" to continue`;
+      if (!file) return refuse(`the project has no dialogue "${saved.dialogue}" to continue`);
       quiet = true;
+      let restored: Active;
       try {
         const runner = build(saved.dialogue, file, gameVars(saved.dialogue), undefined);
         runner.restore(saved.runner);
-        active = { id: saved.dialogue, runner, custom: false };
+        restored = { id: saved.dialogue, runner, custom: false };
       } catch (err) {
-        return `the saved conversation of "${saved.dialogue}" couldn't be put back: ${errorText(err)}`;
+        return refuse(
+          `the saved conversation of "${saved.dialogue}" couldn't be put back: ${errorText(err)}`,
+        );
       } finally {
         quiet = false;
       }
-      voiced = saved.voiced === true;
+      active = restored;
+      // A voice still playing belongs to the line on screen, so it keeps playing only when that line is the saved one.
+      const now = restored.runner.view();
+      const sameLine =
+        shown !== undefined &&
+        shown.dialogue === now.dialogue &&
+        shown.node === now.node &&
+        shown.line === now.line &&
+        now.line >= 0;
+      if (!(voiced && sameLine)) {
+        stopVoice();
+        voiced = saved.voiced === true;
+      }
       return null;
     },
     clear() {

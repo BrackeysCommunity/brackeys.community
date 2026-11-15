@@ -159,7 +159,9 @@ describe("a trigger's event name", () => {
 
   it("offers a typed name as the game's own only when the rule takes it", async () => {
     await mount(sound());
-    const add = (await screen.findByRole("combobox", { name: "on.add" })) as HTMLInputElement;
+    const add = (await screen.findByRole("combobox", {
+      name: "Add a trigger",
+    })) as HTMLInputElement;
     const row = add.closest(".je-insp-field") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Show options" }));
     await act(async () => {
@@ -182,9 +184,9 @@ describe("a trigger's event name", () => {
 
   it("reads an unset volume as the schema's default of 1", async () => {
     await mount(sound());
-    const volume = (await screen.findByRole("textbox", { name: "volume" })) as HTMLInputElement;
+    const volume = (await screen.findByRole("textbox", { name: "Volume" })) as HTMLInputElement;
     expect(volume.placeholder).toBe("1 (default)");
-    const slider = document.querySelector('input[type="range"][aria-label="volume slider"]');
+    const slider = document.querySelector('input[type="range"][aria-label="Volume slider"]');
     expect(slider?.getAttribute("aria-valuenow")).toBe("1");
   });
 });

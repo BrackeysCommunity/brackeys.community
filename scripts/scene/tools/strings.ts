@@ -239,7 +239,7 @@ export const stringsMissing: Tool<StringsMissingInput> = async (input, ctx) => {
 
 export type StringsExportInput = { locale?: string; csv?: boolean };
 
-const EXPORT_USAGE = "strings export <locale> --csv [--project id]";
+export const STRINGS_EXPORT_USAGE = "strings export <locale> --csv [--project id]";
 
 /** Every merged row as `key,<default>,<locale>,note`, in path then row order. */
 export function stringsCsv(lookup: DocLookup, locales: LocaleSettings, locale: string): string {
@@ -256,7 +256,7 @@ export function stringsCsv(lookup: DocLookup, locales: LocaleSettings, locale: s
  */
 export const stringsExport: Tool<StringsExportInput> = async (input, ctx) => {
   const { locale } = input;
-  if (locale === undefined || input.csv !== true) return usage(EXPORT_USAGE);
+  if (locale === undefined || input.csv !== true) return usage(STRINGS_EXPORT_USAGE);
   const badLocale = localeTagProblem(locale);
   if (badLocale) return usage(badLocale);
   const s = await oneProject(ctx, "strings export");
@@ -284,7 +284,8 @@ export const stringsExport: Tool<StringsExportInput> = async (input, ctx) => {
 
 export type StringsImportInput = WriterFlags & { file?: string };
 
-const IMPORT_USAGE = "strings import <file.csv> [writer flags]";
+/** Without the writer flags, which each caller spells its own way. */
+export const STRINGS_IMPORT_USAGE = "strings import <file.csv>";
 
 /** What a CSV changes: one `editAsset` per strings file, in path order, and the keys whose default text moved since the export. */
 export type StringsImportPlan = {
@@ -392,7 +393,7 @@ async function liveStrings(
  * file it changes, through the writer flags (`--dry-run`, `--live`).
  */
 export const stringsImport: Tool<StringsImportInput> = async (input, ctx) => {
-  if (!input.file) return usage(IMPORT_USAGE);
+  if (!input.file) return usage(`${STRINGS_IMPORT_USAGE} [writer flags]`);
   const s = input.live ? await liveStrings(ctx, input) : await oneProject(ctx, "strings import");
   if (!isStrings(s)) return s;
   let text: string;

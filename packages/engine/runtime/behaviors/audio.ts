@@ -1,7 +1,6 @@
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import { AUDIO, type AudioBlock, type AudioHandle } from "../../game/behaviors/audio";
 import type { JsonValue } from "../../game/types";
-import { isPlainObject } from "../../project/kinds/define";
 
 /** What the audio behavior's system answers by entity id; its handle reaches these. */
 export type AudioBehaviorSystem = BehaviorSystem<AudioBlock> & {
@@ -82,8 +81,9 @@ export const createAudioBehaviorSystem: BehaviorSystemFactory = (ctx) => {
     },
     restore(id, state) {
       const a = attached.get(id);
-      const playing = isPlainObject(state) ? state.playing : undefined;
-      if (!a || typeof playing !== "boolean" || a.playing === playing) return;
+      if (!a || typeof state !== "object" || state === null || Array.isArray(state)) return;
+      const { playing } = state;
+      if (typeof playing !== "boolean" || a.playing === playing) return;
       if (playing) start(id, a);
       else halt(id, a);
     },
