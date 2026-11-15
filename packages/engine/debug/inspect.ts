@@ -19,6 +19,8 @@ export type EntityInspection = {
   id: string;
   type: EntityTypeName;
   enabled: boolean;
+  /** Its parent in the runtime tree now, after any reparent; null for a root. */
+  parent: string | null;
   /** World metres and radians. */
   pose: Pose | null;
   prevPose: Pose | null;
@@ -111,6 +113,7 @@ export function inspectEntity(runtime: SceneRuntimeHandle, id: string): EntityIn
     id,
     type: entity.type,
     enabled: ctx.enabled(id),
+    parent: ctx.tree.parent(id),
     pose: copyPose(ctx.poses.get(id)),
     prevPose: copyPose(ctx.poses.prev(id)),
     entity,

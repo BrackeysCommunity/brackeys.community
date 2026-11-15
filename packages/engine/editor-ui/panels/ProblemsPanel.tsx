@@ -59,7 +59,7 @@ export function ProblemsPanel({
   };
 
   return (
-    <section aria-label="Problems" className="je-scene-panel je-problems">
+    <section aria-label="Problems" className="je-scene-panel je-list">
       {rows.length === 0 ? (
         <Text as="p" size="xs" variant="muted" className="je-scene-panel-empty">
           No problems found.
@@ -82,7 +82,7 @@ export function ProblemsPanel({
                 </h3>
                 <ul>
                   {group.map(({ issue, key }) => (
-                    <li key={key} aria-label={issue.message} className="je-problems-row">
+                    <li key={key} aria-label={issue.message} className="je-list-row">
                       <Hint
                         content={issue.hint ? `${issue.hint} (${issue.code})` : issue.code}
                         side="left"
@@ -91,14 +91,14 @@ export function ProblemsPanel({
                           type="button"
                           disabled={issue.entityIds.length === 0}
                           onClick={() => show(issue)}
-                          className="je-problems-show"
+                          className="je-list-show"
                         >
                           <span className="je-problems-icon" data-severity={id}>
                             <Icon icon={icon} size={12} />
                           </span>
-                          <span className="je-problems-text">
-                            <span className="je-problems-message">{issue.message}</span>{" "}
-                            <span className="je-problems-code">{issue.code}</span>
+                          <span className="je-list-text">
+                            <span className="je-list-message">{issue.message}</span>{" "}
+                            <span className="je-list-code">{issue.code}</span>
                           </span>
                         </button>
                       </Hint>

@@ -158,12 +158,12 @@ describe("ProblemsPanel in a narrow column", () => {
       <ProblemsPanel session={session} physical={[crushed]} onFrame={() => {}} notify={notify} />,
     );
     const panel = screen.getByRole("region", { name: "Problems" });
-    expect(panel.classList.contains("je-problems")).toBe(true);
+    expect(panel.classList.contains("je-list")).toBe(true);
     const code = within(panel).getByText("spawn-in-solid");
-    expect(code.className).toBe("je-problems-code");
-    expect(code.previousElementSibling?.className).toBe("je-problems-message");
-    expect(code.parentElement?.className).toBe("je-problems-text");
-    expect(code.parentElement?.parentElement?.className).toBe("je-problems-show");
+    expect(code.className).toBe("je-list-code");
+    expect(code.previousElementSibling?.className).toBe("je-list-message");
+    expect(code.parentElement?.className).toBe("je-list-text");
+    expect(code.parentElement?.parentElement?.className).toBe("je-list-show");
   });
 
   it("names the rule code on hover, where a long message can clip it", async () => {
@@ -179,14 +179,14 @@ describe("ProblemsPanel in a narrow column", () => {
   });
 
   it("keeps the rule code on the message's lines under a column's narrower widths", () => {
-    expect(styleCss).toMatch(/\.je-problems \{\s*container: je-problems \/ inline-size;/);
-    expect(styleCss).toMatch(/\.je-problems-text \{\s*display: contents;/);
-    const at = styleCss.indexOf("@container je-problems (max-width: 288px)");
+    expect(styleCss).toMatch(/\.je-list \{\s*container: je-list \/ inline-size;/);
+    expect(styleCss).toMatch(/\.je-list-text \{\s*display: contents;/);
+    const at = styleCss.indexOf("@container je-list (max-width: 288px)");
     expect(at).toBeGreaterThan(0);
     const block = styleCss.slice(at, styleCss.indexOf("\n  }\n", at));
-    expect(block).toMatch(/\.je-problems-text \{[^}]*-webkit-line-clamp: 2;/);
-    expect(block).toMatch(/\.je-problems-message \{[^}]*display: inline;/);
-    expect(block).toMatch(/\.je-problems-code \{[^}]*display: inline;/);
+    expect(block).toMatch(/\.je-list-text \{[^}]*-webkit-line-clamp: 2;/);
+    expect(block).toMatch(/\.je-list-message \{[^}]*display: inline;/);
+    expect(block).toMatch(/\.je-list-code \{[^}]*display: inline;/);
     expect(block).not.toMatch(/flex-basis: 100%/);
     expect(block).not.toMatch(/flex-wrap: wrap/);
   });

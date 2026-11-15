@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { TICK_PHASES, type RuntimeTimings } from "../../runtime/timings";
-import { createGameStore, setTimings } from "../../store";
+import { createGameStore, setMode, setTimings } from "../../store";
 import { PerfReadout, type PerfReadoutGame } from "../panels/PerfReadout";
 
 afterEach(cleanup);
@@ -26,12 +26,23 @@ function gameWith(timings: RuntimeTimings | null) {
 }
 
 describe("PerfReadout", () => {
-  it("says nothing is measured yet without timings, or without a game", () => {
+  it("shows the Play views' pending line in Play until timings arrive", () => {
     const { container } = render(<PerfReadout game={gameWith(null).game} />);
-    expect(container.textContent).toContain("Nothing yet");
+    const pending = screen.getByRole("status");
+    expect(pending.querySelector(".je-spinner")).not.toBeNull();
+    expect(pending.textContent).toContain("Gathering timings");
+    expect(container.textContent).not.toContain("No timings yet");
+  });
+
+  it("shows the empty line outside Play, or without a game", () => {
+    const { store, game } = gameWith(null);
+    setMode(store, "edit");
+    render(<PerfReadout game={game} />);
+    expect(screen.getByText(/No timings yet/)).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
     cleanup();
     render(<PerfReadout game={null} />);
-    expect(screen.getByText(/Nothing yet/)).toBeTruthy();
+    expect(screen.getByText(/No timings yet/)).toBeTruthy();
   });
 
   it("shows every phase, the slowest systems and behaviors, and follows the store", () => {
@@ -63,7 +74,7 @@ describe("PerfReadout", () => {
     expect(frame).toContain("Present1.250 ms · worst 4.000 ms");
 
     act(() => setTimings(store, null));
-    expect(container.textContent).toContain("Nothing yet");
+    expect(container.textContent).toContain("Gathering timings");
   });
 
   it("holds the game's timings on while it is open", () => {

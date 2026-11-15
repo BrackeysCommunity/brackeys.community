@@ -291,7 +291,8 @@ export type SceneRuntimeOptions = {
   /**
    * Per-phase, per-system and per-behavior timings over a window of ticks,
    * read through `SceneRuntimeHandle.timings()`. Off by default; the shell
-   * turns it on with its perf layer, headless with stats. Only `clock` is read.
+   * turns it on with its perf layer, headless with stats. Nothing but `clock` is
+   * read for time.
    */
   timings?: TimingsOptions;
   /** Where `EngineContext.debug` draws; without one it is a frozen no-op with `active` false. */

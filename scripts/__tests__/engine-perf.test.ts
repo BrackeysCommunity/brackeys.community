@@ -40,6 +40,15 @@ describe("runPerf", () => {
     expect(report.ok).toBe(false);
   });
 
+  it("fails just past a 20% drop and only warns just short of it", async () => {
+    const past = await judged(790);
+    expect(past.results[0]).toMatchObject({ verdict: "fail", ratio: 0.79 });
+    expect(past.ok).toBe(false);
+    const short = await judged(810);
+    expect(short.results[0]).toMatchObject({ verdict: "warn", ratio: 0.81 });
+    expect(short.ok).toBe(true);
+  });
+
   it("warns at a 15% drop and still passes", async () => {
     const report = await judged(850);
     expect(report.results[0]!.verdict).toBe("warn");

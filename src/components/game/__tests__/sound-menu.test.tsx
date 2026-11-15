@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { memoryPrefsStore, PREF_KEYS, type BusLevel, type GameInstance } from "@jams/engine";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { savedMaster, SoundMenu } from "../sound-menu";
@@ -32,6 +32,20 @@ describe("SoundMenu", () => {
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Mute" }));
     expect(setBus).toHaveBeenLastCalledWith("master", 0.5, true);
     expect(screen.getByRole("button", { name: "Sound" }).textContent).toContain("Muted");
+  });
+
+  it("keeps the volume usable while muted and unmutes when it moves", () => {
+    const prefs = memoryPrefsStore();
+    const { game, setBus } = gameWithAudio({ volume: 0.5, muted: true });
+    render(<SoundMenu game={game} gameId="g" prefs={prefs} />);
+    expect(screen.getByRole("button", { name: "Sound" }).textContent).toContain("Muted");
+    open();
+    const slider = within(screen.getByRole("menu")).getByRole("slider", { hidden: true });
+    expect(slider.hasAttribute("disabled")).toBe(false);
+    slider.focus();
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(setBus).toHaveBeenLastCalledWith("master", 0.55, false);
+    expect(screen.getByRole("button", { name: "Sound" }).textContent).toContain("55%");
   });
 
   it("saves the choice in the prefs while the game plays silent, for the audio to read when it opens", () => {

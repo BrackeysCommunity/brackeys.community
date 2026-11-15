@@ -195,8 +195,11 @@ async function setup(opts: { storage?: EditorStorage; hosted?: boolean; debug?: 
     pending,
   });
   let n = 0;
-  const ask = <T extends LiveResponse["t"]>(req: Record<string, unknown> & { t: T }) =>
-    liveRequest(agent, { ...req, id: `r${++n}` } as never) as Promise<
+  const ask = <T extends LiveResponse["t"]>(
+    req: Record<string, unknown> & { t: T },
+    wait?: { timeoutMs: number },
+  ) =>
+    liveRequest(agent, { ...req, id: `r${++n}` } as never, wait) as Promise<
       Extract<LiveResponse, { t: T }>
     >;
   return { doc, agent, ask, storage, pending, capture, projectAwareness, net };
@@ -207,8 +210,10 @@ const state = () => game!.getStore().state;
 describe("the editor's live responder", () => {
   it("answers a frame with a PNG under the cap at the game's tick", async () => {
     const { ask, capture } = await setup();
-    const res = await ask({ t: "frame", opts: {} });
-    expect(res.ok).toBe(true);
+    // A full-size noise frame is the slowest encode there is; a loaded runner
+    // can take longer than a requester's default wait to fit it.
+    const res = await ask({ t: "frame", opts: {} }, { timeoutMs: 20_000 });
+    expect(res).toMatchObject({ ok: true });
     if (!res.ok) return;
     const bytes = Uint8Array.from(atob(res.png), (c) => c.charCodeAt(0));
     expect(bytes.byteLength).toBeLessThanOrEqual(LIVE_FRAME_MAX_BYTES);
@@ -219,7 +224,7 @@ describe("the editor's live responder", () => {
     expect(res.tick).toBe(state().tick);
     expect(res.mode).toBe("edit");
     expect(capture).toHaveBeenCalledTimes(1);
-  });
+  }, 30_000);
 
   it("plays through the editor's own Play, steps 60 ticks and reports tick 60", async () => {
     const { ask } = await setup();
@@ -307,6 +312,30 @@ describe("the editor's live responder", () => {
     expect(seen).toEqual(["perf", "perf", "grid"]);
     expect(state().debugMode).toBe("grid");
     expect(localStorage.getItem("debug-overlay-mode")).toBe("grid");
+  });
+
+  it("takes overlapping debug frames one at a time and leaves the viewer's mode", async () => {
+    const { ask, capture } = await setup({ debug: true });
+    const seen: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let calls = 0;
+    capture.mockImplementation(async () => {
+      seen.push(state().debugMode);
+      if (++calls === 1) await held;
+      return noise(8, 8);
+    });
+    const first = ask({ t: "frame", opts: { debug: true } });
+    await vi.waitFor(() => expect(calls).toBe(1));
+    const second = ask({ t: "frame", opts: { debug: true } });
+    const plain = ask({ t: "frame", opts: {} });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toBe(1);
+    release();
+    const answers = await Promise.all([first, second, plain]);
+    expect(answers.every((a) => a.ok)).toBe(true);
+    expect(seen).toEqual(["perf", "perf", "off"]);
+    expect(state().debugMode).toBe("off");
   });
 
   it("puts the overlay back when a debug frame's capture fails", async () => {

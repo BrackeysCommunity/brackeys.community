@@ -297,7 +297,10 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
           context.kind === "asset" && assetKind ? assetKind.limitsFor(context.docId) : kind?.limits;
         // A relayed stateless message is capped and rate-limited where it's relayed, without
         // closing the socket: an editor answering an agent's burst mustn't lose its connection.
-        const relayed = relaysStateless(context.kind) && isStatelessMessage(update);
+        // A read-only connection's stateless messages are never relayed, so its main bucket
+        // still limits them.
+        const relayed =
+          relaysStateless(context.kind) && !context.readOnly && isStatelessMessage(update);
         const limits =
           docLimits && relayed ? { ...docLimits, maxMessageBytes: MAX_FRAME_BYTES } : docLimits;
         limitMessage(connection, update, limits, { bucket: !relayed });

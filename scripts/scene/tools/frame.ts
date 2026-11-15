@@ -42,14 +42,18 @@ async function schematic(
   scene: string,
   out: string | undefined,
   issue: SceneIssue,
+  debug: boolean,
 ): Promise<ToolResult> {
   const dir = out ? null : await mkdtemp(join(tmpdir(), "scene-frame-"));
   const file = out ?? join(dir!, "frame.png");
   try {
-    const drawn = await render({ scene, out: file }, ctx);
+    const drawn = await render({ scene, out: file, ...(debug ? { debugDraw: true } : {}) }, ctx);
     if (drawn.exitCode !== 0) return drawn;
     const bytes = new Uint8Array(await readFile(file));
     const size = readPngSize(bytes) ?? { width: 0, height: 0 };
+    const debugDraw = debug
+      ? (drawn.data as { debugDraw?: { ticks: number; draws: number } } | undefined)?.debugDraw
+      : undefined;
     return {
       exitCode: 0,
       data: {
@@ -57,11 +61,12 @@ async function schematic(
         scene,
         source: "schematic",
         ...size,
+        ...(debugDraw ? { debugDraw } : {}),
         ...(out ? { out } : { png: Buffer.from(bytes).toString("base64") }),
         issues: [issue],
       },
       text: [
-        `${scene}: ${out ? `wrote ${out}` : "drew"} the schematic (${size.width}x${size.height}), source: schematic`,
+        `${scene}: ${out ? `wrote ${out}` : "drew"} the schematic (${size.width}x${size.height}${debugDraw ? `, ctx.debug draws of t${debugDraw.ticks}: ${debugDraw.draws}` : ""}), source: schematic`,
         issueLine(issue),
       ].join("\n"),
     };
@@ -103,7 +108,7 @@ export const frame: Tool<FrameInput> = async (input, ctx) => {
   if (!asked.ok) {
     if (asked.result) return asked.result;
     if (asked.issue.code === "live-refused") return liveFailure(scene, asked.issue);
-    return schematic(ctx, scene, input.out, asked.issue);
+    return schematic(ctx, scene, input.out, asked.issue, input.debug === true);
   }
   const { response, project } = asked;
   if (response.t !== "frame") return failure(`The editor answered a ${response.t} request.`);

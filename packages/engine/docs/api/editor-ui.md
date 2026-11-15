@@ -312,14 +312,18 @@ type EditorResponderOptions = {
     canvas?: (() => HTMLElement | null) | undefined;
     /** What the canvas shows; default reads `canvas` (`canvasPixels`). */
     capture?: () => Promise<FramePixels | null>;
-    /** "Let agents drive Play", read for each request. */
+    /**
+     * "Let agents drive Play", read for each request and advertised again
+     * whenever it may have changed (`useAgentsDrivePlay`'s setter, another
+     * tab, focus) or the page shows or hides.
+     */
     enabled: () => boolean;
     game: GameInstance;
     /** The editor's own Play and Stop. */
     live: Pick<LiveEditor, "play" | "stop">;
     /** Each request shows as a task in the status bar while it is answered. */
     pending?: Pending | null;
-    /** The project doc's awareness: the editor's project presence says it answers. */
+    /** The project doc's awareness: the editor's project presence shows `live` while agents can drive it. */
     projectAwareness?: AwarenessLike | null;
     /** The open scene doc's live channel. */
     provider: StatelessProvider;
@@ -1180,8 +1184,10 @@ _function_ in `editor-ui/session/live-responder.ts`
 
 Answers agents' live requests on the open scene doc for this editor:
 frames of its canvas, its own Play (a `play` runs it as a click on Play
-does, `stop` returns to the edit world) and the game's state. Returns the
-detach, which also takes `live: true` out of this client's presence.
+does, `stop` returns to the edit world) and the game's state. It
+advertises in the scene doc's presence whether its toggle is on and its
+scene on screen, and shows `live` in the project presence while agents
+can drive it. Returns the detach, which withdraws both.
 
 ```ts
 declare function attachEditorResponder(opts: EditorResponderOptions): () => void;

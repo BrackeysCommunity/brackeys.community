@@ -5,6 +5,7 @@ import { formatMs } from "../../runtime/timings";
 import type { GameInstance, GameStoreState } from "../../types";
 import { MicroLabel, Progress, Text } from "../kit/index";
 import { useStoreValue, type ReadableStore } from "../session/use-store-value";
+import { PlayEmpty, PlayPending } from "./PlayInspector";
 
 /** The parts of the game the perf readout reads: the store's `timings`, held on while it shows. */
 export type PerfReadoutGame = Pick<GameInstance, "getStore" | "debug">;
@@ -13,8 +14,8 @@ const ms = (v: number) => `${formatMs(v)} ms`;
 const meanAndWorst = (s: { mean: number; max: number }) => `${ms(s.mean)} · worst ${ms(s.max)}`;
 
 /** Never a store: a stand-in so the hook runs the same way without a game. */
-const NO_STORE: ReadableStore<Pick<GameStoreState, "timings">> = {
-  state: { timings: null },
+const NO_STORE: ReadableStore<Pick<GameStoreState, "timings" | "mode">> = {
+  state: { timings: null, mode: "edit" },
   subscribe: () => () => {},
 };
 
@@ -26,15 +27,17 @@ export function PerfReadout(props: { game: PerfReadoutGame | null }) {
     game.debug.wantTimings(true);
     return () => game.debug.wantTimings(false);
   }, [game]);
-  const store: ReadableStore<Pick<GameStoreState, "timings">> = game?.getStore() ?? NO_STORE;
+  const store: ReadableStore<Pick<GameStoreState, "timings" | "mode">> =
+    game?.getStore() ?? NO_STORE;
   const timings = useStoreValue(store, (s) => s.timings, Object.is);
+  const playing = useStoreValue(store, (s) => s.mode === "play", Object.is);
   const plan = useMemo(() => (timings ? perfPlan(timings) : null), [timings]);
 
   if (!plan) {
-    return (
-      <Text as="p" size="xs" variant="muted" className="je-panel-empty">
-        Nothing yet. Timings show here a couple of seconds into Play.
-      </Text>
+    return playing ? (
+      <PlayPending>Gathering timings…</PlayPending>
+    ) : (
+      <PlayEmpty>No timings yet. Play the scene to measure its ticks.</PlayEmpty>
     );
   }
 

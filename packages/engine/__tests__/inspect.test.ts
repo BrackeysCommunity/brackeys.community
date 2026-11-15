@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { inspectEntity, listEntities, pickEntity } from "../debug/inspect";
+import { TEXT } from "../game/behaviors/text";
 import { createRegistry, defineGame } from "../game/define";
 import type { EngineContext } from "../game/types";
 import { createMotionBody, type MotionBody } from "../motion/body";
@@ -15,6 +16,7 @@ import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { RapierModule } from "../types";
 import { readHeld } from "./fixtures/held-project";
+import { recordingView } from "./fixtures/recording-view";
 import { testGame } from "./fixtures/test-game";
 
 let rapier: RapierModule;
@@ -297,6 +299,155 @@ describe("inspectEntity", () => {
     expect(got.timers.map((t) => t.kind)).toEqual(["after", "co"]);
     expect(got.timers[0]!.due).toBeGreaterThan(tick);
     expect(got.timers.every((t) => t.due >= 0)).toBe(true);
+    rt.destroy();
+  });
+
+  it("reports the runtime tree's parent, and follows a reparent", () => {
+    const rt = load(
+      [
+        { id: "yard", type: "node", at: [0, 0] },
+        { id: "other", type: "node", at: [5, 0] },
+        { id: "kid", type: "marker", at: [1, 0], parent: "yard" },
+      ],
+      "none",
+    );
+    expect(inspectEntity(rt, "kid")!.parent).toBe("yard");
+    expect(inspectEntity(rt, "yard")!.parent).toBeNull();
+    rt.ctx.tree.setParent("kid", "other");
+    expect(inspectEntity(rt, "kid")!.parent).toBe("other");
+    rt.ctx.tree.setParent("kid", null);
+    expect(inspectEntity(rt, "kid")!.parent).toBeNull();
+    rt.destroy();
+  });
+
+  it("answers each standard behavior's and the nav system's inspect as plain JSON", () => {
+    const rt = load([
+      floor,
+      { id: "walk", type: "nav", shape: ["poly", -5, -5, 5, -5, 5, 5, -5, 5] },
+      { id: "goal", type: "marker", at: [3, 0] },
+      {
+        id: "bin",
+        type: "marker",
+        at: [-3, 0],
+        behaviors: {
+          spawner: { cap: 2, rate: 0.5, type: "solid", fields: { shape: ["box", 0, 0, 0.1, 0.1] } },
+        },
+      },
+      {
+        id: "anchor",
+        type: "marker",
+        at: [-1, -2],
+        behaviors: { collider: { shape: ["box", 0, 0, 0.1, 0.1] }, body: { kind: "static" } },
+      },
+      {
+        id: "link",
+        type: "marker",
+        at: [-0.5, -2],
+        behaviors: {
+          body: {},
+          collider: { shape: ["box", 0, 0, 0.1, 0.1] },
+          joint: { kind: "revolute", to: "anchor", anchorA: [-0.5, 0], anchorB: [0, 0] },
+        },
+      },
+      {
+        id: "updraft",
+        type: "marker",
+        at: [4, -2],
+        behaviors: {
+          collider: { sensor: true, shape: ["box", 0, 0, 0.3, 0.3] },
+          "force-area": { force: [0, -15] },
+        },
+      },
+      { id: "seat", type: "marker", at: [1, 1], behaviors: { "player-input": {} } },
+      { id: "courier", type: "marker", at: [-2, 0], behaviors: { "nav-agent": { to: "goal" } } },
+      {
+        id: "runner",
+        type: "marker",
+        at: [2, 2],
+        behaviors: {
+          "character-side-view": {},
+          collider: { shape: ["box", 0, 0, 0.1, 0.2] },
+        },
+      },
+      {
+        id: "walker",
+        type: "marker",
+        at: [-2, 2],
+        behaviors: { "character-top-down": {}, collider: { shape: ["circle", 0, 0, 0.15] } },
+      },
+    ]);
+    const shown = createSceneRuntime({
+      rapier: null,
+      view: recordingView({ sprites: true }).view,
+      game: testGame,
+    });
+    const report = shown.load(
+      expandScene(
+        scene(
+          [
+            { id: "chime", type: "marker", at: [0, 0], behaviors: { audio: { sound: "clink" } } },
+            { id: "sign", type: "marker", at: [0, 0], behaviors: { text: { text: "Hello" } } },
+            { id: "pic", type: "marker", at: [0, 0], behaviors: { sprite: { size: [0.4, 0.4] } } },
+          ],
+          { physics: "none", gravity: [0, 0] },
+        ),
+        createRegistry(testGame),
+      ),
+    );
+    if (!report.ok) throw new Error(report.error);
+    step(rt, 3);
+    step(shown, 3);
+    const cases: [on: SceneRuntimeHandle, id: string, name: string, keys: string[]][] = [
+      [shown, "chime", "audio", ["sound", "playing", "voice"]],
+      [shown, "sign", "text", ["shown", "disabled"]],
+      [shown, "pic", "sprite", ["frame", "look", "layer"]],
+      [rt, "bin", "spawner", ["on", "live", "owed", "burst"]],
+      [rt, "link", "joint", ["target", "joined", "held", "disabled"]],
+      [rt, "updraft", "force-area", ["on", "inside"]],
+      [rt, "seat", "player-input", ["seat", "joined"]],
+      [rt, "courier", "nav-agent", ["on", "to", "target", "path", "next", "stuckTicks", "blocked"]],
+      [rt, "runner", "character-side-view", ["intent", "held", "grounded", "disabled"]],
+      [rt, "walker", "character-top-down", ["intent", "disabled"]],
+    ];
+    for (const [on, id, name, keys] of cases) {
+      const got = inspectEntity(on, id)!;
+      expectPlain(got);
+      const shown = got.behaviors[name];
+      expect(shown, `${id} ${name}`).toBeTypeOf("object");
+      expect(Object.keys(shown as object).sort(), `${id} ${name}`).toEqual([...keys].sort());
+    }
+    expect(inspectEntity(shown, "sign")!.behaviors.text).toEqual({ shown: null, disabled: false });
+    shown.ctx.entity("sign")!.getBehavior(TEXT)!.set("Bye");
+    expect(inspectEntity(shown, "sign")!.behaviors.text).toMatchObject({ shown: { text: "Bye" } });
+    expect(inspectEntity(rt, "link")!.behaviors.joint).toMatchObject({ target: "anchor" });
+    expect(inspectEntity(rt, "courier")!.behaviors["nav-agent"]).toMatchObject({ target: "goal" });
+    const nav = inspectEntity(rt, "walk")!;
+    expectPlain(nav);
+    expect(nav.system).toMatchObject({ mode: "walk", revision: expect.any(Number) });
+    rt.destroy();
+    shown.destroy();
+  });
+
+  it("answers an occupant's cell on a grid", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: testGame });
+    const report = rt.load(
+      expandScene(
+        {
+          ...scene([{ id: "pawn", type: "marker", at: [1.5, 2.5], behaviors: { occupant: {} } }], {
+            physics: "none",
+            gravity: [0, 0],
+            grid: { kind: "square", cell: [1, 1] },
+          }),
+          bounds: [0, 0, 8, 8],
+        },
+        createRegistry(testGame),
+      ),
+    );
+    if (!report.ok) throw new Error(report.error);
+    step(rt);
+    const got = inspectEntity(rt, "pawn")!;
+    expectPlain(got);
+    expect(got.behaviors.occupant).toEqual({ cell: [1, 2], blocks: expect.any(Boolean) });
     rt.destroy();
   });
 

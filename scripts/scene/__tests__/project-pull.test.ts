@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,12 +14,11 @@ import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { openProject, type ProjectHandle } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
-import { tempProject } from "./fixtures";
+import { copyProject, ENGINE_SCENES, tempProject } from "./fixtures";
 import { hostedSite } from "./fixtures/hosted-site";
 
 vi.mock("@/db", () => ({ db: {} }));
 
-const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const TACTICS = fileURLToPath(new URL("../../../src/games/tactics", import.meta.url));
 const SITE = "https://staging.example.test";
 const TOKEN = "jat_pullTestSecret";
@@ -82,7 +81,7 @@ async function pull(...args: string[]) {
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "scene-pull-"));
   deck = join(root, "deck");
-  await cp(ENGINE_SCENES, deck, { recursive: true });
+  await copyProject(ENGINE_SCENES, deck);
   await writeFile(join(root, "dot.png"), DOT);
   await writeFile(join(root, "rubber.json"), JSON.stringify(RUBBER));
   project = await tempProject(deck, { id: PROJECT });
@@ -97,7 +96,8 @@ beforeAll(async () => {
     const r = await runCli(argv, ctx);
     expect(r.exitCode, `${argv.join(" ")}\n${r.stderr}`).toBe(0);
   }
-});
+  // Each CLI run reopens the project and rebuilds its schemas: about a second here, several on a loaded runner.
+}, 60_000);
 
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
@@ -280,7 +280,7 @@ describe("a game's project, hosted and pulled back", () => {
 
   beforeAll(async () => {
     tactics = join(root, "tactics");
-    await cp(TACTICS, tactics, { recursive: true });
+    await copyProject(TACTICS, tactics);
     handle = await openProject(tactics, {
       game: tacticsGame,
       cacheDir: join(root, ".jams-cache", "tactics"),

@@ -9,6 +9,7 @@ import type { EditorNotify } from "../host";
 import { formatLength } from "../kit/format";
 import {
   Button,
+  Confirm,
   Input,
   SegmentedControl,
   Select,
@@ -156,6 +157,7 @@ export function EventLogPanel(props: {
   const [entity, setEntity] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const ppm = pxPerMetreOf(session.registry);
 
   const all = useMemo(
@@ -191,7 +193,7 @@ export function EventLogPanel(props: {
   };
 
   return (
-    <section aria-label="Event log" className="je-scene-panel je-problems">
+    <section aria-label="Event log" className="je-scene-panel je-list">
       <div className="je-panel-toolbar je-event-filters" role="toolbar" aria-label="Event filters">
         {runLog && run ? (
           <SegmentedControl
@@ -248,15 +250,26 @@ export function EventLogPanel(props: {
           onChange={(e) => setTo(e.target.value)}
         />
         {source === "play" && events ? (
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={!liveHas}
-            onClick={() => events.clear()}
-            tooltip="Clear Play's events (can't be undone)"
-          >
-            Clear
-          </Button>
+          <>
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={!liveHas}
+              onClick={() => setConfirmClear(true)}
+              tooltip="Clear Play's events"
+            >
+              Clear
+            </Button>
+            <Confirm
+              open={confirmClear}
+              onOpenChange={setConfirmClear}
+              title="Clear the event log?"
+              message="Every event Play has logged so far goes. This can't be undone."
+              confirmText="Clear"
+              variant="destructive"
+              onConfirm={() => events.clear()}
+            />
+          </>
         ) : null}
       </div>
       {shown.length === 0 ? (
@@ -301,29 +314,29 @@ function EventRow({
   const content = (
     <>
       <span className="je-run-marker-at">{e.tick}</span>
-      <span className="je-problems-text">
-        <span className="je-problems-message">
+      <span className="je-list-text">
+        <span className="je-list-message">
           {e.type}
           {names ? ` · ${names}` : ""}
           {seat ? ` · ${seat}` : ""}
           {data ? ` · ${data}` : ""}
         </span>{" "}
-        <span className="je-problems-code">{at}</span>
+        <span className="je-list-code">{at}</span>
       </span>
     </>
   );
   return (
     <li
       aria-label={`${e.type} at tick ${e.tick}`}
-      className="je-problems-row"
+      className="je-list-row"
       data-inert={onClick ? undefined : ""}
     >
       {onClick ? (
-        <button type="button" onClick={onClick} className="je-problems-show">
+        <button type="button" onClick={onClick} className="je-list-show">
           {content}
         </button>
       ) : (
-        <div className="je-problems-show">{content}</div>
+        <div className="je-list-show">{content}</div>
       )}
     </li>
   );

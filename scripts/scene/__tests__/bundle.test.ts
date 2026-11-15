@@ -4,14 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
-import { tempProject } from "./fixtures";
+import { copyProject, ENGINE_SCENES, tempProject } from "./fixtures";
 
-const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const FIXTURES = fileURLToPath(
   new URL("../../../packages/engine/project/__tests__/fixtures", import.meta.url),
 );
@@ -34,30 +33,44 @@ async function setHeader(file: string, assets: string[]) {
   await writeFile(path, `${JSON.stringify({ ...json, assets })}\n`);
 }
 
-/** The running setup: a timed-out one still writes under `root`, so teardown waits for it before removing it. */
-let setUp: Promise<void> = Promise.resolve();
+let template: string;
+/** The template's setup: a timed-out one still writes under `template`, so teardown waits for it. */
+let ready: Promise<void> = Promise.resolve();
 
-beforeEach(() => (setUp = setUpDeck()));
+// Each import reopens the project and rebuilds its schemas, so they run once and each test gets a copy.
+beforeAll(() => (ready = buildTemplate()), 60_000);
 
-async function setUpDeck() {
-  root = await mkdtemp(join(tmpdir(), "scene-bundle-"));
-  deck = join(root, "deck");
-  await cp(ENGINE_SCENES, deck, { recursive: true });
-  ctx = { projects: [await tempProject(deck, { id: "deck" })], loadRapier: loadCompatRapier };
+async function buildTemplate() {
+  template = await mkdtemp(join(tmpdir(), "scene-bundle-template-"));
+  const dir = join(template, "deck");
+  await copyProject(ENGINE_SCENES, dir);
+  const setUp = {
+    projects: [await tempProject(dir, { id: "deck" })],
+    loadRapier: loadCompatRapier,
+  };
   const art = ["--path", "imported/"];
   for (const argv of [
     ["assets", "import", join(FIXTURES, "items.png"), ...art, "--id", "items-art"],
     ["assets", "import", join(FIXTURES, "items.json"), ...art],
     ["assets", "import", join(FIXTURES, "hero.png"), ...art, "--id", "hero-art"],
   ]) {
-    const r = await run(...argv);
-    if (r.exitCode !== 0) throw new Error(JSON.stringify(r.data));
+    const r = await runCli(argv, setUp);
+    if (r.exitCode !== 0) throw new Error(r.stderr);
   }
 }
 
-afterEach(async () => {
-  await setUp.catch(() => undefined);
-  await rm(root, { recursive: true, force: true });
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), "scene-bundle-"));
+  deck = join(root, "deck");
+  await cp(template, root, { recursive: true });
+  ctx = { projects: [await tempProject(deck, { id: "deck" })], loadRapier: loadCompatRapier };
+});
+
+afterEach(() => rm(root, { recursive: true, force: true }));
+
+afterAll(async () => {
+  await ready.catch(() => undefined);
+  await rm(template, { recursive: true, force: true });
 });
 
 describe("bundle", { timeout: 60_000 }, () => {

@@ -69,7 +69,7 @@ import { stats } from "../tools/stats";
 import { step } from "../tools/step";
 import { validate } from "../tools/validate";
 import { CARD_SPEED, CARD_TABLE, cardGame } from "./card-game";
-import { tempProject } from "./fixtures";
+import { copyProject, tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
@@ -814,7 +814,7 @@ describe("new in a project with other assets", { timeout: 60_000 }, () => {
 
   beforeEach(async () => {
     deck = join(root, "deck");
-    await cp(ENGINE_SCENES, deck, { recursive: true });
+    await copyProject(ENGINE_SCENES, deck);
     deckCtx = { ...ctx, projects: [await tempProject(deck, { id: "deck" })] };
   });
 
@@ -1123,7 +1123,7 @@ describe("apply judges sprites against the scene's project", { timeout: 60_000 }
 
   beforeEach(async () => {
     sink = join(root, "engine");
-    await cp(ENGINE_SCENES, sink, { recursive: true });
+    await copyProject(ENGINE_SCENES, sink);
     sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
   });
 
@@ -3360,7 +3360,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
   let engineCtx: ToolContext;
   beforeEach(async () => {
     engineDir = join(root, "engine");
-    await cp(ENGINE_SCENES, engineDir, { recursive: true });
+    await copyProject(ENGINE_SCENES, engineDir);
     engineCtx = { ...ctx, projects: [await tempProject(engineDir, { id: "engine" })] };
   });
 
@@ -3497,7 +3497,7 @@ describe("animation, camera regions and presentation", { timeout: 60_000 }, () =
 
   beforeEach(async () => {
     sink = join(root, "engine");
-    await cp(ENGINE_SCENES, sink, { recursive: true });
+    await copyProject(ENGINE_SCENES, sink);
     sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
   });
 
@@ -3750,7 +3750,7 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
 
   beforeEach(async () => {
     sink = join(root, "engine");
-    await cp(ENGINE_SCENES, sink, { recursive: true });
+    await copyProject(ENGINE_SCENES, sink);
     sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
     const ops = join(root, "gate-ops.json");
     await writeFile(
@@ -4198,6 +4198,25 @@ describe("frame and play --live", { timeout: 60_000 }, () => {
     );
     expect(down.data).toMatchObject({ source: "schematic", issues: [{ code: "live-no-editor" }] });
     expect((down.data as { png: string }).png.length).toBeGreaterThan(0);
+    expect((down.data as { debugDraw?: unknown }).debugDraw).toBeUndefined();
+
+    const debug = await frame(
+      {
+        scene: "engine-yard",
+        live: true,
+        debug: true,
+        url: "ws://127.0.0.1:9/__scene-collab",
+        timeoutMs: 300,
+      },
+      live,
+    );
+    expect(debug.exitCode, debug.text).toBe(0);
+    expect(debug.data).toMatchObject({
+      source: "schematic",
+      debugDraw: { ticks: 60 },
+      issues: [{ code: "live-no-editor" }],
+    });
+    expect(debug.text).toContain("ctx.debug draws of t60");
   });
 
   it("falls back on frame-too-large and stops on live-refused", async () => {

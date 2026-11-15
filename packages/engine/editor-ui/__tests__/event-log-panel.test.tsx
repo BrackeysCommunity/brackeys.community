@@ -175,6 +175,7 @@ describe("EventLogPanel", () => {
               enabled: true,
               pose: { x: 1, y: 2, rot: 0 },
               prevPose: null,
+              parent: null,
               entity: { id, type: "bullet" } as EntityInspection["entity"],
               system: undefined,
               behaviors: {},
@@ -208,13 +209,29 @@ describe("EventLogPanel", () => {
     await waitFor(() => expect(inspect).toHaveBeenLastCalledWith("pad"));
   });
 
-  it("follows a running log and clears it", async () => {
+  it("follows a running log and clears it once Clear is confirmed", async () => {
     const log = createEventLog();
-    render(<EventLogPanel events={log} session={sessionOf()} notify={notify} />);
+    render(
+      <KitProvider host={{ storage: null }}>
+        <EventLogPanel events={log} session={sessionOf()} notify={notify} />
+      </KitProvider>,
+    );
     act(() => log.append(1, [ev(1, "coin", { entityId: "pad" })]));
     await waitFor(() => expect(rows()).toEqual(["coin at tick 1"]));
+
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    let dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("can't be undone");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(log.list()).toHaveLength(1);
+    expect(rows()).toEqual(["coin at tick 1"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Clear" }));
     await waitFor(() => expect(screen.getByText(/No events yet/)).toBeTruthy());
+    expect(log.list()).toHaveLength(0);
   });
 
   it("shows a loaded run's events from one headless replay, beside Play's", async () => {

@@ -251,6 +251,8 @@ type EntityInspection = {
     id: string;
     /** What game code made for it (a motion body, a grid stepper, a controller), by owner name. */
     owners?: Readonly<Record<string, JsonValue | undefined>>;
+    /** Its parent in the runtime tree now, after any reparent; null for a root. */
+    parent: null | string;
     /** World metres and radians. */
     pose: Pose | null;
     prevPose: Pose | null;

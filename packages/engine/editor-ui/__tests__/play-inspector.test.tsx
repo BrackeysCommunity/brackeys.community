@@ -33,6 +33,7 @@ function inspection(id: string, over: Partial<EntityInspection> = {}): EntityIns
     id,
     type: "bullet",
     enabled: true,
+    parent: null,
     pose: { x: 1.5, y: 2, rot: 0 },
     prevPose: { x: 1.4, y: 2, rot: 0 },
     entity: { id, type: "bullet" } as EntityInspection["entity"],
@@ -178,6 +179,73 @@ describe("the play inspector", () => {
     const panel = screen.getByLabelText("Play inspector");
     expect(panel.textContent).toContain("fast");
     expect(panel.textContent).not.toContain("stale");
+  });
+
+  it("shows what game code made for it, by owner: a grid stepper's cell and a motion body's last move", async () => {
+    vi.useFakeTimers();
+    const t = setup({
+      inspect: async (id) =>
+        inspection(id, {
+          owners: {
+            "grid-step": { cell: [2, 5], moving: true, from: [1, 5] },
+            motion: { velocity: { x: 1, y: 0 }, enabled: true, last: { blocked: true, hits: [] } },
+          },
+        }),
+    });
+    act(() => t.session.select(["pad"]));
+    mount(t.game, t.session);
+    await t.frame();
+    const owners = screen.getByRole("region", { name: "Owners" });
+    const grid = facts("grid-step");
+    expect(owners.contains(grid)).toBe(true);
+    expect(grid.textContent).toContain("cell[2,5]");
+    expect(grid.textContent).toContain("movingtrue");
+    expect(facts("motion").textContent).toContain('last{"blocked":true,"hits":[]}');
+  });
+
+  it("leaves Owners out when no game code owns the entity", async () => {
+    vi.useFakeTimers();
+    const t = setup({ inspect: async (id) => inspection(id) });
+    act(() => t.session.select(["pad"]));
+    mount(t.game, t.session);
+    await t.frame();
+    expect(screen.getByLabelText("Play inspector").textContent).toContain("pad");
+    expect(screen.queryByRole("region", { name: "Owners" })).toBeNull();
+  });
+
+  it("shows the parent, and clicking it inspects the parent", async () => {
+    vi.useFakeTimers();
+    const t = setup({
+      inspect: async (id) =>
+        id === "pad" ? inspection(id, { parent: "yard" }) : inspection(id, { type: "node" }),
+    });
+    act(() => t.session.select(["pad"]));
+    mount(t.game, t.session);
+    await t.frame();
+    const parent = screen.getByRole("region", { name: "Parent" });
+    act(() => within(parent).getByText("yard").click());
+    await t.frame();
+    expect(t.game.debug.inspect).toHaveBeenLastCalledWith("yard");
+    expect(
+      within(screen.getByRole("region", { name: "Parent" })).getByText("No parent"),
+    ).toBeTruthy();
+  });
+
+  it("lands a read slower than the refresh, asking again only once it settles", async () => {
+    vi.useFakeTimers();
+    const out: ((v: EntityInspection) => void)[] = [];
+    const t = setup({ inspect: () => new Promise((resolve) => out.push(resolve)) });
+    act(() => t.session.select(["pad"]));
+    mount(t.game, t.session);
+    for (let i = 0; i < 5; i++) await t.frame();
+    expect(out).toHaveLength(1);
+    await act(async () => out[0]?.(inspection("pad", { type: "slow" })));
+    expect(screen.getByLabelText("Play inspector").textContent).toContain("slow");
+    await t.frame();
+    expect(out).toHaveLength(2);
+    await t.frame();
+    expect(out).toHaveLength(2);
+    expect(screen.getByLabelText("Play inspector").textContent).toContain("slow");
   });
 
   it("says when nothing is picked and when the pick isn't live", async () => {

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import { LIVE_MESSAGE_MAX_BYTES } from "../../../packages/engine/collab/live-channel.ts";
-import { syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
+import { SYNC_CLOSE, syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import { createRedisExtension, redisChannels, redisLedger } from "../src/redis.ts";
 import { MemorySceneStore } from "../src/scene/store.ts";
@@ -117,11 +117,32 @@ describe("stateless messages between a scene's clients across two instances", ()
     expect(one.metrics.refusals.size).toBe(1);
 
     // A read-only connection listens but doesn't speak.
-    reader.provider.sendStateless("from the reader");
+    const fromReader = JSON.stringify({ t: "state", id: "reader" });
+    reader.provider.sendStateless(fromReader);
     await sleep(500);
-    expect(sender.notices).toEqual([]);
-    expect(acrossInstances.notices).not.toContain("from the reader");
+    for (const c of [sender, sameInstance, acrossInstances, elsewhere])
+      expect(c.notices).not.toContain(fromReader);
     expect(reader.closes).toEqual([]);
+  });
+
+  it("rate-limits a read-only connection's stateless burst on its main bucket", async () => {
+    if (fake && !url) url = (await fake.start()).url;
+    const prefix = syncEnvPrefix(`stateless-reader-${crypto.randomUUID().slice(0, 8)}`);
+    const server = await instance("stateless-reader", prefix);
+    const sceneId = newSceneId();
+    store.create(sceneId);
+    const editor = open(server.port, sceneId, "editor");
+    const reader = open(server.port, sceneId, "viewer", { access: "read" });
+    for (const c of [editor, reader]) expect(await sceneSynced(c)).toBe(true);
+    await sleep(300);
+
+    for (let i = 0; i < 300; i++)
+      reader.provider.sendStateless(JSON.stringify({ t: "state", id: `v${i}` }));
+    expect(await until(() => server.metrics.refusals.rate > 0, 8000)).toBe(true);
+    expect(await until(() => reader.closes.length > 0, 8000)).toBe(true);
+    expect(reader.closes[0]).toBe(SYNC_CLOSE.rateLimited);
+    expect(editor.notices).toEqual([]);
+    expect(editor.closes).toEqual([]);
   });
 
   it("drops a burst past the rate limit without closing the agent or the editor answering it", async () => {

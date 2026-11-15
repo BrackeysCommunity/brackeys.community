@@ -418,7 +418,7 @@ const DEFINITIONS = {
     usage:
       "render <scene|file|-> [--out file] [--ascii] [--region r|--around ref --margin n] [--labels l] [--scale n] [--overlay f] [--debug-draw [--ticks n]]",
     summary:
-      "a schematic of the scene as PNG or SVG (longest side 1600px), or --ascii as a character map; --debug-draw runs the ticks headless and draws the last tick's ctx.debug shapes",
+      "a schematic of the scene as PNG or SVG (longest side 1600px), or --ascii as a character map; --debug-draw runs the ticks headless and draws the last tick's ctx.debug shapes over the entities as authored",
     values: ["out", "region", "around", "margin", "labels", "scale", "overlay", "ticks"],
     switches: ["ascii", "debug-draw"],
     maxPositionals: 1,

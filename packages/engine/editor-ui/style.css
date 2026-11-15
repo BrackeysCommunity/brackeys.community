@@ -2050,10 +2050,10 @@
   /* The event log's filters wrap onto a second row in a narrow panel, so none is cut off. */
   .je-event-filters {
     flex-wrap: wrap;
-    row-gap: 4px;
+    row-gap: var(--je-gap-tight);
     height: auto;
     min-height: var(--je-tab);
-    padding-block: 4px;
+    padding-block: var(--je-gap-tight);
   }
 
   .je-event-filters > .je-select {
@@ -2073,7 +2073,7 @@
   }
 
   .je-event-truncated {
-    padding: 4px 2px;
+    padding: var(--je-gap-tight) 2px;
   }
 
   .je-panel-skeleton {
@@ -3384,7 +3384,7 @@
 
   /* A runtime entity's row (a spawn, a contact): picks it for the play inspector. */
   .je-play-pick-row {
-    padding-left: 8px;
+    padding-left: var(--je-gap);
   }
 
   .je-insp-actions {
@@ -3406,7 +3406,8 @@
     padding: 0 4px;
   }
 
-  .je-problems-row {
+  /* A list row of a message and its code, shared by Problems and the event log. */
+  .je-list-row {
     display: flex;
     align-items: flex-start;
     gap: 4px;
@@ -3415,16 +3416,16 @@
     border-radius: var(--je-radius-nested);
   }
 
-  .je-problems-row:hover,
+  .je-list-row:hover,
   .je-history-row:hover {
     background: color-mix(in srgb, var(--je-muted) 60%, transparent);
   }
 
-  .je-problems-row[data-inert]:hover {
+  .je-list-row[data-inert]:hover {
     background: none;
   }
 
-  .je-problems-show {
+  .je-list-show {
     display: flex;
     flex: 1;
     align-items: flex-start;
@@ -3454,7 +3455,7 @@
     color: var(--je-muted-fg);
   }
 
-  .je-problems-message {
+  .je-list-message {
     display: -webkit-box;
     flex: 1;
     min-width: 0;
@@ -3465,7 +3466,7 @@
     overflow-wrap: anywhere;
   }
 
-  .je-problems-code {
+  .je-list-code {
     flex-shrink: 0;
     max-width: 40%;
     overflow: hidden;
@@ -3481,16 +3482,16 @@
   }
 
   /* Wide, the code is a column of its own; narrow, it trails the message inside one clamp. */
-  .je-problems {
-    container: je-problems / inline-size;
+  .je-list {
+    container: je-list / inline-size;
   }
 
-  .je-problems-text {
+  .je-list-text {
     display: contents;
   }
 
-  @container je-problems (max-width: 288px) {
-    .je-problems-text {
+  @container je-list (max-width: 288px) {
+    .je-list-text {
       display: -webkit-box;
       flex: 1;
       min-width: 0;
@@ -3501,12 +3502,12 @@
       overflow-wrap: anywhere;
     }
 
-    .je-problems-message {
+    .je-list-message {
       display: inline;
       overflow: visible;
     }
 
-    .je-problems-code {
+    .je-list-code {
       display: inline;
       max-width: none;
     }
@@ -3681,14 +3682,14 @@
   .je-run-scrub {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--je-gap-tight);
   }
 
   .je-run-scrub-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--je-gap);
   }
 
   .je-run-scrub-at {

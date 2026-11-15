@@ -201,6 +201,10 @@ export type ScenePresence = {
   mode: "edit" | "play";
   /** This client answers live requests on the doc (`createLiveResponder`). */
   live?: boolean;
+  /** Its responder also drives Play ("Let agents drive Play" is on), which ranks it first. */
+  drives?: boolean;
+  /** Its scene is off screen, which ranks its responder after a visible one. */
+  hidden?: boolean;
 };
 
 /**

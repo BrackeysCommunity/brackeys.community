@@ -65,6 +65,21 @@ function blockedAt(batch: ProjectOpBatch, issue: SceneIssue): number {
   );
 }
 
+/** Schema hashes depend only on the kinds and the game registry, so they're computed once per pair, not per snapshot. */
+const schemaHashCache = new WeakMap<
+  FileProject["kinds"],
+  { registry: FileProject["registry"]; hashes: ReturnType<typeof buildHashes> }
+>();
+
+function schemaHashesOf({ kinds, registry }: FileProject): ReturnType<typeof buildHashes> {
+  const cached = schemaHashCache.get(kinds);
+  if (cached?.registry === registry) return cached.hashes;
+  const hashes = buildHashes(kinds, registry);
+  schemaHashCache.set(kinds, { registry, hashes });
+  hashes.catch(() => schemaHashCache.delete(kinds));
+  return hashes;
+}
+
 /**
  * The project as its files are now, pinned by content: each live doc
  * asset by the hash of its canonical text (its raw text when it doesn't
@@ -83,7 +98,7 @@ export async function snapshotFiles(project: FileProject): Promise<ProjectSnapsh
     const parsed = parseAssetDoc(def, text, env);
     texts.set(entry.id, parsed.ok ? formatAssetDoc(def, parsed.value) : text);
   }
-  const hashes = await buildHashes(project.kinds, project.registry);
+  const hashes = await schemaHashesOf(project);
   const build: Record<string, BuildStamp> = {};
   for (const [kind, hash] of Object.entries(hashes))
     build[kind] = { hash, buildAt: 0, engine: ENGINE_VERSION };

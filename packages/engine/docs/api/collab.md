@@ -1708,11 +1708,15 @@ Selection names entity keys, which stay put while bulk refs shift.
 type ScenePresence = {
     /** World coordinates. */
     cursor?: Pt;
+    /** Its responder also drives Play ("Let agents drive Play" is on), which ranks it first. */
+    drives?: boolean;
     /** A drag in progress: the keys being dragged and the offset so far. */
     ghost?: {
         by: Pt;
         keys: string[];
     };
+    /** Its scene is off screen, which ranks its responder after a visible one. */
+    hidden?: boolean;
     /** This client answers live requests on the doc (`createLiveResponder`). */
     live?: boolean;
     mode: "edit" | "play";

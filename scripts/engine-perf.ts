@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { generateLargeScene } from "../packages/engine/__tests__/fixtures/generate-scene";
+import { generateLargeScene, LARGE_5K } from "../packages/engine/__tests__/fixtures/generate-scene";
 import type { SceneDefinition } from "../packages/engine/scene/types";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -47,10 +47,10 @@ export type PerfBaseline = Readonly<
 /** Every case, one row each. */
 export const PERF_CASES: readonly PerfCase[] = [
   { id: "kitchen-sink", scene: "kitchen-sink", ticks: 600, runs: 5 },
-  { id: "large-5k", scene: () => generateLargeScene(5000), ticks: 600, runs: 5 },
+  { id: "large-5k", scene: () => generateLargeScene(1, LARGE_5K), ticks: 600, runs: 5 },
   {
     id: "large-5k-geometry",
-    scene: () => generateLargeScene(5000, undefined, "none"),
+    scene: () => generateLargeScene(1, LARGE_5K, "none"),
     ticks: 600,
     runs: 5,
   },

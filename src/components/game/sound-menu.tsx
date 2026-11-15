@@ -94,10 +94,10 @@ export function SoundMenu({
               max={100}
               step={5}
               value={[Math.round(level.volume * 100)]}
-              disabled={level.muted}
               onValueChange={(value) => {
                 const v = Array.isArray(value) ? value[0] : value;
-                if (typeof v === "number") change({ ...level, volume: v / 100 });
+                // Moving the volume while muted unmutes, as players expect.
+                if (typeof v === "number") change({ volume: v / 100, muted: false });
               }}
             />
           </div>

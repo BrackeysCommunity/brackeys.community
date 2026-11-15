@@ -5,6 +5,7 @@ import type { EntityInspection } from "../../debug/inspect";
 import type { EditorSession } from "../../editor/index";
 import type { JsonValue } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
+import { radToDeg } from "../../physics";
 import { TOOL_PRIORITY, type ToolEvent } from "../../tool-router";
 import type { GameInstance, GameStoreState, Vec2 } from "../../types";
 import type { EditorNotify } from "../host";
@@ -49,8 +50,10 @@ export type LiveRead<T> =
 
 /**
  * Reads `read()` now and again as the game's store changes (each rendered
- * frame), at most every {@link PLAY_REFRESH_MS}. Answers arrive as promises;
- * one that a newer request has overtaken is dropped. A null `key` reads nothing.
+ * frame), at most every {@link PLAY_REFRESH_MS}. Answers arrive as promises,
+ * one at a time: a change while a read is out waits for it to settle, so a
+ * read slower than the refresh still lands. A null `key` reads nothing, and
+ * a new key drops what the old one was reading.
  */
 export function useLiveRead<T>(
   store: Store<GameStoreState>,
@@ -59,7 +62,9 @@ export function useLiveRead<T>(
 ): LiveRead<T> {
   const [state, setState] = useState<LiveRead<T>>({ status: "idle" });
   const latest = useRef(read);
-  latest.current = read;
+  useEffect(() => {
+    latest.current = read;
+  });
 
   useEffect(() => {
     if (key === null) {
@@ -67,35 +72,42 @@ export function useLiveRead<T>(
       return;
     }
     let live = true;
-    let seq = 0;
+    let reading = false;
+    let changed = false;
     let lastAt = -Infinity;
     let timer: ReturnType<typeof setTimeout> | null = null;
     setState({ status: "pending" });
 
+    const settle = (next: LiveRead<T>) => {
+      if (!live) return;
+      reading = false;
+      setState(next);
+      if (changed) schedule();
+    };
     const request = () => {
       timer = null;
       lastAt = Date.now();
-      const mine = ++seq;
+      reading = true;
+      changed = false;
       latest.current().then(
-        (value) => {
-          if (live && mine === seq) setState({ status: "done", value });
-        },
-        (error: unknown) => {
-          if (live && mine === seq) {
-            setState({
-              status: "failed",
-              message: error instanceof Error ? error.message : String(error),
-            });
-          }
-        },
+        (value) => settle({ status: "done", value }),
+        (error: unknown) =>
+          settle({
+            status: "failed",
+            message: error instanceof Error ? error.message : String(error),
+          }),
       );
     };
-    const schedule = () => {
+    function schedule() {
+      if (reading) {
+        changed = true;
+        return;
+      }
       if (timer !== null) return;
       const wait = lastAt + PLAY_REFRESH_MS - Date.now();
       if (wait <= 0) request();
       else timer = setTimeout(request, wait);
-    };
+    }
 
     request();
     const unsubscribe = store.subscribe(schedule);
@@ -194,8 +206,7 @@ function usePlayTarget(session: EditorSession, pick: Store<PickState>): string |
   return picked ?? selected;
 }
 
-const DEG_PER_RAD = 180 / Math.PI;
-const degrees = (rad: number) => `${String(Number((rad * DEG_PER_RAD).toFixed(1)) + 0)}°`;
+const degrees = (rad: number) => `${String(Number(radToDeg(rad).toFixed(1)) + 0)}°`;
 const fixed = (n: number) => String(Number(n.toFixed(3)) + 0);
 
 function Facts({ label, rows }: { label: string; rows: readonly [string, ReactNode][] }) {
@@ -225,6 +236,24 @@ function jsonRows(value: JsonValue | undefined): [string, ReactNode][] {
   return [["value", shortJson(value)]];
 }
 
+/** One `Facts` group per name: what each behavior or owner's `inspect` answers. */
+function NamedFacts({
+  entries,
+  attr,
+}: {
+  entries: readonly [string, JsonValue | undefined][];
+  attr: "data-behavior" | "data-owner";
+}) {
+  return entries.map(([name, value]) => (
+    <div key={name} className="je-insp-group" {...{ [attr]: name }}>
+      <Text as="p" size="xs" variant="muted">
+        {name}
+      </Text>
+      {value === undefined ? null : <Facts label={name} rows={jsonRows(value)} />}
+    </div>
+  ));
+}
+
 function poseRows(pose: EntityInspection["pose"], ppm: number): [string, ReactNode][] {
   if (!pose) return [["at", "No pose"]];
   return [
@@ -244,6 +273,7 @@ function Inspection({
   session: EditorSession;
 }) {
   const behaviors = Object.entries(data.behaviors);
+  const owners = Object.entries(data.owners ?? {});
   return (
     <>
       <header className="je-insp-head">
@@ -258,6 +288,13 @@ function Inspection({
       </InspectorSection>
       <InspectorSection id="play:prev-pose" title="Previous pose" defaultOpen={false}>
         <Facts label="Previous pose" rows={poseRows(data.prevPose, ppm)} />
+      </InspectorSection>
+      <InspectorSection id="play:parent" title="Parent">
+        {data.parent === null ? (
+          <PlayEmpty>No parent</PlayEmpty>
+        ) : (
+          <PlayPickRow session={session} id={data.parent} />
+        )}
       </InspectorSection>
       {data.body ? (
         <InspectorSection id="play:body" title="Body">
@@ -279,14 +316,12 @@ function Inspection({
       ) : null}
       {behaviors.length > 0 ? (
         <InspectorSection id="play:behaviors" title="Behaviors">
-          {behaviors.map(([name, value]) => (
-            <div key={name} className="je-insp-group" data-behavior={name}>
-              <Text as="p" size="xs" variant="muted">
-                {name}
-              </Text>
-              {value === undefined ? null : <Facts label={name} rows={jsonRows(value)} />}
-            </div>
-          ))}
+          <NamedFacts entries={behaviors} attr="data-behavior" />
+        </InspectorSection>
+      ) : null}
+      {owners.length > 0 ? (
+        <InspectorSection id="play:owners" title="Owners">
+          <NamedFacts entries={owners} attr="data-owner" />
         </InspectorSection>
       ) : null}
       <InspectorSection id="play:timers" title="Timers" defaultOpen={false}>

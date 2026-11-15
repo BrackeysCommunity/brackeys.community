@@ -3237,6 +3237,8 @@ declare const LIVE_REQUEST_TIMEOUT_MS = 2000;
 type LiveErrorCode = "frame-too-large" | "live-no-editor" | "live-refused";
 type LivePresence = {
     clientId: number;
+    drives?: boolean;
+    hidden?: boolean;
     live?: boolean;
 };
 type LiveRequest = {
@@ -3249,6 +3251,7 @@ type LiveRequest = {
 } | {
     entities?: EntitySelector;
     id: string;
+    limit?: number;
     select?: readonly ("entities" | "events" | "store" | "timings")[];
     t: "state";
 } | {
@@ -3273,6 +3276,8 @@ type LiveResponderOptions = {
     render: (req: LiveRequest & {
         t: "frame";
     }) => Promise<Uint8Array>;
+    visible?: () => boolean;
+    watch?: (changed: () => void) => () => void;
 };
 type LiveResponse = {
     code: LiveErrorCode;
@@ -3283,6 +3288,7 @@ type LiveResponse = {
 } | {
     entities?: readonly unknown[];
     events?: readonly StepEvent[];
+    eventsTotal?: number;
     id: string;
     ok: true;
     store?: Pick<GameStoreState, "dialogue" | "game" | "mode" | "phase" | "tick">;
@@ -3820,10 +3826,12 @@ type SceneDocMeta = {
 type SceneOrigin = DocOrigin;
 type ScenePresence = {
     cursor?: Pt;
+    drives?: boolean;
     ghost?: {
         by: Pt;
         keys: string[];
     };
+    hidden?: boolean;
     live?: boolean;
     mode: "edit" | "play";
     selection: string[];
@@ -4146,6 +4154,7 @@ type EntityInspection = {
     entity: RuntimeEntity;
     id: string;
     owners?: Readonly<Record<string, JsonValue | undefined>>;
+    parent: null | string;
     pose: Pose | null;
     prevPose: Pose | null;
     system: JsonValue | undefined;

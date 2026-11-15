@@ -73,7 +73,8 @@ the owner.
   holding timings on while it is open.
   `RunTiming` gains the optional `onSpan`.
 - Live inspection: `inspectEntity`, `listEntities` and `pickEntity` in
-  `./debug` (`EntityInspection.owners`, `InspectedTimer`); engine systems
+  `./debug` (`EntityInspection.parent`, the runtime tree's parent after
+  any reparent, `EntityInspection.owners`, `InspectedTimer`); engine systems
   and standard behaviors answer `inspect(id)` (bodies, sensors, followers,
   nav areas, anim, tween, lifetime, occupant, audio, sprite, text,
   collider, body, characters, force-area, joint, nav-agent, spawner,
@@ -82,8 +83,10 @@ the owner.
   their kind and the tick they next run. `inspectPathPlace` in `./game`.
 - Editor: during Play the Inspector shows the runtime entity under the
   selection, a Spawned row or an Alt+click on the canvas (pose, previous
-  pose, enabled, body, system, behaviors, timers, contacts), read-only and
-  refreshed at most every 100 ms; the Outliner lists runtime-spawned ids
+  pose, enabled, parent, body, system, behaviors, owners such as a grid
+  stepper's cell or a motion body's last move, timers, contacts), read-only
+  and refreshed at most every 100 ms, one read at a time so a slow read
+  still lands; the parent and contacts can be clicked to inspect them; the Outliner lists runtime-spawned ids
   (`bullet#12`) in a Spawned group while playing. A Panels switch in the
   Play bar (off by default, kept per viewer) keeps the panels beside the
   game during Play, where these, the Event log and Perf can be read.
@@ -116,16 +119,28 @@ the owner.
   reloads the scene through its entry and restores in a world save's
   order. `captureSave`'s world depth now goes through the same capture
   walk, and its output is unchanged.
-- The live channel: `createLiveResponder`, `liveRequest`, `electResponder`
-  (lowest client id among presence entries with `live: true`),
+- The live channel: `createLiveResponder`, `liveRequest`, `electResponder`,
   `livePresence`, `liveMessageBytes` and `relayableStateless` over a doc's
-  stateless messages; requests time out after 2 s with `live-no-editor`, a
-  responder with its toggle off answers `live-refused`, a PNG over 1 MiB
-  answers `frame-too-large`. Scene and project presence admit `live`. The
-  dev collab server and canvas-sync relay a scene or asset doc's stateless
-  messages to its other connections (across instances over the relay
-  Redis), dropping any over 1.5 MiB without closing; read-only connections
-  only listen.
+  stateless messages. `electResponder` picks, among presence entries with
+  `live: true`, one that drives Play before one that only refuses, then a
+  visible one before a hidden one, then the lowest client id;
+  `LivePresence` carries `drives` and `hidden`, and scene and project
+  presence admit `live`, `drives` and `hidden`. `LiveResponderOptions`
+  gains `visible` (whether the scene is on screen, default true) and
+  `watch` (re-advertises when `enabled()` or `visible()` changes). A
+  `state` request takes `limit` (the newest events, default
+  `LIVE_STATE_EVENTS` 500) and its answer gives `eventsTotal`; an answer
+  over the relays' cap halves its events (the newest stay) until it fits,
+  and is answered `live-refused` when nothing fits. A request waits 2 s
+  (`LIVE_REQUEST_TIMEOUT_MS`), a step 1 ms more per tick it asks for, then
+  answers `live-no-editor`; a responder with its toggle off answers
+  `live-refused`, a PNG over 1 MiB answers `frame-too-large`. The dev
+  collab server and canvas-sync relay only the live channel's requests and
+  answers among a scene or asset doc's stateless messages (every other
+  stateless message is dropped) to its other connections, across instances
+  over the relay Redis, dropping any over 1.5 MiB or past the connection's
+  stateless rate limit without closing it; read-only connections only
+  listen. The editor reads asset notices only on the project doc.
 - Audio hosts: a throwing `GameConfig.audio.backend` function now plays
   silent (with a dev warning) instead of throwing inside the tick, for
   every host. `GameInstance.reopenAudio()` asks the backend again during
@@ -145,10 +160,10 @@ the owner.
   under Node; Bun's reported Node version moves with Bun, so it isn't the
   key): below 80% fails, below 90% warns, no baseline passes with a notice,
   printed as a banner on CI; `--update` / UPDATE_PERF_BASELINE=1 records the
-  key. The baseline ships empty, so every case passes with a notice until
-  the owner records the `arm64/node26` key on their machine and the
-  `x64/bun1` key from a CI run's `engine-perf.json` (with the warm-up
-  ticks) in an owner MR.
+  key. Until a key is recorded its cases pass with a notice. The `x64/bun1`
+  key is recorded from a CI run's `engine-perf.json` (with the warm-up
+  ticks) of a pipeline that runs the current perf scenes; the `arm64/node26`
+  key waits for the owner to record it on their machine.
 - `GameInstance.replay(doc, rec, { seek, checkpointEvery = 300, paused })`
   and `replayHandle()` seek. Seeking re-simulates with presentation muted
   (no step listeners, present requests, audio, effects or dialogue view)

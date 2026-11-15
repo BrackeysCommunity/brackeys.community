@@ -79,7 +79,7 @@ function watchDrivesPlay(changed: () => void): () => void {
 /** RGBA pixels, row by row from the top left. */
 export type FramePixels = { width: number; height: number; data: Uint8Array | Uint8ClampedArray };
 
-/** How much each downscale shrinks a side while a frame is over the cap. */
+/** The least each downscale shrinks a side while a frame is over the cap. */
 const DOWNSCALE_STEP = 0.75;
 
 /** `src` resampled to `width` × `height`: each target pixel averages the source pixels it covers. */
@@ -236,7 +236,10 @@ export async function fitFrame(
   let frame = px;
   let png = await encodePng(frame);
   while (png.byteLength > max && (frame.width > 1 || frame.height > 1)) {
-    frame = resample(frame, frame.width * DOWNSCALE_STEP, frame.height * DOWNSCALE_STEP);
+    // PNG bytes grow with the pixel count, so jump to the size the overshoot
+    // predicts instead of re-encoding a near-incompressible frame per step.
+    const scale = Math.min(DOWNSCALE_STEP, 0.95 * Math.sqrt(max / png.byteLength));
+    frame = resample(px, frame.width * scale, frame.height * scale);
     png = await encodePng(frame);
   }
   return png;
@@ -436,6 +439,14 @@ export function attachEditorResponder(opts: EditorResponderOptions): () => void 
       return el ? canvasPixels(el) : null;
     });
   const releases = new Map<string, () => void>();
+  // One capture at a time: a debug frame presses F3 around its capture, so an
+  // overlapping one would read the first's all-layers mode as the viewer's.
+  let captures: Promise<unknown> = Promise.resolve();
+  const takePixels = (debug: boolean | undefined) => {
+    const next = captures.then(() => (debug ? withDebugLayers(game, capture) : capture()));
+    captures = next.catch(() => {});
+    return next;
+  };
 
   const onRequest = ({ payload }: { payload: string }) => {
     const req = parseLiveRequest(payload);
@@ -502,7 +513,7 @@ export function attachEditorResponder(opts: EditorResponderOptions): () => void 
       }),
     game: () => driven,
     render: async (req) => {
-      const pixels = await (req.opts.debug ? withDebugLayers(game, capture) : capture());
+      const pixels = await takePixels(req.opts.debug);
       if (!pixels) throw new Error("The editor's canvas can't be read.");
       const el = canvas();
       return renderFrame(pixels, req.opts, el ? canvasPxPerMetre(game, el) : null);

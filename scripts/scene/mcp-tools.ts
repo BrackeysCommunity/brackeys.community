@@ -815,7 +815,9 @@ export const MCP_TOOLS: readonly McpTool[] = [
       debugDraw: z
         .boolean()
         .optional()
-        .describe("Run the scene headless and draw the last tick's ctx.debug shapes."),
+        .describe(
+          "Run the scene headless and draw the last tick's ctx.debug shapes; the entities stay drawn as authored, so draws that follow a moving entity sit where it is at that tick.",
+        ),
       ticks: z
         .number()
         .int()
@@ -830,7 +832,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_frame",
     title: "Look at the editor's frame",
     description:
-      'A PNG of the open editor\'s canvas as the human sees it (`source: "live"`, with its tick and mode), asked over the scene\'s live channel of the dev collab server or, with an agent token, the hosted site. When no editor answers (`live-no-editor`) it falls back to the schematic `scene_render` draws from the scene file, with `source: "schematic"`. `debug: true` takes it with every debug layer F3 cycles through showing, then puts the editor\'s overlay back as it was. `live-refused` means the editor refused: its "Let agents drive Play" toggle is off, or it couldn\'t do it (a debug frame without the debug overlay), as the message says; `frame-too-large` that no downscale fit the PNG under 1 MiB (try a smaller viewport).',
+      'A PNG of the open editor\'s canvas as the human sees it (`source: "live"`, with its tick and mode), asked over the scene\'s live channel of the dev collab server or, with an agent token, the hosted site. When no editor answers (`live-no-editor`) it falls back to the schematic `scene_render` draws from the scene file, with `source: "schematic"`; with `debug` that schematic carries the `ctx.debug` draws of a 60-tick headless run (`debugDraw: { ticks, draws }`), not the editor\'s other layers. `debug: true` takes it with every debug layer F3 cycles through showing, then puts the editor\'s overlay back as it was. `live-refused` means the editor refused: its "Let agents drive Play" toggle is off, or it couldn\'t do it (a debug frame without the debug overlay), as the message says; `frame-too-large` that no downscale fit the PNG under 1 MiB (try a smaller viewport).',
     annotations: { readOnlyHint: true, openWorldHint: true },
     input: {
       scene: sceneName,
@@ -895,7 +897,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_play",
     title: "Drive the editor's Play",
     description:
-      "Drive Play in the open editor over the scene's live channel: `play` starts it through the editor's own Play (recordings and history as for a click), `pause`, `resume`, `step` (`ticks`, default 1, while paused), `stop` (back to the edit world), or `state` to read the phase, tick and outcome without changing anything. `live-no-editor` when no editor answers, `live-refused` when its \"Let agents drive Play\" toggle is off or it couldn't carry the request out (a step over 36000 ticks), as the message says. The open editor plays with its viewer's input; run an input script headless with scene_playtest.",
+      "Drive Play in the open editor over the scene's live channel: `play` starts it through the editor's own Play (recordings and history as for a click), `pause`, `resume`, `step` (`ticks`, default 1, while paused), `stop` (back to the edit world), or `state` to read it without changing anything: the store (phase, tick, mode, game, dialogue), the entities, the newest events and the timings. `live-no-editor` when no editor answers, `live-refused` when its \"Let agents drive Play\" toggle is off or it couldn't carry the request out (a step over 36000 ticks), as the message says. The open editor plays with its viewer's input; run an input script headless with scene_playtest.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,

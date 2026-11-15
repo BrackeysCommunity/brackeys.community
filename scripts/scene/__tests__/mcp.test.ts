@@ -259,6 +259,26 @@ describe("scene MCP server", () => {
     expect(all).not.toMatch(/in world px\.|px of margin|within r px|Pixels per world px/);
   });
 
+  it("says what the live and debug tools read back", async () => {
+    const { tools } = await client.listTools();
+    const tool = (name: string) => tools.find((t) => t.name === name)!;
+    expect(tool("scene_play").description).toContain(
+      "the store (phase, tick, mode, game, dialogue), the entities, the newest events and the timings",
+    );
+    const debugDraw = (
+      tool("scene_render").inputSchema.properties as Record<
+        string,
+        {
+          description?: string;
+        }
+      >
+    ).debugDraw?.description;
+    expect(debugDraw).toContain("entities stay drawn as authored");
+    expect(tool("scene_frame").description).toContain(
+      "`ctx.debug` draws of a 60-tick headless run",
+    );
+  });
+
   it("lists, shows, and prints schemas and codes", async () => {
     const listed = await call("scene_list");
     expect(listed.isError).toBe(false);

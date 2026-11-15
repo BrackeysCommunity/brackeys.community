@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Store } from "@tanstack/store";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../../collab/index";
@@ -83,18 +83,22 @@ describe("the event log's rows", () => {
     const log = createEventLog();
     for (let t = 0; t < EVENT_LOG_ROWS; t++) log.append(t, [ev(t)]);
     render(<EventLogPanel events={log} session={sessionOf()} notify={notify} />);
-    const row = () => screen.getByRole("listitem", { name: `coin at tick ${EVENT_LOG_ROWS - 1}` });
-    const before = row();
+    // A role query computes every row's accessible name; over the full window
+    // that is seconds per call in jsdom, so rows are found by their label.
+    const list = screen.getByRole("list", { name: "Events" });
+    const rowAt = (tick: number) => within(list).queryByLabelText(`coin at tick ${tick}`);
+    const before = rowAt(EVENT_LOG_ROWS - 1);
+    expect(before?.tagName).toBe("LI");
+    expect(list.children).toHaveLength(EVENT_LOG_ROWS);
 
     act(() => log.append(EVENT_LOG_ROWS, [ev(EVENT_LOG_ROWS)]));
-    await waitFor(() =>
-      expect(screen.getByRole("listitem", { name: `coin at tick ${EVENT_LOG_ROWS}` })).toBeTruthy(),
-    );
-    expect(screen.queryByRole("listitem", { name: "coin at tick 0" })).toBeNull();
-    expect(row()).toBe(before);
+    await waitFor(() => expect(rowAt(EVENT_LOG_ROWS)).not.toBeNull());
+    expect(rowAt(0)).toBeNull();
+    expect(rowAt(EVENT_LOG_ROWS - 1)).toBe(before);
+    expect(list.children).toHaveLength(EVENT_LOG_ROWS);
   });
 
-  it("say on Clear that it can't be undone", async () => {
+  it("ask before Clear, saying it can't be undone", async () => {
     const log = createEventLog();
     log.append(1, [ev(1)]);
     render(
@@ -102,9 +106,20 @@ describe("the event log's rows", () => {
         <EventLogPanel events={log} session={sessionOf()} notify={notify} />
       </KitProvider>,
     );
-    const clear = screen.getByRole("button", { name: "Clear" });
-    act(() => clear.focus());
-    await waitFor(() => expect(document.body.textContent).toContain("can't be undone"));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("can't be undone");
+    expect(log.list()).toHaveLength(1);
+  });
+
+  it("share Problems' list-row classes rather than borrowing its own", () => {
+    const log = createEventLog();
+    log.append(1, [ev(1)]);
+    render(<EventLogPanel events={log} session={sessionOf()} notify={notify} />);
+    const panel = screen.getByRole("region", { name: "Event log" });
+    expect(panel.classList.contains("je-list")).toBe(true);
+    expect(panel.querySelector("[class*='je-problems']")).toBeNull();
+    expect(within(panel).getByRole("listitem").className).toBe("je-list-row");
   });
 });
 
