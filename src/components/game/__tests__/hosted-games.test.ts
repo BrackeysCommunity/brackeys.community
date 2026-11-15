@@ -376,6 +376,7 @@ describe("hostedGamesFrom", () => {
     expect(assets).not.toBeNull();
     const textures = [...assets!.view.byId.values()].filter((e) => e.kind === "texture");
     expect(textures.map((e) => e.id).sort()).toEqual([
+      "floor",
       "icon-192",
       "icon-512",
       "tile-marsh",

@@ -77,6 +77,7 @@ import {
   SPLIT_VIEWPORTS,
 } from "./browser/sink";
 import { runTactics, type TacticsProbe } from "./browser/tactics";
+import { EMPTY_CELL, HEX_GRID, TILE_CELL, TILE_COLOURS, TILEMAP_ENTITY } from "./browser/tilemaps";
 import { closeWithin } from "./export";
 import { ENGINE, REPO, run, VP } from "./pack";
 
@@ -460,6 +461,9 @@ try {
       : "";
     const free = outcome.physicsFree ? `; physics-free ${outcome.physicsFree.digest}` : "";
     const second = outcome.tactics ? `; tactics ${outcome.tactics.digest}` : "";
+    const tiles = outcome.tilemaps
+      ? `; tilemaps rgba(${outcome.tilemaps.square.tile.join(", ")}) square, rgba(${outcome.tilemaps.hex.tile.join(", ")}) hex`
+      : "";
     const signs = outcome.signs
       ? `; signs lit ${outcome.signs.bitmap.lit} bitmap and ${outcome.signs.web.lit} web points`
       : "";
@@ -472,7 +476,7 @@ try {
     const heard = audio ? `; ${live}, ${(audio.leftShare * 100).toFixed(1)}% left at pan -1` : "";
     const detail =
       outcome.status === "pass"
-        ? `${outcome.digest}${free}${second}${drew}${split}${signs}${heard} in ${outcome.ms} ms`
+        ? `${outcome.digest}${free}${second}${drew}${split}${tiles}${signs}${heard} in ${outcome.ms} ms`
         : outcome.reason;
     console.log(`${name}: ${outcome.status}${detail ? ` — ${detail}` : ""}`);
     const ed = outcome.editor;
@@ -510,6 +514,13 @@ writeFileSync(
           ticks: ANIM_FRAME_TICKS,
           colours: ANIM_COLOURS.map(hexOf),
         },
+      },
+      tilemaps: {
+        entity: TILEMAP_ENTITY,
+        tile: TILE_CELL,
+        empty: EMPTY_CELL,
+        hex: HEX_GRID,
+        colours: TILE_COLOURS.map(hexOf),
       },
       signs: {
         text: SIGN_TEXT,

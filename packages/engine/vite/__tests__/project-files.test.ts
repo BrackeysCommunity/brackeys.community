@@ -31,6 +31,7 @@ import { applyRegistryBatch, applyRepairs } from "../../collab/project-apply";
 import { projectAssetsMap, readProject, writeEntry } from "../../collab/project-doc";
 import { readProjectLog } from "../../collab/project-log";
 import { COLLAB_LAYOUT_VERSION } from "../../collab/types";
+import { deflateStored, pngFile, zlibStream } from "../../export/png-write";
 import { createRegistry } from "../../game/define";
 import { formatSaveFile, type SaveFile } from "../../game/save-file";
 import { assetInfo } from "../../project/asset-info";
@@ -53,6 +54,8 @@ import { diffToOps } from "../../scene/diff-to-ops";
 import { formatPrefab, formatScene } from "../../scene/format";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { type Prefab, SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
+import { importTiled } from "../../tiles/import-tiled";
+import { applyProjectBatchToFiles } from "../apply-files";
 import { fileContentStore } from "../content-store";
 import {
   createProjectFileAdapter,
@@ -3010,5 +3013,162 @@ describe("re-inspection by meta version", { timeout: 30_000 }, () => {
       meta: { size: BYTES.byteLength, lines: 3 },
     });
     expect(await s.adapter.reinspectSidecars(s.project)).toEqual([]);
+  });
+});
+
+describe("write-back: tilemaps", () => {
+  const MAP = "scene:demo.tile-yard";
+  const sceneText = (doc: Y.Doc) => formatScene(docToScene(doc)).text;
+  const tileYard = (cells: Record<string, string[]>): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "tile-yard",
+    bounds: [0, 0, 20.48, 10.24],
+    settings: { grid: { cell: [0.32, 0.32], kind: "square" }, physics: "none" },
+    entities: [
+      { id: "ground", type: "tilemap", at: [0, 0], tileset: "tiles", cells },
+      { id: "about", type: "note", at: [0.5, 0.5], text: "Two chunks of tiles." },
+    ],
+  });
+
+  it("a disk edit to one chunk's line is one disk transaction touching only that chunk's rows", async () => {
+    const before = { "0,0": ["1*32", "", "0*4,2*8"], "1,0": ["3*32", "4*2"] };
+    await put("tile-yard.json", formatScene(tileYard(before)).text);
+    const s = await session();
+    const doc = await s.open("tile-yard");
+    expect(sceneText(doc)).toBe(await read("tile-yard.json"));
+    const ground = [...entitiesMap(doc).values()].find((rec) => rec.get("id") === "ground")!;
+    const note = [...entitiesMap(doc).values()].find((rec) => rec.get("id") === "about")!;
+    const noteKeys = [...note.keys()].sort();
+
+    const after = { ...before, "1,0": ["3*32", "4*2,5*3"] };
+    await put("tile-yard.json", formatScene(tileYard(after)).text);
+    const changes: Map<unknown, Set<string | null>>[] = [];
+    const origins: unknown[] = [];
+    const on = (tr: Y.Transaction) => {
+      const changed = new Map<unknown, Set<string | null>>(tr.changed);
+      changed.delete(logArray(doc));
+      if (changed.size === 0) return;
+      changes.push(changed);
+      origins.push(tr.origin);
+    };
+    doc.on("afterTransaction", on);
+    try {
+      expect(await s.adapter.syncPath("tile-yard.json", s.lookup, s.project)).toMatchObject({
+        kind: "applied",
+      });
+    } finally {
+      doc.off("afterTransaction", on);
+    }
+
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect([...changes[0]!.keys()]).toEqual([ground]);
+    expect(changes[0]!.get(ground)).toEqual(new Set([gridRowKey("cells", "1,0", 1)]));
+    expect(readLog(doc).map((e) => [e.actor, e.label])).toEqual([
+      [{ kind: "disk" }, "Changed on disk"],
+    ]);
+    expect([...note.keys()].sort()).toEqual(noteKeys);
+    expect(docToScene(doc).entities!.find((e) => e.id === "ground")!.cells).toEqual(after);
+    expect(sceneText(doc)).toBe(formatScene(tileYard(after)).text);
+    expect(await s.adapter.storeDoc(MAP, doc)).toBe(false);
+    expect(await s.adapter.syncPath("tile-yard.json", s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+  });
+});
+
+describe("write-back: an imported Tiled map", () => {
+  const raw = new Uint8Array((1 + 64 * 3) * 32);
+  const PNG = pngFile({
+    width: 64,
+    height: 32,
+    bitDepth: 8,
+    colorType: 2,
+    zlib: zlibStream(deflateStored(raw), raw),
+  });
+  const MAP = {
+    type: "map",
+    orientation: "orthogonal",
+    width: 3,
+    height: 2,
+    tilewidth: 32,
+    tileheight: 32,
+    infinite: false,
+    tilesets: [{ firstgid: 1, source: "ground.tsj" }],
+    layers: [
+      {
+        type: "tilelayer",
+        name: "ground",
+        x: 0,
+        y: 0,
+        width: 3,
+        height: 2,
+        data: [1, 2, 0, 2 + 0x80000000, 1, 0],
+      },
+      {
+        type: "objectgroup",
+        name: "spots",
+        objects: [{ id: 1, name: "start", point: true, x: 16, y: 16 }],
+      },
+    ],
+  };
+  const TILESET = {
+    type: "tileset",
+    name: "ground",
+    image: "ground.png",
+    imagewidth: 64,
+    imageheight: 32,
+    tilewidth: 32,
+    tileheight: 32,
+    columns: 2,
+    tilecount: 2,
+    tiles: [{ id: 0, properties: [{ name: "kind", type: "string", value: "stone" }] }],
+  };
+
+  it("writes canonical files that load back as they are: no rewrite, no disk transaction", async () => {
+    const store = fileContentStore(cacheDir);
+    const sha256 = await store.put(PNG);
+    const before = await session();
+    const imported = importTiled(MAP, new Map([["ground.tsj", TILESET]]), {
+      scene: "tile-map",
+      project: projectView(readProject(before.project), kinds),
+      pxPerMetre: 100,
+      images: new Map([["ground.png", { sha256, bytes: PNG.byteLength }]]),
+    });
+    expect(imported.notes.filter((n) => n.severity === "error")).toEqual([]);
+    const applied = await applyProjectBatchToFiles(
+      project,
+      { v: 1, ops: [...imported.ops] },
+      { store, origin: { kind: "agent", agentId: "cli" } },
+    );
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+
+    const s = await session();
+    const entries = Object.entries(readProject(s.project).assets);
+    const keyOf = (id: string) => entries.find(([, e]) => e.id === id)![0];
+    const pathOf = (id: string) => entries.find(([, e]) => e.id === id)![1].path;
+    const tileset = entries.find(([, e]) => e.kind === "tileset")![1];
+    const image = entries.find(([, e]) => e.kind === "texture")![1];
+    expect(image.sha256).toBe(sha256);
+    expect(await readFile(join(dir, image.path))).toEqual(Buffer.from(PNG));
+    expect(await gone(`${image.path}.asset.json`)).toBe(false);
+
+    const scene = await s.open(keyOf("tile-map"));
+    const sceneText = formatScene(docToScene(scene)).text;
+    expect(await read(pathOf("tile-map"))).toBe(sceneText);
+    expect(docToScene(scene).entities?.some((e) => e.type === "tilemap")).toBe(true);
+    const tiles = await s.open(keyOf(tileset.id));
+    expect(await read(tileset.path)).toBe(textOf("tileset", tiles));
+
+    for (const [id, doc] of [
+      ["tile-map", scene],
+      [tileset.id, tiles],
+    ] as const) {
+      const name = s.adapter.docNameOf(s.entry(keyOf(id))!);
+      expect(await s.adapter.storeDoc(name, doc)).toBe(false);
+      expect(await s.adapter.syncPath(pathOf(id), s.lookup, s.project)).toEqual({
+        kind: "unchanged",
+      });
+    }
+    expect(await s.adapter.storeProject(s.project)).toBe(false);
   });
 });

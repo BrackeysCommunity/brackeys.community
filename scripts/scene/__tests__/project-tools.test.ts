@@ -72,6 +72,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "input-map.json",
       "scene-list.json",
       "art/kitchen.animation.json",
+      "art/kitchen.tileset.json",
       "art/sparks.emitter.json",
       "audio/clink.sound.json",
       "audio/clink.synth.json",
@@ -84,6 +85,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "art/kitchen-tiles.png",
       "audio/clink.wav",
       "fonts/kitchen.fnt",
       "fonts/kitchen.png",
@@ -101,7 +103,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "packages/engine/scenes"),
-      assets: 43,
+      assets: 45,
       counts: {
         animation: 1,
         atlas: 2,
@@ -122,16 +124,17 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         sound: 1,
         strings: 1,
         synth: 1,
-        texture: 4,
+        texture: 5,
+        tileset: 1,
       },
       deleted: 0,
       code: 0,
       problems: [],
       issues: [],
       usage: {
-        docs: 34,
+        docs: 35,
         docBytes: await size(files),
-        blobs: 9,
+        blobs: 10,
         blobBytes: await size(blobFiles),
         trashBytes: 0,
       },
@@ -180,7 +183,9 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "art/kitchen-tiles.png",
       "art/kitchen.animation.json",
+      "art/kitchen.tileset.json",
       "art/sparks.emitter.json",
       "audio",
       "audio/clink.sound.json",
@@ -256,7 +261,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       dangling: [],
     });
     const targets = data(sink).targets as { id: string; target: { path: string } | null }[];
-    const art = ["backdrop", "crates", "hero", "kitchen-animation", "sparks"];
+    const art = ["backdrop", "crates", "hero", "kitchen-animation", "kitchen-tileset", "sparks"];
     const others: Record<string, string> = {
       bouncy: "materials/bouncy.json",
       cards: "data/cards.json",
@@ -318,6 +323,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "hero-texture",
       "kitchen-font",
       "kitchen-font-page",
+      "kitchen-tiles",
     ];
     expect(Object.keys(snap.assets).sort()).toEqual(
       [
@@ -345,6 +351,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "kitchen-sink",
         "kitchen-sink-checks",
         "kitchen-strings",
+        "kitchen-tileset",
         "latch",
         "one-way-latch",
         "post",

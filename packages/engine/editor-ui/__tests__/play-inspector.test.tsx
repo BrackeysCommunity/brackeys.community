@@ -14,6 +14,7 @@ import type { ToolConsumer, ToolEvent } from "../../tool-router";
 import type { Vec2 } from "../../types";
 import { KitProvider } from "../kit/index";
 import { PLAY_REFRESH_MS, PlayInspector, type PlayInspectorGame } from "../panels/PlayInspector";
+import { usePlayPick, type PlayPickGame } from "../panels/PlayPick";
 import { createPanelContext, panelDef, type PanelControls } from "../panels/registry";
 import { SpawnedGroup } from "../panels/SpawnedGroup";
 import { fakeGameDebug } from "./fake-world-game";
@@ -101,9 +102,16 @@ function setup(world: { inspect: (id: string) => Promise<EntityInspection | null
   return { session, store, game, rows, frame, click, consumers };
 }
 
+/** The play bar's pick, which stays mounted whatever panels show. */
+function Pick(props: { game: PlayPickGame; session: ReturnType<typeof setup>["session"] }) {
+  usePlayPick(props.game, props.session);
+  return null;
+}
+
 const mount = (game: unknown, session: ReturnType<typeof setup>["session"]) =>
   render(
     <KitProvider host={{ storage: null }}>
+      <Pick game={game as PlayPickGame} session={session} />
       <PlayInspector
         game={game as PlayInspectorGame}
         session={session}
@@ -302,12 +310,12 @@ describe("the inspector panel", () => {
     );
     expect(screen.getByLabelText("Play inspector")).toBeTruthy();
     expect(screen.getByRole("region", { name: "Spawned" })).toBeTruthy();
-    expect(t.consumers).toHaveLength(1);
+    // Alt+click picking belongs to the play bar, so the panel registers nothing.
+    expect(t.consumers).toHaveLength(0);
 
     act(() => t.store.setState((s) => ({ ...s, mode: "edit" })));
     expect(screen.queryByLabelText("Play inspector")).toBeNull();
     expect(screen.queryByRole("region", { name: "Spawned" })).toBeNull();
     expect(screen.getByLabelText("Inspector")).toBeTruthy();
-    expect(t.consumers).toHaveLength(0);
   });
 });

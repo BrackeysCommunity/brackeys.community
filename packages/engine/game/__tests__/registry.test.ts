@@ -298,6 +298,7 @@ describe("createRegistry", () => {
       ["decor"],
       ["nav"],
       ["camera-region"],
+      ["tilemap"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid"]);
     expect(r.actionNames).toEqual(["move", "jump"]);
@@ -376,10 +377,17 @@ describe("createRegistry", () => {
         ],
       }),
     );
-    expect(r.spawnGroups.slice(0, 4)).toEqual([["node"], ["decor"], ["nav"], ["camera-region"]]);
+    expect(r.spawnGroups.slice(0, 5)).toEqual([
+      ["node"],
+      ["tilemap"],
+      ["decor"],
+      ["nav"],
+      ["camera-region"],
+    ]);
     const without = createRegistry(
       game({ spawnOrder: ["solid", "sensor", "crate", "prop", "flag", "marker", "follower"] }),
     );
+    expect(without.spawnGroups.slice(0, 2)).toEqual([["node"], ["tilemap"]]);
     expect(without.spawnGroups.slice(-3)).toEqual([["decor"], ["nav"], ["camera-region"]]);
   });
 
@@ -389,6 +397,7 @@ describe("createRegistry", () => {
     );
     expect(r.spawnGroups).toEqual([
       ["node"],
+      ["tilemap"],
       ["solid"],
       ["flag", "sensor"],
       ["crate"],
@@ -410,6 +419,7 @@ describe("createRegistry", () => {
       ["sensor"],
       ["marker"],
       ["follower"],
+      ["tilemap"],
       ["flag"],
       ["crate", "prop"],
       ["decor"],
@@ -1254,8 +1264,8 @@ describe("spawn-only types", () => {
       problems(() => createRegistry(game({ types: [crate, flag, bolt], spawnOrder: order }))),
     ).toEqual(['spawnOrder misses type "bolt"']);
     const r = createRegistry(game({ types: [crate, flag, bolt], spawnOrder: [...order, "bolt"] }));
-    // After the unlisted `node`, which spawns before every listed group.
-    expect(r.spawnGroupOf("bolt")).toBe(order.length + 1);
+    // After the unlisted `node` and `tilemap`, which spawn before every listed group.
+    expect(r.spawnGroupOf("bolt")).toBe(order.length + 2);
   });
 
   it("are refused when they never load or have a bulk form", () => {

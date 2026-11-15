@@ -1,0 +1,11 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "mgrplpuv8m10",
+  "id": "kitchen-tileset",
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Written for this repository."
+  }
+}

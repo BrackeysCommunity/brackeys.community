@@ -38,6 +38,7 @@ import {
   type StringsFile,
   type SynthFile,
 } from "../../../packages/engine/project/index.ts";
+import { TILESET_KIND, type TilesetFile } from "../../../packages/engine/project/kinds/tileset.ts";
 import type { AssetEntry, ProjectState } from "../../../packages/engine/project/types.ts";
 import { SCENE_FORMAT_VERSION } from "../../../packages/engine/scene/types.ts";
 import { engineAssetDocs, engineBlobs, engineProjects } from "../../../src/db/schema.ts";
@@ -1122,6 +1123,70 @@ describe("animation, emitter, sound, synth, dialogue and strings asset docs thro
     const { expected, row: stored } = await snapshotted(docId, a, b, STRINGS_KIND);
     expect(expected.text).toBe(formatAssetDoc(stringsKind, merged));
     expect(JSON.parse(stored.snapshot!)).toEqual(merged);
+  });
+
+  it("a tileset seeds once, merges two clients' tile edits and a rule and snapshots the canonical text", async () => {
+    const SEED: TilesetFile = {
+      kind: "tileset",
+      v: 1,
+      image: "tiles-image",
+      tile: [16, 16],
+      columns: 4,
+      tiles: [
+        { id: 0, solid: true, tags: ["rock"] },
+        { id: 1, cost: 20 },
+      ],
+    };
+    const { docId, a, b, live } = await seeded("tileset", "tilesets/cave.tileset.json", SEED);
+    const keyed = (doc: Y.Doc, field: string) => content(doc).get(field) as Y.Map<Y.Map<unknown>>;
+    const tile = (doc: Y.Doc, id: number) =>
+      [...keyed(doc, "tiles").values()]
+        .map((entry) => entry.get(KEYED_ITEM) as Y.Map<unknown>)
+        .find((item) => item.get("id") === id)!;
+
+    // Concurrent: one client makes tile 1 solid, the other sets tile 0's cost and adds a rule.
+    a.doc.transact(() => tile(a.doc, 1).set("solid", true));
+    b.doc.transact(() => {
+      tile(b.doc, 0).set("cost", 30);
+      let rules = content(b.doc).get("rules") as Y.Map<Y.Map<unknown>> | undefined;
+      if (!rules) content(b.doc).set("rules", (rules = new Y.Map<Y.Map<unknown>>()));
+      const entry = new Y.Map<unknown>();
+      const item = new Y.Map<unknown>();
+      const masks = new Y.Map<unknown>();
+      masks.set("0", 2);
+      masks.set("255", 3);
+      item.set("id", "rock");
+      item.set("kind", "blob47");
+      item.set("terrain", "rock");
+      item.set("tiles", masks);
+      item.set("fallback", 0);
+      entry.set(KEYED_Z, assignZ([undefined]).at(-1)!);
+      entry.set(KEYED_ITEM, item);
+      rules.set("b-rock", entry);
+    });
+
+    await converged(
+      [a.doc, b.doc, live()],
+      (doc) =>
+        valueOf<TilesetFile>(doc).rules?.length === 1 &&
+        valueOf<TilesetFile>(doc).tiles?.[1]?.solid === true &&
+        valueOf<TilesetFile>(doc).tiles?.[0]?.cost === 30,
+    );
+    const merged = valueOf<TilesetFile>(a.doc);
+    expect(merged).toEqual({
+      ...SEED,
+      tiles: [
+        { id: 0, solid: true, tags: ["rock"], cost: 30 },
+        { id: 1, cost: 20, solid: true },
+      ],
+      rules: [
+        { id: "rock", kind: "blob47", terrain: "rock", tiles: { "0": 2, "255": 3 }, fallback: 0 },
+      ],
+    });
+
+    const { expected, row } = await snapshotted(docId, a, b, "tileset");
+    expect(expected.text).toBe(formatAssetDoc(TILESET_KIND, merged));
+    expect(JSON.parse(row.snapshot!)).toEqual(merged);
   });
 
   it("admits a strings doc of 1 MiB and refuses one past the kind's limit", async () => {

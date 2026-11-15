@@ -125,7 +125,7 @@ describe("panel groups", () => {
   it("draw the default grouping, one strip per group", () => {
     setup();
     expect(tabNames("Left column, top group")).toEqual(["Outliner"]);
-    expect(tabNames("Left column, bottom group")).toEqual(["Project", "Project settings"]);
+    expect(tabNames("Left column, bottom group")).toEqual(["Project", "Project settings", "Tiles"]);
     expect(tabNames("Right column, top group")).toEqual(["Inspector"]);
     expect(tabNames("Right column, bottom group")).toEqual([
       "Problems",
@@ -144,6 +144,7 @@ describe("panel groups", () => {
       "run",
       "history",
       "settings",
+      "tiles",
     ]);
     expect(screen.queryByRole("heading", { name: /History|Problems|Run/ })).toBeNull();
   });
@@ -258,6 +259,15 @@ describe("panel groups", () => {
         "Outliner",
         "Project",
         "Project settings",
+      ]),
+    );
+    await chooseFromMenu(/^Tiles$/, "Move to top group");
+    await waitFor(() =>
+      expect(tabNames("Left column, top group")).toEqual([
+        "Outliner",
+        "Project",
+        "Project settings",
+        "Tiles",
       ]),
     );
     expect(screen.queryByRole("tablist", { name: "Left column, bottom group" })).toBeNull();

@@ -3513,6 +3513,116 @@
     }
   }
 
+  /* Tile palette */
+
+  .je-tile-palette {
+    display: flex;
+    flex-direction: column;
+    gap: var(--je-gap);
+    min-width: 0;
+  }
+
+  .je-tile-palette-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--je-gap-tight);
+    min-width: 0;
+  }
+
+  .je-tile-grid {
+    display: grid;
+    gap: 1px;
+    max-height: 240px;
+    overflow: auto;
+    padding: 1px;
+    border-radius: var(--je-radius-nested);
+    background: var(--je-muted);
+    user-select: none;
+    touch-action: none;
+  }
+
+  .je-tile-row {
+    display: contents;
+  }
+
+  .je-tile {
+    display: grid;
+    place-items: center;
+    background-color: var(--je-panel);
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    color: var(--je-muted-fg);
+    font-size: var(--je-label);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+
+  .je-tile:hover {
+    outline: 1px solid var(--je-border);
+  }
+
+  .je-tile:focus-visible {
+    outline: 2px solid var(--je-ring);
+    outline-offset: -1px;
+  }
+
+  .je-tile[aria-selected="true"] {
+    outline: 2px solid var(--je-primary);
+    outline-offset: -2px;
+  }
+
+  .je-tile-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--je-gap-tight);
+  }
+
+  .je-tile-rules {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .je-tile-rule {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .je-tile-rule .je-btn-label {
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: space-between;
+    gap: var(--je-gap-tight);
+    min-width: 0;
+  }
+
+  .je-tile-rule[aria-pressed="true"] {
+    background: var(--je-muted);
+    box-shadow: inset 2px 0 0 var(--je-primary);
+  }
+
+  .je-tile-data {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+  }
+
+  .je-tile-data-row {
+    display: grid;
+    grid-template-columns: var(--je-label-col) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--je-gap-tight);
+    min-height: var(--je-row);
+  }
+
+  .je-tile-data-row > dd {
+    min-width: 0;
+    margin: 0;
+  }
+
   /* History */
 
   .je-history-row {

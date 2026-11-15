@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { encodeCell } from "../../game/tile-cell";
 import {
   engine,
   engineYard,
@@ -10,6 +11,7 @@ import {
   yardPrefabs,
 } from "../../scene/__tests__/fixtures/random-ops";
 import { readCell, type GridCells } from "../../scene/grid";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import { createSceneUndo } from "../undo";
 import { validateDoc } from "../watch-issues";
 import { ada, apply, bo, entity, ids, instance, pair, sync, text } from "./helpers";
@@ -383,5 +385,64 @@ describe("conflicts", () => {
     sync(a, b);
     expect(instance(a, "gate-1")).toEqual({ id: "gate-1", prefab: "gate", at: [1100, 900] });
     expect(text(a)).toBe(text(b));
+  });
+
+  it("undo of a fill is one step: the whole rect goes, a collaborator's paint stays", () => {
+    const grass = encodeCell({ id: 1, flipX: false, flipY: false, flipD: false });
+    const stone = encodeCell({ id: 4, flipX: true, flipY: false, flipD: false });
+    const map: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: "test-game",
+      name: "tile-yard",
+      bounds: [0, 0, 4096, 4096],
+      settings: { grid: { kind: "square", cell: [16, 16] } },
+      entities: [
+        {
+          id: "ground",
+          type: "tilemap",
+          at: [0, 0],
+          tileset: "ground",
+          cells: { "0,0": [`${grass}*2`] },
+        },
+      ],
+    };
+    const [a, b] = pair(map);
+    const before = text(a);
+    const undo = createSceneUndo(a, ada);
+    apply(
+      a,
+      {
+        ops: [{ op: "paintCells", ref: "ground", field: "cells", rects: [[-2, 0, 40, 3, stone]] }],
+      },
+      ada,
+      game,
+    );
+    undo.commit({ before: [], after: [] });
+    apply(
+      b,
+      { ops: [{ op: "paintCells", ref: "ground", field: "cells", cells: [[5, 50, grass]] }] },
+      bo,
+      game,
+    );
+    sync(a, b);
+    const filled = entity(a, "ground")!.cells as GridCells;
+    expect(readCell(filled, -2, 0)).toBe(stone);
+    expect(readCell(filled, 40, 3)).toBe(stone);
+    expect(Object.keys(filled).sort()).toEqual(["-1,0", "0,0", "0,1", "1,0"]);
+    expect(undo.manager.undoStack).toHaveLength(1);
+
+    expect(undo.undo()).not.toBeNull();
+    expect(undo.canUndo()).toBe(false);
+    sync(a, b);
+    const cells = entity(a, "ground")!.cells as GridCells;
+    expect(Object.keys(cells).sort()).toEqual(["0,0", "0,1"]);
+    expect([0, 1, 2].map((c) => readCell(cells, c, 0))).toEqual([grass, grass, 0]);
+    expect(readCell(cells, 5, 50)).toBe(grass);
+    expect(text(a)).toBe(text(b));
+    expect(text(a)).not.toBe(before);
+
+    undo.redo();
+    sync(a, b);
+    expect(readCell(entity(b, "ground")!.cells as GridCells, 20, 2)).toBe(stone);
   });
 });

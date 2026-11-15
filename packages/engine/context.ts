@@ -1,8 +1,10 @@
 import type { Style } from "./game/types";
 import type { EmitterFile } from "./project/kinds/emitter";
 import type { FontMeta } from "./project/kinds/font";
+import type { TilesetFile } from "./project/kinds/tileset";
 import type { Sha256 } from "./project/types";
-import type { ShapeObj } from "./scene/types";
+import type { ChunkKey, GridCells } from "./scene/grid";
+import type { Bounds, GridSettings, Pt, ShapeObj } from "./scene/types";
 import type { RichLine, TextVars } from "./text/rich";
 import type { StringTableData, TextDirection } from "./text/strings";
 
@@ -96,6 +98,23 @@ export type TextVisual = TextContent & {
 };
 
 /**
+ * A tilemap as a view draws it, as data: the grid it sits on, its tileset
+ * and the image's hash. `at` is cell (0, 0)'s corner in the visual's local
+ * space; `pose` places the map in the world, its frame's turn included.
+ */
+export type TilemapVisual = {
+  at: Pt;
+  /** World px per cell, [w, h]: the grid's cell times the game's px per metre. */
+  cell: [number, number];
+  grid: GridSettings;
+  tileset: TilesetFile;
+  image: Sha256;
+  tint?: number;
+  alpha?: number;
+  layer: ViewLayer;
+};
+
+/**
  * What an emitter follows, as data: an entity the view resolves to its
  * interpolated pose on each rendered frame, plus an offset in metres that
  * turns with that pose and mirrors when `flip`.
@@ -147,8 +166,17 @@ export interface SceneView {
   depth?(id: string, z: number): void;
   /** The runtime finished tick `tick`; poses set since belong to it. */
   commit?(tick: number): void;
-  /** Each rendered frame: interpolated poses, y-sort, parallax; `camera` is the camera's position in metres. */
-  frame?(f: { alpha: number; camera: { x: number; y: number; zoom: number } }): void;
+  /**
+   * Each rendered frame: interpolated poses, y-sort, parallax; `camera` is the camera's position in metres.
+   * `views` is every viewport's world rect in metres: a visual outside all of them isn't rendered
+   * (omitted or empty culls nothing). `nowMs` is the clock animated tiles step by.
+   */
+  frame?(f: {
+    alpha: number;
+    camera: { x: number; y: number; zoom: number };
+    views?: readonly Bounds[];
+    nowMs?: number;
+  }): void;
   /** Runs the emitter `id` on the view's particle layer; a view without one ignores it. */
   emitter?(id: string, emitter: ViewEmitter): void;
   /** Stops the emitter `id`: what it put in world space lives out its life. Idempotent. */
@@ -157,6 +185,12 @@ export interface SceneView {
   text?(id: string, visual: TextVisual, layer: ViewLayer): void;
   /** The locale's strings and font, as data: what keyed text resolves through. The shell hands one at start and on each locale change. */
   locale?(table: StringTableData): void;
+  /** Draws the tilemap `id`, replacing its settings; its cells arrive through `tileChunks`. A view without it draws no tiles. */
+  tilemap?(id: string, map: TilemapVisual): void;
+  /** Rebuilds the `dirty` chunks of tilemap `id` from `cells`. */
+  tileChunks?(id: string, cells: GridCells, dirty: readonly ChunkKey[]): void;
+  /** Stops drawing the tilemap `id`. Idempotent. */
+  removeTilemap?(id: string): void;
 }
 
 /** Draws text through any view: `text` when it has one, else the fallback box. */

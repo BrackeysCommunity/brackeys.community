@@ -28,6 +28,7 @@ import {
   encodePng,
   fitFrame,
   frameRegion,
+  gamePixels,
   type FramePixels,
 } from "../session/live-responder";
 import { editorIdentity, openLiveEditor, type LiveEditor } from "../session/live-scene-editor";
@@ -434,5 +435,26 @@ describe("live frames", () => {
       outWidth: 200,
       outHeight: 100,
     });
+  });
+});
+
+describe("gamePixels", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", (run: FrameRequestCallback) => (run(0), 0));
+  });
+
+  it("reads the renderer's extracted frame, never the canvas", async () => {
+    const data = new Uint8ClampedArray(2 * 1 * 4).fill(9);
+    const extractFrame = vi.fn(() => ({ renderer: "webgl", width: 2, height: 1, data }));
+    const canvas = vi.fn(() => null);
+    expect(await gamePixels({ extractFrame }, canvas)).toEqual({ width: 2, height: 1, data });
+    expect(extractFrame).toHaveBeenCalledOnce();
+    expect(canvas).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the canvas when the renderer can't extract", async () => {
+    const canvas = vi.fn(() => null);
+    expect(await gamePixels({ extractFrame: () => null }, canvas)).toBeNull();
+    expect(canvas).toHaveBeenCalledOnce();
   });
 });

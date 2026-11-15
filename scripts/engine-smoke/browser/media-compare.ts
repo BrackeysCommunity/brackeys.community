@@ -1,5 +1,5 @@
 /**
- * What the page's sign and audio runs report, and how the runner judges
+ * What the page's tilemap, sign and audio runs report, and how the runner judges
  * them; pure, so the runner, the page and the tests share it.
  */
 import { plural } from "@jams/engine/scene";
@@ -8,6 +8,7 @@ import type { BrowserName, BrowserOutcome } from "../browser-compare";
 import type { EngineSmokeResult } from "./main";
 import { SIGN_GRID, SIGN_WAIT_MS, SIGNS, type SignFont } from "./signs";
 import { SMOKE_BACKGROUND } from "./sink";
+import { TILE_COLOURS, TILEMAP_SHAPES, type TilemapProbe } from "./tilemaps";
 
 /** How far a channel may stray from a colour judged present. */
 const CHANNEL_TOLERANCE = 8;
@@ -147,9 +148,36 @@ export function judgeAudio(audio: AudioProbe | undefined, browser?: BrowserName)
   return null;
 }
 
-export type MediaOutcome = BrowserOutcome & { signs?: SignProbe; audio?: AudioProbe };
+const showPx = (px: readonly number[]) => `rgba(${px.join(", ")})`;
 
-/** `outcome` with the page's signs and audio, failed by the first of them that didn't hold. */
+/**
+ * Why the tilemap run failed, or null: on each map the painted cell shows
+ * one of the tileset's colours, opaque and not the background, and the
+ * empty cell shows the background.
+ */
+export function judgeTilemaps(tilemaps: TilemapProbe | undefined): string | null {
+  if (!tilemaps) return "the page ran no tilemaps";
+  for (const shape of TILEMAP_SHAPES) {
+    const read = tilemaps[shape];
+    if (!read) return `the page read no ${shape} tilemap`;
+    const { tile, empty, renderer } = read;
+    if (nearColour(tile, SMOKE_BACKGROUND))
+      return `the ${shape} tilemap is blank: its painted cell is the background, ${showPx(tile)}, on ${renderer}`;
+    if (tile[3] < 255 - CHANNEL_TOLERANCE || !TILE_COLOURS.some((c) => nearColour(tile, c)))
+      return `the ${shape} tilemap's painted cell is ${showPx(tile)}, not a kitchen tile's colour, on ${renderer}`;
+    if (!nearColour(empty, SMOKE_BACKGROUND))
+      return `the ${shape} tilemap's empty cell is ${showPx(empty)}, not the background, on ${renderer}`;
+  }
+  return null;
+}
+
+export type MediaOutcome = BrowserOutcome & {
+  tilemaps?: TilemapProbe;
+  signs?: SignProbe;
+  audio?: AudioProbe;
+};
+
+/** `outcome` with the page's tilemaps, signs and audio, failed by the first of them that didn't hold. */
 export function judgeMedia(
   outcome: BrowserOutcome,
   result: EngineSmokeResult | undefined,
@@ -157,10 +185,14 @@ export function judgeMedia(
   if (!result?.ok) return outcome;
   const seen: MediaOutcome = {
     ...outcome,
+    ...(result.tilemaps ? { tilemaps: result.tilemaps } : {}),
     ...(result.signs ? { signs: result.signs } : {}),
     ...(result.audio ? { audio: result.audio } : {}),
   };
   if (outcome.status !== "pass") return seen;
-  const wrong = judgeSigns(result.signs) ?? judgeAudio(result.audio, outcome.browser);
+  const wrong =
+    judgeTilemaps(result.tilemaps) ??
+    judgeSigns(result.signs) ??
+    judgeAudio(result.audio, outcome.browser);
   return wrong ? { ...seen, status: "fail", reason: wrong } : seen;
 }

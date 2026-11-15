@@ -1,4 +1,4 @@
-export const ENGINE_VERSION = "0.18.0";
+export const ENGINE_VERSION = "0.19.0";
 
 /** The doc layout this engine writes (`meta.layout`); a doc or sync token without one is layout 1. */
 export const COLLAB_LAYOUT_VERSION = 3;

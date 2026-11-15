@@ -244,6 +244,31 @@ describe("the scene tree example runs", () => {
   });
 });
 
+describe("the tilemap examples run", () => {
+  it("tile-corridor.ts knocks a hole at the tick's end and autotiles the moss ledge", async () => {
+    const { digCorridor } = await import("../examples/tile-corridor");
+    expect(digCorridor()).toEqual({
+      holeBeforeStep: true,
+      holeAfterStep: false,
+      ledge: [2, 1, 3],
+      mossCells: 3,
+      top: ["moss"],
+      turned: { id: 0, flipX: true, flipY: false, flipD: true },
+    });
+  });
+
+  it("tile-import.ts imports a Tiled map with its flags and refuses an isometric one", async () => {
+    const { importCave } = await import("../examples/tile-import");
+    expect(importCave()).toEqual({
+      ops: ["importAsset", "createAsset", "createAsset", "editScene"],
+      warnings: 0,
+      lastTile: 1,
+      mirrored: true,
+      refused: ["import-failed"],
+    });
+  });
+});
+
 describe("the world-model examples run", () => {
   it("grid-tools.ts paths round the rocks, floods a field and casts sight", async () => {
     const { scout } = await import("../examples/grid-tools");

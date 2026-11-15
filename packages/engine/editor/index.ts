@@ -23,7 +23,15 @@ export {
   type DropPreview,
 } from "./asset-drop";
 export { prune, remap, select, type SelectMode } from "./selection";
-export { createEditorStore, setHover, type EditorMode, type EditorStoreState } from "./store";
+export {
+  createEditorStore,
+  DEFAULT_TILE_BRUSH,
+  setHover,
+  setTileBrush,
+  setTileRule,
+  type EditorMode,
+  type EditorStoreState,
+} from "./store";
 export {
   buildOutline,
   buildTreeOutline,
@@ -113,6 +121,7 @@ export {
   type OverlayTone,
   type SnapSettings,
   type SpatialIndex,
+  type TileToolContext,
   type ToolKeyEvent,
   type ToolModifiers,
   type ToolOption,
@@ -120,6 +129,30 @@ export {
   type ToolPointerEvent,
 } from "./tools";
 export { ENGINE_TOOL_IDS, type EngineToolId } from "../game/types";
+export {
+  autotileEdits,
+  autotileRule,
+  BRUSH_COMMANDS,
+  cellLine,
+  cellsBox,
+  cellUnder,
+  floodCells,
+  isTilemapType,
+  stampCells,
+  TILE_FILL_CAP,
+  TILE_TOOL_IDS,
+  TILEMAP_CELLS_FIELD,
+  tilePaintBatch,
+  tileTarget,
+  tileTargetAt,
+  tileTools,
+  turnBrush,
+  turnedStamp,
+  type BrushTurn,
+  type TileBrush,
+  type TileTarget,
+  type TileToolId,
+} from "./builtin/tile-tools";
 export {
   bulkGeometry,
   createSpatialIndex,

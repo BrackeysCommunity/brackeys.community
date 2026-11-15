@@ -1,0 +1,12 @@
+{
+  "label": "Pave the moss with stone",
+  "ops": [
+    {
+      "op": "paintCells",
+      "ref": "tiles",
+      "field": "cells",
+      "rects": [[0, 0, 7, 0, 1]],
+      "cells": [[3, 1, 0]]
+    }
+  ]
+}

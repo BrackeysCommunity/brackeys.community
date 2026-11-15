@@ -24,6 +24,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { tacticsGame } from "..";
 import {
   CELL_PX,
+  FLOOR_TILES,
   ICON_SIZES,
   iconFile,
   makeArt,
@@ -55,6 +56,7 @@ const IDS: Record<string, string> = {
   "art/units.png": "units-texture",
   "art/units.json": "units",
   "art/tiles.png": "tiles",
+  "art/floor.png": "floor",
   "art/tile-wall.png": "tile-wall",
   "art/tile-river.png": "tile-river",
   "art/tile-marsh.png": "tile-marsh",
@@ -121,6 +123,7 @@ describe("make-art.ts", () => {
     const art = makeArt();
     expect([...art.keys()].sort()).toEqual(
       [
+        "floor.png",
         "icon-192.png",
         "icon-512.png",
         "tile-marsh.png",
@@ -203,7 +206,7 @@ describe("drawing", () => {
   it("samples nearest and scales by whole multiples inside letterbox bars", () => {
     const policy = resolveResolution({ game: tacticsGame.resolution });
     expect(policy).toMatchObject({ fit: "letterbox", integer: true, sampling: "nearest" });
-    for (const name of ["units.png", "tiles.png", ...TERRAIN_KINDS.map(terrainFile)])
+    for (const name of ["units.png", "tiles.png", "floor.png", ...TERRAIN_KINDS.map(terrainFile)])
       expect(sidecar(name).import?.filter).toBe("nearest");
     for (const canvas of [
       { width: 1280, height: 720 },
@@ -253,6 +256,57 @@ describe("drawing", () => {
     }
     // The unit sheet's sprites stand on a transparent cell, so the reading above can see one.
     expect(paletteImage(bytesOf("../art/units.png")).pixels.includes(TRANSPARENT)).toBe(true);
+  });
+});
+
+describe("the floor tileset", () => {
+  type Tileset = {
+    image: string;
+    tile: [number, number];
+    columns: number;
+    tiles: { id: number; solid?: boolean; cost?: number; tags?: string[] }[];
+  };
+  const tileset = () => JSON.parse(textOf("../art/tactics.tileset.json")) as Tileset;
+
+  it("cuts the floor sheet into one board cell per tile, grass then every obstacle", () => {
+    expect(FLOOR_TILES).toEqual(["grass", "grass-dark", ...TERRAIN_KINDS]);
+    const { width, height, pixels } = paletteImage(bytesOf("../art/floor.png"));
+    expect([width, height]).toEqual([FLOOR_TILES.length * CELL_PX, CELL_PX]);
+    expect(pixels.indexOf(TRANSPARENT), "the floor has a see-through pixel").toBe(-1);
+    const set = tileset();
+    expect(set.image).toBe("floor");
+    expect(set.columns).toBe(FLOOR_TILES.length);
+    expect(set.tiles.map((t) => t.id)).toEqual(FLOOR_TILES.map((_, i) => i));
+    expect(set.tiles.map((t) => t.tags?.[0])).toEqual(
+      FLOOR_TILES.map((name) => name.replace("-dark", "")),
+    );
+  });
+
+  it("has tiles one board cell in px: the grid's cell times the game's px per metre", () => {
+    const cell = tacticsGame.world?.grid?.cell ?? [0, 0];
+    const ppm = tacticsGame.world?.lengthUnit ?? 0;
+    expect(tileset().tile).toEqual([cell[0] * ppm, cell[1] * ppm]);
+    expect(tileset().tile).toEqual([CELL_PX, CELL_PX]);
+  });
+
+  it("walls wall and rough ground costs what the rough areas did, on the 10-per-step scale", () => {
+    const byTag = new Map(tileset().tiles.map((t) => [t.tags?.[0], t] as const));
+    expect(byTag.get("wall")).toMatchObject({ solid: true });
+    expect(byTag.get("river")).toMatchObject({ solid: true });
+    expect(byTag.get("marsh")).toMatchObject({ cost: 20 });
+    expect(byTag.get("rubble")).toMatchObject({ cost: 20 });
+    expect(byTag.get("thicket")).toMatchObject({ cost: 30 });
+    expect(byTag.get("grass")).not.toHaveProperty("cost");
+  });
+
+  it("is licensed CC0-1.0 and tagged without another game's words", () => {
+    expect(sidecar("tactics.tileset.json")).toMatchObject({
+      id: "tactics-tileset",
+      licence: { spdx: "CC0-1.0" },
+    });
+    const words = /\b(shaper|grapple|wind|constructs?|cheese|cloud|mover)\b/i;
+    const tags = tileset().tiles.flatMap((t) => t.tags ?? []);
+    expect(tags.filter((t) => words.test(t))).toEqual([]);
   });
 });
 
@@ -347,14 +401,44 @@ describe("level 1", () => {
     }
   });
 
-  it("lays the grass under the whole board", () => {
-    const ground = expanded().entities.find((e) => e.id === "ground");
-    expect(ground).toMatchObject({
-      type: "decor",
+  it("lays a tilemap floor over the whole board, its walls and rough ground among its tiles", () => {
+    const floors = expanded().entities.filter((e) => e.type === "tilemap");
+    expect(floors).toHaveLength(1);
+    expect(floors[0]).toMatchObject({
+      id: "floor",
       layer: "terrain",
-      at: [6, 4],
-      behaviors: { sprite: { asset: "tiles", size: [12, 8], tile: true } },
+      at: [0, 0],
+      tileset: "tactics-tileset",
     });
+    const rows = (floors[0]!.cells as Record<string, string[]>)["0,0"]!;
+    const values = rows.map((row) =>
+      row.split(",").flatMap((run) => {
+        const [v, n] = run.split("*");
+        return Array<number>(Number(n ?? 1)).fill(Number(v));
+      }),
+    );
+    expect(values.map((r) => r.length)).toEqual(Array<number>(8).fill(12));
+    const named = values.map((r) => r.map((v) => FLOOR_TILES[v - 1]));
+    const at = (name: string) =>
+      named.flatMap((r, row) => r.flatMap((n, col) => (n === name ? [[col, row]] : [])));
+    expect(at("wall")).toEqual([
+      [5, 1],
+      [5, 2],
+      [5, 3],
+      [6, 5],
+      [6, 6],
+    ]);
+    expect(at("marsh")).toEqual([
+      [3, 4],
+      [4, 4],
+      [3, 5],
+      [4, 5],
+    ]);
+    expect(at("thicket")).toEqual([
+      [8, 2],
+      [8, 3],
+    ]);
+    expect(expanded().entities.filter((e) => e.type === "solid" || e.type === "rough")).toEqual([]);
   });
 
   it("validates against the project, its sprites and assets included", () => {

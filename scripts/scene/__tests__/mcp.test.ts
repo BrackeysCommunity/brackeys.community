@@ -59,6 +59,8 @@ const ENGINE_ART = repoFile("packages/engine/scenes/art");
 const ENGINE_AUDIO = repoFile("packages/engine/scenes/audio");
 const ENGINE_TEXT = repoFile("packages/engine/scenes/text");
 const ENGINE_SETTINGS = repoFile("packages/engine/scenes/game-settings.json");
+const ENGINE_SCENES = repoFile("packages/engine/scenes");
+const LDTK_WORLD = repoFile("packages/engine/__tests__/fixtures/ldtk/sample.ldtk");
 const V1_RECORDINGS = "packages/engine/headless/__tests__/fixtures/recordings/v1";
 const V1_ENGINE_YARD = repoFile(`${V1_RECORDINGS}/scenes/engine-yard.json`);
 const V1_SETTLES = repoFile(`${V1_RECORDINGS}/engine-yard.settles.recording.json`);
@@ -142,17 +144,20 @@ describe("scene MCP server", () => {
       "scene_frame",
       "scene_fuzz",
       "scene_list",
+      "scene_paint",
       "scene_play",
       "scene_playtest",
       "scene_render",
       "scene_replay",
       "scene_schema",
       "scene_show",
+      "scene_stats",
       "scene_validate",
     ]);
     const writers: Record<string, boolean> = {
       scene_apply_ops: false,
       asset_import: false,
+      scene_paint: false,
       asset_apply_ops: true,
       game_new: false,
     };
@@ -359,6 +364,15 @@ describe("scene MCP server", () => {
     const checked = await call("scene_check", { scene: "engine-yard" });
     expect(checked.structuredContent).toMatchObject({ exitCode: 0, ok: true });
     expect((checked.structuredContent.results as unknown[]).length).toBe(3);
+  });
+
+  it("measures a scene as stats does", { timeout: 20_000 }, async () => {
+    const r = await call("scene_stats", { scene: "test-yard", ticks: 30 });
+    expect(r.structuredContent).toMatchObject({ exitCode: 0, scene: "test-yard", ticks: 30 });
+    expect(r.structuredContent.counts).toMatchObject({ entities: expect.any(Number) });
+    expect(r.structuredContent.wall).toHaveProperty("ticksPerSecond");
+    const bad = await call("scene_stats", { scene: "test-yard", ticks: 40_000 });
+    expect(bad.structuredContent.exitCode).toBe(2);
   });
 
   it("renders a PNG image block, or an ASCII map", async () => {
@@ -668,6 +682,149 @@ const tallyGame = defineGame({
     commands: ({ snapshot }) =>
       (snapshot as { count: number }).count < 10 ? [{ name: "bump", args: { n: 1 } }] : [],
   },
+});
+
+describe("tilemaps", { timeout: 60_000 }, () => {
+  let deck: string;
+  let tiles: Client;
+  const tileCall = async (name: string, args: Record<string, unknown> = {}) =>
+    (await tiles.callTool({ name, arguments: args })) as Called;
+
+  beforeAll(async () => {
+    deck = await mkdtemp(join(tmpdir(), "scene-mcp-tiles-"));
+    await cp(ENGINE_SCENES, join(deck, "engine"), {
+      recursive: true,
+      filter: (src) => !src.includes("node_modules"),
+    });
+    const ctx: ToolContext = {
+      projects: [await tempProject(join(deck, "engine"), { id: "engine" })],
+      loadRapier: loadCompatRapier,
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    tiles = new Client({ name: "scene-mcp-tiles", version: "0" });
+    await tiles.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await tiles.close();
+    await rm(deck, { recursive: true, force: true });
+  });
+
+  const sink = () => readFile(join(deck, "engine/kitchen-sink.json"), "utf8");
+
+  it("scene_paint takes the CLI's inputs and dry-runs by default", async () => {
+    const before = await sink();
+    const r = await tileCall("scene_paint", {
+      scene: "kitchen-sink",
+      map: "tiles",
+      cells: ["0,0=moss", "1,0=2"],
+    });
+    expect(r.structuredContent.exitCode, JSON.stringify(r.structuredContent)).toBe(0);
+    expect(r.structuredContent).toMatchObject({ dryRun: true });
+    expect(await sink()).toBe(before);
+  });
+
+  it("scene_paint writes a rect as one paintCells batch when dryRun is false", async () => {
+    const before = await sink();
+    const r = await tileCall("scene_paint", {
+      scene: "kitchen-sink",
+      map: "tiles",
+      rect: ["0,2,3,2=stone"],
+      dryRun: false,
+    });
+    expect(r.structuredContent.exitCode, JSON.stringify(r.structuredContent)).toBe(0);
+    expect(await sink()).not.toBe(before);
+    expect(
+      (await tileCall("scene_validate", { scene: "kitchen-sink" })).structuredContent,
+    ).toMatchObject({
+      exitCode: 0,
+    });
+  });
+
+  it("scene_paint refuses an unknown tile and more than one input", async () => {
+    const unknown = await tileCall("scene_paint", {
+      scene: "kitchen-sink",
+      map: "tiles",
+      cells: ["0,0=lava"],
+    });
+    expect(unknown.structuredContent.exitCode).not.toBe(0);
+    expect(String(unknown.structuredContent.error)).toContain("lava");
+    const both = await tileCall("scene_paint", {
+      scene: "kitchen-sink",
+      map: "tiles",
+      cells: ["0,0=moss"],
+      fill: "0,0=stone",
+    });
+    expect(both.structuredContent.exitCode).toBe(2);
+  });
+
+  it("asset_import converts an LDtk world's chosen levels, as a dry run by default", async () => {
+    const r = await tileCall("asset_import", { ldtk: LDTK_WORLD, level: ["Level_0"] });
+    expect(r.structuredContent.exitCode, JSON.stringify(r.structuredContent)).toBe(0);
+    expect(r.structuredContent).toMatchObject({ dryRun: true, written: false });
+    expect(r.structuredContent.created).toEqual(expect.arrayContaining(["level-0"]));
+  });
+
+  it("asset_import converts a Tiled map into a scene with a tilemap", async () => {
+    const maps = join(deck, "maps");
+    await mkdir(join(maps, "art"), { recursive: true });
+    await copyFile(join(ENGINE_SCENES, "art/kitchen-tiles.png"), join(maps, "art/ground.png"));
+    const map = join(maps, "strip.tmj");
+    await writeFile(
+      map,
+      JSON.stringify({
+        type: "map",
+        orientation: "orthogonal",
+        width: 2,
+        height: 1,
+        tilewidth: 25,
+        tileheight: 25,
+        infinite: false,
+        tilesets: [
+          {
+            firstgid: 1,
+            name: "ground",
+            image: "art/ground.png",
+            imagewidth: 50,
+            imageheight: 25,
+            tilewidth: 25,
+            tileheight: 25,
+            columns: 2,
+            tilecount: 2,
+          },
+        ],
+        layers: [
+          { type: "tilelayer", name: "ground", x: 0, y: 0, width: 2, height: 1, data: [1, 2] },
+        ],
+      }),
+    );
+    const r = await tileCall("asset_import", { tiled: map, into: "strip-yard", dryRun: false });
+    expect(r.structuredContent.exitCode, JSON.stringify(r.structuredContent)).toBe(0);
+    const shown = await tileCall("scene_show", { scene: "strip-yard" });
+    expect(shown.structuredContent.exitCode, JSON.stringify(shown.structuredContent)).toBe(0);
+    expect(JSON.stringify(shown.structuredContent)).toContain("tilemap");
+    const both = await tileCall("asset_import", { tiled: map, ldtk: LDTK_WORLD });
+    expect(both.structuredContent.exitCode).toBe(2);
+  });
+
+  it("scene_render draws a tilemap tile by tile", async () => {
+    const r = await tileCall("scene_render", {
+      scene: "kitchen-sink",
+      around: "tiles",
+      margin: 0.5,
+    });
+    expect(r.isError).toBe(false);
+    expect(r.content[0]).toMatchObject({ type: "image", mimeType: "image/png" });
+    const ascii = await tileCall("scene_render", {
+      scene: "kitchen-sink",
+      around: "tiles",
+      margin: 0.5,
+      ascii: true,
+    });
+    expect(ascii.structuredContent.exitCode).toBe(0);
+    expect(JSON.stringify(ascii.structuredContent)).toMatch(/tile/i);
+  });
 });
 
 describe("world models", () => {

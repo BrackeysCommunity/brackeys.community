@@ -52,14 +52,15 @@ COPY src/lib/cloudflare-purge.ts ./src/lib/cloudflare-purge.ts
 COPY src/lib/image-quarantine.ts ./src/lib/image-quarantine.ts
 COPY src/lib/format-bytes.ts ./src/lib/format-bytes.ts
 COPY src/lib/legal-meta.ts ./src/lib/legal-meta.ts
-# The scene, project and asset kinds read and seed their docs through the engine, and its
-# schematic renders measure text through text/. Whole directories, so a new file inside one
-# of them ships without a new line.
+# The scene, project and asset kinds read and seed their docs through the engine, its
+# schematic renders measure text through text/, and the project barrel names tiles/ types.
+# Whole directories, so a new file inside one of them ships without a new line.
 COPY packages/engine/scene ./packages/engine/scene
 COPY packages/engine/collab ./packages/engine/collab
 COPY packages/engine/game ./packages/engine/game
 COPY packages/engine/project ./packages/engine/project
 COPY packages/engine/text ./packages/engine/text
+COPY packages/engine/tiles ./packages/engine/tiles
 COPY packages/engine/version.ts ./packages/engine/version.ts
 
 # The copied root files import bare specifiers (yjs, drizzle-orm, zod,

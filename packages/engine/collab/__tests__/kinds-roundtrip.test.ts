@@ -110,6 +110,8 @@ const FIXTURES: Record<string, string> = {
   strings: readFileSync(new URL("./fixtures/gate.strings.json", import.meta.url), "utf8"),
   /** Frozen: a change to the scene list's layout or formatter that moves a byte of it is a format change. */
   "scene-list": readFileSync(new URL("./fixtures/scene-list.json", import.meta.url), "utf8"),
+  /** Frozen, every field set: a change to the tileset's layout or formatter that moves a byte of it is a format change. */
+  tileset: readFileSync(new URL("./fixtures/ground.tileset.json", import.meta.url), "utf8"),
   checks: lines(
     "{",
     '  "v": 3,',
@@ -463,6 +465,32 @@ describe("file → doc → file, per kind", () => {
       expect(text, `condition ${form}`).toContain(form);
     for (const form of ['"set"', '"add"', '"push"', '"emit"'])
       expect(text, `effect ${form}`).toContain(form);
+  });
+
+  it("tileset: the frozen fixture sets every field, every tile field and both rule kinds", () => {
+    const value = frozen("tileset");
+    expect(Object.keys(value).sort()).toEqual(
+      [
+        "$schema",
+        "columns",
+        "image",
+        "kind",
+        "margin",
+        "rules",
+        "spacing",
+        "tile",
+        "tiles",
+        "v",
+      ].sort(),
+    );
+    const tiles = value.tiles as Record<string, unknown>[];
+    expect(keysOf(tiles)).toEqual(
+      ["animation", "cost", "data", "id", "material", "oneWay", "shapes", "solid", "tags"].sort(),
+    );
+    const rules = value.rules as Record<string, unknown>[];
+    expect(keysOf(rules)).toEqual(["fallback", "id", "kind", "terrain", "tiles"]);
+    expect(rules.map((r) => r.kind)).toEqual(["edge16", "blob47"]);
+    expect(tiles.map((t) => t.id)).toEqual([0, 1, 2, 5]);
   });
 
   it("strings: the frozen fixture holds three locales, a translator's note and a placeholder", () => {

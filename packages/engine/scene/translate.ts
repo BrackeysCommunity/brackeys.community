@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
-import { CHILD_REF_PATTERN, SIDES } from "../game/fields";
+import { CHILD_REF_PATTERN, gridFieldInfo, SIDES } from "../game/fields";
 import { scopedRef, type Registry, type Side } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { transformGrid, type GridCells } from "./grid";
@@ -151,7 +151,7 @@ function transformPath(p: PathDef, t: Transform2D): PathDef {
   return Array.isArray(p.pts) ? { ...p, pts: p.pts.map((q) => (isPt(q) ? placePt(t, q) : q)) } : p;
 }
 
-function transformByKind(kind: string, value: unknown, t: Transform2D): unknown {
+function transformByKind(kind: string, value: unknown, t: Transform2D, tileFlags = false): unknown {
   switch (kind) {
     case "shape":
       return isShapeTuple(value) ? transformTuple(value, t) : value;
@@ -176,7 +176,7 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
       if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
       // Cells turn only by quarter turns; under any other angle they stay (validation reports it).
       const d = dihedralOf(t);
-      return !d || isUnturned(d) ? value : transformGrid(value as GridCells, d);
+      return !d || isUnturned(d) ? value : transformGrid(value as GridCells, d, { tileFlags });
     }
     default:
       return value;
@@ -197,21 +197,26 @@ export function transformFieldValue(
   value: unknown,
   t: Transform2D,
 ): unknown {
-  return transformByKind(fieldKind(schema), value, t);
+  return transformByKind(fieldKind(schema), value, t, hasTileFlags(schema));
+}
+
+/** Whether a grid field's values are tile cells, whose flip flags turn with the grid. */
+export function hasTileFlags(schema: z.core.$ZodType): boolean {
+  return gridFieldInfo(schema)?.tileFlags === true;
 }
 
 /** The fields of an entity's type that a transform acts on, with their kinds. */
 function transformableFields(
   registry: Registry,
   def: EntityDef,
-): { field: string; kind: TransformKind }[] {
+): { field: string; kind: TransformKind; tileFlags: boolean }[] {
   const t = registry.types.get(def.type);
   if (!t) return [];
-  const out: { field: string; kind: TransformKind }[] = [];
+  const out: { field: string; kind: TransformKind; tileFlags: boolean }[] = [];
   for (const [field, schema] of Object.entries(t.shape)) {
     const kind: string = fieldKind(schema);
     if (TRANSFORM_KINDS.includes(kind) && def[field] !== undefined) {
-      out.push({ field, kind: kind as TransformKind });
+      out.push({ field, kind: kind as TransformKind, tileFlags: hasTileFlags(schema) });
     }
   }
   return out;
@@ -313,8 +318,8 @@ export function transformEntityDef(
   if (fields.length === 0 && !behaviors) return null;
   const local = fields.some((f) => f.kind === "path") ? linearPart(t) : t;
   const next = clone(def);
-  for (const { field, kind } of fields) {
-    next[field] = transformByKind(kind, next[field], kind === "shape" ? local : t);
+  for (const { field, kind, tileFlags } of fields) {
+    next[field] = transformByKind(kind, next[field], kind === "shape" ? local : t, tileFlags);
   }
   if (behaviors) transformBehaviorGeometry(registry, next, t);
   return next;

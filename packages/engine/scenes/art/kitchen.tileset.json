@@ -1,0 +1,18 @@
+{
+  "$schema": "../../project/tileset.schema.json",
+  "kind": "tileset",
+  "v": 1,
+  "tiles": [
+    { "id": 0, "solid": true, "tags": ["stone"] },
+    { "id": 1, "solid": true, "tags": ["moss"] },
+    { "id": 2, "oneWay": "up", "solid": true, "tags": ["plank"] },
+    { "id": 3, "animation": [{ "ms": 250, "tile": 3 }, { "ms": 250, "tile": 4 }], "tags": ["lamp"] },
+    { "id": 4, "tags": ["lamp"] }
+  ],
+  "rules": [
+    { "id": "moss-top", "tiles": { "1": 0, "11": 0, "13": 0, "15": 0, "3": 0, "5": 0, "7": 0, "9": 0 }, "fallback": 1, "kind": "edge16", "terrain": "moss" }
+  ],
+  "columns": 5,
+  "image": "kitchen-tiles",
+  "tile": [25, 25]
+}

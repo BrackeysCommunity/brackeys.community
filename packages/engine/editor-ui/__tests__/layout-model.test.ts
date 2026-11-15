@@ -25,6 +25,7 @@ const KNOWN: readonly PanelId[] = [
   "outliner",
   "project",
   "settings",
+  "tiles",
   "inspector",
   "problems",
   "event-log",
@@ -61,8 +62,11 @@ const CUSTOM: EditorLayout = movePanel(
 
 /** The default layout with the left column's bottom group moved into its top one. */
 const LEFT_MERGED: EditorLayout = movePanel(
-  movePanel(DEFAULT_LAYOUT, "project", { side: "left", group: 0 }),
-  "settings",
+  movePanel(movePanel(DEFAULT_LAYOUT, "project", { side: "left", group: 0 }), "settings", {
+    side: "left",
+    group: 0,
+  }),
+  "tiles",
   { side: "left", group: 0 },
 );
 
@@ -388,10 +392,13 @@ describe("tabs and panels", () => {
 
   it("removes a group the move empties, and the top group stays sizeless", () => {
     const partial = movePanel(DEFAULT_LAYOUT, "project", { side: "left", group: 0 });
-    expect(partial.left.groups[1]).toMatchObject({ panels: ["settings"], active: "settings" });
+    expect(partial.left.groups[1]).toMatchObject({
+      panels: ["settings", "tiles"],
+      active: "settings",
+    });
     expect(LEFT_MERGED.left.groups).toHaveLength(1);
     expect(LEFT_MERGED.left.groups[0]).toMatchObject({
-      panels: ["outliner", "project", "settings"],
+      panels: ["outliner", "project", "settings", "tiles"],
       size: null,
     });
 
@@ -410,18 +417,24 @@ describe("tabs and panels", () => {
     expect(split.left.groups[1]).toMatchObject({ panels: ["project"], size: 260 });
 
     const across = movePanel(
-      movePanel(DEFAULT_LAYOUT, "project", { side: "right", group: 0 }),
-      "settings",
+      movePanel(movePanel(DEFAULT_LAYOUT, "project", { side: "right", group: 0 }), "settings", {
+        side: "right",
+        group: 0,
+      }),
+      "tiles",
       { side: "right", group: 0 },
     );
     expect(across.left.groups).toHaveLength(1);
-    expect(across.right.groups[0]!.panels).toEqual(["inspector", "project", "settings"]);
+    expect(across.right.groups[0]!.panels).toEqual(["inspector", "project", "settings", "tiles"]);
   });
 
   it("refuses a move that would leave a column with no group", () => {
     const lone = movePanel(
-      movePanel(LEFT_MERGED, "outliner", { side: "right", group: 0 }),
-      "settings",
+      movePanel(movePanel(LEFT_MERGED, "outliner", { side: "right", group: 0 }), "settings", {
+        side: "right",
+        group: 0,
+      }),
+      "tiles",
       { side: "right", group: 0 },
     );
     expect(lone.left.groups[0]!.panels).toEqual(["project"]);
@@ -481,7 +494,7 @@ describe("parseLayout", () => {
       panels: ["inspector", "history"],
       active: "inspector",
     });
-    expect(parsed.left.groups[0]!.panels).toEqual(["outliner", "project", "settings"]);
+    expect(parsed.left.groups[0]!.panels).toEqual(["outliner", "project", "settings", "tiles"]);
     expect(parsed.left.groups).toHaveLength(1);
   });
 

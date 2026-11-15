@@ -605,10 +605,11 @@
         "decor",
         "nav",
         "camera-region",
+        "tilemap",
         "note",
         "hero"
       ],
-      "description": "An entity type: node, solid, sensor, marker, prop, follower, decor, nav, camera-region, note, hero."
+      "description": "An entity type: node, solid, sensor, marker, prop, follower, decor, nav, camera-region, tilemap, note, hero."
     },
     "NearMatch": {
       "type": "object",

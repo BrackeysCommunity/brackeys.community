@@ -1,0 +1,11 @@
+{
+  "label": "Roof the cave into a corridor",
+  "ops": [
+    {
+      "op": "paintCells",
+      "ref": "tilemap-1",
+      "field": "cells",
+      "rects": [[0, 0, 7, 0, 1]]
+    }
+  ]
+}

@@ -289,7 +289,10 @@ export function unitClasses(project: ProjectRuntimeView | null | undefined): Uni
   return out;
 }
 
-/** The loaded grid as data: its walls, and each rough cell's extra cost (the dearest rough area over it). */
+/**
+ * The loaded grid as data: its walls (wall entities' and solid tiles'), and
+ * each cell's extra cost, the dearest of its tiles' and the rough areas over it.
+ */
 export function boardData(
   grid: RuntimeGrid | null | undefined,
   roughs: Iterable<RoughEntity>,
@@ -300,6 +303,11 @@ export function boardData(
     .filter((c) => grid.occupancy.wall(c))
     .map(cellKey);
   const costs = new Map<CellKey, number>();
+  if (grid.cost)
+    for (const c of boundsCells(grid.bounds)) {
+      const extra = grid.cost(c, c) ?? 0;
+      if (extra > 0) costs.set(cellKey(c), extra);
+    }
   for (const rough of roughs) {
     for (const cell of grid.geometry.cellsIn(rough.shape)) {
       const k = cellKey(cell);

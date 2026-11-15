@@ -847,10 +847,14 @@ const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconc
  * which the recorded load's `onLoad` attaches read. A sublevel moved after
  * the recorded load but before its first step follows the entry for the
  * version it had at the load (`liveSwapLog`), so it replays after the load.
+ *
+ * `from`, after a seek restores the world at `tick`, moves the replay to the
+ * first swap recorded at or after it, forward or back, applying nothing.
  */
 export function createSwapReplay(opts: SwapReplayOptions): {
   atLoad(tick: number): SwapReplayStop | null;
   before(tick: number): SwapReplayStop | null;
+  from(tick: number): void;
 } {
   const { live, swaps } = opts;
   let next = 0;
@@ -879,6 +883,10 @@ export function createSwapReplay(opts: SwapReplayOptions): {
   }
 
   return {
+    from(tick) {
+      next = swaps.findIndex((s) => s.tick >= tick);
+      if (next < 0) next = swaps.length;
+    },
     atLoad(tick) {
       const end = loadSwapsEnd(swaps, next, tick);
       for (; next < end; next++) {

@@ -4,8 +4,15 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { applyProjectBatch, createProjectSession, memoryDocHost } from "@jams/engine/collab";
 import type { GameDefinition } from "@jams/engine/game";
-import { ContentStoreError, defineAssetKind, parseSidecar, sha256 } from "@jams/engine/project";
+import {
+  ContentStoreError,
+  defineAssetKind,
+  memoryContentStore,
+  parseSidecar,
+  sha256,
+} from "@jams/engine/project";
 import {
   createProjectFileAdapter,
   listenSceneCollab,
@@ -20,12 +27,16 @@ import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { devContentStore, ProjectClientError, readLiveScene } from "../project-client";
 import { loadCompatRapier } from "../rapier-compat";
+import { assetsImport, buildTileImport, readTileMap } from "../tools/assets-import";
 import { assetsReimport, type AssetsReimportInput } from "../tools/assets-reimport";
 import { tempProject } from "./fixtures";
 
 const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const FIXTURES = fileURLToPath(
   new URL("../../../packages/engine/project/__tests__/fixtures", import.meta.url),
+);
+const LDTK_FIXTURES = fileURLToPath(
+  new URL("../../../packages/engine/__tests__/fixtures/ldtk", import.meta.url),
 );
 
 /** A 1×1 PNG. */
@@ -60,8 +71,64 @@ async function tree(dir: string): Promise<Record<string, string>> {
 const ids = (data: Data) => (data.assets as { id: string }[]).map((a) => a.id);
 
 /** The textures and atlases the copied engine project already holds, by kind. */
-const SINK_TEXTURES = ["backdrop", "crates-texture", "hero-texture", "kitchen-font-page"];
+const SINK_TEXTURES = [
+  "backdrop",
+  "crates-texture",
+  "hero-texture",
+  "kitchen-font-page",
+  "kitchen-tiles",
+];
 const SINK_ATLASES = ["crates", "hero"];
+
+/** A small Tiled map: one external tileset cut from the copied kitchen tiles, a tile layer and a point. */
+const TILED_MAP = {
+  type: "map",
+  orientation: "orthogonal",
+  width: 3,
+  height: 2,
+  tilewidth: 25,
+  tileheight: 25,
+  infinite: false,
+  tilesets: [{ firstgid: 1, source: "sets/ground.tsj" }],
+  layers: [
+    {
+      type: "tilelayer",
+      name: "ground",
+      x: 0,
+      y: 0,
+      width: 3,
+      height: 2,
+      data: [1, 2, 0, 2, 1, 0],
+    },
+    {
+      type: "objectgroup",
+      name: "spots",
+      objects: [{ id: 1, name: "start", point: true, x: 5, y: 5 }],
+    },
+  ],
+};
+const TILED_SET = {
+  type: "tileset",
+  name: "ground",
+  image: "../art/ground.png",
+  imagewidth: 50,
+  imageheight: 25,
+  tilewidth: 25,
+  tileheight: 25,
+  columns: 2,
+  tilecount: 2,
+};
+
+/** Writes the Tiled map beside its tileset and image under `root/maps`; returns the map's path. */
+async function writeTiledMap(map: unknown = TILED_MAP): Promise<string> {
+  const dir = join(root, "maps");
+  await mkdir(join(dir, "sets"), { recursive: true });
+  await mkdir(join(dir, "art"), { recursive: true });
+  await cp(join(ENGINE_SCENES, "art/kitchen-tiles.png"), join(dir, "art/ground.png"));
+  await writeFile(join(dir, "sets/ground.tsj"), JSON.stringify(TILED_SET));
+  await writeFile(join(dir, "yard map.tmj"), JSON.stringify(map));
+  return join(dir, "yard map.tmj");
+}
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "scene-assets-"));
@@ -86,7 +153,9 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "crates-texture",
       "hero",
       "hero-texture",
+      "kitchen-tiles",
       "kitchen-animation",
+      "kitchen-tileset",
       "sparks",
       "clink",
       "clink-synth",
@@ -717,6 +786,177 @@ describe("assets on files", { timeout: 60_000 }, () => {
     expect(missing.exitCode).toBe(1);
     expect(String(missing.data.error)).toMatch(/Did you mean "items"\?/);
     expect((await run("assets", "info")).exitCode).toBe(2);
+  });
+});
+
+describe("assets import --tiled and --ldtk", { timeout: 60_000 }, () => {
+  it("a dry run reports the scene, tileset and image it would create and writes nothing", async () => {
+    const map = await writeTiledMap();
+    const before = await tree(deck);
+    const r = await run("assets", "import", "--tiled", map, "--dry-run");
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    expect(r.data).toMatchObject({ dryRun: true, written: false });
+    expect(r.data.created).toEqual(expect.arrayContaining(["yard-map", "ground"]));
+    expect(await tree(deck)).toEqual(before);
+  });
+
+  it("writes the scene, the tileset and the image with its sidecar, as one batch", async () => {
+    const map = await writeTiledMap();
+    const r = await run("assets", "import", "--tiled", map, "--into", "tile-yard");
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    expect(r.data).toMatchObject({ written: true });
+    const listed = (await run("assets", "list")).data.assets as {
+      id: string;
+      kind: string;
+      path: string;
+      sha256?: string;
+    }[];
+    const scene = listed.find((a) => a.id === "tile-yard")!;
+    expect(scene.kind).toBe("scene");
+    const tileset = listed.find((a) => a.kind === "tileset" && a.id !== "kitchen-tileset")!;
+    const image = listed.find((a) => a.kind === "texture" && a.path.startsWith("tilesets/"))!;
+    const png = await readFile(join(ENGINE_SCENES, "art/kitchen-tiles.png"));
+    expect(image.sha256).toBe(await sha256(new Uint8Array(png)));
+    expect(await readFile(join(deck, image.path))).toEqual(png);
+    expect(parseSidecar(await readFile(join(deck, `${image.path}.asset.json`), "utf8")).ok).toBe(
+      true,
+    );
+    const text = await readFile(join(deck, scene.path), "utf8");
+    expect(JSON.parse(text).entities).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "tilemap", tileset: tileset.id })]),
+    );
+    expect((await run("validate", "tile-yard")).exitCode).toBe(0);
+  });
+
+  it("refuses an isometric map with import-failed and writes nothing", async () => {
+    const map = await writeTiledMap({ ...TILED_MAP, orientation: "isometric" });
+    const before = await tree(deck);
+    const r = await run("assets", "import", "--tiled", map);
+    expect(r.exitCode).toBe(1);
+    expect(r.data).toMatchObject({ ok: false, written: false });
+    expect(r.data.notes).toEqual([
+      expect.objectContaining({ code: "import-failed", severity: "error" }),
+    ]);
+    expect(await tree(deck)).toEqual(before);
+  });
+
+  it("fails on a tileset or image the map names that isn't there", async () => {
+    const map = await writeTiledMap();
+    await rm(join(root, "maps/art/ground.png"));
+    const r = await run("assets", "import", "--tiled", map);
+    expect(r.exitCode).toBe(1);
+    expect(String(r.data.error)).toContain("ground.png");
+    await rm(join(root, "maps/sets/ground.tsj"));
+    const s = await run("assets", "import", "--tiled", map);
+    expect(s.exitCode).toBe(1);
+    expect(String(s.data.error)).toContain("sets/ground.tsj");
+  });
+
+  it("finds external tilesets under --tilesets by their name", async () => {
+    const map = await writeTiledMap();
+    const other = join(root, "elsewhere");
+    await mkdir(join(other, "art"), { recursive: true });
+    await cp(join(root, "maps/sets/ground.tsj"), join(other, "ground.tsj"));
+    await writeFile(
+      join(other, "ground.tsj"),
+      JSON.stringify({ ...TILED_SET, image: "art/ground.png" }),
+    );
+    await cp(join(root, "maps/art/ground.png"), join(other, "art/ground.png"));
+    await rm(join(root, "maps/sets"), { recursive: true });
+    const r = await run("assets", "import", "--tiled", map, "--tilesets", other, "--dry-run");
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+  });
+
+  it("reports each image it reads to the progress line", async () => {
+    const map = await writeTiledMap({
+      ...TILED_MAP,
+      tilesets: [
+        { firstgid: 1, source: "sets/ground.tsj" },
+        { firstgid: 3, ...TILED_SET, name: "moss", image: "art/moss.png" },
+      ],
+    });
+    await cp(join(root, "maps/art/ground.png"), join(root, "maps/art/moss.png"));
+    const lines: string[] = [];
+    const r = await assetsImport({ tiled: map, dryRun: true, progress: (l) => lines.push(l) }, ctx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(lines).toEqual([
+      "assets import: image 1/2 ../art/ground.png",
+      "assets import: image 2/2 art/moss.png",
+    ]);
+  });
+
+  it("imports an LDtk world's chosen levels as scenes, reading a separate level file only when chosen", async () => {
+    const world = join(LDTK_FIXTURES, "sample.ldtk");
+    const r = await run(
+      "assets",
+      "import",
+      "--ldtk",
+      world,
+      "--level",
+      "Level_0",
+      "--level",
+      "Level_1",
+      "--dry-run",
+    );
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    expect(r.data.created).toEqual(expect.arrayContaining(["level-0", "level-1"]));
+    const all = await run("assets", "import", "--ldtk", world, "--dry-run");
+    expect(all.exitCode).toBe(1);
+    expect(String(all.data.error)).toContain("Far_Away");
+  });
+
+  it("is one batch that the importing session undoes as one step", async () => {
+    const map = await writeTiledMap();
+    const handle = ctx.projects[0]!;
+    const host = memoryDocHost();
+    const adapter = createProjectFileAdapter({ ...handle, cacheDir: join(root, "session-cache") });
+    await adapter.loadProject(host.doc(`project:${handle.file.id}`));
+    const client = host.client();
+    const origin = { kind: "user", userId: "ada" } as const;
+    const session = await createProjectSession({
+      project: handle.file.id,
+      openDoc: client.openDoc,
+      origin,
+      registry: handle.registry,
+      kinds: handle.kinds,
+      store: memoryContentStore(),
+    });
+    try {
+      const read = await readTileMap({ tiled: map, into: "tile-yard" });
+      if (!read.ok) throw new Error(read.result.text);
+      const built = await buildTileImport(read.value, {
+        project: handle,
+        view: session.view(),
+        store: session.store!,
+      });
+      if ("exitCode" in built) throw new Error(built.text);
+      const before = [...session.view().byId.keys()].sort();
+      const applied = await applyProjectBatch(session, built.batch, origin);
+      expect(applied.ok, JSON.stringify(applied)).toBe(true);
+      const created = [...session.view().byId.keys()].filter((id) => !before.includes(id));
+      expect(created).toEqual(expect.arrayContaining(["tile-yard", "ground"]));
+      expect(created).toHaveLength(3);
+      expect(session.undoLabel()).toBe("Import yard map.tmj");
+
+      expect(session.undo()).toMatchObject({ label: "Import yard map.tmj" });
+      expect([...session.view().byId.keys()].sort()).toEqual(before);
+      expect(session.canUndo()).toBe(false);
+    } finally {
+      session.destroy();
+    }
+  });
+
+  it("takes --tiled or --ldtk alone, and --into, --tilesets and --level only with their map", async () => {
+    const map = await writeTiledMap();
+    for (const argv of [
+      ["--tiled", map, "--ldtk", map],
+      [join(root, "dot.png"), "--tiled", map],
+      ["--ldtk", map, "--into", "x"],
+      ["--tiled", map, "--level", "a"],
+    ]) {
+      const r = await run("assets", "import", ...argv);
+      expect(r.exitCode, argv.join(" ")).toBe(2);
+    }
   });
 });
 

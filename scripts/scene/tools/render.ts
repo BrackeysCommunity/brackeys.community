@@ -5,9 +5,17 @@ import {
   textFontOf,
   type DebugDrawCommand,
   type StringTableData,
+  tileTraits,
 } from "@jams/engine/game";
 import { runProbe } from "@jams/engine/headless";
-import { localeFont, localeSettingsOf, projectView, type ProjectView } from "@jams/engine/project";
+import {
+  localeFont,
+  localeSettingsOf,
+  projectView,
+  type ProjectRuntimeView,
+  type ProjectView,
+  type TilesetFile,
+} from "@jams/engine/project";
 import {
   formatAsciiMap,
   renderSceneSvg,
@@ -39,6 +47,30 @@ import {
 import { projectRuntime, scanProject, type ProjectHandle } from "../projects";
 import { rasterizeSvg } from "../raster";
 import { rapierFor } from "./step";
+
+/**
+ * Every tileset's tiles as `tileTraits` judges them, by tileset id then
+ * tile id: the data renders take, so the schematic and the colliders agree.
+ */
+export function projectTileTraits(
+  runtime: Pick<ProjectRuntimeView, "doc" | "docs">,
+): Record<string, Record<number, { solid: boolean }>> {
+  const out: Record<string, Record<number, { solid: boolean }>> = {};
+  for (const id of runtime.docs?.("tileset") ?? []) {
+    const tileset = runtime.doc?.<TilesetFile>("tileset", id);
+    if (!tileset) continue;
+    const tiles: Record<number, { solid: boolean }> = {};
+    for (const def of tileset.tiles ?? []) tiles[def.id] = { solid: tileTraits(def).solid };
+    out[id] = tiles;
+  }
+  return out;
+}
+
+const hasTilemap = (def: SceneDefinition, registry: Registry) =>
+  (def.entities ?? []).some((e) => {
+    const type = registry.types.get(e.type);
+    return e.type === "tilemap" || type?.base === "tilemap";
+  });
 
 /** The view of the project a scene is in, which sizes its sprites; undefined outside every project. */
 export async function sceneProjectView(
@@ -207,6 +239,10 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
   const scan = loaded.project ? await scanProject(loaded.project) : undefined;
   const project = await sceneProjectView(loaded.project, scan);
   const strings = await sceneStrings(loaded.project, registry, scan);
+  const tileTraitsOpt =
+    loaded.project && hasTilemap(def, registry)
+      ? { tileTraits: projectTileTraits(await projectRuntime(loaded.project, registry, scan)) }
+      : {};
 
   let overlay: SceneOverlay | undefined;
   if (input.overlay !== undefined) {
@@ -246,6 +282,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
         prefabs,
         ...(project ? { project } : {}),
         ...(strings ? { strings } : {}),
+        ...tileTraitsOpt,
         ...(overlay ? { overlay } : {}),
       });
       const text = formatAsciiMap(map);
@@ -271,6 +308,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
       prefabs,
       ...(project ? { project } : {}),
       ...(strings ? { strings } : {}),
+      ...tileTraitsOpt,
       ...(overlay ? { overlay } : {}),
       ...(debugDraw ? { debugDraw } : {}),
     };

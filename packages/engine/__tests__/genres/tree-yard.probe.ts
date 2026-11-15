@@ -65,7 +65,6 @@ function yardScene(): SceneDefinition {
 export const treeYardProbe: GenreProbe<BehaviorPoses> = {
   id: YARD,
   rows: ["platformer"],
-  pending: { platformer: "M25 (tilemaps)" },
   game: yard,
   scene: yardScene(),
   prefabs: yardPrefabs(),

@@ -58,6 +58,7 @@ import { grid } from "./tools/grid";
 import { input } from "./tools/input";
 import { list } from "./tools/list";
 import { newScene } from "./tools/new";
+import { paint, PAINT_USAGE } from "./tools/paint";
 import { playLive, PLAY_LIVE_USAGE } from "./tools/play-live";
 import { playtest, PLAYTEST_USAGE } from "./tools/playtest";
 import { projectPull } from "./tools/project-pull";
@@ -82,6 +83,7 @@ import {
 } from "./tools/strings";
 import { SYNTH_NEW_USAGE, SYNTH_RENDER_USAGE, synthNew, synthRender } from "./tools/synth";
 import { textconv } from "./tools/textconv";
+import { tiles, TILES_USAGE } from "./tools/tiles";
 import { validate } from "./tools/validate";
 
 export type ParsedArgs = { positionals: string[]; flags: Record<string, string | string[] | true> };
@@ -308,6 +310,37 @@ const DEFINITIONS = {
           to: str(flags.to),
           fov: str(flags.fov),
           diagonals: flags.diagonals === true,
+        },
+        ctx,
+      ),
+  },
+  tiles: {
+    usage: TILES_USAGE,
+    summary: "a tilemap's cells as ASCII, one character per tile, over the rectangle given",
+    values: ["rect"],
+    switches: [],
+    maxPositionals: 2,
+    run: ({ positionals: [scene, map], flags }, ctx) =>
+      tiles({ scene, map, rect: str(flags.rect) }, ctx),
+  },
+  paint: {
+    usage: PAINT_USAGE,
+    summary:
+      "paint a tilemap's cells as one paintCells batch: cells, a rectangle, a bounded fill or an autotile rule, tiles named by id or tag",
+    values: ["cells", "rect", "fill", "auto", ...WRITER_VALUES],
+    repeatable: ["cells", "rect"],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 2,
+    run: ({ positionals: [scene, map], flags }, ctx) =>
+      paint(
+        {
+          ...writerFlags(flags),
+          scene,
+          map,
+          cells: strs(flags.cells),
+          rect: strs(flags.rect),
+          fill: str(flags.fill),
+          auto: str(flags.auto),
         },
         ctx,
       ),
@@ -597,10 +630,22 @@ const DEFINITIONS = {
     run: ({ positionals: [id], flags }, ctx) => assetsInfo({ id, frame: str(flags.frame) }, ctx),
   },
   "assets import": {
-    usage: `assets import <file> [--path p|folder/] [--id id] [--kind k] [--settings json] ${WRITER_USAGE}`,
+    usage: `assets import <file> [--path p|folder/] [--id id] [--kind k] [--settings json] ${WRITER_USAGE} | --tiled <map.tmj> [--into scene] [--tilesets dir] | --ldtk <world.ldtk> [--level name…]`,
     summary:
-      "add a file: its bytes to the content store, then the file, its sidecar and registry entry",
-    values: ["path", "id", "kind", "settings", ...WRITER_VALUES],
+      "add a file: its bytes to the content store, then the file, its sidecar and registry entry; --tiled or --ldtk converts a map into scenes, tilesets and their images instead",
+    values: [
+      "path",
+      "id",
+      "kind",
+      "settings",
+      "tiled",
+      "into",
+      "tilesets",
+      "ldtk",
+      "level",
+      ...WRITER_VALUES,
+    ],
+    repeatable: ["level"],
     switches: [...WRITER_SWITCHES],
     maxPositionals: 1,
     run: ({ positionals: [file], flags }, ctx) =>
@@ -612,6 +657,11 @@ const DEFINITIONS = {
           id: str(flags.id),
           kind: str(flags.kind),
           settings: str(flags.settings),
+          tiled: str(flags.tiled),
+          into: str(flags.into),
+          tilesets: str(flags.tilesets),
+          ldtk: str(flags.ldtk),
+          level: strs(flags.level),
         },
         ctx,
       ),

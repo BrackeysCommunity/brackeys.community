@@ -95,7 +95,22 @@ type Captured = {
 /** The one channel a value tween runs on. */
 const VALUE = "v";
 
-const entryKey = (spec: TweenSpec) => JSON.stringify(spec);
+const sortedKeys = (_: string, v: unknown) =>
+  isPlainObject(v) ? Object.fromEntries(Object.entries(v).sort(([x], [y]) => (x < y ? -1 : 1))) : v;
+
+/** A block entry's identity in a save: its spec with keys sorted, so how a scene was loaded doesn't change it. */
+const entryKey = (spec: TweenSpec) => JSON.stringify(spec, sortedKeys);
+
+/** Whether a saved entry key names `spec`, in whatever key order either was written. */
+function sameEntry(saved: unknown, spec: TweenSpec): boolean {
+  if (typeof saved !== "string") return false;
+  if (saved === entryKey(spec)) return true;
+  try {
+    return JSON.stringify(JSON.parse(saved), sortedKeys) === entryKey(spec);
+  } catch {
+    return false;
+  }
+}
 
 /** The look a world save held for an entity, its channels checked; null when there is none. */
 function savedLook(value: unknown): SpriteLook | null {
@@ -407,7 +422,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     if (isCount(got.next, 1)) next = got.next;
     const unchanged = (owner: string, index: number) => {
       const entry = blocks.get(owner)?.tweens[index];
-      return entry !== undefined && was[owner]?.[index] === entryKey(entry);
+      return entry !== undefined && sameEntry(was[owner]?.[index], entry);
     };
     for (const state of Array.isArray(got.tweens) ? got.tweens : []) {
       if (!isTweenState(state) || state.owner === undefined || !ctx.get(state.owner)) continue;

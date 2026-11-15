@@ -12,8 +12,10 @@ import {
   probePhysics,
   probeRuns,
   probeTimeout,
+  probeProjectView,
   probesFrom,
   runGenreProbe,
+  tilesetFiles,
   viewGenreProbe,
   type GenreProbe,
   type ProbeRun,
@@ -21,6 +23,7 @@ import {
 } from "./harness";
 import { GENRE_PINS } from "./pins";
 import { rhythmAudioMismatch, rhythmTapProbe } from "./rhythm-tap.probe";
+import { sideScrollerLandingMismatch, sideScrollerProbe } from "./side-scroller.probe";
 
 vi.mock("../../renderer", async () => (await import("./harness")).stubbedRenderer());
 
@@ -186,6 +189,38 @@ describe("the view run", () => {
   });
 });
 
+describe("tilesetFiles", () => {
+  it("holds a tileset and its texture as a probe project a tilemap loads against", () => {
+    const game = defineGame({
+      id: "tileset-yard",
+      world: { physics: "none" },
+      actions: [],
+      types: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const files = tilesetFiles(
+      "rock",
+      { tile: [32, 32], columns: 2, tiles: [{ id: 0, solid: true }] },
+      [64, 32],
+    );
+    const view = probeProjectView({
+      id: "tileset-yard",
+      rows: ["roguelike"],
+      game,
+      scene: { v: SCENE_FORMAT_VERSION, name: "yard", settings: {}, entities: [] },
+      project: { files },
+      script: { v: 1, steps: [] },
+      expect: { result: "timeout" },
+    } as unknown as GenreProbe);
+    expect(view?.doc?.("tileset", "rock")).toMatchObject({
+      kind: "tileset",
+      image: "rock-image",
+      columns: 2,
+    });
+    expect(view?.asset("rock-image")).toMatchObject({ kind: "texture", size: [64, 32] });
+  });
+});
+
 describe("genre probes", () => {
   it("finds every probe", () => {
     const ids = PROBES.map((p) => p.id);
@@ -193,11 +228,14 @@ describe("genre probes", () => {
       "grid-puzzle",
       "idle",
       "local-versus",
+      "metroidvania",
       "point-and-click",
       "racing",
       "rhythm-tap",
       "roguelike",
+      "rts",
       "shooter",
+      "side-scroller",
       "top-down",
       "tower-defense",
       "turn-tactics",
@@ -249,6 +287,8 @@ describe("genre probes", () => {
           if (probe.recordPresentation) {
             expect(run.report.present, label).toBeDefined();
             expect(run.withoutPresentation, `${label} without presentation`).toBe(run.digest);
+            if (probe.id === sideScrollerProbe.id)
+              expect(sideScrollerLandingMismatch(run.report.present ?? []), label).toBeNull();
           }
           if (probe.view) {
             const view = await expectViewRun(probe, run, variant);

@@ -25,6 +25,10 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "gravity-sideways": "940edf933971dec4",
     "saved-mid-round": "940edf933971dec4",
   },
+  metroidvania: {
+    default: "e6c5d3bf9e6c327e",
+    saved: "e6c5d3bf9e6c327e",
+  },
   "point-and-click": {
     default: "c7e11bc7913bc936",
     "gravity-sideways": "c7e11bc7913bc936",
@@ -42,10 +46,15 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-mid-chart": "8f0e416f97461b72",
   },
   roguelike: {
-    default: "972e5b44222b3c85",
-    "saved-mid-run": "972e5b44222b3c85",
-    "seed-1": "9c62e6c6b4ca4279",
-    "seed-2": "ffb15c3655faa69d",
+    default: "bb5dbb2466755115",
+    "saved-mid-dig": "bb5dbb2466755115",
+    "saved-mid-run": "bb5dbb2466755115",
+    "seed-1": "b5bdc627ef29d9c8",
+    "seed-2": "7ec729a17fce9bca",
+  },
+  rts: {
+    default: "ed806238a948538f",
+    "saved-mid-march": "ed806238a948538f",
   },
   shooter: {
     default: "576d7bca820e1f53",
@@ -55,16 +64,19 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-physics-none": "86e51bdec7fc2f87",
     "saved-runner-physics-none": "f9ec4dca4f3509f7",
   },
+  "side-scroller": {
+    default: "b536860bdd410c2c",
+  },
   "side-view-behaviors": {
     default: "ba49ed303de8181f",
     "saved-mid-jump": "ba49ed303de8181f",
     "saved-on-the-lift": "ba49ed303de8181f",
   },
   "top-down": {
-    default: "5c0663a93c32f428",
-    "gravity-sideways": "5c0663a93c32f428",
-    "physics-none": "4ce46f44f64a27fd",
-    "saved-physics-none": "4ce46f44f64a27fd",
+    default: "6ca20cd57d8318d4",
+    "gravity-sideways": "6ca20cd57d8318d4",
+    "physics-none": "0d61addba808f5f0",
+    "saved-physics-none": "0d61addba808f5f0",
   },
   "tower-defense": {
     default: "b039a55159fd6798",

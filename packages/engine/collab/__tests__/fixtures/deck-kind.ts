@@ -33,5 +33,9 @@ export const deckKind = defineAssetKind({
   empty: () => ({ v: 1, title: "", style: {}, tags: [], cards: [] }),
 });
 
-/** The checked test game with the deck kind. */
-export const deckGame = defineGame({ ...checkedTestGame, assetKinds: [deckKind] });
+/** The checked test game with the deck kind and per-tile data for tilesets. */
+export const deckGame = defineGame({
+  ...checkedTestGame,
+  assetKinds: [deckKind],
+  tileData: { damage: z.number().int().min(0).optional(), slippery: z.boolean().optional() },
+});

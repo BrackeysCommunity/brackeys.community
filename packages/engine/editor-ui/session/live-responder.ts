@@ -317,6 +317,28 @@ export async function canvasPixels(canvas: HTMLCanvasElement): Promise<FramePixe
   return { width, height, data };
 }
 
+const asCanvas = (el: HTMLElement | null | undefined): HTMLCanvasElement | null =>
+  el && el.tagName === "CANVAS" ? (el as HTMLCanvasElement) : null;
+
+/**
+ * What the game shows, drawn afresh through the renderer (`extractFrame`)
+ * after the frame in flight, so it never reads a presented canvas a
+ * compositor may already have cleared. Falls back to `canvasPixels` when the
+ * renderer can't extract.
+ */
+export async function gamePixels(
+  game: Pick<GameInstance, "extractFrame">,
+  canvas?: () => HTMLElement | null,
+): Promise<FramePixels | null> {
+  await nextFrame();
+  const frame = game.extractFrame();
+  if (frame && frame.width > 0 && frame.height > 0) {
+    return { width: frame.width, height: frame.height, data: frame.data };
+  }
+  const el = asCanvas(canvas?.());
+  return el ? canvasPixels(el) : null;
+}
+
 /** A frame request answered from `pixels` (the whole canvas): its region, its size, then the size rule. */
 export async function renderFrame(
   pixels: FramePixels,
@@ -412,14 +434,11 @@ export type EditorResponderOptions = {
   game: GameInstance;
   /** The game's canvas, for frames. */
   canvas?: (() => HTMLElement | null) | undefined;
-  /** What the canvas shows; default reads `canvas` (`canvasPixels`). */
+  /** What the game shows; default reads `canvas` (`canvasPixels`). The editor passes `gamePixels`. */
   capture?: () => Promise<FramePixels | null>;
   /** Each request shows as a task in the status bar while it is answered. */
   pending?: Pending | null;
 };
-
-const asCanvas = (el: HTMLElement | null | undefined): HTMLCanvasElement | null =>
-  el && el.tagName === "CANVAS" ? (el as HTMLCanvasElement) : null;
 
 /**
  * Answers agents' live requests on the open scene doc for this editor:

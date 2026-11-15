@@ -1082,6 +1082,25 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
     });
     return run.issues;
   },
+  "tile-unknown": () =>
+    crossChecked(
+      {
+        "art/sheet.json": {
+          ...TILE_SHEET,
+          tiles: [{ id: 1, animation: [{ tile: 5, ms: 100 }] }],
+        },
+      },
+      [TILE_IMAGE],
+    ),
+  "tileset-missing": () => crossChecked({ "level.json": tileScene("gone") }),
+  "tileset-grid-mismatch": () =>
+    crossChecked(
+      {
+        "art/sheet.json": { ...TILE_SHEET, tile: [16, 16] },
+        "level.json": tileScene("sheet"),
+      },
+      [TILE_IMAGE],
+    ),
   "live-no-editor": () => liveFailure({ t: "state", id: "s" }),
   "live-refused": () =>
     liveFailure(
@@ -1103,6 +1122,29 @@ const localeSettings = (locales: unknown) => ({
 });
 
 /** `validateProject`'s issues over docs by path and blob files, judged without a game. */
+const TILE_SHEET = { kind: "tileset", v: 1, image: "sheet-art", tile: [25, 25], columns: 2 };
+const TILE_IMAGE: HeldFile = {
+  path: "art/sheet.png",
+  sidecar: {
+    kind: "asset-sidecar",
+    v: 1,
+    key: "key-sheet-art",
+    id: "sheet-art",
+    assetKind: "texture",
+    sha256: "e".repeat(64),
+    bytes: 100,
+    meta: { format: "png", width: 50, height: 25 },
+  },
+};
+const tileScene = (tileset: string) => ({
+  ...scene({
+    v: 5,
+    settings: { physics: "none", grid: { kind: "square", cell: [0.25, 0.25] } },
+    solid: [],
+  }),
+  entities: [{ id: "floor", type: "tilemap", at: [0, 0], tileset, cells: { "0,0": ["1,2"] } }],
+});
+
 function crossChecked(docs: Record<string, unknown>, blobs: HeldFile[] = []): SceneIssue[] {
   const held = heldDocs(docs);
   const registry = createRegistry();
@@ -1139,6 +1181,8 @@ const NO_LINE_CODES: readonly EngineIssueCode[] = [
   "locale-unknown",
   "font-missing",
   "string-key-missing",
+  "tileset-missing",
+  "tileset-grid-mismatch",
 ];
 
 /** A build's target comes from the command line, and a live answer from an open editor: neither is a document a path could point into. */

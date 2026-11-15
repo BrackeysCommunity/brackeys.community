@@ -35,7 +35,7 @@ import type { EngineSmokeResult } from "../browser/main";
 import { runSmokeDigest } from "../browser/run";
 import { ANIM_FRAME_TICKS } from "../browser/sink";
 import type { TacticsProbe } from "../browser/tactics";
-import { audioPlayed, signsDrawn } from "./media-probes";
+import { audioPlayed, signsDrawn, tilemapsDrawn } from "./media-probes";
 
 const drawn: RenderProbe = {
   renderer: "webgl",
@@ -92,6 +92,7 @@ const passed = (
   physicsFree,
   contact,
   tactics: second,
+  tilemaps: tilemapsDrawn,
   signs: signsDrawn,
   audio: audioPlayed,
   userAgent: "test-agent",

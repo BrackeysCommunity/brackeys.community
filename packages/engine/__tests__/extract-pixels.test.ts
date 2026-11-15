@@ -121,3 +121,48 @@ describe("extractPixels", () => {
     });
   });
 });
+
+describe("extractFrame", () => {
+  const frameOut = (width: number, height: number) => ({
+    pixels: new Uint8ClampedArray(width * height * 4).fill(7),
+    width,
+    height,
+  });
+
+  it("renders the whole stage at the canvas size over the background", async () => {
+    const renderer = await createRenderer(document.createElement("canvas"), config);
+    fake.pixels.mockImplementationOnce(() => frameOut(800, 600));
+    const read = renderer.extractFrame();
+    expect(read).toMatchObject({ renderer: "webgl", width: 800, height: 600 });
+    expect(read!.data).toHaveLength(800 * 600 * 4);
+    expect(fake.pixels.mock.calls[0]![0]).toMatchObject({
+      target: renderer.app.stage,
+      frame: new Rectangle(0, 0, 800, 600),
+      resolution: 1,
+      clearColor: 0x123456,
+    });
+  });
+
+  it("fits a smaller size by its tighter side and never asks past the canvas", async () => {
+    const renderer = await createRenderer(document.createElement("canvas"), config);
+    fake.pixels.mockImplementationOnce(() => frameOut(400, 300));
+    fake.pixels.mockImplementationOnce(() => frameOut(800, 600));
+    renderer.extractFrame({ width: 400, height: 1000 });
+    renderer.extractFrame({ width: 4000 });
+    expect(fake.pixels.mock.calls.map((c) => (c[0] as { resolution: number }).resolution)).toEqual([
+      0.5, 1,
+    ]);
+  });
+
+  it("is a GameInstance method", async () => {
+    const canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+    game = await createGame(canvas, { game: testGame, displayWidth: 800, displayHeight: 600 });
+    fake.pixels.mockImplementationOnce(() => frameOut(200, 150));
+    expect(game.extractFrame({ width: 200, height: 150 })).toMatchObject({
+      width: 200,
+      height: 150,
+    });
+    expect((fake.pixels.mock.calls[0]![0] as { resolution: number }).resolution).toBe(0.25);
+  });
+});

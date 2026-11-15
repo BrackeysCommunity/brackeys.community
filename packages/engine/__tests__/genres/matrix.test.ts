@@ -49,6 +49,7 @@ describe("the genre matrix", () => {
     expect(MILESTONE_VERSIONS[22]).toBe("0.15.0");
     expect(MILESTONE_VERSIONS[23]).toBe("0.17.0");
     expect(MILESTONE_VERSIONS[24]).toBe("0.18.0");
+    expect(MILESTONE_VERSIONS[25]).toBe("0.19.0");
   });
 
   it("counts a milestone landed once the engine's version reaches its own", () => {
@@ -97,6 +98,20 @@ describe("the genre matrix", () => {
     expect(completing("point-and-click")).toContain("point-and-click");
   });
 
+  it.each([
+    ["platformer", "side-scroller"],
+    ["top-down", "top-down"],
+    ["rts", "rts"],
+    ["roguelike", "roguelike"],
+    ["metroidvania", "metroidvania"],
+  ] as const)("completes the %s row tilemaps finish with %s", (row, id) => {
+    expect(GENRE_MATRIX[row].probes).toContain(id);
+    const probe = PROBES.find((p) => p.id === id);
+    expect(probe?.rows, id).toContain(row);
+    expect(probe?.pending?.[row], `${id} on ${row}`).toBeUndefined();
+    expect(completing(row)).toContain(id);
+  });
+
   it("lands exactly those rows with the milestone that finishes them", () => {
     const before = new Set(landedRows("0.14.5"));
     expect([...before].sort()).toStrictEqual(["idle", "tactics", "tower-defense"]);
@@ -111,6 +126,15 @@ describe("the genre matrix", () => {
     const atM43 = new Set(landedRows(MILESTONE_VERSIONS[43]));
     const byM23 = landedRows(MILESTONE_VERSIONS[23]).filter((row) => !atM43.has(row));
     expect(byM23.sort()).toStrictEqual(["point-and-click", "rhythm", "visual-novel"]);
+    const atM24 = new Set(landedRows(MILESTONE_VERSIONS[24]));
+    const byM25 = landedRows(MILESTONE_VERSIONS[25]).filter((row) => !atM24.has(row));
+    expect(byM25.sort()).toStrictEqual([
+      "metroidvania",
+      "platformer",
+      "roguelike",
+      "rts",
+      "top-down",
+    ]);
   });
 
   it("leaves turn-tactics nothing pending on the tactics row", () => {

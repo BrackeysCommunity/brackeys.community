@@ -37,6 +37,7 @@ import type { PointerState } from "../../input/state";
 import type { SeatChange, TickInput } from "../../input/stream";
 import { DATA_TABLE_KIND, DATA_TABLE_VERSION } from "../../project/kinds/data-table";
 import { GAME_SETTINGS_KIND, GAME_SETTINGS_VERSION } from "../../project/kinds/game-settings";
+import type { TilesetFile } from "../../project/kinds/tileset";
 import { heldProject, type HeldFile, type ProjectRuntimeView } from "../../project/runtime-view";
 import { gamePersistCell } from "../../runtime/persist";
 import type { PresentedRequest } from "../../runtime/present";
@@ -173,6 +174,38 @@ export type ProbeProject = {
   /** Held as a host holds them: docs by their JSON, binaries by their sidecars. */
   files?: readonly HeldFile[];
 };
+
+/**
+ * A probe project's files for one tileset: the tileset doc and the texture it
+ * cuts, held by its sidecar (a made-up hash, the image's size in px), so a
+ * tilemap with `tileset: id` loads against them. The texture is `<id>-image`
+ * unless the tileset names its own `image`.
+ */
+export function tilesetFiles(
+  id: string,
+  tileset: Omit<TilesetFile, "kind" | "v" | "image"> & { image?: string },
+  imageSize: readonly [number, number],
+): HeldFile[] {
+  const image = tileset.image ?? `${id}-image`;
+  return [
+    {
+      path: `tiles/${id}.json`,
+      json: { ...structuredClone(tileset), kind: "tileset", v: 1, image },
+    },
+    {
+      path: `tiles/${image}.png`,
+      sidecar: {
+        kind: "asset-sidecar",
+        v: 1,
+        key: image,
+        id: image,
+        sha256: hashText(image).padEnd(64, "0").slice(0, 64),
+        bytes: 1,
+        meta: { format: "png", width: imageSize[0], height: imageSize[1] },
+      },
+    },
+  ];
+}
 
 export type ProbeFuzz = {
   rollouts: number;
@@ -992,6 +1025,7 @@ async function viewRun(
 ): Promise<ViewRun> {
   const { createGame } = await import("../../engine");
   const scene = variantScene(p, variant);
+  const flow = variantFlow(p, variant, scene);
   const rapier = run.usedRapier ? await loadRapier() : null;
   const recording = run.report.recording;
 
@@ -1014,6 +1048,18 @@ async function viewRun(
       ...(rapier ? { rapier: async () => rapier } : {}),
       ...(p.viewports ? { viewports: p.viewports } : {}),
       ...(audio ? { audio: { backend: audio } } : {}),
+      ...(flow
+        ? {
+            flow: {
+              source: {
+                list: () => flow.list,
+                start: () => listedSceneId(flow, scene) ?? null,
+                scene: (id: string) => flow.scenes.get(id) ?? null,
+              },
+              loading: false,
+            },
+          }
+        : {}),
       reducedMotion: false,
     });
     const draws = stubbedDraws as StubbedDraws | null;

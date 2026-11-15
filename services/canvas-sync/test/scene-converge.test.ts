@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 
 import * as Y from "yjs";
 
+import { gridRowKey } from "../../../packages/engine/collab/convert.ts";
 import { Z_FIELD } from "../../../packages/engine/collab/types.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import { MemorySceneStore } from "../src/scene/store.ts";
@@ -144,4 +145,83 @@ describe("three clients through the real server", () => {
       expect(store.rows.get(sceneId)!.snapshot).toBe(first!.text);
     });
   }
+});
+
+describe("two clients painting one tilemap through the real server", () => {
+  const store = new MemorySceneStore();
+  let server: SyncServer;
+  const clients: SceneClient[] = [];
+
+  beforeAll(async () => {
+    server = await startServer({
+      port: 0,
+      secret: SECRET,
+      sceneStore: store,
+      instanceId: "scene-converge-tiles",
+      telemetry: quiet,
+      debounceMs: 100,
+      maxDebounceMs: 400,
+    });
+  });
+
+  afterAll(async () => {
+    for (const client of clients) client.destroy();
+    await server.stop(3000);
+  });
+
+  it("paint different chunks and converge on both chunks' rows", async () => {
+    const sceneId = newSceneId();
+    store.create(sceneId);
+    const [alice, bob] = ["alice", "bob"].map((user) => connectScene(server.port, sceneId, user));
+    clients.push(alice!, bob!);
+    expect(await sceneSynced(alice!)).toBe(true);
+    expect(await sceneSynced(bob!)).toBe(true);
+
+    alice!.doc.transact(() => {
+      const map = new Y.Map<unknown>();
+      map.set(Z_FIELD, "a0");
+      map.set("id", "ground");
+      map.set("type", "tilemap");
+      map.set("at", [0, 0]);
+      map.set("tileset", "tiles");
+      alice!.entities.set("ground", map);
+    });
+    expect(await until(() => bob!.entities.has("ground"), 5000)).toBe(true);
+
+    const paint = (client: SceneClient, chunk: string, rows: string[]) =>
+      client.doc.transact(() => {
+        const rec = client.entities.get("ground")!;
+        rows.forEach((row, r) => rec.set(gridRowKey("cells", chunk, r), row));
+      });
+    paint(alice!, "0,0", ["1*32", "2*4"]);
+    paint(bob!, "1,0", ["3*32", "", "4*2"]);
+
+    const cells = { "0,0": ["1*32", "2*4"], "1,0": ["3*32", "", "4*2"] };
+    const live = () => server.hocuspocus.documents.get(`scene:${sceneId}`)!;
+    // Read through the canonical text: client docs use the service's yjs, not the engine's.
+    const cellsOf = (doc: Y.Doc) => {
+      const text = sceneOf(doc)?.text;
+      if (!text) return undefined;
+      const scene = JSON.parse(text) as { entities?: { id: string; cells?: unknown }[] };
+      return JSON.stringify(scene.entities?.find((e) => e.id === "ground")?.cells);
+    };
+    const docs = () => [alice!.doc, bob!.doc, live()];
+    expect(
+      await until(() => docs().every((doc) => cellsOf(doc) === JSON.stringify(cells)), 10_000),
+    ).toBe(true);
+
+    const texts = docs().map((doc) => sceneOf(doc));
+    expect(texts[0]).not.toBeNull();
+    for (const other of texts.slice(1)) {
+      expect(other?.text).toBe(texts[0]!.text);
+      expect(other?.hash).toBe(texts[0]!.hash);
+    }
+
+    alice!.destroy();
+    bob!.destroy();
+    expect(await until(() => store.rows.get(sceneId)?.sceneHash === texts[0]!.hash, 5000)).toBe(
+      true,
+    );
+    expect(store.rows.get(sceneId)!.snapshot).toBe(texts[0]!.text);
+  });
 });

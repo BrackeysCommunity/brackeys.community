@@ -8,10 +8,13 @@ import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
+import { FLIP_X } from "../../game/tile-cell";
 import type { DebugDrawCommand } from "../../game/types";
-import type { AssetEntry } from "../../project/types";
+import type { TilesetFile } from "../../project/kinds/tileset";
+import type { AssetEntry, ProjectView } from "../../project/types";
 import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
+import { tileTraits } from "../../tiles/chunks";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import { drawnEntities, expandedOf, oneWayEdges } from "../render-geometry";
 import { shapeOutline } from "../shape-outline";
@@ -21,6 +24,7 @@ import {
   SCENE_SVG_MAX_SIZE,
   sceneViewport,
   svgPathData,
+  TILE_LABEL_MAX_CELLS,
 } from "../svg";
 import {
   PREFAB_KIND,
@@ -625,6 +629,19 @@ function spriteProject() {
   });
 }
 
+/** The kitchen sink's tilesets' traits, as `scene render` computes them. */
+const sinkTileTraits = (view: ProjectView) =>
+  Object.fromEntries(
+    [...view.byId.values()]
+      .filter((e) => e.kind === "tileset")
+      .map((e) => {
+        const file = JSON.parse(
+          readFileSync(new URL(`../../scenes/${e.path}`, import.meta.url), "utf8"),
+        ) as TilesetFile;
+        return [e.id, Object.fromEntries((file.tiles ?? []).map((t) => [t.id, tileTraits(t)]))];
+      }),
+  );
+
 describe("the kitchen sink", () => {
   const sinkGolden = new URL("./kitchen-sink.golden.svg", import.meta.url);
   let sink: Awaited<ReturnType<typeof loadKitchenSink>>;
@@ -637,6 +654,7 @@ describe("the kitchen sink", () => {
       prefabs: sink.prefabs,
       project: sink.view,
       strings: sink.strings,
+      tileTraits: sinkTileTraits(sink.view),
     });
 
   it("matches its golden render, sprites sized from the project (UPDATE_GOLDENS=1 regenerates)", () => {
@@ -779,5 +797,73 @@ describe("debug draws", () => {
     const width = (svg: string) =>
       Number(/data-debug="text"><rect [^>]*width="([\d.]+)"/.exec(svg)?.[1]);
     expect(width(long)).toBeGreaterThan(width(short) * 4);
+  });
+});
+
+describe("tilemaps", () => {
+  const registry = createRegistry();
+  const traits = {
+    ts: {
+      0: tileTraits({ id: 0, solid: true }),
+      1: tileTraits({ id: 1 }),
+      2: tileTraits({ id: 2, solid: true, oneWay: "up" }),
+    },
+  };
+  const mapScene = (cells: Record<string, string[]>): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "tiles",
+    bounds: [0, 0, 10.24, 7.68],
+    settings: { grid: { kind: "square", cell: [0.32, 0.32] } },
+    entities: [{ id: "map", type: "tilemap", at: [0.64, 0.64], tileset: "ts", cells }],
+  });
+  const cellTag = (svg: string, cell: string) =>
+    new RegExp(`<rect data-cell="${cell}"[^>]*/>`).exec(svg)?.[0] ?? "";
+
+  it("fills solid tiles and outlines the rest, by the traits tileTraits gives", () => {
+    const svg = renderSceneSvg(mapScene({ "0,0": [`1,2,3,${1 | FLIP_X}`] }), {
+      registry,
+      tileTraits: traits,
+    });
+    expect(cellTag(svg, "0,0")).toMatch(/data-tile="0" data-solid="true" fill="#[0-9a-f]{6}"/);
+    expect(cellTag(svg, "1,0")).toMatch(/data-tile="1" data-solid="false" fill="none" stroke=/);
+    expect(cellTag(svg, "2,0")).toContain('data-solid="true"');
+    // Flip flags don't change the tile.
+    expect(cellTag(svg, "3,0")).toMatch(/data-tile="0" data-solid="true"/);
+  });
+
+  it("outlines every tile of a tileset it has no traits for", () => {
+    const svg = renderSceneSvg(mapScene({ "0,0": ["1,1"] }), { registry });
+    expect(svg).not.toContain('data-solid="true"');
+    expect(svg.match(/data-solid="false"/g)).toHaveLength(2);
+  });
+
+  it("labels each tile with its id on a small map, and none past the cap or with labels off", () => {
+    const small = renderSceneSvg(mapScene({ "0,0": ["1,2"] }), { registry, tileTraits: traits });
+    expect(small).toContain('<g class="tile-ids"');
+    expect(small).toMatch(/data-tile-label="0,0"[^>]*>0<\/text>/);
+    expect(small).toMatch(/data-tile-label="1,0"[^>]*>1<\/text>/);
+    expect(
+      renderSceneSvg(mapScene({ "0,0": ["1,2"] }), { registry, labels: "none" }),
+    ).not.toContain("tile-ids");
+    const rows = Array.from({ length: 32 }, () => "1*32");
+    const big = renderSceneSvg(mapScene({ "0,0": rows }), { registry, tileTraits: traits });
+    expect(TILE_LABEL_MAX_CELLS).toBeLessThan(32 * 32);
+    expect(big).not.toContain("tile-ids");
+  });
+
+  it("leaves a painted grid field that isn't a tilemap's as it was", () => {
+    const game = createRegistry(testGame);
+    const svg = renderSceneSvg(
+      {
+        v: SCENE_FORMAT_VERSION,
+        game: game.id,
+        name: "paint",
+        bounds: [0, 0, 10.24, 7.68],
+        settings: { grid: { kind: "square", cell: [0.32, 0.32] } },
+        entities: [{ id: "floor", type: PAINT.type, at: [0.64, 6.4], cells: { "0,0": ["1"] } }],
+      },
+      { registry: game, tileTraits: traits },
+    );
+    expect(svg).not.toContain("data-tile");
   });
 });

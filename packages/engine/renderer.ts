@@ -14,6 +14,7 @@ export type Renderer = {
   resize: (width: number, height: number) => void;
   /** The canvas pixel under each world point (metres), through the world container's current transform. */
   extractPixels: GameInstance["extractPixels"];
+  extractFrame: GameInstance["extractFrame"];
   destroy: () => void;
 };
 
@@ -327,6 +328,27 @@ export async function createRenderer(
     return { renderer: app.renderer.name, pixels };
   }
 
+  function extractFrame(
+    opts: { width?: number; height?: number } = {},
+  ): ReturnType<GameInstance["extractFrame"]> {
+    if (rebuilding || failed || destroyed) return null;
+    const { width, height } = app.screen;
+    if (!(width > 0 && height > 0)) return null;
+    const fit = Math.min(
+      opts.width && opts.width > 0 ? opts.width / width : 1,
+      opts.height && opts.height > 0 ? opts.height / height : 1,
+    );
+    // Pixi floors the output size at the resolution; a whole pixel is the least it can give.
+    const resolution = Math.max(fit, 1 / Math.min(width, height));
+    const out = app.renderer.extract.pixels({
+      target: app.stage,
+      frame: new Rectangle(0, 0, width, height),
+      resolution,
+      clearColor: config.backgroundColor,
+    });
+    return { renderer: app.renderer.name, width: out.width, height: out.height, data: out.pixels };
+  }
+
   function destroy(): void {
     if (destroyed) return;
     destroyed = true;
@@ -349,6 +371,7 @@ export async function createRenderer(
     uiContainer,
     resize,
     extractPixels,
+    extractFrame,
     destroy,
   };
 }

@@ -60,6 +60,7 @@ export function EditorStatusBar({
 }) {
   const sceneName = useEditorStore(session, (s) => s.sceneName);
   const notice = useStoreValue(noticeStore, (n) => n?.text ?? null);
+  const refusal = useEditorStore(session, (s) => s.notice);
   const structural = useEditorStore(session, (s) => s.issues);
   const physicalIssues = useStoreValue(physical, (s) => s);
   const peers = useEditorStore(session, (s) => s.peers);
@@ -91,6 +92,11 @@ export function EditorStatusBar({
         {notice ? (
           <span className="je-status-notice" data-tone="muted">
             {notice}
+          </span>
+        ) : null}
+        {refusal ? (
+          <span className="je-status-notice" data-tone="warning" data-tool-notice="">
+            {refusal}
           </span>
         ) : null}
         {others > 0 ? (

@@ -4,7 +4,7 @@
  * only: never built headless, and its randomness is its own stream, never
  * the simulation's.
  */
-import { type Container, Particle, ParticleContainer, Texture } from "pixi.js";
+import { type Container, Particle, ParticleContainer, Rectangle, Texture } from "pixi.js";
 
 import { type EmitterFollow, layerOrder, type SpriteVisual, type ViewLayer } from "../context";
 import { followedPose } from "../game/behaviors/emitter";
@@ -144,6 +144,8 @@ type Bucket = {
   want: ParticleTexture | null;
   /** Particles drawn in it, and emitters that draw into it: it stays, in its place, while any is left. */
   users: number;
+  /** Its particles' extent in px, its `cullArea`: refreshed each update, so the shell's cull sees where they are. */
+  area: Rectangle;
 };
 
 type Live = {
@@ -232,8 +234,11 @@ export function createParticleLayer(
     });
     display.label = `particles:${key}`;
     display.blendMode = preset.blend ?? "normal";
+    const area = new Rectangle();
+    display.cullable = true;
+    display.cullArea = area;
     parentOf(layer).addChild(display);
-    const bucket: Bucket = { key, container: display, texture, want, users: 0 };
+    const bucket: Bucket = { key, container: display, texture, want, users: 0, area };
     if (want && !texture) pending.add(bucket);
     buckets.set(key, bucket);
     return bucket;
@@ -342,6 +347,34 @@ export function createParticleLayer(
     d.scaleY = scale;
     d.alpha = curveAt(p.preset.alpha, t, 1);
     d.tint = p.tint ?? tintAt(p.preset.tint, t);
+  }
+
+  /** Fits each bucket's `cullArea` around its particles' drawn squares. */
+  function fitCullAreas(): void {
+    const reach = new Map<Bucket, [number, number, number, number]>();
+    for (const g of [...emitters.values(), ...loose]) {
+      for (const p of g.particles) {
+        const d = p.display;
+        const tex = d.texture;
+        const half = (Math.max(tex.width, tex.height) * Math.abs(d.scaleX)) / 2;
+        const r = reach.get(p.bucket);
+        if (!r) reach.set(p.bucket, [d.x - half, d.y - half, d.x + half, d.y + half]);
+        else {
+          r[0] = Math.min(r[0], d.x - half);
+          r[1] = Math.min(r[1], d.y - half);
+          r[2] = Math.max(r[2], d.x + half);
+          r[3] = Math.max(r[3], d.y + half);
+        }
+      }
+    }
+    for (const bucket of buckets.values()) {
+      const r = reach.get(bucket);
+      const [x0, y0, x1, y1] = r ?? [0, 0, 0, 0];
+      bucket.area.x = x0;
+      bucket.area.y = y0;
+      bucket.area.width = x1 - x0;
+      bucket.area.height = y1 - y0;
+    }
   }
 
   /** Moves `g`'s particles on by `dt` seconds, dropping the ones whose life ran out. */
@@ -495,6 +528,7 @@ export function createParticleLayer(
         },
       );
       if (g.particles.length > 0) loose.push(g);
+      fitCullAreas();
     },
     update(dtMs) {
       if (!(dtMs > 0)) return;
@@ -509,6 +543,7 @@ export function createParticleLayer(
         for (const p of g.particles) draw(p, g);
       }
       loose = loose.filter((g) => g.particles.length > 0);
+      fitCullAreas();
     },
     stats() {
       let particles = 0;

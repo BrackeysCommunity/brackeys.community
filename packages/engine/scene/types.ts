@@ -358,6 +358,10 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "string-key-missing",
   "dialogue-dead-end",
   "dialogue-unreachable",
+  // tilemaps
+  "tile-unknown",
+  "tileset-missing",
+  "tileset-grid-mismatch",
   // agents' live requests
   "live-no-editor",
   "live-refused",

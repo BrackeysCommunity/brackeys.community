@@ -9,6 +9,7 @@
  * chunk `(floor(col/32), floor(row/32))` at row `row mod 32`, column
  * `col mod 32`.
  */
+import { transformCell as turnTileCell } from "../game/tile-cell";
 import type { CellBounds } from "../grid/geometry";
 import { dihedral, type Dihedral, type Transform2D } from "./transform";
 import type { CellEdit, CellRect } from "./types";
@@ -334,8 +335,15 @@ export function transformCell(col: number, row: number, t: Transform2D): [number
   return [(t.a * x + t.c * y - 1) / 2, (t.b * x + t.d * y - 1) / 2];
 }
 
-/** Cells turned and flipped about cell (0, 0)'s top-left corner; square cells only. */
-export function transformGrid(grid: GridCells, d: Dihedral): GridCells {
+/**
+ * Cells turned and flipped about cell (0, 0)'s top-left corner; square cells
+ * only. With `tileFlags` each value is a tile cell whose flip flags turn too.
+ */
+export function transformGrid(
+  grid: GridCells,
+  d: Dihedral,
+  opts: { tileFlags?: boolean } = {},
+): GridCells {
   const m = dihedral(d, [0, 0]);
   const out = new Map<ChunkKey, Uint16Array>();
   for (const [key, rows] of Object.entries(grid)) {
@@ -353,7 +361,7 @@ export function transformGrid(grid: GridCells, d: Dihedral): GridCells {
       const k = keyOf(floorDiv(col), floorDiv(row));
       let target = out.get(k);
       if (!target) out.set(k, (target = new Uint16Array(CELLS)));
-      target[mod(row) * GRID_CHUNK + mod(col)] = v;
+      target[mod(row) * GRID_CHUNK + mod(col)] = opts.tileFlags ? turnTileCell(v, d) : v;
     }
   }
   const chunks = new Map<ChunkKey, readonly GridRow[]>();

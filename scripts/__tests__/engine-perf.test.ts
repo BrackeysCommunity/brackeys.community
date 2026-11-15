@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { runStats } from "../../packages/engine/headless/stats";
+import type { SceneDefinition } from "../../packages/engine/scene/types";
 import {
   BASELINE_PATH,
   main,
@@ -82,6 +84,20 @@ describe("runPerf", () => {
     expect(other.report.ok).toBe(true);
   });
 
+  it("passes a new case under a present key with a notice, and still judges the rest", async () => {
+    const lines: string[] = [];
+    const { report } = await runPerf({
+      runner: fake(500),
+      cases: [CASE, { ...CASE, id: "tilemap-512" }],
+      baseline,
+      key: KEY,
+      log: (l) => lines.push(l),
+    });
+    expect(report.results.map((r) => r.verdict)).toEqual(["fail", "new"]);
+    expect(lines[1]).toBe(`notice tilemap-512: 500 ticks/s; no baseline for ${KEY}, passing`);
+    expect(lines.join("\n")).not.toContain("every case passes");
+  });
+
   it("--update writes this runner's key and keeps the others", async () => {
     const { baseline: next, report } = await runPerf({
       runner: fake(700),
@@ -126,9 +142,43 @@ describe("main", () => {
 });
 
 describe("the cases and the committed baseline", () => {
-  it("runs the kitchen sink, large-5k and its physics-free twin, 600 ticks five times", () => {
-    expect(PERF_CASES.map((c) => c.id)).toEqual(["kitchen-sink", "large-5k", "large-5k-geometry"]);
+  it("runs the kitchen sink, large-5k, its physics-free twin, tilemap-512 and rts-500, 600 ticks five times", () => {
+    expect(PERF_CASES.map((c) => c.id)).toEqual([
+      "kitchen-sink",
+      "large-5k",
+      "large-5k-geometry",
+      "tilemap-512",
+      "rts-500",
+    ]);
     for (const c of PERF_CASES) expect([c.ticks, c.runs]).toEqual([600, 5]);
+  });
+
+  it("plays tilemap-512 on a generated 512 × 512 map with its own tileset", () => {
+    const c = PERF_CASES.find((p) => p.id === "tilemap-512")!;
+    expect(typeof c.scene).toBe("function");
+    const def = (c.scene as () => SceneDefinition)();
+    const map = (def.entities ?? []).find((e) => e.type === "tilemap")!;
+    const keys = Object.keys(map.cells as object);
+    expect(keys).toHaveLength(256);
+    expect(keys).toContain("15,15");
+    const project = c.project!();
+    expect(project.doc?.("tileset", map.tileset as string)).toMatchObject({ kind: "tileset" });
+  });
+
+  it("marches rts-500's 500 occupants across a tilemap for every measured tick", async () => {
+    const c = PERF_CASES.find((p) => p.id === "rts-500")!;
+    const def = (c.scene as () => SceneDefinition)();
+    const ticks = 300;
+    const report = await runStats({
+      game: c.game!,
+      scene: def,
+      project: c.project!(),
+      script: c.script!(ticks),
+      ticks,
+    });
+    expect(report.ticks).toBe(ticks);
+    expect(report.counts.behaviors.occupant).toBe(500);
+    expect(report.counts.entities).toBe(501);
   });
 
   it("is a well-formed baseline", async () => {

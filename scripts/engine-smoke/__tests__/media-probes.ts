@@ -1,5 +1,6 @@
 import type { AudioProbe, SignProbe } from "../browser/media-compare";
 import { SIGN_GRID } from "../browser/signs";
+import type { TilemapProbe } from "../browser/tilemaps";
 
 const points = SIGN_GRID[0] * SIGN_GRID[1];
 
@@ -36,4 +37,15 @@ export const audioPlayed: AudioProbe = {
   held: null,
   leftShare: 1,
   offlineChannels: 2,
+};
+
+/** Both maps drawn: a stone cell on the square map, a moss one on the hex, the background off each. */
+export const tilemapsDrawn: TilemapProbe = {
+  square: {
+    shape: "square",
+    renderer: "webgl",
+    tile: [138, 143, 153, 255],
+    empty: [26, 26, 46, 255],
+  },
+  hex: { shape: "hex", renderer: "webgl", tile: [95, 158, 79, 255], empty: [26, 26, 46, 255] },
 };

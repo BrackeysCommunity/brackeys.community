@@ -1,10 +1,13 @@
 import { z } from "zod";
 
 import type { EntityTypeName } from "../scene/types";
+import { rgbSchema } from "./color";
 import { DEFAULT_CAMERA_DAMPING, DEFAULT_REGION_EASE } from "./defaults";
 import {
   angleField,
+  assetField,
   bodyShapeField,
+  gridField,
   PathSchema,
   materialField,
   pointField,
@@ -119,6 +122,47 @@ const OWNS_BODY = { forbidden: ["body", "collider"] } as const;
  * The engine's own entity types, as schema. Their systems are the runtime's
  * (`runtime/primitives.ts`), so this module stays loadable on a server.
  */
+/**
+ * Tiles painted on the scene grid from one tileset. Its
+ * frame (a parent's turn or mirror) poses the whole map, and its cells'
+ * flags turn with quarter turns and mirrors only.
+ */
+export const TILEMAP_PRIMITIVE = {
+  type: "tilemap",
+  description:
+    "Tiles painted on the scene grid from one tileset: drawn per chunk, colliding per its tiles.",
+  fields: (env: FieldEnv) => ({
+    at: pointField(
+      "The grid origin of cell (0, 0); a whole number of cells from the scene's grid origin.",
+    ),
+    tileset: assetField(env, ["tileset"], "The tileset its cells index.", "Tileset"),
+    cells: gridField(
+      "Tile values: 0 empty, else the tile id + 1 in the low 13 bits with Tiled's flip bits above.",
+      { tileFlags: true },
+    ),
+    collision: z
+      .enum(["tiles", "boxes", "outline", "none"])
+      .optional()
+      .describe(
+        "boxes (default): merged rectangles per chunk; outline: chains around solid regions; tiles: one collider per tile; none.",
+      )
+      .meta({ title: "Collision", default: "boxes" }),
+    tint: rgbSchema
+      .optional()
+      .describe("Multiplies the tiles' colours, 0xRRGGBB; omitted draws them as they are.")
+      .meta({ title: "Tint", widget: "color" }),
+    alpha: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .describe("The tiles' opacity, 0 to 1; default 1.")
+      .meta({ title: "Alpha", default: 1 }),
+  }),
+  physics: "optional",
+  ascii: "#",
+} satisfies EntityTypeDef;
+
 export const PRIMITIVES = {
   node: {
     type: NODE_TYPE,
@@ -171,6 +215,13 @@ export const PRIMITIVES = {
     fields: {
       shape: shapeField(`Trigger shape. ${absolute}`),
       tags: tagsField("Labels a game reads off the sensor's events."),
+      extra: z
+        .record(z.string(), z.json())
+        .optional()
+        .describe(
+          "Imported properties (Tiled object properties, LDtk entity fields) a game maps to its own types.",
+        )
+        .meta({ title: "Extra" }),
     },
     behaviors: OWNS_BODY,
     style: { fill: 0x44cc88, stroke: 0x44cc88, alpha: 0.3 },
@@ -183,6 +234,13 @@ export const PRIMITIVES = {
     fields: {
       at: pointField(`Marker position. ${absolute}`),
       tags: tagsField("Labels a game reads, e.g. spawn or checkpoint."),
+      extra: z
+        .record(z.string(), z.json())
+        .optional()
+        .describe(
+          "Imported properties (Tiled object properties, LDtk entity fields) a game maps to its own types.",
+        )
+        .meta({ title: "Extra" }),
     },
     style: { stroke: 0xffcc44 },
     ascii: "+",
@@ -300,6 +358,7 @@ export const PRIMITIVES = {
     ascii: "c",
     inspector: { group: "camera" },
   },
+  tilemap: TILEMAP_PRIMITIVE,
   note: {
     type: "note",
     description: "Editor note: text pinned to a point. Never loaded into the game.",
@@ -360,6 +419,7 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   decor: ["at"],
   nav: ["shape"],
   "camera-region": ["shape"],
+  tilemap: ["at", "tileset", "cells"],
 };
 
 function metres2(description: string, [a, b]: [string, string] = ["x", "y"], min?: number) {

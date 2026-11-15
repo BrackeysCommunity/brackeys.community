@@ -27,6 +27,7 @@ import {
 import type { Registry } from "../../../game/types";
 import type { GameInstance, Vec2 } from "../../../index";
 import { assetInfo } from "../../../project/index";
+import type { TilesetFile } from "../../../project/kinds/tileset";
 import type { ProjectRuntimeView } from "../../../project/runtime-view";
 import { onLocale } from "../../../ui/bind";
 import { frameInView } from "../../frame/visible-rect";
@@ -284,6 +285,7 @@ export function useToolHostLifecycle(
         zoomAt: ([x, y], factor) => game.zoomAt({ x, y }, factor),
         frame: (rect) => frameInView(game, rect),
         text,
+        tileset: (id) => game.project?.()?.doc?.<TilesetFile>("tileset", id),
         ...(asset ? { asset } : {}),
       });
       hostToWorlds.set(next, toWorld);

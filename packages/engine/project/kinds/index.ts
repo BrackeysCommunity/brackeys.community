@@ -21,6 +21,7 @@ import { soundKind } from "./sound";
 import { stringsKind } from "./strings";
 import { synthKind } from "./synth";
 import { textureKind } from "./texture";
+import { TILESET_KIND } from "./tileset";
 
 export {
   ANIMATION_KIND,
@@ -226,6 +227,22 @@ export {
   type TextureMeta,
   type TextureSettings,
 } from "./texture";
+export {
+  TILESET_KIND,
+  TILESET_SCHEMA_ID,
+  TILESET_VERSION,
+  tilemapIssues,
+  tilesetImageInfo,
+  tilesetIssues,
+  tilesetSchema,
+  tilesetSchemaFor,
+  tilesetTileCount,
+  type AutotileRule,
+  type TileDef,
+  type TileGridInfo,
+  type TilemapRecord,
+  type TilesetFile,
+} from "./tileset";
 
 /** The engine's asset kinds, in the order a kind registry lists them before a game's. */
 export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
@@ -251,4 +268,5 @@ export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
   synthKind,
   dialogueKind,
   stringsKind,
+  TILESET_KIND,
 ];

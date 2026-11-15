@@ -9,8 +9,11 @@ import {
 import { createRegistry } from "@jams/engine/scene";
 
 import { tacticsGame } from "..";
+import floorSidecar from "../art/floor.png.asset.json";
 import icon192Sidecar from "../art/icon-192.png.asset.json";
 import icon512Sidecar from "../art/icon-512.png.asset.json";
+import tileset from "../art/tactics.tileset.json";
+import tilesetSidecar from "../art/tactics.tileset.json.asset.json";
 import marshSidecar from "../art/tile-marsh.png.asset.json";
 import riverSidecar from "../art/tile-river.png.asset.json";
 import rubbleSidecar from "../art/tile-rubble.png.asset.json";
@@ -52,6 +55,8 @@ const IMPORTS: Record<TacticsHeldPath, { sidecar: unknown; json?: unknown }> = {
   "game-settings.json": { sidecar: gameSettingsSidecar, json: gameSettings },
   "input-map.json": { sidecar: inputMapSidecar, json: inputMap },
   "data/unit-classes.json": { sidecar: unitClassesSidecar, json: unitClasses },
+  "art/tactics.tileset.json": { sidecar: tilesetSidecar, json: tileset },
+  "art/floor.png": { sidecar: floorSidecar },
   "art/icon-192.png": { sidecar: icon192Sidecar },
   "art/icon-512.png": { sidecar: icon512Sidecar },
   "art/tile-marsh.png": { sidecar: marshSidecar },

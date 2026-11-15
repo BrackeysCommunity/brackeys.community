@@ -1581,6 +1581,7 @@ describe("physics-required", () => {
       decor: "optional",
       nav: "optional",
       "camera-region": "optional",
+      tilemap: "optional",
       note: "optional",
     });
   });

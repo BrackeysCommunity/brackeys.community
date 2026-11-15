@@ -244,6 +244,8 @@ export type EditorSession = {
   setCursor(at: Pt | undefined): void;
   setTool(tool: string): void;
   setGhost(ghost: ScenePresence["ghost"]): void;
+  /** The tile brush under this client's cursor, as data; `undefined` clears it. */
+  setBrush(brush: ScenePresence["brush"]): void;
   subscribe(listener: (e: EditorSessionEvent) => void): () => void;
   destroy(): void;
 };
@@ -573,6 +575,7 @@ export function createEditorSession({
     setCursor: (cursor) => publish({ cursor }),
     setTool: (tool) => publish({ tool }),
     setGhost: (ghost) => publish({ ghost }),
+    setBrush: (brush) => publish({ brush }),
 
     subscribe(listener) {
       listeners.add(listener);

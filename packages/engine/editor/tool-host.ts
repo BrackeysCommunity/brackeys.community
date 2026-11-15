@@ -1,5 +1,6 @@
-import { ENGINE_TOOL_IDS } from "../game/types";
+import { ENGINE_TOOL_IDS, TILE_TOOL_IDS } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
+import type { TilesetFile } from "../project/kinds/tileset";
 import type { SpriteAssetLookup } from "../scene/render-geometry";
 import type { Aabb, OpBatch, Pt, Ref } from "../scene/types";
 import { TOOL_PRIORITY, type ToolEvent, type ToolRouter } from "../tool-router";
@@ -7,6 +8,7 @@ import type { Vec2 } from "../types";
 import { boxTool, circleTool } from "./builtin/draw";
 import { penTool, waypointsTool } from "./builtin/polyline";
 import { selectTool } from "./builtin/select";
+import { tileTools } from "./builtin/tile-tools";
 import { panTool, rotateTool } from "./builtin/transform";
 import { copySelection, cutSelection, duplicateSelection, pasteFragment } from "./clipboard";
 import {
@@ -42,7 +44,7 @@ import {
 import type { EditorSession } from "./session";
 import { roundPt } from "./snap";
 import { createSpatialIndex } from "./spatial-index";
-import { setHover } from "./store";
+import { setHover, setTileBrush } from "./store";
 import {
   DEFAULT_SNAP,
   type EditorTool,
@@ -127,6 +129,8 @@ export type ToolHostOptions = {
    * identity. Without it a key measures bracketed.
    */
   text?: () => GizmoTextEnv | undefined;
+  /** A tileset doc by asset id, which the autotile brush reads its rules from; without it the autotile brush refuses. */
+  tileset?: (id: string) => TilesetFile | undefined;
 };
 
 export type ToolHost = {
@@ -136,6 +140,8 @@ export type ToolHost = {
   tool(): string;
   /** Every tool the host can pick: the engine's, then the game's. */
   tools(): readonly EditorToolDef[];
+  /** The tile tools, in toolbar order; the toolbar offers them while a tilemap is selected or hovered. */
+  tileTools(): readonly EditorToolDef[];
   /** What to draw this frame: the selection's outlines (as previewed) and the active tool's overlay. */
   overlay(): ToolOverlay;
   /** The active tool's setting (`overlay().option`), without building the selection's outlines. */
@@ -222,6 +228,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
 
   const defs = new Map<string, EditorToolDef>();
   for (const t of builtinTools()) defs.set(t.id, t);
+  const tiles = new Map(tileTools().map((t) => [t.id, t]));
   for (const t of opts.engineTools ?? []) {
     if (!(ENGINE_TOOL_IDS as readonly string[]).includes(t.id))
       throw new Error(`engine tool "${t.id}" replaces no engine tool`);
@@ -229,7 +236,10 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   }
   const gameIds = new Set<string>();
   for (const t of opts.gameTools ?? []) {
-    if ((ENGINE_TOOL_IDS as readonly string[]).includes(t.id))
+    if (
+      (ENGINE_TOOL_IDS as readonly string[]).includes(t.id) ||
+      (TILE_TOOL_IDS as readonly string[]).includes(t.id)
+    )
       throw new Error(`game tool "${t.id}" reuses an engine tool id`);
     if (gameIds.has(t.id)) throw new Error(`game tool "${t.id}" is listed twice`);
     gameIds.add(t.id);
@@ -321,11 +331,19 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     },
     shareGhost: (ghost) => session.setGhost(ghost),
     source: editSource,
+    tiles: {
+      brush: () => session.store.state.tileBrush,
+      setBrush: (brush) => setTileBrush(session.store, brush),
+      rule: () => session.store.state.tileRule,
+      tileset: (id) => opts.tileset?.(id),
+      shareBrush: (brush) => session.setBrush(brush),
+      refuse: (text) => say(text),
+    },
     ...(opts.pan ? { pan: opts.pan } : {}),
   };
 
   function setTool(id: string, arg?: string): boolean {
-    const def = defs.get(id);
+    const def = defs.get(id) ?? tiles.get(id);
     if (!def || destroyed) return false;
     if (id !== activeId || !active) {
       const old = active;
@@ -426,7 +444,12 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   let seen = session.store.state;
   const unwatchStore = session.store.subscribe(() => {
     const next = session.store.state;
-    if (next.hover === seen.hover && next.selection === seen.selection) return;
+    if (
+      next.hover === seen.hover &&
+      next.selection === seen.selection &&
+      next.tileBrush === seen.tileBrush
+    )
+      return;
     seen = next;
     emit();
   });
@@ -445,6 +468,8 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   function clearNotice(): void {
     if (noticeTimer !== undefined) clearTimeout(noticeTimer);
     noticeTimer = undefined;
+    if (session.store.state.notice !== null)
+      session.store.setState((s) => ({ ...s, notice: null }));
     if (notice === null) return;
     notice = null;
     emit();
@@ -455,9 +480,10 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     clearNotice();
     const box = outlineBounds(session.getResolved(), selection(), look());
     const at: Pt | null = box ? [box.maxX, box.minY] : cursorWorld;
+    session.store.setState((s) => ({ ...s, notice: text }));
+    noticeTimer = setTimeout(clearNotice, NOTICE_MS);
     if (at === null) return;
     notice = { at, text };
-    noticeTimer = setTimeout(clearNotice, NOTICE_MS);
     emit();
   }
 
@@ -618,6 +644,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     setTool,
     tool: () => activeId,
     tools: () => [...defs.values()],
+    tileTools: () => [...tiles.values()],
     overlay() {
       const own = active?.overlay?.() ?? {};
       const sel = selectionOverlay(own);

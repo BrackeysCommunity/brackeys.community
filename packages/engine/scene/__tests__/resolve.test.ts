@@ -2,7 +2,15 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { angleField, mirrorField, pointField, shapeField, vectorField } from "../../game/fields";
+import {
+  angleField,
+  gridField,
+  mirrorField,
+  pointField,
+  shapeField,
+  vectorField,
+} from "../../game/fields";
+import { encodeCell, transformCell as turnTileCell } from "../../game/tile-cell";
 import { transformGrid } from "../grid";
 import { applyOps, toSourceBatch } from "../ops";
 import { prefabLibrary } from "../prefab";
@@ -170,6 +178,15 @@ const spin = createRegistry(
         fields: {
           at: pointField("Origin."),
           cells: z.record(z.string(), z.array(z.string())).meta({ kind: "grid" }),
+        },
+      }),
+      defineEntityType({
+        type: "tiles",
+        description: "Tile cells on the grid.",
+        base: "marker",
+        fields: {
+          at: pointField("Origin."),
+          cells: gridField("Tile cells.", { tileFlags: true }),
         },
       }),
     ],
@@ -508,6 +525,32 @@ describe("toSourceBatch: transformed children round trip", () => {
         ],
         rects: [[0, -2, 2, -1, 3]],
       },
+    ]);
+  });
+
+  it("turns a tile paint's flags through a quarter-turned instance, and a plain paint's values not", () => {
+    const def = {
+      ...kiteScene({ rot: 1, flip: false }),
+      settings: { grid: { kind: "square", cell: [16, 16] } },
+    } as SceneDefinition;
+    def.instances = [{ id: "k-1", prefab: "kite", at: [0, 0], rot: 90 }];
+    def.entities = [
+      { id: "map", type: "tiles", at: [0, 0], cells: {}, parent: "k-1" },
+      { id: "floor", type: "paint", at: [0, 0], cells: {}, parent: "k-1" },
+    ];
+    const tile = encodeCell({ id: 4, flipX: true, flipY: false, flipD: false });
+    const back = turnTileCell(tile, { rot: 3, flip: false });
+    expect(back).not.toBe(tile);
+    const paint = (ref: string) => ({
+      op: "paintCells" as const,
+      ref,
+      field: "cells",
+      cells: [[2, 0, tile] as [number, number, number]],
+      rects: [[0, 0, 1, 2, tile] as [number, number, number, number, number]],
+    });
+    expect(spinSource(def, { ops: [paint("map"), paint("floor")] }).ops).toEqual([
+      { ...paint("map"), cells: [[0, -3, back]], rects: [[0, -2, 2, -1, back]] },
+      { ...paint("floor"), cells: [[0, -3, tile]], rects: [[0, -2, 2, -1, tile]] },
     ]);
   });
 

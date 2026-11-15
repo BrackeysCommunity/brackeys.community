@@ -2,6 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import {
+  encodeCell,
+  FLIP_D,
+  FLIP_X,
+  FLIP_Y,
+  transformCell as turnTileCell,
+} from "../../game/tile-cell";
 import { formatScene } from "../format";
 import {
   canonicalGrid,
@@ -329,6 +336,38 @@ describe("transformGrid", () => {
       expect(canonicalGrid(out)).toEqual(out);
     }
     expect(transformGrid(grid, { rot: 0, flip: false })).toEqual(grid);
+  });
+
+  it("turns tile cells' flags with tileFlags, and leaves plain values' bits alone", () => {
+    const values = [
+      encodeCell({ id: 0, flipX: false, flipY: false, flipD: false }),
+      encodeCell({ id: 7, flipX: true, flipY: false, flipD: false }),
+      encodeCell({ id: 41, flipX: false, flipY: true, flipD: true }),
+      encodeCell({ id: 8190, flipX: true, flipY: true, flipD: true }),
+    ];
+    const dense: Dense = new Map(values.map((v, i) => [`${i * 3 - 4},${i - 40}`, v]));
+    const plain: Dense = new Map([
+      ["0,0", 65_535],
+      ["5,-2", FLIP_X | 1],
+      ["-33,7", FLIP_D | FLIP_Y | 12],
+    ]);
+    for (const d of ALL) {
+      const expected: Dense = new Map();
+      for (const [k, v] of dense) {
+        const [c, r] = k.split(",").map(Number) as [number, number];
+        expected.set(moveCell(c, r, d).join(","), turnTileCell(v, d));
+      }
+      expect(
+        denseOf(transformGrid(gridOf(dense), d, { tileFlags: true })),
+        JSON.stringify(d),
+      ).toEqual(expected);
+      const moved: Dense = new Map();
+      for (const [k, v] of plain) {
+        const [c, r] = k.split(",").map(Number) as [number, number];
+        moved.set(moveCell(c, r, d).join(","), v);
+      }
+      expect(denseOf(transformGrid(gridOf(plain), d)), JSON.stringify(d)).toEqual(moved);
+    }
   });
 
   it("turns cell (0, 0) about its top-left corner", () => {

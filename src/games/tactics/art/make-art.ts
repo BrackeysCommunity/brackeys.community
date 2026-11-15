@@ -1,7 +1,9 @@
 /**
  * Generates the tactics game's art: `units.png` with its Aseprite JSON
  * (`units.json`, the hash export), `tiles.png` (the grass) and one
- * `tile-<kind>.png` per obstacle (walls, river, marsh, rubble, thicket), and
+ * `tile-<kind>.png` per obstacle (walls, river, marsh, rubble, thicket),
+ * `floor.png` (the tileset sheet the levels' tilemap floors cut: both grass
+ * cells, then every obstacle, one row of board cells), and
  * the installed app's `icon-192.png` and `icon-512.png`. Each picture is
  * pixel art drawn on a 16 px grid; the board's art is written at 3 px per
  * art pixel, so one 48 px cell is one metre at the game's px per metre, and
@@ -478,6 +480,37 @@ function terrainTile({ map, palette, key }: TerrainArt): Picture {
   return pic;
 }
 
+// ─── The floor tileset ───────────────────────────────────
+
+/** The floor sheet's tiles, left to right: a tile's id is its index here. */
+export const FLOOR_TILES = ["grass", "grass-dark", ...TERRAIN_KINDS] as const;
+
+/** Copies one board cell of `from` into cell `col` of `to`, shifting its palette indices by `offset`; index 0 stays transparent. */
+function blit(to: Picture, col: number, from: Picture, fromCol: number, offset: number): void {
+  for (let y = 0; y < CELL_PX; y++)
+    for (let x = 0; x < CELL_PX; x++) {
+      const index = from.pixels[y * from.width + fromCol * CELL_PX + x] ?? 0;
+      to.pixels[y * to.width + col * CELL_PX + x] = index === 0 ? 0 : index + offset;
+    }
+}
+
+/** The grass checker's two cells and each terrain tile side by side, their palettes joined. */
+function floorSheet(): Picture {
+  const grass = tileSheet();
+  const terrains = TERRAIN_KINDS.map((kind) => terrainTile(TERRAIN[kind]!));
+  const palette: Rgb[] = [...TILE_PALETTE];
+  const offsets = terrains.map((t) => {
+    const offset = palette.length - 1;
+    palette.push(...t.palette.slice(1));
+    return offset;
+  });
+  const pic = blank(FLOOR_TILES.length, 1, palette);
+  blit(pic, 0, grass, 0, 0);
+  blit(pic, 1, grass, 1, 0);
+  terrains.forEach((t, i) => blit(pic, i + 2, t, 0, offsets[i]!));
+  return pic;
+}
+
 // ─── The app icons ───────────────────────────────────────
 
 /** The sizes of the installed app's icons, px; the project's `export.icons` names each. */
@@ -527,6 +560,7 @@ export function makeArt(): ReadonlyMap<string, Uint8Array> {
     ...Object.entries(TERRAIN).map(
       ([kind, art]) => [terrainFile(kind), encodePng(terrainTile(art))] as const,
     ),
+    ["floor.png", encodePng(floorSheet())],
     ...ICON_SIZES.map((size) => [iconFile(size), encodePng(iconPicture(size))] as const),
   ]);
 }

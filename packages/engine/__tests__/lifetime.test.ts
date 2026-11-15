@@ -266,7 +266,7 @@ describe("a world save of lifetimes", () => {
       [spawned.id]: { lifetime: { left: 3 } },
       timed: { lifetime: { left: 4 } },
     });
-    expect(saved.file.world?.systems.short).toBeUndefined();
+    expect(saved.file.world?.systems.short).toEqual({ lifetime: { next: 4 } });
     const before = wholeSeen.length;
     play(whole, 20, wholeSeen);
     const after = wholeSeen.slice(before);
@@ -325,6 +325,36 @@ describe("a world save of lifetimes", () => {
     const resumedSeen: Seen = [];
     play(resumed, 12, resumedSeen);
     expect(resumedSeen).toEqual(wholeSeen);
+    whole.destroy();
+    resumed.destroy();
+  });
+
+  it("numbers lifetimes started after a restore as the saved run does", () => {
+    const game = lifetimeGame(60);
+    const registry = createRegistry(game);
+    const open = (fromSave?: Parameters<typeof createHeadlessRuntime>[0]["fromSave"]) =>
+      createHeadlessRuntime({
+        game,
+        registry,
+        scene: scene([dot("b", { ticks: 20 }), dot("a", { ticks: 3 })]),
+        ...(fromSave ? { fromSave } : {}),
+      });
+    // `a` starts second and is gone by the save, so only the saved counter knows it was taken.
+    const whole = open();
+    play(whole, 5, []);
+    const saved = whole.save({ depth: "world", slot: "seq", now: 0 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    const resumed = open(saved.file);
+    const later = (rt: ReturnType<typeof open>) => {
+      const x = rt.ctx.spawn({ type: "dot", at: [0, 0], behaviors: { lifetime: { ticks: 9 } } });
+      play(rt, 6, []);
+      const next = rt.save({ depth: "world", slot: "later", now: 0 });
+      if (!next.ok) throw new Error(next.issue.message);
+      return next.file.world?.systems[x.id];
+    };
+    const wholeLater = later(whole);
+    expect(wholeLater).toMatchObject({ lifetime: { seq: 2, next: 3 } });
+    expect(later(resumed)).toEqual(wholeLater);
     whole.destroy();
     resumed.destroy();
   });

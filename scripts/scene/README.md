@@ -75,6 +75,8 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `new <name> [--game id] [--from scene]`                                                                                                                                                                                                              | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                                                                                                                                                                                                                                                                                                                         |
 | `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--anim id] [--legal] [--timing]`                                                               | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands)); `--timing` times each tick's parts ([Timing](#timing)); `--anim` prints an entity's clip and frame on each tick ([Animation docs](#animation-docs))                                                                                |
 | `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                                    | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                                                                                                                                                                                           |
+| `tiles <scene> <map> [--rect c0,r0,c1,r1]`                                                                                                                                                                                                           | no                       | a tilemap's cells as ASCII, one character per tile id, with a legend of each tile's count, flips, solidity and tags; exit 1 with the map's issues; see [Tilemaps](#tilemaps)                                                                                                                                                                                                                                                                                                     |
+| `paint <scene> <map> (--cells c,r=tile… \| --rect c0,r0,c1,r1=tile \| --fill c,r=tile \| --auto 'rule c0,r0,c1,r1') [--dry-run] [--live …]`                                                                                                          | yes, unless dry run      | one `paintCells` batch on a tilemap, tiles named by id or tag (`empty` clears); see [Tilemaps](#tilemaps)                                                                                                                                                                                                                                                                                                                                                                        |
 | `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]`                                                                                           | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; `--timing` as `step`'s; `--present` the presentation requests with their ticks, sounds and music among them ([Presentation requests](#presentation-requests)); exit 1 when blocked |
 | `replay <scene\|file\|-> --run <file\|-> [--game id] [--releases <dir>] [--versions <dir>] [--seek <tick>]`                                                                                                                                          | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; `--releases` also names the build under the directory the run was made on (see [Game builds](#game-builds)); `--versions` reads the scene versions a run swapped to (see [Live levels](#live-levels)); exit 1 when it ends differently; `--seek` stops at a tick and prints the state there                                        |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                                         | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                                                                                                                                                                                |
@@ -96,6 +98,7 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `assets list [--kind k] [--trash] [--live]`                                                                                                                                                                                                          | no                       | each live (or trashed) asset: project, path, kind, id, key, name, bytes, hash                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `assets info <id> [--frame f]`                                                                                                                                                                                                                       | no                       | an asset's kind, hash and bytes; a texture's size, pivot, nine-slice and filter; an atlas's frames, tags and texture; an animation's clips with each frame's ticks at the game's rate, events and shape boxes; an audio clip's format, duration, channels and sample rate; a synth patch's duration; a font's format, coverage and distance field; `--frame` for one frame's size and pivot                                                                                      |
 | `assets import <file> [--path p] [--id id] [--kind k] [--settings json]`                                                                                                                                                                             | yes, unless dry run      | bytes to the content store, then `importAsset` (a doc kind's JSON: `createAsset`); the file, sidecar and entry                                                                                                                                                                                                                                                                                                                                                                   |
+| `assets import --tiled <map.tmj> [--into scene] [--tilesets dir]` / `--ldtk <world.ldtk> [--level name…]`                                                                                                                                            | yes, unless dry run      | a Tiled map or an LDtk world as one batch: the tileset images, the tilesets, then the scenes and their tilemaps; see [Tilemaps](#tilemaps)                                                                                                                                                                                                                                                                                                                                       |
 | `assets rename <id> [--name text] [--file name.ext]`                                                                                                                                                                                                 | yes, unless dry run      | `renameAsset`: the display name and the file name in place; the id stays                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `assets move <id...> --to <folder/>`                                                                                                                                                                                                                 | yes, unless dry run      | `moveAsset`, sidecars included                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `assets delete <id> [--force]`                                                                                                                                                                                                                       | yes, unless dry run      | `deleteAsset` to the trash; `asset-in-use` while something names it, unless `--force`                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -434,22 +437,21 @@ vp run scene fmt engine-yard --check
 vp run scene validate engine-yard
 ```
 
-On the tactics game's `level-1`, a turn game with no physics, step for
+On the tactics game's `level-2`, a turn game with no physics, step for
 the legal list instead of a trail (see [Legal
 commands](#legal-commands)). `examples/ford-crossing.json` adds a `rough`
 ford on the north crossing, costing one extra move per cell, and makes the
-thicket costlier; `grid` shows the path a unit would walk, and the
-`sides-connected` check must still pass:
+thicket entity costlier (`level-1` paints its terrain as tilemap cells
+instead); `grid` shows the path a unit would walk:
 
 ```sh
-vp run scene show level-1 --type rough
-vp run scene apply level-1 --ops scripts/scene/examples/ford-crossing.json --dry-run
-vp run scene diff level-1 --ops scripts/scene/examples/ford-crossing.json
-vp run scene apply level-1 --ops scripts/scene/examples/ford-crossing.json
-vp run scene grid level-1 --from blue-knight-1/unit --to red-knight/unit
-vp run scene step level-1 --ticks 1 --legal
-vp run scene check level-1
-vp run scene fmt level-1 --check
+vp run scene show level-2 --type rough
+vp run scene apply level-2 --ops scripts/scene/examples/ford-crossing.json --dry-run
+vp run scene diff level-2 --ops scripts/scene/examples/ford-crossing.json
+vp run scene apply level-2 --ops scripts/scene/examples/ford-crossing.json
+vp run scene grid level-2 --from blue-knight-1/unit --to red-knight/unit
+vp run scene step level-2 --ticks 1 --legal
+vp run scene fmt level-2 --check
 ```
 
 Moving a unit is an `update` of its instance's `at` (`blue-archer`, not
@@ -2796,6 +2798,98 @@ so a triggered play is listed with the event type that played it (`on`).
 With a dialogue running, `step --legal` and `fuzz` lead
 with `@dialogue-advance` or each enabled `@dialogue-choose`.
 
+## Tilemaps
+
+A `tilemap` entity paints the scene grid from one `tileset` doc (the
+engine README's Tilemaps section has the format: the cell value and its
+flip flags, tilesets, collision modes, autotile rules). Its cells are a
+grid field, so `paintCells` paints them; the commands below build that
+batch for you and name tiles by id or by tag. The kitchen sink's `tiles`
+map is the one these examples use.
+
+`scene tiles` prints a map's cells as ASCII, one character per tile id
+(`.` empty), with a legend: each tile's count, how many are flipped,
+whether it is solid or one-way, and its tags. `--rect` narrows a large
+map; past 40,000 cells it must. The map's issues (`tile-unknown`,
+`tileset-missing`, `tileset-grid-mismatch`) come after the legend, with
+exit 1.
+
+```sh
+vp run scene tiles kitchen-sink tiles
+vp run scene tiles kitchen-sink tiles --rect 0,0,7,1
+```
+
+`scene paint` writes one `paintCells` batch, as `apply` does (`--dry-run`
+first; `--live` sends it to the open editor as one undoable entry). It
+takes exactly one of `--cells c,r=tile` (repeatable), `--rect
+c0,r0,c1,r1=tile` (repeatable), `--fill c,r=tile` (the 4-connected cells holding the same value as that
+cell; a region over 65,536 cells is refused) or
+`--auto 'rule c0,r0,c1,r1'` (the tileset's autotile rule over the
+rectangle and its one-cell border). Columns and rows count from the map's
+`at`. A tile is its id (`0` is tile 0, not empty), a tag (the lowest id
+with it), or `empty` (or `none`) to clear; a name no tile has is refused
+with the tags the tileset does have, writing nothing.
+
+```sh
+vp run scene paint kitchen-sink tiles --rect 0,0,3,0=stone --dry-run
+vp run scene paint kitchen-sink tiles --cells 8,0=lamp --cells 9,0=empty --dry-run
+vp run scene paint kitchen-sink tiles --fill 0,1=moss --dry-run
+vp run scene paint kitchen-sink tiles --auto 'moss-top 0,0,7,1' --dry-run
+```
+
+The same edit as a batch, for when it rides with other ops
+(`examples/paint-tiles.json` paves the moss row with stone, value 1 being
+tile 0, and clears one cell):
+
+```json scene=kitchen-sink
+{
+  "label": "Pave the moss with stone",
+  "ops": [
+    {
+      "op": "paintCells",
+      "ref": "tiles",
+      "field": "cells",
+      "rects": [[0, 0, 7, 0, 1]],
+      "cells": [[3, 1, 0]]
+    }
+  ]
+}
+```
+
+`render` draws tilemaps tile by tile: solid tiles filled, the rest
+outlined, labelled with their ids while the map is small; `render
+--ascii` puts them in its character map.
+
+### Importing Tiled and LDtk maps
+
+`assets import --tiled <map.tmj>` converts a Tiled JSON map into one
+project batch: the tileset images, a `tileset` doc each, then the scene
+(named after the map, or `--into <scene>`) with its grid, one tilemap per
+tile layer (the layer's name as the entity's `name`), and markers and
+sensors from its object layers. External tilesets (`.tsj`) are read from
+the map's folder, or `--tilesets <dir>`. `--ldtk <world.ldtk>` converts an
+LDtk world, one scene per level (`--level <name>`, repeatable, picks
+some; a level saved in its own `.ldtkl` file is read only when picked or
+when all are). Each is a dry run with `--dry-run`, and with `--live`
+lands in the open editor as one undoable entry. MCP's `asset_import`
+takes the same as `tiled` and `ldtk`.
+
+```sh
+vp run scene assets import --tiled scripts/scene/examples/tiles/cave.tmj --project engine --dry-run
+vp run scene assets import --ldtk packages/engine/__tests__/fixtures/ldtk/sample.ldtk --level Level_0 --project engine --dry-run
+```
+
+What doesn't carry over is an `import-failed` warning in the report;
+what can't import at all is an `import-failed` error that writes nothing:
+TMX, TSX and compressed layers (re-export as JSON with CSV or
+uncompressed base64 data), isometric and staggered maps (orthogonal and
+hexagonal import), image-collection tilesets, and an image that is
+neither beside the map nor in the project. Wang sets don't import; write
+the tileset's autotile `rules` instead. The map's px become metres at the
+game's px per metre, so its tiles must match the scene grid's cell; an
+LDtk layer whose cells don't is dropped. `scripts/scene/examples/tiles/`
+(`cave.tmj`, `cave.png`) is generated for these docs and is CC0-1.0.
+
 ## Game builds
 
 `game build <id>` turns a game's project into a static site that plays
@@ -3368,9 +3462,11 @@ functions as the CLI (it never spawns it), versioned with the engine
 | `scene_render`          | `render`                | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes; `debugDraw` and `ticks` as `--debug-draw`                                                                                                                                                                                                                                                                               |
 | `scene_frame`           | `frame --live`          | `scene`, `viewport` (metres), `debug`, `url`; the open editor's canvas as a PNG `image` with `source: "live"`, `debug: true` with its debug layers showing, else the schematic with `source: "schematic"` (with `debug`, its `ctx.debug` draws); `frame-too-large` and `live-refused` pass through                                                                                                                              |
 | `scene_play`            | `play --live`           | `scene`, `action` (`play`, `pause`, `resume`, `step`, `stop`, `state`), `ticks` with `step`, `url`; `live-no-editor` and `live-refused` pass through                                                                                                                                                                                                                                                                            |
+| `scene_paint`           | `paint`                 | writes; `scene`, `map`, and one of `cells`, `rect` (lists of the CLI's `c,r=tile` and `c0,r0,c1,r1=tile`), `fill` or `auto`; tiles by id or tag, `empty` clears; a tile no id or tag names writes nothing                                                                                                                                                                                                                       |
+| `scene_stats`           | `stats`                 | `scene` by name or path, or `live`; `ticks` (a number, default 600), `game`; returns `counts` and `wall`                                                                                                                                                                                                                                                                                                                        |
 | `project_tree`          | `project tree`          |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `asset_refs`            | `project refs`          | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                                                                                                     |
-| `asset_import`          | `assets import`         | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                                                                                                                                                                                 |
+| `asset_import`          | `assets import`         | writes; `file` (a local path), `path`, `id`, `kind`, `settings`; or `tiled` (with `into`, `tilesets`) or `ldtk` (with `level`) in place of `file`                                                                                                                                                                                                                                                                               |
 | `asset_apply_ops`       | `assets apply`          | writes; `ops` inline or a path; `base` on files; edits input maps (`/actions/@<action>/bindings`) scene lists (`/scenes/@<scene>`, `/start`), animations (`/clips/@<clip>`), emitter presets, sounds (`/variants/@<clip>`, `/bus`), synth patches, dialogue (`/nodes/@<node>`) and strings (`/strings/@<key>/<locale>`)                                                                                                         |
 | `game_build`            | `game build`            | builds into `out` (default dist/games/<id>/<target>); `id`, `target`, `out`, `rapier` (`standard`/`compat`), `allowOverBudget`; returns the plan summary and issues, never file bytes                                                                                                                                                                                                                                           |
 | `game_manifest`         | `game manifest`         | `path`: a build directory, a `release.json` or an inline manifest; returns the validated manifest and its summary                                                                                                                                                                                                                                                                                                               |
@@ -3392,7 +3488,7 @@ and as `structuredContent`, with `exitCode` added. A scene with error issues
 is a normal result with `exitCode: 1`; `isError` is set only for calls that
 did nothing (a usage error, a stale base, a missing scene or server).
 Every tool takes `project`, which scopes it as `--project` does. The writers
-`scene_apply_ops`, `asset_import`, `asset_apply_ops` and `game_new` write only with
+`scene_apply_ops`, `scene_paint`, `asset_import`, `asset_apply_ops` and `game_new` write only with
 `dryRun: false` (it defaults to `true`); every other tool is annotated
 read-only, and `asset_apply_ops`, whose batches can delete assets and replace
 content, destructive. `game_build` writes its build (annotated destructive and

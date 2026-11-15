@@ -13,8 +13,11 @@ import {
 import { cssHex } from "../../game/color";
 import { isNodeType } from "../../game/primitives";
 import { styleOf } from "../../game/style";
+import type { CellBounds } from "../../grid/geometry";
 import type { GameStoreState } from "../../index";
 import { parseShape } from "../../scene/index";
+import { gridCellOutline } from "../../scene/render-geometry";
+import type { GridSettings } from "../../scene/types";
 import { useEditorDoc, useEditorResolved, useEditorStore } from "../session/use-editor-store";
 import {
   num,
@@ -137,6 +140,53 @@ function NodeGlyphs({ nodes, view }: { nodes: NodeMark[]; view: View }) {
   );
 }
 
+/** Whether `type` is the `tilemap` primitive or a type based on it. */
+export function isTilemapIn(registry: Pick<Registry, "types">, type: string): boolean {
+  const t = registry.types.get(type);
+  return (t?.base ?? t?.type ?? type) === "tilemap";
+}
+
+const isCellBounds = (v: unknown): v is CellBounds => {
+  if (v === null || typeof v !== "object") return false;
+  const b = v as Record<string, unknown>;
+  return (["c0", "r0", "c1", "r1"] as const).every((k) => Number.isInteger(b[k]));
+};
+
+/** The most cells of a hex brush outlined one by one; a larger one draws its corner cells. */
+const HEX_BRUSH_MAX_CELLS = 256;
+
+/**
+ * A painter's brush as a world path: the rectangle on a square grid, its
+ * cells' outlines on a hex grid. The cells are the resolved tilemap's, which
+ * already carry its frame's turn and mirror.
+ */
+function brushMark(
+  def: SceneDefinition,
+  registry: Registry,
+  grid: GridSettings | undefined,
+  brush: { map: unknown; rect: unknown } | undefined,
+): string | null {
+  if (!grid || !brush || typeof brush.map !== "string" || !isCellBounds(brush.rect)) return null;
+  const map = (def.entities ?? []).find((e) => e.id === brush.map);
+  if (!map || !isTilemapIn(registry, map.type) || !isPoint(map.at)) return null;
+  const { c0, r0, c1, r1 } = brush.rect;
+  const [lo, hi] = [Math.min(c0, c1), Math.max(c0, c1)];
+  const [top, bottom] = [Math.min(r0, r1), Math.max(r0, r1)];
+  const ring = (pts: Pt[]) => `M${pts.map(([x, y]) => `${worldNum(x)} ${worldNum(y)}`).join("L")}Z`;
+  if (grid.kind === "square") {
+    const a = gridCellOutline(grid, map.at, lo, top)[0]!;
+    const b = gridCellOutline(grid, map.at, hi, bottom)[2]!;
+    return ring([a, [b[0], a[1]], b, [a[0], b[1]]]);
+  }
+  const cells: [number, number][] = [];
+  if ((hi - lo + 1) * (bottom - top + 1) <= HEX_BRUSH_MAX_CELLS) {
+    for (let r = top; r <= bottom; r++) for (let c = lo; c <= hi; c++) cells.push([c, r]);
+  } else {
+    cells.push([lo, top], [hi, top], [hi, bottom], [lo, bottom]);
+  }
+  return cells.map(([c, r]) => ring(gridCellOutline(grid, map.at as Pt, c, r))).join("");
+}
+
 /** Clears this tab's published pointer once it leaves the game's canvas; the tool host publishes it over the canvas. */
 function useClearCursorOffCanvas(session: EditorSession) {
   useEffect(() => {
@@ -156,7 +206,7 @@ function useClearCursorOffCanvas(session: EditorSession) {
 
 /**
  * Under the tool host's overlay: each node's axis, then everyone else's
- * selections, drags in progress and cursors, in their colours.
+ * selections, drags in progress, tile brushes and cursors, in their colours.
  */
 export function EditorCanvasOverlay({
   session,
@@ -190,11 +240,23 @@ export function EditorCanvasOverlay({
       }))
       .filter((p) => p.marks.length > 0 || (p.ghost?.marks.length ?? 0) > 0);
   }, [def, peers, session]);
+  const brushes = useMemo(
+    () =>
+      peers
+        .filter((p) => p.mode === "edit")
+        .map((peer) => ({
+          peer,
+          mark: brushMark(resolved, session.registry, resolved.settings?.grid, peer.brush),
+        }))
+        .filter((b): b is { peer: PeerPresence; mark: string } => b.mark !== null),
+    [peers, resolved, session.registry],
+  );
   const cursors = peers.filter(
     (p): p is PeerPresence & { cursor: Pt } => p.mode === "edit" && isPoint(p.cursor),
   );
 
-  if (nodes.length === 0 && theirs.length === 0 && cursors.length === 0) return null;
+  if (nodes.length === 0 && theirs.length === 0 && cursors.length === 0 && brushes.length === 0)
+    return null;
 
   return (
     <div aria-hidden className="je-canvas-layer">
@@ -212,6 +274,21 @@ export function EditorCanvasOverlay({
                   <Marks marks={ghost.marks} color={color} view={view} label={name} by={ghost.by} />
                 ) : null}
               </g>
+            );
+          })}
+          {brushes.map(({ peer, mark }) => {
+            const { name, color } = peerLook(peer, peerColor);
+            return (
+              <path
+                key={peer.clientId}
+                data-peer-brush={name}
+                d={mark}
+                fill={color}
+                fillOpacity={0.15}
+                strokeWidth={2}
+                style={{ stroke: color }}
+                vectorEffect="non-scaling-stroke"
+              />
             );
           })}
         </g>

@@ -63,6 +63,26 @@ beforeAll(async () => {
     repoFile("packages/engine/scene/__tests__/fixtures/sprites.json"),
     join(dirs.engine, "sprites.json"),
   );
+  for (const f of ["kitchen.tileset.json", "kitchen.tileset.json.asset.json"])
+    await copyFile(repoFile(`packages/engine/scenes/art/${f}`), join(dirs.engine, f));
+  await writeFile(
+    join(dirs.engine, "tile-strip.json"),
+    `${JSON.stringify({
+      v: SCENE_FORMAT_VERSION,
+      name: "tile-strip",
+      bounds: [0, 0, 4, 2],
+      settings: { physics: "none", grid: { kind: "square", cell: [0.25, 0.25] } },
+      entities: [
+        {
+          id: "strip",
+          type: "tilemap",
+          at: [1, 1],
+          tileset: "kitchen-tileset",
+          cells: { "0,0": ["1,2,5,5,5,5"] },
+        },
+      ],
+    })}\n`,
+  );
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
@@ -280,6 +300,20 @@ describe("scene render", () => {
     );
     expect(ascii.sprites.map((s: { ref: string }) => s.ref)).toContain("tree");
     expect(ascii.lines.join("")).toContain("+");
+  });
+
+  it("fills a tilemap's solid tiles and outlines the rest, by its tileset's traits", async () => {
+    const svg = (await runCli(["render", "tile-strip"], ctx)).stdout;
+    expect(svg).toMatch(/data-cell="0,0" data-v="1" data-tile="0" data-solid="true"/);
+    expect(svg).toMatch(/data-cell="1,0" data-v="2" data-tile="1" data-solid="true"/);
+    // Tile 4 has no definition in the tileset, so it's not solid.
+    expect(svg).toMatch(/data-cell="2,0" data-v="5" data-tile="4" data-solid="false" fill="none"/);
+    expect(svg).toMatch(/data-tile-label="2,0"[^>]*>4<\/text>/);
+
+    const ascii = JSON.parse(
+      (await runCli(["render", "tile-strip", "--ascii", "--json"], ctx)).stdout,
+    );
+    expect(ascii.legend).toContainEqual({ char: ":", label: "tilemap tile, not solid" });
   });
 
   it("exits 2 on bad flags", async () => {

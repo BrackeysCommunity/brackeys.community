@@ -22,6 +22,7 @@
  * name may.
  */
 import { BEHAVIORS_FIELD } from "../game/behaviors";
+import type { CellBounds } from "../grid/geometry";
 import type { BulkKey, Pt, SceneOp } from "../scene/types";
 
 export { BEHAVIORS_FIELD };
@@ -205,6 +206,8 @@ export type ScenePresence = {
   drives?: boolean;
   /** Its scene is off screen, which ranks its responder after a visible one. */
   hidden?: boolean;
+  /** The tile brush under its cursor: the tilemap's ref and the cells it covers, corners inclusive. */
+  brush?: { map: string; rect: CellBounds };
 };
 
 /**

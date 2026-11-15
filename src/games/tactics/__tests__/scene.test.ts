@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import type { GameCommand, ProjectRuntimeView } from "@jams/engine/game";
+import { cellKey, type GameCommand, type ProjectRuntimeView } from "@jams/engine/game";
 import {
   createHeadlessRuntime,
   loadHeadless,
@@ -27,21 +27,20 @@ import {
   type SceneDefinition,
 } from "@jams/engine/scene";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { z } from "zod";
 
 import {
   tacticsGame,
   TACTICS_HIT,
   TACTICS_REFUSED,
-  TACTICS_SETTINGS,
   TACTICS_TURN,
-  UNIT_CLASS_TABLE,
+  STEP_COST,
   WALK_TICKS,
   worldBoard,
   type TacticsRunSnapshot,
   type TacticsSlice,
 } from "..";
 import { TERRAIN_KINDS } from "../art/make-art";
+import { tacticsProjectView } from "./pins";
 
 // The board has no physics: loading Rapier at all is a failure.
 vi.mock("@dimforge/rapier2d-compat", () => ({
@@ -66,20 +65,8 @@ const prefabTexts = () => [
   read("../scenes/prefabs/archer.json"),
 ];
 
-/** What `EngineContext.project` holds for the project's own game settings and unit classes. */
-function projectView(): ProjectRuntimeView {
-  const settings = json("../game-settings.json");
-  const rows = (json("../data/unit-classes.json").rows as { id: string }[]).map((r) =>
-    Object.freeze(r),
-  );
-  return {
-    settings: z.object(TACTICS_SETTINGS).parse(settings.game),
-    engine: (settings.engine ?? {}) as Record<string, unknown>,
-    table: (name) => (name === UNIT_CLASS_TABLE ? rows : []),
-    asset: () => undefined,
-    inputMap: null,
-  };
-}
+/** What `EngineContext.project` holds: the held project the golden pin reads, the floor's tileset among it. */
+const projectView = (): ProjectRuntimeView => tacticsProjectView();
 
 async function load() {
   return loadHeadless({
@@ -115,7 +102,7 @@ describe("level-1.json", () => {
     ).toEqual([]);
   });
 
-  it("puts five units on a 12 × 8 board of walls and rough ground", async () => {
+  it("puts five units on a 12 × 8 tilemap floor", async () => {
     const { scene, prefabs } = await load();
     const expanded = expandScene(scene, registry, { prefabs });
     const units = expanded.entities.filter((e) => e.type === "unit");
@@ -126,25 +113,43 @@ describe("level-1.json", () => {
       "red archer",
       "red knight",
     ]);
-    expect(expanded.entities.some((e) => e.type === "solid")).toBe(true);
-    expect(expanded.entities.some((e) => e.type === "rough")).toBe(true);
+    expect(expanded.entities.filter((e) => e.type === "tilemap").map((e) => e.id)).toEqual([
+      "floor",
+    ]);
+    expect(expanded.entities.some((e) => e.type === "solid" || e.type === "rough")).toBe(false);
   });
 
-  it("draws every wall and rough patch over the grass, tiled to its shape", async () => {
-    const { scene, prefabs } = await load();
-    const ground = expandScene(scene, registry, { prefabs }).entities.filter(
-      (e) => e.type === "solid" || e.type === "rough",
+  it("walls and prices the board from the floor's tiles", async () => {
+    const loaded = await load();
+    const rt = createHeadlessRuntime({
+      game: tacticsGame,
+      registry,
+      scene: expandScene(loaded.scene, registry, { prefabs: loaded.prefabs }),
+      project: loaded.project,
+    });
+    const { grid } = worldBoard(playWorld(rt.ctx));
+    const keys = (cells: [number, number][]) => cells.map(cellKey).sort((a, b) => a - b);
+    expect(grid.walls).toEqual(
+      keys([
+        [5, 1],
+        [5, 2],
+        [5, 3],
+        [6, 5],
+        [6, 6],
+      ]),
     );
-    expect(ground.length).toBeGreaterThan(0);
-    for (const e of ground) {
-      const { hw, hh } = e.shape as { hw: number; hh: number };
-      expect(e.layer, e.id).toBe("decor");
-      expect((e.behaviors as { sprite?: unknown }).sprite, e.id).toEqual({
-        asset: e.type === "solid" ? "tile-wall" : `tile-${e.id}`,
-        size: [hw * 2, hh * 2],
-        tile: true,
-      });
-    }
+    const marsh = keys([
+      [3, 4],
+      [4, 4],
+      [3, 5],
+      [4, 5],
+    ]).map((k) => [k, STEP_COST] as const);
+    const thicket = keys([
+      [8, 2],
+      [8, 3],
+    ]).map((k) => [k, 2 * STEP_COST] as const);
+    expect(grid.costs).toEqual([...marsh, ...thicket].sort(([a], [b]) => a - b));
+    rt.destroy();
   });
 
   it("loads with no Rapier: blue to act on turn 1, every legal order listed", async () => {
@@ -375,7 +380,7 @@ describe("every listed scene", () => {
         drawn++;
       }
     }
-    expect(drawn).toBeGreaterThan(5);
+    expect(drawn).toBeGreaterThan(0);
   });
 });
 

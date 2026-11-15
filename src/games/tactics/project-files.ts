@@ -1,13 +1,15 @@
 /**
  * The project files a tactics run reads besides its scenes, as `heldProject`
- * takes them: the JSON docs (`doc: true`, read with their sidecars) and the
- * art and the app icons, whose sidecars alone say what they are. The golden pin and the site's
+ * takes them: the JSON docs (`doc: true`, read with their sidecars; the
+ * floor's tileset among them) and the art and the app icons, whose sidecars alone say what they are. The golden pin and the site's
  * hosted-games test build their project view from this one list.
  */
 export const TACTICS_HELD_FILES = [
   { path: "game-settings.json", doc: true },
   { path: "input-map.json", doc: true },
   { path: "data/unit-classes.json", doc: true },
+  { path: "art/tactics.tileset.json", doc: true },
+  { path: "art/floor.png", doc: false },
   { path: "art/icon-192.png", doc: false },
   { path: "art/icon-512.png", doc: false },
   { path: "art/tile-marsh.png", doc: false },

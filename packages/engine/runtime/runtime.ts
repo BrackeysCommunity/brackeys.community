@@ -29,6 +29,7 @@ import {
   type SaveRequest,
   type SceneSystem,
   type SpawnInput,
+  type TilesContext,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
 import { resolvePlayers } from "../input/players";
@@ -50,6 +51,7 @@ import type {
 } from "../scene/types";
 import { Rng, type RngState } from "../sim-kit/rng";
 import { createAttachmentHub } from "../systems/attachments";
+import { findTilemapSystem, tilesContext } from "../systems/tilemap";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import { animContext } from "./behaviors/anim";
@@ -423,6 +425,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const behaviorOf: EngineContext["behavior"] = (name) => host?.system(name);
   const debugSink = opts.debugDraw ?? null;
   const dialogue = createDialogueSystem({ dev: opts.dev ?? false, ctx: () => ctx });
+  let tiles: TilesContext | undefined;
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -437,6 +440,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     time,
     get grid() {
       return grid?.current ?? null;
+    },
+    get tiles() {
+      return (tiles ??= tilesContext(ctx));
     },
     get nav() {
       return runtimeNav(ctx);
@@ -600,6 +606,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     systems.set(name, systemFactoryOf(type)(ctx, type));
   }
   const ordered = [...systems.values()];
+  const tilemaps = findTilemapSystem(ordered);
   /** With a collector, each step is one span of its `tick` scope, split at the laps `step` takes. */
   const tickTiming = opts.timing?.scope("tick") ?? null;
   const windowed = opts.timings ? createTimings(opts.timings) : null;
@@ -859,6 +866,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         byId.set(e.id, e);
         authored.add(e.id);
       }
+      gridState.tilesChanged();
       lifecycle.link(next.entities);
       lifecycle.ready(spawned);
       const offset = playOpts?.timeOffsetMs ?? 0;
@@ -1114,6 +1122,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         timed?.lap("lifecycle");
         next = events.dispatch(raised, next, second);
         timed?.lap("events.again");
+      }
+      if (tilemaps) {
+        if (tilemaps.flushWrites()) gridState.tilesChanged();
+        timed?.lap("lifecycle");
       }
     } finally {
       stepping = false;
@@ -1520,6 +1532,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const states = systemsSaved[id];
       if (states) restoreRegistered(id, states);
     }
+    gridState.tilesChanged();
     placeRestoredColliders();
     const watches = systemsSaved[SAVE_CONTACTS_KEY]?.watches;
     contacts.restore((watches ?? []) as unknown as SavedTouch[][]);

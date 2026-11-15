@@ -1,0 +1,20 @@
+{
+  "$schema": "../../engine/project/tileset.schema.json",
+  "kind": "tileset",
+  "v": 1,
+  "tiles": [
+    { "id": 0, "material": "stone", "solid": true, "tags": ["rock"] },
+    { "id": 1, "oneWay": "up", "shapes": [["box", 8, 2, 8, 2]], "tags": ["ledge"] },
+    { "id": 2, "cost": 30, "data": { "damage": 0, "slippery": true }, "tags": ["grass"] },
+    { "id": 5, "animation": [{ "ms": 120, "tile": 5 }, { "ms": 120, "tile": 6 }], "data": { "damage": 2 } }
+  ],
+  "rules": [
+    { "id": "grass", "tiles": { "0": 2, "15": 7, "5": 3 }, "fallback": 2, "kind": "edge16", "terrain": "grass" },
+    { "id": "rock", "tiles": { "0": 0, "255": 4 }, "fallback": 0, "kind": "blob47", "terrain": "rock" }
+  ],
+  "columns": 4,
+  "image": "ground-art",
+  "margin": 1,
+  "spacing": 2,
+  "tile": [16, 16]
+}

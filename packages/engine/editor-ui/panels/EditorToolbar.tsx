@@ -5,15 +5,24 @@ import {
   CloudUploadIcon,
   Cursor01Icon,
   CursorMove01Icon,
+  ColorPickerIcon,
   CursorPointer01Icon,
+  EraserIcon,
+  FlipHorizontalIcon,
+  FlipVerticalIcon,
   GridIcon,
+  GridTableIcon,
   GroupItemsIcon,
+  MagicWand01Icon,
   Magnet01Icon,
   MoreHorizontalIcon,
+  PaintBrush01Icon,
+  PaintBucketIcon,
   PenTool01Icon,
   PlayIcon,
   Redo02Icon,
   RotateClockwiseIcon,
+  RotateRight01Icon,
   Route01Icon,
   SquareIcon,
   Undo02Icon,
@@ -24,6 +33,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import {
   drawTypeOptions,
   ENGINE_TOOL_IDS,
+  lookupRef,
   SNAP_STEPS,
   type DrawToolKind,
   type EditorCommand,
@@ -31,10 +41,12 @@ import {
   type EditorToolDef,
   type EngineToolId,
   type Keymap,
+  type TileToolId,
   type ToolHost,
   type ToolOption,
 } from "../../editor/index";
 import { DEFAULT_LENGTH_UNIT } from "../../game/defaults";
+import { TILE_TOOL_IDS } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import type { Registry } from "../../scene/index";
 import { useDockRoom, usePanelOpener } from "../frame/EditorFrame";
@@ -63,11 +75,12 @@ import {
   MenuTrigger,
   type IconSvgElement,
 } from "../kit/index";
-import { useEditorStore } from "../session/use-editor-store";
+import { useEditorResolved, useEditorStore } from "../session/use-editor-store";
 import type { EditorProjectLink } from "../session/use-scene-editor";
 import { EDIT_LAYERS, unavailableLayers } from "./canvas-layer/edit-layers";
 import { useEditLayers, useExpandedScene } from "./canvas-layer/EditLayers";
 import { useHostValue } from "./canvas-layer/tool-host";
+import { isTilemapIn } from "./EditorCanvasOverlay";
 import { ScenePublishDialog } from "./publish/ScenePublishDialog";
 import {
   NewSceneDialog,
@@ -88,8 +101,42 @@ const TOOL_ICONS: Record<EngineToolId, IconSvgElement> = {
   rotate: RotateClockwiseIcon,
 };
 
+const TILE_ICONS: Record<TileToolId, IconSvgElement> = {
+  "tile-brush": PaintBrush01Icon,
+  "tile-rect": GridTableIcon,
+  "tile-fill": PaintBucketIcon,
+  "tile-erase": EraserIcon,
+  "tile-pick": ColorPickerIcon,
+  "tile-auto": MagicWand01Icon,
+};
+
 const isEngineTool = (id: string): id is EngineToolId =>
   (ENGINE_TOOL_IDS as readonly string[]).includes(id);
+
+export const isTileTool = (id: string): id is TileToolId =>
+  (TILE_TOOL_IDS as readonly string[]).includes(id);
+
+/** A built-in tool's icon; a game's tools draw as text. */
+const toolIcon = (id: string): IconSvgElement | null =>
+  isEngineTool(id) ? TOOL_ICONS[id] : isTileTool(id) ? TILE_ICONS[id] : null;
+
+/** What `R`, `F` and `V` do to the brush while a tile tool is active. */
+export const BRUSH_COMMANDS = [
+  { key: "brush-cw", icon: RotateRight01Icon, label: "Rotate the brush", chord: "r" },
+  {
+    key: "brush-flip-x",
+    icon: FlipHorizontalIcon,
+    label: "Flip the brush horizontally",
+    chord: "f",
+  },
+  { key: "brush-flip-y", icon: FlipVerticalIcon, label: "Flip the brush vertically", chord: "v" },
+] as const;
+
+type BrushCommand = (typeof BRUSH_COMMANDS)[number];
+
+/** The brush command's key: the keymap's binding, else the default. */
+const brushChord = (keymap: Keymap, c: BrushCommand) =>
+  keymap.bindings.find((b) => b.command === c.key)?.key ?? c.chord;
 
 /** The first chord that picks a tool: the engine's `tool:<id>`, or a game key bound to `tool:<id>[:<arg>]`. */
 function toolChord(keymap: Keymap, id: string): string | undefined {
@@ -156,7 +203,7 @@ function ToolButton({
   chord: string | undefined;
   onPick: () => void;
 }) {
-  const icon = isEngineTool(tool.id) ? TOOL_ICONS[tool.id] : null;
+  const icon = toolIcon(tool.id);
   const variant = active ? "secondary" : "ghost";
   const tooltip = <KeyHint text={tool.label} chord={chord} />;
   return icon ? (
@@ -477,7 +524,8 @@ export function dockParts(
   publish = false,
 ): DockPart[] {
   const engine = tools.filter((t) => isEngineTool(t.id));
-  const game = tools.filter((t) => !isEngineTool(t.id));
+  const tile = tools.filter((t) => isTileTool(t.id));
+  const game = tools.filter((t) => !isEngineTool(t.id) && !isTileTool(t.id));
   const parts: DockPart[] = [];
   if (scene !== null) {
     // Into "More tools" after the grid step and the tool's option, so long as there is that menu.
@@ -504,6 +552,14 @@ export function dockParts(
       game: true,
     }),
   );
+  if (tile.length > 0) {
+    // Kept whether or not a tilemap is in reach, so the tools appearing doesn't refit the dock.
+    parts.push({ key: "divider:tile", width: W.divider });
+    tile.forEach((t, i) =>
+      parts.push({ key: `tool:${t.id}`, width: W.icon, drop: 170 + tile.length - i }),
+    );
+    BRUSH_COMMANDS.forEach((c, i) => parts.push({ key: c.key, width: W.icon, drop: 165 + i }));
+  }
   if (option) {
     parts.push(
       { key: "divider:option", width: W.divider },
@@ -538,10 +594,17 @@ export function dockParts(
 export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string>): number {
   const anyGame = parts.some((p) => p.game && !hidden.has(p.key));
   const anyArrange = ARRANGE.some((c) => parts.some((p) => p.key === c.key) && !hidden.has(c.key));
+  const anyTile = parts.some(
+    (p) =>
+      ((p.key.startsWith("tool:") && isTileTool(p.key.slice(5))) ||
+        BRUSH_COMMANDS.some((c) => c.key === p.key)) &&
+      !hidden.has(p.key),
+  );
   const shown = parts.filter(
     (p) =>
       !hidden.has(p.key) &&
       (p.key !== "divider:game" || anyGame) &&
+      (p.key !== "divider:tile" || anyTile) &&
       (p.key !== "divider:arrange" || anyArrange) &&
       (p.key !== "divider:option" || !hidden.has("option")) &&
       (p.key !== "divider:scene" || !hidden.has("scene")),
@@ -557,7 +620,8 @@ export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string
  * What gives way so the toolbar fits in `room`: first the parts that can
  * narrow do (their `narrowed` keys), then these move into the overflow menu:
  * game tools, Group, Ungroup and Frame, the grid step, the grid toggle, the
- * tool's option, the scene picker, then shape tools.
+ * tool's option, the scene picker, the brush's turns, the tile tools, then
+ * shape tools.
  */
 export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   const hidden = new Set<string>();
@@ -603,6 +667,7 @@ function OverflowMenu({
   ppm,
   scene,
   arrange,
+  brush,
   hasSelection,
 }: {
   session: EditorSession;
@@ -616,6 +681,8 @@ function OverflowMenu({
   scene: OverflowScene | null;
   /** The selection commands that didn't fit. */
   arrange: readonly ArrangeCommand[];
+  /** The brush's turns that didn't fit, while a tile tool is active. */
+  brush: readonly BrushCommand[];
   hasSelection: boolean;
 }) {
   return (
@@ -636,7 +703,7 @@ function OverflowMenu({
           <MenuRadioGroup value={active} onValueChange={(id) => host.setTool(String(id))}>
             {tools.map((tool) => {
               const chord = toolChord(keymap, tool.id);
-              const icon = isEngineTool(tool.id) ? TOOL_ICONS[tool.id] : null;
+              const icon = toolIcon(tool.id);
               return (
                 <MenuRadioItem key={tool.id} value={tool.id} closeOnClick>
                   {icon ? <Icon icon={icon} size={14} /> : null}
@@ -676,9 +743,25 @@ function OverflowMenu({
             </MenuGroup>
           </>
         ) : null}
-        {option ? (
+        {brush.length > 0 ? (
           <>
             {tools.length > 0 || arrange.length > 0 ? <MenuSeparator /> : null}
+            <MenuGroup>
+              {brush.map((c) => (
+                <MenuItem key={c.key} onClick={() => host.command(c.key)}>
+                  <Icon icon={c.icon} size={14} />
+                  {c.label}
+                  <MenuShortcut>
+                    <Hotkey chord={brushChord(keymap, c)} />
+                  </MenuShortcut>
+                </MenuItem>
+              ))}
+            </MenuGroup>
+          </>
+        ) : null}
+        {option ? (
+          <>
+            {tools.length > 0 || arrange.length > 0 || brush.length > 0 ? <MenuSeparator /> : null}
             <MenuGroup>
               <MenuLabel>{option.label}</MenuLabel>
               <OptionItems host={host} option={option} />
@@ -687,7 +770,9 @@ function OverflowMenu({
         ) : null}
         {snap ? (
           <>
-            {tools.length > 0 || arrange.length > 0 || option ? <MenuSeparator /> : null}
+            {tools.length > 0 || arrange.length > 0 || brush.length > 0 || option ? (
+              <MenuSeparator />
+            ) : null}
             <MenuGroup>
               <MenuLabel>Grid step</MenuLabel>
               <StepItems host={host} snap={snap} ppm={ppm} />
@@ -698,7 +783,9 @@ function OverflowMenu({
         ) : null}
         {scene ? (
           <>
-            {tools.length > 0 || arrange.length > 0 || option || snap ? <MenuSeparator /> : null}
+            {tools.length > 0 || arrange.length > 0 || brush.length > 0 || option || snap ? (
+              <MenuSeparator />
+            ) : null}
             <MenuSub>
               <MenuSubTrigger>Scene: {scene.label}</MenuSubTrigger>
               <MenuSubContent className="je-option-menu">
@@ -723,6 +810,27 @@ export const PUBLISH_SCENE_TOOLTIP = "Publish this level to players without a ne
 
 /** Publish scene's icon: one level sent up live, apart from the Publish panel's releases. */
 export const PUBLISH_SCENE_ICON = CloudUploadIcon;
+
+/**
+ * The tile tools and the brush's turns: drawn while a tilemap is selected,
+ * hovered or being painted, else kept as blank room so the dock never refits.
+ */
+function TileGroup({ shown, children }: { shown: boolean; children: ReactNode }) {
+  return shown ? (
+    <span data-tile-tools="shown" style={{ display: "contents" }}>
+      {children}
+    </span>
+  ) : (
+    <span
+      aria-hidden
+      inert
+      data-tile-tools="reserved"
+      style={{ display: "contents", visibility: "hidden" }}
+    >
+      {children}
+    </span>
+  );
+}
 
 const NO_SNAP: Snap | null = null;
 const NO_OPTION: ToolOption | null = null;
@@ -764,7 +872,24 @@ export function EditorToolbar({
   const redoLabel = useEditorStore(session, (s) => s.redoLabel);
   const active = useEditorStore(session, (s) => s.tool);
   const hasSelection = useEditorStore(session, (s) => s.selection.length > 0);
-  const tools = useMemo(() => host?.tools() ?? [], [host]);
+  const resolved = useEditorResolved(session);
+  const hasTilemap = useMemo(
+    () => (resolved.entities ?? []).some((e) => isTilemapIn(session.registry, e.type)),
+    [resolved, session.registry],
+  );
+  const tools = useMemo(
+    () => [...(host?.tools() ?? []), ...(hasTilemap ? (host?.tileTools() ?? []) : [])],
+    [host, hasTilemap],
+  );
+  const tileActive = isTileTool(active);
+  const tileInReach = useEditorStore(session, (s) =>
+    [s.hover, ...s.selection].some((ref) => {
+      if (ref === null) return false;
+      const target = lookupRef(resolved, ref);
+      return target?.kind === "entity" && isTilemapIn(session.registry, target.entity.type);
+    }),
+  );
+  const tilesShown = tileActive || tileInReach;
   const snap = useHostValue(host, (h) => h.snap(), host?.snap() ?? NO_SNAP);
   const option = useHostValue(host, (h) => h.option() ?? NO_OPTION, NO_OPTION);
   const slot = useMemo(
@@ -796,7 +921,9 @@ export function EditorToolbar({
   const shownTools = tools.filter((t) => !hidden.has(`tool:${t.id}`));
   const hiddenTools = tools.filter((t) => hidden.has(`tool:${t.id}`));
   const engineTools = shownTools.filter((t) => isEngineTool(t.id));
-  const gameTools = shownTools.filter((t) => !isEngineTool(t.id));
+  const tileTools = shownTools.filter((t) => isTileTool(t.id));
+  const gameTools = shownTools.filter((t) => !isEngineTool(t.id) && !isTileTool(t.id));
+  const shownBrush = hasTilemap ? BRUSH_COMMANDS.filter((c) => !hidden.has(c.key)) : [];
 
   const toolButton = (tool: EditorToolDef) => (
     <ToolButton
@@ -813,7 +940,7 @@ export function EditorToolbar({
     overflow = (
       <OverflowMenu
         session={session}
-        tools={hiddenTools}
+        tools={tilesShown ? hiddenTools : hiddenTools.filter((t) => !isTileTool(t.id))}
         active={active}
         keymap={keymap}
         host={host}
@@ -821,6 +948,7 @@ export function EditorToolbar({
         option={hidden.has("option") ? option : null}
         ppm={ppm}
         arrange={ARRANGE.filter((c) => hidden.has(c.key))}
+        brush={tileActive ? BRUSH_COMMANDS.filter((c) => hidden.has(c.key)) : []}
         hasSelection={hasSelection}
         scene={
           picker && project && hidden.has("scene")
@@ -864,6 +992,22 @@ export function EditorToolbar({
           {engineTools.map(toolButton)}
           {gameTools.length > 0 ? <Divider /> : null}
           {gameTools.map(toolButton)}
+          {tileTools.length > 0 || shownBrush.length > 0 ? (
+            <TileGroup shown={tilesShown}>
+              <Divider />
+              {tileTools.map(toolButton)}
+              {shownBrush.map((c) => (
+                <IconButton
+                  key={c.key}
+                  icon={c.icon}
+                  label={c.label}
+                  disabled={!tileActive}
+                  onClick={() => host.command(c.key)}
+                  tooltip={<KeyHint text={c.label} chord={brushChord(keymap, c)} />}
+                />
+              ))}
+            </TileGroup>
+          ) : null}
           {overflow}
           {slot && !hidden.has("option") ? (
             <>

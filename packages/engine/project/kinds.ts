@@ -292,7 +292,8 @@ function duplicateIds(
     const idField = layout.id ?? "id";
     const seen = new Set<string>();
     value.forEach((item, i) => {
-      const id = isPlainObject(item) ? item[idField] : undefined;
+      const raw = isPlainObject(item) ? item[idField] : undefined;
+      const id = typeof raw === "number" && Number.isFinite(raw) ? String(raw) : raw;
       if (typeof id === "string") {
         if (seen.has(id))
           out.push(

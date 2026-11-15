@@ -58,6 +58,7 @@ import { grid } from "../tools/grid";
 import { input } from "../tools/input";
 import { list } from "../tools/list";
 import { newScene } from "../tools/new";
+import { paint } from "../tools/paint";
 import { playLive, type PlayLiveInput } from "../tools/play-live";
 import { playtest } from "../tools/playtest";
 import { render } from "../tools/render";
@@ -67,6 +68,7 @@ import { schema } from "../tools/schema";
 import { MAX_ROWS, show } from "../tools/show";
 import { stats } from "../tools/stats";
 import { step } from "../tools/step";
+import { tiles } from "../tools/tiles";
 import { validate } from "../tools/validate";
 import { CARD_SPEED, CARD_TABLE, cardGame } from "./card-game";
 import { copyProject, tempProject } from "./fixtures";
@@ -2903,6 +2905,199 @@ describe("grid", () => {
   });
 });
 
+describe("tiles", { timeout: 60_000 }, () => {
+  let sink: string;
+  let sinkCtx: ToolContext;
+
+  beforeEach(async () => {
+    sink = join(root, "engine");
+    await copyProject(ENGINE_SCENES, sink);
+    sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
+  });
+
+  const setCells = async (rows: string) => {
+    const file = join(sink, "kitchen-sink.json");
+    const text = await readFile(file, "utf8");
+    await writeFile(file, text.replace('"0,0": ["2*8,0,3*3", "1*8,0*5,4"]', `"0,0": ${rows}`));
+  };
+
+  it("prints a tilemap's painted cells with a legend of tile ids and tags", async () => {
+    const r = await tiles({ scene: "kitchen-sink", map: "tiles" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toBe(
+      [
+        "kitchen-sink tilemap tiles (tileset kitchen-tileset): cells [0, 0]..[13, 1] (14×2)",
+        "  11111111.222..",
+        "  00000000.....3",
+        "legend (. empty)",
+        "  0  tile 0  8 cells  solid; tags stone",
+        "  1  tile 1  8 cells  solid; tags moss",
+        "  2  tile 2  3 cells  one-way up; tags plank",
+        "  3  tile 3  1 cell  tags lamp; animated 2 frames",
+      ].join("\n"),
+    );
+    expect(r.data).toMatchObject({
+      ok: true,
+      map: "tiles",
+      rect: { c0: 0, r0: 0, c1: 13, r1: 1 },
+      rows: ["11111111.222..", "00000000.....3"],
+      legend: [
+        { glyph: "0", id: 0, cells: 8, solid: true, tags: ["stone"] },
+        { glyph: "1", id: 1, cells: 8, solid: true, tags: ["moss"] },
+        { glyph: "2", id: 2, cells: 3, solid: true, tags: ["plank"] },
+        { glyph: "3", id: 3, cells: 1, solid: false, tags: ["lamp"] },
+      ],
+    });
+  });
+
+  it("draws the --rect region, corners in either order, empty cells as dots", async () => {
+    const r = await tiles({ scene: "kitchen-sink", map: "tiles", rect: "6,2,-1,1" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text.split("\n")).toEqual([
+      "kitchen-sink tilemap tiles (tileset kitchen-tileset): cells [-1, 1]..[6, 2] (8×2)",
+      "  .0000000",
+      "  ........",
+      "legend (. empty)",
+      "  0  tile 0  7 cells  solid; tags stone",
+    ]);
+    const blank = await tiles(
+      { scene: "kitchen-sink", map: "tiles", rect: "20,20,21,20" },
+      sinkCtx,
+    );
+    expect(blank.text.split("\n").slice(1)).toEqual([
+      "  ..",
+      "legend (. empty)",
+      "  (no tiles in this rectangle)",
+    ]);
+  });
+
+  it("counts flipped cells and reports a tile the tileset's image doesn't hold", async () => {
+    // 8193 is tile 0 flipped on x; 10 is tile 9, beyond the 2 the image holds.
+    await setCells('["8193,1,10"]');
+    const r = await tiles({ scene: "kitchen-sink", map: "tiles" }, sinkCtx);
+    expect(r.exitCode).toBe(1);
+    const lines = r.text.split("\n");
+    expect(lines.slice(0, 6)).toEqual([
+      "kitchen-sink tilemap tiles (tileset kitchen-tileset): cells [0, 0]..[2, 0] (3×1)",
+      "  009",
+      "legend (. empty)",
+      "  0  tile 0  2 cells, 1 flipped  solid; tags stone",
+      "  9  tile 9  1 cell",
+      expect.stringContaining("tile-unknown"),
+    ]);
+  });
+
+  it("refuses a bad --rect and names the tilemaps for an unknown map", async () => {
+    const bad = await tiles({ scene: "kitchen-sink", map: "tiles", rect: "0,0,3" }, sinkCtx);
+    expect(bad.exitCode).toBe(2);
+    expect(bad.text).toContain("--rect takes c0,r0,c1,r1");
+    const miss = await tiles({ scene: "kitchen-sink", map: "tilez" }, sinkCtx);
+    expect(miss.exitCode).toBe(1);
+    expect(miss.text).toContain("has no tilemap tilez; did you mean tiles?");
+    expect((await tiles({ scene: "kitchen-sink" }, sinkCtx)).exitCode).toBe(2);
+  });
+
+  it("runs as scene tiles", async () => {
+    expect(COMMAND_NAMES).toContain("tiles");
+    const r = await runCli(["tiles", "kitchen-sink", "tiles", "--rect", "0,0,1,1"], sinkCtx);
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toContain("  11\n  00\n");
+  });
+});
+
+describe("paint", { timeout: 60_000 }, () => {
+  let sink: string;
+  let sinkCtx: ToolContext;
+
+  beforeEach(async () => {
+    sink = join(root, "engine");
+    await copyProject(ENGINE_SCENES, sink);
+    sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
+  });
+
+  const rows = async (rect: string) => {
+    const r = await tiles({ scene: "kitchen-sink", map: "tiles", rect }, sinkCtx);
+    return (r.data as { rows: string[] }).rows;
+  };
+  const sinkText = () => readFile(join(sink, "kitchen-sink.json"), "utf8");
+
+  it("paints cells named by id or tag, and clears one with empty", async () => {
+    const r = await paint(
+      { scene: "kitchen-sink", map: "tiles", cells: ["0,2=plank 1,2=3", "2,2=stone;0,0=empty"] },
+      sinkCtx,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({ written: true });
+    expect(await rows("0,0,2,2")).toEqual([".11", "000", "230"]);
+  });
+
+  it("paints rectangles, corners in either order", async () => {
+    const r = await paint(
+      { scene: "kitchen-sink", map: "tiles", rect: ["3,3,0,2=moss", "1,2,1,2=0"] },
+      sinkCtx,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(await rows("0,2,3,3")).toEqual(["1011", "1111"]);
+  });
+
+  it("fills the region holding a cell's value, and refuses an open one", async () => {
+    const r = await paint({ scene: "kitchen-sink", map: "tiles", fill: "0,0=stone" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(await rows("0,0,7,1")).toEqual(["00000000", "00000000"]);
+    const open = await paint({ scene: "kitchen-sink", map: "tiles", fill: "0,40=stone" }, sinkCtx);
+    expect(open.exitCode).toBe(1);
+    expect(open.text).toContain("is over 65536 cells; paint it with --rect");
+  });
+
+  it("autotiles a rectangle with the tileset's rule", async () => {
+    const r = await paint(
+      { scene: "kitchen-sink", map: "tiles", auto: "moss-top 0,3,2,5" },
+      sinkCtx,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(await rows("0,3,2,5")).toEqual(["111", "111", "011"]);
+    const miss = await paint(
+      { scene: "kitchen-sink", map: "tiles", auto: "moss-tip 0,3,2,5" },
+      sinkCtx,
+    );
+    expect(miss.exitCode).toBe(1);
+    expect(miss.text).toContain("no autotile rule moss-tip; did you mean moss-top?");
+  });
+
+  it("writes nothing on a dry run or a refusal", async () => {
+    const before = await sinkText();
+    const dry = await paint(
+      { scene: "kitchen-sink", map: "tiles", cells: ["0,5=moss"], dryRun: true },
+      sinkCtx,
+    );
+    expect(dry.exitCode, dry.text).toBe(0);
+    expect(dry.data).toMatchObject({ dryRun: true, written: false });
+    const tag = await paint({ scene: "kitchen-sink", map: "tiles", cells: ["0,5=mos"] }, sinkCtx);
+    expect(tag.exitCode).toBe(1);
+    expect(tag.text).toContain('no tile has the tag "mos"; did you mean moss?');
+    const map = await paint({ scene: "kitchen-sink", map: "tilez", cells: ["0,5=1"] }, sinkCtx);
+    expect(map.text).toContain("has no tilemap tilez; did you mean tiles?");
+    const bad = await paint({ scene: "kitchen-sink", map: "tiles", rect: ["0,0,1=1"] }, sinkCtx);
+    expect(bad.exitCode).toBe(2);
+    expect(bad.text).toContain("--rect takes c0,r0,c1,r1=tile");
+    const two = await paint(
+      { scene: "kitchen-sink", map: "tiles", cells: ["0,0=1"], fill: "0,0=1" },
+      sinkCtx,
+    );
+    expect(two.exitCode).toBe(2);
+    expect(await sinkText()).toBe(before);
+  });
+
+  it("runs as scene paint", async () => {
+    expect(COMMAND_NAMES).toContain("paint");
+    const r = await runCli(
+      ["paint", "kitchen-sink", "tiles", "--cells", "0,4=lamp", "--cells", "1,4=4"],
+      sinkCtx,
+    );
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(await rows("0,4,1,4")).toEqual(["34"]);
+  });
+});
 describe("schema checks", () => {
   it("prints the engine's or a game's checks-file schema", async () => {
     const engine = await schema({ which: "checks" }, ctx);
@@ -2942,6 +3137,8 @@ describe("runCli", () => {
       "new",
       "step",
       "grid",
+      "tiles",
+      "paint",
       "playtest",
       "replay",
       "fuzz",

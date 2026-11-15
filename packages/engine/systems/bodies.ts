@@ -841,8 +841,8 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
   position(id: string): Vec2 | null;
 };
 
-/** m. */
-const ONE_WAY_TOLERANCE = 0.04;
+/** m: how far past a one-way face an actor still counts as on its side. */
+export const ONE_WAY_TOLERANCE = 0.04;
 
 /** The key a context keeps each actor's one-way passes under. */
 const ONE_WAY_PASSES: unique symbol = Symbol("one-way passes");
@@ -940,7 +940,7 @@ export function computeMovementSkipping(
 const HIDDEN_Y = -999.99;
 
 /** Whether `actor` is on a one-way solid's `side`, at most the tolerance past that face: where the solid holds it. */
-function onOneWaySide(side: Side, solid: Aabb, actor: Aabb): boolean {
+export function onOneWaySide(side: Side, solid: Aabb, actor: Aabb): boolean {
   switch (side) {
     case "up":
       return actor.maxY <= solid.minY + ONE_WAY_TOLERANCE;

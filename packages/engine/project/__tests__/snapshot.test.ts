@@ -52,8 +52,13 @@ const materials = engineHomeMaterials();
 const sinkDef = (): SceneDefinition => {
   const parsed = parseScene(read("kitchen-sink.json"), registry);
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
-  // Its sprites name the engine home's art, which this synthetic project doesn't hold.
-  return { ...parsed.def, entities: parsed.def.entities?.map(({ behaviors: _, ...e }) => e) };
+  // Its sprites and tilemap name the engine home's art, which this synthetic project doesn't hold.
+  return {
+    ...parsed.def,
+    entities: parsed.def.entities
+      ?.filter((e) => e.type !== "tilemap")
+      .map(({ behaviors: _, ...e }) => e),
+  };
 };
 /** Every prefab of the engine's home, which the kitchen sink reaches through instances, nesting and bases. */
 /** The prefabs the kitchen sink reaches; the behavior yard's name art this synthetic project doesn't hold. */

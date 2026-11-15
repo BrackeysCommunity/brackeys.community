@@ -18,6 +18,7 @@ import type {
 import {
   parseDocName,
   SCENE_KIND_NAME,
+  type AssetId,
   type KindRegistry,
   type ProjectId,
   type ProjectRuntimeView,
@@ -43,7 +44,7 @@ import {
   type ProjectConnection,
 } from "../host";
 import type { Pending } from "../pending/pending";
-import { agentsDrivePlay, attachEditorResponder } from "./live-responder";
+import { agentsDrivePlay, attachEditorResponder, gamePixels } from "./live-responder";
 import {
   editorIdentity,
   openLiveEditor,
@@ -110,6 +111,8 @@ export type EditorProjectLink = {
   /** The host's projects, offered in a switcher when there are two or more. */
   projects?: readonly EditorProjectChoice[];
   onProjectChange?: (id: ProjectId) => void;
+  /** A blob asset's URL for editor previews (the tile palette's images); null when it has no file. */
+  assetImage?: (id: AssetId) => string | null;
 };
 
 /** An undo or redo whose step was in another scene switched the editor there. */
@@ -236,6 +239,8 @@ export type SceneEditorOptions = {
   rapier?: () => Promise<RapierModule>;
   /** The game's canvas, which takes the active tool's cursor. */
   canvas?: () => HTMLElement | null;
+  /** Passed on as the project link's `assetImage`. */
+  assetImage?: (id: AssetId) => string | null;
 };
 
 /**
@@ -310,6 +315,7 @@ export type Carried = { doc: string; selection: Ref[]; tool: string };
  * the tool.
  */
 export function useSceneEditor({
+  assetImage,
   host,
   notify,
   pending,
@@ -654,6 +660,7 @@ export function useSceneEditor({
       live,
       game,
       canvas: getCanvas,
+      capture: () => gamePixels(game, getCanvas),
       pending: tasks ?? null,
     });
   }, [readOnly, canWrite, live, game, ready, connection, storage, hosted, getCanvas, tasks]);
@@ -689,6 +696,7 @@ export function useSceneEditor({
               ...(readOnly ? { readOnly } : {}),
               ...(hosted ? { hosted } : {}),
               ...(projects ? { projects, onProjectChange: switchProject } : {}),
+              ...(assetImage ? { assetImage } : {}),
             },
           }
         : {}),
@@ -710,6 +718,7 @@ export function useSceneEditor({
     projectData,
     openScene,
     notice,
+    assetImage,
   ]);
 
   const self = useMemo<EditorSelf | null>(

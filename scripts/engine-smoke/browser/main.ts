@@ -15,6 +15,8 @@ import {
 import { runSaves, type SavesProbe } from "./saves";
 import { runSignSmoke } from "./sign-run";
 import { runTactics, type TacticsProbe } from "./tactics";
+import { runTilemapSmoke } from "./tilemap-run";
+import type { TilemapProbe } from "./tilemaps";
 
 export type EngineSmokeResult =
   | {
@@ -32,6 +34,8 @@ export type EngineSmokeResult =
       contact: ContactRead;
       /** The tactics game's golden recording replayed with no physics. */
       tactics: TacticsProbe;
+      /** The sink's tile strip on a square grid and a hex one, each read at a painted and an empty cell. */
+      tilemaps: TilemapProbe;
       /** A save round trip through IndexedDB and the browser store; the page fails when it does. */
       saves?: SavesProbe;
       /** A world `text` sign in a bitmap font and one in a web font, each read for its colour. */
@@ -67,6 +71,7 @@ try {
   const contact = await steps.run("the contact run", async () => readContact(await loadRapier()));
   const tacticsSpy = rapierSpy(loadRapier);
   const tactics = await steps.run("the tactics run", () => runTactics(tacticsSpy.load));
+  const tilemaps = await steps.run("the tilemap run", runTilemapSmoke);
   const saves = await steps.run("the save run", runSaves);
   const signs = await steps.run("the sign run", runSignSmoke);
   const audio = await steps.run("the audio run", runAudioSmoke);
@@ -80,6 +85,7 @@ try {
     physicsFree: { ...run, shellTicks, rapierLoads: spy.calls() },
     contact,
     tactics: { ...tactics, rapierLoads: tacticsSpy.calls() },
+    tilemaps,
     saves,
     signs,
     audio,

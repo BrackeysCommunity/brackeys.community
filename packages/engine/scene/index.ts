@@ -267,6 +267,8 @@ export {
 } from "./checks";
 export { diffPrefabToOps, diffToOps } from "./diff-to-ops";
 export {
+  drawnTile,
+  type DrawnTile,
   renderSceneSvg,
   SCENE_GRID_MAX_CELLS,
   SCENE_SVG_MAX_SIZE,
@@ -274,7 +276,10 @@ export {
   type SceneLabels,
   type SceneSvgOptions,
   type SceneTextOptions,
+  type SceneTileOptions,
+  type SceneTileTraits,
   type SceneViewport,
+  TILE_LABEL_MAX_CELLS,
 } from "./svg";
 export {
   DEFAULT_ASCII_TAG_CHARS,

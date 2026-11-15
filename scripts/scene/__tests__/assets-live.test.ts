@@ -135,6 +135,19 @@ const SPARKS = {
 const STRINGS_FILE = "text/deck.strings.json";
 const DIALOGUE_FILE = "talk/deck-gate.dialogue.json";
 const SOUND_FILE = "sfx/deck-chime.sound.json";
+const TILESET_FILE = "tilesets/deck-tiles.tileset.json";
+/** Two tiles cut from the copied hero atlas. */
+const DECK_TILES = {
+  kind: "tileset",
+  v: 1,
+  image: "hero",
+  tile: [16, 16],
+  columns: 2,
+  tiles: [
+    { id: 0, solid: true },
+    { id: 1, cost: 20, tags: ["mud"] },
+  ],
+};
 const DECK_STRINGS = {
   kind: "strings",
   v: 1,
@@ -323,6 +336,7 @@ beforeAll(async () => {
     [STRINGS_FILE, DECK_STRINGS],
     [DIALOGUE_FILE, DECK_DIALOGUE],
     [SOUND_FILE, DECK_SOUND],
+    [TILESET_FILE, DECK_TILES],
   ] as const) {
     await mkdir(dirname(join(deck, path)), { recursive: true });
     await writeFile(join(deck, path), `${JSON.stringify(value)}\n`);
@@ -370,6 +384,7 @@ beforeAll(async () => {
     idAt(STRINGS_FILE),
     idAt(DIALOGUE_FILE),
     idAt(SOUND_FILE),
+    idAt(TILESET_FILE),
     "kitchen-sink",
     "tiles-room",
     "post",
@@ -916,6 +931,40 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
         async () => (await readOrEmpty(join(deck, EMITTER_FILE))).includes('"rate": 60'),
         "the server to write the rate back",
       );
+    },
+  );
+
+  it(
+    "tileset: an agent's editAsset on a tile lands as the agent, off the human's undo stack",
+    { timeout: 60_000 },
+    async () => {
+      const tiles = idAt(TILESET_FILE);
+      const tile = (i: number) => (valueOf(tiles).tiles as Record<string, unknown>[])[i];
+      expect(tile(1)).toEqual({ id: 1, cost: 20, tags: ["mud"] });
+
+      const viaCli = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(editAsset(tiles, [{ set: "/tiles/1/solid", value: true }])),
+      );
+      expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+      await landsInDoc(tiles, () => tile(1)?.solid === true, CLI_AGENT, "the CLI's solid tile");
+
+      const viaMcp = await mcp("asset_apply_ops", {
+        ops: editAsset(tiles, [{ set: "/tiles/0/cost", value: 30 }]),
+      });
+      expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(tiles, () => tile(0)?.cost === 30, MCP_AGENT, "the MCP tile cost");
+      expect(valueOf(tiles).tiles).toEqual([
+        { id: 0, solid: true, cost: 30 },
+        { id: 1, cost: 20, tags: ["mud"], solid: true },
+      ]);
+
+      await until(async () => {
+        const text = await readOrEmpty(join(deck, TILESET_FILE));
+        return text.includes('"cost": 30') && /"id": 1[^}]*"solid": true/.test(text);
+      }, "the server to write the tiles back");
     },
   );
 

@@ -6,9 +6,11 @@ import type { DialogueView } from "../dialogue/runner";
 import type { DialogueVars } from "../dialogue/vars";
 import type { AssetDrop } from "../editor/asset-drop";
 import type { EditorToolDef } from "../editor/tools";
+import type { Cell, CellBounds } from "../grid/geometry";
 import type { InputState } from "../input/state";
 import type { PhysicsWorld } from "../physics";
 import type { AssetKindDef } from "../project/kinds";
+import type { TileDef } from "../project/kinds/tileset";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, Sha256 } from "../project/types";
 import type { ResolutionPolicy } from "../resolution";
@@ -28,6 +30,8 @@ import type {
   BulkForm,
   BulkKey,
   Bounds,
+  CellEdit,
+  CellRect,
   EntityDef,
   EntityTypeName,
   EntityInput,
@@ -63,9 +67,10 @@ import type { LiveDeclaration, SceneSwap } from "./live";
 import type { CameraRigDef } from "./primitives";
 import type { SaveDepth, SaveGameData, SaveLimits } from "./save-file";
 import type { ScriptClass } from "./script";
+import type { TileCell } from "./tile-cell";
 import type { ResolvedTime, TimeModel } from "./time";
 
-export type { ResolvedTime, RuntimeGrid, RuntimeNav };
+export type { ResolvedTime, RuntimeGrid, RuntimeNav, TileCell, TileDef };
 
 /** Plain JSON: what persistent state, saves and snapshots hold. */
 export type JsonValue =
@@ -92,6 +97,7 @@ export const PRIMITIVE_TYPES = [
   "decor",
   "nav",
   "camera-region",
+  "tilemap",
   "note",
 ] as const;
 export type PrimitiveType = (typeof PRIMITIVE_TYPES)[number];
@@ -136,6 +142,8 @@ export type ColliderTag = {
   impulse?: Vec2;
   /** The entity whose body carries the collider when it isn't `entityId`'s own (an attached solid rides a follower). */
   carrier?: { entityId: string; type: string };
+  /** A tilemap's collider: the tilemap's id, the tile id and the cell it covers (a merged box names its first cell). */
+  tile?: { map: string; tile: number; cell: Cell };
 };
 
 /** A side of an entity; it turns and flips with instance transforms. */
@@ -271,6 +279,23 @@ export type PersistContext = {
   set(next: JsonValue): void;
 };
 
+/** One tilemap's tile at a cell, as `EngineContext.tiles.at` lists them. */
+export type TileAt = { map: string; value: number; tile: TileCell; def: TileDef | undefined };
+
+/** `EngineContext.tiles`: every tilemap's cells, read and written by cell. */
+export type TilesContext = {
+  /** Every tilemap's tile at a cell, top first (by z, then scene order). */
+  at(cell: Cell): readonly TileAt[];
+  /** One map's raw value; 0 when empty or the map isn't loaded. */
+  get(map: string, cell: Cell): number;
+  /** Applies at once (reads see it); colliders, walls and meshes rebuild at the tick's destroy flush. */
+  paint(map: string, edits: { cells?: readonly CellEdit[]; rects?: readonly CellRect[] }): void;
+  /** Runs the tileset's rule `rule` over `rect` and paints the result. */
+  autotile(map: string, rule: string, rect: CellBounds): void;
+  /** Cells of a map whose tile has `tag`, row-major. */
+  find(map: string, tag: string): readonly Cell[];
+};
+
 /** `EngineContext.saves`: asks the host to save; never answers inside the simulation. */
 export type SavesContext = {
   /** Saves `slot` after this tick; whether it worked arrives only as a host event (`save:written`, `save:failed`). */
@@ -292,6 +317,8 @@ export type EngineContext = {
   readonly grid: RuntimeGrid | null;
   /** Present when the loaded scene has walk areas. */
   readonly nav: RuntimeNav | null;
+  /** Tilemaps' cells by cell; empty answers while no tilemap is loaded. */
+  readonly tiles: TilesContext;
   view: SceneView | null;
   tags: ColliderTags;
   registry: Registry;
@@ -842,6 +869,17 @@ export const ENGINE_TOOL_IDS = [
 ] as const;
 export type EngineToolId = (typeof ENGINE_TOOL_IDS)[number];
 
+/** The engine's tile painting tools, beside `ENGINE_TOOL_IDS`; a game's tools can't reuse these ids either. */
+export const TILE_TOOL_IDS = [
+  "tile-brush",
+  "tile-rect",
+  "tile-fill",
+  "tile-erase",
+  "tile-pick",
+  "tile-auto",
+] as const;
+export type TileToolId = (typeof TILE_TOOL_IDS)[number];
+
 /**
  * How the inspector draws a field a game marks with `.meta({ widget: id })`.
  * The engine only describes the widget and the site renders it, so a game
@@ -1318,6 +1356,8 @@ export type GameDefinition<S = unknown, G = unknown> = {
   camera?: CameraRigDef;
   /** The game's audio beyond the engine's. */
   audio?: GameAudioDef;
+  /** Fields a tileset's per-tile `data` may hold. */
+  tileData?: z.ZodRawShape;
 };
 
 /** `GameDefinition.audio`. */

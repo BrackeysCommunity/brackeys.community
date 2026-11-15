@@ -7,6 +7,292 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.19.0] — unreleased
+
+Tilemaps: the `tilemap` primitive and the `tileset` kind, chunked tile
+cells with Tiled's flip flags, merged tile colliders, a culled chunk-mesh
+view, `ctx.tiles` runtime reads and writes, deterministic autotiling, the
+editor's tile tools and palette, and Tiled and LDtk import. Tactics' floor
+becomes a tilemap, and five genre-matrix rows complete. Platformer golden
+traces are unchanged. The version and the agent-surface step (0.19.0, agent
+surface 25) follow 0.18.0 and are not yet confirmed by the owner.
+
+### Added
+
+- The tile cell codec in `./game` (`game/tile-cell.ts`, import-free):
+  `TILE_ID_BITS` (13), `MAX_TILES` (8,191: ids 0–8190), Tiled's flags
+  `FLIP_X`, `FLIP_Y`, `FLIP_D`, `TileCell`, `TileTurn`, `decodeCell`,
+  `encodeCell` and `transformCell(value, turn)`, which applies a quarter
+  turn or mirror to a cell's flags exactly as Tiled's rotate and flip
+  commands do. A cell value is 0 for empty, else the tile id + 1 with the
+  flags above it.
+- `TILEMAP_PRIMITIVE` in `./game`: the `tilemap` type's definition (`at`,
+  `tileset`, `cells`, `collision`, `tint`, `alpha`; physics optional; ascii
+  `#`). A tilemap is a
+  tree entity: its frame poses the whole map, and its cells' flags follow
+  quarter turns and mirrors only.
+- `gridField(description, { tileFlags: true })` marks a grid field whose
+  values are tile cells; `gridFieldInfo` returns `tileFlags: true` for it.
+- The `tileset` kind's contract in `./project`: `TilesetFile`, `TileDef`,
+  `AutotileRule`, `tilesetSchema`, `TILESET_SCHEMA_ID`
+  (`urn:jams-engine:tileset:v1`), `TILESET_VERSION`, and `TILESET_KIND`
+  (a `sim` runtime doc capped at 1 MiB and 8,191 items);
+  `tilemapIssues(entity, tileset, imageInfo, grid)`, the one
+  tile-validity rule. `TileDef`, `TilesetFile` and
+  `AutotileRule` are also in `./game`.
+- `EngineContext.tiles: TilesContext` (`at`, `get`, `paint`, `autotile`,
+  `find`) and `TileAt` in `./game`: empty answers and no-op writes until a
+  tilemap system is registered.
+- `GameDefinition.tileData?: z.ZodRawShape`, the fields a tileset's
+  per-tile `data` may hold.
+- `ColliderTag.tile?: { map, tile, cell }` for a tilemap's colliders.
+- `SceneView.tilemap?(id, map)`, `tileChunks?(id, cells, dirty)` and
+  `removeTilemap?(id)`, and `TilemapVisual`: data-only members, like the
+  emitter's and text's, so the view can sit across a worker link.
+- `ScenePresence.brush?: { map, rect }`, a painter's brush rectangle.
+- The tile pipeline's pure pieces: `tileTraits`,
+  `decodeChunks`, `dirtyChunks`, `greedyBoxes`, `outlineChains`,
+  `buildChunkMesh`, `terrainMask`, `applyAutotile` (with the `MASK_*`
+  neighbour bits), `importTiled` and `importLdtk` (in `./game`; their option
+  and result types also in `./project`), `tilePaintBatch` in `./editor`,
+  and `createTilemapView` with `TilemapView` in the root entry.
+  `createTilemapSystem`, `isTilemapSystem`, `findTilemapSystem`,
+  `tilesContext`, `TilemapEntity`, `TilemapSystem`, `TileCollision` and
+  `DEFAULT_TILE_COLLISION` are in `./game`.
+- `TILE_TOOL_IDS` (`tile-brush`, `tile-rect`, `tile-fill`, `tile-erase`,
+  `tile-pick`, `tile-auto`) and `TileToolId` beside `ENGINE_TOOL_IDS` in
+  `./game` and `./editor`; `tileTools()`, `TileBrush` and
+  `TILE_FILL_CAP` (65,536) in `./editor`.
+- The `tilemap` primitive is registered: `PRIMITIVE_TYPES`, `PRIMITIVES`,
+  `BASE_REQUIRED_FIELDS` (`at`, `tileset`, `cells`) and an inert tilemap
+  system in `PRIMITIVE_SYSTEMS`. It spawns after `node` and before a game's
+  listed groups when its `spawnOrder` leaves it out.
+- The `tileset` kind joins `ENGINE_ASSET_KINDS`: `data` is judged by
+  `GameDefinition.tileData`, `image` refs a texture or atlas and `material`
+  a material, limits 1 MiB / 8,191 items. A repeated numeric keyed id (a
+  tileset's `tiles`) is now a `dup-id`, as a string id already was.
+- `tilemapIssues` raises `tile-unknown` per cell, `tileset-missing` and
+  `tileset-grid-mismatch` (tile px must equal grid cell × px per metre, a
+  whole pixel; the issue reports the expected px), called from the scene
+  kind's cross-validation; `tilesetIssues` checks rule tiles, fallbacks and
+  animation frames. New helpers `tilesetTileCount`, `tilesetImageInfo`,
+  `tilesetSchemaFor`, all in `./project`.
+- `transformGrid` takes `{ tileFlags }` and turns tile cell flip flags with
+  the grid; grid fields marked `tileFlags` (the tilemap's cells) turn their
+  values under turned or flipped instances, parent frames and `paintCells`
+  resolved through a turned frame. Other grid fields keep their values.
+- Kitchen sink: a 0.25 m `settings.grid` and an 8×2 tilemap `tiles` from the
+  generated CC0 `kitchen-tileset` / `kitchen-tiles.png`.
+- `tileTraits(def)` in `./tiles`: a tile's `solid`, `oneWay`, `cost` and
+  shapes, the one rule colliders, grid walls, path costs and schematics read;
+  with `mergesAsBox`, `DEFAULT_TILE_COST`, `decodeChunks` and
+  `dirtyChunks(prev, next)`. `greedyBoxes`, `outlineChains` and `chunkRects`
+  merge solid tiles per chunk, never across chunks.
+- Tilemaps spawn colliders chunk by chunk per `collision` (`boxes` by
+  default, `outline`, `tiles`, `none`). On Rapier this is one fixed body per
+  map; without physics they are static geometry colliders. One-way tiles gate
+  by side through `passesOneWay`, so character controllers pick them up.
+  Every collider is tagged `tile: { map, tile, cell }` and takes its tile's
+  material. Editor updates rebuild only the dirty chunks. A tilemap follows
+  its parent's moves and turns. `ctx.query.inArea` sees a tilemap as one
+  entity over its cells' bounds. A bad cell refuses the load through
+  `tilemapIssues`. `TilemapSystem` gains `setPose`, `passesOneWay` and
+  `chunkColliders`; `onOneWaySide` and `ONE_WAY_TOLERANCE` are exported from
+  the bodies system so both solid systems share one side test.
+- `importTiled` converts Tiled JSON maps (.tmj/.json) and their embedded or
+  external tilesets (.tsj/.json), orthogonal and hexagonal, into one
+  cross-doc ProjectOp batch: textures (importAsset), tilesets (createAsset),
+  then the scene's grid, one tilemap per tile layer per tileset, markers and
+  sensors. `TiledImportOptions` gains `images`, `folder` and `licence`.
+  Isometric and staggered maps are refused with `import-failed`.
+- `importLdtk(world, { project, pxPerMetre, hash, levels?, images?, files?,
+game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
+  result: one cross-doc batch with one scene per level. IntGrid layers become
+  tilemaps over a generated one-colour-per-value tileset (a PNG from the
+  export PNG writer), or over the layer's auto-layer tiles when it has them;
+  tile layers keep their flips, tilesets keep their tags and custom data, and
+  entities become markers with their fields in `extra`. Generated and copied
+  image bytes come back in `blobs`, keyed by hash.
+- `marker` and `sensor` gain an optional `extra` field: imported properties
+  (Tiled object properties, LDtk entity fields) a game maps to its own types.
+- `scene assets import --tiled <map.tmj> [--into scene] [--tilesets dir]` and
+  `--ldtk <world.ldtk> [--level name…]` convert a map into scenes, tilesets
+  and their images as one undoable cross-doc batch (with `--dry-run`,
+  `--json` and `--live`); the images a map names get sidecars, and a long
+  import reports each image it reads on stderr.
+
+- `ctx.tiles`: `at(cell)` lists every tilemap's tile at a grid cell top
+  first (z, then later in scene order), `get`, `find(map, tag)` and
+  `paint(map, { cells, rects })`, which applies at once and rebuilds the
+  changed chunks' colliders and drawing once per tick after the destroy
+  flush.
+- Runtime tile writes are saved: the tilemap system's `save` is a sparse
+  diff from the scene's cells as row-major `[col, row, value][]`;
+  `restore`, world snapshots and live swaps put them back over the
+  (possibly new) cells; `inspect` shows dirty chunks, collider count and
+  writes. `TilemapSystem` gains `cells(id)` and `watchCells(fn)`.
+- Tilemaps on a grid: solid tiles become `ctx.grid` walls next to
+  `world.gridWalls`' types, a tile's cost feeds the new `RuntimeGrid.cost`
+  (the extra step cost above 10; `gridRoute` uses it, and
+  `findPath`/`flowField` take it as `cost`), and runtime tile writes
+  re-sync walls at the tick's flush (`GridState.tilesChanged`).
+- Schematic renders draw tilemaps: `renderSceneSvg` and `sceneAsciiMap`
+  take `tileTraits` (per tileset id, per tile id, from `tileTraits`), fill
+  solid tiles and outline the rest (`:` in ASCII), and label tiles by id
+  while at most `TILE_LABEL_MAX_CELLS` are drawn and a cell is at least
+  12 image px; `scene render` computes the traits from the project's
+  tilesets. `drawnTile`, `DrawnTile`, `SceneTileOptions` and
+  `SceneTileTraits` are exported from `./scene`.
+- `scene tiles <scene> <map> [--rect c0,r0,c1,r1]` prints a tilemap region
+  as ASCII (tile ids 0-61 drawn as their base-62 digit, `.` empty) with a
+  legend of each tile's id, cell count, flipped count, solidity and tags,
+  plus the tilemap's tile issues.
+
+- Tilemaps draw as one Pixi Mesh per non-empty 32×32 chunk (UVs into the
+  tileset texture, flip flags as UV order, animated tiles swap UVs per
+  frame, hex quads at the grid centre), rebuilt per dirty chunk, through
+  `SceneView.tilemap`/`tileChunks`/`removeTilemap`. `animationFrame`,
+  `tileOffset` and `writeTileUVs` join `buildChunkMesh` in `./tiles`;
+  `ChunkMesh` gains `bounds` and `animated[].flags`, `ChunkMeshInput` an
+  optional `offset`. `cullRect`, `outsideViews` and `PixiViewFrame` are in
+  the root entry.
+- Culling per viewport: `SceneView.frame?` takes optional `views` (every
+  viewport's world rect, metres) and `nowMs` (the clock animated tiles step
+  by). Each frame the shell hands the view every viewport's world rect and
+  culls the world's cullable visuals (shapes, sprites, text, tilemap
+  chunks, each with a cull area from its local bounds) against each
+  viewport before that viewport's draw, so split-screen and minimap
+  viewports cull separately. Particle buckets are cullable, and their cull
+  area follows their particles.
+- The `tilemap-512` engine:perf case: a generated 512 × 512 tilemap (256
+  chunks, merged colliders, 40 props) on an in-memory tileset. Until a
+  baseline records it, it passes with a notice.
+- `applyAutotile` and `terrainMask` (blob47 / edge16 autotiling,
+  deterministic, masks read before the pass, rect plus a one-cell border);
+  `ctx.tiles.autotile(map, rule, bounds)` now paints the rule's result.
+- The six tile tools (`tileTools()`, registered in the tool host;
+  `ToolHost.tileTools()` lists them, `tools()` is unchanged) paint through
+  one ops builder, `tilePaintBatch(map, { cells, rects }, label?)`, which
+  splits at the per-op cap. Brush and eraser paint on drag with Bresenham
+  between samples, rectangle on release, fill as a flood of at most
+  `TILE_FILL_CAP` (65,536) cells (else refused in the status bar), picker
+  (Alt with the brush; drag for a stamp), and the autotile brush (terrain
+  cells, then `applyAutotile` over their bounds plus a border, one batch).
+  R / Shift+R / F / V turn and mirror the brush while a tile tool is active
+  (`turnBrush`, `turnedStamp`), also as the `brush-cw`, `brush-ccw`,
+  `brush-flip-x` and `brush-flip-y` commands. The editor store gains
+  `tileBrush`, `tileRule` and `notice` (the status bar's refusal text) with
+  `setTileBrush` / `setTileRule`; `EditorSession.setBrush` publishes the
+  brush rectangle to presence; `ToolHostOptions.tileset` and
+  `EditorToolContext.tiles` (`TileToolContext`). The helpers behind them
+  (`stampCells`, `cellLine`, `floodCells`, `autotileRule`, `autotileEdits`,
+  `tileTarget`, `tileTargetAt`, `cellUnder`, `cellsBox`, `isTilemapType`)
+  are in `./editor`.
+- Tile palette panel (Tiles tab): the tileset cut into tiles, Shift/drag
+  stamps, autotile rules that arm the autotile brush, and the picked
+  tile's data, read-only. `EditorProjectLink.assetImage` gives it the
+  tiles' image.
+- Editor: the six tile tools in the toolbar while a tilemap is selected,
+  hovered or being painted, with rotate and flip-brush buttons (R, F, V);
+  their room is kept so the dock never refits. A refused tool action shows
+  in the status bar. Presence draws each painter's tile brush rectangle in
+  their colour.
+
+- `GameInstance.extractFrame({ width?, height? })` renders the whole stage
+  through Pixi's `renderer.extract.pixels` and returns
+  `{ renderer, width, height, data }` (RGBA, at most the asked size, keeping
+  aspect; null while the renderer rebuilds or has failed). The editor's live
+  frames for agents (`scene_frame`, `frame --live`) read it through the new
+  `gamePixels` in `editor-ui/session/live-responder.ts` instead of canvas
+  readback.
+- MCP `scene_stats` tool: the CLI's `stats` over MCP (`scene`, `ticks`,
+  `game`, `live`/`url`).
+- MCP `scene_paint`: paints a tilemap with the CLI's `paint` inputs (`cells`,
+  `rect`, `fill`, `auto`) as one `paintCells` batch, a dry run by default,
+  live or on files.
+- MCP `asset_import` takes `tiled` (with `into`, `tilesets`) or `ldtk` (with
+  `level`) in place of `file`; `scene_render`'s description says tilemaps
+  draw tile by tile.
+
+- Genre probe `side-scroller` (Rapier, gravity down, a parameterised
+  character-side-view, tilemaps with a one-way plank tile, an anim sprite, a
+  landing sound through `recordPresentation`, a camera region; `won` at the
+  goal), which completes the platformer row.
+- Genre probe `rts`: 500 `occupant` units on a tilemap with a solid wall and
+  a mud gap (cost 60), box selection as a `select { rect }` command,
+  `move { to }` along one flow field priced by the grid's tile costs, a
+  minimap viewport; won when the 400 selected reach the target (tick 388),
+  saved mid-march. `engine:perf` gains an `rts-500` case (the whole army
+  marched back and forth every 200 ticks); it passes with a notice until the
+  owner records its baseline.
+- Genre probe `metroidvania`: rooms attached as sublevels with tilemaps, a
+  dash flag in `persist` that opens a door through a runtime tile write, a
+  minimap viewport, and a mid-run world save. The five tilemap rows of the
+  genre matrix are complete.
+
+### Changed
+
+- The kitchen-sink SVG golden moves: its tilemap cells gain `data-tile`
+  and `data-solid` attributes.
+- The kitchen sink's tilemap gains a one-way plank tile (oneWay up), an
+  animated lamp tile (two 250 ms frames) and the tileset's moss-top edge16
+  autotile rule; `kitchen-tiles.png` grows to five 25 px tiles (regenerated
+  by `scenes/tools/kitchen-media.ts`); the sink's svg and ascii goldens are
+  regenerated.
+- Tactics' level 1 lays its board on a tilemap floor (`art/floor.png`, cut
+  by the new `tactics-tileset`; generated by `art/make-art.ts`, CC0-1.0).
+  Its two wall solids became solid wall tiles, and the marsh and thicket
+  rough areas became marsh (cost 20) and thicket (cost 30) tiles; physics
+  stays none, so the floor has no colliders. The golden recording
+  (`fixtures/level-1.recording.json`) was re-recorded once for the new
+  scene: its sceneHash, runHash and configHash moved.
+  `TACTICS_GOLDEN_DIGEST` did not move (still `0d59d480ac4a58bd`): the
+  board's walls and step costs are cell-for-cell what the solids and rough
+  areas gave, so the run itself is identical.
+- Alt+click picking in Play is owned by the play bar (new `usePlayPick` in
+  `editor-ui/panels/PlayPick.tsx`; `playPickOf` moved there and is
+  re-exported from PlayInspector), so it works with the Inspector hidden.
+- `createSwapReplay` gains `from(tick)`; a replay seek moves the existing
+  swap replay instead of rebuilding a filtered swap list (same results).
+- The lifetime behavior's world-save state carries `next`, the start-order
+  counter, on every entity with a lifetime block (paused ones save
+  `{ next }`), so a restored run numbers later lifetimes as the saved run
+  would. World-save text with lifetimes changes; no digest or genre pin
+  moves.
+
+- The `top-down` genre probe's corridor is now two tilemaps (floor and solid
+  wall tiles on a 0.16 m grid, from a tileset). An NPC sensor stops the
+  rover for a two-line dialogue that `@dialogue-advance` commands step
+  through, and the saved variant now saves mid-conversation. Its pins move
+  for that reason only; the top-down row's `pending` entry is gone.
+- The `roguelike` genre probe digs its floor out of a solid-rock tilemap:
+  rooms are painted empty with `ctx.tiles.paint` at load and corridors are
+  dug one cell a tick, each autotiled with `ctx.tiles.autotile` (an edge16
+  rule). The tiles' solidity walls the grid in place of `occupancy.setWall`.
+  A descend that arrives mid-dig waits for the corridors, and a new
+  `saved-mid-dig` variant saves at tick 15. The roguelike row's `pending`
+  entry is gone; its pins move for this intended reason.
+- The genre view run hands the shell a probe's scene list when it has one.
+- Restoring a world save refreshes the grid's tile walls; before, `passable`
+  and occupancy kept the walls from before the load.
+- A world save names a tween block's entries with their keys sorted, and a
+  restore matches either order: a sublevel restored from a save no longer
+  restarts the block tweens of a scene loaded by another path.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` 24 → 25, with the tile issue codes, the `tiles`
+  and `paint` commands, `assets import`'s Tiled and LDtk forms, the MCP
+  `scene_paint` and `scene_stats` tools and the `tileset` JSON Schema
+  (`./schemas/tileset.schema.json`).
+- Issue codes `tile-unknown`, `tileset-missing` and
+  `tileset-grid-mismatch` (all error), raised by `tilemapIssues`.
+- Commands `tiles <scene> <map> [--rect c0,r0,c1,r1]` and
+  `paint <scene> <map> (--cells … | --rect … | --fill … | --auto …)`
+  with the writer flags; `assets import` gains `--tiled <map.tmj>
+[--into scene] [--tilesets dir]` and `--ldtk <world.ldtk> [--level
+name…]`.
+
 ## [0.18.0] — unreleased
 
 Debugging, profiling and agent eyes: windowed per-phase timings and a perf

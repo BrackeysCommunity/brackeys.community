@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createRegistry } from "../../game/define";
 import {
   angleField,
+  gridField,
   mirrorField,
   PathSchema,
   pointField,
@@ -118,6 +119,18 @@ describe("transformFieldValue: each kind under each element", () => {
       transformed: cells,
       d,
     });
+  });
+
+  it("tells transformGrid a tile-flag grid's values are tile cells, and a plain grid's aren't", () => {
+    const cells = { "0,0": ["1*2"] };
+    const d: Dihedral = { rot: 3, flip: false };
+    vi.mocked(transformGrid).mockClear();
+    transformFieldValue(gridField("Tiles.", { tileFlags: true }), cells, dihedral(d, AT));
+    transformFieldValue(gridField("Plain."), cells, dihedral(d, AT));
+    expect(vi.mocked(transformGrid).mock.calls).toEqual([
+      [cells, d, { tileFlags: true }],
+      [cells, d, { tileFlags: false }],
+    ]);
   });
 
   it("leaves values not shaped like their kind alone", () => {

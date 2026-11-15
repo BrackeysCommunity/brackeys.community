@@ -153,7 +153,12 @@ describe("the content plan over the engine project", () => {
     for (const id of ["crate", "crates", "crates-texture"])
       expect(plan.assets[id], id).toBeDefined();
     const sink = plan.scenes.find((s) => s.id === "kitchen-sink")!;
-    expect(sink.bundle.entries).toEqual(["backdrop", "crates-texture", "hero-texture"]);
+    expect(sink.bundle.entries).toEqual([
+      "backdrop",
+      "crates-texture",
+      "hero-texture",
+      "kitchen-tiles",
+    ]);
   });
 
   it("refuses a shipped atlas whose entry records no size once, at the blob", async () => {
@@ -1184,6 +1189,142 @@ describe("an export with sounds, clips, a synth patch, a font, strings and a dia
     expect(preloaded.manifest.budget.measured.firstLoadBytes - measured.firstLoadBytes).toBe(
       byId("drone-clip") + docGrowth,
     );
+  });
+});
+
+describe("an export with a tilemap and its tileset", () => {
+  const TILESET = "ground-tileset";
+
+  /**
+   * The physics-free project, its start scene's "floor" tilemap painting
+   * from "ground-tileset" (image "ground-art", a texture, and one tile's
+   * material "grit-material"), and "spare-tileset" (image "spare-art") named by no
+   * entity.
+   */
+  function tileFiles(): HeldFiles {
+    const held = physicsFreeFiles();
+    const yard = {
+      ...scene("yard", ["tiles"]),
+      game: testGame.id,
+      settings: { physics: "none", grid: { kind: "square", cell: [0.5, 0.5] } },
+      entities: [
+        { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+        {
+          id: "floor",
+          type: "tilemap",
+          at: [0, 0],
+          tileset: TILESET,
+          cells: { "0,0": ["1*3,0,2"] },
+        },
+      ],
+    };
+    const docs = heldDocs({
+      "yard.json": yard,
+      "ground.tileset.json": {
+        kind: "tileset",
+        v: 1,
+        image: "ground-art",
+        tile: [16, 16],
+        columns: 2,
+        tiles: [{ id: 0, solid: true, material: "grit-material" }],
+      },
+      "spare.tileset.json": {
+        kind: "tileset",
+        v: 1,
+        image: "spare-art",
+        tile: [16, 16],
+        columns: 1,
+      },
+      "grit.material.json": { kind: "material", v: 2, description: "Loose grit underfoot." },
+    });
+    held.files = [...held.files.filter((f) => f.path !== "yard.json"), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    held.files.push(
+      { path: "art/ground.png", sidecar: png("ground-art", "7".repeat(64), 32, 16, CC0) },
+      { path: "art/spare.png", sidecar: png("spare-art", "8".repeat(64), 16, 16, CC0) },
+    );
+    return held;
+  }
+
+  let input: ExportInput;
+  let plan: ExportPlan;
+  beforeAll(async () => {
+    input = await heldInput(FREE_PROJECT, tileFiles(), testGame);
+    plan = await finishExport(await planContent(input), builtCode(), input);
+  });
+
+  it("plans with no error and ships both tilesets in data/, each as written", () => {
+    expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
+    for (const id of [TILESET, "spare-tileset"]) {
+      const asset = plan.manifest.assets[id];
+      expect(asset, id).toMatchObject({
+        kind: "tileset",
+        storage: "doc",
+        file: `data/${asset?.sha256}.json`,
+      });
+      expect(plan.files.find((f) => f.path === asset!.file)).toEqual({
+        path: asset!.file,
+        role: "data",
+        source: { kind: "text", text: input.texts.get(id) },
+      });
+    }
+    expect(plan.manifest.assets["grit-material"]?.storage).toBe("doc");
+  });
+
+  it("ships each tileset's image as a blob in assets/", () => {
+    for (const id of ["ground-art", "spare-art"]) {
+      const asset = plan.manifest.assets[id];
+      expect(asset?.storage, id).toBe("blob");
+      expect(plan.files.find((f) => f.path === asset!.file)?.source, id).toEqual({
+        kind: "blob",
+        sha256: asset!.sha256,
+      });
+    }
+  });
+
+  it("bundles the tilemap's tileset image with its scene, and no image only an unused tileset names", () => {
+    const yard = plan.manifest.flow.scenes.find((s) => s.id === "yard")!;
+    expect(yard.bundle.entries).toEqual(["ground-art", "tiles"]);
+    const bundled = [
+      ...plan.manifest.projectBundle.entries,
+      ...plan.manifest.flow.scenes.flatMap((s) => s.bundle.entries),
+    ];
+    expect(bundled).not.toContain("spare-art");
+  });
+
+  it("writes a release.json that checks clean, the tileset's refs naming its image and material", async () => {
+    const parsed = parseReleaseManifest(formatReleaseManifest(plan.manifest));
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const files = new Map<string, string>();
+    for (const f of plan.files) {
+      const { source } = f;
+      if (source.kind === "text") files.set(f.path, await sha256(source.text));
+      else if (source.kind === "bytes") files.set(f.path, await sha256(source.bytes));
+      else if (source.kind === "blob") files.set(f.path, source.sha256);
+      else files.set(f.path, plan.manifest.build.files.find((r) => r.path === f.path)!.sha256);
+    }
+    const docRefs = manifestDocRefs(input.texts, input.registry, input.kinds);
+    expect(await checkReleaseManifest(parsed.manifest, files, { docRefs })).toEqual([]);
+    expect(docRefs(TILESET, plan.manifest.assets[TILESET]!)).toEqual([
+      { pointer: "/image", id: "ground-art", kinds: ["texture", "atlas"] },
+      { pointer: "/tiles/0/material", id: "grit-material", kinds: ["material"] },
+    ]);
+  });
+
+  it("refuses to plan a release whose tileset names an image that doesn't ship", async () => {
+    const content = await planContent(input);
+    const { "ground-art": _, ...assets } = content.assets;
+    const dropped = await finishExport({ ...content, assets }, builtCode(), input);
+    expect(
+      dropped.issues.filter((i) => i.code === "asset-missing" && i.entityIds[0] === TILESET),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        path: `/assets/${TILESET}`,
+        entityIds: [TILESET, "ground-art"],
+        got: "ground-art",
+      }),
+    ]);
   });
 });
 

@@ -2,13 +2,15 @@
  * The kitchen sink's generated media: `audio/clink.wav`, a short decaying
  * chime, and `fonts/kitchen.fnt` with its page `fonts/kitchen.png`, a 5×7
  * pixel face covering ASCII letters, digits, common punctuation and the
- * French accents the strings use. Every byte comes from integer arithmetic
+ * French accents the strings use; and `art/kitchen-tiles.png`, five 25 px
+ * tiles in a row (stone, moss, a plank, a dim and a lit lamp) for the sink's
+ * tilemap. Every byte comes from integer arithmetic
  * and a stored (uncompressed) deflate stream, so a rerun writes the same
  * files. All of it is CC0-1.0.
  *
  *   bun packages/engine/scenes/tools/kitchen-media.ts <dir>
  *
- * writes the three files into `<dir>`, for `vp run scene assets import`.
+ * writes the four files into `<dir>`, for `vp run scene assets import`.
  */
 
 import { pcmWav, triangleLevel } from "../../audio/wav";
@@ -203,12 +205,43 @@ export function kitchenFontFnt(page = "kitchen.png"): string {
   return `${lines.join("\n")}\n`;
 }
 
+/** One tile's side in the tileset image, px: the sink's 0.25 m grid cell at 100 px per metre. */
+export const KITCHEN_TILE_PX = 25;
+const TILE_COLOURS: readonly (readonly [fill: number, edge: number])[] = [
+  [0x8a8f99, 0x5b606a],
+  [0x5f9e4f, 0x3d6b33],
+  [0xb07a45, 0x7a5230],
+  [0x8c7a2e, 0x4f4419],
+  [0xf2d14b, 0xb8962a],
+];
+
+/** The tilemap's tileset image: one row of square RGB tiles, each a fill inside a 2 px edge. */
+export function kitchenTilesPng(): Uint8Array {
+  const width = KITCHEN_TILE_PX * TILE_COLOURS.length;
+  const height = KITCHEN_TILE_PX;
+  const stride = 1 + width * 3;
+  const raw = new Uint8Array(height * stride);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const tx = x % KITCHEN_TILE_PX;
+      const [fill, edge] = TILE_COLOURS[Math.floor(x / KITCHEN_TILE_PX)]!;
+      const rim = Math.min(tx, y, KITCHEN_TILE_PX - 1 - tx, KITCHEN_TILE_PX - 1 - y) < 2;
+      const rgb = rim ? edge : fill;
+      const at = y * stride + 1 + x * 3;
+      raw[at] = rgb >> 16;
+      raw[at + 1] = (rgb >> 8) & 0xff;
+      raw[at + 2] = rgb & 0xff;
+    }
+  return pngFile({ width, height, bitDepth: 8, colorType: 2, zlib: zlibStream(deflateStored(raw), raw) });
+}
+
 /** Every generated file, at its path in the engine project. */
 export function kitchenMedia(): KitchenMediaFile[] {
   return [
     { path: "audio/clink.wav", bytes: clinkWav() },
     { path: "fonts/kitchen.fnt", bytes: new TextEncoder().encode(kitchenFontFnt()) },
     { path: "fonts/kitchen.png", bytes: kitchenFontPng() },
+    { path: "art/kitchen-tiles.png", bytes: kitchenTilesPng() },
   ];
 }
 

@@ -1,4 +1,5 @@
 import type { BehaviorName } from "../game/behaviors";
+import { TILEMAP_PRIMITIVE } from "../game/primitives";
 import type { EngineContext, EntityQuery, EntitySelector } from "../game/types";
 import { entityTags, tagFieldsOf } from "../scene/schema";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../scene/shape-geometry";
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, EntityTypeName, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
+import { tilemapExtentOf } from "../systems/tilemap";
 import type { Vec2 } from "../types";
 import { carriedBehaviors } from "./behaviors";
 import { isWatched, type Pose } from "./poses";
@@ -103,6 +105,11 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       if (tracking && slots.has(id)) stale.add(id);
     });
   }
+
+  const isTilemap = (type: EntityTypeName) => {
+    const t = ctx.registry.types.get(type);
+    return (t?.base ?? t?.type) === TILEMAP_PRIMITIVE.type;
+  };
 
   function fieldsOf(type: EntityTypeName) {
     let f = geometry.get(type);
@@ -296,7 +303,9 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       const shape =
         local && centre && (centre[0] !== spawn.x || centre[1] !== spawn.y)
           ? translateShape(local, [spawn.x - centre[0], spawn.y - centre[1]])
-          : local;
+          : local === undefined && isTilemap(e.type)
+            ? (tilemapExtentOf(ctx, e) ?? undefined)
+            : local;
       const slot: Slot = {
         id: e.id,
         type: e.type,

@@ -84,12 +84,9 @@ function examples(doc: string, text: string): Example[] {
   return out;
 }
 
-/** Whitespace-separated words, each with the single quotes a shell would strip taken off. */
+/** Whitespace-separated words as a shell splits them: a single-quoted span is one word, quotes taken off. */
 const shellWords = (line: string) =>
-  line
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.replace(/^'(.*)'$/, "$1"));
+  [...line.trim().matchAll(/'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2]!);
 
 /** A command's name and the arguments after it: `assets import x` is `assets import`, then `x`. */
 function split(argv: readonly string[]): [string | undefined, string[]] {
@@ -131,6 +128,7 @@ function isPure(argv: string[]): boolean {
   const [name, rest] = split(argv);
   if (rest.includes("--live") || name === "project pull" || name === "project push") return false;
   if (name === "fmt") return rest.includes("--check");
+  if (name === "paint") return rest.includes("--dry-run");
   if (name === "apply" || name?.startsWith("assets "))
     return name === "assets list" || name === "assets info" || rest.includes("--dry-run");
   if (name === "render") return !rest.includes("--out");

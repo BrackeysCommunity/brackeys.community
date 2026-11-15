@@ -12,7 +12,9 @@ type Countdown = { due: number; seq: number };
  * stops while the entity is disabled; enabling starts a fresh one. It keeps
  * its own clock of one phase per simulated tick, plus the phases a seek
  * runs before tick 0, as `ctx.timers` does, so an entity goes on the tick a
- * timer of the same delay would fire. A world save holds the ticks left.
+ * timer of the same delay would fire. A world save holds the ticks left,
+ * and every saved block carries the start-order counter, so a restored run
+ * numbers its later lifetimes as the saved run would have.
  */
 export const createLifetimeSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const blocks = new Map<string, LifetimeBlock>();
@@ -99,11 +101,13 @@ export const createLifetimeSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     /**
      * The ticks left before it goes, counted from the next tick, and its
      * start order, so lifetimes ending on one tick go in the same order
-     * after a restore.
+     * after a restore; `next` is the order the next lifetime started takes.
      */
-    save(id) {
+    save(id): JsonValue | undefined {
+      if (!blocks.has(id)) return undefined;
       const c = running.get(id);
-      return c ? { left: Math.max(0, c.due - nextPhase()), seq: c.seq } : undefined;
+      if (!c) return { next: seq };
+      return { left: Math.max(0, c.due - nextPhase()), seq: c.seq, next: seq };
     },
     /** Ticks left before it goes, from the next tick, and what it does then; `left` null while paused. */
     inspect(id) {
@@ -117,7 +121,8 @@ export const createLifetimeSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     },
     restore(id, state: JsonValue) {
       if (!blocks.has(id) || typeof state !== "object" || state === null) return;
-      const { left, seq: order } = state as { left?: unknown; seq?: unknown };
+      const { left, seq: order, next } = state as { left?: unknown; seq?: unknown; next?: unknown };
+      if (isCount(next)) seq = Math.max(seq, next);
       if (!isCount(left)) return;
       lastPhase = Math.min(lastPhase, now() - 1);
       start(id, left, isCount(order) ? order : undefined);

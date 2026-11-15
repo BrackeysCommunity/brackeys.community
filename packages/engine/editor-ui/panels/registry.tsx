@@ -3,6 +3,7 @@ import {
   AlertCircleIcon,
   DashboardSpeed01Icon,
   Folder01Icon,
+  GridViewIcon,
   ListViewIcon,
   Rocket01Icon,
   Route01Icon,
@@ -39,6 +40,7 @@ import { PublishPanel } from "./publish/PublishPanel";
 import type { CaptureBinding } from "./settings/InputPanel";
 import { ProjectSettings } from "./settings/ProjectSettings";
 import { SpawnedGroup } from "./SpawnedGroup";
+import { TilePalette } from "./TilePalette";
 
 /** What the panels are drawn from: the editor's controls and the stores they share. */
 export type PanelControls = Pick<
@@ -399,6 +401,19 @@ export const PANELS: readonly PanelDef[] = [
         </Text>
       ),
     skeleton: rows(5),
+  },
+  {
+    id: "tiles",
+    title: "Tiles",
+    icon: GridViewIcon,
+    render: ({ controls }) => (
+      <TilePalette
+        session={controls.session}
+        runtime={controls.project?.runtime ?? null}
+        imageUrl={controls.project?.assetImage}
+      />
+    ),
+    skeleton: rows(4),
   },
 ];
 

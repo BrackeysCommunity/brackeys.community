@@ -107,6 +107,7 @@ describe("project push --dry-run", () => {
       { path: "art/dot.png", kind: "texture" },
       { path: "art/hero.json", kind: "atlas" },
       { path: "art/hero.png", kind: "texture" },
+      { path: "art/kitchen-tiles.png", kind: "texture" },
       { path: "audio/clink.wav", kind: "audio" },
       { path: "fonts/kitchen.fnt", kind: "font" },
       { path: "fonts/kitchen.png", kind: "texture" },
@@ -132,6 +133,7 @@ describe("project push --dry-run", () => {
     );
     const seeds = r.data.seeds as string[];
     expect(seeds).toContain("kitchen-sink.json");
+    expect(seeds).toContain("art/kitchen.tileset.json");
     for (const b of binaries) expect(seeds).not.toContain(b.path);
     expect(seeds).not.toContain("art/make-art.ts");
     expect(seeds).not.toContain("tools/kitchen-media.ts");

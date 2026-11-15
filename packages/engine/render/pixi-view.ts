@@ -3,6 +3,7 @@ import {
   Graphics,
   type Matrix,
   NineSliceSprite,
+  Rectangle,
   RenderTexture,
   Sprite,
   type Texture,
@@ -22,11 +23,13 @@ import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { Sha256 } from "../project/types";
 import { lerpPose, type Pose, type PoseIndex } from "../runtime/poses";
 import type { SceneLayerDef } from "../scene/layers";
+import type { Bounds } from "../scene/types";
 import type { StringTableData } from "../text/strings";
 import { drawShape } from "./draw-shape";
 import { createParticleLayer, type ParticleLayer, type ParticleLayerOptions } from "./particles";
 import { createSpriteTextures } from "./sprite-textures";
 import { createRichText, type FontSource } from "./text";
+import { createTilemapView, outsideViews, type TilemapView } from "./tilemap-view";
 
 /** Textures by content hash, for the view's sprites. */
 export type TextureSource = {
@@ -75,8 +78,19 @@ export type PixiViewOptions = {
   };
 };
 
-export type PixiView = SceneView & {
+/** A rendered frame as the view takes it: `views` are the viewports' world rects (metres), culled against. */
+export type PixiViewFrame = {
+  alpha: number;
+  camera: { x: number; y: number; zoom: number };
+  /** Every viewport's world rect; a visual outside all of them isn't rendered. Omitted or empty culls nothing. */
+  views?: readonly Bounds[];
+  /** The clock animated tiles step by, ms; default `performance.now()`. */
+  nowMs?: number;
+};
+
+export type PixiView = Omit<SceneView, "frame"> & {
   readonly container: Container;
+  frame(f: PixiViewFrame): void;
   /** The view's particle layer, for the shell's bursts and per-frame update; null without `particles`. */
   particles(): ParticleLayer | null;
   /**
@@ -114,7 +128,13 @@ type Visual = {
   seq: number;
   /** The y it was last placed at in a frame, metres, before pixel snapping. */
   y: number;
+  /** Its local bounds as the cull area, measured at the first culled frame after a draw. */
+  area: Rectangle | null;
+  /** Set while `id` is a tilemap, which culls by chunk instead. */
+  tilemap: boolean;
 };
+
+const NO_TEXTURES: TextureSource = { get: () => null, onLoad: () => () => {} };
 
 /** `current` when it is already the display `visual` needs, else a new one. */
 function spriteDisplay(current: Container | undefined, visual: SpriteVisual, texture: Texture) {
@@ -191,6 +211,8 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   let particles: ParticleLayer | null = null;
   /** The last `frame`'s alpha, which an emitter's followed pose interpolates by. */
   let frameAlpha = 1;
+  let tiles: TilemapView | null = null;
+  const tilemaps = () => (tiles ??= createTilemapView(container, textures ?? NO_TEXTURES));
   container.sortableChildren = true;
   container.scale.set(1 / ppm);
 
@@ -247,6 +269,8 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
         z: null,
         seq: seq++,
         y: 0,
+        area: null,
+        tilemap: false,
       };
       visuals.set(id, v);
     } else if (v.display !== display) {
@@ -254,10 +278,14 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       const parent = old.parent;
       if (parent === target) target.addChildAt(display, parent.getChildIndex(old));
       display.zIndex = old.zIndex;
-      old.destroy();
+      if (v.tilemap) tiles?.remove(id);
+      else old.destroy();
       v.display = display;
+      v.tilemap = false;
     }
     display.label = id;
+    display.cullable = true;
+    v.area = null;
     v.layer = layer;
     byDisplay.set(display, v);
     if (!ySorted(layerOrder(layer))) display.zIndex = v.z ?? 0;
@@ -391,6 +419,27 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     }
   }
 
+  /** Marks each visual outside every view as culled; tilemaps cull their chunks themselves. */
+  function cull(views: readonly Bounds[]): void {
+    for (const v of visuals.values()) {
+      if (v.tilemap) continue;
+      if (views.length === 0) {
+        v.display.culled = false;
+        continue;
+      }
+      if (!v.area) {
+        v.area = v.display.getLocalBounds().rectangle.clone();
+        v.display.cullArea = v.area;
+      }
+      v.display.culled = outsideViews(v.display, v.area, views, container);
+    }
+  }
+
+  function dropTilemap(id: string): void {
+    tiles?.remove(id);
+    visuals.delete(id);
+  }
+
   function followedPose(entity: string): Pose | undefined {
     const poses = opts.particles?.poses?.();
     const cur = poses?.get(entity);
@@ -454,12 +503,30 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       shown = names ? new Set(names) : null;
       for (const [order, layer] of layers) applyShown(order, layer);
     },
-    frame({ alpha, camera }) {
+    frame({ alpha, camera, views = [], nowMs }) {
       frameAlpha = alpha;
       parallax(camera);
       placeVisuals(alpha);
       for (const [order, layer] of layers) if (ySorted(order)) ySort(layer);
       for (const v of visuals.values()) applyVisible(v);
+      const px = views.map((b): Bounds => [b[0] * ppm, b[1] * ppm, b[2] * ppm, b[3] * ppm]);
+      cull(px);
+      tiles?.frame({ nowMs: nowMs ?? performance.now(), views: px });
+    },
+    tilemap(id, map) {
+      const view = tilemaps();
+      view.set(id, map);
+      const v = show(id, view.display(id)!, map.layer);
+      releaseSprite(v);
+      settle(id);
+      v.text = null;
+      v.tilemap = true;
+    },
+    tileChunks(id, cells, dirty) {
+      tiles?.chunks(id, cells, dirty);
+    },
+    removeTilemap(id) {
+      if (visuals.get(id)?.tilemap) dropTilemap(id);
     },
     depth(id, z) {
       const v = visuals.get(id);
@@ -471,6 +538,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     remove(id) {
       const v = visuals.get(id);
       if (!v) return;
+      if (v.tilemap) return dropTilemap(id);
       releaseSprite(v);
       settle(id);
       v.display.destroy();
@@ -492,6 +560,8 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       particles = null;
       for (const v of visuals.values()) releaseSprite(v);
       spriteTextures?.destroy();
+      tiles?.destroy();
+      tiles = null;
       unsubscribe?.();
       unsubscribe = null;
       pending.clear();

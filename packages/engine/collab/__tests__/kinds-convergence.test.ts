@@ -400,6 +400,21 @@ describe("the engine's doc kinds and a game's converge", () => {
         },
       ],
     },
+    tileset: {
+      kind: "tileset",
+      v: 1,
+      image: "ground-art",
+      tile: [16, 16],
+      columns: 4,
+      tiles: [
+        { id: 0, solid: true },
+        { id: 1, cost: 20, data: { damage: 1 } },
+        { id: 2, tags: ["grass"] },
+      ],
+      rules: [
+        { id: "grass", kind: "edge16", terrain: "grass", tiles: { "0": 2, "15": 3 }, fallback: 2 },
+      ],
+    },
     [deckKind.kind]: {
       v: 1,
       title: "Red deck",
@@ -1039,6 +1054,43 @@ describe("the engine's doc kinds and a game's converge", () => {
     });
     const v = offline("checks", [write(a), write(b)], start);
     expect([a, b]).toContainEqual(items(v, "checks")[0]!.expect);
+  });
+
+  const withTile = (x: Obj, id: number, edit: (t: Obj) => Obj): Obj => ({
+    ...x,
+    tiles: items(x, "tiles").map((t) => (t.id === id ? edit(t) : t)),
+  });
+
+  it("tileset: two clients editing different tiles' data while a third adds a rule all survive", () => {
+    const rule = { id: "rock", kind: "blob47", terrain: "rock", tiles: { "255": 0 }, fallback: 0 };
+    const v = offline("tileset", [
+      (x) => withTile(x, 0, (t) => ({ ...t, data: { slippery: true } })),
+      (x) => withTile(x, 1, (t) => ({ ...t, data: { damage: 4, slippery: false } })),
+      (x) => ({ ...x, rules: [...items(x, "rules"), rule] }),
+    ]);
+    expect(v.tiles).toEqual([
+      { id: 0, solid: true, data: { slippery: true } },
+      { id: 1, cost: 20, data: { damage: 4, slippery: false } },
+      { id: 2, tags: ["grass"] },
+    ]);
+    expect(items(v, "rules").map((r) => r.id)).toEqual(["grass", "rock"]);
+    expect(items(v, "rules")[1]).toEqual(rule);
+  });
+
+  it("tileset: two clients setting one tile's solid and cost both survive, per field", () => {
+    const v = offline("tileset", [
+      (x) => withTile(x, 2, (t) => ({ ...t, solid: true })),
+      (x) => withTile(x, 2, (t) => ({ ...t, cost: 30 })),
+    ]);
+    expect(items(v, "tiles")[2]).toEqual({ id: 2, tags: ["grass"], solid: true, cost: 30 });
+  });
+
+  it("tileset: two writes of one rule's mask table merge per mask", () => {
+    const v = offline("tileset", [
+      (x) => ({ ...x, rules: [{ ...items(x, "rules")[0]!, tiles: { "0": 2, "15": 3, "5": 1 } }] }),
+      (x) => ({ ...x, rules: [{ ...items(x, "rules")[0]!, tiles: { "0": 1, "15": 3 } }] }),
+    ]);
+    expect(items(v, "rules")[0]!.tiles).toEqual({ "0": 1, "15": 3, "5": 1 });
   });
 
   it(`${deckKind.kind}: concurrent title edits, style keys, tags and card edits all land`, () => {

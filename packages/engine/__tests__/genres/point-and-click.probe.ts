@@ -335,9 +335,6 @@ const script: InputScriptV2 = {
 export const pointAndClickProbe: GenreProbe<PointAndClickSnapshot> = {
   id: ID,
   rows: ["point-and-click", "rts"],
-  pending: {
-    rts: "M25 (many units: tilemaps, culling)",
-  },
   game,
   scene,
   project: { files: [{ path: `dialogue/${DOOR_DIALOGUE}.json`, json: doorDialogue }] },

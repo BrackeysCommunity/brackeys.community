@@ -1,5 +1,8 @@
+import type { ScenePresence } from "../collab/types";
 import type { Registry, Style } from "../game/types";
+import type { TilesetFile } from "../project/kinds/tileset";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
+import type { TileBrush } from "./builtin/tile-tools";
 import type { GizmoSource } from "./gizmos/target";
 import type { EditorCommand } from "./keymap";
 import type { SelectMode } from "./selection";
@@ -169,6 +172,20 @@ export type ToolPointerEvent = ToolModifiers & {
 
 export type ToolKeyEvent = ToolModifiers & { type: "down" | "up"; key: string; repeat: boolean };
 
+/** What the tile tools read and change beside the document; the host keeps it in the editor store. */
+export type TileToolContext = {
+  brush(): TileBrush;
+  setBrush(brush: TileBrush): void;
+  /** The autotile rule picked in the palette; `null` for the tileset's first. */
+  rule(): string | null;
+  /** A tileset doc by asset id; undefined when the host has no project or the doc isn't open. */
+  tileset(id: string): TilesetFile | undefined;
+  /** Shares the brush under the cursor with other editors; `undefined` clears it. */
+  shareBrush(brush: ScenePresence["brush"]): void;
+  /** Says why a gesture did nothing, in the status line and beside the pointer. */
+  refuse(text: string): void;
+};
+
 /** What the host gives a tool. */
 export type EditorToolContext = {
   registry: Registry;
@@ -212,6 +229,8 @@ export type EditorToolContext = {
   shareGhost(ghost: { keys: string[]; by: Pt } | undefined): void;
   /** Pans the editor camera by a screen-px drag; absent when the host has no camera. */
   pan?(screenDelta: Pt): void;
+  /** The tile tools' brush, rule and tilesets; absent on a host without them. */
+  tiles?: TileToolContext;
 };
 
 /** A live tool. Every hook is optional; returning true claims the event. */

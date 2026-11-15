@@ -1,0 +1,158 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "infinite": false,
+  "width": 4,
+  "height": 3,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "source": "terrain.tsj"
+    },
+    {
+      "firstgid": 9,
+      "name": "Props",
+      "image": "props.png",
+      "imagewidth": 32,
+      "imageheight": 16,
+      "tilewidth": 16,
+      "tileheight": 16,
+      "columns": 2,
+      "tilecount": 2,
+      "tiles": [
+        {
+          "id": 1,
+          "properties": [
+            {
+              "name": "pickup",
+              "type": "bool",
+              "value": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "id": 1,
+      "type": "tilelayer",
+      "name": "Ground",
+      "width": 4,
+      "height": 3,
+      "x": 0,
+      "y": 0,
+      "opacity": 1,
+      "visible": true,
+      "data": [
+        0,
+        0,
+        3,
+        0,
+        -2147483646,
+        1073741826,
+        536870914,
+        -536870910,
+        2,
+        2,
+        6,
+        10
+      ]
+    },
+    {
+      "id": 2,
+      "type": "group",
+      "name": "Back",
+      "opacity": 0.5,
+      "visible": true,
+      "layers": [
+        {
+          "id": 3,
+          "type": "tilelayer",
+          "name": "Detail",
+          "width": 4,
+          "height": 3,
+          "opacity": 1,
+          "visible": false,
+          "offsetx": 16,
+          "offsety": 0,
+          "encoding": "base64",
+          "data": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAACA"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "objectgroup",
+      "name": "Things",
+      "opacity": 1,
+      "visible": true,
+      "objects": [
+        {
+          "id": 1,
+          "name": "start",
+          "type": "spawn",
+          "point": true,
+          "x": 24,
+          "y": 8,
+          "width": 0,
+          "height": 0,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "facing",
+              "type": "string",
+              "value": "left"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "goal",
+          "type": "exit",
+          "x": 32,
+          "y": 16,
+          "width": 16,
+          "height": 32,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "next",
+              "type": "string",
+              "value": "two"
+            },
+            {
+              "name": "score",
+              "type": "int",
+              "value": 3
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "round",
+          "ellipse": true,
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "rotation": 0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "imagelayer",
+      "name": "Sky",
+      "image": "back.png",
+      "opacity": 1,
+      "visible": true
+    }
+  ]
+}

@@ -684,6 +684,19 @@ export type GameInstance = {
     renderer: string;
     pixels: (readonly [number, number, number, number] | null)[];
   };
+  /**
+   * Renders the whole stage (world, letterbox bars and UI) into a texture and
+   * reads it back as RGBA bytes, row by row from the top, at most `width` ×
+   * `height` px (default the canvas size) keeping its aspect. It draws a fresh
+   * frame, so it never depends on when the canvas was last presented. Null
+   * while the renderer is rebuilding or has failed.
+   */
+  extractFrame: (opts?: { width?: number; height?: number }) => {
+    renderer: string;
+    width: number;
+    height: number;
+    data: Uint8Array | Uint8ClampedArray;
+  } | null;
   /** The scene list, the current scene and changes between scenes. */
   flow: GameFlow;
   /** Save slots over the game's, the host's or the browser's store. */

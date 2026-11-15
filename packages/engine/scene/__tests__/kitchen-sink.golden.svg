@@ -5,6 +5,30 @@
 <path d="M128 0V1200M256 0V1200M384 0V1200M512 0V1200M640 0V1200M768 0V1200M896 0V1200M1024 0V1200M1152 0V1200M1280 0V1200M1408 0V1200M1536 0V1200M1664 0V1200M1792 0V1200M1920 0V1200M2048 0V1200M2176 0V1200M2304 0V1200M2432 0V1200M2560 0V1200M2688 0V1200M2816 0V1200M2944 0V1200M3072 0V1200M3200 0V1200M3328 0V1200M3456 0V1200M3584 0V1200M0 128H3600M0 256H3600M0 384H3600M0 512H3600M0 640H3600M0 768H3600M0 896H3600M0 1024H3600M0 1152H3600" stroke="#ffffff" stroke-opacity="0.07"/>
 <path d="M0 0V1200M0 0H3600" stroke="#ffffff" stroke-opacity="0.25"/>
 </g>
+<g id="grid-cells" fill-opacity="0.7" stroke-width="2.25">
+<g data-ref="tiles" data-type="tilemap" data-field="cells" stroke="#cccccc" stroke-opacity="0.6">
+<rect data-cell="0,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2500" y="1000" width="25" height="25"/>
+<rect data-cell="1,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2525" y="1000" width="25" height="25"/>
+<rect data-cell="2,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2550" y="1000" width="25" height="25"/>
+<rect data-cell="3,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2575" y="1000" width="25" height="25"/>
+<rect data-cell="4,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2600" y="1000" width="25" height="25"/>
+<rect data-cell="5,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2625" y="1000" width="25" height="25"/>
+<rect data-cell="6,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2650" y="1000" width="25" height="25"/>
+<rect data-cell="7,0" data-v="2" data-tile="1" data-solid="true" fill="#ffd54f" x="2675" y="1000" width="25" height="25"/>
+<rect data-cell="9,0" data-v="3" data-tile="2" data-solid="true" fill="#ba68c8" x="2725" y="1000" width="25" height="25"/>
+<rect data-cell="10,0" data-v="3" data-tile="2" data-solid="true" fill="#ba68c8" x="2750" y="1000" width="25" height="25"/>
+<rect data-cell="11,0" data-v="3" data-tile="2" data-solid="true" fill="#ba68c8" x="2775" y="1000" width="25" height="25"/>
+<rect data-cell="0,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2500" y="1025" width="25" height="25"/>
+<rect data-cell="1,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2525" y="1025" width="25" height="25"/>
+<rect data-cell="2,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2550" y="1025" width="25" height="25"/>
+<rect data-cell="3,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2575" y="1025" width="25" height="25"/>
+<rect data-cell="4,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2600" y="1025" width="25" height="25"/>
+<rect data-cell="5,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2625" y="1025" width="25" height="25"/>
+<rect data-cell="6,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2650" y="1025" width="25" height="25"/>
+<rect data-cell="7,1" data-v="1" data-tile="0" data-solid="true" fill="#4dd0e1" x="2675" y="1025" width="25" height="25"/>
+<rect data-cell="13,1" data-v="4" data-tile="3" data-solid="false" fill="none" stroke="#81c784" stroke-opacity="0.9" x="2825" y="1025" width="25" height="25"/>
+</g>
+</g>
 <g id="entities">
 <path data-ref="~solid:0" data-type="solid" d="M40 1160L2360 1160L2360 1200L40 1200Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="~solid:1" data-type="solid" d="M0 0L40 0L40 1200L0 1200Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
@@ -98,6 +122,7 @@
 <g data-ref="lamp" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="600" cy="1040" r="11.25"/><path d="M582 1040H618M600 1022V1058"/></g>
 <g data-ref="spark" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="1340" cy="1040" r="11.25"/><path d="M1322 1040H1358M1340 1022V1058"/></g>
 <g data-ref="std-tween" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="1160" cy="520" r="11.25"/><path d="M1142 520H1178M1160 502V538"/></g>
+<g data-ref="tiles" data-type="tilemap" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2500" cy="1000" r="11.25"/><path d="M2482 1000H2518M2500 982V1018"/></g>
 </g>
 <g id="one-way" fill="none" stroke="#4da3ff" stroke-width="6.75" stroke-linecap="round">
 <path data-one-way="ledge" data-side="up" d="M740 890L900 890"/>
@@ -235,6 +260,7 @@
 <text x="2100" y="433.84" font-size="24.75">floor-plan</text>
 <text x="2150" y="358.84" font-size="24.75">pillar</text>
 <text x="1500" y="408.84" font-size="24.75">framing</text>
+<text x="2520.25" y="979.75" font-size="24.75" text-anchor="start">tiles</text>
 <text class="text-label" data-text="std-text" x="1080" y="294.5" font-size="20.25" fill-opacity="0.8">&quot;Kitchen sink&quot;</text>
 </g>
 <g id="ticks" font-size="22.5" fill="#c8ccd6" stroke="#101218" stroke-width="5.63" paint-order="stroke">

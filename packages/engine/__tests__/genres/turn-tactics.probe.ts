@@ -258,7 +258,6 @@ const settle = { wait: MOVES_PER_TURN * ticksFor(MS_PER_STEP, { rate: 60 }) + 6 
 export const probe: GenreProbe<TurnTacticsSnapshot> = {
   id: ID,
   rows: ["tactics", "roguelike"],
-  pending: { roguelike: "M25 (tilemap writes)" },
   game,
   scene,
   script: {

@@ -1,5 +1,11 @@
+import { DEFAULT_LENGTH_UNIT } from "../../game/defaults";
+import type { TilesetFile } from "../../project/kinds/tileset";
+import type { ProjectRuntimeView } from "../../project/runtime-view";
+import { paintGrid } from "../../scene/grid";
 import {
   SCENE_FORMAT_VERSION,
+  type CellEdit,
+  type CellRect,
   type EntityDef,
   type Pt,
   type SceneDefinition,
@@ -246,6 +252,120 @@ export function generateLargeScene(
     name: physics === "none" ? "large-5k-geometry" : "large-5k",
     bounds: [0, 0, LARGE_COLUMNS * LARGE_CELL_W, Math.round(rows * LARGE_CELL_H * 100) / 100],
     settings: { gravity: [0, 12], ...(physics === "none" ? { physics } : {}) },
+    entities,
+  };
+}
+
+/** `tilemap-512`'s side, in cells. */
+export const TILEMAP_SIZE = 512;
+/** Its grid's cell, metres: one 32 px tile at the default px per metre. */
+export const TILEMAP_CELL = 0.32;
+const TILEMAP_TILE_PX = Math.round(TILEMAP_CELL * DEFAULT_LENGTH_UNIT);
+const TILEMAP_TILESET = "tileset-512";
+const TILEMAP_IMAGE = "texture-512";
+/** Rows between `tilemap-512`'s ledges; the floor is its last `TILEMAP_FLOOR` rows. */
+const TILEMAP_LEDGE_EVERY = 32;
+const TILEMAP_FLOOR = 8;
+/** Bodies dropped onto the map, so the ticks have contacts to solve. */
+export const TILEMAP_PROPS = 40;
+
+/** The tileset `tilemap-512` draws from: rock (solid), moss on top of it (solid), grass (decor). */
+export const TILEMAP_TILESET_FILE: TilesetFile = {
+  kind: "tileset",
+  v: 1,
+  image: TILEMAP_IMAGE,
+  tile: [TILEMAP_TILE_PX, TILEMAP_TILE_PX],
+  columns: 4,
+  tiles: [{ id: 0, solid: true }, { id: 1, solid: true }, { id: 2 }],
+};
+
+/** The in-memory project `tilemap-512` loads against: its tileset and the tileset's 4 × 1 texture. */
+export function tilemapProject(): ProjectRuntimeView {
+  return {
+    settings: {},
+    engine: {},
+    table: () => [],
+    asset: (id) =>
+      id === TILEMAP_IMAGE
+        ? {
+            id,
+            kind: "texture",
+            sha256: "a".repeat(64),
+            size: [TILEMAP_TILE_PX * 4, TILEMAP_TILE_PX],
+          }
+        : undefined,
+    inputMap: null,
+    doc: (<T>(kind: string, id: string) =>
+      kind === "tileset" && id === TILEMAP_TILESET
+        ? (TILEMAP_TILESET_FILE as T)
+        : undefined) as ProjectRuntimeView["doc"],
+    docs: () => [],
+  };
+}
+
+/**
+ * `tilemap-512`: one 512 × 512 tilemap on a 0.32 m grid (256 chunks), a
+ * solid floor, a ledge every 32 rows with gaps at seeded columns, grass
+ * scattered over the open cells, and props dropped onto the ledges. Its
+ * solids are long runs, so the merged colliders stay a few per chunk. Same
+ * seed, same scene.
+ */
+export function generateTilemapScene(seed = 1): SceneDefinition {
+  const rand = seeded(seed);
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  const ROCK = 1;
+  const MOSS = 2;
+  const GRASS = 3;
+  const last = TILEMAP_SIZE - 1;
+  const rects: CellRect[] = [
+    [0, TILEMAP_SIZE - TILEMAP_FLOOR + 1, last, last, ROCK],
+    [0, TILEMAP_SIZE - TILEMAP_FLOOR, last, TILEMAP_SIZE - TILEMAP_FLOOR, MOSS],
+  ];
+  for (
+    let row = TILEMAP_LEDGE_EVERY;
+    row < TILEMAP_SIZE - TILEMAP_FLOOR;
+    row += TILEMAP_LEDGE_EVERY
+  ) {
+    let col = 0;
+    while (col < TILEMAP_SIZE) {
+      const run = int(24, 96);
+      const end = Math.min(last, col + run - 1);
+      rects.push([col, row, end, row, MOSS], [col, row + 1, end, row + 2, ROCK]);
+      col = end + 1 + int(3, 8);
+    }
+  }
+  const cells: CellEdit[] = [];
+  for (let i = 0; i < 4096; i++) {
+    const row = int(0, TILEMAP_SIZE - TILEMAP_FLOOR - 1);
+    if (row % TILEMAP_LEDGE_EVERY === 0 || row % TILEMAP_LEDGE_EVERY > TILEMAP_LEDGE_EVERY - 3)
+      continue;
+    cells.push([int(0, last), row, GRASS]);
+  }
+  const grid = paintGrid({}, { rects, cells }).grid;
+  const side = Math.round(TILEMAP_SIZE * TILEMAP_CELL * 100) / 100;
+
+  const entities: EntityDef[] = [
+    { id: "tiles", type: "tilemap", at: [0, 0], tileset: TILEMAP_TILESET, cells: grid },
+  ];
+  for (let i = 0; i < TILEMAP_PROPS; i++) {
+    const x = Math.round((int(1, last - 1) + 0.5) * TILEMAP_CELL * 100) / 100;
+    const ledge = TILEMAP_LEDGE_EVERY * int(1, TILEMAP_SIZE / TILEMAP_LEDGE_EVERY - 1);
+    const y = Math.round((ledge - 4) * TILEMAP_CELL * 100) / 100;
+    entities.push({
+      id: `prop-${i}`,
+      type: "prop",
+      shape: ["box", x, y, 0.4, 0.4],
+      density: 1,
+      restitution: 0,
+    });
+  }
+  entities.push({ id: "start", type: "marker", at: [side / 2, 1], tags: ["spawn"] });
+
+  return {
+    v: SCENE_FORMAT_VERSION,
+    name: "tilemap-512",
+    bounds: [0, 0, side, side],
+    settings: { gravity: [0, 12], grid: { kind: "square", cell: [TILEMAP_CELL, TILEMAP_CELL] } },
     entities,
   };
 }

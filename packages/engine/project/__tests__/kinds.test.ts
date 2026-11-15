@@ -230,6 +230,7 @@ describe("ENGINE_ASSET_KINDS", () => {
       "synth",
       "dialogue",
       "strings",
+      "tileset",
     ]);
     expect(
       createKindRegistry()
@@ -274,6 +275,7 @@ describe("ENGINE_ASSET_KINDS", () => {
           "synth",
           "dialogue",
           "strings",
+          "tileset",
         )
         .sort(),
     );

@@ -1,4 +1,4 @@
-import { Store } from "@tanstack/store";
+import type { Store } from "@tanstack/store";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { EntityInspection } from "../../debug/inspect";
@@ -6,14 +6,16 @@ import type { EditorSession } from "../../editor/index";
 import type { JsonValue } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import { radToDeg } from "../../physics";
-import { TOOL_PRIORITY, type ToolEvent } from "../../tool-router";
-import type { GameInstance, GameStoreState, Vec2 } from "../../types";
+import type { GameInstance, GameStoreState } from "../../types";
 import type { EditorNotify } from "../host";
 import { formatLength, formatSpeed } from "../kit/format";
 import { Badge, Hotkey, Spinner, Text } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 import { InspectorSection } from "./inspector/field-widgets";
+import { playPickOf, type PickState } from "./PlayPick";
+
+export { playPickOf };
 
 /** The parts of the game the play inspector reads. */
 export type PlayInspectorGame = Pick<
@@ -23,24 +25,6 @@ export type PlayInspectorGame = Pick<
 
 /** How often, at most, a play view asks the world again while frames render. */
 export const PLAY_REFRESH_MS = 100;
-
-type PickState = { id: string | null };
-
-// Keyed by session so the outliner's Spawned group and the inspector share one pick.
-const picks = new WeakMap<EditorSession, Store<PickState>>();
-
-/**
- * The runtime entity picked in Play (a Spawned row or an Alt+click on the
- * canvas). It outranks the edit selection until the selection changes.
- */
-export function playPickOf(session: EditorSession): Store<PickState> {
-  let store = picks.get(session);
-  if (!store) {
-    store = new Store<PickState>({ id: null });
-    picks.set(session, store);
-  }
-  return store;
-}
 
 export type LiveRead<T> =
   | { status: "idle" }
@@ -169,28 +153,6 @@ export function PlayPending({ children }: { children: ReactNode }) {
       </Text>
     </div>
   );
-}
-
-/** Alt+click on the canvas picks the topmost entity there while this is mounted. */
-function useCanvasPick(game: PlayInspectorGame, pick: Store<PickState>) {
-  useEffect(() => {
-    let seq = 0;
-    const isPick = (e: ToolEvent) =>
-      e.kind === "pointer" && e.type === "down" && e.button === 0 && e.native.altKey;
-    return game.router.register({
-      id: "editor-play-pick",
-      priority: TOOL_PRIORITY.editor,
-      accepts: isPick,
-      handle(e) {
-        if (e.kind !== "pointer") return;
-        const at: Vec2 = game.screenToWorld(e.screen);
-        const mine = ++seq;
-        void game.debug.pick(at).then((id) => {
-          if (mine === seq && id !== null) pick.setState(() => ({ id }));
-        });
-      },
-    });
-  }, [game, pick]);
 }
 
 /** The runtime id the inspector follows: the Play pick, else the first selected entity. */
@@ -359,7 +321,6 @@ export function PlayInspector(props: {
 }) {
   const { game, session } = props;
   const pick = playPickOf(session);
-  useCanvasPick(game, pick);
   const target = usePlayTarget(session, pick);
   const read = useLiveRead(game.getStore(), target, () =>
     target === null ? Promise.resolve(null) : game.debug.inspect(target),

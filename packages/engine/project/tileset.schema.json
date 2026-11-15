@@ -1,0 +1,384 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:tileset:v1",
+  "x-agent-surface": 25,
+  "title": "jams engine tileset, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The tileset JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "tileset",
+      "description": "Always \"tileset\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Tileset format version."
+    },
+    "image": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The texture or atlas the tiles are cut from."
+    },
+    "tile": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "w, px.",
+          "unit": "px"
+        },
+        {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "h, px.",
+          "unit": "px"
+        }
+      ],
+      "description": "Tile size [w, h] in image px: the scene grid's cell times the game's px per metre.",
+      "unit": "px"
+    },
+    "margin": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Image px around the tiles; default 0.",
+      "unit": "px"
+    },
+    "spacing": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Image px between tiles; default 0.",
+      "unit": "px"
+    },
+    "columns": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Tiles per image row."
+    },
+    "tiles": {
+      "description": "Per-tile data, by id.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8190,
+            "description": "The tile's index in the image, row-major from the top left."
+          },
+          "solid": {
+            "description": "Collides, and walls the grid.",
+            "type": "boolean"
+          },
+          "oneWay": {
+            "description": "The one side actors land on; they pass through from the others.",
+            "type": "string",
+            "enum": ["up", "down", "left", "right"]
+          },
+          "cost": {
+            "description": "Path cost on grids, 10 = one step; default 10; ignored when solid.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "material": {
+            "description": "A material asset for the tile's colliders.",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+          },
+          "tags": {
+            "description": "Labels game code and autotile rules read.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "shapes": {
+            "description": "Collision shapes in tile px, from the tile's top left, instead of the full square.",
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ShapeTuple"
+            }
+          },
+          "animation": {
+            "description": "Frames drawn in turn; drawing only, never collision.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tile": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8190,
+                  "description": "A frame's tile id."
+                },
+                "ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "How long the frame shows, ms.",
+                  "unit": "ms"
+                }
+              },
+              "required": ["tile", "ms"],
+              "additionalProperties": false
+            }
+          },
+          "data": {
+            "description": "The game's per-tile data (GameDefinition.tileData).",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0"
+            }
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false,
+        "description": "One tile's data."
+      }
+    },
+    "rules": {
+      "description": "Autotile rules, by id.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "The rule's name, unique in the tileset."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["blob47", "edge16"],
+            "description": "blob47: 8-neighbour masks reduced to Tiled's 47; edge16: 4-neighbour masks."
+          },
+          "terrain": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The tag whose tiles count as this terrain's neighbours."
+          },
+          "tiles": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]{0,2})$"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8190,
+              "description": "The tile for that mask."
+            },
+            "description": "Neighbour mask, as a decimal string, to tile id."
+          },
+          "fallback": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8190,
+            "description": "The tile for a mask the rule doesn't list."
+          }
+        },
+        "required": ["id", "kind", "terrain", "tiles", "fallback"],
+        "additionalProperties": false,
+        "description": "An autotile rule over one terrain."
+      }
+    }
+  },
+  "required": ["kind", "v", "image", "tile", "columns"],
+  "additionalProperties": false,
+  "description": "Tiles cut from one image, with per-tile data and autotile rules.",
+  "$defs": {
+    "ShapeTuple": {
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Metres, y is down; rotDeg in degrees.",
+      "unit": "m",
+      "oneOf": [
+        {
+          "title": "box",
+          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "box"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-width; the box is 2*hw wide."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-height; the box is 2*hh tall."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "circle",
+          "description": "Circle (a Rapier ball) by centre and radius.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "circle"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius."
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "title": "capsule",
+          "description": "Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "capsule"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half the length of the inner segment."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "poly",
+          "description": "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "poly"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "m"
+          },
+          "minItems": 7
+        },
+        {
+          "title": "chain",
+          "description": "Open polyline as flat x, y pairs (at least 2 points), for static terrain. Allowed on solid and sensor only.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "chain"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "m"
+          },
+          "minItems": 5
+        }
+      ]
+    },
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    }
+  }
+}

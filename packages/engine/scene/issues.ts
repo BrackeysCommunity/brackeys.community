@@ -717,6 +717,26 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Link the node from `start`, or remove it.",
     fixable: false,
   },
+  "tile-unknown": {
+    severity: "error",
+    summary:
+      "A tilemap cell, an autotile rule's tile or an animation frame names a tile beyond the tileset's image.",
+    hint: "The tileset's image has fewer tiles; check `columns` and the id.",
+    fixable: false,
+  },
+  "tileset-missing": {
+    severity: "error",
+    summary: "A tilemap names no tileset, or one the project doesn't have.",
+    hint: "Name a tileset asset.",
+    fixable: false,
+  },
+  "tileset-grid-mismatch": {
+    severity: "error",
+    summary:
+      "A tileset's tile size isn't the scene grid's cell in px: tile px must equal grid.cell × the game's px per metre.",
+    hint: "Make the tileset's `tile` equal `settings.grid.cell` times the game's px per metre (the message gives the px expected), or change the grid's cell.",
+    fixable: false,
+  },
   "live-no-editor": {
     severity: "info",
     summary: "No editor with the scene open answered a live request in time.",

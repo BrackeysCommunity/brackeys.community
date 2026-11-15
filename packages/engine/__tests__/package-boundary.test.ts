@@ -697,6 +697,7 @@ describe("package boundary", () => {
       "render/sprite-textures.ts",
       "render/particles.ts",
       "render/text.ts",
+      "render/tilemap-view.ts",
     ];
     const bad = sourceFiles
       .map((f) => rel(f))
@@ -740,7 +741,9 @@ describe("package boundary", () => {
         file,
       ).toEqual([]);
       violations(
-        [...own.files].filter((f) => !f.startsWith("scene/") && f !== "game/behaviors.ts"),
+        [...own.files].filter(
+          (f) => !f.startsWith("scene/") && f !== "game/behaviors.ts" && f !== "game/tile-cell.ts",
+        ),
       );
     }
   });
@@ -971,6 +974,47 @@ describe("package boundary", () => {
         const dom = DOM_GLOBALS.exec(code) ?? WEB_AUDIO_NAMES.exec(code);
         if (dom) bad.push(`${path} reaches ${dom[1]} in ${f}`);
       }
+    }
+    violations(bad);
+  });
+
+  it("keeps tiles/ pure and the cell codec import-free: no Pixi, Rapier, DOM or Node", () => {
+    expect(importsOf(join(ENGINE, "game/tile-cell.ts"))).toEqual([]);
+    const bad: string[] = [];
+    const pure = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith("tiles/"));
+    expect(pure).toEqual(expect.arrayContaining(["tiles/index.ts", "tiles/cell.ts"]));
+    for (const path of pure) {
+      const { files, bare } = runtimeGraph(path);
+      for (const spec of bare.keys()) if (spec !== "zod") bad.push(`${path} reaches ${spec}`);
+      for (const f of files) {
+        const code = stripStrings(stripComments(readFileSync(join(ENGINE, f), "utf8")));
+        const dom = DOM_GLOBALS.exec(code);
+        if (dom) bad.push(`${path} reaches ${dom[1]} in ${f}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("imports pixi.js among the tile files only in the tilemap view", () => {
+    const tileFiles = sourceFiles
+      .map((f) => rel(f))
+      .filter(
+        (p) =>
+          p.startsWith("tiles/") ||
+          [
+            "game/tile-cell.ts",
+            "project/kinds/tileset.ts",
+            "systems/tilemap.ts",
+            "editor/builtin/tile-tools.ts",
+          ].includes(p),
+      );
+    expect(tileFiles.length).toBeGreaterThan(4);
+    const bad: string[] = [];
+    for (const path of tileFiles) {
+      const { bare } = runtimeGraph(path);
+      for (const [spec, from] of bare)
+        if (spec === "pixi.js" || spec.startsWith("@dimforge/"))
+          bad.push(`${path} reaches ${spec} via ${from.join(", ")}`);
     }
     violations(bad);
   });

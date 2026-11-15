@@ -119,6 +119,7 @@ export {
   createPixiView,
   pixiContainer,
   type PixiView,
+  type PixiViewFrame,
   type PixiViewOptions,
   type TextureSource,
 } from "./render/pixi-view";
@@ -150,8 +151,10 @@ export {
   type TextContent,
   type TextFont,
   type TextVisual,
+  type TilemapVisual,
   type ViewEmitter,
 } from "./context";
+export { createTilemapView, cullRect, outsideViews, type TilemapView } from "./render/tilemap-view";
 export { viewportRect, type ViewportDef, type ViewportRect } from "./camera/viewports";
 export {
   createParticleLayer,

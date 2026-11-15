@@ -1,0 +1,16 @@
+{
+  "kind": "tileset",
+  "v": 1,
+  "tiles": [
+    { "id": 0, "tags": ["grass"] },
+    { "id": 1, "tags": ["grass"] },
+    { "id": 2, "solid": true, "tags": ["wall"] },
+    { "id": 3, "solid": true, "tags": ["river"] },
+    { "id": 4, "cost": 20, "tags": ["marsh"] },
+    { "id": 5, "cost": 20, "tags": ["rubble"] },
+    { "id": 6, "cost": 30, "tags": ["thicket"] }
+  ],
+  "columns": 7,
+  "image": "floor",
+  "tile": [48, 48]
+}

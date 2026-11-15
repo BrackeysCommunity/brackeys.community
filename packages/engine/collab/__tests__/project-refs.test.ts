@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { createRegistry, defineGame } from "../../game/define";
 import { assetField, pointField } from "../../game/fields";
+import { encodeCell } from "../../game/tile-cell";
 import type { FieldEnv } from "../../game/types";
 import {
   createKindRegistry,
@@ -20,12 +21,14 @@ import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
 import { sceneListKind, type SceneListFile } from "../../project/kinds/scene-list";
 import { soundKind, type SoundFile } from "../../project/kinds/sound";
 import { synthKind } from "../../project/kinds/synth";
+import { TILESET_KIND, type TilesetFile } from "../../project/kinds/tileset";
 import type { ProjectOp, ProjectOpBatch } from "../../project/ops";
 import { buildRefIndex, referencedTrash } from "../../project/refs";
 import type { AssetEntry, AssetId, ProjectState } from "../../project/types";
 import { projectView } from "../../project/view";
 import { rng } from "../../scene/__tests__/fixtures/random-ops";
 import { INPUT_SCRIPT_LAYOUT } from "../../scene/format";
+import { readCell, type GridCells } from "../../scene/grid";
 import { parseScene } from "../../scene/parse";
 import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import { docToScene, prefabHeaderMap, sceneToDoc } from "../convert";
@@ -1453,4 +1456,158 @@ describe("a sound's and a dialogue line's clip references", () => {
         expect(changedIds, `the runs must change ${target}'s id`).toBeGreaterThan(5);
       },
     );
+});
+
+describe("a tileset's image and a tilemap's tileset references", () => {
+  const TILESET_LAYOUT = TILESET_KIND.layout as DocLayout;
+  const tileState: ProjectState = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(
+      [
+        entry("ground-art", "texture", "art/ground.png", {
+          sha256: H("a"),
+          bytes: 4,
+          meta: { format: "png", width: 64, height: 32 },
+        }),
+        entry("ground", "tileset", "tilesets/ground.tileset.json"),
+        entry("court", "scene", "levels/court.json"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  };
+  const startTileset: TilesetFile = {
+    kind: "tileset",
+    v: 1,
+    image: "ground-art",
+    tile: [16, 16],
+    columns: 4,
+    tiles: [{ id: 0, solid: true }],
+  };
+  const stone = encodeCell({ id: 0, flipX: false, flipY: false, flipD: false });
+  const moss = encodeCell({ id: 3, flipX: true, flipY: false, flipD: false });
+  const court: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "court",
+    bounds: [0, 0, 2048, 2048],
+    settings: { grid: { kind: "square", cell: [16, 16] } },
+    entities: [
+      {
+        id: "floor",
+        type: "tilemap",
+        at: [0, 0],
+        tileset: "ground",
+        cells: { "0,0": [`${stone}*3`] },
+      },
+    ],
+  };
+
+  const tilesetOf = (doc: (name: string) => Y.Doc) =>
+    layoutFromDoc(doc("asset:p.ground"), TILESET_LAYOUT) as TilesetFile;
+  const floorOf = (doc: (name: string) => Y.Doc) =>
+    docToScene(doc("scene:p.court")).entities!.find((e) => e.id === "floor")!;
+
+  function tileRefs(state: ProjectState, doc: (name: string) => Y.Doc) {
+    const view = projectView(state, kinds);
+    const values = new Map<AssetId, unknown>();
+    for (const e of Object.values(state.assets)) {
+      if (e.deleted) continue;
+      if (e.kind === "tileset") values.set(e.id, tilesetOf(doc));
+      if (e.kind === "scene") values.set(e.id, docToScene(doc(`scene:p.${e.key}`)));
+    }
+    return { view, index: buildRefIndex(view, values, kinds, { registry, project: view }) };
+  }
+
+  it(
+    "renaming the tileset's image while another client paints leaves the tileset and the tilemap resolving",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      let changedIds = 0;
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const initial: Record<string, Y.Doc> = {};
+        const doc = (name: string) => {
+          const d = (initial[name] ??= new Y.Doc());
+          d.clientID = 1;
+          return d;
+        };
+        seedProjectDoc(doc("project:p"), tileState, { kind: "migration" });
+        layoutToDoc(doc("asset:p.ground"), TILESET_LAYOUT, startTileset, { kind: "migration" });
+        sceneToDoc(court, { doc: doc("scene:p.court"), key: sequentialKeys("srv") });
+        const sim = new SimProject(3, rng(seed), initial);
+        const join = (i: number, origin: DocOrigin) =>
+          createProjectSession({ project: "p", openDoc: sim.openDoc(i), origin, registry, kinds });
+        const [mover, painter] = await Promise.all([join(0, ada), join(1, bo)]);
+        for (const s of [mover, painter])
+          for (const name of ["asset:p.ground", "scene:p.court"]) await s.open(name);
+        let image = "ground-art";
+        const painted: [number, number, number][] = [];
+        for (let step = 0; step < 12; step++) {
+          const at = mover.view().byId.get(image)!;
+          const roll = sim.rand();
+          if (roll < 0.4) {
+            const to = `ground-art-${step}`;
+            await applied(mover, [{ op: "changeAssetId", id: image, to }]);
+            image = to;
+            changedIds++;
+          } else if (roll < 0.7)
+            await applied(mover, [
+              {
+                op: "renameAsset",
+                id: image,
+                file: `s${step}-${at.path.slice(at.path.lastIndexOf("/") + 1)}`,
+              },
+            ]);
+          else await applied(mover, [{ op: "moveAsset", ids: [image], to: `moved-${step}/` }]);
+
+          const cell: [number, number, number] = [
+            4 + step * 3,
+            1 + (step % 4),
+            step % 2 === 0 ? stone : moss,
+          ];
+          painted.push(cell);
+          await applied(painter, [
+            {
+              op: "editScene",
+              id: "court",
+              ops: [{ op: "paintCells", ref: "floor", field: "cells", cells: [cell] }],
+            },
+          ]);
+          sim.deliver(Math.floor(sim.rand() * 3));
+          sim.weather(0.2, 0.2);
+        }
+        sim.settle();
+
+        const states = [mover, painter].map((s) => readProject(s.projectDoc));
+        expect(states[1], `seed ${seed}`).toEqual(states[0]);
+        for (const s of [mover, painter]) {
+          const d = sessionDoc(s);
+          const tileset = tilesetOf(d);
+          expect(tileset.image, `seed ${seed}: the image follows the id`).toBe(image);
+          expect(tileset.tiles).toEqual(startTileset.tiles);
+          const floor = floorOf(d);
+          expect(floor.tileset).toBe("ground");
+          const cells = floor.cells as GridCells;
+          for (const [c, r, v] of painted) expect(readCell(cells, c, r), `seed ${seed}`).toBe(v);
+          expect(readCell(cells, 0, 0)).toBe(stone);
+          const { view, index } = tileRefs(readProject(s.projectDoc), d);
+          expect(view.byId.get(tileset.image)?.kind).toBe("texture");
+          expect(view.byId.get(floor.tileset as string)?.kind).toBe("tileset");
+          expect(index.dangling(), `seed ${seed}`).toEqual([]);
+          expect(index.referrers(image).map((r) => [r.id, r.pointer])).toEqual([
+            ["ground", "/image"],
+          ]);
+          expect(index.referrers("ground").map((r) => r.id)).toContain("court");
+        }
+        expect(docToScene(sessionDoc(painter)("scene:p.court"))).toEqual(
+          docToScene(sessionDoc(mover)("scene:p.court")),
+        );
+        partitions += sim.partitions;
+        for (const s of [mover, painter]) s.destroy();
+      }
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(3);
+      expect(changedIds, "the runs must change the image's id").toBeGreaterThan(5);
+    },
+  );
 });

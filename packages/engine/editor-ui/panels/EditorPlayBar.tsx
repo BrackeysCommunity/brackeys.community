@@ -43,6 +43,7 @@ import { useProjectView } from "./EditorProject";
 import { assetOptions } from "./inspector/asset-picker";
 import { LiveInPlayStatus, livePlayPending } from "./LiveInPlayStatus";
 import { PlayCaptions, previewDialogues, type DialoguePreview } from "./play-overlay/PlayCaptions";
+import { usePlayPick } from "./PlayPick";
 
 /** Where the viewer's Live in Play choice is kept. */
 export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;
@@ -103,6 +104,7 @@ export function flowRequestedScene(state: Pick<GameStoreState, "session">): stri
  */
 export function EditorPlayBar({
   game,
+  session,
   host,
   keymap,
   onStop,
@@ -112,6 +114,7 @@ export function EditorPlayBar({
   canvas,
 }: EditorControls) {
   const { storage } = useKit();
+  usePlayPick(game, session);
   const [sound, setSound] = useSoundInPlay(storage);
   const panels = usePanelsInPlay();
   const { paused, timeScale } = useStoreValue(game.getStore(), (s) => s.sim);

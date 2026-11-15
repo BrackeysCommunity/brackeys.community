@@ -1,0 +1,10 @@
+{
+  "type": "map",
+  "orientation": "isometric",
+  "width": 2,
+  "height": 2,
+  "tilewidth": 32,
+  "tileheight": 16,
+  "tilesets": [],
+  "layers": []
+}

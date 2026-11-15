@@ -251,6 +251,20 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   } | null>(null);
   const [buildFailed, setBuildFailed] = useState<Error | null>(null);
   const game = built?.game ?? null;
+  // Read by the build, never a key of it: the project's view changes with every edit.
+  const assetsRef = useRef<EditorAssets | null>(null);
+  const [assetImage] = useState(() => (id: AssetId) => {
+    const assets = assetsRef.current;
+    const entry = assets?.view().byId.get(id);
+    return assets && entry?.sha256
+      ? latest.current.host.assetUrl(assets.project, {
+          id,
+          kind: entry.kind,
+          sha256: entry.sha256,
+          bytes: entry.bytes ?? 0,
+        })
+      : null;
+  });
   const editing = useSceneEditor({
     host,
     notify,
@@ -263,10 +277,9 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     enabled: true,
     rapier: loadRapier,
     canvas: getCanvas,
+    assetImage,
   });
 
-  // Read by the build, never a key of it: the project's view changes with every edit.
-  const assetsRef = useRef<EditorAssets | null>(null);
   useEffect(() => {
     assetsRef.current = editing.assets;
   }, [editing.assets]);

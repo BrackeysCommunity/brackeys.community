@@ -1,0 +1,112 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "infinite": false,
+  "width": 8,
+  "height": 4,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "nextlayerid": 2,
+  "nextobjectid": 1,
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "name": "cave-tiles",
+      "image": "cave.png",
+      "imagewidth": 64,
+      "imageheight": 16,
+      "tilewidth": 16,
+      "tileheight": 16,
+      "tilecount": 4,
+      "columns": 4,
+      "margin": 0,
+      "spacing": 0,
+      "tiles": [
+        {
+          "id": 0,
+          "class": "stone",
+          "objectgroup": {
+            "type": "objectgroup",
+            "objects": [
+              {
+                "id": 1,
+                "x": 0,
+                "y": 0,
+                "width": 16,
+                "height": 16
+              }
+            ]
+          }
+        },
+        {
+          "id": 1,
+          "class": "moss"
+        },
+        {
+          "id": 3,
+          "class": "lamp",
+          "animation": [
+            {
+              "tileid": 3,
+              "duration": 250
+            },
+            {
+              "tileid": 2,
+              "duration": 250
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "id": 1,
+      "type": "tilelayer",
+      "name": "ground",
+      "width": 8,
+      "height": 4,
+      "x": 0,
+      "y": 0,
+      "opacity": 1,
+      "visible": true,
+      "data": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2147483649
+      ]
+    }
+  ]
+}

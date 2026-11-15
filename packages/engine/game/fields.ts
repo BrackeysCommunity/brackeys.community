@@ -126,26 +126,38 @@ export function sideField(description: string): z.ZodType<Side | true> {
 
 const GRID_META = "x-grid";
 
-/** What a gridField's cells may hold: `values` names cells 1..n, `max` is the largest value. */
-export type GridFieldInfo = { values: readonly string[]; max: number };
+/**
+ * What a gridField's cells may hold: `values` names cells 1..n, `max` is the
+ * largest value. `tileFlags` marks values that carry a tile cell's flip
+ * flags, which turn and flip with the cells.
+ */
+export type GridFieldInfo = { values: readonly string[]; max: number; tileFlags?: true };
 
 /**
  * Cells on the scene's grid, local to the entity's `at`. `values` names
  * cells 1..n for the schema and inspector; `max` defaults to
- * `values.length`, or 65535 without `values`. Parsing rewrites the value
+ * `values.length`, or 65535 without `values`. `tileFlags` marks tile cell
+ * values (`encodeCell`), whose flags transform with the cells; it takes no
+ * `values` or `max`. Parsing rewrites the value
  * canonically (`canonicalGrid`), so a hand-written row comes out as the
  * formatter writes it.
  */
 export function gridField(
   description: string,
-  opts: { values?: readonly string[]; max?: number } = {},
+  opts: { values?: readonly string[]; max?: number; tileFlags?: boolean } = {},
 ): z.ZodType<GridCells> {
+  if (opts.tileFlags && (opts.values !== undefined || opts.max !== undefined))
+    throw new RangeError("gridField: tileFlags takes no values or max");
   const values = opts.values ?? [];
   const max = opts.max ?? (values.length > 0 ? values.length : GRID_MAX_VALUE);
   if (!Number.isInteger(max) || max < 1 || max > GRID_MAX_VALUE)
     throw new RangeError(`gridField: max ${max} isn't an integer in [1, ${GRID_MAX_VALUE}]`);
   const named = values.map((v, i) => `${i + 1}: ${v}.`).join(" ");
-  const info: GridFieldInfo = { values: [...values], max };
+  const info: GridFieldInfo = {
+    values: [...values],
+    max,
+    ...(opts.tileFlags ? { tileFlags: true } : {}),
+  };
   return z
     .record(
       z.string().regex(CHUNK_KEY_PATTERN),

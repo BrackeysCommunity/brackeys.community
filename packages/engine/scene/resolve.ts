@@ -1,5 +1,6 @@
 import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { isNodeTypeIn } from "../game/primitives";
+import { transformCell as turnTileCell } from "../game/tile-cell";
 import type { Registry } from "../game/types";
 import { bulkId } from "./bulk-ref";
 import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./field-path";
@@ -34,6 +35,7 @@ import {
   type Transform2D,
 } from "./transform";
 import {
+  hasTileFlags,
   isPt,
   linearPart,
   presentGeometry,
@@ -2031,18 +2033,24 @@ function transformAnchor(anchor: SpotAnchor | undefined, t: Transform2D): SpotAn
   return ANCHOR_DIRS.find(([, d]) => d[0] === x && d[1] === y)?.[0] ?? anchor;
 }
 
-/** A paint of a parented entity's cells, taken from the world's cells into its own. */
+/**
+ * A paint of a parented entity's cells, taken from the world's cells into its
+ * own; tile cell values (`tileFlags`) turn their flip flags with it.
+ */
 function transformPaint(
   op: Extract<SceneOp, { op: "paintCells" }>,
   t: Transform2D,
+  tileFlags: boolean,
 ): Extract<SceneOp, { op: "paintCells" }> {
+  const d = tileFlags ? dihedralOf(t) : null;
+  const value = (v: number) => (d ? turnTileCell(v, d) : v);
   const out = { ...op };
-  if (op.cells) out.cells = op.cells.map(([c, r, v]) => [...transformCell(c, r, t), v]);
+  if (op.cells) out.cells = op.cells.map(([c, r, v]) => [...transformCell(c, r, t), value(v)]);
   if (op.rects)
     out.rects = op.rects.map(([c0, r0, c1, r1, v]) => {
       const [a0, b0] = transformCell(c0, r0, t);
       const [a1, b1] = transformCell(c1, r1, t);
-      return [Math.min(a0, a1), Math.min(b0, b1), Math.max(a0, a1), Math.max(b0, b1), v];
+      return [Math.min(a0, a1), Math.min(b0, b1), Math.max(a0, a1), Math.max(b0, b1), value(v)];
     });
   return out;
 }
@@ -2220,7 +2228,10 @@ function mapOp(
       if (parseChildRef(op.ref))
         refuse(`${op.ref} belongs to an instance; open its prefab to paint its cells.`, op.ref);
       const inv = toParent(op.ref);
-      return cells && turns(inv) && quarter(inv) ? [transformPaint(op, inv)] : [op];
+      if (!cells || !turns(inv) || !quarter(inv)) return [op];
+      const type = registry.types.get(entityOf(def, op.ref)?.type ?? "");
+      const schema = type && Object.hasOwn(type.shape, op.field) ? type.shape[op.field] : undefined;
+      return [transformPaint(op, inv, schema ? hasTileFlags(schema) : false)];
     }
     case "rename":
       if (parseChildRef(op.from))

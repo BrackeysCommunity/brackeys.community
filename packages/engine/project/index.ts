@@ -454,3 +454,21 @@ export {
   type AtlasSlice,
   type AtlasTag,
 } from "./inspect/atlas";
+export {
+  TILESET_KIND,
+  TILESET_SCHEMA_ID,
+  TILESET_VERSION,
+  tilemapIssues,
+  tilesetImageInfo,
+  tilesetIssues,
+  tilesetSchema,
+  tilesetSchemaFor,
+  tilesetTileCount,
+  type AutotileRule,
+  type TileDef,
+  type TileGridInfo,
+  type TilemapRecord,
+  type TilesetFile,
+} from "./kinds/tileset";
+export type { TiledImportOptions, TileImport } from "../tiles/import-tiled";
+export type { LdtkImportOptions } from "../tiles/import-ldtk";

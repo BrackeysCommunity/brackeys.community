@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:v2",
-  "x-agent-surface": 24,
+  "x-agent-surface": 25,
   "title": "jams engine input script, format v2",
   "type": "object",
   "properties": {
@@ -594,9 +594,10 @@
         "decor",
         "nav",
         "camera-region",
+        "tilemap",
         "note"
       ],
-      "description": "An entity type: node, solid, sensor, marker, prop, follower, decor, nav, camera-region, note."
+      "description": "An entity type: node, solid, sensor, marker, prop, follower, decor, nav, camera-region, tilemap, note."
     },
     "NearMatch": {
       "type": "object",

@@ -1,0 +1,86 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "name": "Terrain",
+  "image": "terrain.png",
+  "imagewidth": 64,
+  "imageheight": 32,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "margin": 0,
+  "spacing": 0,
+  "columns": 4,
+  "tilecount": 8,
+  "tiles": [
+    {
+      "id": 1,
+      "type": "ground",
+      "properties": [
+        {
+          "name": "friction",
+          "type": "float",
+          "value": 0.5
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "value": "stone"
+        }
+      ],
+      "objectgroup": {
+        "type": "objectgroup",
+        "objects": [
+          {
+            "id": 1,
+            "x": 0,
+            "y": 8,
+            "width": 16,
+            "height": 8,
+            "rotation": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "animation": [
+        {
+          "tileid": 2,
+          "duration": 100
+        },
+        {
+          "tileid": 3,
+          "duration": 150
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "objectgroup": {
+        "type": "objectgroup",
+        "objects": [
+          {
+            "id": 1,
+            "x": 0,
+            "y": 16,
+            "polygon": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 16,
+                "y": -16
+              },
+              {
+                "x": 16,
+                "y": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

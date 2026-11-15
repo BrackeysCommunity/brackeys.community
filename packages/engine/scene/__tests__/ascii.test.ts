@@ -8,7 +8,10 @@ import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame, RegistryError } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
+import type { TilesetFile } from "../../project/kinds/tileset";
+import type { ProjectView } from "../../project/types";
 import { createDataSystem } from "../../systems/data";
+import { tileTraits } from "../../tiles/chunks";
 import { renderSceneAscii, sceneAsciiMap } from "../ascii";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import { SCENE_GRID_MAX_CELLS } from "../svg";
@@ -401,6 +404,19 @@ describe("sprite boxes", () => {
   });
 });
 
+/** The kitchen sink's tilesets' traits, as `scene render` computes them. */
+const sinkTileTraits = (view: ProjectView) =>
+  Object.fromEntries(
+    [...view.byId.values()]
+      .filter((e) => e.kind === "tileset")
+      .map((e) => {
+        const file = JSON.parse(
+          readFileSync(new URL(`../../scenes/${e.path}`, import.meta.url), "utf8"),
+        ) as TilesetFile;
+        return [e.id, Object.fromEntries((file.tiles ?? []).map((t) => [t.id, tileTraits(t)]))];
+      }),
+  );
+
 describe("the kitchen sink", () => {
   const sinkGolden = new URL("./kitchen-sink.golden.txt", import.meta.url);
   let sink: Awaited<ReturnType<typeof loadKitchenSink>>;
@@ -414,6 +430,7 @@ describe("the kitchen sink", () => {
       prefabs: sink.prefabs,
       project: sink.view,
       strings: sink.strings,
+      tileTraits: sinkTileTraits(sink.view),
       cell: 32,
     };
     const text = renderSceneAscii(sink.scene, opts);
@@ -463,5 +480,38 @@ describe("text boxes", () => {
 
   it("leaves a scene without text as it was", () => {
     expect(legendOf(sceneAsciiMap(yard, { registry: engine }))['"']).toBeUndefined();
+  });
+});
+
+describe("tilemaps", () => {
+  const registry = createRegistry();
+  const traits = { ts: { 0: tileTraits({ id: 0, solid: true }), 1: tileTraits({ id: 1 }) } };
+  const mapScene: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "tiles",
+    bounds: [0, 0, 10.24, 7.68],
+    settings: { grid: { kind: "square", cell: [0.64, 0.64] } },
+    entities: [
+      {
+        id: "map",
+        type: "tilemap",
+        at: [0.64, 0.64],
+        tileset: "ts",
+        cells: { "0,0": ["1,1,2,2"] },
+      },
+    ],
+  };
+
+  it("draws solid tiles in the tilemap's character and the rest as `:`", () => {
+    const map = sceneAsciiMap(mapScene, { registry, tileTraits: traits });
+    const solid = map.legend.find((l) => l.label === "tilemap")!.char;
+    expect(map.lines[1]!.slice(0, 6)).toBe(`.${solid}${solid}::.`);
+    expect(map.legend).toContainEqual({ char: ":", label: "tilemap tile, not solid" });
+  });
+
+  it("draws every tile as `:` without traits for its tileset, under its origin's point", () => {
+    const map = sceneAsciiMap(mapScene, { registry });
+    const origin = map.legend.find((l) => l.label === "tilemap")!.char;
+    expect(map.lines[1]!.slice(0, 6)).toBe(`.${origin}:::.`);
   });
 });

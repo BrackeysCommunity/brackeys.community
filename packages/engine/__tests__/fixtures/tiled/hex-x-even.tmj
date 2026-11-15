@@ -1,0 +1,47 @@
+{
+  "type": "map",
+  "orientation": "hexagonal",
+  "infinite": false,
+  "width": 3,
+  "height": 3,
+  "tilewidth": 28,
+  "tileheight": 32,
+  "hexsidelength": 16,
+  "staggeraxis": "x",
+  "staggerindex": "even",
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "name": "Hexes",
+      "image": "hexes.png",
+      "imagewidth": 56,
+      "imageheight": 32,
+      "tilewidth": 28,
+      "tileheight": 32,
+      "columns": 2,
+      "tilecount": 2
+    }
+  ],
+  "layers": [
+    {
+      "id": 1,
+      "type": "tilelayer",
+      "name": "Floor",
+      "width": 3,
+      "height": 3,
+      "opacity": 1,
+      "visible": true,
+      "data": [
+        1,
+        2,
+        1,
+        2,
+        -2147483647,
+        2,
+        1,
+        2,
+        536870913
+      ]
+    }
+  ]
+}

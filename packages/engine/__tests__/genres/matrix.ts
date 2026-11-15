@@ -15,7 +15,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   platformer: {
     genre: "Platformer",
     deliveredBy: "M13, M14, M22, M23, M25",
-    probes: ["behavior-yard", "side-view-behaviors", "tree-yard"],
+    probes: ["behavior-yard", "side-scroller", "side-view-behaviors", "tree-yard"],
   },
   "top-down": {
     genre: "Top-down action / RPG",
@@ -48,7 +48,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   rts: {
     genre: "RTS / strategy",
     deliveredBy: "M14, M16, M22, M24, M25",
-    probes: ["point-and-click"],
+    probes: ["point-and-click", "rts"],
   },
   "tower-defense": {
     genre: "Tower defense",
@@ -61,7 +61,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     deliveredBy: "M14, M15, M18, M25",
     probes: ["roguelike", "turn-tactics"],
   },
-  metroidvania: { genre: "Metroidvania", deliveredBy: "M18, M22, M25", probes: [] },
+  metroidvania: { genre: "Metroidvania", deliveredBy: "M18, M22, M25", probes: ["metroidvania"] },
   "point-and-click": {
     genre: "Point-and-click adventure",
     deliveredBy: "M14, M16, M17, M23",
@@ -116,6 +116,7 @@ export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
   43: "0.16.0",
   23: "0.17.0",
   24: "0.18.0",
+  25: "0.19.0",
 };
 
 /** `a` against `b` as semver release triples: negative, zero or positive. */

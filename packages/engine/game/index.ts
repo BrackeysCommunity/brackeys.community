@@ -106,7 +106,7 @@ export { ANIM_END, ANIM_FRAME } from "../runtime/behaviors/anim";
 export { TWEEN_END } from "../runtime/behaviors/tween";
 export type { AnimContext, AnimState, AnimSystem } from "../runtime/behaviors/anim";
 export type { TweenSystem, UnsaveableTween } from "../runtime/behaviors/tween";
-export { CAMERA_RIG_SCHEMA, NODE_TYPE, type CameraRigDef } from "./primitives";
+export { CAMERA_RIG_SCHEMA, NODE_TYPE, TILEMAP_PRIMITIVE, type CameraRigDef } from "./primitives";
 export type { CameraFrame, CameraTargetSpec } from "../camera/rig";
 export type {
   AudioRequest,
@@ -325,6 +325,7 @@ export {
   EngineError,
   PRIMITIVE_TYPES,
   scopedRef,
+  TILE_TOOL_IDS,
 } from "./types";
 export type {
   ActionDef,
@@ -339,6 +340,9 @@ export type {
   CheckVerdict,
   ColliderTag,
   CommandDef,
+  TileAt,
+  TilesContext,
+  TileToolId,
   ColliderTags,
   ContactSelector,
   Contacts,
@@ -451,6 +455,7 @@ export type {
   DrawLayer,
   EmitterFollow,
   SceneView,
+  TilemapVisual,
   ViewEmitter,
   ViewLayer,
   ViewLayerHandle,
@@ -617,3 +622,55 @@ export {
   type PlacementTool,
   type PlacementToolOptions,
 } from "../placement";
+
+// ─── Tilemaps ────────────────────────────────────────────
+export {
+  decodeCell,
+  encodeCell,
+  FLIP_D,
+  FLIP_X,
+  FLIP_Y,
+  MAX_TILES,
+  TILE_ID_BITS,
+  transformCell,
+  type TileCell,
+  type TileTurn,
+} from "./tile-cell";
+export type { AutotileRule, TileDef, TilesetFile } from "../project/kinds/tileset";
+export {
+  applyAutotile,
+  MASK_E,
+  MASK_N,
+  MASK_NE,
+  MASK_NW,
+  MASK_S,
+  MASK_SE,
+  MASK_SW,
+  MASK_W,
+  terrainMask,
+} from "../tiles/autotile";
+export {
+  decodeChunks,
+  dirtyChunks,
+  tileTraits,
+  type TileChunk,
+  type TileTraits,
+} from "../tiles/chunks";
+export {
+  DEFAULT_TILE_COLLISION,
+  greedyBoxes,
+  outlineChains,
+  type TileCollision,
+} from "../tiles/colliders";
+export { buildChunkMesh, type ChunkMesh, type ChunkMeshInput } from "../tiles/mesh";
+// The importers sit here rather than in ./project, whose source the canvas-sync image runs without tiles/.
+export { importTiled } from "../tiles/import-tiled";
+export { importLdtk } from "../tiles/import-ldtk";
+export {
+  createTilemapSystem,
+  findTilemapSystem,
+  isTilemapSystem,
+  tilesContext,
+  type TilemapEntity,
+  type TilemapSystem,
+} from "../systems/tilemap";

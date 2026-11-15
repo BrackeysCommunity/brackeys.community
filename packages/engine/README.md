@@ -3310,6 +3310,313 @@ export function walkAround() {
 }
 ```
 
+## Tilemaps
+
+A `tilemap` entity paints the scene grid with tiles from one `tileset`
+doc: drawn per 32×32 chunk, colliding per its tiles, walling the grid
+where its tiles are solid. Any scene with `settings.grid` can hold one,
+with or without a game.
+
+**The cell value.** Each cell is one 16-bit integer: 0 is empty, else the
+tile id + 1 in the low 13 bits (`TILE_ID_BITS`, ids 0 to 8190,
+`MAX_TILES`), with Tiled's flip flags above it: `FLIP_X` (0x2000),
+`FLIP_Y` (0x4000) and `FLIP_D` (0x8000, the diagonal flip, applied
+first). `encodeCell` and `decodeCell` (in `./game`) convert between the
+value and `{ id, flipX, flipY, flipD }`; `transformCell(value, { rot,
+flip })` gives the value a cell takes when its map turns by quarter turns
+or mirrors. The cells are the grid's ordinary run-length chunks (see
+[Grids](#grids)), so `paintCells` paints them like any other grid field.
+
+**Tilesets.** A `tileset` doc (`tileset:v1`, `schemas/tileset.schema.json`)
+cuts tiles from one texture or atlas: `tile` is the tile size in image
+px, with `margin`, `spacing` and `columns`, and tiles are numbered
+row-major from the top left. A tile's px must equal the scene grid's
+cell times the game's px per metre (`world.lengthUnit`), or the map is
+`tileset-grid-mismatch`; for 1 m cells, make the px per metre the tile
+size (16 px tiles, `lengthUnit: 16`). `tiles` carries per-tile data by
+id: `solid`, `oneWay` (the side actors land on), a path `cost` (10 a
+step), a collider `material`, `tags`, collision `shapes` in tile px in
+place of the full square, `animation` frames (drawn only, never
+collision) and the game's `data` (judged by `GameDefinition.tileData`
+when the game declares it). A cell naming a tile the image doesn't hold
+is `tile-unknown`; a map naming a tileset the project lacks,
+`tileset-missing`.
+
+**Collision.** A map's `collision` picks how its solid tiles collide,
+rebuilt per chunk:
+
+| Mode              | Colliders                                 | Trade-off                                                                                                                                         |
+| ----------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `boxes` (default) | the solid cells merged into rectangles    | few colliders; a body sliding along a floor can catch on the seam where two boxes meet                                                            |
+| `outline`         | closed chains round each solid region     | no seams inside a region, but a chain's corners can give a fast body a ghost contact, and the region is hollow: a body inside it isn't pushed out |
+| `tiles`           | one collider per solid tile               | the most colliders; use it when tiles carry their own `shapes` or materials that mustn't merge                                                    |
+| `none`            | nothing; the map is drawn and walls grids | for decoration layers                                                                                                                             |
+
+One-way tiles and tiles with their own `shapes` never merge.
+
+**Runtime writes.** `ctx.tiles` reads and writes every loaded map by
+cell: `at(cell)` lists each map's tile there, top first (by `z`, then
+scene order); `get(map, cell)` is one raw value; `find(map, tag)` lists
+the cells whose tile has a tag; `paint(map, { cells?, rects? })` writes
+and `autotile(map, rule, rect)` runs a tileset rule. Reads see a write at
+once; colliders, grid walls and meshes rebuild once, for the chunks it
+touched, at the end of the tick. A paint naming a tile the image doesn't
+hold throws `tile-unknown` and writes nothing. A world save keeps the
+writes as a sparse diff from the scene's cells.
+
+**Autotiling.** A tileset's `rules` each paint one terrain (the tag whose
+tiles count as neighbours): `edge16` reads the four sides, `blob47` all
+eight neighbours with corners counted only when both edges beside them
+are terrain, Tiled's 47 shapes. `tiles` maps a mask (N=1, NE=2, E=4,
+SE=8, S=16, SW=32, W=64, NW=128, as a decimal string) to a tile id, and
+`fallback` covers any mask it doesn't list. `applyAutotile` is the pure
+pass the editor's autotile brush, `scene paint --auto` and
+`ctx.tiles.autotile` all run: masks are read before it writes, cells go
+in row-major order, and only cells whose value changes come back, so the
+same input paints the same cells on every machine.
+
+A corridor of rock with a moss ledge laid and autotiled at runtime, and a
+hole knocked in its floor:
+
+```ts tile-corridor.ts
+import {
+  createRegistry,
+  decodeCell,
+  defineGame,
+  encodeCell,
+  transformCell,
+  type TilesetFile,
+} from "@jams/engine/game";
+import { createHeadlessRuntime, memoryRuntimeView } from "@jams/engine/headless";
+import { expandScene, paintGrid, type SceneDefinition } from "@jams/engine/scene";
+
+/** 1 m cells drawn from 16 px tiles: the game's px per metre is the tile size. */
+export const tileGame = defineGame({
+  id: "tiles",
+  types: [],
+  actions: [],
+  world: { physics: "none", lengthUnit: 16 },
+  createRuntime: () => ({ snapshot: () => null }),
+});
+
+/** A 64×32 px sheet: rock (0), moss (1, 2, 3) and a plank (4). */
+export const caveTiles: TilesetFile = {
+  kind: "tileset",
+  v: 1,
+  image: "cave-sheet",
+  tile: [16, 16],
+  columns: 4,
+  tiles: [
+    { id: 0, solid: true, tags: ["rock"] },
+    { id: 1, solid: true, tags: ["moss"] },
+    { id: 2, solid: true, tags: ["moss"] },
+    { id: 3, solid: true, tags: ["moss"] },
+    { id: 4, oneWay: "up", tags: ["plank"] },
+  ],
+  rules: [
+    // edge16: a moss cell's tile by which of its four sides touch moss.
+    {
+      id: "moss",
+      kind: "edge16",
+      terrain: "moss",
+      tiles: { "4": 2, "64": 3, "68": 1 },
+      fallback: 1,
+    },
+  ],
+};
+
+const ROCK = encodeCell({ id: 0, flipX: false, flipY: false, flipD: false });
+const MOSS = encodeCell({ id: 1, flipX: false, flipY: false, flipD: false });
+
+/** A 12-cell corridor: rock above and below, nothing between. */
+export const corridor: SceneDefinition = {
+  v: 5,
+  game: "tiles",
+  name: "corridor",
+  bounds: [0, 0, 12, 5],
+  settings: { grid: { kind: "square", cell: [1, 1] } },
+  entities: [
+    {
+      id: "walls",
+      type: "tilemap",
+      at: [0, 0],
+      tileset: "cave",
+      cells: paintGrid(
+        {},
+        {
+          rects: [
+            [0, 0, 11, 0, ROCK],
+            [0, 4, 11, 4, ROCK],
+          ],
+        },
+      ).grid,
+    },
+  ],
+};
+
+/** Knocks a hole in the floor, lays a moss ledge and autotiles it, then reads the map back. */
+export function digCorridor() {
+  const registry = createRegistry(tileGame);
+  const project = {
+    ...memoryRuntimeView({ docs: { tileset: { cave: caveTiles } } }),
+    asset: (id: string) =>
+      id === "cave-sheet"
+        ? {
+            id,
+            kind: "texture" as const,
+            sha256: "a".repeat(64),
+            size: [64, 32] as [number, number],
+          }
+        : undefined,
+  };
+  const run = createHeadlessRuntime({
+    game: tileGame,
+    registry,
+    scene: expandScene(corridor, registry),
+    project,
+  });
+  const solidAt = (col: number, row: number) =>
+    run.ctx.space.pointAt({ x: col + 0.5, y: row + 0.5 }).length > 0;
+
+  run.ctx.tiles.paint("walls", { cells: [[5, 4, 0]], rects: [[3, 2, 5, 2, MOSS]] });
+  run.ctx.tiles.autotile("walls", "moss", { c0: 3, r0: 2, c1: 5, r1: 2 });
+  // Reads see a write at once; colliders rebuild at the end of the tick.
+  const holeBeforeStep = solidAt(5, 4);
+  run.step(run.ctx.time.tickMs, []);
+
+  const ledge = [3, 4, 5].map((col) => decodeCell(run.ctx.tiles.get("walls", [col, 2]))?.id);
+  // A quarter turn clockwise of a plain tile is Tiled's H|D flags.
+  const turned = decodeCell(transformCell(ROCK, { rot: 1, flip: false }));
+  const result = {
+    holeBeforeStep,
+    holeAfterStep: solidAt(5, 4),
+    ledge,
+    mossCells: run.ctx.tiles.find("walls", "moss").length,
+    top: run.ctx.tiles.at([4, 2])[0]?.def?.tags,
+    turned,
+  };
+  run.destroy();
+  return result;
+}
+```
+
+**Importers.** `importTiled` and `importLdtk` (in `./game`) turn a map
+into one project batch: the tileset images as `importAsset`, the
+tilesets, then the scenes with their grid, tilemaps, markers and
+sensors. It is a one-shot conversion; nothing stays linked to the source
+file. The CLI's `assets import --tiled|--ldtk` and the MCP's
+`asset_import` run them. Their limits:
+
+- JSON only: Tiled's `.tmj` and `.tsj` (CSV or uncompressed base64 tile
+  data), LDtk's `.ldtk` and its separate `.ldtkl` level files. TMX, TSX
+  and compressed layers are refused.
+- Orthogonal and hexagonal Tiled maps import; isometric and staggered
+  ones are refused until the engine has isometric projections.
+- Tiled tilesets cut from one image import; image collections don't.
+  Wang sets aren't carried over: write autotile rules instead. Tile
+  classes become tags, collision objects become `shapes`, and animations
+  carry.
+- LDtk's IntGrid layers import as tilemaps over generated swatch
+  tilesets, its tile and auto layers as tilemaps, its entities as
+  markers. A layer whose cells differ from the scene grid's, or which is
+  offset by part of a cell, is dropped with a warning.
+- Anything else is dropped with an `import-failed` warning, and anything
+  that can't import at all (a broken file, a missing image) is an
+  `import-failed` error that writes nothing.
+
+```ts tile-import.ts
+import { decodeCell, FLIP_X, importTiled } from "@jams/engine/game";
+import { projectView } from "@jams/engine/project";
+import { readCell, type GridCells } from "@jams/engine/scene";
+
+const empty = projectView({
+  meta: { projectId: "cave", layout: 1, name: "Cave" },
+  assets: {},
+  history: {},
+  code: {},
+  build: {},
+});
+
+/** A 4×2 Tiled map with its tileset embedded: a floor, its last tile mirrored (Tiled's H flag). */
+export const caveMap = {
+  type: "map",
+  orientation: "orthogonal",
+  width: 4,
+  height: 2,
+  tilewidth: 16,
+  tileheight: 16,
+  tilesets: [
+    {
+      firstgid: 1,
+      name: "cave",
+      image: "cave.png",
+      tilewidth: 16,
+      tileheight: 16,
+      tilecount: 8,
+      columns: 4,
+      tiles: [{ id: 0, class: "rock" }],
+    },
+  ],
+  layers: [
+    {
+      type: "tilelayer",
+      name: "floor",
+      width: 4,
+      height: 2,
+      data: [0, 0, 0, 0, 1, 1, 2, 0x80000000 | 2],
+    },
+  ],
+};
+
+/** Imports the map into scene `cave` as one batch, then tries it as an isometric map. */
+export function importCave() {
+  const opts = {
+    scene: "cave",
+    project: empty,
+    pxPerMetre: 16,
+    images: new Map([["cave.png", { sha256: "c".repeat(64), bytes: 120 }]]),
+  };
+  const { ops, notes } = importTiled(caveMap, new Map(), opts);
+  const edit = ops.at(-1);
+  const floor =
+    edit?.op === "editScene"
+      ? edit.ops.flatMap((o) => (o.op === "add" && o.entity.type === "tilemap" ? [o.entity] : []))
+      : [];
+  const cells = floor[0]?.cells as GridCells | undefined;
+  const last = cells ? readCell(cells, 3, 1) : 0;
+  const isometric = importTiled({ ...caveMap, orientation: "isometric" }, new Map(), opts);
+  return {
+    ops: ops.map((o) => o.op),
+    warnings: notes.length,
+    lastTile: decodeCell(last)?.id,
+    mirrored: (last & FLIP_X) !== 0,
+    refused: isometric.ops.length === 0 && isometric.notes.map((n) => n.code),
+  };
+}
+```
+
+**Culling.** Each chunk is one mesh; a chunk outside every view's
+rectangle (each camera's in split screen) isn't drawn and its animated
+tiles aren't stepped, so a large map costs what is on screen plus the
+chunks a write touched.
+
+**In the scene tree.** A tilemap is an entity like any other: it can sit
+under a `parent` (a node, an instance, a moving body) and moves with it.
+When the frame it sits in turns by quarter turns or flips (`transform`
+with `turn` or `flip` on its node or instance), its cells move and each
+cell's flags turn with them (`transformCell`), so it draws and collides
+as before, only turned. A tilemap under a parent
+turned off the quarter turns is `quarter-turn-only`, and one over a grid
+whose cells aren't square can't be turned (`grid-invalid`). `reparent`
+keeps its world pose, as it does for every entity.
+
+**In the editor.** The tile tools (`tile-brush`, `tile-rect`,
+`tile-fill`, `tile-erase`, `tile-pick`, `tile-auto` in `./editor`) paint
+the selected tilemap from the tile palette, each stroke one `paintCells`
+batch that co-edits by chunk. Agents use `scene paint` and `scene tiles`
+(see `scripts/scene/README.md`) and the MCP's `scene_paint`;
+`scene_render` draws tilemaps tile by tile.
+
 ## Standard behaviors
 
 Every registry, a game's or a gameless project's, holds eleven gameplay
@@ -9446,21 +9753,23 @@ Static ground, walls and platforms: collides from every side, or from above only
 
 Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.
 
-| Field       | Type             | Required | Description                                                                                                                                                               |
-| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | [shape](#shapes) | yes      | Trigger shape. Absolute world metres; y is down.                                                                                                                          |
-| `tags`      | string[]         |          | Labels a game reads off the sensor's events.                                                                                                                              |
-| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+| Field       | Type                        | Required | Description                                                                                                                                                               |
+| ----------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`     | [shape](#shapes)            | yes      | Trigger shape. Absolute world metres; y is down.                                                                                                                          |
+| `tags`      | string[]                    |          | Labels a game reads off the sensor's events.                                                                                                                              |
+| `extra`     | { id: #/$defs/\_\_schema0 } |          | Imported properties (Tiled object properties, LDtk entity fields) a game maps to its own types.                                                                           |
+| `behaviors` | object                      |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `marker`
 
 A named point with tags; what it means is up to the game.
 
-| Field       | Type             | Required | Description                                                                                                                                                               |
-| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `at`        | [point](#points) | yes      | Marker position. Absolute world metres; y is down.                                                                                                                        |
-| `tags`      | string[]         |          | Labels a game reads, e.g. spawn or checkpoint.                                                                                                                            |
-| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+| Field       | Type                        | Required | Description                                                                                                                                                               |
+| ----------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `at`        | [point](#points)            | yes      | Marker position. Absolute world metres; y is down.                                                                                                                        |
+| `tags`      | string[]                    |          | Labels a game reads, e.g. spawn or checkpoint.                                                                                                                            |
+| `extra`     | { id: #/$defs/\_\_schema1 } |          | Imported properties (Tiled object properties, LDtk entity fields) a game maps to its own types.                                                                           |
+| `behaviors` | object                      |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `prop`
 
@@ -9522,6 +9831,20 @@ An area that holds the camera: inside it, the view stays within its box and may 
 | `clamp`     | boolean                   |          | Keep the view inside the box; default true.                                                                                                                               |
 | `ease`      | number (s)                |          | Seconds to move into the region's framing (the inspector shows ms); default 0.4.                                                                                          |
 | `behaviors` | object                    |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+
+#### `tilemap`
+
+Tiles painted on the scene grid from one tileset: drawn per chunk, colliding per its tiles.
+
+| Field       | Type                                              | Required | Description                                                                                                                                                                                     |
+| ----------- | ------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `at`        | [point](#points)                                  | yes      | The grid origin of cell (0, 0); a whole number of cells from the scene's grid origin.                                                                                                           |
+| `tileset`   | string                                            | yes      | The tileset its cells index.                                                                                                                                                                    |
+| `cells`     | { id: string[] }                                  | yes      | Tile values: 0 empty, else the tile id + 1 in the low 13 bits with Tiled's flip bits above. Cells in 32x32 chunks keyed "cx,cy", each chunk up to 32 run-length rows ("0*4,3*6,7"); 0 is empty. |
+| `collision` | `"tiles"` \| `"boxes"` \| `"outline"` \| `"none"` |          | boxes (default): merged rectangles per chunk; outline: chains around solid regions; tiles: one collider per tile; none.                                                                         |
+| `tint`      | integer                                           |          | Multiplies the tiles' colours, 0xRRGGBB; omitted draws them as they are.                                                                                                                        |
+| `alpha`     | number                                            |          | The tiles' opacity, 0 to 1; default 1.                                                                                                                                                          |
+| `behaviors` | object                                            |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.                       |
 
 #### `note`
 

@@ -1,6 +1,6 @@
 {
   "name": "@jams/engine",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "files": [
     "dist",
@@ -93,6 +93,7 @@
     "./schemas/synth.schema.json": "./project/synth.schema.json",
     "./schemas/dialogue.schema.json": "./project/dialogue.schema.json",
     "./schemas/strings.schema.json": "./project/strings.schema.json",
+    "./schemas/tileset.schema.json": "./project/tileset.schema.json",
     "./package.json": "./package.json"
   },
   "dependencies": {

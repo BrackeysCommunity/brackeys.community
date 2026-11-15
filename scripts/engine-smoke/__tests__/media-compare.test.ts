@@ -19,13 +19,15 @@ import {
   judgeAudio,
   judgeMedia,
   judgeSigns,
+  judgeTilemaps,
   type AudioProbe,
   type SignProbe,
 } from "../browser/media-compare";
 import { SIGN_GRID, SIGNS } from "../browser/signs";
 import { SMOKE_BACKGROUND } from "../browser/sink";
+import { TILE_COLOURS, type TilemapRead } from "../browser/tilemaps";
 import { smokeGame } from "../game";
-import { audioPlayed, signsDrawn } from "./media-probes";
+import { audioPlayed, signsDrawn, tilemapsDrawn } from "./media-probes";
 
 const rgb = (hex: number, a = 255) =>
   [(hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff, a] as [number, number, number, number];
@@ -224,15 +226,61 @@ describe("the audio run's patch", () => {
 const passing: BrowserOutcome = { browser: "chromium", status: "pass", digest: "d" };
 
 const page = (patch: Partial<Extract<EngineSmokeResult, { ok: true }>>): EngineSmokeResult =>
-  ({ ok: true, signs: signsDrawn, audio: audioPlayed, ...patch }) as EngineSmokeResult;
+  ({
+    ok: true,
+    tilemaps: tilemapsDrawn,
+    signs: signsDrawn,
+    audio: audioPlayed,
+    ...patch,
+  }) as EngineSmokeResult;
+
+describe("judgeTilemaps", () => {
+  const hex = (patch: Partial<TilemapRead>) => ({
+    ...tilemapsDrawn,
+    hex: { ...tilemapsDrawn.hex, ...patch },
+  });
+
+  it("passes when both maps show a tile's colour on the painted cell and the background off it", () => {
+    expect(judgeTilemaps(tilemapsDrawn)).toBeNull();
+    for (const colour of TILE_COLOURS) expect(judgeTilemaps(hex({ tile: rgb(colour) }))).toBeNull();
+  });
+
+  it("fails a missing run, a blank or wrong-coloured cell, and tiles drawn off the map", () => {
+    expect(judgeTilemaps(undefined)).toBe("the page ran no tilemaps");
+    expect(
+      judgeTilemaps({
+        ...tilemapsDrawn,
+        square: { ...tilemapsDrawn.square, tile: rgb(SMOKE_BACKGROUND) },
+      }),
+    ).toMatch(/^the square tilemap is blank: .* on webgl$/);
+    expect(judgeTilemaps(hex({ tile: [0, 0, 0, 0] }))).toMatch(
+      /hex tilemap's painted cell is rgba\(0, 0, 0, 0\)/,
+    );
+    expect(judgeTilemaps(hex({ tile: rgb(0xff0000) }))).toMatch(/not a kitchen tile's colour/);
+    expect(judgeTilemaps(hex({ tile: rgb(TILE_COLOURS[1], 120) }))).toMatch(
+      /not a kitchen tile's colour/,
+    );
+    expect(judgeTilemaps(hex({ empty: rgb(TILE_COLOURS[0]) }))).toMatch(
+      /hex tilemap's empty cell .* not the background/,
+    );
+  });
+});
 
 describe("judgeMedia", () => {
   it("carries the page's signs and audio onto a passing outcome", () => {
     expect(judgeMedia(passing, page({}))).toEqual({
       ...passing,
+      tilemaps: tilemapsDrawn,
       signs: signsDrawn,
       audio: audioPlayed,
     });
+  });
+
+  it("fails a passing outcome on a blank tilemap before the signs", () => {
+    const blank = { ...tilemapsDrawn, hex: { ...tilemapsDrawn.hex, tile: rgb(SMOKE_BACKGROUND) } };
+    expect(
+      judgeMedia(passing, page({ tilemaps: blank, signs: { ...signsDrawn, loadedFaces: 0 } })),
+    ).toMatchObject({ status: "fail", reason: expect.stringMatching(/^the hex tilemap is blank/) });
   });
 
   it("fails a passing outcome on the first media read that doesn't hold, signs first", () => {

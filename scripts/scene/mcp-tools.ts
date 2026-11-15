@@ -66,6 +66,7 @@ import {
   gameReleaseRollback,
 } from "./tools/game-release";
 import { list } from "./tools/list";
+import { paint } from "./tools/paint";
 import { PLAY_LIVE_ACTIONS, playLive } from "./tools/play-live";
 import { playtest } from "./tools/playtest";
 import { projectRefs } from "./tools/project-refs";
@@ -74,6 +75,7 @@ import { render } from "./tools/render";
 import { replay, type ReplayInput } from "./tools/replay";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
+import { DEFAULT_STATS_TICKS, stats } from "./tools/stats";
 import { validate } from "./tools/validate";
 
 /** The agent id a live batch is logged under when `agentId` is left out. */
@@ -798,7 +800,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_render",
     title: "Render a scene",
     description:
-      "A schematic PNG of the scene (longest side 1600px), drawn in world px (metres times the game's px per metre) with axis ticks labelled in world px, entity labels and each sprite's box labelled `asset[:frame]`, or with `ascii` a character map whose cells and ruler are world px; `sprites` lists the boxes in metres. Overlay a playtest or validate result.",
+      "A schematic PNG of the scene (longest side 1600px), drawn in world px (metres times the game's px per metre) with axis ticks labelled in world px, entity labels and each sprite's box labelled `asset[:frame]`, tilemaps drawn tile by tile (solid tiles filled, the rest outlined, labelled with their tile ids while the map is small), or with `ascii` a character map whose cells and ruler are world px; `sprites` lists the boxes in metres. Overlay a playtest or validate result.",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -827,6 +829,63 @@ export const MCP_TOOLS: readonly McpTool[] = [
       ...liveFields,
     },
     run: (i, ctx) => renderTool(i, ctx),
+  }),
+  defineTool({
+    name: "scene_paint",
+    title: "Paint a tilemap",
+    description:
+      "Paint a tilemap entity's cells as one `paintCells` batch, as the CLI's `paint` does: exactly one of `cells` (`c,r=tile` each), `rect` (`c0,r0,c1,r1=tile` each), `fill` (`c,r=tile`, a bounded flood from the cell) or `auto` (`rule c0,r0,c1,r1`, the tileset's autotile rule over the rectangle). Columns and rows count from the map's origin; a tile is named by its id or a tag, and `0` clears. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. A tile no id or tag names is refused, writing nothing.",
+    annotations: WRITE,
+    input: {
+      scene: sceneName,
+      map: z.string().describe("The tilemap entity's ref."),
+      cells: z.array(z.string()).optional().describe("`c,r=tile` per cell."),
+      rect: z.array(z.string()).optional().describe("`c0,r0,c1,r1=tile` per rectangle."),
+      fill: z.string().optional().describe("`c,r=tile`: flood the region holding the cell."),
+      auto: z
+        .string()
+        .optional()
+        .describe("`rule c0,r0,c1,r1`: an autotile rule over a rectangle."),
+      ...writerFields,
+    },
+    run: async (i, ctx) => {
+      const flags = writerFlags(i, ctx);
+      if (isToolResult(flags)) return flags;
+      return paint(
+        {
+          ...flags,
+          scene: i.scene,
+          map: i.map,
+          cells: i.cells,
+          rect: i.rect,
+          fill: i.fill,
+          auto: i.auto,
+        },
+        ctx,
+      );
+    },
+  }),
+  defineTool({
+    name: "scene_stats",
+    title: "Measure a scene",
+    description:
+      "Run a scene headless with timings on, as `stats` does: deterministic `counts` (entities, bodies, colliders, behaviors, events, spawns, destroys) and this machine's `wall` numbers (ticks per second; mean and worst ms per phase, system and behavior), which differ between runs. exitCode 1 when the scene is blocked or the run throws.",
+    annotations: READ,
+    input: {
+      scene: sceneArg,
+      ticks: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe(`Ticks to measure, at most 36000; default ${DEFAULT_STATS_TICKS}.`),
+      game,
+      ...liveFields,
+    },
+    run: (i, ctx) =>
+      withSource(i, ctx, (scene, c) =>
+        stats({ scene, ticks: opt(i.ticks, String), game: i.game }, c),
+      ),
   }),
   defineTool({
     name: "scene_frame",
@@ -953,10 +1012,27 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "asset_import",
     title: "Import an asset",
     description:
-      "Add a local file to a project. A binary's bytes go to the content store (with live, the server's) and importAsset names their hash; a JSON doc kind's file becomes createAsset. A dry run unless dryRun is false.",
+      "Add a local file to a project. A binary's bytes go to the content store (with live, the server's) and importAsset names their hash; a JSON doc kind's file becomes createAsset. Or, in place of `file`, convert a map: `tiled` (a `.tmj`, its tilesets embedded or external `.tsj`) or `ldtk` (a `.ldtk` world, its separate level files read only for the chosen `level`s) becomes scenes holding tilemap entities, their tilesets and the tileset images, as one batch; what the importer can't carry is refused as `import-failed`. A dry run unless dryRun is false.",
     annotations: WRITE,
     input: {
-      file: z.string().describe("The local file to import."),
+      file: z
+        .string()
+        .optional()
+        .describe("The local file to import; leave out with `tiled` or `ldtk`."),
+      tiled: z.string().optional().describe("A Tiled map (`.tmj`) to convert."),
+      into: z
+        .string()
+        .optional()
+        .describe("With tiled: the scene the map becomes; default one named after the map."),
+      tilesets: z
+        .string()
+        .optional()
+        .describe("With tiled: the folder of its external tilesets; default the map's."),
+      ldtk: z.string().optional().describe("An LDtk world (`.ldtk`) to convert."),
+      level: z
+        .array(z.string())
+        .optional()
+        .describe("With ldtk: the levels to convert; default all."),
       path: z
         .string()
         .optional()
@@ -976,6 +1052,11 @@ export const MCP_TOOLS: readonly McpTool[] = [
         {
           ...flags,
           file: i.file,
+          tiled: i.tiled,
+          into: i.into,
+          tilesets: i.tilesets,
+          ldtk: i.ldtk,
+          level: i.level,
           path: i.path,
           id: i.id,
           kind: i.kind,

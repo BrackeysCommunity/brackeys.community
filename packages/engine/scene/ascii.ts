@@ -14,7 +14,7 @@ import {
 } from "./render-geometry";
 import { aabb, containsPoint, regionBox } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline } from "./shape-outline";
-import { drawnTexts, type SceneTextOptions } from "./svg";
+import { drawnTexts, drawnTile, type SceneTextOptions, type SceneTileOptions } from "./svg";
 import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 
 /** Tags that pick a map character over the type's own: a sensor tagged `goal` draws `G`. */
@@ -25,7 +25,8 @@ export const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>> = {
 };
 
 export type SceneAsciiOptions = SceneRegionOptions &
-  SceneTextOptions & {
+  SceneTextOptions &
+  SceneTileOptions & {
     registry: Registry;
     /** World px per character (metres times px per metre); default 64. Grows in steps of 64 when the map would pass `maxCells`. */
     cell?: number;
@@ -62,6 +63,7 @@ const TRAIL = "*";
 const OUTCOME = "!";
 const MORE = "…";
 const TEXT = '"';
+const OPEN_TILE = ":";
 const RULER_EVERY = 8;
 
 /**
@@ -163,7 +165,7 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
  * `~` along paths, each sprite's box in its entity's character under
  * everything else, each `text` block's measured box in `"` (labelled "≈"
  * where its size is an estimate), grid fields' filled cells in their entity's character
- * (at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
+ * (a tilemap's solid tiles by `opts.tileTraits`; its other tiles `:`; at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
  */
 export function sceneAsciiMap(
   scene: SceneDefinition | ExpandedScene,
@@ -233,9 +235,18 @@ export function sceneAsciiMap(
   const tagChars = opts.tagChars ?? DEFAULT_ASCII_TAG_CHARS;
   const grid = gridCellsIn(visible, drawing.grid, region);
   const cellMarks = new Map<DrawnEntity, Mark>();
+  const openTileMarks = new Map<DrawnEntity, Mark>();
   for (const g of grid.cells) {
-    let m = cellMarks.get(g.entity);
-    if (!m) {
+    const tile = drawnTile(g, opts.tileTraits);
+    let m = tile && !tile.solid ? openTileMarks.get(g.entity) : cellMarks.get(g.entity);
+    if (!m && tile && !tile.solid) {
+      m = {
+        char: OPEN_TILE,
+        label: `${g.entity.type.type} tile, not solid`,
+        priority: PRIORITY.path,
+      };
+      openTileMarks.set(g.entity, m);
+    } else if (!m) {
       m = { ...markOf(g.entity, registry, tagChars), priority: PRIORITY.static };
       cellMarks.set(g.entity, m);
     }

@@ -4,7 +4,7 @@ import { PAGE_TIMEOUT_MS } from "../browser-compare";
 import { settledWithin, UNLOCK_CAP_MS } from "../browser/audio";
 import { judgeAudio, judgeMedia } from "../browser/media-compare";
 import { PAGE_BUDGET_MS, pageSteps } from "../browser/run";
-import { audioPlayed, signsDrawn } from "./media-probes";
+import { audioPlayed, signsDrawn, tilemapsDrawn } from "./media-probes";
 
 describe("pageSteps", () => {
   it("names the run the page is stuck in, when it began, and the runs done before it", async () => {
@@ -78,6 +78,7 @@ describe("the audio run with no output device", () => {
     expect(
       judgeMedia({ browser: "firefox", status: "pass" }, {
         ok: true,
+        tilemaps: tilemapsDrawn,
         signs: signsDrawn,
         audio: stopped,
       } as Parameters<typeof judgeMedia>[1]),

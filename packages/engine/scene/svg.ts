@@ -12,11 +12,13 @@ import {
 import { cssHex } from "../game/color";
 import { isCameraRegionType, outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
+import { decodeCell } from "../game/tile-cell";
 import type { DebugDrawCommand, Registry, Style } from "../game/types";
 import { assetInfo } from "../project/asset-info";
 import { measureText } from "../text/measure";
 import { parseRichText, richPlainText } from "../text/rich";
 import { keyedText, type StringTableData } from "../text/strings";
+import type { TileTraits } from "../tiles/chunks";
 import {
   type DrawnGridCell,
   type DrawnGridCells,
@@ -62,8 +64,45 @@ export type SceneTextOptions = {
   strings?: StringTableData;
 };
 
+/**
+ * Each tileset's tiles as `tileTraits` judges them, by tileset asset id and
+ * then tile id: plain data the caller computes, so renders and colliders
+ * read one rule. A tile, or a tileset, not listed draws as not solid.
+ */
+export type SceneTileTraits = Readonly<
+  Record<string, Readonly<Record<number, Pick<TileTraits, "solid">>>>
+>;
+
+export type SceneTileOptions = {
+  /** Per-tile traits for tilemaps' cells: solid tiles fill, the rest outline. */
+  tileTraits?: SceneTileTraits;
+};
+
+/** A tilemap cell as renders draw it; null for a grid cell that isn't a tilemap's. */
+export type DrawnTile = { id: number; solid: boolean };
+
+/** The tile a drawn grid cell holds, judged by `traits`. */
+export function drawnTile(
+  cell: DrawnGridCell,
+  traits: SceneTileTraits | undefined,
+): DrawnTile | null {
+  const d = cell.entity;
+  if (cell.field !== "cells" || (d.type.type !== "tilemap" && d.base !== "tilemap")) return null;
+  const decoded = decodeCell(cell.value);
+  if (!decoded) return null;
+  const tileset = typeof d.entity.tileset === "string" ? d.entity.tileset : undefined;
+  const solid = tileset === undefined ? false : traits?.[tileset]?.[decoded.id]?.solid === true;
+  return { id: decoded.id, solid };
+}
+
+/** Tilemap cells are labelled with their tile id while at most this many are drawn. */
+export const TILE_LABEL_MAX_CELLS = 400;
+/** …and while a cell is at least this many image px across. */
+const TILE_LABEL_MIN_PX = 12;
+
 export type SceneSvgOptions = SceneRegionOptions &
-  SceneTextOptions & {
+  SceneTextOptions &
+  SceneTileOptions & {
     /** Types, styles and materials; the registry the scene was parsed with. */
     registry: Registry;
     /** Image px per world px, before the cap; default 1. */
@@ -335,7 +374,8 @@ const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type 
 /**
  * The scene as SVG text in world px (written to 1/100 px): each entity in
  * its type's and material's style, one-way landing faces, a grid with axis
- * ticks, id labels, sprite boxes labelled `asset[:frame]` (sized from
+ * ticks, id labels, tilemap cells (solid tiles filled, the rest outlined, by
+ * `opts.tileTraits`, labelled by tile id while the map is small), sprite boxes labelled `asset[:frame]` (sized from
  * `opts.project` when given), text boxes labelled with their text ("≈"
  * before an estimated size), path waypoints and the given overlays. The
  * same scene and options give the same text.
@@ -393,7 +433,15 @@ export function renderSceneSvg(
   // Grid fields' cells, under the entities
   const cells = gridCellsIn(visible, drawing.grid, vp.region);
   if (cells.cells.length > 0 || cells.more > 0)
-    out.push(...gridCellElements(cells, registry, px, u));
+    out.push(
+      ...gridCellElements(cells, {
+        registry,
+        px,
+        u,
+        traits: opts.tileTraits,
+        tileLabels: labels !== "none",
+      }),
+    );
 
   // Entities
   out.push(`<g id="entities">`);
@@ -581,13 +629,21 @@ export function renderSceneSvg(
 
 function gridCellElements(
   { cells, more, moreAt }: DrawnGridCells,
-  registry: Registry,
-  px: (n: number) => string,
-  u: number,
+  env: {
+    registry: Registry;
+    px: (n: number) => string;
+    u: number;
+    traits: SceneTileTraits | undefined;
+    tileLabels: boolean;
+  },
 ): string[] {
+  const { registry, px, u } = env;
   const out: string[] = [`<g id="grid-cells" fill-opacity="0.7" stroke-width="${px(1)}">`];
+  const tiles = cells.map((c) => drawnTile(c, env.traits));
+  const tileCount = tiles.reduce((n, t) => (t ? n + 1 : n), 0);
+  const labelled: { c: DrawnGridCell; id: number }[] = [];
   let open: DrawnGridCell | null = null;
-  for (const c of cells) {
+  cells.forEach((c, i) => {
     if (open?.entity !== c.entity || open.field !== c.field) {
       if (open) out.push(`</g>`);
       const d = c.entity;
@@ -598,19 +654,50 @@ function gridCellElements(
       );
       open = c;
     }
-    const fill = CATEGORY_COLORS[(c.value - 1) % CATEGORY_COLORS.length]!;
-    const attrs = `data-cell="${c.col},${c.row}" data-v="${c.value}" fill="${fill}"`;
+    const tile = tiles[i];
+    const color = CATEGORY_COLORS[(tile ? tile.id : c.value - 1) % CATEGORY_COLORS.length]!;
+    const paint = !tile
+      ? `fill="${color}"`
+      : tile.solid
+        ? `data-solid="true" fill="${color}"`
+        : `data-solid="false" fill="none" stroke="${color}" stroke-opacity="0.9"`;
+    const attrs =
+      `data-cell="${c.col},${c.row}" data-v="${c.value}"` +
+      (tile ? ` data-tile="${tile.id}"` : "") +
+      ` ${paint}`;
     if (c.outline.length === 4) {
       const { minX, minY, maxX, maxY } = c.box;
       out.push(
         `<rect ${attrs} x="${num(minX)}" y="${num(minY)}" width="${num(maxX - minX)}" height="${num(maxY - minY)}"/>`,
       );
     } else {
-      const d = c.outline.map(([x, y], i) => `${i ? "L" : "M"}${num(x)} ${num(y)}`).join("");
+      const d = c.outline.map(([x, y], j) => `${j ? "L" : "M"}${num(x)} ${num(y)}`).join("");
       out.push(`<path ${attrs} d="${d}Z"/>`);
     }
-  }
+    if (tile) labelled.push({ c, id: tile.id });
+  });
   if (open) out.push(`</g>`);
+  if (env.tileLabels && tileCount > 0 && tileCount <= TILE_LABEL_MAX_CELLS) {
+    const shown = labelled.filter(
+      ({ c }) =>
+        Math.min(c.box.maxX - c.box.minX, c.box.maxY - c.box.minY) / u >= TILE_LABEL_MIN_PX,
+    );
+    if (shown.length > 0) {
+      out.push(
+        `<g class="tile-ids" text-anchor="middle" fill="${INK}" fill-opacity="1" stroke="none">`,
+      );
+      for (const { c, id } of shown) {
+        const side = Math.min(c.box.maxX - c.box.minX, c.box.maxY - c.box.minY) / u;
+        const size = Math.min(11, side * 0.5);
+        const cx = (c.box.minX + c.box.maxX) / 2;
+        const cy = (c.box.minY + c.box.maxY) / 2;
+        out.push(
+          `<text data-tile-label="${c.col},${c.row}" x="${num(cx)}" y="${num(cy + size * 0.35 * u)}" font-size="${px(size)}">${id}</text>`,
+        );
+      }
+      out.push(`</g>`);
+    }
+  }
   if (moreAt)
     out.push(
       `<text class="grid-more" data-more="${more}" x="${num(moreAt[0])}" y="${num(moreAt[1] + 4 * u)}" ` +

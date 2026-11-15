@@ -16,7 +16,21 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { generateLargeScene, LARGE_5K } from "../packages/engine/__tests__/fixtures/generate-scene";
+import {
+  generateLargeScene,
+  generateTilemapScene,
+  LARGE_5K,
+  tilemapProject,
+} from "../packages/engine/__tests__/fixtures/generate-scene";
+import {
+  RTS_PERF_GAME,
+  rtsPerfScript,
+  rtsProject,
+  rtsScene,
+} from "../packages/engine/__tests__/genres/rts.probe";
+import type { GameDefinition } from "../packages/engine/game/types";
+import type { InputScript } from "../packages/engine/headless/playtest-types";
+import type { ProjectRuntimeView } from "../packages/engine/project/runtime-view";
 import type { SceneDefinition } from "../packages/engine/scene/types";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,6 +47,12 @@ export type PerfCase = {
   id: "kitchen-sink" | "large-5k" | (string & {});
   /** A project scene's id, or a generated scene the runner writes to a file. */
   scene: string | (() => SceneDefinition);
+  /** The in-memory project a generated scene loads against (its tilesets and textures); played without the CLI. */
+  project?: () => ProjectRuntimeView;
+  /** The game a generated scene plays under; default the scene's own, as the CLI resolves it. */
+  game?: GameDefinition;
+  /** What the run plays, warm-up included, `warmup + ticks` long; default waiting. */
+  script?: (ticks: number) => InputScript;
   ticks: 600;
   runs: 5;
 };
@@ -51,6 +71,22 @@ export const PERF_CASES: readonly PerfCase[] = [
   {
     id: "large-5k-geometry",
     scene: () => generateLargeScene(1, LARGE_5K, "none"),
+    ticks: 600,
+    runs: 5,
+  },
+  {
+    id: "tilemap-512",
+    scene: () => generateTilemapScene(1),
+    project: tilemapProject,
+    ticks: 600,
+    runs: 5,
+  },
+  {
+    id: "rts-500",
+    scene: rtsScene,
+    project: rtsProject,
+    game: RTS_PERF_GAME,
+    script: rtsPerfScript,
     ticks: 600,
     runs: 5,
   },
@@ -154,15 +190,36 @@ export async function runPerf(
   return { report: { key, results, ok, updated: opts.update === true }, baseline };
 }
 
-/** The real runner: `scene stats` on the case's scene, a generated one written to a file first. */
+/**
+ * The real runner: `scene stats` on the case's scene, a generated one written
+ * to a file first. A case with its own project has no file a project holds,
+ * so it goes to the same `runStats` the CLI calls, with that project.
+ */
 async function cliRunner(): Promise<{ runner: PerfRunner; close(): Promise<void> }> {
   const { defaultToolContext } = await import("./scene/default-context");
   const { stats } = await import("./scene/tools/stats");
+  const { runStats } = await import("@jams/engine/headless");
   const ctx = await defaultToolContext();
   const dir = await mkdtemp(join(tmpdir(), "engine-perf-"));
   const files = new Map<string, string>();
+  const scenes = new Map<string, SceneDefinition>();
   return {
     async runner(c) {
+      if (c.project && typeof c.scene === "function") {
+        let def = scenes.get(c.id);
+        if (!def) scenes.set(c.id, (def = c.scene()));
+        const ticks = PERF_WARMUP_TICKS + c.ticks;
+        const report = await runStats({
+          rapier: await ctx.loadRapier(),
+          ...(c.game ? { game: c.game } : {}),
+          scene: def,
+          project: c.project(),
+          script: c.script?.(ticks) ?? { v: 1, maxTicks: ticks, steps: [{ wait: ticks }] },
+          ticks: c.ticks,
+          warmup: PERF_WARMUP_TICKS,
+        });
+        return report.wall.ticksPerSecond;
+      }
       let scene = typeof c.scene === "string" ? c.scene : files.get(c.id);
       if (scene === undefined && typeof c.scene === "function") {
         scene = join(dir, `${c.id}.json`);

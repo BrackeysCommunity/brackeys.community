@@ -19,6 +19,7 @@ import type { MountUi } from "../../ui/types";
 import { EditorFrame, editorChrome, type FramePanels } from "../frame/EditorFrame";
 import type { EditorStorage } from "../host";
 import { LAYOUT_WRITE_DELAY } from "../layout/use-layout";
+import { playPickOf } from "../panels/PlayPick";
 import { PANELS } from "../panels/registry";
 import { usePlayUi } from "../SceneEditor";
 import { editorIdentity, openLiveEditor, type LiveEditor } from "../session/live-scene-editor";
@@ -227,6 +228,29 @@ describe("the editor driving a game", () => {
     expect(state().mode).toBe("edit");
     expect(live.session.store.state.selection).toEqual(["zone"]);
     expect(reached).toEqual([]);
+  });
+});
+
+describe("picking in Play", () => {
+  it("picks on an Alt+click with the Inspector panel hidden", async () => {
+    const { live, chrome, rerender } = await setup();
+    rerender({ ...chrome.panels!, defs: PANELS.filter((p) => p.id !== "inspector") });
+    act(() => live.play());
+    expect(screen.queryByLabelText("Play inspector")).toBeNull();
+    const pick = vi.spyOn(game!.debug, "pick").mockResolvedValue("runner#1");
+    const taker = game!.router.dispatch({
+      kind: "pointer",
+      type: "down",
+      screen: { x: 10, y: 10 },
+      button: 0,
+      deltaY: 0,
+      native: { altKey: true } as PointerEvent,
+    } as never);
+    expect(taker).toBe("editor-play-pick");
+    expect(pick).toHaveBeenCalledOnce();
+    await act(async () => {});
+    expect(playPickOf(live.session).state.id).toBe("runner#1");
+    act(() => live.stop());
   });
 });
 

@@ -27,6 +27,7 @@ import { TEXT, type TextBlock } from "../game/behaviors/text";
 import { tweenChannels, tweenTargetProblem, type TweenBlock } from "../game/behaviors/tween";
 import { createRegistry, defineGame, ENGINE_BEHAVIORS, withProject } from "../game/define";
 import { parseSaveFile } from "../game/save-file";
+import { decodeCell } from "../game/tile-cell";
 import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { loadHeadless } from "../headless/load";
@@ -72,6 +73,7 @@ import { SOUND_KIND, type SoundFile } from "../project/kinds/sound";
 import { localeFont, localeSettingsOf, STRINGS_KIND } from "../project/kinds/strings";
 import { SYNTH_KIND } from "../project/kinds/synth";
 import { TEXTURE_KIND } from "../project/kinds/texture";
+import { TILESET_KIND, type TilesetFile } from "../project/kinds/tileset";
 import { runtimeView } from "../project/runtime-view";
 import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
@@ -89,6 +91,7 @@ import {
 import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
+import type { GridCells } from "../scene/grid";
 import { parseInputScript, scriptSeatLimit, UI_ACTION_HINT } from "../scene/input-script";
 import { parseScene } from "../scene/parse";
 import { prefabsUsedBy } from "../scene/prefab";
@@ -101,6 +104,9 @@ import { sublevelIssue, validateScene } from "../scene/validate";
 import { kitchenMedia } from "../scenes/tools/kitchen-media";
 import type { SolidSystem } from "../systems/bodies";
 import { stringTable } from "../text/strings";
+import { applyAutotile } from "../tiles/autotile";
+import { decodeChunks } from "../tiles/chunks";
+import { animationFrame } from "../tiles/mesh";
 import type { RapierModule } from "../types";
 import {
   createProjectFileAdapter,
@@ -297,6 +303,36 @@ describe("kitchen-sink.json", () => {
       const rows = def.solid as unknown[][];
       expect(new Set(rows.map((r) => r[0]))).toEqual(new Set(SHAPE_TYPES));
       expect(rows.some((r) => r[0] === "box" && typeof r[5] === "number" && r[5] !== 0)).toBe(true);
+    });
+
+    it("a tilemap with a one-way tile, an animated tile and an autotile rule its cells already satisfy", () => {
+      const tileset = JSON.parse(
+        readFileSync(new URL("art/kitchen.tileset.json", scenesDir), "utf8"),
+      ) as TilesetFile;
+      const map = entities().find((e) => e.type === "tilemap");
+      expect(map?.tileset).toBe("kitchen-tileset");
+      const cells = map!.cells as GridCells;
+      const used = new Set(
+        decodeChunks(cells).flatMap((c) =>
+          [...c.values].flatMap((v) => (v === 0 ? [] : [decodeCell(v)!.id])),
+        ),
+      );
+      const tiles = tileset.tiles ?? [];
+      const oneWay = tiles.find((t) => t.oneWay === "up");
+      const animated = tiles.find((t) => (t.animation?.length ?? 0) > 1);
+      expect(used).toContain(oneWay?.id);
+      expect(used).toContain(animated?.id);
+      expect(animationFrame(animated, 0)).not.toBe(animationFrame(animated, 300));
+      const rule = tileset.rules?.[0];
+      expect(rule).toBeDefined();
+      const terrain = new Set(
+        tiles.filter((t) => t.tags?.includes(rule!.terrain)).map((t) => t.id),
+      );
+      const isTerrain = (v: number) => v !== 0 && terrain.has(decodeCell(v)!.id);
+      expect([...used].some((id) => terrain.has(id))).toBe(true);
+      expect(
+        applyAutotile(cells, tileset, rule!, { c0: 0, r0: 0, c1: 31, r1: 31 }, isTerrain),
+      ).toEqual([]);
     });
 
     it("a node with three children", () => {
@@ -959,19 +995,34 @@ describe("kitchen-sink.json", () => {
     expect((await run()).log).toEqual(first.log);
   });
 
-  it("holds the clip and the font exactly as its generator writes them", async () => {
+  it("holds the clip, the font and the tiles exactly as its generator writes them", async () => {
     for (const file of kitchenMedia())
       expect(new Uint8Array(await readFile(join(scenesPath, file.path))), file.path).toEqual(
         file.bytes,
       );
   });
 
-  it("bundles exactly the three textures its sprites cut, each once, with no issues", () => {
-    const { bundle, issues } = sceneBundle(expanded(), def, prefabs, view, project.kinds, engine);
+  it("bundles exactly the four textures its sprites and tilemap cut, each once, with no issues", async () => {
+    const tileset = JSON.parse(
+      await readFile(join(scenesPath, "art/kitchen.tileset.json"), "utf8"),
+    ) as unknown;
+    const docs = {
+      read: (kind: string, id: string) =>
+        kind === TILESET_KIND.kind && id === "kitchen-tileset" ? tileset : undefined,
+    };
+    const { bundle, issues } = sceneBundle(
+      expanded(),
+      def,
+      prefabs,
+      view,
+      project.kinds,
+      engine,
+      docs,
+    );
     expect(issues).toEqual([]);
     const fontPages = new Set(entriesOf(FONT_KIND).flatMap((f) => f.import?.pages ?? []));
     const textures = entriesOf(TEXTURE_KIND).filter((t) => !fontPages.has(t.id));
-    expect(textures).toHaveLength(3);
+    expect(textures).toHaveLength(4);
     expect(bundle.entries).toEqual(
       textures
         .map((t) => ({ id: t.id, kind: TEXTURE_KIND, sha256: t.sha256, bytes: t.bytes }))
@@ -1436,6 +1487,7 @@ describe("the engine project", () => {
         SYNTH_KIND,
         STRINGS_KIND,
         DIALOGUE_KIND,
+        TILESET_KIND.kind,
       ]),
     );
     const blobs = entries.filter((e) => e.sha256 !== undefined);
@@ -1445,6 +1497,7 @@ describe("the engine project", () => {
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "art/kitchen-tiles.png",
       "audio/clink.wav",
       "fonts/kitchen.fnt",
       "fonts/kitchen.png",

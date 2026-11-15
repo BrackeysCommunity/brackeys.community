@@ -1,5 +1,5 @@
 import type { Store } from "@tanstack/store";
-import { Container, Graphics } from "pixi.js";
+import { Container, Culler, Graphics, Matrix, Rectangle } from "pixi.js";
 
 import type { CalibrateLatencyOptions, LatencyCalibration } from "./audio/clock";
 import { createAudioSystem, type AudioSystemHandle } from "./audio/system";
@@ -186,6 +186,7 @@ import { errorText, makeIssue } from "./scene/issues";
 import type { RecordedSwap, RunRecording } from "./scene/recording-schema";
 import type {
   Aabb,
+  Bounds,
   ExpandedScene,
   PrefabLibrary,
   SceneDefinition,
@@ -1589,10 +1590,7 @@ export async function createGame(
         if (cfg.dev) console.warn(`[replay] seek: ${errorText(error)}`);
         return false;
       }
-      if (replayLive) {
-        const later = (run.recording.swaps ?? []).filter((sw) => sw.tick >= checkpoint.tick);
-        replayLive.swaps = replaySwapsOf(replayLive.scene, later, run.opts.versions, replayLive);
-      }
+      replayLive?.swaps.from(checkpoint.tick);
       reseatReplaySession();
       reopenOutcome(checkpoint.tick);
       return true;
@@ -1689,8 +1687,13 @@ export async function createGame(
     camera.snapTo(targetsCentre(runtime));
     updateCamera(store, camera.getState());
     const { position, zoom } = camera.getState();
-    loaded.view.frame?.({ alpha: 1, camera: { x: position.x, y: position.y, zoom } });
+    loaded.view.frame?.({
+      alpha: 1,
+      camera: { x: position.x, y: position.y, zoom },
+      views: viewRects(),
+    });
     runtime.render(1);
+    cullTo(viewRect(main));
     syncGameSlice();
     syncDialogue();
     updateDebugOverlay(0, replayPointer ?? camera.screenToWorld({ x: 0, y: 0 }));
@@ -2299,6 +2302,51 @@ export async function createGame(
     for (const node of chromeNodes()) node?.parent?.removeChild(node);
   }
 
+  /** Each viewport's world rectangle (metres) this frame; the editor's one view in edit. */
+  function viewRects(): Bounds[] {
+    const rects = [viewRect(main)];
+    if (getMode() === "play") for (const vc of extras) rects.push(viewRect(vc));
+    return rects;
+  }
+
+  /**
+   * Marks the world's `cullable` visuals outside `rect` (world metres) as
+   * culled, for the draw that follows: the stage's for the first viewport, a
+   * surface's for a later one. The world container's units are metres (the
+   * scene view scales itself by 1/px-per-metre), so its transform alone
+   * takes the rect to canvas px, where Pixi's culler compares bounds.
+   */
+  function cullTo(rect: Bounds): void {
+    if (gpuLost) return;
+    const world = renderer.worldContainer;
+    const m = world.getGlobalTransform(cullMatrix, false);
+    const [x0, y0, x1, y1] = rect;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of [
+      [x0, y0],
+      [x1, y0],
+      [x0, y1],
+      [x1, y1],
+    ] as const) {
+      const gx = m.a * x + m.c * y + m.tx;
+      const gy = m.b * x + m.d * y + m.ty;
+      minX = Math.min(minX, gx);
+      minY = Math.min(minY, gy);
+      maxX = Math.max(maxX, gx);
+      maxY = Math.max(maxY, gy);
+    }
+    cullRect.x = minX;
+    cullRect.y = minY;
+    cullRect.width = maxX - minX;
+    cullRect.height = maxY - minY;
+    Culler.shared.cull(world, cullRect, false);
+  }
+  const cullMatrix = new Matrix();
+  const cullRect = new Rectangle();
+
   /**
    * Shifts the first viewport's draw to its rectangle's corner. The camera
    * places the world for a view at the canvas's corner, so the shift goes in
@@ -2337,6 +2385,7 @@ export async function createGame(
         frameView(vc, runtime, alpha);
         view.parallax(vc.camera.getPosition());
         view.showLayers(viewports[vc.index]?.layers ?? null);
+        cullTo(viewRect(vc));
         if (gpu && vc.holder && vc.surface) {
           vc.holder.updateLocalTransform();
           vc.surface.render(gpu, world, vc.holder.localTransform, cfg.backgroundColor);
@@ -2857,7 +2906,11 @@ export async function createGame(
           if (state.zoom !== before) updateCamera(store, { zoom: state.zoom, scale: state.scale });
         }
         const { position, zoom } = camera.getState();
-        loaded.view.frame?.({ alpha: a, camera: { x: position.x, y: position.y, zoom } });
+        loaded.view.frame?.({
+          alpha: a,
+          camera: { x: position.x, y: position.y, zoom },
+          views: viewRects(),
+        });
         frameTiming.lap("view.frame");
         loaded.runtime.render(a);
         frameAudio(loaded.runtime, a);
@@ -2867,6 +2920,7 @@ export async function createGame(
         loaded.view.particles?.()?.update(still ? steppedMs : wallMs * loop.getTimeScale());
         steppedMs = 0;
         drawViewports(loaded.view, loaded.runtime, a);
+        cullTo(viewRect(main));
         frameTiming.lap("behaviors.render");
       }
       if (frameTimed) frameTimings.add("render", performance.now() - now);
@@ -3980,6 +4034,7 @@ export async function createGame(
     zoomAt,
     frame,
     extractPixels: (world) => renderer.extractPixels(world),
+    extractFrame: (opts) => renderer.extractFrame(opts),
     flow: {
       get start() {
         return flowSource?.start() ?? null;
@@ -4052,6 +4107,21 @@ type ViewCamera = {
   holder: Container | null;
   surface: ViewportSurface | null;
 };
+
+/** The world rectangle (metres) `vc`'s camera shows: its view, widened to hold the view turned by a shake. */
+function viewRect(vc: ViewCamera): Bounds {
+  const vp = vc.camera.getViewport();
+  const cx = vp.x + vp.width / 2;
+  const cy = vp.y + vp.height / 2;
+  const a = vc.camera.worldToScreen({ x: cx, y: cy });
+  const b = vc.camera.worldToScreen({ x: cx + 1, y: cy });
+  const turn = Math.atan2(b.y - a.y, b.x - a.x);
+  const cos = Math.abs(Math.cos(turn));
+  const sin = Math.abs(Math.sin(turn));
+  const hw = (vp.width * cos + vp.height * sin) / 2;
+  const hh = (vp.width * sin + vp.height * cos) / 2;
+  return [cx - hw, cy - hh, cx + hw, cy + hh];
+}
 
 /** `defs` copied, or an error saying why they can't be the canvas's viewports. */
 function checkedViewports(defs: readonly ViewportDef[]): ViewportDef[] {

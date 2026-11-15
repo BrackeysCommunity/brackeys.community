@@ -36,6 +36,14 @@ const TREE = {
   nudge: join(TREE_EXAMPLES, "nudge-barrel.json"),
 };
 
+/** The skill's tilemap examples: a Tiled map it imports, then a corridor painted into it. */
+const TILE_EXAMPLES = fileURLToPath(new URL("../examples/tiles/", import.meta.url));
+const TILES = {
+  map: join(TILE_EXAMPLES, "cave.tmj"),
+  image: join(TILE_EXAMPLES, "cave.png"),
+  corridor: join(TILE_EXAMPLES, "corridor.json"),
+};
+
 /** The floor's top: a hero 0.8 m tall stands at y 4.6, a 0.5 m crate at 4.75. */
 const floor = { id: "floor", type: "solid", shape: ["box", 6, 5.2, 6, 0.2] };
 const room = (name: string, entities: unknown[]): SceneDefinition =>
@@ -274,5 +282,58 @@ describe("the scene-editing skill's tree batches", () => {
     const [x1, y1] = world(after);
     expect(x1 - x0).toBeCloseTo(0.2 * Math.cos(Math.PI / 6), 5);
     expect(y1 - y0).toBeCloseTo(0.2 * Math.sin(Math.PI / 6), 5);
+  });
+});
+
+describe("the scene-editing skill's tilemap examples", () => {
+  const tileRows = async () => {
+    const shown = await cli(["tiles", "cave", "tilemap-1"]);
+    expect(shown.exitCode, JSON.stringify(shown)).toBe(0);
+    return shown.rows as unknown[];
+  };
+
+  it("are the files this test runs, every one", async () => {
+    expect((await readdir(TILE_EXAMPLES)).sort()).toEqual(
+      Object.values(TILES)
+        .map((p) => p.slice(TILE_EXAMPLES.length))
+        .sort(),
+    );
+  });
+
+  it("import a Tiled map as a scene, its tileset and the tileset's image", async () => {
+    const importMap = ["assets", "import", "--tiled", TILES.map, "--project", "skill-yard"];
+    const dry = await cli([...importMap, "--dry-run"]);
+    expect(dry.exitCode, JSON.stringify(dry)).toBe(0);
+    const done = await cli(importMap);
+    expect(done.exitCode, JSON.stringify(done)).toBe(0);
+    expect((await cli(["validate", "cave"])).exitCode).toBe(0);
+    expect(await tileRows()).toHaveLength(3);
+  });
+
+  it("roof the cave into a corridor with one paintCells batch", async () => {
+    const dry = await cli(["apply", "cave", "--ops", TILES.corridor, "--dry-run"]);
+    expect(dry.exitCode, JSON.stringify(dry)).toBe(0);
+    expect((await cli(["apply", "cave", "--ops", TILES.corridor])).exitCode).toBe(0);
+    expect((await cli(["validate", "cave"])).exitCode).toBe(0);
+    expect(await tileRows()).toHaveLength(4);
+  });
+
+  it("clear the lamp out of the corridor with scene paint, then pave the floor by a tag", async () => {
+    const paint = ["paint", "cave", "tilemap-1", "--rect", "0,1,7,1=empty"];
+    const dry = await cli([...paint, "--dry-run"]);
+    expect(dry.exitCode, JSON.stringify(dry)).toBe(0);
+    const done = await cli(paint);
+    expect(done.exitCode, JSON.stringify(done)).toBe(0);
+    expect(await tileRows()).toEqual(["00000000", "........", "11111111", "00000000"]);
+    const flipped = async () =>
+      ((await cli(["tiles", "cave", "tilemap-1"])).legend as { flipped: number }[]).reduce(
+        (n, t) => n + t.flipped,
+        0,
+      );
+    expect(await flipped()).toBe(1);
+    const floor = await cli(["paint", "cave", "tilemap-1", "--rect", "0,3,7,3=stone"]);
+    expect(floor.exitCode, JSON.stringify(floor)).toBe(0);
+    expect(await flipped()).toBe(0);
+    expect((await cli(["validate", "cave"])).exitCode).toBe(0);
   });
 });

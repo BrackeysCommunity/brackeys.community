@@ -7,6 +7,7 @@ import { fieldOfView } from "../../grid/fov";
 import { cellKey, sameCell, type Cell, type CellKey } from "../../grid/geometry";
 import { findPath } from "../../grid/path";
 import { createGridStepper, type GridStepper } from "../../motion/grid-step";
+import { paintGrid, type CellEdit } from "../../scene/grid";
 import { prefabLibrary } from "../../scene/prefab";
 import {
   SCENE_FORMAT_VERSION,
@@ -15,8 +16,9 @@ import {
   type Pt,
   type SceneDefinition,
 } from "../../scene/types";
+import { MASK_E, MASK_N, MASK_S, MASK_W } from "../../tiles/autotile";
 import type { Vec2 } from "../../types";
-import type { GenreProbe } from "./harness";
+import { tilesetFiles, type GenreProbe } from "./harness";
 
 const ID = "roguelike";
 const ROGUE = "rogue";
@@ -25,6 +27,14 @@ const STAIRS = `${ID}-stairs`;
 /** A plain room, and the room the stairs stand in. */
 const HALL = `${ID}-hall`;
 const VAULT = `${ID}-vault`;
+/** The tilemap the floor is dug out of: every cell starts as rock. */
+const MAP = `${ID}-rock`;
+const TILESET = `${ID}-rock`;
+const ROCK = "rock";
+/** Re-masks the rock around a dug cell by its four neighbours. */
+const RULE = "rock-edges";
+/** A tile's value is its id + 1; 0 is a dug (empty) cell. */
+const SOLID_ROCK = 1;
 
 /** Raised when the stairs first come into the rogue's field of view, and when it stands on them. */
 export const SIGHTED = `${ID}:sighted`;
@@ -37,6 +47,8 @@ const ROWS = 18;
 const GRID: GridSettings = { kind: "square", cell: [CELL, CELL] };
 const MS_PER_STEP = 100;
 const SIGHT = 5;
+/** Corridor cells dug per tick, after the rooms are carved at load. */
+const DIG_PER_TICK = 1;
 /** Rooms the generator tries to place, the vault last; attempts give up after `TRIES`. */
 const ROOMS = 5;
 const TRIES = 60;
@@ -58,6 +70,10 @@ export type RoguelikeSnapshot = {
   seen: number;
   sighted: boolean;
   descended: boolean;
+  /** Corridor cells dug so far. */
+  dug: number;
+  /** A descend that arrived while the corridors were still being dug. */
+  waiting?: true;
   /**
    * While the rogue explores, the cells it has seen by key, sorted, for a
    * world save to put back. Absent otherwise, so a finished run's end state
@@ -101,6 +117,29 @@ const room = (id: string, extra: Prefab["entities"] = []): Prefab => {
   };
 };
 
+const EDGE_MASKS = Array.from({ length: 16 }, (_, i) =>
+  [MASK_N, MASK_E, MASK_S, MASK_W].reduce((m, bit, k) => (i & (1 << k) ? m | bit : m), 0),
+);
+/** Tile 0 is plain rock; 1–16 are rock by its edge mask. Every one is solid. */
+const PROJECT_FILES = tilesetFiles(
+  TILESET,
+  {
+    tile: [CELL * 100, CELL * 100],
+    columns: 17,
+    tiles: Array.from({ length: 17 }, (_, id) => ({ id, solid: true, tags: [ROCK] })),
+    rules: [
+      {
+        id: RULE,
+        kind: "edge16",
+        terrain: ROCK,
+        tiles: Object.fromEntries(EDGE_MASKS.map((m, i) => [String(m), i + 1])),
+        fallback: 0,
+      },
+    ],
+  },
+  [CELL * 100 * 17, CELL * 100],
+);
+
 const prefabs = prefabLibrary([
   room(HALL),
   room(VAULT, [{ id: "stairs", type: STAIRS, at: [CELL, CELL] }]),
@@ -114,10 +153,13 @@ const centreCell = (a: Rect): Cell => [a.c + Math.floor(a.w / 2), a.r + Math.flo
 const inBounds = ([c, r]: Cell) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
 
 /**
- * A roguelike floor with no physics. At load `ctx.random` picks room spots,
- * `ctx.instantiate` places a hall prefab at each and the vault (with the
- * stairs) at the last, L-shaped corridors join them in order, and every
- * other cell becomes a grid wall. `descend` sets the rogue off: it sees by
+ * A roguelike floor with no physics, dug out of a tilemap of solid rock. At
+ * load `ctx.random` picks room spots, `ctx.instantiate` places a hall prefab
+ * at each and the vault (with the stairs) at the last, and the rooms are
+ * painted empty with `ctx.tiles.paint`; L-shaped corridors joining them in
+ * order are then dug a cell a tick, each dig autotiling the rock around it
+ * with `ctx.tiles.autotile`. The solid tiles wall the grid. A `descend` that
+ * arrives mid-dig waits for the corridors; then the rogue sets off: it sees by
  * shadowcast field of view, walks by A* over the cells it has seen toward
  * the nearest edge of the known map, and once the stairs are in view walks
  * to them. The game stays busy while it walks, so a turns clock keeps
@@ -141,7 +183,9 @@ const game = defineGame<RoguelikeSnapshot>({
   },
   createRuntime(ctx: EngineContext) {
     let rooms: { id: string; cell: Cell }[] = [];
-    let floor = new Set<CellKey>();
+    let digs: Cell[] = [];
+    let dug = 0;
+    let waiting = false;
     let seen = new Set<CellKey>();
     let stairs: { id: string; cell: Cell } | null = null;
     let rogue: { id: string; stepper: GridStepper } | null = null;
@@ -150,13 +194,16 @@ const game = defineGame<RoguelikeSnapshot>({
     let descended = false;
     let steps = 0;
 
-    const wall = (c: Cell) => !inBounds(c) || !floor.has(cellKey(c));
+    const wall = (c: Cell) => !inBounds(c) || ctx.tiles.get(MAP, c) !== 0;
+    const digging = () => dug < digs.length;
 
     function carve(rect: Rect): void {
-      for (let r = rect.r; r < rect.r + rect.h; r++)
-        for (let c = rect.c; c < rect.c + rect.w; c++) floor.add(cellKey([c, r]));
+      ctx.tiles.paint(MAP, {
+        rects: [[rect.c, rect.r, rect.c + rect.w - 1, rect.r + rect.h - 1, 0]],
+      });
     }
 
+    /** Queues an L-shaped corridor's cells, each once. */
     function corridor(a: Cell, b: Cell, horizontalFirst: boolean): void {
       const bend: Cell = horizontalFirst ? [b[0], a[1]] : [a[0], b[1]];
       for (const [from, to] of [
@@ -166,15 +213,37 @@ const game = defineGame<RoguelikeSnapshot>({
         const dc = Math.sign(to[0] - from[0]);
         const dr = Math.sign(to[1] - from[1]);
         let at: Cell = from;
-        floor.add(cellKey(at));
+        const queue = (c: Cell) => {
+          if (!digs.some((d) => sameCell(d, c))) digs.push(c);
+        };
+        queue(at);
         while (!sameCell(at, to)) {
           at = [at[0] + dc, at[1] + dr];
-          floor.add(cellKey(at));
+          queue(at);
         }
       }
     }
 
-    /** Places the rooms; every spot is drawn, the vault takes the last one. */
+    /** Digs the next queued corridor cells that are still rock. */
+    function dig(): void {
+      let budget = DIG_PER_TICK;
+      while (budget > 0 && digging()) {
+        const [c, r] = digs[dug++]!;
+        if (wall([c, r])) {
+          const cell: CellEdit = [c, r, 0];
+          ctx.tiles.paint(MAP, { cells: [cell] });
+          ctx.tiles.autotile(MAP, RULE, { c0: c, r0: r, c1: c, r1: r });
+          budget--;
+        }
+      }
+      if (!digging() && waiting) {
+        waiting = false;
+        exploring = true;
+        advance(0);
+      }
+    }
+
+    /** Places the rooms and queues the corridors; every spot is drawn, the vault takes the last one. */
     function generate(): Rect[] {
       const grid = ctx.grid!;
       const spots: Rect[] = [];
@@ -208,8 +277,7 @@ const game = defineGame<RoguelikeSnapshot>({
       }
       for (let i = 1; i < placed.length; i++)
         corridor(centreCell(placed[i - 1]!), centreCell(placed[i]!), ctx.random.below(2) === 0);
-      for (let r = 0; r < ROWS; r++)
-        for (let c = 0; c < COLS; c++) if (wall([c, r])) grid.occupancy.setWall([c, r], true);
+      ctx.tiles.autotile(MAP, RULE, { c0: 0, r0: 0, c1: COLS - 1, r1: ROWS - 1 });
       return placed;
     }
 
@@ -238,7 +306,7 @@ const game = defineGame<RoguelikeSnapshot>({
         for (let c = 0; c < COLS; c++) {
           const cell: Cell = [c, r];
           const k = cellKey(cell);
-          if (!seen.has(k) || !floor.has(k)) continue;
+          if (!seen.has(k) || wall(cell)) continue;
           if (grid.geometry.neighbors(cell).some((n) => inBounds(n) && !seen.has(cellKey(n))))
             out.push(cell);
         }
@@ -296,7 +364,9 @@ const game = defineGame<RoguelikeSnapshot>({
       },
       onUnload() {
         rooms = [];
-        floor = new Set();
+        digs = [];
+        dug = 0;
+        waiting = false;
         seen = new Set();
         stairs = null;
         rogue = null;
@@ -308,12 +378,17 @@ const game = defineGame<RoguelikeSnapshot>({
       beforeStep(dtMs, _actions, commands) {
         advance(dtMs);
         for (const c of commands) {
-          if (c.name !== DESCEND || exploring || descended) continue;
+          if (c.name !== DESCEND || exploring || waiting || descended) continue;
+          if (digging()) {
+            waiting = true;
+            continue;
+          }
           exploring = true;
           advance(0);
         }
+        dig();
       },
-      busy: () => exploring,
+      busy: () => exploring || digging(),
       snapshot: () => {
         const p = rogue ? ctx.poses.get(rogue.id) : undefined;
         return {
@@ -325,11 +400,15 @@ const game = defineGame<RoguelikeSnapshot>({
           seen: seen.size,
           sighted,
           descended,
+          dug,
+          ...(waiting ? { waiting: true as const } : {}),
           ...(exploring ? { exploring: [...seen].sort((a, b) => a - b) } : {}),
         };
       },
-      // The floor comes back with the fresh load (the same seed draws the same rooms) and the rogue's stepper with the world save.
+      // The rooms and the dig queue come back with the fresh load (the same seed draws the same rooms); the dug cells and the rogue's stepper with the world save.
       restore(s) {
+        dug = s.dug;
+        waiting = s.waiting === true;
         steps = s.steps;
         sighted = s.sighted;
         descended = s.descended;
@@ -340,23 +419,31 @@ const game = defineGame<RoguelikeSnapshot>({
   },
 });
 
-/** An empty floor plan: the game builds every room at load. */
+/** Solid rock to dig: the game builds every room and corridor out of it. */
 const scene: SceneDefinition = {
   v: SCENE_FORMAT_VERSION,
   game: ID,
   name: ID,
   bounds: [0, 0, COLS * CELL, ROWS * CELL],
   settings: { physics: "none", grid: GRID },
-  entities: [],
+  entities: [
+    {
+      id: MAP,
+      type: "tilemap",
+      at: [0, 0],
+      tileset: TILESET,
+      cells: paintGrid({}, { rects: [[0, 0, COLS - 1, ROWS - 1, SOLID_ROCK]] }).grid,
+    },
+  ],
 };
 
 export const probe: GenreProbe<RoguelikeSnapshot> = {
   id: ID,
   rows: ["roguelike"],
-  pending: { roguelike: "M25 (tilemap writes)" },
   game,
   scene,
   prefabs,
+  project: { files: PROJECT_FILES },
   script: {
     v: 1,
     maxTicks: 4000,
@@ -366,8 +453,10 @@ export const probe: GenreProbe<RoguelikeSnapshot> = {
   variants: [
     { name: "seed-1", seed: 1 },
     { name: "seed-2", seed: 2 },
+    // Corridors half dug, a descend waiting on them.
+    { name: "saved-mid-dig", saveAt: 15 },
     // Exploring, the stairs not yet in sight.
-    { name: "saved-mid-run", saveAt: 120 },
+    { name: "saved-mid-run", saveAt: 80 },
   ],
   timeoutMs: 60_000,
 };

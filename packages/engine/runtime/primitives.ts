@@ -6,6 +6,7 @@ import { createMarkerSystem } from "../systems/marker";
 import { createNavSystem } from "../systems/nav";
 import { createNodeSystem } from "../systems/node";
 import { createFollowerSystem } from "../systems/path-follower";
+import { createTilemapSystem } from "../systems/tilemap";
 
 /** The engine's system factory for each primitive that loads. */
 export const PRIMITIVE_SYSTEMS: Readonly<Record<BasePrimitive, SystemFactory>> = {
@@ -18,6 +19,7 @@ export const PRIMITIVE_SYSTEMS: Readonly<Record<BasePrimitive, SystemFactory>> =
   decor: createDecorSystem,
   nav: createNavSystem,
   "camera-region": createCameraRegionSystem,
+  tilemap: createTilemapSystem,
 };
 
 /** The factory that spawns `type`: its own system, else its base primitive's (a primitive is its own base). */
