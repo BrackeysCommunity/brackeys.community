@@ -1,7 +1,6 @@
 import type { EmitterFollow, ViewLayer } from "../../context";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
-import type { EmitterBlock } from "../../game/behaviors/emitter";
-import { spriteOffset } from "../../game/behaviors/sprite";
+import { followedPose, type EmitterBlock } from "../../game/behaviors/emitter";
 import type { EngineContext, Style } from "../../game/types";
 import { EMITTER_KIND, type EmitterFile } from "../../project/kinds/emitter";
 import { editorGlyphLayer } from "../../scene/layers";
@@ -39,18 +38,11 @@ export const emitterPreset = (
 ): EmitterFile | undefined => ctx.project?.doc?.<EmitterFile>(EMITTER_KIND, id);
 
 /**
- * The `emitter` behavior's system: visual only, built with a view and never
- * headless. Each entity carrying the block runs an emitter through the
- * view's `emitter` member from its preset (`ctx.project.doc("emitter", …)`),
- * on the entity's draw layer, following the entity plus the block's offset:
- * the view resolves that pose on each rendered frame, so nothing but data
- * reaches it. `emitting: false`
- * stops it, its particles living out their life; a block without a preset
- * the project has emits nothing. A block update restarts it only when its
- * preset (the id or the doc) changes or it starts emitting again; a new
- * `rate`, `offset` or layer carries on from where it was. While editing,
- * a spark glyph on `editorGlyphLayer` marks the point it emits from,
- * whatever its preset.
+ * Visual only, never headless. Each entity with the block runs its preset
+ * through `view.emitter`, following the entity plus the block's offset as
+ * data. `emitting: false` stops it, its particles living out their life; a
+ * block update restarts it only when its preset changes or it starts
+ * emitting again. While editing, a spark glyph marks the point it emits from.
  */
 export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   if (ctx.view === null)
@@ -61,22 +53,10 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   /** Each entity's pose as the last rendered frame placed it, for its glyph. */
   const framed = new Map<string, Pose>();
 
-  function offsetFrom(a: Attached, pose: Pose): Pose {
-    const offset = a.block.offset;
-    if (!offset) return pose;
-    const [dx, dy] = spriteOffset([offset[0], offset[1]], a.entity.transform, pose.rot);
-    return { x: pose.x + dx, y: pose.y + dy, rot: pose.rot };
-  }
-
-  function at(id: string): Pose | undefined {
-    const a = attached.get(id);
-    const pose = framed.get(id) ?? ctx.poses.get(id);
-    return a && pose ? offsetFrom(a, pose) : undefined;
-  }
-
   function placeGlyph(id: string, a: Attached): void {
     if (glyphLayer === undefined) return;
-    const p = at(id) ?? offsetFrom(a, spawnPose(a.entity, ctx.registry));
+    const pose = framed.get(id) ?? ctx.poses.get(id) ?? spawnPose(a.entity, ctx.registry);
+    const p = followedPose(pose, follow(id, a));
     view.pose(emitterGlyphId(id), p.x, p.y, p.rot, true);
   }
 

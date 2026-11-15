@@ -1,3 +1,4 @@
+import { jsonAt } from "../dialogue/vars";
 import { flowIssue, type FlowRequest, type SceneLibrary } from "../game/flow";
 import { resolveTime } from "../game/time";
 import type { GameDefinition, JsonValue, PlayState, Registry } from "../game/types";
@@ -117,22 +118,10 @@ function countHolds(match: CountMatch, state: PlayState): boolean {
   return (min === undefined || n >= min) && (max === undefined || n <= max);
 }
 
-/** The value at `pointer` in `value`; undefined when the pointer is malformed or names nothing. */
-function atPointer(value: JsonValue | undefined, pointer: string): JsonValue | undefined {
-  const tokens = parseJsonPointer(pointer);
-  if (!tokens) return undefined;
-  let at: JsonValue | undefined = value;
-  for (const token of tokens) {
-    if (Array.isArray(at)) at = /^(0|[1-9]\d*)$/.test(token) ? at[Number(token)] : undefined;
-    else if (at !== null && typeof at === "object" && Object.hasOwn(at, token)) at = at[token];
-    else return undefined;
-  }
-  return at;
-}
-
-/** Every bound holds on the value at the pointer; `gte` and `lte` hold only on a number. */
+/** Every bound holds on the value at the pointer, which must be well formed; `gte` and `lte` hold only on a number. */
 function persistHolds(match: PersistMatch, state: PlayState): boolean {
-  const at = atPointer(state.persist, match.pointer);
+  if (!parseJsonPointer(match.pointer)) return false;
+  const at = jsonAt(state.persist, match.pointer);
   if (at === undefined) return false;
   if (match.eq !== undefined && !sameValue(at, match.eq)) return false;
   if (match.gte === undefined && match.lte === undefined) return true;
@@ -273,20 +262,10 @@ export function scriptSceneIssue(
 }
 
 /**
- * Plays an input script on a scene headless, starting the run the way the
- * editor's Play does (validation errors block, the document is cloned and
- * expanded, `at` is cast with the game's spawn shape), and reports how it
- * ended: the game's outcome, else `stuck`, `script-end` or `timeout`. Its
- * tracks drive the seats the run has, the project input map's over the
- * game's (`scriptSeatLimit`). A game that lists its commands gets `legal`
- * after the last tick, else at the start (`legalCommands`), as `runProbe`
- * does. A flow request game code makes ends the run as `flow`; with
- * `flow`, the run follows it instead: after the tick the next listed scene
- * loads in a fresh runtime (persist carried, the request's `persist` and
- * `entry` applied, the keys still held pressed again) and the same script
- * goes on, each scene recorded on its own in `segments`. With `fromSave`
- * the first scene starts where the save left off. Deterministic: the same
- * scenes, game, save and script give the same report.
+ * Plays an input script headless the way the editor's Play starts a run
+ * and reports how it ended (outcome, `stuck`, `script-end`, `timeout`).
+ * With `flow` it follows scene requests into fresh runtimes, one `segments`
+ * entry each; `fromSave` starts where a save left off. Deterministic.
  */
 export function runPlaytest<S = unknown, G = unknown>(
   opts: PlaytestOptions<S, G> & PlaytestStart & PlaytestHooks & RecordingHost,

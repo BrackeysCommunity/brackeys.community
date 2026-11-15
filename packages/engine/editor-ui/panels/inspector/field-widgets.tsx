@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent,
   type PointerEvent,
   type ReactElement,
   type ReactNode,
@@ -11,13 +12,22 @@ import {
 import type { Pt } from "../../../editor/index";
 import { lengthStep, parseRelative, type InspectorRow } from "../../../editor/inspector-model";
 import { DEFAULT_LENGTH_UNIT } from "../../../game/defaults";
+import { STRING_KEY_PATTERN } from "../../../project/kinds/strings";
 import { fieldKind } from "../../../scene/index";
 import { LENGTH_UNITS, roundLength, type LengthUnitName } from "../../../scene/units";
+import { STORAGE_PREFIX } from "../../host";
 import { formatQuantity } from "../../kit/format";
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
   Hint,
   Icon,
   Input,
+  MicroLabel,
   SegmentedControl,
   Select,
   SelectContent,
@@ -26,8 +36,11 @@ import {
   SelectValue,
   Spinner,
   Switch,
+  useKit,
 } from "../../kit/index";
+import { useBrowserState } from "../../kit/ssr";
 import { useBusy } from "../../pending/use-pending";
+import { readStored, storedFlags, writeStored } from "../../session/stored";
 
 /**
  * The field widgets the scene inspector and the project settings panels
@@ -366,6 +379,8 @@ export type FieldWidgetProps = {
   scope?: string;
   /** Number and angle fields: the scrub label and dial don't drag (a disabled fieldset disables the inputs). */
   disabled?: boolean;
+  /** Number and options fields: the control's accessible name; default the field's path. */
+  label?: string;
 };
 
 /** An unset value's placeholder; a required field is unset only while the object holding it is. */
@@ -474,7 +489,14 @@ export function JsonField({ field, commit, unset, scope }: FieldWidgetProps) {
 
 type NumberWidget = Extract<InspectorRow["widget"], { kind: "number" }>;
 
-export function NumberField({ field, commit, unset, scope, disabled }: FieldWidgetProps) {
+export function NumberField({
+  field,
+  commit,
+  unset,
+  scope,
+  disabled,
+  label: name,
+}: FieldWidgetProps) {
   const w = field.widget as NumberWidget;
   const [preview, setPreview] = useState<number | null>(null);
   const value = typeof field.value === "number" ? field.value : undefined;
@@ -496,7 +518,7 @@ export function NumberField({ field, commit, unset, scope, disabled }: FieldWidg
   return (
     <FieldRow field={field} label={label} scope={scope}>
       <NumberInput
-        label={field.path}
+        label={name ?? field.path}
         value={value}
         fallback={field}
         {...(unset !== undefined ? { unset } : {})}
@@ -598,6 +620,7 @@ export function OptionsField({
   scope,
   options,
   segmented,
+  label,
 }: FieldWidgetProps & { options: readonly FieldOption[]; segmented: boolean }) {
   const [error, setError] = useState<string | null>(null);
   // An optional side's unset state is a choice of its own, so it gets a segment.
@@ -625,7 +648,7 @@ export function OptionsField({
         <div className="je-insp-row" data-gap="tight">
           <SegmentedControl
             size="xs"
-            aria-label={field.path}
+            aria-label={label ?? field.path}
             value={current}
             emitOnReselect={field.optional && !anySide}
             onChange={pick}
@@ -676,7 +699,7 @@ export function OptionsField({
           else if (set || field.mixed) write(undefined);
         }}
       >
-        <SelectTrigger size="sm" aria-label={field.path}>
+        <SelectTrigger size="sm" aria-label={label ?? field.path}>
           <SelectValue>{(picked && labelOf(picked)) ?? note ?? "unset"}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
@@ -727,10 +750,17 @@ export function SwitchField({
   );
 }
 
+/** How a pair with no unit of its own steps: as a plain number field does. */
+const UNITLESS_STEPS: { step: number; bigStep: number; decimals?: number } = {
+  step: 0.1,
+  bigStep: 1,
+};
+
 /**
  * An x and a y, each committing the whole point: `commitEach` hands the
  * host what a typed axis makes of a point, for it to apply to each value
- * it holds. A metric point steps and shows as an `m` number does.
+ * it holds. A point in a unit steps as an `m` number does, a metric one in
+ * its own length; a pair with no unit shows none.
  */
 export function PointField({
   field,
@@ -749,8 +779,8 @@ export function PointField({
   fallback?: Pt;
 }) {
   const w = field.widget as Extract<InspectorRow["widget"], { kind: "point" }>;
-  const unit = metricUnit(w.unit) ?? "m";
-  const steps = lengthStep(unit, ppm);
+  const unit = typeof w.unit === "string" ? w.unit : undefined;
+  const steps = unit === undefined ? UNITLESS_STEPS : lengthStep(metricUnit(unit) ?? "m", ppm);
   const step = w.step ?? steps.step;
   const bigStep = w.bigStep ?? steps.bigStep;
   const decimals = w.decimals ?? steps.decimals;
@@ -786,12 +816,12 @@ export function PointField({
             mixed={field.mixed}
             step={step}
             bigStep={bigStep}
-            decimals={decimals}
+            {...(decimals !== undefined ? { decimals } : {})}
             suffix={name}
             onCommit={axis(i as 0 | 1)}
           />
         ))}
-        <UnitSuffix unit={typeof w.unit === "string" ? w.unit : unit} />
+        {unit !== undefined ? <UnitSuffix unit={unit} /> : null}
       </div>
     </FieldRow>
   );
@@ -867,5 +897,323 @@ export function NestedField({
       </Hinted>
       {folded ? null : <div className="je-insp-stack je-insp-nested">{children}</div>}
     </div>
+  );
+}
+
+/** A disabled fieldset that draws nothing of its own: it only disables the controls inside it. */
+export function Locked({
+  disabled,
+  className,
+  children,
+}: {
+  disabled: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset disabled={disabled} className={className} style={CONTENTS}>
+      {children}
+    </fieldset>
+  );
+}
+
+const CONTENTS = { display: "contents" } as const;
+
+const COLLAPSED_KEY = `${STORAGE_PREFIX}inspector-collapsed`;
+
+/**
+ * A titled group of fields that collapses from its title, remembered per
+ * `id` in the host's storage. The title is a `<summary>`, so it stays
+ * usable inside a read-only inspector's disabled fieldset.
+ */
+export function InspectorSection({
+  id,
+  title,
+  hint,
+  actions,
+  children,
+}: {
+  id: string;
+  title: string;
+  hint?: string;
+  /** Controls at the end of the title's row, such as a behavior's Remove. */
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const { storage } = useKit();
+  const [open, setOpen] = useBrowserState(
+    () => !readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id],
+    true,
+  );
+  const toggle = (e: MouseEvent) => {
+    e.preventDefault();
+    const closed = { ...readStored(storage, COLLAPSED_KEY, {}, storedFlags) };
+    if (open) closed[id] = true;
+    else delete closed[id];
+    writeStored(storage, COLLAPSED_KEY, closed);
+    setOpen(!open);
+  };
+  return (
+    <section aria-label={title} className="je-insp-section" data-open={open ? "" : undefined}>
+      <div className="je-insp-section-head">
+        <details open={open} className="je-insp-section-title">
+          <Hinted hint={hint}>
+            <summary className="je-insp-section-toggle" onClick={toggle}>
+              <Icon icon={open ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
+              <MicroLabel className="je-sp-truncate">{title}</MicroLabel>
+            </summary>
+          </Hinted>
+        </details>
+        {actions}
+      </div>
+      {open ? children : null}
+    </section>
+  );
+}
+
+/**
+ * A [low, high] pair, each end committing the whole range through
+ * `commitEach` as `PointField`'s axes do. With no range yet, the end not
+ * typed keeps the field's default, else starts at 0, or at the typed value
+ * where that would invert it.
+ */
+export function RangeField({
+  field,
+  scope,
+  commitEach,
+}: Omit<FieldWidgetProps, "commit"> & {
+  commitEach: (next: (current: unknown) => Pt | EditError) => FieldResult;
+}) {
+  const w = field.widget as Extract<InspectorRow["widget"], { kind: "range" }>;
+  const scale = w.scale ?? 1;
+  const at = asPt(field.value);
+  const declared = asPt(field.defaultValue);
+  const end = (i: 0 | 1) => (text: string) =>
+    commitEach((cur) => {
+      const stored = asPt(cur) ?? declared;
+      const n = resolveNumber(text, stored ? stored[i] * scale : 0, { integer: false });
+      if (n instanceof EditError) return n;
+      if (!stored) return i === 0 ? [n, Math.max(n, 0)] : [Math.min(n, 0), n];
+      const pair: Pt = [stored[0] * scale, stored[1] * scale];
+      pair[i] = n;
+      return pair;
+    });
+  return (
+    <FieldRow field={field} scope={scope}>
+      <div className="je-insp-row je-insp-wrap je-insp-range" data-gap="tight" data-align="start">
+        {(["low", "high"] as const).map((name, i) => (
+          <NumberInput
+            key={name}
+            label={`${field.path}.${name}`}
+            value={at?.[i]}
+            {...(at === undefined && declared
+              ? { unset: `${declared[i]! * scale} (default)` }
+              : {})}
+            mixed={field.mixed}
+            step={w.step}
+            bigStep={w.bigStep}
+            {...(w.decimals !== undefined ? { decimals: w.decimals } : {})}
+            suffix={i === 0 ? "min" : "max"}
+            onCommit={end(i as 0 | 1)}
+          />
+        ))}
+        {w.unit ? <UnitSuffix unit={w.unit} /> : null}
+      </div>
+    </FieldRow>
+  );
+}
+
+/** How a combobox shows an id: its label, and muted text after it that tells it from similar ones. */
+export type Described = { label: string; detail?: string };
+
+/**
+ * A combobox picking one id of `items`; cleared, it reports null. With
+ * `typed`, a typed id it accepts is offered too, as `typedDetail` says.
+ */
+export function IdCombobox({
+  label,
+  items,
+  value,
+  onChange,
+  invalid,
+  placeholder,
+  clearable,
+  empty,
+  describe,
+  typed,
+  typedDetail,
+}: {
+  label: string;
+  items: readonly string[];
+  value: string | null;
+  onChange: (next: string | null) => void;
+  invalid: boolean;
+  placeholder: string;
+  clearable: boolean;
+  empty: string;
+  /** Without it, items show their ids. */
+  describe?: (id: string) => Described;
+  /** Whether a typed id that isn't among `items` may be picked. */
+  typed?: (text: string) => boolean;
+  typedDetail?: string;
+}) {
+  const labelOf = (id: string | null) => (id === null ? "" : (describe?.(id).label ?? id));
+  // A typed id is offered as it's typed, so the text is held here, starting over at each new pick.
+  const [typing, setTyping] = useState(() => ({ value, text: labelOf(value) }));
+  if (typing.value !== value) setTyping({ value, text: labelOf(value) });
+  const query = typing.value === value ? typing.text : labelOf(value);
+  const setQuery = (text: string) => setTyping({ value, text });
+  const q = query.trim();
+  const extra = typed && q !== "" && !items.includes(q) && typed(q) ? q : null;
+  const all = extra !== null ? [...items, extra] : items;
+  const described =
+    describe || extra !== null
+      ? (id: string): Described =>
+          id === extra
+            ? { label: id, ...(typedDetail ? { detail: typedDetail } : {}) }
+            : (describe?.(id) ?? { label: id })
+      : undefined;
+  return (
+    <Combobox
+      items={all}
+      value={value}
+      onValueChange={onChange}
+      {...(typed
+        ? { inputValue: query, onInputValueChange: (next: string) => setQuery(next) }
+        : {})}
+      {...(described
+        ? {
+            itemToStringLabel: (id: string) => described(id).label,
+            filter: (id: string, text: string) => {
+              // The picked id's own text lists everything, as an untouched field does.
+              if (value !== null && text === labelOf(value)) return true;
+              const needle = text.trim().toLowerCase();
+              const d = described(id);
+              return `${id} ${d.label} ${d.detail ?? ""}`.toLowerCase().includes(needle);
+            },
+          }
+        : {})}
+    >
+      <ComboboxInput
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        placeholder={placeholder}
+        showClear={clearable}
+      />
+      <ComboboxContent>
+        <ComboboxList>
+          {(id: string) => {
+            const d = described?.(id);
+            return (
+              <ComboboxItem key={id} value={id}>
+                <span className="je-sp-truncate">{d?.label ?? id}</span>
+                {d?.detail ? (
+                  <span className="je-menu-detail je-sp-truncate">{d.detail}</span>
+                ) : null}
+              </ComboboxItem>
+            );
+          }}
+        </ComboboxList>
+        <ComboboxEmpty>{empty}</ComboboxEmpty>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+
+/** What a picked or typed name falls short of: the shared rule's message and how much it matters. */
+export type NameProblem = { message: string; severity: "error" | "warn" | "info" };
+
+/** The project's string keys as a string-key field picks them. */
+export type StringKeyTable = {
+  /** Every key across the project's string tables, by name. */
+  keys: readonly string[];
+  /** A key's text in the default locale. */
+  text: (key: string) => string | undefined;
+  /** Why `key` falls short: no text in some locale, by the one string-key rule. */
+  problem: (key: string) => NameProblem | null;
+};
+
+const isStringKey = (text: string) => STRING_KEY_PATTERN.test(text);
+
+/**
+ * A name picked from a list or typed, its problem shown in place: an error
+ * as the field's error, a lesser one as a muted note under it.
+ */
+export function NameField({
+  field,
+  commit,
+  scope,
+  items,
+  describe,
+  typed,
+  typedDetail,
+  problem,
+  placeholder,
+  empty,
+}: FieldWidgetProps & {
+  items: readonly string[];
+  describe?: (id: string) => Described;
+  typed: (text: string) => boolean;
+  typedDetail: string;
+  problem: (name: string) => NameProblem | null;
+  placeholder: string;
+  empty: string;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const value = !field.mixed && typeof field.value === "string" ? field.value : null;
+  const issue = value !== null ? problem(value) : null;
+  const shown = error ?? (issue?.severity === "error" ? issue.message : null);
+  return (
+    <FieldRow field={field} scope={scope} error={shown}>
+      <IdCombobox
+        label={field.path}
+        items={value !== null && !items.includes(value) ? [...items, value] : items}
+        value={value}
+        onChange={(next) => {
+          if (next === value) return;
+          if (next !== null) settle(commit(next), setError);
+          else if (field.optional) settle(commit(undefined), setError);
+        }}
+        invalid={shown !== null}
+        placeholder={field.mixed ? MIXED : placeholder}
+        clearable={field.optional}
+        empty={empty}
+        typed={typed}
+        typedDetail={typedDetail}
+        {...(describe ? { describe } : {})}
+      />
+      {issue && issue.severity !== "error" ? (
+        <span className="je-insp-muted">{issue.message}</span>
+      ) : null}
+    </FieldRow>
+  );
+}
+
+/**
+ * A string key, picked from the project's string tables with each key's
+ * default-locale text beside it, or typed; a key short of text says so.
+ * Without a table (no project) it's a text field.
+ */
+export function StringKeyField({
+  table,
+  ...props
+}: FieldWidgetProps & { table: StringKeyTable | null }) {
+  if (!table) return <TextField {...props} />;
+  return (
+    <NameField
+      {...props}
+      items={table.keys}
+      describe={(key) => {
+        const text = table.text(key);
+        return text !== undefined ? { label: key, detail: text } : { label: key };
+      }}
+      typed={isStringKey}
+      typedDetail="No string yet"
+      problem={table.problem}
+      placeholder={
+        unsetText(props.field) === "unset" ? "Pick a string key" : unsetText(props.field)
+      }
+      empty="No string keys in this project"
+    />
   );
 }

@@ -77,16 +77,16 @@ function slots() {
 }
 
 describe("the frame's regions", () => {
-  it("cycles F6 through the host's chrome, the columns, the dock, the status and the canvas", () => {
+  it("cycles F6 through the top bar, the context, the columns, the status and the canvas", () => {
     slots();
     const order = [
       "site",
+      "dock",
       "top-right",
       "context",
       "left",
       "right-1",
       "right-2",
-      "dock",
       "status",
     ] as const;
     for (const name of order) {
@@ -142,7 +142,7 @@ describe("the frame's regions", () => {
         <canvas />
       </EditorFrame>,
     );
-    for (const name of ["left", "inspector", "history", "dock", "status"]) {
+    for (const name of ["dock", "left", "inspector", "history", "status"]) {
       f6();
       expect(focused()).toBe(name);
     }
@@ -151,7 +151,7 @@ describe("the frame's regions", () => {
     f6(true);
     expect(focused()).toBe("status");
     f6(true);
-    expect(focused()).toBe("dock");
+    expect(focused()).toBe("history");
     // Focusable for F6, but still out of the Tab order.
     expect(document.querySelector('[data-stop="inspector"]')?.getAttribute("tabindex")).toBe("-1");
   });

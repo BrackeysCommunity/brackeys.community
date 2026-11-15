@@ -43,6 +43,12 @@ export type GameSettingsEngine = {
   locales?: LocaleSettings;
 };
 
+/** The engine block a run reads: everything but the presentation-only `locales`. */
+export function engineRunInput(engine: GameSettingsEngine): Omit<GameSettingsEngine, "locales"> {
+  const { locales: _, ...run } = engine;
+  return run;
+}
+
 const virtualPx = (description: string) =>
   z.number().positive().describe(description).meta({ unit: "px" });
 

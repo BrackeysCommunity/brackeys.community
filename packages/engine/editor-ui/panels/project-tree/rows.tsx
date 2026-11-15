@@ -19,11 +19,9 @@ import {
 import type { ProjectPeer } from "../../../collab/index";
 import type { AssetDrop, PeerPresence } from "../../../editor/index";
 import type { AssetEntry } from "../../../project/index";
-import { AUDIO_KIND } from "../../../project/kinds/audio";
-import { SOUND_KIND } from "../../../project/kinds/sound";
-import { SYNTH_KIND } from "../../../project/kinds/synth";
 import {
   AuditionButton,
+  isAudibleKind,
   useAuditionStatus,
   useEditorAudio,
   useHoverPreview,
@@ -317,9 +315,6 @@ function RenameField({
   );
 }
 
-/** A row that previews: an audio clip, a sound or a synth patch. */
-const audible = (kind: string) => kind === AUDIO_KIND || kind === SOUND_KIND || kind === SYNTH_KIND;
-
 export function AssetItem({
   row,
   active,
@@ -366,7 +361,7 @@ export function AssetItem({
   const indent = indentOf(row.depth);
   const display = entry.name && entry.name !== baseName(entry.path).replace(/\..*$/, "");
   const audio = useEditorAudio();
-  const playable = audio !== null && audible(entry.kind);
+  const playable = audio !== null && isAudibleKind(entry.kind);
   const audition = useAuditionStatus(entry.id);
   const preview = useHoverPreview(playable && !renaming ? entry.id : null);
   return (

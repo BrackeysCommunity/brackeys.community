@@ -4,7 +4,14 @@ import { readContact, type ContactRead } from "./contact";
 import type { AudioProbe, SignProbe } from "./media-compare";
 import { rapierSpy, runPhysicsFree, startPhysicsFree } from "./physics-free";
 import { runRenderSmoke } from "./render";
-import { loadRapier, runSmokeDigest, SMOKE_FLAVOUR, SMOKE_TICKS } from "./run";
+import {
+  loadRapier,
+  PAGE_BUDGET_MS,
+  pageSteps,
+  runSmokeDigest,
+  SMOKE_FLAVOUR,
+  SMOKE_TICKS,
+} from "./run";
 import { runSaves, type SavesProbe } from "./saves";
 import { runSignSmoke } from "./sign-run";
 import { runTactics, type TacticsProbe } from "./tactics";
@@ -41,19 +48,29 @@ declare global {
   }
 }
 
+/** The first result stands: a run that finishes after the budget reported it stuck changes nothing. */
+function settle(result: EngineSmokeResult): void {
+  if (window.__engineSmoke) return;
+  window.__engineSmoke = result;
+  document.body.textContent = JSON.stringify(result, null, 2);
+}
+
+const steps = pageSteps();
+const overBudget = setTimeout(() => settle({ ok: false, error: steps.stuck() }), PAGE_BUDGET_MS);
+
 try {
-  const { digest } = await runSmokeDigest();
-  const { render, split } = await runRenderSmoke();
+  const { digest } = await steps.run("the engine-yard digest", runSmokeDigest);
+  const { render, split } = await steps.run("the render run", runRenderSmoke);
   const spy = rapierSpy(loadRapier);
-  const run = await runPhysicsFree(spy.load);
-  const shellTicks = await startPhysicsFree(spy.load);
-  const contact = readContact(await loadRapier());
+  const run = await steps.run("the physics-free run", () => runPhysicsFree(spy.load));
+  const shellTicks = await steps.run("the physics-free shell", () => startPhysicsFree(spy.load));
+  const contact = await steps.run("the contact run", async () => readContact(await loadRapier()));
   const tacticsSpy = rapierSpy(loadRapier);
-  const tactics = await runTactics(tacticsSpy.load);
-  const saves = await runSaves();
-  const signs = await runSignSmoke();
-  const audio = await runAudioSmoke();
-  window.__engineSmoke = {
+  const tactics = await steps.run("the tactics run", () => runTactics(tacticsSpy.load));
+  const saves = await steps.run("the save run", runSaves);
+  const signs = await steps.run("the sign run", runSignSmoke);
+  const audio = await steps.run("the audio run", runAudioSmoke);
+  settle({
     ok: true,
     flavour: SMOKE_FLAVOUR,
     ticks: SMOKE_TICKS,
@@ -67,11 +84,12 @@ try {
     signs,
     audio,
     userAgent: navigator.userAgent,
-  };
+  });
 } catch (err) {
-  window.__engineSmoke = {
+  settle({
     ok: false,
     error: err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err),
-  };
+  });
+} finally {
+  clearTimeout(overBudget);
 }
-document.body.textContent = JSON.stringify(window.__engineSmoke, null, 2);

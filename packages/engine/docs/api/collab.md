@@ -1770,7 +1770,7 @@ type WatchIssuesOptions = {
     parentBounds?: Bounds;
     /** Where instances' prefabs come from; a change to one the doc reaches (`prefabsReachedBy`) revalidates. Default none. */
     prefabs?: PrefabSource;
-    /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`) and `anim` blocks against their sources, and settings resolve through its engine block. */
+    /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`), `anim` blocks against their sources and the open sound docs its entities name by the sound kind's checks, and settings resolve through its engine block. */
     project?: IssueProject;
     setTimer?: (fn: () => void, ms: number) => unknown;
 };

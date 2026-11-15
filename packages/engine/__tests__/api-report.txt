@@ -3915,6 +3915,7 @@ type DialogueView = {
     line: number;
     log: readonly DialogueLogEntry[];
     node: string;
+    stuck?: true;
 };
 type DialogueViewChoice = {
     enabled: boolean;
@@ -5245,6 +5246,7 @@ type FieldWidget = {
     kind: "text";
     maxLength?: number;
     pattern?: string;
+    stringKey?: true;
 };
 declare const INSPECTOR_SECTIONS: readonly [
     "identity",
@@ -7287,7 +7289,7 @@ declare const SIDES: readonly [
     "left"
 ];
 declare function angleField(description: string, unit: "deg"): z.ZodNumber;
-declare function assetField(env: FieldEnv, kinds: AssetKindName | readonly AssetKindName[], description: string): z.ZodType<AssetId>;
+declare function assetField(env: FieldEnv, kinds: AssetKindName | readonly AssetKindName[], description: string, title?: string): z.ZodType<AssetId>;
 declare function assetKindsOf(schema: z.core.$ZodType): null | readonly AssetKindName[];
 declare function bodyShapeField(description: string): z.ZodType<ShapeTuple>;
 declare function gridField(description: string, opts?: {
@@ -10705,10 +10707,7 @@ declare const FONT_KIND = "font";
 type FontFormat = "bmfont" | WebFontFormat;
 type FontMeta = {
     advances?: Readonly<Record<string, number>>;
-    coverage?: readonly (readonly [
-        from: number,
-        to: number
-    ])[];
+    coverage?: Readonly<CodePointRanges>;
     distanceField?: {
         range: number;
         type: "msdf" | "sdf";

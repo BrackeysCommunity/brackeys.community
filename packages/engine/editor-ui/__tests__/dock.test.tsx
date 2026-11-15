@@ -81,10 +81,10 @@ const viewportOf = (width: number, height = 900): Viewport => ({
   bottom: 0,
 });
 
-/** The top bar's width at `width`: the canvas between the columns, less a gap at each side. */
+/** The toolbar's room in the top bar at `width`: from the inset to a gap short of the right column. */
 const rowAt = (width: number) => {
   const { canvas } = fitLayout(DEFAULT_LAYOUT, viewportOf(width));
-  return width - canvas.left - canvas.right - 16;
+  return width - 8 - (canvas.right + 8);
 };
 
 function setup() {
@@ -246,9 +246,10 @@ describe("the dock in the frame", () => {
     expect(hint.closest(".je-key-hint")?.querySelector(".je-hotkey")).toBeTruthy();
   });
 
-  it("keeps the idle draw type slot at its widest choice where the row has room, narrower at 1440", () => {
+  it("keeps the idle draw type slot at its widest choice where the bar has room, narrower at 1024", () => {
     const slotWidth = () =>
       within(toolbar()).getByRole("button", { name: /^Draw type/ }).style.minWidth;
+    resizeWindow(1024);
     const { tools, session } = setup();
     const atLaptop = slotWidth();
     cleanup();
@@ -333,11 +334,13 @@ describe("the dock in the frame", () => {
 });
 
 describe("the status bar", () => {
-  it("spans the frame's bottom edge with the save state first and the problems last", async () => {
+  it("spans the canvas area's bottom between the columns, the save state first and the problems last", async () => {
     setup();
     await waitFor(() => expect(status().textContent).toContain("1 warning"));
-    const bar = status().closest<HTMLElement>(".je-frame-statusbar")!;
-    expect(bar).toBeTruthy();
+    const bar = status().closest<HTMLElement>(".je-frame-status")!;
+    const { canvas } = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
+    expect(bar.style.left).toBe(`${canvas.left + 8}px`);
+    expect(bar.style.right).toBe(`${canvas.right + 8}px`);
     const start = status().querySelector<HTMLElement>(".je-status-start")!;
     expect(within(start).getByText("dock-yard")).toBeTruthy();
     expect(within(start).getByText("Saved")).toBeTruthy();
@@ -454,7 +457,7 @@ describe("the Problems count off the tab strip", () => {
     const overview = await screen.findByRole("button", {
       name: /^1 warning\. Show the Problems panel/,
     });
-    expect(overview.closest(".je-frame-statusbar")).toBeTruthy();
+    expect(overview.closest(".je-frame-status")).toBeTruthy();
     const group = () => within(document.querySelector<HTMLElement>(".je-frame-group-right-1")!);
     fireEvent.click(group().getByRole("tab", { name: /History/ }));
     fireEvent.click(group().getByRole("button", { name: "Collapse group" }));
@@ -596,11 +599,11 @@ describe("the context and the banner", () => {
     expect(document.querySelector<HTMLElement>(".je-frame-right")?.style.top).toBe("8px");
   });
 
-  it("sits under the top bar, which sits beside the host's chrome while the row has room, and below it when not", () => {
+  it("sits under the top bar, which holds the host's chrome and stops short of the right column", () => {
     const sizes: Record<string, [number, number]> = {
-      "je-frame-top-left": [420, 40],
+      "je-frame-topbar": [900, 40],
+      "je-frame-top-left": [200, 30],
       "je-frame-context": [300, 34],
-      "je-frame-dock": [500, 40],
     };
     const real = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
       .value as (this: Element) => DOMRect;
@@ -612,20 +615,25 @@ describe("the context and the banner", () => {
     );
     try {
       editor({ prefab: true });
-      const dock = document.querySelector<HTMLElement>(".je-frame-dock")!;
+      const bar = document.querySelector<HTMLElement>(".je-frame-topbar")!;
+      expect(bar.querySelector(".je-frame-top-left + .je-frame-dock")).toBeTruthy();
       const context = document.querySelector<HTMLElement>(".je-frame-context")!;
-      expect(dock.style.left).toBe(`${8 + 420 + 8}px`);
-      expect(dock.style.top).toBe("8px");
-      expect(context.style.left).toBe(dock.style.left);
-      expect(context.style.top).toBe(`${8 + 40 + 8}px`);
       const left = document.querySelector<HTMLElement>(".je-frame-left")!;
+      const right = document.querySelector<HTMLElement>(".je-frame-right")!;
+      const { canvas } = fitLayout(DEFAULT_LAYOUT, { ...viewportOf(1440), topLeft: 40 });
+      expect(bar.style.left).toBe("8px");
+      expect(bar.style.top).toBe("8px");
+      expect(bar.style.right).toBe(`${canvas.right + 8}px`);
+      expect(context.style.left).toBe(`${canvas.left + 8}px`);
+      expect(context.style.top).toBe(`${8 + 40 + 8}px`);
       expect(left.style.top).toBe(`${8 + 40 + 8}px`);
+      // The right column keeps the frame's full height.
+      expect(right.style.top).toBe("8px");
 
-      // At 760 the left column is a rail and the host's chrome leaves the bar too little room beside it.
+      // At 760 the left column is a rail under the bar; the context starts beside it.
       resizeWindow(760);
-      expect(dock.style.left).toBe(`${8 + 36 + 8}px`);
-      expect(dock.style.top).toBe(`${8 + 40 + 8}px`);
-      expect(context.style.top).toBe(`${8 + 40 + 8 + 40 + 8}px`);
+      expect(context.style.left).toBe(`${8 + 36 + 8}px`);
+      expect(context.style.top).toBe(`${8 + 40 + 8}px`);
     } finally {
       vi.restoreAllMocks();
     }

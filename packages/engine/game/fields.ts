@@ -193,18 +193,19 @@ export const Z_LIMIT = 10_000;
 const ASSET_KIND_META = "x-asset-kind";
 
 /**
- * A reference to a project asset of one of `kinds`. Parsing takes any id;
- * the JSON Schema's enum of the project's live ids comes from `env`.
+ * A reference to a project asset of one of `kinds`, titled `title`. Parsing
+ * takes any id; the JSON Schema's enum of the project's live ids comes from `env`.
  */
 export function assetField(
   env: FieldEnv,
   kinds: AssetKindName | readonly AssetKindName[],
   description: string,
+  title = "Asset",
 ): z.ZodType<AssetId> {
   const list = typeof kinds === "string" ? [kinds] : [...kinds];
   const ids = env.assets(list);
   return AssetIdSchema.describe(description).meta({
-    title: "Asset",
+    title,
     group: "assets",
     [ASSET_KIND_META]: list,
     ...(ids.length > 0 ? { enum: [...ids] } : {}),

@@ -1363,7 +1363,7 @@
 
   /* Toasts */
 
-  /* The frame sets both to keep them in the canvas area, over its bottom row */
+  /* The frame sets both to keep them in the canvas area, over its status bar */
   .je-toasts {
     position: absolute;
     right: var(--je-toasts-right, var(--je-inset));
@@ -1757,7 +1757,7 @@
     font-size: var(--je-text-sm);
   }
 
-  /* The phone layout: a panel bar over the bottom row, one group at a time in a sheet */
+  /* The phone layout: a panel bar over the status bar, one group at a time in a sheet */
 
   .je-frame-phone {
     position: absolute;
@@ -3882,11 +3882,6 @@
     min-width: 0;
   }
 
-  .je-sound-section-title {
-    flex: 1;
-    min-width: 0;
-  }
-
   .je-sound-variant,
   .je-sound-trigger {
     display: flex;
@@ -3900,6 +3895,15 @@
     border-top: 1px dashed var(--je-border);
   }
 
+  .je-asset-panel-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
   .je-sound-variant .je-insp-line > :first-child {
     flex: 1;
     min-width: 0;
@@ -3909,6 +3913,7 @@
     display: block;
     width: 100%;
     height: 48px;
+    padding: 2px 0;
     color: var(--je-primary);
     background: var(--je-muted);
     border-radius: var(--je-radius-nested);
@@ -3925,8 +3930,9 @@
     min-width: 64px;
   }
 
+  /* Wide enough for a five-digit cutoff and its unit. */
   .je-synth-slider > .je-insp-number {
-    flex: 0 0 72px;
+    flex: 0 0 88px;
   }
 
   .je-synth-speaker {

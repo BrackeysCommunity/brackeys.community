@@ -39,8 +39,6 @@ import { runProjectBatch, type WriterFlags } from "./assets-apply";
 import { loadProject } from "./project-show";
 import { liveFailure } from "./project-tree";
 
-// ─── CSV (RFC 4180) ──────────────────────────────────────
-
 /** A field as RFC 4180 writes it: quoted, quotes doubled, when it holds a quote, comma or line break. */
 export function csvField(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;

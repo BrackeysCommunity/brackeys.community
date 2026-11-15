@@ -3,8 +3,9 @@
  * A patch renders one channel, a point the voice's panner places in the
  * stereo field.
  */
-import type { SynthFile } from "../project/kinds/synth";
-import { Rng } from "../sim-kit/rng";
+import { clamp } from "../math";
+import { SYNTH_DEFAULTS, type SynthFile } from "../project/kinds/synth";
+import { Rng, unitFloat } from "../sim-kit/rng";
 
 /** Every render's sample rate. */
 export const SYNTH_SAMPLE_RATE = 44_100;
@@ -24,8 +25,6 @@ export function synthDurationMs(patch: SynthFile): number {
 }
 
 const samplesIn = (ms: number): number => Math.round((ms * SYNTH_SAMPLE_RATE) / 1000);
-
-const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
 /**
  * A two-pole state-variable filter (the trapezoidal form, stable at any
@@ -68,20 +67,20 @@ export function renderSynth(patch: SynthFile): Float32Array {
   const vibratoDepth = patch.vibrato ? patch.vibrato.semitones / 12 : 0;
   const vibratoHz = patch.vibrato?.hz ?? 0;
   const retrigger = patch.retriggerMs ? Math.max(1, samplesIn(patch.retriggerMs)) : 0;
-  const duty = patch.duty ?? 0.5;
+  const duty = patch.duty ?? SYNTH_DEFAULTS.duty;
   const dutySweep = patch.dutySweep ?? 0;
   const punch = patch.punch ?? 0;
-  const volume = patch.volume ?? 1;
+  const volume = patch.volume ?? SYNTH_DEFAULTS.volume;
 
   const lowpass = patch.lowpass;
   const highpass = patch.highpass;
   const low = lowpass ? svf(Math.SQRT2 * (1 - 0.95 * (lowpass.resonance ?? 0))) : null;
   const high = highpass ? svf(Math.SQRT2) : null;
 
-  const rng = Rng.from(patch.seed ?? 1);
+  const rng = Rng.from(patch.seed ?? SYNTH_DEFAULTS.seed);
   const noise = new Float32Array(NOISE_STEPS);
   const refillNoise = () => {
-    for (let k = 0; k < NOISE_STEPS; k++) noise[k] = (rng.nextU32() / 0x1_0000_0000) * 2 - 1;
+    for (let k = 0; k < NOISE_STEPS; k++) noise[k] = unitFloat(rng) * 2 - 1;
   };
   if (patch.wave === "noise") refillNoise();
 

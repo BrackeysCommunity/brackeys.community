@@ -17,10 +17,10 @@ export type LegalCommands = {
 /**
  * The dialogue's commands legal now: each enabled `@dialogue-choose` once
  * the conversation offers choices, else `@dialogue-advance`; none with no
- * conversation running.
+ * conversation running or a stuck one.
  */
 export function dialogueCommands(view: Readonly<DialogueView> | null | undefined): GameCommand[] {
-  if (!view || view.ended !== null) return [];
+  if (!view || view.ended !== null || view.stuck) return [];
   if (!view.choices) return [{ name: DIALOGUE_ADVANCE_COMMAND }];
   return view.choices
     .filter((c) => c.enabled)

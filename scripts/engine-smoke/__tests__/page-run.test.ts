@@ -1,0 +1,80 @@
+import { describe, expect, it, vi } from "vite-plus/test";
+
+import { PAGE_TIMEOUT_MS } from "../browser-compare";
+import { settledWithin, UNLOCK_CAP_MS } from "../browser/audio";
+import { FIREFOX_AUDIO_PREFS, judgeAudio } from "../browser/media-compare";
+import { PAGE_BUDGET_MS, pageSteps } from "../browser/run";
+import { audioPlayed } from "./media-probes";
+
+describe("pageSteps", () => {
+  it("names the run the page is stuck in, when it began, and the runs done before it", async () => {
+    let now = 1_000;
+    const steps = pageSteps(() => now);
+    expect(steps.stuck()).toBe("after 0.0 s the page was still in between runs");
+    await steps.run("the digest", () => {
+      now += 400;
+      return 1;
+    });
+    const hung = steps.run("the audio run", () => new Promise<never>(() => {}));
+    now += 50_000;
+    expect(steps.stuck()).toBe(
+      "after 50.4 s the page was still in the audio run, begun at 0.4 s; done: the digest 0.4 s",
+    );
+    void hung;
+  });
+
+  it("returns each run's value and lets its error through", async () => {
+    const steps = pageSteps();
+    await expect(steps.run("a", async () => "value")).resolves.toBe("value");
+    await expect(steps.run("b", () => Promise.reject(new Error("broke")))).rejects.toThrow("broke");
+  });
+
+  it("reports inside the runner's wait, with room for the audio run's unlock cap", () => {
+    expect(PAGE_BUDGET_MS).toBeLessThan(PAGE_TIMEOUT_MS);
+    expect(UNLOCK_CAP_MS).toBeLessThan(PAGE_BUDGET_MS / 2);
+  });
+});
+
+describe("settledWithin", () => {
+  it("resolves at the cap when the work never settles, and sooner when it does", async () => {
+    vi.useFakeTimers();
+    try {
+      let capped = false;
+      void settledWithin(new Promise(() => {}), UNLOCK_CAP_MS).then(() => (capped = true));
+      await vi.advanceTimersByTimeAsync(UNLOCK_CAP_MS - 1);
+      expect(capped).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(capped).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+    await expect(settledWithin(Promise.resolve(), 60_000)).resolves.toBeUndefined();
+    await expect(settledWithin(Promise.reject(new Error("denied")), 60_000)).rejects.toThrow(
+      "denied",
+    );
+  });
+});
+
+describe("the audio run with no output device", () => {
+  it("fails naming the missing device when the context never ran", () => {
+    expect(
+      judgeAudio({
+        ...audioPlayed,
+        context: "suspended",
+        backend: "suspended",
+        maxChannels: 0,
+        endedMs: null,
+      }),
+    ).toBe(
+      "after the click the context is suspended and the backend suspended, not running (its destination has no output device to run on)",
+    );
+  });
+
+  it("passes a running context whose destination reports no device count, as WebKit's does", () => {
+    expect(judgeAudio({ ...audioPlayed, maxChannels: 0 })).toBeNull();
+  });
+
+  it("gives Firefox the mock audio device", () => {
+    expect(FIREFOX_AUDIO_PREFS).toEqual({ "media.cubeb.force_mock_context": true });
+  });
+});

@@ -3,9 +3,10 @@ import type { DialogueLogEntry, DialogueView } from "../dialogue/runner";
 import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
 import type { GameCommand } from "../game/types";
 import type { DialogueLine } from "../project/kinds/dialogue";
-import { parseRichText, type RichLine } from "../text/rich";
+import { parseRichText, richPlainText, type RichLine } from "../text/rich";
 import type { StringTable } from "../text/strings";
 import type { UiActionEvent } from "../types";
+import { followLocale, onLocale, UI_FONT_FAMILY, uiInset } from "./bind";
 import {
   renderRichText,
   renderRichTextPartly,
@@ -41,10 +42,12 @@ export const DIALOGUE_INSET = "--jams-dialogue-inset";
 const BOX_CSS = `
 :where([data-jams-dialogue]) {
   position: absolute;
-  left: calc(var(--jams-ui-safe-left, 0px) + 16px);
-  right: calc(var(--jams-ui-safe-right, 0px) + 16px);
-  bottom: calc(var(--jams-ui-safe-bottom, 0px) + 16px);
+  left: ${uiInset("left")};
+  right: ${uiInset("right")};
+  bottom: ${uiInset("bottom")};
   max-width: 720px;
+  max-height: calc(100% - var(--jams-ui-safe-top, 0px) - var(--jams-ui-safe-bottom, 0px) - 32px);
+  overflow-y: auto;
   margin-inline: auto;
   display: flex;
   gap: 12px;
@@ -54,7 +57,7 @@ const BOX_CSS = `
   border-radius: 8px;
   background: var(--jams-dialogue-bg, rgba(14, 14, 22, 0.9));
   color: var(--jams-dialogue-fg, #f4f4f8);
-  font-family: system-ui, sans-serif;
+  font-family: ${UI_FONT_FAMILY};
   font-size: var(--jams-dialogue-font-size, 18px);
   line-height: 1.4;
   cursor: pointer;
@@ -96,8 +99,8 @@ const BOX_CSS = `
 const LOG_CSS = `
 :where([data-jams-text-log]) {
   position: absolute;
-  top: calc(var(--jams-ui-safe-top, 0px) + 16px);
-  right: calc(var(--jams-ui-safe-right, 0px) + 16px);
+  top: ${uiInset("top")};
+  right: ${uiInset("right")};
   width: min(360px, calc(100% - 32px));
   max-height: 50%;
   overflow-y: auto;
@@ -107,7 +110,7 @@ const LOG_CSS = `
   border-radius: 8px;
   background: var(--jams-dialogue-bg, rgba(14, 14, 22, 0.9));
   color: var(--jams-dialogue-fg, #f4f4f8);
-  font-family: system-ui, sans-serif;
+  font-family: ${UI_FONT_FAMILY};
   font-size: 14px;
   line-height: 1.4;
 }
@@ -130,25 +133,6 @@ function richSource(
 ): readonly RichLine[] {
   const source = item.text !== undefined ? strings.get(item.text, vars) : (item.say ?? "");
   return parseRichText(source, vars).lines;
-}
-
-const plain = (lines: readonly RichLine[]): string =>
-  lines.map((line) => line.map((span) => span.text).join("")).join("\n");
-
-/** Sets `dir` and `lang` from the table's locale. */
-function followLocale(el: HTMLElement, strings: StringTable): void {
-  el.dir = strings.direction;
-  el.lang = strings.locale;
-}
-
-/**
- * Calls `fn` on a locale change; returns the unsubscribe. The table itself
- * is read through `ctx.strings()` on every render.
- */
-function onLocale(ctx: UiContext, fn: () => void): () => void {
-  const handler = () => fn();
-  ctx.game.on("locale:change", handler);
-  return () => ctx.game.off("locale:change", handler);
 }
 
 /** A frame loop over the document's window, falling back to timers where it has no animation frames. */
@@ -179,16 +163,7 @@ function frameLoop(win: Window & typeof globalThis): {
   };
 }
 
-/**
- * The active conversation's line, speaker and choices, sending the dialogue commands.
- *
- * The line types out at `speed`; the advance action, or a click on the box,
- * first shows it whole, then sends `@dialogue-advance`. Choices show once
- * the line is whole, as buttons: `up` and `down` move focus between the
- * enabled ones and the advance action sends `@dialogue-choose` for the
- * focused one. The box only ever sends those two commands; the store's
- * `dialogue` field is what it draws.
- */
+/** The active line, speaker and choices; types out at speed and only ever sends @dialogue-advance and @dialogue-choose. */
 export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {}): UiHandle {
   const doc = ctx.root.ownerDocument;
   const win = doc.defaultView as Window & typeof globalThis;
@@ -275,6 +250,14 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     });
   };
 
+  /** Scrolls the box, never the page, so a focused choice is in view. */
+  const reveal = (button: HTMLElement) => {
+    const at = button.getBoundingClientRect();
+    const view = box.getBoundingClientRect();
+    if (at.top < view.top) box.scrollTop -= view.top - at.top;
+    else if (at.bottom > view.bottom) box.scrollTop += at.bottom - view.bottom;
+  };
+
   const focusChoice = (at: number) => {
     selected = at;
     markSelected();
@@ -285,6 +268,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
       returnFocus = from instanceof win.HTMLElement && from !== doc.body ? from : null;
     }
     button.focus({ preventScroll: true });
+    reveal(button);
   };
 
   const choose = (at: number, player?: number) => {
@@ -332,8 +316,10 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     choicesEl.hidden = buttons.length === 0;
     if (hadFocus) {
       const button = buttons[selected];
-      if (button) button.focus({ preventScroll: true });
-      else releaseFocus();
+      if (button) {
+        button.focus({ preventScroll: true });
+        reveal(button);
+      } else releaseFocus();
     }
     hint.hidden = !active() || typingSince !== null || view?.choices != null;
   };
@@ -382,7 +368,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
       return;
     }
     const strings = ctx.strings();
-    followLocale(box, strings);
+    followLocale(box, ctx);
     const current = view.current;
     rich = richSource(current, strings, current.vars);
     total = richTextLength(rich);
@@ -392,7 +378,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     speaker.hidden = name === "";
     if (name) box.setAttribute("aria-label", name);
     else box.removeAttribute("aria-label");
-    const text = plain(rich);
+    const text = richPlainText(rich);
     live.textContent = name && text ? `${name}: ${text}` : text;
 
     const art = showPortraits ? current.portrait : undefined;
@@ -531,7 +517,7 @@ export function createTextLog(ctx: UiContext, opts: TextLogOptions = {}): UiHand
 
   const draw = () => {
     const strings = ctx.strings();
-    followLocale(root, strings);
+    followLocale(root, ctx);
     const shown = entries.length > max ? entries.slice(entries.length - max) : entries;
     const atBottom = root.scrollTop + root.clientHeight >= root.scrollHeight - 4;
     list.replaceChildren(...shown.map((entry) => logEntry(doc, entry, strings, ctx)));

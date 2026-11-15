@@ -266,6 +266,7 @@ Starts and stops one entity's sound.
 ```ts
 type AudioHandle = {
     play(): void;
+    /** Presentation state: headless the handle doesn't exist, so game logic must never branch on it. */
     readonly playing: boolean;
     stop(): void;
 };
@@ -645,15 +646,9 @@ type BodyBlock = z.infer<z.ZodObject<typeof bodyFields>>;
 
 _interface_ in `game/types.ts`
 
-Every owner of a body registers it here by entity id. An id with no body
-throws `EngineError` `body-missing`; a force, torque or impulse on a
-kinematic or static body, a velocity write on a static body or a follower
-(its path sets its velocity), and an angular velocity write on a kinematic
-body that never turns (a character's, a motion body, a follower, or one with
-`fixedRotation`) throw `body-not-dynamic`; a kinematic `body` block's turns
-about its entity's pose at the angular velocity set. A static or kinematic
-body's mass is Infinity. With `world.physics: "none"` only kinematic bodies
-exist.
+Bodies by entity id. `body-missing` for an id with none; `body-not-dynamic`
+for a force on a non-dynamic body or a velocity write the body can't take.
+Static and kinematic mass is Infinity.
 
 ```ts
 interface BodyControl {
@@ -1836,6 +1831,8 @@ type DialogueView = {
     /** Lines shown so far in this conversation, oldest first, at most 200. */
     log: readonly DialogueLogEntry[];
     node: string;
+    /** Stopped where the file gives no way on (a dead end, a missing node, a failed `if` with no `else`): it takes no command. */
+    stuck?: true;
 };
 ```
 
@@ -7670,11 +7667,11 @@ Refers to [`SwapTiming`](#swaptiming).
 
 _function_ in `game/fields.ts`
 
-A reference to a project asset of one of `kinds`. Parsing takes any id;
-the JSON Schema's enum of the project's live ids comes from `env`.
+A reference to a project asset of one of `kinds`, titled `title`. Parsing
+takes any id; the JSON Schema's enum of the project's live ids comes from `env`.
 
 ```ts
-declare function assetField(env: FieldEnv, kinds: AssetKindName | readonly AssetKindName[], description: string): z.ZodType<AssetId>;
+declare function assetField(env: FieldEnv, kinds: AssetKindName | readonly AssetKindName[], description: string, title?: string): z.ZodType<AssetId>;
 ```
 
 Refers to [`FieldEnv`](#fieldenv).
@@ -7996,8 +7993,9 @@ shows its first line. `emit` receives the effects' `emit` events and the
 runner's own `dialogue:line { dialogue, node, line }`, `dialogue:choices
 { dialogue, node, count }` and `dialogue:end { dialogue, ending }`.
 `opts.visited` is the saved history `visited` conditions also see.
-Where the file gives no way on, the conversation stops in place and
-`advance` answers false; the kind's checks report each such node.
+Where the file gives no way on, the conversation stops in place with
+`stuck` set and `advance` answers false; the kind's checks report each
+such node.
 
 ```ts
 declare function createDialogueRunner(file: DialogueFile, id: AssetId, vars: DialogueVars, emit: (type: string, data?: JsonValue) => void, opts?: {
@@ -8781,8 +8779,8 @@ Refers to [`Cell`](#cell), [`GridGeometry`](#gridgeometry).
 
 _function_ in `text/strings.ts`
 
-"ar", "fa", "he", "ur", "yi", "ps", "sd", "ug", "dv", "ckb" and their
-regions; a script subtag decides when given ("sd-Deva" is ltr, "pa-Arab" rtl).
+Right to left for the RTL languages and scripts above; a script subtag
+decides ("sd-Deva" ltr, "pa-Arab" rtl).
 
 ```ts
 declare function localeDirection(locale: string): TextDirection;
@@ -8935,13 +8933,9 @@ Refers to [`EngineContext`](#enginecontext).
 _function_ in `text/rich.ts`
 
 `[b]…[/b]`, `[i]`, `[color=#rrggbb]`, `[size=n]`, `[icon=asset:frame]`,
-`[shake]`, `[wave]`, `\[` escapes; `{name}` filled from `vars`. Unknown
-tags stay literal with a warning.
-
-Tags nest and may close out of order; a closing tag ends the latest
-matching open one, and styles carry across line breaks. `\{` and `\\` escape
-too. A var's value is inserted as text, never parsed as markup; a missing
-var stays `{name}` with a warning.
+`[shake]`, `[wave]`, `\[` `\{` `\\` escapes; `{name}` filled from `vars`.
+Tags nest and may close out of order; vars are inserted as text, never
+parsed; unknown or missing ones stay literal with a warning.
 
 ```ts
 declare function parseRichText(source: string, vars?: TextVars): {

@@ -15,6 +15,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
+import { sound, soundYard, withSound } from "../../collab/__tests__/sound-project";
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
 import {
   createEditorSession,
@@ -115,6 +116,36 @@ describe("ProblemsPanel", () => {
     expect(session.getDoc().entities![1]).toMatchObject({ at: [1000.01, 1010] });
     expect(screen.queryByText("non-integer")).toBeNull();
     expect(toasts.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProblemsPanel and the sounds the scene names", () => {
+  it("lists an unknown bus and a missing clip, and selects the entities naming the sound", () => {
+    const { project } = withSound(sound({ bus: "loud", variants: [{ clip: "gone" }] }));
+    const session = createEditorSession({
+      doc: sceneToDoc(soundYard(), { key: sequentialKeys("t") }),
+      origin: ada,
+      name: "yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+      project,
+    });
+    const onFrame = vi.fn();
+    render(<ProblemsPanel session={session} physical={[]} onFrame={onFrame} notify={notify} />);
+    const errors = screen.getByRole("region", { name: /^Errors/ });
+    expect(within(errors).getByText("sound-bus-unknown")).toBeTruthy();
+    expect(within(errors).getByText("asset-missing")).toBeTruthy();
+    const bus = within(errors)
+      .getAllByRole("listitem")
+      .find((li) => li.textContent?.includes("sound-bus-unknown"))!;
+    expect(bus.textContent).toContain('the sound "clink"');
+    fireEvent.click(within(bus).getAllByRole("button")[0]!);
+    expect(session.store.state.selection).toEqual(["bell", "gong"]);
+    expect(onFrame).toHaveBeenCalledWith(["bell", "gong"]);
+    expect((within(bus).getByRole("button", { name: "Fix" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    session.destroy();
   });
 });
 

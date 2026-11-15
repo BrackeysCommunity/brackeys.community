@@ -91,8 +91,8 @@ import { mergeTick, offsetIn, type SeatChange } from "./input/stream";
 import { createInputSystem } from "./input/system";
 import { createTouchControls, type TouchControls } from "./input/touch-controls";
 import { createGameLoop } from "./loop";
-import { rotate } from "./math";
-import { memoryPrefsStore } from "./prefs";
+import { clamp, rotate } from "./math";
+import { memoryPrefsStore, PREF_KEYS, setPref } from "./prefs";
 import {
   bundleOf,
   projectBundle,
@@ -103,7 +103,7 @@ import {
 import { ownValue, sameValue } from "./project/canonical";
 import type { KindRegistry } from "./project/kinds";
 import { engineResolution } from "./project/kinds/game-settings";
-import { localeSettingsOf, type LocaleSettings } from "./project/kinds/strings";
+import { localeFont, localeSettingsOf, type LocaleSettings } from "./project/kinds/strings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ReleaseAsset } from "./project/release";
 import { assetEntryOf } from "./project/release-assets";
@@ -150,6 +150,7 @@ import type { AudioRequest, EffectRequest, PresentRequest } from "./runtime/pres
 import { recordingRapier, recordingStart } from "./runtime/recorder";
 import {
   createSceneRuntime,
+  eventEntityOf,
   resolveGame,
   SAVE_INPUT_KEY,
   type ProjectOption,
@@ -1451,13 +1452,27 @@ export async function createGame(
   /** Counts pad polls: an idle game reads its pads every frame without its tick advancing. */
   let padPolls = 0;
 
-  /** A new world starts with nothing pending from the last. */
+  /** The `@latency` last queued since the world started, ms; null while the saved calibration stands. */
+  let latencySent: number | null = null;
+
+  /**
+   * A world a scene change loaded starts with the latency in force, as
+   * every world does, unless a newer `@latency` is already on its way.
+   */
+  function carryLatency(): void {
+    const ms = latencySent ?? savedLatencyMs();
+    if (ms === 0 || pendingCommands.some((c) => c.name === LATENCY_COMMAND)) return;
+    pendingCommands.unshift({ name: LATENCY_COMMAND, args: { ms } });
+  }
+
+  /** A new world starts with nothing pending from the last, and the saved calibration. */
   function resetQueues(): void {
     input.flush();
     heldInput = [];
     pendingCommands = [];
-    const latency = savedLatency();
-    if (latency) pendingCommands.push(latency);
+    latencySent = null;
+    const latency = savedLatencyMs();
+    if (latency !== 0) pendingCommands.push({ name: LATENCY_COMMAND, args: { ms: latency } });
     tickPointer = input.getMousePosition();
     pointerNow = null;
     pointerSent = null;
@@ -2028,14 +2043,12 @@ export async function createGame(
 
   /** A latency as `@latency` carries it: whole ms within its bounds. */
   const latencyArg = (ms: number): number =>
-    Math.max(-LATENCY_MS_LIMIT, Math.min(LATENCY_MS_LIMIT, Math.round(ms)));
+    clamp(Math.round(ms), -LATENCY_MS_LIMIT, LATENCY_MS_LIMIT);
 
-  /** The saved calibration as the `@latency` each new world starts with; null with none saved, or 0. */
-  function savedLatency(): GameCommand | null {
-    const saved = prefs.load(prefsId())["audio.latencyMs"];
-    if (typeof saved !== "number" || !Number.isFinite(saved)) return null;
-    const ms = latencyArg(saved);
-    return ms === 0 ? null : { name: LATENCY_COMMAND, args: { ms } };
+  /** The saved calibration, which each new world starts with; 0 with none saved. */
+  function savedLatencyMs(): number {
+    const saved = prefs.load(prefsId())[PREF_KEYS.latencyMs];
+    return typeof saved === "number" && Number.isFinite(saved) ? latencyArg(saved) : 0;
   }
 
   /**
@@ -2068,7 +2081,7 @@ export async function createGame(
     if (!result || destroyed) return null;
     const ms = latencyArg(result.ms);
     send({ name: LATENCY_COMMAND, args: { ms } });
-    prefs.save(prefsId(), { ...prefs.load(prefsId()), "audio.latencyMs": ms });
+    setPref(prefs, prefsId(), PREF_KEYS.latencyMs, ms);
     return result;
   }
 
@@ -2089,7 +2102,7 @@ export async function createGame(
   function currentLocale(): string {
     const locales = localeSettings();
     if (chosenLocale === null || !locales.available.includes(chosenLocale)) {
-      const saved = prefs.load(prefsId()).locale;
+      const saved = prefs.load(prefsId())[PREF_KEYS.locale];
       chosenLocale = resolveLocale(locales, {
         saved: typeof saved === "string" ? saved : null,
         languages: typeof navigator === "undefined" ? [] : navigator.languages,
@@ -2103,8 +2116,7 @@ export async function createGame(
     const locale = currentLocale();
     if (localeCache?.project === project && localeCache.locale === locale) return localeCache;
     const view = project ?? noProject;
-    const { fonts } = localeSettings();
-    const font = textFontOf((id) => view.asset(id), fonts?.[locale] ?? fonts?.default);
+    const font = textFontOf((id) => view.asset(id), localeFont(localeSettings(), locale));
     localeCache = { project, locale, data: stringTableData(view, locale, font), table: null };
     return localeCache;
   }
@@ -2127,7 +2139,7 @@ export async function createGame(
         return;
       }
       const from = currentLocale();
-      prefs.save(prefsId(), { ...prefs.load(prefsId()), locale: to });
+      setPref(prefs, prefsId(), PREF_KEYS.locale, to);
       if (to === from) return;
       chosenLocale = to;
       if (loaded) handTable(loaded.view);
@@ -2177,7 +2189,7 @@ export async function createGame(
       fetchClip,
       clipUrl: (id) => blobUrl(id) ?? "about:blank",
       poses: { get: (id) => loaded?.runtime.ctx.poses.get(id) },
-      entity: (id) => loaded?.runtime.get(id),
+      entity: (id) => (loaded ? eventEntityOf(loaded.runtime.ctx, id) : undefined),
       prefs,
       gameId: prefsId(),
       latencyMs: () => loaded?.runtime.ctx.input.latencyMs() ?? 0,
@@ -2529,6 +2541,8 @@ export async function createGame(
       return false;
     }
     pendingCommands.push(checked.command);
+    if (checked.command.name === LATENCY_COMMAND)
+      latencySent = (checked.command.args as { ms: number }).ms;
     return true;
   }
 
@@ -3016,6 +3030,7 @@ export async function createGame(
     const scene = built.runtime.scene()!;
     const bundle = listed ? bundleFor(scene, listed.def, listed.prefabs, sceneView(id)) : null;
     swapIn(built, scene, bundle, result.report, true);
+    carryLatency();
     if (listed) recordFlowLoad(listed, persistAtLoad);
     return { ok: true, scene: id, report: result.report };
   }

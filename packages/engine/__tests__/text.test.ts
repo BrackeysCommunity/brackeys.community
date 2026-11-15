@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
 import type { SceneView, TextVisual, ViewLayer } from "../context";
+import { AUDIO } from "../game/behaviors/audio";
 import {
   measureFont,
   richSource,
@@ -13,7 +15,7 @@ import {
   type TextHandle,
 } from "../game/behaviors/text";
 import { createRegistry } from "../game/define";
-import type { JsonValue } from "../game/types";
+import type { FieldEnv, JsonValue } from "../game/types";
 import type { FontMeta } from "../project/kinds/font";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "../runtime/behaviors/index";
@@ -24,6 +26,7 @@ import { textBoxOf } from "../scene/svg";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import { measureText } from "../text/measure";
 import { parseRichText } from "../text/rich";
+import { localeDirection } from "../text/strings";
 import { recordingView } from "./fixtures/recording-view";
 
 const DT = 1000 / 60;
@@ -321,6 +324,29 @@ describe("text rules", () => {
     expect(textDirection(linesOf("مرحبا", false))).toBe("rtl");
     expect(textDirection(linesOf("1 Hi", false))).toBe("ltr");
     expect(textDirection([])).toBe("ltr");
+  });
+
+  it("reads the scripts localeDirection calls right to left as right to left", () => {
+    for (const [locale, letter] of [
+      ["ff-Adlm", "𞤀"],
+      ["rhg-Rohg", "𐴀"],
+      ["dv-Thaa", "ދ"],
+    ] as const) {
+      expect(localeDirection(locale)).toBe("rtl");
+      expect(textDirection(linesOf(letter, false))).toBe("rtl");
+    }
+  });
+
+  it("titles its font Font and its key a string-key, and steps its anchor as a fraction", () => {
+    const env = { assets: () => [] } as unknown as FieldEnv;
+    const shape = <F extends z.ZodRawShape>(fields: F | ((env: FieldEnv) => F)): F =>
+      typeof fields === "function" ? fields(env) : fields;
+    const meta = (schema: z.core.$ZodType) => z.globalRegistry.get(schema);
+    const text = shape(TEXT.fields);
+    expect(meta(text.font.unwrap())).toMatchObject({ title: "Font", group: "assets" });
+    expect(meta(text.key)).toMatchObject({ widget: "string-key" });
+    expect(meta(text.anchor)).toMatchObject({ step: 0.05, decimals: 2 });
+    expect(meta(shape(AUDIO.fields).sound)).toMatchObject({ title: "Sound" });
   });
 
   it("finds a font's face, or none", () => {

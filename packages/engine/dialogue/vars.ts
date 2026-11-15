@@ -12,7 +12,7 @@ export interface DialogueVars {
 const INDEX = /^(?:0|[1-9]\d*)$/;
 
 /** The value at `pointer` in `root`; undefined where the path leaves it. */
-export function jsonAt(root: JsonValue, pointer: string): JsonValue | undefined {
+export function jsonAt(root: JsonValue | undefined, pointer: string): JsonValue | undefined {
   let at: JsonValue | undefined = root;
   for (const token of pointerSegments(pointer)) {
     if (Array.isArray(at)) at = INDEX.test(token) ? at[Number(token)] : undefined;

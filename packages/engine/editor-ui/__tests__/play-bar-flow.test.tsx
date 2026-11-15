@@ -135,11 +135,11 @@ describe("the play bar's statuses", () => {
     expect(screen.getByText(/Ended: requested level-1/).closest(".je-play-notes")).toBeTruthy();
   });
 
-  it("lay the statuses out of flow above the controls, and hide the slot when it is empty", () => {
+  it("lay the statuses out of flow under the controls in the top bar, and hide the slot when it is empty", () => {
     const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
     const notes = /\.je-play-notes \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(notes).toContain("position: absolute");
-    expect(notes).toMatch(/bottom: calc\(100% \+ /);
+    expect(notes).toMatch(/top: calc\(100% \+ /);
     expect(notes).toContain("pointer-events: none");
     expect(/\.je-play-notes:empty \{([^}]*)\}/.exec(css)?.[1]).toContain("display: none");
   });

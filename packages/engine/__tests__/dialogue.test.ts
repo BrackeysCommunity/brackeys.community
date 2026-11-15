@@ -602,8 +602,15 @@ describe("conditions and effects", () => {
 
   it("stops in place where the file gives no way on, and on a loop of lineless nodes", () => {
     const dead = run(talk({ id: "start", lines: [{ say: "…" }] }), memoryVars());
+    expect(dead.runner.view().stuck).toBeUndefined();
     expect(dead.runner.advance()).toBe(false);
     expect(where(dead.runner)).toMatchObject({ node: "start", line: 0, ended: null });
+    expect(dead.runner.view().stuck).toBe(true);
+    expect((dead.runner.save() as { view: object }).view).not.toHaveProperty("stuck");
+    const again = run(talk({ id: "start", lines: [{ say: "…" }] }), memoryVars());
+    again.runner.restore(dead.runner.save());
+    expect(again.runner.view().stuck).toBe(true);
+    expect(again.runner.advance()).toBe(false);
 
     const loop = run(
       talk({ id: "start", lines: [], next: "b" }, { id: "b", lines: [], next: "start" }),
@@ -615,7 +622,7 @@ describe("conditions and effects", () => {
     const missing = run(talk({ id: "start", lines: [{ say: "x" }], next: "gone" }), memoryVars());
     expect(missing.runner.advance()).toBe(false);
     expect(missing.runner.advance()).toBe(false);
-    expect(missing.runner.view().node).toBe("gone");
+    expect(missing.runner.view()).toMatchObject({ node: "gone", stuck: true });
   });
 
   it("keeps the last 200 lines in the log", () => {

@@ -19,6 +19,7 @@ import {
   EditorFrame,
   editorChrome,
   Island,
+  useDockRoom,
   type EditorFrameHandle,
   type FramePanels,
 } from "../frame/EditorFrame";
@@ -99,6 +100,11 @@ const viewportOf = (width: number, height = 900): Viewport => ({
   topRight: 0,
   bottom: 0,
 });
+
+/** A dock that shows the room the frame gives it. */
+function DockRoom() {
+  return <div data-room={useDockRoom()} />;
+}
 
 const px = (el: Element, prop: "left" | "top" | "width" | "height" | "maxWidth") =>
   Number.parseFloat((el as HTMLElement).style[prop]);
@@ -461,13 +467,13 @@ describe("the frame's layout", () => {
     expectColumnAt("right", fitted.right!);
   });
 
-  it("shares the phone's top bar between the host's two corners, the left one stopping short", () => {
+  it("shares the phone's top bar between the host's two corners and the toolbar", () => {
     const real = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
       .value as (this: Element) => DOMRect;
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
       function (this: Element) {
-        if (this.classList.contains("je-frame-top-right")) return new DOMRect(0, 0, 120, 40);
-        if (this.classList.contains("je-frame-top-left")) return new DOMRect(0, 0, 300, 40);
+        if (this.classList.contains("je-frame-top-right")) return new DOMRect(0, 0, 80, 40);
+        if (this.classList.contains("je-frame-top-left")) return new DOMRect(0, 0, 100, 40);
         return real.call(this);
       },
     );
@@ -479,17 +485,26 @@ describe("the frame's layout", () => {
           panels={panelsFor()}
           topLeft={<div>a long site menu title</div>}
           topRight={<div>share</div>}
+          dock={<DockRoom />}
         >
           <canvas />
         </EditorFrame>,
       );
-      const left = document.querySelector<HTMLElement>(".je-frame-top-left")!;
-      const right = document.querySelector<HTMLElement>(".je-frame-top-right")!;
       expect(document.querySelector(".je-frame-chrome")!.getAttribute("data-je-mode")).toBe(
         "phone",
       );
-      expect(px(left, "maxWidth")).toBe(375 - 8 - 8 - 8 - 120);
-      expect(right).toBeTruthy();
+      const bar = document.querySelector<HTMLElement>(".je-frame-topbar")!;
+      expect([...bar.children].map((c) => c.classList[0])).toEqual([
+        "je-frame-top-left",
+        "je-frame-dock",
+        "je-frame-top-right",
+      ]);
+      // No columns on a phone: the bar spans the window, the toolbar gets what the corners leave.
+      expect(px(bar, "left")).toBe(8);
+      expect(Number.parseFloat(bar.style.right)).toBe(8);
+      expect(Number(bar.querySelector("[data-room]")!.getAttribute("data-room"))).toBe(
+        375 - 8 - 8 - (100 + 8) - (80 + 8),
+      );
     } finally {
       vi.restoreAllMocks();
     }
@@ -505,14 +520,18 @@ describe("the frame's layout", () => {
     expect(frame.style.getPropertyValue("--je-toasts-right")).toBe("8px");
   });
 
-  it("places the top bar between the columns and the status bar along the bottom edge", () => {
+  it("runs the top bar from the inset to the right column, and the status bar between the columns", () => {
     setup();
     const fitted = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
-    const dock = document.querySelector<HTMLElement>(".je-frame-dock")!;
-    expect(px(dock, "left")).toBe(fitted.canvas.left + 8);
-    expect(Number.parseFloat(dock.style.right)).toBe(fitted.canvas.right + 8);
-    expect(px(dock, "top")).toBe(8);
-    expect(document.querySelector(".je-frame-statusbar .je-status")).toBeTruthy();
+    const bar = document.querySelector<HTMLElement>(".je-frame-topbar")!;
+    expect(px(bar, "left")).toBe(8);
+    expect(Number.parseFloat(bar.style.right)).toBe(fitted.canvas.right + 8);
+    expect(px(bar, "top")).toBe(8);
+    expect(bar.querySelector(".je-frame-dock")?.textContent).toBe("dock");
+    const status = document.querySelector<HTMLElement>(".je-frame-status")!;
+    expect(px(status, "left")).toBe(fitted.canvas.left + 8);
+    expect(Number.parseFloat(status.style.right)).toBe(fitted.canvas.right + 8);
+    expect(status.textContent).toBe("status");
   });
 
   it("opens a panel through its handle wherever it is, and resets the layout", () => {
@@ -686,15 +705,15 @@ describe("framing in the editor's frame", () => {
 describe("a boot that stopped short", () => {
   it("lets its status shrink and wrap so Reload fits beside it, until the bar is too narrow", () => {
     const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
-    const row = /\.je-frame-statusbar:has\(> \.je-boot-reload\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    const row = /\.je-frame-status:has\(> \.je-boot-reload\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(row).toContain("flex-wrap: wrap");
     const connecting =
-      /\.je-frame-statusbar:has\(> \.je-boot-reload\) > \.je-editor-connecting \{([^}]*)\}/.exec(
+      /\.je-frame-status:has\(> \.je-boot-reload\) > \.je-editor-connecting \{([^}]*)\}/.exec(
         css,
       )?.[1] ?? "";
     expect(connecting).toContain("flex: 1 1 0");
     expect(connecting).toMatch(/min-width: min\(\d+px, 100%\)/);
-    expect(/\.je-frame-statusbar > \.je-boot-reload \{([^}]*)\}/.exec(css)?.[1]).toContain(
+    expect(/\.je-frame-status > \.je-boot-reload \{([^}]*)\}/.exec(css)?.[1]).toContain(
       "flex-shrink: 0",
     );
   });

@@ -57,9 +57,17 @@ function only(def: SceneDefinition, code: IssueCode, opts: Opts = {}): SceneIssu
 
 type Opts = { registry?: Registry; prefabs?: PrefabLibrary };
 
-/** The fix is one reparent, applies through applyOps and leaves the scene without a tree issue. */
-function expectFixClears(def: SceneDefinition, issue: SceneIssue, opts: Opts = {}) {
+/**
+ * The fix starts with a reparent and has `ops` ops (default 1), applies
+ * through applyOps and leaves the scene without a tree issue.
+ */
+function expectFixClears(
+  def: SceneDefinition,
+  issue: SceneIssue,
+  opts: Opts & { ops?: number } = {},
+) {
   const registry = opts.registry ?? engine;
+  expect(issue.fix?.ops).toHaveLength(opts.ops ?? 1);
   expect(issue.fix!.ops[0]!.op).toBe("reparent");
   const applied = applyOps(def, issue.fix!, registry, { prefabs: opts.prefabs });
   expect(applied.ok, JSON.stringify(applied)).toBe(true);
@@ -374,7 +382,7 @@ describe("quarter-turn-only", () => {
       { op: "reparent", refs: ["s"], parent: null },
       { op: "transform", refs: ["s"], rotate: 45 },
     ]);
-    const fixed = expectFixClears(def, issue, { prefabs: lib });
+    const fixed = expectFixClears(def, issue, { prefabs: lib, ops: 2 });
     expect(fixed?.instances?.[0]).toMatchObject({ rot: 90 });
     expect(fixed?.instances?.[0]?.parent).toBeUndefined();
   });
@@ -397,7 +405,7 @@ describe("quarter-turn-only", () => {
       { op: "reparent", refs: ["s"], parent: "outer" },
       { op: "transform", refs: ["s"], rotate: -20 },
     ]);
-    expectFixClears(def, issue, { prefabs: lib });
+    expectFixClears(def, issue, { prefabs: lib, ops: 2 });
   });
 });
 

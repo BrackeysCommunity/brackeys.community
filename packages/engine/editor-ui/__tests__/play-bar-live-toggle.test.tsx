@@ -201,7 +201,8 @@ describe("the Live in Play toggle", () => {
 
   it("draws every island on a play bar row at the row's height", () => {
     const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
-    const rule = /\.je-play-bar > \.je-island \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    // The rule for the selector alone, not a longer selector ending in it.
+    const rule = /(?:^|\n)\s*\.je-play-bar > \.je-island \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(rule).toContain("align-self: stretch");
   });
 });

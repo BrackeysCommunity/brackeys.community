@@ -14,7 +14,8 @@ const memoryStorage = (): EditorStorage => {
 const WIDTH = 1440;
 const HEIGHT = 900;
 const HOST = { width: 280, height: 40 };
-const DOCK = { width: 360, height: 48 };
+/** The top bar holding the host's corner and the play controls. */
+const BAR = { width: WIDTH - 16, height: 48 };
 
 beforeEach(() => {
   Object.assign(window, { innerWidth: WIDTH, innerHeight: HEIGHT });
@@ -23,8 +24,7 @@ beforeEach(() => {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     if (this.classList.contains("je-frame-top-left"))
       return DOMRect.fromRect({ x: 8, y: 8, ...HOST });
-    if (this.classList.contains("je-frame-dock"))
-      return DOMRect.fromRect({ x: (WIDTH - DOCK.width) / 2, y: 8, ...DOCK });
+    if (this.classList.contains("je-frame-topbar")) return DOMRect.fromRect({ x: 8, y: 8, ...BAR });
     return real.call(this);
   });
 });
@@ -59,13 +59,15 @@ describe("the frame's safe area for a game's HUD", () => {
     expect(doc.contains(document.querySelector("[data-play-canvas]"))).toBe(true);
 
     // The HUD's layer sits on the canvas inside the document, so it inherits these.
-    expect(safe(doc, "top")).toBe(8 + Math.max(HOST.height, DOCK.height));
+    expect(safe(doc, "top")).toBe(8 + BAR.height);
     expect(safe(doc, "bottom")).toBe(0);
     expect(safe(doc, "left")).toBe(0);
     expect(safe(doc, "right")).toBe(0);
-    // Centred between the host's corners, clear of the left one.
-    const dock = document.querySelector<HTMLElement>(".je-frame-dock")!;
-    expect(Number.parseFloat(dock.style.left)).toBe(8 + HOST.width + 8);
-    expect(Number.parseFloat(dock.style.right)).toBe(8 + HOST.width + 8);
+    // With the columns hidden the bar spans the window, the host's corner and the controls in it.
+    const bar = document.querySelector<HTMLElement>(".je-frame-topbar")!;
+    expect(bar.hasAttribute("data-playing")).toBe(true);
+    expect(Number.parseFloat(bar.style.left)).toBe(8);
+    expect(Number.parseFloat(bar.style.right)).toBe(8);
+    expect(bar.querySelector(".je-frame-top-left + .je-frame-dock")).toBeTruthy();
   });
 });

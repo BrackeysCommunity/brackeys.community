@@ -3117,7 +3117,7 @@ _function_ in `headless/legal.ts`
 
 The dialogue's commands legal now: each enabled `@dialogue-choose` once
 the conversation offers choices, else `@dialogue-advance`; none with no
-conversation running.
+conversation running or a stuck one.
 
 ```ts
 declare function dialogueCommands(view: Readonly<DialogueView> | null | undefined): GameCommand[];
@@ -3584,20 +3584,10 @@ Refers to [`PhysicalEnv`](#physicalenv), [`PhysicalOptions`](#physicaloptions).
 
 _function_ in `headless/playtest.ts`
 
-Plays an input script on a scene headless, starting the run the way the
-editor's Play does (validation errors block, the document is cloned and
-expanded, `at` is cast with the game's spawn shape), and reports how it
-ended: the game's outcome, else `stuck`, `script-end` or `timeout`. Its
-tracks drive the seats the run has, the project input map's over the
-game's (`scriptSeatLimit`). A game that lists its commands gets `legal`
-after the last tick, else at the start (`legalCommands`), as `runProbe`
-does. A flow request game code makes ends the run as `flow`; with
-`flow`, the run follows it instead: after the tick the next listed scene
-loads in a fresh runtime (persist carried, the request's `persist` and
-`entry` applied, the keys still held pressed again) and the same script
-goes on, each scene recorded on its own in `segments`. With `fromSave`
-the first scene starts where the save left off. Deterministic: the same
-scenes, game, save and script give the same report.
+Plays an input script headless the way the editor's Play starts a run
+and reports how it ended (outcome, `stuck`, `script-end`, `timeout`).
+With `flow` it follows scene requests into fresh runtimes, one `segments`
+entry each; `fromSave` starts where a save left off. Deterministic.
 
 ```ts
 declare function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G> & PlaytestStart & PlaytestHooks & RecordingHost): PlaytestRun<S>;

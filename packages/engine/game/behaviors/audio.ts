@@ -12,7 +12,7 @@ import { assetField } from "../fields";
 import type { FieldEnv } from "../types";
 
 const audioFields = (env: FieldEnv) => ({
-  sound: assetField(env, [SOUND_KIND], "The sound it plays."),
+  sound: assetField(env, [SOUND_KIND], "The sound it plays.", "Sound"),
   playing: z
     .boolean()
     .optional()
@@ -34,6 +34,7 @@ export type AudioBlock = z.infer<z.ZodObject<ReturnType<typeof audioFields>>>;
 export type AudioHandle = {
   play(): void;
   stop(): void;
+  /** Presentation state: headless the handle doesn't exist, so game logic must never branch on it. */
   readonly playing: boolean;
 };
 

@@ -320,6 +320,14 @@ other docs:` line and in `data.project`, without changing the exit code.
   backend; turning it off mid-Play mutes and stops the game's sound, and
   turning it on in a Play that started without sound waits for the next
   Play.
+- The editor's Problems panel, and the status bar's problem count, list
+  the issues of the sounds the open scene's entities name (instance
+  children included), judged as the project judges them: the open sound
+  doc's own checks, such as `sound-bus-unknown`, and `asset-missing` for a
+  variant whose clip no live audio clip or synth patch holds. A row selects
+  and frames the entities naming the sound; it has no fix, and `detail`
+  names the sound and the pointer into it. An edit to the sound doc
+  revalidates.
 - The synth patch panel: every field with the schema's bounds (sliders, the
   wave select, a switch per optional block), a waveform strip from
   `renderSynth`, a button per preset (`randomSynth`) and Mutate
@@ -436,6 +444,24 @@ other docs:` line and in `data.project`, without changing the exit code.
   the simulation reads, so a view can sit across a worker link: the emitter
   members follow it, the text members (`text?`, `locale?`) follow it, and
   the tilemap view handle must.
+- The editor frame's layout: a top bar across the frame holds the host's
+  chrome at its ends and the toolbar (or the play controls while playing)
+  between them, and stops short of the right column, which keeps the
+  frame's full height; the context (the prefab breadcrumb) sits under it in
+  the canvas area. A status bar across the canvas area's bottom, between
+  the columns and hidden while playing, replaces the bottom-left island: the
+  save state, why the editor last opened a scene by itself, who is here and running work
+  on the left, and the scene's problem counts on the right, which open the
+  Problems panel. `Viewport` gains `top` (what covers the canvas area's top),
+  and `EditorSkeleton`'s `status` fills the status bar.
+- The toolbar gains Group, Ungroup and Frame (the selection, or the whole
+  scene with nothing selected), each also on its key, and a per-viewer grid
+  toggle, disabled while the scene has no grid to draw. When the toolbar
+  runs out of room they go to its overflow menu after the game tools. Its
+  menus open downward, under the top bar.
+- On jams.team the site menu island draws compact in the editor's top bar,
+  without a title (the scene picker names what is open); the site's
+  `SiteEditorHostOptions` loses `title`.
 - An XML `.fnt` imports instead of being refused. A binary BMFont's
   import-failed message now says to export it as text or XML.
 - **Breaking:** `TextFont`'s bitmap arm is `{ kind: "bitmap", hash, pages,
@@ -501,22 +527,24 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
 
 ### Notes
 
-- `stress/combined`'s run moved with the scene tree (600 ticks: enters
-  3392, exits 3367, occupied 23, against 3226 / 3211 / 14 at 0.15.0), as
-  intended. An instance's fixed children now enter the physics world after
-  the scene's own entities (they spawn under their instance's node), which
-  changes the order the broad phase finds contact pairs. A riding
-  collider's offset is measured from where its host's body is in the
-  physics world (f32), at most one f32 ulp from the old f64 origin.
-  Contacts' float round-off differs, and the counts of this chaotic scene
-  follow; nothing else changed, and no golden pins it.
+- `stress/combined`'s run is unchanged by this release: 600 ticks print
+  enters 3392, exits 3367, occupied 23, as at 0.16.0. It moved in 0.16.0
+  with the scene tree, from 3226 / 3211 / 14 at 0.15.0, as intended. An
+  instance's fixed children now enter the physics world after the scene's
+  own entities (they spawn under their instance's node), which changes the
+  order the broad phase finds contact pairs. A riding collider's offset is
+  measured from where its host's body is in the physics world (f32), at
+  most one f32 ulp from the old f64 origin. Contacts' float round-off
+  differs, and the counts of this chaotic scene follow; nothing else
+  changed, and no golden pins it.
 - Without physics, a character on a collider riding a kinematic body is
   carried as with Rapier, starting a tick after the body gets a velocity;
   on a root kinematic body's own collider moved by `setVelocity` neither
   backend carries it.
-- A script that starts mid-tick (item 11 of the tree follow-ups) keeps its
-  current timing; whether it should wait for the next tick is the owner's
-  call.
+- A script instance created mid-tick (a spawner's spawn in its
+  `beforeStep`) first runs on the next tick, while a behavior system picks
+  it up the same tick. That timing is unchanged, and whether scripts should
+  start the same tick is still open.
 - The browser smoke draws a world `text` sign in a bitmap font and one in a
   web font and checks that each shows its colour, and after a click plays
   a synth patch through `webAudioBackend`: the context runs, the voice ends

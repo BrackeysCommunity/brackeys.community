@@ -194,6 +194,18 @@ export function saveHostOf(ctx: EngineContext): SaveHost | undefined {
   return (ctx as EngineContext & { [SAVE_HOST]?: SaveHost })[SAVE_HOST];
 }
 
+const EVENT_ENTITY: unique symbol = Symbol("event entity");
+
+/**
+ * The entity a step event of the runtime's last step names: live, or as it
+ * was when that step removed it. Undefined for any other context.
+ */
+export function eventEntityOf(ctx: EngineContext, id: string): RuntimeEntity | undefined {
+  return (ctx as EngineContext & { [EVENT_ENTITY]?: (id: string) => RuntimeEntity | undefined })[
+    EVENT_ENTITY
+  ]?.(id);
+}
+
 const setRngState = (rng: Rng, state: RngState) => void Object.assign(rng, Rng.restore(state));
 
 /**
@@ -275,6 +287,12 @@ function createSaveRegistry() {
   };
   return registry;
 }
+
+/**
+ * A world save's `@input`: by seat index, each seat's held input; under
+ * `latencyMs`, the latency the last `@latency` left, when it isn't 0.
+ */
+const SAVED_LATENCY = "latencyMs";
 
 /** A seat's held input in a world save: each action's `[value]` or `[x, y]`, and its pointer. */
 type SavedSeatInput = {
@@ -994,6 +1012,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     engineEvents = [];
     gameEvents = [];
     raised = [];
+    lifecycle.beginStep();
     const timed = tickTiming?.begin() ? tickTiming : null;
     const tickInput = tickInputOf(given, commands, t);
 
@@ -1131,13 +1150,17 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       if (pointer) seat.pointer = { ...pointer };
       if (seat.actions || seat.pointer) out[index] = seat;
     }
-    return out as Record<string, JsonValue>;
+    const held = out as Record<string, JsonValue>;
+    const latency = input.latencyMs();
+    if (latency !== 0) held[SAVED_LATENCY] = latency;
+    return held;
   }
 
   /**
    * Seats moved to where the save had them, and each seat's held actions
    * and pointer put back, through one input update outside a step whose
-   * seat events are dropped: the next step's input reads from there.
+   * seat events are dropped: the next step's input reads from there. The
+   * latency is the saved one, else 0.
    */
   function restoreInput(world: WorldState, saved: Readonly<Record<string, JsonValue>>): void {
     const want = new Map<DeviceId, number>();
@@ -1152,6 +1175,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     const actions: InputAction[] = [];
     const pointers: TickInput["pointers"] = [];
     for (const [seat, value] of Object.entries(saved)) {
+      if (seat === SAVED_LATENCY) continue;
       const player = Number(seat);
       const held = value as SavedSeatInput;
       for (const [action, v] of Object.entries(held.actions ?? {})) {
@@ -1161,6 +1185,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       if (held.pointer) pointers[player] = held.pointer;
     }
     input.update({ tick: world.tick, actions, commands: [], pointers, joins });
+    const latency = saved[SAVED_LATENCY];
+    input.restoreLatency(typeof latency === "number" && Number.isFinite(latency) ? latency : 0);
   }
 
   /** `e`'s type system's state, then its behaviors', by owner. */
@@ -1509,6 +1535,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     playClock: () => playClock,
   };
   Object.defineProperty(ctx, SAVE_HOST, { value: saveHost });
+  Object.defineProperty(ctx, EVENT_ENTITY, {
+    value: (id: string) => lifecycle.get(id) ?? lifecycle.removed(id),
+  });
   Object.defineProperty(ctx, DIALOGUE_SYSTEM, { value: dialogue });
 
   const swapHost: SwapHost = {

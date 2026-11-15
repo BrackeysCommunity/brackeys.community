@@ -116,12 +116,6 @@ export type RhythmSnapshot = {
   pass: number;
   /** The tick the playing song started on; null before the first. */
   songStart: number | null;
-  /**
-   * The latency taps are judged with, ms: `ctx.input.latencyMs()` as the
-   * last `@latency` left it. Kept here because a world save doesn't carry
-   * the input's own, so a restored run judges as the live one did.
-   */
-  latencyMs: number;
   judged: Judgement[];
   /** Per pass, taps no beat was within reach of. */
   strays: number[];
@@ -175,7 +169,6 @@ const game = defineGame<RhythmSnapshot>({
   createRuntime(ctx: EngineContext) {
     let pass = -1;
     let songStart: number | null = null;
-    let latencyMs = 0;
     let judged: Judgement[] = [];
     let open = new Set<number>();
     let strays: number[] = [];
@@ -186,7 +179,7 @@ const game = defineGame<RhythmSnapshot>({
       anchor: () =>
         songStart === null ? null : { startTick: songStart, startTime: 0, offsetMs: 0, rate: 1 },
       driftMs: () => 0,
-      latencyMs: () => latencyMs,
+      latencyMs: () => ctx.input.latencyMs(),
     });
 
     const chart = (): readonly ChartRow[] =>
@@ -217,14 +210,11 @@ const game = defineGame<RhythmSnapshot>({
       onLoad() {
         pass = -1;
         songStart = null;
-        latencyMs = 0;
         judged = [];
         open = new Set();
         strays = PASSES.map(() => 0);
       },
       beforeStep(_dtMs, actions) {
-        if (ctx.input.commands().some((c) => c.name === LATENCY_COMMAND))
-          latencyMs = ctx.input.latencyMs();
         const rows = chart();
         const next = PASSES[pass + 1];
         if (next && ctx.tick === next.songAt) {
@@ -257,7 +247,6 @@ const game = defineGame<RhythmSnapshot>({
         return {
           pass,
           songStart,
-          latencyMs,
           judged: judged.map((j) => ({ ...j })),
           strays: [...strays],
         };
@@ -266,7 +255,6 @@ const game = defineGame<RhythmSnapshot>({
       restore(s) {
         pass = s.pass;
         songStart = s.songStart;
-        latencyMs = s.latencyMs;
         judged = s.judged.map(({ pass, beat, grade, delta, tick }) => ({
           pass,
           beat,

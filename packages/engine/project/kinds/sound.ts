@@ -93,20 +93,33 @@ const matcherSchema = z
   })
   .describe("A step event that plays the sound.");
 
+/** Why a sound can't play through `bus` when `buses` are the ones there are, or null when it can. */
+export function soundBusProblem(
+  bus: string,
+  buses: readonly BusName[],
+): { message: string; hint: string } | null {
+  if (buses.includes(bus)) return null;
+  return {
+    message: `no bus "${bus}"${didYouMean(bus, buses)}`,
+    hint: `Use one of ${buses.join(", ")}, or declare "${bus}" in GameDefinition.audio.buses.`,
+  };
+}
+
 /** A bus name, refused as `sound-bus-unknown` unless `buses` has it. */
 const busSchema = (buses: readonly BusName[]) =>
   z
     .string()
     .superRefine((bus, ctx) => {
-      if (buses.includes(bus)) return;
+      const problem = soundBusProblem(bus, buses);
+      if (!problem) return;
       ctx.addIssue({
         code: "custom",
-        message: `no bus "${bus}"${didYouMean(bus, buses)}`,
+        message: problem.message,
         params: {
           issue: "sound-bus-unknown",
           expected: buses.join(" | "),
           got: bus,
-          hint: `Use one of ${buses.join(", ")}, or declare "${bus}" in GameDefinition.audio.buses.`,
+          hint: problem.hint,
         },
       });
     })
@@ -131,7 +144,8 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
         .optional()
         .describe(
           "Playback rate picked per play, [min, max]; 1 is the clip's own pitch. Default [1, 1].",
-        ),
+        )
+        .meta({ widget: "range", step: 0.05, decimals: 2, default: [1, 1] }),
       variants: z
         .array(
           z
@@ -152,7 +166,7 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
         .min(0)
         .optional()
         .describe("A second play inside this many ms of wall time is dropped.")
-        .meta({ unit: "ms" }),
+        .meta({ title: "Cooldown", unit: "ms" }),
       maxVoices: z
         .number()
         .int()
@@ -176,7 +190,8 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
         .string()
         .regex(STRING_KEY_PATTERN)
         .optional()
-        .describe("A string key shown as a caption when it plays."),
+        .describe("A string key shown as a caption when it plays.")
+        .meta({ widget: "string-key" }),
       on: z.array(matcherSchema).optional().describe("The step events that play it."),
       preload: z
         .boolean()

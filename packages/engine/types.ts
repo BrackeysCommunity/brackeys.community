@@ -483,16 +483,10 @@ export type GameInstance = {
     onProgress?: (p: LoadProgress) => void,
   ) => Promise<{ failed: BundleEntry[] }>;
   /**
-   * Re-imported art: loads the `changed` assets' new bytes, then redraws the
-   * loaded scene's visuals that use them, without reloading the scene. A new
-   * `project` also re-resolves the project bundle from its game settings, so
-   * a settings asset field moved to another id is loaded and kept resident.
-   * A new `project` whose input map differs rebuilds the bindings and the
-   * touch overlay from it, after letting go of everything the old map held;
-   * the player's remaps stay, and seats and the pad deadzone keep what the
-   * instance started with.
-   * `failed` lists textures that did not load; `errors` the entities whose
-   * redraw threw (every other entity still redraws). Never rejects for those.
+   * Loads the changed assets' bytes and redraws what uses them without
+   * reloading the scene; a new project re-resolves its bundle and, if its
+   * input map changed, rebuilds the bindings (remaps kept). Never rejects
+   * for failed textures or redraws.
    */
   reloadAssets: (update: {
     project: ProjectRuntimeView | null;
@@ -507,28 +501,18 @@ export type GameInstance = {
    */
   runtime: () => SceneRuntime | null;
   /**
-   * Validates `doc` (errors block and are returned) and builds a fresh play
-   * world from a clone of it, frozen in dev: input is flushed, the camera
-   * snaps to the game's target and the mode becomes `play`. From edit it
-   * remembers the edit world and the editor camera for `stop`; while
-   * playing it restarts on `doc` and keeps what it remembered. A failed
-   * Play leaves the current world running. `as.sceneId` is the scene's
-   * asset id when `doc.name` isn't it: saves, live versions and the
-   * recording key on it.
+   * Validates `doc` and plays a fresh world from a clone; from edit it
+   * remembers the edit world for `stop`. A failed Play leaves the current
+   * world running. `as.sceneId` keys saves and recordings when `doc.name`
+   * isn't the asset id.
    */
   play: (doc: SceneDefinition, opts?: PlayOptions, as?: { sceneId?: AssetId }) => PlayReport;
   /**
    * Plays `recording` on `doc`: Play from the recording's start, with its
    * input edges stepped on their ticks in place of the keyboard's. At its
    * last tick the loop pauses on the end state; Stop returns to edit.
-   *
-   * A recording that started on a live version (`sceneVersion`) plays that
-   * version's scene in place of `doc`, and each recorded swap is applied
-   * before its tick with its recorded strategy, through the same path as a
-   * live swap. A version `versions` can't give is `scene-version-removed`:
-   * for the start, the replay doesn't start (the report carries the issue);
-   * for a swap, `live:failed` carries it with `detail.tick` and the replay
-   * stops on that tick. The scene's own live version comes back at Stop.
+   * A recording on a live version plays that version and its recorded
+   * swaps; a version `versions` can't give is `scene-version-removed`.
    */
   replay: (
     doc: SceneDefinition,

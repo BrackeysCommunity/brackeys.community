@@ -17,7 +17,7 @@ import { createKindRegistry } from "../project/kinds";
 import { ANIMATION_KIND } from "../project/kinds/animation";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { byCodeUnit, isPlainObject } from "../project/kinds/define";
-import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
+import { GAME_SETTINGS_KIND, engineRunInput } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { SCENE_LIST_KIND } from "../project/kinds/scene-list";
 import type { ProjectRuntimeView } from "../project/runtime-view";
@@ -65,7 +65,8 @@ export type PreparedPlay =
 
 /**
  * What a run ran, hashed: the expanded scene, the resolved clock, the
- * project view's data (its settings, engine block, the tables the game
+ * project view's data (its settings, engine block without the
+ * presentation-only `locales`, the tables the game
  * declares in name order, the input map, every other `sim` kind's docs in
  * kind then id order, and the clips `anim` plays: those of every animation
  * doc and of every source an `anim` block in the scene or a prefab names,
@@ -96,7 +97,7 @@ export function runHash(
   const data = view
     ? {
         settings: withoutSchemaPointer(view.settings),
-        engine: view.engine,
+        engine: engineRunInput(view.engine),
         tables,
         inputMap: withoutSchemaPointer(view.inputMap),
         ...(docs.length > 0 ? { docs } : {}),

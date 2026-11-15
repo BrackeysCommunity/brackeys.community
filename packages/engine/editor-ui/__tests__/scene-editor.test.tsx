@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import { z } from "zod";
 
 import {
@@ -238,6 +238,8 @@ describe("SceneEditor", () => {
   }, 20_000);
 
   it("shows its lengths in metres: the grid step and a shape's sizes", async () => {
+    const width = window.innerWidth;
+    onTestFinished(() => void Object.assign(window, { innerWidth: width }));
     const { host } = fakeProject();
     render(<SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />);
     const row = await waitFor(() => outliner().getByRole("button", { name: /zone/ }), {
@@ -247,6 +249,10 @@ describe("SceneEditor", () => {
     const radius = screen.getByLabelText("shape.r");
     expect(radius.closest(".je-insp-row")?.querySelector(".je-insp-suffix")?.textContent).toBe("m");
     // A narrow window moves the grid step into More tools, where each step reads in metres.
+    act(() => {
+      Object.assign(window, { innerWidth: 760 });
+      window.dispatchEvent(new Event("resize"));
+    });
     const more = await waitFor(() => screen.getByRole("button", { name: "More tools" }), {
       timeout: 10_000,
     });

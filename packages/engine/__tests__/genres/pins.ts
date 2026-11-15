@@ -37,9 +37,9 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-mid-lap": "c3837ee675ecd921",
   },
   "rhythm-tap": {
-    default: "c40d8254d18f8d75",
-    "saved-between-passes": "c40d8254d18f8d75",
-    "saved-mid-chart": "c40d8254d18f8d75",
+    default: "8f0e416f97461b72",
+    "saved-between-passes": "8f0e416f97461b72",
+    "saved-mid-chart": "8f0e416f97461b72",
   },
   roguelike: {
     default: "972e5b44222b3c85",

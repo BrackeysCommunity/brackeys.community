@@ -49,6 +49,16 @@ export const AUDIO_ENDED_SLACK_MS = 100;
 /** The offline render at `pan: -1` puts more than this share of its energy on the left. */
 export const AUDIO_LEFT_SHARE = 0.95;
 
+/**
+ * The prefs the runner launches Firefox with. Its real-time context never
+ * resumes without an output device, as on a CI runner; Gecko's mock audio
+ * device runs the graph on a simulated clock instead, as headless Chromium's
+ * fake output does.
+ */
+export const FIREFOX_AUDIO_PREFS: Readonly<Record<string, boolean>> = {
+  "media.cubeb.force_mock_context": true,
+};
+
 /** The button the runner clicks to give the page the gesture audio needs. */
 export const AUDIO_BUTTON_ID = "smoke-audio";
 
@@ -99,8 +109,10 @@ export function judgeSigns(signs: SignProbe | undefined): string | null {
 /** Why the audio run failed, or null. */
 export function judgeAudio(audio: AudioProbe | undefined): string | null {
   if (!audio) return "the page ran no audio";
-  if (audio.context !== "running" || audio.backend !== "running")
-    return `after the click the context is ${audio.context} and the backend ${audio.backend}, not running`;
+  if (audio.context !== "running" || audio.backend !== "running") {
+    const why = audio.maxChannels === 0 ? " (its destination has no output device to run on)" : "";
+    return `after the click the context is ${audio.context} and the backend ${audio.backend}, not running${why}`;
+  }
   if (audio.channels < 2)
     return `the destination has ${audio.channels} channel${audio.channels === 1 ? "" : "s"}, not two or more`;
   if (audio.endedMs === null || audio.endedMs > audio.patchMs + AUDIO_ENDED_SLACK_MS)

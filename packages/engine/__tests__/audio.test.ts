@@ -1,17 +1,19 @@
 // @vitest-environment node
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
+import { MUSIC_DRIFT_LIMIT_MS } from "../audio/clock";
 import { fakeAudioBackend, type FakeAudioBackend, type FakeAudioLogEntry } from "../audio/fake";
 import { renderSynth, synthDurationMs, SYNTH_SAMPLE_RATE } from "../audio/synth";
 import { createAudioSystem, type AudioSystemOptions } from "../audio/system";
 import { soundTriggers } from "../audio/triggers";
+import type { AudioClipHandle, Voice, VoiceOptions } from "../audio/types";
 import { defineEntityType, createRegistry, defineGame } from "../game/define";
 import { tagsField } from "../game/fields";
 import { primitiveFields } from "../game/primitives";
 import type { GameDefinition, Registry } from "../game/types";
 import { createHeadlessRuntime } from "../headless/headless";
 import { memoryRuntimeView } from "../headless/runtime-view";
-import { browserPrefsStore, memoryPrefsStore, snapshotPrefsStore } from "../prefs";
+import { browserPrefsStore, memoryPrefsStore, PREF_KEYS, snapshotPrefsStore } from "../prefs";
 import type { AssetInfo } from "../project/asset-info";
 import { docKindJsonSchema, parseAssetDoc, type KindEnv } from "../project/kinds";
 import { audioBuses, soundKind, type SoundFile } from "../project/kinds/sound";
@@ -594,6 +596,58 @@ describe("the audio system", () => {
     expect(ops(r.backend.log, "decode")).toHaveLength(1);
     expect(plays(r.backend.log)).toHaveLength(2);
   });
+
+  it("a stop of a key cancels that key's play still decoding, and no other", async () => {
+    const r = rig(
+      audioProject({ sound: { line: sound({ variants: [{ clip: "voice-1" }] }) } }, ["voice-1"]),
+    );
+    r.system.tick(1, [], [playReq("line", { key: "dialogue-voice" }), playReq("line")]);
+    r.system.tick(2, [], [{ op: "stop", key: "dialogue-voice" }]);
+    await flush();
+    expect(plays(r.backend.log).map((p) => p.opts.key)).toEqual([undefined]);
+    r.system.tick(3, [], [playReq("line", { key: "dialogue-voice" })]);
+    await flush();
+    expect(plays(r.backend.log).map((p) => p.opts.key)).toEqual([undefined, "dialogue-voice"]);
+  });
+
+  it("wraps looping tick-aligned music on a stream once its length arrives after it plays", () => {
+    const backend = fakeAudioBackend({ state: "running" });
+    const clip = { duration: Number.NaN, channels: 2, streamed: true };
+    // A media element loops itself: its position wraps at the clip's end once that is known.
+    const streaming = Object.assign(Object.create(backend) as FakeAudioBackend, {
+      stream: () => clip,
+      play: (handle: AudioClipHandle, opts: VoiceOptions): Voice => {
+        const voice = backend.play(handle, opts);
+        return Object.assign(Object.create(voice) as Voice, {
+          position: () => {
+            const at = voice.position();
+            return opts.loop && Number.isFinite(clip.duration) ? at % clip.duration : at;
+          },
+        });
+      },
+    });
+    const song = sound({ bus: "music", loop: true, variants: [{ clip: "song" }] });
+    const info: AssetInfo = { id: "song", kind: "audio", sha256: "sha-song", stream: true };
+    const r = rig(
+      { ...audioProject({ sound: { song } }), asset: (id) => (id === "song" ? info : undefined) },
+      { backend: streaming },
+    );
+    r.system.tick(0, [], [{ op: "music", sound: "song", at: "tick", tick: 0 }]);
+    expect(plays(backend.log)[0]?.opts.loop).toBe(true);
+    clip.duration = 1;
+    // The context clock runs 5% fast, so the song drifts past the limit and is sought back.
+    for (let tick = 1; tick <= 150; tick++) {
+      backend.advance((1.05 * TICK_MS) / 1000);
+      r.system.frame({ centre: { x: 0, y: 0 }, halfWidth: 10 }, tick * TICK_MS);
+    }
+    const seeks = ops(backend.log, "seek") as Extract<FakeAudioLogEntry, { op: "seek" }>[];
+    expect(seeks.length).toBeGreaterThan(0);
+    for (const seek of seeks) {
+      expect(seek.seconds).toBeGreaterThanOrEqual(0);
+      expect(seek.seconds).toBeLessThan(1);
+    }
+    expect(Math.abs(r.system.clock.driftMs)).toBeLessThanOrEqual(MUSIC_DRIFT_LIMIT_MS);
+  });
 });
 
 describe("synth playback", () => {
@@ -765,7 +819,7 @@ describe("bus volumes", () => {
   const busRig = (registry: Registry = plain) =>
     rig(audioProject({}), { prefs: browserPrefsStore(), registry });
 
-  it("persist through browserPrefsStore under audio.<bus>, beside other prefs", () => {
+  it("persist through browserPrefsStore under audio.bus.<bus>, beside other prefs", () => {
     const storage = memoryStorage();
     storage.setItem(key, JSON.stringify({ locale: "fr" }));
     withStorage(storage);
@@ -779,14 +833,38 @@ describe("bus volumes", () => {
     expect(first.backend.busVolumes.get("sfx")).toBe(0);
     const saved = JSON.parse(storage.data.get(key)!) as Record<string, unknown>;
     expect(saved.locale).toBe("fr");
-    expect(saved["audio.music"]).toEqual({ volume: 0.25, muted: false });
-    expect(saved).not.toHaveProperty("audio.nowhere");
+    expect(saved["audio.bus.music"]).toEqual({ volume: 0.25, muted: false });
+    expect(saved).not.toHaveProperty(PREF_KEYS.busKey("nowhere"));
 
     const second = busRig(ambient);
     expect(second.system.buses().music).toEqual({ volume: 0.25, muted: false });
     expect(second.system.buses().sfx).toEqual({ volume: 0.8, muted: true });
     expect(second.backend.busVolumes.get("sfx")).toBe(0);
     expect(second.backend.busVolumes.get("music")).toBe(0.25);
+  });
+
+  it("keep a bus named like another preference apart from it", () => {
+    const named = createRegistry(
+      defineGame({
+        id: "named",
+        types: [],
+        actions: [],
+        audio: { buses: [{ name: "latencyMs" }, { name: "locale" }] },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const prefs = memoryPrefsStore();
+    prefs.save("audio-test", { [PREF_KEYS.latencyMs]: 40, [PREF_KEYS.locale]: "fr" });
+    const r = rig(audioProject({}), { prefs, registry: named });
+    expect(r.system.buses().latencyMs).toEqual({ volume: 1, muted: false });
+    r.system.setBus("latencyMs", 0.5);
+    r.system.setBus("locale", 0.2);
+    expect(prefs.load("audio-test")).toEqual({
+      [PREF_KEYS.latencyMs]: 40,
+      [PREF_KEYS.locale]: "fr",
+      "audio.bus.latencyMs": { volume: 0.5, muted: false },
+      "audio.bus.locale": { volume: 0.2, muted: false },
+    });
   });
 
   it("still apply for the session when localStorage throws on every access", () => {

@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { GATE_DIALOGUE } from "../../__tests__/fixtures/dialogue/gate";
 import { createRegistry } from "../../game/define";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
 import { undescribedProperties } from "../../scene/json-schema";
@@ -49,39 +50,7 @@ const KINDS: readonly { kind: DocKindDef; sample: unknown }[] = [
       decayMs: 240,
     },
   },
-  {
-    kind: dialogueKind,
-    sample: {
-      kind: "dialogue",
-      v: 1,
-      start: "gate",
-      speakers: [
-        { id: "guard", name: "speaker.guard", portrait: { asset: "portraits", frame: "guard" } },
-      ],
-      nodes: [
-        {
-          id: "gate",
-          lines: [{ speaker: "guard", text: "gate.halt", voice: "vo-guard-halt" }],
-          choices: [
-            {
-              text: "gate.pay",
-              if: { var: "/gold", gte: 3 },
-              do: [{ add: "/gold", by: -3 }],
-              to: "through",
-            },
-            { text: "gate.leave", to: "turned-away" },
-          ],
-        },
-        {
-          id: "through",
-          lines: [{ speaker: "guard", text: "gate.go-on" }],
-          do: [{ set: "/flags/gate-open", to: true }],
-          end: "paid",
-        },
-        { id: "turned-away", lines: [{ speaker: "guard", text: "gate.later" }], end: "left" },
-      ],
-    },
-  },
+  { kind: dialogueKind, sample: GATE_DIALOGUE },
   {
     kind: stringsKind,
     sample: {
@@ -95,7 +64,9 @@ const KINDS: readonly { kind: DocKindDef; sample: unknown }[] = [
   },
 ];
 
-describe.each(KINDS)("$kind.kind.schema.json", ({ kind, sample }) => {
+const CASES = KINDS.map((k) => ({ ...k, name: `${k.kind.kind}.schema.json` }));
+
+describe.each(CASES)("$name", ({ kind, sample }) => {
   const file = new URL(`../${kind.kind}.schema.json`, import.meta.url);
   const fresh = () => docKindJsonSchema(kind, env);
 

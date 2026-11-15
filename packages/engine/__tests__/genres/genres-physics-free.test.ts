@@ -169,6 +169,9 @@ const PROBES = probesFrom(
 const physicsFree = (probe: GenreProbe) =>
   probeRuns(probe).filter((r) => probePhysics(probe, r.variant) === "none");
 
+/** Each probe's physics-free runs, resolved once: every resolution builds the game's registry. */
+const PHYSICS_FREE_RUNS = PROBES.map((probe) => ({ probe, runs: physicsFree(probe) }));
+
 afterAll(() => {
   expect(loadRapier).not.toHaveBeenCalled();
   expect(init).not.toHaveBeenCalled();
@@ -294,16 +297,15 @@ describe("physics-free genre runs never load Rapier", () => {
   });
 
   it("gives every physics-free probe a world-save variant pinned to the run it continues", () => {
-    const unsaved = PROBES.filter((probe) => {
-      const runs = physicsFree(probe);
-      return runs.length > 0 && !runs.some((r) => r.variant?.saveAt !== undefined);
-    });
-    expect(unsaved.map((p) => p.id)).toStrictEqual([]);
-    for (const probe of PROBES)
-      for (const { name, variant } of physicsFree(probe)) {
+    const unsaved = PHYSICS_FREE_RUNS.filter(
+      ({ runs }) => runs.length > 0 && !runs.some((r) => r.variant?.saveAt !== undefined),
+    );
+    expect(unsaved.map(({ probe }) => probe.id)).toStrictEqual([]);
+    for (const { probe, runs } of PHYSICS_FREE_RUNS)
+      for (const { name, variant } of runs) {
         if (variant?.saveAt === undefined) continue;
         const { saveAt: _at, name: _name, ...rest } = variant;
-        const continued = physicsFree(probe).find(
+        const continued = runs.find(
           (r) =>
             r.variant?.saveAt === undefined &&
             JSON.stringify(r.variant?.settings ?? {}) === JSON.stringify(rest.settings ?? {}) &&
@@ -316,8 +318,7 @@ describe("physics-free genre runs never load Rapier", () => {
       }
   });
 
-  for (const probe of PROBES) {
-    const runs = physicsFree(probe);
+  for (const { probe, runs } of PHYSICS_FREE_RUNS) {
     if (runs.length === 0) continue;
     describe(probe.id, () => {
       it.each(runs)(

@@ -37,6 +37,8 @@ export interface InputState {
 /** The runtime's side: each step feeds the tick's input and raises the seat events it returns. */
 export type RuntimeInputState = InputState & {
   update(input: TickInput): Omit<StepEvent, "tick">[];
+  /** Puts back the latency a world save held, outside a step. */
+  restoreLatency(ms: number): void;
 };
 
 type ActionState = { held: boolean; value: number; vector: Vec2 };
@@ -163,6 +165,9 @@ export function createInputState(
         if (p) seat(player).pointer = pointerOf(p);
       });
       return events;
+    },
+    restoreLatency(ms) {
+      latency = ms;
     },
   };
 }

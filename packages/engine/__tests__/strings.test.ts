@@ -279,6 +279,29 @@ describe("the strings kind", () => {
     expect(missing[1]!.message).toContain('U+060C "،"');
   });
 
+  it("checks the characters a malformed tag draws, and never a well-formed tag's or a placeholder's", () => {
+    const issues = validated(
+      {
+        "settings.json": settings({ default: "en", available: ["en"], fonts: { en: "digits" } }),
+        "strings/ui.json": strings([
+          { key: "ok", en: "[b]1[/b] {name} [icon=ui:coin] \\[2" },
+          { key: "bad", en: "[size=x]3" },
+        ]),
+      },
+      [
+        font("digits", [
+          [0x20, 0x20],
+          [0x30, 0x39],
+          [0x5b, 0x5b],
+        ]),
+      ],
+    );
+    const missing = issues.filter((i) => i.code === "font-missing");
+    expect(missing.map((i) => i.path)).toEqual(["/strings/1/en"]);
+    expect(missing[0]!.message).toMatch(/shows 7 characters/);
+    expect(missing[0]!.message).toContain('U+0073 "s"');
+  });
+
   it("skips a font whose coverage wasn't read, and a project without fonts", () => {
     const docs = {
       "settings.json": settings({ default: "en", available: ["en"], fonts: { default: "f" } }),

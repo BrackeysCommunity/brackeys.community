@@ -14,7 +14,7 @@ import { EditorFrame, Island, type EditorFrameProps, type FramePanels } from "./
 
 export const LOADING_LABEL = "Loading the editor";
 
-/** What the editor's bottom-left island says while its panels can't be used yet. */
+/** What the editor's status bar says while its panels can't be used yet. */
 export function EditorBooting({
   label,
   working,

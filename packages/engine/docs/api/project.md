@@ -1479,10 +1479,7 @@ _type_ in `project/kinds/font.ts`
 type FontMeta = {
     advances?: Readonly<Record<string, number>>;
     /** Code point ranges the face covers; absent when they couldn't be read. */
-    coverage?: readonly (readonly [
-        from: number,
-        to: number
-    ])[];
+    coverage?: Readonly<CodePointRanges>;
     distanceField?: {
         range: number;
         type: "msdf" | "sdf";
@@ -1500,7 +1497,7 @@ type FontMeta = {
 };
 ```
 
-Refers to [`AssetPath`](#assetpath), [`FontFormat`](#fontformat).
+Refers to [`AssetPath`](#assetpath), [`CodePointRanges`](#codepointranges), [`FontFormat`](#fontformat).
 
 ## `FontSettings`
 
@@ -3711,7 +3708,7 @@ type SynthFile = {
     /** The volume envelope; `punch` (0–1) lifts the start of the sustain. */
     attackMs?: number;
     decayMs: number;
-    /** Square only: the high part of the cycle (default 0.5), and its change per second. */
+    /** Square only: the high part of the cycle (default `SYNTH_DEFAULTS.duty`), and its change per second. */
     duty?: number;
     dutySweep?: number;
     /** Hz at the start. */
@@ -3735,7 +3732,7 @@ type SynthFile = {
     punch?: number;
     /** Restart pitch and duty every this many ms (a stutter). */
     retriggerMs?: number;
-    /** Seeds `noise`; default 1. */
+    /** Seeds `noise`; default `SYNTH_DEFAULTS.seed`. */
     seed?: number;
     /** Octaves per second, negative falls; `slideAccel` changes it, octaves per second². */
     slide?: number;
@@ -3746,7 +3743,7 @@ type SynthFile = {
         hz: number;
         semitones: number;
     };
-    /** 0–1, default 1. */
+    /** 0–1, default `SYNTH_DEFAULTS.volume`. */
     volume?: number;
     wave: SynthWave;
 };
@@ -5722,9 +5719,7 @@ _function_ in `project/kinds/strings.ts`
 
 The uses whose key has no text in `locale` nor along its fallback chain
 (`localeFallbacks`); the default's text doesn't count for another locale,
-so a key only the default holds is missing there. `uses` defaults to
-every use in the project (`usedStringKeys`); a kind's `crossValidate`
-passes its own doc's (`stringKeysIn`).
+so a key only the default holds is missing there.
 
 ```ts
 declare function missingStringKeys(lookup: DocLookup, locales: LocaleSettings, locale: string, uses?: readonly StringKeyUse[]): StringKeyUse[];
@@ -7387,8 +7382,7 @@ _function_ in `project/kinds/strings.ts`
 
 Every string key the project's docs name, by kind (dialogue, prefab,
 scene, sound), then each kind's docs in path order, then document order.
-`scenes`, when given, stands in for the lookup's scene docs (an editor's
-unsaved scene).
+`scenes` stands in for the lookup's scene docs (an editor's unsaved scene).
 
 ```ts
 declare function usedStringKeys(lookup: DocLookup, scenes?: ReadonlyMap<AssetId, unknown>): StringKeyUse[];

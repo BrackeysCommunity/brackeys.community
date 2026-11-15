@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { createGame } from "../engine";
 import { defineGame } from "../game/define";
 import type { EngineContext, GameDefinition } from "../game/types";
-import { memoryPrefsStore, type PrefsStore } from "../prefs";
+import { memoryPrefsStore, PREF_KEYS, type PrefsStore } from "../prefs";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { PixiView } from "../render/pixi-view";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
@@ -146,7 +146,7 @@ describe("locale.set", () => {
   it("saves the locale, raises locale:change and hands the view the new table as data", async () => {
     stubLanguages(["en"]);
     const prefs = memoryPrefsStore();
-    prefs.save("counter", { "audio.music": { volume: 0.5, muted: false } });
+    prefs.save("counter", { [PREF_KEYS.busKey("music")]: { volume: 0.5, muted: false } });
     const game = await makeGame(prefs, { scene: doc });
     const changes: { from: string; to: string }[] = [];
     game.on("locale:change", (e) => changes.push(e));
@@ -156,8 +156,8 @@ describe("locale.set", () => {
     game.locale.set("fr");
     expect(changes).toEqual([{ from: "en", to: "fr" }]);
     expect(prefs.load("counter")).toEqual({
-      "audio.music": { volume: 0.5, muted: false },
-      locale: "fr",
+      [PREF_KEYS.busKey("music")]: { volume: 0.5, muted: false },
+      [PREF_KEYS.locale]: "fr",
     });
     expect(handed.slice(before)).toEqual([
       {
@@ -175,6 +175,36 @@ describe("locale.set", () => {
     game.locale.set("fr");
     expect(changes).toHaveLength(1);
     expect(handed.length).toBe(before + 1);
+  });
+
+  it("draws a locale whose font is empty or inherited in the default's, as the font check reads it", async () => {
+    stubLanguages(["en"]);
+    const fonted: ProjectRuntimeView = {
+      ...project,
+      engine: {
+        locales: {
+          default: "en",
+          available: ["en", "fr", "constructor"],
+          fonts: { default: "body", fr: "" },
+        },
+      },
+      asset: (id) =>
+        id === "body"
+          ? { id, kind: "font", sha256: "b0d1", font: { format: "woff2" as const } }
+          : undefined,
+    };
+    const game = await makeGame(memoryPrefsStore(), {
+      scene: doc,
+      ...({ project: fonted } as Partial<GameConfig>),
+    });
+    expect(handed.at(-1)).toMatchObject({ locale: "en", font: { kind: "web", family: "b0d1" } });
+    game.locale.set("fr");
+    expect(handed.at(-1)).toMatchObject({ locale: "fr", font: { kind: "web", family: "b0d1" } });
+    game.locale.set("constructor");
+    expect(handed.at(-1)).toMatchObject({
+      locale: "constructor",
+      font: { kind: "web", family: "b0d1" },
+    });
   });
 
   it("refuses a locale the project doesn't offer", async () => {

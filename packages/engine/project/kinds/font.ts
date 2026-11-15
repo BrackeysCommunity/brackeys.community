@@ -4,6 +4,7 @@ import { ID_PATTERN } from "../../game/fields";
 import { parseBmfont } from "../inspect/bmfont";
 import { hasAscii } from "../inspect/bytes";
 import { fontCoverage, readFontFormat, type WebFontFormat } from "../inspect/font";
+import type { CodePointRanges } from "../inspect/font-cmap";
 import { siblingPath } from "../inspect/paths";
 import { guardedInspect, importFailed } from "../inspect/result";
 import { utf8Text } from "../inspect/text";
@@ -24,7 +25,7 @@ export type FontMeta = {
   kerning?: readonly (readonly [first: number, second: number, amount: number])[];
   distanceField?: { type: "msdf" | "sdf"; range: number };
   /** Code point ranges the face covers; absent when they couldn't be read. */
-  coverage?: readonly (readonly [from: number, to: number])[];
+  coverage?: Readonly<CodePointRanges>;
 };
 export type FontSettings = { pages?: AssetId[] };
 

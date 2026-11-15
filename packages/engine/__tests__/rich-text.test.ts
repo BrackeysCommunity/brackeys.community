@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { FontMeta } from "../project/kinds/font";
 import { measureText } from "../text/measure";
-import { parseRichText, plainText, type RichLine } from "../text/rich";
+import { drawnText, escapeRich, parseRichText, plainText, type RichLine } from "../text/rich";
 
 const one = (source: string, vars?: Record<string, string | number>) => {
   const { lines, warnings } = parseRichText(source, vars);
@@ -135,6 +135,22 @@ describe("plainText", () => {
       }),
     ).toBe("Hi Ada [x]\nbye");
     expect(plainText("[u]kept[/u] {gone}")).toBe("[u]kept[/u] {gone}");
+  });
+});
+
+describe("drawnText", () => {
+  it("leaves out markup, icons and placeholders, and keeps a malformed tag as it draws", () => {
+    expect(drawnText("[b]Hi[/b] {who} [icon=ui:coin]\\{x}")).toBe("Hi  {x}");
+    expect(drawnText("[color=red]a[/color]")).toBe("[color=red]a[/color]");
+  });
+});
+
+describe("escapeRich", () => {
+  it("escapes what the parser reads as markup, but what `except` keeps", () => {
+    const source = "[b] {n} \\";
+    expect(escapeRich(source)).toBe("\\[b] \\{n} \\\\");
+    expect(parseRichText(escapeRich(source)).lines).toEqual([[{ text: source }]]);
+    expect(plainText(escapeRich(source, "{"), { n: 1 })).toBe("[b] 1 \\");
   });
 });
 

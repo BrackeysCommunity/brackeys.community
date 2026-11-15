@@ -1076,6 +1076,7 @@ type FieldWidget = {
     kind: "text";
     maxLength?: number;
     pattern?: string;
+    stringKey?: true;
 };
 ```
 

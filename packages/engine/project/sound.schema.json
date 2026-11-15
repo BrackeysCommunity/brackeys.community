@@ -31,6 +31,10 @@
     },
     "pitch": {
       "description": "Playback rate picked per play, [min, max]; 1 is the clip's own pitch. Default [1, 1].",
+      "widget": "range",
+      "step": 0.05,
+      "decimals": 2,
+      "default": [1, 1],
       "type": "array",
       "prefixItems": [
         {
@@ -73,6 +77,7 @@
     },
     "cooldownMs": {
       "description": "A second play inside this many ms of wall time is dropped.",
+      "title": "Cooldown",
       "unit": "ms",
       "type": "number",
       "minimum": 0
@@ -95,6 +100,7 @@
     },
     "caption": {
       "description": "A string key shown as a caption when it plays.",
+      "widget": "string-key",
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
     },

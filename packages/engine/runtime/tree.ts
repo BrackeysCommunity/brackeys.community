@@ -188,12 +188,15 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     prune(c);
   }
 
+  /** `pose` in `frame`, or `pose` itself without one. */
+  const localIn = (pose: Readonly<Pose>, frame: Readonly<Pose> | undefined): Pose =>
+    frame ? relativePose(pose, frame) : plainPose(pose);
+
   /** `id`'s pose in `parent`'s frame, from the pose index; its world pose without a parent. */
   function measured(id: string, parent: string | undefined): Pose | undefined {
     const pose = deps.poses.get(id);
     if (!pose) return undefined;
-    const frame = parent === undefined ? undefined : deps.poses.get(parent);
-    return frame ? relativePose(pose, frame) : plainPose(pose);
+    return localIn(pose, parent === undefined ? undefined : deps.poses.get(parent));
   }
 
   function setLocal(link: Link, local: Readonly<Pose> | null): void {
@@ -210,11 +213,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
 
   /** `link`'s local pose, measured from its last own write if it has one pending. */
   function localOf(link: Link): Readonly<Pose> | null {
-    const pose = link.wrotePose;
-    if (pose) {
-      const frame = link.wroteFrame;
-      setLocal(link, frame ? relativePose(pose, frame) : plainPose(pose));
-    }
+    if (link.wrotePose) setLocal(link, localIn(link.wrotePose, link.wroteFrame));
     return link.local;
   }
 

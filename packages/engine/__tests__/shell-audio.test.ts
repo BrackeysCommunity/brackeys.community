@@ -353,6 +353,71 @@ describe("the shell's audio system", () => {
     expect(made).toHaveLength(2);
   });
 
+  it("plays a sound on entity:destroyed by the destroyed entity's type and tags", async () => {
+    const pops: ProjectRuntimeView = {
+      ...project,
+      doc: <T>(kind: string, id: string): T | undefined => {
+        if (kind === "sound" && (id === "pop" || id === "chime"))
+          return {
+            kind: "sound",
+            v: 1,
+            bus: "sfx",
+            variants: [{ clip: `${id}-patch` }],
+            on: [
+              id === "pop"
+                ? { event: "entity:destroyed", type: "marker" }
+                : { event: "entity:destroyed", tag: "coin" },
+            ],
+          } as T;
+        if (kind === "synth" && (id === "pop-patch" || id === "chime-patch"))
+          return {
+            kind: "synth",
+            v: 1,
+            wave: "square",
+            freq: 880,
+            sustainMs: 20,
+            decayMs: 20,
+          } as T;
+        return undefined;
+      },
+      docs: (kind) =>
+        kind === "sound" ? ["chime", "pop"] : kind === "synth" ? ["chime-patch", "pop-patch"] : [],
+    };
+    const collecting: GameDefinition = defineGame({
+      id: "collecting",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      time: { kind: "fixed", rate: 60 },
+      createRuntime: (ctx: EngineContext) => ({
+        afterStep() {
+          if (ctx.tick === 2) ctx.destroy("coin");
+        },
+        snapshot: () => null,
+      }),
+    }) as GameDefinition;
+    const backend = fakeAudioBackend({ state: "running" });
+    const game = await makeGame({
+      game: collecting,
+      audio: { backend },
+      ...({ project: pops } as Partial<GameConfig>),
+    });
+    game.start();
+    const scene: SceneDefinition = {
+      ...doc,
+      game: "collecting",
+      entities: [{ id: "coin", type: "marker", at: [5, 5], tags: ["coin"] }],
+    };
+    expect(game.play(scene)).toMatchObject({ ok: true });
+    runTicks(game, 4);
+    expect(made[0]!.opts.entity?.("coin")).toBeUndefined();
+    const buffers = backend.log.flatMap((c) => (c.op === "buffer" ? [c.clip] : []));
+    expect(buffers).toHaveLength(2);
+    expect(new Set(plays(backend).map((c) => c.clip))).toEqual(new Set(buffers));
+    expect(plays(backend)).toHaveLength(2);
+    expect(plays(backend).every((c) => c.at === plays(backend)[0]!.at)).toBe(true);
+  });
+
   it("a playtest with the audio system and one without end on one digest", async () => {
     const run = async (config: Partial<GameConfig>) => {
       const game = await playing(config);

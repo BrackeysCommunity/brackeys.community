@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { DialogueLogEntry, DialogueView, DialogueViewChoice } from "../dialogue/runner";
 import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
 import type { GameCommand } from "../game/types";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import { parseRichText } from "../text/rich";
 import { localeDirection, type StringTable } from "../text/strings";
 import type { GameInstance, GameStoreState, UiActionEvent } from "../types";
+import { UI_FONT } from "../ui/bind";
 import { createCaptions } from "../ui/captions";
 import { createDialogueBox, createTextLog, DIALOGUE_INSET } from "../ui/dialogue";
 import { createUiLayer } from "../ui/layer";
@@ -62,7 +64,12 @@ function view(patch: Partial<DialogueView> = {}): DialogueView {
 
 /** A UiContext over a real UI layer, with a fake game that records what it's sent. */
 function harness(
-  opts: { reducedMotion?: boolean; locale?: string; assets?: Record<string, UiAssetUrl> } = {},
+  opts: {
+    reducedMotion?: boolean;
+    locale?: string;
+    assets?: Record<string, UiAssetUrl>;
+    project?: ProjectRuntimeView;
+  } = {},
 ) {
   const canvas = document.createElement("canvas");
   canvas.tabIndex = 0;
@@ -96,6 +103,7 @@ function harness(
 
   const game = {
     send,
+    project: () => opts.project ?? null,
     on: (event: string, fn: (p: unknown) => void) => {
       if (!handlers.has(event)) handlers.set(event, new Set());
       handlers.get(event)!.add(fn);
@@ -511,5 +519,95 @@ describe("renderRichText", () => {
     el.textContent = "old";
     renderRichText(el, parseRichText("new").lines, { assetUrl: () => null });
     expect(el.textContent).toBe("new");
+  });
+});
+
+describe("the locale's font", () => {
+  /** A project whose default locale draws in a web font and whose ar in a BMFont. */
+  const project = {
+    engine: { locales: { default: "en", available: ["en", "ar"], fonts: { en: "ui", ar: "pix" } } },
+    asset: (id: string) =>
+      id === "ui"
+        ? { kind: "font", sha256: "f00d", font: { format: "woff2" } }
+        : id === "pix"
+          ? { kind: "font", sha256: "beef", font: { format: "bmfont" }, pages: [] }
+          : undefined,
+  } as unknown as ProjectRuntimeView;
+
+  const added: { family: string; source: string }[] = [];
+  class FakeFace {
+    constructor(
+      readonly family: string,
+      readonly source: string,
+    ) {}
+    load = () => Promise.resolve(this);
+  }
+  const fonts = {
+    add: (face: FakeFace) => void added.push(face),
+    [Symbol.iterator]: () => added[Symbol.iterator](),
+  };
+
+  afterEach(() => {
+    added.length = 0;
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(document, "fonts");
+  });
+
+  it("draws the box, log and captions in the locale's web font, added once, else the system face", () => {
+    vi.stubGlobal("FontFace", FakeFace);
+    Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+    const h = harness({
+      reducedMotion: true,
+      project,
+      assets: { ui: { url: "blob:ui-font" } },
+    });
+    const ui = [createDialogueBox(h.ctx), createTextLog(h.ctx), createCaptions(h.ctx)];
+    h.setDialogue(view());
+    const family = '"jams-ui-font-f00d", system-ui, sans-serif';
+    const log = document.querySelector<HTMLElement>("[data-jams-text-log]")!;
+    const region = document.querySelector<HTMLElement>("[data-jams-captions]")!;
+    for (const el of [box(), log, region]) expect(el.style.getPropertyValue(UI_FONT)).toBe(family);
+    expect(added.map((f) => [f.family, f.source])).toEqual([
+      ["jams-ui-font-f00d", 'url("blob:ui-font")'],
+    ]);
+    expect(region.style.fontFamily).toBe("var(--jams-ui-font, system-ui, sans-serif)");
+    expect(box().querySelector("style")!.textContent).toContain(
+      "font-family: var(--jams-ui-font, system-ui, sans-serif)",
+    );
+
+    h.setLocale("ar");
+    for (const el of [box(), log, region]) expect(el.style.getPropertyValue(UI_FONT)).toBe("");
+    for (const part of ui) part.destroy();
+  });
+
+  it("keeps the system face where the host serves no font", () => {
+    const h = harness({ reducedMotion: true, project });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view());
+    expect(box().style.getPropertyValue(UI_FONT)).toBe("");
+    ui.destroy();
+  });
+});
+
+describe("a long choice list", () => {
+  it("caps the box to the layer and scrolls it, never the page, to the focused choice", () => {
+    const h = harness({ reducedMotion: true });
+    const ui = createDialogueBox(h.ctx);
+    h.setDialogue(view({ choices: CHOICES }));
+    const css = box().querySelector("style")!.textContent!;
+    expect(css).toMatch(/max-height: calc\(100% - [^;]+ - 32px\);\s*overflow-y: auto;/);
+
+    const rect = (top: number, bottom: number) => ({ top, bottom }) as DOMRect;
+    let scrolled = 0;
+    Object.defineProperty(box(), "scrollTop", {
+      get: () => scrolled,
+      set: (v: number) => void (scrolled = v),
+      configurable: true,
+    });
+    box().getBoundingClientRect = () => rect(0, 100);
+    buttons()[1]!.getBoundingClientRect = () => rect(120, 150);
+    h.act("down");
+    expect(scrolled).toBe(50);
+    ui.destroy();
   });
 });

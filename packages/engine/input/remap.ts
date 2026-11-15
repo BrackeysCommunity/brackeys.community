@@ -1,5 +1,7 @@
+import { browserGameStore, memoryGameStore, snapshotGameStore } from "../game-store";
 import { KEY_CODES, PAD_BUTTONS, type PadButton, type PointerButton } from "../game/input-codes";
 import type { Binding } from "../game/types";
+import { isPlainObject } from "../project/kinds/define";
 
 /** A player's remapped bindings, per seat and action. */
 export type RemapState = {
@@ -15,14 +17,7 @@ export interface RemapStore {
 
 /** Remaps kept for this page's life: tests, and hosts that don't persist them. */
 export function memoryRemapStore(): RemapStore {
-  const saved = new Map<string, RemapState>();
-  return {
-    load: (gameId) => {
-      const state = saved.get(gameId);
-      return state ? structuredClone(state) : null;
-    },
-    save: (gameId, state) => void saved.set(gameId, structuredClone(state)),
-  };
+  return memoryGameStore();
 }
 
 /**
@@ -31,80 +26,36 @@ export function memoryRemapStore(): RemapStore {
  * doesn't parse as a v1 state, loads as none and never throws.
  */
 export function browserRemapStore(prefix = "jams-engine:remap:"): RemapStore {
-  const storage = (): Storage | null => {
-    try {
-      return globalThis.localStorage ?? null;
-    } catch {
-      return null;
-    }
-  };
-  return {
-    load: (gameId) => {
-      try {
-        const raw = storage()?.getItem(`${prefix}${gameId}`);
-        if (raw == null) return null;
-        const state: unknown = JSON.parse(raw);
-        return isRemapState(state) ? state : null;
-      } catch {
-        return null;
-      }
-    },
-    save: (gameId, state) => {
-      try {
-        storage()?.setItem(`${prefix}${gameId}`, JSON.stringify(state));
-      } catch {
-        // A remap that can't persist still applies for this session.
-      }
-    },
-  };
+  return browserGameStore(prefix, isRemapState);
 }
-
-/** How long a snapshot store waits after the last change before handing remaps back. */
-const SNAPSHOT_REMAP_SAVE_DELAY_MS = 500;
 
 /**
  * Remaps a host keeps for the game: `load` reads the snapshot the host
  * handed over at start (none when it isn't a v1 state) and then the latest
  * change; `save` hands the latest state back to the host once no change has
- * come for `SNAPSHOT_REMAP_SAVE_DELAY_MS`, so a run of edits posts once.
+ * come for 500 ms, so a run of edits posts once.
  */
 export function snapshotRemapStore(
   initial: unknown,
   save: (gameId: string, state: RemapState) => void,
 ): RemapStore {
-  let snapshot: RemapState | null = isRemapState(initial) ? structuredClone(initial) : null;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  return {
-    load: () => (snapshot ? structuredClone(snapshot) : null),
-    save: (gameId, state) => {
-      const held = structuredClone(state);
-      snapshot = held;
-      if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        save(gameId, structuredClone(held));
-      }, SNAPSHOT_REMAP_SAVE_DELAY_MS);
-    },
-  };
+  return snapshotGameStore(initial, isRemapState, save);
 }
 
 const DEVICES: readonly string[] = ["key", "pad", "pointer", "touch"];
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /** The stored shape only; whether each binding names a real code is the binding check's job. */
 function isRemapState(value: unknown): value is RemapState {
-  if (!isRecord(value) || value.v !== 1 || !isRecord(value.players)) return false;
+  if (!isPlainObject(value) || value.v !== 1 || !isPlainObject(value.players)) return false;
   return Object.entries(value.players).every(
     ([seat, actions]) =>
       /^(0|[1-9]\d*)$/.test(seat) &&
-      isRecord(actions) &&
+      isPlainObject(actions) &&
       Object.values(actions).every(
         (bindings) =>
           Array.isArray(bindings) &&
           bindings.every(
-            (b) => isRecord(b) && typeof b.device === "string" && DEVICES.includes(b.device),
+            (b) => isPlainObject(b) && typeof b.device === "string" && DEVICES.includes(b.device),
           ),
       ),
   );

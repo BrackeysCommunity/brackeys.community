@@ -2,12 +2,26 @@ import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-ic
 import type { Store } from "@tanstack/store";
 import { useEffect, useId, useState } from "react";
 
-import type { GameStoreState } from "../../types";
-import { applySoundInPlay, SOUND_IN_PLAY_KEY, soundInPlay } from "../audio/editor-audio";
+import type { GameInstance, GameStoreState } from "../../types";
+import { applySoundInPlay, useSoundInPlay } from "../audio/editor-audio";
 import { Island } from "../frame/EditorFrame";
 import type { EditorControls } from "../frame/keys";
 import { STORAGE_PREFIX } from "../host";
-import { Badge, Button, Hint, IconButton, KeyHint, Switch, Text, useKit } from "../kit/index";
+import {
+  Badge,
+  Button,
+  Hint,
+  IconButton,
+  KeyHint,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Text,
+  useKit,
+} from "../kit/index";
 import type { EditorHostState } from "../session/live-scene-editor";
 import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
@@ -28,6 +42,8 @@ export const SOUND_IN_PLAY_TOOLTIP =
 
 /** Said when Sound in Play is turned on in a Play that started without it. */
 export const SOUND_NEXT_PLAY = "Sound starts at the next Play";
+
+export const LOCALE_TOOLTIP = "Preview the game's text in another language";
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -127,6 +143,7 @@ export function EditorPlayBar({
         </div>
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
         <SoundInPlayToggle game={game} onLater={setSoundLater} />
+        <LocalePicker game={game} />
         <Button
           variant="secondary"
           size="sm"
@@ -169,32 +186,31 @@ export function EditorPlayBar({
 }
 
 /**
- * The Live in Play switch: off by default, the viewer's last choice taken
- * again at each Play. Its label toggles it too. Where the scene or game can't
- * take live updates it is disabled but focusable, so its hint, which gives the
- * reason, opens from the keyboard as well as on hover. Once flipped, its hint
- * stays shut until the pointer or focus leaves, so the status it would cover
- * above the bar can be read.
+ * A labelled switch in the play bar; its label toggles it too. Once flipped,
+ * its hint stays shut until the pointer or focus leaves, so the status it
+ * would cover above the bar can be read. With an `unavailable` reason it is
+ * disabled but focusable, so the hint giving the reason opens from the
+ * keyboard as well as on hover.
  */
-function LiveInPlayToggle({
-  host,
+function PlayBarSwitch({
+  label,
+  tooltip,
+  checked,
   onChange,
+  unavailable = null,
 }: {
-  host: Store<EditorHostState>;
+  label: string;
+  tooltip: string;
+  checked: boolean;
   onChange: (on: boolean) => void;
+  unavailable?: string | null;
 }) {
-  const { storage } = useKit();
   const id = useId();
   const reasonId = useId();
-  const on = useStoreValue(host, (s) => s.livePlay?.on ?? false);
-  const unavailable = useStoreValue(host, (s) => s.livePlay?.unavailable ?? null);
   const [flipped, setFlipped] = useState(false);
-  useEffect(() => {
-    if (readStored(storage, LIVE_PLAY_KEY, false, storedFlag)) onChange(true);
-  }, [storage, onChange]);
-  const label = (
+  const text = (
     <Text size="sm" variant={unavailable !== null ? "muted" : "primary"} aria-hidden>
-      Live in Play
+      {label}
     </Text>
   );
   if (unavailable !== null) {
@@ -202,13 +218,13 @@ function LiveInPlayToggle({
       <Hint content={unavailable}>
         <span className="je-live-toggle" data-unavailable="">
           <Switch
-            aria-label="Live in Play"
+            aria-label={label}
             aria-describedby={reasonId}
-            checked={on}
+            checked={checked}
             disabled
             focusableWhenDisabled
           />
-          {label}
+          {text}
           <span id={reasonId} className="je-sr-only">
             {unavailable}
           </span>
@@ -217,7 +233,7 @@ function LiveInPlayToggle({
     );
   }
   return (
-    <Hint content={`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`} closed={flipped}>
+    <Hint content={tooltip} closed={flipped}>
       <label
         className="je-live-toggle"
         htmlFor={id}
@@ -226,57 +242,121 @@ function LiveInPlayToggle({
       >
         <Switch
           id={id}
-          aria-label="Live in Play"
-          checked={on}
+          aria-label={label}
+          checked={checked}
           onCheckedChange={(next) => {
             setFlipped(true);
-            writeStored(storage, LIVE_PLAY_KEY, next);
             onChange(next);
           }}
         />
-        {label}
+        {text}
       </label>
     </Hint>
   );
 }
 
+/** The Live in Play switch: off by default, the viewer's last choice taken again at each Play. */
+function LiveInPlayToggle({
+  host,
+  onChange,
+}: {
+  host: Store<EditorHostState>;
+  onChange: (on: boolean) => void;
+}) {
+  const { storage } = useKit();
+  const on = useStoreValue(host, (s) => s.livePlay?.on ?? false);
+  const unavailable = useStoreValue(host, (s) => s.livePlay?.unavailable ?? null);
+  useEffect(() => {
+    if (readStored(storage, LIVE_PLAY_KEY, false, storedFlag)) onChange(true);
+  }, [storage, onChange]);
+  return (
+    <PlayBarSwitch
+      label="Live in Play"
+      tooltip={`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`}
+      checked={on}
+      unavailable={unavailable}
+      onChange={(next) => {
+        writeStored(storage, LIVE_PLAY_KEY, next);
+        onChange(next);
+      }}
+    />
+  );
+}
+
 /**
- * The Sound in Play switch: off by default, kept per viewer. The editor's
- * game reads it when Play starts; flipped mid-Play, off silences the game
- * at once and on brings it back, or, in a Play that started silent, says
- * the sound starts at the next one.
+ * The Sound in Play switch: off by default, kept per viewer, and following a
+ * change made in another tab. The editor's game reads it when Play starts;
+ * changed mid-Play, off silences the game at once and on brings it back, or,
+ * in a Play that started silent, says the sound starts at the next one.
  */
 function SoundInPlayToggle({ game, onLater }: { game: object; onLater: (later: boolean) => void }) {
   const { storage } = useKit();
-  const id = useId();
-  const [on, setOn] = useState(() => soundInPlay(storage));
-  const [flipped, setFlipped] = useState(false);
+  const [on, setOn] = useSoundInPlay(storage);
   useEffect(() => {
-    if (soundInPlay(storage)) applySoundInPlay(game, true);
-  }, [game, storage]);
+    onLater(!applySoundInPlay(game, on));
+  }, [game, on, onLater]);
   return (
-    <Hint content={`${SOUND_IN_PLAY_TOOLTIP}.`} closed={flipped}>
-      <label
-        className="je-live-toggle"
-        htmlFor={id}
-        onPointerLeave={() => setFlipped(false)}
-        onBlur={() => setFlipped(false)}
-      >
-        <Switch
-          id={id}
-          aria-label="Sound in Play"
-          checked={on}
-          onCheckedChange={(next) => {
-            setFlipped(true);
-            setOn(next);
-            writeStored(storage, SOUND_IN_PLAY_KEY, next);
-            onLater(!applySoundInPlay(game, next));
-          }}
-        />
-        <Text size="sm" variant="primary" aria-hidden>
-          Sound in Play
-        </Text>
-      </label>
-    </Hint>
+    <PlayBarSwitch
+      label="Sound in Play"
+      tooltip={`${SOUND_IN_PLAY_TOOLTIP}.`}
+      checked={on}
+      onChange={setOn}
+    />
+  );
+}
+
+/** The chrome's game type leaves these out; a stand-in game may have none. */
+type LocaleGame = Partial<Pick<GameInstance, "locale" | "on" | "off">>;
+
+/** A locale's name in the editor's language ("French"), or its code when the browser has none. */
+function localeName(code: string): string {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/**
+ * Switches the game's locale while playing, so translated text and its font
+ * can be checked; the choice is the viewer's, kept in the game's prefs. Shown
+ * only when the project lists more than one locale.
+ */
+function LocalePicker({ game }: { game: object }) {
+  const { cue } = useKit();
+  const g = game as LocaleGame;
+  const locale = g.locale ?? null;
+  const [current, setCurrent] = useState(() => locale?.current() ?? null);
+  useEffect(() => {
+    if (!locale || !g.on || !g.off) return;
+    const changed = ({ to }: { to: string }) => setCurrent(to);
+    g.on("locale:change", changed);
+    return () => g.off?.("locale:change", changed);
+  }, [g, locale]);
+  const available = locale?.available() ?? [];
+  if (!locale || current === null || available.length < 2) return null;
+  return (
+    <Select
+      value={current}
+      onValueChange={(next) => {
+        if (typeof next !== "string" || next === current) return;
+        cue("toggle");
+        locale.set(next);
+        setCurrent(locale.current());
+      }}
+    >
+      <Hint content={LOCALE_TOOLTIP}>
+        <SelectTrigger size="xs" aria-label="Locale">
+          <SelectValue>{localeName(current)}</SelectValue>
+        </SelectTrigger>
+      </Hint>
+      <SelectContent>
+        {available.map((code) => (
+          <SelectItem key={code} value={code}>
+            {localeName(code)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

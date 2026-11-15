@@ -1,5 +1,6 @@
-import type { JsonValue, Registry } from "../game/types";
-import type { PrefsStore } from "../prefs";
+import type { Registry } from "../game/types";
+import { clamp } from "../math";
+import { PREF_KEYS, setPref, type PrefsStore } from "../prefs";
 import type { AssetInfo } from "../project/asset-info";
 import { sameValue } from "../project/canonical";
 import { AUDIO_KIND } from "../project/kinds/audio";
@@ -18,7 +19,7 @@ import type { AudioRequest } from "../runtime/present";
 import type { StepEvent } from "../runtime/types";
 import { entityTags, tagFieldsOf } from "../scene/schema";
 import type { RuntimeEntity } from "../scene/types";
-import { Rng } from "../sim-kit/rng";
+import { Rng, unitFloat } from "../sim-kit/rng";
 import type { GameEventMap, Vec2 } from "../types";
 import {
   CALIBRATION_BEATS_DEFAULT,
@@ -60,7 +61,11 @@ export type AudioSystemOptions = {
   reducedMotion: () => boolean;
   /** Raises a host event on the game instance. */
   emit: <K extends AudioHostEvent>(event: K, payload: GameEventMap[K]) => void;
-  /** A loaded entity by id, for `on` matchers that name a type or tag; without it those never match. */
+  /**
+   * The entity a tick's event names, for `on` matchers that name a type or
+   * tag: live, or as it was when that tick removed it. Without it those
+   * matchers never match.
+   */
   entity?: (id: string) => RuntimeEntity | undefined;
   /** The latency the last `@latency` command carried, ms, which the clock reports; 0 without it. */
   latencyMs?: () => number;
@@ -91,7 +96,7 @@ export type AudioSystemHandle = AudioSystem & {
 /** How long `music` crossfades when the request names no `fadeMs`. */
 export const MUSIC_FADE_MS_DEFAULT = 800;
 
-/** An audio clip's import settings the system reads, when the asset's info carries them. */
+/** A positional voice's source: an entity it follows, or a fixed point. */
 type Source = { entity?: string; at?: Vec2 };
 
 /** Where a voice plays from: set for a positional sound's voice. */
@@ -117,18 +122,21 @@ type Clip = {
   loading: Promise<void> | null;
 };
 
-/** `anchor` is set for music started `at: "tick"`, which the clock follows. */
+/**
+ * `anchor` is set for music started `at: "tick"`, which the clock follows.
+ * `span` is filled once its clip plays; a stream's length arrives later
+ * and is read from `clip` until then.
+ */
 type Music = {
   sound: AssetId;
   voice: Voice | null;
   anchor: MusicAnchor | null;
+  clip: AudioClipHandle | null;
   span: ClipSpan | null;
 };
 
-const U32 = 0x1_0000_0000;
 /** How often a calibration looks at the context clock for the track's end, wall ms. */
 const CALIBRATION_POLL_MS = 50;
-const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
 /**
  * The shell's audio system over `opts.backend`: a presentation listener
@@ -161,13 +169,15 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
   let destroyed = false;
   /** Bumped by `stopAll`, so a play waiting on a decode from before it never starts. */
   let epoch = 0;
+  /** Per key, the plays waiting on a decode and the stops since the first: a stopped key's waiting plays never start. */
+  const waitingKeys = new Map<string, { plays: number; stops: number }>();
 
   const buses = new Map<BusName, BusLevel>();
   const saved = prefs.load(gameId);
   for (const bus of audioBuses(registry)) {
     const declared = registry.game?.audio?.buses?.find((b) => b.name === bus);
     const level: BusLevel = { volume: declared?.volume ?? 1, muted: false };
-    const pref = saved[`audio.${bus}`];
+    const pref = saved[PREF_KEYS.busKey(bus)];
     if (isPlainObject(pref)) {
       if (typeof pref.volume === "number") level.volume = clamp(pref.volume, 0, 1);
       if (typeof pref.muted === "boolean") level.muted = pref.muted;
@@ -221,9 +231,14 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     return entry;
   }
 
-  /** Runs `start` with the variant's clip now, or once it decodes; nothing for a clip that can't load. */
+  /**
+   * Runs `start` with the variant's clip now, or once it decodes; nothing
+   * for a clip that can't load. A play keyed `key` that waits on the decode
+   * doesn't start once a stop of `key` came meanwhile.
+   */
   function withClip(
     id: AssetId,
+    key: string | undefined,
     start: (clip: AudioClipHandle, info: AssetInfo | undefined) => void,
   ): void {
     const patch = project.doc?.<SynthFile>(SYNTH_KIND, id);
@@ -232,9 +247,21 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     if (info?.kind !== AUDIO_KIND) return;
     const clip = audioClip(id, info);
     if (clip.ready) return start(clip.ready, info);
+    const loading = clip.loading;
+    if (!loading) return;
     const at = epoch;
-    void clip.loading?.then(() => {
-      if (!destroyed && at === epoch && clip.ready) start(clip.ready, info);
+    let waiting: { plays: number; stops: number } | undefined;
+    if (key !== undefined) {
+      waiting = waitingKeys.get(key) ?? { plays: 0, stops: 0 };
+      waiting.plays++;
+      waitingKeys.set(key, waiting);
+    }
+    const stopsAt = waiting?.stops ?? 0;
+    void loading.then(() => {
+      if (waiting && key !== undefined && --waiting.plays === 0) waitingKeys.delete(key);
+      if (destroyed || at !== epoch || !clip.ready) return;
+      if (waiting && waiting.stops !== stopsAt) return;
+      start(clip.ready, info);
     });
   }
 
@@ -243,7 +270,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     if (variants.length <= 1) return variants[0]?.clip;
     let total = 0;
     for (const v of variants) total += v.weight ?? 1;
-    let roll = (rng.nextU32() / U32) * total;
+    let roll = unitFloat(rng) * total;
     for (const v of variants) {
       roll -= v.weight ?? 1;
       if (roll < 0) return v.clip;
@@ -254,7 +281,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
   function pickRate(file: SoundFile, override: number | undefined): number {
     if (override !== undefined) return override;
     const [min, max] = file.pitch ?? [1, 1];
-    return min === max ? min : min + (max - min) * (rng.nextU32() / U32);
+    return min === max ? min : min + (max - min) * unitFloat(rng);
   }
 
   function positionOf(p: Placed): Vec2 | undefined {
@@ -300,7 +327,8 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     const volume = (file.volume ?? 1) * (request.volume ?? 1);
     const source = file.positional && request.source ? request.source : null;
     const caption = request.caption ?? file.caption;
-    withClip(clipId, (clip, info) => {
+    const key = request.key;
+    withClip(clipId, key, (clip, info) => {
       prune();
       const own = voices.filter((p) => p.sound === sound);
       const excess = own.length - (file.maxVoices ?? SOUND_MAX_VOICES_DEFAULT) + 1;
@@ -318,7 +346,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
         pan,
         loop: file.loop ?? false,
         ...loopPoints(info),
-        ...(request.key !== undefined ? { key: request.key } : {}),
+        ...(key !== undefined ? { key } : {}),
       });
       voices.push({ ...where, voice, sound, volume, pan, gain });
       if (caption !== undefined) opts.emit("audio:caption", { key: caption, at: backend.now });
@@ -350,13 +378,14 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     const rate = pickRate(file, undefined);
     const anchor: MusicAnchor | null =
       tick === null ? null : { startTick: tick, startTime: contextTimeOf(tick), offsetMs: 0, rate };
-    const own: Music = { sound, voice: null, anchor, span: null };
+    const own: Music = { sound, voice: null, anchor, clip: null, span: null };
     music = own;
     const fadeInMs = fading ? fadeMs : 0;
     const loop = file.loop ?? false;
-    withClip(clipId, (clip, info) => {
+    withClip(clipId, undefined, (clip, info) => {
       if (music !== own) return;
       const points = loopPoints(info);
+      own.clip = clip;
       own.span = {
         durationMs: clip.duration * 1000,
         loop,
@@ -390,15 +419,17 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
   function resyncMusic(simMs: number): void {
     const own = music;
     const anchor = own?.anchor;
-    if (!own || !anchor || !own.voice || !own.span || own.voice.ended) return;
+    const span = own?.span;
+    if (!own || !anchor || !own.voice || !span || own.voice.ended) return;
     const held = lastSimMs === simMs;
     lastSimMs = simMs;
     if (held) return;
+    if (!Number.isFinite(span.durationMs) && own.clip) span.durationMs = own.clip.duration * 1000;
     const expected = (simMs - anchor.startTick * opts.tickMs) * anchor.rate + anchor.offsetMs;
-    if (expected < 0 || (!own.span.loop && expected >= own.span.durationMs)) return;
-    driftMs = musicDriftMs(own.voice.position() * 1000, expected, own.span);
+    if (expected < 0 || (!span.loop && expected >= span.durationMs)) return;
+    driftMs = musicDriftMs(own.voice.position() * 1000, expected, span);
     if (Math.abs(driftMs) <= MUSIC_DRIFT_LIMIT_MS) return;
-    own.voice.seek(wrapClipMs(expected, own.span) / 1000);
+    own.voice.seek(wrapClipMs(expected, span) / 1000);
     driftMs = 0;
   }
 
@@ -487,10 +518,13 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
         });
         return;
       }
-      case "stop":
+      case "stop": {
+        const waiting = waitingKeys.get(r.key);
+        if (waiting) waiting.stops++;
         for (const p of voices) if (p.voice.key === r.key) p.voice.stop(r.fadeMs);
         prune();
         return;
+      }
       case "music": {
         const fadeMs = r.fadeMs ?? MUSIC_FADE_MS_DEFAULT;
         const tick = r.at === "tick" ? r.tick : null;
@@ -522,14 +556,12 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     for (const id of project.docs?.(SOUND_KIND) ?? []) {
       const file = soundFile(id);
       if (!file?.preload) continue;
-      for (const { clip } of file.variants) withClip(clip, () => {});
+      for (const { clip } of file.variants) withClip(clip, undefined, () => {});
     }
   }
 
-  function savePrefs(): void {
-    const next: Record<string, JsonValue> = { ...prefs.load(gameId) };
-    for (const [bus, level] of buses) next[`audio.${bus}`] = { ...level };
-    prefs.save(gameId, next);
+  function saveBus(bus: BusName, level: BusLevel): void {
+    setPref(prefs, gameId, PREF_KEYS.busKey(bus), { ...level });
   }
 
   function stopAll(fadeMs?: number): void {
@@ -603,7 +635,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
       level.volume = clamp(Number.isFinite(volume) ? volume : level.volume, 0, 1);
       if (muted !== undefined) level.muted = muted;
       backend.setBusVolume(bus, level.muted ? 0 : level.volume);
-      savePrefs();
+      saveBus(bus, level);
     },
     clock,
     stopAll(fadeMs) {

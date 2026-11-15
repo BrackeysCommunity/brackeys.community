@@ -11,6 +11,7 @@ import {
   type DialogueNode,
 } from "../project/kinds/dialogue";
 import type { AssetId } from "../project/types";
+import { DIALOGUE_CHOICES, DIALOGUE_END, DIALOGUE_LINE } from "../runtime/types";
 import type { DialogueVars } from "./vars";
 
 /** How many lines `DialogueView.log` keeps. */
@@ -48,6 +49,8 @@ export type DialogueView = {
   /** Lines shown so far in this conversation, oldest first, at most 200. */
   log: readonly DialogueLogEntry[];
   ended: string | null;
+  /** Stopped where the file gives no way on (a dead end, a missing node, a failed `if` with no `else`): it takes no command. */
+  stuck?: true;
 };
 
 export interface DialogueRunner {
@@ -64,8 +67,6 @@ type RunnerState = {
   view: DialogueView;
   /** Nodes entered, first visit order, the saved history first. */
   visited: string[];
-  /** Stopped where the file gives no way on (a dead end, a missing node, a failed `if` with no `else`). */
-  stuck: boolean;
 };
 
 const SAVE_VERSION = 1;
@@ -82,8 +83,9 @@ const asText = (v: JsonValue): string => (typeof v === "string" ? v : JSON.strin
  * runner's own `dialogue:line { dialogue, node, line }`, `dialogue:choices
  * { dialogue, node, count }` and `dialogue:end { dialogue, ending }`.
  * `opts.visited` is the saved history `visited` conditions also see.
- * Where the file gives no way on, the conversation stops in place and
- * `advance` answers false; the kind's checks report each such node.
+ * Where the file gives no way on, the conversation stops in place with
+ * `stuck` set and `advance` answers false; the kind's checks report each
+ * such node.
  */
 export function createDialogueRunner(
   file: DialogueFile,
@@ -105,7 +107,6 @@ export function createDialogueRunner(
       ended: null,
     },
     visited: [...new Set(opts?.visited ?? [])],
-    stuck: false,
   };
 
   const holds = (c: DialogueCondition): boolean => {
@@ -163,7 +164,7 @@ export function createDialogueRunner(
       });
     });
     set({ choices });
-    emit("dialogue:choices", { dialogue: id, node: node.id, count: choices.length });
+    emit(DIALOGUE_CHOICES, { dialogue: id, node: node.id, count: choices.length });
   };
 
   const show = (node: DialogueNode, index: number) => {
@@ -195,7 +196,7 @@ export function createDialogueRunner(
     const log = [...state.view.log, entry];
     if (log.length > DIALOGUE_LOG_MAX) log.splice(0, log.length - DIALOGUE_LOG_MAX);
     set({ node: node.id, line: index, current, log });
-    emit("dialogue:line", { dialogue: id, node: node.id, line: index });
+    emit(DIALOGUE_LINE, { dialogue: id, node: node.id, line: index });
     if (node.choices?.length && nextLine(node, index) < 0) offerChoices(node);
   };
 
@@ -208,10 +209,10 @@ export function createDialogueRunner(
     if (node.next !== undefined) return enter(node.next, hops);
     if (node.end !== undefined) {
       set({ ended: node.end });
-      emit("dialogue:end", { dialogue: id, ending: node.end });
+      emit(DIALOGUE_END, { dialogue: id, ending: node.end });
       return true;
     }
-    state.stuck = true;
+    set({ stuck: true });
     return false;
   };
 
@@ -240,8 +241,7 @@ export function createDialogueRunner(
       }
       return leave(node, hops + 1);
     }
-    set({ node: to, line: -1, current: {}, choices: null });
-    state.stuck = true;
+    set({ node: to, line: -1, current: {}, choices: null, stuck: true });
     return false;
   };
 
@@ -251,7 +251,7 @@ export function createDialogueRunner(
     view: () => state.view,
     advance() {
       const { view } = state;
-      if (state.stuck || view.ended !== null || view.choices !== null) return false;
+      if (view.stuck || view.ended !== null || view.choices !== null) return false;
       const node = nodes.get(view.node);
       if (!node) return false;
       const next = nextLine(node, view.line);
@@ -263,7 +263,7 @@ export function createDialogueRunner(
     },
     choose(index) {
       const { view } = state;
-      if (state.stuck || view.ended !== null) return false;
+      if (view.stuck || view.ended !== null) return false;
       if (!view.choices?.some((c) => c.index === index && c.enabled)) return false;
       const choice = nodes.get(view.node)?.choices?.[index];
       if (!choice) return false;
@@ -272,13 +272,15 @@ export function createDialogueRunner(
       enter(choice.to);
       return true;
     },
-    save: () =>
-      cloneJson({
+    save() {
+      const { stuck, ...view } = state.view;
+      return cloneJson({
         v: SAVE_VERSION,
-        view: state.view,
+        view,
         visited: state.visited,
-        stuck: state.stuck,
-      }) as unknown as JsonValue,
+        stuck: stuck === true,
+      }) as unknown as JsonValue;
+    },
     restore(saved) {
       state = parseSave(saved, id, nodes);
     },
@@ -303,9 +305,9 @@ function parseSave(
   if (!Array.isArray(visited) || !visited.every((v) => typeof v === "string"))
     fail("its visited list is malformed");
   if (stuck !== true && !nodes.has(view.node)) fail(`the dialogue has no node "${view.node}"`);
+  const { stuck: _, ...shown } = cloneJson(view as unknown as DialogueView);
   return {
-    view: cloneJson(view as unknown as DialogueView),
+    view: stuck === true ? { ...shown, stuck: true } : shown,
     visited: [...(visited as string[])],
-    stuck: stuck === true,
   };
 }

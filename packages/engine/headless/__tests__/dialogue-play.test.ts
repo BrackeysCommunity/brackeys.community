@@ -184,6 +184,7 @@ describe("legal commands walk a conversation", () => {
       legalTruncated: true,
     });
     expect(dialogueCommands({ ...view, ended: "paid" })).toEqual([]);
+    expect(dialogueCommands({ ...view, stuck: true })).toEqual([]);
     expect(
       dialogueCommands({
         ...view,

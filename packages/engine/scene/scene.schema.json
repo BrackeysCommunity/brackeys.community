@@ -2015,6 +2015,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -2022,7 +2023,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -2052,6 +2053,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2134,7 +2137,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -3348,6 +3351,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -3355,7 +3359,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -3385,6 +3389,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3467,7 +3473,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -4669,6 +4675,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -4676,7 +4683,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -4706,6 +4713,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4788,7 +4797,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -6234,6 +6243,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -6241,7 +6251,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -6271,6 +6281,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6353,7 +6365,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -7613,6 +7625,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -7620,7 +7633,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -7650,6 +7663,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -7732,7 +7747,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -8934,6 +8949,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -8941,7 +8957,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -8971,6 +8987,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -9053,7 +9071,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -10490,6 +10508,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -10497,7 +10516,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -10527,6 +10546,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -10609,7 +10630,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -12062,6 +12083,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -12069,7 +12091,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -12099,6 +12121,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -12181,7 +12205,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },
@@ -13641,6 +13665,7 @@
                     "key": {
                       "description": "A string-table key; wins over text.",
                       "group": "text",
+                      "widget": "string-key",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
                     },
@@ -13648,7 +13673,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "Default: the project's font for the locale.",
-                      "title": "Asset",
+                      "title": "Font",
                       "group": "assets",
                       "x-asset-kind": ["font"]
                     },
@@ -13678,6 +13703,8 @@
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
                       "group": "placement",
+                      "step": 0.05,
+                      "decimals": 2,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -13760,7 +13787,7 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
                       "description": "The sound it plays.",
-                      "title": "Asset",
+                      "title": "Sound",
                       "group": "assets",
                       "x-asset-kind": ["sound"]
                     },

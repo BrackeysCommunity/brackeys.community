@@ -1,4 +1,5 @@
 /** Starting points for a patch, and small random changes to one. Pure. */
+import { clamp } from "../math";
 import {
   SYNTH_BOUNDS,
   SYNTH_KIND,
@@ -7,7 +8,7 @@ import {
   type SynthNumberPath,
   type SynthWave,
 } from "../project/kinds/synth";
-import type { Rng } from "../sim-kit/rng";
+import { unitFloat, type Rng } from "../sim-kit/rng";
 
 export const SYNTH_PRESETS = [
   "pickup",
@@ -30,10 +31,8 @@ export const CLICK_PATCH: SynthFile = Object.freeze({
   decayMs: 12,
 });
 
-const unit = (rng: Rng): number => rng.nextU32() / 0x1_0000_0000;
-const between = (rng: Rng, lo: number, hi: number): number => lo + (hi - lo) * unit(rng);
+const between = (rng: Rng, lo: number, hi: number): number => lo + (hi - lo) * unitFloat(rng);
 const pickWave = (rng: Rng, waves: readonly SynthWave[]): SynthWave => rng.pick(waves);
-const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 
 /** Whole ms, Hz to a tenth, everything else to a thousandth: a patch file stays readable. */
 function tidy(path: SynthNumberPath, v: number): number {
@@ -100,7 +99,7 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         slide: between(rng, 1, 4),
         sustainMs: between(rng, 60, 160),
         decayMs: between(rng, 80, 260),
-        highpass: unit(rng) < 0.5 ? { hz: between(rng, 40, 300) } : undefined,
+        highpass: unitFloat(rng) < 0.5 ? { hz: between(rng, 40, 300) } : undefined,
       };
     case "hit":
       return {
@@ -111,7 +110,7 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         sustainMs: between(rng, 10, 60),
         punch: between(rng, 0, 0.6),
         decayMs: between(rng, 60, 260),
-        lowpass: unit(rng) < 0.5 ? { hz: between(rng, 800, 6_000) } : undefined,
+        lowpass: unitFloat(rng) < 0.5 ? { hz: between(rng, 800, 6_000) } : undefined,
       };
     case "explosion":
       return {
@@ -123,11 +122,11 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         punch: between(rng, 0.3, 0.9),
         decayMs: between(rng, 400, 1_600),
         lowpass:
-          unit(rng) < 0.6
+          unitFloat(rng) < 0.6
             ? { hz: between(rng, 600, 4_000), sweep: between(rng, -3, 0) }
             : undefined,
         vibrato:
-          unit(rng) < 0.3
+          unitFloat(rng) < 0.3
             ? { semitones: between(rng, 0.5, 4), hz: between(rng, 4, 20) }
             : undefined,
         seed: rng.range(1, 0xffff_ffff),
@@ -143,7 +142,7 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         slideAccel: between(rng, -4, 4),
         sustainMs: between(rng, 40, 200),
         decayMs: between(rng, 40, 300),
-        highpass: unit(rng) < 0.3 ? { hz: between(rng, 100, 800) } : undefined,
+        highpass: unitFloat(rng) < 0.3 ? { hz: between(rng, 100, 800) } : undefined,
       };
     case "powerup":
       return {
@@ -153,10 +152,10 @@ function draw(preset: SynthPreset, rng: Rng): SynthFile {
         freq: between(rng, 200, 700),
         slide: between(rng, 0.5, 3),
         vibrato:
-          unit(rng) < 0.5
+          unitFloat(rng) < 0.5
             ? { semitones: between(rng, 0.2, 2), hz: between(rng, 6, 18) }
             : undefined,
-        retriggerMs: unit(rng) < 0.5 ? between(rng, 60, 160) : undefined,
+        retriggerMs: unitFloat(rng) < 0.5 ? between(rng, 60, 160) : undefined,
         sustainMs: between(rng, 200, 500),
         decayMs: between(rng, 100, 500),
       };

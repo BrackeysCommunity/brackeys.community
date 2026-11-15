@@ -189,6 +189,10 @@ export type Lifecycle = {
   enabledSelf: (id: string) => boolean;
   exists: (id: string) => boolean;
   get: (id: string) => RuntimeEntity | undefined;
+  /** `id` as it was when the current or last step removed it, so that step's events can still name its type and tags. */
+  removed: (id: string) => RuntimeEntity | undefined;
+  /** At each step's start: forgets what the last step removed. */
+  beginStep: () => void;
   /**
    * The end-of-tick destroys, in request order: each id's subtree, children
    * first, gone ids skipped, and ids queued during the flush flushed in the
@@ -298,6 +302,8 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   const records = new Map<string, SpawnRecord>();
   /** Each entity a runtime spawn made, to the spawn's id. */
   const recordOf = new Map<string, string>();
+  /** The entities removed inside the current or last step. */
+  const removedInStep = new Map<string, RuntimeEntity>();
   let generation = 0;
 
   function posed(e: RuntimeEntity): void {
@@ -842,6 +848,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       forgetSpawn(e.id);
       for (const ids of sublevelSpawns.values()) ids.delete(e.id);
       deps.changed(e.type);
+      if (deps.stepping()) removedInStep.set(e.id, e);
       raise(ENTITY_DESTROYED, e, last);
     }
   }
@@ -939,6 +946,8 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     enabledSelf: (id) => joined(id) && !off.has(id),
     exists: live,
     get: (id) => entities.get(id),
+    removed: (id) => removedInStep.get(id),
+    beginStep: () => removedInStep.clear(),
     flush() {
       if (doomed.length > 0) {
         for (let i = 0; i < doomed.length; i++) remove(doomed[i]!);
@@ -954,6 +963,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       sublevelSpawns.clear();
       records.clear();
       recordOf.clear();
+      removedInStep.clear();
       generation++;
     },
     relibrary(next) {
@@ -970,6 +980,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       sublevelSpawns.clear();
       records.clear();
       recordOf.clear();
+      removedInStep.clear();
       generation++;
     },
     get library() {

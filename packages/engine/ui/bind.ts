@@ -1,3 +1,5 @@
+import { textFontOf } from "../game/behaviors/text";
+import { localeFont, localeSettingsOf } from "../project/kinds/strings";
 import type { GameStoreState, Vec2 } from "../types";
 import { UI_LAYER_RESIZE } from "./layer";
 import type { UiContext } from "./types";
@@ -73,4 +75,59 @@ export function watchView(ctx: UiContext, fn: () => void): () => void {
     unwatch();
     ctx.root.removeEventListener(UI_LAYER_RESIZE, onView);
   };
+}
+
+/** A side of the UI layer a host's chrome may cover (`--jams-ui-safe-<side>`). */
+export type UiSide = "top" | "right" | "bottom" | "left";
+
+/** An offset from a layer edge clear of the host's chrome: 16px past its safe inset, plus `extra` (a CSS length). */
+export const uiInset = (side: UiSide, extra?: string): string =>
+  `calc(var(--jams-ui-safe-${side}, 0px) + 16px${extra ? ` + ${extra}` : ""})`;
+
+/** The custom property the DOM helpers' text draws in: the locale's web font, set by `followLocale`. */
+export const UI_FONT = "--jams-ui-font";
+
+/** The helpers' `font-family`: the locale's font where it is a web font, else the system face. */
+export const UI_FONT_FAMILY = `var(${UI_FONT}, system-ui, sans-serif)`;
+
+/**
+ * The CSS family the locale's font (`engine.locales.fonts`) draws in, added
+ * to the document once per content hash; null for no font, a BMFont (the
+ * DOM can't draw one), or one the host can't serve.
+ */
+function localeFontFamily(el: HTMLElement, ctx: UiContext): string | null {
+  const project = ctx.game.project();
+  if (!project) return null;
+  const id = localeFont(localeSettingsOf(project.engine.locales), ctx.strings().locale);
+  const font = textFontOf((asset) => project.asset(asset), id);
+  if (font?.kind !== "web" || id === undefined) return null;
+  const fonts = el.ownerDocument.fonts as FontFaceSet | undefined;
+  const Face = el.ownerDocument.defaultView?.FontFace;
+  if (!fonts || !Face) return null;
+  const family = `jams-ui-font-${font.family}`;
+  if (![...fonts].some((face) => face.family.replace(/"/g, "") === family)) {
+    const url = ctx.assetUrl(id)?.url;
+    if (!url) return null;
+    const face = new Face(family, `url(${JSON.stringify(url)})`);
+    fonts.add(face);
+    face.load().catch(() => {});
+  }
+  return family;
+}
+
+/** Sets `el`'s `dir`, `lang` and `--jams-ui-font` from the locale now; call again on `onLocale`. */
+export function followLocale(el: HTMLElement, ctx: UiContext): void {
+  const strings = ctx.strings();
+  el.dir = strings.direction;
+  el.lang = strings.locale;
+  const family = localeFontFamily(el, ctx);
+  if (family) el.style.setProperty(UI_FONT, `${JSON.stringify(family)}, system-ui, sans-serif`);
+  else el.style.removeProperty(UI_FONT);
+}
+
+/** Calls `fn` on a locale change; returns the unsubscribe. Read the table through `ctx.strings()` in it. */
+export function onLocale(ctx: UiContext, fn: () => void): () => void {
+  const handler = () => fn();
+  ctx.game.on("locale:change", handler);
+  return () => ctx.game.off("locale:change", handler);
 }

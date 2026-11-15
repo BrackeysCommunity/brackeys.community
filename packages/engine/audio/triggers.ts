@@ -18,8 +18,9 @@ const NONE: readonly AssetId[] = Object.freeze([]);
 
 /**
  * The trigger index over a project's sound docs. `entity` answers a
- * matcher's `type` and `tag`; without it, or for an event with no entity,
- * those matchers never match.
+ * matcher's `type` and `tag`, so it must still know an entity the event's
+ * tick removed; without it, or for an event with no entity, those matchers
+ * never match.
  */
 export function soundTriggers(
   project: ProjectRuntimeView,

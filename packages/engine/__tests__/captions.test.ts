@@ -82,6 +82,7 @@ function build(opts: { ms?: number; requested?: boolean; saved?: boolean } = {})
     },
     off: (event: string, fn: Handler) => void handlers.get(event)?.delete(fn),
     captions,
+    project: () => null,
   } as unknown as GameInstance;
 
   const canvas = document.createElement("canvas");

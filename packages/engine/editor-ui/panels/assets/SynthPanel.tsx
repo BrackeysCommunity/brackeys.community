@@ -1,33 +1,34 @@
 import { ShuffleIcon, VolumeHighIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { z } from "zod";
 
 import { renderSynth, synthDurationMs } from "../../../audio/synth";
-import { mutateSynth, randomSynth, SYNTH_PRESETS } from "../../../audio/synth-presets";
+import {
+  mutateSynth,
+  randomSynth,
+  SYNTH_PRESETS,
+  type SynthPreset,
+} from "../../../audio/synth-presets";
 import {
   settingsEdit,
   settingsRows,
   settingsValue,
   type InspectorRow,
 } from "../../../editor/settings-model";
+import { capitalise } from "../../../game/live";
 import { sameValue } from "../../../project/canonical";
 import type { JsonEdit } from "../../../project/index";
-import {
-  SYNTH_BOUNDS,
-  synthKind,
-  type SynthFile,
-  type SynthNumberPath,
-} from "../../../project/kinds/synth";
+import { SYNTH_BOUNDS, type SynthFile, type SynthNumberPath } from "../../../project/kinds/synth";
 import { jsonPointer } from "../../../scene/issues";
-import { unwrapSchema } from "../../../scene/schema";
 import { Rng } from "../../../sim-kit/rng";
 import { useAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
 import { AuditionButton, formatClipLength, useEditorAudio } from "../../audio/editor-audio";
 import { STORAGE_PREFIX } from "../../host";
-import { Button, IconButton, MicroLabel, Slider, Switch, Text, useKit } from "../../kit/index";
+import { Button, IconButton, Slider, Switch, Text, useKit } from "../../kit/index";
 import { readStored, storedFlag, writeStored } from "../../session/stored";
 import {
   FieldRow,
+  InspectorSection,
+  Locked,
   NumberField,
   NumberInput,
   OptionsField,
@@ -36,6 +37,7 @@ import {
 import { AssetPanel } from "../project-tree/asset-panel";
 import { DocGate } from "../settings/DocGate";
 import { settingScope } from "../settings/settings-doc";
+import { synthObject } from "../settings/settings-schemas";
 import { SettingsNote } from "../settings/SettingsRows";
 
 /** Where the viewer's choice to hear a patch as it changes is kept. */
@@ -58,18 +60,15 @@ const BLOCK_DEFAULTS = {
   highpass: () => ({ hz: 200 }),
 } satisfies Record<string, (patch: SynthFile) => Record<string, number>>;
 
-/** An unset field's value as the renderer reads it, where that isn't 0. */
-const UNSET_AS: Partial<Record<SynthNumberPath, number>> = { duty: 0.5, volume: 1 };
-
 const isBounded = (path: string): path is SynthNumberPath => Object.hasOwn(SYNTH_BOUNDS, path);
 
 /** The fields that only change a square wave. */
 const SQUARE_ONLY: readonly string[] = ["duty", "dutySweep"];
 
-const synthObject = (): z.ZodObject | null => {
-  const inner = unwrapSchema(synthKind.schema());
-  return inner instanceof z.ZodObject ? inner : null;
-};
+/** A preset's button label where its id doesn't read as one. */
+const PRESET_LABELS: Partial<Record<SynthPreset, string>> = { powerup: "Power-up" };
+
+const presetLabel = (preset: SynthPreset) => PRESET_LABELS[preset] ?? capitalise(preset);
 
 /** `patch` with `value` at dot `path` (undefined removes it). */
 function withField(patch: SynthFile, path: string, value: unknown): SynthFile {
@@ -122,48 +121,40 @@ export function waveformPeaks(samples: Float32Array, columns: number): Float32Ar
   return out;
 }
 
-const WAVE_HEIGHT_PX = 48;
+/** How many columns the strip draws; it stretches to the panel's width. */
+const WAVE_COLUMNS = 240;
 
-/** The patch's render as a strip: each column's low-to-high span around the centre line. */
+/** The low-to-high span of each column as one SVG path, in a `WAVE_COLUMNS` × 2 box centred on 1. */
+export function waveformPath(samples: Float32Array, columns = WAVE_COLUMNS): string {
+  const peaks = waveformPeaks(samples, columns);
+  const parts: string[] = [];
+  for (let x = 0; x < columns; x++) {
+    const lo = peaks[x * 2]!;
+    const hi = peaks[x * 2 + 1]!;
+    const top = 1 - hi;
+    const height = Math.max(0.02, hi - lo);
+    parts.push(`M${x} ${top.toFixed(3)}h1v${height.toFixed(3)}h-1z`);
+  }
+  return parts.join("");
+}
+
+/**
+ * The patch's render as a strip: each column's low-to-high span around the
+ * centre line, filled with the text colour so it follows the theme.
+ */
 function Waveform({ samples }: { samples: Float32Array }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const draw = () => {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      const ratio = globalThis.devicePixelRatio || 1;
-      const width = Math.max(1, Math.round((canvas.clientWidth || 240) * ratio));
-      const height = Math.round(WAVE_HEIGHT_PX * ratio);
-      canvas.width = width;
-      canvas.height = height;
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = getComputedStyle(canvas).color;
-      const mid = height / 2;
-      const peaks = waveformPeaks(samples, width);
-      for (let x = 0; x < width; x++) {
-        const lo = peaks[x * 2]!;
-        const hi = peaks[x * 2 + 1]!;
-        const top = mid - hi * mid;
-        ctx.fillRect(x, top, 1, Math.max(1, (hi - lo) * mid));
-      }
-    };
-    draw();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(draw);
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [samples]);
+  const d = useMemo(() => waveformPath(samples), [samples]);
   return (
-    <canvas
-      ref={ref}
+    <svg
       className="je-synth-wave"
       role="img"
       aria-label="Waveform"
       data-samples={samples.length}
-      style={{ height: WAVE_HEIGHT_PX }}
-    />
+      viewBox={`0 0 ${WAVE_COLUMNS} 2`}
+      preserveAspectRatio="none"
+    >
+      <path d={d} fill="currentColor" />
+    </svg>
   );
 }
 
@@ -296,9 +287,10 @@ function SynthFields({ doc, value }: { doc: AssetDoc; value: SynthFile }) {
         />
       </div>
       <Waveform samples={samples} />
-      <section aria-label="Presets" className="je-insp-section" data-open="">
-        <div className="je-insp-section-head">
-          <MicroLabel className="je-sp-truncate">Presets</MicroLabel>
+      <InspectorSection
+        id="synth:presets"
+        title="Presets"
+        actions={
           <Button
             size="xs"
             variant="ghost"
@@ -310,29 +302,36 @@ function SynthFields({ doc, value }: { doc: AssetDoc; value: SynthFile }) {
           >
             Mutate
           </Button>
-        </div>
+        }
+      >
         <div className="je-synth-presets">
-          {SYNTH_PRESETS.map((preset) => (
-            <Button
-              key={preset}
-              size="xs"
-              variant="secondary"
-              disabled={readOnly}
-              tooltip={`A random ${preset} patch in place of this one`}
-              onClick={() => replace(randomSynth(preset, rng), `New ${preset} patch`)}
-            >
-              {preset}
-            </Button>
-          ))}
+          {SYNTH_PRESETS.map((preset) => {
+            const label = presetLabel(preset);
+            return (
+              <Button
+                key={preset}
+                size="xs"
+                variant="secondary"
+                data-preset={preset}
+                disabled={readOnly}
+                tooltip={`A random ${label.toLowerCase()} patch in place of this one`}
+                onClick={() =>
+                  replace(randomSynth(preset, rng), `New ${label.toLowerCase()} patch`)
+                }
+              >
+                {label}
+              </Button>
+            );
+          })}
         </div>
-      </section>
-      <fieldset disabled={readOnly} style={{ display: "contents" }}>
+      </InspectorSection>
+      <Locked disabled={readOnly}>
         <div className="je-insp-stack">
           {rows.map((row) => (
             <SynthRow key={row.path} row={row} patch={value} doc={doc} change={change} />
           ))}
         </div>
-      </fieldset>
+      </Locked>
     </div>
   );
 }
@@ -354,27 +353,32 @@ function SynthRow({
   patch,
   doc,
   change,
+  block,
 }: {
   row: InspectorRow;
   patch: SynthFile;
   doc: AssetDoc;
   change: Change;
+  /** The block a nested row is in, whose title names its controls with the row's. */
+  block?: InspectorRow;
 }) {
   const scope = settingScope(doc.docName, row.path);
   const commit = commitRow(change, row);
   const disabled = doc.readOnly !== null;
+  const label = block ? `${block.title} ${row.title.toLowerCase()}` : row.title;
   switch (row.widget.kind) {
     case "number":
       return isBounded(row.path) ? (
-        <SliderField row={row} path={row.path} scope={scope} commit={commit} />
+        <SliderField row={row} path={row.path} label={label} scope={scope} commit={commit} />
       ) : (
-        <NumberField field={row} commit={commit} scope={scope} disabled={disabled} />
+        <NumberField field={row} label={label} commit={commit} scope={scope} disabled={disabled} />
       );
     case "segmented":
     case "select":
       return (
         <OptionsField
           field={row}
+          label={label}
           commit={commit}
           scope={scope}
           options={row.widget.options}
@@ -394,11 +398,14 @@ type NumberWidget = Extract<InspectorRow["widget"], { kind: "number" }>;
 function SliderField({
   row,
   path,
+  label,
   scope,
   commit,
 }: {
   row: InspectorRow;
   path: SynthNumberPath;
+  /** The controls' accessible name. */
+  label: string;
   scope: string;
   commit: (input: unknown) => Promise<string | null>;
 }) {
@@ -407,13 +414,15 @@ function SliderField({
   const [drag, setDrag] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const value = typeof row.value === "number" ? row.value : undefined;
-  const shown = drag ?? value ?? Math.min(max, Math.max(min, UNSET_AS[path] ?? 0));
+  // An unset field plays as its schema default, else 0.
+  const unset = typeof row.defaultValue === "number" ? row.defaultValue : 0;
+  const shown = drag ?? value ?? Math.min(max, Math.max(min, unset));
   const write = (input: unknown) => void commit(input).then(setError);
   return (
     <FieldRow field={row} scope={scope} error={error}>
       <div className="je-insp-row je-synth-slider" data-gap="tight">
         <Slider
-          aria-label={`${row.path} slider`}
+          aria-label={`${label} slider`}
           min={min}
           max={max}
           step={w.step}
@@ -426,7 +435,7 @@ function SliderField({
           }}
         />
         <NumberInput
-          label={row.path}
+          label={label}
           value={value}
           fallback={row}
           mixed={false}
@@ -462,7 +471,7 @@ function BlockField({
     <>
       <FieldRow field={row} scope={settingScope(doc.docName, row.path)}>
         <Switch
-          aria-label={`${row.path} on`}
+          aria-label={`${row.title} on`}
           checked={on}
           disabled={doc.readOnly !== null || (!on && !fill)}
           onCheckedChange={(checked) =>
@@ -477,7 +486,14 @@ function BlockField({
       {on && row.children ? (
         <div className="je-insp-stack je-insp-nested">
           {row.children.map((child) => (
-            <SynthRow key={child.path} row={child} patch={patch} doc={doc} change={change} />
+            <SynthRow
+              key={child.path}
+              row={child}
+              patch={patch}
+              doc={doc}
+              change={change}
+              block={row}
+            />
           ))}
         </div>
       ) : null}

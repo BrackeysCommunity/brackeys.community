@@ -21,7 +21,8 @@ import { createInputState } from "../input/state";
 import { memoryPrefsStore } from "../prefs";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AudioRequest } from "../runtime/present";
-import { createSceneRuntime } from "../runtime/runtime";
+import { createSceneRuntime, SAVE_INPUT_KEY } from "../runtime/runtime";
+import { captureSave, restoreLoaded } from "../runtime/save-state";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { SCENE_FORMAT_VERSION, type ExpandedScene, type SceneDefinition } from "../scene/types";
 import type { ToolEvent } from "../tool-router";
@@ -258,6 +259,47 @@ describe("latencyMs", () => {
       { name: LATENCY_COMMAND, args: { ms: -7 } },
     ]);
     expect(input.latencyMs()).toBe(-7);
+  });
+
+  it("is carried by a world save, so a run restored from it reads and judges as the saved one", () => {
+    const loaded = () => {
+      const rt = createSceneRuntime({
+        rapier: null,
+        view: null,
+        game: metronome as GameDefinition,
+        project,
+      });
+      expect(rt.load(expanded).ok).toBe(true);
+      return rt;
+    };
+    const latency = (ms: number) => [{ name: LATENCY_COMMAND, args: { ms } }];
+    const finish = (rt: SceneRuntimeHandle) => {
+      const steps = Array.from({ length: 5 }, () => rt.step(rt.ctx.time.tickMs, []));
+      return steps.map((r) => [r.tick, r.game]);
+    };
+    const saved = loaded();
+    const tickMs = saved.ctx.time.tickMs;
+    saved.step(tickMs, [], latency(40));
+    for (let i = 0; i < 4; i++) saved.step(tickMs, []);
+    const taken = captureSave(saved, { depth: "world", slot: "s", now: 0 });
+    if (!taken.ok) throw new Error(taken.issue.message);
+    expect(taken.file.world?.systems[SAVE_INPUT_KEY]).toEqual({ latencyMs: 40 });
+
+    const restored = loaded();
+    expect(restoreLoaded(restored, taken.file)).toBeNull();
+    expect(restored.ctx.input.latencyMs()).toBe(40);
+    expect(finish(restored)).toEqual(finish(saved));
+
+    const before = loaded();
+    const plain = captureSave(before, { depth: "world", slot: "s", now: 0 });
+    if (!plain.ok) throw new Error(plain.issue.message);
+    expect(plain.file.world?.systems[SAVE_INPUT_KEY]).toBeUndefined();
+    const calibrated = loaded();
+    calibrated.step(tickMs, [], latency(25));
+    expect(calibrated.load(expanded).ok).toBe(true);
+    expect(calibrated.ctx.input.latencyMs()).toBe(25);
+    expect(restoreLoaded(calibrated, plain.file)).toBeNull();
+    expect(calibrated.ctx.input.latencyMs()).toBe(0);
   });
 
   it("is what the clock reports", () => {

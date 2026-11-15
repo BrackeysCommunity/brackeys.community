@@ -1,6 +1,4 @@
 import {
-  ArrowDown01Icon,
-  ArrowRight01Icon,
   Cancel01Icon,
   FlipHorizontalIcon,
   FlipVerticalIcon,
@@ -16,7 +14,6 @@ import {
   useRef,
   useState,
   type ComponentProps,
-  type MouseEvent,
   type ReactNode,
 } from "react";
 
@@ -99,14 +96,19 @@ import { ticksIn } from "../../game/time";
 import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
-import { AUDIO_KIND } from "../../project/kinds/audio";
+import { DIALOGUE_KIND } from "../../project/kinds/dialogue";
 import { SOUND_KIND } from "../../project/kinds/sound";
+import { STRINGS_KIND } from "../../project/kinds/strings";
 import { SYNTH_KIND } from "../../project/kinds/synth";
 import type { PrefabLibrary } from "../../scene/index";
 import { enclosingInstance, headOfRef } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
-import { AuditionButton, formatLengthRange, useEditorAudio } from "../audio/editor-audio";
-import { STORAGE_PREFIX } from "../host";
+import {
+  AuditionButton,
+  formatLengthRange,
+  isAudibleKind,
+  useEditorAudio,
+} from "../audio/editor-audio";
 import {
   Button,
   Combobox,
@@ -115,7 +117,6 @@ import {
   ComboboxChipsInput,
   ComboboxContent,
   ComboboxEmpty,
-  ComboboxInput,
   ComboboxItem,
   ComboboxList,
   Confirm,
@@ -139,12 +140,9 @@ import {
   Slider,
   Text,
   useComboboxAnchor,
-  useKit,
   type IconSvgElement,
 } from "../kit/index";
-import { useBrowserState } from "../kit/ssr";
 import { openPrefabScope } from "../session/live-scene-editor";
-import { readStored, storedFlags, writeStored } from "../session/stored";
 import {
   useEditorDoc,
   useEditorPrefabs,
@@ -168,7 +166,10 @@ import {
   EditError,
   FieldRow,
   Hinted,
+  IdCombobox,
+  InspectorSection,
   JsonField,
+  Locked,
   MIXED,
   NestedField,
   NumberField,
@@ -176,15 +177,25 @@ import {
   OptionsField,
   PointField,
   PT_BOUNDS,
+  RangeField,
   ReadonlyField,
   resolveNumber,
+  StringKeyField,
   SwitchField,
   TextField,
   UnitSuffix,
   unsetText,
   type Bounds,
+  type Described,
+  type StringKeyTable,
 } from "./inspector/field-widgets";
-import { AssetPanel, type SelectedAsset } from "./project-tree/asset-panel";
+import {
+  AssetPanel,
+  DialoguePanel,
+  StringsPanel,
+  useStringKeyTable,
+  type SelectedAsset,
+} from "./project-tree/asset-panel";
 
 /** Why an edit didn't land in a read-only inspector. */
 const READ_ONLY = "This scene is read-only.";
@@ -221,6 +232,8 @@ type Ctx = {
   drawnBy?: ReadonlySet<string>;
   /** Where an `anim` block's source is read (`useClipSources`), for an asset picker's clip row. */
   sources?: ClipSourceLookup;
+  /** The project's string keys a string-key field picks from; without them it's a text field. */
+  strings?: StringKeyTable | null;
 };
 
 type Edit = { ok: true; batch: OpBatch } | { ok: false; error: string };
@@ -432,58 +445,6 @@ function useLabelColumn() {
     fitLabelColumn(el);
   });
   return setEl;
-}
-
-const COLLAPSED_KEY = `${STORAGE_PREFIX}inspector-collapsed`;
-
-/**
- * A titled group of fields that collapses from its title, remembered per
- * `id` in the host's storage. The title is a `<summary>`, so it stays
- * usable inside a read-only inspector's disabled fieldset.
- */
-function Section({
-  id,
-  title,
-  hint,
-  actions,
-  children,
-}: {
-  id: string;
-  title: string;
-  hint?: string;
-  /** Controls beside the title, such as a behavior's Remove. */
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  const { storage } = useKit();
-  const [open, setOpen] = useBrowserState(
-    () => !readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id],
-    true,
-  );
-  const toggle = (e: MouseEvent) => {
-    e.preventDefault();
-    const closed = { ...readStored(storage, COLLAPSED_KEY, {}, storedFlags) };
-    if (open) closed[id] = true;
-    else delete closed[id];
-    writeStored(storage, COLLAPSED_KEY, closed);
-    setOpen(!open);
-  };
-  return (
-    <section aria-label={title} className="je-insp-section" data-open={open ? "" : undefined}>
-      <div className="je-insp-section-head">
-        <details open={open} className="je-insp-section-title">
-          <Hinted hint={hint}>
-            <summary className="je-insp-section-toggle" onClick={toggle}>
-              <Icon icon={open ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
-              <MicroLabel className="je-sp-truncate">{title}</MicroLabel>
-            </summary>
-          </Hinted>
-        </details>
-        {actions}
-      </div>
-      {open ? children : null}
-    </section>
-  );
 }
 
 /** A point list: one x/y row per point, with add and remove. */
@@ -723,7 +684,7 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           </ComboboxContent>
         </Combobox>
       ) : (
-        <RefCombobox
+        <IdCombobox
           label={field.path}
           items={candidates}
           value={values[0] ?? null}
@@ -735,75 +696,6 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         />
       )}
     </FieldRow>
-  );
-}
-
-/** How a combobox shows an id: its label, and muted text after it that tells it from similar ones. */
-type Described = { label: string; detail?: string };
-
-/** A combobox picking one id of `items`; cleared, it reports null. */
-function RefCombobox({
-  label,
-  items,
-  value,
-  onChange,
-  invalid,
-  placeholder,
-  clearable,
-  empty,
-  describe,
-}: {
-  label: string;
-  items: readonly string[];
-  value: string | null;
-  onChange: (next: string | null) => void;
-  invalid: boolean;
-  placeholder: string;
-  clearable: boolean;
-  empty: string;
-  /** Without it, items show their ids. */
-  describe?: (id: string) => Described;
-}) {
-  const shown = describe ? (id: string) => describe(id).label : undefined;
-  return (
-    <Combobox
-      items={items}
-      value={value}
-      onValueChange={onChange}
-      {...(describe
-        ? {
-            itemToStringLabel: shown,
-            filter: (id: string, query: string) => {
-              const q = query.trim().toLowerCase();
-              const d = describe(id);
-              return `${id} ${d.label} ${d.detail ?? ""}`.toLowerCase().includes(q);
-            },
-          }
-        : {})}
-    >
-      <ComboboxInput
-        aria-label={label}
-        aria-invalid={invalid || undefined}
-        placeholder={placeholder}
-        showClear={clearable}
-      />
-      <ComboboxContent>
-        <ComboboxList>
-          {(id: string) => {
-            const d = describe?.(id);
-            return (
-              <ComboboxItem key={id} value={id}>
-                <span className="je-sp-truncate">{d?.label ?? id}</span>
-                {d?.detail ? (
-                  <span className="je-menu-detail je-sp-truncate">{d.detail}</span>
-                ) : null}
-              </ComboboxItem>
-            );
-          }}
-        </ComboboxList>
-        <ComboboxEmpty>{empty}</ComboboxEmpty>
-      </ComboboxContent>
-    </Combobox>
   );
 }
 
@@ -912,7 +804,7 @@ function ParentField({
   };
   return (
     <FieldRow field={row} error={error}>
-      <RefCombobox
+      <IdCombobox
         label="Parent"
         describe={describe}
         items={model.value === null ? model.candidates : [ROOT_PARENT, ...model.candidates]}
@@ -1091,43 +983,6 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
  * set on every target from that target's own pair (unset reads [0, 0]), in
  * the shown unit the model divides back.
  */
-function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
-  const w = field.widget as Extract<ModelField["widget"], { kind: "range" }>;
-  const scale = w.scale ?? 1;
-  const at = asPt(field.value);
-  // With no range yet, the end not typed starts at 0, or at the typed value when 0 would invert it.
-  const end = (i: 0 | 1) => (text: string) =>
-    commitEach(ctx, field, (cur) => {
-      const stored = asPt(cur);
-      const n = resolveNumber(text, stored ? stored[i] * scale : 0, { integer: false });
-      if (n instanceof EditError) return n;
-      if (!stored) return i === 0 ? [n, Math.max(n, 0)] : [Math.min(n, 0), n];
-      const pair: Pt = [stored[0] * scale, stored[1] * scale];
-      pair[i] = n;
-      return pair;
-    });
-  return (
-    <FieldRow field={field}>
-      <div className="je-insp-row je-insp-wrap je-insp-range" data-gap="tight" data-align="start">
-        {(["low", "high"] as const).map((name, i) => (
-          <NumberInput
-            key={name}
-            label={`${field.path}.${name}`}
-            value={at?.[i]}
-            mixed={field.mixed}
-            step={w.step}
-            bigStep={w.bigStep}
-            decimals={w.decimals}
-            suffix={i === 0 ? "min" : "max"}
-            onCommit={end(i as 0 | 1)}
-          />
-        ))}
-        {w.unit ? <UnitSuffix unit={w.unit} /> : null}
-      </div>
-    </FieldRow>
-  );
-}
-
 /** Path mode, speed, pause and points, or any object's fields, nested under its title. */
 function NestedFields({
   field,
@@ -1392,7 +1247,7 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   return (
     <>
       <FieldRow field={field} error={problem}>
-        {chosen && audible(w.kinds) ? (
+        {chosen && w.kinds.length > 0 && w.kinds.every(isAudibleKind) ? (
           <div className="je-asset-audible">
             {picker}
             <AssetAudition id={chosen.id} name={chosen.label} />
@@ -1418,10 +1273,6 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     </>
   );
 }
-
-/** An asset field that names something to hear: a sound, an audio clip or a synth patch. */
-const audible = (kinds: readonly string[]) =>
-  kinds.length > 0 && kinds.every((k) => k === SOUND_KIND || k === AUDIO_KIND || k === SYNTH_KIND);
 
 /** Play and stop beside an audible asset field's picker, and how long the pick plays. */
 function AssetAudition({ id, name }: { id: string; name: string }) {
@@ -1723,7 +1574,11 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         />
       );
     case "text":
-      return <TextField field={field} commit={committer(ctx, field)} />;
+      return w.stringKey ? (
+        <StringKeyField field={field} commit={committer(ctx, field)} table={ctx.strings ?? null} />
+      ) : (
+        <TextField field={field} commit={committer(ctx, field)} />
+      );
     case "json":
       return <JsonField field={field} commit={committer(ctx, field)} />;
     case "point":
@@ -1735,7 +1590,7 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         />
       );
     case "range":
-      return <RangeField field={field} ctx={ctx} />;
+      return <RangeField field={field} commitEach={(next) => commitEach(ctx, field, next)} />;
     case "points":
       return <PointsField field={field} ctx={ctx} />;
     case "tags":
@@ -1841,7 +1696,7 @@ function BehaviorSection({
     ? behaviorTitle(section.title, section.behavior.name)
     : section.title;
   return (
-    <Section
+    <InspectorSection
       id={section.id}
       title={title}
       hint={section.behavior?.description}
@@ -1861,7 +1716,7 @@ function BehaviorSection({
       {section.fields.length === 0 ? <p className="je-insp-note">No fields to set.</p> : null}
       {error ? <p className="je-insp-error">{error}</p> : null}
       {children}
-    </Section>
+    </InspectorSection>
   );
 }
 
@@ -2013,14 +1868,17 @@ export function EditorInspector({
   if (!(readOnly ?? inherited)) return <Inspector {...props} />;
   return (
     <ReadOnlyContext.Provider value>
-      <fieldset disabled className="je-insp-locked" style={LOCKED}>
+      <Locked disabled className="je-insp-locked">
         <Inspector {...props} />
-      </fieldset>
+      </Locked>
     </ReadOnlyContext.Provider>
   );
 }
 
-/** The asset picked in the project tree: a sound or a synth patch in its own editor, anything else as it is. */
+/**
+ * The asset picked in the project tree: a sound or a synth patch in its own
+ * editor, a string table or a dialogue summed up, anything else as it is.
+ */
 function PickedAsset({
   asset,
   project,
@@ -2034,11 +1892,12 @@ function PickedAsset({
     return <SoundPanel asset={asset} session={project} registry={registry} />;
   if (project && asset.entry.kind === SYNTH_KIND)
     return <SynthPanel asset={asset} session={project} registry={registry} />;
+  if (project && asset.entry.kind === STRINGS_KIND)
+    return <StringsPanel asset={asset} session={project} />;
+  if (project && asset.entry.kind === DIALOGUE_KIND)
+    return <DialoguePanel asset={asset} session={project} />;
   return <AssetPanel {...asset} />;
 }
-
-// The fieldset only disables what is inside it; it draws nothing of its own.
-const LOCKED = { display: "contents" } as const;
 
 type InspectorProps = {
   session: EditorSession;
@@ -2065,6 +1924,7 @@ function Inspector({
   const readOnly = useContext(ReadOnlyContext);
   const labelColumn = useLabelColumn();
   const sources = useClipSources(project ?? null, runtime ?? null);
+  const strings = useStringKeyTable(project ?? null);
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = useEditorResolved(session);
@@ -2115,6 +1975,7 @@ function Inspector({
     project: project ?? null,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
+    strings,
     ...(sources ? { sources } : {}),
     ...(child
       ? {
@@ -2165,9 +2026,9 @@ function Inspector({
       ) : null}
       {targets.every((t) => t.kind === "bulk") ? (
         // A drawn shape's one field is its shape; its Parent row is where it can join the tree.
-        <Section id="identity" title={SECTION_TITLES.identity}>
+        <InspectorSection id="identity" title={SECTION_TITLES.identity}>
           <ParentField key={scope} session={session} doc={doc} refs={targets.map((t) => t.ref)} />
-        </Section>
+        </InspectorSection>
       ) : null}
       {model.sections.map((section) => {
         const fieldView = (field: ModelField) => (
@@ -2181,10 +2042,10 @@ function Inspector({
             {groupedFields(section, fieldView)}
           </BehaviorSection>
         ) : (
-          <Section key={section.id} id={section.id} title={section.title}>
+          <InspectorSection key={section.id} id={section.id} title={section.title}>
             {note}
             {fields}
-          </Section>
+          </InspectorSection>
         );
       })}
       {model.addBehaviors.length > 0 ? (
@@ -2298,6 +2159,7 @@ function ParamsSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const readOnly = useContext(ReadOnlyContext);
+  const strings = useStringKeyTable(project);
   const params = model.params.map((p) => ({ ...p, field: paramFrames(p.field) }));
   const byPath = fieldsByPath(params.map((p) => p.field));
   const ctx: Ctx = {
@@ -2308,6 +2170,7 @@ function ParamsSection({
     project,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
+    strings,
     ...(sources ? { sources } : {}),
     edit: (field, input) => {
       const param = paramOf(model, field);
@@ -2318,7 +2181,7 @@ function ParamsSection({
     editAll: (label, edits) => paramsBatch(model, label, edits),
   };
   return (
-    <Section id="instance:parameters" title="Parameters">
+    <InspectorSection id="instance:parameters" title="Parameters">
       {params.map((p) => {
         const beaten = paramOverriddenBy(doc, model, p);
         return (
@@ -2349,7 +2212,7 @@ function ParamsSection({
         );
       })}
       {error ? <p className="je-insp-error">{error}</p> : null}
-    </Section>
+    </InspectorSection>
   );
 }
 
@@ -2394,7 +2257,7 @@ function PlacementSection({
         ))
       : null;
   return (
-    <Section id="instance:placement" title={SECTION_TITLES.transform}>
+    <InspectorSection id="instance:placement" title={SECTION_TITLES.transform}>
       <div className="je-insp-row" data-gap="tight">
         <div className="je-insp-grow">
           {angle.readonly ? (
@@ -2477,7 +2340,7 @@ function PlacementSection({
         )}
       </FieldRow>
       {error ? <p className="je-insp-error">{error}</p> : null}
-    </Section>
+    </InspectorSection>
   );
 }
 
@@ -2528,9 +2391,9 @@ function InstancePanel({
           {nested ? ` in ${nested.holder}` : ""}
         </span>
       </header>
-      <Section id="instance:identity" title={SECTION_TITLES.identity}>
+      <InspectorSection id="instance:identity" title={SECTION_TITLES.identity}>
         <ParentField key={id} session={session} doc={doc} refs={[id]} />
-      </Section>
+      </InspectorSection>
       {placement ? (
         <PlacementSection key={id} session={session} doc={doc} model={placement} />
       ) : null}
@@ -2544,7 +2407,7 @@ function InstancePanel({
           sources={sources}
         />
       ) : null}
-      <Section id="instance:overrides" title="Overrides">
+      <InspectorSection id="instance:overrides" title="Overrides">
         {keys.length === 0 ? (
           <p className="je-insp-note">Same as the prefab.</p>
         ) : (
@@ -2556,9 +2419,9 @@ function InstancePanel({
             ))}
           </ul>
         )}
-      </Section>
+      </InspectorSection>
       {levels.length > 1 ? (
-        <Section id="instance:apply-to" title="Apply to">
+        <InspectorSection id="instance:apply-to" title="Apply to">
           <SegmentedControl
             size="xs"
             aria-label="Apply to"
@@ -2580,7 +2443,7 @@ function InstancePanel({
               </SegmentedControl.Item>
             ))}
           </SegmentedControl>
-        </Section>
+        </InspectorSection>
       ) : null}
       <div className="je-insp-actions">
         <Button

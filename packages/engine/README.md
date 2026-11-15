@@ -5936,7 +5936,9 @@ waits for game code, and `volume` scales the sound's own. A positional
 sound on it pans with the entity. Its handle, `getBehavior(AUDIO)`, has
 `play()`, `stop()` and `playing`; what the handle changes is saved when it
 differs from the block. Headless the behavior isn't built, so the handle
-is undefined there: write `?.`.
+is undefined there: write `?.`. `playing` is presentation state, so game
+logic never branches on it: a headless replay or playtest would take the
+other branch.
 
 **Synth patches.** A `synth` doc is a short generated sound, rendered in
 the browser with no file to ship: a `wave` (`square`, `saw`, `triangle`,

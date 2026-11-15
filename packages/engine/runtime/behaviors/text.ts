@@ -15,6 +15,8 @@ import {
 } from "../../game/behaviors/text";
 import type { JsonValue } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
+import { sameValue } from "../../project/canonical";
+import { isPlainObject } from "../../project/kinds/define";
 import type { RuntimeEntity } from "../../scene/types";
 import { entityHomeLayer } from "../../systems/bodies";
 import { measureText } from "../../text/measure";
@@ -53,25 +55,20 @@ type Attached = {
 
 const FALLBACK_ALPHA = 0.6;
 
-const sameVars = (a: TextVars | undefined, b: TextVars | undefined): boolean => {
-  const ka = Object.keys(a ?? {});
-  return ka.length === Object.keys(b ?? {}).length && ka.every((k) => a![k] === b?.[k]);
-};
-
 const sameShown = (a: TextShown | undefined, b: TextShown): boolean => {
   if (!a) return false;
   if ("text" in a || "text" in b) return "text" in a && "text" in b && a.text === b.text;
-  return a.key === b.key && sameVars(a.vars, b.vars);
+  return a.key === b.key && sameValue(a.vars ?? {}, b.vars ?? {});
 };
 
 /** A saved `set` or `setKey`, or null for a value that isn't one. */
 function readShown(state: JsonValue): TextShown | null {
-  if (state === null || typeof state !== "object" || Array.isArray(state)) return null;
+  if (!isPlainObject(state)) return null;
   if (typeof state.text === "string") return { text: state.text };
   if (typeof state.key !== "string") return null;
   const vars = state.vars;
   if (vars === undefined) return { key: state.key };
-  if (vars === null || typeof vars !== "object" || Array.isArray(vars)) return null;
+  if (!isPlainObject(vars)) return null;
   const entries = Object.entries(vars);
   if (!entries.every(([, v]) => typeof v === "string" || typeof v === "number")) return null;
   return { key: state.key, vars: Object.fromEntries(entries) as Record<string, string | number> };

@@ -1,13 +1,22 @@
 import type * as Y from "yjs";
 
 import type { Registry } from "../game/types";
-import { createKindRegistry, type DocLayout, type KindRegistry } from "../project/kinds";
+import {
+  createKindRegistry,
+  validateAssetDoc,
+  type DocLayout,
+  type KindRegistry,
+} from "../project/kinds";
 import { isPlainObject, isRuntimeKind } from "../project/kinds/define";
+import { entityRefSites } from "../project/kinds/fields";
 import { gameSettingsEntries } from "../project/kinds/game-settings";
+import { SOUND_KIND } from "../project/kinds/sound";
+import { buildRefIndex } from "../project/refs";
 import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry, AssetId, AssetKindName, ProjectView } from "../project/types";
-import { makeIssue } from "../scene/issues";
-import type { Bounds, SceneIssue } from "../scene/types";
+import { jsonPointer, makeIssue } from "../scene/issues";
+import { resolveSceneDetailed } from "../scene/resolve";
+import type { Bounds, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import { contentMaps, prefabsReachedBy, readDoc, touchesMaps } from "./convert";
 import { layoutFromDoc } from "./layout";
@@ -112,6 +121,73 @@ export function issueEngine(
   return isPlainObject(value.engine) ? value.engine : undefined;
 }
 
+/**
+ * The issues of the sounds `def`'s entities (instance children included)
+ * name, as the project judges them: each open sound doc's own checks
+ * (`sound-bus-unknown` among them) and its clips that no live audio clip or
+ * synth patch holds (`asset-missing`). Each points at the first entity
+ * naming the sound (an instance child at its instance) and selects them
+ * all; `detail` names the sound and where in it.
+ */
+function soundIssues(
+  def: SceneDefinition,
+  registry: Registry,
+  project: IssueProject,
+  view: ProjectView = project.view(),
+  prefabs?: PrefabLibrary,
+): SceneIssue[] {
+  const kinds = kindsOf(project, registry);
+  const kind = kinds.get(SOUND_KIND);
+  if (kind?.storage !== "doc" || !project.get) return [];
+  if (![...view.byId.values()].some((e) => e.kind === SOUND_KIND)) return [];
+  type User = { ids: string[]; pointer: string };
+  const users = new Map<AssetId, User>();
+  const resolved = resolveSceneDetailed(def, registry, prefabs);
+  (resolved.def.entities ?? []).forEach((e, i) => {
+    if (!registry.types.has(e.type)) return;
+    const origin = resolved.origins[i];
+    const base = origin?.kind === "child" ? ["instances", origin.instance] : ["entities", i];
+    for (const site of entityRefSites(registry, e, jsonPointer(base))) {
+      if (view.byId.get(site.id)?.kind !== SOUND_KIND) continue;
+      const pointer = origin?.kind === "child" ? jsonPointer(base) : site.pointer;
+      const user = users.get(site.id);
+      if (!user) users.set(site.id, { ids: [e.id], pointer });
+      else if (!user.ids.includes(e.id)) user.ids.push(e.id);
+    }
+  });
+  const values = new Map<AssetId, unknown>();
+  for (const id of users.keys()) {
+    const entry = view.byId.get(id);
+    const open = entry ? openDocOf(project, entry) : null;
+    if (open) values.set(id, layoutFromDoc(open.doc, open.layout));
+  }
+  if (values.size === 0) return [];
+  const env = { registry, project: view };
+  const out: SceneIssue[] = [];
+  const asScene = (id: AssetId, user: User, issue: SceneIssue, message: string): SceneIssue => {
+    const { fix: _fix, line: _line, ...rest } = issue;
+    return {
+      ...rest,
+      message,
+      path: user.pointer,
+      entityIds: [...user.ids],
+      detail: { ...issue.detail, asset: id, ...(issue.path ? { pointer: issue.path } : {}) },
+    };
+  };
+  for (const [id, value] of values) {
+    const user = users.get(id);
+    if (!user) continue;
+    for (const issue of validateAssetDoc(kind, value, env))
+      out.push(asScene(id, user, issue, `the sound "${id}": ${issue.message}`));
+  }
+  for (const issue of buildRefIndex(view, values, kinds, env).dangling()) {
+    const [id] = issue.entityIds;
+    const user = id === undefined ? undefined : users.get(id);
+    if (id !== undefined && user) out.push(asScene(id, user, issue, issue.message));
+  }
+  return out;
+}
+
 export type WatchIssuesOptions = {
   /** Default 150ms. */
   debounceMs?: number;
@@ -121,7 +197,7 @@ export type WatchIssuesOptions = {
   prefabs?: PrefabSource;
   /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
   parentBounds?: Bounds;
-  /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`) and `anim` blocks against their sources, and settings resolve through its engine block. */
+  /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`), `anim` blocks against their sources and the open sound docs its entities name by the sound kind's checks, and settings resolve through its engine block. */
   project?: IssueProject;
 };
 
@@ -142,13 +218,16 @@ export function validateDoc(
     const engine = opts.project && project ? issueEngine(opts.project, project) : undefined;
     const runtime =
       opts.project && project ? issueRuntime(opts.project, registry, project) : undefined;
-    return validateScene(view.def, registry, {
+    const issues = validateScene(view.def, registry, {
       prefabs,
       ...(view.kind === "prefab" && view.prefab?.id ? { prefab: view.prefab.id } : {}),
       ...(project ? { project } : {}),
       ...(engine ? { engine } : {}),
       ...(runtime ? { runtime } : {}),
     });
+    if (opts.project && project)
+      issues.push(...soundIssues(view.def, registry, opts.project, project, prefabs));
+    return issues;
   } catch (err) {
     return [
       makeIssue("schema", {

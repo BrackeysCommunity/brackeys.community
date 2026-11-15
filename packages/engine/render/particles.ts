@@ -7,7 +7,8 @@
 import { type Container, Particle, ParticleContainer, Texture } from "pixi.js";
 
 import { type EmitterFollow, layerOrder, type SpriteVisual, type ViewLayer } from "../context";
-import { spriteAssets, spriteOffset } from "../game/behaviors/sprite";
+import { followedPose } from "../game/behaviors/emitter";
+import { spriteAssets } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
 import { clamp, lerp, lerpRgb } from "../math";
@@ -203,9 +204,7 @@ export function createParticleLayer(
 
   function followed(follow: EmitterFollow): Pose | undefined {
     const pose = opts.pose?.(follow.entity);
-    if (!pose || !follow.offset) return pose;
-    const [dx, dy] = spriteOffset(follow.offset, { rot: 0, flip: follow.flip === true }, pose.rot);
-    return { x: pose.x + dx, y: pose.y + dy, rot: pose.rot };
+    return pose && followedPose(pose, follow);
   }
 
   const parentOf = (layer: ViewLayer | null): Container =>

@@ -10,7 +10,12 @@ import { persistVars, type DialogueVars } from "../../dialogue/vars";
 import { DIALOGUE_ADVANCE_COMMAND, isDialogueCommand } from "../../game/commands";
 import type { DialogueContext, EngineContext, GameCommand, JsonValue } from "../../game/types";
 import { isPlainObject } from "../../project/kinds/define";
-import { DIALOGUE_KIND, type DialogueFile } from "../../project/kinds/dialogue";
+import {
+  DIALOGUE_KIND,
+  dialogueNodes,
+  type DialogueFile,
+  type DialogueNode,
+} from "../../project/kinds/dialogue";
 import type { AssetId } from "../../project/types";
 import { errorText } from "../../scene/issues";
 import { DIALOGUE_END, DIALOGUE_LINE, type DialogueLineEvent } from "../types";
@@ -85,9 +90,9 @@ export function createDialogueSystem(opts: {
   }
 
   /** A shown line cuts the last line's voice and plays its own, captioned by its text key. */
-  function voiceLine(file: DialogueFile, shown: DialogueLineEvent): void {
+  function voiceLine(nodes: ReadonlyMap<string, DialogueNode>, shown: DialogueLineEvent): void {
     stopVoice();
-    const line = file.nodes.find((n) => n.id === shown.node)?.lines[shown.line];
+    const line = nodes.get(shown.node)?.lines[shown.line];
     if (line?.voice === undefined) return;
     opts.ctx().present.audio.play(line.voice, {
       key: DIALOGUE_VOICE_KEY,
@@ -102,9 +107,10 @@ export function createDialogueSystem(opts: {
     vars: DialogueVars,
     node: string | undefined,
   ): DialogueRunner {
+    const nodes = dialogueNodes(file);
     const emit = (type: string, data?: JsonValue) => {
       if (quiet) return;
-      if (type === DIALOGUE_LINE) voiceLine(file, data as DialogueLineEvent);
+      if (type === DIALOGUE_LINE) voiceLine(nodes, data as DialogueLineEvent);
       else if (type === DIALOGUE_END) stopVoice();
       opts.ctx().emit({ type, at: { x: 0, y: 0 }, ...(data !== undefined ? { data } : {}) });
     };

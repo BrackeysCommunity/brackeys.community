@@ -1,14 +1,17 @@
 /**
  * The `emitter` behavior's schema: particles from an emitter preset at the
- * entity, drawn only. Zod only; the system lives in
+ * entity, drawn only. Zod and game/ only; the system lives in
  * `runtime/behaviors/emitter.ts` and draws through the view's particle layer.
  */
 import { z } from "zod";
 
+import type { EmitterFollow } from "../../context";
 import { EMITTER_KIND } from "../../project/kinds/emitter";
+import type { Pose } from "../../runtime/poses";
 import { defineBehavior, handleType } from "../behaviors";
 import { assetField, vectorField } from "../fields";
 import type { FieldEnv } from "../types";
+import { spriteOffset } from "./sprite";
 
 const emitterFields = (env: FieldEnv) => ({
   preset: assetField(env, [EMITTER_KIND], "The emitter preset."),
@@ -43,3 +46,10 @@ export const EMITTER = defineBehavior({
   fields: emitterFields,
   inspector: { category: "visual", label: "Emitter", order: ["preset", "emitting"] },
 });
+
+/** Where an emitter following `pose` emits: plus the offset, turned with the pose and mirrored when `flip`. */
+export function followedPose(pose: Pose, follow: Omit<EmitterFollow, "entity">): Pose {
+  if (!follow.offset) return pose;
+  const [dx, dy] = spriteOffset(follow.offset, { rot: 0, flip: follow.flip === true }, pose.rot);
+  return { x: pose.x + dx, y: pose.y + dy, rot: pose.rot };
+}

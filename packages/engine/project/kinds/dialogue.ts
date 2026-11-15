@@ -3,8 +3,8 @@
  * choices, conditions over JSON values and effects. Simulation data: a
  * dialogue joins its run's hash, and only recorded commands advance it.
  * The graph checks (dead ends, reachability) live here, so the runner's
- * explorer reuses them. Zod, scene/ and project/ only, so the hosted
- * service reads it.
+ * explorer reuses them. Zod, game/, scene/ and project/ only (all in the
+ * hosted service's image).
  */
 import { z } from "zod";
 

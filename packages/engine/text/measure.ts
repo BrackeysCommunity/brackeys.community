@@ -7,13 +7,6 @@ const ESTIMATE_ADVANCE = 0.55;
 const ESTIMATE_LINE_HEIGHT = 1.2;
 const SPACE = 0x20;
 
-/** The BMFont fields measuring reads: `advances` keyed by decimal code point, at the face's `size`. */
-type Metrics = FontMeta & {
-  size?: number;
-  advances?: Readonly<Record<string, number>>;
-  kerning?: readonly (readonly [first: number, second: number, amount: number])[];
-};
-
 /** One glyph or icon laid out on a line: its advance, and the kerning against the item before it. */
 type Item = { space: boolean; advance: number; kern: number; height: number };
 
@@ -32,18 +25,17 @@ export function measureText(
   size: number,
   wrap?: number,
 ): { width: number; height: number; exact: boolean } {
-  const metrics: Metrics | null = font;
-  const advances = metrics?.format === "bmfont" ? metrics.advances : undefined;
-  const faceSize = metrics?.size ?? metrics?.lineHeight;
+  const advances = font?.format === "bmfont" ? font.advances : undefined;
+  const faceSize = font?.size ?? font?.lineHeight;
   const bitmap = advances !== undefined && faceSize !== undefined && faceSize > 0;
   let exact = bitmap;
 
   const kerning = new Map<number, number>();
   if (bitmap)
-    for (const [first, second, amount] of metrics?.kerning ?? [])
+    for (const [first, second, amount] of font?.kerning ?? [])
       kerning.set(first * 0x110000 + second, amount);
   const lineHeightAt = (px: number): number =>
-    bitmap ? ((metrics?.lineHeight ?? faceSize) * px) / faceSize : ESTIMATE_LINE_HEIGHT * px;
+    bitmap ? ((font?.lineHeight ?? faceSize) * px) / faceSize : ESTIMATE_LINE_HEIGHT * px;
 
   let width = 0;
   let height = 0;

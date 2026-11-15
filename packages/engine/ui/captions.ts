@@ -1,8 +1,9 @@
 import type { DialogueView } from "../dialogue/runner";
 import type { JsonValue } from "../game/types";
-import type { PrefsStore } from "../prefs";
+import { PREF_KEYS, setPref, type PrefsStore } from "../prefs";
 import { plainText } from "../text/rich";
 import type { GameEventMap } from "../types";
+import { followLocale, onLocale, UI_FONT_FAMILY, uiInset } from "./bind";
 import { DIALOGUE_INSET } from "./dialogue";
 import type { UiContext, UiHandle } from "./types";
 
@@ -10,8 +11,6 @@ import type { UiContext, UiHandle } from "./types";
 export const CAPTION_MS_DEFAULT = 2500;
 /** The most captions shown at once; a newer one pushes the oldest out. */
 const CAPTIONS_SHOWN_MAX = 3;
-/** The prefs key the player's captions choice is kept under. */
-export const CAPTIONS_PREF = "captions";
 
 /** `GameInstance.captions`: whether the player wants sounds and voiced lines captioned. */
 export type GameCaptions = {
@@ -35,7 +34,7 @@ export type CaptionsPreferenceOptions = {
 
 /** The player's captions choice over the prefs: what they saved, else the OS's request, else off. */
 export function captionsPreference(opts: CaptionsPreferenceOptions): GameCaptions {
-  const saved = (): JsonValue | undefined => opts.prefs.load(opts.gameId())[CAPTIONS_PREF];
+  const saved = (): JsonValue | undefined => opts.prefs.load(opts.gameId())[PREF_KEYS.captions];
   const enabled = (): boolean => {
     const value = saved();
     return typeof value === "boolean" ? value : (opts.requested?.() ?? false);
@@ -44,8 +43,7 @@ export function captionsPreference(opts: CaptionsPreferenceOptions): GameCaption
     enabled,
     set(on) {
       const was = enabled();
-      const id = opts.gameId();
-      opts.prefs.save(id, { ...opts.prefs.load(id), [CAPTIONS_PREF]: on });
+      setPref(opts.prefs, opts.gameId(), PREF_KEYS.captions, on);
       if (was !== on) opts.changed(on);
     },
   };
@@ -72,17 +70,21 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
   region.setAttribute("aria-live", "polite");
   Object.assign(region.style, {
     position: "absolute",
-    left: "calc(var(--jams-ui-safe-left, 0px) + 16px)",
-    right: "calc(var(--jams-ui-safe-right, 0px) + 16px)",
-    bottom: `calc(var(--jams-ui-safe-bottom, 0px) + 16px + var(${DIALOGUE_INSET}, 0px))`,
+    left: uiInset("left"),
+    right: uiInset("right"),
+    bottom: uiInset("bottom", `var(${DIALOGUE_INSET}, 0px)`),
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: "4px",
     pointerEvents: "none",
-    font: "500 15px/1.35 system-ui, sans-serif",
+    fontFamily: UI_FONT_FAMILY,
+    fontWeight: "500",
+    fontSize: "15px",
+    lineHeight: "1.35",
     textAlign: "center",
   });
+  followLocale(region, ctx);
   ctx.root.append(region);
 
   let shown: Shown[] = [];
@@ -135,8 +137,8 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
       maxWidth: "100%",
       padding: "2px 8px",
       borderRadius: "4px",
-      color: "#ffffff",
-      background: "rgb(0 0 0 / 0.72)",
+      color: "var(--jams-dialogue-fg, #ffffff)",
+      background: "var(--jams-dialogue-bg, rgb(0 0 0 / 0.72))",
       whiteSpace: "pre-line",
     });
     region.append(el);
@@ -147,17 +149,17 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
   const onPreference = ({ enabled }: GameEventMap["captions:change"]) => {
     if (!enabled) clear();
   };
-  const onLocale = () => {
+  const unlocale = onLocale(ctx, () => {
+    followLocale(region, ctx);
     const direction = ctx.strings().direction;
     for (const entry of shown) {
       entry.el.dir = direction;
       entry.el.textContent = textOf(entry.key);
     }
-  };
+  });
 
   ctx.game.on("audio:caption", show);
   ctx.game.on("captions:change", onPreference);
-  ctx.game.on("locale:change", onLocale);
 
   let destroyed = false;
   return {
@@ -166,7 +168,7 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
       destroyed = true;
       ctx.game.off("audio:caption", show);
       ctx.game.off("captions:change", onPreference);
-      ctx.game.off("locale:change", onLocale);
+      unlocale();
       unwatch();
       clear();
       region.remove();

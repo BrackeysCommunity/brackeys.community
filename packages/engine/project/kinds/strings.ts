@@ -3,12 +3,13 @@
  * number of files merge by key. The string-key rules (which keys a project
  * uses, which a locale is missing) live here, so the CLI, the kinds'
  * cross-checks and the runtime table agree. Presentation only: the locale
- * never reaches a simulation. Zod, scene/ and project/ only, so the hosted
- * service reads it.
+ * never reaches a simulation. Zod, game/, scene/ and project/ only (all in
+ * the hosted service's image).
  */
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
+import { drawnText } from "../../game/rich-text";
 import { splitOverridePath } from "../../scene/field-path";
 import { jsonPointer, makeIssue } from "../../scene/issues";
 import {
@@ -41,6 +42,12 @@ export const STRING_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 /** A locale column's name: a BCP 47 tag such as `en`, `fr` or `pt-BR`. */
 export const LOCALE_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 
+/** A row's fields that aren't locale columns: its key, and a note for translators. */
+export const STRING_ROW_FIELDS: readonly string[] = ["key", "note"];
+
+/** Whether a row's column holds a locale's text rather than its key or note. */
+export const isLocaleColumn = (column: string): boolean => !STRING_ROW_FIELDS.includes(column);
+
 /** One key's text per locale; `note` is for translators and never shown. */
 export type StringRow = { key: string; note?: string } & { [locale: string]: string | undefined };
 
@@ -71,6 +78,29 @@ export type StringKeyUse = {
   /** JSON Pointer into that doc. */
   pointer: string;
 };
+
+/** Scripts written right to left: their script subtag, and their Unicode Script name. */
+const RTL_SCRIPTS: Readonly<Record<string, string>> = {
+  arab: "Arabic",
+  hebr: "Hebrew",
+  thaa: "Thaana",
+  syrc: "Syriac",
+  nkoo: "Nko",
+  adlm: "Adlam",
+  rohg: "Hanifi_Rohingya",
+};
+
+/** A letter of a right-to-left script. */
+export const RTL_LETTER = new RegExp(
+  `[${Object.values(RTL_SCRIPTS)
+    .map((name) => `\\p{Script=${name}}`)
+    .join("")}]`,
+  "u",
+);
+
+/** Whether a script subtag ("Arab", "Deva") names a script written right to left. */
+export const isRtlScript = (script: string): boolean =>
+  Object.hasOwn(RTL_SCRIPTS, script.toLowerCase());
 
 /** The locale a project without `engine.locales` plays in. */
 export const DEFAULT_LOCALE = "en";
@@ -127,7 +157,7 @@ export function localeChain(locales: LocaleSettings, locale: string): string[] {
 /** A row's text along `chain`: the first locale with a non-empty text. */
 export function stringRowText(row: StringRow, chain: readonly string[]): string | undefined {
   for (const locale of chain) {
-    const text = locale === "key" || locale === "note" ? undefined : row[locale];
+    const text = isLocaleColumn(locale) ? row[locale] : undefined;
     if (typeof text === "string" && text !== "") return text;
   }
   return undefined;
@@ -159,8 +189,7 @@ export function stringLocales(lookup: DocLookup, locales: LocaleSettings): strin
   const columns = new Set<string>();
   for (const id of lookup.ids(STRINGS_KIND))
     for (const row of records(lookup.read<StringsFile>(STRINGS_KIND, id)?.strings))
-      for (const column of Object.keys(row))
-        if (column !== "key" && column !== "note") columns.add(column);
+      for (const column of Object.keys(row)) if (isLocaleColumn(column)) columns.add(column);
   const listed = unique([locales.default, ...locales.available]);
   return [...listed, ...[...columns].filter((c) => !listed.includes(c)).sort(byCodeUnit)];
 }
@@ -211,8 +240,7 @@ export function stringKeysIn(
 /**
  * Every string key the project's docs name, by kind (dialogue, prefab,
  * scene, sound), then each kind's docs in path order, then document order.
- * `scenes`, when given, stands in for the lookup's scene docs (an editor's
- * unsaved scene).
+ * `scenes` stands in for the lookup's scene docs (an editor's unsaved scene).
  */
 export function usedStringKeys(
   lookup: DocLookup,
@@ -233,9 +261,7 @@ export function usedStringKeys(
 /**
  * The uses whose key has no text in `locale` nor along its fallback chain
  * (`localeFallbacks`); the default's text doesn't count for another locale,
- * so a key only the default holds is missing there. `uses` defaults to
- * every use in the project (`usedStringKeys`); a kind's `crossValidate`
- * passes its own doc's (`stringKeysIn`).
+ * so a key only the default holds is missing there.
  */
 export function missingStringKeys(
   lookup: DocLookup,
@@ -347,8 +373,6 @@ export function lookupIdOf(
   return lookup.ids(kind).find((id) => lookup.read(kind, id) === value);
 }
 
-const isLocaleColumn = (column: string) => column !== "key" && column !== "note";
-
 /** `locale-unknown` once per column the game settings don't offer, at its first row. */
 function unknownLocaleIssues(file: StringsFile, locales: LocaleSettings): SceneIssue[] {
   const firstRow = new Map<string, number>();
@@ -391,7 +415,7 @@ function duplicateKeyIssues(file: StringsFile, lookup: DocLookup): SceneIssue[] 
 
 const FONT: typeof FONT_KIND = "font";
 
-type Coverage = readonly (readonly [from: number, to: number])[];
+type Coverage = NonNullable<FontMeta["coverage"]>;
 
 /** A font asset's code point ranges; undefined when the project lacks it or its coverage wasn't read. */
 function fontCoverage(env: KindEnv, font: AssetId): Coverage | undefined {
@@ -414,14 +438,10 @@ function covers(coverage: Coverage, cp: number): boolean {
   return false;
 }
 
-/** Rich-text markup and `{name}` placeholders, which never draw as written. */
-const UNDRAWN =
-  /\\(?=[[{\\])|\[\/?(?:b|i|color|size|icon|shake|wave)(?:=[^\]\n]*)?\]|\{[A-Za-z_][A-Za-z0-9_.-]*\}/g;
-
 /** The code points `text` draws: markup, placeholders, control and format characters left out. */
 function drawnCodePoints(text: string): number[] {
   const out: number[] = [];
-  for (const ch of text.replace(UNDRAWN, "")) {
+  for (const ch of drawnText(text)) {
     if (/[\p{Cc}\p{Cf}]/u.test(ch)) continue;
     out.push(ch.codePointAt(0)!);
   }

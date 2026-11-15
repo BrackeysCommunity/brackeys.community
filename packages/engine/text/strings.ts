@@ -6,6 +6,7 @@ import type { TextFont } from "../context";
 import type { DocLookup } from "../project/kinds/define";
 import {
   DEFAULT_LOCALE,
+  isRtlScript,
   localeChain,
   localeSettingsOf,
   mergedStrings,
@@ -13,7 +14,7 @@ import {
   type LocaleSettings,
 } from "../project/kinds/strings";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import type { TextVars } from "./rich";
+import { ESCAPABLE_CLASS, escapeRich, PLACEHOLDER_NAME, type TextVars } from "./rich";
 
 export type TextDirection = "ltr" | "rtl";
 
@@ -99,7 +100,10 @@ function localeStrings(view: ProjectRuntimeView, locale: string): Readonly<Recor
 }
 
 /** A `{name}` placeholder, or a backslash escape to keep as written. */
-const PLACEHOLDER_OR_ESCAPE = /\\[[{\\]|\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g;
+const PLACEHOLDER_OR_ESCAPE = new RegExp(
+  `\\\\[${ESCAPABLE_CLASS}]|\\{(${PLACEHOLDER_NAME})\\}`,
+  "g",
+);
 
 /**
  * `text` with each placeholder `vars` names filled in, the value escaped
@@ -108,7 +112,7 @@ const PLACEHOLDER_OR_ESCAPE = /\\[[{\\]|\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g;
 function fillVars(text: string, vars: TextVars): string {
   return text.replace(PLACEHOLDER_OR_ESCAPE, (whole, name: string | undefined) => {
     if (name === undefined || !Object.hasOwn(vars, name)) return whole;
-    return String(vars[name]).replace(/[[{\\]/g, "\\$&");
+    return escapeRich(String(vars[name]));
   });
 }
 
@@ -126,19 +130,16 @@ const RTL_LANGUAGES: readonly string[] = [
   "ckb",
 ];
 
-/** Scripts written right to left, by script subtag. */
-const RTL_SCRIPTS: readonly string[] = ["arab", "hebr", "thaa", "syrc", "nkoo", "adlm", "rohg"];
-
 /**
- * "ar", "fa", "he", "ur", "yi", "ps", "sd", "ug", "dv", "ckb" and their
- * regions; a script subtag decides when given ("sd-Deva" is ltr, "pa-Arab" rtl).
+ * Right to left for the RTL languages above and the strings kind's RTL
+ * scripts; a script subtag decides ("sd-Deva" ltr, "pa-Arab" rtl).
  */
 export function localeDirection(locale: string): TextDirection {
   const script = locale
     .split("-")
     .slice(1)
     .find((part) => /^[A-Za-z]{4}$/.test(part));
-  if (script !== undefined) return RTL_SCRIPTS.includes(script.toLowerCase()) ? "rtl" : "ltr";
+  if (script !== undefined) return isRtlScript(script) ? "rtl" : "ltr";
   return RTL_LANGUAGES.includes(languageOf(locale)) ? "rtl" : "ltr";
 }
 

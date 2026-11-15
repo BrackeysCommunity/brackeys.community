@@ -30,6 +30,30 @@ const POLL_MS = 5;
 /** Silence rendered after the patch, so a voice that starts late still fits the offline render. */
 const OFFLINE_TAIL_S = 0.05;
 
+/**
+ * How long the click's unlock may take. A context with no output device to
+ * run on (Firefox's, without one) never settles `resume()`, so past this the
+ * context is read as it stands and the judge says why it isn't running.
+ */
+export const UNLOCK_CAP_MS = 10_000;
+
+/** Resolves when `work` does or `ms` passes, whichever is first; rejects when `work` does first. */
+export function settledWithin(work: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    work.then(
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 function endedAfter(voice: Voice, started: number, capMs: number): Promise<number | null> {
   return new Promise((resolve) => {
     const poll = () => {
@@ -49,7 +73,7 @@ async function playLive(
   samples: Float32Array,
 ): Promise<Omit<AudioProbe, "leftShare" | "offlineChannels">> {
   try {
-    await unlocking;
+    await settledWithin(unlocking, UNLOCK_CAP_MS);
     const read = {
       context: context.state,
       backend: backend.state,
@@ -57,6 +81,7 @@ async function playLive(
       maxChannels: context.destination.maxChannelCount,
     };
     const patchMs = synthDurationMs(SMOKE_PATCH);
+    if (context.state !== "running") return { ...read, patchMs, endedMs: null };
     const clip = backend.buffer([samples], SYNTH_SAMPLE_RATE);
     const started = performance.now();
     const voice = backend.play(clip, VOICE);

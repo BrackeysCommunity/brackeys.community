@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
@@ -116,8 +119,9 @@ describe("dropping desktop files on the project panel", () => {
 
   it("sounds the drop cue when some of the files go in", async () => {
     const session = await setup();
-    const ogg = new Uint8Array(27);
-    ogg.set(new TextEncoder().encode("OggS"));
+    const ogg = new Uint8Array(
+      readFileSync(join(import.meta.dirname, "../../../project/__tests__/fixtures/tone.ogg")),
+    );
     // jsdom's File has no arrayBuffer().
     const jump = Object.assign(new File([ogg], "jump.ogg", { type: "audio/ogg" }), {
       arrayBuffer: async () => ogg.buffer,

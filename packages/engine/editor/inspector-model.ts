@@ -177,7 +177,12 @@ export type FieldWidget =
   | { kind: "segmented"; options: EnumOption[] }
   | { kind: "select"; options: EnumOption[] }
   | { kind: "switch" }
-  | { kind: "text"; pattern?: string; maxLength?: number }
+  /**
+   * A line of text. `stringKey` (`meta.widget: "string-key"`) names a row of
+   * the project's string tables: picked from its keys, each shown with its
+   * default-locale text.
+   */
+  | { kind: "text"; pattern?: string; maxLength?: number; stringKey?: true }
   /**
    * Paired x and y fields; a metric one steps and shows as an `m` number
    * does. `pick` adds a pick-in-canvas crosshair: a scene point has one, a
@@ -365,6 +370,10 @@ type FieldMeta = {
   named?: unknown;
   /** The unit the inspector shows a field in when it isn't the stored one: an `s` field as `ms`. */
   showIn?: unknown;
+  /** A number's, a pair's or a range's arrow step, Shift step and decimals shown, over the unit's own. */
+  step?: unknown;
+  bigStep?: unknown;
+  decimals?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -488,6 +497,20 @@ function unitOf(meta: FieldMeta, ctx: Ctx): string | undefined {
   return typeof meta.unit === "string" ? meta.unit : undefined;
 }
 
+const positive = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
+
+/** `meta.step`, `meta.bigStep` (default ten steps) and `meta.decimals`, where the field sets them. */
+function stepsOf(meta: FieldMeta): { step?: number; bigStep?: number; decimals?: number } {
+  const out: { step?: number; bigStep?: number; decimals?: number } = {};
+  if (positive(meta.step)) {
+    out.step = meta.step;
+    out.bigStep = positive(meta.bigStep) ? meta.bigStep : meta.step * 10;
+  }
+  if (typeof meta.decimals === "number" && Number.isInteger(meta.decimals) && meta.decimals >= 0)
+    out.decimals = meta.decimals;
+  return out;
+}
+
 /**
  * The unit a field shows in, and the factor from stored to shown: radians
  * show as degrees, and seconds as ms where `meta.showIn` asks.
@@ -559,11 +582,13 @@ function widgetFor(
   const kind = fieldKind(schema);
   if (kind === "shape") return { kind: "shape", types: shapeTypesOf(schema) };
   const declared = unitOf(meta, ctx);
+  const steps = stepsOf(meta);
   const point = (pick: boolean): FieldWidget => ({
     kind: "point",
     pick,
     ...(declared !== undefined ? { unit: declared } : {}),
     ...(isLengthUnit(declared) ? lengthStep(declared, ctx.ppm) : {}),
+    ...steps,
   });
   if (kind === "point") return point(true);
   if (kind === "vector") return point(false);
@@ -590,6 +615,7 @@ function widgetFor(
       step: length?.step ?? 1,
       bigStep: length?.bigStep ?? (scale ? 15 : 10),
       decimals: length?.decimals ?? 2,
+      ...steps,
     };
   }
 
@@ -613,6 +639,7 @@ function widgetFor(
       ...(length ? { decimals: length.decimals } : scale ? { decimals: 2 } : {}),
       ...(scale ? { scale } : {}),
       ...namedNumbers(meta.named),
+      ...steps,
     };
   }
   if (inner instanceof z.ZodEnum) {
@@ -627,6 +654,7 @@ function widgetFor(
       kind: "text",
       ...(json.pattern ? { pattern: json.pattern } : {}),
       ...(json.maxLength !== undefined ? { maxLength: json.maxLength } : {}),
+      ...(meta.widget === "string-key" ? { stringKey: true as const } : {}),
     };
   }
   if (inner instanceof z.ZodArray) {

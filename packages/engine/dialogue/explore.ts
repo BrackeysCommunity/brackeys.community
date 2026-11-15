@@ -2,6 +2,7 @@
 import type { JsonValue } from "../game/types";
 import { stableJson } from "../project/canonical";
 import { dialogueNodes, type DialogueFile } from "../project/kinds/dialogue";
+import { DIALOGUE_CHOICES, DIALOGUE_LINE } from "../runtime/types";
 import { createDialogueRunner, type DialogueRunner } from "./runner";
 import { memoryVars } from "./vars";
 
@@ -31,8 +32,7 @@ function replay(file: DialogueFile, vars: JsonValue, path: readonly number[]): W
     if (nodes.at(-1) !== node) nodes.push(node);
   };
   const runner = createDialogueRunner(file, file.start, host, (type, data) => {
-    if (type === "dialogue:line" || type === "dialogue:choices")
-      note((data as { node: string }).node);
+    if (type === DIALOGUE_LINE || type === DIALOGUE_CHOICES) note((data as { node: string }).node);
   });
   let budget = MAX_ADVANCES;
   const rest = () => {

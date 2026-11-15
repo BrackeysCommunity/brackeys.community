@@ -1,6 +1,14 @@
 import { PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import { Store } from "@tanstack/store";
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs } from "../../audio/synth";
 import type { AudioBackend, AudioClipHandle, BusName, Voice } from "../../audio/types";
@@ -17,11 +25,19 @@ import type { GameInstance } from "../../types";
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
 import { IconButton, type IconButtonProps } from "../kit/button";
 import { useOptionalPending } from "../pending/use-pending";
-import { readStored, storedFlag } from "../session/stored";
+import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
 
-/** Where an audition stands: its clip decoding, playing, or neither. */
-export type AuditionStatus = "idle" | "decoding" | "playing";
+/**
+ * Where an audition stands: its clip decoding, playing, or neither.
+ * "previewing" is a `quiet` audition (a hover preview), which a play button
+ * treats as idle so a click plays the clip in full.
+ */
+export type AuditionStatus = "idle" | "decoding" | "playing" | "previewing";
+
+/** Whether assets of `kind` play: an audio clip, a sound or a synth patch. */
+export const isAudibleKind = (kind: string): boolean =>
+  kind === AUDIO_KIND || kind === SOUND_KIND || kind === SYNTH_KIND;
 
 export type AuditionOptions = {
   /** Cut it off after this many ms (a hover preview's first second). */
@@ -59,7 +75,7 @@ export type EditorAudio = {
   /** Stops `id`'s audition only when a `quiet` call started it (a hover preview). */
   stopQuiet(id: AssetId): void;
   readonly statuses: Store<{ statuses: ReadonlyMap<AssetId, AuditionStatus> }>;
-  /** Why `id` has nothing to play (a sound with no variants), or null. */
+  /** Why `id` has nothing to play (a sound with no variants, or none in the project), or null. */
   silentReason(id: AssetId): string | null;
   /** How long `id` plays at its own pitch, ms: [shortest, longest] over a sound's variants; null when unknown. */
   lengthMs(id: AssetId): readonly [number, number] | null;
@@ -165,8 +181,9 @@ export const HOVER_PREVIEW_MS = 1000;
 
 /**
  * Play, or Stop while it plays; busy, saying "Decoding", until the clip
- * starts. Disabled with the reason when there's nothing to play; nothing
- * outside an `EditorAudioProvider`.
+ * starts. A hover preview leaves it on Play, and a click plays the clip in
+ * full over the preview. Disabled with the reason when there's nothing to
+ * play; nothing outside an `EditorAudioProvider`.
  */
 export function AuditionButton({
   id,
@@ -184,7 +201,8 @@ export function AuditionButton({
   patch?: SynthFile;
 }) {
   const audio = useEditorAudio();
-  const status = useAuditionStatus(id);
+  const audition = useAuditionStatus(id);
+  const status = audition === "previewing" ? "idle" : audition;
   if (!audio) return null;
   const silent = audio.silentReason(id);
   const label =
@@ -218,8 +236,9 @@ export function AuditionButton({
 /**
  * Pointer handlers that preview `id`'s first second once the pointer has
  * rested on the element for `HOVER_PREVIEW_DELAY_MS`, and stop it when the
- * pointer leaves. A preview needs the backend a click made: hovering
- * creates none.
+ * pointer leaves. Resting on the element's play button previews nothing,
+ * since a click there plays it in full. A preview needs the backend a click
+ * made: hovering creates none.
  */
 export function useHoverPreview(id: AssetId | null) {
   const audio = useEditorAudio();
@@ -240,6 +259,9 @@ export function useHoverPreview(id: AssetId | null) {
         if ((audio.statuses.state.statuses.get(id) ?? "idle") !== "idle") return;
         void audio.play(id, { maxMs: HOVER_PREVIEW_MS, quiet: true });
       }, HOVER_PREVIEW_DELAY_MS);
+    },
+    onPointerOver: (e: { target: EventTarget | null }) => {
+      if (e.target instanceof Element && e.target.closest("[data-audition]")) cancel();
     },
     onPointerLeave: () => {
       cancel();
@@ -280,23 +302,33 @@ function createEditorAudio(
 
   const random = () => rng.nextU32() / U32;
 
-  function pick(file: SoundFile): AssetId | undefined {
-    let total = 0;
-    for (const v of file.variants) total += v.weight ?? 1;
-    let roll = random() * total;
-    for (const v of file.variants) {
-      roll -= v.weight ?? 1;
-      if (roll < 0) return v.clip;
-    }
-    return file.variants.at(-1)?.clip;
-  }
-
   function leaf(id: AssetId, patch?: SynthFile): Leaf | null {
     const runtime = ref.current.source.runtime();
     const doc = patch ?? docOf<SynthFile>(runtime, SYNTH_KIND, id);
     if (doc) return { kind: "patch", doc };
     const info = runtime?.asset(id);
     return info?.kind === AUDIO_KIND ? { kind: "clip", sha: info.sha256 } : null;
+  }
+
+  /** The sound's variants whose clip or patch is in the project. */
+  const present = (file: SoundFile) => file.variants.filter((v) => leaf(v.clip) !== null);
+
+  /** A variant by weight, among those present, so a dangling one never makes a click silent. */
+  function pick(file: SoundFile): { id: AssetId; leaf: Leaf } | null {
+    const variants = present(file);
+    let total = 0;
+    for (const v of variants) total += v.weight ?? 1;
+    let roll = random() * total;
+    let picked = variants.at(-1);
+    for (const v of variants) {
+      roll -= v.weight ?? 1;
+      if (roll < 0) {
+        picked = v;
+        break;
+      }
+    }
+    const found = picked ? leaf(picked.clip) : null;
+    return picked && found ? { id: picked.clip, leaf: found } : null;
   }
 
   function resolve(id: AssetId, patch?: SynthFile): Resolved | null {
@@ -306,12 +338,10 @@ function createEditorAudio(
       return own ? { id, leaf: own, bus: "sfx", volume: 1, rate: 1 } : null;
     }
     const variant = pick(sound);
-    const found = variant === undefined ? null : leaf(variant);
-    if (variant === undefined || !found) return null;
+    if (!variant) return null;
     const [min, max] = sound.pitch ?? [1, 1];
     return {
-      id: variant,
-      leaf: found,
+      ...variant,
       bus: sound.bus,
       volume: sound.volume ?? 1,
       rate: min === max ? min : min + (max - min) * random(),
@@ -369,7 +399,7 @@ function createEditorAudio(
     const ready = clipFor(on, r);
     let clip: AudioClipHandle;
     if (ready instanceof Promise) {
-      setStatus(id, "decoding");
+      setStatus(id, mine.quiet ? "previewing" : "decoding");
       const { pending } = ref.current;
       const work = async () => {
         await unlocking;
@@ -411,7 +441,7 @@ function createEditorAudio(
       loop: false,
       key: `audition:${id}`,
     });
-    setStatus(id, "playing");
+    setStatus(id, mine.quiet ? "previewing" : "playing");
     const fullMs = Number.isFinite(clip.duration) ? (clip.duration / r.rate) * 1000 : Infinity;
     const cut = opts.maxMs !== undefined && opts.maxMs < fullMs;
     const ms = cut ? opts.maxMs! : fullMs;
@@ -441,8 +471,9 @@ function createEditorAudio(
     statuses,
     silentReason(id) {
       const sound = docOf<SoundFile>(ref.current.source.runtime(), SOUND_KIND, id);
-      if (sound && sound.variants.length === 0) return "This sound has no variants yet";
-      return null;
+      if (!sound) return null;
+      if (sound.variants.length === 0) return "This sound has no variants yet";
+      return present(sound).length === 0 ? "Its clips aren't in the project" : null;
     },
     lengthMs(id) {
       const { source } = ref.current;
@@ -485,6 +516,36 @@ export const SOUND_IN_PLAY_KEY = `${STORAGE_PREFIX}sound-in-play`;
 /** The viewer's Sound in Play choice; off when nothing is stored or storage refuses. */
 export const soundInPlay = (storage: EditorStorage | null): boolean =>
   readStored(storage, SOUND_IN_PLAY_KEY, false, storedFlag);
+
+/**
+ * The Sound in Play choice and its setter, read again whenever another tab
+ * changes it and when the window regains focus, so the switch shows what the
+ * next Play reads.
+ */
+export function useSoundInPlay(storage: EditorStorage | null): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => soundInPlay(storage));
+  useEffect(() => {
+    const sync = () => setOn(soundInPlay(storage));
+    const changed = (e: StorageEvent) => {
+      if (e.key === null || e.key === SOUND_IN_PLAY_KEY) sync();
+    };
+    sync();
+    window.addEventListener("storage", changed);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", changed);
+      window.removeEventListener("focus", sync);
+    };
+  }, [storage]);
+  const set = useCallback(
+    (next: boolean) => {
+      writeStored(storage, SOUND_IN_PLAY_KEY, next);
+      setOn(next);
+    },
+    [storage],
+  );
+  return [on, set];
+}
 
 /**
  * `GameConfig.audio.backend` for the editor's game: asked each time Play

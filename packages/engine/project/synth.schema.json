@@ -28,7 +28,8 @@
       "type": "number",
       "minimum": 0.05,
       "maximum": 0.95,
-      "description": "Square only: the high part of the cycle; default 0.5. 0.05 to 0.95."
+      "description": "Square only: the high part of the cycle; default 0.5. 0.05 to 0.95.",
+      "default": 0.5
     },
     "dutySweep": {
       "type": "number",
@@ -41,7 +42,10 @@
       "minimum": 20,
       "maximum": 8000,
       "description": "The pitch at the start, Hz. 20 to 8000.",
-      "unit": "Hz"
+      "unit": "Hz",
+      "step": 1,
+      "decimals": 0,
+      "title": "Frequency"
     },
     "slide": {
       "type": "number",
@@ -64,13 +68,15 @@
           "minimum": 0,
           "maximum": 5000,
           "description": "When the step happens, ms in. 0 to 5000.",
-          "unit": "ms"
+          "unit": "ms",
+          "title": "At"
         },
         "semitones": {
           "type": "number",
           "minimum": -24,
           "maximum": 24,
-          "description": "The step, semitones. -24 to 24."
+          "description": "The step, semitones. -24 to 24.",
+          "title": "Step"
         }
       },
       "required": ["atMs", "semitones"],
@@ -84,14 +90,16 @@
           "type": "number",
           "minimum": 0,
           "maximum": 12,
-          "description": "Depth, semitones. 0 to 12."
+          "description": "Depth, semitones. 0 to 12.",
+          "title": "Depth"
         },
         "hz": {
           "type": "number",
           "minimum": 0,
           "maximum": 40,
           "description": "Rate, Hz. 0 to 40.",
-          "unit": "Hz"
+          "unit": "Hz",
+          "title": "Rate"
         }
       },
       "required": ["semitones", "hz"],
@@ -102,14 +110,16 @@
       "minimum": 0,
       "maximum": 1000,
       "description": "Rise to full volume, ms; default 0. 0 to 1000.",
-      "unit": "ms"
+      "unit": "ms",
+      "title": "Attack"
     },
     "sustainMs": {
       "type": "number",
       "minimum": 0,
       "maximum": 2000,
       "description": "Time at full volume, ms. 0 to 2000.",
-      "unit": "ms"
+      "unit": "ms",
+      "title": "Sustain"
     },
     "punch": {
       "type": "number",
@@ -122,7 +132,8 @@
       "minimum": 0,
       "maximum": 2000,
       "description": "Fall to silence, ms. 0 to 2000.",
-      "unit": "ms"
+      "unit": "ms",
+      "title": "Decay"
     },
     "lowpass": {
       "description": "Cuts what is above the cutoff.",
@@ -133,7 +144,10 @@
           "minimum": 20,
           "maximum": 20000,
           "description": "Cutoff, Hz. 20 to 20000.",
-          "unit": "Hz"
+          "unit": "Hz",
+          "step": 1,
+          "decimals": 0,
+          "title": "Cutoff"
         },
         "sweep": {
           "type": "number",
@@ -160,7 +174,10 @@
           "minimum": 20,
           "maximum": 20000,
           "description": "Cutoff, Hz. 20 to 20000.",
-          "unit": "Hz"
+          "unit": "Hz",
+          "step": 1,
+          "decimals": 0,
+          "title": "Cutoff"
         },
         "sweep": {
           "type": "number",
@@ -177,10 +194,12 @@
       "minimum": 10,
       "maximum": 5000,
       "description": "Restarts pitch and duty every this many ms (a stutter). 10 to 5000.",
-      "unit": "ms"
+      "unit": "ms",
+      "title": "Retrigger"
     },
     "seed": {
       "description": "Seeds the noise wave; default 1.",
+      "default": 1,
       "type": "integer",
       "minimum": 1,
       "maximum": 4294967295
@@ -189,7 +208,8 @@
       "type": "number",
       "minimum": 0,
       "maximum": 1,
-      "description": "Loudness; default 1. 0 to 1."
+      "description": "Loudness; default 1. 0 to 1.",
+      "default": 1
     }
   },
   "required": ["kind", "v", "wave", "freq", "sustainMs", "decayMs"],

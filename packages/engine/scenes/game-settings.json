@@ -3,8 +3,7 @@
   "kind": "game-settings",
   "v": 2,
   "engine": {
-    "locales": { "available": ["en", "fr"], "default": "en", "fonts": { "default": "kitchen-font" } },
-    "physics": "rapier"
+    "locales": { "available": ["en", "fr"], "default": "en", "fonts": { "default": "kitchen-font" } }
   },
   "game": {}
 }

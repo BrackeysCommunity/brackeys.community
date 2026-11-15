@@ -9,14 +9,14 @@ import { z } from "zod";
 
 import type { TextFont } from "../../context";
 import { FONT_KIND, type FontMeta } from "../../project/kinds/font";
-import { STRING_KEY_PATTERN } from "../../project/kinds/strings";
+import { RTL_LETTER, STRING_KEY_PATTERN } from "../../project/kinds/strings";
 import type { AssetId, Sha256 } from "../../project/types";
 import type { ShapeObj } from "../../scene/types";
-import type { RichLine, TextVars } from "../../text/rich";
 import type { TextDirection } from "../../text/strings";
 import { defineBehavior, handleType } from "../behaviors";
 import { rgbSchema } from "../color";
 import { assetField } from "../fields";
+import { escapeRich, type RichLine, type TextVars } from "../rich-text";
 import type { FieldEnv } from "../types";
 
 /** The font size, px at zoom 1, when a block gives none. */
@@ -37,8 +37,13 @@ const textFields = (env: FieldEnv) => ({
     .regex(STRING_KEY_PATTERN)
     .optional()
     .describe("A string-table key; wins over text.")
-    .meta({ group: "text" }),
-  font: assetField(env, [FONT_KIND], "Default: the project's font for the locale.").optional(),
+    .meta({ group: "text", widget: "string-key" }),
+  font: assetField(
+    env,
+    [FONT_KIND],
+    "Default: the project's font for the locale.",
+    "Font",
+  ).optional(),
   size: z
     .number()
     .positive()
@@ -62,7 +67,7 @@ const textFields = (env: FieldEnv) => ({
     ])
     .optional()
     .describe("Where the pose sits in the text's box, 0–1; default the centre.")
-    .meta({ group: "placement" }),
+    .meta({ group: "placement", step: 0.05, decimals: 2 }),
   wrap: z
     .number()
     .int()
@@ -120,12 +125,9 @@ export type TextShown = { text: string } | { key: string; vars?: TextVars };
  * still fill and every other character shows as written.
  */
 export const richSource = (source: string, rich: boolean): string =>
-  rich ? source : source.replace(/[\\[]/g, "\\$&");
+  rich ? source : escapeRich(source, "{");
 
-const RTL_LETTER =
-  /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}]/u;
-
-/** The direction of a text's first letter: right to left for Hebrew, Arabic and their kin. */
+/** The direction of a text's first letter: right to left for a right-to-left script's. */
 export function textDirection(lines: readonly RichLine[]): TextDirection {
   for (const line of lines)
     for (const span of line) {
