@@ -1,5 +1,4 @@
-import { textFontOf } from "../game/behaviors/text";
-import { localeFont, localeSettingsOf } from "../project/kinds/strings";
+import { localeFontOf } from "../text/strings";
 import type { GameStoreState, Vec2 } from "../types";
 import { UI_LAYER_RESIZE } from "./layer";
 import type { UiContext } from "./types";
@@ -121,13 +120,14 @@ export function styleElement(doc: Document, css: string): HTMLStyleElement {
 function localeFontFamily(el: HTMLElement, ctx: UiContext): string | null {
   const project = ctx.game.project();
   if (!project) return null;
-  const id = localeFont(localeSettingsOf(project.engine.locales), ctx.strings().locale);
-  const font = textFontOf((asset) => project.asset(asset), id);
-  if (font?.kind !== "web" || id === undefined) return null;
-  const made = ensureWebFont(el.ownerDocument, font.family, () => ctx.assetUrl(id)?.url ?? null);
+  const shown = localeFontOf(project, ctx.strings().locale);
+  if (shown?.font.kind !== "web") return null;
+  const { id } = shown;
+  const family = shown.font.family;
+  const made = ensureWebFont(el.ownerDocument, family, () => ctx.assetUrl(id)?.url ?? null);
   if (!made) return null;
   if (made.added) made.face.load().catch(() => {});
-  return webFontFamily(font.family);
+  return webFontFamily(family);
 }
 
 /** Sets `el`'s `dir`, `lang` and `--jams-ui-font` from the locale now; call again on `onLocale`. */

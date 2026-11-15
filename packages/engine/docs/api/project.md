@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ANIMATION_KIND`](#animation_kind) · [`ANIMATION_SCHEMA_ID`](#animation_schema_id) · [`ANIMATION_VERSION`](#animation_version) · [`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AnimFrameDef`](#animframedef) · [`AnimationFile`](#animationfile) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetFiles`](#assetfiles) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BUS_NAME_PATTERN`](#bus_name_pattern) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`Bmfont`](#bmfont) · [`BmfontDistanceField`](#bmfontdistancefield) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CLIP_LOOPS`](#clip_loops) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`ClipDef`](#clipdef) · [`ClipLoop`](#cliploop) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`CodePointRanges`](#codepointranges) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DIALOGUE_KIND`](#dialogue_kind) · [`DIALOGUE_SCHEMA_ID`](#dialogue_schema_id) · [`DIALOGUE_VERSION`](#dialogue_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DialogueChoice`](#dialoguechoice) · [`DialogueCondition`](#dialoguecondition) · [`DialogueEffect`](#dialogueeffect) · [`DialogueExit`](#dialogueexit) · [`DialogueFile`](#dialoguefile) · [`DialogueLine`](#dialogueline) · [`DialogueNode`](#dialoguenode) · [`DialoguePortrait`](#dialogueportrait) · [`DialogueSpeaker`](#dialoguespeaker) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocLookup`](#doclookup) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`EMITTER_KIND`](#emitter_kind) · [`EMITTER_MAX_CAP`](#emitter_max_cap) · [`EMITTER_MAX_DEFAULT`](#emitter_max_default) · [`EMITTER_SCHEMA_ID`](#emitter_schema_id) · [`EMITTER_VERSION`](#emitter_version) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`ENGINE_BUSES`](#engine_buses) · [`EditSceneOp`](#editsceneop) · [`EmitterCurve`](#emittercurve) · [`EmitterFile`](#emitterfile) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontDecompress`](#fontdecompress) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`LOCALE_PATTERN`](#locale_pattern) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`LocaleSettings`](#localesettings) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`MergedStringRow`](#mergedstringrow) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`Reinspection`](#reinspection) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SHAPE_SET_NAME`](#shape_set_name) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SOUND_KIND`](#sound_kind) · [`SOUND_MAX_VOICES_DEFAULT`](#sound_max_voices_default) · [`SOUND_SCHEMA_ID`](#sound_schema_id) · [`SOUND_VERSION`](#sound_version) · [`STRINGS_KIND`](#strings_kind) · [`STRINGS_SCHEMA_ID`](#strings_schema_id) · [`STRINGS_VERSION`](#strings_version) · [`STRING_KEY_PATTERN`](#string_key_pattern) · [`SYNTH_BOUNDS`](#synth_bounds) · [`SYNTH_KIND`](#synth_kind) · [`SYNTH_SCHEMA_ID`](#synth_schema_id) · [`SYNTH_VERSION`](#synth_version) · [`SYNTH_WAVES`](#synth_waves) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionFitIssue`](#sceneversionfitissue) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneVersionSource`](#sceneversionsource) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`SoundFile`](#soundfile) · [`SoundMatcher`](#soundmatcher) · [`StringKeyUse`](#stringkeyuse) · [`StringRow`](#stringrow) · [`StringsFile`](#stringsfile) · [`SynthFile`](#synthfile) · [`SynthNumberPath`](#synthnumberpath) · [`SynthWave`](#synthwave) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`animationIssues`](#animationissues) · [`animationKind`](#animationkind) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioBuses`](#audiobuses) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`byPathThenKey`](#bypaththenkey) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`cmapCoverage`](#cmapcoverage) · [`codeKind`](#codekind) · [`codePointRanges`](#codepointranges-1) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`dialogueDeadEnd`](#dialoguedeadend) · [`dialogueExits`](#dialogueexits) · [`dialogueIssues`](#dialogueissues) · [`dialogueKind`](#dialoguekind) · [`dialogueNodes`](#dialoguenodes) · [`dialogueRefs`](#dialoguerefs) · [`dialogueStringIssues`](#dialoguestringissues) · [`docKindJsonSchema`](#dockindjsonschema) · [`docLookup`](#doclookup-1) · [`docLookupOf`](#doclookupof) · [`docNameOf`](#docnameof) · [`emitterIssues`](#emitterissues) · [`emitterKind`](#emitterkind) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontCoverage`](#fontcoverage) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`fontTable`](#fonttable) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isMetaStale`](#ismetastale) · [`isPlainObject`](#isplainobject) · [`isRuntimeKind`](#isruntimekind) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`kindMetaVersion`](#kindmetaversion) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`liveFiles`](#livefiles) · [`localeFont`](#localefont) · [`localeSettingsOf`](#localesettingsof) · [`manifestDocRefs`](#manifestdocrefs) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`mergeRanges`](#mergeranges) · [`mergedStrings`](#mergedstrings) · [`missingStringKeys`](#missingstringkeys) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectLocales`](#projectlocales) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`reachableNodes`](#reachablenodes) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readReleaseScene`](#readreleasescene) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`reinspectBlob`](#reinspectblob) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeKindNames`](#runtimekindnames) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionDataBytes`](#sceneversiondatabytes) · [`sceneVersionFitIssue`](#sceneversionfitissue-1) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionOptions`](#sceneversionoptions) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarMetaVersion`](#sidecarmetaversion) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`soundKind`](#soundkind) · [`stableJson`](#stablejson) · [`stringKeyIssues`](#stringkeyissues) · [`stringLocales`](#stringlocales) · [`stringsKind`](#stringskind) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`synthKind`](#synthkind) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`usedStringKeys`](#usedstringkeys) · [`utf8Bytes`](#utf8bytes) · [`validateAssetDoc`](#validateassetdoc) · [`validateProject`](#validateproject) · [`withReinspectedMeta`](#withreinspectedmeta) · [`writesPrefabs`](#writesprefabs)
+[`ANIMATION_KIND`](#animation_kind) · [`ANIMATION_SCHEMA_ID`](#animation_schema_id) · [`ANIMATION_VERSION`](#animation_version) · [`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AnimFrameDef`](#animframedef) · [`AnimationFile`](#animationfile) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetFiles`](#assetfiles) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BUS_NAME_PATTERN`](#bus_name_pattern) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`Bmfont`](#bmfont) · [`BmfontDistanceField`](#bmfontdistancefield) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CLIP_LOOPS`](#clip_loops) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`ClipDef`](#clipdef) · [`ClipLoop`](#cliploop) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`CodePointRanges`](#codepointranges) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DIALOGUE_KIND`](#dialogue_kind) · [`DIALOGUE_SCHEMA_ID`](#dialogue_schema_id) · [`DIALOGUE_VERSION`](#dialogue_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DialogueChoice`](#dialoguechoice) · [`DialogueCondition`](#dialoguecondition) · [`DialogueEffect`](#dialogueeffect) · [`DialogueExit`](#dialogueexit) · [`DialogueFile`](#dialoguefile) · [`DialogueLine`](#dialogueline) · [`DialogueNode`](#dialoguenode) · [`DialoguePortrait`](#dialogueportrait) · [`DialogueSpeaker`](#dialoguespeaker) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocLookup`](#doclookup) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`EMITTER_KIND`](#emitter_kind) · [`EMITTER_MAX_CAP`](#emitter_max_cap) · [`EMITTER_MAX_DEFAULT`](#emitter_max_default) · [`EMITTER_SCHEMA_ID`](#emitter_schema_id) · [`EMITTER_VERSION`](#emitter_version) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`ENGINE_BUSES`](#engine_buses) · [`EditSceneOp`](#editsceneop) · [`EmitterCurve`](#emittercurve) · [`EmitterFile`](#emitterfile) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontDecompress`](#fontdecompress) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`LOCALE_PATTERN`](#locale_pattern) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`LocaleSettings`](#localesettings) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`MergedStringRow`](#mergedstringrow) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`Reinspection`](#reinspection) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SHAPE_SET_NAME`](#shape_set_name) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SOUND_KIND`](#sound_kind) · [`SOUND_MAX_VOICES_DEFAULT`](#sound_max_voices_default) · [`SOUND_SCHEMA_ID`](#sound_schema_id) · [`SOUND_VERSION`](#sound_version) · [`STRINGS_KIND`](#strings_kind) · [`STRINGS_SCHEMA_ID`](#strings_schema_id) · [`STRINGS_VERSION`](#strings_version) · [`STRING_KEY_PATTERN`](#string_key_pattern) · [`STRING_NOTE_FIELD`](#string_note_field) · [`SYNTH_BOUNDS`](#synth_bounds) · [`SYNTH_KIND`](#synth_kind) · [`SYNTH_LFO_WAVES`](#synth_lfo_waves) · [`SYNTH_OSC_WAVES`](#synth_osc_waves) · [`SYNTH_SCHEMA_ID`](#synth_schema_id) · [`SYNTH_VERSION`](#synth_version) · [`SYNTH_WAVES`](#synth_waves) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionFitIssue`](#sceneversionfitissue) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneVersionSource`](#sceneversionsource) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`SoundFile`](#soundfile) · [`SoundMatcher`](#soundmatcher) · [`StringKeyUse`](#stringkeyuse) · [`StringRow`](#stringrow) · [`StringsFile`](#stringsfile) · [`SynthAdsr`](#synthadsr) · [`SynthFile`](#synthfile) · [`SynthLfoWave`](#synthlfowave) · [`SynthNumberPath`](#synthnumberpath) · [`SynthOsc`](#synthosc) · [`SynthOscWave`](#synthoscwave) · [`SynthWave`](#synthwave) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`animationIssues`](#animationissues) · [`animationKind`](#animationkind) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioBuses`](#audiobuses) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`byPathThenKey`](#bypaththenkey) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`cmapCoverage`](#cmapcoverage) · [`codeKind`](#codekind) · [`codePointRanges`](#codepointranges-1) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`dialogueDeadEnd`](#dialoguedeadend) · [`dialogueExits`](#dialogueexits) · [`dialogueIssues`](#dialogueissues) · [`dialogueKind`](#dialoguekind) · [`dialogueNodes`](#dialoguenodes) · [`dialogueRefs`](#dialoguerefs) · [`dialogueStringIssues`](#dialoguestringissues) · [`docKindJsonSchema`](#dockindjsonschema) · [`docLookup`](#doclookup-1) · [`docLookupOf`](#doclookupof) · [`docNameOf`](#docnameof) · [`emitterIssues`](#emitterissues) · [`emitterKind`](#emitterkind) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontCoverage`](#fontcoverage) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`fontTable`](#fonttable) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isMetaStale`](#ismetastale) · [`isPlainObject`](#isplainobject) · [`isRuntimeKind`](#isruntimekind) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`kindMetaVersion`](#kindmetaversion) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`liveFiles`](#livefiles) · [`localeFont`](#localefont) · [`localeSettingsOf`](#localesettingsof) · [`localeTagProblem`](#localetagproblem) · [`manifestDocRefs`](#manifestdocrefs) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`mergeRanges`](#mergeranges) · [`mergedStrings`](#mergedstrings) · [`missingStringKeys`](#missingstringkeys) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectLocales`](#projectlocales) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`reachableNodes`](#reachablenodes) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readReleaseScene`](#readreleasescene) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`reinspectBlob`](#reinspectblob) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeKindNames`](#runtimekindnames) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionDataBytes`](#sceneversiondatabytes) · [`sceneVersionFitIssue`](#sceneversionfitissue-1) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionOptions`](#sceneversionoptions) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarMetaVersion`](#sidecarmetaversion) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`soundKind`](#soundkind) · [`stableJson`](#stablejson) · [`stringKeyIssues`](#stringkeyissues) · [`stringLocales`](#stringlocales) · [`stringsKind`](#stringskind) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`synthKind`](#synthkind) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`usedStringKeys`](#usedstringkeys) · [`utf8Bytes`](#utf8bytes) · [`validateAssetDoc`](#validateassetdoc) · [`validateProject`](#validateproject) · [`withReinspectedMeta`](#withreinspectedmeta) · [`writesPrefabs`](#writesprefabs)
 
 ## `ANIMATION_KIND`
 
@@ -3292,6 +3292,16 @@ What a string key looks like: `intro.hello`, `caption.hit`.
 declare const STRING_KEY_PATTERN: RegExp;
 ```
 
+## `STRING_NOTE_FIELD`
+
+_const_ in `project/kinds/strings.ts`
+
+A row's note for translators, which a CSV export carries in its last column.
+
+```ts
+declare const STRING_NOTE_FIELD = "note";
+```
+
 ## `SYNTH_BOUNDS`
 
 _const_ in `project/kinds/synth.ts`
@@ -3313,6 +3323,37 @@ _const_ in `project/kinds/synth.ts`
 
 ```ts
 declare const SYNTH_KIND = "synth";
+```
+
+## `SYNTH_LFO_WAVES`
+
+_const_ in `project/kinds/synth.ts`
+
+The LFO's shapes; `random` holds a new seeded value each cycle (sample and hold).
+
+```ts
+declare const SYNTH_LFO_WAVES: readonly [
+    "sine",
+    "triangle",
+    "square",
+    "saw",
+    "random"
+];
+```
+
+## `SYNTH_OSC_WAVES`
+
+_const_ in `project/kinds/synth.ts`
+
+The pitched waves a second or third oscillator plays; noise has its own mixer level.
+
+```ts
+declare const SYNTH_OSC_WAVES: readonly [
+    "square",
+    "saw",
+    "triangle",
+    "sine"
+];
 ```
 
 ## `SYNTH_SCHEMA_ID`
@@ -3696,6 +3737,21 @@ type StringsFile = {
 
 Refers to [`STRINGS_KIND`](#strings_kind), [`STRINGS_VERSION`](#strings_version), [`StringRow`](#stringrow).
 
+## `SynthAdsr`
+
+_type_ in `project/kinds/synth.ts`
+
+Attack, decay, sustain level and release; the gate is the patch's attack plus sustain.
+
+```ts
+type SynthAdsr = {
+    attackMs?: number;
+    decayMs?: number;
+    releaseMs?: number;
+    sustain?: number;
+};
+```
+
 ## `SynthFile`
 
 _type_ in `project/kinds/synth.ts`
@@ -3705,12 +3761,31 @@ A `synth:v1` file. Times are ms, pitch Hz, slides octaves per second.
 ```ts
 type SynthFile = {
     $schema?: string;
+    /**
+     * The amp envelope's decay to `ampSustain` (default 1, so no decay) during
+     * `sustainMs`, the gate; `decayMs` is then its release.
+     */
+    ampDecayMs?: number;
+    ampSustain?: number;
     /** The volume envelope; `punch` (0–1) lifts the start of the sustain. */
     attackMs?: number;
     decayMs: number;
     /** Square only: the high part of the cycle (default `SYNTH_DEFAULTS.duty`), and its change per second. */
     duty?: number;
     dutySweep?: number;
+    /**
+     * A resonant four-pole (24 dB per octave) ladder low-pass after the mixer.
+     * `envAmount` is octaves at the filter envelope's peak, `keyTrack` how far
+     * the cutoff follows the pitch from middle C, `drive` how hard it's pushed.
+     */
+    filter?: {
+        cutoff: number;
+        drive?: number;
+        envAmount?: number;
+        keyTrack?: number;
+        resonance?: number;
+    };
+    filterEnv?: SynthAdsr;
     /** Hz at the start. */
     freq: number;
     highpass?: {
@@ -3723,12 +3798,26 @@ type SynthFile = {
         semitones: number;
     };
     kind: typeof SYNTH_KIND;
+    /** The first oscillator's mixer level, default 1. */
+    level?: number;
+    /** `pitch` semitones, `cutoff` octaves and `amp` (0–1) of modulation at full swing. */
+    lfo?: {
+        amp?: number;
+        cutoff?: number;
+        hz: number;
+        pitch?: number;
+        wave: SynthLfoWave;
+    };
     /** `sweep` moves the cutoff, octaves per second. */
     lowpass?: {
         hz: number;
         resonance?: number;
         sweep?: number;
     };
+    /** White noise in the mixer, 0–1. */
+    noise?: number;
+    osc2?: SynthOsc;
+    osc3?: SynthOsc;
     punch?: number;
     /** Restart pitch and duty every this many ms (a stutter). */
     retriggerMs?: number;
@@ -3749,7 +3838,17 @@ type SynthFile = {
 };
 ```
 
-Refers to [`SYNTH_KIND`](#synth_kind), [`SYNTH_VERSION`](#synth_version), [`SynthWave`](#synthwave).
+Refers to [`SYNTH_KIND`](#synth_kind), [`SYNTH_VERSION`](#synth_version), [`SynthAdsr`](#synthadsr), [`SynthLfoWave`](#synthlfowave), [`SynthOsc`](#synthosc), [`SynthWave`](#synthwave).
+
+## `SynthLfoWave`
+
+_type_ in `project/kinds/synth.ts`
+
+```ts
+type SynthLfoWave = (typeof SYNTH_LFO_WAVES)[number];
+```
+
+Refers to [`SYNTH_LFO_WAVES`](#synth_lfo_waves).
 
 ## `SynthNumberPath`
 
@@ -3758,8 +3857,38 @@ _type_ in `project/kinds/synth.ts`
 A numeric field's path in a patch, nested fields joined by a dot.
 
 ```ts
-type SynthNumberPath = "attackMs" | "decayMs" | "duty" | "dutySweep" | "freq" | "highpass.hz" | "highpass.sweep" | "jump.atMs" | "jump.semitones" | "lowpass.hz" | "lowpass.resonance" | "lowpass.sweep" | "punch" | "retriggerMs" | "slide" | "slideAccel" | "sustainMs" | "vibrato.hz" | "vibrato.semitones" | "volume";
+type SynthNumberPath = "ampDecayMs" | "ampSustain" | "attackMs" | "decayMs" | "duty" | "dutySweep" | "filter.cutoff" | "filter.drive" | "filter.envAmount" | "filter.keyTrack" | "filter.resonance" | "filterEnv.attackMs" | "filterEnv.decayMs" | "filterEnv.releaseMs" | "filterEnv.sustain" | "freq" | "highpass.hz" | "highpass.sweep" | "jump.atMs" | "jump.semitones" | "level" | "lfo.amp" | "lfo.cutoff" | "lfo.hz" | "lfo.pitch" | "lowpass.hz" | "lowpass.resonance" | "lowpass.sweep" | "noise" | "osc2.detune" | "osc2.level" | "osc2.octave" | "osc3.detune" | "osc3.level" | "osc3.octave" | "punch" | "retriggerMs" | "slide" | "slideAccel" | "sustainMs" | "vibrato.hz" | "vibrato.semitones" | "volume";
 ```
+
+## `SynthOsc`
+
+_type_ in `project/kinds/synth.ts`
+
+An oscillator beside the first, tuned from it.
+
+```ts
+type SynthOsc = {
+    /** Cents from the first oscillator. */
+    detune?: number;
+    /** Its mixer level, default 1. */
+    level?: number;
+    /** Whole octaves from the first oscillator. */
+    octave?: number;
+    wave: SynthOscWave;
+};
+```
+
+Refers to [`SynthOscWave`](#synthoscwave).
+
+## `SynthOscWave`
+
+_type_ in `project/kinds/synth.ts`
+
+```ts
+type SynthOscWave = (typeof SYNTH_OSC_WAVES)[number];
+```
+
+Refers to [`SYNTH_OSC_WAVES`](#synth_osc_waves).
 
 ## `SynthWave`
 
@@ -4588,14 +4717,15 @@ Refers to [`AssetKindDef`](#assetkinddef), [`AssetPath`](#assetpath), [`KindRegi
 
 _function_ in `project/kinds/dialogue.ts`
 
-How a node can stall. "none": it has no choices, no `next` and no `end`,
-so the conversation stops with no ending. "guarded": it has only
-choices, and every one has an `if`, so with all of them failing nothing
-is offered. A choice without `if`, or the node's `next` or `end`, is the
-fallback. Null when it can't stall.
+The ways a node can stall, none when it can't. "none": it has no choices,
+no `next` and no `end`, so the conversation stops with no ending.
+"guarded": it has only choices, and every one has an `if`, so with all of
+them failing nothing is offered (a choice without `if`, or the node's
+`next` or `end`, is the fallback). "unguarded-if": it has an `if` and no
+`else`, so entering it while the `if` fails stops the conversation.
 
 ```ts
-declare function dialogueDeadEnd(node: DialogueNode): "guarded" | "none" | null;
+declare function dialogueDeadEnd(node: DialogueNode): ("guarded" | "none" | "unguarded-if")[];
 ```
 
 Refers to [`DialogueNode`](#dialoguenode).
@@ -5568,6 +5698,16 @@ declare function localeSettingsOf(block: unknown): LocaleSettings;
 ```
 
 Refers to [`LocaleSettings`](#localesettings).
+
+## `localeTagProblem`
+
+_const_ in `project/kinds/strings.ts`
+
+Why `tag` can't name a locale, or null when it can.
+
+```ts
+declare const localeTagProblem: (tag: string) => null | string;
+```
 
 ## `manifestDocRefs`
 

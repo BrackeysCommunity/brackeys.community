@@ -1,9 +1,13 @@
+import type { Registry } from "../game/types";
 import { sameValue } from "../project/canonical";
 import { byCodeUnit, isPlainObject } from "../project/kinds/define";
 import { SOUND_KIND, type SoundFile, type SoundMatcher } from "../project/kinds/sound";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import type { StepEvent } from "../runtime/types";
+import { entityTags, tagFieldsOf } from "../scene/schema";
+import type { RuntimeEntity } from "../scene/types";
+import type { Vec2 } from "../types";
 
 /** What a `type` or `tag` matcher reads of an event's entity. */
 export type TriggerEntity = { type: string; tags: ReadonlySet<string> };
@@ -15,6 +19,25 @@ export type SoundTriggers = {
 };
 
 const NONE: readonly AssetId[] = Object.freeze([]);
+
+/** A matcher's view of the entities `lookup` finds: each one's type and its tag fields' tags. */
+export function triggerEntityOf(
+  registry: Pick<Registry, "types">,
+  lookup: (id: string) => RuntimeEntity | undefined,
+): (id: string) => TriggerEntity | undefined {
+  return (id) => {
+    const e = lookup(id);
+    return e
+      ? { type: e.type, tags: entityTags(e, tagFieldsOf(registry.types.get(e.type))) }
+      : undefined;
+  };
+}
+
+/** Where a sound an event triggered plays from: the event's entity, if it names one, and its point. */
+export function triggerSource(event: StepEvent): { entity?: string; at: Vec2 } {
+  const at = { x: event.at.x, y: event.at.y };
+  return event.entityId !== undefined ? { entity: event.entityId, at } : { at };
+}
 
 /**
  * The trigger index over a project's sound docs. `entity` answers a

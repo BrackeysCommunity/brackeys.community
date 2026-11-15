@@ -1,9 +1,13 @@
 import { Store } from "@tanstack/store";
 import { useEffect, useRef } from "react";
 
-import { createDialogueRunner, type DialogueRunner } from "../../../dialogue/runner";
+import {
+  applyDialogueCommand,
+  createDialogueRunner,
+  type DialogueRunner,
+} from "../../../dialogue/runner";
 import { memoryVars } from "../../../dialogue/vars";
-import { DIALOGUE_ADVANCE_COMMAND, isDialogueCommand } from "../../../game/commands";
+import { isDialogueCommand } from "../../../game/commands";
 import type { GameCommand } from "../../../game/types";
 import { DIALOGUE_KIND, type DialogueFile } from "../../../project/kinds/dialogue";
 import type { AssetId } from "../../../project/types";
@@ -36,13 +40,11 @@ export type DialoguePreview = { id: AssetId; run: number };
 type PreviewControl = { start(id: AssetId): boolean };
 
 /**
- * The UI a project without game code gets over the canvas in Play, since it
- * has no game UI of its own: the sounds' captions, and the dialogue box,
- * showing a conversation the scene's scripts start or the one `dialogue`
- * previews. A preview runs its own copy of the dialogue over variables of
- * its own (a gameless project has no persistent state), so it changes
- * nothing in the run or its recording; `onDialogueEnd` is told when it ends. A game places its own
- * captions and dialogue, so a game gets none of this.
+ * The captions and dialogue box a gameless project gets over the canvas in
+ * Play: a conversation the scene's scripts start, or the `dialogue` preview.
+ * A preview runs its own copy of the dialogue over its own variables, so the
+ * run and its recording are untouched; `onDialogueEnd` hears when it ends.
+ * A game places its own captions and dialogue, so it gets none of this.
  */
 export function PlayCaptions({
   game,
@@ -82,11 +84,7 @@ export function PlayCaptions({
     };
     const send = (command: GameCommand): boolean => {
       if (!runner || !isDialogueCommand(command.name)) return real.send(command);
-      const choice = (command.args as { choice?: unknown } | undefined)?.choice;
-      const moved =
-        command.name === DIALOGUE_ADVANCE_COMMAND
-          ? runner.advance()
-          : typeof choice === "number" && runner.choose(choice);
+      const moved = applyDialogueCommand(runner, command);
       if (runner.view().ended !== null) finish();
       else if (moved) sync();
       return moved;

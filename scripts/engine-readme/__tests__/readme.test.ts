@@ -8,6 +8,7 @@ import {
   SYNTH_PRESETS,
   type GameInstance,
   type GameStoreState,
+  type LatencyCalibration,
   type SaveSlots,
   type UiActionEvent,
 } from "@jams/engine";
@@ -50,6 +51,7 @@ import {
   ENGINE_ASSET_KINDS,
   ENGINE_BUSES,
   SOUND_MAX_VOICES_DEFAULT,
+  SYNTH_LFO_WAVES,
   type AssetEntry,
 } from "@jams/engine/project";
 import { expandScene, type SceneDefinition } from "@jams/engine/scene";
@@ -1308,6 +1310,7 @@ describe("the audio, text, dialogue and localisation sections", () => {
     const audio = flat("## Audio");
     for (const bus of ENGINE_BUSES) expect(audio).toContain(`\`${bus}\``);
     for (const preset of SYNTH_PRESETS) expect(audio).toContain(`\`${preset}\``);
+    for (const wave of SYNTH_LFO_WAVES) expect(audio).toContain(`\`${wave}\``);
     expect(audio).toContain(`default ${SOUND_MAX_VOICES_DEFAULT}`);
     expect(audio).toContain(`(default ${MUSIC_FADE_MS_DEFAULT})`);
     expect(audio).toContain(`more than ${MUSIC_DRIFT_LIMIT_MS} ms apart`);
@@ -1375,8 +1378,8 @@ describe("the audio, text, dialogue and localisation examples run", () => {
     const r = chime();
     expect(r.presets).toEqual([...SYNTH_PRESETS]);
     expect(r.sameSeedSamePatch).toBe(true);
-    expect(r.ms).toBe(306);
-    expect(r.samples).toBe(Math.round(306 * 44.1));
+    expect(r.ms).toBe(310);
+    expect(r.samples).toBe(Math.round(310 * 44.1));
     expect(r.wavBytes).toBe(44 + r.samples * 2);
     expect(r.sameWave).toBe(true);
     expect(r.log).toEqual([`buffer 1ch ${r.samples}`, "play pan 0.5"]);
@@ -1441,6 +1444,7 @@ describe("the audio, text, dialogue and localisation examples run", () => {
       ["sfx", { volume: 1, muted: true }],
     ]);
     const prefs: Record<string, unknown> = {};
+    const calibrations: (LatencyCalibration | null)[] = [];
     let locale = opts.locale ?? "en";
     const fire = (event: string, payload: unknown) => {
       for (const fn of [...(handlers.get(event) ?? [])]) fn(payload);
@@ -1455,7 +1459,7 @@ describe("the audio, text, dialogue and localisation examples run", () => {
         handlers.get(event)!.add(fn);
       },
       off: (event: string, fn: (payload: unknown) => void) => void handlers.get(event)?.delete(fn),
-      input: { onAction: () => () => {} },
+      input: { onAction: () => () => {}, bindings: () => ({}) },
       audio: {
         buses: () => Object.fromEntries(bus),
         setBus: (name: string, volume: number, muted?: boolean) =>
@@ -1476,9 +1480,10 @@ describe("the audio, text, dialogue and localisation examples run", () => {
         enabled: () => prefs.captions === true,
         set: (on: boolean) => void (prefs.captions = on),
       },
+      calibrateLatency: () => Promise.resolve(calibrations.shift() ?? null),
     } as unknown as GameInstance;
     const show = (next: DialogueView | null) => store.setState((s) => ({ ...s, dialogue: next }));
-    return { game, sent, fire, bus, prefs, show, handlers };
+    return { game, sent, fire, bus, prefs, show, handlers, calibrations };
   }
 
   it("talk-hud.ts shows the guard's line and choices, sends the choice, captions the coin and turns right to left", async () => {
@@ -1495,6 +1500,11 @@ describe("the audio, text, dialogue and localisation examples run", () => {
     const h = talkingGame(runner.view());
     h.game.captions.set(true);
     const unmount = mountUi(h.game, window.document.querySelector("canvas")!, mountTalkHud);
+
+    const place = [...q("[data-place]")!.children] as HTMLElement[];
+    expect(place.map((span) => span.textContent)).toEqual(["North Gate", " ", "toll road"]);
+    expect(place[0]!.style.fontWeight).toBe("bold");
+    expect(place[2]!.style.color).toBe("rgb(255, 210, 74)");
 
     const box = q('[role="dialog"]')!;
     expect(box.getAttribute("aria-label")).toBe("Guard");
@@ -1546,6 +1556,27 @@ describe("the audio, text, dialogue and localisation examples run", () => {
     input("captions").dispatchEvent(new window.Event("change"));
     expect(h.prefs).toEqual({ locale: "fr", captions: true });
     expect(window.document.querySelector("form")?.style.pointerEvents).toBe("auto");
+
+    const calibrate = window.document.querySelector<HTMLButtonElement>('[name="calibrate"]')!;
+    const latency = window.document.querySelector("output")!;
+    h.calibrations.push({ ms: 42, spread: 6 }, null);
+    calibrate.click();
+    expect(calibrate.disabled).toBe(true);
+    expect(latency.textContent).toBe("Tap along to the clicks");
+    await vi.waitFor(() => expect(latency.textContent).toBe("42 ms (spread 6 ms)"));
+    expect(calibrate.disabled).toBe(false);
+    calibrate.click();
+    await vi.waitFor(() => expect(latency.textContent).toBe("Not enough taps; try again"));
     unmount();
+  });
+
+  it("gate-bark.ts barks from a runner of its own beside the guard, and a world save keeps it", async () => {
+    const { crowAlong } = await import("../examples/gate-bark");
+    expect(crowAlong()).toEqual({
+      first: ["19 line 1", "39 line 0"],
+      on: ["59 line 1", "79 line 0"],
+      fromSave: ["59 line 1", "79 line 0"],
+      guard: "gate",
+    });
   });
 });

@@ -1,6 +1,6 @@
 import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import type { Store } from "@tanstack/store";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import type { GameInstance, GameStoreState } from "../../types";
 import { applySoundInPlay, useSoundInPlay } from "../audio/editor-audio";
@@ -48,6 +48,12 @@ export const LOCALE_TOOLTIP = "Preview the game's text in another language";
 
 export const DIALOGUE_PREVIEW_TOOLTIP =
   "Run one of the project's dialogues over the game, to read its lines and choices. Its effects stay in the preview";
+
+/** The dialogue picker's hint, naming the running preview in full since the picker may cut it short. */
+export const dialoguePickerHint = (running: string | null): string =>
+  running === null
+    ? `${DIALOGUE_PREVIEW_TOOLTIP}.`
+    : `Previewing ${running}. Pick it again to start over.`;
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -157,6 +163,7 @@ export function EditorPlayBar({
         <LocalePicker game={game} />
         <DialoguePicker
           game={game}
+          canvas={canvas}
           running={dialogue?.id ?? null}
           onPick={(id) => setDialogue((was) => ({ id, run: (was?.run ?? 0) + 1 }))}
         />
@@ -406,37 +413,48 @@ function LocalePicker({ game }: { game: object }) {
 
 /**
  * Previews one of a gameless project's dialogues in the Play overlay; picking
- * the running one again starts it over. Shown only when the project has a
- * dialogue and no game code, whose own UI would start and show them.
+ * the running one again starts it over. A pick hands focus to the canvas, so
+ * the play keys move the dialogue on rather than reopening the picker. Shown
+ * only when the project has a dialogue and no game code, whose own UI would
+ * start and show them.
  */
 function DialoguePicker({
   game,
+  canvas,
   running,
   onPick,
 }: {
   game: object;
+  canvas: EditorControls["canvas"];
   running: string | null;
   onPick: (id: string) => void;
 }) {
   const { cue } = useKit();
+  const picked = useRef(false);
   const ids = previewDialogues(game);
   if (ids.length === 0) return null;
   return (
-    // Held at no value, so picking the running dialogue raises a change and starts it over.
     <Select
-      value=""
+      value={running}
       onValueChange={(next) => {
-        if (typeof next !== "string" || next === "") return;
+        if (typeof next !== "string") return;
+        picked.current = true;
         cue("toggle");
         onPick(next);
       }}
     >
-      <Hint content={`${DIALOGUE_PREVIEW_TOOLTIP}.`}>
+      <Hint content={dialoguePickerHint(running)}>
         <SelectTrigger size="sm" aria-label="Preview a dialogue" className="je-play-select">
           <SelectValue>{running ?? "Dialogue"}</SelectValue>
         </SelectTrigger>
       </Hint>
-      <SelectContent>
+      <SelectContent
+        finalFocus={() => {
+          const to = picked.current ? (canvas?.() ?? null) : null;
+          picked.current = false;
+          return to ?? true;
+        }}
+      >
         {ids.map((id) => (
           <SelectItem key={id} value={id}>
             {id}

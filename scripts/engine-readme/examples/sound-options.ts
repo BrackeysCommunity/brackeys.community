@@ -30,9 +30,10 @@ export async function startGateGame(canvas: HTMLCanvasElement, sceneText: string
 }
 
 /**
- * An options panel: a slider and a mute box per bus, the language and
- * captions. Each control writes through `GameInstance`, which saves it in
- * the prefs; nothing here reaches the simulation.
+ * An options panel: a slider and a mute box per bus, the language,
+ * captions and latency calibration. Each control writes through
+ * `GameInstance`, which saves it in the prefs; nothing here reaches the
+ * simulation.
  */
 export const mountSoundOptions: MountUi = (ctx) => {
   const doc = ctx.root.ownerDocument;
@@ -85,6 +86,25 @@ export const mountSoundOptions: MountUi = (ctx) => {
   captions.checked = game.captions.enabled();
   captions.addEventListener("change", () => game.captions.set(captions.checked));
   field("Captions", captions);
+
+  // Taps along to a click track; the offset is saved and sent as `@latency`.
+  const calibrate = doc.createElement("button");
+  calibrate.type = "button";
+  calibrate.name = "calibrate";
+  calibrate.textContent = "Calibrate";
+  const offset = doc.createElement("output");
+  offset.name = "latency";
+  calibrate.addEventListener("click", async () => {
+    calibrate.disabled = true;
+    offset.textContent = "Tap along to the clicks";
+    const found = await game.calibrateLatency();
+    offset.textContent = found
+      ? `${found.ms} ms (spread ${found.spread} ms)`
+      : "Not enough taps; try again";
+    calibrate.disabled = false;
+  });
+  field("Latency", calibrate);
+  form.append(offset);
 
   ctx.root.append(form);
   return { destroy: () => form.remove() };

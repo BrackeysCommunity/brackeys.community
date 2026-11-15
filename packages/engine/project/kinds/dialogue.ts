@@ -291,16 +291,17 @@ export function dialogueNodes(file: DialogueFile): Map<string, DialogueNode> {
   return out;
 }
 
-/** Every node a path from `start` reaches, `start` first, breadth-first; empty when `start` names no node. */
-export function reachableNodes(file: DialogueFile): Set<string> {
-  const nodes = dialogueNodes(file);
+/** The nodes `exits` lead to from `from`, breadth-first; `from` itself only when a path comes back to it. */
+function reachFrom(
+  nodes: ReadonlyMap<string, DialogueNode>,
+  from: string,
+  exits: (node: DialogueNode) => readonly string[],
+): Set<string> {
   const seen = new Set<string>();
-  if (!nodes.has(file.start)) return seen;
-  const queue = [file.start];
-  seen.add(file.start);
+  const queue = [from];
   for (let i = 0; i < queue.length; i++) {
     const node = nodes.get(queue[i]!);
-    for (const { to } of node ? dialogueExits(node) : [])
+    for (const to of node ? exits(node) : [])
       if (nodes.has(to) && !seen.has(to)) {
         seen.add(to);
         queue.push(to);
@@ -309,18 +310,33 @@ export function reachableNodes(file: DialogueFile): Set<string> {
   return seen;
 }
 
+/** Every node a path from `start` reaches, `start` first, breadth-first; empty when `start` names no node. */
+export function reachableNodes(file: DialogueFile): Set<string> {
+  const nodes = dialogueNodes(file);
+  if (!nodes.has(file.start)) return new Set();
+  const seen = new Set([file.start]);
+  for (const id of reachFrom(nodes, file.start, (n) => dialogueExits(n).map((e) => e.to)))
+    seen.add(id);
+  return seen;
+}
+
 /**
- * How a node can stall. "none": it has no choices, no `next` and no `end`,
- * so the conversation stops with no ending. "guarded": it has only
- * choices, and every one has an `if`, so with all of them failing nothing
- * is offered. A choice without `if`, or the node's `next` or `end`, is the
- * fallback. Null when it can't stall.
+ * The ways a node can stall, none when it can't. "none": it has no choices,
+ * no `next` and no `end`, so the conversation stops with no ending.
+ * "guarded": it has only choices, and every one has an `if`, so with all of
+ * them failing nothing is offered (a choice without `if`, or the node's
+ * `next` or `end`, is the fallback). "unguarded-if": it has an `if` and no
+ * `else`, so entering it while the `if` fails stops the conversation.
  */
-export function dialogueDeadEnd(node: DialogueNode): "none" | "guarded" | null {
-  if (node.next !== undefined || node.end !== undefined) return null;
-  const choices = node.choices ?? [];
-  if (choices.length === 0) return "none";
-  return choices.every((c) => c.if !== undefined) ? "guarded" : null;
+export function dialogueDeadEnd(node: DialogueNode): ("none" | "guarded" | "unguarded-if")[] {
+  const out: ("none" | "guarded" | "unguarded-if")[] = [];
+  if (node.next === undefined && node.end === undefined) {
+    const choices = node.choices ?? [];
+    if (choices.length === 0) out.push("none");
+    else if (choices.every((c) => c.if !== undefined)) out.push("guarded");
+  }
+  if (node.if && node.else === undefined) out.push("unguarded-if");
+  return out;
 }
 
 /**
@@ -347,18 +363,7 @@ function quietLoops(file: DialogueFile): { nodes: string[]; certain: boolean }[]
   const reach = new Map<string, Set<string>>();
   const reachOf = (from: string): Set<string> => {
     let seen = reach.get(from);
-    if (seen) return seen;
-    seen = new Set<string>();
-    const queue = [from];
-    for (let i = 0; i < queue.length; i++) {
-      const node = nodes.get(queue[i]!);
-      for (const to of node ? quietExits(node) : [])
-        if (nodes.has(to) && !seen.has(to)) {
-          seen.add(to);
-          queue.push(to);
-        }
-    }
-    reach.set(from, seen);
+    if (!seen) reach.set(from, (seen = reachFrom(nodes, from, quietExits)));
     return seen;
   };
   const placed = new Set<string>();
@@ -403,32 +408,37 @@ export function dialogueIssues(file: DialogueFile): SceneIssue[] {
   file.nodes.forEach((node, n) => {
     for (const exit of dialogueExits(node))
       if (!nodes.has(exit.to)) missing(exit.to, nodeIndexAt(n, ...exit.at), `node "${node.id}"`);
-    const dead = dialogueDeadEnd(node);
-    if (dead === "none")
-      issues.push(
-        makeIssue("dialogue-dead-end", {
-          message: `node "${node.id}" has no choices, no \`next\` and no \`end\`, so the conversation stops there without an ending`,
-          path: nodeIndexAt(n),
-        }),
-      );
-    else if (dead === "guarded")
-      issues.push(
-        makeIssue("dialogue-dead-end", {
-          severity: "warn",
-          message: `every choice of node "${node.id}" has an \`if\`, so when they all fail nothing is offered`,
-          path: nodeIndexAt(n, "choices"),
-          hint: "Give one choice no `if`, or give the node a `next` or an `end` to fall back on.",
-        }),
-      );
-    if (node.if && node.else === undefined)
-      issues.push(
-        makeIssue("dialogue-dead-end", {
-          severity: "warn",
-          message: `node "${node.id}" has an \`if\` and no \`else\`, so entering it when the \`if\` fails stops the conversation`,
-          path: nodeIndexAt(n, "if"),
-          hint: "Give the node an `else`, or put the condition on the choices that lead to it.",
-        }),
-      );
+    for (const dead of dialogueDeadEnd(node))
+      switch (dead) {
+        case "none":
+          issues.push(
+            makeIssue("dialogue-dead-end", {
+              message: `node "${node.id}" has no choices, no \`next\` and no \`end\`, so the conversation stops there without an ending`,
+              path: nodeIndexAt(n),
+            }),
+          );
+          break;
+        case "guarded":
+          issues.push(
+            makeIssue("dialogue-dead-end", {
+              severity: "warn",
+              message: `every choice of node "${node.id}" has an \`if\`, so when they all fail nothing is offered`,
+              path: nodeIndexAt(n, "choices"),
+              hint: "Give one choice no `if`, or give the node a `next` or an `end` to fall back on.",
+            }),
+          );
+          break;
+        case "unguarded-if":
+          issues.push(
+            makeIssue("dialogue-dead-end", {
+              severity: "warn",
+              message: `node "${node.id}" has an \`if\` and no \`else\`, so entering it when the \`if\` fails stops the conversation`,
+              path: nodeIndexAt(n, "if"),
+              hint: "Give the node an `else`, or put the condition on the choices that lead to it.",
+            }),
+          );
+          break;
+      }
     if (reached && !reached.has(node.id))
       issues.push(
         makeIssue("dialogue-unreachable", {

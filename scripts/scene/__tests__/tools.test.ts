@@ -3860,14 +3860,20 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
     expect(present).toEqual([
       {
         kind: "audio",
-        op: { op: "play", sound: "clink", on: "character:landed", entity: "std-side-view" },
+        op: {
+          op: "play",
+          sound: "clink",
+          on: "character:landed",
+          entity: "std-side-view",
+          at: { x: 14.2, y: expect.closeTo(2.7, 3) },
+        },
         tick: 10,
       },
     ]);
     expect(presented.text).toContain(
       [
         "  present (1, points in metres):",
-        '    t10 audio play {"sound":"clink","on":"character:landed","entity":"std-side-view"}',
+        '    t10 audio play {"sound":"clink","on":"character:landed","entity":"std-side-view","at":{"x":14.2,"y":2.6999}}',
       ].join("\n"),
     );
     const plain = await playtest({ scene: "kitchen-sink", script }, sinkCtx);

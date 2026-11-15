@@ -1,5 +1,11 @@
-import { ArrowDown01Icon, ArrowRight01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  Cancel01Icon,
+  Delete02Icon,
+} from "@hugeicons/core-free-icons";
+import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -20,6 +26,7 @@ import { LENGTH_UNITS, roundLength, type LengthUnitName } from "../../../scene/u
 import { STORAGE_PREFIX } from "../../host";
 import { formatQuantity } from "../../kit/format";
 import {
+  Button,
   Combobox,
   ComboboxContent,
   ComboboxEmpty,
@@ -1101,6 +1108,95 @@ export function RecordField({
         </div>
       </div>
     </FieldRow>
+  );
+}
+
+/** Typed tags as a list: split on spaces and commas, blanks dropped. */
+export const splitWords = (text: string): string[] => text.split(/[\s,]+/).filter(Boolean);
+
+/** `tags` with `words` added after them, each once. */
+export const withWords = (tags: readonly string[], words: readonly string[]): string[] => [
+  ...new Set([...tags, ...words]),
+];
+
+/**
+ * Tags as chips, each a button that removes it, and a box that adds the
+ * words typed on Enter, comma or blur. A `locked` tag shows its own node in
+ * place of its remove button; an `adder` stands in for the box, and a null
+ * one leaves it out. `onAdd`
+ * says whether the words were taken, which clears the box.
+ */
+export function TagChips({
+  label,
+  tags,
+  removeLabel,
+  onRemove,
+  onAdd,
+  onDraft,
+  placeholder,
+  locked,
+  lead,
+  adder,
+}: {
+  label: string;
+  tags: readonly string[];
+  removeLabel: (tag: string) => string;
+  onRemove: (tag: string) => void;
+  onAdd: (words: string[]) => boolean;
+  /** Called as the box's draft changes. */
+  onDraft?: () => void;
+  placeholder: string;
+  locked?: Readonly<Record<string, ReactNode>>;
+  /** Drawn before the chips, such as the mixed mark. */
+  lead?: ReactNode;
+  adder?: ReactNode;
+}) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const words = splitWords(draft);
+    if (words.length > 0 && onAdd(words)) setDraft("");
+  };
+  return (
+    <div className="je-insp-row je-insp-wrap" data-gap="tight">
+      {lead}
+      {tags.map((tag) =>
+        locked?.[tag] !== undefined ? (
+          <Fragment key={tag}>{locked[tag]}</Fragment>
+        ) : (
+          <Button
+            key={tag}
+            size="xs"
+            variant="secondary"
+            aria-label={removeLabel(tag)}
+            onClick={() => onRemove(tag)}
+          >
+            {tag}
+            <Icon icon={Cancel01Icon} size={12} />
+          </Button>
+        ),
+      )}
+      {adder !== undefined ? (
+        adder
+      ) : (
+        <Input
+          aria-label={label}
+          placeholder={placeholder}
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            onDraft?.();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              add();
+            } else if (e.key === "Escape") setDraft("");
+          }}
+          onBlur={add}
+          className="je-insp-tag-input"
+        />
+      )}
+    </div>
   );
 }
 

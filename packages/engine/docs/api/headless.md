@@ -2268,7 +2268,8 @@ declare const SYNTH_PRESETS: readonly [
     "explosion",
     "laser",
     "powerup",
-    "blip"
+    "blip",
+    "bass"
 ];
 ```
 
@@ -2978,17 +2979,14 @@ Refers to [`SceneRuntimeHandle`](#sceneruntimehandle).
 
 _function_ in `headless/compile-input-script.ts`
 
-Checks an input script against `registry`'s game (its actions and their
-kinds, commands, `until` predicates, play options and seats) and resolves
-every step to ticks at `time`'s rate, by default the game's own. Its
-tracks drive the seats `players` (the project input map's) gives, else
-the game's, unless the script sets its own `players`. A pointer step's
-buttons hold the actions bound to them, the project input map's
-(`map`) over the game's, as live play does. Issues
-carry JSON Pointers into the script; an unknown action, command or key
-gets a "did you mean". A v1 script compiles as written, as the v2 subset
-it is: lengths in a script handed here are metres in either version, and
-reading a v1 file (`parseInputScript`) is what migrates its px.
+Checks an input script against `registry`'s game and resolves every step
+to ticks at `time`'s rate, by default the game's own. Its tracks drive the
+seats `players` gives (the project input map's, else the game's) unless
+the script sets its own; a pointer step's buttons hold the actions `map`
+binds over the game's, as live play does. Issues carry JSON Pointers into
+the script, with a "did you mean" for an unknown action, command or key.
+A v1 script compiles as the v2 subset it is: lengths here are metres in
+either version, and `parseInputScript` is what migrates a v1 file's px.
 
 ```ts
 declare function compileInputScript(script: unknown, registry: Registry, time?: Pick<ResolvedTime, "rate">, players?: PlayersDef | null, map?: Pick<InputMapFile, "actions"> | null): CompileResult;
@@ -3135,8 +3133,9 @@ Walks every choice breadth-first from `start` with the given variables
 `visited` decide what is offered as they do in play. Returns each
 reachable ending once, with the shortest choice path (indices into the
 node's `choices`), each choice's text key and the nodes it passes, in
-the order the walk found them. A path stops at `maxDepth` choices (default 32); paths that reach
-the same choices with the same history and variables are walked once.
+the order the walk found them. A path stops at `maxDepth` choices
+(default 32); paths that reach the same choices with the same history
+and variables are walked once.
 
 ```ts
 declare function exploreDialogue(file: DialogueFile, opts?: {
@@ -3505,17 +3504,11 @@ Refers to [`ReplayOptions`](#replayoptions), [`ReplayRun`](#replayrun).
 
 _function_ in `runtime/save-state.ts`
 
-Loads `file`'s scene into `runtime` fresh, through the entry it was
-reached by, and puts back what it saved, between ticks. The save's
-`persist` is judged by `persistProblem` against the game's schema first,
-in production too; a game that declares no persist takes only null. Progress depth: the fresh load, the game's `restore`
-with the saved data, then `persist` and the play clock. World depth puts
-the world back between the load and the game's `restore` (sublevels,
-spawns, destroys, counters, enabled flags, the tick, poses and each
-owner's state, timers, tweens, the active conversation, `ctx.random` and
-its forks, seats), raising no event. A scene whose run hash changed since
-the save loads with an info issue; a refused step leaves the scene freshly
-loaded.
+Loads `file`'s scene fresh, through the entry it was reached by, and puts
+back what it saved, between ticks: `persist` is judged by
+`persistProblem` first; world depth restores the world before the game's
+`restore`, raising no event. A changed run hash loads with an info issue;
+a refused step leaves the scene freshly loaded.
 
 ```ts
 declare function restoreSave(runtime: SceneRuntimeHandle, file: SaveFile): {

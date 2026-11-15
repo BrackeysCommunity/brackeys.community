@@ -1920,8 +1920,11 @@ STRINGS_KIND
 STRINGS_SCHEMA_ID
 STRINGS_VERSION
 STRING_KEY_PATTERN
+STRING_NOTE_FIELD
 SYNTH_BOUNDS
 SYNTH_KIND
+SYNTH_LFO_WAVES
+SYNTH_OSC_WAVES
 SYNTH_SCHEMA_ID
 SYNTH_VERSION
 SYNTH_WAVES
@@ -1944,8 +1947,12 @@ SoundMatcher
 StringKeyUse
 StringRow
 StringsFile
+SynthAdsr
 SynthFile
+SynthLfoWave
 SynthNumberPath
+SynthOsc
+SynthOscWave
 SynthWave
 TEXTURE_KIND
 TextureFormat
@@ -2047,6 +2054,7 @@ liveCompatKey
 liveFiles
 localeFont
 localeSettingsOf
+localeTagProblem
 manifestDocRefs
 materialKind
 materialSchema
@@ -2750,7 +2758,8 @@ declare const SYNTH_PRESETS: readonly [
     "explosion",
     "laser",
     "powerup",
-    "blip"
+    "blip",
+    "bass"
 ];
 type SynthPreset = (typeof SYNTH_PRESETS)[number];
 declare function mutateSynth(patch: SynthFile, rng: Rng, amount?: number): SynthFile;
@@ -3945,7 +3954,10 @@ interface DialogueVars {
 declare function memoryVars(initial?: JsonValue): DialogueVars & {
     readonly value: JsonValue;
 };
-declare function persistVars(ctx: Pick<EngineContext, "persist">): DialogueVars;
+declare function persistVars(ctx: Pick<EngineContext, "persist">, opts?: {
+    refused?: (pointer: string, problem: string) => void;
+    schema?: z.ZodType;
+}): DialogueVars;
 
 ## editor-ui/SceneEditor.ts
 declare function SceneEditor(props: SceneEditorProps): ReactElement;
@@ -5841,6 +5853,7 @@ type ToolHost = {
     setSnap(patch: Partial<SnapSettings>): void;
     setTool(id: string, arg?: string): boolean;
     snap(): SnapSettings;
+    source(): GizmoSource;
     subscribe(listener: () => void): () => void;
     tool(): string;
     tools(): readonly EditorToolDef[];
@@ -5862,6 +5875,7 @@ type ToolHostOptions = {
     scale: () => number;
     session: EditorSession;
     snap?: SnapSettings;
+    text?: () => GizmoTextEnv | undefined;
     toWorld: (screen: Vec2) => Pt;
     tool?: string;
     zoomAt?: (screen: Pt, factor: number) => void;
@@ -5916,7 +5930,7 @@ type EditorToolContext = {
         keys: string[];
     }): void;
     snap(): SnapSettings;
-    source?(): EditSource;
+    source?(): GizmoSource;
 };
 type EditorToolDef = {
     create(ctx: EditorToolContext): EditorTool;
@@ -10580,7 +10594,7 @@ type DialogueSpeaker = {
     name: string;
     portrait?: DialoguePortrait;
 };
-declare function dialogueDeadEnd(node: DialogueNode): "guarded" | "none" | null;
+declare function dialogueDeadEnd(node: DialogueNode): ("guarded" | "none" | "unguarded-if")[];
 declare function dialogueExits(node: DialogueNode): DialogueExit[];
 declare function dialogueIssues(file: DialogueFile): SceneIssue[];
 declare const dialogueKind: {
@@ -11446,6 +11460,7 @@ declare const STRINGS_KIND = "strings";
 declare const STRINGS_SCHEMA_ID = "urn:jams-engine:strings:v1";
 declare const STRINGS_VERSION = 1;
 declare const STRING_KEY_PATTERN: RegExp;
+declare const STRING_NOTE_FIELD = "note";
 type StringKeyUse = {
     id: AssetId;
     key: string;
@@ -11466,6 +11481,7 @@ type StringsFile = {
 };
 declare function localeFont(locales: LocaleSettings, locale: string): AssetId | undefined;
 declare function localeSettingsOf(block: unknown): LocaleSettings;
+declare const localeTagProblem: (tag: string) => null | string;
 declare function mergedStrings(lookup: DocLookup): Map<string, MergedStringRow>;
 declare function missingStringKeys(lookup: DocLookup, locales: LocaleSettings, locale: string, uses?: readonly StringKeyUse[]): StringKeyUse[];
 declare function projectLocales(lookup: DocLookup): LocaleSettings;
@@ -11517,6 +11533,19 @@ declare const SYNTH_BOUNDS: Readonly<Record<SynthNumberPath, readonly [
     max: number
 ]>>;
 declare const SYNTH_KIND = "synth";
+declare const SYNTH_LFO_WAVES: readonly [
+    "sine",
+    "triangle",
+    "square",
+    "saw",
+    "random"
+];
+declare const SYNTH_OSC_WAVES: readonly [
+    "square",
+    "saw",
+    "triangle",
+    "sine"
+];
 declare const SYNTH_SCHEMA_ID = "urn:jams-engine:synth:v1";
 declare const SYNTH_VERSION = 1;
 declare const SYNTH_WAVES: readonly [
@@ -11526,12 +11555,28 @@ declare const SYNTH_WAVES: readonly [
     "sine",
     "noise"
 ];
+type SynthAdsr = {
+    attackMs?: number;
+    decayMs?: number;
+    releaseMs?: number;
+    sustain?: number;
+};
 type SynthFile = {
     $schema?: string;
+    ampDecayMs?: number;
+    ampSustain?: number;
     attackMs?: number;
     decayMs: number;
     duty?: number;
     dutySweep?: number;
+    filter?: {
+        cutoff: number;
+        drive?: number;
+        envAmount?: number;
+        keyTrack?: number;
+        resonance?: number;
+    };
+    filterEnv?: SynthAdsr;
     freq: number;
     highpass?: {
         hz: number;
@@ -11542,11 +11587,22 @@ type SynthFile = {
         semitones: number;
     };
     kind: typeof SYNTH_KIND;
+    level?: number;
+    lfo?: {
+        amp?: number;
+        cutoff?: number;
+        hz: number;
+        pitch?: number;
+        wave: SynthLfoWave;
+    };
     lowpass?: {
         hz: number;
         resonance?: number;
         sweep?: number;
     };
+    noise?: number;
+    osc2?: SynthOsc;
+    osc3?: SynthOsc;
     punch?: number;
     retriggerMs?: number;
     seed?: number;
@@ -11561,7 +11617,15 @@ type SynthFile = {
     volume?: number;
     wave: SynthWave;
 };
-type SynthNumberPath = "attackMs" | "decayMs" | "duty" | "dutySweep" | "freq" | "highpass.hz" | "highpass.sweep" | "jump.atMs" | "jump.semitones" | "lowpass.hz" | "lowpass.resonance" | "lowpass.sweep" | "punch" | "retriggerMs" | "slide" | "slideAccel" | "sustainMs" | "vibrato.hz" | "vibrato.semitones" | "volume";
+type SynthLfoWave = (typeof SYNTH_LFO_WAVES)[number];
+type SynthNumberPath = "ampDecayMs" | "ampSustain" | "attackMs" | "decayMs" | "duty" | "dutySweep" | "filter.cutoff" | "filter.drive" | "filter.envAmount" | "filter.keyTrack" | "filter.resonance" | "filterEnv.attackMs" | "filterEnv.decayMs" | "filterEnv.releaseMs" | "filterEnv.sustain" | "freq" | "highpass.hz" | "highpass.sweep" | "jump.atMs" | "jump.semitones" | "level" | "lfo.amp" | "lfo.cutoff" | "lfo.hz" | "lfo.pitch" | "lowpass.hz" | "lowpass.resonance" | "lowpass.sweep" | "noise" | "osc2.detune" | "osc2.level" | "osc2.octave" | "osc3.detune" | "osc3.level" | "osc3.octave" | "punch" | "retriggerMs" | "slide" | "slideAccel" | "sustainMs" | "vibrato.hz" | "vibrato.semitones" | "volume";
+type SynthOsc = {
+    detune?: number;
+    level?: number;
+    octave?: number;
+    wave: SynthOscWave;
+};
+type SynthOscWave = (typeof SYNTH_OSC_WAVES)[number];
 type SynthWave = (typeof SYNTH_WAVES)[number];
 declare const synthKind: {
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
@@ -13013,6 +13077,7 @@ type AudioRequest = {
     caption?: string;
     entity?: string;
     key?: string;
+    on?: string;
     op: "play";
     pitch?: number;
     sound: AssetId;

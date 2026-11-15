@@ -42,6 +42,8 @@
     --je-text-sm: 11px;
     --je-label: 10px;
     --je-label-col: clamp(64px, 30%, 120px);
+    /* A locale code beside its value, wide enough for pt-BR or "default". */
+    --je-locale-col: 3.75em;
     --je-rail: 36px;
     --je-handle: 6px;
 
@@ -2018,6 +2020,11 @@
     min-height: 0;
   }
 
+  /* A phone sheet has no height of its own, only a cap: there they start at their content's height and shrink to the cap. */
+  .je-frame-sheet .je-panel-body > :is(.je-outliner, .je-ptree, .je-scene-panel) {
+    flex-basis: auto;
+  }
+
   .je-panel-body .je-scene-panel-empty,
   .je-panel-empty {
     padding: 4px 2px;
@@ -2165,10 +2172,10 @@
     align-items: center;
   }
 
-  /* Sized to what it names rather than filling the row like a field's select. */
+  /* One width whatever it shows, so a pick never moves the controls under the pointer; a long name ends in an ellipsis. */
   .je-play-select {
     flex-shrink: 0;
-    width: auto;
+    width: 96px;
   }
 
   .je-scene-changed {
@@ -3009,13 +3016,15 @@
     flex: 0 0 80px;
   }
 
-  /* One width with or without a unit, so every row's value box ends at the same x. */
+  /* One width with or without a unit, so every row's value box ends at the same x; wide enough for oct/s². */
   .je-insp-slider-unit {
-    flex: 0 0 2em;
+    flex: 0 0 3em;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
 
-  .je-insp-record > .je-insp-number,
-  .je-insp-record > .je-input {
+  .je-insp-record > :is(.je-insp-number, .je-input, .je-combobox) {
     flex: 1 1 0;
     min-width: 0;
   }
@@ -3060,15 +3069,11 @@
     width: auto;
   }
 
-  /* A locale's key in a column of its own, so each entry's control starts at the same x. */
-  .je-locale-key {
-    flex: 0 0 3.75em;
+  /* A locale's code in a column of its own, so each entry's value starts at the same x. */
+  .je-locale-key,
+  .je-strings-locale {
+    flex: 0 0 var(--je-locale-col);
     color: var(--je-muted-fg);
-  }
-
-  .je-locale-entry > :last-child {
-    flex: 1 1 0;
-    min-width: 0;
   }
 
   .je-insp-slots {
@@ -3951,11 +3956,6 @@
     list-style: none;
   }
 
-  .je-sound-variant .je-insp-line > :first-child {
-    flex: 1;
-    min-width: 0;
-  }
-
   .je-synth-wave {
     display: block;
     width: 100%;
@@ -4164,11 +4164,6 @@
     display: flex;
     gap: var(--je-pad);
     min-width: 0;
-  }
-
-  .je-strings-locale {
-    flex: 0 0 2.5em;
-    color: var(--je-muted-fg);
   }
 
   .je-strings-value {

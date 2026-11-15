@@ -37,7 +37,7 @@ export const rotateTool = defineEditorTool({
       pointer(e) {
         if (e.type === "down") {
           if (e.button !== 0) return false;
-          const targets = targetsOf(ctx.getDoc(), ctx.registry, ctx.selection());
+          const targets = targetsOf(ctx.getDoc(), ctx.registry, ctx.selection(), ctx.source?.());
           const about = rotationPivot(targets);
           if (!about) {
             const top = pickAt(ctx.index(), e.world, {

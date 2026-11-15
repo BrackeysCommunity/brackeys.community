@@ -109,6 +109,24 @@ function bitmapFontData(text: string): BitmapFontData | null {
   return data;
 }
 
+/**
+ * `data` as a Pixi font on `pages`, its pixel-less glyphs (a space's 0×0
+ * cell) left without a texture: they still advance, and Pixi's Canvas2D
+ * renderer would otherwise tint each into a canvas its size, and drawing a
+ * 0×0 canvas throws in Firefox.
+ */
+export function bitmapFontOn(data: BitmapFontData, pages: Texture[]): BitmapFont {
+  const font = new BitmapFont({ data, textures: pages });
+  for (const [key, glyph] of Object.entries(data.chars)) {
+    if (glyph.width > 0 && glyph.height > 0) continue;
+    const char = font.chars[key];
+    if (!char) continue;
+    char.texture?.destroy();
+    delete char.texture;
+  }
+  return font;
+}
+
 /** A font's bytes loaded: a web font registered with `document.fonts` under its hash's family, else a BMFont. */
 async function readFont(hash: Sha256, buffer: ArrayBuffer): Promise<LoadedFont | null> {
   const bytes = new Uint8Array(buffer);
@@ -329,7 +347,7 @@ export function createAssetLoader(opts: {
       }
       uninstall(hash);
       const family = `jams-bmfont-${serial}-${hash}`;
-      const font = new BitmapFont({ data: found.font.data, textures: pageTextures });
+      const font = bitmapFontOn(found.font.data, pageTextures);
       Cache.set(`${family}-bitmap`, font);
       installed.set(hash, { family, pages: [...pages], font });
       return family;

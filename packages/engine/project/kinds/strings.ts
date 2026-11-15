@@ -43,8 +43,15 @@ export const STRING_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 /** A locale column's name: a BCP 47 tag such as `en`, `fr` or `pt-BR`. */
 export const LOCALE_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 
+/** Why `tag` can't name a locale, or null when it can. */
+export const localeTagProblem = (tag: string): string | null =>
+  LOCALE_PATTERN.test(tag) ? null : `${JSON.stringify(tag)} isn't a locale tag such as en or pt-BR`;
+
+/** A row's note for translators, which a CSV export carries in its last column. */
+export const STRING_NOTE_FIELD = "note";
+
 /** A row's fields that aren't locale columns: its key, and a note for translators. */
-export const STRING_ROW_FIELDS: readonly string[] = ["key", "note"];
+export const STRING_ROW_FIELDS: readonly string[] = ["key", STRING_NOTE_FIELD];
 
 /** Whether a row's column holds a locale's text rather than its key or note. */
 export const isLocaleColumn = (column: string): boolean => !STRING_ROW_FIELDS.includes(column);

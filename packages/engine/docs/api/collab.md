@@ -2856,17 +2856,14 @@ Refers to [`DocView`](#docview).
 
 _function_ in `collab/project-apply.ts`
 
-What the project's one writer runs on store, beside `applyRepairs`: every
-live binary whose bytes `store` holds gets the meta (and filled settings)
-`reinspectBlob` gives under its kind's current inspector, so meta an
-older `metaVersion` wrote is brought up too, in one transaction with a
-`repair` origin and a project log entry. Settings merge per field, so
-after two concurrent `setImport`s the meta either client wrote may lag the
-merged settings; this puts it back, as it does after a move for meta that
-names paths. Inspection is a pure function, so concurrent writers write
-the same values, and a second call writes nothing. Bytes the store lacks
-and inspections that fail are left alone. Pass one `checked` map per doc
-to skip entries unchanged since the last call.
+Re-inspects every live binary whose bytes `store` holds under its kind's
+current inspector and writes the meta (and filled settings) it gives, in
+one `repair` transaction with a project log entry. Settings merge per
+field, so after concurrent `setImport`s, or a move for meta that names
+paths, the meta can lag; this brings it up, as does a newer `metaVersion`.
+Inspection is pure, so concurrent writers agree and a second call writes
+nothing. Pass one `checked` map per doc to skip entries unchanged since
+the last call.
 
 ```ts
 declare function reinspectBlobs(doc: Y.Doc, opts: {

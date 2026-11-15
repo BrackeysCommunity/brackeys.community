@@ -14,6 +14,8 @@ type StreamHandle = AudioClipHandle & { duration: number };
 
 /** The time constant pan moves follow, s: quick enough to track a moving source, slow enough not to click. */
 const PAN_GLIDE_S = 0.015;
+/** How early a streamed loop jumps back, s: a timer fires late more often than early. */
+const LOOP_EARLY_S = 0.005;
 
 const clampPan = (pan: number): number => (Number.isFinite(pan) ? clamp(pan, -1, 1) : 0);
 const level = (volume: number): number => (Number.isFinite(volume) && volume > 0 ? volume : 0);
@@ -60,6 +62,7 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
   const buses = new Map<BusName, GainNode>([["master", master]]);
   const sources = new WeakMap<AudioClipHandle, BufferSource | StreamSource>();
   const voices = new Set<WebVoice>();
+  /** The context has run since an unlock; a realtime one stopped since then is suspended, not locked. */
   let unlocked = false;
   let closed = false;
 
@@ -197,10 +200,15 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     }
     const realtime = ctx as AudioContext;
     const element = document.createElement("audio") as HTMLAudioElement;
+    const rate = o.rate > 0 ? o.rate : 1;
+    const loopFrom = o.loop ? Math.max(0, o.loopStart ?? 0) : 0;
+    const loopTo = o.loop && o.loopEnd !== undefined && o.loopEnd > loopFrom ? o.loopEnd : null;
+    // A media element loops only the whole file, so loop points are kept by hand.
+    const loopPoints = o.loop && (loopTo !== null || loopFrom > 0);
     element.crossOrigin = "anonymous";
     element.preload = "auto";
-    element.loop = o.loop;
-    element.playbackRate = o.rate > 0 ? o.rate : 1;
+    element.loop = o.loop && !loopPoints;
+    element.playbackRate = rate;
     element.src = source.url;
     const node = realtime.createMediaElementSource(element);
     const start = Math.max(o.when ?? ctx.currentTime, ctx.currentTime);
@@ -209,6 +217,25 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
     let ended = false;
     let stopping = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let loopTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /**
+     * Jumps back to the loop start at the loop end: timed from the playback
+     * rate, timed again on every seek, play and time update, so the element's
+     * own clock corrects the timer's drift.
+     */
+    function armLoop(): void {
+      if (loopTimer !== null) clearTimeout(loopTimer);
+      loopTimer = null;
+      if (loopTo === null || ended || element.paused) return;
+      const left = loopTo - element.currentTime;
+      if (left <= LOOP_EARLY_S) {
+        const span = loopTo - loopFrom;
+        element.currentTime = loopFrom + (Math.max(0, -left) % span);
+        return;
+      }
+      loopTimer = setTimeout(armLoop, ((left - LOOP_EARLY_S) / rate) * 1000);
+    }
 
     // A media element only seeks once it knows its length.
     let offset = o.offset ?? 0;
@@ -217,15 +244,26 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
       if (offset > 0) element.currentTime = offset;
       offset = 0;
     };
+    const onEnded = () => {
+      if (!loopPoints || stopping) return finish();
+      element.currentTime = loopFrom;
+      void element.play().catch(() => {});
+    };
     element.addEventListener("loadedmetadata", onMeta);
-    element.addEventListener("ended", () => finish());
+    element.addEventListener("ended", onEnded);
+    const loopEvents = loopTo === null ? [] : ["playing", "seeked", "timeupdate"];
+    for (const type of loopEvents) element.addEventListener(type, armLoop);
 
     function finish(): void {
       if (ended) return;
       ended = true;
       if (timer !== null) clearTimeout(timer);
+      if (loopTimer !== null) clearTimeout(loopTimer);
       timer = null;
+      loopTimer = null;
       element.removeEventListener("loadedmetadata", onMeta);
+      element.removeEventListener("ended", onEnded);
+      for (const type of loopEvents) element.removeEventListener(type, armLoop);
       element.pause();
       element.removeAttribute("src");
       element.load();
@@ -290,17 +328,27 @@ export function webAudioBackend(opts: { context?: BaseAudioContext } = {}): Audi
       return finite(live.outputLatency) + finite(live.baseLatency);
     },
     async unlock() {
-      if (closed || unlocked) return;
-      unlocked = true;
-      if (offline) return;
+      if (closed) return;
+      if (offline) {
+        unlocked = true;
+        return;
+      }
       const realtime = ctx as AudioContext;
-      // A one-sample silence started inside the gesture is what iOS Safari wants besides resume().
+      if (realtime.state === "running") {
+        unlocked = true;
+        return;
+      }
+      // Every try goes again in full: iOS refuses a touch's pointerdown and
+      // accepts only its end, so a refused first resume can't latch the rest.
+      // A one-sample silence started inside the gesture is what iOS Safari
+      // wants besides resume().
       const blank = ctx.createBufferSource();
       blank.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
       blank.connect(destination);
       blank.onended = () => blank.disconnect();
       blank.start();
-      if (realtime.state !== "running") await realtime.resume();
+      await realtime.resume();
+      if ((realtime.state as AudioContextState) === "running") unlocked = true;
     },
     async decode(bytes) {
       // decodeAudioData detaches what it's given; the caller keeps its bytes.

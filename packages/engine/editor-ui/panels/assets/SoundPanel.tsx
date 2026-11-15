@@ -201,6 +201,18 @@ function BusRow({
 
 type Shapes = ReturnType<typeof soundShapes>;
 
+/** A variant's or a trigger's heading: what it is, and its buttons at the end. */
+function ItemHead({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="je-insp-line">
+      <Text size="xs" className="je-insp-grow je-sp-truncate">
+        {title}
+      </Text>
+      {children}
+    </div>
+  );
+}
+
 /** The variants: a clip or patch each, its weight and a play button, and one more to add. */
 function Variants({
   doc,
@@ -239,36 +251,36 @@ function Variants({
               className="je-insp-stack je-sound-variant"
               data-variant={variant.clip}
             >
+              <ItemHead title={name}>
+                <AuditionButton id={variant.clip} name={name} />
+                <IconButton
+                  size="icon-xs"
+                  icon={Delete02Icon}
+                  label={`Remove the variant ${name}`}
+                  tooltip="Remove the variant"
+                  disabled={readOnly}
+                  onClick={() => editAssetJson(doc, [{ remove: at }], "Remove a variant", scope)}
+                />
+              </ItemHead>
               <FieldRow label="Clip" error={problem}>
-                <div className="je-insp-line">
-                  <AssetCombobox
-                    path={`variants.${variant.clip}.clip`}
-                    kinds={VARIANT_KINDS}
-                    options={options.filter((o) => o.id === variant.clip || !taken.has(o.id))}
-                    value={variant.clip}
-                    mixed={false}
-                    optional={false}
-                    invalid={problem !== null}
-                    onPick={(next) => {
-                      if (next === undefined || next === variant.clip) return;
-                      editAssetJson(
-                        doc,
-                        [{ set: `${at}/clip`, value: next }],
-                        "Change a variant",
-                        scope,
-                      );
-                    }}
-                  />
-                  <AuditionButton id={variant.clip} name={name} />
-                  <IconButton
-                    size="icon-xs"
-                    icon={Delete02Icon}
-                    label={`Remove the variant ${name}`}
-                    tooltip="Remove the variant"
-                    disabled={readOnly}
-                    onClick={() => editAssetJson(doc, [{ remove: at }], "Remove a variant", scope)}
-                  />
-                </div>
+                <AssetCombobox
+                  path={`variants.${variant.clip}.clip`}
+                  kinds={VARIANT_KINDS}
+                  options={options.filter((o) => o.id === variant.clip || !taken.has(o.id))}
+                  value={variant.clip}
+                  mixed={false}
+                  optional={false}
+                  invalid={problem !== null}
+                  onPick={(next) => {
+                    if (next === undefined || next === variant.clip) return;
+                    editAssetJson(
+                      doc,
+                      [{ set: `${at}/clip`, value: next }],
+                      "Change a variant",
+                      scope,
+                    );
+                  }}
+                />
               </FieldRow>
               <SettingsRows doc={doc} rows={weight} />
             </div>
@@ -332,10 +344,7 @@ function Triggers({
           const event = rows.find((r) => r.name === "event");
           return (
             <div key={i} className="je-insp-stack je-sound-trigger" data-trigger={i}>
-              <div className="je-insp-line">
-                <Text size="xs" className="je-insp-grow je-sp-truncate">
-                  On {trigger.event}
-                </Text>
+              <ItemHead title={`On ${trigger.event}`}>
                 <IconButton
                   size="icon-xs"
                   icon={Delete02Icon}
@@ -351,7 +360,7 @@ function Triggers({
                     )
                   }
                 />
-              </div>
+              </ItemHead>
               {event ? (
                 <Locked disabled={readOnly}>
                   <NameField

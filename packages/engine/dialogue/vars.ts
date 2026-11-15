@@ -1,6 +1,9 @@
+import type { z } from "zod";
+
 import type { EngineContext, JsonValue } from "../game/types";
 import { ownValue } from "../project/canonical";
 import { isPlainObject } from "../project/kinds/define";
+import { persistProblem } from "../runtime/persist";
 import { pointerSegments } from "../scene/issues";
 
 /** Where a dialogue's conditions read and its effects write: JSON pointers into the host's value. */
@@ -44,11 +47,24 @@ export function withJsonAt(root: JsonValue, pointer: string, value: JsonValue): 
   return put(root, pointerSegments(pointer), 0);
 }
 
-/** JSON pointers into `ctx.persist`: `set` replaces the value through `ctx.persist.set`. */
-export function persistVars(ctx: Pick<EngineContext, "persist">): DialogueVars {
+/**
+ * JSON pointers into `ctx.persist`: `set` replaces the value through
+ * `ctx.persist.set`. With `opts`, each write is judged first by
+ * `persistProblem` against `opts.schema` whatever the mode, and one it
+ * refuses leaves persist as it was and goes to `opts.refused`.
+ */
+export function persistVars(
+  ctx: Pick<EngineContext, "persist">,
+  opts?: { schema?: z.ZodType; refused?: (pointer: string, problem: string) => void },
+): DialogueVars {
   return {
     get: (pointer) => jsonAt(ctx.persist.value, pointer),
-    set: (pointer, value) => ctx.persist.set(withJsonAt(ctx.persist.value, pointer, value)),
+    set: (pointer, value) => {
+      const next = withJsonAt(ctx.persist.value, pointer, value);
+      const problem = opts ? persistProblem(next, opts.schema) : null;
+      if (problem) opts?.refused?.(pointer, problem);
+      else ctx.persist.set(next);
+    },
   };
 }
 

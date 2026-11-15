@@ -302,8 +302,8 @@ describe("exploreDialogue", () => {
   it("lists both endings with their choice paths", () => {
     expect(exploreDialogue(GATE_DIALOGUE, { vars: { gold: 3 } })).toEqual({
       endings: [
-        { ending: "paid", path: [0], nodes: ["gate", "through"] },
-        { ending: "left", path: [1], nodes: ["gate", "turned-away"] },
+        { ending: "paid", path: [0], choices: ["gate.pay"], nodes: ["gate", "through"] },
+        { ending: "left", path: [1], choices: ["gate.leave"], nodes: ["gate", "turned-away"] },
       ],
       truncated: false,
     });
@@ -311,7 +311,7 @@ describe("exploreDialogue", () => {
 
   it("reads the variables: without the toll only turning back ends it", () => {
     expect(exploreDialogue(GATE_DIALOGUE).endings).toEqual([
-      { ending: "left", path: [1], nodes: ["gate", "turned-away"] },
+      { ending: "left", path: [1], choices: ["gate.leave"], nodes: ["gate", "turned-away"] },
     ]);
     expect(exploreDialogue(GATE_DIALOGUE, { vars: { gold: 2 } }).endings).toHaveLength(1);
   });
@@ -326,8 +326,13 @@ describe("exploreDialogue", () => {
     ];
     const deep = exploreDialogue(file, { vars: { gold: 3 } });
     expect(deep.endings).toEqual([
-      { ending: "left", path: [1], nodes: ["gate", "turned-away"] },
-      { ending: "paid", path: [2, 2, 0], nodes: ["gate", "through"] },
+      { ending: "left", path: [1], choices: ["gate.leave"], nodes: ["gate", "turned-away"] },
+      {
+        ending: "paid",
+        path: [2, 2, 0],
+        choices: [null, null, "gate.pay"],
+        nodes: ["gate", "through"],
+      },
     ]);
     expect(deep.truncated).toBe(true);
     const shallow = exploreDialogue(file, { vars: { gold: 3 }, maxDepth: 2 });

@@ -3,12 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { textFontOf } from "../../../game/behaviors/text";
 import { createRegistry, withProject } from "../../../game/define";
-import { localeFont, localeSettingsOf } from "../../../project/kinds/strings";
 import { runtimeView } from "../../../project/runtime-view";
 import { projectView } from "../../../project/view";
-import { stringTableData } from "../../../text/strings";
+import { localeTableData } from "../../../text/strings";
 import {
   createProjectFileAdapter,
   readFileProject,
@@ -38,9 +36,7 @@ export async function loadKitchenSink() {
       prefab: (id) => prefabs.get(id),
     });
     const runtime = runtimeView(view, values, registry, project.kinds);
-    const locales = localeSettingsOf(runtime.engine.locales);
-    const font = textFontOf((id) => runtime.asset(id), localeFont(locales, locales.default));
-    const strings = stringTableData(runtime, locales.default, font);
+    const strings = localeTableData(runtime);
     return { scene, view, registry, prefabs, strings };
   } finally {
     await rm(cacheDir, { recursive: true, force: true });

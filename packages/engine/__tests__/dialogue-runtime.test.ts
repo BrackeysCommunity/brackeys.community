@@ -17,6 +17,7 @@ import { docLookup } from "../project/kinds/define";
 import type { DialogueFile } from "../project/kinds/dialogue";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import { DIALOGUE_VOICE_KEY, SAVE_DIALOGUE_KEY } from "../runtime/behaviors/dialogue";
+import { gamePersistCell } from "../runtime/persist";
 import type { PresentRequest } from "../runtime/present";
 import { createSceneRuntime } from "../runtime/runtime";
 import { captureSave, restoreSave, worldSaveBlockers } from "../runtime/save-state";
@@ -24,6 +25,7 @@ import {
   DIALOGUE_CHOICES,
   DIALOGUE_END,
   DIALOGUE_LINE,
+  type PersistCell,
   type SceneRuntimeHandle,
   type StepResult,
 } from "../runtime/types";
@@ -134,15 +136,21 @@ const PORCH = sceneOf([node("post", [1, 1])]);
 
 function runtime(
   game: GameDefinition<TalkSnap> = talker(),
-  opts: { dev?: boolean; record?: boolean } = {},
+  opts: {
+    dev?: boolean;
+    record?: boolean;
+    project?: ProjectRuntimeView;
+    persist?: PersistCell;
+  } = {},
 ): SceneRuntimeHandle {
   const rt = createSceneRuntime({
     rapier: null,
     view: null,
     game: game as GameDefinition,
-    project,
+    project: opts.project ?? project,
     dev: opts.dev ?? false,
     ...(opts.record ? { recordPresentation: true } : {}),
+    ...(opts.persist ? { persist: opts.persist } : {}),
   });
   const report = rt.load(expandScene(PORCH, createRegistry(game as GameDefinition)));
   if (!report.ok) throw new Error(report.error);
@@ -256,8 +264,8 @@ describe("the runtime's conversation", () => {
     expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([
       "[dialogue] @dialogue-advance ignored: no dialogue is running",
       '[dialogue] @dialogue-advance ignored: "talk" has no next line to show',
-      '[dialogue] @dialogue-choose ignored: 1 isn\'t a visible, enabled choice of "talk"',
-      '[dialogue] @dialogue-choose ignored: 7 isn\'t a visible, enabled choice of "talk"',
+      '[dialogue] @dialogue-choose {"choice":1} ignored: it isn\'t a visible, enabled choice of "talk"',
+      '[dialogue] @dialogue-choose {"choice":7} ignored: it isn\'t a visible, enabled choice of "talk"',
     ]);
     rt.destroy();
 
@@ -282,6 +290,60 @@ describe("the runtime's conversation", () => {
     rt.ctx.dialogue.stop();
     expect(rt.ctx.dialogue.view()).toBeNull();
     rt.destroy();
+  });
+});
+
+describe("a dialogue effect the persist schema can't hold", () => {
+  const BRIBE: DialogueFile = {
+    kind: "dialogue",
+    v: 1,
+    start: "ask",
+    nodes: [
+      {
+        id: "ask",
+        lines: [{ say: "Name your price" }],
+        choices: [
+          {
+            say: "Everything",
+            to: "done",
+            do: [
+              { set: "/gold", to: "lots" },
+              { add: "/gold", by: 2 },
+            ],
+          },
+        ],
+      },
+      { id: "done", lines: [{ say: "Deal" }], end: "deal" },
+    ],
+  };
+  const bribes = docLookup(new Map([["dialogue", new Map([[TALK, BRIBE]])]]));
+  const bribeProject: ProjectRuntimeView = { ...project, doc: bribes.read, docs: bribes.ids };
+  const script = { 1: [{ name: "talk" }], 3: [choose(0)], 5: [advance] };
+
+  it("is dropped alike in dev, headless and production, and only dev logs it", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const game = talker();
+    const runs = [
+      { dev: true },
+      { dev: false },
+      // Production's cell trusts what it's given; the dialogue still judges its own writes.
+      { dev: false, persist: gamePersistCell(game as GameDefinition, false) },
+    ].map((setup) => {
+      const rt = runtime(game, { ...setup, project: bribeProject });
+      const digest = run(rt, 0, 8, script);
+      expect(rt.ctx.persist.value).toEqual({ gold: 2 });
+      expect(rt.ctx.dialogue.view()).toBeNull();
+      expect(rt.snapshot()).toMatchObject({
+        seen: expect.arrayContaining([`${DIALOGUE_END} {"dialogue":"talk","ending":"deal"}`]),
+      });
+      rt.destroy();
+      return digest;
+    });
+    expect(new Set(runs).size).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toMatch(
+      /^\[dialogue\] "talk"'s effect on "\/gold" ignored: persist then doesn't match the game's persist schema: /,
+    );
   });
 });
 

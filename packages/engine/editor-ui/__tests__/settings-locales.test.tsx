@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { ProjectSession } from "../../collab/index";
 import { jsonAt } from "../../dialogue/vars";
 import { settingsRows } from "../../editor/settings-model";
 import { createRegistry } from "../../game/index";
 import type { JsonValue } from "../../game/types";
 import type { AssetEntry, DocLayout, ProjectOp } from "../../project/index";
-import type { SettingsDoc } from "../panels/settings/settings-doc";
+import { localeTagProblem } from "../../project/kinds/strings";
 import { gameSettingsBlocks } from "../panels/settings/settings-schemas";
-import { SettingsRows } from "../panels/settings/SettingsRows";
+import { LOCALE_PREVIEW_NOTE, SettingsRows } from "../panels/settings/SettingsRows";
+import { fakeSettingsDoc } from "./fixtures/settings-doc";
 
 const font: AssetEntry = {
   key: "kfont",
@@ -28,26 +28,11 @@ vi.mock("../panels/EditorProject", () => ({
 const registry = createRegistry(null);
 const { engine } = gameSettingsBlocks(registry);
 
-const entry: AssetEntry = {
-  key: "kset",
-  id: "game-settings",
-  kind: "game-settings",
-  path: "game-settings.json",
-  created: { at: 0, by: "seed" },
-};
-
 function mount(engineValue: Record<string, unknown>) {
-  const doc: SettingsDoc & { edit: Mock } = {
-    session: {} as ProjectSession,
-    kind: "game-settings",
-    entry,
-    docName: "asset:p.kset",
+  const doc = fakeSettingsDoc({
     value: { kind: "game-settings", v: 2, engine: engineValue },
     layout: { as: "atomic" } as DocLayout,
-    readOnly: null,
-    edit: vi.fn(async () => true),
-    create: vi.fn(async () => true),
-  };
+  });
   render(
     <SettingsRows doc={doc} rows={settingsRows(engine, engineValue, "engine", { registry })} />,
   );
@@ -89,8 +74,9 @@ describe("the locales settings", () => {
 
     fireEvent.change(add, { target: { value: "Not A Tag" } });
     fireEvent.keyDown(add, { key: "Enter" });
-    expect(await screen.findByText(/isn't a locale tag/)).toBeTruthy();
+    expect(await screen.findByText(`${localeTagProblem("Not")}.`)).toBeTruthy();
     expect(doc.edit).toHaveBeenCalledTimes(2);
+    expect((add as HTMLInputElement).value).toBe("Not A Tag");
   });
 
   it("pick the default from the offered locales", async () => {
@@ -116,6 +102,11 @@ describe("the locales settings", () => {
     expect(written("/engine/locales/fallback")).toEqual({ fr: ["es", "it"] });
   });
 
+  it("say that a locale is previewed in Play, since edit mode draws the default", () => {
+    mount({ locales: LOCALES });
+    expect(screen.getByText(LOCALE_PREVIEW_NOTE)).toBeTruthy();
+  });
+
   it("say so when only the default is offered, so there is no chain to give", () => {
     mount({ locales: { default: "en", available: ["en"] } });
     expect(screen.getByText("none: every locale falls back to the default")).toBeTruthy();
@@ -129,9 +120,11 @@ describe("the locales settings", () => {
     const fr = within(fonts).getByRole("combobox", { name: "engine.locales.fonts.fr" });
     expect(fr.getAttribute("aria-invalid")).toBe("true");
     expect(screen.getByText("gone-font isn't a font in this project.")).toBeTruthy();
-    expect(within(fonts).getByRole("combobox", { name: "engine.locales.fonts.en" })).toBeTruthy();
+    const en = within(fonts).getByRole("combobox", { name: "engine.locales.fonts.en" });
+    expect(en.getAttribute("placeholder")).toBe("Default");
+    expect(fallback.getAttribute("placeholder")).toBe("Engine font");
 
-    const entry = fr.closest(".je-locale-entry") as HTMLElement;
+    const entry = fr.closest(".je-insp-record") as HTMLElement;
     fireEvent.click(within(entry).getByRole("button", { name: "Show options" }));
     const option = await screen.findByRole("option", { name: /kitchen/ });
     await act(async () => {

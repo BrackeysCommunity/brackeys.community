@@ -116,9 +116,7 @@ import {
   ComboboxItem,
   ComboboxList,
   Confirm,
-  Icon,
   IconButton,
-  Input,
   KeyHint,
   Menu,
   MenuContent,
@@ -180,9 +178,11 @@ import {
   resolveNumber,
   StringKeyField,
   SwitchField,
+  TagChips,
   TextField,
   UnitSuffix,
   unsetText,
+  withWords,
   type Bounds,
   type Described,
   type StringKeyTable,
@@ -548,7 +548,6 @@ function PointsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 
 function TagsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "tags" }>;
-  const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const tags = Array.isArray(field.value) ? (field.value as string[]) : [];
   const left = w.options?.filter((o) => !tags.includes(o)) ?? [];
@@ -561,64 +560,38 @@ function TagsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     setError(problem);
     return problem;
   };
-  const add = () => {
-    const words = draft.split(/[\s,]+/).filter(Boolean);
-    if (words.length === 0) return;
-    if (!save((cur) => [...new Set([...cur, ...words])])) setDraft("");
-  };
+  const picker =
+    w.options && left.length > 0 ? (
+      <Select
+        value=""
+        onValueChange={(v) => {
+          if (typeof v === "string" && v) save((cur) => withWords(cur, [v]));
+        }}
+      >
+        <SelectTrigger size="sm" aria-label={field.path} className="je-insp-tag-input">
+          <SelectValue>{w.placeholder ?? "Add"}</SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          {left.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : null;
   return (
     <FieldRow field={field} error={error}>
-      <div className="je-insp-row je-insp-wrap" data-gap="tight">
-        {field.mixed ? <span className="je-insp-muted">{MIXED}</span> : null}
-        {tags.map((tag) => (
-          <Button
-            key={tag}
-            size="xs"
-            variant="secondary"
-            aria-label={`Remove tag ${tag}`}
-            onClick={() => save((cur) => cur.filter((t) => t !== tag))}
-          >
-            {tag}
-            <Icon icon={Cancel01Icon} size={12} />
-          </Button>
-        ))}
-        {w.options ? (
-          left.length > 0 ? (
-            <Select
-              value=""
-              onValueChange={(v) => {
-                if (typeof v === "string" && v) save((cur) => [...new Set([...cur, v])]);
-              }}
-            >
-              <SelectTrigger size="sm" aria-label={field.path} className="je-insp-tag-input">
-                <SelectValue>{w.placeholder ?? "Add"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}>
-                {left.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null
-        ) : (
-          <Input
-            aria-label={field.path}
-            placeholder={w.placeholder ?? "Add a tag"}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === ",") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            onBlur={add}
-            className="je-insp-tag-input"
-          />
-        )}
-      </div>
+      <TagChips
+        label={field.path}
+        tags={tags}
+        removeLabel={(tag) => `Remove tag ${tag}`}
+        onRemove={(tag) => save((cur) => cur.filter((t) => t !== tag))}
+        onAdd={(words) => !save((cur) => withWords(cur, words))}
+        placeholder={w.placeholder ?? "Add a tag"}
+        lead={field.mixed ? <span className="je-insp-muted">{MIXED}</span> : null}
+        {...(w.options ? { adder: picker } : {})}
+      />
     </FieldRow>
   );
 }

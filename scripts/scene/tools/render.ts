@@ -35,9 +35,10 @@ import { rasterizeSvg } from "../raster";
 /** The view of the project a scene is in, which sizes its sprites; undefined outside every project. */
 export async function sceneProjectView(
   project: ProjectHandle | null,
+  scan?: ProjectScan,
 ): Promise<ProjectView | undefined> {
   if (!project) return undefined;
-  return projectView((await scanProject(project)).state, project.kinds);
+  return projectView((scan ?? (await scanProject(project))).state, project.kinds);
 }
 
 /**
@@ -179,8 +180,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
   if (!loaded.ok) return loaded.result;
   const { name, def, registry, prefabs } = loaded;
   const scan = loaded.project ? await scanProject(loaded.project) : undefined;
-  const project =
-    loaded.project && scan ? projectView(scan.state, loaded.project.kinds) : undefined;
+  const project = await sceneProjectView(loaded.project, scan);
   const strings = await sceneStrings(loaded.project, registry, scan);
 
   let overlay: SceneOverlay | undefined;

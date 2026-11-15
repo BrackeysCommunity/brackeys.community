@@ -1,4 +1,4 @@
-import { soundTriggers } from "../audio/triggers";
+import { soundTriggers, triggerEntityOf, triggerSource } from "../audio/triggers";
 import { jsonAt } from "../dialogue/vars";
 import { flowIssue, type FlowRequest, type SceneLibrary } from "../game/flow";
 import { resolveTime } from "../game/time";
@@ -22,7 +22,6 @@ import { DIALOGUE_END, type SceneRuntimeHandle, type StepEvent } from "../runtim
 import type { CountMatch, ExistsMatch, NearMatch } from "../scene/input-script";
 import { makeIssue } from "../scene/issues";
 import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
-import { entityTags, tagFieldsOf } from "../scene/schema";
 import type { PrefabLibrary, Pt, SceneDefinition, SceneIssue } from "../scene/types";
 import { compileInputScript, scriptSource, type ScriptSource } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
@@ -538,23 +537,18 @@ function triggeredSounds(
   runtime: SceneRuntimeHandle,
 ): ((events: readonly StepEvent[]) => PresentRequest[] | undefined) | null {
   if (!project) return null;
-  const triggers = soundTriggers(project, (id) => {
-    const e = eventEntityOf(runtime.ctx, id);
-    return e
-      ? { type: e.type, tags: entityTags(e, tagFieldsOf(registry.types.get(e.type))) }
-      : undefined;
-  });
+  const triggers = soundTriggers(
+    project,
+    triggerEntityOf(registry, (id) => eventEntityOf(runtime.ctx, id)),
+  );
   return (events) => {
     let out: PresentRequest[] | undefined;
     for (const event of events)
-      for (const sound of triggers.match(event)) {
-        const source =
-          event.entityId !== undefined
-            ? { entity: event.entityId }
-            : { at: { x: event.at.x, y: event.at.y } };
-        const op = { op: "play" as const, sound, on: event.type, ...source };
-        (out ??= []).push({ kind: "audio", op });
-      }
+      for (const sound of triggers.match(event))
+        (out ??= []).push({
+          kind: "audio",
+          op: { op: "play", sound, on: event.type, ...triggerSource(event) },
+        });
     return out;
   };
 }

@@ -29,7 +29,6 @@ import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
 import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
-import { textFontOf } from "./game/behaviors/text";
 import { LATENCY_COMMAND, LATENCY_MS_LIMIT } from "./game/commands";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
@@ -103,7 +102,7 @@ import {
 import { ownValue, sameValue } from "./project/canonical";
 import type { KindRegistry } from "./project/kinds";
 import { engineResolution } from "./project/kinds/game-settings";
-import { localeFont, localeSettingsOf, type LocaleSettings } from "./project/kinds/strings";
+import { localeSettingsOf, type LocaleSettings } from "./project/kinds/strings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ReleaseAsset } from "./project/release";
 import { assetEntryOf } from "./project/release-assets";
@@ -192,8 +191,8 @@ import {
   updateCamera,
 } from "./store";
 import {
+  localeTableData,
   resolveLocale,
-  stringTableData,
   stringTableOf,
   type StringTable,
   type StringTableData,
@@ -671,10 +670,8 @@ export async function createGame(
   }
 
   /**
-   * The loaded scene's conversation while playing, else none. Called after
-   * every step and wherever `loaded` changes or is restored, so a
-   * conversation a load, save or swap starts shows without waiting for a
-   * step an event or turns game may never take.
+   * The loaded scene's conversation while playing, so one a load, save or
+   * swap starts shows without waiting for a step.
    */
   function syncDialogue(): void {
     const view = getMode() === "play" ? (loaded?.runtime.ctx.dialogue.view() ?? null) : null;
@@ -2129,9 +2126,8 @@ export async function createGame(
   function localeEntry(): NonNullable<typeof localeCache> {
     const locale = currentLocale();
     if (localeCache?.project === project && localeCache.locale === locale) return localeCache;
-    const view = project ?? noProject;
-    const font = textFontOf((id) => view.asset(id), localeFont(localeSettings(), locale));
-    localeCache = { project, locale, data: stringTableData(view, locale, font), table: null };
+    const data = localeTableData(project ?? noProject, locale);
+    localeCache = { project, locale, data, table: null };
     return localeCache;
   }
 

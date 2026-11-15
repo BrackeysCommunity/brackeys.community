@@ -1,9 +1,8 @@
-import { TEXT, textFontOf } from "../../game/behaviors/text";
+import { TEXT } from "../../game/behaviors/text";
 import { isNodeTypeIn, NODE_TYPE } from "../../game/primitives";
 import type { Registry } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import { isPlainObject } from "../../project/kinds/define";
-import { localeFont, localeSettingsOf } from "../../project/kinds/strings";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { behaviorBlocks } from "../../scene/expand";
 import { entityFrame, instanceTransform } from "../../scene/resolve";
@@ -19,7 +18,7 @@ import type {
   SceneDefinition,
   ShapeObj,
 } from "../../scene/types";
-import { stringTableData } from "../../text/strings";
+import { localeTableData } from "../../text/strings";
 import { geometryOfRef } from "../spatial-index";
 import { behaviorGizmo, type BehaviorGizmo } from "./behavior-target";
 import { carryPreview } from "./carry";
@@ -79,11 +78,8 @@ export type GizmoSource = EditSource & { text?: GizmoTextEnv };
 
 /** `locale`'s strings and font in `view` (default the default locale's), as the scene view draws them. */
 export function gizmoTextEnv(view: ProjectRuntimeView, locale?: string): GizmoTextEnv {
-  const locales = localeSettingsOf(view.engine.locales);
-  const shown = locale ?? locales.default;
-  const asset = (id: string) => view.asset(id);
-  const data = stringTableData(view, shown, textFontOf(asset, localeFont(locales, shown)));
-  return { strings: data.strings, font: data.font, asset };
+  const { strings, font } = localeTableData(view, locale);
+  return { strings, font, asset: (id) => view.asset(id) };
 }
 
 const pointBox = ([x, y]: Pt): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });

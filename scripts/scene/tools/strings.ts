@@ -2,11 +2,12 @@ import {
   byPathThenKey,
   docLookupOf,
   keyedItemPointer,
-  LOCALE_PATTERN,
+  localeTagProblem,
   mergedStrings,
   missingStringKeys,
   projectLocales,
   STRING_KEY_PATTERN,
+  STRING_NOTE_FIELD,
   stringLocales,
   STRINGS_KIND,
   type AssetId,
@@ -198,8 +199,8 @@ function missingIn(s: Strings, locale: string): MissingLocale {
 export const stringsMissing: Tool<StringsMissingInput> = async (input, ctx) => {
   const scoped = scopeError(ctx);
   if (scoped) return scoped;
-  if (input.locale !== undefined && !LOCALE_PATTERN.test(input.locale))
-    return usage(`--locale ${JSON.stringify(input.locale)} isn't a BCP 47 tag such as en or pt-BR`);
+  const badLocale = input.locale === undefined ? null : localeTagProblem(input.locale);
+  if (badLocale) return usage(`--locale ${badLocale}`);
   const all = await Promise.all(inScope(ctx).map(fileStrings));
   const lines: string[] = [];
   let defaultMisses = false;
@@ -239,11 +240,10 @@ export const stringsMissing: Tool<StringsMissingInput> = async (input, ctx) => {
 export type StringsExportInput = { locale?: string; csv?: boolean };
 
 const EXPORT_USAGE = "strings export <locale> --csv [--project id]";
-const NOTE_COLUMN = "note";
 
 /** Every merged row as `key,<default>,<locale>,note`, in path then row order. */
 export function stringsCsv(lookup: DocLookup, locales: LocaleSettings, locale: string): string {
-  const records: string[][] = [["key", locales.default, locale, NOTE_COLUMN]];
+  const records: string[][] = [["key", locales.default, locale, STRING_NOTE_FIELD]];
   for (const { row } of mergedStrings(lookup).values())
     records.push([row.key, row[locales.default] ?? "", row[locale] ?? "", row.note ?? ""]);
   return formatCsv(records);
@@ -257,8 +257,8 @@ export function stringsCsv(lookup: DocLookup, locales: LocaleSettings, locale: s
 export const stringsExport: Tool<StringsExportInput> = async (input, ctx) => {
   const { locale } = input;
   if (locale === undefined || input.csv !== true) return usage(EXPORT_USAGE);
-  if (!LOCALE_PATTERN.test(locale))
-    return usage(`${JSON.stringify(locale)} isn't a BCP 47 tag such as fr or pt-BR`);
+  const badLocale = localeTagProblem(locale);
+  if (badLocale) return usage(badLocale);
   const s = await oneProject(ctx, "strings export");
   if (!isStrings(s)) return s;
   if (locale === s.locales.default)
@@ -308,16 +308,16 @@ export function stringsImportPlan(
   csv: string,
 ): StringsImportPlan {
   const [header, ...records] = parseCsv(csv);
-  const expected = `key,${locales.default},<locale>,${NOTE_COLUMN}`;
-  if (!header || header.length !== 4 || header[0] !== "key" || header[3] !== NOTE_COLUMN)
+  const expected = `key,${locales.default},<locale>,${STRING_NOTE_FIELD}`;
+  if (!header || header.length !== 4 || header[0] !== "key" || header[3] !== STRING_NOTE_FIELD)
     throw new UsageError(`the CSV's header must be ${expected}`);
   const [, source = "", locale = ""] = header;
   if (source !== locales.default)
     throw new UsageError(
       `the CSV's second column is ${JSON.stringify(source)}, but the default locale is "${locales.default}" (${expected})`,
     );
-  if (!LOCALE_PATTERN.test(locale))
-    throw new UsageError(`the CSV's third column ${JSON.stringify(locale)} isn't a BCP 47 tag`);
+  const badLocale = localeTagProblem(locale);
+  if (badLocale) throw new UsageError(`the CSV's third column: ${badLocale}`);
   if (locale === locales.default)
     throw new UsageError(
       `the CSV writes "${locale}", the default locale; only translations import`,

@@ -436,11 +436,12 @@ _function_ in `export/content.ts`
 What ships: every scene the scene list holds, every prefab they expand,
 the runtime docs and the blobs of their bundles and the project bundle,
 with whatever those reference. A sound ships with every clip and patch it
-names; only a preloaded sound's clips join the bundles that name it. The only place an export chooses its
-content. Its issues: the target, the list's start, each listed scene's
-parse and bundle, `scene-unlisted` for checks naming a scene flow can't
-go to, references out of shipped assets that don't resolve, the icons,
-and `licence-missing` once per shipped blob without one.
+names; only a preloaded sound's clips join the bundles that name it. The
+only place an export chooses its content. Its issues: the target, the
+list's start, each listed scene's parse and bundle, `scene-unlisted` for
+checks naming a scene flow can't go to, references out of shipped assets
+that don't resolve, the icons, and `licence-missing` once per shipped
+blob without one.
 
 ```ts
 declare function planContent(input: ExportInput): Promise<ContentPlan>;

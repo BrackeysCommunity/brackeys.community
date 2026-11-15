@@ -397,7 +397,11 @@ _type_ in `ui/dialogue.ts`
 
 ```ts
 type DialogueBoxOptions = {
-    /** UI-only actions that advance and move between choices; default "confirm", "up", "down". */
+    /**
+     * UI-only actions that advance and move between choices; default
+     * "confirm", "up", "down". While the game binds nothing to one, Enter and
+     * Space advance and ArrowUp and ArrowDown move in its place.
+     */
     actions?: {
         advance?: string;
         down?: string;
@@ -2243,7 +2247,8 @@ declare const SYNTH_PRESETS: readonly [
     "explosion",
     "laser",
     "powerup",
-    "blip"
+    "blip",
+    "bass"
 ];
 ```
 

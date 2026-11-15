@@ -17,7 +17,6 @@ import type { AssetId } from "../project/types";
 import type { PoseIndex } from "../runtime/poses";
 import type { AudioRequest } from "../runtime/present";
 import type { StepEvent } from "../runtime/types";
-import { entityTags, tagFieldsOf } from "../scene/schema";
 import type { RuntimeEntity } from "../scene/types";
 import { Rng, unitFloat } from "../sim-kit/rng";
 import type { GameEventMap, Vec2 } from "../types";
@@ -37,7 +36,7 @@ import {
 } from "./clock";
 import { renderSynth, SYNTH_SAMPLE_RATE } from "./synth";
 import { CLICK_PATCH } from "./synth-presets";
-import { soundTriggers, type SoundTriggers, type TriggerEntity } from "./triggers";
+import { soundTriggers, triggerEntityOf, triggerSource, type SoundTriggers } from "./triggers";
 import type { AudioBackend, AudioClipHandle, AudioSystem, BusLevel, BusName, Voice } from "./types";
 
 /** The host events the audio system raises. */
@@ -227,11 +226,10 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
   }
 
   function buildTriggers(): SoundTriggers {
-    const types = registry.types;
-    return soundTriggers(project, (id): TriggerEntity | undefined => {
-      const e = opts.entity?.(id);
-      return e ? { type: e.type, tags: entityTags(e, tagFieldsOf(types.get(e.type))) } : undefined;
-    });
+    return soundTriggers(
+      project,
+      triggerEntityOf(registry, (id) => opts.entity?.(id)),
+    );
   }
 
   const soundFile = (id: AssetId) => project.doc?.<SoundFile>(SOUND_KIND, id);
@@ -624,14 +622,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
       checkUnlocked();
       prune();
       for (const event of events) {
-        for (const sound of triggers.match(event)) {
-          play(sound, {
-            source:
-              event.entityId !== undefined
-                ? { entity: event.entityId, at: { x: event.at.x, y: event.at.y } }
-                : { at: { x: event.at.x, y: event.at.y } },
-          });
-        }
+        for (const sound of triggers.match(event)) play(sound, { source: triggerSource(event) });
       }
       for (const r of requests) request(r);
     },

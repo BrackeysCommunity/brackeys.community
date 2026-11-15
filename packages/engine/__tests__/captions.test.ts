@@ -257,13 +257,58 @@ describe("createCaptions", () => {
 });
 
 describe("captionsPreference", () => {
+  const unmounted = (opts: { requested?: boolean; saved?: boolean } = {}) => {
+    const prefs = memoryPrefsStore();
+    if (opts.saved !== undefined) prefs.save("g", { captions: opts.saved });
+    return captionsPreference({
+      prefs,
+      gameId: () => "g",
+      changed: () => {},
+      ...(opts.requested !== undefined ? { requested: () => opts.requested === true } : {}),
+    });
+  };
+
   it("is off by default, on where the OS asks, and a saved choice wins", () => {
-    expect(build().captions.enabled()).toBe(false);
-    rig?.ui.destroy();
-    expect(build({ requested: true }).captions.enabled()).toBe(true);
-    rig?.ui.destroy();
-    const r = build({ requested: true, saved: false });
+    expect(unmounted().enabled()).toBe(false);
+    expect(unmounted({ requested: false }).enabled()).toBe(false);
+    expect(unmounted({ requested: true }).enabled()).toBe(true);
+    expect(unmounted({ requested: true, saved: false }).enabled()).toBe(false);
+    expect(unmounted({ saved: true }).enabled()).toBe(true);
+  });
+
+  it("is on while createCaptions is mounted, unless the player saved off", () => {
+    const changes: boolean[] = [];
+    const r = build();
+    expect(r.captions.enabled()).toBe(true);
+    r.system.tick(1, [], [play("hit")]);
+    expect(r.shown()).toEqual(["[Thud]"]);
+    r.ui.destroy();
     expect(r.captions.enabled()).toBe(false);
+
+    const prefs = memoryPrefsStore();
+    const pref = captionsPreference({
+      prefs,
+      gameId: () => "g",
+      changed: (on) => void changes.push(on),
+    });
+    const ctx = {
+      root: document.createElement("div"),
+      canvas: document.createElement("canvas"),
+      game: { on() {}, off() {}, captions: pref, project: () => null },
+      watch: () => () => {},
+      strings: () => table("en"),
+    } as unknown as UiContext;
+    const first = createCaptions(ctx);
+    const second = createCaptions(ctx);
+    first.destroy();
+    first.destroy();
+    expect(pref.enabled()).toBe(true);
+    second.destroy();
+    expect(pref.enabled()).toBe(false);
+    expect(changes).toEqual([true, false]);
+
+    r.system.destroy();
+    expect(build({ saved: false }).captions.enabled()).toBe(false);
   });
 
   it("raises a change only when the choice changes", () => {

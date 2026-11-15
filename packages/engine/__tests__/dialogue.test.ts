@@ -1,16 +1,24 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
+import { z } from "zod";
 
 import { layoutFromDoc, layoutToDoc } from "../collab/layout";
-import { createDialogueRunner, DIALOGUE_LOG_MAX, type DialogueRunner } from "../dialogue/runner";
+import {
+  applyDialogueCommand,
+  createDialogueRunner,
+  DIALOGUE_LOG_MAX,
+  type DialogueRunner,
+} from "../dialogue/runner";
 import { memoryVars, persistVars, type DialogueVars } from "../dialogue/vars";
+import { DIALOGUE_ADVANCE_COMMAND, DIALOGUE_CHOOSE_COMMAND } from "../game/commands";
 import { createRegistry } from "../game/define";
 import { resolveTime } from "../game/time";
 import type { JsonValue, PersistContext } from "../game/types";
 import { deepFreeze } from "../project/canonical";
 import { formatAssetDoc, parseAssetDoc, type DocLayout, type KindEnv } from "../project/kinds";
 import {
+  dialogueDeadEnd,
   dialogueExits,
   dialogueKind,
   reachableNodes,
@@ -145,6 +153,18 @@ describe("dialogue-dead-end", () => {
     const runner = createDialogueRunner(gated(), GATE_ID, memoryVars({}), () => {});
     expect(runner.advance()).toBe(false);
     expect(runner.view()).toMatchObject({ node: "b", stuck: true });
+  });
+
+  it("names every way one node can stall, each as its own issue", () => {
+    const node: DialogueNode = { id: "a", lines: [], if: { var: "/key", truthy: true } };
+    expect(dialogueDeadEnd(node)).toEqual(["none", "unguarded-if"]);
+    const guarded = { ...node, choices: [{ to: "a", if: { visited: "a" } }] };
+    expect(dialogueDeadEnd(guarded)).toEqual(["guarded", "unguarded-if"]);
+    expect(dialogueDeadEnd({ ...node, else: "a", end: "x" })).toEqual([]);
+    expect(brief(issuesOf(withNodes(node)))).toEqual([
+      { code: "dialogue-dead-end", severity: "error", path: "/nodes/0" },
+      { code: "dialogue-dead-end", severity: "warn", path: "/nodes/0/if" },
+    ]);
   });
 
   it("flags a loop of nodes that pass on without a line: an error when nothing breaks it", () => {
@@ -526,6 +546,27 @@ describe("the dialogue runner over persistVars", () => {
     expect(runner.view().node).toBe("gate");
   });
 
+  it("judges each write first when given a schema, keeping persist as it was on a refusal", () => {
+    const persist = fakePersist({ gold: 1 });
+    const refused: string[] = [];
+    const vars = persistVars(
+      { persist },
+      {
+        schema: z.object({ gold: z.number() }),
+        refused: (pointer, problem) => refused.push(`${pointer} ${problem}`),
+      },
+    );
+    vars.set("/gold", "lots");
+    vars.set("/odd", Number.NaN);
+    expect(persist.value).toEqual({ gold: 1 });
+    expect(persist.writes).toBe(0);
+    expect(refused).toHaveLength(2);
+    expect(refused[0]).toMatch(/^\/gold doesn't match the game's persist schema: /);
+    expect(refused[1]).toMatch(/^\/odd isn't plain JSON: /);
+    vars.set("/gold", 4);
+    expect(persist.value).toEqual({ gold: 4 });
+  });
+
   it("reads and writes through ctx.persist without touching the frozen value", () => {
     const persist = fakePersist(null);
     const vars = persistVars({ persist });
@@ -751,6 +792,29 @@ describe("conditions and effects", () => {
     expect(log).toHaveLength(DIALOGUE_LOG_MAX);
     expect(log[0]).toEqual({ node: "start", line: 1, say: "and" });
     expect(log.at(-1)).toEqual({ node: "start", line: 0, say: "again" });
+  });
+});
+
+describe("applyDialogueCommand", () => {
+  it("advances and chooses by the dialogue commands, refusing anything else", () => {
+    const runner = createDialogueRunner(
+      GATE_DIALOGUE,
+      GATE_ID,
+      persistVars({ persist: gold(5) }),
+      () => {},
+    );
+    expect(applyDialogueCommand(runner, { name: "talk" })).toBe(false);
+    expect(applyDialogueCommand(runner, { name: DIALOGUE_ADVANCE_COMMAND })).toBe(false);
+    for (const args of [undefined, { choice: "0" }, { choice: 7 }])
+      expect(
+        applyDialogueCommand(runner, { name: DIALOGUE_CHOOSE_COMMAND, ...(args && { args }) }),
+      ).toBe(false);
+    expect(
+      applyDialogueCommand(runner, { name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 0 } }),
+    ).toBe(true);
+    expect(runner.view().node).toBe("through");
+    expect(applyDialogueCommand(runner, { name: DIALOGUE_ADVANCE_COMMAND })).toBe(true);
+    expect(runner.view().ended).toBe("paid");
   });
 });
 

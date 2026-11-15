@@ -86,8 +86,9 @@ function stateKey(walk: Walk): string {
  * `visited` decide what is offered as they do in play. Returns each
  * reachable ending once, with the shortest choice path (indices into the
  * node's `choices`), each choice's text key and the nodes it passes, in
- * the order the walk found them. A path stops at `maxDepth` choices (default 32); paths that reach
- * the same choices with the same history and variables are walked once.
+ * the order the walk found them. A path stops at `maxDepth` choices
+ * (default 32); paths that reach the same choices with the same history
+ * and variables are walked once.
  */
 export function exploreDialogue(
   file: DialogueFile,

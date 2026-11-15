@@ -229,17 +229,11 @@ const sameSublevels = (a: readonly SublevelInfo[], b: readonly SublevelInfo[]) =
   });
 
 /**
- * Loads `file`'s scene into `runtime` fresh, through the entry it was
- * reached by, and puts back what it saved, between ticks. The save's
- * `persist` is judged by `persistProblem` against the game's schema first,
- * in production too; a game that declares no persist takes only null. Progress depth: the fresh load, the game's `restore`
- * with the saved data, then `persist` and the play clock. World depth puts
- * the world back between the load and the game's `restore` (sublevels,
- * spawns, destroys, counters, enabled flags, the tick, poses and each
- * owner's state, timers, tweens, the active conversation, `ctx.random` and
- * its forks, seats), raising no event. A scene whose run hash changed since
- * the save loads with an info issue; a refused step leaves the scene freshly
- * loaded.
+ * Loads `file`'s scene fresh, through the entry it was reached by, and puts
+ * back what it saved, between ticks: `persist` is judged by
+ * `persistProblem` first; world depth restores the world before the game's
+ * `restore`, raising no event. A changed run hash loads with an info issue;
+ * a refused step leaves the scene freshly loaded.
  */
 export function restoreSave(
   runtime: SceneRuntimeHandle,
@@ -312,8 +306,9 @@ export function restoreSave(
  * restore's order: the world at world depth (sublevels, spawns, destroys,
  * counters, enabled flags, the tick, poses and each owner's state, timers,
  * tweens, the active conversation, `ctx.random` and its forks, seats), the
- * game's `restore` with the saved data, `persist`, then the play clock. The issue of the first part that
- * can't be put back, after which the scene is only partly restored.
+ * game's `restore` with the saved data, `persist`, then the play clock.
+ * Returns the issue of the first part that can't be put back, after which
+ * the scene is only partly restored.
  */
 export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): SceneIssue | null {
   const host = saveHostOf(runtime.ctx);

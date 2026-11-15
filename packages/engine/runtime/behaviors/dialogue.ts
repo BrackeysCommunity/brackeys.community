@@ -5,7 +5,11 @@
  * `beforeStep`. Dialogue is simulation: only those recorded commands move
  * it, and its state joins world saves under `SAVE_DIALOGUE_KEY`.
  */
-import { createDialogueRunner, type DialogueRunner } from "../../dialogue/runner";
+import {
+  applyDialogueCommand,
+  createDialogueRunner,
+  type DialogueRunner,
+} from "../../dialogue/runner";
 import { persistVars, type DialogueVars } from "../../dialogue/vars";
 import { DIALOGUE_ADVANCE_COMMAND, isDialogueCommand } from "../../game/commands";
 import type { DialogueContext, EngineContext, GameCommand, JsonValue } from "../../game/types";
@@ -30,7 +34,10 @@ export const DIALOGUE_VOICE_KEY = "dialogue-voice";
 export const DIALOGUE_SYSTEM: unique symbol = Symbol("dialogue system");
 
 /** What the dialogue system reads and writes in its runtime. */
-export type DialogueHost = Pick<EngineContext, "project" | "persist" | "emit" | "present">;
+export type DialogueHost = Pick<
+  EngineContext,
+  "project" | "persist" | "emit" | "present" | "registry"
+>;
 
 export type DialogueSystem = DialogueContext & {
   /** The tick's commands; the dialogue's own are applied, the rest left alone. */
@@ -86,6 +93,21 @@ export function createDialogueSystem(opts: {
         if (!quiet) vars.set(pointer, value);
       },
     };
+  }
+
+  /**
+   * `persist` as `id`'s variables. An effect the game's persist schema can't
+   * hold is dropped in every mode, so dev, headless and production runs of
+   * one recording agree; dev logs it.
+   */
+  function gameVars(id: AssetId): DialogueVars {
+    const host = opts.ctx();
+    const schema = host.registry.game?.persist?.schema;
+    return persistVars(host, {
+      ...(schema ? { schema } : {}),
+      refused: (pointer, problem) =>
+        warn(`"${id}"'s effect on "${pointer}" ignored: persist then ${problem}`),
+    });
   }
 
   function stopVoice(): void {
@@ -144,7 +166,7 @@ export function createDialogueSystem(opts: {
       stopVoice();
     }
     const custom = startOpts.vars !== undefined;
-    const vars = startOpts.vars ?? persistVars(opts.ctx());
+    const vars = startOpts.vars ?? gameVars(id);
     active = { id, runner: build(id, file, vars, startOpts.node), custom };
     settle();
   }
@@ -155,19 +177,13 @@ export function createDialogueSystem(opts: {
       warn(`${command.name} ignored: no dialogue is running`);
       return;
     }
-    if (command.name === DIALOGUE_ADVANCE_COMMAND) {
-      if (conv.runner.advance()) settle();
-      else warn(`${command.name} ignored: "${conv.id}" has no next line to show`);
-      return;
-    }
-    const choice = (command.args as { choice?: unknown } | undefined)?.choice;
-    if (typeof choice === "number" && conv.runner.choose(choice)) {
-      settle();
-      return;
-    }
-    warn(
-      `${command.name} ignored: ${JSON.stringify(choice)} isn't a visible, enabled choice of "${conv.id}"`,
-    );
+    if (applyDialogueCommand(conv.runner, command)) settle();
+    else if (command.name === DIALOGUE_ADVANCE_COMMAND)
+      warn(`${command.name} ignored: "${conv.id}" has no next line to show`);
+    else
+      warn(
+        `${command.name} ${JSON.stringify(command.args ?? {})} ignored: it isn't a visible, enabled choice of "${conv.id}"`,
+      );
   }
 
   return {
@@ -209,7 +225,7 @@ export function createDialogueSystem(opts: {
       if (!file) return `the project has no dialogue "${saved.dialogue}" to continue`;
       quiet = true;
       try {
-        const runner = build(saved.dialogue, file, persistVars(opts.ctx()), undefined);
+        const runner = build(saved.dialogue, file, gameVars(saved.dialogue), undefined);
         runner.restore(saved.runner);
         active = { id: saved.dialogue, runner, custom: false };
       } catch (err) {

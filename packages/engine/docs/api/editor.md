@@ -867,13 +867,14 @@ type EditorToolContext = {
     snap(): SnapSettings;
     /**
      * The document behind `getDoc()`'s resolved view, where instances and the
-     * tree are read from; absent on a host that edits a view with neither.
+     * tree are read from, and what its text is measured in; absent on a host
+     * that edits a view with neither.
      */
-    source?(): EditSource;
+    source?(): GizmoSource;
 };
 ```
 
-Refers to [`EditSource`](#editsource), [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectMode`](#selectmode), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex).
+Refers to [`GizmoSource`](#gizmosource), [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectMode`](#selectmode), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex).
 
 ## `EditorToolDef`
 
@@ -3128,6 +3129,11 @@ type ToolHost = {
     /** Picks a tool and passes it `arg` as a command; false for an unknown id. */
     setTool(id: string, arg?: string): boolean;
     snap(): SnapSettings;
+    /**
+     * The document behind the resolved view and what its text is measured in,
+     * as the tools read them; the same object until one of them changes.
+     */
+    source(): GizmoSource;
     subscribe(listener: () => void): () => void;
     /** The active tool's id. */
     tool(): string;
@@ -3136,7 +3142,7 @@ type ToolHost = {
 };
 ```
 
-Refers to [`Aabb`](#aabb), [`EditorToolDef`](#editortooldef), [`KeyContext`](#keycontext), [`Pt`](#pt), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex), [`ToolKeyEvent`](#toolkeyevent), [`ToolLayers`](#toollayers), [`ToolOption`](#tooloption), [`ToolOverlay`](#tooloverlay).
+Refers to [`Aabb`](#aabb), [`EditorToolDef`](#editortooldef), [`GizmoSource`](#gizmosource), [`KeyContext`](#keycontext), [`Pt`](#pt), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex), [`ToolKeyEvent`](#toolkeyevent), [`ToolLayers`](#toollayers), [`ToolOption`](#tooloption), [`ToolOverlay`](#tooloverlay).
 
 ## `ToolHostOptions`
 
@@ -3176,6 +3182,12 @@ type ToolHostOptions = {
     scale: () => number;
     session: EditorSession;
     snap?: SnapSettings;
+    /**
+     * What a `text` block's gizmo box is measured in: the strings and font the
+     * scene view draws in (`gizmoTextEnv`), read at each use and compared by
+     * identity. Without it a key measures bracketed.
+     */
+    text?: () => GizmoTextEnv | undefined;
     /** Router screen px to world metres: the shell's `screenToWorld`. */
     toWorld: (screen: Vec2) => Pt;
     /** The tool to start with; default `select`. */
@@ -3185,7 +3197,7 @@ type ToolHostOptions = {
 };
 ```
 
-Refers to [`Aabb`](#aabb), [`EditorSession`](#editorsession), [`EditorToolDef`](#editortooldef), [`PreviewRuntime`](#previewruntime), [`Pt`](#pt), [`SnapSettings`](#snapsettings).
+Refers to [`Aabb`](#aabb), [`EditorSession`](#editorsession), [`EditorToolDef`](#editortooldef), [`GizmoTextEnv`](#gizmotextenv), [`PreviewRuntime`](#previewruntime), [`Pt`](#pt), [`SnapSettings`](#snapsettings).
 
 ## `ToolKeyEvent`
 

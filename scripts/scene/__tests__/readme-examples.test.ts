@@ -900,10 +900,18 @@ describe("op batches in the docs", () => {
     );
     const report = JSON.parse(r.stdout) as {
       outcome: { result: string };
-      present: { kind: string }[];
+      present: {
+        kind: string;
+        op: { op: string; sound?: string | null; on?: string };
+        tick: number;
+      }[];
     };
     expect(report.outcome.result).toBe("paid");
-    expect(report.present.map((p) => p.kind)).toEqual(["audio", "audio"]);
+    expect(report.present.map((p) => [p.tick, p.op.op, p.op.sound, p.op.on])).toEqual([
+      [0, "music", "tune-sound", undefined],
+      [1, "play", "coin-sound", "toll-paid"],
+      [3, "music", null, undefined],
+    ]);
   });
 
   it("documents dialogue walk and assets info's meta in the commands table, and dialogue_walk in the MCP table", () => {

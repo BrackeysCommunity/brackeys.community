@@ -5949,13 +5949,22 @@ the browser with no file to ship: a `wave` (`square`, `saw`, `triangle`,
 `sine`, `noise`), `freq` (20–8,000 Hz) with `slide`, `slideAccel`, `jump`
 and `vibrato`, an envelope (`attackMs`, `sustainMs`, `punch`,
 `decayMs`, at most 5 s in all), optional `lowpass` and `highpass`
-filters, `retriggerMs` and a `seed` for `noise`. A sound names a patch as a
+filters, `retriggerMs` and a `seed` for `noise`. A patch can also be a
+small analogue voice: `osc2` and `osc3` (a pitched wave each, tuned by
+`octave` and `detune` cents from the first), mixer levels (`level`, each
+oscillator's own and `noise`), an amp decay to `ampSustain` over the gate
+(`ampDecayMs`), a resonant 24 dB-per-octave ladder low-pass (`filter`:
+`cutoff`, `resonance`, `envAmount`, `keyTrack`, `drive`) with its own
+`filterEnv` ADSR, and an `lfo` (`sine`, `triangle`, `square`, `saw` or
+`random`) on pitch, cutoff and amp; a patch without them renders as one
+oscillator. A sound names a patch as a
 variant like a clip; the render is cached per patch and dropped when the
 doc changes, so a co-edited patch is heard on its next play. `renderSynth`
 gives the samples (one channel at `SYNTH_SAMPLE_RATE`), `synthDurationMs`
 its length without rendering, and `synthWav` 16-bit WAV bytes.
 `randomSynth(preset, rng)` draws a patch from one of `SYNTH_PRESETS`
-(`pickup`, `jump`, `hit`, `explosion`, `laser`, `powerup`, `blip`), the
+(`pickup`, `jump`, `hit`, `explosion`, `laser`, `powerup`, `blip`,
+`bass`), the
 same patch for the same seed, and `mutateSynth(patch, rng, amount?)` nudges
 every number by up to `amount` of its range. A patch's sample count is
 integer arithmetic, but its values use `Math.sin`, so they can differ in
@@ -6009,8 +6018,8 @@ export function chime() {
 }
 ```
 
-`chime()` gives a 306 ms patch of 13,495 samples (27,034 WAV bytes), the
-same patch for the same seed, and a log of `buffer 1ch 13495` then `play
+`chime()` gives a 310 ms patch of 13,671 samples (27,386 WAV bytes), the
+same patch for the same seed, and a log of `buffer 1ch 13671` then `play
 pan 0.5`. `fakeAudioBackend` plays nothing: it logs every call (a buffer
 by its channel count, length and rate, never its samples) and `advance`s a
 fake clock, for tests of anything that plays.
@@ -6020,8 +6029,10 @@ or M4A) into its sidecar's meta: format, `durationMs`, `channels` and
 `sampleRate`, which `assets info` prints and the editor shows without
 decoding. Its import settings are `stream` (play through a media element
 instead of decoding whole, for long music; a build's service worker
-answers range requests for it), `loopStart` and `loopEnd` (seconds). A
-sidecar written before the meta grew is read again by `assets reimport`.
+answers range requests for it), `loopStart` and `loopEnd` (seconds; a
+streamed clip seeks back to `loopStart` at `loopEnd` itself, a few
+milliseconds less exactly than a decoded one loops). A sidecar written
+before the meta grew is read again by `assets reimport`.
 
 **Hosts.** `GameConfig.audio` is `{ backend?, prefs? }`: `webAudioBackend()`
 in a browser, `false` (or none) for silence, or a function the shell calls
@@ -6035,9 +6046,11 @@ only); `browserPrefsStore()` keeps them in `localStorage` under
 `jams-engine:prefs:<gameId>`. The site and the standalone build pass both.
 
 - **Unlock.** Browsers start audio suspended. The shell resumes it on the
-  first pointer or key press on the canvas, raises `audio:unlocked`, and
-  `GameInstance.audio.unlocked` turns true. Sounds asked for before that
-  are dropped; music asked for before it starts then.
+  first pointer or key press on the canvas (again on each press and touch
+  end until the browser lets it run, as iOS does only on a touch's end),
+  raises `audio:unlocked`, and `GameInstance.audio.unlocked` turns true.
+  Sounds asked for before that are dropped; music asked for before it
+  starts then.
 - **Buses.** `GameDefinition.audio.buses` adds buses (`{ name, volume? }`),
   each routed into `master`. `GameInstance.audio` (null while no backend
   plays) has `buses()`, `setBus(bus, volume, muted?)`, saved under
@@ -6061,7 +6074,7 @@ only); `browserPrefsStore()` keeps them in `localStorage` under
 
 This page plays the gate game ([Dialogue](#dialogue)) with sound, and
 mounts an options panel that writes the player's volumes, language and
-captions through the game instance:
+captions through the game instance and calibrates latency on a press:
 
 ```ts sound-options.ts
 import {
@@ -6096,9 +6109,10 @@ export async function startGateGame(canvas: HTMLCanvasElement, sceneText: string
 }
 
 /**
- * An options panel: a slider and a mute box per bus, the language and
- * captions. Each control writes through `GameInstance`, which saves it in
- * the prefs; nothing here reaches the simulation.
+ * An options panel: a slider and a mute box per bus, the language,
+ * captions and latency calibration. Each control writes through
+ * `GameInstance`, which saves it in the prefs; nothing here reaches the
+ * simulation.
  */
 export const mountSoundOptions: MountUi = (ctx) => {
   const doc = ctx.root.ownerDocument;
@@ -6151,6 +6165,25 @@ export const mountSoundOptions: MountUi = (ctx) => {
   captions.checked = game.captions.enabled();
   captions.addEventListener("change", () => game.captions.set(captions.checked));
   field("Captions", captions);
+
+  // Taps along to a click track; the offset is saved and sent as `@latency`.
+  const calibrate = doc.createElement("button");
+  calibrate.type = "button";
+  calibrate.name = "calibrate";
+  calibrate.textContent = "Calibrate";
+  const offset = doc.createElement("output");
+  offset.name = "latency";
+  calibrate.addEventListener("click", async () => {
+    calibrate.disabled = true;
+    offset.textContent = "Tap along to the clicks";
+    const found = await game.calibrateLatency();
+    offset.textContent = found
+      ? `${found.ms} ms (spread ${found.spread} ms)`
+      : "Not enough taps; try again";
+    calibrate.disabled = false;
+  });
+  field("Latency", calibrate);
+  form.append(offset);
 
   ctx.root.append(form);
   return { destroy: () => form.remove() };
@@ -6309,7 +6342,7 @@ Dialogue is simulation: it runs headless, records, replays and saves.
 walk <id>` prints the same.
 - **Checks.** `dialogue-dead-end` (a node with no choices, `next` or
   `end`; as a warning, every choice can be hidden with nothing to fall back
-  on), `dialogue-unreachable` (no path from `start` reaches a node),
+  on, or a node's `if` has no `else`), `dialogue-unreachable` (no path from `start` reaches a node),
   `asset-missing` for a `to`, `next` or `else` naming no node, and
   `string-key-missing` for its keys.
 
@@ -6565,9 +6598,116 @@ It ends `paid`, with `toll-paid` raised, the line event of the `through`
 node (the first line shows at load, before the run's first tick), two
 music requests (`tune-sound` at tick 0 and `null` at the ending) and, at
 tick 1, the `coin-sound` play that `toll-paid` triggers through the
-sound's `on` matcher. With
-three gold the walk finds `paid via [0]` and `left via [1]`; with none,
-only `left via [1]`, since the toll's choice is hidden.
+sound's `on` matcher. With three gold the walk finds `paid via [0]` and
+`left via [1]`; with none, only `left via [1]`, since the toll's choice is
+hidden.
+
+A bark runs from a runner the game makes itself, beside the active
+conversation. The crow on the gate says a line every 20 ticks while the
+guard waits, and the runner's `save()` in the snapshot carries the crow
+through a world save:
+
+```ts gate-bark.ts
+import {
+  createDialogueRunner,
+  createRegistry,
+  defineGame,
+  DIALOGUE_LINE,
+  persistVars,
+  type DialogueLineEvent,
+  type DialogueRunner,
+  type JsonValue,
+  type SaveFile,
+} from "@jams/engine/game";
+import { createHeadlessRuntime } from "@jams/engine/headless";
+import type { DialogueFile } from "@jams/engine/project";
+import { expandScene } from "@jams/engine/scene";
+
+import { gateProject, gateScene } from "./gate-game";
+
+/** The crow's barks, round and round: literal `say` lines, as a prototype writes them. */
+export const crowBarks: DialogueFile = {
+  kind: "dialogue",
+  v: 1,
+  start: "caw",
+  nodes: [{ id: "caw", lines: [{ say: "Caw!" }, { say: "Coins! Coins!" }], next: "caw" }],
+};
+
+/**
+ * The gate with a crow on it: the guard talks through `ctx.dialogue` while
+ * the crow barks from a runner of its own, a line every 20 ticks. The
+ * runner's `save()` rides in the snapshot, so a world save keeps the crow
+ * where it was.
+ */
+export const crowGateGame = defineGame<{ crow: JsonValue }>({
+  id: "gate",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  persist: { initial: () => ({ gold: 3, toll: 3 }) },
+  createRuntime(ctx) {
+    let crow: DialogueRunner | null = null;
+    return {
+      onLoad() {
+        ctx.dialogue.start("gate-talk");
+        crow = createDialogueRunner(crowBarks, "crow-barks", persistVars(ctx), (type, data) =>
+          ctx.emit({ type, at: { x: 0, y: 0 }, ...(data === undefined ? {} : { data }) }),
+        );
+      },
+      beforeStep() {
+        if (ctx.tick % 20 === 19) crow?.advance();
+      },
+      snapshot: () => ({ crow: crow?.save() ?? null }),
+      restore(state) {
+        if (state.crow !== null) crow?.restore(state.crow);
+      },
+    };
+  },
+});
+
+/**
+ * Plays 50 ticks and saves the world, then plays 30 more on and from the
+ * save: both hear the same barks, and the guard is still waiting.
+ */
+export function crowAlong() {
+  const registry = createRegistry(crowGateGame);
+  const scene = expandScene(gateScene, registry);
+  const open = (fromSave?: SaveFile) =>
+    createHeadlessRuntime({
+      game: crowGateGame,
+      registry,
+      scene,
+      project: gateProject,
+      ...(fromSave ? { fromSave } : {}),
+    });
+  const barks = (run: ReturnType<typeof open>, ticks: number) => {
+    const heard: string[] = [];
+    for (let i = 0; i < ticks; i++) {
+      for (const e of run.step(run.ctx.time.tickMs, []).events) {
+        const line = e.data as DialogueLineEvent;
+        if (e.type === DIALOGUE_LINE && line.dialogue === "crow-barks")
+          heard.push(`${e.tick} line ${line.line}`);
+      }
+    }
+    return heard;
+  };
+
+  const run = open();
+  const first = barks(run, 50);
+  const saved = run.save({ depth: "world", slot: "crow", now: 0 });
+  if (!saved.ok) throw new Error(saved.issue.message);
+  const resumed = open(saved.file);
+  const on = barks(run, 30);
+  const fromSave = barks(resumed, 30);
+  const guard = resumed.ctx.dialogue.view()?.node;
+  run.destroy();
+  resumed.destroy();
+  return { first, on, fromSave, guard };
+}
+```
+
+The run and the one resumed from its save at tick 50 both hear line 1 at
+tick 59 and line 0 at tick 79, with the guard still at `gate`.
 
 **The dialogue box.** `createDialogueBox(ctx, { speed?, actions?,
 portraits?, className? })` (`.`, a `MountUi` helper) draws the store's
@@ -6580,23 +6720,39 @@ line whole, then sends `@dialogue-advance`; `up` and `down` move between
 the enabled choices. It only ever sends those two commands.
 `createTextLog(ctx, { toggle?, max? })` lists the lines shown so far, shown
 and hidden by a UI-only action, and `renderRichText(el, lines, ctx)` draws
-rich text as spans. All three set `dir` and `lang` from the locale and
+rich text as spans, as the HUD's place name below does. All three set `dir` and `lang` from the locale and
 redraw on a change. The box's defaults have no specificity, so a game's
 own class or stylesheet wins, and colours read custom properties
 (`--jams-dialogue-bg`, `--jams-dialogue-fg`, `--jams-dialogue-accent`,
 `--jams-dialogue-font-size`).
 
 ```ts talk-hud.ts
-import { createCaptions, createDialogueBox, createTextLog, type MountUi } from "@jams/engine";
+import {
+  createCaptions,
+  createDialogueBox,
+  createTextLog,
+  renderRichText,
+  type MountUi,
+} from "@jams/engine";
+import { parseRichText } from "@jams/engine/game";
 
 /**
- * The gate game's HUD: the engine's dialogue box with portraits, a text log
- * the UI-only `log` action shows and hides, and captions for sounds and
- * voiced lines. The box draws the store's `dialogue` and sends only
- * `@dialogue-advance` and `@dialogue-choose`; all three follow the locale.
+ * The gate game's HUD: a rich-text place name, the engine's dialogue box
+ * with portraits, a text log the UI-only `log` action shows and hides, and
+ * captions for sounds and voiced lines. The box draws the store's
+ * `dialogue` and sends only `@dialogue-advance` and `@dialogue-choose`; all
+ * three follow the locale.
  */
 export const mountTalkHud: MountUi = (ctx) => {
+  // The markup a text block reads, as styled spans.
+  const place = ctx.root.ownerDocument.createElement("p");
+  place.dataset.place = "";
+  const { lines } = parseRichText("[b]North Gate[/b] [color=#ffd24a]toll road[/color]");
+  renderRichText(place, lines, ctx);
+  ctx.root.append(place);
+
   const parts = [
+    { destroy: () => place.remove() },
     createDialogueBox(ctx, { speed: 40, portraits: true }),
     createTextLog(ctx, { toggle: "log", max: 50 }),
     createCaptions(ctx, { ms: 3000 }),

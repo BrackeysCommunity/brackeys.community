@@ -3,17 +3,20 @@
  * themselves live in the strings kind, which this calls.
  */
 import type { TextFont } from "../context";
+import { textFontOf } from "../game/behaviors/text";
 import type { DocLookup } from "../project/kinds/define";
 import {
   DEFAULT_LOCALE,
   isRtlScript,
   localeChain,
+  localeFont,
   localeSettingsOf,
   mergedStrings,
   stringRowText,
   type LocaleSettings,
 } from "../project/kinds/strings";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId } from "../project/types";
 import { ESCAPABLE_CLASS, escapeRich, PLACEHOLDER_NAME, type TextVars } from "./rich";
 
 export type TextDirection = "ltr" | "rtl";
@@ -93,6 +96,25 @@ export function stringTableData(
     strings: localeStrings(view, locale),
     font,
   });
+}
+
+/**
+ * The font `locale`'s text draws in (`engine.locales.fonts`) and its asset
+ * id; null when the locale names none or the asset isn't a font yet.
+ */
+export function localeFontOf(
+  view: ProjectRuntimeView,
+  locale: string,
+): { id: AssetId; font: TextFont } | null {
+  const id = localeFont(localeSettingsOf(view.engine.locales), locale);
+  const font = textFontOf((asset) => view.asset(asset), id);
+  return font && id !== undefined ? { id, font } : null;
+}
+
+/** `locale`'s table and font in `view` (default the default locale), as the shell hands a scene view. */
+export function localeTableData(view: ProjectRuntimeView, locale?: string): StringTableData {
+  const shown = locale ?? localeSettingsOf(view.engine.locales).default;
+  return stringTableData(view, shown, localeFontOf(view, shown)?.font ?? null);
 }
 
 /** Every key with text along `locale`'s chain, and that text. */

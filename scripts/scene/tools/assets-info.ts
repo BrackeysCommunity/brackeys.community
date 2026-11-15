@@ -34,7 +34,7 @@ import {
   type ShapeObj,
 } from "@jams/engine/scene";
 
-import { failure, issueLine, usage, type ToolContext, type ToolResult } from "../context";
+import { failure, issueLine, plural, usage, type ToolContext, type ToolResult } from "../context";
 import { locateInProjects, scanProject, type ProjectHandle } from "../projects";
 import { loadProject } from "./project-show";
 import { roundBox } from "./render";
@@ -315,8 +315,8 @@ function fontLines(f: FontInfo, meta: FontMeta, pages: readonly AssetId[] | unde
     from === to ? hex(from) : `${hex(from)}-${hex(to)}`;
   return [
     `  ${face.filter((s) => s !== undefined).join(", ")}`,
-    f.coverage
-      ? `  covers ${f.codePoints} code point${f.codePoints === 1 ? "" : "s"}: ${f.coverage.map(range).join(" ")}`
+    f.coverage && f.codePoints !== null
+      ? `  covers ${plural(f.codePoints, "code point")}: ${f.coverage.map(range).join(" ")}`
       : "  coverage unknown",
     `  distance field ${f.distanceField ? `${f.distanceField.type}, range ${f.distanceField.range}` : "none"}`,
   ];

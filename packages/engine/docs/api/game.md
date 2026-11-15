@@ -296,6 +296,11 @@ type AudioRequest = {
     caption?: string;
     entity?: string;
     key?: string;
+    /**
+     * The step event type whose `on` matcher played the sound. Only a
+     * playtest report's triggered plays carry it; nothing reads it on play.
+     */
+    on?: string;
     op: "play";
     pitch?: number;
     sound: AssetId;
@@ -9026,10 +9031,16 @@ declare function pathWaypoints(path: Pick<PathDef, "pts">): Vec2[];
 
 _function_ in `dialogue/vars.ts`
 
-JSON pointers into `ctx.persist`: `set` replaces the value through `ctx.persist.set`.
+JSON pointers into `ctx.persist`: `set` replaces the value through
+`ctx.persist.set`. With `opts`, each write is judged first by
+`persistProblem` against `opts.schema` whatever the mode, and one it
+refuses leaves persist as it was and goes to `opts.refused`.
 
 ```ts
-declare function persistVars(ctx: Pick<EngineContext, "persist">): DialogueVars;
+declare function persistVars(ctx: Pick<EngineContext, "persist">, opts?: {
+    refused?: (pointer: string, problem: string) => void;
+    schema?: z.ZodType;
+}): DialogueVars;
 ```
 
 Refers to [`DialogueVars`](#dialoguevars), [`EngineContext`](#enginecontext).

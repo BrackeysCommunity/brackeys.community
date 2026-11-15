@@ -1,6 +1,6 @@
 import type { Registry, Style } from "../game/types";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
-import type { EditSource } from "./gizmos/tree";
+import type { GizmoSource } from "./gizmos/target";
 import type { EditorCommand } from "./keymap";
 import type { SelectMode } from "./selection";
 
@@ -175,9 +175,10 @@ export type EditorToolContext = {
   getDoc(): SceneDefinition;
   /**
    * The document behind `getDoc()`'s resolved view, where instances and the
-   * tree are read from; absent on a host that edits a view with neither.
+   * tree are read from, and what its text is measured in; absent on a host
+   * that edits a view with neither.
    */
-  source?(): EditSource;
+  source?(): GizmoSource;
   selection(): readonly Ref[];
   select(refs: Ref[], mode?: SelectMode): void;
   /**

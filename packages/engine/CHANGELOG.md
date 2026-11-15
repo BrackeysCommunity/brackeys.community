@@ -62,7 +62,8 @@ owner.
 - `GameDefinition.audio.buses`, `audioBuses(registry)` (the engine's five,
   then the game's), `GameConfig.audio` (`backend`, which may be a function
   the shell calls when Play starts, or false; `prefs`), `GameInstance.audio`,
-  `GameInstance.locale` and `GameInstance.calibrateLatency` (all below); host events `locale:change`, `audio:unlocked`, `audio:caption`.
+  `GameInstance.locale` and `GameInstance.calibrateLatency` (all below);
+  host events `locale:change`, `audio:unlocked`, `audio:caption`.
 - The audio types in `audio/` (`AudioBackend`, `Voice`, `AudioSystem`,
   `AudioClock`, `FakeAudioCall`), `webAudioBackend`, `fakeAudioBackend`,
   the synth renderer and presets (`SYNTH_SAMPLE_RATE`, `SYNTH_PRESETS`,
@@ -154,23 +155,24 @@ owner.
   noise, slide, jump, vibrato, retrigger, attack-sustain-decay with punch,
   resonant low-pass and high-pass with sweeps) to one 44,100 Hz channel of
   round(duration x 44.1) samples, and to 16-bit mono WAV.
-- The shell's audio system (`createAudioSystem`, not exported) plays
-  sounds from step events through each sound's `on` matchers, in sound-id order, then the tick's `present.audio`
-  requests. Variants are picked by weight from an Rng seeded by the game
-  id. `cooldownMs` is wall time on the backend clock, and `maxVoices` stops
-  the sound's oldest voice. Music is one voice, crossfaded over `fadeMs`
-  (default 800, `MUSIC_FADE_MS_DEFAULT`). Positional pan is
-  `(x − centre) / halfWidth` clamped to ±1, with `range` linear falloff,
-  and an `entity` source is read from the pose index each frame. One-shots
-  before unlock are dropped and music waits for unlock. Bus volumes and
-  mutes persist through `PrefsStore` under `audio.bus.<bus>` (the `bus.`
-  segment keeps a game bus name apart from `audio.latencyMs`). A synth-patch
-  variant is rendered once with `renderSynth` and handed to
-  `backend.buffer` as one channel, re-rendered when its doc changes, and
-  rendered at load for a `preload` sound. It returns `AudioSystemHandle`,
-  which adds `unlock()` and `reload(project)` to `AudioSystem`; it takes an
-  optional `entity` lookup for `type`/`tag` matchers. A clip's `stream`,
-  `loopStart` and `loopEnd` import settings reach it through `AssetInfo`.
+- The shell's audio system (`createAudioSystem`, not exported) plays sounds
+  from step events through each sound's `on` matchers, in sound-id order,
+  then the tick's `present.audio` requests. Variants are picked by weight
+  from an Rng seeded by the game id. `cooldownMs` is wall time on the
+  backend clock, and `maxVoices` stops the sound's oldest voice. Music is
+  one voice, crossfaded over `fadeMs` (default 800,
+  `MUSIC_FADE_MS_DEFAULT`). Positional pan is `(x − centre) / halfWidth`
+  clamped to ±1, with `range` linear falloff, and an `entity` source is read
+  from the pose index each frame. One-shots before unlock are dropped and
+  music waits for unlock. Bus volumes and mutes persist through `PrefsStore`
+  under `audio.bus.<bus>` (the `bus.` segment keeps a game bus name apart
+  from `audio.latencyMs`). A synth-patch variant is rendered once with
+  `renderSynth` and handed to `backend.buffer` as one channel, re-rendered
+  when its doc changes, and rendered at load for a `preload` sound. It
+  returns `AudioSystemHandle`, which adds `unlock()` and `reload(project)`
+  to `AudioSystem`; it takes an optional `entity` lookup for `type`/`tag`
+  matchers. A clip's `stream`, `loopStart` and `loopEnd` import settings
+  reach it through `AssetInfo`.
 - `browserPrefsStore` (localStorage under `jams-engine:prefs:<gameId>`,
   every access in try/catch) and `snapshotPrefsStore(initial, save)` (a
   host's snapshot; changes handed back once, 500 ms after the last) are
@@ -184,7 +186,9 @@ owner.
   bus, so the output stays two channels or more and nothing downmixes;
   `decode` goes through `decodeAudioData` (on a copy of the bytes), `buffer`
   through `createBuffer`/`copyToChannel` one channel per array, `stream`
-  routes an HTMLAudioElement into the bus graph, `latency` is outputLatency
+  routes an HTMLAudioElement into the bus graph (keeping a clip's
+  `loopStart` and `loopEnd` by seeking back on a timer the element's clock
+  corrects, since an element loops only the whole file), `latency` is outputLatency
   - baseLatency; `opts.context` takes an OfflineAudioContext for tests.
 - `tryWebAudioBackend()` is `webAudioBackend()`, or `false` where the
   browser has no Web Audio, so a host's `audio.backend` plays the game
@@ -195,7 +199,9 @@ owner.
   instance and is closed by `destroy`. Each tick's step events and
   `present.audio` requests reach it after the tick, positional voices pan
   from the main viewport each frame, and the first pointer press, key press
-  or touch end unlocks it (`audio:unlocked`). `GameInstance.audio` is
+  or touch end unlocks it (`audio:unlocked`). An unlock the browser refuses
+  (iOS takes only a touch's end, never its pointerdown) is tried again in
+  full, silent sample and `resume()`, on the next gesture. `GameInstance.audio` is
   non-null while a backend plays. Keyed sounds of a world that is torn down
   (an entity's loop) stop with it.
 - `GameConfig.assets.url`: where the host serves a blob's bytes; the audio
@@ -305,15 +311,19 @@ locale, font)` (the same table as plain data for a scene view's
   for the keys the doc names (`text` blocks, a caption, lines, choices and
   speakers) through the one shared `stringKeyIssues`: one issue per use, an
   error when the default locale lacks it, else info, at an indexed pointer
-  so it gets a line. `localeFont` and `stringKeyIssues` are exported
-  from `./project`. The Engine settings panel shows a `locales` row, last.
+  so it gets a line. `localeFont`, `stringKeyIssues`, `localeTagProblem`
+  (why a tag can't name a locale, the one check every path that adds a
+  locale column runs) and `STRING_NOTE_FIELD` (a row's translator note) are
+  exported from `./project`. The Engine settings panel shows a `locales` row, last.
 - `scene validate <scene>` runs `validateProject` over the scene's project:
   the scene's own cross-doc issues join its issues (with lines) and count
   toward the exit code, and other docs' issues print under a `project <id>,
 other docs:` line and in `data.project`, without changing the exit code.
 - The `dialogue` kind's checks: `dialogue-dead-end` (an error for a node
   with no choices, `next` or `end`; a warning when every choice has an `if`
-  and the node has no `next` or `end` to fall back on),
+  and the node has no `next` or `end` to fall back on, and another for a
+  node with an `if` and no `else`; `dialogueDeadEnd(node)` lists each way
+  a node can stall, `"none"`, `"guarded"` or `"unguarded-if"`),
   `dialogue-unreachable` (warn), `asset-missing` with `detail.kind: "node"`
   for a `start`, `to`, `next` or `else` naming no node, and a `schema` error
   naming JSON Pointer for a variable that isn't one. Its `refs` name
@@ -365,8 +375,11 @@ other docs:` line and in `data.project`, without changing the exit code.
   `emit`) on entry, `visited` over the conversation and a saved history, a
   200-line log, `advance`/`choose` answering false on an illegal step, and
   `save`/`restore`. It raises `dialogue:line`, `dialogue:choices` and
-  `dialogue:end` through `emit`. `persistVars(ctx)` reads and writes JSON
-  pointers into `ctx.persist`; `memoryVars(value)` keeps its own value.
+  `dialogue:end` through `emit`. `persistVars(ctx, { schema?, refused? })`
+  reads and writes JSON pointers into `ctx.persist`; with options, each
+  write is judged by `persistProblem` against `schema` first, and one it
+  refuses leaves persist as it was and goes to `refused`.
+  `memoryVars(value)` keeps its own value.
 - `ctx.dialogue` runs the one active conversation: `start` (a second
   `start` replaces the running one, with a dev warning),
   `@dialogue-advance` / `@dialogue-choose` applied before the game's
@@ -551,8 +564,10 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
 - In the editor, a selected point entity carrying a `text` block (a
   marker sign) has its move handle just under the text, in line with its
   anchor, instead of on the anchor where it hid the glyphs.
-  `GizmoTarget.text` is the box it goes by: its height measured, its width
-  estimated, since the editor has no locale strings.
+  `GizmoTarget.text` is the box it goes by, measured in the default
+  locale's strings and font: `EditorToolContext.source()` gives a
+  `GizmoSource`, the edited document with that text environment, which
+  `ToolHost.source()` answers from `ToolHostOptions.text`.
 
 ### Fixed
 
@@ -626,8 +641,9 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   lengths, and a font's coverage and distance field. `playtest --present`
   lists `audio` play, stop and music requests beside camera and effect
   requests, and each sound a step event plays through a sound's `on`
-  matchers as an `audio play` naming the event (`on`) and its entity or
-  point (`PlaytestReport.present` with `recordPresentation`).
+  matchers as an `audio play` naming the event (`on`, declared on
+  `AudioRequest`'s play) and its entity and point, the source a live play
+  is given (`PlaytestReport.present` with `recordPresentation`).
 - MCP `dialogue_walk`: walks a dialogue's choices from its start with the
   given `vars` (an object or JSON text) and `maxDepth`. It returns the same
   data as `dialogue walk --json`: `endings` (each with `ending`, `path`,
@@ -680,7 +696,11 @@ import <file.csv>` (one batch, one editAsset per strings file) run.
   are documents; clips and fonts count as asset bytes", what `visualOnly`
   means for `audio` and `text`, the `text` and `audio` handles, the four
   doc kinds in the kinds table, and a visual-novel row and an updated
-  rhythm-tap row in the genre probes.
+  rhythm-tap row in the genre probes. Its runnable examples cover latency
+  calibration (`sound-options.ts`), `renderRichText` (`talk-hud.ts`'s
+  place name) and a bark from a game's own `createDialogueRunner` kept
+  through a world save (`gate-bark.ts`), and the synth paragraph names the
+  subtractive modules and the `bass` preset.
 - The scene README gains Sound, text, dialogue and strings (dialogue walk,
   strings missing/export/import, synth new/render, assets reimport, assets
   info's clip, patch and font meta, the six codes and the dialogue

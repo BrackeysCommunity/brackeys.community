@@ -2,6 +2,8 @@
  * What the page's sign and audio runs report, and how the runner judges
  * them; pure, so the runner, the page and the tests share it.
  */
+import { plural } from "@jams/engine/scene";
+
 import type { BrowserName, BrowserOutcome } from "../browser-compare";
 import type { EngineSmokeResult } from "./main";
 import { SIGN_GRID, SIGN_WAIT_MS, SIGNS, type SignFont } from "./signs";
@@ -124,7 +126,7 @@ function judgeLive(audio: AudioProbe, browser: BrowserName | undefined): string 
     return `after the click the context is ${audio.context} and the backend ${audio.backend}, not running${why}`;
   }
   if (audio.channels < 2)
-    return `the destination has ${audio.channels} channel${audio.channels === 1 ? "" : "s"}, not two or more`;
+    return `the destination has ${plural(audio.channels, "channel")}, not two or more`;
   if (audio.endedMs === null || audio.endedMs > audio.patchMs + AUDIO_ENDED_SLACK_MS)
     return `the patch's voice ${audio.endedMs === null ? "never ended" : `ended after ${audio.endedMs} ms`}, not within its ${audio.patchMs} ms plus ${AUDIO_ENDED_SLACK_MS}`;
   return null;
@@ -136,7 +138,7 @@ export function judgeAudio(audio: AudioProbe | undefined, browser?: BrowserName)
   const live = judgeLive(audio, browser);
   if (live) return live;
   if (audio.offlineChannels < 2)
-    return `the offline render has ${audio.offlineChannels} channel, not two`;
+    return `the offline render has ${plural(audio.offlineChannels, "channel")}, not two`;
   if (!(audio.leftShare > AUDIO_LEFT_SHARE))
     return `at pan -1 the left channel holds ${(audio.leftShare * 100).toFixed(1)}% of the energy, not over ${AUDIO_LEFT_SHARE * 100}%`;
   return null;

@@ -5,6 +5,7 @@ import type { GameCommand } from "../game/types";
 import type { DialogueLine } from "../project/kinds/dialogue";
 import { parseRichText, richPlainText, type RichLine } from "../text/rich";
 import type { StringTable } from "../text/strings";
+import { isEditableTarget } from "../tool-router";
 import type { UiActionEvent } from "../types";
 import { followLocale, onLocale, styleElement, UI_FONT_FAMILY, UI_THEME, uiInset } from "./bind";
 import {
@@ -18,7 +19,11 @@ import type { UiContext, UiHandle } from "./types";
 export type DialogueBoxOptions = {
   /** Characters per second; Infinity, or reduced motion, shows lines whole. Default 40. */
   speed?: number;
-  /** UI-only actions that advance and move between choices; default "confirm", "up", "down". */
+  /**
+   * UI-only actions that advance and move between choices; default
+   * "confirm", "up", "down". While the game binds nothing to one, Enter and
+   * Space advance and ArrowUp and ArrowDown move in its place.
+   */
   actions?: { advance?: string; up?: string; down?: string };
   portraits?: boolean;
   className?: string;
@@ -31,6 +36,8 @@ export type TextLogOptions = {
 };
 
 const DEFAULT_SPEED = 40;
+/** The portrait slot's side, px; an atlas frame scales to fill it. */
+const PORTRAIT_PX = 96;
 
 /** The custom property on the UI root holding the shown box's height plus a gap. */
 export const DIALOGUE_INSET = "--jams-dialogue-inset";
@@ -64,7 +71,11 @@ const BOX_CSS = `
   user-select: none;
 }
 :where([data-jams-dialogue])[hidden] { display: none; }
-:where([data-jams-dialogue-portrait]) { flex: none; width: 96px; height: 96px; }
+:where([data-jams-dialogue-portrait]) {
+  flex: none; width: ${PORTRAIT_PX}px; height: ${PORTRAIT_PX}px; display: grid; place-items: center;
+}
+:where([data-jams-dialogue-portrait])[hidden] { display: none; }
+:where([data-jams-dialogue-portrait-art]) { width: 100%; height: 100%; }
 :where([data-jams-dialogue-body]) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 :where([data-jams-dialogue-speaker]) { font-weight: bold; color: ${UI_THEME.accent}; }
 :where([data-jams-dialogue-line]) { min-height: 2.8em; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -180,6 +191,9 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
   const portrait = doc.createElement("div");
   portrait.dataset.jamsDialoguePortrait = "";
   portrait.setAttribute("aria-hidden", "true");
+  const art = doc.createElement("div");
+  art.dataset.jamsDialoguePortraitArt = "";
+  portrait.append(art);
   const body = doc.createElement("div");
   body.dataset.jamsDialogueBody = "";
   const speaker = doc.createElement("div");
@@ -227,6 +241,20 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
   };
 
   const focusInBox = () => box.contains(doc.activeElement);
+
+  /** Whether the game binds nothing to `action`, so the box's own keys stand in for it. */
+  const unbound = (action: string) => (ctx.game.input.bindings()[action]?.length ?? 0) === 0;
+  /** Whether the key `code` drives one of the game's actions, which the box then leaves it to. */
+  const keyBound = (code: string) =>
+    code !== "" &&
+    Object.values(ctx.game.input.bindings()).some((list) =>
+      list.some((b) => b.device === "key" && b.code === code),
+    );
+  /** Focus the box's own keys answer to: on the page, the canvas or what holds it, never a field or another control. */
+  const pageHolds = (target: EventTarget | null) =>
+    target instanceof win.Node &&
+    !isEditableTarget(target) &&
+    (target.contains(ctx.canvas) || box.contains(target));
 
   /** Hands focus back to where it was before the choices took it, else the canvas. */
   const releaseFocus = () => {
@@ -306,6 +334,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     selected = kept >= 0 ? kept : buttons.findIndex((b) => !b.disabled);
     markSelected();
     const hadFocus = focusInBox();
+    const appeared = choicesEl.childElementCount === 0 && buttons.length > 0;
     choicesEl.replaceChildren(...buttons);
     choicesEl.hidden = buttons.length === 0;
     if (hadFocus) {
@@ -314,8 +343,17 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
         button.focus({ preventScroll: true });
         reveal(button);
       } else releaseFocus();
+    } else if (
+      appeared &&
+      selected >= 0 &&
+      (unbound(actions.up) || unbound(actions.down)) &&
+      pageHolds(doc.activeElement ?? doc.body)
+    ) {
+      focusChoice(selected);
     }
-    hint.hidden = !active() || typingSince !== null || view?.choices != null;
+    // Kept in its row while a line types, so the box doesn't change height as each line finishes.
+    hint.hidden = !active() || view?.choices != null;
+    hint.style.visibility = typingSince === null ? "" : "hidden";
   };
 
   const finishLine = () => {
@@ -375,8 +413,10 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     const text = richPlainText(rich);
     live.textContent = name && text ? `${name}: ${text}` : text;
 
-    const art = showPortraits ? current.portrait : undefined;
-    portrait.hidden = !art || !setAssetBackground(portrait, ctx, art.asset, art.frame);
+    const shows = showPortraits ? current.portrait : undefined;
+    art.removeAttribute("style");
+    portrait.hidden =
+      !shows || !setAssetBackground(art, ctx, shows.asset, shows.frame, PORTRAIT_PX);
 
     if (restart) {
       frames.cancel();
@@ -451,11 +491,31 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
     e.stopPropagation();
     move(e.key === "ArrowUp" ? -1 : 1);
   };
+  /**
+   * Enter, Space and the arrows for the actions the game binds nothing to,
+   * as in a project without game code; a key one of its actions uses stays its.
+   */
+  const onPageKey = (e: KeyboardEvent) => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!active() || !pageHolds(e.target) || keyBound(e.code)) return;
+    if (e.key === "Enter" || e.key === " ") {
+      // A focused choice takes Enter and Space as its own click.
+      if (!unbound(actions.advance) || e.target instanceof win.HTMLButtonElement) return;
+      e.preventDefault();
+      if (!e.repeat) advance();
+    } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      const up = e.key === "ArrowUp";
+      if (!unbound(up ? actions.up : actions.down) || !choicesShown()) return;
+      e.preventDefault();
+      move(up ? -1 : 1);
+    }
+  };
   const onClick = (e: MouseEvent) => {
     if (e.button === 0) advance(undefined, true);
   };
   box.addEventListener("keydown", onKey);
   box.addEventListener("click", onClick);
+  doc.addEventListener("keydown", onPageKey);
 
   return {
     destroy() {
@@ -465,6 +525,7 @@ export function createDialogueBox(ctx: UiContext, opts: DialogueBoxOptions = {})
       offAction();
       box.removeEventListener("keydown", onKey);
       box.removeEventListener("click", onClick);
+      doc.removeEventListener("keydown", onPageKey);
       resized?.disconnect();
       if (focusInBox()) releaseFocus();
       box.remove();

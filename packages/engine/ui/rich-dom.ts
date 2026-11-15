@@ -7,14 +7,16 @@ type AssetUrlContext = Pick<UiContext, "assetUrl">;
 
 /**
  * Draws asset `id` (an atlas frame when `frame` is given) as `el`'s CSS
- * background: the frame's rect at its own pixel size, or a whole image
- * fitted into the box. False, and no background, when the host has no URL.
+ * background: the frame's rect at its own pixel size, scaled to `fit` px on
+ * its longer side when given (pixelated when that enlarges it), or a whole
+ * image fitted into the box. False, and no background, when the host has no URL.
  */
 export function setAssetBackground(
   el: HTMLElement,
   ctx: AssetUrlContext,
   id: AssetId,
   frame?: string,
+  fit?: number,
 ): boolean {
   const found = ctx.assetUrl(id, frame);
   if (!found) {
@@ -31,6 +33,9 @@ export function setAssetBackground(
       backgroundPosition: `${-rect.x}px ${-rect.y}px`,
       backgroundSize: "auto",
     });
+    const scale = fit === undefined ? 1 : fit / Math.max(rect.w, rect.h, 1);
+    if (scale !== 1) el.style.transform = `scale(${scale})`;
+    if (scale > 1) el.style.imageRendering = "pixelated";
   } else {
     Object.assign(el.style, { backgroundPosition: "center", backgroundSize: "contain" });
   }

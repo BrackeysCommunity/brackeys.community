@@ -596,17 +596,14 @@ function compileTracks(
 }
 
 /**
- * Checks an input script against `registry`'s game (its actions and their
- * kinds, commands, `until` predicates, play options and seats) and resolves
- * every step to ticks at `time`'s rate, by default the game's own. Its
- * tracks drive the seats `players` (the project input map's) gives, else
- * the game's, unless the script sets its own `players`. A pointer step's
- * buttons hold the actions bound to them, the project input map's
- * (`map`) over the game's, as live play does. Issues
- * carry JSON Pointers into the script; an unknown action, command or key
- * gets a "did you mean". A v1 script compiles as written, as the v2 subset
- * it is: lengths in a script handed here are metres in either version, and
- * reading a v1 file (`parseInputScript`) is what migrates its px.
+ * Checks an input script against `registry`'s game and resolves every step
+ * to ticks at `time`'s rate, by default the game's own. Its tracks drive the
+ * seats `players` gives (the project input map's, else the game's) unless
+ * the script sets its own; a pointer step's buttons hold the actions `map`
+ * binds over the game's, as live play does. Issues carry JSON Pointers into
+ * the script, with a "did you mean" for an unknown action, command or key.
+ * A v1 script compiles as the v2 subset it is: lengths here are metres in
+ * either version, and `parseInputScript` is what migrates a v1 file's px.
  */
 export function compileInputScript(
   script: unknown,

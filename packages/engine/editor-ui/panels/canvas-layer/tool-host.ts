@@ -11,10 +11,13 @@ import {
   DEFAULT_SNAP,
   DRAW_TYPE_COMMAND,
   drawTypeOptions,
+  gizmoTextEnv,
   SNAP_STEPS,
   type DrawToolKind,
   type EditorSession,
   type EditorToolDef,
+  type GizmoSource,
+  type GizmoTextEnv,
   type Pt,
   type SnapSettings,
   type ToolHost,
@@ -24,6 +27,7 @@ import {
 import type { Registry } from "../../../game/types";
 import type { GameInstance, Vec2 } from "../../../index";
 import { assetInfo } from "../../../project/index";
+import type { ProjectRuntimeView } from "../../../project/runtime-view";
 import { frameInView } from "../../frame/visible-rect";
 import { STORAGE_PREFIX, type EditorNotify, type EditorStorage } from "../../host";
 import { useKit } from "../../kit/index";
@@ -31,13 +35,16 @@ import { useStoreValue } from "../../session/use-store-value";
 import { viewScale } from "./view";
 
 /**
- * What the tool host needs from the game: its router and camera. Drags
- * preview in the overlay only, never in the edit world.
+ * What the tool host needs from the game: its router and camera, and the
+ * project and locale its scene view draws text in, which a `text` block's
+ * gizmo box is measured in. Drags preview in the overlay only, never in the
+ * edit world.
  */
 export type ToolHostGame = Pick<
   GameInstance,
   "registry" | "router" | "getStore" | "screenToWorld" | "panBy" | "zoomAt" | "frame"
->;
+> &
+  Partial<Pick<GameInstance, "project" | "locale" | "on" | "off">>;
 
 /** The live tool host, shared by the dock, the keys and the canvas layer; null until it's up. */
 export type ToolHostCell = Store<ToolHost | null>;
@@ -66,6 +73,30 @@ const hostZooms = new WeakMap<ToolHost, (onChange: () => void) => () => void>();
  * drawn outside it, such as a drop's ghost; undefined without a project.
  */
 export const hostAsset = (host: ToolHost): AssetLookup | undefined => hostAssets.get(host);
+
+const sessionHosts = new WeakMap<EditorSession, ToolHost>();
+
+/**
+ * What the tool host running on `session` reads the document and its text
+ * through (`ToolHost.source`), for marks drawn to line up with its handles;
+ * undefined while no host is up.
+ */
+export const sessionSource = (session: EditorSession): GizmoSource | undefined =>
+  sessionHosts.get(session)?.source();
+
+/** `game`'s project and locale as gizmos measure text in them, kept while neither changes. */
+function gameTextEnv(game: ToolHostGame): () => GizmoTextEnv | undefined {
+  let shown: { project: ProjectRuntimeView; locale: string | undefined; env: GizmoTextEnv } | null =
+    null;
+  return () => {
+    const project = game.project?.();
+    if (!project) return undefined;
+    const locale = game.locale?.current();
+    if (shown?.project !== project || shown.locale !== locale)
+      shown = { project, locale, env: gizmoTextEnv(project, locale) };
+    return shown.env;
+  };
+}
 
 export const SNAP_KEY = `${STORAGE_PREFIX}snap`;
 
@@ -143,7 +174,8 @@ function rememberedDrawTools(
  * in `cell`. The game's own tools load first (a dynamic import); if they
  * fail to load, the engine's tools still run, and `notify` says so. With
  * `project`, sprite boxes are sized from its assets and re-indexed when the
- * project doc changes. Snap settings and the draw tools' type are kept in
+ * project doc changes. Text gizmos measure in the game's project and locale,
+ * read again on a locale change. Snap settings and the draw tools' type are kept in
  * the kit's storage, so they survive a rebuild of the host.
  */
 export function useToolHostLifecycle(
@@ -170,6 +202,9 @@ export function useToolHostLifecycle(
       host?.reindex();
     };
     project?.projectDoc.on("update", onProjectUpdate);
+    const onLocale = () => host?.reindex();
+    game.on?.("locale:change", onLocale);
+    const text = gameTextEnv(game);
 
     const start = (gameTools: readonly EditorToolDef[]) => {
       if (cancelled) return;
@@ -196,6 +231,7 @@ export function useToolHostLifecycle(
         pan: ([x, y]) => game.panBy({ x, y }),
         zoomAt: ([x, y], factor) => game.zoomAt({ x, y }, factor),
         frame: (rect) => frameInView(game, rect),
+        text,
         ...(asset ? { asset } : {}),
       });
       hostToWorlds.set(next, toWorld);
@@ -210,6 +246,7 @@ export function useToolHostLifecycle(
         });
       });
       if (asset) hostAssets.set(next, asset);
+      sessionHosts.set(session, next);
       let saved = next.snap();
       unsubscribe = next.subscribe(() => {
         const snap = next.snap();
@@ -235,8 +272,10 @@ export function useToolHostLifecycle(
     return () => {
       cancelled = true;
       project?.projectDoc.off("update", onProjectUpdate);
+      game.off?.("locale:change", onLocale);
       unsubscribe?.();
       if (host && cell.state === host) cell.setState(() => null);
+      if (host && sessionHosts.get(session) === host) sessionHosts.delete(session);
       host?.destroy();
     };
   }, [cell, session, game, project]);

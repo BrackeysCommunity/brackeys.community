@@ -27,7 +27,7 @@ import {
   zOrderBatch,
 } from "./commands";
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
-import type { EditSource } from "./gizmos/tree";
+import type { GizmoSource, GizmoTextEnv } from "./gizmos/target";
 import { UNSNAPPED_TURN_DEG, type KeyContext } from "./keymap";
 import {
   frameBounds,
@@ -121,6 +121,12 @@ export type ToolHostOptions = {
    * each re-index; call `reindex` when its answers change.
    */
   asset?: SpriteAssetLookup;
+  /**
+   * What a `text` block's gizmo box is measured in: the strings and font the
+   * scene view draws in (`gizmoTextEnv`), read at each use and compared by
+   * identity. Without it a key measures bracketed.
+   */
+  text?: () => GizmoTextEnv | undefined;
 };
 
 export type ToolHost = {
@@ -162,6 +168,11 @@ export type ToolHost = {
   setLayers(patch: { hidden?: Iterable<string>; locked?: Iterable<string> }): void;
   /** The spatial index the tools pick from, kept current with the session. */
   index(): SpatialIndex;
+  /**
+   * The document behind the resolved view and what its text is measured in,
+   * as the tools read them; the same object until one of them changes.
+   */
+  source(): GizmoSource;
   /** Rebuilds the index, for when the `asset` lookup's answers changed. */
   reindex(): void;
   /** The selection as clipboard text; empty with nothing selected. */
@@ -234,7 +245,15 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     keyOf: (r) => session.keyOf(r),
     ...(opts.asset ? { asset: opts.asset } : {}),
   });
-  const editSource = (): EditSource => ({ doc: session.getDoc(), prefabs: session.getPrefabs() });
+  let source: GizmoSource | null = null;
+  function editSource(): GizmoSource {
+    const doc = session.getDoc();
+    const prefabs = session.getPrefabs();
+    const text = opts.text?.();
+    if (source?.doc !== doc || source.prefabs !== prefabs || source.text !== text)
+      source = { doc, prefabs, ...(text ? { text } : {}) };
+    return source;
+  }
   index.rebuild(session.getResolved(), registry, editSource());
   const gesture = createGesturePreview({
     registry,
@@ -660,6 +679,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       emit();
     },
     index: () => index,
+    source: editSource,
     reindex() {
       index.rebuild(session.getResolved(), registry, editSource());
       emit();

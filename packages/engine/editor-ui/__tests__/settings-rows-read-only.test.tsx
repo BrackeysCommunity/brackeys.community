@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-import type { ProjectSession } from "../../collab/index";
 import { settingsRows } from "../../editor/settings-model";
-import type { AssetEntry, DocLayout } from "../../project/index";
-import type { SettingsDoc } from "../panels/settings/settings-doc";
+import type { DocLayout } from "../../project/index";
 import { SettingsRows } from "../panels/settings/SettingsRows";
+import { fakeSettingsDoc } from "./fixtures/settings-doc";
 
 const SCHEMA = z.object({
   width: z.number().optional().meta({ unit: "px" }),
@@ -17,30 +16,12 @@ const SCHEMA = z.object({
 const VALUE = { width: 32, heading: 0 };
 const READ_ONLY = "This project is read-only here.";
 
-const entry: AssetEntry = {
-  key: "kset",
-  id: "game-settings",
-  kind: "game-settings",
-  path: "game-settings.json",
-  created: { at: 0, by: "seed" },
-};
-
-function settingsDoc(readOnly: string | null): SettingsDoc & { edit: Mock } {
-  return {
-    session: {} as ProjectSession,
-    kind: "game-settings",
-    entry,
-    docName: "asset:p.kset",
+function mount(readOnly: string | null) {
+  const doc = fakeSettingsDoc({
     value: VALUE,
     layout: { as: "map", rest: { as: "atomic" } } as DocLayout,
     readOnly,
-    edit: vi.fn(async () => true),
-    create: vi.fn(async () => true),
-  };
-}
-
-function mount(readOnly: string | null) {
-  const doc = settingsDoc(readOnly);
+  });
   const view = render(<SettingsRows doc={doc} rows={settingsRows(SCHEMA, VALUE, "")} />);
   return { doc, view };
 }

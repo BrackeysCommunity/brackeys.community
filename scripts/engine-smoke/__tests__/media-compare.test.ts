@@ -103,7 +103,15 @@ describe("judgeAudio", () => {
       "the patch's voice ended after 301 ms, not within its 200 ms plus 100",
     );
     expect(judgeAudio(audio({ endedMs: null }))).toMatch(/^the patch's voice never ended/);
-    expect(judgeAudio(audio({ offlineChannels: 1 }))).toMatch(/offline render has 1 channel/);
+    expect(judgeAudio(audio({ offlineChannels: 1 }))).toBe(
+      "the offline render has 1 channel, not two",
+    );
+    expect(judgeAudio(audio({ offlineChannels: 0 }))).toBe(
+      "the offline render has 0 channels, not two",
+    );
+    expect(judgeAudio(audio({ channels: 0, maxChannels: 2 }))).toBe(
+      "the destination has 0 channels, not two or more",
+    );
     expect(judgeAudio(audio({ leftShare: 0.95 }))).toBe(
       "at pan -1 the left channel holds 95.0% of the energy, not over 95%",
     );

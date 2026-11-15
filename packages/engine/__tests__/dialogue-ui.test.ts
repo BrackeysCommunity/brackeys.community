@@ -69,6 +69,10 @@ function harness(
     locale?: string;
     assets?: Record<string, UiAssetUrl>;
     project?: ProjectRuntimeView;
+    /** The actions the game binds; by default every one these tests name. */
+    bound?: readonly string[];
+    /** Further actions by the key codes they bind. */
+    keys?: Record<string, readonly string[]>;
   } = {},
 ) {
   const canvas = document.createElement("canvas");
@@ -110,6 +114,20 @@ function harness(
     },
     off: (event: string, fn: (p: unknown) => void) => handlers.get(event)?.delete(fn),
     input: {
+      bindings: () => ({
+        ...Object.fromEntries(
+          (opts.bound ?? ["confirm", "up", "down", "talk", "prev", "next"]).map((a) => [
+            a,
+            [{ device: "key", code: "KeyZ" }],
+          ]),
+        ),
+        ...Object.fromEntries(
+          Object.entries(opts.keys ?? {}).map(([a, codes]) => [
+            a,
+            codes.map((code) => ({ device: "key", code })),
+          ]),
+        ),
+      }),
       onAction: (fn: (e: UiActionEvent) => void, o?: { actions?: readonly string[] }) => {
         const entry = { fn, ...(o?.actions && { actions: o.actions }) };
         actionListeners.add(entry);
@@ -353,23 +371,168 @@ describe("createDialogueBox", () => {
     ui.destroy();
   });
 
-  it("draws the portrait as a CSS background of the frame's rect", () => {
+  it("draws the portrait as a CSS background of the frame's rect, scaled to fill its slot", () => {
     const h = harness({
       reducedMotion: true,
-      assets: { "faces:guide": { url: "blob:faces", rect: { x: 64, y: 32, w: 48, h: 40 } } },
+      assets: {
+        "faces:guide": { url: "blob:faces", rect: { x: 64, y: 32, w: 48, h: 40 } },
+        "faces:big": { url: "blob:faces", rect: { x: 0, y: 0, w: 192, h: 128 } },
+        photo: { url: "blob:photo" },
+      },
     });
     const ui = createDialogueBox(h.ctx);
     const portrait = () => document.querySelector<HTMLElement>("[data-jams-dialogue-portrait]")!;
+    const art = () => portrait().querySelector<HTMLElement>("[data-jams-dialogue-portrait-art]")!;
     h.setDialogue(view({ current: { say: "hi", portrait: { asset: "faces", frame: "guide" } } }));
     expect(portrait().hidden).toBe(false);
-    expect(portrait().style.backgroundImage).toContain("blob:faces");
-    expect(portrait().style.backgroundPosition).toBe("-64px -32px");
-    expect(portrait().style.width).toBe("48px");
-    expect(portrait().style.height).toBe("40px");
+    expect(art().style.backgroundImage).toContain("blob:faces");
+    expect(art().style.backgroundPosition).toBe("-64px -32px");
+    expect(art().style.width).toBe("48px");
+    expect(art().style.height).toBe("40px");
+    // The 96px slot: the longer side fills it, and pixel art stays crisp as it grows.
+    expect(art().style.transform).toBe("scale(2)");
+    expect(art().style.imageRendering).toBe("pixelated");
+    // A frame larger than the slot shrinks, smoothly.
+    h.setDialogue(
+      view({ line: 1, current: { say: "hi", portrait: { asset: "faces", frame: "big" } } }),
+    );
+    expect(art().style.transform).toBe("scale(0.5)");
+    expect(art().style.imageRendering).toBe("");
+    // A whole image fits the slot, with nothing of the last frame's size left.
+    h.setDialogue(view({ line: 2, current: { say: "hi", portrait: { asset: "photo" } } }));
+    expect(art().style.backgroundSize).toBe("contain");
+    expect(art().style.width).toBe("");
+    expect(art().style.transform).toBe("");
     // An asset the host doesn't hold shows no portrait.
-    h.setDialogue(view({ line: 1, current: { say: "hi", portrait: { asset: "gone" } } }));
+    h.setDialogue(view({ line: 3, current: { say: "hi", portrait: { asset: "gone" } } }));
     expect(portrait().hidden).toBe(true);
     ui.destroy();
+  });
+
+  it("keeps the advance hint's row while a line types, so the box holds its height", async () => {
+    const h = harness();
+    const ui = createDialogueBox(h.ctx, { speed: 40 });
+    const hint = () => document.querySelector<HTMLElement>("[data-jams-dialogue-hint]")!;
+    h.setDialogue(view());
+    expect(hint().hidden).toBe(false);
+    expect(hint().style.visibility).toBe("hidden");
+    h.act("confirm");
+    expect(hint().hidden).toBe(false);
+    expect(hint().style.visibility).toBe("");
+    // A line with choices after it shows the choices in the hint's place.
+    h.setDialogue(view({ line: 1, choices: CHOICES }));
+    expect(hint().hidden).toBe(true);
+    ui.destroy();
+  });
+
+  describe("with none of its actions bound, as in a project without game code", () => {
+    const press = (target: EventTarget, key: string, init: KeyboardEventInit = {}) => {
+      const e = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(e);
+      return e;
+    };
+
+    it("advances on Enter and Space, finishing a typing line first", () => {
+      const h = harness({ bound: [] });
+      const ui = createDialogueBox(h.ctx, { speed: 40 });
+      h.setDialogue(view());
+      h.ctx.canvas.focus();
+      expect(hiddenText()).not.toBe("");
+      expect(press(h.ctx.canvas, "Enter").defaultPrevented).toBe(true);
+      expect(hiddenText()).toBe("");
+      expect(h.send).not.toHaveBeenCalled();
+      press(h.ctx.canvas, " ");
+      expect(h.sent).toEqual([{ name: DIALOGUE_ADVANCE_COMMAND }]);
+      h.setDialogue(
+        view({ line: 1, current: { say: "next" }, log: [...view().log, view().log[0]!] }),
+      );
+      // With focus fallen to the page, the keys still reach the box; a held key doesn't repeat.
+      (document.activeElement as HTMLElement | null)?.blur();
+      press(document.body, "Enter", { repeat: true });
+      press(document.body, "Enter");
+      press(document.body, "Enter");
+      expect(h.sent).toHaveLength(2);
+      ui.destroy();
+    });
+
+    it("focuses the first choice when they appear, moves with the arrows and picks on Enter", () => {
+      const h = harness({ bound: [], reducedMotion: true });
+      const ui = createDialogueBox(h.ctx);
+      h.ctx.canvas.focus();
+      h.setDialogue(view({ choices: CHOICES }));
+      const bs = buttons();
+      expect(document.activeElement).toBe(bs[0]);
+      press(document.activeElement!, "ArrowDown");
+      expect(document.activeElement).toBe(bs[1]);
+      press(document.activeElement!, "ArrowDown");
+      expect(document.activeElement).toBe(bs[3]);
+      press(document.activeElement!, "ArrowUp");
+      expect(document.activeElement).toBe(bs[1]);
+      // The focused button's own Enter is its click; the box adds nothing to it.
+      const enter = press(document.activeElement!, "Enter");
+      expect(enter.defaultPrevented).toBe(false);
+      expect(h.send).not.toHaveBeenCalled();
+      bs[1]!.click();
+      expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 1 } }]);
+      // The next line hands focus back to the canvas.
+      h.setDialogue(view({ node: "stay", line: 0, log: [...view().log, view().log[0]!] }));
+      expect(document.activeElement).toBe(h.ctx.canvas);
+
+      // From the canvas the arrows reach the choices too, and Enter picks the selected one.
+      h.setDialogue(view({ node: "again", choices: CHOICES }));
+      h.ctx.canvas.focus();
+      press(h.ctx.canvas, "ArrowDown");
+      expect(document.activeElement).toBe(buttons()[1]);
+      h.ctx.canvas.focus();
+      press(h.ctx.canvas, "Enter");
+      expect(h.sent.at(-1)).toEqual({ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 1 } });
+      ui.destroy();
+    });
+
+    it("leaves keys alone in a field, on another control, with a modifier, or while nothing shows", () => {
+      const h = harness({ bound: [] });
+      const ui = createDialogueBox(h.ctx, { speed: Infinity });
+      const field = document.createElement("input");
+      const other = document.createElement("button");
+      document.body.append(field, other);
+      press(h.ctx.canvas, "Enter");
+      h.setDialogue(view());
+      for (const target of [field, other]) {
+        target.focus();
+        expect(press(target, "Enter").defaultPrevented).toBe(false);
+        press(target, " ");
+      }
+      press(h.ctx.canvas, "Enter", { ctrlKey: true });
+      expect(h.send).not.toHaveBeenCalled();
+      ui.destroy();
+      press(h.ctx.canvas, "Enter");
+      expect(h.send).not.toHaveBeenCalled();
+    });
+
+    it("leaves a key one of the game's own actions uses to it", () => {
+      const h = harness({ bound: [], keys: { jump: ["Space"], move: ["ArrowDown"] } });
+      const ui = createDialogueBox(h.ctx, { speed: Infinity });
+      h.setDialogue(view({ choices: CHOICES }));
+      h.ctx.canvas.focus();
+      expect(press(h.ctx.canvas, " ", { code: "Space" }).defaultPrevented).toBe(false);
+      press(h.ctx.canvas, "ArrowDown", { code: "ArrowDown" });
+      expect(document.activeElement).toBe(h.ctx.canvas);
+      expect(h.send).not.toHaveBeenCalled();
+      press(h.ctx.canvas, "Enter", { code: "Enter" });
+      expect(h.sent).toEqual([{ name: DIALOGUE_CHOOSE_COMMAND, args: { choice: 0 } }]);
+      ui.destroy();
+    });
+
+    it("stands in only for the actions the game leaves unbound", () => {
+      const h = harness({ bound: ["confirm"], reducedMotion: true });
+      const ui = createDialogueBox(h.ctx);
+      h.setDialogue(view());
+      press(h.ctx.canvas, "Enter");
+      expect(h.send).not.toHaveBeenCalled();
+      h.act("confirm");
+      expect(h.sent).toEqual([{ name: DIALOGUE_ADVANCE_COMMAND, player: 0 }]);
+      ui.destroy();
+    });
   });
 
   it("hides when the conversation ends or stops", () => {
@@ -428,7 +591,11 @@ describe("captions with the dialogue box", () => {
     const ui = createDialogueBox(h.ctx);
     const captions = createCaptions(h.ctx);
     const region = document.querySelector<HTMLElement>("[data-jams-captions]")!;
-    expect(region.style.bottom).toContain(`var(${DIALOGUE_INSET}, 0px)`);
+    const css = [...document.querySelectorAll("style")].map((st) => st.textContent).join("\n");
+    const rule = css.slice(css.indexOf(":where([data-jams-captions]) {"));
+    expect(rule.slice(0, rule.indexOf("}"))).toMatch(
+      new RegExp(`bottom: [^;]*var\\(${DIALOGUE_INSET}, 0px\\)`),
+    );
     expect(h.layer.root.style.getPropertyValue(DIALOGUE_INSET)).toBe("");
 
     h.setDialogue(view());
@@ -561,6 +728,7 @@ describe("the locale's font", () => {
       project,
       assets: { ui: { url: "blob:ui-font" } },
     });
+    Object.assign(h.ctx.game, { captions: { enabled: () => true, set() {} } });
     const ui = [createDialogueBox(h.ctx), createTextLog(h.ctx), createCaptions(h.ctx)];
     h.setDialogue(view());
     const family = '"jams-font-f00d", system-ui, sans-serif';
@@ -570,10 +738,11 @@ describe("the locale's font", () => {
     expect(added.map((f) => [f.family, f.source])).toEqual([
       ["jams-font-f00d", 'url("blob:ui-font")'],
     ]);
-    expect(region.style.fontFamily).toBe("var(--jams-ui-font, system-ui, sans-serif)");
-    expect(box().querySelector("style")!.textContent).toContain(
-      "font-family: var(--jams-ui-font, system-ui, sans-serif)",
-    );
+    const sheets = [...document.querySelectorAll("style")].map((st) => st.textContent);
+    for (const selector of ["data-jams-dialogue", "data-jams-captions"])
+      expect(sheets.find((css) => css.includes(`:where([${selector}]) {`))).toContain(
+        "font-family: var(--jams-ui-font, system-ui, sans-serif)",
+      );
 
     h.setLocale("ar");
     for (const el of [box(), log, region]) expect(el.style.getPropertyValue(UI_FONT)).toBe("");

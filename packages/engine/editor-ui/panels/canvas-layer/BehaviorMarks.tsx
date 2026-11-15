@@ -10,6 +10,7 @@ import {
   type ToolOverlay,
 } from "../../../editor/index";
 import { useEditorResolved, useEditorStore } from "../../session/use-editor-store";
+import { sessionSource } from "./tool-host";
 import { num, polylinePath, shapePath, worldPx, type View } from "./view";
 
 /** Screen px of an arrow's head. */
@@ -124,9 +125,11 @@ export function BehaviorMarks({
   const doc = useEditorResolved(session);
   const selection = useEditorStore(session, (s) => s.selection);
   const only = selection.length === 1 ? selection[0] : undefined;
+  // Read as the host reads it, so its move handle and this one agree on an entity at rest.
+  const source = sessionSource(session);
   const target = useMemo(
-    () => (only === undefined ? undefined : gizmoTarget(doc, session.registry, only)),
-    [doc, session, only],
+    () => (only === undefined ? undefined : gizmoTarget(doc, session.registry, only, source)),
+    [doc, session, only, source],
   );
   const path = useMemo(
     () => (only === undefined ? undefined : pathFollowPath(doc, session.registry, only)),

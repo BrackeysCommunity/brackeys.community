@@ -47,6 +47,11 @@ export type AudioRequest =
       key?: string;
       /** A string key shown as a caption while it plays, over the sound's own. */
       caption?: string;
+      /**
+       * The step event type whose `on` matcher played the sound. Only a
+       * playtest report's triggered plays carry it; nothing reads it on play.
+       */
+      on?: string;
     }
   | { op: "stop"; key: string; fadeMs?: number }
   /** `tick` is the tick the request was made on, so music `at: "tick"` can line up with it. */

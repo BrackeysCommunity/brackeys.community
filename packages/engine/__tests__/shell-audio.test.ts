@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
 import { fakeAudioBackend, type FakeAudioBackend } from "../audio/fake";
 import type { AudioSystemHandle, AudioSystemOptions } from "../audio/system";
@@ -328,6 +328,34 @@ describe("the shell's audio system", () => {
     await vi.waitFor(() => expect(game.audio?.unlocked).toBe(true));
   });
 
+  it("tries again on a touch's end when its pointerdown couldn't resume the context", async () => {
+    let tries = 0;
+    const { context } = fakeContext({
+      resume: (ctx) => {
+        tries++;
+        if (tries === 1) return Promise.reject(new Error("not allowed on a pointerdown"));
+        ctx.state = "running";
+        return Promise.resolve();
+      },
+    });
+    const backend = webAudioBackend({ context });
+    const game = await playing({ audio: { backend } });
+    const unlocked = vi.fn();
+    game.on("audio:unlocked", unlocked);
+    runTicks(game, 1);
+    game.router.dispatch(pointerDown());
+    await vi.waitFor(() => expect(tries).toBe(1));
+    await Promise.resolve();
+    expect(backend.state).toBe("locked");
+    expect(game.audio?.unlocked).toBe(false);
+
+    document.querySelector("canvas")!.dispatchEvent(new Event("touchend"));
+    await vi.waitFor(() => expect(game.audio?.unlocked).toBe(true));
+    expect(tries).toBe(2);
+    expect(backend.state).toBe("running");
+    expect(unlocked).toHaveBeenCalledTimes(1);
+  });
+
   it("asks the function form when Play starts and closes what it built when Play ends", async () => {
     const backends: FakeAudioBackend[] = [];
     const ask = vi.fn(() => {
@@ -613,7 +641,16 @@ type FakeSource = FakeNode & {
   stopped: number | null;
 };
 
-function fakeContext(opts: { offline?: boolean; channels?: number } = {}) {
+type FakeContextState = { state: string };
+
+function fakeContext(
+  opts: {
+    offline?: boolean;
+    channels?: number;
+    /** Stands in for `resume()`; the default starts the context running. */
+    resume?: (ctx: FakeContextState) => Promise<void>;
+  } = {},
+) {
   const made = {
     sources: [] as FakeSource[],
     decoded: [] as ArrayBuffer[],
@@ -666,6 +703,7 @@ function fakeContext(opts: { offline?: boolean; channels?: number } = {}) {
       return Promise.resolve(buffer(2, 44_100, 44_100));
     },
     resume: () => {
+      if (opts.resume) return opts.resume(ctx);
       ctx.state = "running";
       return Promise.resolve();
     },
@@ -673,7 +711,9 @@ function fakeContext(opts: { offline?: boolean; channels?: number } = {}) {
       ctx.state = "closed";
       return Promise.resolve();
     },
-    ...(opts.offline ? { startRendering: () => Promise.resolve() } : {}),
+    ...(opts.offline
+      ? { startRendering: () => Promise.resolve() }
+      : { createMediaElementSource: () => new FakeNode("media") }),
   };
   return { ctx, made, context: ctx as unknown as BaseAudioContext };
 }
@@ -746,6 +786,98 @@ describe("webAudioBackend", () => {
     backend.close();
     expect(backend.state).toBe("closed");
     expect(ctx.state).toBe("closed");
+  });
+
+  it("plays the silent sample and resumes again on every unlock until the context runs", async () => {
+    let tries = 0;
+    let finishFirst = () => {};
+    const { context, made } = fakeContext({
+      resume: (ctx) => {
+        tries++;
+        if (tries === 1) return new Promise<void>((resolve) => (finishFirst = resolve));
+        ctx.state = "running";
+        return Promise.resolve();
+      },
+    });
+    const backend = webAudioBackend({ context });
+    const first = backend.unlock();
+    expect(backend.state).toBe("locked");
+    await backend.unlock();
+    expect(tries).toBe(2);
+    expect(made.sources.filter((s) => s.started !== null)).toHaveLength(2);
+    expect(backend.state).toBe("running");
+    finishFirst();
+    await first;
+    await backend.unlock();
+    expect(tries).toBe(2);
+  });
+
+  it("a context that stops after running reads suspended, not locked", async () => {
+    const { context, ctx } = fakeContext();
+    const backend = webAudioBackend({ context });
+    await backend.unlock();
+    ctx.state = "suspended";
+    expect(backend.state).toBe("suspended");
+  });
+
+  it("keeps a streamed clip's loop points, which a media element's own loop can't", () => {
+    const element = Object.assign(new EventTarget(), {
+      crossOrigin: null as string | null,
+      preload: "",
+      loop: false,
+      playbackRate: 1,
+      src: "",
+      currentTime: 0,
+      duration: 8,
+      readyState: 4,
+      paused: true,
+      play: vi.fn(() => {
+        element.paused = false;
+        return Promise.resolve();
+      }),
+      pause: vi.fn(() => void (element.paused = true)),
+      load: vi.fn(),
+      removeAttribute: vi.fn(),
+    });
+    // The backend creates nothing else while it plays a stream.
+    const created = vi
+      .spyOn(document, "createElement")
+      .mockReturnValue(element as unknown as HTMLElement);
+    onTestFinished(() => created.mockRestore());
+    const { context } = fakeContext();
+    const backend = webAudioBackend({ context });
+    const clip = backend.stream("song.ogg");
+    const base = { bus: "music", volume: 1, pan: 0, loop: true } as const;
+    const voice = backend.play(clip, { ...base, rate: 2, loopStart: 1, loopEnd: 3 });
+    expect(element.loop).toBe(false);
+    expect(element.play).toHaveBeenCalledTimes(1);
+
+    element.currentTime = 2;
+    element.dispatchEvent(new Event("playing"));
+    // A second to the loop end at double speed is half a second of wall time.
+    vi.advanceTimersByTime(480);
+    expect(element.currentTime).toBe(2);
+    element.currentTime = 3;
+    vi.advanceTimersByTime(20);
+    expect(element.currentTime).toBe(1);
+
+    // Past the loop end (a late timer, a seek): back into the loop by the overshoot.
+    element.currentTime = 3.5;
+    element.dispatchEvent(new Event("timeupdate"));
+    expect(element.currentTime).toBeCloseTo(1.5);
+
+    // With only a start, the file's end goes back to it.
+    voice.stop();
+    const fromOnly = backend.play(clip, { ...base, rate: 1, loopStart: 2 });
+    element.currentTime = 8;
+    element.dispatchEvent(new Event("ended"));
+    expect(element.currentTime).toBe(2);
+    expect(fromOnly.ended).toBe(false);
+    fromOnly.stop();
+
+    // A whole-file loop stays the element's own.
+    backend.play(clip, { ...base, rate: 1 });
+    expect(element.loop).toBe(true);
   });
 
   it("over an offline context: no latency, running once unlocked, a mono destination left as is", async () => {

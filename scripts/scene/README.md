@@ -2756,7 +2756,8 @@ a playtest the two dialogue commands move it, and the `dialogue`
 predicate waits on it: `until: { "dialogue": { "node": "through" } }`,
 `{ "ended": "paid" }` (or `true` for any ending) and `{ "active": false }`.
 `examples/pay-the-toll.json` pays the gate example game's guard and waits
-for the ending; `--present` shows the music the game asks for:
+for the ending; `--present` shows the music the game asks for and the
+coin sound the dialogue's `toll-paid` event plays:
 
 ```sh
 # gate: the engine README's gate example game, not a repo scene
@@ -2773,15 +2774,17 @@ gate … game gate config …: paid at t3 (4 ticks)
   t1 toll-paid
   t1 dialogue:line
   t3 dialogue:end
-  present (2, points in metres):
+  present (3, points in metres):
     t0 audio music {"sound":"tune-sound","fadeMs":800,"at":"start","tick":0}
+    t1 audio play {"sound":"coin-sound","on":"toll-paid","at":{"x":0,"y":0}}
     t3 audio music {"sound":null,"fadeMs":1200,"at":"start","tick":3}
 ```
 
 `toll-paid` is the dialogue's `emit` effect, which the gate's coin sound
-plays on through its `on` trigger in a browser; the audio system matches
-triggers after each tick there, so a headless run lists only what game
-code asks for. With a dialogue running, `step --legal` and `fuzz` lead
+plays on through its `on` trigger. `--present` matches the project's sound
+triggers against each tick's events as the audio system does in a browser,
+so a triggered play is listed with the event type that played it (`on`).
+With a dialogue running, `step --legal` and `fuzz` lead
 with `@dialogue-advance` or each enabled `@dialogue-choose`.
 
 ## Game builds
