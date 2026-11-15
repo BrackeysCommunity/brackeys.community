@@ -3,7 +3,8 @@ export type GameLoopOptions = {
   /** A longer frame (a tab coming back, a debugger pause) counts as this long. Defaults to 250. */
   maxDeltaMs?: number;
   onTick: (dt: number) => void;
-  onRender: (alpha: number) => void;
+  /** `now` is the animation frame's timestamp: the one clock everything drawn on the frame reads. */
+  onRender: (alpha: number, now: number) => void;
   /**
    * True: run ticks now. While it is false the loop is idle: no ticks run, the
    * accumulator is held at 0 and frames render at alpha 1. The first frame it
@@ -46,6 +47,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
   let rafHandle = 0;
   let accumulator = 0;
   let lastTime = -1;
+  let frameNow = 0;
   /** The gate held the last frame (or nothing has ticked since start): its opening runs a tick at once. */
   let held = true;
   let idleAccumulator = 0;
@@ -59,9 +61,10 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
     if (!running) return;
 
     rafHandle = requestAnimationFrame(frame);
+    frameNow = now;
 
     if (paused) {
-      onRender(accumulator / tickMs);
+      onRender(accumulator / tickMs, frameNow);
       return;
     }
 
@@ -103,7 +106,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
 
     // Interpolation alpha for smooth rendering between ticks
     const alpha = accumulator / tickMs;
-    onRender(alpha);
+    onRender(alpha, frameNow);
   }
 
   function idle(scaledMs: number): void {
@@ -116,7 +119,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
         idleAccumulator -= tickMs;
       }
     }
-    onRender(1);
+    onRender(1, frameNow);
   }
 
   function gatedFrame(scaledMs: number, dropped: number): void {
@@ -136,7 +139,7 @@ export function createGameLoop(options: GameLoopOptions): GameLoop {
       }
     }
     if (!gate!()) return idle(0);
-    onRender(accumulator / tickMs);
+    onRender(accumulator / tickMs, frameNow);
   }
 
   function start(): void {

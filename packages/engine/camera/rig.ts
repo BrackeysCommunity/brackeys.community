@@ -123,6 +123,21 @@ function fitZoom(targets: RigInput["targets"], view: RigInput["view"], padding: 
   return zoomToFit(maxX - minX + 2 * padding, maxY - minY + 2 * padding, view);
 }
 
+/**
+ * `from` eased over `dt` seconds, with half-life `damping`, toward `to`,
+ * which moves at `velocity`: exact for a target at constant velocity, so a
+ * steady follow settles at the same lag (`velocity` × half-life / ln 2)
+ * whatever the frames' lengths. A still target gives the plain exponential ease.
+ */
+function chase(from: number, to: number, velocity: number, dt: number, damping: number): number {
+  if (damping <= 0) return to;
+  if (!Number.isFinite(damping)) return from;
+  const rate = Math.LN2 / damping;
+  const steady = velocity / rate;
+  const lag = to - velocity * dt - from;
+  return to - (steady + (lag - steady) * Math.exp(-rate * dt));
+}
+
 /** A rig for `def`; `seed` (the scene's name) seeds its shake. */
 export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
   const damping = def.damping ?? DEFAULT_CAMERA_DAMPING;
@@ -215,8 +230,13 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
         region = framing;
       }
       const desired = focus ? deadzoned(position, focus) : position;
-      const k = damping > 0 ? 1 - Math.pow(0.5, dt / damping) : 1;
-      const damped = lerpVec2(position, desired, k);
+      // An axis the deadzone holds isn't chasing the targets' motion.
+      const vx = desired.x === position.x ? 0 : (centre?.velocity.x ?? 0);
+      const vy = desired.y === position.y ? 0 : (centre?.velocity.y ?? 0);
+      const damped = {
+        x: chase(position.x, desired.x, vx, dt, damping),
+        y: chase(position.y, desired.y, vy, dt, damping),
+      };
       const framed = clampViewInBox(damped, half, box.min, box.max);
       if (transition) {
         transition.elapsed += dt;

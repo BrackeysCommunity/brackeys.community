@@ -180,6 +180,8 @@ export async function recordingPixiView(
 export type PlayRig = {
   /** Runs `n` frames a tick apart: each steps one tick, then renders. */
   advance: (n: number) => void;
+  /** Moves the clock on by `ms` and runs one frame: a display rate of its own. */
+  frameIn: (ms: number) => void;
   /** The camera the last frame handed the view. */
   lastFrame: () => FrameRecord["frames"][number];
   /** `createGame` on the rig's canvas, destroyed after the test. */
@@ -236,6 +238,7 @@ export function playRig(
   };
   return {
     advance,
+    frameIn: (ms) => clock.advance(ms),
     lastFrame: () => seen.frames[seen.frames.length - 1]!,
     create,
     playing: async (scene, game = null) => {

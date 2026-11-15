@@ -424,8 +424,6 @@ export async function createGame(
   let mainBorder: ViewportSurface | null = null;
   /** The regions read from the runtime's scene, kept while it hands back the same scene. */
   let regionsMemo: { scene: ExpandedScene; regions: CameraRegion[] } | null = null;
-  /** The first viewport's rig is there only for the scene's camera regions, so it goes with the last of them. */
-  let regionRig = false;
 
   // Rapier loads at start only when the game (or its start-up scene) runs on it; `preload`
   // brings it in for a later Rapier scene, and without it such a load reports `physics-not-loaded`.
@@ -863,7 +861,6 @@ export async function createGame(
     camera.setBoundsFromScene(scene.bounds);
     const rigDef = frameOf(0) === "scene" ? null : rigDefOf(scene, 0);
     main.rig = rigDef ? createCameraRig(rigDef, scene.name) : null;
-    regionRig = false;
     main.frameAt = null;
     main.track = freshTrack();
     for (const vc of extras) {
@@ -2054,27 +2051,25 @@ export async function createGame(
   /**
    * Whether the first viewport's camera is placed per rendered frame (by its
    * rig, or fitted to the scene) rather than by the plain follow each tick.
-   * In Play a scene with camera regions gets a rig with the defaults when
-   * nothing else made one, starting from where the camera stands, and a
-   * swap that takes the last region away drops it again; so the plain follow
-   * runs only without camera settings, regions or a camera request.
+   * In Play it always is: with no camera settings the first frame starts a
+   * rig that eases like the plain follow, from where the camera stands, so
+   * the camera frames the targets at the same interpolated moment their
+   * sprites are drawn at. The plain follow runs only outside Play.
    */
   function framedPerFrame(): boolean {
     if (loaded === null || getMode() !== "play") return false;
     if (frameOf(0) === "scene") return true;
-    const regions = sceneRegions(loaded.runtime).length > 0;
     const scene = loaded.runtime.scene();
-    if (!main.rig && regions && scene) {
-      startMainRig({}, scene);
-      regionRig = true;
-    } else if (regionRig && !regions) {
-      main.rig = null;
-      main.frameAt = null;
-      regionRig = false;
-      camera.setZoom(1);
-      updateCamera(store, { zoom: 1, scale: camera.getState().scale });
-    }
+    if (!main.rig && scene) startMainRig(plainFollowRig(loaded.runtime.ctx.time.tickMs), scene);
     return main.rig !== null;
+  }
+
+  /** A rig def whose damping eases as `cfg.camera.lerpSpeed` per tick does, at any frame rate. */
+  function plainFollowRig(tickMs: number): CameraRigDef {
+    const k = cfg.camera.lerpSpeed;
+    if (k >= 1) return { damping: 0 };
+    if (k <= 0) return { damping: Number.POSITIVE_INFINITY };
+    return { damping: ((tickMs / 1000) * Math.log(0.5)) / Math.log(1 - k) };
   }
 
   /**
@@ -2132,7 +2127,12 @@ export async function createGame(
    * scene's bounds for a `"scene"` viewport (never shaken), else through its
    * rig. A viewport past the first gets a rig at its first frame.
    */
-  function frameView(vc: ViewCamera, runtime: SceneRuntimeHandle, alpha: number): void {
+  function frameView(
+    vc: ViewCamera,
+    runtime: SceneRuntimeHandle,
+    alpha: number,
+    now: number,
+  ): void {
     const cam = vc.camera;
     if (frameOf(vc.index) === "scene") {
       const { zoom } = cam.getState();
@@ -2148,8 +2148,7 @@ export async function createGame(
     }
     const { rig } = vc;
     if (!rig) return;
-    const now = performance.now();
-    const dtMs = vc.frameAt === null || loop.isPaused() ? 0 : now - vc.frameAt;
+    const dtMs = vc.frameAt === null || loop.isPaused() ? 0 : Math.max(0, now - vc.frameAt);
     vc.frameAt = now;
     const targets = viewTargets(runtime, vc, true, rig.following, alpha) ?? [];
     const { zoom, bounds } = cam.getState();
@@ -2368,7 +2367,12 @@ export async function createGame(
    * own transform, parallax and layers; then the first viewport's parallax
    * and layers are put back for the stage's direct draw.
    */
-  function drawViewports(view: PixiView, runtime: SceneRuntimeHandle, alpha: number): void {
+  function drawViewports(
+    view: PixiView,
+    runtime: SceneRuntimeHandle,
+    alpha: number,
+    now: number,
+  ): void {
     if (getMode() !== "play" || gpuLost) return;
     const first = viewports[0]!;
     offsetMain();
@@ -2382,7 +2386,7 @@ export async function createGame(
       world.mask = null;
       for (const vc of extras) {
         vc.camera.setBounds(bounds.min, bounds.max);
-        frameView(vc, runtime, alpha);
+        frameView(vc, runtime, alpha, now);
         view.parallax(vc.camera.getPosition());
         view.showLayers(viewports[vc.index]?.layers ?? null);
         cullTo(viewRect(vc));
@@ -2416,17 +2420,18 @@ export async function createGame(
           if (req.op.op === "shake" && reducedMotion) break;
           const vc = viewOf(index);
           if (!vc || frameOf(index) === "scene") break;
-          const scene = loaded?.runtime.scene();
-          if (!scene) break;
+          const runtime = loaded?.runtime;
+          const scene = runtime?.scene();
+          if (!runtime || !scene) break;
           let rig = vc.rig;
           if (!rig) {
-            const def = rigDefOf(scene, index) ?? {};
+            const def =
+              rigDefOf(scene, index) ??
+              (index === 0 ? plainFollowRig(runtime.ctx.time.tickMs) : {});
             // A viewport past the first has no plain follow, so its rig starts on its targets.
             rig =
               index === 0 ? startMainRig(def, scene) : (vc.rig = createCameraRig(def, scene.name));
           }
-          // A rig a camera request has steered stays when the scene loses its regions.
-          if (index === 0) regionRig = false;
           rig.request(req.op);
           break;
         }
@@ -2884,7 +2889,7 @@ export async function createGame(
       if (ms >= MIN_CATCH_UP_MS) queueElapsed(ms);
     },
 
-    onRender(alpha: number) {
+    onRender(alpha: number, frameNow: number) {
       frameTiming.begin();
       if (frameTimed) frameTimings.end();
       frameTimed = debugNeedsTimings();
@@ -2901,7 +2906,7 @@ export async function createGame(
         const a = loop.isPaused() || getMode() === "edit" ? 1 : alpha;
         if (framedPerFrame()) {
           const before = camera.getState().zoom;
-          frameView(main, loaded.runtime, a);
+          frameView(main, loaded.runtime, a, frameNow);
           const state = camera.getState();
           if (state.zoom !== before) updateCamera(store, { zoom: state.zoom, scale: state.scale });
         }
@@ -2919,7 +2924,7 @@ export async function createGame(
         const still = loop.isPaused() || getMode() === "edit";
         loaded.view.particles?.()?.update(still ? steppedMs : wallMs * loop.getTimeScale());
         steppedMs = 0;
-        drawViewports(loaded.view, loaded.runtime, a);
+        drawViewports(loaded.view, loaded.runtime, a, frameNow);
         cullTo(viewRect(main));
         frameTiming.lap("behaviors.render");
       }
@@ -4097,7 +4102,7 @@ type ViewCamera = {
   index: number;
   camera: Camera;
   rig: CameraRig | null;
-  /** The wall time the rig last framed, ms; null before its first frame. */
+  /** The animation frame's timestamp the rig last framed at, ms; null before its first frame. */
   frameAt: number | null;
   /** The game's `cameraTarget()` point as this view last read it, for its velocity. */
   track: PointTrack;

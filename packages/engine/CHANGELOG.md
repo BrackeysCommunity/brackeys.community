@@ -300,6 +300,16 @@ game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
 - A world save names a tween block's entries with their keys sorted, and a
   restore matches either order: a sublevel restored from a save no longer
   restarts the block tweens of a scene loaded by another path.
+- A followed body no longer jitters on screen in Play. A scene with no
+  camera settings used to move the camera once per tick to the target's
+  latest pose while sprites were drawn interpolated between ticks; in Play
+  the first viewport now always frames through a rig (damping matched to
+  `camera.lerpSpeed`) on the rendered frame, at the same interpolated pose.
+  The rig times itself by the animation frame's timestamp (the loop hands
+  `onRender` that `now`), and its damping is exact for a target moving at
+  its velocity, so a steady follow's lag doesn't change with frame length.
+  A visual snapped and then moved in the same tick eases from the snapped
+  pose, as the pose index does.
 
 ### Agent surface
 

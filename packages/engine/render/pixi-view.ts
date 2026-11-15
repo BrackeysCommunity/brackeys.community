@@ -108,7 +108,8 @@ type SpriteDisplay = Sprite | TilingSprite | NineSliceSprite;
 
 /**
  * One id's display object and poses. `tick` is the view's tick sequence the
- * poses belong to; `snapped` keeps `prev` at `cur` for the rest of that tick.
+ * poses belong to. A snap puts `prev` at the snapped pose, so a later pose in
+ * the same tick eases from there, as the pose index does.
  */
 type Visual = {
   display: Container;
@@ -117,7 +118,6 @@ type Visual = {
   cur: Pose;
   tick: number;
   fresh: boolean;
-  snapped: boolean;
   /** Set while `id` shows a sprite, or its fallback box while the texture loads. */
   sprite: { visual: SpriteVisual; texture: Texture | null } | null;
   /** Set while `id` shows text: what a new string table redraws. */
@@ -263,7 +263,6 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
         cur: origin,
         tick: -1,
         fresh: true,
-        snapped: false,
         sprite: null,
         text: null,
         z: null,
@@ -387,7 +386,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
 
   /** Where `v` sits this frame: between its last two poses when the last committed tick moved it. */
   function placed(v: Visual, alpha: number): Pose {
-    if (v.tick !== committed || v.snapped) return v.cur;
+    if (v.tick !== committed) return v.cur;
     return lerpPose(v.prev, v.cur, alpha);
   }
 
@@ -486,12 +485,10 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       if (v.tick !== open) {
         v.prev = v.cur;
         v.tick = open;
-        v.snapped = false;
       }
       v.cur = { x, y, rot };
-      if (snap || v.fresh) v.snapped = true;
+      if (snap || v.fresh) v.prev = v.cur;
       v.fresh = false;
-      if (v.snapped) v.prev = v.cur;
       place(v.display, v.cur);
     },
     commit() {

@@ -150,7 +150,7 @@ describe("interpolation", () => {
     expect(xyr(displayOf(view, "a")!)).toEqual([10, 20, 0]);
   });
 
-  it("doesn't lerp a snapped pose, nor a new visual's first", () => {
+  it("lerps a pose after a snap from the snapped pose, and doesn't lerp a new visual's first", () => {
     const view = twoTicks();
     view.pose("a", 100, 100, 0, true);
     view.pose("a", 110, 100);
@@ -158,7 +158,7 @@ describe("interpolation", () => {
     view.pose("b", 50, 60);
     view.commit!(2);
     frame(view, 0.5);
-    expect(xyr(displayOf(view, "a")!)).toEqual([110, 100, 0]);
+    expect(xyr(displayOf(view, "a")!)).toEqual([105, 100, 0]);
     expect(xyr(displayOf(view, "b")!)).toEqual([50, 60, 0]);
   });
 

@@ -439,7 +439,7 @@ describe("the rig in Play", () => {
     expect(lastFrame().zoom).toBe(2);
   });
 
-  it("frames a region with no camera settings anywhere, and goes back to the plain follow without one", async () => {
+  it("frames a region with no camera settings anywhere, and eases like the plain follow without one", async () => {
     const plain = defineGame({
       id: "plain",
       types: [],
@@ -484,7 +484,7 @@ describe("the rig in Play", () => {
       }),
     });
 
-  it("starts a rig a request makes where the plain follow left the camera", async () => {
+  it("lets a request steer the follow without a jump", async () => {
     const asks: ((ctx: EngineContext) => void)[] = [];
     const game = await playing(sceneOf([followed("hero", 20, -4)], "asking"), asking(asks));
     expect(game.runtime()!.update([followed("hero", 40, -4)])).toEqual({ ok: true });
@@ -497,12 +497,13 @@ describe("the rig in Play", () => {
     const from = game.getStore().state.tick;
     advance(1);
     expect(game.getStore().state.tick).toBe(from + 1);
-    expect(lastFrame()).toEqual(lagging);
+    expect(lastFrame().x).toBeGreaterThan(lagging.x);
+    expect(lastFrame().x).toBeLessThan(39);
     advance(120);
     expect(lastFrame().x).toBeCloseTo(40, 3);
   });
 
-  it("times a request's rig from its own first frame after the region rig went", async () => {
+  it("keeps the rig after the last region goes, easing a later zoom from its frame", async () => {
     const asks: ((ctx: EngineContext) => void)[] = [];
     const room = {
       id: "room",
@@ -515,7 +516,7 @@ describe("the rig in Play", () => {
     advance(90);
     asks.push((ctx) => ctx.present.camera.zoom(2, { ms: 1000 }));
     advance(1);
-    expect(lastFrame().zoom).toBe(1);
+    expect(lastFrame().zoom).toBeLessThan(1.02);
     advance(30);
     expect(lastFrame().zoom).toBeGreaterThan(1);
     expect(lastFrame().zoom).toBeLessThan(2);
