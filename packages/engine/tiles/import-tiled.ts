@@ -48,7 +48,8 @@ const GID_D = 0x20000000;
 const GID_R = 0x10000000;
 const GID_MASK = 0x0fffffff;
 
-const ISOMETRIC_REFUSAL = "isometric maps import once plan 57's projections exist";
+const ISOMETRIC_REFUSAL =
+  "isometric and staggered maps don't import yet; only orthogonal and hexagonal maps do";
 
 /** A map's tileset; `id` is null for one the import skips, whose gids still need claiming. */
 type Placed = { firstgid: number; id: AssetId | null; name: string; count: number };
@@ -320,7 +321,16 @@ export function importTiled(
   const sceneOps: SceneOp[] = [{ op: "setSettings", set: { grid } }];
   let z = 0;
 
-  type Frame = { dx: number; dy: number; alpha: number; off: boolean; prefix: string };
+  /** What a layer inherits from its groups; parallax factors multiply, as Tiled composes them. */
+  type Frame = {
+    dx: number;
+    dy: number;
+    px: number;
+    py: number;
+    alpha: number;
+    off: boolean;
+    prefix: string;
+  };
   const walk = (layers: unknown, frame: Frame, at: string) => {
     list(layers).forEach((layer, i) => {
       const path = `${at}/${i}`;
@@ -329,11 +339,21 @@ export function importTiled(
       const here: Frame = {
         dx: frame.dx + num(layer.offsetx),
         dy: frame.dy + num(layer.offsety),
+        px: frame.px * num(layer.parallaxx, 1),
+        py: frame.py * num(layer.parallaxy, 1),
         alpha: frame.alpha * num(layer.opacity, 1),
         off: frame.off || layer.visible === false,
         prefix: frame.prefix,
       };
       if (properties(layer.properties)) drop(`layer "${name}"'s properties aren't imported`, path);
+      if (
+        (layer.type === "tilelayer" || layer.type === "objectgroup") &&
+        (here.px !== 1 || here.py !== 1)
+      )
+        drop(
+          `layer "${name}"'s parallax (${roundLength(here.px)} × ${roundLength(here.py)}) isn't imported; it scrolls with the map`,
+          path,
+        );
       switch (layer.type) {
         case "group":
           return walk(layer.layers, { ...here, prefix: `${name}/` }, `${path}/layers`);
@@ -412,13 +432,9 @@ export function importTiled(
         `layer "${name}" turns ${turned} hex tile(s) by 60° or 120°, which a tile cell can't hold; they import unturned`,
         path,
       );
-    if (frame.dx % tw !== 0 || frame.dy % th !== 0 || num(layer.parallaxx, 1) !== 1)
-      drop(
-        `layer "${name}"'s offset or parallax isn't a whole number of cells; it's dropped`,
-        path,
-      );
-    const at: [number, number] =
-      frame.dx % tw === 0 && frame.dy % th === 0 ? [m(frame.dx), m(frame.dy)] : [0, 0];
+    const whole = frame.dx % tw === 0 && frame.dy % th === 0;
+    if (!whole) drop(`layer "${name}"'s offset isn't a whole number of cells; it's dropped`, path);
+    const at: [number, number] = whole ? [m(frame.dx), m(frame.dy)] : [0, 0];
     const tint = rgbOf(layer.tintcolor);
     const several = byTileset.size > 1;
     for (const ts of placed) {
@@ -487,7 +503,7 @@ export function importTiled(
     });
   };
 
-  walk(map.layers, { dx: 0, dy: 0, alpha: 1, off: false, prefix: "" }, "/layers");
+  walk(map.layers, { dx: 0, dy: 0, px: 1, py: 1, alpha: 1, off: false, prefix: "" }, "/layers");
   if (properties(map.properties)) drop("the map's properties aren't imported", "/properties");
 
   if (notes.some((n) => n.severity === "error")) return refused();

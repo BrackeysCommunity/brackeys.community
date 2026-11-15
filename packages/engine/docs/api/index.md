@@ -3186,7 +3186,9 @@ type TickPhase = (typeof TICK_PHASES)[number];
 
 _interface_ in `render/tilemap-view.ts`
 
-A view's tilemaps: one mesh per non-empty chunk, rebuilt by chunk, culled by chunk.
+A view's tilemaps: one mesh per non-empty chunk (a container of sprites on
+Pixi's Canvas renderer, which draws no meshes), rebuilt by chunk, culled
+by chunk.
 
 ```ts
 interface TilemapView {
@@ -3205,7 +3207,7 @@ interface TilemapView {
     }): void;
     /** The container tilemap `id` draws in, which the scene view poses and layers; null before `set`. */
     display(id: string): Container | null;
-    /** Chunk meshes of tilemap `id` by chunk key, for tools and tests. */
+    /** Chunk meshes of tilemap `id` by chunk key, for tools and tests; none on the Canvas renderer. */
     meshes(id: string): ReadonlyMap<ChunkKey, Mesh>;
     destroy(): void;
 }

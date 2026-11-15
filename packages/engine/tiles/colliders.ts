@@ -27,12 +27,48 @@ export function chunkRects(rect: CellBounds): CellBounds[] {
   return out;
 }
 
-function chunkBoxes(solid: Solid, b: CellBounds, out: CellBounds[]): void {
-  // Boxes still open from the rows above, keyed by their column span.
+/**
+ * Solid runs of a chunk-bounded rect by row: `runs[r - r0]` holds each run's
+ * first and last column as flat pairs, left to right; a missing row has none.
+ */
+export type RowRuns = readonly (readonly number[] | undefined)[];
+
+/** Merges each row's runs downwards into an identical run below, appending the boxes to `out`. */
+export function runBoxes(runs: RowRuns, r0: number, out: CellBounds[]): void {
+  // Boxes still open from the row above, keyed by their column span.
   let open = new Map<number, CellBounds>();
   const span = (c0: number, c1: number) => c0 * (GRID_CHUNK * GRID_CHUNK) + c1;
-  for (let r = b.r0; r <= b.r1; r++) {
+  for (let i = 0; i < runs.length; i++) {
+    const row = runs[i];
+    if (!row || row.length === 0) {
+      open.clear();
+      continue;
+    }
+    const r = r0 + i;
     const next = new Map<number, CellBounds>();
+    for (let j = 0; j + 1 < row.length; j += 2) {
+      const c0 = row[j]!;
+      const c1 = row[j + 1]!;
+      const key = span(c0, c1);
+      const above = open.get(key);
+      if (above) {
+        above.r1 = r;
+        open.delete(key);
+        next.set(key, above);
+      } else {
+        const box = { c0, r0: r, c1, r1: r };
+        out.push(box);
+        next.set(key, box);
+      }
+    }
+    open = next;
+  }
+}
+
+function chunkBoxes(solid: Solid, b: CellBounds, out: CellBounds[]): void {
+  const runs: number[][] = [];
+  for (let r = b.r0; r <= b.r1; r++) {
+    const row: number[] = [];
     let c = b.c0;
     while (c <= b.c1) {
       if (!solid(c, r)) {
@@ -41,21 +77,12 @@ function chunkBoxes(solid: Solid, b: CellBounds, out: CellBounds[]): void {
       }
       const c0 = c;
       while (c + 1 <= b.c1 && solid(c + 1, r)) c++;
-      const key = span(c0, c);
-      const above = open.get(key);
-      if (above) {
-        above.r1 = r;
-        open.delete(key);
-        next.set(key, above);
-      } else {
-        const box = { c0, r0: r, c1: c, r1: r };
-        out.push(box);
-        next.set(key, box);
-      }
+      row.push(c0, c);
       c++;
     }
-    open = next;
+    runs.push(row);
   }
+  runBoxes(runs, b.r0, out);
 }
 
 /** Maximal runs per row, merged downwards with an identical run below; never spanning chunks. */

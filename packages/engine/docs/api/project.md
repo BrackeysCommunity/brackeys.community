@@ -4108,7 +4108,7 @@ type TileDef = {
         ms: number;
         tile: number;
     }[];
-    /** Path cost on grids, 10 = one step; default 10; ignored when solid. */
+    /** Path cost to enter the cell on grids, 10 = one step and the least; default 10; ignored when solid. */
     cost?: number;
     data?: Readonly<Record<string, JsonValue>>;
     id: number;

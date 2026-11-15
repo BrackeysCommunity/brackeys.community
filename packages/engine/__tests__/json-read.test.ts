@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { parseCssHex } from "../game/color";
-import { assetSlug, num, obj, optNum } from "../tiles/json-read";
+import { isPlainObject } from "../project/kinds/define";
+import { assetSlug, isObj, num, obj, optNum } from "../tiles/json-read";
 
 describe("import JSON readers", () => {
   it("slugs names to ids, splitting camelCase only when asked", () => {
@@ -19,6 +20,7 @@ describe("import JSON readers", () => {
     expect(optNum(Infinity)).toBeUndefined();
     expect(obj([1])).toEqual({});
     expect(obj({ a: 1 })).toEqual({ a: 1 });
+    for (const v of [null, [], "x", 1, {}, { a: 1 }]) expect(isObj(v)).toBe(isPlainObject(v));
   });
 
   it("parses CSS #rrggbb to 0xRRGGBB and nothing else", () => {

@@ -601,7 +601,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const wallTypes = gridWallTypes(registry);
   const gridState = createGridState(ctx, registry, wallTypes);
   grid = gridState;
-  /** A wall-type entity spawned or was destroyed since the grid last synced. */
+  /** A wall-type entity or a tilemap spawned or was destroyed since the grid last synced. */
   let wallsMoved = false;
   /** Game code spawned or destroyed since the load began, so the loaded scene's list is stale. */
   let tableChanged = false;
@@ -655,7 +655,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     changed(type) {
       cachedScene = null;
       tableChanged = true;
-      if (wallTypes.has(type)) wallsMoved = true;
+      if (wallTypes.has(type) || (tilemaps && systems.get(type) === tilemaps)) wallsMoved = true;
     },
     settled: syncMovedWalls,
     attached: (label) => sublevels.has(label),
@@ -791,7 +791,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     return taken;
   }
 
-  /** Re-rasterises the grid's walls once a wall-type entity spawned or went outside a reconcile. */
+  /** Re-syncs the grid's walls once a wall-type entity or a tilemap spawned or went outside a reconcile. */
   function syncMovedWalls(): void {
     if (!wallsMoved || !loadedScene) return;
     wallsMoved = false;
@@ -889,7 +889,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         byId.set(e.id, e);
         authored.add(e.id);
       }
-      gridState.tilesLoaded();
+      gridState.tilesLoaded(next);
       lifecycle.link(next.entities);
       lifecycle.ready(spawned);
       const offset = playOpts?.timeOffsetMs ?? 0;
@@ -1557,7 +1557,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const states = systemsSaved[id];
       if (states) restoreRegistered(id, states);
     }
-    gridState.tilesLoaded();
+    gridState.tilesLoaded(currentScene());
     placeRestoredColliders();
     const watches = systemsSaved[SAVE_CONTACTS_KEY]?.watches;
     contacts.restore((watches ?? []) as unknown as SavedTouch[][]);

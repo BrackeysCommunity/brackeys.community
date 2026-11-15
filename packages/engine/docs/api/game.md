@@ -7668,7 +7668,7 @@ type TileDef = {
         ms: number;
         tile: number;
     }[];
-    /** Path cost on grids, 10 = one step; default 10; ignored when solid. */
+    /** Path cost to enter the cell on grids, 10 = one step and the least; default 10; ignored when solid. */
     cost?: number;
     data?: Readonly<Record<string, JsonValue>>;
     id: number;
@@ -7745,17 +7745,12 @@ type TilemapSystem = SceneSystem<TilemapEntity> & TilesContext & {
     chunkColliders(id: string): ReadonlyMap<ChunkKey, number>;
     /** Rebuilds what runtime writes left dirty; the runtime calls it once per tick after the destroy flush. True when anything was rebuilt. */
     flushWrites(): boolean;
-    /** Live tilemaps in spawn order. */
+    /** In spawn order. */
     list(): TilemapEntity[];
     /** Gates one-way tiles for `actorId` alone; other actors fall through to `oneWayPasses`. */
     passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
     readonly tilemapSystem: true;
-    /**
-     * Rebuilds the maps whose tileset doc, or the image it cuts, changed
-     * (`changed` names it, or the project now holds a different one): defs,
-     * colliders and drawing, runtime writes kept. A map whose tileset no
-     * longer loads keeps what it had, and is reported.
-     */
+    /** Rebuilds maps whose tileset or its image changed, keeping runtime writes; a map whose tileset no longer loads keeps its last build and is reported. */
     reloadAssets(changed: readonly AssetId[]): {
         entityId: string;
         error: unknown;

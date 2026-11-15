@@ -2,7 +2,6 @@ import { OCCUPANT } from "../game/behaviors/occupant";
 import type { EngineContext, Registry } from "../game/types";
 import {
   cellKey,
-  cellOf,
   gridGeometry,
   inCellBounds,
   type Cell,
@@ -10,7 +9,7 @@ import {
   type CellKey,
   type GridGeometry,
 } from "../grid/geometry";
-import { createOccupancy, type Occupancy } from "../grid/occupancy";
+import { createKeyedOccupancy, type KeyedOccupancy, type Occupancy } from "../grid/occupancy";
 import { findPath, type GridPath } from "../grid/path";
 import { GRID_CHUNK, parseChunkKey, type ChunkKey, type GridCells } from "../scene/grid";
 import { makeIssue } from "../scene/issues";
@@ -57,8 +56,8 @@ export type GridState = {
   tileChunksChanged(id: string, chunks: readonly ChunkKey[]): void;
   /** Re-reads the tile chunks reported since the last read: after flushed runtime tile writes. */
   tilesChanged(): void;
-  /** Re-reads every tilemap's walls and costs: after the load's spawns and after a restore. */
-  tilesLoaded(): void;
+  /** Re-reads the walls and costs of every tilemap in `scene`: after the load's spawns and after a restore. */
+  tilesLoaded(scene: ExpandedScene | null): void;
   /** At unload. */
   clear(): void;
   /**
@@ -109,14 +108,14 @@ export function createGridState(
   wallTypes: ReadonlySet<EntityTypeName> = gridWallTypes(registry),
 ): GridState {
   let current: RuntimeGrid | null = null;
+  /** `current`'s occupancy, taking walls by cell key. */
+  let walled: KeyedOccupancy | null = null;
   /** The loaded scene's bounds in cells, before any `extend`. */
   let own: CellBounds | null = null;
   /** Per wall entity, the entity as last rasterised and the wall cells it gave. */
   let rasterised = new Map<string, { entity: RuntimeEntity; keys: readonly CellKey[] }>();
   /** How many wall entities cover each wall cell. */
   let covers = new Map<CellKey, number>();
-  /** The scene the grid last synced to; runtime tile writes are read against it. */
-  let loaded: ExpandedScene | null = null;
   let maps = new Map<string, MapTiles>();
   /** Chunks rebuilt since they were last read, by map. */
   const pending = new Map<string, Set<ChunkKey>>();
@@ -125,14 +124,10 @@ export function createGridState(
   /** Extra step cost into a cell that isn't walled, where its tiles cost more than a plain step. */
   let tileCosts = new Map<CellKey, number>();
 
-  function setWalls(
-    grid: RuntimeGrid,
-    was: (k: CellKey) => boolean,
-    keys: Iterable<CellKey>,
-  ): void {
+  function setWalls(was: (k: CellKey) => boolean, keys: Iterable<CellKey>): void {
     for (const k of keys) {
       const now = covers.has(k) || tileWalls.has(k);
-      if (now !== was(k)) grid.occupancy.setWall(cellOf(k), now);
+      if (now !== was(k)) walled?.setWallKey(k, now);
     }
   }
 
@@ -200,7 +195,7 @@ export function createGridState(
   }
 
   /** Settles each touched cell's tile wall and cost across every map, and the occupancy's wall. */
-  function settle(grid: RuntimeGrid, touched: Iterable<CellKey>): void {
+  function settle(touched: Iterable<CellKey>): void {
     for (const k of touched) {
       let wall = false;
       let extra = 0;
@@ -218,7 +213,7 @@ export function createGridState(
       if (!wall && extra > 0) tileCosts.set(k, extra);
       else tileCosts.delete(k);
       const now = covers.has(k) || wall;
-      if (now !== before) grid.occupancy.setWall(cellOf(k), now);
+      if (now !== before) walled?.setWallKey(k, now);
     }
   }
 
@@ -274,10 +269,8 @@ export function createGridState(
     const before = tileWalls;
     tileWalls = walls;
     tileCosts = costs;
-    for (const k of before)
-      if (!walls.has(k) && !covers.has(k)) grid.occupancy.setWall(cellOf(k), false);
-    for (const k of walls)
-      if (!before.has(k) && !covers.has(k)) grid.occupancy.setWall(cellOf(k), true);
+    for (const k of before) if (!walls.has(k) && !covers.has(k)) walled?.setWallKey(k, false);
+    for (const k of walls) if (!before.has(k) && !covers.has(k)) walled?.setWallKey(k, true);
   }
 
   /** Follows the scene's tilemap entities: a new or moved map is read whole, an edited one by its rebuilt chunks. */
@@ -303,7 +296,7 @@ export function createGridState(
     }
     for (const t of [...maps.values()]) if (!seen.has(t.entity.id)) dropMap(t, touched);
     readPending(touched);
-    settle(grid, touched);
+    settle(touched);
   }
 
   function syncWalls(grid: RuntimeGrid, scene: ExpandedScene): void {
@@ -323,13 +316,14 @@ export function createGridState(
     rasterised = next;
     covers = nextCovers;
     const was = (k: CellKey) => before.has(k) || tileWalls.has(k);
-    setWalls(grid, was, before.keys());
-    setWalls(grid, was, nextCovers.keys());
+    setWalls(was, before.keys());
+    setWalls(was, nextCovers.keys());
   }
 
   function clear(): void {
     current?.occupancy.clear();
     current = null;
+    walled = null;
     own = null;
     rasterised = new Map();
     covers = new Map();
@@ -337,7 +331,6 @@ export function createGridState(
     pending.clear();
     tileWalls = new Set();
     tileCosts = new Map();
-    loaded = null;
   }
 
   return {
@@ -349,7 +342,8 @@ export function createGridState(
       const settings = scene.settings.grid;
       if (!settings) return;
       const geometry = gridGeometry(settings);
-      const occupancy = createOccupancy();
+      const occupancy = createKeyedOccupancy();
+      walled = occupancy;
       own = geometry.rect(scene.bounds);
       const grid: RuntimeGrid = {
         geometry,
@@ -360,7 +354,6 @@ export function createGridState(
         cost: (_from, to) => tileCosts.get(cellKey(to)) ?? 0,
       };
       current = grid;
-      loaded = scene;
       syncWalls(grid, scene);
       ctx.behavior<OccupantSystem>(OCCUPANT.name)?.resync();
     },
@@ -370,7 +363,6 @@ export function createGridState(
         clear();
         return;
       }
-      loaded = scene;
       syncWalls(current, scene);
       syncMaps(current, scene);
     },
@@ -384,10 +376,10 @@ export function createGridState(
       if (!current) return;
       const touched = new Set<CellKey>();
       readPending(touched);
-      settle(current, touched);
+      settle(touched);
     },
-    tilesLoaded() {
-      if (current) readAll(current, loaded);
+    tilesLoaded(scene) {
+      if (current) readAll(current, scene);
     },
     clear,
     extend(rects) {

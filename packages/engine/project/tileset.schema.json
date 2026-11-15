@@ -87,9 +87,9 @@
             "enum": ["up", "down", "left", "right"]
           },
           "cost": {
-            "description": "Path cost on grids, 10 = one step; default 10; ignored when solid.",
+            "description": "Path cost to enter the cell on grids, 10 = one step and the least, since A* needs costs that only add; default 10; ignored when solid.",
             "type": "integer",
-            "minimum": 0,
+            "minimum": 10,
             "maximum": 9007199254740991
           },
           "material": {

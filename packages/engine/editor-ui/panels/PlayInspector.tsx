@@ -15,8 +15,6 @@ import { useStoreValue } from "../session/use-store-value";
 import { InspectorSection } from "./inspector/field-widgets";
 import { playPickOf, type PickState } from "./PlayPick";
 
-export { playPickOf };
-
 /** The parts of the game the play inspector reads. */
 export type PlayInspectorGame = Pick<
   GameInstance,

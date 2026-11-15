@@ -111,7 +111,8 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     solids = [];
     for (const type of ctx.registry.typeNames) {
       const system = ctx.system(type) as Partial<SolidSystem> | undefined;
-      if (typeof system?.passesOneWay === "function") solids.push(system as SolidSystem);
+      if (typeof system?.passesOneWay !== "function") continue;
+      if (!solids.includes(system as SolidSystem)) solids.push(system as SolidSystem);
     }
     return solids;
   };

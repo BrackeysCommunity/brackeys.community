@@ -1,10 +1,10 @@
 /** Readers for untrusted JSON (Tiled and LDtk files): each yields a typed value or a fallback, never throws. */
 import { ID_PATTERN } from "../game/fields";
+import { isPlainObject } from "../project/kinds/define";
 
 export type Json = Record<string, unknown>;
 
-export const isObj = (v: unknown): v is Json =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+export const isObj = (v: unknown): v is Json => isPlainObject(v);
 
 /** `v` when it's a plain object, else an empty one. */
 export const obj = (v: unknown): Json => (isObj(v) ? v : {});

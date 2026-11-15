@@ -3315,7 +3315,9 @@ export function walkAround() {
 A `tilemap` entity paints the scene grid with tiles from one `tileset`
 doc: drawn per 32×32 chunk, colliding per its tiles, walling the grid
 where its tiles are solid. Any scene with `settings.grid` can hold one,
-with or without a game.
+with or without a game. Its `at` is the corner of its cell (0, 0), a
+whole number of cells from the grid's origin; an `at` between cells
+snaps to the nearest one.
 
 **The cell value.** Each cell is one 16-bit integer: 0 is empty, else the
 tile id + 1 in the low 13 bits (`TILE_ID_BITS`, ids 0 to 8190,
@@ -3335,7 +3337,8 @@ cell times the game's px per metre (`world.lengthUnit`), or the map is
 `tileset-grid-mismatch`; for 1 m cells, make the px per metre the tile
 size (16 px tiles, `lengthUnit: 16`). `tiles` carries per-tile data by
 id: `solid`, `oneWay` (the side actors land on), a path `cost` (10 a
-step), a collider `material`, `tags`, collision `shapes` in tile px in
+step and the least: costs only add, which keeps A\*'s heuristic
+admissible), a collider `material`, `tags`, collision `shapes` in tile px in
 place of the full square, `animation` frames (drawn only, never
 collision) and the game's `data` (judged by `GameDefinition.tileData`
 when the game declares it). A cell naming a tile the image doesn't hold
@@ -9842,7 +9845,7 @@ Tiles painted on the scene grid from one tileset: drawn per chunk, colliding per
 
 | Field       | Type                                              | Required | Description                                                                                                                                                                                     |
 | ----------- | ------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `at`        | [point](#points)                                  | yes      | The grid origin of cell (0, 0); a whole number of cells from the scene's grid origin.                                                                                                           |
+| `at`        | [point](#points)                                  | yes      | The grid origin of cell (0, 0): a whole number of cells from the scene's grid origin, else snapped to the nearest cell.                                                                         |
 | `tileset`   | string                                            | yes      | The tileset its cells index.                                                                                                                                                                    |
 | `cells`     | { id: string[] }                                  | yes      | Tile values: 0 empty, else the tile id + 1 in the low 13 bits with Tiled's flip bits above. Cells in 32x32 chunks keyed "cx,cy", each chunk up to 32 run-length rows ("0*4,3*6,7"); 0 is empty. |
 | `collision` | `"tiles"` \| `"boxes"` \| `"outline"` \| `"none"` |          | boxes (default): merged rectangles per chunk; outline: chains around solid regions; tiles: one collider per tile; none.                                                                         |

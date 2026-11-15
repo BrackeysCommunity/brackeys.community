@@ -24,13 +24,12 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
   `FLIP_X`, `FLIP_Y`, `FLIP_D`, `TileCell`, `decodeCell`, `encodeCell` and
   `transformCell(value, d: Dihedral)`, which applies a quarter turn or mirror
   to a cell's flags exactly as Tiled's rotate and flip commands do; `./game`
-  now also exports `Dihedral`. A cell value is 0 for empty, else the tile id
-  - 1 with the flags above it.
+  now also exports `Dihedral`. A cell value is 0 for empty, else the
+  tile id + 1, with the flags above it.
 - `TILEMAP_PRIMITIVE` in `./game`: the `tilemap` type's definition (`at`,
   `tileset`, `cells`, `collision`, `tint`, `alpha`; physics optional; ascii
-  `#`). A tilemap is a
-  tree entity: its frame poses the whole map, and its cells' flags follow
-  quarter turns and mirrors only.
+  `#`). A tilemap is a tree entity: its frame poses the whole map, and its
+  cells' flags follow quarter turns and mirrors only.
 - `gridField(description, { tileFlags: true })` marks a grid field whose
   values are tile cells; `gridFieldInfo` returns `tileFlags: true` for it.
 - The `tileset` kind's contract in `./project`: `TilesetFile`, `TileDef`,
@@ -41,8 +40,8 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
   tile-validity rule. `TileDef`, `TilesetFile` and
   `AutotileRule` are also in `./game`.
 - `EngineContext.tiles: TilesContext` (`at`, `get`, `paint`, `autotile`,
-  `find`) and `TileAt` in `./game`: empty answers and no-op writes until a
-  tilemap system is registered.
+  `find`) and `TileAt` in `./game`, served by the tilemap system; in a world
+  without one, reads answer empty and writes do nothing.
 - `GameDefinition.tileData?: z.ZodRawShape`, the fields a tileset's
   per-tile `data` may hold.
 - `ColliderTag.tile?: { map, tile, cell }` for a tilemap's colliders.
@@ -66,9 +65,9 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
   `./game` and `./editor`; `tileTools()`, `TileBrush` and
   `TILE_FILL_CAP` (65,536) in `./editor`.
 - The `tilemap` primitive is registered: `PRIMITIVE_TYPES`, `PRIMITIVES`,
-  `BASE_REQUIRED_FIELDS` (`at`, `tileset`, `cells`) and an inert tilemap
-  system in `PRIMITIVE_SYSTEMS`. It spawns after `node` and before a game's
-  listed groups when its `spawnOrder` leaves it out.
+  `BASE_REQUIRED_FIELDS` (`at`, `tileset`, `cells`) and the tilemap system
+  (`createTilemapSystem`) in `PRIMITIVE_SYSTEMS`. It spawns after `node`
+  and before a game's listed groups when its `spawnOrder` leaves it out.
 - The `tileset` kind joins `ENGINE_ASSET_KINDS`: `data` is judged by
   `GameDefinition.tileData`, `image` refs a texture or atlas and `material`
   a material, limits 1 MiB / 8,191 items. A repeated numeric keyed id (a

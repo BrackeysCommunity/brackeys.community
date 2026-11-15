@@ -18,6 +18,8 @@ import {
   type TileTurn,
 } from "../game/tile-cell";
 import { pxPerMetreOf } from "../game/units";
+import { cellKey } from "../grid/geometry";
+import type { KeyedOccupancy } from "../grid/occupancy";
 import {
   createKindRegistry,
   docKindJsonSchema,
@@ -902,12 +904,12 @@ describe("ctx.tiles and runtime writes", () => {
     ]);
     const system = rt.ctx.system<TilemapSystem>("tilemap")!;
     const at = vi.spyOn(system, "at");
-    const setWall = vi.spyOn(rt.ctx.grid!.occupancy, "setWall");
+    const setWall = vi.spyOn(rt.ctx.grid!.occupancy as KeyedOccupancy, "setWallKey");
     rt.ctx.tiles.paint("m", { cells: [[5, 10, 0]] });
     rt.step(DT, []);
     expect(at.mock.calls.length).toBeGreaterThan(0);
     expect(at.mock.calls.every(([cell]) => cell[0] < GRID_CHUNK)).toBe(true);
-    expect(setWall.mock.calls).toEqual([[[5, 10], false]]);
+    expect(setWall.mock.calls).toEqual([[cellKey([5, 10]), false]]);
     expect(rt.ctx.grid!.passable([4, 10])).toBe(false);
     rt.destroy();
   });

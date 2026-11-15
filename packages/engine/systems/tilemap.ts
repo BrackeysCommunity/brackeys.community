@@ -2,7 +2,7 @@ import type { Collider, RigidBody } from "@dimforge/rapier2d";
 
 import type { TilemapVisual } from "../context";
 import { physicsOf } from "../game/physics-of";
-import { decodeCell } from "../game/tile-cell";
+import { decodeCell, type TileCell } from "../game/tile-cell";
 import { EngineError } from "../game/types";
 import type {
   ColliderTag,
@@ -38,10 +38,18 @@ import { parseShape } from "../scene/shapes";
 import { turnRadians } from "../scene/transform";
 import type { Aabb, GridSettings, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 import { applyAutotile } from "../tiles/autotile";
-import { decodeChunks, dirtyChunks, tileTraits, type TileChunk } from "../tiles/chunks";
+import {
+  decodeChunks,
+  dirtyChunks,
+  forEachChunkRun,
+  mapCellKey,
+  parseMapCellKey,
+  tileTraits,
+  type TileChunk,
+} from "../tiles/chunks";
 import {
   DEFAULT_TILE_COLLISION,
-  greedyBoxes,
+  runBoxes,
   outlineChains,
   type TileCollision,
 } from "../tiles/colliders";
@@ -68,7 +76,7 @@ export type TilemapEntity = RuntimeEntity<{
 export type TilemapSystem = SceneSystem<TilemapEntity> &
   TilesContext & {
     readonly tilemapSystem: true;
-    /** Live tilemaps in spawn order. */
+    /** In spawn order. */
     list(): TilemapEntity[];
     /** Rebuilds what runtime writes left dirty; the runtime calls it once per tick after the destroy flush. True when anything was rebuilt. */
     flushWrites(): boolean;
@@ -86,12 +94,7 @@ export type TilemapSystem = SceneSystem<TilemapEntity> &
      * returns the unsubscribe.
      */
     watchCells(fn: (id: string, chunks: readonly ChunkKey[]) => void): () => void;
-    /**
-     * Rebuilds the maps whose tileset doc, or the image it cuts, changed
-     * (`changed` names it, or the project now holds a different one): defs,
-     * colliders and drawing, runtime writes kept. A map whose tileset no
-     * longer loads keeps what it had, and is reported.
-     */
+    /** Rebuilds maps whose tileset or its image changed, keeping runtime writes; a map whose tileset no longer loads keeps its last build and is reported. */
     reloadAssets(
       changed: readonly AssetId[],
     ): { entityId: string; error: unknown; reattached: boolean }[];
@@ -294,13 +297,11 @@ type LiveMap = {
 
 type Write = [col: number, row: number, value: number];
 
-const writeKey = (col: number, row: number) => `${col},${row}`;
-
 /** Writes as `[col, row, value]`, row-major. */
 function sortedWrites(writes: ReadonlyMap<string, number>): Write[] {
   const out: Write[] = [];
   for (const [key, value] of writes) {
-    const [col, row] = key.split(",").map(Number) as [number, number];
+    const [col, row] = parseMapCellKey(key);
     out.push([col, row, value]);
   }
   return out.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
@@ -386,69 +387,112 @@ export function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): 
     };
 
     const parts: Part[] = [];
-    /** Plain solid cells by material and one-way side: what merges. */
-    const merged = new Map<string, { material: AssetId | undefined; side: Side | null }>();
-    const groupOf = new Map<number, string>();
-    for (let i = 0; i < chunk.values.length; i++) {
-      const value = chunk.values[i] ?? 0;
-      const cell = decodeCell(value);
-      if (!cell) continue;
-      const def = m.defs.get(cell.id);
-      const traits = tileTraits(def);
-      if (!traits.solid) continue;
-      const col = c0 + (i % GRID_CHUNK);
-      const row = r0 + Math.floor(i / GRID_CHUNK);
-      const side = traits.oneWay
-        ? flippedSide(traits.oneWay, cell.flipX, cell.flipY, cell.flipD)
-        : null;
+    /** Plain solid cells by material and one-way side: what merges, in first-seen order. */
+    const merged = new Map<
+      string,
+      { group: number; material: AssetId | undefined; side: Side | null; runs: number[][] }
+    >();
+    /** Each cell's merge group, 1-based; 0 for cells that don't merge. */
+    const groupOf = new Int32Array(chunk.values.length);
+    /** The run being extended: its group's runs, row and first and last column. */
+    let run: { runs: number[][]; row: number; c0: number; c1: number } | null = null;
+    const closeRun = () => {
+      if (!run) return;
+      const row = (run.runs[run.row - r0] ??= []);
+      row.push(run.c0, run.c1);
+      run = null;
+    };
+    /** Per cell value, its decoded tile and traits; null for empty or non-solid values. */
+    const solids = new Map<
+      number,
+      { cell: NonNullable<TileCell>; def: TileDef | undefined; side: Side | null } | null
+    >();
+    // Run by run, as the rows encode them: most of a chunk is long runs.
+    forEachChunkRun(chunk.key, m.cells[chunk.key], (value, c, r, count) => {
+      if (value === 0) return;
+      let solid = solids.get(value);
+      if (solid === undefined) {
+        const cell = decodeCell(value);
+        const def = cell ? m.defs.get(cell.id) : undefined;
+        const traits = tileTraits(def);
+        solid =
+          cell && traits.solid
+            ? {
+                cell,
+                def,
+                side: traits.oneWay
+                  ? flippedSide(traits.oneWay, cell.flipX, cell.flipY, cell.flipD)
+                  : null,
+              }
+            : null;
+        solids.set(value, solid);
+      }
+      if (!solid) return;
+      const { cell, def, side } = solid;
+      const row = r0 + r;
+      const first = c0 + c;
+      const last = first + count - 1;
       const own = def?.shapes;
       if (own && own.length > 0) {
-        const topLeft = cellTopLeft(m.place, col, row);
-        for (const tuple of own) {
-          const parsed = parseShape(tuple);
-          if (!parsed.ok) continue;
-          parts.push({
-            shape: tileShape(parsed.shape, topLeft, tile, ppm, cell),
-            tag: tagOf(cell.id, [col, row], def.material, side),
-            side,
-          });
+        for (let col = first; col <= last; col++) {
+          const topLeft = cellTopLeft(m.place, col, row);
+          for (const tuple of own) {
+            const parsed = parseShape(tuple);
+            if (!parsed.ok) continue;
+            parts.push({
+              shape: tileShape(parsed.shape, topLeft, tile, ppm, cell),
+              tag: tagOf(cell.id, [col, row], def.material, side),
+              side,
+            });
+          }
         }
-        continue;
+        return;
       }
       if (hex || mode === "tiles") {
-        parts.push({
-          shape: hex
-            ? {
-                type: "poly",
-                pts: m.place.geo.corners([col + m.place.offset[0], row + m.place.offset[1]]),
-              }
-            : cellBox({ c0: col, r0: row, c1: col, r1: row }),
-          tag: tagOf(cell.id, [col, row], def?.material, side),
-          side,
-        });
-        continue;
+        for (let col = first; col <= last; col++)
+          parts.push({
+            shape: hex
+              ? {
+                  type: "poly",
+                  pts: m.place.geo.corners([col + m.place.offset[0], row + m.place.offset[1]]),
+                }
+              : cellBox({ c0: col, r0: row, c1: col, r1: row }),
+            tag: tagOf(cell.id, [col, row], def?.material, side),
+            side,
+          });
+        return;
       }
       const key = `${def?.material ?? ""}|${side ?? ""}`;
-      if (!merged.has(key)) merged.set(key, { material: def?.material, side });
-      groupOf.set(i, key);
-    }
+      let group = merged.get(key);
+      if (!group) {
+        group = { group: merged.size + 1, material: def?.material, side, runs: [] };
+        merged.set(key, group);
+      }
+      groupOf.fill(group.group, r * GRID_CHUNK + c, r * GRID_CHUNK + c + count);
+      if (run && run.runs === group.runs && run.row === row && run.c1 === first - 1) run.c1 = last;
+      else {
+        closeRun();
+        run = { runs: group.runs, row, c0: first, c1: last };
+      }
+    });
+    closeRun();
 
     const firstCell = (b: CellBounds): { tile: number; cell: Cell } => ({
       tile: decodeCell(valueAt(b.c0, b.r0))?.id ?? 0,
       cell: [b.c0, b.r0],
     });
     for (const key of [...merged.keys()].sort()) {
-      const { material, side } = merged.get(key)!;
+      const { group, material, side, runs } = merged.get(key)!;
       const inGroup = (col: number, row: number) =>
         col >= rect.c0 &&
         col <= rect.c1 &&
         row >= rect.r0 &&
         row <= rect.r1 &&
-        groupOf.get((row - r0) * GRID_CHUNK + (col - c0)) === key;
+        groupOf[(row - r0) * GRID_CHUNK + (col - c0)] === group;
       if (mode === "outline" && !side) {
         let first: CellBounds | null = null;
         for (let i = 0; i < chunk.values.length && !first; i++)
-          if (groupOf.get(i) === key) {
+          if (groupOf[i] === group) {
             const col = c0 + (i % GRID_CHUNK);
             const row = r0 + Math.floor(i / GRID_CHUNK);
             first = { c0: col, r0: row, c1: col, r1: row };
@@ -463,7 +507,9 @@ export function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): 
           });
         continue;
       }
-      for (const b of greedyBoxes(inGroup, rect)) {
+      const boxes: CellBounds[] = [];
+      runBoxes(runs, r0, boxes);
+      for (const b of boxes) {
         const at = firstCell(b);
         parts.push({ shape: cellBox(b), tag: tagOf(at.tile, at.cell, material, side), side });
       }
@@ -595,7 +641,7 @@ export function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): 
   /** Lays `m.writes` over `base` as its cells, dropping writes the scene's cells now hold. */
   function layWrites(m: LiveMap, base: GridCells): void {
     for (const [key, value] of m.writes) {
-      const [col, row] = key.split(",").map(Number) as [number, number];
+      const [col, row] = parseMapCellKey(key);
       if (readCell(base, col, row) === value) m.writes.delete(key);
     }
     m.cells = m.writes.size === 0 ? base : paintGrid(base, { cells: sortedWrites(m.writes) }).grid;
@@ -672,8 +718,8 @@ export function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): 
     if (m.tileset) resolveTileset(m.e, paintGrid({}, shifted).grid);
     for (const [col, row] of painted.inverse) {
       const value = readCell(painted.grid, col, row);
-      if (readCell(m.e.cells, col, row) === value) m.writes.delete(writeKey(col, row));
-      else m.writes.set(writeKey(col, row), value);
+      if (readCell(m.e.cells, col, row) === value) m.writes.delete(mapCellKey(col, row));
+      else m.writes.set(mapCellKey(col, row), value);
     }
     m.cells = painted.grid;
     for (const { chunk } of painted.rows) m.dirty.add(chunk);
@@ -874,7 +920,7 @@ export function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): 
       const m = live.get(id);
       if (!m || !Array.isArray(state)) return;
       const was = m.cells;
-      m.writes = new Map(state.filter(isWrite).map(([c, r, v]) => [writeKey(c, r), v] as const));
+      m.writes = new Map(state.filter(isWrite).map(([c, r, v]) => [mapCellKey(c, r), v] as const));
       layWrites(m, m.e.cells);
       rebuildChunks(m, changedSince(m, was));
       ctx.physics?.refreshQueries();

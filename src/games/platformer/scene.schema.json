@@ -14062,7 +14062,7 @@
               "maximum": 10000
             },
             "at": {
-              "description": "The grid origin of cell (0, 0); a whole number of cells from the scene's grid origin.",
+              "description": "The grid origin of cell (0, 0): a whole number of cells from the scene's grid origin, else snapped to the nearest cell.",
               "title": "Position",
               "$ref": "#/$defs/Pt"
             },

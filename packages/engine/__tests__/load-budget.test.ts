@@ -9,6 +9,7 @@ import { expandScene } from "../scene/expand";
 import { parseScene } from "../scene/parse";
 import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
+import { coverageOn } from "./fixtures/coverage";
 import {
   colliderCount,
   DEFAULT_COUNTS,
@@ -23,6 +24,14 @@ const WARMUP_RUNS = 3;
 const MEASURED_RUNS = 9;
 /** The 512 × 512 map's merged tile colliders: its ledge runs and floor, cut at chunk edges. */
 const TILEMAP_COLLIDER_BOUND = 1024;
+/**
+ * How much slower the 512 × 512 map loads under v8 coverage: its load is
+ * mostly the engine's JavaScript (row decoding, collider merging, grid
+ * walls), which coverage instruments, where the collider scene's is mostly
+ * Rapier's. Taken by hand on one machine, the same map loaded with and
+ * without coverage (1.9×); a change to the map or its load path re-takes it.
+ */
+const TILEMAP_COVERED = 2;
 
 const registry = createRegistry();
 const def = generateScene(51);
@@ -91,7 +100,9 @@ describe("tilemap-512", () => {
     expect(parsed.ok ? [] : parsed.issues).toEqual([]);
   });
 
-  it(`loads a 512 × 512 map in under ${BUDGET_MS}ms (median) with a bounded collider count`, () => {
+  const budget = coverageOn() ? BUDGET_MS * TILEMAP_COVERED : BUDGET_MS;
+
+  it(`loads a 512 × 512 map in under ${budget}ms (median) with a bounded collider count`, () => {
     for (let i = 0; i < WARMUP_RUNS; i++) loadOnce(map, project);
     const runs = Array.from({ length: MEASURED_RUNS }, () => loadOnce(map, project));
 
@@ -101,6 +112,6 @@ describe("tilemap-512", () => {
       expect(stats.colliders - TILEMAP_PROPS).toBeGreaterThan(0);
       expect(stats.colliders - TILEMAP_PROPS).toBeLessThanOrEqual(TILEMAP_COLLIDER_BOUND);
     }
-    expect(median(runs.map((r) => r.ms))).toBeLessThan(BUDGET_MS);
+    expect(median(runs.map((r) => r.ms))).toBeLessThan(budget);
   });
 });

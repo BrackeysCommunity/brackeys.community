@@ -18,7 +18,14 @@ type Placed = { key: CellKey; blocks: boolean };
 
 const NONE: readonly string[] = Object.freeze([]);
 
+/** An occupancy that also takes walls by cell key, for the runtime grid's bulk wall syncs. */
+export type KeyedOccupancy = Occupancy & { setWallKey(key: CellKey, wall: boolean): void };
+
 export function createOccupancy(): Occupancy {
+  return createKeyedOccupancy();
+}
+
+export function createKeyedOccupancy(): KeyedOccupancy {
   const placed = new Map<string, Placed>();
   const ids = new Map<CellKey, string[]>();
   /** Blocking occupants per cell. */
@@ -72,6 +79,10 @@ export function createOccupancy(): Occupancy {
     setWall(cell, wall) {
       if (wall) walls.add(cellKey(cell));
       else walls.delete(cellKey(cell));
+    },
+    setWallKey(key, wall) {
+      if (wall) walls.add(key);
+      else walls.delete(key);
     },
     wall: (cell) => walls.has(cellKey(cell)),
     clear() {

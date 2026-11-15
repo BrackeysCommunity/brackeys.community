@@ -23,7 +23,7 @@ import { loadedRunEvents, type LoadedRun, type LoadedRunReplayHost } from "../se
 import { useEditorDoc, useEditorPrefabs } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 import { useReplayHandle, useReplaySeek, type ReplaySource } from "./LoadRunPanel";
-import { playPickOf } from "./PlayInspector";
+import { playPickOf } from "./PlayPick";
 import { isSpawnedId } from "./SpawnedGroup";
 
 /** Rows the panel draws at most: the newest of what the filters match. */

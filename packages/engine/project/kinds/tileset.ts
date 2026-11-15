@@ -3,13 +3,7 @@ import { z } from "zod";
 import { AssetIdSchema, ID_PATTERN } from "../../game/fields";
 import { decodeCell, MAX_TILES } from "../../game/tile-cell";
 import type { JsonValue } from "../../game/types";
-import {
-  compareChunkKeys,
-  decodeRow,
-  GRID_CHUNK,
-  parseChunkKey,
-  type GridCells,
-} from "../../scene/grid";
+import { forEachRun, GRID_CHUNK, parseChunkKey, type GridCells } from "../../scene/grid";
 import { makeIssue } from "../../scene/issues";
 import { ShapeTupleSchema } from "../../scene/shapes";
 import type { GridSettings, SceneIssue, ShapeTuple } from "../../scene/types";
@@ -25,13 +19,16 @@ import { TEXTURE_KIND } from "./texture";
 export const TILESET_VERSION = 1;
 export const TILESET_SCHEMA_ID = `urn:jams-engine:tileset:v${TILESET_VERSION}`;
 
+/** A grid step's cost, matching the grid geometry's edge cost; tile costs never go below it. */
+export const DEFAULT_TILE_COST = 10;
+
 /** One tile's data, keyed by its id in the image (row-major from the top left). */
 export type TileDef = {
   id: number;
   solid?: boolean;
   /** One-way solids pass from the opposite side (the grid's oneWay direction). */
   oneWay?: "up" | "down" | "left" | "right";
-  /** Path cost on grids, 10 = one step; default 10; ignored when solid. */
+  /** Path cost to enter the cell on grids, 10 = one step and the least; default 10; ignored when solid. */
   cost?: number;
   material?: AssetId;
   tags?: readonly string[];
@@ -91,9 +88,11 @@ const tileDefSchema = (tileData: z.ZodRawShape | undefined) =>
       cost: z
         .number()
         .int()
-        .min(0)
+        .min(DEFAULT_TILE_COST)
         .optional()
-        .describe("Path cost on grids, 10 = one step; default 10; ignored when solid."),
+        .describe(
+          "Path cost to enter the cell on grids, 10 = one step and the least, since A* needs costs that only add; default 10; ignored when solid.",
+        ),
       material: AssetIdSchema.optional().describe("A material asset for the tile's colliders."),
       tags: z
         .array(z.string().min(1))
@@ -293,18 +292,24 @@ export function tilemapIssues(
   const count = tilesetTileCount(tileset, imageInfo);
   if (count === null || !entity.cells) return issues;
   const first = new Map<number, [number, number]>();
-  for (const key of Object.keys(entity.cells).sort(compareChunkKeys)) {
+  for (const key of Object.keys(entity.cells)) {
     const chunk = parseChunkKey(key);
     const rows = entity.cells[key];
     if (!chunk || !rows) continue;
     rows.forEach((row, r) => {
-      const values = decodeRow(row);
-      if (!values) return;
-      values.forEach((value, c) => {
+      // One check per run: its cells share a value and its first is the earliest.
+      const unknown: [id: number, c: number][] = [];
+      const valid = forEachRun(row, (value, c) => {
         const id = decodeCell(value)?.id;
-        if (id === undefined || id < count || first.has(id)) return;
-        first.set(id, [chunk[0] * GRID_CHUNK + c, chunk[1] * GRID_CHUNK + r]);
+        if (id !== undefined && id >= count) unknown.push([id, c]);
       });
+      if (!valid) return;
+      for (const [id, c] of unknown) {
+        const col = chunk[0] * GRID_CHUNK + c;
+        const row = chunk[1] * GRID_CHUNK + r;
+        const seen = first.get(id);
+        if (!seen || row < seen[1] || (row === seen[1] && col < seen[0])) first.set(id, [col, row]);
+      }
     });
   }
   for (const [id, [col, row]] of [...first].sort((a, b) => a[0] - b[0]))

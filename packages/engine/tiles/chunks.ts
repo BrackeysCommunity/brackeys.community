@@ -1,6 +1,6 @@
 /** Chunk bookkeeping over a tilemap's cells: decoding, traits per tile, and which chunks changed. Pure. */
 import type { Side } from "../game/types";
-import type { TileDef } from "../project/kinds/tileset";
+import { DEFAULT_TILE_COST, type TileDef } from "../project/kinds/tileset";
 import { compareChunkKeys, forEachRun, GRID_CHUNK, parseChunkKey } from "../scene/grid";
 import type { ChunkKey, GridCells, GridRow } from "../scene/grid";
 import type { ShapeTuple } from "../scene/types";
@@ -19,10 +19,16 @@ export type TileTraits = {
 /** One chunk's cells, decoded: 32 × 32 values row-major. */
 export type TileChunk = { key: ChunkKey; cx: number; cy: number; values: Uint16Array };
 
-/** A grid step's cost, matching the grid geometry's edge cost. */
-export const DEFAULT_TILE_COST = 10;
+export { DEFAULT_TILE_COST };
 
 const CHUNK_CELLS = GRID_CHUNK * GRID_CHUNK;
+
+/** A map-local cell as a `"col,row"` key, for sets and maps of cells with no range limit. */
+export const mapCellKey = (col: number, row: number): string => `${col},${row}`;
+
+/** The `[col, row]` a `mapCellKey` names. */
+export const parseMapCellKey = (key: string): [col: number, row: number] =>
+  key.split(",").map(Number) as [number, number];
 
 /** The one rule for a tile's solidity, one-way side, cost and shapes; every reader of tiles goes through it. */
 export function tileTraits(def: TileDef | undefined): TileTraits {

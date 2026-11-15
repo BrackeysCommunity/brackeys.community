@@ -18,7 +18,7 @@ import type { TilesetFile } from "../../project/kinds/tileset";
 import { KitProvider } from "../kit/index";
 import type { ToolHostCell } from "../panels/canvas-layer/tool-host";
 import { PANELS, type PanelContext } from "../panels/registry";
-import { TilePalette } from "../panels/TilePalette";
+import { fitTilePx, TilePalette } from "../panels/TilePalette";
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 
@@ -89,7 +89,7 @@ function toolCell(session: EditorSession) {
   return { tools, setTool };
 }
 
-function setup() {
+function setup(onOpenTileset?: (id: string) => void) {
   const session = editorSession();
   const { tools, setTool } = toolCell(session);
   render(
@@ -99,6 +99,7 @@ function setup() {
         runtime={runtime()}
         imageUrl={(id) => `/assets/${id}`}
         tools={tools}
+        onOpenTileset={onOpenTileset}
       />
     </KitProvider>,
   );
@@ -107,7 +108,11 @@ function setup() {
 
 const tile = (id: number) => screen.getByRole("gridcell", { name: `Tile ${id}` });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("tile palette", () => {
   it("shows the tileset's image cut into tiles", () => {
@@ -231,5 +236,40 @@ describe("tile palette", () => {
     fireEvent.click(screen.getByRole("button", { name: /walls/ }));
     expect(session.store.state.tileRule).toBe("walls");
     expect(setTool).toHaveBeenLastCalledWith("tile-auto");
+  });
+
+  it("fits tiles to a narrow panel instead of scrolling them sideways", () => {
+    expect(fitTilePx(400, 4)).toBe(24);
+    expect(fitTilePx(60, 4)).toBe(13);
+    expect(fitTilePx(60, 64)).toBe(12);
+
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(60);
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    setup();
+    const grid = screen.getByRole("grid", { name: "Tiles of ground" });
+    expect(grid.style.gridTemplateColumns).toBe("repeat(4, 13px)");
+    expect(grid.style.getPropertyValue("--je-tile-px")).toBe("13px");
+    expect(tile(5).style.width).toBe("13px");
+    expect(tile(5).style.backgroundPosition).toBe("-13px -13px");
+  });
+
+  it("Edit in tileset opens the map's tileset, only when the host can", () => {
+    const open = vi.fn();
+    setup(open);
+    fireEvent.pointerDown(tile(0), { button: 0 });
+    const data = screen.getByRole("region", { name: "Tile data" });
+    fireEvent.click(within(data).getByRole("button", { name: "Edit in tileset" }));
+    expect(open).toHaveBeenCalledWith("ground");
+    cleanup();
+
+    setup();
+    fireEvent.pointerDown(tile(0), { button: 0 });
+    expect(screen.queryByRole("button", { name: "Edit in tileset" })).toBeNull();
   });
 });

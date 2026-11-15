@@ -235,8 +235,39 @@ describe("importTiled", () => {
       expect(ops).toEqual([]);
       expect(notes).toHaveLength(1);
       expect(notes[0]).toMatchObject({ code: "import-failed", severity: "error" });
-      expect(notes[0]!.message).toContain("isometric maps import once plan 57's projections exist");
+      expect(notes[0]!.message).toContain(
+        "isometric and staggered maps don't import yet; only orthogonal and hexagonal maps do",
+      );
     }
+  });
+
+  it("notes a parallax on either axis, through its groups, apart from a whole-cell offset", () => {
+    const map = read("sample.tmj") as { layers: Record<string, unknown>[] };
+    const back = map.layers[1] as { layers: Record<string, unknown>[] };
+    map.layers[0] = { ...map.layers[0], parallaxy: 0.5, offsetx: 32 };
+    map.layers[1] = { ...back, parallaxx: 0.5 };
+    back.layers[0] = { ...back.layers[0], parallaxx: 0.5 };
+    const { ops, notes } = importTiled(map, TILESETS, opts());
+    const messages = notes.map((n) => n.message);
+    expect(messages).toContain(
+      `layer "Ground"'s parallax (1 × 0.5) isn't imported; it scrolls with the map`,
+    );
+    expect(messages).toContain(
+      `layer "Back/Detail"'s parallax (0.25 × 1) isn't imported; it scrolls with the map`,
+    );
+    expect(messages.some((m) => m.includes("offset"))).toBe(false);
+    const ground = added(ops).find((e) => String(e.name).startsWith("Ground"));
+    expect(ground?.at).toEqual([2, 0]);
+  });
+
+  it("notes an offset that isn't a whole number of cells, without naming parallax", () => {
+    const map = read("sample.tmj") as { layers: Record<string, unknown>[] };
+    map.layers[0] = { ...map.layers[0], offsetx: 5 };
+    const { notes } = importTiled(map, TILESETS, opts());
+    expect(notes.map((n) => n.message)).toContain(
+      `layer "Ground"'s offset isn't a whole number of cells; it's dropped`,
+    );
+    expect(notes.some((n) => n.message.includes("parallax"))).toBe(false);
   });
 
   it("drops a tileset whose tiles aren't the map's cell size, and its cells, so the scene loads", () => {

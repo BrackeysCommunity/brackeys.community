@@ -119,10 +119,6 @@ export const BODY_FIELDS = {
 const OWNS_BODY = { forbidden: ["body", "collider"] } as const;
 
 /**
- * The engine's own entity types, as schema. Their systems are the runtime's
- * (`runtime/primitives.ts`), so this module stays loadable on a server.
- */
-/**
  * Tiles painted on the scene grid from one tileset. Its
  * frame (a parent's turn or mirror) poses the whole map, and its cells'
  * flags turn with quarter turns and mirrors only.
@@ -133,7 +129,7 @@ export const TILEMAP_PRIMITIVE = {
     "Tiles painted on the scene grid from one tileset: drawn per chunk, colliding per its tiles.",
   fields: (env: FieldEnv) => ({
     at: pointField(
-      "The grid origin of cell (0, 0); a whole number of cells from the scene's grid origin.",
+      "The grid origin of cell (0, 0): a whole number of cells from the scene's grid origin, else snapped to the nearest cell.",
     ),
     tileset: assetField(env, ["tileset"], "The tileset its cells index.", "Tileset"),
     cells: gridField(
@@ -163,6 +159,10 @@ export const TILEMAP_PRIMITIVE = {
   ascii: "#",
 } satisfies EntityTypeDef;
 
+/**
+ * The engine's own entity types, as schema. Their systems are the runtime's
+ * (`runtime/primitives.ts`), so this module stays loadable on a server.
+ */
 export const PRIMITIVES = {
   node: {
     type: NODE_TYPE,

@@ -7,7 +7,7 @@ import { pxPerMetreOf } from "../../game/units";
 import type { TilesetFile } from "../../project/kinds/tileset";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { gridRoute } from "../../runtime/grid";
-import { createSceneRuntime } from "../../runtime/runtime";
+import { createSceneRuntime, saveHostOf } from "../../runtime/runtime";
 import { paintGrid, type CellEdit, type CellRect, type GridCells } from "../../scene/grid";
 import type { ExpandedScene, RuntimeEntity } from "../../scene/types";
 import { flowField } from "../flow";
@@ -129,5 +129,48 @@ describe("tiles on the grid", () => {
     const path = gridRoute(rt.ctx.grid!, [0, 0], [9, 0], false)!;
     expect(path.cells).toContainEqual([5, 4]);
     expect(rt.ctx.grid!.occupancy.wall([5, 3])).toBe(true);
+  });
+
+  it("walls a map spawned at runtime, follows its writes, and reopens when it's destroyed", () => {
+    const { rt } = load([]);
+    rt.ctx.spawn(tilemap("tilemap#spawned", cells({ rects: [WALL_COLUMN] })));
+    rt.step(1000 / 60, []);
+    const grid = rt.ctx.grid!;
+    expect(grid.passable([5, 3])).toBe(false);
+    expect(grid.passable([5, 9])).toBe(true);
+
+    rt.ctx.tiles.paint("tilemap#spawned", { cells: [[5, 4, 0]] });
+    rt.step(1000 / 60, []);
+    expect(grid.passable([5, 4])).toBe(true);
+    expect(grid.passable([5, 3])).toBe(false);
+
+    rt.ctx.destroy("tilemap#spawned");
+    rt.step(1000 / 60, []);
+    expect(grid.passable([5, 3])).toBe(true);
+    expect(grid.occupancy.wall([5, 0])).toBe(false);
+  });
+
+  it("walls a map spawned or destroyed outside a step at once", () => {
+    const { rt } = load([tilemap("map", cells({ rects: [[1, 1, 1, 1, WALL]] }))]);
+    rt.ctx.destroy("map");
+    rt.ctx.spawn(tilemap("tilemap#other", cells({ rects: [WALL_COLUMN] })));
+    const grid = rt.ctx.grid!;
+    expect(grid.passable([1, 1])).toBe(true);
+    expect(grid.passable([5, 3])).toBe(false);
+  });
+
+  it("walls a spawned map a world save puts back", () => {
+    const { rt } = load([]);
+    rt.ctx.spawn(tilemap("tilemap#spawned", cells({ rects: [WALL_COLUMN] })));
+    rt.ctx.tiles.paint("tilemap#spawned", { cells: [[5, 4, 0]] });
+    rt.step(1000 / 60, []);
+    const world = saveHostOf(rt.ctx)!.captureWorld();
+
+    const fresh = load([]).rt;
+    expect(fresh.ctx.grid!.passable([5, 3])).toBe(true);
+    expect(saveHostOf(fresh.ctx)!.restoreWorld(world, [])).toBeNull();
+    const grid = fresh.ctx.grid!;
+    expect(grid.passable([5, 3])).toBe(false);
+    expect(grid.passable([5, 4])).toBe(true);
   });
 });

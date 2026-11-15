@@ -1,10 +1,12 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type RefObject,
 } from "react";
 
 import type { TileBrush, TileToolId } from "../../editor/builtin/tile-tools";
@@ -25,13 +27,23 @@ export type TilePaletteProps = {
   imageUrl?: ((id: AssetId) => string | null) | undefined;
   /** The editor's tool host, which a pick switches to a tile tool; without one the pick only sets the brush. */
   tools?: ToolHostCell | undefined;
+  /** Opens a tileset asset where its tiles' data is edited; without it the tile data has no way there. */
+  onOpenTileset?: ((id: AssetId) => void) | undefined;
 };
 
 /** The tools a picked stamp keeps; any other tool gives way to the brush. */
 const STAMP_TOOLS: readonly string[] = ["tile-brush", "tile-rect", "tile-fill"];
 
-/** A tile's side in the palette, px. */
+/** A tile's side in the palette, px, when the panel has room for every column. */
 const TILE_PX = 24;
+/** The smallest a narrow panel shrinks tiles to before the grid scrolls sideways, px. */
+const MIN_TILE_PX = 12;
+
+/** The tile side that fits `columns` across a grid `width` px wide inside, with its 1px gaps and padding. */
+export function fitTilePx(width: number, columns: number): number {
+  const fit = Math.floor((width - 2 - (columns - 1)) / Math.max(1, columns));
+  return Math.min(TILE_PX, Math.max(MIN_TILE_PX, fit));
+}
 
 type Rect = { c0: number; r0: number; c1: number; r1: number };
 
@@ -116,8 +128,34 @@ export function brushTileIds(brush: TileBrush): Set<number> {
   return ids;
 }
 
+/**
+ * The tile side for a grid as wide as it is now: shrinks tiles in a narrow
+ * panel instead of scrolling them sideways, again on each resize. Without a
+ * `ResizeObserver` tiles keep their full size.
+ */
+function useFittedTilePx(grid: RefObject<HTMLDivElement | null>, columns: number): number {
+  const [px, setPx] = useState(TILE_PX);
+  useLayoutEffect(() => {
+    const el = grid.current;
+    const box = el?.parentElement;
+    if (!el || !box || typeof ResizeObserver === "undefined") return;
+    const fit = () => setPx(fitTilePx(el.clientWidth, columns));
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [grid, columns]);
+  return px;
+}
+
 /** The tileset's image cut into tiles, its rules, and the picked tile's data. */
-export function TilePalette({ session, runtime, imageUrl, tools }: TilePaletteProps) {
+export function TilePalette({
+  session,
+  runtime,
+  imageUrl,
+  tools,
+  onOpenTileset,
+}: TilePaletteProps) {
   const scene = useEditorResolved(session);
   const selection = useEditorStore(session, (s) => s.selection);
   const hover = useEditorStore(session, (s) => s.hover);
@@ -170,6 +208,7 @@ export function TilePalette({ session, runtime, imageUrl, tools }: TilePalettePr
       brush={brush}
       tool={tool}
       armedRule={armedRule}
+      onOpenTileset={onOpenTileset}
     />
   );
 }
@@ -187,6 +226,7 @@ function TilesetView({
   brush,
   tool,
   armedRule,
+  onOpenTileset,
 }: {
   mapId: Ref;
   tilesetId: AssetId;
@@ -197,19 +237,21 @@ function TilesetView({
   brush: TileBrush;
   tool: string;
   armedRule: string | null;
+  onOpenTileset: TilePaletteProps["onOpenTileset"];
 }) {
   const image = imageOf(runtime, set.image);
   const columns = Math.max(1, set.columns);
   const rows = rowsOf(set, image.size?.[1]);
   const url = imageUrl?.(image.id) ?? null;
   const [tw, th] = set.tile;
-  const scale = TILE_PX / Math.max(1, tw);
+  const grid = useRef<HTMLDivElement>(null);
+  const tilePx = useFittedTilePx(grid, columns);
+  const scale = tilePx / Math.max(1, tw);
 
   const picked = useMemo(() => brushTileIds(brush), [brush]);
   const [focus, setFocus] = useState({ c: 0, r: 0 });
   const anchor = useRef<{ c: number; r: number } | null>(null);
   const dragging = useRef(false);
-  const grid = useRef<HTMLDivElement>(null);
 
   const choose = (rect: Rect) => {
     arm.setBrush(stampOf(rect, columns));
@@ -258,7 +300,7 @@ function TilesetView({
   const margin = set.margin ?? 0;
   const spacing = set.spacing ?? 0;
   const tileStyle = (c: number, r: number): CSSProperties => ({
-    width: TILE_PX,
+    width: tilePx,
     height: Math.round(th * scale),
     ...(url
       ? {
@@ -291,7 +333,12 @@ function TilesetView({
         aria-label={`Tiles of ${tilesetId}`}
         aria-multiselectable="true"
         className="je-tile-grid"
-        style={{ gridTemplateColumns: `repeat(${columns}, ${TILE_PX}px)` }}
+        style={
+          {
+            gridTemplateColumns: `repeat(${columns}, ${tilePx}px)`,
+            "--je-tile-px": `${tilePx}px`,
+          } as CSSProperties
+        }
         onKeyDown={moveFocus}
       >
         {Array.from({ length: rows }, (_, r) => (
@@ -336,7 +383,13 @@ function TilesetView({
           }}
         />
       ) : null}
-      {first !== null ? <TileData id={first} def={defs.get(first)} /> : null}
+      {first !== null ? (
+        <TileData
+          id={first}
+          def={defs.get(first)}
+          onOpen={onOpenTileset ? () => onOpenTileset(tilesetId) : undefined}
+        />
+      ) : null}
     </div>
   );
 }
@@ -378,8 +431,16 @@ function RuleList({
   );
 }
 
-/** A tile's data, read-only: editing goes through the tileset's own panel. */
-function TileData({ id, def }: { id: number; def: TileDef | undefined }) {
+/** A tile's data, read-only: editing goes through the tileset's own panel, which `onOpen` opens. */
+function TileData({
+  id,
+  def,
+  onOpen,
+}: {
+  id: number;
+  def: TileDef | undefined;
+  onOpen: (() => void) | undefined;
+}) {
   const traits = tileTraits(def);
   const rows: [string, string][] = [["Id", String(id)]];
   if (traits.solid) rows.push(["Solid", "yes"]);
@@ -401,6 +462,11 @@ function TileData({ id, def }: { id: number; def: TileDef | undefined }) {
           No data; it draws only.
         </Text>
       )}
+      {onOpen ? (
+        <Button variant="ghost" size="xs" className="je-tile-open" onClick={onOpen}>
+          Edit in tileset
+        </Button>
+      ) : null}
     </section>
   );
 }

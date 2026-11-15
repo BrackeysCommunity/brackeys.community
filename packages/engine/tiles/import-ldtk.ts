@@ -20,6 +20,7 @@ import {
 } from "../scene/types";
 import { pxToMetres } from "../scene/units";
 import { encodeCell } from "./cell";
+import { mapCellKey } from "./chunks";
 import type { TileImport } from "./import-tiled";
 import { assetSlug, list, obj, optNum, str, type Json } from "./json-read";
 
@@ -391,7 +392,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
           if (x === undefined || y === undefined || id === undefined) continue;
           const col = Math.floor(x / size);
           const row = Math.floor(y / size);
-          const key = `${col},${row}`;
+          const key = mapCellKey(col, row);
           if (seen.has(key)) stacked++;
           seen.add(key);
           const f = optNum(t.f) ?? 0;

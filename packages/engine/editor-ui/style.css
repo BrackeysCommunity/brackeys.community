@@ -3522,6 +3522,16 @@
     min-width: 0;
   }
 
+  /* It fills the panel body, so its grid can shrink to the dock's height; a phone sheet has only a cap. */
+  .je-panel-body > .je-tile-palette {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .je-frame-sheet .je-panel-body > .je-tile-palette {
+    flex-basis: auto;
+  }
+
   .je-tile-palette-head {
     display: flex;
     align-items: center;
@@ -3530,10 +3540,14 @@
     min-width: 0;
   }
 
+  /* The grid gives way first in a short dock, down to two rows, so the rules and tile data stay in view. */
   .je-tile-grid {
+    --je-tile-px: 24px;
     display: grid;
+    flex: 0 1 auto;
     gap: 1px;
-    max-height: 240px;
+    min-height: calc(2 * var(--je-tile-px) + 3px);
+    max-height: calc(10 * var(--je-tile-px) + 11px);
     overflow: auto;
     padding: 1px;
     border-radius: var(--je-radius-nested);
@@ -3583,6 +3597,10 @@
     gap: var(--je-gap-tight);
   }
 
+  .je-tile-open {
+    align-self: flex-start;
+  }
+
   .je-tile-rules {
     display: flex;
     flex-direction: column;
@@ -3599,11 +3617,6 @@
     justify-content: space-between;
     gap: var(--je-gap-tight);
     min-width: 0;
-  }
-
-  .je-tile-rule[aria-pressed="true"] {
-    background: var(--je-muted);
-    box-shadow: inset 2px 0 0 var(--je-primary);
   }
 
   /* History */
