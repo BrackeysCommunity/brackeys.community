@@ -3,13 +3,14 @@
  * code and the fake backend typecheck against it; `audio/web-audio.ts` is
  * the one file that reaches the browser's audio API.
  */
+import type { ENGINE_BUSES } from "../project/kinds/sound";
 import type { AudioRequest } from "../runtime/present";
 import type { StepEvent } from "../runtime/types";
 import type { Vec2 } from "../types";
 import type { AudioClock } from "./clock";
 
 /** The engine's five buses, or one a game declares (`GameDefinition.audio.buses`). */
-export type BusName = "master" | "music" | "sfx" | "voice" | "ui" | (string & {});
+export type BusName = (typeof ENGINE_BUSES)[number] | (string & {});
 
 /** A decoded, rendered or streamed clip a backend can play; opaque beyond its shape. */
 export interface AudioClipHandle {

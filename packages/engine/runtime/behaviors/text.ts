@@ -27,8 +27,8 @@ import { entityHomeLayer } from "../../systems/bodies";
 import { measureText } from "../../text/measure";
 import { parseRichText, type TextVars } from "../../text/rich";
 import { bracketKey } from "../../text/strings";
-import { samePose, type Pose } from "../poses";
-import { spawnPose } from "../spawn-pose";
+import { settlePosed, type Pose } from "../poses";
+import { initialPose } from "../spawn-pose";
 
 /**
  * What the text system answers by entity id; its handle binds `set` and
@@ -145,7 +145,7 @@ export const createTextSystem: BehaviorSystemFactory = (ctx) => {
   function show(id: string, a: Attached): void {
     draw(id, a);
     view.depth?.(textViewId(id), a.entity.z ?? 0);
-    place(id, a, ctx.poses.get(id) ?? spawnPose(a.entity, ctx.registry), true);
+    place(id, a, initialPose(ctx, id, a.entity), true);
   }
 
   function attach(id: string, block: TextBlock, entity: RuntimeEntity): void {
@@ -199,15 +199,7 @@ export const createTextSystem: BehaviorSystemFactory = (ctx) => {
     },
     set: (id, text) => replace(id, { text }),
     setKey: (id, key, vars) => replace(id, vars ? { key, vars: { ...vars } } : { key }),
-    settle() {
-      for (const [id, a] of attached) {
-        if (a.disabled) continue;
-        const pose = ctx.poses.get(id);
-        if (!pose || (a.applied && samePose(pose, a.applied))) continue;
-        const prev = ctx.poses.prev(id);
-        place(id, a, pose, prev !== undefined && samePose(prev, pose));
-      }
-    },
+    settle: () => settlePosed(ctx.poses, attached, place, (a) => a.disabled),
     save(id) {
       const shown = attached.get(id)?.shown;
       if (!shown) return undefined;

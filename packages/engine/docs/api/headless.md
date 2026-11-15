@@ -424,12 +424,15 @@ type DecodeOptions = {
 
 _type_ in `dialogue/explore.ts`
 
-One ending a walk reached, and the choice indices that reach it from `start`.
+One ending a walk reached, and the choices that reach it from `start`.
 
 ```ts
 type DialogueEnding = {
+    /** Each choice's text key along `path`; null for a choice with none. */
+    choices: readonly (null | string)[];
     ending: string;
     nodes: readonly string[];
+    /** Each choice's index into its node's `choices`, in order. */
     path: readonly number[];
 };
 ```
@@ -3131,8 +3134,8 @@ Walks every choice breadth-first from `start` with the given variables
 (default `{}`), through the dialogue runner, so conditions, effects and
 `visited` decide what is offered as they do in play. Returns each
 reachable ending once, with the shortest choice path (indices into the
-node's `choices`) and the nodes it passes, in the order the walk found
-them. A path stops at `maxDepth` choices (default 32); paths that reach
+node's `choices`), each choice's text key and the nodes it passes, in
+the order the walk found them. A path stops at `maxDepth` choices (default 32); paths that reach
 the same choices with the same history and variables are walked once.
 
 ```ts
@@ -3605,18 +3608,11 @@ Refers to [`ProbeOptions`](#probeoptions), [`ProbeReport`](#probereport).
 
 _function_ in `headless/compile-input-script.ts`
 
-Plays a compiled script one slot at a time: every track from slot 0 at
-once, each `TickInput` holding each seat's button edges (releases first),
-analog values, pointer (only when it changed), seat changes and commands,
-all on its step's first slot but the pointer. The actions bound to a
-pointer button are held while it is down, as in live play. A step's length counts
-slots, so an idle turns or event game still moves through it; `until` is
-judged by `holds` after each simulated tick. The input runs out
-(`script-end`) once every track's steps have; nothing is released then.
-A track that ends before the others likewise keeps what its last step
-held (buttons, values, pointer) until the script ends: end it on a
-`wait` to let go, and on a pointer `release` for a pointer button.
-A script written with `steps` plays as seat 0's one track.
+Plays a compiled script one slot at a time, every track from slot 0. A
+step's edges, values, seats and commands land on its first slot; `until`
+is judged after each tick. A track that ends early keeps what its last
+step held until the script ends (`script-end`): end on a `wait` or a
+pointer `release` to let go.
 
 ```ts
 declare function scriptSource(script: CompiledInputScript, holds: (until: UntilClause, state: PlayState) => boolean, time?: Pick<ResolvedTime, "tickMs">): ScriptSource;

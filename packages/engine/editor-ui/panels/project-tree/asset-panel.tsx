@@ -1,8 +1,8 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { Fragment, useEffect, useMemo, useState, type ComponentProps } from "react";
+import { Fragment, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
 
 import { layoutFromDoc, type ProjectSession } from "../../../collab/index";
-import { capitalise } from "../../../game/live";
+import { sentence } from "../../../game/live";
 import {
   byCodeUnit,
   dialogueIssues,
@@ -23,10 +23,12 @@ import { docLookupOf } from "../../../project/kinds/define";
 import {
   localeChain,
   localeFallbacks,
+  isLocaleColumn,
   localeFont,
   stringRowText,
 } from "../../../project/kinds/strings";
-import { useAssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
+import { plural } from "../../../scene/plural";
+import { useSelectedAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
 import { AssetAudition, isAudibleKind } from "../../audio/editor-audio";
 import { IconButton } from "../../kit/button";
 import { formatBytes } from "../../kit/format";
@@ -124,6 +126,49 @@ export function AssetPanel({
 }
 
 /**
+ * A doc asset's inspector: the asset's own panel (with `audition` on its
+ * play row), then the doc's fields under `label` once it opens, or a note
+ * once it has left the project.
+ */
+export function DocAssetShell({
+  asset,
+  doc,
+  noun,
+  label,
+  className,
+  audition,
+  children,
+  ...root
+}: Omit<ComponentProps<"div">, "children"> & {
+  asset: SelectedAsset;
+  doc: AssetDoc;
+  /** What the doc is called: "This sound isn't in the project any more." */
+  noun: string;
+  /** The fields panel's accessible name. */
+  label: string;
+  audition?: AssetPanelAudition;
+  children: (value: Record<string, unknown>) => ReactNode;
+}) {
+  return (
+    <div {...root} className="je-doc-asset">
+      <AssetPanel {...asset} {...(audition ? { audition } : {})} />
+      <div
+        className={className ? `je-asset-panel ${className}` : "je-asset-panel"}
+        aria-label={label}
+      >
+        {doc.entry ? (
+          <DocGate doc={doc} noun={noun}>
+            {children}
+          </DocGate>
+        ) : (
+          <SettingsNote>This {noun} isn't in the project any more.</SettingsNote>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Every live doc of `kinds` in `session`, held open while the caller is
  * mounted and read again as each changes, as one `DocLookup` (ids in path
  * order). Null without a session.
@@ -199,7 +244,7 @@ export function stringKeyTable(lookup: DocLookup): StringKeyTable {
     },
     problem: (key) => {
       const [issue] = stringKeyIssues(lookup, [{ key, kind: STRINGS_KIND, id: "", pointer: "" }]);
-      return issue ? { message: capitalise(issue.message), severity: issue.severity } : null;
+      return issue ? { message: sentence(issue.message), severity: issue.severity } : null;
     },
     ...withFont(localeFont(locales, locales.default)),
   };
@@ -215,34 +260,19 @@ const LOCALE_SOURCES: readonly AssetKindName[] = [GAME_SETTINGS_KIND];
 
 /** A string table, read only: how many keys it holds and how many each locale has text for. */
 export function StringsPanel({ asset, session }: Omit<AssetDocPanelProps, "registry">) {
-  const notify = asset.notify ?? { error: (message: string) => console.error(message) };
-  const doc = useAssetDoc(session, asset.entry.id, {
-    ...(asset.readOnly ? { readOnly: true } : {}),
-    notify,
-  });
+  const doc = useSelectedAssetDoc(asset, session);
   const settings = useProjectDocs(session, LOCALE_SOURCES);
   return (
-    <div className="je-doc-asset">
-      <AssetPanel {...asset} />
-      <div className="je-asset-panel" aria-label="Strings">
-        {doc.entry ? (
-          <DocGate doc={doc} noun="string table">
-            {(value) => (
-              <StringsSummary
-                file={value as unknown as StringsFile}
-                lookup={settings ?? docLookup(new Map())}
-              />
-            )}
-          </DocGate>
-        ) : (
-          <SettingsNote>This string table isn't in the project any more.</SettingsNote>
-        )}
-      </div>
-    </div>
+    <DocAssetShell asset={asset} doc={doc} noun="string table" label="Strings">
+      {(value) => (
+        <StringsSummary
+          file={value as unknown as StringsFile}
+          lookup={settings ?? docLookup(new Map())}
+        />
+      )}
+    </DocAssetShell>
   );
 }
-
-const isLocaleColumn = (column: string) => column !== "key" && column !== "note";
 
 function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup }) {
   const locales = projectLocales(lookup);
@@ -266,7 +296,7 @@ function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup
                     {locale === locales.default ? " (default)" : ""}
                   </dt>
                   <dd data-locale={locale}>
-                    {missing === 0 ? "All keys" : `${missing} missing`}
+                    {missing === 0 ? "All keys" : <Text variant="warning">{missing} missing</Text>}
                     {offered ? "" : ", not offered by the game settings"}
                   </dd>
                 </Fragment>
@@ -274,8 +304,11 @@ function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup
             })}
           </dl>
           <Text as="p" size="xs" variant="muted">
-            {count(rows.length, "key")}. Change them in the file, or with vp run scene strings
-            import.
+            {plural(rows.length, "key")}. Change them in the file, or with{" "}
+            <Text size="xs" variant="inherit" textWrap="nowrap">
+              <code>vp run scene strings import</code>
+            </Text>
+            .
           </Text>
         </div>
       </InspectorSection>
@@ -296,7 +329,7 @@ function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup
                         {typeof text === "string" && text !== "" ? (
                           <span className="je-strings-value">{text}</span>
                         ) : (
-                          <span className="je-insp-muted">missing</span>
+                          <Text variant="warning">missing</Text>
                         )}
                       </span>
                     );
@@ -313,28 +346,13 @@ function StringsSummary({ file, lookup }: { file: StringsFile; lookup: DocLookup
 
 /** A dialogue, read only: its nodes, lines, speakers and endings, and what its checks find. */
 export function DialoguePanel({ asset, session }: Omit<AssetDocPanelProps, "registry">) {
-  const notify = asset.notify ?? { error: (message: string) => console.error(message) };
-  const doc = useAssetDoc(session, asset.entry.id, {
-    ...(asset.readOnly ? { readOnly: true } : {}),
-    notify,
-  });
+  const doc = useSelectedAssetDoc(asset, session);
   return (
-    <div className="je-doc-asset">
-      <AssetPanel {...asset} />
-      <div className="je-asset-panel" aria-label="Dialogue">
-        {doc.entry ? (
-          <DocGate doc={doc} noun="dialogue">
-            {(value) => <DialogueSummary file={value as unknown as DialogueFile} />}
-          </DocGate>
-        ) : (
-          <SettingsNote>This dialogue isn't in the project any more.</SettingsNote>
-        )}
-      </div>
-    </div>
+    <DocAssetShell asset={asset} doc={doc} noun="dialogue" label="Dialogue">
+      {(value) => <DialogueSummary file={value as unknown as DialogueFile} />}
+    </DocAssetShell>
   );
 }
-
-const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 function DialogueSummary({ file }: { file: DialogueFile }) {
   const nodes = Array.isArray(file.nodes) ? file.nodes : [];
@@ -350,7 +368,7 @@ function DialogueSummary({ file }: { file: DialogueFile }) {
           <dd>{file.start}</dd>
           <dt>Nodes</dt>
           <dd>
-            {count(nodes.length, "node")}, {count(lines, "line")}, {count(choices, "choice")}
+            {plural(nodes.length, "node")}, {plural(lines, "line")}, {plural(choices, "choice")}
           </dd>
           <dt>Speakers</dt>
           <dd>{(file.speakers ?? []).map((s) => s.id).join(", ") || "None"}</dd>
@@ -366,7 +384,7 @@ function DialogueSummary({ file }: { file: DialogueFile }) {
             {issues.map((issue, i) => (
               <li key={i}>
                 <Text size="xs" variant={issue.severity === "error" ? "danger" : "warning"}>
-                  {capitalise(issue.message)}
+                  {sentence(issue.message)}
                 </Text>
               </li>
             ))}

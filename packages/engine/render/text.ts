@@ -12,6 +12,7 @@ import { richSource } from "../game/behaviors/text";
 import { RTL_CHAR } from "../project/kinds/strings";
 import type { Sha256 } from "../project/types";
 import { readFlag } from "../reduced-motion";
+import { breakLine, LINE_HEIGHT_EM } from "../text/measure";
 import { parseRichText, type RichLine, type RichSpan } from "../text/rich";
 import { keyedText, type StringTableData, type TextDirection } from "../text/strings";
 
@@ -142,7 +143,6 @@ export function visualOrder<T>(
 type Face = { kind: "bitmap"; family: string } | { kind: "web"; families: readonly string[] };
 
 const DEFAULT_FACE: Face = { kind: "web", families: DEFAULT_TEXT_FACE };
-const LINE_HEIGHT = 1.2;
 const EMBED_RTL = String.fromCharCode(0x202b);
 const POP_EMBED = String.fromCharCode(0x202c);
 
@@ -299,34 +299,31 @@ function build(
   const wrap = visual.wrap;
   const rows: Placed[][] = [];
   for (const line of lines) {
-    let row: Placed[] = [];
-    let x = 0;
-    let wrapped = false;
-    rows.push(row);
+    const placed: Placed[] = [];
     for (const piece of piecesOf(line, wrap !== undefined)) {
       const px = piece.span.size ?? visual.size;
-      if (piece.space && wrapped && row.length === 0) continue;
       let display: Container | null = null;
-      let width = px;
       if (!piece.span.icon) {
         const text = face.kind === "bitmap" ? reverseRtlRuns(piece.text) : piece.text;
         display = piece.span.effect
           ? animated(text, piece.span, face, visual, direction, reducedMotion)
           : draw(text, piece.span, face, visual, direction);
-        width = display.width;
       }
-      if (wrap !== undefined && !piece.space && x > 0 && x + width > wrap) {
-        while (row.length > 0 && row[row.length - 1]!.piece.space) {
-          row.pop()!.display?.destroy({ children: true });
-        }
-        row = [];
-        rows.push(row);
-        x = 0;
-        wrapped = true;
-      }
-      row.push({ piece, display, width, height: display?.height || px * LINE_HEIGHT });
-      x += width;
+      const width = display ? display.width : px;
+      placed.push({ piece, display, width, height: display?.height || px * LINE_HEIGHT_EM });
     }
+    if (wrap === undefined) {
+      rows.push(placed);
+      continue;
+    }
+    const items = placed.map((p) => ({ space: p.piece.space, width: p.width }));
+    const kept = new Set<Placed>();
+    breakLine(items, wrap, (from, to) => {
+      const row = placed.slice(from, to);
+      for (const p of row) kept.add(p);
+      rows.push(row);
+    });
+    for (const p of placed) if (!kept.has(p)) p.display?.destroy({ children: true });
   }
 
   const widths = rows.map((row) => row.reduce((w, p) => w + p.width, 0));
@@ -334,7 +331,7 @@ function build(
   const align = { left: 0, center: 0.5, right: 1 }[visual.align];
   let y = 0;
   rows.forEach((row, r) => {
-    const height = Math.max(visual.size * LINE_HEIGHT, ...row.map((p) => p.height));
+    const height = Math.max(visual.size * LINE_HEIGHT_EM, ...row.map((p) => p.height));
     let x = (boxWidth - widths[r]!) * align;
     for (const placed of visualOrder(row, (p) => strongOf(p.piece.text), direction)) {
       if (placed.display) {

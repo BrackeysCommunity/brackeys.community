@@ -61,6 +61,7 @@
           },
           "weight": {
             "description": "How often it's picked against the others; default 1.",
+            "default": 1,
             "type": "number",
             "exclusiveMinimum": 0
           }
@@ -73,6 +74,7 @@
     },
     "loop": {
       "description": "Loop until stopped; default false.",
+      "default": false,
       "type": "boolean"
     },
     "cooldownMs": {
@@ -84,12 +86,14 @@
     },
     "maxVoices": {
       "description": "At most this many playing at once, the oldest stopped; default 8.",
+      "default": 8,
       "type": "integer",
       "minimum": 1,
       "maximum": 64
     },
     "positional": {
       "description": "Pan from where it plays against the main view; default false.",
+      "default": false,
       "type": "boolean"
     },
     "range": {
@@ -141,7 +145,8 @@
       }
     },
     "preload": {
-      "description": "Load its clips with the scene bundle instead of on first play.",
+      "description": "Load its clips with the scene bundle instead of on first play; default false.",
+      "default": false,
       "type": "boolean"
     }
   },

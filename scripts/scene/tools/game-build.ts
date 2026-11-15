@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,7 +17,6 @@ import {
   RELEASE_FILE,
   releaseId,
   validateProject,
-  type AssetId,
   type ReleaseTarget,
 } from "@jams/engine/project";
 import { closest, type SceneIssue } from "@jams/engine/scene";
@@ -111,19 +110,8 @@ export function projectOf(
  * from the cross-doc checks (a string key with no default-locale text).
  * Each names its doc first.
  */
-export async function projectIssues(loaded: LoadedProject): Promise<SceneIssue[]> {
-  const { project, view } = loaded;
-  const texts = new Map<AssetId, string>();
-  for (const entry of view.byId.values()) {
-    if (project.kinds.get(entry.kind)?.storage !== "doc") continue;
-    try {
-      texts.set(entry.id, await readFile(join(project.dir, entry.path), "utf8"));
-    } catch {
-      // A file gone since the scan has nothing to check.
-    }
-  }
-  return validateProject(view, texts, project.kinds, loaded.env);
-}
+export const projectIssues = (loaded: LoadedProject): SceneIssue[] =>
+  validateProject(loaded.view, loaded.sources, loaded.project.kinds, loaded.env);
 
 /**
  * The project's files as an export plans them: its view (with this code's
@@ -143,7 +131,7 @@ export async function exportInputOf(
       project: project.file.id,
     });
   const loaded = await loadProject(project);
-  const errors = (await projectIssues(loaded)).filter(isError);
+  const errors = projectIssues(loaded).filter(isError);
   if (errors.length > 0)
     return {
       exitCode: 1,

@@ -1,10 +1,27 @@
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Fragment, useState, type ReactNode } from "react";
 import { z } from "zod";
 
 import type { InspectorRow } from "../../../editor/inspector-model";
 import { settingsEdit, settingsValue } from "../../../editor/settings-model";
+import type { AssetKindName } from "../../../project/index";
+import { LOCALE_PATTERN, localeSettingsOf } from "../../../project/kinds/strings";
 import { unwrapSchema } from "../../../scene/schema";
-import { Input, Text } from "../../kit/index";
+import {
+  Badge,
+  Button,
+  Hint,
+  Icon,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Text,
+} from "../../kit/index";
+import { useProjectView } from "../EditorProject";
+import { AssetCombobox, assetOptions, danglingAsset } from "../inspector/asset-picker";
 import {
   AngleField,
   asPt,
@@ -17,6 +34,7 @@ import {
   PointField,
   ReadonlyField,
   RecordField,
+  RecordInput,
   SwitchField,
   TextField,
 } from "../inspector/field-widgets";
@@ -227,7 +245,282 @@ function AxesRow({ row, ctx, axes }: { row: InspectorRow; ctx: RowsCtx; axes: Ax
   );
 }
 
+/** game-settings' locales block, which `LocalesRow` draws. */
+export const LOCALES_PATH = "engine.locales";
+
+const FONT_KINDS: readonly AssetKindName[] = ["font"];
+
+type LocaleSettings = ReturnType<typeof localeSettingsOf>;
+
+/** A locale entry's key and its control, the key in a column of its own. */
+function LocaleEntry({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <div className="je-insp-row je-locale-entry" data-gap="tight">
+      <span className="je-locale-key je-sp-truncate">{name}</span>
+      {children}
+    </div>
+  );
+}
+
+/** The record a keyed edit leaves: `key` set, or dropped when `value` is undefined; undefined once empty. */
+function withEntry<T>(
+  record: Readonly<Record<string, T>> | undefined,
+  key: string,
+  value: T | undefined,
+): Record<string, T> | undefined {
+  const next: Record<string, T> = { ...record };
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+const badTag = (tags: readonly string[]) => tags.find((t) => !LOCALE_PATTERN.test(t));
+const tagProblem = (tag: string) => `"${tag}" isn't a locale tag such as en or pt-BR.`;
+const splitTags = (text: string) => text.split(/[\s,]+/).filter(Boolean);
+
+/** The offered locales as chips, each removable but the default, and a box to add more. */
+function AvailableLocales({
+  row,
+  ctx,
+  locales,
+}: {
+  row: InspectorRow;
+  ctx: RowsCtx;
+  locales: LocaleSettings;
+}) {
+  const { error, setError, commit } = useCommit(ctx, row);
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const tags = splitTags(draft);
+    if (tags.length === 0) return;
+    const bad = badTag(tags);
+    if (bad !== undefined) return setError(tagProblem(bad));
+    setDraft("");
+    const next = [...new Set([...locales.available, ...tags])];
+    if (next.length > locales.available.length) commit(next);
+  };
+  return (
+    <FieldRow field={row} scope={settingScope(ctx.doc.docName, row.path)} error={error}>
+      <div className="je-insp-row je-insp-wrap" data-gap="tight">
+        {locales.available.map((tag) =>
+          tag === locales.default ? (
+            <Hint
+              key={tag}
+              content="The default is always offered: pick another default to remove it."
+            >
+              <Badge variant="secondary" tabIndex={0}>
+                {tag} (default)
+              </Badge>
+            </Hint>
+          ) : (
+            <Button
+              key={tag}
+              size="xs"
+              variant="secondary"
+              aria-label={`Remove the locale ${tag}`}
+              onClick={() => commit(locales.available.filter((t) => t !== tag))}
+            >
+              {tag}
+              <Icon icon={Cancel01Icon} size={12} />
+            </Button>
+          ),
+        )}
+        <Input
+          aria-label={row.path}
+          placeholder="Add a locale, e.g. fr"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              add();
+            } else if (e.key === "Escape") setDraft("");
+          }}
+          onBlur={add}
+          className="je-insp-tag-input"
+        />
+      </div>
+    </FieldRow>
+  );
+}
+
+/** The default locale, one of those offered. */
+function DefaultLocale({
+  row,
+  ctx,
+  locales,
+}: {
+  row: InspectorRow;
+  ctx: RowsCtx;
+  locales: LocaleSettings;
+}) {
+  const { error, commit } = useCommit(ctx, row);
+  return (
+    <FieldRow field={row} scope={settingScope(ctx.doc.docName, row.path)} error={error}>
+      <Select
+        value={locales.default}
+        onValueChange={(next) => {
+          if (typeof next === "string" && next !== locales.default) commit(next);
+        }}
+      >
+        <SelectTrigger size="sm" aria-label={row.path}>
+          <SelectValue>{locales.default}</SelectValue>
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          {locales.available.map((tag) => (
+            <SelectItem key={tag} value={tag}>
+              {tag}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FieldRow>
+  );
+}
+
+/** Each offered locale's fallback chain before the default, as a typed list. */
+function FallbackChains({
+  row,
+  ctx,
+  locales,
+}: {
+  row: InspectorRow;
+  ctx: RowsCtx;
+  locales: LocaleSettings;
+}) {
+  const { error, setError, commit } = useCommit(ctx, row);
+  const chains = locales.fallback ?? {};
+  const keys = [
+    ...new Set([...locales.available.filter((l) => l !== locales.default), ...Object.keys(chains)]),
+  ];
+  const write = (key: string, text: string) => {
+    const tags = splitTags(text);
+    const bad = badTag(tags);
+    if (bad !== undefined) return setError(tagProblem(bad));
+    commit(withEntry(chains, key, tags.length > 0 ? tags : undefined));
+  };
+  return (
+    <FieldRow field={row} scope={settingScope(ctx.doc.docName, row.path)} error={error}>
+      {keys.length === 0 ? (
+        <span className="je-insp-line je-insp-muted">
+          none: every locale falls back to the default
+        </span>
+      ) : (
+        <div className="je-insp-stack" data-gap="tight" role="group" aria-label={row.path}>
+          {keys.map((key) => (
+            <LocaleEntry key={key} name={key}>
+              <RecordInput
+                label={`${row.path}.${key}`}
+                value={(chains[key] ?? []).join(", ")}
+                placeholder="none"
+                onCommit={(text) => write(key, text)}
+              />
+            </LocaleEntry>
+          ))}
+        </div>
+      )}
+    </FieldRow>
+  );
+}
+
+/** The font each locale draws in, "default" first, each picked from the project's fonts. */
+function LocaleFonts({
+  row,
+  ctx,
+  locales,
+}: {
+  row: InspectorRow;
+  ctx: RowsCtx;
+  locales: LocaleSettings;
+}) {
+  const { error, commit } = useCommit(ctx, row);
+  const options = assetOptions(useProjectView(ctx.doc.session), FONT_KINDS);
+  const fonts = locales.fonts ?? {};
+  const keys = [...new Set(["default", ...locales.available, ...Object.keys(fonts)])];
+  const dangling = keys
+    .map((key) => danglingAsset(fonts[key], options, FONT_KINDS))
+    .find((p) => p !== null);
+  return (
+    <FieldRow
+      field={row}
+      scope={settingScope(ctx.doc.docName, row.path)}
+      error={error ?? dangling ?? null}
+    >
+      <div className="je-insp-stack" data-gap="tight" role="group" aria-label={row.path}>
+        {keys.map((key) => (
+          <LocaleEntry key={key} name={key}>
+            <AssetCombobox
+              path={`${row.path}.${key}`}
+              kinds={FONT_KINDS}
+              options={options}
+              value={fonts[key]}
+              mixed={false}
+              optional
+              invalid={danglingAsset(fonts[key], options, FONT_KINDS) !== null}
+              placeholder={key === "default" ? "The engine's font" : "The default font"}
+              onPick={(id) => commit(withEntry(fonts, key, id))}
+            />
+          </LocaleEntry>
+        ))}
+      </div>
+    </FieldRow>
+  );
+}
+
+type LocaleFields = Record<"available" | "default" | "fallback" | "fonts", InspectorRow>;
+
+/** The locales block's field rows, or null when it isn't that block or lacks one of them. */
+function localeFields(row: InspectorRow): LocaleFields | null {
+  if (row.path !== LOCALES_PATH || row.widget.kind !== "object") return null;
+  const child = (name: string) => row.children?.find((c) => c.name === name);
+  const available = child("available");
+  const defaultRow = child("default");
+  const fallback = child("fallback");
+  const fonts = child("fonts");
+  return available && defaultRow && fallback && fonts
+    ? { available, default: defaultRow, fallback, fonts }
+    : null;
+}
+
+/**
+ * The game's locales: the offered ones as chips, the default as a pick of
+ * them, fallback chains per locale and a font picker per locale. Before the
+ * block exists, the first edit writes it whole over the locales the game
+ * plays in now.
+ */
+function LocalesRow({
+  row,
+  fields: { available, default: defaultRow, fallback, fonts },
+  ctx,
+}: {
+  row: InspectorRow;
+  fields: LocaleFields;
+  ctx: RowsCtx;
+}) {
+  const locales = localeSettingsOf(row.value);
+  const inner: RowsCtx = {
+    ...ctx,
+    fills: {
+      ...ctx.fills,
+      [row.path]: { default: locales.default, available: locales.available },
+    },
+  };
+  return (
+    <NestedField field={row}>
+      <AvailableLocales row={available} ctx={inner} locales={locales} />
+      <DefaultLocale row={defaultRow} ctx={inner} locales={locales} />
+      <FallbackChains row={fallback} ctx={inner} locales={locales} />
+      <LocaleFonts row={fonts} ctx={inner} locales={locales} />
+    </NestedField>
+  );
+}
+
 function RowView({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
+  const locales = localeFields(row);
+  if (locales) return <LocalesRow row={row} fields={locales} ctx={ctx} />;
   const axes = row.widget.kind === "readonly" ? unionAxes(row.schema) : null;
   if (axes) return <AxesRow row={row} ctx={ctx} axes={axes} />;
   const props = widgetProps(ctx, row);

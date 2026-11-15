@@ -1,6 +1,6 @@
 import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import type { Store } from "@tanstack/store";
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import type { GameInstance, GameStoreState } from "../../types";
 import { applySoundInPlay, useSoundInPlay } from "../audio/editor-audio";
@@ -26,7 +26,7 @@ import type { EditorHostState } from "../session/live-scene-editor";
 import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
 import { LiveInPlayStatus, livePlayPending } from "./LiveInPlayStatus";
-import { PlayCaptions } from "./play-overlay/PlayCaptions";
+import { PlayCaptions, previewDialogues, type DialoguePreview } from "./play-overlay/PlayCaptions";
 
 /** Where the viewer's Live in Play choice is kept. */
 export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;
@@ -45,6 +45,9 @@ export const SOUND_IN_PLAY_TOOLTIP =
 export const SOUND_NEXT_PLAY = "Sound starts at the next Play";
 
 export const LOCALE_TOOLTIP = "Preview the game's text in another language";
+
+export const DIALOGUE_PREVIEW_TOOLTIP =
+  "Run one of the project's dialogues over the game, to read its lines and choices. Its effects stay in the preview";
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -71,7 +74,8 @@ export function flowRequestedScene(state: Pick<GameStoreState, "session">): stri
  * Live in Play status, a restart when the scene moved on, and the scene a flow
  * request asked for when one ended Play, which opens it. Once the session has
  * an outcome, Resume and Step are off. A project without game code also gets
- * its sounds' captions over the canvas while Sound in Play is on.
+ * its sounds' captions and a dialogue box over the canvas, and a picker that
+ * previews its dialogues there.
  */
 export function EditorPlayBar({
   game,
@@ -94,6 +98,8 @@ export function EditorPlayBar({
   const requested = useStoreValue(game.getStore(), flowRequestedScene);
   const ended = useStoreValue(game.getStore(), (s) => (s.session?.outcome ?? null) !== null);
   const [soundLater, setSoundLater] = useState(false);
+  const [dialogue, setDialogue] = useState<DialoguePreview | null>(null);
+  const endDialogue = useCallback(() => setDialogue(null), []);
   const openScene = project?.openScene;
   const openRequested =
     requested !== null && openScene && requested !== project?.scene
@@ -149,6 +155,11 @@ export function EditorPlayBar({
         {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
         <SoundInPlayToggle game={game} on={sound} onChange={setSound} onLater={setSoundLater} />
         <LocalePicker game={game} />
+        <DialoguePicker
+          game={game}
+          running={dialogue?.id ?? null}
+          onPick={(id) => setDialogue((was) => ({ id, run: (was?.run ?? 0) + 1 }))}
+        />
         <Button
           variant="secondary"
           size="sm"
@@ -186,7 +197,7 @@ export function EditorPlayBar({
           </Island>
         ) : null}
       </div>
-      <PlayCaptions game={game} canvas={canvas} sound={sound} />
+      <PlayCaptions game={game} canvas={canvas} dialogue={dialogue} onDialogueEnd={endDialogue} />
     </div>
   );
 }
@@ -377,8 +388,8 @@ function LocalePicker({ game }: { game: object }) {
         setCurrent(locale.current());
       }}
     >
-      <Hint content={LOCALE_TOOLTIP}>
-        <SelectTrigger size="sm" aria-label="Locale" style={{ width: "auto" }}>
+      <Hint content={`${LOCALE_TOOLTIP}.`}>
+        <SelectTrigger size="sm" aria-label="Locale" className="je-play-select">
           <SelectValue>{localeName(current)}</SelectValue>
         </SelectTrigger>
       </Hint>
@@ -386,6 +397,49 @@ function LocalePicker({ game }: { game: object }) {
         {available.map((code) => (
           <SelectItem key={code} value={code}>
             {localeName(code)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * Previews one of a gameless project's dialogues in the Play overlay; picking
+ * the running one again starts it over. Shown only when the project has a
+ * dialogue and no game code, whose own UI would start and show them.
+ */
+function DialoguePicker({
+  game,
+  running,
+  onPick,
+}: {
+  game: object;
+  running: string | null;
+  onPick: (id: string) => void;
+}) {
+  const { cue } = useKit();
+  const ids = previewDialogues(game);
+  if (ids.length === 0) return null;
+  return (
+    // Held at no value, so picking the running dialogue raises a change and starts it over.
+    <Select
+      value=""
+      onValueChange={(next) => {
+        if (typeof next !== "string" || next === "") return;
+        cue("toggle");
+        onPick(next);
+      }}
+    >
+      <Hint content={`${DIALOGUE_PREVIEW_TOOLTIP}.`}>
+        <SelectTrigger size="sm" aria-label="Preview a dialogue" className="je-play-select">
+          <SelectValue>{running ?? "Dialogue"}</SelectValue>
+        </SelectTrigger>
+      </Hint>
+      <SelectContent>
+        {ids.map((id) => (
+          <SelectItem key={id} value={id}>
+            {id}
           </SelectItem>
         ))}
       </SelectContent>

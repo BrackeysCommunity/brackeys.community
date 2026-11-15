@@ -77,13 +77,13 @@ const BOX_CSS = `
   padding: 6px 10px;
   border: 1px solid transparent;
   border-radius: calc(${UI_THEME.radius} - 2px);
-  background: rgba(255, 255, 255, 0.08);
+  background: ${UI_THEME.choice};
   cursor: pointer;
   pointer-events: auto;
 }
 :where([data-jams-dialogue-choices]) button[data-selected] {
   border-color: ${UI_THEME.accent};
-  background: rgba(255, 255, 255, 0.16);
+  background: ${UI_THEME.choiceSelected};
 }
 :where([data-jams-dialogue-choices]) button:focus-visible {
   outline: 2px solid ${UI_THEME.accent};

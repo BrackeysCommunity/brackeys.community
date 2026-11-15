@@ -12,6 +12,7 @@ import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import { drawnText } from "../../game/rich-text";
 import { splitOverridePath } from "../../scene/field-path";
 import { jsonPointer, makeIssue } from "../../scene/issues";
+import { plural } from "../../scene/plural";
 import {
   PREFAB_KIND,
   PREFAB_MAX_DEPTH,
@@ -528,7 +529,7 @@ function fontCoverageIssues(
       listed.length > LISTED_CODE_POINTS ? `, and ${listed.length - LISTED_CODE_POINTS} more` : "";
     issues.push(
       makeIssue("font-missing", {
-        message: `locale "${locale}" shows ${listed.length} character${listed.length === 1 ? "" : "s"} font "${font}" doesn't cover: ${shown}${more} (in ${rows} row${rows === 1 ? "" : "s"}, first "${first.key}")`,
+        message: `locale "${locale}" shows ${plural(listed.length, "character")} font "${font}" doesn't cover: ${shown}${more} (in ${plural(rows, "row")}, first "${first.key}")`,
         path: first.pointer,
         got: font,
       }),

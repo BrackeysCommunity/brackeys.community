@@ -155,12 +155,17 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
                 .number()
                 .positive()
                 .optional()
-                .describe("How often it's picked against the others; default 1."),
+                .describe("How often it's picked against the others; default 1.")
+                .meta({ default: 1 }),
             })
             .describe("One clip the sound may play."),
         )
         .describe("The clips it picks from on each play, by weight; none plays nothing."),
-      loop: z.boolean().optional().describe("Loop until stopped; default false."),
+      loop: z
+        .boolean()
+        .optional()
+        .describe("Loop until stopped; default false.")
+        .meta({ default: false }),
       cooldownMs: z
         .number()
         .min(0)
@@ -175,11 +180,13 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
         .optional()
         .describe(
           `At most this many playing at once, the oldest stopped; default ${SOUND_MAX_VOICES_DEFAULT}.`,
-        ),
+        )
+        .meta({ default: SOUND_MAX_VOICES_DEFAULT }),
       positional: z
         .boolean()
         .optional()
-        .describe("Pan from where it plays against the main view; default false."),
+        .describe("Pan from where it plays against the main view; default false.")
+        .meta({ default: false }),
       range: z
         .number()
         .positive()
@@ -196,7 +203,8 @@ const soundSchema = (buses: readonly BusName[]): z.ZodType<SoundFile> =>
       preload: z
         .boolean()
         .optional()
-        .describe("Load its clips with the scene bundle instead of on first play."),
+        .describe("Load its clips with the scene bundle instead of on first play; default false.")
+        .meta({ default: false }),
     })
     .describe(
       "One sound: its bus, volume, pitch range and variants, and the step events that play it. Presentation only.",

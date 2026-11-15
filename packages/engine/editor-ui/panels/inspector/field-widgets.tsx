@@ -990,7 +990,7 @@ const flatText = (value: Flat, valueType: z.ZodType): string =>
     : JSON.stringify(value);
 
 /** One entry's key or value: a draft committed on Enter or blur, dropped on Escape. */
-function RecordInput({
+export function RecordInput({
   label,
   value,
   placeholder,

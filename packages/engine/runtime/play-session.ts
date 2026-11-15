@@ -64,21 +64,12 @@ export type PreparedPlay =
   | { ok: false; issues: SceneIssue[] };
 
 /**
- * What a run ran, hashed: the expanded scene, the resolved clock, the
- * project view's data (its settings, engine block without the
- * presentation-only `locales`, the tables the game
- * declares in name order, the input map, every other `sim` kind's docs in
- * kind then id order, and the clips `anim` plays: those of every animation
- * doc and of every source an `anim` block in the scene or a prefab names,
- * resolved against their atlases' frames, durations and tags) and every
- * prefab the run's `ctx.instantiate` may place, in id order. The other
- * `sim` docs and the clips each join under a key written only when there
- * is one, so a project without any keeps the hash it had before; `view`
- * kinds and the scene list never join. File text and paths never reach it,
- * so a re-format or a move that leaves the expanded scene equal leaves it
- * equal, while a changed table row, prefab or atlas timing changes it. A
- * doc's `$schema` points at a schema file's location, not at anything the
- * run reads, so moving the schema leaves it equal too.
+ * What a run ran, hashed: the expanded scene, clock, the project's sim data
+ * (settings, engine block minus presentation-only `locales`, declared
+ * tables, input map, other sim docs, the clips `anim` plays) and every
+ * prefab `ctx.instantiate` may place. Keys join only when present, so a
+ * project without them keeps its hash; file text, paths, `$schema`, view
+ * kinds and the scene list never join.
  */
 export function runHash(
   scene: ExpandedScene,

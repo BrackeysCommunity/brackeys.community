@@ -226,7 +226,9 @@ owner.
   `reducedMotion`.
 - Schematic renders (svg, ascii) draw each text block's measured box,
   labelled ≈ where the size is an estimate (web fonts, no font); `strings`
-  (`SceneTextOptions`) measures key texts in a locale.
+  (`SceneTextOptions`) measures key texts in a locale. `scene render`
+  passes a project scene's default-locale strings and font, so a keyed
+  text in a BMFont is measured exactly and labelled with its text.
 - `usedStringKeys(lookup, scenes?)` collects the string keys dialogues
   (lines' and choices' `text`, speakers' `name`), sounds (`caption`), and
   scenes' and prefabs' `text` blocks name, overrides and the prefab params
@@ -236,8 +238,8 @@ uses?)` keeps the uses with no text in the locale or along its fallback
   text is none). `mergedStrings`, `projectLocales` and `stringLocales` read
   a project's merged rows (first by path wins), its `engine.locales`
   (default `en` without one) and the locales its strings speak.
-  `byPathThenKey`, `docLookup` and `MergedStringRow` are exported from
-  `./project`.
+  `byPathThenKey`, `docLookup`, `docLookupOf`, `isPlainObject`,
+  `localeSettingsOf` and `MergedStringRow` are exported from `./project`.
 - `spawner` takes `asChildren` (default false): each spawn, a type's or a
   prefab instance, goes under the spawner in the scene tree in world terms,
   so it moves, hides and is destroyed with it; a gameless scene can spawn
@@ -374,7 +376,8 @@ other docs:` line and in `data.project`, without changing the exit code.
 - A script's `command` step sends `@dialogue-advance` and
   `@dialogue-choose`.
 - `exploreDialogue(file, { vars, maxDepth })` lists each reachable ending
-  with its shortest choice path.
+  with its shortest choice path, each choice's text key along it
+  (`DialogueEnding.choices`) and the nodes it passes.
 - `createDialogueBox` draws the store's `dialogue` in a `role="dialog"`
   box: the line typed at `speed` characters a second (default 40; whole
   under reduced motion or at `Infinity`), the whole line in a polite live
@@ -391,18 +394,22 @@ other docs:` line and in `data.project`, without changing the exit code.
   backgrounds); `[shake]` and `[wave]` carry `data-jams-effect` for a
   stylesheet and are drawn still.
 - `createCaptions(ctx, { ms })`: each played sound's `caption` and each
-  voiced dialogue line's text, shown for `ms` (default `CAPTION_MS_DEFAULT`,
-  2,500) in an `aria-live="polite"` region along the bottom of the UI layer,
+  voiced dialogue line's text, shown for `ms` (default 2,500) in an
+  `aria-live="polite"` region along the bottom of the UI layer,
   text from `UiContext.strings()` with markup stripped, `dir` from the
   locale, at most three at once, a repeating key restarting its time; it
-  takes no pointer input. A voiced line's caption fills its `{name}` values
+  takes no pointer input. The region and each caption are styled by a
+  zero-specificity sheet, so a game's own class or stylesheet wins. A
+  voiced line's caption fills its `{name}` values
   from the dialogue view, and the region sits above a shown dialogue box,
   which keeps its height plus a gap in `--jams-dialogue-inset` on the UI
   root.
 - `GameInstance.captions` (`enabled()`, `set(on)`): the player's captions
-  choice, kept in the prefs under `captions`; off by default, since no
-  browser exposes the OS's captions request to a page; `set` raises
-  `captions:change`.
+  choice, kept in the prefs under `captions`. Unset, it is on while a
+  `createCaptions` is mounted (so a game that mounts it shows captions, as
+  a game's subtitles are on by default) and off otherwise; a saved `false`
+  always wins. Mounting or unmounting it raises `captions:change` when that
+  flips the choice, as `set` does when it changes it.
 - The audio system raises `audio:caption { key, at }` when a voice starts
   with a caption: a `play` request's `caption`, else the sound's own (music
   included); `at` is the audio clock's seconds.
@@ -504,7 +511,10 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   and dialogue docs, and their audio and font files are served by URL like
   textures.
 - The kitchen sink's render goldens add std-text, std-audio and talk-mark
-  and the sign's text box; nothing else moved.
+  and the sign's text box, measured in the default locale's strings and
+  kitchen font as `scene render` measures it: exact, labelled "Kitchen
+  sink", at the sign's place in Play's camera framing ([10.8, 2.6]).
+  Nothing else moved.
 - Genre pins: the `point-and-click` probe gains a dialogue on a hotspot.
   The door it uses starts a conversation (`ctx.dialogue.start`) that the
   run walks to its `opened` ending through `@dialogue-advance` and
@@ -513,13 +523,18 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   `saved-mid-dialogue` variant, and the point-and-click row has nothing
   pending.
 - Genre pins: `rhythm-tap`'s pins move (127621617ae3b5ea ->
-  c40d8254d18f8d75), and it gains a `saved-between-passes` variant. The
+  8f0e416f97461b72), and it gains a `saved-between-passes` variant. The
   probe now judges against the audio clock. Its chart is a data table, each
   tap is judged in song ms from `simPositionMs` plus its sub-tick
   `InputAction.offset` less `ctx.input.latencyMs()`, and the chart plays
   twice under two `@latency` commands (25 ms, then 40 ms). The same taps
   grade differently in each pass, and every run replays identically. The
-  rhythm row has nothing pending. Every other probe's pin is unchanged.
+  pin moved twice on the way: first to c40d8254d18f8d75, then to
+  8f0e416f97461b72 when the probe's snapshot dropped its own `latencyMs`.
+  A world save now carries the input's latency, so the probe judges by
+  `ctx.input.latencyMs()` alone and its snapshot is one field shorter.
+  Every rhythm-tap variant shares that one digest. The rhythm row has
+  nothing pending. Every other probe's pin is unchanged.
 - In the editor, a selected point entity carrying a `text` block (a
   marker sign) has its move handle just under the text, in line with its
   anchor, instead of on the anchor where it hid the glyphs.
@@ -562,9 +577,14 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   a synth patch through `webAudioBackend`: the context runs, the voice ends
   within the patch's length plus 100 ms, the destination has two channels
   or more, and the patch at `pan: -1` through an offline context puts over
-  95% of its energy on the left. `engine-browser-smoke.json` gains
-  top-level `signs` and `audio` blocks and per-browser `signs` and `audio`
-  probes.
+  95% of its energy on the left. Firefox's real-time context never runs
+  without an output device (a CI runner has none; Chromium and WebKit fake
+  one), so there the smoke accepts a suspended context whose destination
+  reports no device, provided the click unlocked the backend and the voice
+  waits at position 0 on the stopped clock; the offline checks still
+  apply. `engine-browser-smoke.json` gains top-level `signs` and `audio`
+  blocks and per-browser `signs` and `audio` probes, the audio one with
+  `held`.
 - Tests: export-plan.test.ts and game-build.test.ts gain the
   sound-and-text export row: sounds, clips (.wav/.ogg/.mp3), a synth
   patch, a BMFont with its page, strings and a dialogue. Runtime docs ship
@@ -592,7 +612,9 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
   patch's length (`synthDurationMs`), a sound's variants with their
   lengths, and a font's coverage and distance field. `playtest --present`
   lists `audio` play, stop and music requests beside camera and effect
-  requests.
+  requests, and each sound a step event plays through a sound's `on`
+  matchers as an `audio play` naming the event (`on`) and its entity or
+  point (`PlaytestReport.present` with `recordPresentation`).
 - MCP `dialogue_walk`: walks a dialogue's choices from its start with the
   given `vars` (an object or JSON text) and `maxDepth`. It returns the same
   data as `dialogue walk --json`: `endings` (each with `ending`, `path`,
@@ -605,7 +627,21 @@ meta }`: `hash` is the .fnt's content hash and `pages` its page textures'
 --csv` (key,<default>,<locale>,note, RFC 4180 quoting) and `strings
 import <file.csv>` (one batch, one editAsset per strings file) run.
 - The text block's `size`, `wrap` and `outline.width` descriptions say px
-  at zoom 1; the spawner block gains `asChildren`.
+  at zoom 1, and its `align`, `anchor` and `rich` carry their defaults as
+  `default` (`center`, `[0.5, 0.5]`, false), which the inspector shows;
+  the spawner block gains `asChildren`.
+- `sound:v1`'s `variants[].weight`, `loop`, `maxVoices`, `positional` and
+  `preload` carry their defaults as `default` (1, false, 8, false, false).
+  `synth:v1`'s `slide`, `lowpass.sweep` and `highpass.sweep` carry the unit
+  `oct/s`, `slideAccel` `oct/s²`, `dutySweep` `/s`, and `jump.semitones`
+  and `vibrato.semitones` `st`.
+- `game-settings:v1` gains `engine.locales` (`default`, `available`,
+  `fallback`, `fonts`), additive.
+- `asset-sidecar:v1`'s audio meta widens with `durationMs`, `channels` and
+  `sampleRate`, and its font meta with `size`, `advances`, `kerning`,
+  `distanceField` and `coverage`, all optional and additive. The sidecar
+  schema's `meta` stays an open object; the font and audio kinds' meta
+  schemas check the new fields.
 - The asset sidecar schema gains `metaVersion`; the `sound:v1` schema's
   `bus` takes any name (checked against the game's buses) and `caption`
   takes the string-key pattern.

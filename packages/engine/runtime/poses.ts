@@ -110,6 +110,26 @@ export const plainPose = (p: Readonly<Pose>): Pose => ({ x: p.x, y: p.y, rot: p.
 export const samePose = (a: Readonly<Pose>, b: Readonly<Pose>): boolean =>
   a.x === b.x && a.y === b.y && a.rot === b.rot;
 
+/**
+ * Re-poses each of a view system's `posed` entries whose pose-index pose
+ * moved since it was last `applied`, snapping where the index's `prev`
+ * equals the pose (a spawn or a teleport). `skip` passes an entry over.
+ */
+export function settlePosed<A extends { applied: Readonly<Pose> | null }>(
+  poses: PoseIndex,
+  posed: ReadonlyMap<string, A>,
+  place: (id: string, a: A, pose: Readonly<Pose>, snap: boolean) => void,
+  skip?: (a: A) => boolean,
+): void {
+  for (const [id, a] of posed) {
+    if (skip?.(a)) continue;
+    const pose = poses.get(id);
+    if (!pose || (a.applied && samePose(pose, a.applied))) continue;
+    const prev = poses.prev(id);
+    place(id, a, pose, prev !== undefined && samePose(prev, pose));
+  }
+}
+
 /** `pose` in the frame `frame` is posed at: what a body-local offset is for a body placed at `frame`. */
 export function relativePose(pose: Pose, frame: Pose): Pose {
   const dx = pose.x - frame.x;

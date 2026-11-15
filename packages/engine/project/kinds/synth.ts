@@ -161,20 +161,29 @@ const synthSchema: z.ZodType<SynthFile> = z
       `Square only: the high part of the cycle; default ${SYNTH_DEFAULTS.duty}.`,
       { default: SYNTH_DEFAULTS.duty },
     ).optional(),
-    dutySweep: bounded("dutySweep", "Square only: the duty's change per second.").optional(),
+    dutySweep: bounded("dutySweep", "Square only: the duty's change per second.", {
+      unit: "/s",
+    }).optional(),
     freq: bounded("freq", "The pitch at the start, Hz.", { ...WHOLE_HZ, title: "Frequency" }),
-    slide: bounded("slide", "Pitch slide, octaves per second; negative falls.").optional(),
-    slideAccel: bounded("slideAccel", "The slide's change, octaves per second².").optional(),
+    slide: bounded("slide", "Pitch slide, octaves per second; negative falls.", {
+      unit: "oct/s",
+    }).optional(),
+    slideAccel: bounded("slideAccel", "The slide's change, octaves per second².", {
+      unit: "oct/s²",
+    }).optional(),
     jump: z
       .strictObject({
         atMs: bounded("jump.atMs", "When the step happens, ms in.", { unit: "ms", title: "At" }),
-        semitones: bounded("jump.semitones", "The step, semitones.", { title: "Step" }),
+        semitones: bounded("jump.semitones", "The step, semitones.", { unit: "st", title: "Step" }),
       })
       .optional()
       .describe("One pitch step part way through, as a pickup's second note."),
     vibrato: z
       .strictObject({
-        semitones: bounded("vibrato.semitones", "Depth, semitones.", { title: "Depth" }),
+        semitones: bounded("vibrato.semitones", "Depth, semitones.", {
+          unit: "st",
+          title: "Depth",
+        }),
         hz: bounded("vibrato.hz", "Rate, Hz.", { unit: "Hz", title: "Rate" }),
       })
       .optional()
@@ -189,7 +198,9 @@ const synthSchema: z.ZodType<SynthFile> = z
     lowpass: z
       .strictObject({
         hz: bounded("lowpass.hz", "Cutoff, Hz.", { ...WHOLE_HZ, title: "Cutoff" }),
-        sweep: bounded("lowpass.sweep", "Cutoff change, octaves per second.").optional(),
+        sweep: bounded("lowpass.sweep", "Cutoff change, octaves per second.", {
+          unit: "oct/s",
+        }).optional(),
         resonance: bounded("lowpass.resonance", "Peak at the cutoff; default 0.").optional(),
       })
       .optional()
@@ -197,7 +208,9 @@ const synthSchema: z.ZodType<SynthFile> = z
     highpass: z
       .strictObject({
         hz: bounded("highpass.hz", "Cutoff, Hz.", { ...WHOLE_HZ, title: "Cutoff" }),
-        sweep: bounded("highpass.sweep", "Cutoff change, octaves per second.").optional(),
+        sweep: bounded("highpass.sweep", "Cutoff change, octaves per second.", {
+          unit: "oct/s",
+        }).optional(),
       })
       .optional()
       .describe("Cuts what is below the cutoff."),

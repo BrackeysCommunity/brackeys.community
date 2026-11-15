@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { relative, resolve } from "node:path";
 
 import { validatePhysical } from "@jams/engine/headless";
-import { projectView, validateProject, type AssetId, type ProjectView } from "@jams/engine/project";
+import { projectView, validateProject, type ProjectView } from "@jams/engine/project";
 import {
   lineAt,
   pointerLines,
@@ -24,6 +23,7 @@ import {
   type Tool,
 } from "../context";
 import { projectRuntime, scanProject, type ProjectHandle } from "../projects";
+import { docTexts } from "./project-show";
 import { rapierFor } from "./step";
 
 export type ValidateInput = { target?: string; physical?: boolean };
@@ -42,7 +42,7 @@ const issueKey = (i: SceneIssue) => `${i.code}\u0000${i.path ?? ""}\u0000${i.mes
  * didn't already give, its id dropped from `entityIds`) are split from the
  * other docs' (which name their doc first); each gets its line.
  */
-async function projectIssues(
+async function sceneProjectIssues(
   project: ProjectHandle,
   view: ProjectView,
   scene: { file: string; text: string; lines: ReadonlyMap<string, number> },
@@ -50,21 +50,10 @@ async function projectIssues(
   prefab: ReturnType<typeof prefabLookup>,
 ): Promise<{ scene: SceneIssue[]; others: SceneIssue[] }> {
   const scenePath = relative(project.dir, resolve(scene.file)).split("\\").join("/");
-  let sceneId: AssetId | undefined;
-  const texts = new Map<AssetId, string>();
-  for (const entry of view.byId.values()) {
-    if (project.kinds.get(entry.kind)?.storage !== "doc") continue;
-    if (entry.path === scenePath) {
-      sceneId = entry.id;
-      texts.set(entry.id, scene.text);
-      continue;
-    }
-    try {
-      texts.set(entry.id, await readFile(join(project.dir, entry.path), "utf8"));
-    } catch {
-      // A file gone since the scan is left out.
-    }
-  }
+  const sceneId = view.byPath.get(scenePath)?.id;
+  const texts = await docTexts(project, view, (entry) =>
+    entry.id === sceneId ? scene.text : undefined,
+  );
   const issues = validateProject(view, texts, project.kinds, {
     registry: project.registry,
     project: view,
@@ -132,7 +121,7 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
       ];
       if (source.project && project) {
         const file = source.scene?.file ?? target;
-        const found = await projectIssues(
+        const found = await sceneProjectIssues(
           source.project,
           project,
           { file, text, lines },

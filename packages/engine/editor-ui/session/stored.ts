@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useState } from "react";
+
 import type { EditorStorage } from "../host";
 
 /**
@@ -47,4 +49,37 @@ export function writeStored(storage: EditorStorage | null, key: string, value: u
   } catch {
     // Storage is per-viewer and optional.
   }
+}
+
+/**
+ * The boolean stored at `key` (`fallback` when none) and its setter, read
+ * again whenever another tab changes it and when the window regains focus.
+ */
+export function useStoredFlag(
+  storage: EditorStorage | null,
+  key: string,
+  fallback: boolean,
+): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => readStored(storage, key, fallback, storedFlag));
+  useEffect(() => {
+    const sync = () => setOn(readStored(storage, key, fallback, storedFlag));
+    const changed = (e: StorageEvent) => {
+      if (e.key === null || e.key === key) sync();
+    };
+    sync();
+    window.addEventListener("storage", changed);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", changed);
+      window.removeEventListener("focus", sync);
+    };
+  }, [storage, key, fallback]);
+  const set = useCallback(
+    (next: boolean) => {
+      writeStored(storage, key, next);
+      setOn(next);
+    },
+    [storage, key],
+  );
+  return [on, set];
 }

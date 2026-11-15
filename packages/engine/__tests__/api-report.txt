@@ -518,7 +518,9 @@ GesturePreview
 GesturePreviewOptions
 GizmoEdit
 GizmoHandle
+GizmoSource
 GizmoTarget
+GizmoTextEnv
 HANDLE_HIT_PX
 HANDLE_PX
 HandleKind
@@ -683,6 +685,7 @@ fragmentOf
 frameHandles
 geometryOfRef
 gizmoTarget
+gizmoTextEnv
 groupBatch
 hierarchyDown
 hierarchyUp
@@ -1999,6 +2002,7 @@ dialogueRefs
 dialogueStringIssues
 docKindJsonSchema
 docLookup
+docLookupOf
 docNameOf
 emitterIssues
 emitterKind
@@ -2031,6 +2035,7 @@ inputMapProblems
 inputScriptKind
 inspectEntry
 isMetaStale
+isPlainObject
 isRuntimeKind
 isSha256
 isSkippedAssetPath
@@ -2041,6 +2046,7 @@ liveCompat
 liveCompatKey
 liveFiles
 localeFont
+localeSettingsOf
 manifestDocRefs
 materialKind
 materialSchema
@@ -2791,7 +2797,7 @@ type BusLevel = {
     muted: boolean;
     volume: number;
 };
-type BusName = "master" | "music" | "sfx" | "ui" | "voice" | (string & {});
+type BusName = (string & {}) | (typeof ENGINE_BUSES)[number];
 type FakeAudioCall = {
     bus: BusName;
     op: "bus";
@@ -3877,6 +3883,7 @@ declare const TIMING_STORAGE_KEY = "debug-timing";
 
 ## dialogue/explore.ts
 type DialogueEnding = {
+    choices: readonly (null | string)[];
     ending: string;
     nodes: readonly string[];
     path: readonly number[];
@@ -4817,7 +4824,7 @@ declare function rotationPivot(targets: readonly GizmoTarget[]): Pt | null;
 declare function selectAllRefs(def: SceneDefinition, index: SpatialIndex, layers?: PickLayers): Ref[];
 declare function selectionBounds(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null;
 declare function selectionRoots(def: SceneDefinition, refs: readonly Ref[]): Ref[];
-declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[], source?: EditSource): GizmoTarget[];
+declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[], source?: GizmoSource): GizmoTarget[];
 declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 | 1): OpBatch | null;
 declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): SelectingBatch | null;
 declare function zOrderBatch(refs: readonly Ref[], by: -1 | 1): OpBatch | null;
@@ -5028,6 +5035,9 @@ declare function readShapeSize(s: ShapeObj, pxPerMetre: number): string;
 declare const readSize: (w: number, h: number, pxPerMetre: number) => string;
 
 ## editor/gizmos/target.ts
+type GizmoSource = EditSource & {
+    text?: GizmoTextEnv;
+};
 type GizmoTarget = {
     at?: Pt;
     behaviors?: BehaviorGizmo;
@@ -5052,7 +5062,9 @@ type GizmoTarget = {
     }>;
     type: string;
 };
-declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref, source?: EditSource): GizmoTarget | undefined;
+type GizmoTextEnv = Omit<TextMeasureEnv, "pxPerUnit">;
+declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref, source?: GizmoSource): GizmoTarget | undefined;
+declare function gizmoTextEnv(view: ProjectRuntimeView, locale?: string): GizmoTextEnv;
 declare function targetBox(t: GizmoTarget): Aabb;
 declare function targetPivot(t: GizmoTarget): Pt;
 declare const treeBox: (t: GizmoTarget) => Aabb;
@@ -10478,6 +10490,8 @@ declare const byCodeUnit: (a: string, b: string) => number;
 declare const byPathThenKey: (a: AssetEntry, b: AssetEntry) => number;
 declare function defineAssetKind<K extends AssetKindDef>(def: K): K;
 declare function docLookup(byKind: ReadonlyMap<AssetKindName, ReadonlyMap<AssetId, unknown>>, ids?: ReadonlyMap<AssetKindName, readonly AssetId[]>): DocLookup;
+declare function docLookupOf(entries: Iterable<AssetEntry>, valueOf: (entry: AssetEntry) => unknown): DocLookup;
+declare const isPlainObject: (v: unknown) => v is Record<string, unknown>;
 declare const isRuntimeKind: (def: AssetKindDef | undefined) => def is DocKindDef<any>;
 declare function runtimeKindNames(kinds: {
     list(): readonly AssetKindDef[];
@@ -11451,6 +11465,7 @@ type StringsFile = {
     v: typeof STRINGS_VERSION;
 };
 declare function localeFont(locales: LocaleSettings, locale: string): AssetId | undefined;
+declare function localeSettingsOf(block: unknown): LocaleSettings;
 declare function mergedStrings(lookup: DocLookup): Map<string, MergedStringRow>;
 declare function missingStringKeys(lookup: DocLookup, locales: LocaleSettings, locale: string, uses?: readonly StringKeyUse[]): StringKeyUse[];
 declare function projectLocales(lookup: DocLookup): LocaleSettings;
@@ -16410,6 +16425,12 @@ type SceneViewport = {
     scale: number;
     tick: number;
     width: number;
+};
+type TextMeasureEnv = {
+    asset?: (id: string) => FontAssetInfo | null | undefined;
+    font?: TextFont | null;
+    pxPerUnit: number;
+    strings?: Readonly<Record<string, string>>;
 };
 declare function renderSceneSvg(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): string;
 declare function sceneViewport(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): SceneViewport;

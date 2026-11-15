@@ -48,6 +48,8 @@ export type LoadedProject = {
   values: Map<AssetId, unknown>;
   /** Each live doc asset's canonical text, by id; absent where `values` is. */
   texts: Map<AssetId, string>;
+  /** Each live doc asset's file text as read, by id, a doc that doesn't parse included. */
+  sources: Map<AssetId, string>;
   /** Each doc asset's file size in bytes, by key. */
   fileBytes: Map<AssetKey, number>;
 };
@@ -59,6 +61,28 @@ export type LoadedProject = {
  */
 export function codeModules(project: ProjectHandle): Promise<Record<string, CodeModuleInfo>> {
   return fileCodeModules(project);
+}
+
+const readText = (path: string): Promise<string | undefined> =>
+  readFile(path, "utf8").catch(() => undefined);
+
+/**
+ * Each live doc asset's file text, by id, as `validateProject` takes it;
+ * `own` gives an entry's text in place of its file's. A file gone since
+ * the scan is left out.
+ */
+export async function docTexts(
+  project: ProjectHandle,
+  view: ProjectView,
+  own?: (entry: AssetEntry) => string | undefined,
+): Promise<Map<AssetId, string>> {
+  const texts = new Map<AssetId, string>();
+  for (const entry of view.byId.values()) {
+    if (project.kinds.get(entry.kind)?.storage !== "doc") continue;
+    const text = own?.(entry) ?? (await readText(join(project.dir, entry.path)));
+    if (text !== undefined) texts.set(entry.id, text);
+  }
+  return texts;
 }
 
 /**
@@ -78,20 +102,18 @@ export async function loadProject(project: ProjectHandle): Promise<LoadedProject
     project: view,
     prefab: prefabLookup(await prefabsOf({ project }, registry, scan)),
   };
+  const sources = await docTexts(project, view);
   const values = new Map<AssetId, unknown>();
   const texts = new Map<AssetId, string>();
   const fileBytes = new Map<AssetKey, number>();
   const read = async (entry: AssetEntry) => {
     const def = project.kinds.get(entry.kind);
     if (entry.deleted !== undefined || def?.storage !== "doc") return;
-    let text: string;
-    try {
-      text = await readFile(join(project.dir, entry.path), "utf8");
-    } catch {
-      return;
-    }
+    const live = view.byId.get(entry.id)?.key === entry.key;
+    const text = live ? sources.get(entry.id) : await readText(join(project.dir, entry.path));
+    if (text === undefined) return;
     fileBytes.set(entry.key, Buffer.byteLength(text, "utf8"));
-    if (view.byId.get(entry.id)?.key !== entry.key) return;
+    if (!live) return;
     const parsed = parseAssetDoc(def, text, env);
     if (!parsed.ok) return;
     values.set(entry.id, parsed.value);
@@ -104,7 +126,18 @@ export async function loadProject(project: ProjectHandle): Promise<LoadedProject
   for (const entry of view.byKey.values()) {
     if (entry !== mapEntry) await read(entry);
   }
-  return { project, state, problems: scan.problems, view, registry, env, values, texts, fileBytes };
+  return {
+    project,
+    state,
+    problems: scan.problems,
+    view,
+    registry,
+    env,
+    values,
+    texts,
+    sources,
+    fileBytes,
+  };
 }
 
 const projectIds = (ctx: ProjectToolContext) => ctx.projects.map((p) => p.file.id);

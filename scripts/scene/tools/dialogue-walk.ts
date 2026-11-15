@@ -1,6 +1,6 @@
-import { createDialogueRunner, memoryVars, type JsonValue } from "@jams/engine/game";
+import type { JsonValue } from "@jams/engine/game";
 import { exploreDialogue, type DialogueEnding } from "@jams/engine/headless";
-import { DIALOGUE_KIND, projectView, type DialogueFile } from "@jams/engine/project";
+import { DIALOGUE_KIND, isPlainObject, projectView, type DialogueFile } from "@jams/engine/project";
 
 import { failure, isToolResult, plural, usage, type Tool, type ToolResult } from "../context";
 import { locateInProjects, scanProject } from "../projects";
@@ -8,42 +8,15 @@ import { loadProject } from "./project-show";
 
 export const DIALOGUE_WALK_USAGE = "dialogue walk <id> [--vars json] [--project id]";
 
-/** One ending as the walk prints it: `exploreDialogue`'s, plus each choice's text key in path order. */
-export type WalkedEnding = DialogueEnding & { choices: readonly (string | null)[] };
-
 /** What `walkDialogue` found from the conversation's start with the given variables. */
 export type DialogueWalk = {
   start: string;
   vars: JsonValue;
-  endings: readonly WalkedEnding[];
+  endings: readonly DialogueEnding[];
   /** Endings the file's nodes name that no walked path reached, in node order. */
   unreached: readonly string[];
   truncated: boolean;
 };
-
-const isObject = (v: unknown): v is Record<string, JsonValue> =>
-  v !== null && typeof v === "object" && !Array.isArray(v);
-
-/** The text key of each choice `path` takes, read off the runner as it replays the path. */
-function choiceKeys(
-  file: DialogueFile,
-  vars: JsonValue,
-  path: readonly number[],
-): (string | null)[] {
-  const runner = createDialogueRunner(
-    file,
-    file.start,
-    memoryVars(structuredClone(vars)),
-    () => {},
-  );
-  const keys: (string | null)[] = [];
-  for (const index of path) {
-    while (runner.view().choices === null && runner.advance());
-    keys.push(runner.view().choices?.find((c) => c.index === index)?.text ?? null);
-    runner.choose(index);
-  }
-  return keys;
-}
 
 /**
  * Every ending a dialogue reaches from its start with `vars` (default
@@ -59,7 +32,7 @@ export function walkDialogue(
     vars,
     ...(opts.maxDepth === undefined ? {} : { maxDepth: opts.maxDepth }),
   });
-  const endings = explored.endings.map((e) => ({ ...e, choices: choiceKeys(file, vars, e.path) }));
+  const { endings } = explored;
   const reached = new Set(endings.map((e) => e.ending));
   const named = file.nodes.flatMap((n) => (n.end === undefined ? [] : [n.end]));
   return {
@@ -72,7 +45,7 @@ export function walkDialogue(
 }
 
 /** `paid  choices 0 gate.pay  nodes gate > through`. */
-function endingLine(e: WalkedEnding, width: number): string {
+function endingLine(e: DialogueEnding, width: number): string {
   const choices =
     e.path.length === 0
       ? "no choices"
@@ -104,8 +77,8 @@ function varsArg(vars: string | JsonValue | undefined): { vars: JsonValue } | To
     } catch (e) {
       return usage(`--vars isn't JSON: ${e instanceof Error ? e.message : String(e)}`);
     }
-  return isObject(parsed)
-    ? { vars: parsed }
+  return isPlainObject(parsed)
+    ? { vars: parsed as JsonValue }
     : usage('--vars takes a JSON object of the variables the walk starts with, e.g. {"gold":3}');
 }
 

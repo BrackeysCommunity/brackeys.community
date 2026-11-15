@@ -6,8 +6,15 @@ import { DIALOGUE_CHOICES, DIALOGUE_LINE } from "../runtime/types";
 import { createDialogueRunner, type DialogueRunner } from "./runner";
 import { memoryVars } from "./vars";
 
-/** One ending a walk reached, and the choice indices that reach it from `start`. */
-export type DialogueEnding = { ending: string; path: readonly number[]; nodes: readonly string[] };
+/** One ending a walk reached, and the choices that reach it from `start`. */
+export type DialogueEnding = {
+  ending: string;
+  /** Each choice's index into its node's `choices`, in order. */
+  path: readonly number[];
+  /** Each choice's text key along `path`; null for a choice with none. */
+  choices: readonly (string | null)[];
+  nodes: readonly string[];
+};
 
 /** What a breadth-first walk of every choice found. */
 export type DialogueExploration = {
@@ -22,7 +29,12 @@ const MAX_STATES = 10_000;
 /** The most lines one path shows: past it, the path is a loop with no choice in it. */
 const MAX_ADVANCES = 10_000;
 
-type Walk = { runner: DialogueRunner; vars: { readonly value: JsonValue }; nodes: string[] };
+type Walk = {
+  runner: DialogueRunner;
+  vars: { readonly value: JsonValue };
+  nodes: string[];
+  choices: (string | null)[];
+};
 
 /** Plays `path` from `start` on fresh variables, advancing through lines; null when it never comes to rest. */
 function replay(file: DialogueFile, vars: JsonValue, path: readonly number[]): Walk | null {
@@ -44,13 +56,15 @@ function replay(file: DialogueFile, vars: JsonValue, path: readonly number[]): W
     }
   };
   if (!rest()) return null;
+  const choices: (string | null)[] = [];
   for (const choice of path) {
+    choices.push(runner.view().choices?.find((c) => c.index === choice)?.text ?? null);
     runner.choose(choice);
     if (!rest()) return null;
   }
   const view = runner.view();
   if (view.ended !== null) note(view.node);
-  return { runner, vars: host, nodes };
+  return { runner, vars: host, nodes, choices };
 }
 
 /** What two paths share when they stand at the same choices with the same history and variables. */
@@ -71,8 +85,8 @@ function stateKey(walk: Walk): string {
  * (default `{}`), through the dialogue runner, so conditions, effects and
  * `visited` decide what is offered as they do in play. Returns each
  * reachable ending once, with the shortest choice path (indices into the
- * node's `choices`) and the nodes it passes, in the order the walk found
- * them. A path stops at `maxDepth` choices (default 32); paths that reach
+ * node's `choices`), each choice's text key and the nodes it passes, in
+ * the order the walk found them. A path stops at `maxDepth` choices (default 32); paths that reach
  * the same choices with the same history and variables are walked once.
  */
 export function exploreDialogue(
@@ -96,7 +110,12 @@ export function exploreDialogue(
     const view = walk.runner.view();
     if (view.ended !== null) {
       if (!endings.has(view.ended))
-        endings.set(view.ended, { ending: view.ended, path, nodes: walk.nodes });
+        endings.set(view.ended, {
+          ending: view.ended,
+          path,
+          choices: walk.choices,
+          nodes: walk.nodes,
+        });
       continue;
     }
     const enabled = view.choices?.filter((c) => c.enabled) ?? [];

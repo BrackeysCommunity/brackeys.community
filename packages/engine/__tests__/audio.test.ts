@@ -4,7 +4,12 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { MUSIC_DRIFT_LIMIT_MS } from "../audio/clock";
 import { fakeAudioBackend, type FakeAudioBackend, type FakeAudioLogEntry } from "../audio/fake";
 import { renderSynth, synthDurationMs, SYNTH_SAMPLE_RATE } from "../audio/synth";
-import { createAudioSystem, type AudioSystemOptions } from "../audio/system";
+import {
+  createAudioSystem,
+  pickSoundVariant,
+  soundRate,
+  type AudioSystemOptions,
+} from "../audio/system";
 import { soundTriggers } from "../audio/triggers";
 import type { AudioClipHandle, Voice, VoiceOptions } from "../audio/types";
 import { tryWebAudioBackend } from "../audio/web-audio";
@@ -349,6 +354,42 @@ const thudProject = () =>
     synth: { "thud-low": patch({ freq: 120 }), "thud-high": patch({ freq: 240, decayMs: 80 }) },
   });
 
+describe("the variant and rate picks", () => {
+  const variants = [{ clip: "a", weight: 3 }, { clip: "b" }, { clip: "c", weight: 0.5 }];
+
+  it("walk the weights by the roll, skipping what isn't present", () => {
+    expect(pickSoundVariant(variants, () => 0)?.clip).toBe("a");
+    expect(pickSoundVariant(variants, () => 3.5 / 4.5)?.clip).toBe("b");
+    expect(pickSoundVariant(variants, () => 0.999)?.clip).toBe("c");
+    expect(
+      pickSoundVariant(
+        variants,
+        () => 0,
+        (id) => id !== "a",
+      )?.clip,
+    ).toBe("b");
+    expect(
+      pickSoundVariant(
+        variants,
+        () => 0,
+        () => false,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("draw a roll only when there is a choice to make", () => {
+    const roll = vi.fn(() => 0.5);
+    expect(pickSoundVariant([{ clip: "a" }, { clip: "b" }], roll, (id) => id === "b")?.clip).toBe(
+      "b",
+    );
+    expect(soundRate({}, roll)).toBe(1);
+    expect(soundRate({ pitch: [1.2, 1.2] }, roll)).toBe(1.2);
+    expect(roll).not.toHaveBeenCalled();
+    expect(soundRate({ pitch: [0.5, 1.5] }, roll)).toBe(1);
+    expect(roll).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("the audio system", () => {
   let rapier: RapierModule;
   beforeAll(async () => {
@@ -516,6 +557,75 @@ describe("the audio system", () => {
     expect(plays(r.backend.log)[0]!.opts.bus).toBe("music");
     await r.system.unlock();
     expect(r.events).toEqual(["audio:unlocked"]);
+  });
+
+  it("keeps a keyed loop asked for before unlock and starts it on unlock, unless its key stopped", async () => {
+    const r = rig(
+      audioProject({
+        sound: {
+          hum: sound({ variants: [{ clip: "p" }], loop: true, positional: true }),
+          drip: sound({ variants: [{ clip: "q" }], loop: true }),
+          step: sound({ variants: [{ clip: "q" }] }),
+        },
+        synth: { p: patch(), q: patch({ freq: 220 }) },
+      }),
+      { unlocked: false },
+    );
+    r.poses.set("lamp", { x: 5, y: 0, rot: 0 });
+    r.system.frame({ centre: { x: 0, y: 0 }, halfWidth: 10 }, 0);
+    r.system.tick(
+      1,
+      [],
+      [
+        playReq("hum", { key: "lamp", entity: "lamp", volume: 0.5 }),
+        playReq("drip", { key: "tap" }),
+        playReq("step", { key: "feet" }),
+        playReq("drip"),
+      ],
+    );
+    r.system.tick(2, [], [{ op: "stop", key: "tap" }]);
+    expect(plays(r.backend.log)).toEqual([]);
+    await r.system.unlock();
+    const started = plays(r.backend.log);
+    expect(started.map((p) => p.opts.key)).toEqual(["lamp"]);
+    expect(started[0]!.opts.loop).toBe(true);
+    expect(started[0]!.opts.pan).toBe(0.5);
+    expect(started[0]!.opts.volume).toBeCloseTo(0.5);
+    r.system.stopAll();
+    r.system.tick(3, [], []);
+    expect(plays(r.backend.log)).toHaveLength(1);
+  });
+
+  it("drops a keyed loop asked for before unlock once stopAll runs", async () => {
+    const r = rig(
+      audioProject({
+        sound: { hum: sound({ variants: [{ clip: "p" }], loop: true }) },
+        synth: { p: patch() },
+      }),
+      { unlocked: false },
+    );
+    r.system.tick(1, [], [playReq("hum", { key: "lamp" })]);
+    r.system.stopAll();
+    await r.system.unlock();
+    expect(plays(r.backend.log)).toEqual([]);
+  });
+
+  it("never picks a variant whose clip isn't in the project", () => {
+    const r = rig(
+      audioProject({
+        sound: {
+          blip: sound({
+            variants: [
+              { clip: "gone", weight: 100 },
+              { clip: "p", weight: 1 },
+            ],
+          }),
+        },
+        synth: { p: patch() },
+      }),
+    );
+    for (let i = 0; i < 20; i++) r.system.tick(i, [], [playReq("blip")]);
+    expect(plays(r.backend.log)).toHaveLength(20);
   });
 
   it("counts a backend the shell unlocked itself, and one already running", () => {

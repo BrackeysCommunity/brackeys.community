@@ -185,7 +185,7 @@ describe("the sound panel's fields", () => {
     mountSound(session);
     expect(
       await screen.findByText(
-        'String key "gate.nope" has no text in the default locale "en" nor in fr',
+        'String key "gate.nope" has no text in the default locale "en" nor in fr.',
       ),
     ).toBeTruthy();
   });
@@ -323,16 +323,19 @@ describe("the string table and dialogue summaries", () => {
         <StringsPanel asset={asset(STRINGS)} session={session} />
       </KitProvider>,
     );
-    expect(
-      await screen.findByText(
-        "6 keys. Change them in the file, or with vp run scene strings import.",
-      ),
-    ).toBeTruthy();
+    const command = await screen.findByText("vp run scene strings import");
+    expect(command.tagName).toBe("CODE");
+    expect(command.closest("p")?.textContent).toBe(
+      "6 keys. Change them in the file, or with vp run scene strings import.",
+    );
     const locales = document.querySelector<HTMLElement>('dl[aria-label="Locales"]')!;
     await waitFor(() => {
       expect(locales.querySelector('[data-locale="en"]')?.textContent).toBe("All keys");
       expect(locales.querySelector('[data-locale="fr"]')?.textContent).toBe("1 missing");
     });
+    expect(locales.querySelector('[data-locale="fr"] [data-tone="warning"]')?.textContent).toBe(
+      "1 missing",
+    );
     expect(within(locales).getByText("en (default)")).toBeTruthy();
     // The note follows the list it sums up, under the section's title.
     const section = screen.getByRole("region", { name: "Locales" });
@@ -351,6 +354,9 @@ describe("the string table and dialogue summaries", () => {
     const leave = within(keys).getByText("gate.leave").nextElementSibling as HTMLElement;
     expect(leave.querySelector('[data-locale="en"]')?.textContent).toBe("enTurn back.");
     expect(leave.querySelector('[data-locale="fr"]')?.textContent).toBe("frmissing");
+    expect(leave.querySelector('[data-locale="fr"] [data-tone="warning"]')?.textContent).toBe(
+      "missing",
+    );
   });
 
   it("sum up a dialogue's nodes and endings, and list what its checks find", async () => {

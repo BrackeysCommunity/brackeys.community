@@ -33,6 +33,7 @@ export const audioPlayed: AudioProbe = {
   maxChannels: 2,
   patchMs: 200,
   endedMs: 212,
+  held: null,
   leftShare: 1,
   offlineChannels: 2,
 };

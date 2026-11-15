@@ -4,11 +4,14 @@ import type { RichLine } from "./rich";
 /** Width per character, in ems, where no glyph metrics are known. */
 const ESTIMATE_ADVANCE = 0.55;
 /** Line height, in ems, where the font gives none. */
-const ESTIMATE_LINE_HEIGHT = 1.2;
+export const LINE_HEIGHT_EM = 1.2;
 const SPACE = 0x20;
 
-/** One glyph or icon laid out on a line: its advance, and the kerning against the item before it. */
-type Item = { space: boolean; advance: number; kern: number; height: number };
+/** One run laid out on a line: its width, and the kerning against the item before it, which a line's first item drops. */
+export type WrapItem = { space: boolean; width: number; kern?: number };
+
+/** One glyph or icon laid out on a line. */
+type Item = WrapItem & { kern: number; height: number };
 
 /**
  * Exact for BMFont meta (advances, kerning), an estimate otherwise.
@@ -35,7 +38,7 @@ export function measureText(
     for (const [first, second, amount] of font?.kerning ?? [])
       kerning.set(first * 0x110000 + second, amount);
   const lineHeightAt = (px: number): number =>
-    bitmap ? ((font?.lineHeight ?? faceSize) * px) / faceSize : ESTIMATE_LINE_HEIGHT * px;
+    bitmap ? ((font?.lineHeight ?? faceSize) * px) / faceSize : LINE_HEIGHT_EM * px;
 
   let width = 0;
   let height = 0;
@@ -44,7 +47,7 @@ export function measureText(
     let h = from < to ? 0 : lineHeightAt(base);
     for (let k = from; k < to; k++) {
       const item = items[k]!;
-      w += item.advance + (k > from ? item.kern : 0);
+      w += item.width + (k > from ? item.kern : 0);
       h = Math.max(h, item.height);
     }
     width = Math.max(width, w);
@@ -58,7 +61,7 @@ export function measureText(
       const px = span.size ?? size;
       if (span.icon) {
         exact = false;
-        items.push({ space: false, advance: px, kern: 0, height: lineHeightAt(px) });
+        items.push({ space: false, width: px, kern: 0, height: lineHeightAt(px) });
         prev = null;
         continue;
       }
@@ -71,7 +74,7 @@ export function measureText(
           prev && prev.px === px ? (kerning.get(prev.code * 0x110000 + code) ?? 0) * scale : 0;
         items.push({
           space: code === SPACE,
-          advance: known === undefined ? ESTIMATE_ADVANCE * px : known * scale,
+          width: known === undefined ? ESTIMATE_ADVANCE * px : known * scale,
           kern,
           height: lineHeightAt(px),
         });
@@ -87,9 +90,13 @@ export function measureText(
   return { width, height, exact };
 }
 
-/** Greedy word wrap at spaces: calls `emit` with each visual line's item range. */
-function breakLine(
-  items: readonly Item[],
+/**
+ * Greedy word wrap at spaces, the rule measured and drawn text share: the
+ * spaces at a break are dropped and a word wider than `wrap` overflows on a
+ * line of its own. Calls `emit` with each visual line's item range.
+ */
+export function breakLine(
+  items: readonly WrapItem[],
   wrap: number,
   emit: (from: number, to: number) => void,
 ): void {
@@ -104,7 +111,7 @@ function breakLine(
     while (wordTo < items.length && !items[wordTo]!.space) wordTo++;
     let added = 0;
     for (let j = end; j < wordTo; j++)
-      added += items[j]!.advance + (j > start ? items[j]!.kern : 0);
+      added += items[j]!.width + (j > start ? (items[j]!.kern ?? 0) : 0);
     if (end > start && w + added > wrap) {
       if (wordFrom === wordTo) break;
       emit(start, end);

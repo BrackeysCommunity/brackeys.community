@@ -49,8 +49,8 @@ import {
   AUDIO_BUTTON_ID,
   AUDIO_ENDED_SLACK_MS,
   AUDIO_LEFT_SHARE,
+  deviceless,
   judgeMedia,
-  launchOptions,
   type MediaOutcome,
 } from "./browser/media-compare";
 import { rapierSpy, runPhysicsFree } from "./browser/physics-free";
@@ -350,7 +350,7 @@ async function runIn(
 ): Promise<MediaOutcome> {
   let browser: Browser;
   try {
-    browser = await TYPES[name].launch(launchOptions(name));
+    browser = await TYPES[name].launch({ headless: true });
   } catch (err) {
     return judgeLaunchFailure(name, err instanceof Error ? err.message : String(err), ci);
   }
@@ -463,9 +463,13 @@ try {
     const signs = outcome.signs
       ? `; signs lit ${outcome.signs.bitmap.lit} bitmap and ${outcome.signs.web.lit} web points`
       : "";
-    const heard = outcome.audio
-      ? `; patch ended in ${outcome.audio.endedMs} ms of ${outcome.audio.patchMs}, ${(outcome.audio.leftShare * 100).toFixed(1)}% left at pan -1`
+    const audio = outcome.audio;
+    const live = audio
+      ? deviceless(audio, name)
+        ? "no output device, so the patch waited on the stopped clock"
+        : `patch ended in ${audio.endedMs} ms of ${audio.patchMs}`
       : "";
+    const heard = audio ? `; ${live}, ${(audio.leftShare * 100).toFixed(1)}% left at pan -1` : "";
     const detail =
       outcome.status === "pass"
         ? `${outcome.digest}${free}${second}${drew}${split}${signs}${heard} in ${outcome.ms} ms`

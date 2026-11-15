@@ -35,7 +35,8 @@
       "type": "number",
       "minimum": -4,
       "maximum": 4,
-      "description": "Square only: the duty's change per second. -4 to 4."
+      "description": "Square only: the duty's change per second. -4 to 4.",
+      "unit": "/s"
     },
     "freq": {
       "type": "number",
@@ -51,13 +52,15 @@
       "type": "number",
       "minimum": -8,
       "maximum": 8,
-      "description": "Pitch slide, octaves per second; negative falls. -8 to 8."
+      "description": "Pitch slide, octaves per second; negative falls. -8 to 8.",
+      "unit": "oct/s"
     },
     "slideAccel": {
       "type": "number",
       "minimum": -32,
       "maximum": 32,
-      "description": "The slide's change, octaves per second². -32 to 32."
+      "description": "The slide's change, octaves per second². -32 to 32.",
+      "unit": "oct/s²"
     },
     "jump": {
       "description": "One pitch step part way through, as a pickup's second note.",
@@ -76,6 +79,7 @@
           "minimum": -24,
           "maximum": 24,
           "description": "The step, semitones. -24 to 24.",
+          "unit": "st",
           "title": "Step"
         }
       },
@@ -91,6 +95,7 @@
           "minimum": 0,
           "maximum": 12,
           "description": "Depth, semitones. 0 to 12.",
+          "unit": "st",
           "title": "Depth"
         },
         "hz": {
@@ -153,7 +158,8 @@
           "type": "number",
           "minimum": -8,
           "maximum": 8,
-          "description": "Cutoff change, octaves per second. -8 to 8."
+          "description": "Cutoff change, octaves per second. -8 to 8.",
+          "unit": "oct/s"
         },
         "resonance": {
           "type": "number",
@@ -183,7 +189,8 @@
           "type": "number",
           "minimum": -8,
           "maximum": 8,
-          "description": "Cutoff change, octaves per second. -8 to 8."
+          "description": "Cutoff change, octaves per second. -8 to 8.",
+          "unit": "oct/s"
         }
       },
       "required": ["hz"],

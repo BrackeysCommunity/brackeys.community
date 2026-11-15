@@ -20,11 +20,16 @@ import {
 } from "../../../project/kinds/synth";
 import { jsonPointer } from "../../../scene/issues";
 import { Rng } from "../../../sim-kit/rng";
-import { useAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
+import {
+  editAssetJson,
+  useSelectedAssetDoc,
+  type AssetDoc,
+  type AssetDocPanelProps,
+} from "../../audio/asset-doc";
 import { useEditorAudio } from "../../audio/editor-audio";
 import { STORAGE_PREFIX } from "../../host";
 import { Button, IconButton, Switch, useKit } from "../../kit/index";
-import { readStored, storedFlag, writeStored } from "../../session/stored";
+import { useStoredFlag } from "../../session/stored";
 import {
   FieldRow,
   InspectorSection,
@@ -34,11 +39,10 @@ import {
   ReadonlyField,
   SliderField,
 } from "../inspector/field-widgets";
-import { AssetPanel } from "../project-tree/asset-panel";
-import { DocGate } from "../settings/DocGate";
+import { DocAssetShell } from "../project-tree/asset-panel";
 import { settingScope } from "../settings/settings-doc";
 import { synthObject } from "../settings/settings-schemas";
-import { commitSettingsRow, SettingsNote } from "../settings/SettingsRows";
+import { commitSettingsRow } from "../settings/SettingsRows";
 
 /** Where the viewer's choice to hear a patch as it changes is kept. */
 export const SYNTH_SPEAKER_KEY = `${STORAGE_PREFIX}synth-speaker`;
@@ -149,15 +153,9 @@ function Waveform({ samples }: { samples: Float32Array }) {
  * creates the editor's audio.
  */
 export function SynthPanel({ asset, session }: AssetDocPanelProps) {
-  const notify = asset.notify ?? { error: (message: string) => console.error(message) };
-  const doc = useAssetDoc(session, asset.entry.id, {
-    ...(asset.readOnly ? { readOnly: true } : {}),
-    notify,
-  });
+  const doc = useSelectedAssetDoc(asset, session);
   const { storage } = useKit();
-  const [speaker, setSpeaker] = useState(() =>
-    readStored(storage, SYNTH_SPEAKER_KEY, true, storedFlag),
-  );
+  const [speaker, setSpeaker] = useStoredFlag(storage, SYNTH_SPEAKER_KEY, true);
   const { audition, arm } = useAudition(asset.entry.id, speaker);
   const patch = doc.value ? (doc.value as unknown as SynthFile) : null;
   const toggle = (
@@ -168,33 +166,26 @@ export function SynthPanel({ asset, session }: AssetDocPanelProps) {
       label="Hear changes"
       tooltip={speaker ? "Changes play as you make them" : "Changes are silent"}
       aria-pressed={speaker}
-      onClick={() => {
-        const on = !speaker;
-        setSpeaker(on);
-        writeStored(storage, SYNTH_SPEAKER_KEY, on);
-      }}
+      onClick={() => setSpeaker(!speaker)}
     />
   );
   return (
-    <div className="je-doc-asset" onPointerDownCapture={arm} onKeyDownCapture={arm}>
-      <AssetPanel
-        {...asset}
-        audition={
-          patch ? { patch, lengthMs: synthDurationMs(patch), actions: toggle } : { actions: toggle }
-        }
-      />
-      <div className="je-asset-panel je-synth-panel" aria-label="Synth patch">
-        {doc.entry ? (
-          <DocGate doc={doc} noun="synth patch">
-            {(value) => (
-              <SynthFields doc={doc} value={value as unknown as SynthFile} audition={audition} />
-            )}
-          </DocGate>
-        ) : (
-          <SettingsNote>This patch isn't in the project any more.</SettingsNote>
-        )}
-      </div>
-    </div>
+    <DocAssetShell
+      asset={asset}
+      doc={doc}
+      noun="synth patch"
+      label="Synth patch"
+      className="je-synth-panel"
+      audition={
+        patch ? { patch, lengthMs: synthDurationMs(patch), actions: toggle } : { actions: toggle }
+      }
+      onPointerDownCapture={arm}
+      onKeyDownCapture={arm}
+    >
+      {(value) => (
+        <SynthFields doc={doc} value={value as unknown as SynthFile} audition={audition} />
+      )}
+    </DocAssetShell>
   );
 }
 
@@ -241,7 +232,6 @@ function SynthFields({
   value: SynthFile;
   audition: Audition;
 }) {
-  const id = doc.entry!.id;
   const [rng] = useState(() => Rng.from(Math.floor(Math.random() * 0xffff_ffff)));
   const readOnly = doc.readOnly !== null;
   const shape = useMemo(() => synthObject(), []);
@@ -252,7 +242,7 @@ function SynthFields({
   const replace = (next: SynthFile, label: string) => {
     if (!doc.value) return;
     audition(next, true);
-    void doc.edit([{ op: "editAsset", id, edits: replaceEdits(doc.value, next) }], label, scope);
+    editAssetJson(doc, replaceEdits(doc.value, next), label, scope);
   };
 
   const commit: Commit = (row, input, label) =>

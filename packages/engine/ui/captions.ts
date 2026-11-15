@@ -25,28 +25,40 @@ export type CaptionsPreferenceOptions = {
   gameId: () => string;
   /** Called after `set` changes the choice. */
   changed: (enabled: boolean) => void;
-  /**
-   * Whether the OS asks for captions, where the host can tell; no browser
-   * exposes that to a page today, so without it the default is off.
-   */
+  /** Whether the OS asks for captions, where the host can tell; no browser exposes that to a page today. */
   requested?: () => boolean;
 };
 
-/** The player's captions choice over the prefs: what they saved, else the OS's request, else off. */
+/** How `createCaptions` tells the preference it is mounted, so an unset choice reads as on. */
+const MOUNTED = Symbol("captions mounted");
+type MountedCaptions = GameCaptions & { [MOUNTED]?: (delta: 1 | -1) => void };
+
+/**
+ * The player's captions choice over the prefs: what they saved, else on
+ * where the OS asks or while a `createCaptions` is mounted, else off.
+ */
 export function captionsPreference(opts: CaptionsPreferenceOptions): GameCaptions {
   const saved = (): JsonValue | undefined => opts.prefs.load(opts.gameId())[PREF_KEYS.captions];
+  let mounted = 0;
   const enabled = (): boolean => {
     const value = saved();
-    return typeof value === "boolean" ? value : (opts.requested?.() ?? false);
+    return typeof value === "boolean" ? value : opts.requested?.() === true || mounted > 0;
   };
-  return {
+  const pref: MountedCaptions = {
     enabled,
     set(on) {
       const was = enabled();
       setPref(opts.prefs, opts.gameId(), PREF_KEYS.captions, on);
       if (was !== on) opts.changed(on);
     },
+    [MOUNTED](delta) {
+      const was = enabled();
+      mounted += delta;
+      const now = enabled();
+      if (was !== now) opts.changed(now);
+    },
   };
+  return pref;
 }
 
 export type CaptionsOptions = {
@@ -56,8 +68,23 @@ export type CaptionsOptions = {
 
 type Shown = { key: string; el: HTMLElement; timer: ReturnType<typeof setTimeout> };
 
-/** Zero-specificity defaults for each caption, so a game's own stylesheet wins. */
+/** Zero-specificity defaults for the region and each caption, so a game's own class or stylesheet wins. */
 const CAPTION_CSS = `
+:where([data-jams-captions]) {
+  position: absolute;
+  left: ${uiInset("left")};
+  right: ${uiInset("right")};
+  bottom: ${uiInset("bottom", `var(${DIALOGUE_INSET}, 0px)`)};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-family: ${UI_FONT_FAMILY};
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.35;
+  text-align: center;
+}
 :where([data-jams-caption]) {
   max-width: 100%;
   padding: 2px 8px;
@@ -70,8 +97,9 @@ const CAPTION_CSS = `
 
 /**
  * Each played sound's caption and each voiced line's text (`audio:caption`),
- * in a polite live region along the bottom of the layer, while the player's
- * captions preference is on. A key already showing restarts its time rather
+ * in a polite live region along the bottom of the layer. While it is
+ * mounted, captions are on unless the player turned them off
+ * (`GameInstance.captions`). A key already showing restarts its time rather
  * than showing twice. It takes no pointer input.
  */
 export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHandle {
@@ -80,22 +108,7 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
   const region = doc.createElement("div");
   region.setAttribute("data-jams-captions", "");
   region.setAttribute("aria-live", "polite");
-  Object.assign(region.style, {
-    position: "absolute",
-    left: uiInset("left"),
-    right: uiInset("right"),
-    bottom: uiInset("bottom", `var(${DIALOGUE_INSET}, 0px)`),
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "4px",
-    pointerEvents: "none",
-    fontFamily: UI_FONT_FAMILY,
-    fontWeight: "500",
-    fontSize: "15px",
-    lineHeight: "1.35",
-    textAlign: "center",
-  });
+  region.style.pointerEvents = "none";
   followLocale(region, ctx);
   const sheet = styleElement(doc, CAPTION_CSS);
   ctx.root.append(sheet, region);
@@ -165,6 +178,8 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
 
   ctx.game.on("audio:caption", show);
   ctx.game.on("captions:change", onPreference);
+  const preference = ctx.game.captions as MountedCaptions;
+  preference[MOUNTED]?.(1);
 
   let destroyed = false;
   return {
@@ -173,6 +188,7 @@ export function createCaptions(ctx: UiContext, opts: CaptionsOptions = {}): UiHa
       destroyed = true;
       ctx.game.off("audio:caption", show);
       ctx.game.off("captions:change", onPreference);
+      preference[MOUNTED]?.(-1);
       unlocale();
       unwatch();
       clear();

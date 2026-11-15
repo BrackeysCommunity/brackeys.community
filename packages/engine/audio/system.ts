@@ -99,6 +99,43 @@ export const MUSIC_FADE_MS_DEFAULT = 800;
 /** A positional voice's source: an entity it follows, or a fixed point. */
 type Source = { entity?: string; at?: Vec2 };
 
+type PlayRequest = {
+  source?: Source;
+  volume?: number;
+  pitch?: number;
+  key?: string;
+  caption?: string;
+};
+
+type Variant = SoundFile["variants"][number];
+
+/**
+ * A variant by weight among those `present` keeps (all without it); `roll`
+ * is drawn only when there are two or more to choose from.
+ */
+export function pickSoundVariant<V extends Pick<Variant, "clip" | "weight">>(
+  variants: readonly V[],
+  roll: () => number,
+  present?: (clip: AssetId) => boolean,
+): V | undefined {
+  const candidates = present ? variants.filter((v) => present(v.clip)) : variants;
+  if (candidates.length <= 1) return candidates[0];
+  let total = 0;
+  for (const v of candidates) total += v.weight ?? 1;
+  let left = roll() * total;
+  for (const v of candidates) {
+    left -= v.weight ?? 1;
+    if (left < 0) return v;
+  }
+  return candidates[candidates.length - 1];
+}
+
+/** A play's rate within the sound's pitch range; `roll` is drawn only for a range. */
+export function soundRate(file: Pick<SoundFile, "pitch">, roll: () => number): number {
+  const [min, max] = file.pitch ?? [1, 1];
+  return min === max ? min : min + (max - min) * roll();
+}
+
 /** Where a voice plays from: set for a positional sound's voice. */
 type Placed = {
   source: Source | null;
@@ -150,6 +187,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
   let project = opts.project;
   let triggers: SoundTriggers = buildTriggers();
   const rng = Rng.from(gameId);
+  const roll = () => unitFloat(rng);
 
   const patches = new Map<AssetId, { doc: SynthFile; clip: AudioClipHandle }>();
   const clips = new Map<AssetId, Clip>();
@@ -158,6 +196,8 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
   let music: Music | null = null;
   /** Music asked for before unlock: undefined for none, null for silence. */
   let pendingMusic: { sound: AssetId; fadeMs: number; tick: number | null } | null | undefined;
+  /** Per key, the latest looping play asked for before unlock; a one-shot then is dropped. */
+  const pendingLoops = new Map<string, { sound: AssetId; request: PlayRequest }>();
   /** The last tick the system was handed and the context time it came at. */
   let lastTick: { tick: number; at: number } | null = null;
   let driftMs = 0;
@@ -265,24 +305,12 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     });
   }
 
-  function pickVariant(file: SoundFile): AssetId | undefined {
-    const { variants } = file;
-    if (variants.length <= 1) return variants[0]?.clip;
-    let total = 0;
-    for (const v of variants) total += v.weight ?? 1;
-    let roll = unitFloat(rng) * total;
-    for (const v of variants) {
-      roll -= v.weight ?? 1;
-      if (roll < 0) return v.clip;
-    }
-    return variants[variants.length - 1]?.clip;
-  }
+  /** Whether a variant's clip or patch is in the project, so a dangling one is never picked. */
+  const present = (id: AssetId) =>
+    project.doc?.<SynthFile>(SYNTH_KIND, id) !== undefined ||
+    project.asset(id)?.kind === AUDIO_KIND;
 
-  function pickRate(file: SoundFile, override: number | undefined): number {
-    if (override !== undefined) return override;
-    const [min, max] = file.pitch ?? [1, 1];
-    return min === max ? min : min + (max - min) * unitFloat(rng);
-  }
+  const pickVariant = (file: SoundFile) => pickSoundVariant(file.variants, roll, present)?.clip;
 
   function positionOf(p: Placed): Vec2 | undefined {
     const source = p.source;
@@ -309,13 +337,13 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     if (voices.some((p) => p.voice.ended)) voices = voices.filter((p) => !p.voice.ended);
   }
 
-  function play(
-    sound: AssetId,
-    request: { source?: Source; volume?: number; pitch?: number; key?: string; caption?: string },
-  ) {
-    if (!unlocked) return;
+  function play(sound: AssetId, request: PlayRequest) {
     const file = soundFile(sound);
     if (!file) return;
+    if (!unlocked) {
+      if (file.loop && request.key !== undefined) pendingLoops.set(request.key, { sound, request });
+      return;
+    }
     if (file.cooldownMs !== undefined && file.cooldownMs > 0) {
       const last = lastPlayMs.get(sound);
       if (last !== undefined && nowMs() - last < file.cooldownMs) return;
@@ -323,7 +351,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     const clipId = pickVariant(file);
     if (clipId === undefined) return;
     lastPlayMs.set(sound, nowMs());
-    const rate = pickRate(file, request.pitch);
+    const rate = request.pitch ?? soundRate(file, roll);
     const volume = (file.volume ?? 1) * (request.volume ?? 1);
     const source = file.positional && request.source ? request.source : null;
     const caption = request.caption ?? file.caption;
@@ -375,7 +403,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     const file = sound === null ? undefined : soundFile(sound);
     const clipId = file ? pickVariant(file) : undefined;
     if (sound === null || !file || clipId === undefined) return;
-    const rate = pickRate(file, undefined);
+    const rate = soundRate(file, roll);
     const anchor: MusicAnchor | null =
       tick === null ? null : { startTick: tick, startTime: contextTimeOf(tick), offsetMs: 0, rate };
     const own: Music = { sound, voice: null, anchor, clip: null, span: null };
@@ -519,6 +547,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
         return;
       }
       case "stop": {
+        pendingLoops.delete(r.key);
         const waiting = waitingKeys.get(r.key);
         if (waiting) waiting.stops++;
         for (const p of voices) if (p.voice.key === r.key) p.voice.stop(r.fadeMs);
@@ -545,6 +574,9 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     const waiting = pendingMusic;
     pendingMusic = undefined;
     if (waiting) startMusic(waiting.sound, waiting.fadeMs, waiting.tick);
+    const loops = [...pendingLoops.values()];
+    pendingLoops.clear();
+    for (const { sound, request } of loops) play(sound, request);
   }
 
   const checkUnlocked = () => {
@@ -571,6 +603,7 @@ export function createAudioSystem(opts: AudioSystemOptions): AudioSystemHandle {
     music?.voice?.stop(fadeMs);
     music = null;
     pendingMusic = undefined;
+    pendingLoops.clear();
     driftMs = 0;
   }
 

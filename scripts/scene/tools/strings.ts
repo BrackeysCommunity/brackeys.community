@@ -1,6 +1,6 @@
 import {
   byPathThenKey,
-  docLookup,
+  docLookupOf,
   keyedItemPointer,
   LOCALE_PATTERN,
   mergedStrings,
@@ -10,7 +10,6 @@ import {
   stringLocales,
   STRINGS_KIND,
   type AssetId,
-  type AssetKindName,
   type DocLookup,
   type JsonEdit,
   type LocaleSettings,
@@ -122,17 +121,8 @@ export function parseCsv(text: string): string[][] {
 type Strings = { project: ProjectHandle; lookup: DocLookup; locales: LocaleSettings };
 
 /** A lookup over a project's parsed docs, each kind's ids in path order. */
-function lookupOf(view: ProjectView, values: ReadonlyMap<AssetId, unknown>): DocLookup {
-  const ids = new Map<AssetKindName, AssetId[]>();
-  const byKind = new Map<AssetKindName, Map<AssetId, unknown>>();
-  for (const entry of [...view.byId.values()].sort(byPathThenKey)) {
-    ids.set(entry.kind, [...(ids.get(entry.kind) ?? []), entry.id]);
-    if (!values.has(entry.id)) continue;
-    const docs = byKind.get(entry.kind) ?? new Map<AssetId, unknown>();
-    byKind.set(entry.kind, docs.set(entry.id, values.get(entry.id)));
-  }
-  return docLookup(byKind, ids);
-}
+const lookupOf = (view: ProjectView, values: ReadonlyMap<AssetId, unknown>): DocLookup =>
+  docLookupOf([...view.byId.values()].sort(byPathThenKey), (e) => values.get(e.id));
 
 const stringsOf = (project: ProjectHandle, lookup: DocLookup): Strings => ({
   project,

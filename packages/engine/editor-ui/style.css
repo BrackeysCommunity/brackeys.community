@@ -34,6 +34,7 @@
     --je-inset: 8px;
     --je-gap: 8px;
     --je-pad: 6px;
+    --je-gap-tight: 4px;
     --je-row: 24px;
     --je-control: 26px;
     --je-tab: 28px;
@@ -2164,6 +2165,12 @@
     align-items: center;
   }
 
+  /* Sized to what it names rather than filling the row like a field's select. */
+  .je-play-select {
+    flex-shrink: 0;
+    width: auto;
+  }
+
   .je-scene-changed {
     gap: 8px;
     padding-left: 12px;
@@ -2892,7 +2899,7 @@
 
   .je-insp-stack[data-gap="tight"],
   .je-insp-row[data-gap="tight"] {
-    gap: 4px;
+    gap: var(--je-gap-tight);
   }
 
   .je-insp-row[data-align="start"] {
@@ -3051,6 +3058,17 @@
     flex: 1;
     min-width: 80px;
     width: auto;
+  }
+
+  /* A locale's key in a column of its own, so each entry's control starts at the same x. */
+  .je-locale-key {
+    flex: 0 0 3.75em;
+    color: var(--je-muted-fg);
+  }
+
+  .je-locale-entry > :last-child {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .je-insp-slots {
@@ -3872,7 +3890,7 @@
   .je-asset-audible {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--je-gap-tight);
     min-width: 0;
   }
 
@@ -3885,7 +3903,7 @@
     display: inline-flex;
     flex-shrink: 0;
     align-items: center;
-    gap: 4px;
+    gap: var(--je-gap-tight);
   }
 
   .je-asset-audition-length {
@@ -3909,20 +3927,20 @@
   }
 
   .je-sound-panel .je-insp-line {
-    gap: 4px;
+    gap: var(--je-gap-tight);
     min-width: 0;
   }
 
   .je-sound-variant + .je-sound-variant,
   .je-sound-trigger + .je-sound-trigger {
-    padding-top: 4px;
+    padding-top: var(--je-gap-tight);
     border-top: 1px dashed var(--je-border);
   }
 
   .je-asset-panel-issues {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--je-gap-tight);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -3946,13 +3964,13 @@
   .je-synth-presets {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: var(--je-gap-tight);
   }
 
   .je-strings-keys {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    gap: 4px 8px;
+    gap: var(--je-gap-tight) var(--je-gap);
     margin: 0;
     font-size: var(--je-text);
   }
@@ -3974,7 +3992,7 @@
 
   .je-strings-text {
     display: flex;
-    gap: 6px;
+    gap: var(--je-pad);
     min-width: 0;
   }
 

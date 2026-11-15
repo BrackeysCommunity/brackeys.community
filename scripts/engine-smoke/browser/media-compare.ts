@@ -38,6 +38,12 @@ export type AudioProbe = {
   patchMs: number;
   /** From `play` until the voice reported `ended`; null when it hadn't by the page's cap. */
   endedMs: number | null;
+  /**
+   * On a context that never ran: whether the voice, played anyway, was still
+   * waiting at position 0 on the stopped clock past its patch's length.
+   * Null on a running context.
+   */
+  held: boolean | null;
   /** The offline render's share of its energy in the left channel, 0–1. */
   leftShare: number;
   offlineChannels: number;
@@ -48,26 +54,6 @@ export const AUDIO_ENDED_SLACK_MS = 100;
 
 /** The offline render at `pan: -1` puts more than this share of its energy on the left. */
 export const AUDIO_LEFT_SHARE = 0.95;
-
-/**
- * The prefs the runner launches Firefox with. Its real-time context never
- * resumes without an output device, as on a CI runner; Gecko's mock audio
- * device runs the graph on a simulated clock instead, as headless Chromium's
- * fake output does.
- */
-export const FIREFOX_AUDIO_PREFS: Readonly<Record<string, boolean>> = {
-  "media.cubeb.force_mock_context": true,
-};
-
-/** How the runner launches `name`: headless, and Firefox on its mock audio device. */
-export function launchOptions(name: BrowserName): {
-  headless: true;
-  firefoxUserPrefs?: Readonly<Record<string, boolean>>;
-} {
-  return name === "firefox"
-    ? { headless: true, firefoxUserPrefs: FIREFOX_AUDIO_PREFS }
-    : { headless: true };
-}
 
 /** The button the runner clicks to give the page the gesture audio needs. */
 export const AUDIO_BUTTON_ID = "smoke-audio";
@@ -116,9 +102,23 @@ export function judgeSigns(signs: SignProbe | undefined): string | null {
   return null;
 }
 
-/** Why the audio run failed, or null. */
-export function judgeAudio(audio: AudioProbe | undefined): string | null {
-  if (!audio) return "the page ran no audio";
+/**
+ * Firefox's real-time context never runs without an output device, as on a
+ * CI runner, where Chromium and WebKit fake one. There the live run proves
+ * the gesture unlocked the backend and the voice was scheduled on the
+ * context's clock; the offline render proves the graph.
+ */
+export const deviceless = (audio: AudioProbe, browser: BrowserName | undefined): boolean =>
+  browser === "firefox" &&
+  audio.maxChannels === 0 &&
+  audio.context === "suspended" &&
+  audio.backend === "suspended";
+
+function judgeLive(audio: AudioProbe, browser: BrowserName | undefined): string | null {
+  if (deviceless(audio, browser))
+    return audio.held === true
+      ? null
+      : "with no output device the patch's voice didn't wait on the stopped context clock";
   if (audio.context !== "running" || audio.backend !== "running") {
     const why = audio.maxChannels === 0 ? " (its destination has no output device to run on)" : "";
     return `after the click the context is ${audio.context} and the backend ${audio.backend}, not running${why}`;
@@ -127,6 +127,14 @@ export function judgeAudio(audio: AudioProbe | undefined): string | null {
     return `the destination has ${audio.channels} channel${audio.channels === 1 ? "" : "s"}, not two or more`;
   if (audio.endedMs === null || audio.endedMs > audio.patchMs + AUDIO_ENDED_SLACK_MS)
     return `the patch's voice ${audio.endedMs === null ? "never ended" : `ended after ${audio.endedMs} ms`}, not within its ${audio.patchMs} ms plus ${AUDIO_ENDED_SLACK_MS}`;
+  return null;
+}
+
+/** Why the audio run in `browser` failed, or null. */
+export function judgeAudio(audio: AudioProbe | undefined, browser?: BrowserName): string | null {
+  if (!audio) return "the page ran no audio";
+  const live = judgeLive(audio, browser);
+  if (live) return live;
   if (audio.offlineChannels < 2)
     return `the offline render has ${audio.offlineChannels} channel, not two`;
   if (!(audio.leftShare > AUDIO_LEFT_SHARE))
@@ -148,6 +156,6 @@ export function judgeMedia(
     ...(result.audio ? { audio: result.audio } : {}),
   };
   if (outcome.status !== "pass") return seen;
-  const wrong = judgeSigns(result.signs) ?? judgeAudio(result.audio);
+  const wrong = judgeSigns(result.signs) ?? judgeAudio(result.audio, outcome.browser);
   return wrong ? { ...seen, status: "fail", reason: wrong } : seen;
 }

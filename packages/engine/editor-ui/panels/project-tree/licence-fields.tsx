@@ -33,7 +33,7 @@ const FIELDS: readonly { field: Field; title: string; hint: string; placeholder:
     field: "attribution",
     title: "Credit",
     hint: "The exact credit line the licence asks for; the credits page prints it.",
-    placeholder: "“Sprite” by Ana, CC-BY-4.0",
+    placeholder: "“Title” by Name, CC-BY-4.0",
   },
 ];
 

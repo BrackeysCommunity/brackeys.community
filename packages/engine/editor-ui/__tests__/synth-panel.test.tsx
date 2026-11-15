@@ -280,6 +280,23 @@ describe("the synth patch panel", () => {
     );
   });
 
+  it("follows the speaker choice another tab makes", async () => {
+    const panel = mount(await open());
+    await settle();
+    const speaker = panel.getByRole("button", { name: "Hear changes" });
+    expect(speaker.getAttribute("aria-pressed")).toBe("true");
+    stored.set(SYNTH_SPEAKER_KEY, "false");
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: SYNTH_SPEAKER_KEY }));
+    });
+    expect(speaker.getAttribute("aria-pressed")).toBe("false");
+    stored.set(SYNTH_SPEAKER_KEY, "true");
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(speaker.getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("labels the presets in sentence case and puts Mutate at the end of their heading", async () => {
     const panel = mount(await open());
     await settle();

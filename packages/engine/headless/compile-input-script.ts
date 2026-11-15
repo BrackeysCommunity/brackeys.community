@@ -852,18 +852,11 @@ export type ScriptSource = InputSource & {
 };
 
 /**
- * Plays a compiled script one slot at a time: every track from slot 0 at
- * once, each `TickInput` holding each seat's button edges (releases first),
- * analog values, pointer (only when it changed), seat changes and commands,
- * all on its step's first slot but the pointer. The actions bound to a
- * pointer button are held while it is down, as in live play. A step's length counts
- * slots, so an idle turns or event game still moves through it; `until` is
- * judged by `holds` after each simulated tick. The input runs out
- * (`script-end`) once every track's steps have; nothing is released then.
- * A track that ends before the others likewise keeps what its last step
- * held (buttons, values, pointer) until the script ends: end it on a
- * `wait` to let go, and on a pointer `release` for a pointer button.
- * A script written with `steps` plays as seat 0's one track.
+ * Plays a compiled script one slot at a time, every track from slot 0. A
+ * step's edges, values, seats and commands land on its first slot; `until`
+ * is judged after each tick. A track that ends early keeps what its last
+ * step held until the script ends (`script-end`): end on a `wait` or a
+ * pointer `release` to let go.
  */
 export function scriptSource(
   script: CompiledInputScript,

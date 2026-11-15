@@ -27,8 +27,7 @@ import { snapToPixel } from "../scene/units";
 import { canBeChild, parentTargets } from "../scene/validate";
 import { moveBatch } from "./gizmos/batch";
 import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
-import { gizmoTarget, targetPivot, type GizmoTarget } from "./gizmos/target";
-import type { EditSource } from "./gizmos/tree";
+import { gizmoTarget, targetPivot, type GizmoSource, type GizmoTarget } from "./gizmos/target";
 import { buildOutline, liftIntoTree, liftedBatch, outOfTreeReason } from "./outline";
 import { outlineBounds, outlineLook } from "./outline-bounds";
 import type { PickLayers } from "./picking";
@@ -63,7 +62,7 @@ export function targetsOf(
   def: SceneDefinition,
   registry: Registry,
   refs: readonly Ref[],
-  source?: EditSource,
+  source?: GizmoSource,
 ): GizmoTarget[] {
   return refs
     .map((r) => gizmoTarget(def, registry, r, source))

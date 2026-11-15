@@ -22,6 +22,8 @@ import type { FieldEnv } from "../types";
 /** The font size, px at zoom 1, when a block gives none. */
 export const TEXT_SIZE_DEFAULT = 16;
 export const TEXT_COLOR_DEFAULT = 0xffffff;
+/** Where the pose sits in a box whose block names no `anchor`: its centre. */
+const TEXT_ANCHOR_DEFAULT: readonly [number, number] = [0.5, 0.5];
 
 const unit = z.number().min(0).max(1);
 
@@ -59,7 +61,7 @@ const textFields = (env: FieldEnv) => ({
     .enum(["left", "center", "right"])
     .optional()
     .describe("How lines line up; default center.")
-    .meta({ group: "look" }),
+    .meta({ default: "center", group: "look" }),
   anchor: z
     .tuple([
       unit.describe("x: 0 the box's left edge, 1 its right."),
@@ -67,7 +69,7 @@ const textFields = (env: FieldEnv) => ({
     ])
     .optional()
     .describe("Where the pose sits in the text's box, 0–1; default the centre.")
-    .meta({ group: "placement", step: 0.05, decimals: 2 }),
+    .meta({ default: TEXT_ANCHOR_DEFAULT, group: "placement", step: 0.05, decimals: 2 }),
   wrap: z
     .number()
     .int()
@@ -79,7 +81,7 @@ const textFields = (env: FieldEnv) => ({
     .boolean()
     .optional()
     .describe("Read [b], [color=…], [icon=…] and the other tags; default false.")
-    .meta({ group: "text" }),
+    .meta({ default: false, group: "text" }),
   outline: z
     .strictObject({
       width: z.number().positive().describe("Width, px at zoom 1.").meta({ unit: "px" }),
@@ -189,6 +191,6 @@ export function textBoxShape(
 ): Extract<ShapeObj, { type: "box" }> {
   const w = size.width / pxPerUnit;
   const h = size.height / pxPerUnit;
-  const [ax, ay] = anchor ?? [0.5, 0.5];
+  const [ax, ay] = anchor ?? TEXT_ANCHOR_DEFAULT;
   return { type: "box", cx: (0.5 - ax) * w, cy: (0.5 - ay) * h, hw: w / 2, hh: h / 2, rotDeg: 0 };
 }

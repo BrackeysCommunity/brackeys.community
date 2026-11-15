@@ -1404,13 +1404,13 @@ describe("the audio, text, dialogue and localisation examples run", () => {
     });
   });
 
-  it("gate-playtest.ts pays the toll by command, keeps the music requests and walks every ending", async () => {
+  it("gate-playtest.ts pays the toll by command, keeps the music requests and the coin its trigger plays, and walks every ending", async () => {
     const { payAndWalk } = await import("../examples/gate-playtest");
     expect(payAndWalk()).toEqual({
       result: "paid",
       nodes: ["through"],
       paid: true,
-      audio: ["0 music tune-sound", "3 music null"],
+      audio: ["0 music tune-sound", "1 play coin-sound", "3 music null"],
       rich: ["paid via [0]", "left via [1]"],
       poor: ["left via [1]"],
     });

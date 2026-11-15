@@ -324,10 +324,64 @@ export function dialogueDeadEnd(node: DialogueNode): "none" | "guarded" | null {
 }
 
 /**
+ * Where the runner goes from `node` without showing a line or waiting on
+ * the player: `else` when its `if` fails, and `next` when it may show no
+ * line and offer no choice.
+ */
+function quietExits(node: DialogueNode): string[] {
+  const out: string[] = [];
+  if (node.if && node.else !== undefined) out.push(node.else);
+  const silent = node.lines.every((l) => l.if !== undefined);
+  const noChoice = (node.choices ?? []).every((c) => c.if !== undefined);
+  if (silent && noChoice && node.next !== undefined) out.push(node.next);
+  return out;
+}
+
+/**
+ * The loops the runner can go round without showing a line or offering a
+ * choice, each as its nodes in file order. "certain": every node in it has
+ * no `if`, no lines and no choices, so entering it always stalls.
+ */
+function quietLoops(file: DialogueFile): { nodes: string[]; certain: boolean }[] {
+  const nodes = dialogueNodes(file);
+  const reach = new Map<string, Set<string>>();
+  const reachOf = (from: string): Set<string> => {
+    let seen = reach.get(from);
+    if (seen) return seen;
+    seen = new Set<string>();
+    const queue = [from];
+    for (let i = 0; i < queue.length; i++) {
+      const node = nodes.get(queue[i]!);
+      for (const to of node ? quietExits(node) : [])
+        if (nodes.has(to) && !seen.has(to)) {
+          seen.add(to);
+          queue.push(to);
+        }
+    }
+    reach.set(from, seen);
+    return seen;
+  };
+  const placed = new Set<string>();
+  const out: { nodes: string[]; certain: boolean }[] = [];
+  for (const id of nodes.keys()) {
+    if (placed.has(id) || !reachOf(id).has(id)) continue;
+    const loop = [...nodes.keys()].filter((m) => reachOf(id).has(m) && reachOf(m).has(id));
+    for (const m of loop) placed.add(m);
+    const certain = loop.every((m) => {
+      const n = nodes.get(m)!;
+      return !n.if && n.lines.length === 0 && (n.choices ?? []).length === 0;
+    });
+    out.push({ nodes: loop, certain });
+  }
+  return out;
+}
+
+/**
  * A dialogue's graph checks, which need no other doc: `asset-missing`
  * (`detail.kind: "node"`) for a `start`, `to`, `next` or `else` naming no
  * node; `dialogue-dead-end` for a node that can stall (an error, or a
- * warning when only its choices' conditions can strand it);
+ * warning when only conditions can strand it: its choices' `if`s, its own
+ * `if` with no `else`, or a loop of nodes that may show nothing);
  * `dialogue-unreachable` for a node no path from `start` reaches. Paths
  * point into the file by node index. Never throws.
  */
@@ -366,6 +420,15 @@ export function dialogueIssues(file: DialogueFile): SceneIssue[] {
           hint: "Give one choice no `if`, or give the node a `next` or an `end` to fall back on.",
         }),
       );
+    if (node.if && node.else === undefined)
+      issues.push(
+        makeIssue("dialogue-dead-end", {
+          severity: "warn",
+          message: `node "${node.id}" has an \`if\` and no \`else\`, so entering it when the \`if\` fails stops the conversation`,
+          path: nodeIndexAt(n, "if"),
+          hint: "Give the node an `else`, or put the condition on the choices that lead to it.",
+        }),
+      );
     if (reached && !reached.has(node.id))
       issues.push(
         makeIssue("dialogue-unreachable", {
@@ -374,6 +437,25 @@ export function dialogueIssues(file: DialogueFile): SceneIssue[] {
         }),
       );
   });
+  const index = new Map<string, number>();
+  file.nodes.forEach((node, n) => {
+    if (!index.has(node.id)) index.set(node.id, n);
+  });
+  for (const loop of quietLoops(file)) {
+    const named = loop.nodes.map((id) => `"${id}"`).join(", ");
+    const message =
+      loop.nodes.length === 1
+        ? `node ${named} can pass back to itself without showing a line or offering a choice, so the conversation stops there`
+        : `nodes ${named} can pass on round each other without showing a line or offering a choice, so the conversation stops there`;
+    issues.push(
+      makeIssue("dialogue-dead-end", {
+        ...(!loop.certain && { severity: "warn" as const }),
+        message,
+        path: nodeIndexAt(index.get(loop.nodes[0]!)!),
+        hint: "Give one of them a line, a choice without `if`, or an `end` in place of `next`.",
+      }),
+    );
+  }
   return issues;
 }
 

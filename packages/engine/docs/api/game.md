@@ -7993,14 +7993,11 @@ Refers to [`DecorEntity`](#decorentity), [`EngineContext`](#enginecontext), [`Re
 
 _function_ in `dialogue/runner.ts`
 
-Starts a conversation at `opts.node` (default the file's `start`) and
-shows its first line. `emit` receives the effects' `emit` events and the
-runner's own `dialogue:line { dialogue, node, line }`, `dialogue:choices
-{ dialogue, node, count }` and `dialogue:end { dialogue, ending }`.
-`opts.visited` is the saved history `visited` conditions also see.
-Where the file gives no way on, the conversation stops in place with
-`stuck` set and `advance` answers false; the kind's checks report each
-such node.
+Starts a conversation at `opts.node` (default `start`) and shows its first
+line; `emit` gets the effects' events and the runner's `dialogue:*`
+events. `opts.visited` is the saved history `visited` conditions see.
+With no way on, it stops with `stuck` set and `advance` answers false;
+the kind's `dialogue-dead-end` check reports where that can happen.
 
 ```ts
 declare function createDialogueRunner(file: DialogueFile, id: AssetId, vars: DialogueVars, emit: (type: string, data?: JsonValue) => void, opts?: {

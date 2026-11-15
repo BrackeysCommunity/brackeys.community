@@ -70,6 +70,13 @@ export function spawnPose(e: RuntimeEntity, registry: Registry): Pose {
   return spawnPoseOf(e, spawnGeometryOf(registry.types.get(e.type)));
 }
 
+/** `entity`'s live pose, else where it spawns: where a view system first draws it. */
+export const initialPose = (
+  ctx: Pick<EngineContext, "poses" | "registry">,
+  id: string,
+  entity: RuntimeEntity,
+): Readonly<Pose> => ctx.poses.get(id) ?? spawnPose(entity, ctx.registry);
+
 /** An entity's live pose, else where it spawns, else the origin when the scene has no such entity. */
 export function currentPose(
   ctx: Pick<EngineContext, "poses" | "get" | "registry">,

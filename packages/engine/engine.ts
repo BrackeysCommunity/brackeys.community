@@ -611,8 +611,9 @@ export async function createGame(
     return own;
   }
 
+  /** The game-settings file's assets: its game fields' and the locales' fonts. */
   function resolveProject(view: ProjectView): AssetBundle {
-    const settings = project ? { game: project.settings } : undefined;
+    const settings = project ? { engine: project.engine, game: project.settings } : undefined;
     return projectBundle(view, settings, assets!.kinds, registry).bundle;
   }
 
@@ -669,6 +670,17 @@ export async function createGame(
     setGameSlice(store, loaded?.runtime.game?.storeSlice?.() ?? null);
   }
 
+  /**
+   * The loaded scene's conversation while playing, else none. Called after
+   * every step and wherever `loaded` changes or is restored, so a
+   * conversation a load, save or swap starts shows without waiting for a
+   * step an event or turns game may never take.
+   */
+  function syncDialogue(): void {
+    const view = getMode() === "play" ? (loaded?.runtime.ctx.dialogue.view() ?? null) : null;
+    setDialogue(store, view);
+  }
+
   function teardownScene(): void {
     if (!loaded) return;
     stopWorldSounds();
@@ -679,6 +691,7 @@ export async function createGame(
     if (loaded.bundle) assets?.loader.release(loaded.bundle);
     loaded = null;
     syncGameSlice();
+    syncDialogue();
   }
 
   /**
@@ -777,6 +790,7 @@ export async function createGame(
     loaded = { runtime, view, attachment: game?.attach?.(shell, runtime) ?? null, bundle };
     debugOverlay?.setPhysics(runtime.ctx);
     syncGameSlice();
+    syncDialogue();
     camera.setBoundsFromScene(scene.bounds);
     const rigDef = frameOf(0) === "scene" ? null : rigDefOf(scene, 0);
     main.rig = rigDef ? createCameraRig(rigDef, scene.name) : null;
@@ -1012,6 +1026,7 @@ export async function createGame(
     layoutViewports();
     updateCamera(store, camera.getState());
     loaded?.attachment?.onModeChange?.(mode);
+    syncDialogue();
     if (mode === "play") openAudio();
     else closeAudio();
     if (mode === "play" && store.state.phase === "running") focusInput();
@@ -1364,7 +1379,6 @@ export async function createGame(
     enterMode("edit");
     if (remembered) restoreCamera(remembered.camera);
     setSession(store, null);
-    setDialogue(store, null);
     // Edit mode's camera and overlays tick too, so the loop runs on at 1x, with no flash left over.
     effects?.layer.clear();
     loop.setTimeScale(1);
@@ -2379,7 +2393,7 @@ export async function createGame(
         playTick(result, presentTick(result.present));
         shellTiming.lap("step");
         incrementTick(store);
-        setDialogue(store, loaded.runtime.ctx.dialogue.view());
+        syncDialogue();
         events.emit("scene:step", result);
         shellTiming.lap("listeners");
         const requests = loaded.runtime.takeRequests();
@@ -2976,12 +2990,14 @@ export async function createGame(
     const authored = id === null ? authoredScene() : null;
     runtime.unload();
     syncGameSlice();
+    syncDialogue();
     return () => {
       if (destroyed || loaded !== prior) return;
       const back =
         id !== null ? loadListed(runtime, id, { entry }) : authored ? runtime.load(authored) : null;
       if (back && !back.ok && cfg.dev) console.warn("[flow] the previous scene didn't load again");
       syncGameSlice();
+      syncDialogue();
     };
   }
 
@@ -3245,6 +3261,7 @@ export async function createGame(
     syncTickRate(loaded.runtime.ctx.time);
     debugOverlay?.setPhysics(loaded.runtime.ctx);
     syncGameSlice();
+    syncDialogue();
     // The camera keeps its place and zoom: only a load snaps it.
     camera.setBoundsFromScene(scene.bounds);
     updateCamera(store, camera.getState());

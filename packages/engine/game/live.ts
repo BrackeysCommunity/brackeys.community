@@ -156,6 +156,10 @@ export const SWAP_TIMING_WORDS: Readonly<
 /** `text` with its first letter upper-cased, as a sentence starts a clause. */
 export const capitalise = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** `text` as a sentence: capitalised, and stopped unless it already ends in `.`, `?` or `!`. */
+export const sentence = (text: string): string =>
+  `${capitalise(text)}${/[.?!]$/.test(text) ? "" : "."}`;
+
 /** How a timing reads in a message: `next load`, `boundary` or `now`. */
 export const timingWords = (t: SwapTiming): string => SWAP_TIMING_WORDS[t].short;
 

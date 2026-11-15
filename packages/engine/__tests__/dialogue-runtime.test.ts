@@ -31,6 +31,8 @@ import { expandScene } from "../scene/expand";
 import { hashText } from "../scene/hash";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
+import { createDialogueBox } from "../ui/dialogue";
+import { mountUi } from "../ui/layer";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -528,6 +530,43 @@ describe("a turns game", () => {
       expect(instance.send(advance)).toBe(true);
       wall(500);
       expect(store.state.dialogue).toBeNull();
+    });
+
+    it("shows a conversation an event game's load starts at Play, and its box advances it", async () => {
+      const game = talker({ kind: "event" }, { onLoad: true }) as GameDefinition;
+      const instance = await createGame(canvas, {
+        game,
+        project,
+        scene: expandScene(PORCH, createRegistry(game)),
+      });
+      games.push(instance);
+      instance.start();
+      const store = instance.getStore();
+      instance.setMode("edit");
+      expect(store.state.dialogue).toBeNull();
+
+      const played = instance.play(PORCH);
+      expect(played, JSON.stringify(played)).toMatchObject({ ok: true });
+      expect(store.state.dialogue).toMatchObject({ node: "hello", line: 0 });
+      const idle = store.state.tick;
+      wall(500);
+      expect(store.state.tick).toBe(idle);
+
+      const send = vi.spyOn(instance, "send");
+      const unmount = mountUi(instance, canvas, (ctx) =>
+        createDialogueBox(ctx, { speed: Infinity }),
+      );
+      const box = document.querySelector<HTMLElement>("[data-jams-dialogue]")!;
+      expect(box.hidden).toBe(false);
+      box.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      expect(send).toHaveBeenCalledWith({ name: DIALOGUE_ADVANCE_COMMAND });
+      wall(500);
+      expect(store.state.dialogue).toMatchObject({ node: "hello", line: 1 });
+
+      instance.setMode("edit");
+      expect(store.state.dialogue).toBeNull();
+      expect(box.hidden).toBe(true);
+      unmount();
     });
   });
 });

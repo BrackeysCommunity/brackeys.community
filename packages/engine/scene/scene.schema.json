@@ -2046,12 +2046,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -2081,6 +2083,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -3382,12 +3385,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -3417,6 +3422,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -4706,12 +4712,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -4741,6 +4749,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -6274,12 +6283,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -6309,6 +6320,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -7656,12 +7668,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -7691,6 +7705,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -8980,12 +8995,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -9015,6 +9032,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -10539,12 +10557,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -10574,6 +10594,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -12114,12 +12135,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -12149,6 +12172,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },
@@ -13696,12 +13720,14 @@
                     },
                     "align": {
                       "description": "How lines line up; default center.",
+                      "default": "center",
                       "group": "look",
                       "type": "string",
                       "enum": ["left", "center", "right"]
                     },
                     "anchor": {
                       "description": "Where the pose sits in the text's box, 0–1; default the centre.",
+                      "default": [0.5, 0.5],
                       "group": "placement",
                       "step": 0.05,
                       "decimals": 2,
@@ -13731,6 +13757,7 @@
                     },
                     "rich": {
                       "description": "Read [b], [color=…], [icon=…] and the other tags; default false.",
+                      "default": false,
                       "group": "text",
                       "type": "boolean"
                     },

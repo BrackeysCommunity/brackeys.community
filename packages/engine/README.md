@@ -4994,7 +4994,9 @@ layer, bursts to the particle layer, sounds to the audio system. A request made 
 first). Headless, the list is dropped unless asked for: `recordPresentation:
 true` keeps it in each `StepResult.present` (`createHeadlessRuntime`) or in
 a playtest report's `present`, each request with its tick, and `vp run
-scene playtest --present` prints it.
+scene playtest --present` prints it. A recording playtest also lists each
+sound a step event plays through a sound's `on` matchers, as an audio
+`play` naming the event (`on`), beside the requests.
 
 **Presentation never changes a digest.** Nothing presentation does reaches
 the simulation: no request returns a value, the camera rig and the particle
@@ -6303,7 +6305,8 @@ Dialogue is simulation: it runs headless, records, replays and saves.
   for a node, an ending (`true` for any) or the conversation to start or
   stop. `exploreDialogue(file, { vars?, maxDepth? })` (`./headless`) walks
   every choice breadth-first and returns each reachable ending with the
-  choice path to it; `vp run scene dialogue walk <id>` prints the same.
+  choice path to it and each choice's text key; `vp run scene dialogue
+walk <id>` prints the same.
 - **Checks.** `dialogue-dead-end` (a node with no choices, `next` or
   `end`; as a warning, every choice can be hidden with nothing to fall back
   on), `dialogue-unreachable` (no path from `start` reaches a node),
@@ -6559,8 +6562,10 @@ export function payAndWalk() {
 ```
 
 It ends `paid`, with `toll-paid` raised, the line event of the `through`
-node (the first line shows at load, before the run's first tick), and two
-music requests: `tune-sound` at tick 0 and `null` at the ending. With
+node (the first line shows at load, before the run's first tick), two
+music requests (`tune-sound` at tick 0 and `null` at the ending) and, at
+tick 1, the `coin-sound` play that `toll-paid` triggers through the
+sound's `on` matcher. With
 three gold the walk finds `paid via [0]` and `left via [1]`; with none,
 only `left via [1]`, since the toll's choice is hidden.
 
@@ -6721,7 +6726,9 @@ every game, its floor:
   dialogue box. The audio system raises `audio:caption { key, at }` for
   each. They show while the player's captions choice is on:
   `GameInstance.captions.enabled()` and `set(on)`, saved in the prefs
-  under `captions`, off by default.
+  under `captions`. Unset, the choice is on while `createCaptions` is
+  mounted, so a game that mounts it captions by default; a player who
+  turns them off keeps them off.
 - **HUD and dialogue as DOM** with roles and live regions: the dialogue
   box is a `role="dialog"` region with its line in a live region and its
   choices as buttons, so keyboards and screen readers reach them; the UI
@@ -6751,7 +6758,7 @@ code, an input script and the result it must reach:
 | `shooter`         | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`, each trailing an `emitter`; each is destroyed on its first wall contact and shakes the camera. `runner`: course chunks built ahead of the runner and dropped behind it, over two parallax backdrops                                     |
 | `roguelike`       | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs                                                                                                                                                                                          |
 | `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script and a split screen; the first knock-out wins                                                                                                                                                          |
-| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it                                                                                                                                                                  |
+| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it, and the door starts a dialogue (`ctx.dialogue.start`) walked by `@dialogue-advance` and `@dialogue-choose`                                                      |
 | `rhythm-tap`      | rhythm                                    | none    | fixed | a chart from a data table against a tick-aligned song: taps between ticks are graded by their `offset` less the `@latency` in force, two passes under two calibrations grade the same taps differently, and a replay grades them the same; with a view, the song's clock must match the ticks |
 | `tower-defense`   | tower defense                             | none    | fixed | waves from a data table spawn creeps along a flow field; legal `build` commands place towers firing `lifetime` bolts                                                                                                                                                                          |
 | `racing`          | racing                                    | rapier  | fixed | a damped car drives three laps through four gates in order behind a look-ahead camera rig, with a tweened ghost                                                                                                                                                                               |

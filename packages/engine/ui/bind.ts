@@ -3,6 +3,7 @@ import { localeFont, localeSettingsOf } from "../project/kinds/strings";
 import type { GameStoreState, Vec2 } from "../types";
 import { UI_LAYER_RESIZE } from "./layer";
 import type { UiContext } from "./types";
+import { ensureWebFont, webFontFamily } from "./web-font";
 
 const toText = (v: unknown): string => {
   if (v == null) return "";
@@ -99,6 +100,9 @@ export const UI_THEME = {
   bg: "var(--jams-dialogue-bg, rgba(14, 14, 22, 0.9))",
   fg: "var(--jams-dialogue-fg, #f4f4f8)",
   accent: "var(--jams-dialogue-accent, #ffd36e)",
+  /** A dialogue choice's fill, and the selected one's. */
+  choice: "var(--jams-dialogue-choice, rgba(255, 255, 255, 0.08))",
+  choiceSelected: "var(--jams-dialogue-choice-selected, rgba(255, 255, 255, 0.16))",
   radius: "8px",
 } as const;
 
@@ -120,18 +124,10 @@ function localeFontFamily(el: HTMLElement, ctx: UiContext): string | null {
   const id = localeFont(localeSettingsOf(project.engine.locales), ctx.strings().locale);
   const font = textFontOf((asset) => project.asset(asset), id);
   if (font?.kind !== "web" || id === undefined) return null;
-  const fonts = el.ownerDocument.fonts as FontFaceSet | undefined;
-  const Face = el.ownerDocument.defaultView?.FontFace;
-  if (!fonts || !Face) return null;
-  const family = `jams-ui-font-${font.family}`;
-  if (![...fonts].some((face) => face.family.replace(/"/g, "") === family)) {
-    const url = ctx.assetUrl(id)?.url;
-    if (!url) return null;
-    const face = new Face(family, `url(${JSON.stringify(url)})`);
-    fonts.add(face);
-    face.load().catch(() => {});
-  }
-  return family;
+  const made = ensureWebFont(el.ownerDocument, font.family, () => ctx.assetUrl(id)?.url ?? null);
+  if (!made) return null;
+  if (made.added) made.face.load().catch(() => {});
+  return webFontFamily(font.family);
 }
 
 /** Sets `el`'s `dir`, `lang` and `--jams-ui-font` from the locale now; call again on `onLocale`. */

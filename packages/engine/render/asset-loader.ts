@@ -13,6 +13,7 @@ import { parseBmfont } from "../project/inspect/bmfont";
 import { readFontFormat } from "../project/inspect/font";
 import { FONT_KIND } from "../project/kinds/font";
 import type { AssetId, ProjectId, Sha256 } from "../project/types";
+import { ensureWebFont, webFontFamily } from "../ui/web-font";
 import type { TextureSource } from "./pixi-view";
 import type { FontSource } from "./text";
 
@@ -72,10 +73,10 @@ function urlUses(cache: object): UrlUses {
   return uses;
 }
 
-/** A loaded font: a BMFont's glyph layout, or a web font registered with the document. */
+/** A loaded font: a BMFont's glyph layout, or a web font registered with the document (`added` when this loader added it). */
 type LoadedFont =
   | { kind: "bitmap"; data: BitmapFontData }
-  | { kind: "web"; family: string; face: FontFace };
+  | { kind: "web"; family: string; face: FontFace; added: boolean };
 
 /** A texture or a font; `bytes` is a texture's decoded size, a font's file size. */
 type Resident = {
@@ -108,15 +109,19 @@ function bitmapFontData(text: string): BitmapFontData | null {
   return data;
 }
 
-/** A font's bytes loaded: a web font registered with `document.fonts` under a family named for its hash, else a BMFont. */
+/** A font's bytes loaded: a web font registered with `document.fonts` under its hash's family, else a BMFont. */
 async function readFont(hash: Sha256, buffer: ArrayBuffer): Promise<LoadedFont | null> {
   const bytes = new Uint8Array(buffer);
   if (readFontFormat(bytes)) {
-    const family = `jams-font-${hash}`;
-    const face = new FontFace(family, buffer);
-    await face.load();
-    document.fonts.add(face);
-    return { kind: "web", family, face };
+    const made = ensureWebFont(document, hash, buffer);
+    if (!made) return null;
+    try {
+      await made.face.load();
+    } catch (error) {
+      if (made.added) document.fonts.delete(made.face);
+      throw error;
+    }
+    return { kind: "web", family: webFontFamily(hash), face: made.face, added: made.added };
   }
   const data = bitmapFontData(new TextDecoder().decode(bytes));
   return data ? { kind: "bitmap", data } : null;
@@ -195,7 +200,9 @@ export function createAssetLoader(opts: {
 
   function unload(resident: Resident): void {
     if (resident.font) {
-      if (resident.font.kind === "web") document.fonts.delete(resident.font.face);
+      // A face the DOM helpers added first stays theirs.
+      if (resident.font.kind === "web" && resident.font.added)
+        document.fonts.delete(resident.font.face);
       return;
     }
     const { url } = resident;

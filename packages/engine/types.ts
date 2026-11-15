@@ -636,7 +636,7 @@ export type GameInstance = {
   readonly audio: GameAudio | null;
   /** The player's language: a browser preference the simulation never sees. */
   readonly locale: GameLocale;
-  /** The player's captions choice, a browser preference kept in the prefs under "captions"; `createCaptions` shows captions only while it is on. */
+  /** The player's captions choice, a browser preference kept in the prefs under "captions"; unset, it is on while a `createCaptions` is mounted, which shows captions only while it is on. */
   readonly captions: GameCaptions;
   /**
    * Plays a click track and times presses of the game's UI-only actions (any

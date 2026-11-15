@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 
-import { projectView, type ProjectView } from "@jams/engine/project";
+import { stringTableData, textFontOf, type StringTableData } from "@jams/engine/game";
+import { localeFont, localeSettingsOf, projectView, type ProjectView } from "@jams/engine/project";
 import {
   formatAsciiMap,
   renderSceneSvg,
@@ -17,6 +18,7 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "@jams/engine/scene";
+import type { ProjectScan } from "@jams/engine/vite";
 
 import {
   failure,
@@ -27,7 +29,7 @@ import {
   type Tool,
   type ToolResult,
 } from "../context";
-import { scanProject, type ProjectHandle } from "../projects";
+import { projectRuntime, scanProject, type ProjectHandle } from "../projects";
 import { rasterizeSvg } from "../raster";
 
 /** The view of the project a scene is in, which sizes its sprites; undefined outside every project. */
@@ -36,6 +38,23 @@ export async function sceneProjectView(
 ): Promise<ProjectView | undefined> {
   if (!project) return undefined;
   return projectView((await scanProject(project)).state, project.kinds);
+}
+
+/**
+ * What keyed text in a project's scenes is measured in: its default
+ * locale's strings and font, the data the shell hands a scene view.
+ * Undefined outside every project.
+ */
+export async function sceneStrings(
+  project: ProjectHandle | null,
+  registry: Registry,
+  scan?: ProjectScan,
+): Promise<StringTableData | undefined> {
+  if (!project) return undefined;
+  const runtime = await projectRuntime(project, registry, scan);
+  const locales = localeSettingsOf(runtime.engine.locales);
+  const font = textFontOf((id) => runtime.asset(id), localeFont(locales, locales.default));
+  return stringTableData(runtime, locales.default, font);
 }
 
 /** A derived box in metres, each side to the format's rounding rule. */
@@ -159,7 +178,10 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
   const loaded = await openScene(ctx, input.scene, "render <scene|file|->");
   if (!loaded.ok) return loaded.result;
   const { name, def, registry, prefabs } = loaded;
-  const project = await sceneProjectView(loaded.project);
+  const scan = loaded.project ? await scanProject(loaded.project) : undefined;
+  const project =
+    loaded.project && scan ? projectView(scan.state, loaded.project.kinds) : undefined;
+  const strings = await sceneStrings(loaded.project, registry, scan);
 
   let overlay: SceneOverlay | undefined;
   if (input.overlay !== undefined) {
@@ -178,6 +200,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
         registry,
         prefabs,
         ...(project ? { project } : {}),
+        ...(strings ? { strings } : {}),
         ...(overlay ? { overlay } : {}),
       });
       const text = formatAsciiMap(map);
@@ -202,6 +225,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
       registry,
       prefabs,
       ...(project ? { project } : {}),
+      ...(strings ? { strings } : {}),
       ...(overlay ? { overlay } : {}),
     };
     const svg = renderSceneSvg(def, opts);

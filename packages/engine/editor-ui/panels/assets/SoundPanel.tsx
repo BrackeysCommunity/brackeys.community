@@ -3,15 +3,19 @@ import type { ReactNode } from "react";
 
 import type { InspectorRow } from "../../../editor/inspector-model";
 import { settingsRows } from "../../../editor/settings-model";
-import { capitalise } from "../../../game/live";
-import type { JsonEdit } from "../../../project/index";
+import { sentence } from "../../../game/live";
 import { keyedItemPointer } from "../../../project/json-edit";
 import { AUDIO_KIND } from "../../../project/kinds/audio";
 import { audioBuses, soundBusProblem, type SoundFile } from "../../../project/kinds/sound";
 import { SYNTH_KIND } from "../../../project/kinds/synth";
 import { ENGINE_STEP_EVENTS } from "../../../runtime/types";
 import { jsonPointer } from "../../../scene/issues";
-import { useAssetDoc, type AssetDoc, type AssetDocPanelProps } from "../../audio/asset-doc";
+import {
+  editAssetJson,
+  useSelectedAssetDoc,
+  type AssetDoc,
+  type AssetDocPanelProps,
+} from "../../audio/asset-doc";
 import { AuditionButton } from "../../audio/editor-audio";
 import { IconButton, Text } from "../../kit/index";
 import { useProjectView } from "../EditorProject";
@@ -31,8 +35,7 @@ import {
   type NameProblem,
   type StringKeyTable,
 } from "../inspector/field-widgets";
-import { AssetPanel, useStringKeyTable } from "../project-tree/asset-panel";
-import { DocGate } from "../settings/DocGate";
+import { DocAssetShell, useStringKeyTable } from "../project-tree/asset-panel";
 import { settingScope } from "../settings/settings-doc";
 import { soundShapes } from "../settings/settings-schemas";
 import { commitSettingsRow, SettingsNote, SettingsRows } from "../settings/SettingsRows";
@@ -57,9 +60,6 @@ const eventProblem = (event: string): NameProblem | null =>
 
 const asSound = (value: Record<string, unknown>) => value as unknown as SoundFile;
 
-/** An issue's message as a sentence: capitalised, and stopped unless it ends in a question. */
-const sentence = (message: string) => `${capitalise(message)}${/[.?!]$/.test(message) ? "" : "."}`;
-
 /**
  * A `sound` asset: its bus, its plain fields (volume, pitch, loop and the
  * rest) as the settings panels draw them, its variants with a weight and a
@@ -67,27 +67,14 @@ const sentence = (message: string) => `${capitalise(message)}${/[.?!]$/.test(mes
  * `editAsset` batch, so it co-edits and undoes in one step.
  */
 export function SoundPanel({ asset, session, registry }: AssetDocPanelProps) {
-  const notify = asset.notify ?? { error: (message: string) => console.error(message) };
-  const doc = useAssetDoc(session, asset.entry.id, {
-    ...(asset.readOnly ? { readOnly: true } : {}),
-    notify,
-  });
+  const doc = useSelectedAssetDoc(asset, session);
   const strings = useStringKeyTable(session);
   return (
-    <div className="je-doc-asset">
-      <AssetPanel {...asset} />
-      <div className="je-asset-panel je-sound-panel" aria-label="Sound">
-        {doc.entry ? (
-          <DocGate doc={doc} noun="sound">
-            {(value) => (
-              <SoundFields doc={doc} value={asSound(value)} registry={registry} strings={strings} />
-            )}
-          </DocGate>
-        ) : (
-          <SettingsNote>This sound isn't in the project any more.</SettingsNote>
-        )}
-      </div>
-    </div>
+    <DocAssetShell asset={asset} doc={doc} noun="sound" label="Sound" className="je-sound-panel">
+      {(value) => (
+        <SoundFields doc={doc} value={asSound(value)} registry={registry} strings={strings} />
+      )}
+    </DocAssetShell>
   );
 }
 
@@ -199,14 +186,16 @@ function BusRow({
     ...(problem && current !== null ? [{ value: current, label: `${current} (not a bus)` }] : []),
   ];
   return (
-    <OptionsField
-      field={row}
-      scope={settingScope(doc.docName, "bus")}
-      options={options}
-      segmented={false}
-      commit={(input) => commitSettingsRow(doc, row, input)}
-      problem={problem ? `${sentence(problem.message)} ${problem.hint}` : null}
-    />
+    <Locked disabled={doc.readOnly !== null}>
+      <OptionsField
+        field={row}
+        scope={settingScope(doc.docName, "bus")}
+        options={options}
+        segmented={false}
+        commit={(input) => commitSettingsRow(doc, row, input)}
+        problem={problem ? `${sentence(problem.message)} ${problem.hint}` : null}
+      />
+    </Locked>
   );
 }
 
@@ -226,11 +215,8 @@ function Variants({
 }) {
   const view = useProjectView(doc.session);
   const options = assetOptions(view, VARIANT_KINDS);
-  const id = doc.entry!.id;
   const readOnly = doc.readOnly !== null;
   const scope = settingScope(doc.docName, "variants");
-  const edit = (edits: JsonEdit[], label: string) =>
-    void doc.edit([{ op: "editAsset", id, edits }], label, scope);
   const taken = new Set(value.variants.map((v) => v.clip));
   return (
     <InspectorSection id="sound:variants" title="Variants">
@@ -265,7 +251,12 @@ function Variants({
                     invalid={problem !== null}
                     onPick={(next) => {
                       if (next === undefined || next === variant.clip) return;
-                      edit([{ set: `${at}/clip`, value: next }], "Change a variant");
+                      editAssetJson(
+                        doc,
+                        [{ set: `${at}/clip`, value: next }],
+                        "Change a variant",
+                        scope,
+                      );
                     }}
                   />
                   <AuditionButton id={variant.clip} name={name} />
@@ -275,7 +266,7 @@ function Variants({
                     label={`Remove the variant ${name}`}
                     tooltip="Remove the variant"
                     disabled={readOnly}
-                    onClick={() => edit([{ remove: at }], "Remove a variant")}
+                    onClick={() => editAssetJson(doc, [{ remove: at }], "Remove a variant", scope)}
                   />
                 </div>
               </FieldRow>
@@ -296,7 +287,12 @@ function Variants({
               placeholder="Add a clip or a patch"
               onPick={(next) => {
                 if (next !== undefined)
-                  edit([{ insert: "/variants", value: { clip: next } }], "Add a variant");
+                  editAssetJson(
+                    doc,
+                    [{ insert: "/variants", value: { clip: next } }],
+                    "Add a variant",
+                    scope,
+                  );
               }}
             />
           </FieldRow>
@@ -318,12 +314,9 @@ function Triggers({
   shapes: Shapes;
   registry: AssetDocPanelProps["registry"];
 }) {
-  const id = doc.entry!.id;
   const readOnly = doc.readOnly !== null;
   const scope = settingScope(doc.docName, "on");
   const triggers = value.on ?? [];
-  const edit = (edits: JsonEdit[], label: string) =>
-    void doc.edit([{ op: "editAsset", id, edits }], label, scope);
   return (
     <InspectorSection id="sound:triggers" title="Triggers">
       <div className="je-insp-stack">
@@ -349,7 +342,14 @@ function Triggers({
                   label={`Remove the trigger on ${trigger.event}`}
                   tooltip="Remove the trigger"
                   disabled={readOnly}
-                  onClick={() => edit([{ remove: jsonPointer(["on", i]) }], "Remove a trigger")}
+                  onClick={() =>
+                    editAssetJson(
+                      doc,
+                      [{ remove: jsonPointer(["on", i]) }],
+                      "Remove a trigger",
+                      scope,
+                    )
+                  }
                 />
               </div>
               {event ? (
@@ -379,7 +379,12 @@ function Triggers({
               value={null}
               onChange={(next) => {
                 if (next !== null)
-                  edit([{ insert: "/on", value: { event: next } }], "Add a trigger");
+                  editAssetJson(
+                    doc,
+                    [{ insert: "/on", value: { event: next } }],
+                    "Add a trigger",
+                    scope,
+                  );
               }}
               invalid={false}
               placeholder="Add a step event"

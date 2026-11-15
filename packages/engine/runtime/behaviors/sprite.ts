@@ -18,8 +18,8 @@ import type { EngineContext } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import type { Pt, RuntimeEntity } from "../../scene/types";
 import { entityHomeLayer } from "../../systems/bodies";
-import { samePose, type Pose } from "../poses";
-import { spawnPose } from "../spawn-pose";
+import { settlePosed, type Pose } from "../poses";
+import { initialPose } from "../spawn-pose";
 
 /**
  * The sprite system has no `step`: the runtime calls `settle` after the
@@ -174,7 +174,7 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
     draw(id, a);
     view.depth?.(spriteViewId(id), entity.z ?? 0);
     attached.set(id, a);
-    place(id, a, ctx.poses.get(id) ?? spawnPose(entity, ctx.registry), true);
+    place(id, a, initialPose(ctx, id, entity), true);
   }
 
   function hide(id: string): void {
@@ -186,14 +186,7 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
     attach: (id, block, entity) => show(id, block, entity),
     update: (id, block, _prev, entity) => show(id, block, entity),
     detach: hide,
-    settle() {
-      for (const [id, a] of attached) {
-        const pose = ctx.poses.get(id);
-        if (!pose || (a.applied && samePose(pose, a.applied))) continue;
-        const prev = ctx.poses.prev(id);
-        place(id, a, pose, prev !== undefined && samePose(prev, pose));
-      }
-    },
+    settle: () => settlePosed(ctx.poses, attached, place),
     setFrame(id, frame) {
       const a = attached.get(id);
       if (!a || a.frame === frame) return;

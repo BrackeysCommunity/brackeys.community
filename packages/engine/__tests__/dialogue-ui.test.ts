@@ -563,12 +563,12 @@ describe("the locale's font", () => {
     });
     const ui = [createDialogueBox(h.ctx), createTextLog(h.ctx), createCaptions(h.ctx)];
     h.setDialogue(view());
-    const family = '"jams-ui-font-f00d", system-ui, sans-serif';
+    const family = '"jams-font-f00d", system-ui, sans-serif';
     const log = document.querySelector<HTMLElement>("[data-jams-text-log]")!;
     const region = document.querySelector<HTMLElement>("[data-jams-captions]")!;
     for (const el of [box(), log, region]) expect(el.style.getPropertyValue(UI_FONT)).toBe(family);
     expect(added.map((f) => [f.family, f.source])).toEqual([
-      ["jams-ui-font-f00d", 'url("blob:ui-font")'],
+      ["jams-font-f00d", 'url("blob:ui-font")'],
     ]);
     expect(region.style.fontFamily).toBe("var(--jams-ui-font, system-ui, sans-serif)");
     expect(box().querySelector("style")!.textContent).toContain(

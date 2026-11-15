@@ -7,7 +7,7 @@ import {
   type SessionDoc,
 } from "../../collab/index";
 import type { Registry } from "../../game/types";
-import type { AssetEntry, AssetId, ProjectOp } from "../../project/index";
+import type { AssetEntry, AssetId, JsonEdit, ProjectOp } from "../../project/index";
 import { useProjectView } from "../panels/EditorProject";
 import type { SelectedAsset } from "../panels/project-tree/asset-panel";
 import type { SettingsDoc } from "../panels/settings/settings-doc";
@@ -94,6 +94,26 @@ export function useAssetDoc(
   const view = useProjectView(session);
   const entry = (id !== null ? view.byId.get(id) : undefined) ?? null;
   return useEntryDoc(session, entry, opts);
+}
+
+/** The asset picked in the project tree, its doc held open (`useAssetDoc`); a refusal with no `notify` goes to the console. */
+export function useSelectedAssetDoc(asset: SelectedAsset, session: ProjectSession): AssetDoc {
+  const notify = asset.notify ?? { error: (message: string) => console.error(message) };
+  return useAssetDoc(session, asset.entry.id, {
+    ...(asset.readOnly ? { readOnly: true } : {}),
+    notify,
+  });
+}
+
+/** One `editAsset` batch of `edits` to the doc's asset, as one undo step. */
+export function editAssetJson(
+  doc: AssetDoc,
+  edits: readonly JsonEdit[],
+  label: string,
+  scope: string,
+): void {
+  if (!doc.entry) return;
+  void doc.edit([{ op: "editAsset", id: doc.entry.id, edits: [...edits] }], label, scope);
 }
 
 /** What a doc asset's own panel (`SoundPanel`, `SynthPanel`) takes where the inspector mounts it. */

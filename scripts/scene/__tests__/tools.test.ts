@@ -50,6 +50,7 @@ import { input } from "../tools/input";
 import { list } from "../tools/list";
 import { newScene } from "../tools/new";
 import { playtest } from "../tools/playtest";
+import { render } from "../tools/render";
 import { replay, replayText } from "../tools/replay";
 import { projectSaveFixtures, save } from "../tools/save";
 import { schema } from "../tools/schema";
@@ -3826,6 +3827,51 @@ describe("audio, text and dialogue", { timeout: 60_000 }, () => {
       new RegExp(`^  covers ${font.codePoints} code points: .*U\\+0041-U\\+005A`, "m"),
     );
     expect(r.text).toContain("  distance field none");
+  });
+
+  it("render measures a keyed text in the default locale's strings and font", async () => {
+    const svg = await render({ scene: "kitchen-sink" }, sinkCtx);
+    expect(svg.exitCode, svg.text).toBe(0);
+    const text = svg.text;
+    expect(text).toMatch(/<path data-text="std-text" data-key="kitchen.sign" data-exact="true" /);
+    expect(text).toContain('data-text="std-text" x="1080" y="294.5"');
+    expect(text).toMatch(/data-text="std-text"[^>]*>&quot;Kitchen sink&quot;<\/text>/);
+    expect(text).not.toContain("[kitchen.sign]");
+    const path = join(sink, "kitchen-sink.json");
+    const big = JSON.parse(await readFile(path, "utf8")) as {
+      entities: { id?: string; behaviors?: { text?: { size?: number } } }[];
+    };
+    big.entities.find((e) => e.id === "std-text")!.behaviors!.text!.size = 200;
+    await writeFile(path, JSON.stringify(big));
+    const ascii = await render({ scene: "kitchen-sink", ascii: true }, sinkCtx);
+    expect(ascii.exitCode, ascii.text).toBe(0);
+    expect((ascii.data as { legend: unknown[] }).legend).toContainEqual({
+      char: '"',
+      label: "text",
+    });
+  });
+
+  it("playtest --present lists the sounds step events play through a sound's on matchers", async () => {
+    const script = join(root, "wait.json");
+    await writeFile(script, JSON.stringify({ v: 2, steps: [{ wait: 20 }] }));
+    const presented = await playtest({ scene: "kitchen-sink", script, present: true }, sinkCtx);
+    expect(presented.exitCode, presented.text).toBe(0);
+    const { present, ...run } = presented.data as { present: unknown[] };
+    expect(present).toEqual([
+      {
+        kind: "audio",
+        op: { op: "play", sound: "clink", on: "character:landed", entity: "std-side-view" },
+        tick: 10,
+      },
+    ]);
+    expect(presented.text).toContain(
+      [
+        "  present (1, points in metres):",
+        '    t10 audio play {"sound":"clink","on":"character:landed","entity":"std-side-view"}',
+      ].join("\n"),
+    );
+    const plain = await playtest({ scene: "kitchen-sink", script }, sinkCtx);
+    expect(run).toEqual(plain.data);
   });
 
   it("playtest --present lists the sounds a run asks for, which change nothing in it", async () => {

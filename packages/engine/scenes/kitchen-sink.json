@@ -89,6 +89,6 @@
     { "id": "std-text", "type": "marker", "at": [10.8, 2.6], "behaviors": { "text": { "color": 16771496, "key": "kitchen.sign", "outline": { "color": 2105376, "width": 2 }, "size": 20 } } },
     { "id": "std-audio", "type": "marker", "at": [4.4, 2.2], "behaviors": { "audio": { "sound": "clink", "volume": 0.5 } } },
     { "id": "talk-mark", "type": "marker", "at": [6.4, 2.2], "tags": ["dialogue", "kitchen-dialogue"] },
-    { "id": "about-words", "type": "note", "at": [3.8, 2.8], "text": "Text, sound and dialogue: std-text is a sign up in Play's camera framing, drawing the kitchen.sign string in the project's kitchen font, in English or French by the locale the play bar picks; the clink sound plays its WAV clip or its synth patch on a prop's contact start and on a character landing, and std-audio plays it once from attach; talk-mark is tagged with the kitchen-dialogue it names, which the assets header lists for game code to start." }
+    { "id": "about-words", "type": "note", "at": [3.8, 2.8], "text": "Text, sound and dialogue: std-text is a sign up in Play's camera framing, drawing the kitchen.sign string in the project's kitchen font, in English or French by the locale the play bar picks; the clink sound plays its WAV clip or its synth patch on a prop's contact start and on a character landing, and std-audio plays it once from attach; talk-mark is tagged with kitchen-dialogue, which a game starts with ctx.dialogue.start. The kitchen sink has no game code, so to see that dialogue, pick it from the play bar's Dialogue menu in Play." }
   ]
 }

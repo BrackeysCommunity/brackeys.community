@@ -1,30 +1,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expanded";
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
 import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
-import {
-  createRegistry,
-  defineEntityType,
-  defineGame,
-  RegistryError,
-  withProject,
-} from "../../game/define";
+import { createRegistry, defineEntityType, defineGame, RegistryError } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
-import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
-import {
-  createProjectFileAdapter,
-  readFileProject,
-  readPrefabFiles,
-} from "../../vite/project-files";
 import { renderSceneAscii, sceneAsciiMap } from "../ascii";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import { SCENE_GRID_MAX_CELLS } from "../svg";
@@ -35,6 +19,7 @@ import {
   type SceneDefinition,
 } from "../types";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
+import { loadKitchenSink } from "./fixtures/kitchen-sink";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
 const golden = new URL("./engine-yard.golden.txt", import.meta.url);
@@ -416,29 +401,6 @@ describe("sprite boxes", () => {
   });
 });
 
-/** The engine project's kitchen sink with its prefabs, and the project view and registry it is drawn with. */
-async function loadKitchenSink() {
-  const dir = fileURLToPath(new URL("../../scenes/", import.meta.url));
-  const cacheDir = await mkdtemp(join(tmpdir(), "kitchen-sink-render-"));
-  try {
-    const project = await readFileProject(dir, { cacheDir });
-    const { state } = await createProjectFileAdapter(project).scan();
-    const view = projectView(state, project.kinds);
-    const values = new Map<string, unknown>();
-    for (const entry of view.byId.values())
-      if (entry.sha256 === undefined)
-        values.set(entry.id, JSON.parse(await readFile(join(dir, entry.path), "utf8")));
-    const registry = withProject(createRegistry(), view, values);
-    const { prefabs } = await readPrefabFiles(dir, registry);
-    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry, {
-      prefab: (id) => prefabs.get(id),
-    });
-    return { scene, view, registry, prefabs };
-  } finally {
-    await rm(cacheDir, { recursive: true, force: true });
-  }
-}
-
 describe("the kitchen sink", () => {
   const sinkGolden = new URL("./kitchen-sink.golden.txt", import.meta.url);
   let sink: Awaited<ReturnType<typeof loadKitchenSink>>;
@@ -447,7 +409,13 @@ describe("the kitchen sink", () => {
   });
 
   it("matches its golden map, sprites sized from the project (UPDATE_GOLDENS=1 regenerates)", () => {
-    const opts = { registry: sink.registry, prefabs: sink.prefabs, project: sink.view, cell: 32 };
+    const opts = {
+      registry: sink.registry,
+      prefabs: sink.prefabs,
+      project: sink.view,
+      strings: sink.strings,
+      cell: 32,
+    };
     const text = renderSceneAscii(sink.scene, opts);
     if (process.env.UPDATE_GOLDENS) writeFileSync(sinkGolden, text);
     expect(text).toBe(readFileSync(sinkGolden, "utf8"));

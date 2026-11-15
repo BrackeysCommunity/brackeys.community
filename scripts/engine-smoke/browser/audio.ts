@@ -16,7 +16,7 @@ import {
 } from "@jams/engine";
 import type { SynthFile } from "@jams/engine/project";
 
-import { AUDIO_BUTTON_ID, type AudioProbe } from "./media-compare";
+import { AUDIO_BUTTON_ID, AUDIO_ENDED_SLACK_MS, type AudioProbe } from "./media-compare";
 
 /** A 200 ms square tone. */
 export const SMOKE_PATCH: SynthFile = { ...CLICK_PATCH, freq: 440, sustainMs: 120, decayMs: 80 };
@@ -33,7 +33,7 @@ const OFFLINE_TAIL_S = 0.05;
 /**
  * How long the click's unlock may take. A context with no output device to
  * run on (Firefox's, without one) never settles `resume()`, so past this the
- * context is read as it stands and the judge says why it isn't running.
+ * context is read as it stands and the voice is checked for waiting on it.
  */
 export const UNLOCK_CAP_MS = 10_000;
 
@@ -52,6 +52,13 @@ export function settledWithin(work: Promise<unknown>, ms: number): Promise<void>
       },
     );
   });
+}
+
+/** Whether `voice` is still unplayed after `ms`: scheduled on a context clock that isn't moving. */
+function heldFor(voice: Voice, ms: number): Promise<boolean> {
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(!voice.ended && voice.position() === 0), ms),
+  );
 }
 
 function endedAfter(voice: Voice, started: number, capMs: number): Promise<number | null> {
@@ -81,12 +88,15 @@ async function playLive(
       maxChannels: context.destination.maxChannelCount,
     };
     const patchMs = synthDurationMs(SMOKE_PATCH);
-    if (context.state !== "running") return { ...read, patchMs, endedMs: null };
     const clip = backend.buffer([samples], SYNTH_SAMPLE_RATE);
     const started = performance.now();
     const voice = backend.play(clip, VOICE);
+    if (context.state !== "running") {
+      const held = await heldFor(voice, patchMs + AUDIO_ENDED_SLACK_MS);
+      return { ...read, patchMs, endedMs: null, held };
+    }
     const endedMs = await endedAfter(voice, started, patchMs + ENDED_CAP_MS);
-    return { ...read, patchMs, endedMs };
+    return { ...read, patchMs, endedMs, held: null };
   } finally {
     backend.close();
     if (context.state !== "closed") void context.close().catch(() => {});

@@ -1,12 +1,14 @@
-import { TEXT } from "../../game/behaviors/text";
+import { TEXT, textFontOf } from "../../game/behaviors/text";
 import { isNodeTypeIn, NODE_TYPE } from "../../game/primitives";
 import type { Registry } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import { isPlainObject } from "../../project/kinds/define";
+import { localeFont, localeSettingsOf } from "../../project/kinds/strings";
+import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { behaviorBlocks } from "../../scene/expand";
 import { entityFrame, instanceTransform } from "../../scene/resolve";
 import { aabb, aabbUnion } from "../../scene/shape-geometry";
-import { textBoxOf } from "../../scene/svg";
+import { textBoxOf, type TextMeasureEnv } from "../../scene/svg";
 import { asFrame, type Frame } from "../../scene/transform";
 import type {
   Aabb,
@@ -17,6 +19,7 @@ import type {
   SceneDefinition,
   ShapeObj,
 } from "../../scene/types";
+import { stringTableData } from "../../text/strings";
 import { geometryOfRef } from "../spatial-index";
 import { behaviorGizmo, type BehaviorGizmo } from "./behavior-target";
 import { carryPreview } from "./carry";
@@ -39,9 +42,9 @@ export type GizmoTarget = {
   /** Where `at` is written; an instance has none, since a `move` places it. */
   pointField?: string;
   /**
-   * The box a point entity's `text` block draws over, its height measured
-   * and its width estimated (the editor has no locale strings): its move
-   * handle sits under it, clear of the glyphs.
+   * The box a point entity's `text` block draws over, measured in the
+   * source's `text` (a key measures bracketed without it): its move handle
+   * sits under it, clear of the glyphs.
    */
   text?: Extract<ShapeObj, { type: "box" }>;
   /** The path the shape rides, waypoints in world metres. */
@@ -68,6 +71,21 @@ export type GizmoTarget = {
   preview?: (batch: OpBatch) => OpBatch | null;
 };
 
+/** What the editor measures a `text` block in: a locale's strings and font, and the font assets. */
+export type GizmoTextEnv = Omit<TextMeasureEnv, "pxPerUnit">;
+
+/** The document behind the view, and what its text is measured in. */
+export type GizmoSource = EditSource & { text?: GizmoTextEnv };
+
+/** `locale`'s strings and font in `view` (default the default locale's), as the scene view draws them. */
+export function gizmoTextEnv(view: ProjectRuntimeView, locale?: string): GizmoTextEnv {
+  const locales = localeSettingsOf(view.engine.locales);
+  const shown = locale ?? locales.default;
+  const asset = (id: string) => view.asset(id);
+  const data = stringTableData(view, shown, textFontOf(asset, localeFont(locales, shown)));
+  return { strings: data.strings, font: data.font, asset };
+}
+
 const pointBox = ([x, y]: Pt): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
 
 /** Where a point entity's `text` block (its type's default merged with its own) draws at `at`. */
@@ -76,12 +94,13 @@ function textBox(
   type: string,
   at: Pt,
   entity: EntityDef | undefined,
+  env: GizmoTextEnv | undefined,
 ): Extract<ShapeObj, { type: "box" }> | undefined {
   const block = behaviorBlocks(registry, type, entity?.behaviors)[TEXT.name];
   if (block === undefined) return undefined;
   const rot = isPlainObject(entity?.transform) ? entity.transform.rot : undefined;
   const pose = { at, ...(typeof rot === "number" ? { transform: { rot, flip: false } } : {}) };
-  return textBoxOf(block, pose, { pxPerUnit: pxPerMetreOf(registry) })?.shape;
+  return textBoxOf(block, pose, { ...env, pxPerUnit: pxPerMetreOf(registry) })?.shape;
 }
 
 /** The box over `refs`' own geometry in `view`; null when none has any. */
@@ -143,7 +162,7 @@ export function gizmoTarget(
   def: SceneDefinition,
   registry: Registry,
   ref: Ref,
-  source?: EditSource,
+  source?: GizmoSource,
 ): GizmoTarget | undefined {
   const base = ownTarget(def, registry, ref, source);
   if (!base) return undefined;
@@ -154,7 +173,7 @@ function ownTarget(
   def: SceneDefinition,
   registry: Registry,
   ref: Ref,
-  source: EditSource | undefined,
+  source: GizmoSource | undefined,
 ): GizmoTarget | undefined {
   const g = geometryOfRef(def, registry, ref);
   if (!g) {
@@ -180,7 +199,7 @@ function ownTarget(
   if (g.at && g.pointField) {
     const f = isNodeTypeIn(registry, g.type) ? frameOfRef(def, registry, ref, source) : undefined;
     const entity = g.bulk ? undefined : (def.entities ?? []).find((e) => e.id === ref);
-    const text = f ? undefined : textBox(registry, g.type, g.at, entity);
+    const text = f ? undefined : textBox(registry, g.type, g.at, entity, source?.text);
     return {
       ...base,
       at: g.at,

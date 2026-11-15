@@ -152,6 +152,7 @@ export {
 export {
   LOCALE_PATTERN,
   localeFont,
+  localeSettingsOf,
   mergedStrings,
   missingStringKeys,
   projectLocales,
@@ -205,7 +206,7 @@ export {
   type InputMapTouchControl,
 } from "./kinds/input-map";
 export { canonicalJson, stableJson } from "./canonical";
-export { byCodeUnit, byPathThenKey, docLookup } from "./kinds/define";
+export { byCodeUnit, byPathThenKey, docLookup, docLookupOf, isPlainObject } from "./kinds/define";
 export {
   applyJsonEdits,
   keyedItemPointer,

@@ -1,25 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expanded";
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
 import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
-import { createRegistry, defineEntityType, defineGame, withProject } from "../../game/define";
+import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
-import {
-  createProjectFileAdapter,
-  readFileProject,
-  readPrefabFiles,
-} from "../../vite/project-files";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import { drawnEntities, expandedOf, oneWayEdges } from "../render-geometry";
 import { shapeOutline } from "../shape-outline";
@@ -41,6 +32,7 @@ import {
 } from "../types";
 import { roundLength } from "../units";
 import { engine, engineYardText } from "./fixtures/fake-game";
+import { loadKitchenSink } from "./fixtures/kitchen-sink";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
 const golden = new URL("./engine-yard.golden.svg", import.meta.url);
@@ -632,29 +624,6 @@ function spriteProject() {
   });
 }
 
-/** The engine project's kitchen sink with its prefabs, and the project view and registry it is drawn with. */
-async function loadKitchenSink() {
-  const dir = fileURLToPath(new URL("../../scenes/", import.meta.url));
-  const cacheDir = await mkdtemp(join(tmpdir(), "kitchen-sink-render-"));
-  try {
-    const project = await readFileProject(dir, { cacheDir });
-    const { state } = await createProjectFileAdapter(project).scan();
-    const view = projectView(state, project.kinds);
-    const values = new Map<string, unknown>();
-    for (const entry of view.byId.values())
-      if (entry.sha256 === undefined)
-        values.set(entry.id, JSON.parse(await readFile(join(dir, entry.path), "utf8")));
-    const registry = withProject(createRegistry(), view, values);
-    const { prefabs } = await readPrefabFiles(dir, registry);
-    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry, {
-      prefab: (id) => prefabs.get(id),
-    });
-    return { scene, view, registry, prefabs };
-  } finally {
-    await rm(cacheDir, { recursive: true, force: true });
-  }
-}
-
 describe("the kitchen sink", () => {
   const sinkGolden = new URL("./kitchen-sink.golden.svg", import.meta.url);
   let sink: Awaited<ReturnType<typeof loadKitchenSink>>;
@@ -666,6 +635,7 @@ describe("the kitchen sink", () => {
       registry: sink.registry,
       prefabs: sink.prefabs,
       project: sink.view,
+      strings: sink.strings,
     });
 
   it("matches its golden render, sprites sized from the project (UPDATE_GOLDENS=1 regenerates)", () => {

@@ -1,16 +1,9 @@
 import { PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import { Store } from "@tanstack/store";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { renderSynth, SYNTH_SAMPLE_RATE, synthDurationMs } from "../../audio/synth";
+import { pickSoundVariant, soundRate } from "../../audio/system";
 import type { AudioBackend, AudioClipHandle, BusName, Voice } from "../../audio/types";
 import { webAudioBackend } from "../../audio/web-audio";
 import { sameValue } from "../../project/canonical";
@@ -20,13 +13,13 @@ import { SOUND_KIND, type SoundFile } from "../../project/kinds/sound";
 import { SYNTH_KIND, type SynthFile } from "../../project/kinds/synth";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import type { AssetId, ProjectView } from "../../project/types";
-import { Rng } from "../../sim-kit/rng";
+import { Rng, unitFloat } from "../../sim-kit/rng";
 import type { GameInstance } from "../../types";
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
 import { IconButton, type IconButtonProps } from "../kit/button";
 import { Text } from "../kit/text";
 import { useOptionalPending } from "../pending/use-pending";
-import { readStored, storedFlag, writeStored } from "../session/stored";
+import { readStored, storedFlag, useStoredFlag } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
 
 /**
@@ -89,8 +82,6 @@ export const auditionScope = (id: AssetId) => `audio:${id}`;
 
 /** How long a stop or a cut-off fades, ms, so it doesn't click. */
 const STOP_FADE_MS = 30;
-
-const U32 = 0x1_0000_0000;
 
 type Clip = { sha: string | undefined; clip: Promise<AudioClipHandle> };
 type Playing = {
@@ -339,7 +330,7 @@ function createEditorAudio(
       return { statuses: next };
     });
 
-  const random = () => rng.nextU32() / U32;
+  const roll = () => unitFloat(rng);
 
   function leaf(id: AssetId, patch?: SynthFile): Leaf | null {
     const runtime = ref.current.source.runtime();
@@ -349,26 +340,7 @@ function createEditorAudio(
     return info?.kind === AUDIO_KIND ? { kind: "clip", sha: info.sha256 } : null;
   }
 
-  /** The sound's variants whose clip or patch is in the project. */
-  const present = (file: SoundFile) => file.variants.filter((v) => leaf(v.clip) !== null);
-
-  /** A variant by weight, among those present, so a dangling one never makes a click silent. */
-  function pick(file: SoundFile): { id: AssetId; leaf: Leaf } | null {
-    const variants = present(file);
-    let total = 0;
-    for (const v of variants) total += v.weight ?? 1;
-    let roll = random() * total;
-    let picked = variants.at(-1);
-    for (const v of variants) {
-      roll -= v.weight ?? 1;
-      if (roll < 0) {
-        picked = v;
-        break;
-      }
-    }
-    const found = picked ? leaf(picked.clip) : null;
-    return picked && found ? { id: picked.clip, leaf: found } : null;
-  }
+  const present = (id: AssetId) => leaf(id) !== null;
 
   function resolve(id: AssetId, patch?: SynthFile): Resolved | null {
     const sound = docOf<SoundFile>(ref.current.source.runtime(), SOUND_KIND, id);
@@ -376,14 +348,15 @@ function createEditorAudio(
       const own = leaf(id, patch);
       return own ? { id, leaf: own, bus: "sfx", volume: 1, rate: 1 } : null;
     }
-    const variant = pick(sound);
-    if (!variant) return null;
-    const [min, max] = sound.pitch ?? [1, 1];
+    const picked = pickSoundVariant(sound.variants, roll, present);
+    const found = picked ? leaf(picked.clip) : null;
+    if (!picked || !found) return null;
     return {
-      ...variant,
+      id: picked.clip,
+      leaf: found,
       bus: sound.bus,
       volume: sound.volume ?? 1,
-      rate: min === max ? min : min + (max - min) * random(),
+      rate: soundRate(sound, roll),
     };
   }
 
@@ -512,7 +485,7 @@ function createEditorAudio(
       const sound = docOf<SoundFile>(ref.current.source.runtime(), SOUND_KIND, id);
       if (!sound) return null;
       if (sound.variants.length === 0) return "This sound has no variants yet";
-      return present(sound).length === 0 ? "Its clips aren't in the project" : null;
+      return sound.variants.some((v) => present(v.clip)) ? null : "Its clips aren't in the project";
     },
     lengthMs(id) {
       const { source } = ref.current;
@@ -556,35 +529,9 @@ export const SOUND_IN_PLAY_KEY = `${STORAGE_PREFIX}sound-in-play`;
 export const soundInPlay = (storage: EditorStorage | null): boolean =>
   readStored(storage, SOUND_IN_PLAY_KEY, false, storedFlag);
 
-/**
- * The Sound in Play choice and its setter, read again whenever another tab
- * changes it and when the window regains focus, so the switch shows what the
- * next Play reads.
- */
-export function useSoundInPlay(storage: EditorStorage | null): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(() => soundInPlay(storage));
-  useEffect(() => {
-    const sync = () => setOn(soundInPlay(storage));
-    const changed = (e: StorageEvent) => {
-      if (e.key === null || e.key === SOUND_IN_PLAY_KEY) sync();
-    };
-    sync();
-    window.addEventListener("storage", changed);
-    window.addEventListener("focus", sync);
-    return () => {
-      window.removeEventListener("storage", changed);
-      window.removeEventListener("focus", sync);
-    };
-  }, [storage]);
-  const set = useCallback(
-    (next: boolean) => {
-      writeStored(storage, SOUND_IN_PLAY_KEY, next);
-      setOn(next);
-    },
-    [storage],
-  );
-  return [on, set];
-}
+/** The Sound in Play choice and its setter, kept in step with other tabs (`useStoredFlag`). */
+export const useSoundInPlay = (storage: EditorStorage | null): [boolean, (on: boolean) => void] =>
+  useStoredFlag(storage, SOUND_IN_PLAY_KEY, false);
 
 /**
  * `GameConfig.audio.backend` for the editor's game: asked each time Play

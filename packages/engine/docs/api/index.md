@@ -263,7 +263,7 @@ _type_ in `audio/types.ts`
 The engine's five buses, or one a game declares (`GameDefinition.audio.buses`).
 
 ```ts
-type BusName = "master" | "music" | "sfx" | "ui" | "voice" | (string & {});
+type BusName = (string & {}) | (typeof ENGINE_BUSES)[number];
 ```
 
 ## `CLICK_PATCH`
@@ -1178,7 +1178,7 @@ type GameInstance = {
     project: () => ProjectRuntimeView | null;
     /** Bus volumes, mutes, the audio clock and stopping everything; null while no backend plays. */
     readonly audio: GameAudio | null;
-    /** The player's captions choice, a browser preference kept in the prefs under "captions"; `createCaptions` shows captions only while it is on. */
+    /** The player's captions choice, a browser preference kept in the prefs under "captions"; unset, it is on while a `createCaptions` is mounted, which shows captions only while it is on. */
     readonly captions: GameCaptions;
     /** The player's language: a browser preference the simulation never sees. */
     readonly locale: GameLocale;
@@ -3488,8 +3488,9 @@ Refers to [`AssetLoader`](#assetloader), [`AssetUrl`](#asseturl), [`FontSource`]
 _function_ in `ui/captions.ts`
 
 Each played sound's caption and each voiced line's text (`audio:caption`),
-in a polite live region along the bottom of the layer, while the player's
-captions preference is on. A key already showing restarts its time rather
+in a polite live region along the bottom of the layer. While it is
+mounted, captions are on unless the player turned them off
+(`GameInstance.captions`). A key already showing restarts its time rather
 than showing twice. It takes no pointer input.
 
 ```ts

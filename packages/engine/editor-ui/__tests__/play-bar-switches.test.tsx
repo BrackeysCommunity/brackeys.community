@@ -7,12 +7,30 @@ import { createGameStore } from "../../store";
 import type { GameEventMap } from "../../types";
 import { SOUND_IN_PLAY_KEY } from "../audio/editor-audio";
 import type { EditorControls } from "../frame/keys";
-import { EditorPlayBar, SOUND_NEXT_PLAY } from "../panels/EditorPlayBar";
+import { HINT_DELAY_MS } from "../kit/hint";
+import {
+  EditorPlayBar,
+  LOCALE_TOOLTIP,
+  SOUND_IN_PLAY_TOOLTIP,
+  SOUND_NEXT_PLAY,
+} from "../panels/EditorPlayBar";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
 });
+
+/** The hint `el` opens once it holds keyboard focus. */
+function hintOf(el: HTMLElement) {
+  vi.useFakeTimers();
+  act(() => {
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    el.focus();
+  });
+  act(() => void vi.advanceTimersByTime(HINT_DELAY_MS + 50));
+  return document.querySelector(".je-hint")?.textContent;
+}
 
 type Handler = (payload: GameEventMap["locale:change"]) => void;
 
@@ -132,6 +150,19 @@ describe("the locale picker", () => {
 
     act(() => changeElsewhere("en"));
     expect(screen.getByRole("combobox", { name: "Locale" }).textContent).toContain("English");
+  });
+
+  it("ends its hint with a full stop, as the switches' hints do, and is sized by a class", () => {
+    const { game } = standIn(["en", "fr"]);
+    bar(game);
+    const picker = screen.getByRole("combobox", { name: "Locale" });
+    expect(picker.classList.contains("je-play-select")).toBe(true);
+    expect(picker.getAttribute("style") ?? "").not.toContain("width");
+    expect(hintOf(picker)).toBe(`${LOCALE_TOOLTIP}.`);
+    cleanup();
+    vi.useRealTimers();
+    bar(standIn().game);
+    expect(hintOf(soundSwitch())).toBe(`${SOUND_IN_PLAY_TOOLTIP}.`);
   });
 
   it("isn't offered with one locale, or for a game without the locale API", () => {

@@ -6,6 +6,7 @@ import type { TextFont, TextVisual } from "../../context";
 import type { AssetBundle, BundleEntry } from "../../project/bundle";
 import type { Sha256 } from "../../project/types";
 import type { ShapeObj } from "../../scene/types";
+import { measureText } from "../../text/measure";
 import { parseRichText, type RichLine, type TextVars } from "../../text/rich";
 import type { StringTableData } from "../../text/strings";
 import { createAssetLoader } from "../asset-loader";
@@ -396,6 +397,18 @@ describe("keyed text", () => {
     expect(run!.style).toMatchObject({ fontWeight: "bold" });
     expect(run!.style.fontFamily).toEqual([`jams-font-${WEB}`, ...DEFAULT_TEXT_FACE]);
   });
+
+  it("draws a fontless text in the locale's BMFont once the font and its page load", async () => {
+    const { loader, view } = setup();
+    view.locale!({ ...en, font: bitmap(FNT) });
+    view.text!("sign", textVisual({ key: "sign.tag" }), "actor");
+    expect(runsOf(view, "sign")[0]).not.toBeInstanceOf(BitmapText);
+
+    await loader.load(bundle([entry("mono", "font", FNT), entry("mono-page", "texture", PAGE)]));
+    const [run] = runsOf(view, "sign");
+    expect(run).toBeInstanceOf(BitmapText);
+    expect(run!.style.fontFamily).toBe(loader.bitmapFamily(FNT, [PAGE]));
+  });
 });
 
 describe("layout", () => {
@@ -415,6 +428,22 @@ describe("layout", () => {
     ]);
     expect([display.pivot.x, tenths(display.pivot.y)]).toEqual([20, 38.4]);
     display.destroy();
+  });
+
+  it("breaks lines and sizes the box as measureText does for the same advances", () => {
+    // Four px a glyph at size 8 is the fake's half an em; 9.6 px lines are its 1.2 em rows.
+    const advances = Object.fromEntries([32, 97, 98, 99, 100].map((c) => [String(c), 4]));
+    const meta = { format: "bmfont", size: 8, lineHeight: 9.6, advances } as const;
+    for (const source of ["aa bb cc", "aa  bb   cc dd", "aaaaaaaaaa b", "aa bb   ", " a"]) {
+      const parsed = lines(source);
+      const display = createRichText(textVisual({ lines: parsed, wrap: 40, anchor: [1, 1] }), null);
+      const measured = measureText(parsed, meta, 16, 40);
+      expect(
+        [display.pivot.x, display.pivot.y].map((n) => Math.round(n * 10) / 10),
+        source,
+      ).toEqual([measured.width, measured.height].map((n) => Math.round(n * 10) / 10));
+      display.destroy();
+    }
   });
 
   it("holds shake and wave still under reduced motion", () => {

@@ -1,3 +1,4 @@
+import { soundTriggers } from "../audio/triggers";
 import { jsonAt } from "../dialogue/vars";
 import { flowIssue, type FlowRequest, type SceneLibrary } from "../game/flow";
 import { resolveTime } from "../game/time";
@@ -8,6 +9,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import { recordLiveSwaps } from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
+import type { PresentRequest } from "../runtime/present";
 import {
   createRunRecorder,
   recordedCommand,
@@ -15,11 +17,12 @@ import {
   trailPoint,
   type RecordingHost,
 } from "../runtime/recorder";
-import { resolveGame } from "../runtime/runtime";
+import { eventEntityOf, resolveGame } from "../runtime/runtime";
 import { DIALOGUE_END, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
 import type { CountMatch, ExistsMatch, NearMatch } from "../scene/input-script";
 import { makeIssue } from "../scene/issues";
 import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
+import { entityTags, tagFieldsOf } from "../scene/schema";
 import type { PrefabLibrary, Pt, SceneDefinition, SceneIssue } from "../scene/types";
 import { compileInputScript, scriptSource, type ScriptSource } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
@@ -375,6 +378,9 @@ export function runPlaytest<S = unknown, G = unknown>(
       );
     const { runtime } = started;
     issues.push(...(started.issues ?? []));
+    const triggered = opts.recordPresentation
+      ? triggeredSounds(opts.project, registry, runtime)
+      : null;
     if (saved && game?.persist) persistAtLoad = persist.value;
 
     try {
@@ -420,6 +426,7 @@ export function runPlaytest<S = unknown, G = unknown>(
             last = state;
             if (state.dialogue) talked = true;
             const at = base.ticks + state.tick;
+            if (triggered) present.onTick(triggered(state.events), at);
             present.onTick(requests, at);
             standing!.step(tickInput);
             recorder.tick(state, tickInput, focus);
@@ -518,6 +525,38 @@ export function runPlaytest<S = unknown, G = unknown>(
       runtime.destroy();
     }
   }
+}
+
+/**
+ * The sounds a tick's step events play through the project's sound docs'
+ * `on` matchers, as the audio system matches them, each an audio `play`
+ * naming the event type that played it; undefined for a tick that plays none.
+ */
+function triggeredSounds(
+  project: ProjectRuntimeView | null | undefined,
+  registry: Registry,
+  runtime: SceneRuntimeHandle,
+): ((events: readonly StepEvent[]) => PresentRequest[] | undefined) | null {
+  if (!project) return null;
+  const triggers = soundTriggers(project, (id) => {
+    const e = eventEntityOf(runtime.ctx, id);
+    return e
+      ? { type: e.type, tags: entityTags(e, tagFieldsOf(registry.types.get(e.type))) }
+      : undefined;
+  });
+  return (events) => {
+    let out: PresentRequest[] | undefined;
+    for (const event of events)
+      for (const sound of triggers.match(event)) {
+        const source =
+          event.entityId !== undefined
+            ? { entity: event.entityId }
+            : { at: { x: event.at.x, y: event.at.y } };
+        const op = { op: "play" as const, sound, on: event.type, ...source };
+        (out ??= []).push({ kind: "audio", op });
+      }
+    return out;
+  };
 }
 
 /**

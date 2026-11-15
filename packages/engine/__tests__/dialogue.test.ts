@@ -124,6 +124,61 @@ describe("dialogue-dead-end", () => {
     fallback.nodes[0] = { ...node, choices: [...node.choices!, { to: "b" }] };
     expect(issuesOf(fallback)).toEqual([]);
   });
+
+  it("is a warning for a node whose if has no else", () => {
+    const gated = (over: Partial<DialogueNode> = {}) =>
+      withNodes(
+        { id: "a", lines: [{ say: "hi" }], next: "b" },
+        { id: "b", if: { var: "/key", truthy: true }, lines: [{ say: "in" }], end: "in", ...over },
+        { id: "c", lines: [], end: "out" },
+      );
+    const [issue, ...rest] = issuesOf(gated());
+    expect(rest.map((i) => i.code)).toEqual(["dialogue-unreachable"]);
+    expect(issue).toMatchObject({
+      code: "dialogue-dead-end",
+      severity: "warn",
+      path: "/nodes/1/if",
+    });
+    expect(issue!.message).toContain('node "b" has an `if` and no `else`');
+    expect(issuesOf(gated({ else: "c" }))).toEqual([]);
+
+    const runner = createDialogueRunner(gated(), GATE_ID, memoryVars({}), () => {});
+    expect(runner.advance()).toBe(false);
+    expect(runner.view()).toMatchObject({ node: "b", stuck: true });
+  });
+
+  it("flags a loop of nodes that pass on without a line: an error when nothing breaks it", () => {
+    const loop = withNodes(
+      { id: "a", lines: [{ say: "go" }], next: "b" },
+      { id: "b", lines: [], next: "c" },
+      { id: "c", lines: [], next: "b" },
+    );
+    expect(brief(issuesOf(loop))).toEqual([
+      { code: "dialogue-dead-end", severity: "error", path: "/nodes/1" },
+    ]);
+    expect(issuesOf(loop)[0]!.message).toContain('nodes "b", "c" can pass on round each other');
+    const runner = createDialogueRunner(loop, GATE_ID, memoryVars({}), () => {});
+    expect(runner.advance()).toBe(false);
+    expect(runner.view().stuck).toBe(true);
+
+    const maybe = withNodes(
+      { id: "a", lines: [{ say: "go" }], next: "b" },
+      { id: "b", lines: [{ say: "once", if: { visited: "a" } }], next: "c" },
+      { id: "c", if: { var: "/ok", truthy: true }, else: "c", lines: [{ say: "ok" }], next: "b" },
+    );
+    const issues = issuesOf(maybe);
+    expect(brief(issues)).toEqual([
+      { code: "dialogue-dead-end", severity: "warn", path: "/nodes/2" },
+    ]);
+    expect(issues[0]!.message).toContain('node "c" can pass back to itself');
+
+    const broken = withNodes(
+      { id: "a", lines: [{ say: "go" }], next: "b" },
+      { id: "b", lines: [], choices: [{ to: "c" }] },
+      { id: "c", lines: [], next: "b" },
+    );
+    expect(issuesOf(broken)).toEqual([]);
+  });
 });
 
 describe("dialogue-unreachable", () => {
