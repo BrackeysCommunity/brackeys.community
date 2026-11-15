@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`AudioBackend`](#audiobackend) · [`AudioClipHandle`](#audiocliphandle) · [`AudioClock`](#audioclock) · [`AudioSystem`](#audiosystem) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`BurstOptions`](#burstoptions) · [`BusLevel`](#buslevel) · [`BusName`](#busname) · [`CLICK_PATCH`](#click_patch) · [`CalibrateLatencyOptions`](#calibratelatencyoptions) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`CaptionsOptions`](#captionsoptions) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DEFAULT_TEXT_FACE`](#default_text_face) · [`DeviceTables`](#devicetables) · [`DialogueBoxOptions`](#dialogueboxoptions) · [`DialogueView`](#dialogueview) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`EmitterFollow`](#emitterfollow) · [`EntityInspection`](#entityinspection) · [`EntityRow`](#entityrow) · [`EventLog`](#eventlog) · [`EventLogFilter`](#eventlogfilter) · [`ExpandedScene`](#expandedscene) · [`FakeAudioCall`](#fakeaudiocall) · [`FlashOptions`](#flashoptions) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FontSource`](#fontsource) · [`FrameRect`](#framerect) · [`GameAudio`](#gameaudio) · [`GameCaptions`](#gamecaptions) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDebug`](#gamedebug) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameLocale`](#gamelocale) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameReplayOptions`](#gamereplayoptions) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LatencyCalibration`](#latencycalibration) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`PREF_KEYS`](#pref_keys) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`PrefsStore`](#prefsstore) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ReplayHandle`](#replayhandle) · [`ReplayHost`](#replayhost) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RichTextOptions`](#richtextoptions) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeTimings`](#runtimetimings) · [`SEEK_CHECKPOINT_EVERY`](#seek_checkpoint_every) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SeekProgress`](#seekprogress) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SynthPreset`](#synthpreset) · [`TOOL_PRIORITY`](#tool_priority) · [`TextContent`](#textcontent) · [`TextDirection`](#textdirection) · [`TextFont`](#textfont) · [`TextLogOptions`](#textlogoptions) · [`TextVisual`](#textvisual) · [`TextureSource`](#texturesource) · [`TickPhase`](#tickphase) · [`TimingStat`](#timingstat) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiAssetUrl`](#uiasseturl) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewEmitter`](#viewemitter) · [`ViewportDef`](#viewportdef) · [`ViewportRect`](#viewportrect) · [`Voice`](#voice) · [`VoiceOptions`](#voiceoptions) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserPrefsStore`](#browserprefsstore) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createCaptions`](#createcaptions) · [`createDialogueBox`](#createdialoguebox) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createRichText`](#createrichtext) · [`createTextLog`](#createtextlog) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`drawText`](#drawtext) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`mutateSynth`](#mutatesynth) · [`pixiContainer`](#pixicontainer) · [`randomSynth`](#randomsynth) · [`renderRichText`](#renderrichtext) · [`renderSynth`](#rendersynth) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`seekTarget`](#seektarget) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectDialogue`](#selectdialogue) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`setPref`](#setpref) · [`snapshotPrefsStore`](#snapshotprefsstore) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`timingWords`](#timingwords) · [`tryWebAudioBackend`](#trywebaudiobackend) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`viewportRect`](#viewportrect-1) · [`watchView`](#watchview) · [`webAudioBackend`](#webaudiobackend)
+[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`AudioBackend`](#audiobackend) · [`AudioClipHandle`](#audiocliphandle) · [`AudioClock`](#audioclock) · [`AudioSystem`](#audiosystem) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`BurstOptions`](#burstoptions) · [`BusLevel`](#buslevel) · [`BusName`](#busname) · [`CLICK_PATCH`](#click_patch) · [`CalibrateLatencyOptions`](#calibratelatencyoptions) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`CaptionsOptions`](#captionsoptions) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DEFAULT_TEXT_FACE`](#default_text_face) · [`DeviceTables`](#devicetables) · [`DialogueBoxOptions`](#dialogueboxoptions) · [`DialogueView`](#dialogueview) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`EmitterFollow`](#emitterfollow) · [`EntityInspection`](#entityinspection) · [`EntityRow`](#entityrow) · [`EventLog`](#eventlog) · [`EventLogFilter`](#eventlogfilter) · [`ExpandedScene`](#expandedscene) · [`FakeAudioCall`](#fakeaudiocall) · [`FlashOptions`](#flashoptions) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FontSource`](#fontsource) · [`FrameRect`](#framerect) · [`GameAudio`](#gameaudio) · [`GameCaptions`](#gamecaptions) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDebug`](#gamedebug) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameLocale`](#gamelocale) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameReplayOptions`](#gamereplayoptions) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LatencyCalibration`](#latencycalibration) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`PREF_KEYS`](#pref_keys) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewFrame`](#pixiviewframe) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`PrefsStore`](#prefsstore) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ReplayHandle`](#replayhandle) · [`ReplayHost`](#replayhost) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RichTextOptions`](#richtextoptions) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeTimings`](#runtimetimings) · [`SEEK_CHECKPOINT_EVERY`](#seek_checkpoint_every) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SYNTH_PRESETS`](#synth_presets) · [`SYNTH_SAMPLE_RATE`](#synth_sample_rate) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SeekProgress`](#seekprogress) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SynthPreset`](#synthpreset) · [`TOOL_PRIORITY`](#tool_priority) · [`TextContent`](#textcontent) · [`TextDirection`](#textdirection) · [`TextFont`](#textfont) · [`TextLogOptions`](#textlogoptions) · [`TextVisual`](#textvisual) · [`TextureSource`](#texturesource) · [`TickPhase`](#tickphase) · [`TilemapView`](#tilemapview) · [`TilemapVisual`](#tilemapvisual) · [`TimingStat`](#timingstat) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiAssetUrl`](#uiasseturl) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewEmitter`](#viewemitter) · [`ViewportDef`](#viewportdef) · [`ViewportRect`](#viewportrect) · [`Voice`](#voice) · [`VoiceOptions`](#voiceoptions) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserPrefsStore`](#browserprefsstore) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createCaptions`](#createcaptions) · [`createDialogueBox`](#createdialoguebox) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createRichText`](#createrichtext) · [`createTextLog`](#createtextlog) · [`createTilemapView`](#createtilemapview) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`cullRect`](#cullrect) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`drawText`](#drawtext) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryPrefsStore`](#memoryprefsstore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`mutateSynth`](#mutatesynth) · [`outsideViews`](#outsideviews) · [`pixiContainer`](#pixicontainer) · [`randomSynth`](#randomsynth) · [`renderRichText`](#renderrichtext) · [`renderSynth`](#rendersynth) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`seekTarget`](#seektarget) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectDialogue`](#selectdialogue) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`setPref`](#setpref) · [`snapshotPrefsStore`](#snapshotprefsstore) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`synthDurationMs`](#synthdurationms) · [`synthWav`](#synthwav) · [`timingWords`](#timingwords) · [`tryWebAudioBackend`](#trywebaudiobackend) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`viewportRect`](#viewportrect-1) · [`watchView`](#watchview) · [`webAudioBackend`](#webaudiobackend)
 
 ## `ActionBindings`
 
@@ -467,7 +467,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.18.0";
+declare const ENGINE_VERSION = "0.19.0";
 ```
 
 ## `EffectLayer`
@@ -1051,6 +1051,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     tables?: Readonly<Record<string, GameTableDef>>;
     /** What a new scene of this game starts with; it should validate without errors. */
     template?: SceneTemplate;
+    /** Fields a tileset's per-tile `data` may hold. */
+    tileData?: z.ZodRawShape;
     /** How the game's clock runs; omitted: fixed at 60. */
     time?: TimeModel;
     /** The game's entity types. Primitives are always present and can't be redefined. */
@@ -1242,6 +1244,22 @@ type GameInstance = {
     destroy: () => void;
     /** Wall time away, e.g. a restored save's last-seen gap; becomes `@elapsed` when the game has `time.catchUp`. */
     elapse: (ms: number) => void;
+    /**
+     * Renders the whole stage (world, letterbox bars and UI) into a texture and
+     * reads it back as RGBA bytes, row by row from the top, at most `width` ×
+     * `height` px (default the canvas size) keeping its aspect. It draws a fresh
+     * frame, so it never depends on when the canvas was last presented. Null
+     * while the renderer is rebuilding or has failed.
+     */
+    extractFrame: (opts?: {
+        height?: number;
+        width?: number;
+    }) => null | {
+        data: Uint8Array | Uint8ClampedArray;
+        height: number;
+        renderer: string;
+        width: number;
+    };
     /**
      * Reads back the canvas pixel (RGBA bytes) under each point (world metres), through
      * the camera, from the stage at resolution 1 over the game's background
@@ -1894,9 +1912,10 @@ Refers to [`SpriteVisual`](#spritevisual).
 _type_ in `render/pixi-view.ts`
 
 ```ts
-type PixiView = SceneView & {
+type PixiView = Omit<SceneView, "frame"> & {
     /** Destroys every visual and layer, and `container` with them. */
     destroy(): void;
+    frame(f: PixiViewFrame): void;
     /**
      * Offsets the `scroll` layers for a camera at (x, y) metres, as `frame`
      * does: what a viewport past the first sets before it draws the world.
@@ -1913,7 +1932,28 @@ type PixiView = SceneView & {
 };
 ```
 
-Refers to [`ParticleLayer`](#particlelayer).
+Refers to [`ParticleLayer`](#particlelayer), [`PixiViewFrame`](#pixiviewframe).
+
+## `PixiViewFrame`
+
+_type_ in `render/pixi-view.ts`
+
+A rendered frame as the view takes it: `views` are the viewports' world rects (metres), culled against.
+
+```ts
+type PixiViewFrame = {
+    alpha: number;
+    camera: {
+        x: number;
+        y: number;
+        zoom: number;
+    };
+    /** The clock animated tiles step by, ms; default `performance.now()`. */
+    nowMs?: number;
+    /** Every viewport's world rect; a visual outside all of them isn't rendered. Omitted or empty culls nothing. */
+    views?: readonly Bounds[];
+};
+```
 
 ## `PixiViewOptions`
 
@@ -3142,6 +3182,62 @@ _type_ in `runtime/timings.ts`
 type TickPhase = (typeof TICK_PHASES)[number];
 ```
 
+## `TilemapView`
+
+_interface_ in `render/tilemap-view.ts`
+
+A view's tilemaps: one mesh per non-empty chunk, rebuilt by chunk, culled by chunk.
+
+```ts
+interface TilemapView {
+    set(id: string, map: TilemapVisual): void;
+    /** Rebuilds the named chunks' meshes from the cells. */
+    chunks(id: string, cells: GridCells, dirty: readonly ChunkKey[]): void;
+    remove(id: string): void;
+    /**
+     * Each frame: animated tiles' UVs; chunks outside every view rect skip
+     * rendering. `views` are in the px space of the view's container; empty
+     * culls nothing.
+     */
+    frame(f: {
+        nowMs: number;
+        views: readonly Bounds[];
+    }): void;
+    /** The container tilemap `id` draws in, which the scene view poses and layers; null before `set`. */
+    display(id: string): Container | null;
+    /** Chunk meshes of tilemap `id` by chunk key, for tools and tests. */
+    meshes(id: string): ReadonlyMap<ChunkKey, Mesh>;
+    destroy(): void;
+}
+```
+
+Refers to [`TilemapVisual`](#tilemapvisual).
+
+## `TilemapVisual`
+
+_type_ in `context.ts`
+
+A tilemap as a view draws it, as data: the grid it sits on, its tileset
+and the image's hash. `at` is cell (0, 0)'s corner in the visual's local
+space; `pose` places the map in the world, its frame's turn included.
+
+```ts
+type TilemapVisual = {
+    alpha?: number;
+    at: Pt;
+    /** World px per cell, [w, h]: the grid's cell times the game's px per metre. */
+    cell: [
+        number,
+        number
+    ];
+    grid: GridSettings;
+    image: Sha256;
+    layer: ViewLayer;
+    tileset: TilesetFile;
+    tint?: number;
+};
+```
+
 ## `TimingStat`
 
 _type_ in `runtime/timings.ts`
@@ -3908,6 +4004,21 @@ declare function createTextLog(ctx: UiContext, opts?: TextLogOptions): UiHandle;
 
 Refers to [`TextLogOptions`](#textlogoptions), [`UiContext`](#uicontext), [`UiHandle`](#uihandle).
 
+## `createTilemapView`
+
+_function_ in `render/tilemap-view.ts`
+
+Tilemaps drawn as one Pixi `Mesh` per non-empty chunk: quads with UVs into
+the tileset's texture (by the image's hash in `textures`). A map whose
+texture hasn't loaded draws once it arrives. New maps' containers start in
+`container`; the scene view moves them to their layer.
+
+```ts
+declare function createTilemapView(container: Container, textures: TextureSource): TilemapView;
+```
+
+Refers to [`TextureSource`](#texturesource), [`TilemapView`](#tilemapview).
+
 ## `createTouchControls`
 
 _function_ in `input/touch-controls.ts`
@@ -3935,6 +4046,16 @@ declare function createUiLayer(canvas: HTMLCanvasElement): {
     destroy(): void;
     root: HTMLElement;
 };
+```
+
+## `cullRect`
+
+_function_ in `render/tilemap-view.ts`
+
+A `[minX, minY, maxX, maxY]` box as Pixi's cull area.
+
+```ts
+declare function cullRect(b: Bounds, out: Rectangle): Rectangle;
 ```
 
 ## `diffWords`
@@ -4140,6 +4261,19 @@ Every numeric field moved by up to `amount` of its range (default 0.05), clamped
 
 ```ts
 declare function mutateSynth(patch: SynthFile, rng: Rng, amount?: number): SynthFile;
+```
+
+## `outsideViews`
+
+_function_ in `render/tilemap-view.ts`
+
+Whether `display`'s `area` (its own px) lies outside every rect of
+`views`, which are in `space`'s px; `space` is one of its ancestors.
+Position, scale, rotation and pivot are walked up by hand, so the answer
+needs no render pass and holds on every renderer.
+
+```ts
+declare function outsideViews(display: Container, area: Rectangle, views: readonly Bounds[], space: Container): boolean;
 ```
 
 ## `pixiContainer`

@@ -1,14 +1,4 @@
-/**
- * The grid-field codec: cells in 32×32 chunks keyed `"cx,cy"`, each chunk
- * up to 32 run-length row strings (`"0*4,3*6,7"`). Pure.
- *
- * Row grammar: `Row := "" | Run ("," Run)*`, `Run := Value ("*" Count)?`,
- * `Value := 0 | [1-9][0-9]{0,4}` (≤ 65535), `Count := 2..32`; the counts sum
- * to at most 32 and missing cells are 0. Canonical: maximal runs, a run of
- * one written without `*`, trailing zeros dropped. Cell `(col, row)` is in
- * chunk `(floor(col/32), floor(row/32))` at row `row mod 32`, column
- * `col mod 32`.
- */
+/** The grid-field codec: 32×32 chunks keyed "cx,cy", each up to 32 canonical run-length rows ("0*4,3*6,7"). Pure. */
 import { transformCell as turnTileCell } from "../game/tile-cell";
 import type { CellBounds } from "../grid/geometry";
 import { dihedral, type Dihedral, type Transform2D } from "./transform";
@@ -27,13 +17,14 @@ export type GridRow = string;
 /** Chunks by key; a chunk is up to 32 rows, trailing empty rows dropped; empty chunks absent. */
 export type GridCells = Readonly<Record<ChunkKey, readonly GridRow[]>>;
 
+// Row := "" | Run ("," Run)*; Run := Value ("*" Count)?; Value ≤ 65535; Count 2..32, summing to ≤ 32.
+// Canonical: maximal runs, a run of one without "*", trailing zeros dropped.
 const INT = "-?(?:0|[1-9]\\d{0,8})";
 const RUN = "(?:0|[1-9]\\d{0,4})(?:\\*(?:[2-9]|[12]\\d|3[0-2]))?";
 /** A chunk key's spelling; `-0` and leading zeros are not keys. */
 export const CHUNK_KEY_PATTERN = new RegExp(`^${INT},${INT}$`);
 /** A row's spelling; the value bound and the 32-cell sum are checked by `decodeRow`. */
 export const GRID_ROW_PATTERN = new RegExp(`^(?:${RUN}(?:,${RUN})*)?$`);
-const RUN_RE = /^(0|[1-9]\d{0,4})(?:\*([2-9]|[12]\d|3[0-2]))?$/;
 
 const CELLS = GRID_CHUNK * GRID_CHUNK;
 const floorDiv = (n: number) => Math.floor(n / GRID_CHUNK);
@@ -56,21 +47,58 @@ export function compareChunkKeys(a: ChunkKey, b: ChunkKey): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * Calls `fn` with each run of `row` left to right: its value, first cell and
+ * length. False, having stopped there, when the row isn't in the row grammar
+ * (`GRID_ROW_PATTERN`, values ≤ 65535, at most 32 cells).
+ */
+export function forEachRun(
+  row: GridRow,
+  fn: (value: number, start: number, count: number) => void,
+): boolean {
+  const len = row.length;
+  let i = 0;
+  let n = 0;
+  while (i < len) {
+    let c = row.charCodeAt(i++);
+    if (c < 48 || c > 57) return false;
+    let value = c - 48;
+    if (value !== 0)
+      for (let digits = 1; i < len; digits++) {
+        c = row.charCodeAt(i);
+        if (c < 48 || c > 57) break;
+        if (digits === 5) return false;
+        value = value * 10 + c - 48;
+        i++;
+      }
+    let count = 1;
+    if (row.charCodeAt(i) === 42) {
+      c = row.charCodeAt(++i);
+      if (!(c >= 49 && c <= 57)) return false;
+      count = c - 48;
+      c = row.charCodeAt(++i);
+      if (c >= 48 && c <= 57) {
+        count = count * 10 + c - 48;
+        i++;
+      }
+      if (count < 2 || count > GRID_CHUNK) return false;
+    }
+    if (value > GRID_MAX_VALUE || n + count > GRID_CHUNK) return false;
+    fn(value, n, count);
+    n += count;
+    if (i === len) return true;
+    if (row.charCodeAt(i++) !== 44 || i === len) return false;
+  }
+  return true;
+}
+
 /** The row's 32 cells, or null when it isn't in the row grammar. */
 export function decodeRow(row: GridRow): Uint16Array | null {
   const cells = new Uint16Array(GRID_CHUNK);
-  if (row === "") return cells;
-  let n = 0;
-  for (const run of row.split(",")) {
-    const m = RUN_RE.exec(run);
-    if (!m) return null;
-    const value = Number(m[1]);
-    const count = m[2] === undefined ? 1 : Number(m[2]);
-    if (value > GRID_MAX_VALUE || n + count > GRID_CHUNK) return null;
-    if (value !== 0) cells.fill(value, n, n + count);
-    n += count;
-  }
-  return cells;
+  const ok = forEachRun(row, (value, start, count) => {
+    if (value !== 0) cells.fill(value, start, start + count);
+  });
+  return ok ? cells : null;
 }
 
 const isCellValue = (v: unknown): v is number =>
@@ -94,10 +122,12 @@ export function encodeRow(cells: ArrayLike<number>): GridRow {
   return runs.join(",");
 }
 
+const badRow = (row: GridRow, chunk: ChunkKey, r: number) =>
+  new Error(`grid chunk "${chunk}" row ${r} isn't a valid row: ${JSON.stringify(row)}`);
+
 function decodeOrThrow(row: GridRow, chunk: ChunkKey, r: number): Uint16Array {
   const cells = decodeRow(row);
-  if (!cells)
-    throw new Error(`grid chunk "${chunk}" row ${r} isn't a valid row: ${JSON.stringify(row)}`);
+  if (!cells) throw badRow(row, chunk, r);
   return cells;
 }
 
@@ -298,31 +328,35 @@ export function gridProblems(value: unknown, max = GRID_MAX_VALUE): GridProblem[
 }
 
 export function gridCellBounds(grid: GridCells): CellBounds | null {
-  let b: CellBounds | null = null;
-  for (const [key, rows] of Object.entries(grid)) {
+  let c0 = Infinity;
+  let r0 = Infinity;
+  let c1 = -Infinity;
+  let r1 = -Infinity;
+  for (const key of Object.keys(grid)) {
     const at = parseChunkKey(key);
     if (!at) throw new Error(`"${key}" isn't a chunk key "cx,cy"`);
-    rows.forEach((text, r) => {
-      if (text === "") return;
-      const cells = decodeOrThrow(text, key, r);
-      const first = cells.findIndex((c) => c !== 0);
-      if (first < 0) return;
-      let last = GRID_CHUNK - 1;
-      while (cells[last] === 0) last--;
+    const rows = grid[key]!;
+    const col = at[0] * GRID_CHUNK;
+    for (let r = 0; r < rows.length; r++) {
+      const text = rows[r]!;
+      if (text === "") continue;
+      let first = -1;
+      let last = -1;
+      const ok = forEachRun(text, (value, start, count) => {
+        if (value === 0) return;
+        if (first < 0) first = start;
+        last = start + count - 1;
+      });
+      if (!ok) throw badRow(text, key, r);
+      if (first < 0) continue;
       const row = at[1] * GRID_CHUNK + r;
-      const c0 = at[0] * GRID_CHUNK + first;
-      const c1 = at[0] * GRID_CHUNK + last;
-      b = b
-        ? {
-            c0: Math.min(b.c0, c0),
-            r0: Math.min(b.r0, row),
-            c1: Math.max(b.c1, c1),
-            r1: Math.max(b.r1, row),
-          }
-        : { c0, r0: row, c1, r1: row };
-    });
+      if (col + first < c0) c0 = col + first;
+      if (col + last > c1) c1 = col + last;
+      if (row < r0) r0 = row;
+      if (row > r1) r1 = row;
+    }
   }
-  return b;
+  return c0 === Infinity ? null : { c0, r0, c1, r1 };
 }
 
 /**

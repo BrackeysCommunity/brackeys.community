@@ -310,7 +310,7 @@ _type_ in `editor-ui/session/live-responder.ts`
 type EditorResponderOptions = {
     /** The game's canvas, for frames. */
     canvas?: (() => HTMLElement | null) | undefined;
-    /** What the canvas shows; default reads `canvas` (`canvasPixels`). */
+    /** What the game shows; default reads `canvas` (`canvasPixels`). The editor passes `gamePixels`. */
     capture?: () => Promise<FramePixels | null>;
     /**
      * "Let agents drive Play", read for each request and advertised again
@@ -690,7 +690,7 @@ type NotifyOptions = {
 _type_ in `editor-ui/layout/model.ts`
 
 ```ts
-type PanelId = "event-log" | "history" | "inspector" | "outliner" | "perf" | "problems" | "project" | "run" | (string & {});
+type PanelId = "event-log" | "history" | "inspector" | "outliner" | "perf" | "problems" | "project" | "run" | "tiles" | (string & {});
 ```
 
 ## `Pending`

@@ -84,6 +84,7 @@ export const POSED_PRIMITIVES: readonly string[] = Object.freeze([
   "solid",
   "sensor",
   "prop",
+  "tilemap",
 ]);
 
 /**

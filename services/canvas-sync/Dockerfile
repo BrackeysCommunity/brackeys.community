@@ -61,6 +61,9 @@ COPY packages/engine/game ./packages/engine/game
 COPY packages/engine/project ./packages/engine/project
 COPY packages/engine/text ./packages/engine/text
 COPY packages/engine/tiles ./packages/engine/tiles
+# The LDtk importer writes its solid-colour atlas PNGs through these two.
+COPY packages/engine/export/png-write.ts ./packages/engine/export/png-write.ts
+COPY packages/engine/export/crc32.ts ./packages/engine/export/crc32.ts
 COPY packages/engine/version.ts ./packages/engine/version.ts
 
 # The copied root files import bare specifiers (yjs, drizzle-orm, zod,

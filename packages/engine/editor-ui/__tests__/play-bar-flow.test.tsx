@@ -11,6 +11,7 @@ import { createGameStore, setSession, setSimPaused } from "../../store";
 import type { EditorControls } from "../frame/keys";
 import { EditorPlayBar } from "../panels/EditorPlayBar";
 import type { LivePlayStatus } from "../session/live-scene-editor";
+import { pickSeams } from "./fixtures/play-pick";
 
 afterEach(() => {
   cleanup();
@@ -27,8 +28,9 @@ function bar(opts: { outcome: boolean; scene?: string }) {
   const onStop = vi.fn();
   const openScene = vi.fn();
   const controls = {
-    game: { getStore: () => store, resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+    game: { ...pickSeams(), getStore: () => store, resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
     host: new Store({ sceneChanged: false }),
+    session: {},
     keymap: { chordOf: () => undefined },
     onStop,
     onRestart: vi.fn(),
@@ -78,8 +80,15 @@ describe("the play bar's statuses", () => {
     setSession(store, { startTick: 0, outcome: { result: "flow", to: "level-1", tick: 3 } });
     const host = new Store({ sceneChanged: false, livePlay: status(null, false) });
     const controls = {
-      game: { getStore: () => store, resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+      game: {
+        ...pickSeams(),
+        getStore: () => store,
+        resume: vi.fn(),
+        pause: vi.fn(),
+        step: vi.fn(),
+      },
       host,
+      session: {},
       keymap: { chordOf: () => undefined },
       onStop: vi.fn(),
       onRestart: vi.fn(),

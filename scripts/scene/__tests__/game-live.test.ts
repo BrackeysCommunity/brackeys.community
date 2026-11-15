@@ -86,11 +86,14 @@ async function editing<T>(path: string, edit: (text: string) => string, body: ()
   }
 }
 
-/** The marsh costs 2 instead of 1: one entity changes. */
+/** The floor's corner cell turns to marsh (tile 4, stored as 5): one entity changes. */
 const costlierMarsh = (text: string) => {
   const scene = JSON.parse(text) as SceneDefinition;
-  const marsh = scene.entities!.find((e) => e.id === "marsh") as unknown as { cost: number };
-  marsh.cost = 2;
+  const floor = scene.entities!.find((e) => e.id === "floor") as unknown as {
+    cells: Record<string, string[]>;
+  };
+  const rows = floor.cells["0,0"]!;
+  rows[0] = rows[0]!.replace(/^\d+/, "5");
   return JSON.stringify(scene);
 };
 
@@ -143,13 +146,18 @@ describe("game live build", () => {
     expect(await sha256(text)).toBe(id);
 
     const docs = Object.entries(parsed.version.assets).filter(([, a]) => a.storage === "doc");
-    expect(docs.map(([asset]) => asset).sort()).toEqual(["archer", "knight", SCENE]);
+    expect(docs.map(([asset]) => asset).sort()).toEqual([
+      "archer",
+      "knight",
+      SCENE,
+      "tactics-tileset",
+    ]);
     for (const [, a] of docs)
       expect(await sha256(await readFile(join(out, `${a.sha256}.json`), "utf8"))).toBe(a.sha256);
     expect((await readdir(out)).sort()).toEqual(files.map((f) => f.file).sort());
     expect(dataBytes).toBe(files.reduce((n, f) => n + f.bytes, 0));
     expect(r.text).toMatch(
-      new RegExp(`^Built tactics ${SCENE} \\(${id.slice(0, 6)}…\\): \\d+ KB of data, 4 files in `),
+      new RegExp(`^Built tactics ${SCENE} \\(${id.slice(0, 6)}…\\): \\d+ KB of data, 5 files in `),
     );
 
     const again = await gameLiveBuild(
@@ -248,7 +256,7 @@ describe("game live check", () => {
   });
 
   it("refuses, against a release, a version whose shared asset changed", async () => {
-    const png = join(dir, "art", "tile-wall.png");
+    const png = join(dir, "art", "floor.png");
     const sidecar = `${png}.asset.json`;
     const [bytes, side] = [await readFile(png), await readFile(sidecar, "utf8")];
     const changed = Buffer.concat([bytes, Buffer.from([0])]);
@@ -268,7 +276,7 @@ describe("game live check", () => {
         expect.arrayContaining([expect.objectContaining({ code: "live-asset-conflict" })]),
       );
       expect(r.text).toMatch(/^ {2}Fits: {5}doesn't fit release /m);
-      expect(r.text).toContain("tile-wall");
+      expect(r.text).toContain("floor");
     } finally {
       await writeFile(png, bytes);
       await writeFile(sidecar, side);
@@ -287,7 +295,7 @@ describe("game live check", () => {
     expect(r.exitCode, r.text).toBe(0);
     expect(r.text).toContain("  Changes:  1 entity changed (players' worlds update in place)");
     expect(dataOf(r)).toMatchObject({
-      diff: { changed: ["marsh"], added: [], removed: [], header: false },
+      diff: { changed: ["floor"], added: [], removed: [], header: false },
       swapCheck: { ok: true },
     });
     expect(r.text).not.toContain("Fits:");
@@ -486,9 +494,13 @@ const docHashes = async (path: string) => {
 describe("game live publish", () => {
   it("uploads only the texts the site doesn't hold, and prints the publish summary", async () => {
     const fake = await fakeLive();
-    // The site holds the prefabs already: only the edited scene's text goes up.
-    for (const prefab of ["scenes/prefabs/knight.json", "scenes/prefabs/archer.json"])
-      fake.stored.add(await docHashes(prefab));
+    // The site holds the prefabs and the tileset already: only the edited scene's text goes up.
+    for (const doc of [
+      "scenes/prefabs/knight.json",
+      "scenes/prefabs/archer.json",
+      "art/tactics.tileset.json",
+    ])
+      fake.stored.add(await docHashes(doc));
     const r = await editing(`scenes/${SCENE}.json`, costlierMarsh, () =>
       gameLivePublish(publishInput(), onSite(live, fake)),
     );

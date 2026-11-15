@@ -49,9 +49,9 @@ function insideChains(chains: readonly Pt[][], c: number, r: number): boolean {
   return inside;
 }
 
-/** A maze on 32-tile maze cells with 4-tile walls on their top and left sides, carved by DFS. */
+/** A maze of `cell`-tile cells with `wall`-tile walls on their top and left sides, carved by DFS. */
 function maze(size: number, cell: number, wall: number): Solid {
-  const n = size / cell;
+  const n = Math.ceil(size / cell);
   const next = rng(7);
   const openE = new Set<number>();
   const openS = new Set<number>();
@@ -176,13 +176,26 @@ describe("greedyBoxes", () => {
       JSON.stringify(outlineChains(solid, rect64)),
     );
   });
-  test("a 512 × 512 maze averages at most 4 colliders per chunk", () => {
-    const size = 512;
-    const boxes = greedyBoxes(maze(size, 32, 4), { c0: 0, r0: 0, c1: size - 1, r1: size - 1 });
-    const chunks = (size / GRID_CHUNK) ** 2;
-    expect(boxes.length / chunks).toBeLessThanOrEqual(4);
-    expect(boxes.length).toBeGreaterThan(chunks);
-  });
+  // Walls off chunk edges split at every chunk they cross, so finer mazes earn a looser bound.
+  test.each([
+    [32, 4, 4],
+    [12, 2, 8],
+    [7, 1, 20],
+  ])(
+    "a 512 × 512 maze of %i-tile cells and %i-tile walls averages at most %i colliders per chunk",
+    (cell, wall, bound) => {
+      const size = 512;
+      const boxes = greedyBoxes(maze(size, cell, wall), {
+        c0: 0,
+        r0: 0,
+        c1: size - 1,
+        r1: size - 1,
+      });
+      const chunks = (size / GRID_CHUNK) ** 2;
+      expect(boxes.length / chunks).toBeLessThanOrEqual(bound);
+      expect(boxes.length).toBeGreaterThan(chunks);
+    },
+  );
 });
 
 describe("outlineChains", () => {

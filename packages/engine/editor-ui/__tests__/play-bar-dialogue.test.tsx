@@ -10,6 +10,7 @@ import {
   dialoguePickerHint,
   EditorPlayBar,
 } from "../panels/EditorPlayBar";
+import { pickSeams } from "./fixtures/play-pick";
 
 afterEach(() => {
   cleanup();
@@ -19,6 +20,7 @@ afterEach(() => {
 /** A gameless stand-in whose project holds two dialogues. */
 function standIn() {
   return {
+    ...pickSeams(),
     getStore: () => createGameStore(),
     resume: vi.fn(),
     pause: vi.fn(),
@@ -52,6 +54,7 @@ function bar(project?: { session: ReturnType<typeof session> }) {
   const controls = {
     game: standIn(),
     host: new Store({ sceneChanged: false, livePlay: null }),
+    session: {},
     keymap: { chordOf: () => undefined },
     onStop: vi.fn(),
     onRestart: vi.fn(),

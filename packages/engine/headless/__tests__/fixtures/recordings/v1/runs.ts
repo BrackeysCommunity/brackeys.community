@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { testGame } from "../../../../../__tests__/fixtures/test-game";
-import { probe as roguelike } from "../../../../../__tests__/genres/roguelike.probe";
 import { probe as turnTactics } from "../../../../../__tests__/genres/turn-tactics.probe";
 import { createRegistry } from "../../../../../game/define";
 import type { GameDefinition, Registry } from "../../../../../game/types";
@@ -18,6 +17,7 @@ import type { RapierModule } from "../../../../../types";
 import { loadHeadless } from "../../../../load";
 import type { InputScript, InputScriptV2 } from "../../../../playtest-types";
 import type { V1Fixture } from "./index";
+import { probe as roguelike } from "./roguelike-v1";
 
 export const V1_DIR = new URL("./", import.meta.url);
 

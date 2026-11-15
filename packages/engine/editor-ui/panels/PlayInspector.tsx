@@ -1,5 +1,5 @@
 import type { Store } from "@tanstack/store";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { EntityInspection } from "../../debug/inspect";
 import type { EditorSession } from "../../editor/index";
@@ -9,7 +9,7 @@ import { radToDeg } from "../../physics";
 import type { GameInstance, GameStoreState } from "../../types";
 import type { EditorNotify } from "../host";
 import { formatLength, formatSpeed } from "../kit/format";
-import { Badge, Hotkey, Spinner, Text } from "../kit/index";
+import { Badge, Facts, Hotkey, Spinner, Text } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 import { InspectorSection } from "./inspector/field-widgets";
@@ -170,19 +170,6 @@ function usePlayTarget(session: EditorSession, pick: Store<PickState>): string |
 
 const degrees = (rad: number) => `${String(Number(radToDeg(rad).toFixed(1)) + 0)}°`;
 const fixed = (n: number) => String(Number(n.toFixed(3)) + 0);
-
-function Facts({ label, rows }: { label: string; rows: readonly [string, ReactNode][] }) {
-  return (
-    <dl className="je-play-facts" aria-label={label}>
-      {rows.map(([term, value]) => (
-        <Fragment key={term}>
-          <dt>{term}</dt>
-          <dd>{value}</dd>
-        </Fragment>
-      ))}
-    </dl>
-  );
-}
 
 function shortJson(value: JsonValue | undefined): string {
   if (value === undefined) return "—";

@@ -1,4 +1,10 @@
-import { decodeCell, pxPerMetreOf, type CellBounds, type TileDef } from "@jams/engine/game";
+import {
+  decodeCell,
+  pxPerMetreOf,
+  tileTraits,
+  type CellBounds,
+  type TileDef,
+} from "@jams/engine/game";
 import { tilemapIssues, tilesetImageInfo, type TilesetFile } from "@jams/engine/project";
 import {
   closest,
@@ -50,8 +56,9 @@ function parseRect(arg: string): CellBounds | null {
 function describeDef(def: TileDef | undefined): string {
   if (!def) return "";
   const parts: string[] = [];
-  if (def.solid) parts.push(def.oneWay ? `one-way ${def.oneWay}` : "solid");
-  if (def.cost !== undefined && !def.solid) parts.push(`cost ${def.cost}`);
+  const traits = tileTraits(def);
+  if (traits.solid) parts.push(traits.oneWay ? `one-way ${traits.oneWay}` : "solid");
+  else if (def.cost !== undefined) parts.push(`cost ${traits.cost}`);
   if (def.tags?.length) parts.push(`tags ${def.tags.join(", ")}`);
   if (def.animation?.length) parts.push(`animated ${def.animation.length} frames`);
   return parts.join("; ");
@@ -153,7 +160,7 @@ export const tiles: Tool<TilesInput> = async (input, ctx) => {
       id,
       cells: n.cells,
       flipped: n.flipped,
-      solid: def?.solid === true,
+      solid: tileTraits(def).solid,
       tags: def?.tags ?? [],
     };
   });

@@ -1,15 +1,24 @@
 // @vitest-environment jsdom
 
+import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
-import { createEditorSession, type SceneDefinition } from "../../editor/index";
+import {
+  createEditorSession,
+  setTileBrush,
+  type EditorSession,
+  type SceneDefinition,
+  type ToolHost,
+} from "../../editor/index";
 import { createRegistry } from "../../game/index";
 import type { ProjectRuntimeView } from "../../project/index";
 import type { TilesetFile } from "../../project/kinds/tileset";
 import { KitProvider } from "../kit/index";
-import { TilePalette, type TilePaletteHost } from "../panels/TilePalette";
+import type { ToolHostCell } from "../panels/canvas-layer/tool-host";
+import { PANELS, type PanelContext } from "../panels/registry";
+import { TilePalette } from "../panels/TilePalette";
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 
@@ -19,7 +28,10 @@ const ground: TilesetFile = {
   image: "ground-png",
   tile: [16, 16],
   columns: 4,
-  tiles: [{ id: 5, solid: true, tags: ["wall"], cost: 20 }],
+  tiles: [
+    { id: 5, solid: true, tags: ["wall"], cost: 20 },
+    { id: 6, oneWay: "up", tags: ["moss"] },
+  ],
   rules: [{ id: "walls", kind: "blob47", terrain: "wall", tiles: { "0": 5 }, fallback: 5 }],
 };
 const water: TilesetFile = {
@@ -57,29 +69,40 @@ function scene(): SceneDefinition {
   } as SceneDefinition;
 }
 
-function setup() {
-  const session = createEditorSession({
+function editorSession(): EditorSession {
+  return createEditorSession({
     doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),
     origin: ada,
     name: "tiles-yard",
     registry: createRegistry(),
     issuesDebounceMs: 0,
   });
-  const setBrush = vi.fn<TilePaletteHost["setBrush"]>();
-  const setRule = vi.fn<TilePaletteHost["setRule"]>();
-  const setTool = vi.fn<TilePaletteHost["setTool"]>();
-  const host: TilePaletteHost = { setBrush, setRule, setTool };
+}
+
+/** A tool host cell whose host records the tools it's asked for and reports them in the store. */
+function toolCell(session: EditorSession) {
+  const setTool = vi.fn((id: string) => {
+    session.store.setState((s) => ({ ...s, tool: id }));
+    return true;
+  });
+  const tools: ToolHostCell = new Store<ToolHost | null>({ setTool } as unknown as ToolHost);
+  return { tools, setTool };
+}
+
+function setup() {
+  const session = editorSession();
+  const { tools, setTool } = toolCell(session);
   render(
     <KitProvider host={{}}>
       <TilePalette
         session={session}
         runtime={runtime()}
         imageUrl={(id) => `/assets/${id}`}
-        host={host}
+        tools={tools}
       />
     </KitProvider>,
   );
-  return { session, host: { setBrush, setRule, setTool } };
+  return { session, setTool, brush: () => session.store.state.tileBrush };
 }
 
 const tile = (id: number) => screen.getByRole("gridcell", { name: `Tile ${id}` });
@@ -95,19 +118,20 @@ describe("tile palette", () => {
     expect(tile(5).style.backgroundPosition).toBe("-24px -24px");
   });
 
-  it("selecting a tile sets the brush and arms the brush tool", () => {
-    const { host } = setup();
+  it("selecting a tile sets the session's brush and arms the brush tool", () => {
+    const { setTool, brush } = setup();
     fireEvent.pointerDown(tile(5), { button: 0 });
-    expect(host.setBrush).toHaveBeenLastCalledWith({ tiles: [[6]] });
-    expect(host.setTool).toHaveBeenLastCalledWith("tile-brush");
+    expect(brush()).toEqual({ tiles: [[6]] });
+    expect(setTool).toHaveBeenLastCalledWith("tile-brush");
     expect(tile(5).getAttribute("aria-selected")).toBe("true");
+    expect(tile(0).getAttribute("aria-selected")).toBe("false");
   });
 
   it("Shift-click and drag select a stamp", () => {
-    const { host } = setup();
+    const { brush } = setup();
     fireEvent.pointerDown(tile(1), { button: 0 });
     fireEvent.pointerDown(tile(6), { button: 0, shiftKey: true });
-    expect(host.setBrush).toHaveBeenLastCalledWith({
+    expect(brush()).toEqual({
       tiles: [
         [2, 3],
         [6, 7],
@@ -119,7 +143,7 @@ describe("tile palette", () => {
     fireEvent.pointerEnter(tile(4));
     fireEvent.pointerEnter(tile(5));
     fireEvent.pointerUp(window);
-    expect(host.setBrush).toHaveBeenLastCalledWith({
+    expect(brush()).toEqual({
       tiles: [
         [1, 2],
         [5, 6],
@@ -129,31 +153,51 @@ describe("tile palette", () => {
   });
 
   it("is keyboard reachable: arrows move, Shift extends, Enter picks", () => {
-    const { host } = setup();
+    const { brush } = setup();
     expect(tile(0).tabIndex).toBe(0);
     act(() => tile(0).focus());
     fireEvent.keyDown(tile(0), { key: "Enter" });
-    expect(host.setBrush).toHaveBeenLastCalledWith({ tiles: [[1]] });
+    expect(brush()).toEqual({ tiles: [[1]] });
     fireEvent.keyDown(tile(0), { key: "ArrowRight", shiftKey: true });
     expect(document.activeElement).toBe(tile(1));
-    expect(host.setBrush).toHaveBeenLastCalledWith({ tiles: [[1, 2]] });
+    expect(brush()).toEqual({ tiles: [[1, 2]] });
   });
 
-  it("shows the selected tile's data read-only", () => {
+  it("highlights the session's brush, however it was set", () => {
+    const { session } = setup();
+    expect(tile(0).getAttribute("aria-selected")).toBe("true");
+    act(() => setTileBrush(session.store, { tiles: [[0, 4 | (1 << 13)]] }));
+    expect(tile(3).getAttribute("aria-selected")).toBe("true");
+    expect(tile(0).getAttribute("aria-selected")).toBe("false");
+    act(() => session.select(["pond"]));
+    act(() => session.select(["floor"]));
+    expect(tile(3).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("shows the selected tile's data read-only, as the tile rule reads it", () => {
     setup();
     fireEvent.pointerDown(tile(5), { button: 0 });
-    const data = screen.getByRole("region", { name: "Tile data" });
+    let data = screen.getByRole("region", { name: "Tile data" });
     expect(within(data).getByText("wall")).toBeTruthy();
-    expect(within(data).getByText("20")).toBeTruthy();
+    expect(within(data).getByText("Solid")).toBeTruthy();
+    expect(within(data).queryByText("Cost")).toBeNull();
     expect(within(data).queryByRole("textbox")).toBeNull();
+
+    fireEvent.pointerUp(window);
+    fireEvent.pointerDown(tile(6), { button: 0 });
+    data = screen.getByRole("region", { name: "Tile data" });
+    expect(within(data).getByText("moss")).toBeTruthy();
+    expect(within(data).queryByText("One-way")).toBeNull();
+    expect(within(data).getByText("10")).toBeTruthy();
   });
 
   it("a rule arms the autotile tool", () => {
-    const { host } = setup();
+    const { session, setTool } = setup();
     const rule = screen.getByRole("button", { name: /walls/ });
     fireEvent.click(rule);
-    expect(host.setRule).toHaveBeenCalledWith("walls");
-    expect(host.setTool).toHaveBeenLastCalledWith("tile-auto");
+    expect(session.store.state.tileRule).toBe("walls");
+    expect(setTool).toHaveBeenLastCalledWith("tile-auto");
+    expect(rule.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("switching tilemaps switches the tileset", () => {
@@ -167,5 +211,25 @@ describe("tile palette", () => {
     expect(screen.getByRole("grid", { name: "Tiles of water" })).toBeTruthy();
     act(() => session.select(["floor"]));
     expect(screen.getByRole("grid", { name: "Tiles of ground" })).toBeTruthy();
+  });
+
+  it("arms the brush and the rule at the panel registry's mount", () => {
+    const session = editorSession();
+    const { tools, setTool } = toolCell(session);
+    const def = PANELS.find((p) => p.id === "tiles")!;
+    const controls = {
+      session,
+      tools,
+      project: { runtime: runtime(), assetImage: (id: string) => `/assets/${id}` },
+    };
+    render(
+      <KitProvider host={{}}>{def.render({ controls } as unknown as PanelContext)}</KitProvider>,
+    );
+    fireEvent.pointerDown(tile(2), { button: 0 });
+    expect(session.store.state.tileBrush).toEqual({ tiles: [[3]] });
+    expect(setTool).toHaveBeenLastCalledWith("tile-brush");
+    fireEvent.click(screen.getByRole("button", { name: /walls/ }));
+    expect(session.store.state.tileRule).toBe("walls");
+    expect(setTool).toHaveBeenLastCalledWith("tile-auto");
   });
 });

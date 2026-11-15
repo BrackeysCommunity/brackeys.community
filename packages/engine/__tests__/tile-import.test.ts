@@ -5,7 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { decodeCell } from "../game/tile-cell";
 import { gridGeometry } from "../grid/geometry";
-import { tilesetSchemaFor, type TilesetFile } from "../project/kinds/tileset";
+import { tilemapIssues, tilesetSchemaFor, type TilesetFile } from "../project/kinds/tileset";
 import type { ProjectOp } from "../project/ops";
 import { projectView } from "../project/view";
 import { readCell, type GridCells } from "../scene/grid";
@@ -237,6 +237,46 @@ describe("importTiled", () => {
       expect(notes[0]).toMatchObject({ code: "import-failed", severity: "error" });
       expect(notes[0]!.message).toContain("isometric maps import once plan 57's projections exist");
     }
+  });
+
+  it("drops a tileset whose tiles aren't the map's cell size, and its cells, so the scene loads", () => {
+    const map = read("sample.tmj") as { tilesets: Record<string, unknown>[] };
+    map.tilesets[1] = { ...map.tilesets[1], tileheight: 32, imageheight: 32 };
+    const { ops, notes } = importTiled(map, TILESETS, opts());
+    expect(notes.every((n) => n.severity === "warn")).toBe(true);
+    expect(notes.map((n) => n.message)).toEqual(
+      expect.arrayContaining([
+        "tileset \"Props\"'s tiles are 16×32 px but the map's cells are 16×16 px; it and the cells that use it are dropped",
+        "layer \"Ground\" drops 1 cell(s) from tilesets whose tiles aren't the map's cell size",
+      ]),
+    );
+    expect(ops.some((o) => "id" in o && (o.id === "props" || o.id === "props-image"))).toBe(false);
+
+    const tilemaps = added(ops).filter((e) => e.type === "tilemap");
+    expect(tilemaps.map((e) => [e.name, e.tileset])).toEqual([
+      ["Ground", "terrain"],
+      ["Back/Detail", "terrain"],
+    ]);
+    expect(cellAt(tilemaps[0]!, 3, 2)).toBeNull();
+    const terrain = tilesetDoc(ops, "terrain");
+    const grid = { settings: gridOf(ops), pxPerMetre: 16 };
+    for (const e of tilemaps)
+      expect(
+        tilemapIssues(
+          { id: "t", tileset: e.tileset as string, cells: e.cells as GridCells },
+          terrain,
+          null,
+          grid,
+        ),
+      ).toEqual([]);
+  });
+
+  it("reads Tiled's #aarrggbb layer tint as 0xRRGGBB", () => {
+    const map = read("infinite.tmj") as { layers: Record<string, unknown>[] };
+    map.layers[0] = { ...map.layers[0], tintcolor: "#80ff8000" };
+    expect(added(importTiled(map, TILESETS, opts()).ops)[0]).toMatchObject({ tint: 0xff8000 });
+    map.layers[0] = { ...map.layers[0], tintcolor: "#123abc" };
+    expect(added(importTiled(map, TILESETS, opts()).ops)[0]).toMatchObject({ tint: 0x123abc });
   });
 
   it("refuses the whole import on a missing tileset, image or compressed data", () => {

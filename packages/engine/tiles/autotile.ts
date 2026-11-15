@@ -1,7 +1,7 @@
 /** Deterministic autotiling: neighbour masks taken before the pass, cells in row-major order. Pure. */
-import { encodeCell } from "../game/tile-cell";
+import { decodeCell, encodeCell } from "../game/tile-cell";
 import type { CellBounds } from "../grid/geometry";
-import type { AutotileRule, TilesetFile } from "../project/kinds/tileset";
+import type { AutotileRule, TileDef, TilesetFile } from "../project/kinds/tileset";
 import { readCell, type CellEdit, type GridCells } from "../scene/grid";
 
 /** Neighbour bits: N=1, NE=2, E=4, SE=8, S=16, SW=32, W=64, NW=128. */
@@ -34,16 +34,35 @@ export function terrainMask(
   return mask;
 }
 
+/** Whether a cell value's tile carries `terrain` among its tags. */
+export function terrainTest(tiles: Iterable<TileDef>, terrain: string): (value: number) => boolean {
+  const ids = new Set<number>();
+  for (const def of tiles) if (def.tags?.includes(terrain)) ids.add(def.id);
+  return (value) => {
+    const tile = decodeCell(value);
+    return tile !== null && ids.has(tile.id);
+  };
+}
+
+/** The tile that paints `rule`'s terrain: its fallback when that is terrain, else the lowest-id tile tagged with it. */
+export function terrainTile(tileset: TilesetFile, rule: AutotileRule): number | undefined {
+  const tagged = (tileset.tiles ?? []).filter((t) => t.tags?.includes(rule.terrain));
+  if (tagged.some((t) => t.id === rule.fallback)) return rule.fallback;
+  return tagged.length === 0 ? undefined : Math.min(...tagged.map((t) => t.id));
+}
+
 /**
  * The cells `rule` gives every terrain cell in `rect` and its one-cell border,
- * whose masks change. Only cells whose value changes are returned.
+ * whose masks change. Only cells whose value changes are returned. A cell is
+ * terrain when its tile carries the rule's terrain tag in `tileset`, unless
+ * `isTerrain` says otherwise.
  */
 export function applyAutotile(
   grid: GridCells,
-  _tileset: TilesetFile,
+  tileset: TilesetFile,
   rule: AutotileRule,
   rect: CellBounds,
-  isTerrain: (value: number) => boolean,
+  isTerrain: (value: number) => boolean = terrainTest(tileset.tiles ?? [], rule.terrain),
 ): CellEdit[] {
   const at = (col: number, row: number) => isTerrain(readCell(grid, col, row));
   const out: CellEdit[] = [];

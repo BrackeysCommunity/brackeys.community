@@ -27,7 +27,7 @@ describe("POSED_PRIMITIVES", () => {
     });
     expect([...posed].sort()).toEqual([...POSED_PRIMITIVES].sort());
     expect([...POSED_PRIMITIVES].sort()).toEqual(
-      ["decor", "marker", "node", "prop", "sensor", "solid"].sort(),
+      ["decor", "marker", "node", "prop", "sensor", "solid", "tilemap"].sort(),
     );
     const unposed = Object.keys(PRIMITIVE_SYSTEMS).filter((type) => !posed.includes(type));
     expect(unposed.sort()).toEqual(["camera-region", "follower", "nav"]);

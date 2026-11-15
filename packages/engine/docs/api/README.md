@@ -6,16 +6,16 @@ Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regene
 
 | Entry | Exports |
 | --- | --- |
-| [`@jams/engine`](index.md) | 236 |
+| [`@jams/engine`](index.md) | 242 |
 | [`@jams/engine/collab`](collab.md) | 233 |
 | [`@jams/engine/debug`](debug.md) | 43 |
-| [`@jams/engine/editor`](editor.md) | 350 |
+| [`@jams/engine/editor`](editor.md) | 376 |
 | [`@jams/engine/editor-ui`](editor-ui.md) | 86 |
 | [`@jams/engine/export`](export.md) | 40 |
-| [`@jams/engine/game`](game.md) | 595 |
+| [`@jams/engine/game`](game.md) | 644 |
 | [`@jams/engine/headless`](headless.md) | 219 |
-| [`@jams/engine/project`](project.md) | 439 |
-| [`@jams/engine/scene`](scene.md) | 379 |
+| [`@jams/engine/project`](project.md) | 456 |
+| [`@jams/engine/scene`](scene.md) | 384 |
 | [`@jams/engine/sim-kit`](sim-kit.md) | 19 |
 | [`@jams/engine/standalone`](standalone.md) | 57 |
 | [`@jams/engine/vite`](vite.md) | 55 |

@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`AGENT_SURFACE_KEYWORD`](#agent_surface_keyword) · [`AGENT_SURFACE_VERSION`](#agent_surface_version) · [`Aabb`](#aabb) · [`AnalogSet`](#analogset) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetId`](#assetid) · [`Bounds`](#bounds) · [`BulkEntry`](#bulkentry) · [`BulkForm`](#bulkform) · [`BulkKey`](#bulkkey) · [`BulkPlacement`](#bulkplacement) · [`CHECKS_FORMAT_VERSION`](#checks_format_version) · [`CHECKS_LAYOUT`](#checks_layout) · [`CHECKS_SUFFIX`](#checks_suffix) · [`CHILD_SEPARATOR`](#child_separator) · [`CHUNK_KEY_PATTERN`](#chunk_key_pattern) · [`CellEdit`](#celledit) · [`CellRect`](#cellrect) · [`CheckCell`](#checkcell) · [`CheckPlace`](#checkplace) · [`ChecksFile`](#checksfile) · [`ChecksIssue`](#checksissue) · [`ChunkKey`](#chunkkey) · [`ConnectedCheck`](#connectedcheck) · [`CountMatch`](#countmatch) · [`DEFAULT_ASCII_TAG_CHARS`](#default_ascii_tag_chars) · [`DEFAULT_BLOCKED_BY`](#default_blocked_by) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_SCRIPT_MAX_TICKS`](#default_script_max_ticks) · [`DEFAULT_TOUCH_ROLLOUTS`](#default_touch_rollouts) · [`DEFAULT_TOUCH_SEED`](#default_touch_seed) · [`DEFAULT_TOUCH_TICKS`](#default_touch_ticks) · [`DEFAULT_UNTIL_MAX`](#default_until_max) · [`Dihedral`](#dihedral) · [`DrawnSprite`](#drawnsprite) · [`EMPTY_SCENE_TEMPLATE`](#empty_scene_template) · [`ENGINE_ISSUE_CODE_LIST`](#engine_issue_code_list) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`EngineIssueCode`](#engineissuecode) · [`EntityBase`](#entitybase) · [`EntityDef`](#entitydef) · [`EntityInput`](#entityinput) · [`EntityTypeName`](#entitytypename) · [`ExistsMatch`](#existsmatch) · [`ExpandOptions`](#expandoptions) · [`ExpandedScene`](#expandedscene) · [`FRAGMENT_KIND`](#fragment_kind) · [`FieldKind`](#fieldkind) · [`FieldPath`](#fieldpath) · [`Frame`](#frame) · [`GRID_CHUNK`](#grid_chunk) · [`GRID_MAX_VALUE`](#grid_max_value) · [`GRID_ROW_PATTERN`](#grid_row_pattern) · [`GameCheck`](#gamecheck) · [`GridCells`](#gridcells) · [`GridProblem`](#gridproblem) · [`GridRow`](#gridrow) · [`GridSettings`](#gridsettings) · [`IDENTITY_2D`](#identity_2d) · [`ID_PATTERN`](#id_pattern) · [`INPUT_SCRIPT_LAYOUT`](#input_script_layout) · [`INPUT_SCRIPT_MIGRATIONS`](#input_script_migrations) · [`INPUT_SCRIPT_VERSION`](#input_script_version) · [`INSTANCE_OVERRIDE_FIELDS`](#instance_override_fields) · [`ISSUE_CODES`](#issue_codes) · [`InputScriptSchemas`](#inputscriptschemas) · [`InstanceDef`](#instancedef) · [`InstanceInput`](#instanceinput) · [`InstanceSchema`](#instanceschema) · [`IssueCode`](#issuecode) · [`IssueCodeInfo`](#issuecodeinfo) · [`JsonSchemaOptions`](#jsonschemaoptions) · [`LENGTH_UNITS`](#length_units) · [`LengthUnitName`](#lengthunitname) · [`LiveIssueInput`](#liveissueinput) · [`LiveSwapPhase`](#liveswapphase) · [`LocalChild`](#localchild) · [`MAX_SCRIPT_TICKS`](#max_script_ticks) · [`MAX_TOUCH_ROLLOUTS`](#max_touch_rollouts) · [`MIGRATIONS`](#migrations) · [`MigrateEnv`](#migrateenv) · [`MigrateInputScriptResult`](#migrateinputscriptresult) · [`MigrateResult`](#migrateresult) · [`Migration`](#migration) · [`MigrationRefusal`](#migrationrefusal) · [`OP_NAMES`](#op_names) · [`OVERRIDE_PATH`](#override_path) · [`OpBatch`](#opbatch) · [`Orientation`](#orientation) · [`OverlayPoint`](#overlaypoint) · [`OverridePath`](#overridepath) · [`PARENT_MAX_DEPTH`](#parent_max_depth) · [`PREFABS_DIR`](#prefabs_dir) · [`PREFAB_KIND`](#prefab_kind) · [`PREFAB_MAX_DEPTH`](#prefab_max_depth) · [`ParseChecksResult`](#parsechecksresult) · [`ParseFragmentResult`](#parsefragmentresult) · [`ParseInputScriptResult`](#parseinputscriptresult) · [`ParseOptions`](#parseoptions) · [`ParsePrefabResult`](#parseprefabresult) · [`ParseRecordingResult`](#parserecordingresult) · [`ParseSceneResult`](#parsesceneresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathCommand`](#pathcommand) · [`PathDef`](#pathdef) · [`PlacedChild`](#placedchild) · [`PlacedFragment`](#placedfragment) · [`Prefab`](#prefab) · [`PrefabBody`](#prefabbody) · [`PrefabLibrary`](#prefablibrary) · [`PrefabParam`](#prefabparam) · [`PrefabResolution`](#prefabresolution) · [`Pt`](#pt) · [`RECORDING_SCHEMA_ID`](#recording_schema_id) · [`RECORDING_TRAIL_EVERY`](#recording_trail_every) · [`RECORDING_VERSION`](#recording_version) · [`RESERVED_SCENE_KEYS`](#reserved_scene_keys) · [`ReachesCheck`](#reachescheck) · [`RecordedSwap`](#recordedswap) · [`RecordingCommand`](#recordingcommand) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`RectInput`](#rectinput) · [`Ref`](#ref) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolveOptions`](#resolveoptions) · [`ResolvedOrigin`](#resolvedorigin) · [`ResolvedPrefab`](#resolvedprefab) · [`ResolvedScene`](#resolvedscene) · [`ResolvedSettings`](#resolvedsettings) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeField`](#runtimefield) · [`RuntimeFields`](#runtimefields) · [`SCENE_FORMAT_VERSION`](#scene_format_version) · [`SCENE_GRID_MAX_CELLS`](#scene_grid_max_cells) · [`SCENE_HEADER_KEYS`](#scene_header_keys) · [`SCENE_SVG_MAX_SIZE`](#scene_svg_max_size) · [`SCHEMA_ID_BASE`](#schema_id_base) · [`SHORT_ID_LENGTH`](#short_id_length) · [`SceneAsciiMap`](#sceneasciimap) · [`SceneAsciiOptions`](#sceneasciioptions) · [`SceneChange`](#scenechange) · [`SceneCheck`](#scenecheck) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneFrames`](#sceneframes) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneLabels`](#scenelabels) · [`SceneLayerDef`](#scenelayerdef) · [`SceneOp`](#sceneop) · [`SceneOverlay`](#sceneoverlay) · [`SceneParseError`](#sceneparseerror) · [`SceneRegionOptions`](#sceneregionoptions) · [`SceneSettings`](#scenesettings) · [`SceneSprite`](#scenesprite) · [`SceneSvgOptions`](#scenesvgoptions) · [`SceneTextOptions`](#scenetextoptions) · [`SceneVersionError`](#sceneversionerror) · [`SceneViewport`](#sceneviewport) · [`ScriptPointer`](#scriptpointer) · [`SeatEvent`](#seatevent) · [`SettingsSources`](#settingssources) · [`Severity`](#severity) · [`ShapeInput`](#shapeinput) · [`ShapeObj`](#shapeobj) · [`ShapeTuple`](#shapetuple) · [`ShapeTupleSchema`](#shapetupleschema) · [`ShapeType`](#shapetype) · [`SpatialHash`](#spatialhash) · [`SpotAnchor`](#spotanchor) · [`SpriteAssetLookup`](#spriteassetlookup) · [`SpritePoseSource`](#spriteposesource) · [`SublevelJudgeOptions`](#subleveljudgeoptions) · [`SublevelSettings`](#sublevelsettings) · [`SystemEvent`](#systemevent) · [`TouchesCheck`](#touchescheck) · [`Transform2D`](#transform2d) · [`ValidCheck`](#validcheck) · [`ValidateOptions`](#validateoptions) · [`aabb`](#aabb-1) · [`aabbUnion`](#aabbunion) · [`applyOps`](#applyops) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`behaviorBlocks`](#behaviorblocks) · [`boxCorners`](#boxcorners) · [`bulkEntries`](#bulkentries) · [`bulkId`](#bulkid) · [`bulkKeyType`](#bulkkeytype) · [`bulkKeysOf`](#bulkkeysof) · [`canonicalGrid`](#canonicalgrid) · [`centroid`](#centroid) · [`checksJsonSchema`](#checksjsonschema) · [`checksPathOf`](#checkspathof) · [`checksSchemaFor`](#checksschemafor) · [`checksSchemaId`](#checksschemaid) · [`childRef`](#childref) · [`closest`](#closest) · [`closestOnSegment`](#closestonsegment) · [`compareChunkKeys`](#comparechunkkeys) · [`comparePointers`](#comparepointers) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`composeFrames`](#composeframes) · [`composeOrientations`](#composeorientations) · [`composeSteps`](#composesteps) · [`containedInRect`](#containedinrect) · [`containsPoint`](#containspoint) · [`convexHull`](#convexhull) · [`createRegistry`](#createregistry) · [`createScene`](#createscene) · [`createSpatialHash`](#createspatialhash) · [`decodeRow`](#decoderow) · [`defaultLayer`](#defaultlayer) · [`defaultPhysics`](#defaultphysics) · [`describeChange`](#describechange) · [`didYouMean`](#didyoumean) · [`diffExpanded`](#diffexpanded) · [`diffPrefabToOps`](#diffprefabtoops) · [`diffScenes`](#diffscenes) · [`diffToOps`](#difftoops) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`encodeRow`](#encoderow) · [`entityFrame`](#entityframe) · [`entityIssues`](#entityissues) · [`entitySchemaFor`](#entityschemafor) · [`expandInstance`](#expandinstance) · [`expandScene`](#expandscene) · [`fieldKind`](#fieldkind-1) · [`flipWorld`](#flipworld) · [`formatAsciiMap`](#formatasciimap) · [`formatChecks`](#formatchecks) · [`formatInputScript`](#formatinputscript) · [`formatPrefab`](#formatprefab) · [`formatPrefabs`](#formatprefabs) · [`formatScene`](#formatscene) · [`fragmentBounds`](#fragmentbounds) · [`fragmentJsonSchema`](#fragmentjsonschema) · [`fragmentOf`](#fragmentof) · [`fragmentSchemaFor`](#fragmentschemafor) · [`frame`](#frame-1) · [`frameOf`](#frameof) · [`geometryFields`](#geometryfields) · [`gridCellBounds`](#gridcellbounds) · [`gridProblems`](#gridproblems) · [`gridTurns`](#gridturns) · [`hashText`](#hashtext) · [`inputScriptJsonSchema`](#inputscriptjsonschema) · [`inputScriptSchemaFor`](#inputscriptschemafor) · [`inputScriptSchemaId`](#inputscriptschemaid) · [`inputScriptSchemasFor`](#inputscriptschemasfor) · [`instanceFrame`](#instanceframe) · [`instanceOrigin`](#instanceorigin) · [`instanceSteps`](#instancesteps) · [`instanceTransform`](#instancetransform) · [`intersectsRect`](#intersectsrect) · [`inverseTurn`](#inverseturn) · [`invert`](#invert) · [`isConvex`](#isconvex) · [`isErrorIssue`](#iserrorissue) · [`isExpandedScene`](#isexpandedscene) · [`isGridValue`](#isgridvalue) · [`isIdentityTurn`](#isidentityturn) · [`isInstanceOverrideField`](#isinstanceoverridefield) · [`isMigrationRefusal`](#ismigrationrefusal) · [`isQuarterTurn`](#isquarterturn) · [`isSpawnOnly`](#isspawnonly) · [`isWholePixel`](#iswholepixel) · [`jsonPointer`](#jsonpointer) · [`layerNames`](#layernames) · [`lengthDecimals`](#lengthdecimals) · [`lineAt`](#lineat) · [`liveIssue`](#liveissue) · [`localChild`](#localchild-1) · [`localChildren`](#localchildren) · [`makeIssue`](#makeissue) · [`migrate`](#migrate) · [`migrateInputScript`](#migrateinputscript) · [`migrateRecordingV1`](#migraterecordingv1) · [`nearestSegment`](#nearestsegment) · [`nearestVertex`](#nearestvertex) · [`nextFreeId`](#nextfreeid) · [`opBatchSchemaFor`](#opbatchschemafor) · [`opsJsonSchema`](#opsjsonschema) · [`opsSchemaId`](#opsschemaid) · [`paintGrid`](#paintgrid) · [`parseBulkId`](#parsebulkid) · [`parseChecks`](#parsechecks) · [`parseChildRef`](#parsechildref) · [`parseChunkKey`](#parsechunkkey) · [`parseFragment`](#parsefragment) · [`parseInputScript`](#parseinputscript) · [`parsePrefab`](#parseprefab) · [`parseRecording`](#parserecording) · [`parseScene`](#parsescene) · [`parseSceneOrThrow`](#parsesceneorthrow) · [`parseShape`](#parseshape) · [`placeChildren`](#placechildren) · [`placeFragment`](#placefragment) · [`placeableTypes`](#placeabletypes) · [`placedFrame`](#placedframe) · [`plural`](#plural) · [`pointerLines`](#pointerlines) · [`prefabBody`](#prefabbody-1) · [`prefabJsonSchema`](#prefabjsonschema) · [`prefabLibrary`](#prefablibrary-1) · [`prefabOf`](#prefabof) · [`prefabScene`](#prefabscene) · [`prefabSchemaFor`](#prefabschemafor) · [`prefabsUsedBy`](#prefabsusedby) · [`projectSpriteAssets`](#projectspriteassets) · [`pxToMetres`](#pxtometres) · [`raycastShape`](#raycastshape) · [`readCell`](#readcell) · [`recordingJsonSchema`](#recordingjsonschema) · [`renderSceneAscii`](#rendersceneascii) · [`renderSceneSvg`](#renderscenesvg) · [`resolvePrefab`](#resolveprefab) · [`resolveScene`](#resolvescene) · [`resolveSceneDetailed`](#resolvescenedetailed) · [`resolveSettings`](#resolvesettings) · [`resolveTime`](#resolvetime) · [`rotateShape`](#rotateshape) · [`roundLength`](#roundlength) · [`runRecordingSchema`](#runrecordingschema) · [`runRecordingV1Schema`](#runrecordingv1schema) · [`sceneAsciiMap`](#sceneasciimap-1) · [`sceneBody`](#scenebody) · [`sceneFrames`](#sceneframes-1) · [`sceneGameOf`](#scenegameof) · [`sceneHash`](#scenehash-1) · [`sceneHashWith`](#scenehashwith) · [`sceneJsonSchema`](#scenejsonschema) · [`sceneOpSchemaFor`](#sceneopschemafor) · [`scenePhysics`](#scenephysics) · [`sceneRegistry`](#sceneregistry) · [`sceneSchemaFor`](#sceneschemafor) · [`sceneSprites`](#scenesprites) · [`sceneViewport`](#sceneviewport-1) · [`schemaIdFor`](#schemaidfor) · [`scriptSeatLimit`](#scriptseatlimit) · [`scriptShapeIssues`](#scriptshapeissues) · [`shapeAtPose`](#shapeatpose) · [`shapeIsClosed`](#shapeisclosed) · [`shapeOutline`](#shapeoutline) · [`shapeToTuple`](#shapetotuple) · [`shapeVertices`](#shapevertices) · [`shapesIntersect`](#shapesintersect) · [`shortId`](#shortid) · [`snapToPixel`](#snaptopixel) · [`spawnSchemaFor`](#spawnschemafor) · [`splitChildRef`](#splitchildref) · [`splitFieldPath`](#splitfieldpath) · [`splitOverridePath`](#splitoverridepath) · [`spriteBoxOf`](#spriteboxof) · [`sublevelIssue`](#sublevelissue) · [`suggestType`](#suggesttype) · [`takenIds`](#takenids) · [`toSourceBatch`](#tosourcebatch) · [`topSpan`](#topspan) · [`transformGrid`](#transformgrid) · [`translateEntityDef`](#translateentitydef) · [`translateShape`](#translateshape) · [`translation`](#translation) · [`turnOf`](#turnof) · [`undescribedProperties`](#undescribedproperties) · [`unknownGameIssue`](#unknowngameissue) · [`untitledEntityFields`](#untitledentityfields) · [`validateScene`](#validatescene) · [`worldPointSchema`](#worldpointschema)
+[`AGENT_SURFACE_KEYWORD`](#agent_surface_keyword) · [`AGENT_SURFACE_VERSION`](#agent_surface_version) · [`Aabb`](#aabb) · [`AnalogSet`](#analogset) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetId`](#assetid) · [`Bounds`](#bounds) · [`BulkEntry`](#bulkentry) · [`BulkForm`](#bulkform) · [`BulkKey`](#bulkkey) · [`BulkPlacement`](#bulkplacement) · [`CHECKS_FORMAT_VERSION`](#checks_format_version) · [`CHECKS_LAYOUT`](#checks_layout) · [`CHECKS_SUFFIX`](#checks_suffix) · [`CHILD_SEPARATOR`](#child_separator) · [`CHUNK_KEY_PATTERN`](#chunk_key_pattern) · [`CellEdit`](#celledit) · [`CellRect`](#cellrect) · [`CheckCell`](#checkcell) · [`CheckPlace`](#checkplace) · [`ChecksFile`](#checksfile) · [`ChecksIssue`](#checksissue) · [`ChunkKey`](#chunkkey) · [`ConnectedCheck`](#connectedcheck) · [`CountMatch`](#countmatch) · [`DEFAULT_ASCII_TAG_CHARS`](#default_ascii_tag_chars) · [`DEFAULT_BLOCKED_BY`](#default_blocked_by) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_SCRIPT_MAX_TICKS`](#default_script_max_ticks) · [`DEFAULT_TOUCH_ROLLOUTS`](#default_touch_rollouts) · [`DEFAULT_TOUCH_SEED`](#default_touch_seed) · [`DEFAULT_TOUCH_TICKS`](#default_touch_ticks) · [`DEFAULT_UNTIL_MAX`](#default_until_max) · [`Dihedral`](#dihedral) · [`DrawnSprite`](#drawnsprite) · [`DrawnTile`](#drawntile) · [`EMPTY_SCENE_TEMPLATE`](#empty_scene_template) · [`ENGINE_ISSUE_CODE_LIST`](#engine_issue_code_list) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`EngineIssueCode`](#engineissuecode) · [`EntityBase`](#entitybase) · [`EntityDef`](#entitydef) · [`EntityInput`](#entityinput) · [`EntityTypeName`](#entitytypename) · [`ExistsMatch`](#existsmatch) · [`ExpandOptions`](#expandoptions) · [`ExpandedScene`](#expandedscene) · [`FRAGMENT_KIND`](#fragment_kind) · [`FieldKind`](#fieldkind) · [`FieldPath`](#fieldpath) · [`Frame`](#frame) · [`GRID_CHUNK`](#grid_chunk) · [`GRID_MAX_VALUE`](#grid_max_value) · [`GRID_ROW_PATTERN`](#grid_row_pattern) · [`GameCheck`](#gamecheck) · [`GridCells`](#gridcells) · [`GridProblem`](#gridproblem) · [`GridRow`](#gridrow) · [`GridSettings`](#gridsettings) · [`IDENTITY_2D`](#identity_2d) · [`ID_PATTERN`](#id_pattern) · [`INPUT_SCRIPT_LAYOUT`](#input_script_layout) · [`INPUT_SCRIPT_MIGRATIONS`](#input_script_migrations) · [`INPUT_SCRIPT_VERSION`](#input_script_version) · [`INSTANCE_OVERRIDE_FIELDS`](#instance_override_fields) · [`ISSUE_CODES`](#issue_codes) · [`InputScriptSchemas`](#inputscriptschemas) · [`InstanceDef`](#instancedef) · [`InstanceInput`](#instanceinput) · [`InstanceSchema`](#instanceschema) · [`IssueCode`](#issuecode) · [`IssueCodeInfo`](#issuecodeinfo) · [`JsonSchemaOptions`](#jsonschemaoptions) · [`LENGTH_UNITS`](#length_units) · [`LengthUnitName`](#lengthunitname) · [`LiveIssueInput`](#liveissueinput) · [`LiveSwapPhase`](#liveswapphase) · [`LocalChild`](#localchild) · [`MAX_SCRIPT_TICKS`](#max_script_ticks) · [`MAX_TOUCH_ROLLOUTS`](#max_touch_rollouts) · [`MIGRATIONS`](#migrations) · [`MigrateEnv`](#migrateenv) · [`MigrateInputScriptResult`](#migrateinputscriptresult) · [`MigrateResult`](#migrateresult) · [`Migration`](#migration) · [`MigrationRefusal`](#migrationrefusal) · [`OP_NAMES`](#op_names) · [`OVERRIDE_PATH`](#override_path) · [`OpBatch`](#opbatch) · [`Orientation`](#orientation) · [`OverlayPoint`](#overlaypoint) · [`OverridePath`](#overridepath) · [`PARENT_MAX_DEPTH`](#parent_max_depth) · [`PREFABS_DIR`](#prefabs_dir) · [`PREFAB_KIND`](#prefab_kind) · [`PREFAB_MAX_DEPTH`](#prefab_max_depth) · [`ParseChecksResult`](#parsechecksresult) · [`ParseFragmentResult`](#parsefragmentresult) · [`ParseInputScriptResult`](#parseinputscriptresult) · [`ParseOptions`](#parseoptions) · [`ParsePrefabResult`](#parseprefabresult) · [`ParseRecordingResult`](#parserecordingresult) · [`ParseSceneResult`](#parsesceneresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathCommand`](#pathcommand) · [`PathDef`](#pathdef) · [`PlacedChild`](#placedchild) · [`PlacedFragment`](#placedfragment) · [`Prefab`](#prefab) · [`PrefabBody`](#prefabbody) · [`PrefabLibrary`](#prefablibrary) · [`PrefabParam`](#prefabparam) · [`PrefabResolution`](#prefabresolution) · [`Pt`](#pt) · [`RECORDING_SCHEMA_ID`](#recording_schema_id) · [`RECORDING_TRAIL_EVERY`](#recording_trail_every) · [`RECORDING_VERSION`](#recording_version) · [`RESERVED_SCENE_KEYS`](#reserved_scene_keys) · [`ReachesCheck`](#reachescheck) · [`RecordedSwap`](#recordedswap) · [`RecordingCommand`](#recordingcommand) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`RectInput`](#rectinput) · [`Ref`](#ref) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolveOptions`](#resolveoptions) · [`ResolvedOrigin`](#resolvedorigin) · [`ResolvedPrefab`](#resolvedprefab) · [`ResolvedScene`](#resolvedscene) · [`ResolvedSettings`](#resolvedsettings) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeField`](#runtimefield) · [`RuntimeFields`](#runtimefields) · [`SCENE_FORMAT_VERSION`](#scene_format_version) · [`SCENE_GRID_MAX_CELLS`](#scene_grid_max_cells) · [`SCENE_HEADER_KEYS`](#scene_header_keys) · [`SCENE_SVG_MAX_SIZE`](#scene_svg_max_size) · [`SCHEMA_ID_BASE`](#schema_id_base) · [`SHORT_ID_LENGTH`](#short_id_length) · [`SceneAsciiMap`](#sceneasciimap) · [`SceneAsciiOptions`](#sceneasciioptions) · [`SceneChange`](#scenechange) · [`SceneCheck`](#scenecheck) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneFrames`](#sceneframes) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneLabels`](#scenelabels) · [`SceneLayerDef`](#scenelayerdef) · [`SceneOp`](#sceneop) · [`SceneOverlay`](#sceneoverlay) · [`SceneParseError`](#sceneparseerror) · [`SceneRegionOptions`](#sceneregionoptions) · [`SceneSettings`](#scenesettings) · [`SceneSprite`](#scenesprite) · [`SceneSvgOptions`](#scenesvgoptions) · [`SceneTextOptions`](#scenetextoptions) · [`SceneTileOptions`](#scenetileoptions) · [`SceneTileTraits`](#scenetiletraits) · [`SceneVersionError`](#sceneversionerror) · [`SceneViewport`](#sceneviewport) · [`ScriptPointer`](#scriptpointer) · [`SeatEvent`](#seatevent) · [`SettingsSources`](#settingssources) · [`Severity`](#severity) · [`ShapeInput`](#shapeinput) · [`ShapeObj`](#shapeobj) · [`ShapeTuple`](#shapetuple) · [`ShapeTupleSchema`](#shapetupleschema) · [`ShapeType`](#shapetype) · [`SpatialHash`](#spatialhash) · [`SpotAnchor`](#spotanchor) · [`SpriteAssetLookup`](#spriteassetlookup) · [`SpritePoseSource`](#spriteposesource) · [`SublevelJudgeOptions`](#subleveljudgeoptions) · [`SublevelSettings`](#sublevelsettings) · [`SystemEvent`](#systemevent) · [`TILE_LABEL_MAX_CELLS`](#tile_label_max_cells) · [`TouchesCheck`](#touchescheck) · [`Transform2D`](#transform2d) · [`ValidCheck`](#validcheck) · [`ValidateOptions`](#validateoptions) · [`aabb`](#aabb-1) · [`aabbUnion`](#aabbunion) · [`applyOps`](#applyops) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`behaviorBlocks`](#behaviorblocks) · [`boxCorners`](#boxcorners) · [`bulkEntries`](#bulkentries) · [`bulkId`](#bulkid) · [`bulkKeyType`](#bulkkeytype) · [`bulkKeysOf`](#bulkkeysof) · [`canonicalGrid`](#canonicalgrid) · [`centroid`](#centroid) · [`checksJsonSchema`](#checksjsonschema) · [`checksPathOf`](#checkspathof) · [`checksSchemaFor`](#checksschemafor) · [`checksSchemaId`](#checksschemaid) · [`childRef`](#childref) · [`closest`](#closest) · [`closestOnSegment`](#closestonsegment) · [`compareChunkKeys`](#comparechunkkeys) · [`comparePointers`](#comparepointers) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`composeFrames`](#composeframes) · [`composeOrientations`](#composeorientations) · [`composeSteps`](#composesteps) · [`containedInRect`](#containedinrect) · [`containsPoint`](#containspoint) · [`convexHull`](#convexhull) · [`createRegistry`](#createregistry) · [`createScene`](#createscene) · [`createSpatialHash`](#createspatialhash) · [`decodeRow`](#decoderow) · [`defaultLayer`](#defaultlayer) · [`defaultPhysics`](#defaultphysics) · [`describeChange`](#describechange) · [`didYouMean`](#didyoumean) · [`diffExpanded`](#diffexpanded) · [`diffPrefabToOps`](#diffprefabtoops) · [`diffScenes`](#diffscenes) · [`diffToOps`](#difftoops) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawnTile`](#drawntile-1) · [`encodeRow`](#encoderow) · [`entityFrame`](#entityframe) · [`entityIssues`](#entityissues) · [`entitySchemaFor`](#entityschemafor) · [`expandInstance`](#expandinstance) · [`expandScene`](#expandscene) · [`fieldKind`](#fieldkind-1) · [`flipWorld`](#flipworld) · [`formatAsciiMap`](#formatasciimap) · [`formatChecks`](#formatchecks) · [`formatInputScript`](#formatinputscript) · [`formatPrefab`](#formatprefab) · [`formatPrefabs`](#formatprefabs) · [`formatScene`](#formatscene) · [`fragmentBounds`](#fragmentbounds) · [`fragmentJsonSchema`](#fragmentjsonschema) · [`fragmentOf`](#fragmentof) · [`fragmentSchemaFor`](#fragmentschemafor) · [`frame`](#frame-1) · [`frameOf`](#frameof) · [`geometryFields`](#geometryfields) · [`gridCellBounds`](#gridcellbounds) · [`gridProblems`](#gridproblems) · [`gridTurns`](#gridturns) · [`hashText`](#hashtext) · [`inputScriptJsonSchema`](#inputscriptjsonschema) · [`inputScriptSchemaFor`](#inputscriptschemafor) · [`inputScriptSchemaId`](#inputscriptschemaid) · [`inputScriptSchemasFor`](#inputscriptschemasfor) · [`instanceFrame`](#instanceframe) · [`instanceOrigin`](#instanceorigin) · [`instanceSteps`](#instancesteps) · [`instanceTransform`](#instancetransform) · [`intersectsRect`](#intersectsrect) · [`inverseTurn`](#inverseturn) · [`invert`](#invert) · [`isConvex`](#isconvex) · [`isErrorIssue`](#iserrorissue) · [`isExpandedScene`](#isexpandedscene) · [`isGridValue`](#isgridvalue) · [`isIdentityTurn`](#isidentityturn) · [`isInstanceOverrideField`](#isinstanceoverridefield) · [`isMigrationRefusal`](#ismigrationrefusal) · [`isQuarterTurn`](#isquarterturn) · [`isSpawnOnly`](#isspawnonly) · [`isWholePixel`](#iswholepixel) · [`jsonPointer`](#jsonpointer) · [`layerNames`](#layernames) · [`lengthDecimals`](#lengthdecimals) · [`lineAt`](#lineat) · [`liveIssue`](#liveissue) · [`localChild`](#localchild-1) · [`localChildren`](#localchildren) · [`makeIssue`](#makeissue) · [`migrate`](#migrate) · [`migrateInputScript`](#migrateinputscript) · [`migrateRecordingV1`](#migraterecordingv1) · [`nearestSegment`](#nearestsegment) · [`nearestVertex`](#nearestvertex) · [`nextFreeId`](#nextfreeid) · [`opBatchSchemaFor`](#opbatchschemafor) · [`opsJsonSchema`](#opsjsonschema) · [`opsSchemaId`](#opsschemaid) · [`paintGrid`](#paintgrid) · [`parseBulkId`](#parsebulkid) · [`parseChecks`](#parsechecks) · [`parseChildRef`](#parsechildref) · [`parseChunkKey`](#parsechunkkey) · [`parseFragment`](#parsefragment) · [`parseInputScript`](#parseinputscript) · [`parsePrefab`](#parseprefab) · [`parseRecording`](#parserecording) · [`parseScene`](#parsescene) · [`parseSceneOrThrow`](#parsesceneorthrow) · [`parseShape`](#parseshape) · [`placeChildren`](#placechildren) · [`placeFragment`](#placefragment) · [`placeableTypes`](#placeabletypes) · [`placedFrame`](#placedframe) · [`plural`](#plural) · [`pointerLines`](#pointerlines) · [`prefabBody`](#prefabbody-1) · [`prefabJsonSchema`](#prefabjsonschema) · [`prefabLibrary`](#prefablibrary-1) · [`prefabOf`](#prefabof) · [`prefabScene`](#prefabscene) · [`prefabSchemaFor`](#prefabschemafor) · [`prefabsUsedBy`](#prefabsusedby) · [`projectSpriteAssets`](#projectspriteassets) · [`pxToMetres`](#pxtometres) · [`raycastShape`](#raycastshape) · [`readCell`](#readcell) · [`recordingJsonSchema`](#recordingjsonschema) · [`renderSceneAscii`](#rendersceneascii) · [`renderSceneSvg`](#renderscenesvg) · [`resolvePrefab`](#resolveprefab) · [`resolveScene`](#resolvescene) · [`resolveSceneDetailed`](#resolvescenedetailed) · [`resolveSettings`](#resolvesettings) · [`resolveTime`](#resolvetime) · [`rotateShape`](#rotateshape) · [`roundLength`](#roundlength) · [`runRecordingSchema`](#runrecordingschema) · [`runRecordingV1Schema`](#runrecordingv1schema) · [`sceneAsciiMap`](#sceneasciimap-1) · [`sceneBody`](#scenebody) · [`sceneFrames`](#sceneframes-1) · [`sceneGameOf`](#scenegameof) · [`sceneHash`](#scenehash-1) · [`sceneHashWith`](#scenehashwith) · [`sceneJsonSchema`](#scenejsonschema) · [`sceneOpSchemaFor`](#sceneopschemafor) · [`scenePhysics`](#scenephysics) · [`sceneRegistry`](#sceneregistry) · [`sceneSchemaFor`](#sceneschemafor) · [`sceneSprites`](#scenesprites) · [`sceneViewport`](#sceneviewport-1) · [`schemaIdFor`](#schemaidfor) · [`scriptSeatLimit`](#scriptseatlimit) · [`scriptShapeIssues`](#scriptshapeissues) · [`shapeAtPose`](#shapeatpose) · [`shapeIsClosed`](#shapeisclosed) · [`shapeOutline`](#shapeoutline) · [`shapeToTuple`](#shapetotuple) · [`shapeVertices`](#shapevertices) · [`shapesIntersect`](#shapesintersect) · [`shortId`](#shortid) · [`snapToPixel`](#snaptopixel) · [`spawnSchemaFor`](#spawnschemafor) · [`splitChildRef`](#splitchildref) · [`splitFieldPath`](#splitfieldpath) · [`splitOverridePath`](#splitoverridepath) · [`spriteBoxOf`](#spriteboxof) · [`sublevelIssue`](#sublevelissue) · [`suggestType`](#suggesttype) · [`takenIds`](#takenids) · [`toSourceBatch`](#tosourcebatch) · [`topSpan`](#topspan) · [`transformGrid`](#transformgrid) · [`translateEntityDef`](#translateentitydef) · [`translateShape`](#translateshape) · [`translation`](#translation) · [`turnOf`](#turnof) · [`undescribedProperties`](#undescribedproperties) · [`unknownGameIssue`](#unknowngameissue) · [`untitledEntityFields`](#untitledentityfields) · [`validateScene`](#validatescene) · [`worldPointSchema`](#worldpointschema)
 
 ## `AGENT_SURFACE_KEYWORD`
 
@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 24;
+declare const AGENT_SURFACE_VERSION = 25;
 ```
 
 ## `Aabb`
@@ -495,6 +495,19 @@ type DrawnSprite = {
 
 Refers to [`Aabb`](#aabb), [`ShapeObj`](#shapeobj).
 
+## `DrawnTile`
+
+_type_ in `scene/svg.ts`
+
+A tilemap cell as renders draw it; null for a grid cell that isn't a tilemap's.
+
+```ts
+type DrawnTile = {
+    id: number;
+    solid: boolean;
+};
+```
+
 ## `EMPTY_SCENE_TEMPLATE`
 
 _const_ in `scene/create.ts`
@@ -621,6 +634,9 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "string-key-missing",
     "dialogue-dead-end",
     "dialogue-unreachable",
+    "tile-unknown",
+    "tileset-missing",
+    "tileset-grid-mismatch",
     "live-no-editor",
     "live-refused",
     "frame-too-large"
@@ -2486,7 +2502,7 @@ Refers to [`Bounds`](#bounds).
 _type_ in `scene/ascii.ts`
 
 ```ts
-type SceneAsciiOptions = SceneRegionOptions & SceneTextOptions & {
+type SceneAsciiOptions = SceneRegionOptions & SceneTextOptions & SceneTileOptions & {
     /** World px per character (metres times px per metre); default 64. Grows in steps of 64 when the map would pass `maxCells`. */
     cell?: number;
     /** Cap on columns and on rows; default 200. */
@@ -2501,7 +2517,7 @@ type SceneAsciiOptions = SceneRegionOptions & SceneTextOptions & {
 };
 ```
 
-Refers to [`Registry`](#registry), [`SceneOverlay`](#sceneoverlay), [`SceneRegionOptions`](#sceneregionoptions), [`SceneTextOptions`](#scenetextoptions).
+Refers to [`Registry`](#registry), [`SceneOverlay`](#sceneoverlay), [`SceneRegionOptions`](#sceneregionoptions), [`SceneTextOptions`](#scenetextoptions), [`SceneTileOptions`](#scenetileoptions).
 
 ## `SceneChange`
 
@@ -2950,7 +2966,7 @@ Refers to [`DrawnSprite`](#drawnsprite).
 _type_ in `scene/svg.ts`
 
 ```ts
-type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
+type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & SceneTileOptions & {
     /** `ctx.debug` draws (a probe's `debug`), drawn over everything in world metres; widths and text sizes in image px. */
     debugDraw?: readonly DebugDrawCommand[];
     /** `entities` (default) labels entities that have ids; `all` adds bulk refs; `none` labels nothing. */
@@ -2967,7 +2983,7 @@ type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
 };
 ```
 
-Refers to [`Registry`](#registry), [`SceneLabels`](#scenelabels), [`SceneOverlay`](#sceneoverlay), [`SceneRegionOptions`](#sceneregionoptions), [`SceneTextOptions`](#scenetextoptions).
+Refers to [`Registry`](#registry), [`SceneLabels`](#scenelabels), [`SceneOverlay`](#sceneoverlay), [`SceneRegionOptions`](#sceneregionoptions), [`SceneTextOptions`](#scenetextoptions), [`SceneTileOptions`](#scenetileoptions).
 
 ## `SceneTextOptions`
 
@@ -2984,6 +3000,31 @@ type SceneTextOptions = {
      */
     strings?: StringTableData;
 };
+```
+
+## `SceneTileOptions`
+
+_type_ in `scene/svg.ts`
+
+```ts
+type SceneTileOptions = {
+    /** Per-tile traits for tilemaps' cells: solid tiles fill, the rest outline. */
+    tileTraits?: SceneTileTraits;
+};
+```
+
+Refers to [`SceneTileTraits`](#scenetiletraits).
+
+## `SceneTileTraits`
+
+_type_ in `scene/svg.ts`
+
+Each tileset's tiles as `tileTraits` judges them, by tileset asset id and
+then tile id: plain data the caller computes, so renders and colliders
+read one rule. A tile, or a tileset, not listed draws as not solid.
+
+```ts
+type SceneTileTraits = Readonly<Record<string, Readonly<Record<number, Pick<TileTraits, "solid">>>>>;
 ```
 
 ## `SceneVersionError`
@@ -3328,6 +3369,16 @@ type SystemEvent = [
     kind: "w",
     ms: number
 ];
+```
+
+## `TILE_LABEL_MAX_CELLS`
+
+_const_ in `scene/svg.ts`
+
+Tilemap cells are labelled with their tile id while at most this many are drawn.
+
+```ts
+declare const TILE_LABEL_MAX_CELLS = 400;
 ```
 
 ## `TouchesCheck`
@@ -3995,6 +4046,18 @@ declare function dihedralOf(t: Transform2D): Dihedral | null;
 ```
 
 Refers to [`Dihedral`](#dihedral), [`Transform2D`](#transform2d).
+
+## `drawnTile`
+
+_function_ in `scene/svg.ts`
+
+The tile a drawn grid cell holds, judged by `traits`.
+
+```ts
+declare function drawnTile(cell: DrawnGridCell, traits: SceneTileTraits | undefined): DrawnTile | null;
+```
+
+Refers to [`DrawnTile`](#drawntile), [`SceneTileTraits`](#scenetiletraits).
 
 ## `encodeRow`
 
@@ -5286,7 +5349,8 @@ _function_ in `scene/svg.ts`
 
 The scene as SVG text in world px (written to 1/100 px): each entity in
 its type's and material's style, one-way landing faces, a grid with axis
-ticks, id labels, sprite boxes labelled `asset[:frame]` (sized from
+ticks, id labels, tilemap cells (solid tiles filled, the rest outlined, by
+`opts.tileTraits`, labelled by tile id while the map is small), sprite boxes labelled `asset[:frame]` (sized from
 `opts.project` when given), text boxes labelled with their text ("≈"
 before an estimated size), path waypoints and the given overlays. The
 same scene and options give the same text.
@@ -5687,7 +5751,7 @@ primitive's), camera regions as their box's outline under everything else, `=` f
 `~` along paths, each sprite's box in its entity's character under
 everything else, each `text` block's measured box in `"` (labelled "≈"
 where its size is an estimate), grid fields' filled cells in their entity's character
-(at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
+(a tilemap's solid tiles by `opts.tileTraits`; its other tiles `:`; at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
 
 ```ts
 declare function sceneAsciiMap(scene: ExpandedScene | SceneDefinition, opts: SceneAsciiOptions): SceneAsciiMap;
@@ -6149,10 +6213,13 @@ Refers to [`ShapeObj`](#shapeobj).
 
 _function_ in `scene/grid.ts`
 
-Cells turned and flipped about cell (0, 0)'s top-left corner; square cells only.
+Cells turned and flipped about cell (0, 0)'s top-left corner; square cells
+only. With `tileFlags` each value is a tile cell whose flip flags turn too.
 
 ```ts
-declare function transformGrid(grid: GridCells, d: Dihedral): GridCells;
+declare function transformGrid(grid: GridCells, d: Dihedral, opts?: {
+    tileFlags?: boolean;
+}): GridCells;
 ```
 
 Refers to [`Dihedral`](#dihedral), [`GridCells`](#gridcells).

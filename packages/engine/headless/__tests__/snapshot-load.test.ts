@@ -68,16 +68,65 @@ const entry = (id: AssetId, kind: string, path: string): AssetEntry => ({
   created: { at: 1, by: "test" },
 });
 
-/** A snapshot of one scene, its prefabs and the engine home's materials (`materials` overriding their JSON by id), its canonical texts put in `store`. */
+type HomeTileset = { doc: AssetEntry; text: string; image: AssetEntry };
+
+/** The engine home's tilesets by id, each with its image's entry as its sidecar pins it. */
+function homeTilesets(): Map<AssetId, HomeTileset> {
+  const sidecar = (path: string) =>
+    JSON.parse(read(`${path}.asset.json`)) as {
+      id: AssetId;
+      sha256?: string;
+      bytes?: number;
+      meta?: Record<string, unknown>;
+    };
+  const images = new Map<AssetId, AssetEntry>();
+  for (const f of readdirSync(new URL("art/", scenes)).filter((f) => f.endsWith(".png"))) {
+    const car = sidecar(`art/${f}`);
+    images.set(car.id, {
+      ...entry(car.id, "texture", `scenes/art/${f}`),
+      sha256: car.sha256!,
+      bytes: car.bytes!,
+      meta: car.meta!,
+    });
+  }
+  const out = new Map<AssetId, HomeTileset>();
+  for (const f of readdirSync(new URL("art/", scenes)).filter((f) => f.endsWith(".tileset.json"))) {
+    const text = read(`art/${f}`);
+    const id = sidecar(`art/${f}`).id;
+    const image = images.get((JSON.parse(text) as { image: AssetId }).image);
+    if (!image) throw new Error(`tileset ${id}'s image isn't in the engine home`);
+    out.set(id, { doc: entry(id, "tileset", `scenes/art/${f}`), text, image });
+  }
+  return out;
+}
+const HOME_TILESETS = homeTilesets();
+
+/** The home tilesets the scene's or its prefabs' tilemaps name. */
+function tilesetsOf(def: SceneDefinition, prefabs: readonly Prefab[]): HomeTileset[] {
+  const named = new Set<AssetId>();
+  for (const e of [...(def.entities ?? []), ...prefabs.flatMap((p) => p.entities)]) {
+    const tileset = (e as { type?: string; tileset?: unknown }).tileset;
+    if (e.type === "tilemap" && typeof tileset === "string") named.add(tileset);
+  }
+  return [...named].sort().map((id) => {
+    const found = HOME_TILESETS.get(id);
+    if (!found) throw new Error(`no home tileset ${id}`);
+    return found;
+  });
+}
+
+/** A snapshot of one scene, its prefabs, the tilesets they name (with their images' pins) and the engine home's materials (`materials` overriding their JSON by id), its canonical texts put in `store`. */
 async function snapshotOf(
   store: ContentStore,
   def: SceneDefinition,
   prefabs: readonly Prefab[],
   materials: Readonly<Record<AssetId, unknown>> = {},
 ): Promise<ProjectSnapshot> {
+  const tilesets = tilesetsOf(def, prefabs);
   const entries = [
     entry(def.name, "scene", `scenes/${def.name}.json`),
     ...prefabs.map((p) => entry(p.id, "prefab", `scenes/prefabs/${p.id}.json`)),
+    ...tilesets.flatMap((t) => [t.doc, t.image]),
     ...homeMaterials.entries,
     entry("scene-list", "scene-list", "scenes/scene-list.json"),
   ];
@@ -85,6 +134,7 @@ async function snapshotOf(
     [def.name, formatScene(def).text],
     ["scene-list", read("scene-list.json")],
     ...prefabs.map((p): [AssetId, string] => [p.id, formatPrefab(p)]),
+    ...tilesets.map((t): [AssetId, string] => [t.doc.id, t.text]),
     ...[...homeMaterials.values].map(([id, value]): [AssetId, string] => [
       id,
       JSON.stringify(materials[id] ?? value),
@@ -293,7 +343,12 @@ describe("loadHeadless by snapshot, with a real texture", () => {
       meta: { projectId: "engine", layout: 1, name: "Engine" },
       assets: {
         ...Object.fromEntries(
-          Object.entries(snap.assets).map(([id, a]) => [a.key, entry(id, a.kind, a.path)]),
+          Object.entries(snap.assets).map(([id, a]) => [
+            a.key,
+            a.bytes === undefined
+              ? entry(id, a.kind, a.path)
+              : { ...entry(id, a.kind, a.path), sha256: a.sha256, bytes: a.bytes, meta: a.meta },
+          ]),
         ),
         hero: {
           ...hero,
@@ -308,7 +363,8 @@ describe("loadHeadless by snapshot, with a real texture", () => {
     });
     const texts = new Map<AssetId, string>();
     for (const [id, a] of Object.entries(snap.assets))
-      texts.set(id, new TextDecoder().decode((await store.get(a.sha256))!));
+      if (a.bytes === undefined)
+        texts.set(id, new TextDecoder().decode((await store.get(a.sha256))!));
     return snapshotProject(view, texts, {});
   }
 

@@ -81,6 +81,7 @@ ParticleLayer
 ParticleLayerOptions
 ParticleTexture
 PixiView
+PixiViewFrame
 PixiViewOptions
 PlayOptions
 PlayOutcome
@@ -145,6 +146,8 @@ TextLogOptions
 TextVisual
 TextureSource
 TickPhase
+TilemapView
+TilemapVisual
 TimingStat
 ToolConsumer
 ToolEvent
@@ -187,8 +190,10 @@ createParticleLayer
 createPixiView
 createRichText
 createTextLog
+createTilemapView
 createTouchControls
 createUiLayer
+cullRect
 diffWords
 dihedral
 dihedralOf
@@ -205,6 +210,7 @@ memoryRemapStore
 memorySaveStore
 mountUi
 mutateSynth
+outsideViews
 pixiContainer
 randomSynth
 renderRichText
@@ -524,11 +530,13 @@ Aabb
 ApplyOptions
 ApplyResult
 AssetDrop
+BRUSH_COMMANDS
 BehaviorGizmo
 BehaviorMarks
 BehaviorOption
 BehaviorSectionId
 BehaviorSectionInfo
+BrushTurn
 BulkEntry
 BulkKey
 CLOSE_PX
@@ -538,6 +546,7 @@ CreateVariant
 DEFAULT_CELL
 DEFAULT_DRAW_TYPE
 DEFAULT_SNAP
+DEFAULT_TILE_BRUSH
 DRAG_THRESHOLD_PX
 DRAW_TYPE_COMMAND
 DispatchOptions
@@ -670,6 +679,13 @@ SnapTarget
 SpatialIndex
 SpatialIndexOptions
 StrokeFit
+TILEMAP_CELLS_FIELD
+TILE_FILL_CAP
+TILE_TOOL_IDS
+TileBrush
+TileTarget
+TileToolContext
+TileToolId
 ToolHost
 ToolHostOptions
 ToolKeyEvent
@@ -683,6 +699,8 @@ WHEEL_ZOOM
 applyLevels
 applyToPrefabBatch
 asProjectBatch
+autotileEdits
+autotileRule
 behaviorGizmo
 behaviorHandles
 behaviorMarks
@@ -695,6 +713,9 @@ builtinTools
 bulkGeometry
 capsuleLength
 carryPreview
+cellLine
+cellUnder
+cellsBox
 childOverrides
 circleTool
 convertToChainFix
@@ -739,6 +760,7 @@ entityGeometry
 expandRefs
 fieldOp
 flipBatch
+floodCells
 formatMetres
 fragmentBounds
 fragmentOf
@@ -761,6 +783,7 @@ instanceTransformModel
 instanceZBatch
 instancesOf
 isBulkRef
+isTilemapType
 isolationBounds
 judgeConcave
 keyChord
@@ -837,6 +860,8 @@ selectionBox
 selectionHandles
 selectionRoots
 setHover
+setTileBrush
+setTileRule
 settingsEdit
 settingsRows
 settingsValue
@@ -852,6 +877,7 @@ snapDraggedPoint
 snapMove
 snapPoint
 snapToGrid
+stampCells
 strokeFit
 strokeShape
 takesConcave
@@ -859,9 +885,15 @@ targetBox
 targetHandles
 targetPivot
 targetsOf
+tilePaintBatch
+tileTarget
+tileTargetAt
+tileTools
 toolKeyEventOf
 treeBox
 turnBatch
+turnBrush
+turnedStamp
 ungroupBatch
 unpackBatch
 vertexHandles
@@ -1021,6 +1053,7 @@ AttachmentHub
 AudioBlock
 AudioHandle
 AudioRequest
+AutotileRule
 BASE_FIELDS
 BEHAVIOR_NAME_PATTERN
 BODY
@@ -1079,6 +1112,8 @@ CharacterTopDownBlock
 CheckEnv
 CheckKindDef
 CheckVerdict
+ChunkMesh
+ChunkMeshInput
 ClipSource
 ColliderBlock
 ColliderHandle
@@ -1101,6 +1136,7 @@ DEFAULT_SAVE_LIMITS
 DEFAULT_SPAWN_CAST
 DEFAULT_SWAP_TIMING
 DEFAULT_TICK_RATE
+DEFAULT_TILE_COLLISION
 DEFAULT_TIME
 DIALOGUE_ADVANCE_COMMAND
 DIALOGUE_CHOICES
@@ -1126,6 +1162,7 @@ DialogueRunner
 DialogueVars
 DialogueView
 DialogueViewChoice
+Dihedral
 DrawLayer
 EASE_NAMES
 EMITTER
@@ -1160,6 +1197,9 @@ EntitySelector
 EntityTypeDef
 EventBus
 EventSubscribeOptions
+FLIP_D
+FLIP_X
+FLIP_Y
 FORCE_AREA
 FieldEnv
 FlashOptions
@@ -1227,8 +1267,17 @@ LifetimeHandle
 LiveContext
 LiveDeclaration
 LoadFailureReason
+MASK_E
+MASK_N
+MASK_NE
+MASK_NW
+MASK_S
+MASK_SE
+MASK_SW
+MASK_W
 MAX_BROWSER_SAVE_LIMITS
 MAX_TICK_RATE
+MAX_TILES
 MIN_TICK_RATE
 MOTION_SAVE_OWNER
 Macro
@@ -1403,6 +1452,9 @@ SystemFactory
 TEXT
 TEXT_COLOR_DEFAULT
 TEXT_SIZE_DEFAULT
+TILEMAP_PRIMITIVE
+TILE_ID_BITS
+TILE_TOOL_IDS
 TOOL_PRIORITY
 TOP_DOWN_CONTROLLER
 TWEEN
@@ -1412,6 +1464,18 @@ TextDirection
 TextHandle
 TextShown
 TextVars
+TileAt
+TileCell
+TileChunk
+TileCollision
+TileDef
+TileToolId
+TileTraits
+TilemapEntity
+TilemapSystem
+TilemapVisual
+TilesContext
+TilesetFile
 TimeKind
 TimeModel
 TimerAction
@@ -1439,6 +1503,7 @@ WorldState
 advanceAlongPath
 advanceWaypoint
 angleField
+applyAutotile
 arrivalWords
 assetField
 assetKindsOf
@@ -1449,6 +1514,7 @@ bodyLocalShape
 bodyShapeField
 boundsCells
 bracketKey
+buildChunkMesh
 buildNavMesh
 capitalise
 carrierDelta
@@ -1480,25 +1546,32 @@ createSensorCollider
 createSensorSystem
 createSideViewController
 createSolidSystem
+createTilemapSystem
 createTopDownController
 declaredBindings
+decodeCell
+decodeChunks
 defineBehavior
 defineEntityType
 defineGame
 defineScript
 degToRad
+dirtyChunks
 distanceVec2
 drawEntity
 drawShape
 ease
 effectiveSaveLimits
 emptyStringTable
+encodeCell
 fieldOfView
 findPath
+findTilemapSystem
 flowField
 flowIssue
 forgetOneWayActor
 formatSaveFile
+greedyBoxes
 gridField
 gridFieldInfo
 gridGeometry
@@ -1506,6 +1579,8 @@ gridMissingIssue
 gridPlace
 gridRoute
 handleType
+importLdtk
+importTiled
 inCellBounds
 initialWaypointState
 inputFor
@@ -1515,6 +1590,7 @@ isDialogueCommand
 isNavSystem
 isPolygonField
 isRuntimeId
+isTilemapSystem
 isUiAction
 keycapLabel
 keysProblems
@@ -1533,6 +1609,7 @@ navContains
 navNearest
 navPath
 oneWayPasses
+outlineChains
 overlapFrameShapes
 parseRichText
 parseRuntimeId
@@ -1588,10 +1665,14 @@ styleOf
 sublevelId
 swapTimingSchema
 tagsField
+terrainMask
 textFontOf
 tickRateProblem
 ticksFor
+tileTraits
+tilesContext
 traceShape
+transformCell
 tweenSpecSchema
 vectorField
 versionName
@@ -1850,6 +1931,7 @@ AtlasTag
 AtlasTool
 AudioMeta
 AudioSettings
+AutotileRule
 BUS_NAME_PATTERN
 BlobInspect
 BlobKindDef
@@ -1937,6 +2019,7 @@ JsonPointer
 KindEnv
 KindRegistry
 LOCALE_PATTERN
+LdtkImportOptions
 Licence
 LiveCompat
 LocaleSettings
@@ -2056,10 +2139,19 @@ SynthOsc
 SynthOscWave
 SynthWave
 TEXTURE_KIND
+TILESET_KIND
+TILESET_SCHEMA_ID
+TILESET_VERSION
 TextureFormat
 TextureMeta
 TextureSettings
 ThirdPartyLicence
+TileDef
+TileGridInfo
+TileImport
+TiledImportOptions
+TilemapRecord
+TilesetFile
 UNLIMITED_QUOTA
 WEB_MANIFEST_FILE
 animationIssues
@@ -2251,6 +2343,12 @@ tableAssets
 textureKind
 textureMetaSchema
 textureSettingsSchema
+tilemapIssues
+tilesetImageInfo
+tilesetIssues
+tilesetSchema
+tilesetSchemaFor
+tilesetTileCount
 unreferencedBlobs
 usableInputMap
 usedStringKeys
@@ -2297,6 +2395,7 @@ DEFAULT_TOUCH_TICKS
 DEFAULT_UNTIL_MAX
 Dihedral
 DrawnSprite
+DrawnTile
 EMPTY_SCENE_TEMPLATE
 ENGINE_ISSUE_CODE_LIST
 ENGINE_REGISTRY_ID
@@ -2426,6 +2525,8 @@ SceneSettings
 SceneSprite
 SceneSvgOptions
 SceneTextOptions
+SceneTileOptions
+SceneTileTraits
 SceneVersionError
 SceneViewport
 ScriptPointer
@@ -2444,6 +2545,7 @@ SpritePoseSource
 SublevelJudgeOptions
 SublevelSettings
 SystemEvent
+TILE_LABEL_MAX_CELLS
 TouchesCheck
 Transform2D
 ValidCheck
@@ -2492,6 +2594,7 @@ diffScenes
 diffToOps
 dihedral
 dihedralOf
+drawnTile
 encodeRow
 entityFrame
 entityIssues
@@ -3825,6 +3928,10 @@ type SceneDocMeta = {
 };
 type SceneOrigin = DocOrigin;
 type ScenePresence = {
+    brush?: {
+        map: string;
+        rect: CellBounds;
+    };
     cursor?: Pt;
     drives?: boolean;
     ghost?: {
@@ -3964,11 +4071,16 @@ interface SceneView {
             y: number;
             zoom: number;
         };
+        nowMs?: number;
+        views?: readonly Bounds[];
     }): void;
     emitter?(id: string, emitter: ViewEmitter): void;
     removeEmitter?(id: string): void;
     text?(id: string, visual: TextVisual, layer: ViewLayer): void;
     locale?(table: StringTableData): void;
+    tilemap?(id: string, map: TilemapVisual): void;
+    tileChunks?(id: string, cells: GridCells, dirty: readonly ChunkKey[]): void;
+    removeTilemap?(id: string): void;
 }
 type SpriteVisual = {
     alpha?: number;
@@ -4039,6 +4151,19 @@ type TextVisual = TextContent & {
     };
     size: number;
     wrap?: number;
+};
+type TilemapVisual = {
+    alpha?: number;
+    at: Pt;
+    cell: [
+        number,
+        number
+    ];
+    grid: GridSettings;
+    image: Sha256;
+    layer: ViewLayer;
+    tileset: TilesetFile;
+    tint?: number;
 };
 type ViewEmitter = {
     follow: EmitterFollow;
@@ -4794,7 +4919,7 @@ type GroupState = {
     panels: PanelId[];
     size: null | number;
 };
-type PanelId = "event-log" | "history" | "inspector" | "outliner" | "perf" | "problems" | "project" | "run" | (string & {});
+type PanelId = "event-log" | "history" | "inspector" | "outliner" | "perf" | "problems" | "project" | "run" | "tiles" | (string & {});
 type Side = "left" | "right";
 type Viewport = {
     bottom: number;
@@ -4818,7 +4943,7 @@ type PanelContext = {
     pickedAsset: Store<AssetKey | null>;
     subscribe: (listener: () => void) => () => void;
 };
-type PanelControls = Pick<EditorControls, "frame" | "liveVersion" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game" | "rapier">> & {
+type PanelControls = Pick<EditorControls, "frame" | "liveVersion" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game" | "rapier" | "tools">> & {
     publish?: EditorPublishHost;
 };
 type PanelDef = {
@@ -4995,6 +5120,7 @@ type LoadedRun = {
 ## editor-ui/session/use-scene-editor.ts
 type EditorChromeGame = Pick<GameInstance, "cancel" | "command" | "debug" | "frame" | "getStore" | "input" | "panBy" | "pause" | "pointerWorld" | "registry" | "resume" | "router" | "runtime" | "screenToWorld" | "setTimeScale" | "step" | "zoomAt">;
 type EditorProjectLink = {
+    assetImage?: (id: AssetId) => null | string;
     blobs?: ProjectBlobs;
     doc: string;
     flow?: SceneListFlow;
@@ -5150,6 +5276,44 @@ declare const selectTool: {
     id: string;
     label: string;
 };
+
+## editor/builtin/tile-tools.ts
+declare const BRUSH_COMMANDS: Readonly<Record<string, BrushTurn>>;
+type BrushTurn = "ccw" | "cw" | "flip-x" | "flip-y";
+declare const TILEMAP_CELLS_FIELD = "cells";
+declare const TILE_FILL_CAP = 65536;
+type TileBrush = {
+    flip?: TileTurn;
+    tiles: readonly (readonly number[])[];
+};
+type TileTarget = {
+    cell: [
+        w: number,
+        h: number
+    ];
+    cells: GridCells;
+    entity: EntityDef;
+    geo: GridGeometry;
+    offset: Cell;
+    ref: Ref;
+};
+declare function autotileEdits(grid: GridCells, tileset: TilesetFile, rule: AutotileRule, cells: readonly Cell[]): CellEdit[];
+declare function autotileRule(tileset: TilesetFile, ruleId: null | string): AutotileRule | undefined;
+declare function cellLine([c0, r0]: Cell, [c1, r1]: Cell): Cell[];
+declare function cellUnder(t: TileTarget, world: Pt): Cell;
+declare function cellsBox(t: TileTarget, b: CellBounds): ShapeObj;
+declare function floodCells(grid: GridCells, start: Cell, cap?: number): Cell[] | null;
+declare function isTilemapType(registry: Registry, type: string): boolean;
+declare function stampCells(stamp: readonly (readonly number[])[], [col, row]: Cell): CellEdit[];
+declare function tilePaintBatch(map: Ref, edits: {
+    cells?: readonly CellEdit[];
+    rects?: readonly CellRect[];
+}, label?: string): OpBatch;
+declare function tileTarget(def: SceneDefinition, registry: Registry, ref: Ref): TileTarget | null;
+declare function tileTargetAt(ctx: EditorToolContext, world: Pt): TileTarget | null;
+declare function tileTools(): EditorToolDef[];
+declare function turnBrush(brush: TileBrush, how: BrushTurn): TileBrush;
+declare function turnedStamp(brush: TileBrush): number[][];
 
 ## editor/builtin/transform.ts
 declare const panTool: {
@@ -6065,6 +6229,7 @@ type EditorSession = {
     registry: Registry;
     revert(entryId: string): RevertResult;
     select(refs: Ref[], mode?: SelectMode, order?: readonly Ref[]): void;
+    setBrush(brush: ScenePresence["brush"]): void;
     setCursor(at: Pt | undefined): void;
     setGhost(ghost: ScenePresence["ghost"]): void;
     setMode(mode: EditorMode): void;
@@ -6197,6 +6362,7 @@ declare function geometryOfRef(def: SceneDefinition, registry: Registry, ref: Re
 }) | undefined;
 
 ## editor/store.ts
+declare const DEFAULT_TILE_BRUSH: TileBrush;
 type EditorMode = "edit" | "play";
 type EditorStoreState = {
     canRedo: boolean;
@@ -6207,15 +6373,20 @@ type EditorStoreState = {
     issues: SceneIssue[];
     lastActor?: SceneOrigin;
     mode: EditorMode;
+    notice: null | string;
     peers: PeerPresence[];
     redoLabel?: string;
     sceneName: string;
     selection: Ref[];
+    tileBrush: TileBrush;
+    tileRule: null | string;
     tool: string;
     undoLabel?: string;
 };
 declare function createEditorStore(init?: Partial<EditorStoreState>): Store<EditorStoreState>;
 declare function setHover(store: Store<EditorStoreState>, ref: Ref | null): void;
+declare function setTileBrush(store: Store<EditorStoreState>, brush: TileBrush): void;
+declare function setTileRule(store: Store<EditorStoreState>, rule: null | string): void;
 
 ## editor/tool-host.ts
 declare const MULTI_CLICK_MS = 500;
@@ -6248,6 +6419,7 @@ type ToolHost = {
     snap(): SnapSettings;
     source(): GizmoSource;
     subscribe(listener: () => void): () => void;
+    tileTools(): readonly EditorToolDef[];
     tool(): string;
     tools(): readonly EditorToolDef[];
 };
@@ -6269,6 +6441,7 @@ type ToolHostOptions = {
     session: EditorSession;
     snap?: SnapSettings;
     text?: () => GizmoTextEnv | undefined;
+    tileset?: (id: string) => TilesetFile | undefined;
     toWorld: (screen: Vec2) => Pt;
     tool?: string;
     zoomAt?: (screen: Pt, factor: number) => void;
@@ -6324,6 +6497,7 @@ type EditorToolContext = {
     }): void;
     snap(): SnapSettings;
     source?(): GizmoSource;
+    tiles?: TileToolContext;
 };
 type EditorToolDef = {
     create(ctx: EditorToolContext): EditorTool;
@@ -6372,6 +6546,14 @@ type SpatialIndex = {
     get(ref: Ref): IndexEntry | undefined;
     query(rect: Aabb): IndexEntry[];
     readonly size: number;
+};
+type TileToolContext = {
+    brush(): TileBrush;
+    refuse(text: string): void;
+    rule(): null | string;
+    setBrush(brush: TileBrush): void;
+    shareBrush(brush: ScenePresence["brush"]): void;
+    tileset(id: string): TilesetFile | undefined;
 };
 type ToolKeyEvent = ToolModifiers & {
     key: string;
@@ -7688,6 +7870,7 @@ declare const BODY_SHAPE_TYPES: readonly ShapeType[];
 declare const CHILD_REF_PATTERN: RegExp;
 type GridFieldInfo = {
     max: number;
+    tileFlags?: true;
     values: readonly string[];
 };
 declare const ID_PATTERN: RegExp;
@@ -7719,6 +7902,7 @@ declare function assetKindsOf(schema: z.core.$ZodType): null | readonly AssetKin
 declare function bodyShapeField(description: string): z.ZodType<ShapeTuple>;
 declare function gridField(description: string, opts?: {
     max?: number;
+    tileFlags?: boolean;
     values?: readonly string[];
 }): z.ZodType<GridCells>;
 declare function gridFieldInfo(schema: z.core.$ZodType): GridFieldInfo | null;
@@ -8055,6 +8239,7 @@ declare const PRIMITIVES: {
                 z.ZodNumber,
                 z.ZodNumber
             ], null>;
+            extra: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodJSONSchema>>;
             tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
         };
         physics: "optional";
@@ -8152,6 +8337,7 @@ declare const PRIMITIVES: {
         };
         description: string;
         fields: {
+            extra: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodJSONSchema>>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
             tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
         };
@@ -8193,10 +8379,54 @@ declare const PRIMITIVES: {
         };
         type: string;
     };
+    tilemap: {
+        ascii: string;
+        description: string;
+        fields: (env: FieldEnv) => {
+            alpha: z.ZodOptional<z.ZodNumber>;
+            at: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+            cells: z.ZodType<Readonly<Record<string, readonly string[]>>, unknown, z.core.$ZodTypeInternals<Readonly<Record<string, readonly string[]>>, unknown>>;
+            collision: z.ZodOptional<z.ZodEnum<{
+                boxes: "boxes";
+                none: "none";
+                outline: "outline";
+                tiles: "tiles";
+            }>>;
+            tileset: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+            tint: z.ZodOptional<z.ZodNumber>;
+        };
+        physics: "optional";
+        type: string;
+    };
 };
 type ResolvedFields<D> = D extends {
     fields: infer F;
 } ? F extends ((env: FieldEnv) => infer R) ? R : F : never;
+declare const TILEMAP_PRIMITIVE: {
+    ascii: string;
+    description: string;
+    fields: (env: FieldEnv) => {
+        alpha: z.ZodOptional<z.ZodNumber>;
+        at: z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>;
+        cells: z.ZodType<Readonly<Record<string, readonly string[]>>, unknown, z.core.$ZodTypeInternals<Readonly<Record<string, readonly string[]>>, unknown>>;
+        collision: z.ZodOptional<z.ZodEnum<{
+            boxes: "boxes";
+            none: "none";
+            outline: "outline";
+            tiles: "tiles";
+        }>>;
+        tileset: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        tint: z.ZodOptional<z.ZodNumber>;
+    };
+    physics: "optional";
+    type: string;
+};
 declare function primitiveFields<P extends PrimitiveType>(name: P, env: FieldEnv): ResolvedFields<(typeof PRIMITIVES)[P]>;
 
 ## game/rich-text.ts
@@ -8386,6 +8616,26 @@ declare function defineScript<F extends z.ZodRawShape, H extends ScriptHooks<F> 
 ## game/style.ts
 declare function styleOf(ctx: Pick<EngineContext, "registry">, type: RegisteredType, material: string | undefined): Style | undefined;
 
+## game/tile-cell.ts
+declare const FLIP_D: number;
+declare const FLIP_X: number;
+declare const FLIP_Y: number;
+declare const MAX_TILES = 8191;
+declare const TILE_ID_BITS = 13;
+type TileCell = null | {
+    flipD: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    id: number;
+};
+type TileTurn = {
+    flip: boolean;
+    rot: 0 | 1 | 2 | 3;
+};
+declare function decodeCell(value: number): TileCell;
+declare function encodeCell(cell: TileCell): number;
+declare function transformCell(value: number, d: TileTurn): number;
+
 ## game/time.ts
 declare const MAX_TICK_RATE = 240;
 declare const MIN_TICK_RATE = 1;
@@ -8504,6 +8754,11 @@ type ColliderTag = {
     oneWay?: boolean;
     oneWaySide?: Side;
     tags?: readonly string[];
+    tile?: {
+        cell: Cell;
+        map: string;
+        tile: number;
+    };
     type: string;
 };
 type ColliderTags = {
@@ -8678,6 +8933,7 @@ type EngineContext = {
     readonly sampling: "linear" | "nearest";
     readonly seeking: boolean;
     readonly tick: number;
+    readonly tiles: TilesContext;
     readonly time: ResolvedTime;
     readonly tree: SceneTree;
     readonly tweens: Tweens;
@@ -8827,6 +9083,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
     tables?: Readonly<Record<string, GameTableDef>>;
     template?: SceneTemplate;
+    tileData?: z.ZodRawShape;
     time?: TimeModel;
     types: readonly EntityTypeDef[];
     validators?: readonly SceneValidator[];
@@ -8985,6 +9242,7 @@ declare const PRIMITIVE_TYPES: readonly [
     "decor",
     "nav",
     "camera-region",
+    "tilemap",
     "note"
 ];
 type PersistContext = {
@@ -9190,6 +9448,31 @@ type Style = {
     strokeWidth?: number;
 };
 type SystemFactory<E extends RuntimeEntity = RuntimeEntity> = (ctx: EngineContext, type: RegisteredType) => SceneSystem<E>;
+declare const TILE_TOOL_IDS: readonly [
+    "tile-brush",
+    "tile-rect",
+    "tile-fill",
+    "tile-erase",
+    "tile-pick",
+    "tile-auto"
+];
+type TileAt = {
+    def: TileDef | undefined;
+    map: string;
+    tile: TileCell;
+    value: number;
+};
+type TileToolId = (typeof TILE_TOOL_IDS)[number];
+type TilesContext = {
+    at(cell: Cell): readonly TileAt[];
+    autotile(map: string, rule: string, rect: CellBounds): void;
+    find(map: string, tag: string): readonly Cell[];
+    get(map: string, cell: Cell): number;
+    paint(map: string, edits: {
+        cells?: readonly CellEdit[];
+        rects?: readonly CellRect[];
+    }): void;
+};
 type TimerAction = (() => void) | {
     data?: unknown;
     emit: string;
@@ -11824,7 +12107,7 @@ declare const sceneListKind: {
 
 ## project/kinds/scene.ts
 declare const sceneKind: {
-    crossValidate: (def: SceneDefinition, lookup: DocLookup) => SceneIssue[];
+    crossValidate: (def: SceneDefinition, lookup: DocLookup, env: KindEnv) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {
@@ -12201,6 +12484,118 @@ declare const textureKind: {
 };
 declare const textureMetaSchema: z.ZodType<TextureMeta>;
 declare const textureSettingsSchema: z.ZodType<TextureSettings>;
+
+## project/kinds/tileset.ts
+type AutotileRule = {
+    fallback: number;
+    id: string;
+    kind: "blob47" | "edge16";
+    terrain: string;
+    tiles: Readonly<Record<string, number>>;
+};
+declare const TILESET_KIND: {
+    defaultFolder: () => string;
+    description: string;
+    empty: (_env: KindEnv, init: {
+        id: AssetId;
+    }) => TilesetFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            rules: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    fields: {
+                        tiles: {
+                            as: "map";
+                            rest: {
+                                as: "atomic";
+                            };
+                        };
+                    };
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+            tiles: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: TilesetFile) => RefSite[];
+    runtime: "sim";
+    schema: (env: KindEnv) => z.ZodType<TilesetFile, unknown, z.core.$ZodTypeInternals<TilesetFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: TilesetFile, env: KindEnv) => SceneIssue[];
+    version: number;
+};
+declare const TILESET_SCHEMA_ID = "urn:jams-engine:tileset:v1";
+declare const TILESET_VERSION = 1;
+type TileDef = {
+    animation?: readonly {
+        ms: number;
+        tile: number;
+    }[];
+    cost?: number;
+    data?: Readonly<Record<string, JsonValue>>;
+    id: number;
+    material?: AssetId;
+    oneWay?: "down" | "left" | "right" | "up";
+    shapes?: readonly ShapeTuple[];
+    solid?: boolean;
+    tags?: readonly string[];
+};
+type TileGridInfo = {
+    pxPerMetre: number;
+    settings: GridSettings;
+};
+type TilemapRecord = {
+    cells?: GridCells;
+    id: string;
+    tileset?: AssetId;
+};
+type TilesetFile = {
+    $schema?: string;
+    columns: number;
+    image: AssetId;
+    kind: "tileset";
+    margin?: number;
+    rules?: AutotileRule[];
+    spacing?: number;
+    tile: [
+        number,
+        number
+    ];
+    tiles?: TileDef[];
+    v: 1;
+};
+declare function tilemapIssues(entity: TilemapRecord, tileset: TilesetFile | undefined, imageInfo: Pick<AssetInfo, "size"> | null, grid: TileGridInfo | null, pointer?: string): SceneIssue[];
+declare function tilesetImageInfo(view: ProjectView | null, image: AssetId): AssetInfo | null;
+declare function tilesetIssues(tileset: TilesetFile, imageInfo: Pick<AssetInfo, "size"> | null): SceneIssue[];
+declare const tilesetSchema: z.ZodType<TilesetFile, unknown, z.core.$ZodTypeInternals<TilesetFile, unknown>>;
+declare const tilesetSchemaFor: (tileData?: z.ZodRawShape) => z.ZodType<TilesetFile>;
+declare function tilesetTileCount(tileset: TilesetFile, imageInfo: Pick<AssetInfo, "size"> | null): null | number;
 
 ## project/ops.ts
 type BlobInspect = (kind: BlobKindDef, entry: AssetEntry) => InspectResult<unknown>;
@@ -13296,8 +13691,9 @@ type ParticleTexture = {
 declare function createParticleLayer(container: Container, textures: TextureSource | undefined, opts: ParticleLayerOptions): ParticleLayer;
 
 ## render/pixi-view.ts
-type PixiView = SceneView & {
+type PixiView = Omit<SceneView, "frame"> & {
     destroy(): void;
+    frame(f: PixiViewFrame): void;
     parallax(camera: {
         x: number;
         y: number;
@@ -13305,6 +13701,16 @@ type PixiView = SceneView & {
     particles(): ParticleLayer | null;
     readonly container: Container;
     showLayers(names: null | readonly string[]): void;
+};
+type PixiViewFrame = {
+    alpha: number;
+    camera: {
+        x: number;
+        y: number;
+        zoom: number;
+    };
+    nowMs?: number;
+    views?: readonly Bounds[];
 };
 type PixiViewOptions = {
     editing?: () => boolean;
@@ -13337,6 +13743,23 @@ type RichTextOptions = {
     table?: StringTableData | null;
 };
 declare function createRichText(visual: TextVisual, fonts: FontSource | null, opts?: RichTextOptions): Container;
+
+## render/tilemap-view.ts
+interface TilemapView {
+    set(id: string, map: TilemapVisual): void;
+    chunks(id: string, cells: GridCells, dirty: readonly ChunkKey[]): void;
+    remove(id: string): void;
+    frame(f: {
+        nowMs: number;
+        views: readonly Bounds[];
+    }): void;
+    display(id: string): Container | null;
+    meshes(id: string): ReadonlyMap<ChunkKey, Mesh>;
+    destroy(): void;
+}
+declare function createTilemapView(container: Container, textures: TextureSource): TilemapView;
+declare function cullRect(b: Bounds, out: Rectangle): Rectangle;
+declare function outsideViews(display: Container, area: Rectangle, views: readonly Bounds[], space: Container): boolean;
 
 ## resolution.ts
 declare const DEFAULT_RESOLUTION: ResolutionPolicy;
@@ -13502,6 +13925,7 @@ type GridPlace = {
 };
 type RuntimeGrid = {
     bounds: CellBounds;
+    cost?(from: Cell, to: Cell): null | number;
     geometry: GridGeometry;
     occupancy: Occupancy;
     passable(c: Cell): boolean;
@@ -14126,7 +14550,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 24;
+declare const AGENT_SURFACE_VERSION = 25;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -14143,7 +14567,7 @@ type SceneAsciiMap = {
     region: Bounds;
     rows: number;
 };
-type SceneAsciiOptions = SceneRegionOptions & SceneTextOptions & {
+type SceneAsciiOptions = SceneRegionOptions & SceneTextOptions & SceneTileOptions & {
     cell?: number;
     maxCells?: number;
     overlay?: Pick<SceneOverlay, "outcome" | "trail">;
@@ -14461,7 +14885,9 @@ declare function parseChunkKey(key: string): [
     cy: number
 ] | null;
 declare function readCell(grid: GridCells, col: number, row: number): number;
-declare function transformGrid(grid: GridCells, d: Dihedral): GridCells;
+declare function transformGrid(grid: GridCells, d: Dihedral, opts?: {
+    tileFlags?: boolean;
+}): GridCells;
 
 ## scene/hash.ts
 declare function hashText(text: string): string;
@@ -16766,6 +17192,29 @@ declare const runRecordingV1Schema: z.ZodObject<{
 }, z.core.$strict>;
 
 ## scene/render-geometry.ts
+type DrawnEntity = {
+    at?: Pt;
+    base: string | undefined;
+    box: Aabb;
+    bulk: boolean;
+    entity: RuntimeEntity;
+    id: string;
+    localShape?: ShapeObj;
+    path?: PathDef;
+    shape?: ShapeObj;
+    sprite?: DrawnSprite;
+    tags: readonly string[];
+    type: RegisteredType;
+};
+type DrawnGridCell = {
+    box: Aabb;
+    col: number;
+    entity: DrawnEntity;
+    field: string;
+    outline: Pt[];
+    row: number;
+    value: number;
+};
 type DrawnSprite = {
     asset?: string;
     box: Aabb;
@@ -17052,9 +17501,13 @@ type SpatialHash<K> = {
 declare function createSpatialHash<K>(cell?: number): SpatialHash<K>;
 
 ## scene/svg.ts
+type DrawnTile = {
+    id: number;
+    solid: boolean;
+};
 declare const SCENE_SVG_MAX_SIZE = 1600;
 type SceneLabels = "all" | "entities" | "none";
-type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
+type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & SceneTileOptions & {
     debugDraw?: readonly DebugDrawCommand[];
     labels?: SceneLabels;
     maxSize?: number;
@@ -17066,6 +17519,10 @@ type SceneSvgOptions = SceneRegionOptions & SceneTextOptions & {
 type SceneTextOptions = {
     strings?: StringTableData;
 };
+type SceneTileOptions = {
+    tileTraits?: SceneTileTraits;
+};
+type SceneTileTraits = Readonly<Record<string, Readonly<Record<number, Pick<TileTraits, "solid">>>>>;
 type SceneViewport = {
     height: number;
     pxPerMetre: number;
@@ -17074,12 +17531,14 @@ type SceneViewport = {
     tick: number;
     width: number;
 };
+declare const TILE_LABEL_MAX_CELLS = 400;
 type TextMeasureEnv = {
     asset?: (id: string) => FontAssetInfo | null | undefined;
     font?: TextFont | null;
     pxPerUnit: number;
     strings?: Readonly<Record<string, string>>;
 };
+declare function drawnTile(cell: DrawnGridCell, traits: SceneTileTraits | undefined): DrawnTile | null;
 declare function renderSceneSvg(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): string;
 declare function sceneViewport(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): SceneViewport;
 
@@ -17297,6 +17756,9 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "string-key-missing",
     "dialogue-dead-end",
     "dialogue-unreachable",
+    "tile-unknown",
+    "tileset-missing",
+    "tileset-grid-mismatch",
     "live-no-editor",
     "live-refused",
     "frame-too-large"
@@ -18514,6 +18976,35 @@ declare function seekAlongPath(state: WaypointState, waypoints: Vec2[], path: Pa
     tickMs: number;
 }): WaypointState;
 
+## systems/tilemap.ts
+type TilemapEntity = RuntimeEntity<{
+    alpha?: number;
+    at: Pt;
+    cells: GridCells;
+    collision?: TileCollision;
+    tileset: AssetId;
+    tint?: number;
+}>;
+type TilemapSystem = SceneSystem<TilemapEntity> & TilesContext & {
+    cells(id: string): GridCells | undefined;
+    chunkColliders(id: string): ReadonlyMap<ChunkKey, number>;
+    flushWrites(): boolean;
+    list(): TilemapEntity[];
+    passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
+    readonly tilemapSystem: true;
+    reloadAssets(changed: readonly AssetId[]): {
+        entityId: string;
+        error: unknown;
+        reattached: boolean;
+    }[];
+    setPose(id: string, x: number, y: number, rot: number): void;
+    watchCells(fn: (id: string, chunks: readonly ChunkKey[]) => void): () => void;
+};
+declare function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): TilemapSystem;
+declare function findTilemapSystem(systems: Iterable<SceneSystem>): TilemapSystem | undefined;
+declare function isTilemapSystem(system: SceneSystem | undefined): system is TilemapSystem;
+declare function tilesContext(ctx: Pick<EngineContext, "system">): TilesContext;
+
 ## text/measure.ts
 declare function measureText(lines: readonly RichLine[], font: FontMeta | null, size: number, wrap?: number): {
     exact: boolean;
@@ -18544,6 +19035,105 @@ declare function resolveLocale(locales: LocaleSettings | null, opts: {
 }): string;
 declare function stringTable(view: ProjectRuntimeView, locale: string): StringTable;
 declare function stringTableData(view: ProjectRuntimeView, locale: string, font: TextFont | null): StringTableData;
+
+## tiles/autotile.ts
+declare const MASK_E = 4;
+declare const MASK_N = 1;
+declare const MASK_NE = 2;
+declare const MASK_NW = 128;
+declare const MASK_S = 16;
+declare const MASK_SE = 8;
+declare const MASK_SW = 32;
+declare const MASK_W = 64;
+declare function applyAutotile(grid: GridCells, tileset: TilesetFile, rule: AutotileRule, rect: CellBounds, isTerrain?: (value: number) => boolean): CellEdit[];
+declare function terrainMask(isTerrain: (col: number, row: number) => boolean, col: number, row: number, kind: AutotileRule["kind"]): number;
+
+## tiles/chunks.ts
+type TileChunk = {
+    cx: number;
+    cy: number;
+    key: ChunkKey;
+    values: Uint16Array;
+};
+type TileTraits = {
+    cost: null | number;
+    oneWay: Side | null;
+    shapes: null | readonly ShapeTuple[];
+    solid: boolean;
+};
+declare function decodeChunks(cells: GridCells): TileChunk[];
+declare function dirtyChunks(prev: GridCells, next: GridCells): ChunkKey[];
+declare function tileTraits(def: TileDef | undefined): TileTraits;
+
+## tiles/colliders.ts
+declare const DEFAULT_TILE_COLLISION: TileCollision;
+type Solid = (col: number, row: number) => boolean;
+type TileCollision = "boxes" | "none" | "outline" | "tiles";
+declare function greedyBoxes(solid: Solid, rect: CellBounds): CellBounds[];
+declare function outlineChains(solid: Solid, rect: CellBounds): readonly Pt[][];
+
+## tiles/import-ldtk.ts
+type LdtkImport = TileImport & {
+    blobs: ReadonlyMap<Sha256, Uint8Array>;
+};
+type LdtkImportOptions = {
+    files?: ReadonlyMap<string, Uint8Array>;
+    game?: string;
+    hash: (bytes: Uint8Array) => Sha256;
+    images?: ReadonlyMap<string, AssetId>;
+    levels?: readonly string[];
+    licence?: Licence;
+    project: ProjectView;
+    pxPerMetre: number;
+    sceneFolder?: string;
+    tilesetFolder?: string;
+};
+declare function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport;
+
+## tiles/import-tiled.ts
+type TileImport = {
+    notes: readonly SceneIssue[];
+    ops: readonly ProjectOp[];
+};
+type TiledImportOptions = {
+    folder?: string;
+    images?: ReadonlyMap<string, {
+        bytes: number;
+        sha256: Sha256;
+    }>;
+    licence?: Licence;
+    project: ProjectView;
+    pxPerMetre: number;
+    scene: AssetId;
+};
+declare function importTiled(map: unknown, tilesets: ReadonlyMap<string, unknown>, opts: TiledImportOptions): TileImport;
+
+## tiles/mesh.ts
+type ChunkMesh = {
+    animated: readonly {
+        flags: number;
+        quad: number;
+        tile: number;
+    }[];
+    bounds: Bounds;
+    indices: Uint32Array;
+    positions: Float32Array;
+    uvs: Float32Array;
+};
+type ChunkMeshInput = {
+    grid: GridSettings;
+    image: [
+        w: number,
+        h: number
+    ];
+    offset?: readonly [
+        col: number,
+        row: number
+    ];
+    pxPerMetre: number;
+    tileset: TilesetFile;
+};
+declare function buildChunkMesh(chunk: TileChunk, input: ChunkMeshInput): ChunkMesh | null;
 
 ## tool-router.ts
 type PointerKind = "mouse" | "pen" | "touch";
@@ -18770,6 +19360,15 @@ type GameInstance = {
     command: (name: string) => boolean;
     destroy: () => void;
     elapse: (ms: number) => void;
+    extractFrame: (opts?: {
+        height?: number;
+        width?: number;
+    }) => null | {
+        data: Uint8Array | Uint8ClampedArray;
+        height: number;
+        renderer: string;
+        width: number;
+    };
     extractPixels: (world: readonly Vec2[]) => {
         pixels: (null | readonly [
             number,
@@ -19075,7 +19674,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.18.0";
+declare const ENGINE_VERSION = "0.19.0";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

@@ -12,7 +12,7 @@ import {
 } from "../grid/geometry";
 import { createOccupancy, type Occupancy } from "../grid/occupancy";
 import { findPath, type GridPath } from "../grid/path";
-import { GRID_CHUNK, type GridCells } from "../scene/grid";
+import { GRID_CHUNK, parseChunkKey, type ChunkKey, type GridCells } from "../scene/grid";
 import { makeIssue } from "../scene/issues";
 import { geometryFields } from "../scene/schema";
 import { translateShape } from "../scene/shape-geometry";
@@ -26,8 +26,8 @@ import type {
   SceneIssue,
   ShapeObj,
 } from "../scene/types";
-import { isTilemapSystem } from "../systems/tilemap";
-import { decodeChunks, DEFAULT_TILE_COST, tileTraits } from "../tiles/chunks";
+import { isTilemapSystem, type TilemapSystem } from "../systems/tilemap";
+import { DEFAULT_TILE_COST, forEachChunkRun, tileTraits } from "../tiles/chunks";
 import type { OccupantSystem } from "./behaviors/occupant";
 import { spawnPose } from "./spawn-pose";
 
@@ -49,12 +49,16 @@ export type RuntimeGrid = {
 /** The runtime's grid across loads: built at load, kept in step with edits, gone at unload. */
 export type GridState = {
   readonly current: RuntimeGrid | null;
-  /** At a load, before anything spawns: walls come from the scene's entities. */
+  /** At a load, before anything spawns: walls come from the scene's wall entities. */
   load(scene: ExpandedScene): void;
   /** After each batch of adds, updates and removes. */
   sync(scene: ExpandedScene | null): void;
-  /** Re-reads every tilemap's walls and costs: after the load's spawns and after flushed runtime tile writes. */
+  /** A tilemap rebuilt `chunks` (its own chunk keys): they are re-read at the next sync or `tilesChanged`. */
+  tileChunksChanged(id: string, chunks: readonly ChunkKey[]): void;
+  /** Re-reads the tile chunks reported since the last read: after flushed runtime tile writes. */
   tilesChanged(): void;
+  /** Re-reads every tilemap's walls and costs: after the load's spawns and after a restore. */
+  tilesLoaded(): void;
   /** At unload. */
   clear(): void;
   /**
@@ -65,6 +69,8 @@ export type GridState = {
 };
 
 const DEFAULT_GRID_WALLS: readonly EntityTypeName[] = ["solid"];
+/** The cell-key step from one column to the next. */
+const COL_STEP = cellKey([1, 0]) - cellKey([0, 0]);
 
 /** The types whose shapes are grid walls: `GameDefinition.world.gridWalls`, default `["solid"]`. */
 export function gridWallTypes(registry: Registry): ReadonlySet<EntityTypeName> {
@@ -86,14 +92,17 @@ function worldShapes(registry: Registry, e: RuntimeEntity): ShapeObj[] {
   return start ? shapes.map((s) => translateShape(s, start)) : shapes;
 }
 
-/**
- * The grid state for a runtime: the geometry from the scene's resolved
- * `settings.grid`, walls on the cells whose centre a wall type's shape
- * holds (`wallTypes`, default `gridWallTypes(registry)`), and the
- * scene bounds in cells. Walls follow the scene's entities after each
- * reconcile batch; walls game code set itself stay unless an entity's wall
- * on that cell goes.
- */
+/** A tilemap's walls and extra step costs as last read, by grid cell, and the cells each of its chunks gave. */
+type MapTiles = {
+  entity: RuntimeEntity;
+  /** The grid cell its own cell (0, 0) lands on. */
+  origin: Cell;
+  chunks: Map<ChunkKey, readonly CellKey[]>;
+  walls: Set<CellKey>;
+  costs: Map<CellKey, number>;
+};
+
+/** Grid geometry, walls from wall-type shapes and solid tiles (kept in sync with entities and tile writes) and scene bounds, for a runtime. */
 export function createGridState(
   ctx: EngineContext,
   registry: Registry,
@@ -108,14 +117,13 @@ export function createGridState(
   let covers = new Map<CellKey, number>();
   /** The scene the grid last synced to; runtime tile writes are read against it. */
   let loaded: ExpandedScene | null = null;
-  /** The tilemap entities as last read, by id. */
-  let maps = new Map<string, RuntimeEntity>();
+  let maps = new Map<string, MapTiles>();
+  /** Chunks rebuilt since they were last read, by map. */
+  const pending = new Map<string, Set<ChunkKey>>();
   /** Cells a solid tile walls. */
   let tileWalls = new Set<CellKey>();
-  /** Extra step cost into a cell, where its tiles cost more than a plain step. */
+  /** Extra step cost into a cell that isn't walled, where its tiles cost more than a plain step. */
   let tileCosts = new Map<CellKey, number>();
-
-  const walled = (k: CellKey) => covers.has(k) || tileWalls.has(k);
 
   function setWalls(
     grid: RuntimeGrid,
@@ -123,12 +131,11 @@ export function createGridState(
     keys: Iterable<CellKey>,
   ): void {
     for (const k of keys) {
-      const now = walled(k);
+      const now = covers.has(k) || tileWalls.has(k);
       if (now !== was(k)) grid.occupancy.setWall(cellOf(k), now);
     }
   }
 
-  /** The grid cell a tilemap's cell (0, 0) lands on. */
   function mapOrigin(grid: RuntimeGrid, e: RuntimeEntity): Cell | null {
     if (!Array.isArray(e.at)) return null;
     const [w, h] = grid.geometry.settings.cell;
@@ -136,69 +143,167 @@ export function createGridState(
     return grid.geometry.cellAt([at[0] + w / 2, at[1] + h / 2]);
   }
 
-  /**
-   * Solid tiles wall their cell; a cell's extra cost is its dearest tile's beyond a plain step.
-   * Walks each map's decoded chunks rather than every cell in its bounds, and resolves a value's
-   * tile once per map, so a large map loads in one pass over its rows.
-   */
-  function readTiles(grid: RuntimeGrid, scene: ExpandedScene | null): void {
-    const nextMaps = new Map<string, RuntimeEntity>();
-    const nextWalls = new Set<CellKey>();
-    const nextCosts = new Map<CellKey, number>();
-    const tiles = ctx.tiles;
-    if (scene && tiles) {
-      for (const e of scene.entities) {
-        const system = ctx.system(e.type);
-        if (!isTilemapSystem(system)) continue;
-        nextMaps.set(e.id, e);
-        const origin = mapOrigin(grid, e);
-        const cells = system.cells(e.id) ?? (e.cells as GridCells | undefined);
-        if (!origin || !cells) continue;
-        const costOf = new Map<number, number | null>();
-        for (const chunk of decodeChunks(cells)) {
-          for (let i = 0; i < chunk.values.length; i++) {
-            const value = chunk.values[i]!;
-            if (value === 0) continue;
-            const cell: Cell = [
-              chunk.cx * GRID_CHUNK + (i % GRID_CHUNK) + origin[0],
-              chunk.cy * GRID_CHUNK + Math.floor(i / GRID_CHUNK) + origin[1],
-            ];
-            let cost = costOf.get(value);
-            if (cost === undefined) {
-              const t = tiles.at(cell).find((at) => at.map === e.id);
-              cost = tileTraits(t?.def).cost;
-              costOf.set(value, cost);
-            }
-            const k = cellKey(cell);
-            if (nextWalls.has(k)) continue;
-            if (cost === null) {
-              nextWalls.add(k);
-              nextCosts.delete(k);
-              continue;
-            }
-            const extra = cost - DEFAULT_TILE_COST;
-            if (extra > (nextCosts.get(k) ?? 0)) nextCosts.set(k, extra);
-          }
-        }
-      }
+  function dropChunk(t: MapTiles, key: ChunkKey, touched: Set<CellKey> | null): void {
+    for (const k of t.chunks.get(key) ?? []) {
+      t.walls.delete(k);
+      t.costs.delete(k);
+      touched?.add(k);
     }
-    const before = tileWalls;
-    tileWalls = nextWalls;
-    tileCosts = nextCosts;
-    maps = nextMaps;
-    const was = (k: CellKey) => covers.has(k) || before.has(k);
-    setWalls(grid, was, before);
-    setWalls(grid, was, nextWalls);
+    t.chunks.delete(key);
   }
 
-  /** Whether the scene's tilemap entities differ from the ones last read. */
-  function mapsMoved(scene: ExpandedScene): boolean {
-    let seen = 0;
-    for (const e of scene.entities) {
-      if (maps.get(e.id) === e) seen++;
-      else if (isTilemapSystem(ctx.system(e.type))) return true;
+  /**
+   * Reads `keys` of a map (every chunk for null) from its cells now, run by
+   * run: a solid tile walls its cells, a dearer one costs its extra. A
+   * value's tile is resolved once per read. Cells read go into `touched`.
+   */
+  function readChunks(
+    system: TilemapSystem,
+    t: MapTiles,
+    keys: readonly ChunkKey[] | null,
+    touched: Set<CellKey> | null,
+  ): void {
+    const id = t.entity.id;
+    const cells = system.cells(id) ?? (t.entity.cells as GridCells | undefined) ?? {};
+    if (keys) for (const key of keys) dropChunk(t, key, touched);
+    const costOf = new Map<number, number | null>();
+    const [oc, or] = t.origin;
+    for (const key of keys ?? Object.keys(cells)) {
+      const rows = cells[key];
+      if (!rows) continue;
+      const at = parseChunkKey(key);
+      if (!at) throw new Error(`tile chunk key "${key}" isn't "cx,cy"`);
+      const c0 = at[0] * GRID_CHUNK + oc;
+      const r0 = at[1] * GRID_CHUNK + or;
+      const mine: CellKey[] = [];
+      forEachChunkRun(key, rows, (value, col, row, count) => {
+        if (value === 0) return;
+        let cost = costOf.get(value);
+        if (cost === undefined) {
+          const cell: Cell = [c0 + col, r0 + row];
+          cost = tileTraits(system.at(cell).find((at) => at.map === id)?.def).cost;
+          costOf.set(value, cost);
+        }
+        if (cost !== null && cost <= DEFAULT_TILE_COST) return;
+        const first = cellKey([c0 + col, r0 + row]);
+        cellKey([c0 + col + count - 1, r0 + row]); // throws when the run ends out of range
+        for (let j = 0, k = first; j < count; j++, k += COL_STEP) {
+          if (cost === null) t.walls.add(k);
+          else t.costs.set(k, cost - DEFAULT_TILE_COST);
+          mine.push(k);
+        }
+      });
+      if (mine.length === 0) continue;
+      t.chunks.set(key, mine);
+      if (touched) for (const k of mine) touched.add(k);
     }
-    return seen !== maps.size;
+  }
+
+  /** Settles each touched cell's tile wall and cost across every map, and the occupancy's wall. */
+  function settle(grid: RuntimeGrid, touched: Iterable<CellKey>): void {
+    for (const k of touched) {
+      let wall = false;
+      let extra = 0;
+      for (const t of maps.values()) {
+        if (t.walls.has(k)) {
+          wall = true;
+          break;
+        }
+        const c = t.costs.get(k);
+        if (c !== undefined && c > extra) extra = c;
+      }
+      const before = covers.has(k) || tileWalls.has(k);
+      if (wall) tileWalls.add(k);
+      else tileWalls.delete(k);
+      if (!wall && extra > 0) tileCosts.set(k, extra);
+      else tileCosts.delete(k);
+      const now = covers.has(k) || wall;
+      if (now !== before) grid.occupancy.setWall(cellOf(k), now);
+    }
+  }
+
+  function dropMap(t: MapTiles, touched: Set<CellKey>): void {
+    for (const key of [...t.chunks.keys()]) dropChunk(t, key, touched);
+    maps.delete(t.entity.id);
+    pending.delete(t.entity.id);
+  }
+
+  function readMap(
+    grid: RuntimeGrid,
+    system: TilemapSystem,
+    e: RuntimeEntity,
+    touched: Set<CellKey> | null,
+  ): void {
+    const origin = mapOrigin(grid, e);
+    if (!origin) return;
+    const t: MapTiles = {
+      entity: e,
+      origin,
+      chunks: new Map(),
+      walls: new Set(),
+      costs: new Map(),
+    };
+    maps.set(e.id, t);
+    pending.delete(e.id);
+    readChunks(system, t, null, touched);
+  }
+
+  function readPending(touched: Set<CellKey>): void {
+    for (const [id, keys] of pending) {
+      const t = maps.get(id);
+      const system = t && ctx.system(t.entity.type);
+      if (t && isTilemapSystem(system)) readChunks(system, t, [...keys], touched);
+    }
+    pending.clear();
+  }
+
+  /** Reads every map afresh, then moves the occupancy's walls from the old tile walls to the new. */
+  function readAll(grid: RuntimeGrid, scene: ExpandedScene | null): void {
+    maps = new Map();
+    pending.clear();
+    for (const e of scene?.entities ?? []) {
+      const system = ctx.system(e.type);
+      if (isTilemapSystem(system)) readMap(grid, system, e, null);
+    }
+    const all = [...maps.values()];
+    const walls = all.length === 1 ? new Set(all[0]!.walls) : new Set<CellKey>();
+    if (all.length > 1) for (const t of all) for (const k of t.walls) walls.add(k);
+    const costs = new Map<CellKey, number>();
+    for (const t of all)
+      for (const [k, c] of t.costs) if (!walls.has(k) && c > (costs.get(k) ?? 0)) costs.set(k, c);
+    const before = tileWalls;
+    tileWalls = walls;
+    tileCosts = costs;
+    for (const k of before)
+      if (!walls.has(k) && !covers.has(k)) grid.occupancy.setWall(cellOf(k), false);
+    for (const k of walls)
+      if (!before.has(k) && !covers.has(k)) grid.occupancy.setWall(cellOf(k), true);
+  }
+
+  /** Follows the scene's tilemap entities: a new or moved map is read whole, an edited one by its rebuilt chunks. */
+  function syncMaps(grid: RuntimeGrid, scene: ExpandedScene): void {
+    const touched = new Set<CellKey>();
+    const seen = new Set<string>();
+    for (const e of scene.entities) {
+      const known = maps.get(e.id);
+      if (known?.entity === e) {
+        seen.add(e.id);
+        continue;
+      }
+      const system = ctx.system(e.type);
+      if (!isTilemapSystem(system)) continue;
+      seen.add(e.id);
+      const origin = mapOrigin(grid, e);
+      if (known && origin && known.origin[0] === origin[0] && known.origin[1] === origin[1]) {
+        known.entity = e;
+        continue;
+      }
+      if (known) dropMap(known, touched);
+      readMap(grid, system, e, touched);
+    }
+    for (const t of [...maps.values()]) if (!seen.has(t.entity.id)) dropMap(t, touched);
+    readPending(touched);
+    settle(grid, touched);
   }
 
   function syncWalls(grid: RuntimeGrid, scene: ExpandedScene): void {
@@ -229,6 +334,7 @@ export function createGridState(
     rasterised = new Map();
     covers = new Map();
     maps = new Map();
+    pending.clear();
     tileWalls = new Set();
     tileCosts = new Map();
     loaded = null;
@@ -256,7 +362,6 @@ export function createGridState(
       current = grid;
       loaded = scene;
       syncWalls(grid, scene);
-      readTiles(grid, scene);
       ctx.behavior<OccupantSystem>(OCCUPANT.name)?.resync();
     },
     sync(scene) {
@@ -267,10 +372,22 @@ export function createGridState(
       }
       loaded = scene;
       syncWalls(current, scene);
-      if (mapsMoved(scene)) readTiles(current, scene);
+      syncMaps(current, scene);
+    },
+    tileChunksChanged(id, chunks) {
+      if (!current) return;
+      let keys = pending.get(id);
+      if (!keys) pending.set(id, (keys = new Set()));
+      for (const k of chunks) keys.add(k);
     },
     tilesChanged() {
-      if (current) readTiles(current, loaded);
+      if (!current) return;
+      const touched = new Set<CellKey>();
+      readPending(touched);
+      settle(current, touched);
+    },
+    tilesLoaded() {
+      if (current) readAll(current, loaded);
     },
     clear,
     extend(rects) {

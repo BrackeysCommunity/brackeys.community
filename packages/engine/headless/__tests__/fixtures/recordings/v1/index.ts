@@ -5,7 +5,8 @@
  * replays, and say how each replay turns out now that the world is in metres
  * (`replays`). The v3 scenes they were made on are frozen beside them under
  * `scenes/`; the probes' scenes are built in code by their probe modules, as
- * they are now. A script holds world px, as 0.10.0 played it.
+ * they are now, but for the roguelike's, frozen in `roguelike-v1.ts`. A
+ * script holds world px, as 0.10.0 played it.
  *
  * Writing one takes a checkout of engine 0.10.0 with this directory copied
  * in, running its `runPlaytest` over the fixture.

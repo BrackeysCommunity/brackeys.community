@@ -22,7 +22,7 @@ import {
   yardPrefabs,
 } from "../../scene/__tests__/fixtures/random-ops";
 import { formatScene } from "../../scene/format";
-import { GRID_CHUNK, readCell, type GridCells } from "../../scene/grid";
+import { decodeRow, readCell, type GridCells } from "../../scene/grid";
 import { sceneHash } from "../../scene/hash";
 import { sceneFrames } from "../../scene/resolve";
 import {
@@ -312,16 +312,22 @@ describe("tilemap paints converge", () => {
     for (let i = 1; i < texts.length; i++) expect(texts[i], `${label}, client ${i}`).toBe(texts[0]);
   };
 
-  /** Every painted cell decodes to a tile, flags intact: no row came out torn. */
+  /** Every row decodes and every painted cell to a tile, flags intact: no row came out torn. */
   const expectWellFormed = (cells: GridCells, label: string) => {
-    for (const [chunk, rows] of Object.entries(cells)) {
-      const [cx, cy] = chunk.split(",").map(Number) as [number, number];
-      for (let r = 0; r < rows.length; r++)
-        for (let c = 0; c < GRID_CHUNK; c++) {
-          const v = readCell(cells, cx * GRID_CHUNK + c, cy * GRID_CHUNK + r);
-          expect(() => decodeCell(v), `${label}: ${chunk} row ${r} col ${c}`).not.toThrow();
-        }
-    }
+    const torn: string[] = [];
+    for (const [chunk, rows] of Object.entries(cells))
+      rows.forEach((row, r) => {
+        const values = decodeRow(row);
+        if (!values) return torn.push(`${chunk} row ${r}: ${JSON.stringify(row)}`);
+        values.forEach((v, c) => {
+          try {
+            decodeCell(v);
+          } catch {
+            torn.push(`${chunk} row ${r} col ${c}: ${v}`);
+          }
+        });
+      });
+    expect(torn, label).toEqual([]);
   };
 
   it("two clients painting different chunks converge, both paints kept", () => {

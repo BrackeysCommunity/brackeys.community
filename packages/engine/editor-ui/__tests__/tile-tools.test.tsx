@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type PeerPresence } from "../../collab/index";
@@ -11,12 +12,15 @@ import {
   type EditorSession,
   type SceneDefinition,
 } from "../../editor/index";
+import type { ToolHost } from "../../editor/index";
 import { createToolHost } from "../../editor/tool-host";
 import { DEFAULT_SNAP } from "../../editor/tools";
 import { createRegistry } from "../../game/index";
 import type { GameStoreState } from "../../index";
+import type { ProjectRuntimeView } from "../../project/index";
 import { SCENE_FORMAT_VERSION } from "../../scene/index";
 import { createToolRouter } from "../../tool-router";
+import { EditorFrame, Island } from "../frame/EditorFrame";
 import { EditorCanvasOverlay } from "../panels/EditorCanvasOverlay";
 import { EditorStatusBar } from "../panels/EditorStatusBar";
 import {
@@ -26,6 +30,7 @@ import {
   EditorToolbar,
   fitDock,
 } from "../panels/EditorToolbar";
+import { TilePalette } from "../panels/TilePalette";
 import type { EditorHostState } from "../session/live-scene-editor";
 
 const sceneWith = (tilemap: boolean): SceneDefinition => ({
@@ -47,7 +52,7 @@ afterEach(() => {
   for (const s of sessions.splice(0)) s.destroy();
 });
 
-function setup(tilemap = true) {
+function setup(tilemap = true, wrap: (toolbar: ReactNode) => ReactNode = (t) => t) {
   const registry = createRegistry();
   const def = sceneWith(tilemap);
   const session = createEditorSession({
@@ -66,13 +71,15 @@ function setup(tilemap = true) {
     snap: DEFAULT_SNAP,
   });
   render(
-    <EditorToolbar
-      session={session}
-      keymap={createKeymap([])}
-      host={host}
-      onPlay={() => {}}
-      onPlayHere={() => {}}
-    />,
+    wrap(
+      <EditorToolbar
+        session={session}
+        keymap={createKeymap([])}
+        host={host}
+        onPlay={() => {}}
+        onPlayHere={() => {}}
+      />,
+    ),
   );
   return { session, host };
 }
@@ -158,6 +165,60 @@ describe("the tile tools in the toolbar", () => {
     const command = vi.spyOn(host, "command");
     for (const c of BRUSH_COMMANDS) fireEvent.click(tileButton(c.label)!);
     expect(command.mock.calls.map(([c]) => c)).toEqual(BRUSH_COMMANDS.map((c) => c.key));
+  });
+
+  it("a palette pick in a narrow window leaves the tile tools and the brush's turns in More tools", async () => {
+    const width = window.innerWidth;
+    act(() => {
+      Object.assign(window, { innerWidth: 800 });
+      window.dispatchEvent(new Event("resize"));
+    });
+    try {
+      const { session, host } = setup(true, (toolbar) => (
+        <EditorFrame dock={<Island>{toolbar}</Island>}>
+          <canvas />
+        </EditorFrame>
+      ));
+      const runtime = {
+        settings: {},
+        engine: {},
+        table: () => [],
+        inputMap: null,
+        asset: () => undefined,
+        doc: ((kind: string) =>
+          kind === "tileset"
+            ? { kind: "tileset", v: 1, image: "ts-png", tile: [16, 16], columns: 2 }
+            : undefined) as never,
+        docs: () => [],
+      } satisfies ProjectRuntimeView;
+      render(
+        <TilePalette
+          session={session}
+          runtime={runtime}
+          tools={new Store<ToolHost | null>(host)}
+        />,
+      );
+      expect(tileButton("Tile brush")).toBeNull();
+      fireEvent.pointerDown(screen.getByRole("gridcell", { name: "Tile 1" }), { button: 0 });
+      expect(host.tool()).toBe("tile-brush");
+      expect(session.store.state.tileBrush).toEqual({ tiles: [[2]] });
+
+      fireEvent.click(bar().getByRole("button", { name: "More tools" }));
+      await screen.findByRole("menu");
+      const inMenu = (name: string) =>
+        screen.queryByRole("menuitemradio", { name: new RegExp(name) }) !== null;
+      const labels = host.tileTools().map((t) => t.label);
+      expect(labels).toHaveLength(TILE_TOOL_IDS.length);
+      for (const label of labels) expect(tileButton(label) !== null || inMenu(label)).toBe(true);
+      expect(labels.some((label) => inMenu(label))).toBe(true);
+      for (const c of BRUSH_COMMANDS)
+        expect(screen.getByRole("menuitem", { name: new RegExp(c.label) })).toBeTruthy();
+    } finally {
+      act(() => {
+        Object.assign(window, { innerWidth: width });
+        window.dispatchEvent(new Event("resize"));
+      });
+    }
   });
 });
 

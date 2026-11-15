@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import { autotileEdits } from "../editor/builtin/tile-tools";
 import { createRegistry } from "../game/define";
 import { decodeCell } from "../game/tile-cell";
 import { pxPerMetreOf } from "../game/units";
@@ -20,6 +21,8 @@ import {
   MASK_SW,
   MASK_W,
   terrainMask,
+  terrainTest,
+  terrainTile,
 } from "../tiles/autotile";
 import type { RapierModule } from "../types";
 import { testGame } from "./fixtures/test-game";
@@ -76,10 +79,6 @@ const tileset = (tile: [number, number]): TilesetFile => ({
 const SET = tileset([32, 32]);
 const GROUND = 1;
 const ROCK = 301;
-const isTerrain = (v: number) => {
-  const t = decodeCell(v);
-  return t !== null && TERRAIN_IDS.has(t.id);
-};
 const grid = (cells: CellEdit[]): GridCells => paintGrid({}, { cells }).grid;
 const tileOf = (v: number) => decodeCell(v)!.id;
 
@@ -106,7 +105,7 @@ describe("applyAutotile", () => {
   ];
   const centre = (rule: AutotileRule, raw: number) => {
     const g = grid(around(raw));
-    const edits = applyAutotile(g, SET, rule, { c0: 5, r0: 5, c1: 5, r1: 5 }, isTerrain);
+    const edits = applyAutotile(g, SET, rule, { c0: 5, r0: 5, c1: 5, r1: 5 });
     const hit = edits.find(([c, r]) => c === 5 && r === 5);
     return hit ? tileOf(hit[2]) : tileOf(readCell(g, 5, 5));
   };
@@ -138,7 +137,7 @@ describe("applyAutotile", () => {
       [1, 0, GROUND],
       [3, 0, ROCK],
     ]);
-    const edits = applyAutotile(g, SET, sparse, { c0: 0, r0: 0, c1: 3, r1: 0 }, isTerrain);
+    const edits = applyAutotile(g, SET, sparse, { c0: 0, r0: 0, c1: 3, r1: 0 });
     expect(edits).toEqual([
       [0, 0, 10],
       [1, 0, 10],
@@ -152,9 +151,9 @@ describe("applyAutotile", () => {
     const a = grid(cells);
     const b = grid([...cells].reverse());
     const rect = { c0: 1, r0: 1, c1: 10, r1: 10 };
-    const first = applyAutotile(a, SET, blob, rect, isTerrain);
-    expect(applyAutotile(a, SET, blob, rect, isTerrain)).toEqual(first);
-    expect(applyAutotile(b, SET, blob, rect, isTerrain)).toEqual(first);
+    const first = applyAutotile(a, SET, blob, rect);
+    expect(applyAutotile(a, SET, blob, rect)).toEqual(first);
+    expect(applyAutotile(b, SET, blob, rect)).toEqual(first);
     const order = first.map(([c, r]) => r * 1000 + c);
     expect(order).toEqual([...order].sort((x, y) => x - y));
   });
@@ -164,7 +163,7 @@ describe("applyAutotile", () => {
       [0, 0, GROUND],
       [1, 0, GROUND],
     ]);
-    const edits = applyAutotile(g, SET, blob, { c0: 0, r0: 0, c1: 1, r1: 0 }, isTerrain);
+    const edits = applyAutotile(g, SET, blob, { c0: 0, r0: 0, c1: 1, r1: 0 });
     expect(edits.map(([, , v]) => tileOf(v))).toEqual([
       100 + BLOB.indexOf(MASK_E),
       100 + BLOB.indexOf(MASK_W),
@@ -178,12 +177,41 @@ describe("applyAutotile", () => {
       [5, 3, GROUND],
       [6, 3, GROUND],
     ]);
-    const edits = applyAutotile(g, SET, edge, { c0: 4, r0: 3, c1: 4, r1: 3 }, isTerrain);
+    const edits = applyAutotile(g, SET, edge, { c0: 4, r0: 3, c1: 4, r1: 3 });
     expect(edits.map(([c, r]) => [c, r])).toEqual([
       [3, 3],
       [4, 3],
       [5, 3],
     ]);
+  });
+});
+
+describe("the terrain a rule paints", () => {
+  const untagged: AutotileRule = { ...edge, fallback: ROCK - 1 };
+  const withRock: TilesetFile = { ...SET, tiles: [...SET.tiles!, { id: ROCK - 1 }] };
+
+  it("is the fallback when it carries the terrain tag, else the lowest-id tile that does", () => {
+    expect(terrainTile(SET, edge)).toBe(0);
+    expect(terrainTile(withRock, untagged)).toBe(0);
+    expect(terrainTile({ ...SET, tiles: [{ id: 7 }] }, edge)).toBeUndefined();
+    const isGround = terrainTest(withRock.tiles!, "ground");
+    expect([isGround(GROUND), isGround(ROCK), isGround(0)]).toEqual([true, false, false]);
+  });
+
+  it("autotiles a brush stroke even when the rule's fallback isn't terrain", () => {
+    const stroke: [number, number][] = [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+    ];
+    const edits = autotileEdits({}, withRock, untagged, stroke);
+    const painted = paintGrid({}, { cells: edits }).grid;
+    expect([0, 1, 2].map((c) => tileOf(readCell(painted, c, 0)))).toEqual([
+      untagged.tiles[String(MASK_E)],
+      untagged.tiles[String(MASK_E | MASK_W)],
+      untagged.tiles[String(MASK_W)],
+    ]);
+    expect(autotileEdits({}, { ...SET, tiles: [{ id: 7 }] }, edge, stroke)).toEqual([]);
   });
 });
 
@@ -245,7 +273,7 @@ describe("ctx.tiles.autotile", () => {
     if (!report.ok) throw new Error(report.error);
     rt.ctx.tiles.autotile("m", "blob47", { c0: 3, r0: 2, c1: 8, r1: 5 });
     const want = paintGrid(local, {
-      cells: applyAutotile(local, set, blob, { c0: 1, r0: 1, c1: 6, r1: 4 }, isTerrain),
+      cells: applyAutotile(local, set, blob, { c0: 1, r0: 1, c1: 6, r1: 4 }),
     }).grid;
     for (let r = -1; r < 8; r++)
       for (let c = -1; c < 10; c++)
@@ -253,6 +281,30 @@ describe("ctx.tiles.autotile", () => {
     expect(() => rt.ctx.tiles.autotile("m", "nope", { c0: 0, r0: 0, c1: 0, r1: 0 })).toThrow(
       RangeError,
     );
+    rt.destroy();
+  });
+
+  it("gives the cells the editor's autotile brush gives the same terrain", () => {
+    const stone = 251;
+    const base = grid([
+      [0, 0, stone],
+      [4, 2, GROUND],
+    ]);
+    const stroke: [number, number][] = [];
+    for (let r = 1; r <= 4; r++)
+      for (let c = 1; c <= 5; c++) if (r !== 3 || c !== 3) stroke.push([c, r]);
+    const editor = paintGrid(base, { cells: autotileEdits(base, set, blob, stroke) }).grid;
+
+    const rt = createSceneRuntime({ rapier, view: null, game: testGame, project });
+    const report = rt.load(
+      scene([{ id: "m", type: "tilemap", at: [0, 0], tileset: "tileset-test", cells: base }]),
+    );
+    if (!report.ok) throw new Error(report.error);
+    rt.ctx.tiles.paint("m", { cells: stroke.map(([c, r]): CellEdit => [c, r, GROUND]) });
+    rt.ctx.tiles.autotile("m", "blob47", { c0: 1, r0: 1, c1: 5, r1: 4 });
+    for (let r = -1; r <= 6; r++)
+      for (let c = -1; c <= 7; c++)
+        expect(rt.ctx.tiles.get("m", [c, r]), `${c},${r}`).toBe(readCell(editor, c, r));
     rt.destroy();
   });
 });

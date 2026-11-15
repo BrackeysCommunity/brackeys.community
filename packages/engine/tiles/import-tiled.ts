@@ -1,4 +1,5 @@
 /** Tiled JSON maps and tilesets to project ops: a one-shot conversion, nothing stays linked. Pure. */
+import { parseCssHex } from "../game/color";
 import { ID_PATTERN } from "../game/fields";
 import { encodeCell, MAX_TILES } from "../game/tile-cell";
 import type { JsonValue } from "../game/types";
@@ -16,6 +17,7 @@ import type {
   ShapeTuple,
 } from "../scene/types";
 import { pxToMetres, roundLength } from "../scene/units";
+import { assetSlug, isObj, list, num, str, type Json } from "./json-read";
 
 export type TileImport = {
   ops: readonly ProjectOp[];
@@ -48,14 +50,8 @@ const GID_MASK = 0x0fffffff;
 
 const ISOMETRIC_REFUSAL = "isometric maps import once plan 57's projections exist";
 
-type Json = Record<string, unknown>;
-type Placed = { firstgid: number; id: AssetId; name: string; count: number };
-
-const isObj = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
-const num = (v: unknown, fallback = 0): number =>
-  typeof v === "number" && Number.isFinite(v) ? v : fallback;
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+/** A map's tileset; `id` is null for one the import skips, whose gids still need claiming. */
+type Placed = { firstgid: number; id: AssetId | null; name: string; count: number };
 
 const basename = (p: string): string => p.slice(p.lastIndexOf("/") + 1);
 const stem = (p: string): string => {
@@ -64,15 +60,7 @@ const stem = (p: string): string => {
   return dot > 0 ? b.slice(0, dot) : b;
 };
 
-function slug(name: string): string {
-  const s = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/, "");
-  return s === "" ? "tileset" : s;
-}
+const slug = (name: string): string => assetSlug(name, { fallback: "tileset" });
 
 const asTag = (v: unknown): string | undefined =>
   typeof v === "string" && ID_PATTERN.test(v) ? v : undefined;
@@ -124,11 +112,9 @@ function gidsOf(data: unknown, encoding: unknown, compression: unknown): number[
   return out;
 }
 
-/** `#rrggbb` or `#aarrggbb` to 0xRRGGBB. */
-function rgbOf(v: unknown): number | undefined {
-  const m = typeof v === "string" ? /^#(?:[0-9a-f]{2})?([0-9a-f]{6})$/i.exec(v) : null;
-  return m ? parseInt(m[1]!, 16) : undefined;
-}
+/** Tiled's `#rrggbb` or `#aarrggbb` to 0xRRGGBB, alpha dropped. */
+const rgbOf = (v: unknown): number | undefined =>
+  parseCssHex(typeof v === "string" && v.length === 9 ? `#${v.slice(3)}` : v);
 
 /** A tile's collision object in tile px, or null for one with no shape. */
 function tileShape(o: Json): ShapeTuple | null {
@@ -277,14 +263,17 @@ export function importTiled(
         path,
       );
     const tile: [number, number] = [num(ts.tilewidth), num(ts.tileheight)];
-    if (tile[0] !== tw || tile[1] !== th)
-      drop(
-        `tileset "${name}"'s tiles are ${tile[0]}×${tile[1]} px but the map's cells are ${tw}×${th} px`,
-        path,
-      );
     const count = num(ts.tilecount);
     if (count > MAX_TILES)
       return fail(`tileset "${name}" has ${count} tiles; a tileset holds ${MAX_TILES}`, path);
+    // A tilemap draws one tile per cell, so a tileset of another size can't load in this scene.
+    if (tile[0] !== tw || tile[1] !== th) {
+      placed.push({ firstgid, id: null, name, count });
+      return drop(
+        `tileset "${name}"'s tiles are ${tile[0]}×${tile[1]} px but the map's cells are ${tw}×${th} px; it and the cells that use it are dropped`,
+        path,
+      );
+    }
     const imageId = imageFor(image, `tileset "${name}"`);
     if (!imageId) return;
     if (list(ts.wangsets).length > 0)
@@ -370,6 +359,7 @@ export function importTiled(
   const tileLayer = (layer: Json, name: string, frame: Frame, path: string) => {
     const byTileset = new Map<Placed, CellEdit[]>();
     let turned = 0;
+    let skipped = 0;
     let bad = false;
     const put = (col: number, row: number, raw: number) => {
       const gid = raw & GID_MASK;
@@ -379,6 +369,10 @@ export function importTiled(
       if (!ts || id >= MAX_TILES || (ts.count > 0 && id >= ts.count)) {
         bad = true;
         return fail(`layer "${name}" has gid ${gid}, which no tileset holds`, path);
+      }
+      if (ts.id === null) {
+        skipped++;
+        return;
       }
       const d = (raw & GID_D) !== 0;
       if (hex && (d || (raw & GID_R) !== 0)) turned++;
@@ -408,6 +402,11 @@ export function importTiled(
         );
       });
     else fill(gidsOf(layer.data, layer.encoding, layer.compression), 0, 0, num(layer.width), path);
+    if (skipped > 0)
+      drop(
+        `layer "${name}" drops ${skipped} cell(s) from tilesets whose tiles aren't the map's cell size`,
+        path,
+      );
     if (turned > 0)
       drop(
         `layer "${name}" turns ${turned} hex tile(s) by 60° or 120°, which a tile cell can't hold; they import unturned`,
@@ -424,7 +423,7 @@ export function importTiled(
     const several = byTileset.size > 1;
     for (const ts of placed) {
       const edits = byTileset.get(ts);
-      if (!edits) continue;
+      if (!edits || ts.id === null) continue;
       const entity: EntityInput = {
         type: "tilemap",
         name: several ? `${name} (${ts.name})` : name,

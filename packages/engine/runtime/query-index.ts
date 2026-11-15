@@ -1,6 +1,7 @@
 import type { BehaviorName } from "../game/behaviors";
 import { TILEMAP_PRIMITIVE } from "../game/primitives";
 import type { EngineContext, EntityQuery, EntitySelector } from "../game/types";
+import type { GridCells } from "../scene/grid";
 import { entityTags, tagFieldsOf } from "../scene/schema";
 import {
   aabb,
@@ -13,7 +14,7 @@ import {
 } from "../scene/shape-geometry";
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, EntityTypeName, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
-import { tilemapExtentOf } from "../systems/tilemap";
+import { isTilemapSystem, tilemapExtentOf } from "../systems/tilemap";
 import type { Vec2 } from "../types";
 import { carriedBehaviors } from "./behaviors";
 import { isWatched, type Pose } from "./poses";
@@ -25,6 +26,8 @@ export type RuntimeQueryIndex = EntityQuery & {
   added(e: RuntimeEntity): void;
   removed(id: string): void;
   enabledChanged(id: string, enabled: boolean): void;
+  /** Tilemap `id`'s cells changed at runtime: its extent covers `cells` from now on. */
+  tilemapCellsChanged(id: string, cells: GridCells | undefined): void;
   /** Forgets every entity; at unload. */
   clear(): void;
 };
@@ -45,6 +48,8 @@ type Slot = {
   /** The pose `extent` was computed at; a new pose object means the entity moved. */
   pose: Readonly<Pose> | undefined;
   extent: ShapeObj | null;
+  /** A tilemap's record, its extent read again from it when its cells change. */
+  tilemap: RuntimeEntity | undefined;
 };
 
 const isShape = (area: ShapeObj | Aabb): area is ShapeObj => "type" in area;
@@ -110,6 +115,14 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
     const t = ctx.registry.types.get(type);
     return (t?.base ?? t?.type) === TILEMAP_PRIMITIVE.type;
   };
+
+  /** A tilemap's cells now, runtime writes included, once its system holds it. */
+  const liveCells = (e: RuntimeEntity): GridCells | undefined => {
+    const system = ctx.system(e.type);
+    return isTilemapSystem(system) ? system.cells(e.id) : undefined;
+  };
+  const tilemapShape = (e: RuntimeEntity, cells: GridCells | undefined) =>
+    tilemapExtentOf(ctx, cells ? { ...e, cells } : e) ?? undefined;
 
   function fieldsOf(type: EntityTypeName) {
     let f = geometry.get(type);
@@ -300,11 +313,12 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       }
       // A path rider's shape is local to its path: put it where the entity spawned.
       const centre = local && shapeCentre(local).at;
+      const tilemap = local === undefined && isTilemap(e.type) ? e : undefined;
       const shape =
         local && centre && (centre[0] !== spawn.x || centre[1] !== spawn.y)
           ? translateShape(local, [spawn.x - centre[0], spawn.y - centre[1]])
-          : local === undefined && isTilemap(e.type)
-            ? (tilemapExtentOf(ctx, e) ?? undefined)
+          : tilemap
+            ? tilemapShape(tilemap, liveCells(tilemap))
             : local;
       const slot: Slot = {
         id: e.id,
@@ -318,6 +332,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
         concave: isConcave(shape),
         pose: undefined,
         extent: null,
+        tilemap,
       };
       slots.set(e.id, slot);
       if (tracking) stale.add(e.id);
@@ -336,6 +351,15 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
     enabledChanged(id, enabled) {
       const slot = slots.get(id);
       if (slot) slot.enabled = enabled;
+    },
+    tilemapCellsChanged(id, cells) {
+      const slot = slots.get(id);
+      if (!slot?.tilemap || !cells) return;
+      slot.shape = tilemapShape(slot.tilemap, cells);
+      slot.concave = false;
+      slot.pose = undefined;
+      slot.extent = null;
+      if (tracking) stale.add(id);
     },
     clear() {
       slots.clear();

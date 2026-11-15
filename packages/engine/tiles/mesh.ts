@@ -37,6 +37,19 @@ export function tileOffset(grid: GridSettings, at: Pt): [number, number] {
   return [c, r];
 }
 
+/** Tile `id`'s rect in the tileset's image: `[x, y, w, h]` in image px. */
+export function tileFrame(id: number, tileset: TilesetFile): [number, number, number, number] {
+  const [tw, th] = tileset.tile;
+  const margin = tileset.margin ?? 0;
+  const spacing = tileset.spacing ?? 0;
+  return [
+    margin + (id % tileset.columns) * (tw + spacing),
+    margin + Math.floor(id / tileset.columns) * (th + spacing),
+    tw,
+    th,
+  ];
+}
+
 /**
  * Writes a quad's four UVs (top-left, top-right, bottom-right, bottom-left
  * of the drawn cell) for tile `id` drawn with Tiled's flip `flags`:
@@ -50,11 +63,7 @@ export function writeTileUVs(
   tileset: TilesetFile,
   image: readonly [number, number],
 ): void {
-  const [tw, th] = tileset.tile;
-  const margin = tileset.margin ?? 0;
-  const spacing = tileset.spacing ?? 0;
-  const x = margin + (id % tileset.columns) * (tw + spacing);
-  const y = margin + Math.floor(id / tileset.columns) * (th + spacing);
+  const [x, y, tw, th] = tileFrame(id, tileset);
   const u0 = x / image[0];
   const v0 = y / image[1];
   const du = tw / image[0];

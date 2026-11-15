@@ -140,7 +140,12 @@ describe("the editor's publishing entry", () => {
     const chrome = mount(publish);
     expect(chrome.panels?.defs?.map((d) => d.id)).toContain("publish");
     expect(chrome.panels?.context.controls.publish).toBe(publish);
-    expect(tabs("Left column, bottom group")).toEqual(["Project", "Project settings", "Publish"]);
+    expect(tabs("Left column, bottom group")).toEqual([
+      "Project",
+      "Project settings",
+      "Tiles",
+      "Publish",
+    ]);
 
     fireEvent.click(screen.getByRole("tab", { name: /Project settings/ }));
     await waitFor(() => expect(settingsProps.at(-1)?.publish).toBe(publish));
@@ -187,6 +192,11 @@ describe("the editor's publishing entry", () => {
   it("puts Publish in its home group in a layout stored before it existed", () => {
     const storage = new Map([[LAYOUT_KEY, JSON.stringify(DEFAULT_LAYOUT)]]);
     mount(publishHost(), storage);
-    expect(tabs("Left column, bottom group")).toEqual(["Project", "Project settings", "Publish"]);
+    expect(tabs("Left column, bottom group")).toEqual([
+      "Project",
+      "Project settings",
+      "Tiles",
+      "Publish",
+    ]);
   });
 });

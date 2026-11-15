@@ -22,7 +22,11 @@ const VALUE_MAX = 0xffff;
 /** A decoded cell; null is empty. */
 export type TileCell = { id: number; flipX: boolean; flipY: boolean; flipD: boolean } | null;
 
-/** A quarter turn or mirror: mirror x when `flip`, then turn `rot` quarter turns clockwise (y down). */
+/**
+ * The scene's `Dihedral` (mirror x when `flip`, then turn `rot` quarter turns
+ * clockwise, y down), restated so the codec stays import-free; the public
+ * entries export `Dihedral` itself.
+ */
 export type TileTurn = { rot: 0 | 1 | 2 | 3; flip: boolean };
 
 /** The cell a value holds; null for 0, and for flags with no tile. */

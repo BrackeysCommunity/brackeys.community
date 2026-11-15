@@ -634,8 +634,8 @@ export {
   TILE_ID_BITS,
   transformCell,
   type TileCell,
-  type TileTurn,
 } from "./tile-cell";
+export type { Dihedral } from "../scene/transform";
 export type { AutotileRule, TileDef, TilesetFile } from "../project/kinds/tileset";
 export {
   applyAutotile,
@@ -663,7 +663,7 @@ export {
   type TileCollision,
 } from "../tiles/colliders";
 export { buildChunkMesh, type ChunkMesh, type ChunkMeshInput } from "../tiles/mesh";
-// The importers sit here rather than in ./project, whose source the canvas-sync image runs without tiles/.
+// The importers sit here rather than in ./project: canvas-sync value-imports ./project, and the LDtk importer's PNG writer (export/) isn't in its image.
 export { importTiled } from "../tiles/import-tiled";
 export { importLdtk } from "../tiles/import-ldtk";
 export {

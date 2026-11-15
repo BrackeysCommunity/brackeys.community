@@ -3358,7 +3358,9 @@ One-way tiles and tiles with their own `shapes` never merge.
 cell: `at(cell)` lists each map's tile there, top first (by `z`, then
 scene order); `get(map, cell)` is one raw value; `find(map, tag)` lists
 the cells whose tile has a tag; `paint(map, { cells?, rects? })` writes
-and `autotile(map, rule, rect)` runs a tileset rule. Reads see a write at
+and `autotile(map, rule, bounds)` runs a tileset rule over a
+`{ c0, r0, c1, r1 }` box (a `CellBounds`, not a `CellRect`: the rule
+computes each cell's value, so there is none to pass). Reads see a write at
 once; colliders, grid walls and meshes rebuild once, for the chunks it
 touched, at the end of the tick. A paint naming a tile the image doesn't
 hold throws `tile-unknown` and writes nothing. A world save keeps the
@@ -3500,7 +3502,9 @@ export function digCorridor() {
 }
 ```
 
-**Importers.** `importTiled` and `importLdtk` (in `./game`) turn a map
+**Importers.** `importTiled` and `importLdtk` (in `./game`, not
+`./project`: the canvas-sync service loads `./project`, and the LDtk
+importer's PNG writer isn't part of that service) turn a map
 into one project batch: the tileset images as `importAsset`, the
 tilesets, then the scenes with their grid, tilemaps, markers and
 sensors. It is a one-shot conversion; nothing stays linked to the source

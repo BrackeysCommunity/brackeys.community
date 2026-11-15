@@ -64,7 +64,7 @@ export type TilemapEntity = RuntimeEntity<{
   alpha?: number;
 }>;
 
-/** The system for `tilemap` entities; `ctx.tiles` reads and writes through it. */
+/** The system for tilemap entities, one per runtime whatever types spawn them; `ctx.tiles` reads and writes through it. */
 export type TilemapSystem = SceneSystem<TilemapEntity> &
   TilesContext & {
     readonly tilemapSystem: true;
@@ -74,12 +74,7 @@ export type TilemapSystem = SceneSystem<TilemapEntity> &
     flushWrites(): boolean;
     /** Writes the pose index and moves the map's colliders and drawing with it. */
     setPose(id: string, x: number, y: number, rot: number): void;
-    /**
-     * Gates the one-way tiles for one actor's box, for `actorId` alone: a
-     * one-way tile holds while the actor is on its side (within 0.04 m of
-     * that face) and, for an `"up"` tile, isn't `passing`; the rest go to
-     * `oneWayPasses(ctx, actorId)`. The worlds are left unchanged.
-     */
+    /** Gates one-way tiles for `actorId` alone; other actors fall through to `oneWayPasses`. */
     passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
     /** How many colliders each chunk of tilemap `id` holds now, by chunk key; for tools and tests. */
     chunkColliders(id: string): ReadonlyMap<ChunkKey, number>;
@@ -91,6 +86,15 @@ export type TilemapSystem = SceneSystem<TilemapEntity> &
      * returns the unsubscribe.
      */
     watchCells(fn: (id: string, chunks: readonly ChunkKey[]) => void): () => void;
+    /**
+     * Rebuilds the maps whose tileset doc, or the image it cuts, changed
+     * (`changed` names it, or the project now holds a different one): defs,
+     * colliders and drawing, runtime writes kept. A map whose tileset no
+     * longer loads keeps what it had, and is reported.
+     */
+    reloadAssets(
+      changed: readonly AssetId[],
+    ): { entityId: string; error: unknown; reattached: boolean }[];
   };
 
 /** Whether `system` is the tilemap system, whatever type name spawns it. */
@@ -270,6 +274,8 @@ type Built = { handle: number; collider: Collider | null; part: Part };
 type LiveMap = {
   e: TilemapEntity;
   tileset: TilesetFile | undefined;
+  /** The sha256 of the image the tileset cuts, as last drawn. */
+  image: string | undefined;
   defs: ReadonlyMap<number, TileDef>;
   place: TilePlacement;
   /** Where the map's colliders and drawing were built: its `at`, at its frame's angle. */
@@ -306,14 +312,18 @@ function isWrite(v: JsonValue): v is Write {
 
 const IDENTITY: Pose = Object.freeze({ x: 0, y: 0, rot: 0 });
 
-/**
- * Tilemaps: each spawn decodes every chunk and, with a physics or geometry
- * world, builds its colliders chunk by chunk per `collision` (one fixed
- * Rapier body per map; static geometry colliders otherwise). The map's world
- * pose is its frame's: a parent's move or turn carries its colliders and its
- * drawing, which reach the view as data alone.
- */
-export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): TilemapSystem {
+/** An outline chain in world m, its first point repeated at the end: colliders build chains open. */
+function closedChain(chain: readonly Pt[], ox: number, oy: number, w: number, h: number): Pt[] {
+  const pts = chain.map(([x, y]): Pt => [ox + x * w, oy + y * h]);
+  if (pts.length > 2) pts.push([pts[0]![0], pts[0]![1]]);
+  return pts;
+}
+
+const sameTileset = (a: TilesetFile | undefined, b: TilesetFile | undefined) =>
+  a === b || JSON.stringify(a) === JSON.stringify(b);
+
+/** Tilemaps: colliders built per chunk from `tileTraits`, posed by the map's frame; the view gets data only. */
+export function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): TilemapSystem {
   const live = new Map<string, LiveMap>();
   const groups = ctx.registry.collisionGroups("static");
   const ppm = pxPerMetreOf(ctx.registry);
@@ -358,7 +368,7 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
     ) => {
       const tag: ColliderTag = {
         entityId: m.e.id,
-        type: type.type,
+        type: m.e.type,
         tile: { map: m.e.id, tile: tileId, cell },
       };
       if (material !== undefined) tag.material = material;
@@ -447,7 +457,7 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
         const [ox, oy] = cellTopLeft(m.place, 0, 0);
         for (const chain of outlineChains(inGroup, rect))
           parts.push({
-            shape: { type: "chain", pts: chain.map(([x, y]): Pt => [ox + x * w, oy + y * h]) },
+            shape: { type: "chain", pts: closedChain(chain, ox, oy, w, h) },
             tag: tagOf(at.tile, at.cell, material, null),
             side: null,
           });
@@ -463,7 +473,7 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
 
   function addPart(m: LiveMap, part: Part): Built | null {
     if (ctx.physics) {
-      const { rapier, physics } = physicsOf(ctx, type.type, m.e.id);
+      const { rapier, physics } = physicsOf(ctx, m.e.type, m.e.id);
       if (!m.body) {
         const desc = rapier.RigidBodyDesc.fixed()
           .setTranslation(m.delta.x, m.delta.y)
@@ -518,11 +528,14 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
     m.body = null;
   }
 
-  function visualOf(m: LiveMap): TilemapVisual | null {
+  function imageOf(tileset: TilesetFile | undefined): string | undefined {
     const project = ctx.project;
-    if (!m.tileset || !project) return null;
-    const image = tilesetImage(project, m.tileset.image)?.sha256;
-    if (image === undefined) return null;
+    return tileset && project ? tilesetImage(project, tileset.image)?.sha256 : undefined;
+  }
+
+  function visualOf(m: LiveMap): TilemapVisual | null {
+    const image = m.image;
+    if (!m.tileset || image === undefined) return null;
     const [w, h] = m.place.settings.cell;
     const visual: TilemapVisual = {
       at: [m.e.at[0], m.e.at[1]],
@@ -566,6 +579,7 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
     return {
       e,
       tileset,
+      image: imageOf(tileset),
       defs,
       place: tilePlacement(ctx.settings.grid, e.at, fallback),
       drawn,
@@ -624,6 +638,14 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
       for (const chunk of decodeChunks(m.cells)) buildChunk(m, chunk);
     live.set(e.id, m);
     drawMap(m, null);
+    if (!was) return;
+    const keys = [...new Set([...Object.keys(was.cells), ...Object.keys(m.cells)])];
+    if (keys.length > 0) for (const fn of watchers) fn(e.id, keys.sort(compareChunkKeys));
+  }
+
+  /** Whether the tileset a map would load now differs from the one it was built with. */
+  function tilesetMoved(m: LiveMap, tileset: TilesetFile | undefined): boolean {
+    return imageOf(tileset) !== m.image || !sameTileset(tileset, m.tileset);
   }
 
   /** A grid cell's map-local cell. */
@@ -687,7 +709,7 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
     const delta = framePose({ x, y, rot }, m.drawn);
     m.delta = delta.x === 0 && delta.y === 0 && delta.rot === 0 ? IDENTITY : delta;
     if (m.body && ctx.physics) {
-      const { rapier, physics } = physicsOf(ctx, type.type, id);
+      const { rapier, physics } = physicsOf(ctx, m.e.type, id);
       m.body.setTranslation(new rapier.Vector2(m.delta.x, m.delta.y), true);
       m.body.setRotation(m.delta.rot, true);
       physics.moved(m.body);
@@ -711,7 +733,7 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
     update(e, prev) {
       const m = live.get(e.id);
       if (!m || !cellsOnly(prev, e)) return spawn(e, m?.writes);
-      m.tileset = resolveTileset(e);
+      if (tilesetMoved(m, resolveTileset(e))) return spawn(e, m.writes);
       m.e = e;
       const was = m.cells;
       layWrites(m, e.cells);
@@ -790,14 +812,8 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
       const rule = m.tileset.rules?.find((r) => r.id === ruleId);
       if (!rule) throw new RangeError(`tileset of "${map}" has no autotile rule "${ruleId}"`);
       const [ox, oy] = m.place.offset;
-      const ids = new Set<number>();
-      for (const def of m.defs.values()) if (def.tags?.includes(rule.terrain)) ids.add(def.id);
-      const isTerrain = (value: number) => {
-        const tile = decodeCell(value);
-        return tile !== null && ids.has(tile.id);
-      };
       const bounds = { c0: rect.c0 - ox, r0: rect.r0 - oy, c1: rect.c1 - ox, r1: rect.r1 - oy };
-      const edits = applyAutotile(m.cells, m.tileset, rule, bounds, isTerrain);
+      const edits = applyAutotile(m.cells, m.tileset, rule, bounds);
       if (edits.length > 0)
         paint(map, { cells: edits.map(([c, r, v]): CellEdit => [c + ox, r + oy, v]) });
     },
@@ -818,6 +834,25 @@ export function createTilemapSystem(ctx: EngineContext, type: RegisteredType): T
           ]);
         }
       return out.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+    },
+    reloadAssets(changed) {
+      const named = new Set(changed);
+      const failed: { entityId: string; error: unknown; reattached: boolean }[] = [];
+      let rebuilt = false;
+      for (const m of [...live.values()]) {
+        let tileset: TilesetFile | undefined;
+        try {
+          tileset = resolveTileset(m.e);
+        } catch (error) {
+          failed.push({ entityId: m.e.id, error, reattached: false });
+          continue;
+        }
+        if (!named.has(m.e.tileset) && !tilesetMoved(m, tileset)) continue;
+        spawn(m.e, m.writes);
+        rebuilt = true;
+      }
+      if (rebuilt) ctx.physics?.refreshQueries();
+      return failed;
     },
     flushWrites() {
       let rebuilt = false;

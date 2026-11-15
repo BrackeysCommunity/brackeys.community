@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`Aabb`](#aabb) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetDrop`](#assetdrop) · [`BehaviorGizmo`](#behaviorgizmo) · [`BehaviorMarks`](#behaviormarks) · [`BehaviorOption`](#behavioroption) · [`BehaviorSectionId`](#behaviorsectionid) · [`BehaviorSectionInfo`](#behaviorsectioninfo) · [`BulkEntry`](#bulkentry) · [`BulkKey`](#bulkkey) · [`CLOSE_PX`](#close_px) · [`COARSE_NUDGE_STEPS`](#coarse_nudge_steps) · [`CarryContext`](#carrycontext) · [`CreateVariant`](#createvariant) · [`DEFAULT_CELL`](#default_cell) · [`DEFAULT_DRAW_TYPE`](#default_draw_type) · [`DEFAULT_SNAP`](#default_snap) · [`DRAG_THRESHOLD_PX`](#drag_threshold_px) · [`DRAW_TYPE_COMMAND`](#draw_type_command) · [`DispatchOptions`](#dispatchoptions) · [`DocApplyResult`](#docapplyresult) · [`DragOptions`](#dragoptions) · [`DrawToolKind`](#drawtoolkind) · [`DrawToolOptions`](#drawtooloptions) · [`DrawTypeOption`](#drawtypeoption) · [`DropOptions`](#dropoptions) · [`DropPreview`](#droppreview) · [`ENGINE_KEYS`](#engine_keys) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`EditGeometry`](#editgeometry) · [`EditPose`](#editpose) · [`EditSource`](#editsource) · [`EditTree`](#edittree) · [`EditableSpatialIndex`](#editablespatialindex) · [`EditorCommand`](#editorcommand) · [`EditorKeyEvent`](#editorkeyevent) · [`EditorMode`](#editormode) · [`EditorSession`](#editorsession) · [`EditorSessionEvent`](#editorsessionevent) · [`EditorSessionOptions`](#editorsessionoptions) · [`EditorStoreState`](#editorstorestate) · [`EditorTool`](#editortool) · [`EditorToolContext`](#editortoolcontext) · [`EditorToolDef`](#editortooldef) · [`EngineKeyBinding`](#enginekeybinding) · [`EngineToolId`](#enginetoolid) · [`EntityDef`](#entitydef) · [`EntityTypeName`](#entitytypename) · [`EnumOption`](#enumoption) · [`FORCE_PX`](#force_px) · [`FieldWidget`](#fieldwidget) · [`GameEditorDef`](#gameeditordef) · [`GameKeyBinding`](#gamekeybinding) · [`GesturePreview`](#gesturepreview) · [`GesturePreviewOptions`](#gesturepreviewoptions) · [`GizmoEdit`](#gizmoedit) · [`GizmoHandle`](#gizmohandle) · [`GizmoSource`](#gizmosource) · [`GizmoTarget`](#gizmotarget) · [`GizmoTextEnv`](#gizmotextenv) · [`HANDLE_HIT_PX`](#handle_hit_px) · [`HANDLE_PX`](#handle_px) · [`HandleKind`](#handlekind) · [`History`](#history) · [`HistoryEntry`](#historyentry) · [`HistoryOptions`](#historyoptions) · [`INSPECTOR_SECTIONS`](#inspector_sections) · [`INSTANCES_ROW`](#instances_row) · [`IndexEntry`](#indexentry) · [`InspectorField`](#inspectorfield) · [`InspectorModel`](#inspectormodel) · [`InspectorRow`](#inspectorrow) · [`InspectorSectionId`](#inspectorsectionid) · [`InspectorSectionModel`](#inspectorsectionmodel) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstanceParamsModel`](#instanceparamsmodel) · [`InstanceTransformModel`](#instancetransformmodel) · [`KeyContext`](#keycontext) · [`KeyMatch`](#keymatch) · [`KeyScope`](#keyscope) · [`Keymap`](#keymap) · [`LogEntry`](#logentry) · [`MIN_POINTS`](#min_points) · [`MIN_WAYPOINTS`](#min_waypoints) · [`MULTI_CLICK_MS`](#multi_click_ms) · [`MULTI_CLICK_PX`](#multi_click_px) · [`ModelEdit`](#modeledit) · [`ModelField`](#modelfield) · [`ModelSectionId`](#modelsectionid) · [`NumberBounds`](#numberbounds) · [`OpBatch`](#opbatch) · [`OutlineRow`](#outlinerow) · [`OverlayTone`](#overlaytone) · [`PICK_TOL_PX`](#pick_tol_px) · [`POINT_PICK_PX`](#point_pick_px) · [`ParamModel`](#parammodel) · [`ParentModel`](#parentmodel) · [`ParseFragmentResult`](#parsefragmentresult) · [`PasteOptions`](#pasteoptions) · [`PasteResult`](#pasteresult) · [`PeerPresence`](#peerpresence) · [`PickLayers`](#picklayers) · [`PickOptions`](#pickoptions) · [`PlacedTemplate`](#placedtemplate) · [`PlacementCheck`](#placementcheck) · [`PlacementEditorToolOptions`](#placementeditortooloptions) · [`PlacementTemplate`](#placementtemplate) · [`PointShape`](#pointshape) · [`PrefabIsolation`](#prefabisolation) · [`PrefabIsolationOptions`](#prefabisolationoptions) · [`PreviewRuntime`](#previewruntime) · [`Pt`](#pt) · [`QuarterTurnTargets`](#quarterturntargets) · [`RESIZE_DIRS`](#resize_dirs) · [`Ref`](#ref) · [`RefTarget`](#reftarget) · [`Registry`](#registry) · [`ResizeDir`](#resizedir) · [`RevertResult`](#revertresult) · [`SECTION_TITLES`](#section_titles) · [`SNAP_PX`](#snap_px) · [`SNAP_REACH_PX`](#snap_reach_px) · [`SNAP_STEPS`](#snap_steps) · [`STALK_PX`](#stalk_px) · [`SceneChange`](#scenechange) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneOp`](#sceneop) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SelectMode`](#selectmode) · [`SelectingBatch`](#selectingbatch) · [`SessionHistory`](#sessionhistory) · [`SettingsRowsOptions`](#settingsrowsoptions) · [`SettingsSection`](#settingssection) · [`ShapeConversion`](#shapeconversion) · [`ShapeObj`](#shapeobj) · [`ShapeSlot`](#shapeslot) · [`ShapeTuple`](#shapetuple) · [`SnapGuide`](#snapguide) · [`SnapMoveInput`](#snapmoveinput) · [`SnapMoveResult`](#snapmoveresult) · [`SnapSettings`](#snapsettings) · [`SnapTarget`](#snaptarget) · [`SpatialIndex`](#spatialindex) · [`SpatialIndexOptions`](#spatialindexoptions) · [`StrokeFit`](#strokefit) · [`ToolHost`](#toolhost) · [`ToolHostOptions`](#toolhostoptions) · [`ToolKeyEvent`](#toolkeyevent) · [`ToolLayers`](#toollayers) · [`ToolModifiers`](#toolmodifiers) · [`ToolOption`](#tooloption) · [`ToolOverlay`](#tooloverlay) · [`ToolPointerEvent`](#toolpointerevent) · [`VELOCITY_PX`](#velocity_px) · [`WHEEL_ZOOM`](#wheel_zoom) · [`applyLevels`](#applylevels) · [`applyToPrefabBatch`](#applytoprefabbatch) · [`asProjectBatch`](#asprojectbatch) · [`behaviorGizmo`](#behaviorgizmo-1) · [`behaviorHandles`](#behaviorhandles) · [`behaviorMarks`](#behaviormarks-1) · [`boundsCheck`](#boundscheck) · [`boxTool`](#boxtool) · [`buildInspectorModel`](#buildinspectormodel) · [`buildOutline`](#buildoutline) · [`buildTreeOutline`](#buildtreeoutline) · [`builtinTools`](#builtintools) · [`bulkGeometry`](#bulkgeometry) · [`capsuleLength`](#capsulelength) · [`carryPreview`](#carrypreview) · [`childOverrides`](#childoverrides) · [`circleTool`](#circletool) · [`convertToChainFix`](#converttochainfix) · [`copySelection`](#copyselection) · [`createDrawTool`](#createdrawtool) · [`createEditorSession`](#createeditorsession) · [`createEditorStore`](#createeditorstore) · [`createGesturePreview`](#creategesturepreview) · [`createHistory`](#createhistory) · [`createKeymap`](#createkeymap) · [`createPenTool`](#createpentool) · [`createPrefabBatch`](#createprefabbatch) · [`createSpatialIndex`](#createspatialindex) · [`createToolHost`](#createtoolhost) · [`createVariantBatch`](#createvariantbatch) · [`cutSelection`](#cutselection) · [`cycleHit`](#cyclehit) · [`defaultLayer`](#defaultlayer) · [`defineEditorTool`](#defineeditortool) · [`deleteBatch`](#deletebatch) · [`deleteVertices`](#deletevertices) · [`dirSigns`](#dirsigns) · [`docRefs`](#docrefs) · [`dragAngle`](#dragangle) · [`dragBehaviorHandle`](#dragbehaviorhandle) · [`dragHandle`](#draghandle) · [`dragInsertVertex`](#draginsertvertex) · [`dragInsertWaypoint`](#draginsertwaypoint) · [`dragSelection`](#dragselection) · [`dragVertex`](#dragvertex) · [`dragWaypoint`](#dragwaypoint) · [`drawBatch`](#drawbatch) · [`drawTypeOptions`](#drawtypeoptions) · [`drawnShape`](#drawnshape) · [`dropBatch`](#dropbatch) · [`dropFragment`](#dropfragment) · [`dropPreview`](#droppreview-1) · [`duplicateSelection`](#duplicateselection) · [`editTree`](#edittree-1) · [`enclosingInstances`](#enclosinginstances) · [`entityGeometry`](#entitygeometry) · [`expandRefs`](#expandrefs) · [`fieldOp`](#fieldop) · [`flipBatch`](#flipbatch) · [`formatMetres`](#formatmetres) · [`fragmentBounds`](#fragmentbounds) · [`fragmentOf`](#fragmentof) · [`frameHandles`](#framehandles) · [`geometryOfRef`](#geometryofref) · [`gizmoTarget`](#gizmotarget-1) · [`gizmoTextEnv`](#gizmotextenv-1) · [`groupBatch`](#groupbatch) · [`hierarchyDown`](#hierarchydown) · [`hierarchyUp`](#hierarchyup) · [`hitHandle`](#hithandle) · [`insertVertex`](#insertvertex) · [`inspectorFields`](#inspectorfields) · [`instanceAngleBatch`](#instanceanglebatch) · [`instanceAngleRow`](#instanceanglerow) · [`instanceLevels`](#instancelevels) · [`instanceOfRef`](#instanceofref) · [`instanceParamsModel`](#instanceparamsmodel-1) · [`instanceTransformModel`](#instancetransformmodel-1) · [`instanceZBatch`](#instancezbatch) · [`instancesOf`](#instancesof) · [`isBulkRef`](#isbulkref) · [`isolationBounds`](#isolationbounds) · [`judgeConcave`](#judgeconcave) · [`keyChord`](#keychord) · [`labelFor`](#labelfor) · [`lock45`](#lock45) · [`lookupRef`](#lookupref) · [`marqueeSelect`](#marqueeselect) · [`modelBatch`](#modelbatch) · [`modelOps`](#modelops) · [`moveBatch`](#movebatch) · [`moveTarget`](#movetarget) · [`moveVertex`](#movevertex) · [`nestedInstanceOf`](#nestedinstanceof) · [`nextFreeId`](#nextfreeid) · [`normDeg`](#normdeg) · [`normalizeChord`](#normalizechord) · [`nudgeBatch`](#nudgebatch) · [`nudgeDelta`](#nudgedelta) · [`numberBounds`](#numberbounds-1) · [`onePixel`](#onepixel) · [`openPrefabIsolation`](#openprefabisolation) · [`outlineOrder`](#outlineorder) · [`overridePathsOf`](#overridepathsof) · [`panTool`](#pantool) · [`paramBatch`](#parambatch) · [`parentBatch`](#parentbatch) · [`parentCandidates`](#parentcandidates) · [`parentModel`](#parentmodel-1) · [`parseFragment`](#parsefragment) · [`parseRelative`](#parserelative) · [`pasteFragment`](#pastefragment) · [`pathBatch`](#pathbatch) · [`penTool`](#pentool) · [`pickAt`](#pickat) · [`pixelSize`](#pixelsize) · [`placedShape`](#placedshape) · [`placementEditorTool`](#placementeditortool) · [`pointBatch`](#pointbatch) · [`projectHistory`](#projecthistory) · [`prune`](#prune) · [`quarterTurnTargets`](#quarterturntargets-1) · [`radiusTo`](#radiusto) · [`readAngle`](#readangle) · [`readDelta`](#readdelta) · [`readLength`](#readlength) · [`readPoint`](#readpoint) · [`readRadius`](#readradius) · [`readShapeSize`](#readshapesize) · [`readSize`](#readsize) · [`rebasePath`](#rebasepath) · [`refCandidates`](#refcandidates) · [`referableEntities`](#referableentities) · [`remap`](#remap) · [`removeVertices`](#removevertices) · [`removeWaypoints`](#removewaypoints) · [`resizeBox`](#resizebox) · [`resizeCursor`](#resizecursor) · [`revertAllBatch`](#revertallbatch) · [`revertFieldBatch`](#revertfieldbatch) · [`rootTargets`](#roottargets) · [`rotateByHandle`](#rotatebyhandle) · [`rotateFrame`](#rotateframe) · [`rotateSelectionBatch`](#rotateselectionbatch) · [`rotateTargetsBatch`](#rotatetargetsbatch) · [`rotateTool`](#rotatetool) · [`rotationPivot`](#rotationpivot) · [`roundPt`](#roundpt) · [`roundShape`](#roundshape) · [`select`](#select) · [`selectAllRefs`](#selectallrefs) · [`selectTool`](#selecttool) · [`selectionBounds`](#selectionbounds) · [`selectionBox`](#selectionbox) · [`selectionHandles`](#selectionhandles) · [`selectionRoots`](#selectionroots) · [`setHover`](#sethover) · [`settingsEdit`](#settingsedit) · [`settingsRows`](#settingsrows) · [`settingsValue`](#settingsvalue) · [`shapeBatch`](#shapebatch) · [`shapeConversions`](#shapeconversions) · [`shapeEdit`](#shapeedit) · [`shapeHandles`](#shapehandles) · [`shapePivot`](#shapepivot) · [`shapeSet`](#shapeset) · [`shapeSlots`](#shapeslots) · [`snapAngle`](#snapangle) · [`snapDraggedPoint`](#snapdraggedpoint) · [`snapMove`](#snapmove) · [`snapPoint`](#snappoint) · [`snapToGrid`](#snaptogrid) · [`strokeFit`](#strokefit-1) · [`strokeShape`](#strokeshape) · [`takesConcave`](#takesconcave) · [`targetBox`](#targetbox) · [`targetHandles`](#targethandles) · [`targetPivot`](#targetpivot) · [`targetsOf`](#targetsof) · [`toolKeyEventOf`](#toolkeyeventof) · [`treeBox`](#treebox) · [`turnBatch`](#turnbatch) · [`ungroupBatch`](#ungroupbatch) · [`unpackBatch`](#unpackbatch) · [`vertexHandles`](#vertexhandles) · [`waypointHandles`](#waypointhandles) · [`waypointsTool`](#waypointstool) · [`withPreview`](#withpreview) · [`withShapeSlot`](#withshapeslot) · [`zOrderBatch`](#zorderbatch)
+[`Aabb`](#aabb) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetDrop`](#assetdrop) · [`BRUSH_COMMANDS`](#brush_commands) · [`BehaviorGizmo`](#behaviorgizmo) · [`BehaviorMarks`](#behaviormarks) · [`BehaviorOption`](#behavioroption) · [`BehaviorSectionId`](#behaviorsectionid) · [`BehaviorSectionInfo`](#behaviorsectioninfo) · [`BrushTurn`](#brushturn) · [`BulkEntry`](#bulkentry) · [`BulkKey`](#bulkkey) · [`CLOSE_PX`](#close_px) · [`COARSE_NUDGE_STEPS`](#coarse_nudge_steps) · [`CarryContext`](#carrycontext) · [`CreateVariant`](#createvariant) · [`DEFAULT_CELL`](#default_cell) · [`DEFAULT_DRAW_TYPE`](#default_draw_type) · [`DEFAULT_SNAP`](#default_snap) · [`DEFAULT_TILE_BRUSH`](#default_tile_brush) · [`DRAG_THRESHOLD_PX`](#drag_threshold_px) · [`DRAW_TYPE_COMMAND`](#draw_type_command) · [`DispatchOptions`](#dispatchoptions) · [`DocApplyResult`](#docapplyresult) · [`DragOptions`](#dragoptions) · [`DrawToolKind`](#drawtoolkind) · [`DrawToolOptions`](#drawtooloptions) · [`DrawTypeOption`](#drawtypeoption) · [`DropOptions`](#dropoptions) · [`DropPreview`](#droppreview) · [`ENGINE_KEYS`](#engine_keys) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`EditGeometry`](#editgeometry) · [`EditPose`](#editpose) · [`EditSource`](#editsource) · [`EditTree`](#edittree) · [`EditableSpatialIndex`](#editablespatialindex) · [`EditorCommand`](#editorcommand) · [`EditorKeyEvent`](#editorkeyevent) · [`EditorMode`](#editormode) · [`EditorSession`](#editorsession) · [`EditorSessionEvent`](#editorsessionevent) · [`EditorSessionOptions`](#editorsessionoptions) · [`EditorStoreState`](#editorstorestate) · [`EditorTool`](#editortool) · [`EditorToolContext`](#editortoolcontext) · [`EditorToolDef`](#editortooldef) · [`EngineKeyBinding`](#enginekeybinding) · [`EngineToolId`](#enginetoolid) · [`EntityDef`](#entitydef) · [`EntityTypeName`](#entitytypename) · [`EnumOption`](#enumoption) · [`FORCE_PX`](#force_px) · [`FieldWidget`](#fieldwidget) · [`GameEditorDef`](#gameeditordef) · [`GameKeyBinding`](#gamekeybinding) · [`GesturePreview`](#gesturepreview) · [`GesturePreviewOptions`](#gesturepreviewoptions) · [`GizmoEdit`](#gizmoedit) · [`GizmoHandle`](#gizmohandle) · [`GizmoSource`](#gizmosource) · [`GizmoTarget`](#gizmotarget) · [`GizmoTextEnv`](#gizmotextenv) · [`HANDLE_HIT_PX`](#handle_hit_px) · [`HANDLE_PX`](#handle_px) · [`HandleKind`](#handlekind) · [`History`](#history) · [`HistoryEntry`](#historyentry) · [`HistoryOptions`](#historyoptions) · [`INSPECTOR_SECTIONS`](#inspector_sections) · [`INSTANCES_ROW`](#instances_row) · [`IndexEntry`](#indexentry) · [`InspectorField`](#inspectorfield) · [`InspectorModel`](#inspectormodel) · [`InspectorRow`](#inspectorrow) · [`InspectorSectionId`](#inspectorsectionid) · [`InspectorSectionModel`](#inspectorsectionmodel) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstanceParamsModel`](#instanceparamsmodel) · [`InstanceTransformModel`](#instancetransformmodel) · [`KeyContext`](#keycontext) · [`KeyMatch`](#keymatch) · [`KeyScope`](#keyscope) · [`Keymap`](#keymap) · [`LogEntry`](#logentry) · [`MIN_POINTS`](#min_points) · [`MIN_WAYPOINTS`](#min_waypoints) · [`MULTI_CLICK_MS`](#multi_click_ms) · [`MULTI_CLICK_PX`](#multi_click_px) · [`ModelEdit`](#modeledit) · [`ModelField`](#modelfield) · [`ModelSectionId`](#modelsectionid) · [`NumberBounds`](#numberbounds) · [`OpBatch`](#opbatch) · [`OutlineRow`](#outlinerow) · [`OverlayTone`](#overlaytone) · [`PICK_TOL_PX`](#pick_tol_px) · [`POINT_PICK_PX`](#point_pick_px) · [`ParamModel`](#parammodel) · [`ParentModel`](#parentmodel) · [`ParseFragmentResult`](#parsefragmentresult) · [`PasteOptions`](#pasteoptions) · [`PasteResult`](#pasteresult) · [`PeerPresence`](#peerpresence) · [`PickLayers`](#picklayers) · [`PickOptions`](#pickoptions) · [`PlacedTemplate`](#placedtemplate) · [`PlacementCheck`](#placementcheck) · [`PlacementEditorToolOptions`](#placementeditortooloptions) · [`PlacementTemplate`](#placementtemplate) · [`PointShape`](#pointshape) · [`PrefabIsolation`](#prefabisolation) · [`PrefabIsolationOptions`](#prefabisolationoptions) · [`PreviewRuntime`](#previewruntime) · [`Pt`](#pt) · [`QuarterTurnTargets`](#quarterturntargets) · [`RESIZE_DIRS`](#resize_dirs) · [`Ref`](#ref) · [`RefTarget`](#reftarget) · [`Registry`](#registry) · [`ResizeDir`](#resizedir) · [`RevertResult`](#revertresult) · [`SECTION_TITLES`](#section_titles) · [`SNAP_PX`](#snap_px) · [`SNAP_REACH_PX`](#snap_reach_px) · [`SNAP_STEPS`](#snap_steps) · [`STALK_PX`](#stalk_px) · [`SceneChange`](#scenechange) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneOp`](#sceneop) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SelectMode`](#selectmode) · [`SelectingBatch`](#selectingbatch) · [`SessionHistory`](#sessionhistory) · [`SettingsRowsOptions`](#settingsrowsoptions) · [`SettingsSection`](#settingssection) · [`ShapeConversion`](#shapeconversion) · [`ShapeObj`](#shapeobj) · [`ShapeSlot`](#shapeslot) · [`ShapeTuple`](#shapetuple) · [`SnapGuide`](#snapguide) · [`SnapMoveInput`](#snapmoveinput) · [`SnapMoveResult`](#snapmoveresult) · [`SnapSettings`](#snapsettings) · [`SnapTarget`](#snaptarget) · [`SpatialIndex`](#spatialindex) · [`SpatialIndexOptions`](#spatialindexoptions) · [`StrokeFit`](#strokefit) · [`TILEMAP_CELLS_FIELD`](#tilemap_cells_field) · [`TILE_FILL_CAP`](#tile_fill_cap) · [`TILE_TOOL_IDS`](#tile_tool_ids) · [`TileBrush`](#tilebrush) · [`TileTarget`](#tiletarget) · [`TileToolContext`](#tiletoolcontext) · [`TileToolId`](#tiletoolid) · [`ToolHost`](#toolhost) · [`ToolHostOptions`](#toolhostoptions) · [`ToolKeyEvent`](#toolkeyevent) · [`ToolLayers`](#toollayers) · [`ToolModifiers`](#toolmodifiers) · [`ToolOption`](#tooloption) · [`ToolOverlay`](#tooloverlay) · [`ToolPointerEvent`](#toolpointerevent) · [`VELOCITY_PX`](#velocity_px) · [`WHEEL_ZOOM`](#wheel_zoom) · [`applyLevels`](#applylevels) · [`applyToPrefabBatch`](#applytoprefabbatch) · [`asProjectBatch`](#asprojectbatch) · [`autotileEdits`](#autotileedits) · [`autotileRule`](#autotilerule) · [`behaviorGizmo`](#behaviorgizmo-1) · [`behaviorHandles`](#behaviorhandles) · [`behaviorMarks`](#behaviormarks-1) · [`boundsCheck`](#boundscheck) · [`boxTool`](#boxtool) · [`buildInspectorModel`](#buildinspectormodel) · [`buildOutline`](#buildoutline) · [`buildTreeOutline`](#buildtreeoutline) · [`builtinTools`](#builtintools) · [`bulkGeometry`](#bulkgeometry) · [`capsuleLength`](#capsulelength) · [`carryPreview`](#carrypreview) · [`cellLine`](#cellline) · [`cellUnder`](#cellunder) · [`cellsBox`](#cellsbox) · [`childOverrides`](#childoverrides) · [`circleTool`](#circletool) · [`convertToChainFix`](#converttochainfix) · [`copySelection`](#copyselection) · [`createDrawTool`](#createdrawtool) · [`createEditorSession`](#createeditorsession) · [`createEditorStore`](#createeditorstore) · [`createGesturePreview`](#creategesturepreview) · [`createHistory`](#createhistory) · [`createKeymap`](#createkeymap) · [`createPenTool`](#createpentool) · [`createPrefabBatch`](#createprefabbatch) · [`createSpatialIndex`](#createspatialindex) · [`createToolHost`](#createtoolhost) · [`createVariantBatch`](#createvariantbatch) · [`cutSelection`](#cutselection) · [`cycleHit`](#cyclehit) · [`defaultLayer`](#defaultlayer) · [`defineEditorTool`](#defineeditortool) · [`deleteBatch`](#deletebatch) · [`deleteVertices`](#deletevertices) · [`dirSigns`](#dirsigns) · [`docRefs`](#docrefs) · [`dragAngle`](#dragangle) · [`dragBehaviorHandle`](#dragbehaviorhandle) · [`dragHandle`](#draghandle) · [`dragInsertVertex`](#draginsertvertex) · [`dragInsertWaypoint`](#draginsertwaypoint) · [`dragSelection`](#dragselection) · [`dragVertex`](#dragvertex) · [`dragWaypoint`](#dragwaypoint) · [`drawBatch`](#drawbatch) · [`drawTypeOptions`](#drawtypeoptions) · [`drawnShape`](#drawnshape) · [`dropBatch`](#dropbatch) · [`dropFragment`](#dropfragment) · [`dropPreview`](#droppreview-1) · [`duplicateSelection`](#duplicateselection) · [`editTree`](#edittree-1) · [`enclosingInstances`](#enclosinginstances) · [`entityGeometry`](#entitygeometry) · [`expandRefs`](#expandrefs) · [`fieldOp`](#fieldop) · [`flipBatch`](#flipbatch) · [`floodCells`](#floodcells) · [`formatMetres`](#formatmetres) · [`fragmentBounds`](#fragmentbounds) · [`fragmentOf`](#fragmentof) · [`frameHandles`](#framehandles) · [`geometryOfRef`](#geometryofref) · [`gizmoTarget`](#gizmotarget-1) · [`gizmoTextEnv`](#gizmotextenv-1) · [`groupBatch`](#groupbatch) · [`hierarchyDown`](#hierarchydown) · [`hierarchyUp`](#hierarchyup) · [`hitHandle`](#hithandle) · [`insertVertex`](#insertvertex) · [`inspectorFields`](#inspectorfields) · [`instanceAngleBatch`](#instanceanglebatch) · [`instanceAngleRow`](#instanceanglerow) · [`instanceLevels`](#instancelevels) · [`instanceOfRef`](#instanceofref) · [`instanceParamsModel`](#instanceparamsmodel-1) · [`instanceTransformModel`](#instancetransformmodel-1) · [`instanceZBatch`](#instancezbatch) · [`instancesOf`](#instancesof) · [`isBulkRef`](#isbulkref) · [`isTilemapType`](#istilemaptype) · [`isolationBounds`](#isolationbounds) · [`judgeConcave`](#judgeconcave) · [`keyChord`](#keychord) · [`labelFor`](#labelfor) · [`lock45`](#lock45) · [`lookupRef`](#lookupref) · [`marqueeSelect`](#marqueeselect) · [`modelBatch`](#modelbatch) · [`modelOps`](#modelops) · [`moveBatch`](#movebatch) · [`moveTarget`](#movetarget) · [`moveVertex`](#movevertex) · [`nestedInstanceOf`](#nestedinstanceof) · [`nextFreeId`](#nextfreeid) · [`normDeg`](#normdeg) · [`normalizeChord`](#normalizechord) · [`nudgeBatch`](#nudgebatch) · [`nudgeDelta`](#nudgedelta) · [`numberBounds`](#numberbounds-1) · [`onePixel`](#onepixel) · [`openPrefabIsolation`](#openprefabisolation) · [`outlineOrder`](#outlineorder) · [`overridePathsOf`](#overridepathsof) · [`panTool`](#pantool) · [`paramBatch`](#parambatch) · [`parentBatch`](#parentbatch) · [`parentCandidates`](#parentcandidates) · [`parentModel`](#parentmodel-1) · [`parseFragment`](#parsefragment) · [`parseRelative`](#parserelative) · [`pasteFragment`](#pastefragment) · [`pathBatch`](#pathbatch) · [`penTool`](#pentool) · [`pickAt`](#pickat) · [`pixelSize`](#pixelsize) · [`placedShape`](#placedshape) · [`placementEditorTool`](#placementeditortool) · [`pointBatch`](#pointbatch) · [`projectHistory`](#projecthistory) · [`prune`](#prune) · [`quarterTurnTargets`](#quarterturntargets-1) · [`radiusTo`](#radiusto) · [`readAngle`](#readangle) · [`readDelta`](#readdelta) · [`readLength`](#readlength) · [`readPoint`](#readpoint) · [`readRadius`](#readradius) · [`readShapeSize`](#readshapesize) · [`readSize`](#readsize) · [`rebasePath`](#rebasepath) · [`refCandidates`](#refcandidates) · [`referableEntities`](#referableentities) · [`remap`](#remap) · [`removeVertices`](#removevertices) · [`removeWaypoints`](#removewaypoints) · [`resizeBox`](#resizebox) · [`resizeCursor`](#resizecursor) · [`revertAllBatch`](#revertallbatch) · [`revertFieldBatch`](#revertfieldbatch) · [`rootTargets`](#roottargets) · [`rotateByHandle`](#rotatebyhandle) · [`rotateFrame`](#rotateframe) · [`rotateSelectionBatch`](#rotateselectionbatch) · [`rotateTargetsBatch`](#rotatetargetsbatch) · [`rotateTool`](#rotatetool) · [`rotationPivot`](#rotationpivot) · [`roundPt`](#roundpt) · [`roundShape`](#roundshape) · [`select`](#select) · [`selectAllRefs`](#selectallrefs) · [`selectTool`](#selecttool) · [`selectionBounds`](#selectionbounds) · [`selectionBox`](#selectionbox) · [`selectionHandles`](#selectionhandles) · [`selectionRoots`](#selectionroots) · [`setHover`](#sethover) · [`setTileBrush`](#settilebrush) · [`setTileRule`](#settilerule) · [`settingsEdit`](#settingsedit) · [`settingsRows`](#settingsrows) · [`settingsValue`](#settingsvalue) · [`shapeBatch`](#shapebatch) · [`shapeConversions`](#shapeconversions) · [`shapeEdit`](#shapeedit) · [`shapeHandles`](#shapehandles) · [`shapePivot`](#shapepivot) · [`shapeSet`](#shapeset) · [`shapeSlots`](#shapeslots) · [`snapAngle`](#snapangle) · [`snapDraggedPoint`](#snapdraggedpoint) · [`snapMove`](#snapmove) · [`snapPoint`](#snappoint) · [`snapToGrid`](#snaptogrid) · [`stampCells`](#stampcells) · [`strokeFit`](#strokefit-1) · [`strokeShape`](#strokeshape) · [`takesConcave`](#takesconcave) · [`targetBox`](#targetbox) · [`targetHandles`](#targethandles) · [`targetPivot`](#targetpivot) · [`targetsOf`](#targetsof) · [`tilePaintBatch`](#tilepaintbatch) · [`tileTarget`](#tiletarget-1) · [`tileTargetAt`](#tiletargetat) · [`tileTools`](#tiletools) · [`toolKeyEventOf`](#toolkeyeventof) · [`treeBox`](#treebox) · [`turnBatch`](#turnbatch) · [`turnBrush`](#turnbrush) · [`turnedStamp`](#turnedstamp) · [`ungroupBatch`](#ungroupbatch) · [`unpackBatch`](#unpackbatch) · [`vertexHandles`](#vertexhandles) · [`waypointHandles`](#waypointhandles) · [`waypointsTool`](#waypointstool) · [`withPreview`](#withpreview) · [`withShapeSlot`](#withshapeslot) · [`zOrderBatch`](#zorderbatch)
 
 ## `Aabb`
 
@@ -76,6 +76,18 @@ type AssetDrop = {
     info: AssetInfo;
 };
 ```
+
+## `BRUSH_COMMANDS`
+
+_const_ in `editor/builtin/tile-tools.ts`
+
+The commands the tile tools take beside `R`/`F`/`V`: `brush-cw`, `brush-ccw`, `brush-flip-x`, `brush-flip-y`.
+
+```ts
+declare const BRUSH_COMMANDS: Readonly<Record<string, BrushTurn>>;
+```
+
+Refers to [`BrushTurn`](#brushturn).
 
 ## `BehaviorGizmo`
 
@@ -226,6 +238,16 @@ type BehaviorSectionInfo = {
 
 Refers to [`OpBatch`](#opbatch).
 
+## `BrushTurn`
+
+_type_ in `editor/builtin/tile-tools.ts`
+
+How `R`, `Shift+R`, `F` and `V` turn the brush.
+
+```ts
+type BrushTurn = "ccw" | "cw" | "flip-x" | "flip-y";
+```
+
 ## `BulkEntry`
 
 _type_ in `scene/types.ts`
@@ -331,6 +353,18 @@ declare const DEFAULT_SNAP: SnapSettings;
 ```
 
 Refers to [`SnapSettings`](#snapsettings).
+
+## `DEFAULT_TILE_BRUSH`
+
+_const_ in `editor/store.ts`
+
+The brush before the palette picks one: tile 0, unturned.
+
+```ts
+declare const DEFAULT_TILE_BRUSH: TileBrush;
+```
+
+Refers to [`TileBrush`](#tilebrush).
 
 ## `DRAG_THRESHOLD_PX`
 
@@ -683,6 +717,8 @@ type EditorSession = {
     /** Applies a history entry's inverse as a new batch from this client. */
     revert(entryId: string): RevertResult;
     select(refs: Ref[], mode?: SelectMode, order?: readonly Ref[]): void;
+    /** The tile brush under this client's cursor, as data; `undefined` clears it. */
+    setBrush(brush: ScenePresence["brush"]): void;
     /** Presence fields besides selection and mode, which the session publishes itself. */
     setCursor(at: Pt | undefined): void;
     setGhost(ghost: ScenePresence["ghost"]): void;
@@ -770,18 +806,24 @@ type EditorStoreState = {
     /** Who made the last change that reached this client. */
     lastActor?: SceneOrigin;
     mode: EditorMode;
+    /** Why the last command or tool action did nothing, for the status line; `null` when there is none. */
+    notice: null | string;
     /** Everyone else editing this scene, from awareness. */
     peers: PeerPresence[];
     redoLabel?: string;
     sceneName: string;
     selection: Ref[];
+    /** What the tile tools paint; the palette sets it, the picker and the brush keys change it. */
+    tileBrush: TileBrush;
+    /** The autotile rule the autotile brush paints with; `null` takes the tileset's first. */
+    tileRule: null | string;
     /** The active tool's id: one of `ENGINE_TOOL_IDS` or a game tool's. */
     tool: string;
     undoLabel?: string;
 };
 ```
 
-Refers to [`EditorMode`](#editormode), [`LogEntry`](#logentry), [`PeerPresence`](#peerpresence), [`Ref`](#ref), [`SceneHash`](#scenehash), [`SceneIssue`](#sceneissue), [`SceneOrigin`](#sceneorigin).
+Refers to [`EditorMode`](#editormode), [`LogEntry`](#logentry), [`PeerPresence`](#peerpresence), [`Ref`](#ref), [`SceneHash`](#scenehash), [`SceneIssue`](#sceneissue), [`SceneOrigin`](#sceneorigin), [`TileBrush`](#tilebrush).
 
 ## `EditorTool`
 
@@ -871,10 +913,12 @@ type EditorToolContext = {
      * that edits a view with neither.
      */
     source?(): GizmoSource;
+    /** The tile tools' brush, rule and tilesets; absent on a host without them. */
+    tiles?: TileToolContext;
 };
 ```
 
-Refers to [`GizmoSource`](#gizmosource), [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectMode`](#selectmode), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex).
+Refers to [`GizmoSource`](#gizmosource), [`OpBatch`](#opbatch), [`Pt`](#pt), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`SelectMode`](#selectmode), [`SnapSettings`](#snapsettings), [`SpatialIndex`](#spatialindex), [`TileToolContext`](#tiletoolcontext).
 
 ## `EditorToolDef`
 
@@ -2714,6 +2758,11 @@ Selection names entity keys, which stay put while bulk refs shift.
 
 ```ts
 type ScenePresence = {
+    /** The tile brush under its cursor: the tilemap's ref and the cells it covers, corners inclusive. */
+    brush?: {
+        map: string;
+        rect: CellBounds;
+    };
     /** World coordinates. */
     cursor?: Pt;
     /** Its responder also drives Play ("Let agents drive Play" is on), which ranks it first. */
@@ -3075,6 +3124,112 @@ type StrokeFit = {
 };
 ```
 
+## `TILEMAP_CELLS_FIELD`
+
+_const_ in `editor/builtin/tile-tools.ts`
+
+The tilemap field the tools paint.
+
+```ts
+declare const TILEMAP_CELLS_FIELD = "cells";
+```
+
+## `TILE_FILL_CAP`
+
+_const_ in `editor/builtin/tile-tools.ts`
+
+The largest flood a fill paints; a larger region is refused.
+
+```ts
+declare const TILE_FILL_CAP = 65536;
+```
+
+## `TILE_TOOL_IDS`
+
+_const_ in `game/types.ts`
+
+The engine's tile painting tools, beside `ENGINE_TOOL_IDS`; a game's tools can't reuse these ids either.
+
+```ts
+declare const TILE_TOOL_IDS: readonly [
+    "tile-brush",
+    "tile-rect",
+    "tile-fill",
+    "tile-erase",
+    "tile-pick",
+    "tile-auto"
+];
+```
+
+## `TileBrush`
+
+_type_ in `editor/builtin/tile-tools.ts`
+
+What the tile tools paint: a stamp of cell values, rows top first, and the turn `R`/`F`/`V` gave it.
+
+```ts
+type TileBrush = {
+    flip?: TileTurn;
+    tiles: readonly (readonly number[])[];
+};
+```
+
+## `TileTarget`
+
+_type_ in `editor/builtin/tile-tools.ts`
+
+A tilemap as the tools paint it: its world-frame cells in the resolved view, and the grid they sit on.
+
+```ts
+type TileTarget = {
+    cell: [
+        w: number,
+        h: number
+    ];
+    cells: GridCells;
+    entity: EntityDef;
+    geo: GridGeometry;
+    /** The scene grid cell the map's own cell (0, 0) is. */
+    offset: Cell;
+    ref: Ref;
+};
+```
+
+Refers to [`EntityDef`](#entitydef), [`Ref`](#ref).
+
+## `TileToolContext`
+
+_type_ in `editor/tools.ts`
+
+What the tile tools read and change beside the document; the host keeps it in the editor store.
+
+```ts
+type TileToolContext = {
+    brush(): TileBrush;
+    /** Says why a gesture did nothing, in the status line and beside the pointer. */
+    refuse(text: string): void;
+    /** The autotile rule picked in the palette; `null` for the tileset's first. */
+    rule(): null | string;
+    setBrush(brush: TileBrush): void;
+    /** Shares the brush under the cursor with other editors; `undefined` clears it. */
+    shareBrush(brush: ScenePresence["brush"]): void;
+    /** A tileset doc by asset id; undefined when the host has no project or the doc isn't open. */
+    tileset(id: string): TilesetFile | undefined;
+};
+```
+
+Refers to [`ScenePresence`](#scenepresence), [`TileBrush`](#tilebrush).
+
+## `TileToolId`
+
+_type_ in `game/types.ts`
+
+```ts
+type TileToolId = (typeof TILE_TOOL_IDS)[number];
+```
+
+Refers to [`TILE_TOOL_IDS`](#tile_tool_ids).
+
 ## `ToolHost`
 
 _type_ in `editor/tool-host.ts`
@@ -3141,6 +3296,8 @@ type ToolHost = {
      */
     source(): GizmoSource;
     subscribe(listener: () => void): () => void;
+    /** The tile tools, in toolbar order; the toolbar offers them while a tilemap is selected or hovered. */
+    tileTools(): readonly EditorToolDef[];
     /** The active tool's id. */
     tool(): string;
     /** Every tool the host can pick: the engine's, then the game's. */
@@ -3194,6 +3351,8 @@ type ToolHostOptions = {
      * identity. Without it a key measures bracketed.
      */
     text?: () => GizmoTextEnv | undefined;
+    /** A tileset doc by asset id, which the autotile brush reads its rules from; without it the autotile brush refuses. */
+    tileset?: (id: string) => TilesetFile | undefined;
     /** Router screen px to world metres: the shell's `screenToWorld`. */
     toWorld: (screen: Vec2) => Pt;
     /** The tool to start with; default `select`. */
@@ -3427,6 +3586,29 @@ declare function asProjectBatch(scene: AssetId, batch: OpBatch): ProjectOpBatch;
 
 Refers to [`OpBatch`](#opbatch).
 
+## `autotileEdits`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+Terrain cells painted with the rule's terrain tile (`terrainTile`), then
+the rule's tiles over their bounds and a one-cell border: one list of
+edits, each cell once. A cell counts as terrain when its tile has the
+rule's tag; with no tile tagged so, there is nothing to paint.
+
+```ts
+declare function autotileEdits(grid: GridCells, tileset: TilesetFile, rule: AutotileRule, cells: readonly Cell[]): CellEdit[];
+```
+
+## `autotileRule`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The rule the autotile brush paints with: `ruleId`'s, else the tileset's first.
+
+```ts
+declare function autotileRule(tileset: TilesetFile, ruleId: null | string): AutotileRule | undefined;
+```
+
 ## `behaviorGizmo`
 
 _function_ in `editor/gizmos/behavior-target.ts`
@@ -3608,6 +3790,40 @@ declare function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null;
 ```
 
 Refers to [`CarryContext`](#carrycontext), [`OpBatch`](#opbatch).
+
+## `cellLine`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The cells on the line from `a` to `b`, both ends included (Bresenham).
+
+```ts
+declare function cellLine([c0, r0]: Cell, [c1, r1]: Cell): Cell[];
+```
+
+## `cellUnder`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The map cell under a world point.
+
+```ts
+declare function cellUnder(t: TileTarget, world: Pt): Cell;
+```
+
+Refers to [`Pt`](#pt), [`TileTarget`](#tiletarget).
+
+## `cellsBox`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The world box a span of map cells covers.
+
+```ts
+declare function cellsBox(t: TileTarget, b: CellBounds): ShapeObj;
+```
+
+Refers to [`ShapeObj`](#shapeobj), [`TileTarget`](#tiletarget).
 
 ## `childOverrides`
 
@@ -4270,6 +4486,18 @@ declare function flipBatch(def: SceneDefinition, refs: readonly Ref[], axis: "x"
 
 Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
 
+## `floodCells`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The 4-connected cells holding `start`'s value, in breadth-first order
+from it; null when there are more than `cap`, so an open region refuses
+rather than painting without end.
+
+```ts
+declare function floodCells(grid: GridCells, start: Cell, cap?: number): Cell[] | null;
+```
+
 ## `formatMetres`
 
 _function_ in `editor/gizmos/readout.ts`
@@ -4598,6 +4826,16 @@ declare function isBulkRef(ref: Ref): boolean;
 ```
 
 Refers to [`Ref`](#ref).
+
+## `isTilemapType`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+```ts
+declare function isTilemapType(registry: Registry, type: string): boolean;
+```
+
+Refers to [`Registry`](#registry).
 
 ## `isolationBounds`
 
@@ -5680,6 +5918,28 @@ declare function setHover(store: Store<EditorStoreState>, ref: Ref | null): void
 
 Refers to [`EditorStoreState`](#editorstorestate), [`Ref`](#ref).
 
+## `setTileBrush`
+
+_function_ in `editor/store.ts`
+
+```ts
+declare function setTileBrush(store: Store<EditorStoreState>, brush: TileBrush): void;
+```
+
+Refers to [`EditorStoreState`](#editorstorestate), [`TileBrush`](#tilebrush).
+
+## `setTileRule`
+
+_function_ in `editor/store.ts`
+
+Sets the autotile rule; the palette arms the autotile tool with it.
+
+```ts
+declare function setTileRule(store: Store<EditorStoreState>, rule: null | string): void;
+```
+
+Refers to [`EditorStoreState`](#editorstorestate).
+
 ## `settingsEdit`
 
 _function_ in `editor/settings-model.ts`
@@ -5897,6 +6157,16 @@ _function_ in `editor/snap.ts`
 declare function snapToGrid(v: number, step: number, pxPerMetre: number): number;
 ```
 
+## `stampCells`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The cells a stamp paints with its top-left on `at`; its empty cells paint nothing.
+
+```ts
+declare function stampCells(stamp: readonly (readonly number[])[], [col, row]: Cell): CellEdit[];
+```
+
 ## `strokeFit`
 
 _function_ in `editor/builtin/polyline.ts`
@@ -5993,6 +6263,61 @@ declare function targetsOf(def: SceneDefinition, registry: Registry, refs: reado
 
 Refers to [`GizmoSource`](#gizmosource), [`GizmoTarget`](#gizmotarget), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
+## `tilePaintBatch`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The one builder of a tile edit's ops: `paintCells` on the tilemap's
+`cells`, as one batch, split so no op passes the per-op cap. Rects go
+before single cells, as `paintCells` applies them, so a cell still wins
+over a rect under it. Every tool, `scene paint` and MCP emit through it.
+
+```ts
+declare function tilePaintBatch(map: Ref, edits: {
+    cells?: readonly CellEdit[];
+    rects?: readonly CellRect[];
+}, label?: string): OpBatch;
+```
+
+Refers to [`OpBatch`](#opbatch), [`Ref`](#ref).
+
+## `tileTarget`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+`ref`'s tilemap in the resolved view; null for anything else, or a scene without a grid.
+
+```ts
+declare function tileTarget(def: SceneDefinition, registry: Registry, ref: Ref): TileTarget | null;
+```
+
+Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`TileTarget`](#tiletarget).
+
+## `tileTargetAt`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The tilemap a tool paints: the selected one, else the topmost whose
+painted cells reach the point, else the scene's only tilemap.
+
+```ts
+declare function tileTargetAt(ctx: EditorToolContext, world: Pt): TileTarget | null;
+```
+
+Refers to [`EditorToolContext`](#editortoolcontext), [`Pt`](#pt), [`TileTarget`](#tiletarget).
+
+## `tileTools`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The six tile tools, in toolbar order.
+
+```ts
+declare function tileTools(): EditorToolDef[];
+```
+
+Refers to [`EditorToolDef`](#editortooldef).
+
 ## `toolKeyEventOf`
 
 _function_ in `editor/tool-host.ts`
@@ -6033,6 +6358,30 @@ declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 
 ```
 
 Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
+
+## `turnBrush`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+A brush turn composed with another: a quarter turn clockwise or back, or a mirror across either axis.
+
+```ts
+declare function turnBrush(brush: TileBrush, how: BrushTurn): TileBrush;
+```
+
+Refers to [`BrushTurn`](#brushturn), [`TileBrush`](#tilebrush).
+
+## `turnedStamp`
+
+_function_ in `editor/builtin/tile-tools.ts`
+
+The brush's stamp as it paints: mirrored, then turned clockwise, each value's flags turned with it.
+
+```ts
+declare function turnedStamp(brush: TileBrush): number[][];
+```
+
+Refers to [`TileBrush`](#tilebrush).
 
 ## `ungroupBatch`
 

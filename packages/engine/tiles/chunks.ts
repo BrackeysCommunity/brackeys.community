@@ -1,7 +1,7 @@
 /** Chunk bookkeeping over a tilemap's cells: decoding, traits per tile, and which chunks changed. Pure. */
 import type { Side } from "../game/types";
 import type { TileDef } from "../project/kinds/tileset";
-import { compareChunkKeys, decodeRow, GRID_CHUNK, parseChunkKey } from "../scene/grid";
+import { compareChunkKeys, forEachRun, GRID_CHUNK, parseChunkKey } from "../scene/grid";
 import type { ChunkKey, GridCells, GridRow } from "../scene/grid";
 import type { ShapeTuple } from "../scene/types";
 
@@ -40,23 +40,41 @@ export function tileTraits(def: TileDef | undefined): TileTraits {
 export const mergesAsBox = (t: TileTraits): boolean =>
   t.solid && t.oneWay === null && t.shapes === null;
 
-function decodeRows(key: ChunkKey, rows: readonly GridRow[] | undefined): Uint16Array {
-  const values = new Uint16Array(CHUNK_CELLS);
-  if (!rows) return values;
+/**
+ * Calls `fn` with each run of a chunk's rows, by chunk-local row and first
+ * column; throws on a chunk past 32 rows or a row outside the row grammar.
+ */
+export function forEachChunkRun(
+  key: ChunkKey,
+  rows: readonly GridRow[] | undefined,
+  fn: (value: number, col: number, row: number, count: number) => void,
+): void {
+  if (!rows) return;
   if (rows.length > GRID_CHUNK)
     throw new Error(`tile chunk "${key}" has more than ${GRID_CHUNK} rows`);
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r]!;
     if (row === "") continue;
-    const decoded = decodeRow(row);
-    if (!decoded)
+    if (!forEachRun(row, (value, col, count) => fn(value, col, r, count)))
       throw new Error(`tile chunk "${key}" row ${r} isn't a valid row: ${JSON.stringify(row)}`);
-    values.set(decoded, r * GRID_CHUNK);
   }
-  return values;
 }
 
-const isEmpty = (values: Uint16Array): boolean => values.every((v) => v === 0);
+/** A chunk's 1024 values, and whether any is non-zero. */
+function decodeRows(
+  key: ChunkKey,
+  rows: readonly GridRow[] | undefined,
+): { values: Uint16Array; empty: boolean } {
+  const values = new Uint16Array(CHUNK_CELLS);
+  let empty = true;
+  forEachChunkRun(key, rows, (value, col, row, count) => {
+    if (value === 0) return;
+    const at = row * GRID_CHUNK + col;
+    values.fill(value, at, at + count);
+    empty = false;
+  });
+  return { values, empty };
+}
 
 /** Every non-empty chunk of `cells`, decoded, in chunk-key order. */
 export function decodeChunks(cells: GridCells): TileChunk[] {
@@ -64,8 +82,8 @@ export function decodeChunks(cells: GridCells): TileChunk[] {
   for (const key of Object.keys(cells).sort(compareChunkKeys)) {
     const at = parseChunkKey(key);
     if (!at) throw new Error(`tile chunk key "${key}" isn't "cx,cy"`);
-    const values = decodeRows(key, cells[key]);
-    if (!isEmpty(values)) out.push({ key, cx: at[0], cy: at[1], values });
+    const { values, empty } = decodeRows(key, cells[key]);
+    if (!empty) out.push({ key, cx: at[0], cy: at[1], values });
   }
   return out;
 }
@@ -80,8 +98,8 @@ function sameRows(
   let textual = true;
   for (let r = 0; r < n && textual; r++) textual = (a?.[r] ?? "") === (b?.[r] ?? "");
   if (textual) return true;
-  const va = decodeRows(key, a);
-  const vb = decodeRows(key, b);
+  const va = decodeRows(key, a).values;
+  const vb = decodeRows(key, b).values;
   for (let i = 0; i < CHUNK_CELLS; i++) if (va[i] !== vb[i]) return false;
   return true;
 }

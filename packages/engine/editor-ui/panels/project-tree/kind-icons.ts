@@ -8,6 +8,7 @@ import {
   FloppyDiskIcon,
   GameController01Icon,
   Grid02Icon,
+  GridViewIcon,
   Image01Icon,
   KeyboardIcon,
   Layers01Icon,
@@ -51,6 +52,7 @@ const ICONS: Readonly<Record<string, IconSvgElement>> = {
   synth: AudioWave01Icon,
   dialogue: BubbleChatIcon,
   strings: TranslateIcon,
+  tileset: GridViewIcon,
 };
 
 /** A kind's icon; a game's own kinds (`<gameId>/<name>`) share one. */

@@ -16,7 +16,7 @@ import {
 import { createRegistry, defineGame, formatSaveFile } from "@jams/engine/game";
 import { createHeadlessRuntime } from "@jams/engine/headless";
 import { docNameOf } from "@jams/engine/project";
-import { expandScene, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
+import { expandScene, readCell, SCENE_FORMAT_VERSION, type GridCells } from "@jams/engine/scene";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -757,6 +757,22 @@ describe("tilemaps", { timeout: 60_000 }, () => {
       fill: "0,0=stone",
     });
     expect(both.structuredContent.exitCode).toBe(2);
+  });
+
+  it("scene_paint says empty clears and 0 is tile 0, as the CLI reads them", async () => {
+    const { tools } = await tiles.listTools();
+    const description = tools.find((t) => t.name === "scene_paint")?.description ?? "";
+    expect(description).toContain("`empty` (or `none`) clears, and `0` is tile 0");
+    const r = await tileCall("scene_paint", {
+      scene: "kitchen-sink",
+      map: "tiles",
+      cells: ["0,0=0", "1,0=empty"],
+      dryRun: false,
+    });
+    expect(r.structuredContent.exitCode, JSON.stringify(r.structuredContent)).toBe(0);
+    const scene = JSON.parse(await sink()) as { entities: { id: string; cells?: GridCells }[] };
+    const cells = scene.entities.find((e) => e.id === "tiles")!.cells!;
+    expect([readCell(cells, 0, 0), readCell(cells, 1, 0)]).toEqual([1, 0]);
   });
 
   it("asset_import converts an LDtk world's chosen levels, as a dry run by default", async () => {

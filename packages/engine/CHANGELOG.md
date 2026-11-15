@@ -21,11 +21,11 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
 
 - The tile cell codec in `./game` (`game/tile-cell.ts`, import-free):
   `TILE_ID_BITS` (13), `MAX_TILES` (8,191: ids 0–8190), Tiled's flags
-  `FLIP_X`, `FLIP_Y`, `FLIP_D`, `TileCell`, `TileTurn`, `decodeCell`,
-  `encodeCell` and `transformCell(value, turn)`, which applies a quarter
-  turn or mirror to a cell's flags exactly as Tiled's rotate and flip
-  commands do. A cell value is 0 for empty, else the tile id + 1 with the
-  flags above it.
+  `FLIP_X`, `FLIP_Y`, `FLIP_D`, `TileCell`, `decodeCell`, `encodeCell` and
+  `transformCell(value, d: Dihedral)`, which applies a quarter turn or mirror
+  to a cell's flags exactly as Tiled's rotate and flip commands do; `./game`
+  now also exports `Dihedral`. A cell value is 0 for empty, else the tile id
+  - 1 with the flags above it.
 - `TILEMAP_PRIMITIVE` in `./game`: the `tilemap` type's definition (`at`,
   `tileset`, `cells`, `collision`, `tint`, `alpha`; physics optional; ascii
   `#`). A tilemap is a
@@ -54,7 +54,9 @@ surface 25) follow 0.18.0 and are not yet confirmed by the owner.
   `decodeChunks`, `dirtyChunks`, `greedyBoxes`, `outlineChains`,
   `buildChunkMesh`, `terrainMask`, `applyAutotile` (with the `MASK_*`
   neighbour bits), `importTiled` and `importLdtk` (in `./game`; their option
-  and result types also in `./project`), `tilePaintBatch` in `./editor`,
+  and result types also in `./project`. The importers stay out of `./project`
+  because canvas-sync value-imports that entry and the LDtk importer's PNG
+  writer is not in its image), `tilePaintBatch` in `./editor`,
   and `createTilemapView` with `TilemapView` in the root entry.
   `createTilemapSystem`, `isTilemapSystem`, `findTilemapSystem`,
   `tilesContext`, `TilemapEntity`, `TilemapSystem`, `TileCollision` and
@@ -169,7 +171,9 @@ game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
   baseline records it, it passes with a notice.
 - `applyAutotile` and `terrainMask` (blob47 / edge16 autotiling,
   deterministic, masks read before the pass, rect plus a one-cell border);
-  `ctx.tiles.autotile(map, rule, bounds)` now paints the rule's result.
+  `ctx.tiles.autotile(map, rule, bounds)` now paints the rule's result. It
+  takes a `CellBounds` (`{ c0, r0, c1, r1 }`) rather than a `CellRect`: a
+  rect carries a paint value, which autotiling computes instead of taking.
 - The six tile tools (`tileTools()`, registered in the tool host;
   `ToolHost.tileTools()` lists them, `tools()` is unchanged) paint through
   one ops builder, `tilePaintBatch(map, { cells, rects }, label?)`, which
@@ -272,6 +276,16 @@ game?, sceneFolder?, tilesetFolder?, licence? })` and its `LdtkImport`
   A descend that arrives mid-dig waits for the corridors, and a new
   `saved-mid-dig` variant saves at tick 15. The roguelike row's `pending`
   entry is gone; its pins move for this intended reason.
+- The frozen v1 recording `roguelike.seed-1.recording.json` replays against
+  a frozen copy of the roguelike probe it was made on
+  (`headless/__tests__/fixtures/recordings/v1/roguelike-v1.ts`), as its
+  scene-file siblings replay against frozen scenes: the live probe's dug
+  corridors are a different run, so the recording still matches its
+  recorded end.
+- The platformer's spawn-group pin gains `["tilemap"]` after `["node"]`:
+  the engine's tilemap primitive, which its `spawnOrder` leaves out,
+  spawns there. It holds no platformer entity, so every platformer entity
+  spawns in M1's order and the golden traces are unchanged.
 - The genre view run hands the shell a probe's scene list when it has one.
 - Restoring a world save refreshes the grid's tile walls; before, `passable`
   and occupancy kept the walls from before the load.

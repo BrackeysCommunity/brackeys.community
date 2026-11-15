@@ -4,7 +4,7 @@
  * tilemaps; entities become markers with their fields in `extra`. Pure.
  */
 import { deflateStored, pngFile, zlibStream } from "../export/png-write";
-import { ID_PATTERN } from "../game/fields";
+import { parseCssHex } from "../game/color";
 import type { JsonValue } from "../game/types";
 import type { TileDef, TilesetFile } from "../project/kinds/tileset";
 import { TILESET_VERSION } from "../project/kinds/tileset";
@@ -21,6 +21,7 @@ import {
 import { pxToMetres } from "../scene/units";
 import { encodeCell } from "./cell";
 import type { TileImport } from "./import-tiled";
+import { assetSlug, list, obj, optNum, str, type Json } from "./json-read";
 
 export type LdtkImportOptions = {
   /** Level names to import; omitted imports every level. */
@@ -48,34 +49,16 @@ export type LdtkImport = TileImport & {
   blobs: ReadonlyMap<Sha256, Uint8Array>;
 };
 
-type Json = Record<string, unknown>;
-
-const obj = (v: unknown): Json =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Json) : {};
-const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-const num = (v: unknown): number | undefined =>
-  typeof v === "number" && Number.isFinite(v) ? v : undefined;
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-
-/** An LDtk identifier as an asset or entity id: lower-case, dashes for anything else. */
-export function ldtkSlug(identifier: string): string {
-  const slug = identifier
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-  return ID_PATTERN.test(slug) ? slug : `x${slug}`.slice(0, 40) || "x";
-}
+/** An LDtk identifier (`DarkCave`, `Big_Door`) as an asset or entity id. */
+const ldtkSlug = (identifier: string): string =>
+  assetSlug(identifier, { fallback: "x", splitCamel: true });
 
 const failed = (message: string, severity: SceneIssue["severity"] = "warn") =>
   makeIssue("import-failed", { message, severity });
 
 /** `#rrggbb` as bytes; grey for anything else. */
 function rgb(color: string | undefined): [number, number, number] {
-  const m = /^#?([0-9a-f]{6})$/i.exec(color ?? "");
-  if (!m?.[1]) return [128, 128, 128];
-  const n = Number.parseInt(m[1], 16);
+  const n = parseCssHex(color) ?? 0x808080;
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
@@ -170,7 +153,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
   const tilesetFolder = opts.tilesetFolder ?? "tilesets/";
   const w = obj(world);
   const defs = obj(w.defs);
-  const levels = arr(w.levels).map(obj);
+  const levels = list(w.levels).map(obj);
 
   if (levels.length === 0 || typeof w.jsonVersion !== "string") {
     out.notes.push(
@@ -179,8 +162,8 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
     return { ops: out.ops, notes: out.notes, blobs: out.blobs };
   }
 
-  const layerDefs = new Map(arr(defs.layers).map((d) => [num(obj(d).uid), obj(d)]));
-  const tilesetDefs = new Map(arr(defs.tilesets).map((d) => [num(obj(d).uid), obj(d)]));
+  const layerDefs = new Map(list(defs.layers).map((d) => [optNum(obj(d).uid), obj(d)]));
+  const tilesetDefs = new Map(list(defs.tilesets).map((d) => [optNum(obj(d).uid), obj(d)]));
   const tilesets = new Map<number, TilesetRef>();
   const intGridSets = new Map<number, TilesetRef>();
 
@@ -197,7 +180,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
   };
 
   const writeTileset = (def: Json): TilesetRef => {
-    const name = str(def.identifier) ?? `tileset-${num(def.uid)}`;
+    const name = str(def.identifier) ?? `tileset-${optNum(def.uid)}`;
     const relPath = str(def.relPath);
     if (relPath === undefined) {
       out.notes.push(
@@ -220,24 +203,24 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
       if (!out.claim(image, `tileset ${name}'s image`)) return null;
       out.blob(image, `${tilesetFolder}${fileName(relPath)}`, bytes!);
     }
-    const size = num(def.tileGridSize) ?? 16;
+    const size = optNum(def.tileGridSize) ?? 16;
     const byId = new Map<number, TileDef>();
     const tile = (tileId: number) => {
       let t = byId.get(tileId);
       if (!t) byId.set(tileId, (t = { id: tileId }));
       return t;
     };
-    for (const entry of arr(def.customData).map(obj)) {
-      const tileId = num(entry.tileId);
+    for (const entry of list(def.customData).map(obj)) {
+      const tileId = optNum(entry.tileId);
       const data = str(entry.data);
       if (tileId !== undefined && data !== undefined && data !== "")
         tile(tileId).data = customData(data);
     }
-    for (const entry of arr(def.enumTags).map(obj)) {
+    for (const entry of list(def.enumTags).map(obj)) {
       const tag = str(entry.enumValueId);
       if (!tag) continue;
-      for (const tileId of arr(entry.tileIds)) {
-        const n = num(tileId);
+      for (const tileId of list(entry.tileIds)) {
+        const n = optNum(tileId);
         if (n === undefined) continue;
         const t = tile(n);
         t.tags = [...(t.tags ?? []), tag];
@@ -249,9 +232,9 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
       v: TILESET_VERSION,
       image,
       tile: [size, size],
-      ...(num(def.padding) ? { margin: num(def.padding) } : {}),
-      ...(num(def.spacing) ? { spacing: num(def.spacing) } : {}),
-      columns: Math.max(1, num(def.__cWid) ?? 1),
+      ...(optNum(def.padding) ? { margin: optNum(def.padding) } : {}),
+      ...(optNum(def.spacing) ? { spacing: optNum(def.spacing) } : {}),
+      columns: Math.max(1, optNum(def.__cWid) ?? 1),
       ...(tiles.length > 0 ? { tiles } : {}),
     };
     out.doc("tileset", id, `${tilesetFolder}${id}.json`, file);
@@ -266,7 +249,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
     const image = `${id}-image`;
     let ref: TilesetRef = null;
     if (out.claim(id, `IntGrid layer ${name}'s tileset`) && out.claim(image, `its image`)) {
-      const values = arr(def.intGridValues).map(obj);
+      const values = list(def.intGridValues).map(obj);
       out.blob(
         image,
         `${tilesetFolder}${id}.png`,
@@ -286,7 +269,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
           return {
             id: i,
             ...(label ? { tags: [label] } : {}),
-            data: { intGrid: num(v.value) ?? i + 1 },
+            data: { intGrid: optNum(v.value) ?? i + 1 },
           };
         }),
       };
@@ -304,7 +287,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
   }
 
   for (const level of levels) {
-    const name = str(level.identifier) ?? `level-${num(level.uid)}`;
+    const name = str(level.identifier) ?? `level-${optNum(level.uid)}`;
     if (wanted && !wanted.has(name)) continue;
     const layers = level.layerInstances;
     if (!Array.isArray(layers)) {
@@ -332,16 +315,16 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
     instances.forEach((layer, index) => {
       const layerName = str(layer.__identifier) ?? `layer-${index}`;
       const type = str(layer.__type);
-      const size = num(layer.__gridSize) ?? 16;
+      const size = optNum(layer.__gridSize) ?? 16;
       const z = instances.length - 1 - index;
-      const offset = [num(layer.__pxTotalOffsetX) ?? 0, num(layer.__pxTotalOffsetY) ?? 0];
+      const offset = [optNum(layer.__pxTotalOffsetX) ?? 0, optNum(layer.__pxTotalOffsetY) ?? 0];
 
       if (type === "Entities") {
-        for (const e of arr(layer.entityInstances).map(obj)) {
+        for (const e of list(layer.entityInstances).map(obj)) {
           const ident = str(e.__identifier) ?? "entity";
-          const px = arr(e.px).map(num);
+          const px = list(e.px).map(optNum);
           const extra: Record<string, unknown> = {};
-          for (const f of arr(e.fieldInstances).map(obj)) {
+          for (const f of list(e.fieldInstances).map(obj)) {
             const key = str(f.__identifier);
             if (key !== undefined) extra[key] = f.__value ?? null;
           }
@@ -354,7 +337,7 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
             at: [m((px[0] ?? 0) + offset[0]!), m((px[1] ?? 0) + offset[1]!)],
             tags: [ldtkSlug(ident)],
             ...(z !== 0 ? { z } : {}),
-            extra: { ...extra, width: m(num(e.width) ?? 0), height: m(num(e.height) ?? 0) },
+            extra: { ...extra, width: m(optNum(e.width) ?? 0), height: m(optNum(e.height) ?? 0) },
           });
         }
         return;
@@ -386,8 +369,8 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
         return;
       }
 
-      const tiles = arr(type === "Tiles" ? layer.gridTiles : layer.autoLayerTiles).map(obj);
-      const tilesetUid = num(layer.__tilesetDefUid) ?? num(layer.overrideTilesetUid);
+      const tiles = list(type === "Tiles" ? layer.gridTiles : layer.autoLayerTiles).map(obj);
+      const tilesetUid = optNum(layer.__tilesetDefUid) ?? optNum(layer.overrideTilesetUid);
       const edits: CellEdit[] = [];
       let tileset: TilesetRef;
       if (tiles.length > 0 && tilesetUid !== undefined) {
@@ -403,15 +386,15 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
         const seen = new Set<string>();
         let stacked = 0;
         for (const t of tiles) {
-          const [x, y] = arr(t.px).map(num);
-          const id = num(t.t);
+          const [x, y] = list(t.px).map(optNum);
+          const id = optNum(t.t);
           if (x === undefined || y === undefined || id === undefined) continue;
           const col = Math.floor(x / size);
           const row = Math.floor(y / size);
           const key = `${col},${row}`;
           if (seen.has(key)) stacked++;
           seen.add(key);
-          const f = num(t.f) ?? 0;
+          const f = optNum(t.f) ?? 0;
           edits.push([
             col,
             row,
@@ -425,13 +408,13 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
             ),
           );
       } else if (type === "IntGrid") {
-        const layerDefUid = num(layer.layerDefUid) ?? -1;
+        const layerDefUid = optNum(layer.layerDefUid) ?? -1;
         const def = layerDefs.get(layerDefUid) ?? {};
         tileset = intGridSetFor(layerDefUid, def, size);
-        const order = arr(def.intGridValues).map((v) => num(obj(v).value));
-        const cols = num(layer.__cWid) ?? 0;
-        arr(layer.intGridCsv).forEach((v, i) => {
-          const value = num(v) ?? 0;
+        const order = list(def.intGridValues).map((v) => optNum(obj(v).value));
+        const cols = optNum(layer.__cWid) ?? 0;
+        list(layer.intGridCsv).forEach((v, i) => {
+          const value = optNum(v) ?? 0;
           if (value === 0 || cols === 0) return;
           const tileId = order.indexOf(value);
           if (tileId < 0) return;
@@ -455,8 +438,8 @@ export function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport 
       });
     });
 
-    const width = num(level.pxWid) ?? 0;
-    const height = num(level.pxHei) ?? 0;
+    const width = optNum(level.pxWid) ?? 0;
+    const height = optNum(level.pxHei) ?? 0;
     const scene: SceneDefinition = {
       v: SCENE_FORMAT_VERSION,
       ...(opts.game ? { game: opts.game } : {}),

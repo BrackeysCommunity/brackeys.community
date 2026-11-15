@@ -141,6 +141,22 @@ describe("tilemap colliders", () => {
     expect(count("none")).toEqual({ n: 0, onFloor: false, onEdge: false });
   });
 
+  it("closes an outline, so every side of a row stops a probe on both backends", () => {
+    const row = cells({ rects: [[2, 10, 6, 10, SOLID]] });
+    for (const physics of ["rapier", "none"] as const) {
+      const { rt, tiles } = load(physics, [tilemap("map", row, { collision: "outline" })]);
+      expect(tiles.chunkColliders("map").get("0,0")).toBe(1);
+      const touches = (x: number, y: number) =>
+        rt.ctx.space.overlaps(box(x, y, 0.01, 0.01)).length > 0;
+      expect(touches(4.5 * CELL, 10 * CELL), `${physics} top`).toBe(true);
+      expect(touches(7 * CELL, 10.5 * CELL), `${physics} right`).toBe(true);
+      expect(touches(4.5 * CELL, 11 * CELL), `${physics} bottom`).toBe(true);
+      expect(touches(2 * CELL, 10.5 * CELL), `${physics} left`).toBe(true);
+      expect(touches(1 * CELL, 10.5 * CELL), `${physics} outside`).toBe(false);
+      rt.destroy();
+    }
+  });
+
   it("gates one-way tiles by side", () => {
     for (const physics of ["rapier", "none"] as const) {
       const { rt, tiles } = load(physics, [tilemap("map", floor)]);

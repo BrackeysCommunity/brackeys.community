@@ -1,6 +1,5 @@
 import { docMeta, docToScene, layoutFromDoc } from "@jams/engine/collab";
 import {
-  autotileEdits,
   autotileRule,
   floodCells,
   isTilemapType,
@@ -8,7 +7,7 @@ import {
   TILEMAP_CELLS_FIELD,
   tilePaintBatch,
 } from "@jams/engine/editor";
-import { encodeCell, type Registry, type TilesetFile } from "@jams/engine/game";
+import { applyAutotile, encodeCell, type Registry, type TilesetFile } from "@jams/engine/game";
 import {
   closest,
   isGridValue,
@@ -43,7 +42,7 @@ export type PaintInput = WriterFlags & {
   rect?: readonly string[];
   /** `c,r=tile`: a bounded flood from the cell over the cells holding its value. */
   fill?: string;
-  /** `rule c0,r0,c1,r1`: the tileset's autotile rule over the rectangle. */
+  /** `rule c0,r0,c1,r1`: re-tiles the terrain already in the rectangle and its border by the tileset's autotile rule. */
   auto?: string;
 };
 
@@ -96,8 +95,8 @@ type CellRect = [c0: number, r0: number, c1: number, r1: number, value: number];
 
 type MapState = { def: SceneDefinition; registry: Registry; tileset: TilesetFile | undefined };
 
-/** The batch the input paints, built against the map as `state` holds it. */
-function paintBatch(input: PaintInput, { def, registry, tileset }: MapState): OpBatch {
+/** The batch the input paints, built against the map as `state` holds it; null when there is nothing to change. */
+function paintBatch(input: PaintInput, { def, registry, tileset }: MapState): OpBatch | null {
   const maps = (def.entities ?? []).filter((e) => isTilemapType(registry, e.type));
   const entity = maps.find((e) => e.id === input.map);
   if (!entity) {
@@ -158,9 +157,8 @@ function paintBatch(input: PaintInput, { def, registry, tileset }: MapState): Op
   const [c0, c1, r0, r1] = [Math.min(a, c), Math.max(a, c), Math.min(b, d), Math.max(b, d)];
   if ((c1 - c0 + 1) * (r1 - r0 + 1) > TILE_FILL_CAP)
     throw new PaintError(`--auto covers over ${TILE_FILL_CAP} cells; narrow the rectangle`, 1);
-  const area: [number, number][] = [];
-  for (let row = r0; row <= r1; row++) for (let col = c0; col <= c1; col++) area.push([col, row]);
-  const cells = autotileEdits(grid, tileset, rule, area);
+  const cells = applyAutotile(grid, tileset, rule, { c0, r0, c1, r1 });
+  if (cells.length === 0) return null;
   return tilePaintBatch(map, { cells }, `Autotile ${rule.id} on ${map}`);
 }
 
@@ -246,7 +244,7 @@ export const paint: Tool<PaintInput> = async (input, ctx) => {
   if (input.live && (isFileArg(input.scene) || input.scene === "-"))
     return usage("scene paint --live takes a scene name; file paths are read-only");
 
-  let batch: OpBatch;
+  let batch: OpBatch | null;
   try {
     const state = input.live ? await liveState(input, ctx) : await fileState(input, ctx);
     if (!("def" in state)) return state;
@@ -258,6 +256,12 @@ export const paint: Tool<PaintInput> = async (input, ctx) => {
       return e.exitCode === 2 ? usage(e.message) : failure(e.message, { scene: input.scene });
     throw e;
   }
+  if (!batch)
+    return {
+      exitCode: 0,
+      data: { scene: input.scene, map: input.map, written: false, dryRun: input.dryRun ?? false },
+      text: `${input.scene}: nothing to autotile on ${input.map}; --auto re-tiles terrain already there, so paint it first (e.g. --rect c0,r0,c1,r1=<terrain tag>)`,
+    };
 
   const text = JSON.stringify(batch);
   const via = { ...ctx, readStdin: async () => text };

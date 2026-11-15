@@ -3049,13 +3049,28 @@ describe("paint", { timeout: 60_000 }, () => {
     expect(open.text).toContain("is over 65536 cells; paint it with --rect");
   });
 
-  it("autotiles a rectangle with the tileset's rule", async () => {
-    const r = await paint(
+  it("autotiles the terrain in a rectangle with the tileset's rule, other cells left alone", async () => {
+    const empty = await paint(
       { scene: "kitchen-sink", map: "tiles", auto: "moss-top 0,3,2,5" },
       sinkCtx,
     );
+    expect(empty.exitCode, empty.text).toBe(0);
+    expect(empty.data).toMatchObject({ written: false });
+    expect(empty.text).toContain("nothing to autotile on tiles");
+    expect(await rows("0,3,2,5")).toEqual(["...", "...", "..."]);
+
+    const terrain = await paint(
+      { scene: "kitchen-sink", map: "tiles", rect: ["0,2,2,3=moss"] },
+      sinkCtx,
+    );
+    expect(terrain.exitCode, terrain.text).toBe(0);
+    const r = await paint(
+      { scene: "kitchen-sink", map: "tiles", auto: "moss-top 0,0,2,3" },
+      sinkCtx,
+    );
     expect(r.exitCode, r.text).toBe(0);
-    expect(await rows("0,3,2,5")).toEqual(["111", "111", "011"]);
+    // Row 1's stone isn't terrain: it stays, and the moss below it has no moss to its north.
+    expect(await rows("0,0,2,3")).toEqual(["111", "000", "111", "011"]);
     const miss = await paint(
       { scene: "kitchen-sink", map: "tiles", auto: "moss-tip 0,3,2,5" },
       sinkCtx,

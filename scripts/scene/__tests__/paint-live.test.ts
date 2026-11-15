@@ -156,6 +156,9 @@ describe("scene paint --live", () => {
         ],
         ctx,
       );
+    const terrain = await live("--rect", "0,8,2,9=moss");
+    expect(terrain.exitCode, terrain.stdout + terrain.stderr).toBe(0);
+    await until(() => cell(0, 9) === 2 && cell(2, 8) === 2, "the terrain cells");
     const auto = await live("--auto", "moss-top 0,8,2,9");
     expect(auto.exitCode, auto.stdout + auto.stderr).toBe(0);
     await until(() => cell(0, 9) === 1 && cell(2, 8) === 2, "the autotiled cells");

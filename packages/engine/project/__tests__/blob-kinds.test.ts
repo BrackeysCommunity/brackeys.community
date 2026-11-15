@@ -141,6 +141,7 @@ describe("the blob kinds", () => {
       "synth",
       "dialogue",
       "strings",
+      "tileset",
     ]);
     const kinds = createKindRegistry();
     const kindOf = (path: string, json?: unknown, sidecar?: string) =>

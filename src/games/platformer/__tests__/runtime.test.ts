@@ -60,9 +60,12 @@ const steps = (rt: SceneRuntimeHandle, n: number, actions: InputAction[] = []) =
 describe("platformerGame registry", () => {
   const registry = createRegistry(platformerGame);
 
+  // The engine's tilemap, which the spawn order leaves out, spawns after node; it holds no
+  // platformer entity, so every entity spawns in the order the golden traces were made in.
   it("spawns in M1's order", () => {
     expect(registry.spawnGroups).toEqual([
       ["node"],
+      ["tilemap"],
       ["solid"],
       ["cloud"],
       ["sensor", "goal", "exit", "hazard"],

@@ -832,28 +832,15 @@ export function replayGap(
 const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconciled");
 
 /**
- * Replays a recording's swaps, the one way the shell and headless replays
- * do it: before each tick, every swap recorded for it goes through the live
- * layer with its recorded timing and strategy. A `next-load` swap only
- * stages and activates: a load that used it is in the recording already,
- * and a sublevel's next attach in the replay reads it (a swap that names
- * its `sublevel` moves that scene, back to the release's own when its
- * version is null). A swap whose tick
- * already passed, that doesn't apply, or that ran with another strategy or
- * run hash is stale; a version the host can't give stops the replay.
- *
- * `atLoad`, before the replay's load, takes the swaps the recording starts
- * with: the leading `sublevel` swaps at the start tick, one per scene,
- * which the recorded load's `onLoad` attaches read. A sublevel moved after
- * the recorded load but before its first step follows the entry for the
- * version it had at the load (`liveSwapLog`), so it replays after the load.
- *
- * `from`, after a seek restores the world at `tick`, moves the replay to the
- * first swap recorded at or after it, forward or back, applying nothing.
+ * Replays a recording's swaps the same way for the shell and headless replays;
+ * stale or mismatched swaps are skipped, an unavailable version stops the replay.
  */
 export function createSwapReplay(opts: SwapReplayOptions): {
+  /** Before the replay's load: applies the leading `sublevel` swaps at the start tick that the recorded load's attaches read. */
   atLoad(tick: number): SwapReplayStop | null;
+  /** Before each tick: applies every swap recorded for it with its recorded timing and strategy. */
   before(tick: number): SwapReplayStop | null;
+  /** After a seek restores the world at `tick`: moves to the first swap at or after it, applying nothing. */
   from(tick: number): void;
 } {
   const { live, swaps } = opts;

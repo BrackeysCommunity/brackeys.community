@@ -20,7 +20,6 @@ export {
   TILE_ID_BITS,
   transformCell,
   type TileCell,
-  type TileTurn,
 } from "./cell";
 export {
   decodeChunks,

@@ -80,13 +80,14 @@ describe("bundle", { timeout: 60_000 }, () => {
     const r = await run("bundle", "kitchen-sink");
     expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
     const bundle = r.data.bundle as { entries: { id: string; kind: string; bytes: number }[] };
-    // The sink's own sprites bring its three textures; the headers add the imported two.
+    // The sink's own sprites and tilemap bring its four textures; the headers add the imported two.
     expect(bundle.entries.map((e) => [e.id, e.kind])).toEqual([
       ["backdrop", "texture"],
       ["crates-texture", "texture"],
       ["hero-art", "texture"],
       ["hero-texture", "texture"],
       ["items-art", "texture"],
+      ["kitchen-tiles", "texture"],
     ]);
     expect(r.data).toMatchObject({
       ok: true,
@@ -96,7 +97,7 @@ describe("bundle", { timeout: 60_000 }, () => {
     });
     const text = await runCli(["bundle", "kitchen-sink"], ctx);
     expect(text.stdout).toMatch(
-      /^kitchen-sink: 5 blobs, \d+ B\n {2}backdrop {2}texture {2}[0-9a-f]{64} {2}\d+ B/,
+      /^kitchen-sink: 6 blobs, \d+ B\n {2}backdrop {2}texture {2}[0-9a-f]{64} {2}\d+ B/,
     );
   });
 

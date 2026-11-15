@@ -16,3 +16,9 @@ export const rgbSchema = z
 /** A 0xRRGGBB colour as CSS hex, `#rrggbb`. */
 export const cssHex = (rgb: number): string =>
   `#${(Math.trunc(rgb) & 0xffffff).toString(16).padStart(6, "0")}`;
+
+/** CSS hex `#rrggbb` as a 0xRRGGBB colour; undefined for anything else. */
+export function parseCssHex(v: unknown): number | undefined {
+  const m = typeof v === "string" ? /^#([0-9a-f]{6})$/i.exec(v) : null;
+  return m?.[1] === undefined ? undefined : Number.parseInt(m[1], 16);
+}

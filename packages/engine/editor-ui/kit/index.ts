@@ -41,6 +41,7 @@ export {
   DialogTrigger,
 } from "./dialog";
 export { inOverlay, isEditableTarget } from "./editable-target";
+export { Facts } from "./facts";
 export { formatBytes } from "./format";
 export { HINT_DELAY_MS, Hint, type HintProps, type HintSide } from "./hint";
 export { Icon, type IconSvgElement } from "./icon";

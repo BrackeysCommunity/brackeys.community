@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ACTION_KINDS`](#action_kinds) · [`ANIM`](#anim) · [`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AUDIO`](#audio) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AnimBlock`](#animblock) · [`AnimContext`](#animcontext) · [`AnimHandle`](#animhandle) · [`AnimState`](#animstate) · [`AnimSystem`](#animsystem) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`AudioBlock`](#audioblock) · [`AudioHandle`](#audiohandle) · [`AudioRequest`](#audiorequest) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorKey`](#behaviorkey) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BlockOf`](#blockof) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyHandle`](#bodyhandle) · [`BodyKind`](#bodykind) · [`BodyStandIn`](#bodystandin) · [`Bound`](#bound) · [`BulkKeyInfo`](#bulkkeyinfo) · [`BurstOptions`](#burstoptions) · [`CAMERA_RIG_SCHEMA`](#camera_rig_schema) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraFrame`](#cameraframe) · [`CameraRequest`](#camerarequest) · [`CameraRigDef`](#camerarigdef) · [`CameraTargetBlock`](#cameratargetblock) · [`CameraTargetHandle`](#cameratargethandle) · [`CameraTargetSpec`](#cameratargetspec) · [`CastResult`](#castresult) · [`CastSpawnOptions`](#castspawnoptions) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterHandle`](#characterhandle) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ClipSource`](#clipsource) · [`ColliderBlock`](#colliderblock) · [`ColliderHandle`](#colliderhandle) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_LOCALE`](#default_locale) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_SWAP_TIMING`](#default_swap_timing) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DIALOGUE_ADVANCE_COMMAND`](#dialogue_advance_command) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_CHOOSE_COMMAND`](#dialogue_choose_command) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DIALOGUE_LOG_MAX`](#dialogue_log_max) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DebugDraw`](#debugdraw) · [`DebugDrawCommand`](#debugdrawcommand) · [`DebugDrawSink`](#debugdrawsink) · [`DebugStyle`](#debugstyle) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DialogueChoicesEvent`](#dialoguechoicesevent) · [`DialogueContext`](#dialoguecontext) · [`DialogueEndEvent`](#dialogueendevent) · [`DialogueLineEvent`](#dialoguelineevent) · [`DialogueLogEntry`](#dialoguelogentry) · [`DialogueRunner`](#dialoguerunner) · [`DialogueVars`](#dialoguevars) · [`DialogueView`](#dialogueview) · [`DialogueViewChoice`](#dialogueviewchoice) · [`DrawLayer`](#drawlayer) · [`EASE_NAMES`](#ease_names) · [`EMITTER`](#emitter) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EaseName`](#easename) · [`EditorToolDef`](#editortooldef) · [`EffectRequest`](#effectrequest) · [`EmitterBlock`](#emitterblock) · [`EmitterFollow`](#emitterfollow) · [`EmitterHandle`](#emitterhandle) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineCommandName`](#enginecommandname) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`Entity`](#entity) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlashOptions`](#flashoptions) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`FontAssetInfo`](#fontassetinfo) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaHandle`](#forceareahandle) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameAudioDef`](#gameaudiodef) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`HandleOf`](#handleof) · [`HandleType`](#handletype) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointHandle`](#jointhandle) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`KinematicMotion`](#kinematicmotion) · [`LATENCY_COMMAND`](#latency_command) · [`LIFETIME`](#lifetime) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LifetimeHandle`](#lifetimehandle) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NAV_COMMAND`](#nav_command) · [`NODE_TYPE`](#node_type) · [`NavAgentBlock`](#navagentblock) · [`NavAgentHandle`](#navagenthandle) · [`NavAgentSystem`](#navagentsystem) · [`NavDestination`](#navdestination) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OccupantHandle`](#occupanthandle) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`OwnedBody`](#ownedbody) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowHandle`](#pathfollowhandle) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputHandle`](#playerinputhandle) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PresentRequest`](#presentrequest) · [`PresentationQueue`](#presentationqueue) · [`PresentedRequest`](#presentedrequest) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedClip`](#resolvedclip) · [`ResolvedTime`](#resolvedtime) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SLOT_RULE`](#slot_rule) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SWAP_STRATEGY_WORDS`](#swap_strategy_words) · [`SWAP_TIMINGS`](#swap_timings) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneDiff`](#scenediff) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSwap`](#sceneswap) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneTree`](#scenetree) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`Script`](#script) · [`ScriptClass`](#scriptclass) · [`ScriptDef`](#scriptdef) · [`ScriptHooks`](#scripthooks) · [`ScriptPredicate`](#scriptpredicate) · [`ScriptSelf`](#scriptself) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerHandle`](#spawnerhandle) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteHandle`](#spritehandle) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SystemFactory`](#systemfactory) · [`TEXT`](#text) · [`TEXT_COLOR_DEFAULT`](#text_color_default) · [`TEXT_SIZE_DEFAULT`](#text_size_default) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TWEEN`](#tween) · [`TWEEN_END`](#tween_end) · [`TextBlock`](#textblock) · [`TextDirection`](#textdirection) · [`TextHandle`](#texthandle) · [`TextShown`](#textshown) · [`TextVars`](#textvars) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`TweenBlock`](#tweenblock) · [`TweenChannel`](#tweenchannel) · [`TweenHandle`](#tweenhandle) · [`TweenSpec`](#tweenspec) · [`TweenSystem`](#tweensystem) · [`Tweens`](#tweens) · [`UnsaveableTween`](#unsaveabletween) · [`ViewEmitter`](#viewemitter) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`arrivalWords`](#arrivalwords) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindTo`](#bindto) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`bracketKey`](#bracketkey) · [`buildNavMesh`](#buildnavmesh) · [`capitalise`](#capitalise) · [`carrierDelta`](#carrierdelta) · [`castSpawn`](#castspawn) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`characterHandle`](#characterhandle-1) · [`characterPoseHooks`](#characterposehooks) · [`clamp`](#clamp) · [`clampTiming`](#clamptiming) · [`clampVec2`](#clampvec2) · [`clipFrameAt`](#clipframeat) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createDialogueRunner`](#createdialoguerunner) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`defineScript`](#definescript) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`ease`](#ease) · [`effectiveSaveLimits`](#effectivesavelimits) · [`emptyStringTable`](#emptystringtable) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`forgetOneWayActor`](#forgetonewayactor) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`handleType`](#handletype-1) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`inspectPathPlace`](#inspectpathplace) · [`interpolatePosition`](#interpolateposition) · [`isDialogueCommand`](#isdialoguecommand) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`localeDirection`](#localedirection) · [`materialField`](#materialfield) · [`measureText`](#measuretext) · [`memoryVars`](#memoryvars) · [`mirrorField`](#mirrorfield) · [`moveBodyNow`](#movebodynow) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`overlapFrameShapes`](#overlapframeshapes) · [`parseRichText`](#parserichtext) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`persistVars`](#persistvars) · [`physicsOf`](#physicsof) · [`plainText`](#plaintext) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`releasePromoteMessage`](#releasepromotemessage) · [`releaseReplacesMessage`](#releasereplacesmessage) · [`releaseRollbackMessage`](#releaserollbackmessage) · [`resolveClips`](#resolveclips) · [`resolveLocale`](#resolvelocale) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`rotate`](#rotate) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`sceneVersionName`](#sceneversionname) · [`scopedRef`](#scopedref) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`stringTable`](#stringtable-1) · [`stringTableData`](#stringtabledata-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`swapTimingSchema`](#swaptimingschema) · [`tagsField`](#tagsfield) · [`textFontOf`](#textfontof) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`tweenSpecSchema`](#tweenspecschema) · [`vectorField`](#vectorfield) · [`versionName`](#versionname) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
+[`ACTION_KINDS`](#action_kinds) · [`ANIM`](#anim) · [`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AUDIO`](#audio) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AnimBlock`](#animblock) · [`AnimContext`](#animcontext) · [`AnimHandle`](#animhandle) · [`AnimState`](#animstate) · [`AnimSystem`](#animsystem) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`AudioBlock`](#audioblock) · [`AudioHandle`](#audiohandle) · [`AudioRequest`](#audiorequest) · [`AutotileRule`](#autotilerule) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorKey`](#behaviorkey) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BlockOf`](#blockof) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyHandle`](#bodyhandle) · [`BodyKind`](#bodykind) · [`BodyStandIn`](#bodystandin) · [`Bound`](#bound) · [`BulkKeyInfo`](#bulkkeyinfo) · [`BurstOptions`](#burstoptions) · [`CAMERA_RIG_SCHEMA`](#camera_rig_schema) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraFrame`](#cameraframe) · [`CameraRequest`](#camerarequest) · [`CameraRigDef`](#camerarigdef) · [`CameraTargetBlock`](#cameratargetblock) · [`CameraTargetHandle`](#cameratargethandle) · [`CameraTargetSpec`](#cameratargetspec) · [`CastResult`](#castresult) · [`CastSpawnOptions`](#castspawnoptions) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterHandle`](#characterhandle) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ChunkMesh`](#chunkmesh) · [`ChunkMeshInput`](#chunkmeshinput) · [`ClipSource`](#clipsource) · [`ColliderBlock`](#colliderblock) · [`ColliderHandle`](#colliderhandle) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_LOCALE`](#default_locale) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_SWAP_TIMING`](#default_swap_timing) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TILE_COLLISION`](#default_tile_collision) · [`DEFAULT_TIME`](#default_time) · [`DIALOGUE_ADVANCE_COMMAND`](#dialogue_advance_command) · [`DIALOGUE_CHOICES`](#dialogue_choices) · [`DIALOGUE_CHOOSE_COMMAND`](#dialogue_choose_command) · [`DIALOGUE_END`](#dialogue_end) · [`DIALOGUE_LINE`](#dialogue_line) · [`DIALOGUE_LOG_MAX`](#dialogue_log_max) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DebugDraw`](#debugdraw) · [`DebugDrawCommand`](#debugdrawcommand) · [`DebugDrawSink`](#debugdrawsink) · [`DebugStyle`](#debugstyle) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DialogueChoicesEvent`](#dialoguechoicesevent) · [`DialogueContext`](#dialoguecontext) · [`DialogueEndEvent`](#dialogueendevent) · [`DialogueLineEvent`](#dialoguelineevent) · [`DialogueLogEntry`](#dialoguelogentry) · [`DialogueRunner`](#dialoguerunner) · [`DialogueVars`](#dialoguevars) · [`DialogueView`](#dialogueview) · [`DialogueViewChoice`](#dialogueviewchoice) · [`Dihedral`](#dihedral) · [`DrawLayer`](#drawlayer) · [`EASE_NAMES`](#ease_names) · [`EMITTER`](#emitter) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EaseName`](#easename) · [`EditorToolDef`](#editortooldef) · [`EffectRequest`](#effectrequest) · [`EmitterBlock`](#emitterblock) · [`EmitterFollow`](#emitterfollow) · [`EmitterHandle`](#emitterhandle) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineCommandName`](#enginecommandname) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`Entity`](#entity) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FLIP_D`](#flip_d) · [`FLIP_X`](#flip_x) · [`FLIP_Y`](#flip_y) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlashOptions`](#flashoptions) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`FontAssetInfo`](#fontassetinfo) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaHandle`](#forceareahandle) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameAudioDef`](#gameaudiodef) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`HandleOf`](#handleof) · [`HandleType`](#handletype) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointHandle`](#jointhandle) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`KinematicMotion`](#kinematicmotion) · [`LATENCY_COMMAND`](#latency_command) · [`LIFETIME`](#lifetime) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LifetimeHandle`](#lifetimehandle) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LoadFailureReason`](#loadfailurereason) · [`MASK_E`](#mask_e) · [`MASK_N`](#mask_n) · [`MASK_NE`](#mask_ne) · [`MASK_NW`](#mask_nw) · [`MASK_S`](#mask_s) · [`MASK_SE`](#mask_se) · [`MASK_SW`](#mask_sw) · [`MASK_W`](#mask_w) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MAX_TILES`](#max_tiles) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NAV_COMMAND`](#nav_command) · [`NODE_TYPE`](#node_type) · [`NavAgentBlock`](#navagentblock) · [`NavAgentHandle`](#navagenthandle) · [`NavAgentSystem`](#navagentsystem) · [`NavDestination`](#navdestination) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OccupantHandle`](#occupanthandle) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`OwnedBody`](#ownedbody) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowHandle`](#pathfollowhandle) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputHandle`](#playerinputhandle) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PresentRequest`](#presentrequest) · [`PresentationQueue`](#presentationqueue) · [`PresentedRequest`](#presentedrequest) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedClip`](#resolvedclip) · [`ResolvedTime`](#resolvedtime) · [`RichLine`](#richline) · [`RichSpan`](#richspan) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SLOT_RULE`](#slot_rule) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SWAP_STRATEGY_WORDS`](#swap_strategy_words) · [`SWAP_TIMINGS`](#swap_timings) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneDiff`](#scenediff) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSwap`](#sceneswap) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneTree`](#scenetree) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`Script`](#script) · [`ScriptClass`](#scriptclass) · [`ScriptDef`](#scriptdef) · [`ScriptHooks`](#scripthooks) · [`ScriptPredicate`](#scriptpredicate) · [`ScriptSelf`](#scriptself) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerHandle`](#spawnerhandle) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteHandle`](#spritehandle) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StringTable`](#stringtable) · [`StringTableData`](#stringtabledata) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SystemFactory`](#systemfactory) · [`TEXT`](#text) · [`TEXT_COLOR_DEFAULT`](#text_color_default) · [`TEXT_SIZE_DEFAULT`](#text_size_default) · [`TILEMAP_PRIMITIVE`](#tilemap_primitive) · [`TILE_ID_BITS`](#tile_id_bits) · [`TILE_TOOL_IDS`](#tile_tool_ids) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TWEEN`](#tween) · [`TWEEN_END`](#tween_end) · [`TextBlock`](#textblock) · [`TextDirection`](#textdirection) · [`TextHandle`](#texthandle) · [`TextShown`](#textshown) · [`TextVars`](#textvars) · [`TileAt`](#tileat) · [`TileCell`](#tilecell) · [`TileChunk`](#tilechunk) · [`TileCollision`](#tilecollision) · [`TileDef`](#tiledef) · [`TileToolId`](#tiletoolid) · [`TileTraits`](#tiletraits) · [`TilemapEntity`](#tilemapentity) · [`TilemapSystem`](#tilemapsystem) · [`TilemapVisual`](#tilemapvisual) · [`TilesContext`](#tilescontext) · [`TilesetFile`](#tilesetfile) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`TweenBlock`](#tweenblock) · [`TweenChannel`](#tweenchannel) · [`TweenHandle`](#tweenhandle) · [`TweenSpec`](#tweenspec) · [`TweenSystem`](#tweensystem) · [`Tweens`](#tweens) · [`UnsaveableTween`](#unsaveabletween) · [`ViewEmitter`](#viewemitter) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`applyAutotile`](#applyautotile) · [`arrivalWords`](#arrivalwords) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindTo`](#bindto) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`bracketKey`](#bracketkey) · [`buildChunkMesh`](#buildchunkmesh) · [`buildNavMesh`](#buildnavmesh) · [`capitalise`](#capitalise) · [`carrierDelta`](#carrierdelta) · [`castSpawn`](#castspawn) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`characterHandle`](#characterhandle-1) · [`characterPoseHooks`](#characterposehooks) · [`clamp`](#clamp) · [`clampTiming`](#clamptiming) · [`clampVec2`](#clampvec2) · [`clipFrameAt`](#clipframeat) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createDialogueRunner`](#createdialoguerunner) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTilemapSystem`](#createtilemapsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`decodeCell`](#decodecell) · [`decodeChunks`](#decodechunks) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`defineScript`](#definescript) · [`degToRad`](#degtorad) · [`dirtyChunks`](#dirtychunks) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`ease`](#ease) · [`effectiveSaveLimits`](#effectivesavelimits) · [`emptyStringTable`](#emptystringtable) · [`encodeCell`](#encodecell) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`findTilemapSystem`](#findtilemapsystem) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`forgetOneWayActor`](#forgetonewayactor) · [`formatSaveFile`](#formatsavefile) · [`greedyBoxes`](#greedyboxes) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`handleType`](#handletype-1) · [`importLdtk`](#importldtk) · [`importTiled`](#importtiled) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`inspectPathPlace`](#inspectpathplace) · [`interpolatePosition`](#interpolateposition) · [`isDialogueCommand`](#isdialoguecommand) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isTilemapSystem`](#istilemapsystem) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`localeDirection`](#localedirection) · [`materialField`](#materialfield) · [`measureText`](#measuretext) · [`memoryVars`](#memoryvars) · [`mirrorField`](#mirrorfield) · [`moveBodyNow`](#movebodynow) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`outlineChains`](#outlinechains) · [`overlapFrameShapes`](#overlapframeshapes) · [`parseRichText`](#parserichtext) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`persistVars`](#persistvars) · [`physicsOf`](#physicsof) · [`plainText`](#plaintext) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`releasePromoteMessage`](#releasepromotemessage) · [`releaseReplacesMessage`](#releasereplacesmessage) · [`releaseRollbackMessage`](#releaserollbackmessage) · [`resolveClips`](#resolveclips) · [`resolveLocale`](#resolvelocale) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`rotate`](#rotate) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`sceneVersionName`](#sceneversionname) · [`scopedRef`](#scopedref) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`stringTable`](#stringtable-1) · [`stringTableData`](#stringtabledata-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`swapTimingSchema`](#swaptimingschema) · [`tagsField`](#tagsfield) · [`terrainMask`](#terrainmask) · [`textFontOf`](#textfontof) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`tileTraits`](#tiletraits-1) · [`tilesContext`](#tilescontext-1) · [`traceShape`](#traceshape) · [`transformCell`](#transformcell) · [`tweenSpecSchema`](#tweenspecschema) · [`vectorField`](#vectorfield) · [`versionName`](#versionname) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
 
 ## `ACTION_KINDS`
 
@@ -309,6 +309,23 @@ type AudioRequest = {
     fadeMs?: number;
     key: string;
     op: "stop";
+};
+```
+
+## `AutotileRule`
+
+_type_ in `project/kinds/tileset.ts`
+
+```ts
+type AutotileRule = {
+    fallback: number;
+    id: string;
+    /** blob47: 8-neighbour masks reduced to Tiled's 47; edge16: 4-neighbour masks. */
+    kind: "blob47" | "edge16";
+    /** The terrain this rule paints; cells whose tile has this tag count as neighbours. */
+    terrain: string;
+    /** Mask (as a decimal string) → tile id. */
+    tiles: Readonly<Record<string, number>>;
 };
 ```
 
@@ -1272,6 +1289,53 @@ type CheckVerdict = {
 };
 ```
 
+## `ChunkMesh`
+
+_type_ in `tiles/mesh.ts`
+
+One chunk's quads: positions in world px, UVs in 0–1 of the image.
+
+```ts
+type ChunkMesh = {
+    /** Quads whose tile animates, by quad index, so a frame swaps only their UVs. */
+    animated: readonly {
+        flags: number;
+        quad: number;
+        tile: number;
+    }[];
+    /** The quads' box in world px, what the chunk culls by. */
+    bounds: Bounds;
+    indices: Uint32Array;
+    positions: Float32Array;
+    uvs: Float32Array;
+};
+```
+
+## `ChunkMeshInput`
+
+_type_ in `tiles/mesh.ts`
+
+What a chunk's mesh is cut from: the tileset, the image's px size and where the map sits on its grid.
+
+```ts
+type ChunkMeshInput = {
+    grid: GridSettings;
+    image: [
+        w: number,
+        h: number
+    ];
+    /** The grid cell the map's own cell (0, 0) is; default (0, 0). */
+    offset?: readonly [
+        col: number,
+        row: number
+    ];
+    pxPerMetre: number;
+    tileset: TilesetFile;
+};
+```
+
+Refers to [`GridSettings`](#gridsettings), [`TilesetFile`](#tilesetfile).
+
 ## `ClipSource`
 
 _type_ in `project/kinds/animation.ts`
@@ -1350,12 +1414,18 @@ type ColliderTag = {
     /** The side actors land on, set with `oneWay: true`. */
     oneWaySide?: Side;
     tags?: readonly string[];
+    /** A tilemap's collider: the tilemap's id, the tile id and the cell it covers (a merged box names its first cell). */
+    tile?: {
+        cell: Cell;
+        map: string;
+        tile: number;
+    };
     /** The registered type of the entity that owns it, or a game's own label (`avatar`). */
     type: string;
 };
 ```
 
-Refers to [`Side`](#side).
+Refers to [`Cell`](#cell), [`Side`](#side).
 
 ## `ColliderTags`
 
@@ -1571,6 +1641,16 @@ _const_ in `game/defaults.ts`
 ```ts
 declare const DEFAULT_TICK_RATE = 60;
 ```
+
+## `DEFAULT_TILE_COLLISION`
+
+_const_ in `tiles/colliders.ts`
+
+```ts
+declare const DEFAULT_TILE_COLLISION: TileCollision;
+```
+
+Refers to [`TileCollision`](#tilecollision).
 
 ## `DEFAULT_TIME`
 
@@ -1975,6 +2055,19 @@ type DialogueViewChoice = {
     index: number;
     say?: string;
     text?: string;
+};
+```
+
+## `Dihedral`
+
+_type_ in `scene/transform.ts`
+
+A quarter-turn transform: mirror x when `flip`, then turn `rot` quarter turns clockwise, then translate to `at`.
+
+```ts
+type Dihedral = {
+    flip: boolean;
+    rot: 0 | 1 | 2 | 3;
 };
 ```
 
@@ -2390,6 +2483,8 @@ type EngineContext = {
     readonly seeking: boolean;
     /** The tick being simulated, counting from 0 after each load. */
     readonly tick: number;
+    /** Tilemaps' cells by cell; empty answers while no tilemap is loaded. */
+    readonly tiles: TilesContext;
     /** The run's clock; the same for every load of one runtime. */
     readonly time: ResolvedTime;
     /** Parents and children at runtime, by id. */
@@ -2431,7 +2526,7 @@ type EngineContext = {
 };
 ```
 
-Refers to [`AnimContext`](#animcontext), [`AttachmentHub`](#attachmenthub), [`BehaviorKey`](#behaviorkey), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`DebugDraw`](#debugdraw), [`DialogueContext`](#dialoguecontext), [`Entity`](#entity), [`EntityQuery`](#entityquery), [`EntitySelector`](#entityselector), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`HandleOf`](#handleof), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`LiveContext`](#livecontext), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`PresentationQueue`](#presentationqueue), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneTree`](#scenetree), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers), [`Tweens`](#tweens).
+Refers to [`AnimContext`](#animcontext), [`AttachmentHub`](#attachmenthub), [`BehaviorKey`](#behaviorkey), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`DebugDraw`](#debugdraw), [`DialogueContext`](#dialoguecontext), [`Entity`](#entity), [`EntityQuery`](#entityquery), [`EntitySelector`](#entityselector), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`HandleOf`](#handleof), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`LiveContext`](#livecontext), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`PresentationQueue`](#presentationqueue), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneTree`](#scenetree), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`TilesContext`](#tilescontext), [`Timers`](#timers), [`Tweens`](#tweens).
 
 ## `EngineError`
 
@@ -2695,6 +2790,36 @@ type EventSubscribeOptions = {
     /** The subscription ends when this entity is destroyed. */
     owner?: string;
 };
+```
+
+## `FLIP_D`
+
+_const_ in `game/tile-cell.ts`
+
+Tiled's diagonal flip (transpose), applied before the other two.
+
+```ts
+declare const FLIP_D: number;
+```
+
+## `FLIP_X`
+
+_const_ in `game/tile-cell.ts`
+
+Tiled's horizontal flip.
+
+```ts
+declare const FLIP_X: number;
+```
+
+## `FLIP_Y`
+
+_const_ in `game/tile-cell.ts`
+
+Tiled's vertical flip.
+
+```ts
+declare const FLIP_Y: number;
 ```
 
 ## `FORCE_AREA`
@@ -3078,6 +3203,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     tables?: Readonly<Record<string, GameTableDef>>;
     /** What a new scene of this game starts with; it should validate without errors. */
     template?: SceneTemplate;
+    /** Fields a tileset's per-tile `data` may hold. */
+    tileData?: z.ZodRawShape;
     /** How the game's clock runs; omitted: fixed at 60. */
     time?: TimeModel;
     /** The game's entity types. Primitives are always present and can't be redefined. */
@@ -3407,11 +3534,14 @@ Refers to [`GeometryColliderDesc`](#geometrycolliderdesc).
 
 _type_ in `game/fields.ts`
 
-What a gridField's cells may hold: `values` names cells 1..n, `max` is the largest value.
+What a gridField's cells may hold: `values` names cells 1..n, `max` is the
+largest value. `tileFlags` marks values that carry a tile cell's flip
+flags, which turn and flip with the cells.
 
 ```ts
 type GridFieldInfo = {
     max: number;
+    tileFlags?: true;
     values: readonly string[];
 };
 ```
@@ -3983,6 +4113,72 @@ the host gave none.
 type LoadFailureReason = "physics-not-loaded" | "physics-required" | "spawn-blocked";
 ```
 
+## `MASK_E`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_E = 4;
+```
+
+## `MASK_N`
+
+_const_ in `tiles/autotile.ts`
+
+Neighbour bits: N=1, NE=2, E=4, SE=8, S=16, SW=32, W=64, NW=128.
+
+```ts
+declare const MASK_N = 1;
+```
+
+## `MASK_NE`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_NE = 2;
+```
+
+## `MASK_NW`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_NW = 128;
+```
+
+## `MASK_S`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_S = 16;
+```
+
+## `MASK_SE`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_SE = 8;
+```
+
+## `MASK_SW`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_SW = 32;
+```
+
+## `MASK_W`
+
+_const_ in `tiles/autotile.ts`
+
+```ts
+declare const MASK_W = 64;
+```
+
 ## `MAX_BROWSER_SAVE_LIMITS`
 
 _const_ in `game/save-file.ts`
@@ -4001,6 +4197,16 @@ _const_ in `game/time.ts`
 
 ```ts
 declare const MAX_TICK_RATE = 240;
+```
+
+## `MAX_TILES`
+
+_const_ in `game/tile-cell.ts`
+
+Tiles a tileset can hold: ids 0…8190.
+
+```ts
+declare const MAX_TILES = 8191;
 ```
 
 ## `MIN_TICK_RATE`
@@ -4605,6 +4811,7 @@ declare const PRIMITIVE_TYPES: readonly [
     "decor",
     "nav",
     "camera-region",
+    "tilemap",
     "note"
 ];
 ```
@@ -5612,6 +5819,11 @@ The loaded scene's grid: present when its resolved settings have one.
 type RuntimeGrid = {
     /** The scene bounds in cells. */
     bounds: CellBounds;
+    /**
+     * The extra cost of stepping into `to`, for `findPath` and `flowField`'s
+     * `cost`: what the tiles there cost beyond one plain step, never below 0.
+     */
+    cost?(from: Cell, to: Cell): null | number;
     geometry: GridGeometry;
     occupancy: Occupancy;
     /** In bounds, not a wall, not blocked. */
@@ -6321,7 +6533,11 @@ interface SceneView {
     depth?(id: string, z: number): void;
     /** The runtime finished tick `tick`; poses set since belong to it. */
     commit?(tick: number): void;
-    /** Each rendered frame: interpolated poses, y-sort, parallax; `camera` is the camera's position in metres. */
+    /**
+     * Each rendered frame: interpolated poses, y-sort, parallax; `camera` is the camera's position in metres.
+     * `views` is every viewport's world rect in metres: a visual outside all of them isn't rendered
+     * (omitted or empty culls nothing). `nowMs` is the clock animated tiles step by.
+     */
     frame?(f: {
         alpha: number;
         camera: {
@@ -6329,6 +6545,8 @@ interface SceneView {
             y: number;
             zoom: number;
         };
+        nowMs?: number;
+        views?: readonly Bounds[];
     }): void;
     /** Runs the emitter `id` on the view's particle layer; a view without one ignores it. */
     emitter?(id: string, emitter: ViewEmitter): void;
@@ -6338,10 +6556,16 @@ interface SceneView {
     text?(id: string, visual: TextVisual, layer: ViewLayer): void;
     /** The locale's strings and font, as data: what keyed text resolves through. The shell hands one at start and on each locale change. */
     locale?(table: StringTableData): void;
+    /** Draws the tilemap `id`, replacing its settings; its cells arrive through `tileChunks`. A view without it draws no tiles. */
+    tilemap?(id: string, map: TilemapVisual): void;
+    /** Rebuilds the `dirty` chunks of tilemap `id` from `cells`. */
+    tileChunks?(id: string, cells: GridCells, dirty: readonly ChunkKey[]): void;
+    /** Stops drawing the tilemap `id`. Idempotent. */
+    removeTilemap?(id: string): void;
 }
 ```
 
-Refers to [`StringTableData`](#stringtabledata), [`Style`](#style), [`ViewEmitter`](#viewemitter), [`ViewLayer`](#viewlayer), [`ViewLayerHandle`](#viewlayerhandle).
+Refers to [`StringTableData`](#stringtabledata), [`Style`](#style), [`TilemapVisual`](#tilemapvisual), [`ViewEmitter`](#viewemitter), [`ViewLayer`](#viewlayer), [`ViewLayerHandle`](#viewlayerhandle).
 
 ## `Script`
 
@@ -7136,6 +7360,68 @@ The font size, px at zoom 1, when a block gives none.
 declare const TEXT_SIZE_DEFAULT = 16;
 ```
 
+## `TILEMAP_PRIMITIVE`
+
+_const_ in `game/primitives.ts`
+
+Tiles painted on the scene grid from one tileset. Its
+frame (a parent's turn or mirror) poses the whole map, and its cells'
+flags turn with quarter turns and mirrors only.
+
+```ts
+declare const TILEMAP_PRIMITIVE: {
+    ascii: string;
+    description: string;
+    fields: (env: FieldEnv) => {
+        alpha: z.ZodOptional<z.ZodNumber>;
+        at: z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>;
+        cells: z.ZodType<Readonly<Record<string, readonly string[]>>, unknown, z.core.$ZodTypeInternals<Readonly<Record<string, readonly string[]>>, unknown>>;
+        collision: z.ZodOptional<z.ZodEnum<{
+            boxes: "boxes";
+            none: "none";
+            outline: "outline";
+            tiles: "tiles";
+        }>>;
+        tileset: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        tint: z.ZodOptional<z.ZodNumber>;
+    };
+    physics: "optional";
+    type: string;
+};
+```
+
+Refers to [`FieldEnv`](#fieldenv).
+
+## `TILE_ID_BITS`
+
+_const_ in `game/tile-cell.ts`
+
+Bits of a cell value that hold the tile id + 1.
+
+```ts
+declare const TILE_ID_BITS = 13;
+```
+
+## `TILE_TOOL_IDS`
+
+_const_ in `game/types.ts`
+
+The engine's tile painting tools, beside `ENGINE_TOOL_IDS`; a game's tools can't reuse these ids either.
+
+```ts
+declare const TILE_TOOL_IDS: readonly [
+    "tile-brush",
+    "tile-rect",
+    "tile-fill",
+    "tile-erase",
+    "tile-pick",
+    "tile-auto"
+];
+```
+
 ## `TOOL_PRIORITY`
 
 _const_ in `tool-router.ts`
@@ -7311,6 +7597,261 @@ Values a `{name}` placeholder is filled from.
 ```ts
 type TextVars = Readonly<Record<string, number | string>>;
 ```
+
+## `TileAt`
+
+_type_ in `game/types.ts`
+
+One tilemap's tile at a cell, as `EngineContext.tiles.at` lists them.
+
+```ts
+type TileAt = {
+    def: TileDef | undefined;
+    map: string;
+    tile: TileCell;
+    value: number;
+};
+```
+
+Refers to [`TileCell`](#tilecell), [`TileDef`](#tiledef).
+
+## `TileCell`
+
+_type_ in `game/tile-cell.ts`
+
+A decoded cell; null is empty.
+
+```ts
+type TileCell = null | {
+    flipD: boolean;
+    flipX: boolean;
+    flipY: boolean;
+    id: number;
+};
+```
+
+## `TileChunk`
+
+_type_ in `tiles/chunks.ts`
+
+One chunk's cells, decoded: 32 × 32 values row-major.
+
+```ts
+type TileChunk = {
+    cx: number;
+    cy: number;
+    key: ChunkKey;
+    values: Uint16Array;
+};
+```
+
+## `TileCollision`
+
+_type_ in `tiles/colliders.ts`
+
+How a tilemap's solid tiles collide: merged boxes (the default), outline chains, one collider per tile, or none.
+
+```ts
+type TileCollision = "boxes" | "none" | "outline" | "tiles";
+```
+
+## `TileDef`
+
+_type_ in `project/kinds/tileset.ts`
+
+One tile's data, keyed by its id in the image (row-major from the top left).
+
+```ts
+type TileDef = {
+    /** Frames by tile id, drawn only. */
+    animation?: readonly {
+        ms: number;
+        tile: number;
+    }[];
+    /** Path cost on grids, 10 = one step; default 10; ignored when solid. */
+    cost?: number;
+    data?: Readonly<Record<string, JsonValue>>;
+    id: number;
+    material?: AssetId;
+    /** One-way solids pass from the opposite side (the grid's oneWay direction). */
+    oneWay?: "down" | "left" | "right" | "up";
+    /** Collision shapes in tile px instead of the full square; divided by px per metre when colliders build. */
+    shapes?: readonly ShapeTuple[];
+    solid?: boolean;
+    tags?: readonly string[];
+};
+```
+
+Refers to [`JsonValue`](#jsonvalue).
+
+## `TileToolId`
+
+_type_ in `game/types.ts`
+
+```ts
+type TileToolId = (typeof TILE_TOOL_IDS)[number];
+```
+
+Refers to [`TILE_TOOL_IDS`](#tile_tool_ids).
+
+## `TileTraits`
+
+_type_ in `tiles/chunks.ts`
+
+What a tile means to colliders, grid walls, path costs and schematic renders alike.
+
+```ts
+type TileTraits = {
+    /** Path cost to enter the cell on the grid's scale; null when the tile walls it. */
+    cost: null | number;
+    /** The side a one-way solid lands actors on; null for none. */
+    oneWay: Side | null;
+    /** Collision shapes in tile px that replace the full square; null for the square. */
+    shapes: null | readonly ShapeTuple[];
+    solid: boolean;
+};
+```
+
+Refers to [`Side`](#side).
+
+## `TilemapEntity`
+
+_type_ in `systems/tilemap.ts`
+
+```ts
+type TilemapEntity = RuntimeEntity<{
+    alpha?: number;
+    at: Pt;
+    cells: GridCells;
+    collision?: TileCollision;
+    tileset: AssetId;
+    tint?: number;
+}>;
+```
+
+Refers to [`TileCollision`](#tilecollision).
+
+## `TilemapSystem`
+
+_type_ in `systems/tilemap.ts`
+
+The system for tilemap entities, one per runtime whatever types spawn them; `ctx.tiles` reads and writes through it.
+
+```ts
+type TilemapSystem = SceneSystem<TilemapEntity> & TilesContext & {
+    /** Tilemap `id`'s cells now: the scene's with runtime writes over them. */
+    cells(id: string): GridCells | undefined;
+    /** How many colliders each chunk of tilemap `id` holds now, by chunk key; for tools and tests. */
+    chunkColliders(id: string): ReadonlyMap<ChunkKey, number>;
+    /** Rebuilds what runtime writes left dirty; the runtime calls it once per tick after the destroy flush. True when anything was rebuilt. */
+    flushWrites(): boolean;
+    /** Live tilemaps in spawn order. */
+    list(): TilemapEntity[];
+    /** Gates one-way tiles for `actorId` alone; other actors fall through to `oneWayPasses`. */
+    passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
+    readonly tilemapSystem: true;
+    /**
+     * Rebuilds the maps whose tileset doc, or the image it cuts, changed
+     * (`changed` names it, or the project now holds a different one): defs,
+     * colliders and drawing, runtime writes kept. A map whose tileset no
+     * longer loads keeps what it had, and is reported.
+     */
+    reloadAssets(changed: readonly AssetId[]): {
+        entityId: string;
+        error: unknown;
+        reattached: boolean;
+    }[];
+    /** Writes the pose index and moves the map's colliders and drawing with it. */
+    setPose(id: string, x: number, y: number, rot: number): void;
+    /**
+     * Calls `fn` whenever a map's colliders rebuilt for changed cells (at the
+     * write flush, an editor update or a restore), with the chunks rebuilt;
+     * returns the unsubscribe.
+     */
+    watchCells(fn: (id: string, chunks: readonly ChunkKey[]) => void): () => void;
+};
+```
+
+Refers to [`SceneSystem`](#scenesystem), [`TilemapEntity`](#tilemapentity), [`TilesContext`](#tilescontext).
+
+## `TilemapVisual`
+
+_type_ in `context.ts`
+
+A tilemap as a view draws it, as data: the grid it sits on, its tileset
+and the image's hash. `at` is cell (0, 0)'s corner in the visual's local
+space; `pose` places the map in the world, its frame's turn included.
+
+```ts
+type TilemapVisual = {
+    alpha?: number;
+    at: Pt;
+    /** World px per cell, [w, h]: the grid's cell times the game's px per metre. */
+    cell: [
+        number,
+        number
+    ];
+    grid: GridSettings;
+    image: Sha256;
+    layer: ViewLayer;
+    tileset: TilesetFile;
+    tint?: number;
+};
+```
+
+Refers to [`GridSettings`](#gridsettings), [`TilesetFile`](#tilesetfile), [`ViewLayer`](#viewlayer).
+
+## `TilesContext`
+
+_type_ in `game/types.ts`
+
+`EngineContext.tiles`: every tilemap's cells, read and written by cell.
+
+```ts
+type TilesContext = {
+    /** Every tilemap's tile at a cell, top first (by z, then scene order). */
+    at(cell: Cell): readonly TileAt[];
+    /** Runs the tileset's rule `rule` over `rect` and paints the result. */
+    autotile(map: string, rule: string, rect: CellBounds): void;
+    /** Cells of a map whose tile has `tag`, row-major. */
+    find(map: string, tag: string): readonly Cell[];
+    /** One map's raw value; 0 when empty or the map isn't loaded. */
+    get(map: string, cell: Cell): number;
+    /** Applies at once (reads see it); colliders, walls and meshes rebuild at the tick's destroy flush. */
+    paint(map: string, edits: {
+        cells?: readonly CellEdit[];
+        rects?: readonly CellRect[];
+    }): void;
+};
+```
+
+Refers to [`Cell`](#cell), [`CellBounds`](#cellbounds), [`TileAt`](#tileat).
+
+## `TilesetFile`
+
+_type_ in `project/kinds/tileset.ts`
+
+```ts
+type TilesetFile = {
+    $schema?: string;
+    columns: number;
+    /** A texture or an atlas. */
+    image: AssetId;
+    kind: "tileset";
+    margin?: number;
+    rules?: AutotileRule[];
+    spacing?: number;
+    /** Tile size in image px; must equal the scene grid's cell × the game's px per metre. */
+    tile: [
+        number,
+        number
+    ];
+    tiles?: TileDef[];
+    v: 1;
+};
+```
+
+Refers to [`AutotileRule`](#autotilerule), [`TileDef`](#tiledef).
 
 ## `TimeKind`
 
@@ -7793,6 +8334,21 @@ An angle, clockwise (y down): turned and mirrored with its entity.
 declare function angleField(description: string, unit: "deg"): z.ZodNumber;
 ```
 
+## `applyAutotile`
+
+_function_ in `tiles/autotile.ts`
+
+The cells `rule` gives every terrain cell in `rect` and its one-cell border,
+whose masks change. Only cells whose value changes are returned. A cell is
+terrain when its tile carries the rule's terrain tag in `tileset`, unless
+`isTerrain` says otherwise.
+
+```ts
+declare function applyAutotile(grid: GridCells, tileset: TilesetFile, rule: AutotileRule, rect: CellBounds, isTerrain?: (value: number) => boolean): CellEdit[];
+```
+
+Refers to [`AutotileRule`](#autotilerule), [`CellBounds`](#cellbounds), [`TilesetFile`](#tilesetfile).
+
 ## `arrivalWords`
 
 _const_ in `game/live.ts`
@@ -7910,6 +8466,20 @@ How a key with no text shows.
 ```ts
 declare const bracketKey: (key: string) => string;
 ```
+
+## `buildChunkMesh`
+
+_function_ in `tiles/mesh.ts`
+
+One chunk's quads, each a cell's box centred on the grid's cell centre
+(so hex maps place quads at `GridGeometry.center`); null when the chunk
+draws nothing.
+
+```ts
+declare function buildChunkMesh(chunk: TileChunk, input: ChunkMeshInput): ChunkMesh | null;
+```
+
+Refers to [`ChunkMesh`](#chunkmesh), [`ChunkMeshInput`](#chunkmeshinput), [`TileChunk`](#tilechunk).
 
 ## `buildNavMesh`
 
@@ -8374,6 +8944,18 @@ declare function createSolidSystem(ctx: EngineContext, type: RegisteredType, opt
 
 Refers to [`EngineContext`](#enginecontext), [`RegisteredType`](#registeredtype), [`SolidOptions`](#solidoptions), [`SolidSystem`](#solidsystem).
 
+## `createTilemapSystem`
+
+_function_ in `systems/tilemap.ts`
+
+Tilemaps: colliders built per chunk from `tileTraits`, posed by the map's frame; the view gets data only.
+
+```ts
+declare function createTilemapSystem(ctx: EngineContext, _type: RegisteredType): TilemapSystem;
+```
+
+Refers to [`EngineContext`](#enginecontext), [`RegisteredType`](#registeredtype), [`TilemapSystem`](#tilemapsystem).
+
 ## `createTopDownController`
 
 _function_ in `motion/top-down.ts`
@@ -8406,6 +8988,30 @@ declare function declaredBindings(def: {
 ```
 
 Refers to [`Binding`](#binding).
+
+## `decodeCell`
+
+_function_ in `game/tile-cell.ts`
+
+The cell a value holds; null for 0, and for flags with no tile.
+
+```ts
+declare function decodeCell(value: number): TileCell;
+```
+
+Refers to [`TileCell`](#tilecell).
+
+## `decodeChunks`
+
+_function_ in `tiles/chunks.ts`
+
+Every non-empty chunk of `cells`, decoded, in chunk-key order.
+
+```ts
+declare function decodeChunks(cells: GridCells): TileChunk[];
+```
+
+Refers to [`TileChunk`](#tilechunk).
 
 ## `defineBehavior`
 
@@ -8463,6 +9069,16 @@ _function_ in `physics.ts`
 
 ```ts
 declare function degToRad(deg: number): number;
+```
+
+## `dirtyChunks`
+
+_function_ in `tiles/chunks.ts`
+
+The chunks whose cells differ between two versions of a tilemap's cells, in chunk-key order.
+
+```ts
+declare function dirtyChunks(prev: GridCells, next: GridCells): ChunkKey[];
 ```
 
 ## `distanceVec2`
@@ -8550,6 +9166,18 @@ declare function emptyStringTable(locale: string): StringTable;
 
 Refers to [`StringTable`](#stringtable).
 
+## `encodeCell`
+
+_function_ in `game/tile-cell.ts`
+
+The value a cell is stored as; 0 for null.
+
+```ts
+declare function encodeCell(cell: TileCell): number;
+```
+
+Refers to [`TileCell`](#tilecell).
+
 ## `fieldOfView`
 
 _function_ in `grid/fov.ts`
@@ -8576,6 +9204,18 @@ declare function findPath(grid: GridGeometry, from: Cell, to: Cell, opts?: GridP
 ```
 
 Refers to [`Cell`](#cell), [`GridGeometry`](#gridgeometry), [`GridPath`](#gridpath), [`GridPathOptions`](#gridpathoptions).
+
+## `findTilemapSystem`
+
+_function_ in `systems/tilemap.ts`
+
+The tilemap system among a runtime's systems, if one is registered.
+
+```ts
+declare function findTilemapSystem(systems: Iterable<SceneSystem>): TilemapSystem | undefined;
+```
+
+Refers to [`SceneSystem`](#scenesystem), [`TilemapSystem`](#tilemapsystem).
 
 ## `flowField`
 
@@ -8636,19 +9276,34 @@ declare function formatSaveFile(file: SaveFile): string;
 
 Refers to [`SaveFile`](#savefile).
 
+## `greedyBoxes`
+
+_function_ in `tiles/colliders.ts`
+
+Maximal runs per row, merged downwards with an identical run below; never spanning chunks.
+
+```ts
+declare function greedyBoxes(solid: Solid, rect: CellBounds): CellBounds[];
+```
+
+Refers to [`CellBounds`](#cellbounds).
+
 ## `gridField`
 
 _function_ in `game/fields.ts`
 
 Cells on the scene's grid, local to the entity's `at`. `values` names
 cells 1..n for the schema and inspector; `max` defaults to
-`values.length`, or 65535 without `values`. Parsing rewrites the value
+`values.length`, or 65535 without `values`. `tileFlags` marks tile cell
+values (`encodeCell`), whose flags transform with the cells; it takes no
+`values` or `max`. Parsing rewrites the value
 canonically (`canonicalGrid`), so a hand-written row comes out as the
 formatter writes it.
 
 ```ts
 declare function gridField(description: string, opts?: {
     max?: number;
+    tileFlags?: boolean;
     values?: readonly string[];
 }): z.ZodType<GridCells>;
 ```
@@ -8718,6 +9373,27 @@ declare const handleType: <H>() => HandleType<H>;
 ```
 
 Refers to [`HandleType`](#handletype).
+
+## `importLdtk`
+
+_function_ in `tiles/import-ldtk.ts`
+
+```ts
+declare function importLdtk(world: unknown, opts: LdtkImportOptions): LdtkImport;
+```
+
+## `importTiled`
+
+_function_ in `tiles/import-tiled.ts`
+
+A Tiled map (`.tmj`) and its external tilesets (keyed by each map
+entry's `source`) as one cross-doc batch: images, tilesets, then the
+scene's grid, tilemaps, markers and sensors. Any error refuses the whole
+import with no ops; what it drops is a warning note.
+
+```ts
+declare function importTiled(map: unknown, tilesets: ReadonlyMap<string, unknown>, opts: TiledImportOptions): TileImport;
+```
 
 ## `inCellBounds`
 
@@ -8823,6 +9499,18 @@ bulk id's own `~solid:0` isn't one).
 ```ts
 declare function isRuntimeId(id: string): boolean;
 ```
+
+## `isTilemapSystem`
+
+_function_ in `systems/tilemap.ts`
+
+Whether `system` is the tilemap system, whatever type name spawns it.
+
+```ts
+declare function isTilemapSystem(system: SceneSystem | undefined): system is TilemapSystem;
+```
+
+Refers to [`SceneSystem`](#scenesystem), [`TilemapSystem`](#tilemapsystem).
 
 ## `isUiAction`
 
@@ -9068,6 +9756,20 @@ declare function oneWayPasses(ctx: EngineContext, actorId: string): ReadonlySet<
 ```
 
 Refers to [`EngineContext`](#enginecontext).
+
+## `outlineChains`
+
+_function_ in `tiles/colliders.ts`
+
+Closed chains, in cell corners, around the solid regions in `rect`, one set per chunk.
+Each chain is implicitly closed (its last point joins its first); outer boundaries run
+clockwise on screen and holes counter-clockwise.
+
+```ts
+declare function outlineChains(solid: Solid, rect: CellBounds): readonly Pt[][];
+```
+
+Refers to [`CellBounds`](#cellbounds).
 
 ## `overlapFrameShapes`
 
@@ -9766,6 +10468,18 @@ Free-form labels a game reads, e.g. `["spawn"]`.
 declare function tagsField(description: string): z.ZodOptional<z.ZodArray<z.ZodString>>;
 ```
 
+## `terrainMask`
+
+_function_ in `tiles/autotile.ts`
+
+The neighbour mask of a cell for a terrain; corners count only when both adjacent edges do (blob47).
+
+```ts
+declare function terrainMask(isTerrain: (col: number, row: number) => boolean, col: number, row: number, kind: AutotileRule["kind"]): number;
+```
+
+Refers to [`AutotileRule`](#autotilerule).
+
 ## `textFontOf`
 
 _function_ in `game/behaviors/text.ts`
@@ -9803,6 +10517,30 @@ declare function ticksFor(ms: number, time: Pick<ResolvedTime, "rate">): number;
 
 Refers to [`ResolvedTime`](#resolvedtime).
 
+## `tileTraits`
+
+_function_ in `tiles/chunks.ts`
+
+The one rule for a tile's solidity, one-way side, cost and shapes; every reader of tiles goes through it.
+
+```ts
+declare function tileTraits(def: TileDef | undefined): TileTraits;
+```
+
+Refers to [`TileDef`](#tiledef), [`TileTraits`](#tiletraits).
+
+## `tilesContext`
+
+_function_ in `systems/tilemap.ts`
+
+`ctx.tiles`: the tilemap system's reads and writes, or empty answers while none is registered.
+
+```ts
+declare function tilesContext(ctx: Pick<EngineContext, "system">): TilesContext;
+```
+
+Refers to [`EngineContext`](#enginecontext), [`TilesContext`](#tilescontext).
+
 ## `traceShape`
 
 _function_ in `render/draw-shape.ts`
@@ -9813,6 +10551,16 @@ their smoothness); the caller fills or strokes.
 
 ```ts
 declare function traceShape(g: Graphics, shape: ShapeObj, scale?: number): void;
+```
+
+## `transformCell`
+
+_function_ in `game/tile-cell.ts`
+
+A quarter turn or mirror applied to a cell's flags (instance transforms, the brush's rotate keys); the id and an empty cell stay as they are.
+
+```ts
+declare function transformCell(value: number, d: TileTurn): number;
 ```
 
 ## `tweenSpecSchema`

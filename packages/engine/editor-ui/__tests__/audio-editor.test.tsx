@@ -402,6 +402,7 @@ describe("Sound in Play", () => {
     const controls = {
       game,
       host: new Store({ sceneChanged: false, livePlay: null }),
+      session: {},
       keymap: { chordOf: () => undefined },
       onStop: vi.fn(),
       onRestart: vi.fn(),

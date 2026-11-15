@@ -8,19 +8,14 @@ import {
 } from "react";
 
 import type { TileBrush, TileToolId } from "../../editor/builtin/tile-tools";
-import type { EditorSession, Ref } from "../../editor/index";
+import { setTileBrush, setTileRule, type EditorSession, type Ref } from "../../editor/index";
+import { decodeCell, tileTraits } from "../../game/index";
 import type { AssetId, ProjectRuntimeView } from "../../project/index";
 import type { AutotileRule, TileDef, TilesetFile } from "../../project/kinds/tileset";
 import type { EntityDef, SceneDefinition } from "../../scene/types";
-import { Button, cx, MicroLabel, Text } from "../kit/index";
+import { Button, cx, Facts, MicroLabel, Text } from "../kit/index";
 import { useEditorResolved, useEditorStore } from "../session/use-editor-store";
-
-/** What the palette arms: the brush the tile tools paint, the rule the autotile brush runs, the active tool. */
-export type TilePaletteHost = {
-  setBrush(brush: TileBrush): void;
-  setRule(rule: string | null): void;
-  setTool(tool: TileToolId): void;
-};
+import { createToolHostCell, useToolHost, type ToolHostCell } from "./canvas-layer/tool-host";
 
 export type TilePaletteProps = {
   session: EditorSession;
@@ -28,8 +23,8 @@ export type TilePaletteProps = {
   runtime: ProjectRuntimeView | null;
   /** A blob asset's URL for the tile images; without it tiles show their ids. */
   imageUrl?: ((id: AssetId) => string | null) | undefined;
-  /** Default: the session's own brush and tool. */
-  host?: TilePaletteHost;
+  /** The editor's tool host, which a pick switches to a tile tool; without one the pick only sets the brush. */
+  tools?: ToolHostCell | undefined;
 };
 
 /** The tools a picked stamp keeps; any other tool gives way to the brush. */
@@ -40,21 +35,12 @@ const TILE_PX = 24;
 
 type Rect = { c0: number; r0: number; c1: number; r1: number };
 
-type SessionBrushState = { tileBrush?: TileBrush | null; tileRule?: string | null };
-type SessionBrushMethods = {
-  setTileBrush?: (brush: TileBrush) => void;
-  setTileRule?: (rule: string | null) => void;
+/** What the palette arms: the session's brush and autotile rule, and the active tool. */
+type PaletteArm = {
+  setBrush(brush: TileBrush): void;
+  setRule(rule: string): void;
+  setTool(tool: TileToolId): void;
 };
-
-/** The palette's host over a session: its brush setters when it has them, and `setTool`. */
-export function sessionPaletteHost(session: EditorSession): TilePaletteHost {
-  const own = session as EditorSession & SessionBrushMethods;
-  return {
-    setBrush: (brush) => own.setTileBrush?.(brush),
-    setRule: (rule) => own.setTileRule?.(rule),
-    setTool: (tool) => session.setTool(tool),
-  };
-}
 
 const isTilemap = (e: EntityDef | undefined): e is EntityDef => e?.type === "tilemap";
 
@@ -118,21 +104,41 @@ function imageOf(
   return { id: use?.id ?? id, ...(use?.size ? { size: use.size } : {}) };
 }
 
+/** The tile ids a brush paints, as the palette highlights them. */
+export function brushTileIds(brush: TileBrush): Set<number> {
+  const ids = new Set<number>();
+  for (const row of brush.tiles) {
+    for (const value of row) {
+      const cell = decodeCell(value);
+      if (cell) ids.add(cell.id);
+    }
+  }
+  return ids;
+}
+
 /** The tileset's image cut into tiles, its rules, and the picked tile's data. */
-export function TilePalette({ session, runtime, imageUrl, host }: TilePaletteProps) {
+export function TilePalette({ session, runtime, imageUrl, tools }: TilePaletteProps) {
   const scene = useEditorResolved(session);
   const selection = useEditorStore(session, (s) => s.selection);
   const hover = useEditorStore(session, (s) => s.hover);
   const tool = useEditorStore(session, (s) => s.tool);
-  const armedRule = useEditorStore(session, (s) => (s as SessionBrushState).tileRule ?? null);
-  const arm = useMemo(() => host ?? sessionPaletteHost(session), [host, session]);
+  const brush = useEditorStore(session, (s) => s.tileBrush);
+  const armedRule = useEditorStore(session, (s) => s.tileRule);
+  const [noTools] = useState(createToolHostCell);
+  const toolHost = useToolHost(tools ?? noTools);
+  const arm = useMemo<PaletteArm>(
+    () => ({
+      setBrush: (next) => setTileBrush(session.store, next),
+      setRule: (rule) => setTileRule(session.store, rule),
+      setTool: (id) => void toolHost?.setTool(id),
+    }),
+    [session, toolHost],
+  );
 
   const [last, setLast] = useState<Ref | null>(null);
   const map = pickTilemap(scene, selection, hover, last);
   const mapId = map?.id ?? null;
-  useEffect(() => {
-    if (mapId !== null) setLast(mapId);
-  }, [mapId]);
+  if (mapId !== null && mapId !== last) setLast(mapId);
   const tilesetId = typeof map?.tileset === "string" ? map.tileset : null;
   const set = tilesetId ? runtime?.doc?.<TilesetFile>("tileset", tilesetId) : undefined;
 
@@ -160,12 +166,16 @@ export function TilePalette({ session, runtime, imageUrl, host }: TilePalettePro
       set={set}
       runtime={runtime}
       imageUrl={imageUrl}
-      host={arm}
+      arm={arm}
+      brush={brush}
       tool={tool}
       armedRule={armedRule}
     />
   );
 }
+
+const stampSize = (brush: TileBrush): string =>
+  `${Math.max(1, ...brush.tiles.map((r) => r.length))}×${Math.max(1, brush.tiles.length)}`;
 
 function TilesetView({
   mapId,
@@ -173,7 +183,8 @@ function TilesetView({
   set,
   runtime,
   imageUrl,
-  host,
+  arm,
+  brush,
   tool,
   armedRule,
 }: {
@@ -182,7 +193,8 @@ function TilesetView({
   set: TilesetFile;
   runtime: ProjectRuntimeView | null;
   imageUrl: TilePaletteProps["imageUrl"];
-  host: TilePaletteHost;
+  arm: PaletteArm;
+  brush: TileBrush;
   tool: string;
   armedRule: string | null;
 }) {
@@ -193,16 +205,15 @@ function TilesetView({
   const [tw, th] = set.tile;
   const scale = TILE_PX / Math.max(1, tw);
 
-  const [picked, setPicked] = useState<Rect | null>(null);
+  const picked = useMemo(() => brushTileIds(brush), [brush]);
   const [focus, setFocus] = useState({ c: 0, r: 0 });
   const anchor = useRef<{ c: number; r: number } | null>(null);
   const dragging = useRef(false);
   const grid = useRef<HTMLDivElement>(null);
 
   const choose = (rect: Rect) => {
-    setPicked(rect);
-    host.setBrush(stampOf(rect, columns));
-    if (!STAMP_TOOLS.includes(tool)) host.setTool("tile-brush");
+    arm.setBrush(stampOf(rect, columns));
+    if (!STAMP_TOOLS.includes(tool)) arm.setTool("tile-brush");
   };
   const pick = (at: { c: number; r: number }, extend: boolean) => {
     if (!extend || !anchor.current) anchor.current = at;
@@ -244,8 +255,6 @@ function TilesetView({
     }
   };
 
-  const inPicked = (c: number, r: number) =>
-    picked !== null && c >= picked.c0 && c <= picked.c1 && r >= picked.r0 && r <= picked.r1;
   const margin = set.margin ?? 0;
   const spacing = set.spacing ?? 0;
   const tileStyle = (c: number, r: number): CSSProperties => ({
@@ -263,8 +272,8 @@ function TilesetView({
   });
 
   const defs = useMemo(() => new Map((set.tiles ?? []).map((d) => [d.id, d])), [set.tiles]);
-  const shown = picked ? picked.r0 * columns + picked.c0 : null;
-  const size = picked ? `${picked.c1 - picked.c0 + 1}×${picked.r1 - picked.r0 + 1}` : null;
+  const first = picked.values().next().value ?? null;
+  const size = stampSize(brush);
 
   return (
     <div className="je-tile-palette" data-tilemap={mapId}>
@@ -273,7 +282,7 @@ function TilesetView({
           {tilesetId}
         </Text>
         <Text size="xs" variant="muted" tabular>
-          {size && size !== "1×1" ? `${size} stamp` : `${tw}×${th} px`}
+          {size !== "1×1" ? `${size} stamp` : `${tw}×${th} px`}
         </Text>
       </div>
       <div
@@ -289,12 +298,11 @@ function TilesetView({
           <div role="row" key={r} className="je-tile-row">
             {Array.from({ length: columns }, (_, c) => {
               const id = r * columns + c;
-              const selected = inPicked(c, r);
               return (
                 <div
                   key={c}
                   role="gridcell"
-                  aria-selected={selected}
+                  aria-selected={picked.has(id)}
                   aria-label={`Tile ${id}`}
                   data-tile={id}
                   tabIndex={focus.c === c && focus.r === r ? 0 : -1}
@@ -323,12 +331,12 @@ function TilesetView({
           rules={set.rules ?? []}
           armed={tool === "tile-auto" ? armedRule : null}
           onArm={(rule) => {
-            host.setRule(rule);
-            host.setTool("tile-auto");
+            arm.setRule(rule);
+            arm.setTool("tile-auto");
           }}
         />
       ) : null}
-      {shown !== null ? <TileData id={shown} def={defs.get(shown)} /> : null}
+      {first !== null ? <TileData id={first} def={defs.get(first)} /> : null}
     </div>
   );
 }
@@ -372,13 +380,14 @@ function RuleList({
 
 /** A tile's data, read-only: editing goes through the tileset's own panel. */
 function TileData({ id, def }: { id: number; def: TileDef | undefined }) {
+  const traits = tileTraits(def);
   const rows: [string, string][] = [["Id", String(id)]];
-  if (def?.solid) rows.push(["Solid", "yes"]);
-  if (def?.oneWay) rows.push(["One-way", def.oneWay]);
-  if (def?.cost !== undefined) rows.push(["Cost", String(def.cost)]);
+  if (traits.solid) rows.push(["Solid", "yes"]);
+  if (traits.oneWay) rows.push(["One-way", traits.oneWay]);
+  if (traits.cost !== null) rows.push(["Cost", String(traits.cost)]);
   if (def?.material) rows.push(["Material", def.material]);
   if (def?.tags?.length) rows.push(["Tags", def.tags.join(", ")]);
-  if (def?.shapes?.length) rows.push(["Shapes", String(def.shapes.length)]);
+  if (traits.shapes) rows.push(["Shapes", String(traits.shapes.length)]);
   if (def?.animation?.length) rows.push(["Frames", String(def.animation.length)]);
   if (def?.data) {
     for (const [key, value] of Object.entries(def.data)) rows.push([key, JSON.stringify(value)]);
@@ -386,22 +395,7 @@ function TileData({ id, def }: { id: number; def: TileDef | undefined }) {
   return (
     <section className="je-tile-section" aria-label="Tile data">
       <MicroLabel as="div">Tile</MicroLabel>
-      <dl className="je-tile-data">
-        {rows.map(([k, v]) => (
-          <div key={k} className="je-tile-data-row">
-            <dt>
-              <Text size="xs" variant="muted">
-                {k}
-              </Text>
-            </dt>
-            <dd>
-              <Text size="xs" ellipsis>
-                {v}
-              </Text>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <Facts rows={rows} />
       {def ? null : (
         <Text as="p" size="xs" variant="muted">
           No data; it draws only.

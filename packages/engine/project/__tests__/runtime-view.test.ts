@@ -332,6 +332,7 @@ describe("ProjectRuntimeView.doc and docs", () => {
       "synth",
       "dialogue",
       "strings",
+      "tileset",
     ]);
   });
 });

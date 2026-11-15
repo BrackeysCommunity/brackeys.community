@@ -14,6 +14,7 @@ import {
   SOUND_IN_PLAY_TOOLTIP,
   SOUND_NEXT_PLAY,
 } from "../panels/EditorPlayBar";
+import { pickSeams } from "./fixtures/play-pick";
 
 afterEach(() => {
   cleanup();
@@ -40,6 +41,7 @@ function standIn(locales: readonly string[] = ["en", "fr"]) {
   let current = locales[0] ?? "en";
   const master = { volume: 1, muted: false };
   const game = {
+    ...pickSeams(),
     getStore: () => createGameStore(),
     resume: vi.fn(),
     pause: vi.fn(),
@@ -78,6 +80,7 @@ function bar(game: object) {
   const controls = {
     game,
     host: new Store({ sceneChanged: false, livePlay: null }),
+    session: {},
     keymap: { chordOf: () => undefined },
     onStop: vi.fn(),
     onRestart: vi.fn(),

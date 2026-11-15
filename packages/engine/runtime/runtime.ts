@@ -51,7 +51,12 @@ import type {
 } from "../scene/types";
 import { Rng, type RngState } from "../sim-kit/rng";
 import { createAttachmentHub } from "../systems/attachments";
-import { findTilemapSystem, tilesContext } from "../systems/tilemap";
+import {
+  createTilemapSystem,
+  findTilemapSystem,
+  isTilemapSystem,
+  tilesContext,
+} from "../systems/tilemap";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import { animContext } from "./behaviors/anim";
@@ -601,18 +606,36 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   /** Game code spawned or destroyed since the load began, so the loaded scene's list is stale. */
   let tableChanged = false;
 
+  /** Every tilemap type shares one system, so `ctx.tiles`, the write flush and the grid see all maps. */
+  let sharedTilemaps: SceneSystem | undefined;
+  /** Each system once, in spawn-group order, with the first type name it was built for. */
+  const ordered: SceneSystem[] = [];
+  const orderedNames: EntityTypeName[] = [];
   for (const name of registry.spawnGroups.flat()) {
     const type = registry.types.get(name)!;
-    systems.set(name, systemFactoryOf(type)(ctx, type));
+    const factory = systemFactoryOf(type);
+    const shared = factory === createTilemapSystem;
+    const system = shared && sharedTilemaps ? sharedTilemaps : factory(ctx, type);
+    if (shared) sharedTilemaps = system;
+    systems.set(name, system);
+    if (!ordered.includes(system)) {
+      ordered.push(system);
+      orderedNames.push(name);
+    }
   }
-  const ordered = [...systems.values()];
   const tilemaps = findTilemapSystem(ordered);
+  tilemaps?.watchCells((id, chunks) => {
+    gridState.tileChunksChanged(id, chunks);
+    query.tilemapCellsChanged(id, tilemaps.cells(id));
+  });
   /** With a collector, each step is one span of its `tick` scope, split at the laps `step` takes. */
   const tickTiming = opts.timing?.scope("tick") ?? null;
   const windowed = opts.timings ? createTimings(opts.timings) : null;
-  const beforeStepParts = [...systems.keys()].map((type) => `system.${type}.beforeStep`);
-  const beforePhysicsParts = [...systems.keys()].map((type) => `system.${type}.beforePhysics`);
-  const afterStepParts = [...systems.keys()].map((type) => `system.${type}.afterStep`);
+  const beforeStepParts = orderedNames.map((type) => `system.${type}.beforeStep`);
+  const beforePhysicsParts = orderedNames.map((type) => `system.${type}.beforePhysics`);
+  const afterStepParts = orderedNames.map((type) => `system.${type}.afterStep`);
+  /** The write flush is the tilemap system's end-of-step work, so the profiler lists it under that system. */
+  const tilesPart = tilemaps ? afterStepParts[ordered.indexOf(tilemaps)]! : "";
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
   const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
@@ -866,7 +889,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         byId.set(e.id, e);
         authored.add(e.id);
       }
-      gridState.tilesChanged();
+      gridState.tilesLoaded();
       lifecycle.link(next.entities);
       lifecycle.ready(spawned);
       const offset = playOpts?.timeOffsetMs ?? 0;
@@ -1125,7 +1148,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       }
       if (tilemaps) {
         if (tilemaps.flushWrites()) gridState.tilesChanged();
-        timed?.lap("lifecycle");
+        timed?.lap(tilesPart);
       }
     } finally {
       stepping = false;
@@ -1156,7 +1179,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   function stats(): RuntimeStats {
     const perType: Record<EntityTypeName, number> = {};
     for (const [type, system] of systems) {
-      const n = system.size();
+      const n = isTilemapSystem(system)
+        ? system.list().filter((e) => e.type === type).length
+        : system.size();
       if (n > 0) perType[type] = n;
     }
     const physics = ctx.physics;
@@ -1532,7 +1557,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const states = systemsSaved[id];
       if (states) restoreRegistered(id, states);
     }
-    gridState.tilesChanged();
+    gridState.tilesLoaded();
     placeRestoredColliders();
     const watches = systemsSaved[SAVE_CONTACTS_KEY]?.watches;
     contacts.restore((watches ?? []) as unknown as SavedTouch[][]);
@@ -1670,7 +1695,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     timings: () => windowed?.view() ?? null,
     reloadAssets(next, changed) {
       project = next;
-      return behaviors.reloadAssets(changed).map(({ entityId, error, reattached }) => ({
+      const failed = [
+        ...(tilemaps?.reloadAssets(changed) ?? []),
+        ...behaviors.reloadAssets(changed),
+      ];
+      if (tilemaps) gridState.tilesChanged();
+      return failed.map(({ entityId, error, reattached }) => ({
         entityId,
         error: errorText(error),
         reattached,

@@ -4,9 +4,11 @@ import { describe, expect, it } from "vite-plus/test";
 import { pivotRegistry } from "../../__tests__/fixtures/pivot-game";
 import { createRegistry } from "../../game/define";
 import { isNodeTypeIn } from "../../game/primitives";
+import { decodeCell, encodeCell } from "../../game/tile-cell";
 import type { Registry } from "../../game/types";
 import { diffToOps } from "../diff-to-ops";
 import { formatScene } from "../format";
+import { gridCellBounds, paintGrid, readCell, type GridCells } from "../grid";
 import { sceneHash } from "../hash";
 import { applyOps } from "../ops";
 import { prefabLibrary } from "../prefab";
@@ -348,6 +350,60 @@ describe("reparent", () => {
       expect(issue.hint).toContain("hall-1");
       ok(run(def, [{ op: "reparent", refs: ["lamp"], parent: "hall-1/door-1/panel" }], prefabs));
     });
+  });
+});
+
+describe("reparent of a tilemap", () => {
+  const tile = (id: number, flips: { flipX?: boolean; flipY?: boolean; flipD?: boolean } = {}) =>
+    encodeCell({ id, flipX: false, flipY: false, flipD: false, ...flips });
+  const def = scene({
+    settings: { grid: { kind: "square", cell: [32, 32] } },
+    entities: [
+      { id: "pivot", type: "node", at: [64, 32], rot: 90, flip: true },
+      {
+        id: "map",
+        type: "tilemap",
+        at: [32, 0],
+        tileset: "ts",
+        cells: paintGrid(
+          {},
+          {
+            cells: [
+              [0, 0, tile(0)],
+              [2, 0, tile(1, { flipX: true })],
+              [1, 1, tile(2, { flipD: true })],
+              [3, 2, tile(3, { flipY: true, flipD: true })],
+            ],
+          },
+        ).grid,
+        parent: "pivot",
+      },
+    ],
+  });
+
+  /** The map's world cells, each decoded with its flips. */
+  function worldTiles(d: SceneDefinition) {
+    const e = resolveScene(d, engine).entities?.find((x) => x.id === "map");
+    const cells = e?.cells as GridCells;
+    const b = gridCellBounds(cells)!;
+    const out: unknown[] = [];
+    for (let r = b.r0; r <= b.r1; r++)
+      for (let c = b.c0; c <= b.c1; c++) {
+        const t = decodeCell(readCell(cells, c, r));
+        if (t) out.push([c, r, t]);
+      }
+    return { at: e?.at, tiles: out };
+  }
+
+  it("keeps its world cells and their flips out of a quarter-turned, mirrored parent and back", () => {
+    const out = roundTrip(def, [{ op: "reparent", refs: ["map"], parent: null }]);
+    expect((byId(out.def, "map") as EntityDef).parent).toBeUndefined();
+    expect(worldTiles(out.def)).toEqual(worldTiles(def));
+    expect(worldTiles(def).tiles).toHaveLength(4);
+
+    const back = roundTrip(out.def, [{ op: "reparent", refs: ["map"], parent: "pivot" }]);
+    expect(worldTiles(back.def)).toEqual(worldTiles(def));
+    expect(text(back.def)).toBe(text(def));
   });
 });
 

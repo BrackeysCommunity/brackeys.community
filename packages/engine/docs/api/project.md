@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ANIMATION_KIND`](#animation_kind) · [`ANIMATION_SCHEMA_ID`](#animation_schema_id) · [`ANIMATION_VERSION`](#animation_version) · [`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AnimFrameDef`](#animframedef) · [`AnimationFile`](#animationfile) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetFiles`](#assetfiles) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BUS_NAME_PATTERN`](#bus_name_pattern) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`Bmfont`](#bmfont) · [`BmfontDistanceField`](#bmfontdistancefield) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CLIP_LOOPS`](#clip_loops) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`ClipDef`](#clipdef) · [`ClipLoop`](#cliploop) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`CodePointRanges`](#codepointranges) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DIALOGUE_KIND`](#dialogue_kind) · [`DIALOGUE_SCHEMA_ID`](#dialogue_schema_id) · [`DIALOGUE_VERSION`](#dialogue_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DialogueChoice`](#dialoguechoice) · [`DialogueCondition`](#dialoguecondition) · [`DialogueEffect`](#dialogueeffect) · [`DialogueExit`](#dialogueexit) · [`DialogueFile`](#dialoguefile) · [`DialogueLine`](#dialogueline) · [`DialogueNode`](#dialoguenode) · [`DialoguePortrait`](#dialogueportrait) · [`DialogueSpeaker`](#dialoguespeaker) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocLookup`](#doclookup) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`EMITTER_KIND`](#emitter_kind) · [`EMITTER_MAX_CAP`](#emitter_max_cap) · [`EMITTER_MAX_DEFAULT`](#emitter_max_default) · [`EMITTER_SCHEMA_ID`](#emitter_schema_id) · [`EMITTER_VERSION`](#emitter_version) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`ENGINE_BUSES`](#engine_buses) · [`EditSceneOp`](#editsceneop) · [`EmitterCurve`](#emittercurve) · [`EmitterFile`](#emitterfile) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontDecompress`](#fontdecompress) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`LOCALE_PATTERN`](#locale_pattern) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`LocaleSettings`](#localesettings) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`MergedStringRow`](#mergedstringrow) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`Reinspection`](#reinspection) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SHAPE_SET_NAME`](#shape_set_name) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SOUND_KIND`](#sound_kind) · [`SOUND_MAX_VOICES_DEFAULT`](#sound_max_voices_default) · [`SOUND_SCHEMA_ID`](#sound_schema_id) · [`SOUND_VERSION`](#sound_version) · [`STRINGS_KIND`](#strings_kind) · [`STRINGS_SCHEMA_ID`](#strings_schema_id) · [`STRINGS_VERSION`](#strings_version) · [`STRING_KEY_PATTERN`](#string_key_pattern) · [`STRING_NOTE_FIELD`](#string_note_field) · [`SYNTH_BOUNDS`](#synth_bounds) · [`SYNTH_KIND`](#synth_kind) · [`SYNTH_LFO_WAVES`](#synth_lfo_waves) · [`SYNTH_OSC_WAVES`](#synth_osc_waves) · [`SYNTH_SCHEMA_ID`](#synth_schema_id) · [`SYNTH_VERSION`](#synth_version) · [`SYNTH_WAVES`](#synth_waves) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionFitIssue`](#sceneversionfitissue) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneVersionSource`](#sceneversionsource) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`SoundFile`](#soundfile) · [`SoundMatcher`](#soundmatcher) · [`StringKeyUse`](#stringkeyuse) · [`StringRow`](#stringrow) · [`StringsFile`](#stringsfile) · [`SynthAdsr`](#synthadsr) · [`SynthFile`](#synthfile) · [`SynthLfoWave`](#synthlfowave) · [`SynthNumberPath`](#synthnumberpath) · [`SynthOsc`](#synthosc) · [`SynthOscWave`](#synthoscwave) · [`SynthWave`](#synthwave) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`animationIssues`](#animationissues) · [`animationKind`](#animationkind) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioBuses`](#audiobuses) · [`audioChannelsText`](#audiochannelstext) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`byPathThenKey`](#bypaththenkey) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`cmapCoverage`](#cmapcoverage) · [`codeKind`](#codekind) · [`codePointRanges`](#codepointranges-1) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`dialogueDeadEnd`](#dialoguedeadend) · [`dialogueExits`](#dialogueexits) · [`dialogueIssues`](#dialogueissues) · [`dialogueKind`](#dialoguekind) · [`dialogueNodes`](#dialoguenodes) · [`dialogueRefs`](#dialoguerefs) · [`dialogueStringIssues`](#dialoguestringissues) · [`docKindJsonSchema`](#dockindjsonschema) · [`docLookup`](#doclookup-1) · [`docLookupOf`](#doclookupof) · [`docNameOf`](#docnameof) · [`emitterIssues`](#emitterissues) · [`emitterKind`](#emitterkind) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontCoverage`](#fontcoverage) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`fontTable`](#fonttable) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isMetaStale`](#ismetastale) · [`isPlainObject`](#isplainobject) · [`isRuntimeKind`](#isruntimekind) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`kindMetaVersion`](#kindmetaversion) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`liveFiles`](#livefiles) · [`localeFont`](#localefont) · [`localeSettingsOf`](#localesettingsof) · [`localeTagProblem`](#localetagproblem) · [`loopPastEnd`](#looppastend) · [`manifestDocRefs`](#manifestdocrefs) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`mergeRanges`](#mergeranges) · [`mergedStrings`](#mergedstrings) · [`missingStringKeys`](#missingstringkeys) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectLocales`](#projectlocales) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`reachableNodes`](#reachablenodes) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readReleaseScene`](#readreleasescene) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`reinspectBlob`](#reinspectblob) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeKindNames`](#runtimekindnames) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionDataBytes`](#sceneversiondatabytes) · [`sceneVersionFitIssue`](#sceneversionfitissue-1) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionOptions`](#sceneversionoptions) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarMetaVersion`](#sidecarmetaversion) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`soundKind`](#soundkind) · [`stableJson`](#stablejson) · [`stringKeyIssues`](#stringkeyissues) · [`stringLocales`](#stringlocales) · [`stringsKind`](#stringskind) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`synthKind`](#synthkind) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`usedStringKeys`](#usedstringkeys) · [`utf8Bytes`](#utf8bytes) · [`validateAssetDoc`](#validateassetdoc) · [`validateProject`](#validateproject) · [`withReinspectedMeta`](#withreinspectedmeta) · [`writesPrefabs`](#writesprefabs)
+[`ANIMATION_KIND`](#animation_kind) · [`ANIMATION_SCHEMA_ID`](#animation_schema_id) · [`ANIMATION_VERSION`](#animation_version) · [`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AnimFrameDef`](#animframedef) · [`AnimationFile`](#animationfile) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetFiles`](#assetfiles) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`AutotileRule`](#autotilerule) · [`BUS_NAME_PATTERN`](#bus_name_pattern) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`Bmfont`](#bmfont) · [`BmfontDistanceField`](#bmfontdistancefield) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CLIP_LOOPS`](#clip_loops) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`ClipDef`](#clipdef) · [`ClipLoop`](#cliploop) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`CodePointRanges`](#codepointranges) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DIALOGUE_KIND`](#dialogue_kind) · [`DIALOGUE_SCHEMA_ID`](#dialogue_schema_id) · [`DIALOGUE_VERSION`](#dialogue_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DialogueChoice`](#dialoguechoice) · [`DialogueCondition`](#dialoguecondition) · [`DialogueEffect`](#dialogueeffect) · [`DialogueExit`](#dialogueexit) · [`DialogueFile`](#dialoguefile) · [`DialogueLine`](#dialogueline) · [`DialogueNode`](#dialoguenode) · [`DialoguePortrait`](#dialogueportrait) · [`DialogueSpeaker`](#dialoguespeaker) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocLookup`](#doclookup) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`EMITTER_KIND`](#emitter_kind) · [`EMITTER_MAX_CAP`](#emitter_max_cap) · [`EMITTER_MAX_DEFAULT`](#emitter_max_default) · [`EMITTER_SCHEMA_ID`](#emitter_schema_id) · [`EMITTER_VERSION`](#emitter_version) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`ENGINE_BUSES`](#engine_buses) · [`EditSceneOp`](#editsceneop) · [`EmitterCurve`](#emittercurve) · [`EmitterFile`](#emitterfile) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontDecompress`](#fontdecompress) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`LOCALE_PATTERN`](#locale_pattern) · [`LdtkImportOptions`](#ldtkimportoptions) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`LocaleSettings`](#localesettings) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`MergedStringRow`](#mergedstringrow) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`Reinspection`](#reinspection) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SHAPE_SET_NAME`](#shape_set_name) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SOUND_KIND`](#sound_kind) · [`SOUND_MAX_VOICES_DEFAULT`](#sound_max_voices_default) · [`SOUND_SCHEMA_ID`](#sound_schema_id) · [`SOUND_VERSION`](#sound_version) · [`STRINGS_KIND`](#strings_kind) · [`STRINGS_SCHEMA_ID`](#strings_schema_id) · [`STRINGS_VERSION`](#strings_version) · [`STRING_KEY_PATTERN`](#string_key_pattern) · [`STRING_NOTE_FIELD`](#string_note_field) · [`SYNTH_BOUNDS`](#synth_bounds) · [`SYNTH_KIND`](#synth_kind) · [`SYNTH_LFO_WAVES`](#synth_lfo_waves) · [`SYNTH_OSC_WAVES`](#synth_osc_waves) · [`SYNTH_SCHEMA_ID`](#synth_schema_id) · [`SYNTH_VERSION`](#synth_version) · [`SYNTH_WAVES`](#synth_waves) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionFitIssue`](#sceneversionfitissue) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneVersionSource`](#sceneversionsource) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`SoundFile`](#soundfile) · [`SoundMatcher`](#soundmatcher) · [`StringKeyUse`](#stringkeyuse) · [`StringRow`](#stringrow) · [`StringsFile`](#stringsfile) · [`SynthAdsr`](#synthadsr) · [`SynthFile`](#synthfile) · [`SynthLfoWave`](#synthlfowave) · [`SynthNumberPath`](#synthnumberpath) · [`SynthOsc`](#synthosc) · [`SynthOscWave`](#synthoscwave) · [`SynthWave`](#synthwave) · [`TEXTURE_KIND`](#texture_kind) · [`TILESET_KIND`](#tileset_kind) · [`TILESET_SCHEMA_ID`](#tileset_schema_id) · [`TILESET_VERSION`](#tileset_version) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`TileDef`](#tiledef) · [`TileGridInfo`](#tilegridinfo) · [`TileImport`](#tileimport) · [`TiledImportOptions`](#tiledimportoptions) · [`TilemapRecord`](#tilemaprecord) · [`TilesetFile`](#tilesetfile) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`animationIssues`](#animationissues) · [`animationKind`](#animationkind) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioBuses`](#audiobuses) · [`audioChannelsText`](#audiochannelstext) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`byPathThenKey`](#bypaththenkey) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`cmapCoverage`](#cmapcoverage) · [`codeKind`](#codekind) · [`codePointRanges`](#codepointranges-1) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`dialogueDeadEnd`](#dialoguedeadend) · [`dialogueExits`](#dialogueexits) · [`dialogueIssues`](#dialogueissues) · [`dialogueKind`](#dialoguekind) · [`dialogueNodes`](#dialoguenodes) · [`dialogueRefs`](#dialoguerefs) · [`dialogueStringIssues`](#dialoguestringissues) · [`docKindJsonSchema`](#dockindjsonschema) · [`docLookup`](#doclookup-1) · [`docLookupOf`](#doclookupof) · [`docNameOf`](#docnameof) · [`emitterIssues`](#emitterissues) · [`emitterKind`](#emitterkind) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontCoverage`](#fontcoverage) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`fontTable`](#fonttable) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isMetaStale`](#ismetastale) · [`isPlainObject`](#isplainobject) · [`isRuntimeKind`](#isruntimekind) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`kindMetaVersion`](#kindmetaversion) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`liveFiles`](#livefiles) · [`localeFont`](#localefont) · [`localeSettingsOf`](#localesettingsof) · [`localeTagProblem`](#localetagproblem) · [`loopPastEnd`](#looppastend) · [`manifestDocRefs`](#manifestdocrefs) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`mergeRanges`](#mergeranges) · [`mergedStrings`](#mergedstrings) · [`missingStringKeys`](#missingstringkeys) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectLocales`](#projectlocales) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`reachableNodes`](#reachablenodes) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readReleaseScene`](#readreleasescene) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`reinspectBlob`](#reinspectblob) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeKindNames`](#runtimekindnames) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionDataBytes`](#sceneversiondatabytes) · [`sceneVersionFitIssue`](#sceneversionfitissue-1) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionOptions`](#sceneversionoptions) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarMetaVersion`](#sidecarmetaversion) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`soundKind`](#soundkind) · [`stableJson`](#stablejson) · [`stringKeyIssues`](#stringkeyissues) · [`stringLocales`](#stringlocales) · [`stringsKind`](#stringskind) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`synthKind`](#synthkind) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`tilemapIssues`](#tilemapissues) · [`tilesetImageInfo`](#tilesetimageinfo) · [`tilesetIssues`](#tilesetissues) · [`tilesetSchema`](#tilesetschema) · [`tilesetSchemaFor`](#tilesetschemafor) · [`tilesetTileCount`](#tilesettilecount) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`usedStringKeys`](#usedstringkeys) · [`utf8Bytes`](#utf8bytes) · [`validateAssetDoc`](#validateassetdoc) · [`validateProject`](#validateproject) · [`withReinspectedMeta`](#withreinspectedmeta) · [`writesPrefabs`](#writesprefabs)
 
 ## `ANIMATION_KIND`
 
@@ -480,6 +480,23 @@ type AudioSettings = {
     loopStart?: number;
     /** Play through a media element instead of decoding whole. */
     stream?: boolean;
+};
+```
+
+## `AutotileRule`
+
+_type_ in `project/kinds/tileset.ts`
+
+```ts
+type AutotileRule = {
+    fallback: number;
+    id: string;
+    /** blob47: 8-neighbour masks reduced to Tiled's 47; edge16: 4-neighbour masks. */
+    kind: "blob47" | "edge16";
+    /** The terrain this rule paints; cells whose tile has this tag count as neighbours. */
+    terrain: string;
+    /** Mask (as a decimal string) → tile id. */
+    tiles: Readonly<Record<string, number>>;
 };
 ```
 
@@ -1885,6 +1902,35 @@ A locale column's name: a BCP 47 tag such as `en`, `fr` or `pt-BR`.
 ```ts
 declare const LOCALE_PATTERN: RegExp;
 ```
+
+## `LdtkImportOptions`
+
+_type_ in `tiles/import-ldtk.ts`
+
+```ts
+type LdtkImportOptions = {
+    /** Tileset image bytes to import, by `relPath`, for images not in `images`. */
+    files?: ReadonlyMap<string, Uint8Array>;
+    /** The game the scenes are for; omitted writes engine-only scenes. */
+    game?: string;
+    /** SHA-256 of bytes the import generates or copies, as the content store names them. */
+    hash: (bytes: Uint8Array) => Sha256;
+    /** Tileset images already in the project, by the `relPath` the world gives them. */
+    images?: ReadonlyMap<string, AssetId>;
+    /** Level names to import; omitted imports every level. */
+    levels?: readonly string[];
+    licence?: Licence;
+    project: ProjectView;
+    /** Px per metre of the game the world imports into: LDtk px are divided by it. */
+    pxPerMetre: number;
+    /** Folder for the scenes, ending in "/"; default "scenes/". */
+    sceneFolder?: string;
+    /** Folder for tilesets and their images, ending in "/"; default "tilesets/". */
+    tilesetFolder?: string;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`Licence`](#licence), [`ProjectView`](#projectview), [`Sha256`](#sha256).
 
 ## `Licence`
 
@@ -3910,6 +3956,88 @@ _const_ in `project/kinds/texture.ts`
 declare const TEXTURE_KIND = "texture";
 ```
 
+## `TILESET_KIND`
+
+_const_ in `project/kinds/tileset.ts`
+
+```ts
+declare const TILESET_KIND: {
+    defaultFolder: () => string;
+    description: string;
+    empty: (_env: KindEnv, init: {
+        id: AssetId;
+    }) => TilesetFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            rules: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    fields: {
+                        tiles: {
+                            as: "map";
+                            rest: {
+                                as: "atomic";
+                            };
+                        };
+                    };
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+            tiles: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: TilesetFile) => RefSite[];
+    runtime: "sim";
+    schema: (env: KindEnv) => z.ZodType<TilesetFile, unknown, z.core.$ZodTypeInternals<TilesetFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: TilesetFile, env: KindEnv) => SceneIssue[];
+    version: number;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`KindEnv`](#kindenv), [`RefSite`](#refsite), [`TilesetFile`](#tilesetfile).
+
+## `TILESET_SCHEMA_ID`
+
+_const_ in `project/kinds/tileset.ts`
+
+```ts
+declare const TILESET_SCHEMA_ID = "urn:jams-engine:tileset:v1";
+```
+
+## `TILESET_VERSION`
+
+_const_ in `project/kinds/tileset.ts`
+
+```ts
+declare const TILESET_VERSION = 1;
+```
+
 ## `TextureFormat`
 
 _type_ in `project/kinds/texture.ts`
@@ -3966,6 +4094,131 @@ type ThirdPartyLicence = {
     version: string;
 };
 ```
+
+## `TileDef`
+
+_type_ in `project/kinds/tileset.ts`
+
+One tile's data, keyed by its id in the image (row-major from the top left).
+
+```ts
+type TileDef = {
+    /** Frames by tile id, drawn only. */
+    animation?: readonly {
+        ms: number;
+        tile: number;
+    }[];
+    /** Path cost on grids, 10 = one step; default 10; ignored when solid. */
+    cost?: number;
+    data?: Readonly<Record<string, JsonValue>>;
+    id: number;
+    material?: AssetId;
+    /** One-way solids pass from the opposite side (the grid's oneWay direction). */
+    oneWay?: "down" | "left" | "right" | "up";
+    /** Collision shapes in tile px instead of the full square; divided by px per metre when colliders build. */
+    shapes?: readonly ShapeTuple[];
+    solid?: boolean;
+    tags?: readonly string[];
+};
+```
+
+Refers to [`AssetId`](#assetid).
+
+## `TileGridInfo`
+
+_type_ in `project/kinds/tileset.ts`
+
+What `tilemapIssues` needs to know of the scene grid: its settings and the game's px per metre.
+
+```ts
+type TileGridInfo = {
+    pxPerMetre: number;
+    settings: GridSettings;
+};
+```
+
+## `TileImport`
+
+_type_ in `tiles/import-tiled.ts`
+
+```ts
+type TileImport = {
+    /** What was dropped and why: image layers, object types with no mapping, isometric maps. */
+    notes: readonly SceneIssue[];
+    ops: readonly ProjectOp[];
+};
+```
+
+Refers to [`ProjectOp`](#projectop).
+
+## `TiledImportOptions`
+
+_type_ in `tiles/import-tiled.ts`
+
+```ts
+type TiledImportOptions = {
+    /** Where new tilesets and images go; default "tilesets/". */
+    folder?: string;
+    /**
+     * Tileset images whose bytes are in the content store, keyed by the path
+     * as the tileset writes it; each becomes an `importAsset`. An image left
+     * out must already be in the project, at that path or in `folder`.
+     */
+    images?: ReadonlyMap<string, {
+        bytes: number;
+        sha256: Sha256;
+    }>;
+    licence?: Licence;
+    project: ProjectView;
+    /** Px per metre of the game the map imports into: map px are divided by it. */
+    pxPerMetre: number;
+    scene: AssetId;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`Licence`](#licence), [`ProjectView`](#projectview), [`Sha256`](#sha256).
+
+## `TilemapRecord`
+
+_type_ in `project/kinds/tileset.ts`
+
+A tilemap entity as its cells are judged: its id, the tileset it names and its cells.
+
+```ts
+type TilemapRecord = {
+    cells?: GridCells;
+    id: string;
+    tileset?: AssetId;
+};
+```
+
+Refers to [`AssetId`](#assetid).
+
+## `TilesetFile`
+
+_type_ in `project/kinds/tileset.ts`
+
+```ts
+type TilesetFile = {
+    $schema?: string;
+    columns: number;
+    /** A texture or an atlas. */
+    image: AssetId;
+    kind: "tileset";
+    margin?: number;
+    rules?: AutotileRule[];
+    spacing?: number;
+    /** Tile size in image px; must equal the scene grid's cell × the game's px per metre. */
+    tile: [
+        number,
+        number
+    ];
+    tiles?: TileDef[];
+    v: 1;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`AutotileRule`](#autotilerule), [`TileDef`](#tiledef).
 
 ## `UNLIMITED_QUOTA`
 
@@ -6884,7 +7137,7 @@ A level: entities, instances and bulk geometry, co-edited per entity and field t
 
 ```ts
 declare const sceneKind: {
-    crossValidate: (def: SceneDefinition, lookup: DocLookup) => SceneIssue[];
+    crossValidate: (def: SceneDefinition, lookup: DocLookup, env: KindEnv) => SceneIssue[];
     defaultFolder: (_env: KindEnv, near: string | undefined) => string;
     description: string;
     empty: (env: KindEnv, { id }: {
@@ -7535,6 +7788,86 @@ declare const textureSettingsSchema: z.ZodType<TextureSettings>;
 ```
 
 Refers to [`TextureSettings`](#texturesettings).
+
+## `tilemapIssues`
+
+_function_ in `project/kinds/tileset.ts`
+
+The one tilemap rule: `tileset-missing` (no tileset, or none readable),
+`tileset-grid-mismatch` (tile px ≠ grid cell × px per metre) and
+`tile-unknown` for each cell value beyond the image's tiles, at its
+first cell in row-major order. `pointer` is the entity's JSON Pointer
+in its document, for the issues' paths. The tileset's own rule and frame tiles
+are `tilesetIssues`'. The scene kind's cross-validation, the tilemap
+system's spawn and the CLI call it.
+
+```ts
+declare function tilemapIssues(entity: TilemapRecord, tileset: TilesetFile | undefined, imageInfo: Pick<AssetInfo, "size"> | null, grid: TileGridInfo | null, pointer?: string): SceneIssue[];
+```
+
+Refers to [`AssetInfo`](#assetinfo), [`TileGridInfo`](#tilegridinfo), [`TilemapRecord`](#tilemaprecord), [`TilesetFile`](#tilesetfile).
+
+## `tilesetImageInfo`
+
+_function_ in `project/kinds/tileset.ts`
+
+The image of a tileset: a texture's info, or for an atlas its texture's.
+
+```ts
+declare function tilesetImageInfo(view: ProjectView | null, image: AssetId): AssetInfo | null;
+```
+
+Refers to [`AssetId`](#assetid), [`AssetInfo`](#assetinfo), [`ProjectView`](#projectview).
+
+## `tilesetIssues`
+
+_function_ in `project/kinds/tileset.ts`
+
+`tile-unknown` for each autotile rule tile and animation frame beyond
+the image's tiles; the tileset doc's own half of the tile rule.
+
+```ts
+declare function tilesetIssues(tileset: TilesetFile, imageInfo: Pick<AssetInfo, "size"> | null): SceneIssue[];
+```
+
+Refers to [`AssetInfo`](#assetinfo), [`TilesetFile`](#tilesetfile).
+
+## `tilesetSchema`
+
+_const_ in `project/kinds/tileset.ts`
+
+The tileset schema without a game's `tileData`.
+
+```ts
+declare const tilesetSchema: z.ZodType<TilesetFile, unknown, z.core.$ZodTypeInternals<TilesetFile, unknown>>;
+```
+
+Refers to [`TilesetFile`](#tilesetfile).
+
+## `tilesetSchemaFor`
+
+_const_ in `project/kinds/tileset.ts`
+
+The tileset schema, each tile's `data` judged by `tileData` when a game declares it.
+
+```ts
+declare const tilesetSchemaFor: (tileData?: z.ZodRawShape) => z.ZodType<TilesetFile>;
+```
+
+Refers to [`TilesetFile`](#tilesetfile).
+
+## `tilesetTileCount`
+
+_function_ in `project/kinds/tileset.ts`
+
+How many tiles the tileset's image holds: `columns` by the rows its
+height fits after margin and spacing. Null without the image's size.
+
+```ts
+declare function tilesetTileCount(tileset: TilesetFile, imageInfo: Pick<AssetInfo, "size"> | null): null | number;
+```
+
+Refers to [`AssetInfo`](#assetinfo), [`TilesetFile`](#tilesetfile).
 
 ## `unreferencedBlobs`
 

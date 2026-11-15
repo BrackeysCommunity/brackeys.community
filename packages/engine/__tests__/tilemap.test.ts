@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
-import { createRegistry } from "../game/define";
+import { createRegistry, defineEntityType, defineGame } from "../game/define";
+import { primitiveFields } from "../game/primitives";
 import {
   decodeCell,
   encodeCell,
@@ -42,10 +43,17 @@ import { createSceneRuntime, saveHostOf } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { formatScene } from "../scene/format";
-import { encodeRow, paintGrid, type CellEdit, type CellRect, type GridCells } from "../scene/grid";
+import {
+  encodeRow,
+  GRID_CHUNK,
+  paintGrid,
+  type CellEdit,
+  type CellRect,
+  type GridCells,
+} from "../scene/grid";
 import { undescribedProperties } from "../scene/json-schema";
 import { parseScene } from "../scene/parse";
-import type { ExpandedScene, RuntimeEntity, SceneDefinition } from "../scene/types";
+import type { ExpandedScene, RuntimeEntity, SceneDefinition, ShapeObj } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { TilemapSystem } from "../systems/tilemap";
 import type { RapierModule } from "../types";
@@ -800,6 +808,203 @@ describe("ctx.tiles and runtime writes", () => {
     expect(hitAt(rt, 5, 10)).toBe(false);
     expect(hitAt(rt, 85, 10)).toBe(false);
     expect(system.save!("m")).toEqual([[85, 10, 0]]);
+    rt.destroy();
+  });
+
+  const FLOOR = defineEntityType({
+    type: "floor",
+    description: "A game's own tilemap type.",
+    base: "tilemap",
+    fields: (env) => primitiveFields("tilemap", env),
+  });
+  const floorGame = defineGame({ ...testGame, types: [...testGame.types, FLOOR] });
+
+  /** A project whose tileset doc and image hash are read from `state` at each call. */
+  function liveProject(state: { tileset: TilesetFile; sha: string }): ProjectRuntimeView {
+    return {
+      ...project,
+      asset: (id) =>
+        id === "texture-tiles"
+          ? { id, kind: "texture", sha256: state.sha, size: [TILE_PX * 4, TILE_PX] }
+          : undefined,
+      doc: (<T>(kind: string, id: string) =>
+        kind === "tileset" && id === "tileset-test"
+          ? (state.tileset as T)
+          : undefined) as ProjectRuntimeView["doc"],
+    };
+  }
+
+  function start(
+    entities: RuntimeEntity[],
+    opts: { game?: typeof testGame; view?: unknown; project?: ProjectRuntimeView } = {},
+  ) {
+    const rt = createSceneRuntime({
+      rapier,
+      view: (opts.view ?? null) as never,
+      game: opts.game ?? testGame,
+      project: opts.project ?? project,
+    });
+    const report = rt.load(expanded(entities));
+    if (!report.ok) throw new Error(report.error);
+    return rt;
+  }
+
+  const cellBox = (col: number, row: number): ShapeObj => ({
+    type: "box",
+    cx: (col + 0.5) * CELL,
+    cy: (row + 0.5) * CELL,
+    hw: 0.01,
+    hh: 0.01,
+    rotDeg: 0,
+  });
+
+  it("gives a type based on tilemap the same reads, writes, flush and grid as tilemap", () => {
+    const costly: TilesetFile = {
+      ...tileset,
+      tiles: [
+        { id: 0, solid: true, tags: ["rock"] },
+        { id: 1, tags: ["mud"], cost: 30 },
+      ],
+    };
+    const rt = start(
+      [
+        map("plain", grid({ cells: [[0, 0, ROCK]] })),
+        { ...map("own", grid({ cells: [[2, 0, MUD]] })), type: "floor" },
+      ],
+      { game: floorGame, project: liveProject({ tileset: costly, sha: "a".repeat(64) }) },
+    );
+    expect(rt.ctx.system("floor")).toBe(rt.ctx.system("tilemap"));
+    expect(rt.ctx.tiles.at([2, 0]).map((t) => t.map)).toEqual(["own"]);
+    expect(rt.ctx.tiles.get("own", [2, 0])).toBe(MUD);
+    expect(rt.ctx.grid!.passable([0, 0])).toBe(false);
+    expect(rt.ctx.grid!.cost!([1, 0], [2, 0])).toBe(20);
+
+    rt.ctx.tiles.paint("own", { cells: [[4, 0, ROCK]] });
+    rt.step(DT, []);
+    expect(hitAt(rt, 4, 0)).toBe(true);
+    expect(rt.ctx.grid!.passable([4, 0])).toBe(false);
+    expect(rt.ctx.tiles.find("own", "rock")).toEqual([[4, 0]]);
+    expect(rt.stats().perType).toMatchObject({ tilemap: 1, floor: 1 });
+    rt.destroy();
+  });
+
+  it("re-reads only the chunks a runtime write rebuilt into the grid", () => {
+    const rt = start([
+      map(
+        "m",
+        grid({
+          rects: [
+            [0, 10, 9, 10, ROCK],
+            [GRID_CHUNK, 10, GRID_CHUNK + 9, 10, MUD],
+          ],
+        }),
+      ),
+    ]);
+    const system = rt.ctx.system<TilemapSystem>("tilemap")!;
+    const at = vi.spyOn(system, "at");
+    const setWall = vi.spyOn(rt.ctx.grid!.occupancy, "setWall");
+    rt.ctx.tiles.paint("m", { cells: [[5, 10, 0]] });
+    rt.step(DT, []);
+    expect(at.mock.calls.length).toBeGreaterThan(0);
+    expect(at.mock.calls.every(([cell]) => cell[0] < GRID_CHUNK)).toBe(true);
+    expect(setWall.mock.calls).toEqual([[[5, 10], false]]);
+    expect(rt.ctx.grid!.passable([4, 10])).toBe(false);
+    rt.destroy();
+  });
+
+  it("follows a tileset edit and its image's reload, writes kept", () => {
+    const state = { tileset, sha: "a".repeat(64) };
+    const live = liveProject(state);
+    const calls: unknown[][] = [];
+    const view = new Proxy(
+      {},
+      {
+        get:
+          (_t, key: string) =>
+          (...args: unknown[]) => {
+            if (key === "layer") return { setVisible() {} };
+            calls.push([key, ...args]);
+          },
+      },
+    );
+    const m = map("m", grid({ cells: [[3, 0, MUD]] }));
+    const rt = start([m], { view, project: live });
+    rt.ctx.tiles.paint("m", { cells: [[6, 0, MUD]] });
+    rt.step(DT, []);
+    expect(hitAt(rt, 3, 0)).toBe(false);
+
+    state.tileset = {
+      ...tileset,
+      tiles: [
+        { id: 0, solid: true, tags: ["rock"] },
+        { id: 1, solid: true, tags: ["mud"] },
+      ],
+    };
+    expect(rt.reloadAssets(live, ["tileset-test"])).toEqual([]);
+    expect(hitAt(rt, 3, 0)).toBe(true);
+    expect(hitAt(rt, 6, 0)).toBe(true);
+    expect(rt.ctx.grid!.passable([6, 0])).toBe(false);
+
+    calls.length = 0;
+    state.sha = "c".repeat(64);
+    expect(rt.reloadAssets(live, ["texture-tiles"])).toEqual([]);
+    const drawn = calls.filter(([k]) => k === "tilemap");
+    expect(drawn.map(([, , visual]) => (visual as { image: string }).image)).toEqual([
+      "c".repeat(64),
+    ]);
+    expect(rt.ctx.tiles.get("m", [6, 0])).toBe(MUD);
+
+    // An editor update reads the tileset as it is now, not as the map was built.
+    state.tileset = tileset;
+    rt.update([
+      {
+        ...m,
+        cells: grid({
+          cells: [
+            [3, 0, MUD],
+            [4, 0, MUD],
+          ],
+        }),
+      },
+    ]);
+    expect(hitAt(rt, 3, 0)).toBe(false);
+    expect(hitAt(rt, 4, 0)).toBe(false);
+    rt.destroy();
+  });
+
+  it("reports a tileset that no longer loads on reload, and keeps the map as it was", () => {
+    const state = { tileset, sha: "a".repeat(64) };
+    const live = liveProject(state);
+    const rt = start([map("m", grid({ cells: [[3, 0, ROCK]] }))], { project: live });
+    state.tileset = { ...tileset, tile: [TILE_PX * 2, TILE_PX] };
+    const failed = rt.reloadAssets(live, ["tileset-test"]);
+    expect(failed.map((f) => f.entityId)).toEqual(["m"]);
+    expect(hitAt(rt, 3, 0)).toBe(true);
+    rt.destroy();
+  });
+
+  it("times the write flush under the tilemap system", () => {
+    let now = 0;
+    const rt = createSceneRuntime({
+      rapier,
+      view: null,
+      game: testGame,
+      project,
+      timings: { clock: () => (now += 1), window: 1 },
+    });
+    const report = rt.load(expanded([map("m", floor)]));
+    if (!report.ok) throw new Error(report.error);
+    rt.step(DT, []);
+    expect(rt.timings()!.systems.tilemap).toEqual({ mean: 1, max: 1 });
+    rt.destroy();
+  });
+
+  it("widens the map's area-query extent to cells painted at runtime", () => {
+    const rt = start([map("m", grid({ cells: [[0, 0, ROCK]] }))]);
+    expect(rt.ctx.query.inArea(cellBox(20, 0))).toEqual([]);
+    rt.ctx.tiles.paint("m", { cells: [[20, 0, ROCK]] });
+    rt.step(DT, []);
+    expect(rt.ctx.query.inArea(cellBox(20, 0))).toEqual(["m"]);
     rt.destroy();
   });
 });

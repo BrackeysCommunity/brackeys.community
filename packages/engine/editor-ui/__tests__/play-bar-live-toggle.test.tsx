@@ -18,6 +18,7 @@ import {
 } from "../panels/EditorPlayBar";
 import { LIVE_PLAY_IDLE, livePlayPending } from "../panels/LiveInPlayStatus";
 import { LIVE_PLAY_NOT_APPLIED, type LivePlayStatus } from "../session/live-scene-editor";
+import { pickSeams } from "./fixtures/play-pick";
 
 afterEach(() => {
   cleanup();
@@ -30,8 +31,15 @@ const UNAVAILABLE = "Live in Play needs a game; this scene picks up edits at Res
 function bar(unavailable: string | null = null) {
   const onLivePlay = vi.fn();
   const controls = {
-    game: { getStore: () => createGameStore(), resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+    game: {
+      ...pickSeams(),
+      getStore: () => createGameStore(),
+      resume: vi.fn(),
+      pause: vi.fn(),
+      step: vi.fn(),
+    },
     host: new Store({ sceneChanged: false, livePlay: { on: false, unavailable, status: null } }),
+    session: {},
     keymap: { chordOf: () => undefined },
     onStop: vi.fn(),
     onRestart: vi.fn(),
@@ -153,8 +161,15 @@ describe("the Live in Play toggle", () => {
       livePlay: { on: true, unavailable: null, status: null, checks: [] },
     });
     const controls = {
-      game: { getStore: () => createGameStore(), resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+      game: {
+        ...pickSeams(),
+        getStore: () => createGameStore(),
+        resume: vi.fn(),
+        pause: vi.fn(),
+        step: vi.fn(),
+      },
       host,
+      session: {},
       keymap: { chordOf: () => undefined },
       onStop: vi.fn(),
       onRestart: vi.fn(),
@@ -177,8 +192,15 @@ describe("the Live in Play toggle", () => {
       livePlay: { on: true, unavailable: null, status: failed, checks: [] },
     });
     const controls = {
-      game: { getStore: () => createGameStore(), resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+      game: {
+        ...pickSeams(),
+        getStore: () => createGameStore(),
+        resume: vi.fn(),
+        pause: vi.fn(),
+        step: vi.fn(),
+      },
       host,
+      session: {},
       keymap: { chordOf: () => undefined },
       onStop: vi.fn(),
       onRestart: vi.fn(),

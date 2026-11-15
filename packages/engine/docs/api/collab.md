@@ -1706,6 +1706,11 @@ Selection names entity keys, which stay put while bulk refs shift.
 
 ```ts
 type ScenePresence = {
+    /** The tile brush under its cursor: the tilemap's ref and the cells it covers, corners inclusive. */
+    brush?: {
+        map: string;
+        rect: CellBounds;
+    };
     /** World coordinates. */
     cursor?: Pt;
     /** Its responder also drives Play ("Let agents drive Play" is on), which ranks it first. */

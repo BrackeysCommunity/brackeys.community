@@ -834,7 +834,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_paint",
     title: "Paint a tilemap",
     description:
-      "Paint a tilemap entity's cells as one `paintCells` batch, as the CLI's `paint` does: exactly one of `cells` (`c,r=tile` each), `rect` (`c0,r0,c1,r1=tile` each), `fill` (`c,r=tile`, a bounded flood from the cell) or `auto` (`rule c0,r0,c1,r1`, the tileset's autotile rule over the rectangle). Columns and rows count from the map's origin; a tile is named by its id or a tag, and `0` clears. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. A tile no id or tag names is refused, writing nothing.",
+      "Paint a tilemap entity's cells as one `paintCells` batch, as the CLI's `paint` does: exactly one of `cells` (`c,r=tile` each), `rect` (`c0,r0,c1,r1=tile` each), `fill` (`c,r=tile`, a bounded flood from the cell) or `auto` (`rule c0,r0,c1,r1`: re-tiles the terrain cells already in the rectangle and its one-cell border by the tileset's autotile rule, as `ctx.tiles.autotile` does; paint terrain first). Columns and rows count from the map's origin; a tile is named by its id or a tag, `empty` (or `none`) clears, and `0` is tile 0. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. A tile no id or tag names is refused, writing nothing.",
     annotations: WRITE,
     input: {
       scene: sceneName,
@@ -845,7 +845,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       auto: z
         .string()
         .optional()
-        .describe("`rule c0,r0,c1,r1`: an autotile rule over a rectangle."),
+        .describe("`rule c0,r0,c1,r1`: re-tile the terrain in a rectangle by an autotile rule."),
       ...writerFields,
     },
     run: async (i, ctx) => {

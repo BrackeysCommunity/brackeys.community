@@ -56,7 +56,7 @@ export type PanelControls = Pick<
   | "playFrom"
   | "frame"
 > &
-  Partial<Pick<EditorControls, "game" | "rapier">> & {
+  Partial<Pick<EditorControls, "game" | "rapier" | "tools">> & {
     /** The host's publishing, when it publishes the project's releases. */
     publish?: EditorPublishHost;
   };
@@ -411,6 +411,7 @@ export const PANELS: readonly PanelDef[] = [
         session={controls.session}
         runtime={controls.project?.runtime ?? null}
         imageUrl={controls.project?.assetImage}
+        tools={controls.tools}
       />
     ),
     skeleton: rows(4),

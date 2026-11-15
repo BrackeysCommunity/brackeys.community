@@ -1,5 +1,5 @@
 import { TILEMAP_PRIMITIVE } from "../../game/primitives";
-import { decodeCell, encodeCell, transformCell, type TileTurn } from "../../game/tile-cell";
+import { encodeCell, transformCell, type TileTurn } from "../../game/tile-cell";
 import { TILE_TOOL_IDS, type Registry, type TileToolId } from "../../game/types";
 import {
   cellKey,
@@ -27,7 +27,7 @@ import type {
   SceneOp,
   ShapeObj,
 } from "../../scene/types";
-import { applyAutotile } from "../../tiles/autotile";
+import { applyAutotile, terrainTile } from "../../tiles/autotile";
 import {
   defineEditorTool,
   type EditorTool,
@@ -256,9 +256,10 @@ export function autotileRule(
 }
 
 /**
- * Terrain cells painted with the rule's fallback tile, then the rule's
- * tiles over their bounds and a one-cell border: one list of edits, each
- * cell once. A cell counts as terrain when its tile has the rule's tag.
+ * Terrain cells painted with the rule's terrain tile (`terrainTile`), then
+ * the rule's tiles over their bounds and a one-cell border: one list of
+ * edits, each cell once. A cell counts as terrain when its tile has the
+ * rule's tag; with no tile tagged so, there is nothing to paint.
  */
 export function autotileEdits(
   grid: GridCells,
@@ -266,14 +267,9 @@ export function autotileEdits(
   rule: AutotileRule,
   cells: readonly Cell[],
 ): CellEdit[] {
-  if (cells.length === 0) return [];
-  const ids = new Set<number>();
-  for (const def of tileset.tiles ?? []) if (def.tags?.includes(rule.terrain)) ids.add(def.id);
-  const isTerrain = (value: number) => {
-    const tile = decodeCell(value);
-    return tile !== null && ids.has(tile.id);
-  };
-  const terrain = encodeCell({ id: rule.fallback, flipX: false, flipY: false, flipD: false });
+  const id = terrainTile(tileset, rule);
+  if (cells.length === 0 || id === undefined) return [];
+  const terrain = encodeCell({ id, flipX: false, flipY: false, flipD: false });
   const painted = cells.map(([c, r]): CellEdit => [c, r, terrain]);
   const next = paintGrid(grid, { cells: painted }).grid;
   const rect = { ...boundsOf(cells[0]!, cells[0]!) };
@@ -284,7 +280,7 @@ export function autotileEdits(
     rect.r1 = Math.max(rect.r1, r);
   }
   const merged = new Map<number, CellEdit>();
-  for (const e of [...painted, ...applyAutotile(next, tileset, rule, rect, isTerrain)])
+  for (const e of [...painted, ...applyAutotile(next, tileset, rule, rect)])
     merged.set(cellKey([e[0], e[1]]), e);
   return [...merged.values()];
 }
@@ -538,8 +534,10 @@ function createTileTool(id: TileToolId, ctx: EditorToolContext): EditorTool {
     if (id === "tile-auto") {
       const tileset = tilesetOf(t);
       if (!tileset) return refuse(`${t.ref}'s tileset isn't open.`);
-      if (!autotileRule(tileset, ctx.tiles?.rule() ?? null))
-        return refuse(`${t.ref}'s tileset has no autotile rule to paint with.`);
+      const rule = autotileRule(tileset, ctx.tiles?.rule() ?? null);
+      if (!rule) return refuse(`${t.ref}'s tileset has no autotile rule to paint with.`);
+      if (terrainTile(tileset, rule) === undefined)
+        return refuse(`No tile in ${t.ref}'s tileset has the ${rule.terrain} tag to paint with.`);
     }
     if (id === "tile-rect" || id === "tile-pick")
       gesture = { kind: id === "tile-rect" ? "rect" : "pick", t, from: cell, to: cell };
