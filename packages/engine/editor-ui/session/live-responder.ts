@@ -8,6 +8,7 @@ import {
   type LiveRequest,
   type StatelessProvider,
 } from "../../collab/index";
+import { DEBUG_OFF } from "../../debug/index";
 import type { GameInstance, PlayOptions } from "../../index";
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
 import type { Pending } from "../pending/pending";
@@ -296,6 +297,54 @@ export async function renderFrame(
   return fitFrame(sized);
 }
 
+// ─── Debug layers ────────────────────────────────────────
+
+const DEBUG_KEY = "F3";
+/** More modes than any overlay cycles through, so a press that changes nothing can't loop forever. */
+const MAX_DEBUG_MODES = 64;
+
+/** Presses the debug overlay's F3 through the game's router, as the viewer would; the mode after it. */
+function pressDebugKey(game: Pick<GameInstance, "router" | "getStore">): string {
+  const native =
+    typeof KeyboardEvent === "function"
+      ? new KeyboardEvent("keydown", { key: DEBUG_KEY, code: DEBUG_KEY })
+      : ({ preventDefault() {} } as unknown as KeyboardEvent);
+  game.router.dispatch({ kind: "key", type: "down", key: DEBUG_KEY, code: DEBUG_KEY, native });
+  return game.getStore().state.debugMode;
+}
+
+/**
+ * Runs `run` with every debug layer showing, then puts the overlay back on
+ * the mode it was in. The overlay is only reachable through F3, so this
+ * cycles it once to learn its modes. Throws when the game has no overlay.
+ */
+export async function withDebugLayers<T>(
+  game: Pick<GameInstance, "router" | "getStore">,
+  run: () => Promise<T>,
+): Promise<T> {
+  const mode = () => game.getStore().state.debugMode;
+  const start = mode();
+  const cycle = [start];
+  for (let i = 0; i < MAX_DEBUG_MODES; i++) {
+    const next = pressDebugKey(game);
+    if (next === start) break;
+    cycle.push(next);
+  }
+  const pressUntil = (target: string) => {
+    for (let i = 0; i < MAX_DEBUG_MODES && mode() !== target; i++) pressDebugKey(game);
+  };
+  if (cycle.length === 1) throw new Error("This editor has no debug overlay to show.");
+  // Every layer before the shown one shows too, so the mode just before `off` shows them all.
+  const off = cycle.indexOf(DEBUG_OFF);
+  const all = cycle[(Math.max(0, off) + cycle.length - 1) % cycle.length] ?? start;
+  try {
+    pressUntil(all);
+    return await run();
+  } finally {
+    pressUntil(start);
+  }
+}
+
 // ─── The responder ───────────────────────────────────────
 
 const REQUEST_LABELS: Record<LiveRequest["t"], string> = {
@@ -417,7 +466,7 @@ export function attachEditorResponder(opts: EditorResponderOptions): () => void 
     enabled: opts.enabled,
     game: () => driven,
     render: async (req) => {
-      const pixels = await capture();
+      const pixels = await (req.opts.debug ? withDebugLayers(game, capture) : capture());
       if (!pixels) throw new Error("The editor's canvas can't be read.");
       const el = canvas();
       return renderFrame(pixels, req.opts, el ? canvasPxPerMetre(game, el) : null);

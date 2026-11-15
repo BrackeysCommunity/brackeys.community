@@ -169,6 +169,7 @@ import {
   type SeekWorld,
 } from "./runtime/seek";
 import { createRunTiming } from "./runtime/timing";
+import { createFrameTimings } from "./runtime/timings";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import { restoreWorld, snapshotWorld } from "./runtime/world-snapshot";
 import {
@@ -337,6 +338,11 @@ export async function createGame(
   const shellTiming = timing.scope("shell");
   const frameTiming = timing.scope("frame");
   const drawTiming = timing.scope("draw");
+  /** The shell's render and present time per frame, while timings are needed. */
+  const frameTimings = createFrameTimings();
+  /** A frame whose render was timed is open until the next one starts, so its present lands in it. */
+  let frameTimed = false;
+  let presentFrom = 0;
 
   const renderer = await createRenderer(canvas, cfg, resolution, {
     lost: (backend) => {
@@ -365,7 +371,16 @@ export async function createGame(
     },
     rebuilt: () => assets?.loader.reupload?.(),
     layer: () => flowLayer(),
-    draw: { begin: () => void drawTiming.begin(), end: () => drawTiming.end() },
+    draw: {
+      begin: () => {
+        drawTiming.begin();
+        if (frameTimed) presentFrom = performance.now();
+      },
+      end: () => {
+        drawTiming.end();
+        if (frameTimed) frameTimings.add("present", performance.now() - presentFrom);
+      },
+    },
   });
 
   // World metres to the policy's virtual px; nothing on the simulation side reads it.
@@ -632,7 +647,10 @@ export async function createGame(
     : null;
   /** The last tick's debug draws, for the debug-draw layer. */
   let lastDraws: readonly DebugDrawCommand[] = NO_DRAWS;
-  const debugNeedsTimings = () => debugOverlay?.needs?.().timings === true;
+  /** Panels holding timings on through `debug.wantTimings`. */
+  let timingsWanted = 0;
+  const debugNeedsTimings = () =>
+    debugOverlay !== null && (timingsWanted > 0 || debugOverlay.needs?.().timings === true);
   /** Wall time of the store's last `timings` refresh. */
   let timingsAt = -Infinity;
 
@@ -1427,6 +1445,7 @@ export async function createGame(
     opts: GameReplayOptions = {},
   ): PlayReport {
     replayRun = null;
+    seekProgress = null;
     const report = startReplay(doc, recording, opts);
     if (!report.ok) return report;
     replayRun = {
@@ -1438,7 +1457,10 @@ export async function createGame(
       queue: Promise.resolve(),
     };
     if (opts.paused) pause();
-    if (opts.seek !== undefined) void replayHost.seekTo(opts.seek);
+    if (opts.seek !== undefined)
+      replayHost.seekTo(opts.seek).catch((error: unknown) => {
+        if (cfg.dev) console.warn(`[replay] seek: ${errorText(error)}`);
+      });
     return report;
   }
 
@@ -1466,6 +1488,8 @@ export async function createGame(
   let loggedThrough = -1;
   /** While a seek re-simulates, the loop's own ticks step nothing. */
   let seeking = false;
+  /** The seek in flight's progress, else where the replay's last seek ended; null before one. */
+  let seekProgress: SeekProgress | null = null;
 
   const replayRunning = () =>
     replayRun !== null && session !== null && replaySession !== null && getMode() === "play";
@@ -1617,7 +1641,7 @@ export async function createGame(
    * slice at a time, with the loop held; the view is re-posed at the end.
    * A later seek supersedes this one where it stands.
    */
-  function seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void> {
+  function seekTo(target: number): Promise<void> {
     const run = replayRun;
     if (!run || !replayRunning()) return Promise.resolve();
     const id = ++run.seeks;
@@ -1625,7 +1649,8 @@ export async function createGame(
       if (replayRun !== run || run.seeks !== id || !replayRunning()) return;
       const wasPaused = loop.isPaused();
       seeking = true;
-      const steps = seekSteps(seekWorld, run.checkpoints, seekTarget(target, run.recording.ticks));
+      const goal = seekTarget(target, run.recording.ticks);
+      const steps = seekSteps(seekWorld, run.checkpoints, goal);
       try {
         for (;;) {
           const until = performance.now() + SEEK_SLICE_MS;
@@ -1633,10 +1658,11 @@ export async function createGame(
           while (performance.now() < until) {
             const r = steps.next();
             if (r.done) {
+              seekProgress = { target: goal, from: r.value.from, tick: r.value.tick };
               done = true;
               break;
             }
-            onProgress?.(r.value);
+            seekProgress = r.value;
           }
           if (done) break;
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -1673,6 +1699,7 @@ export async function createGame(
   const replayHost: ReplayHost = {
     seekTo,
     checkpoints: () => replayRun?.checkpoints.ticks() ?? [],
+    progress: () => (replayRun ? seekProgress : null),
   };
 
   const replayControls: ReplayHandle = {
@@ -1682,8 +1709,10 @@ export async function createGame(
     get ticks() {
       return replayRun?.recording.ticks ?? 0;
     },
-    seek: (tick, opts?: { onProgress?: (p: SeekProgress) => void }) =>
-      replayHost.seekTo(tick, opts?.onProgress),
+    seek: (tick) => replayHost.seekTo(tick),
+    get progress() {
+      return replayHost.progress();
+    },
     play: () => resume(),
     pause: () => pause(),
     step: (n) => step(n),
@@ -1699,6 +1728,9 @@ export async function createGame(
       Promise.resolve(debugTools && loaded ? debugTools.entities(loaded.runtime, sel) : []),
     pick: (p) => Promise.resolve(debugTools && loaded ? debugTools.pick(loaded.runtime, p) : null),
     events: eventLog ?? EMPTY_EVENT_LOG,
+    wantTimings(on) {
+      timingsWanted = Math.max(0, timingsWanted + (on ? 1 : -1));
+    },
   };
 
   function stop(): void {
@@ -2691,7 +2723,9 @@ export async function createGame(
     if (!needsTimings) setTimings(store, null);
     else if (performance.now() - timingsAt >= TIMINGS_REFRESH_MS) {
       timingsAt = performance.now();
-      setTimings(store, loaded?.runtime.timings() ?? null);
+      const ticks = loaded?.runtime.timings() ?? null;
+      const frame = frameTimings.view();
+      setTimings(store, ticks && frame ? { ...ticks, frame } : ticks);
     }
     debugOverlay?.update({
       dtMs: dt,
@@ -2796,6 +2830,8 @@ export async function createGame(
 
     onRender(alpha: number) {
       frameTiming.begin();
+      if (frameTimed) frameTimings.end();
+      frameTimed = debugNeedsTimings();
       const now = performance.now();
       const wallMs = lastFrameAt === null ? 0 : Math.min(now - lastFrameAt, cfg.maxDeltaTime);
       lastFrameAt = now;
@@ -2826,6 +2862,7 @@ export async function createGame(
         drawViewports(loaded.view, loaded.runtime, a);
         frameTiming.lap("behaviors.render");
       }
+      if (frameTimed) frameTimings.add("render", performance.now() - now);
       setFPS(store, loop.getFPS());
       frameTiming.lap("store");
       frameTiming.end();

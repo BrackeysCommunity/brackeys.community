@@ -22,17 +22,18 @@ import { SCENE_FORMAT_VERSION, type EntityDef } from "../../scene/types";
  * carries that into the ratio. The ratios are printed with the medians';
  * only past 2× is it a failure.
  *
- * The function form runs above the class form because `create` hands back
- * fresh `awake`/`step` closures per entity: 2,000 distinct call targets,
- * each with its own context, where the class has one prototype method. The
- * gap sits wholly in the behavior's own lap, none in the host's phases;
- * holding the state on an object instead of a closure `let` doesn't close
- * it, and the same function form returning one shared set of methods runs
- * level with the class. On Apple M4 (Node 26, arm64) the ratios are about
- * class 1.1, function 1.2; on CI's Linux x64 runners about 1.5 and 1.7–2.2,
- * where the extra targets and contexts cost more. It is the form's cost,
- * not the host's: a hot script with thousands of instances is cheaper
- * written as a class or as one behavior system.
+ * Where the extra time goes, measured per phase on an injected clock: all
+ * of it is in the behavior's own lap, none in the host's phases (together
+ * under 0.05 ms a tick either way), so the cost is one hook call per
+ * instance against one loop. On Apple M4 (Node 26, arm64) the ratios are
+ * about class 1.1, function 1.2. On CI's Linux x64 runner (Node 24, Ryzen 5
+ * 3600) one job read class 1.43–1.64 and function 1.55–1.69 across three
+ * passes, the function form below the class in one of them; holding the
+ * state on an object or sharing one set of methods across instances moved
+ * it no further than that spread. The 1.7–2.2 seen there before were
+ * medians on a busy runner, which the p10 comparison leaves out. A hot
+ * script with thousands of instances is cheaper written as one behavior
+ * system.
  */
 
 const COUNT = 2000;

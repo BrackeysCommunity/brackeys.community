@@ -134,7 +134,7 @@ describe("ctx.debug", () => {
     expect(svg).toContain(">t2</text>");
   });
 
-  it("is a frozen no-op in a production build, which holds no debug module", () => {
+  it("hands out a frozen no-op when no sink exists, and a sink's draw is frozen too", () => {
     expect(Object.isFrozen(NOOP_DEBUG_DRAW)).toBe(true);
     expect(NOOP_DEBUG_DRAW.active).toBe(false);
     expect(NOOP_DEBUG_DRAW.line({ x: 0, y: 0 }, { x: 1, y: 1 })).toBeUndefined();

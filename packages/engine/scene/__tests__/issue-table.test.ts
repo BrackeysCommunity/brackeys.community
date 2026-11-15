@@ -1277,6 +1277,17 @@ describe("the engine's issue table", () => {
     expect(issues[8]!.detail).toEqual({ tick: 40 });
   });
 
+  it("live-refused covers a request the editor couldn't carry out, not only its toggle", async () => {
+    const [issue] = await liveFailure(
+      { t: "play", id: "p", action: "step", ticks: 0 },
+      { enabled: () => true, render: async () => new Uint8Array() },
+    );
+    expect(issue).toMatchObject({ code: "live-refused", message: expect.stringMatching(/ticks/) });
+    const info = ISSUE_CODES["live-refused"];
+    expect(info.summary).toMatch(/Let agents drive Play is off, or it couldn't/);
+    expect(info.hint).toMatch(/^Read the message/);
+  });
+
   it("every code any tool emits on the fixtures is registered, with a hint", async () => {
     const yard = JSON.parse(engineYardText) as SceneDefinition;
     const emitted = await Promise.all(Object.values(FIXTURES).map((f) => f?.() ?? []));

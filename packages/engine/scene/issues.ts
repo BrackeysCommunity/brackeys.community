@@ -725,8 +725,9 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   },
   "live-refused": {
     severity: "warn",
-    summary: "The editor that has the scene open doesn't let agents drive Play.",
-    hint: "Turn on Let agents drive Play in that editor.",
+    summary:
+      "The editor that has the scene open refused the request: its Let agents drive Play is off, or it couldn't do what was asked.",
+    hint: "Read the message: turn on Let agents drive Play in that editor, or change the request it names.",
     fixable: false,
   },
   "frame-too-large": {

@@ -12,11 +12,16 @@ import { createEventLog } from "../../debug/event-log";
 import { createEditorSession } from "../../editor/index";
 import { createRegistry } from "../../game/index";
 import { runPlaytest, type RapierModule } from "../../headless/index";
-import type { ReplayHandle } from "../../index";
+import type { ReplayHandle, SeekProgress } from "../../index";
 import { parseSceneOrThrow } from "../../scene/index";
 import type { EditorNotify } from "../host";
 import { EventLogPanel } from "../panels/EventLogPanel";
-import { LoadRunPanel, SCRUB_DEBOUNCE_MS, type ReplaySource } from "../panels/LoadRunPanel";
+import {
+  LoadRunPanel,
+  SCRUB_DEBOUNCE_MS,
+  SEEK_POLL_MS,
+  type ReplaySource,
+} from "../panels/LoadRunPanel";
 import { createLoadedRunStore, parseRun, type LoadedRun } from "../session/loaded-run";
 
 const notify: EditorNotify = Object.assign(vi.fn(), {
@@ -68,7 +73,7 @@ function fakeReplay(ticks: number) {
   const seeks: number[] = [];
   const waiting: (() => void)[] = [];
   const checkpoints = [0];
-  const handle: ReplayHandle = {
+  const handle: ReplayHandle & { progress: SeekProgress | null } = {
     get tick() {
       return store.state.tick;
     },
@@ -86,6 +91,7 @@ function fakeReplay(ticks: number) {
     pause: vi.fn(),
     step: vi.fn(),
     checkpoints,
+    progress: null,
   };
   const source: ReplaySource = { replayHandle: () => handle, getStore: () => store };
   const finish = async () => {
@@ -93,7 +99,7 @@ function fakeReplay(ticks: number) {
       for (const w of waiting.splice(0)) w();
     });
   };
-  return { source, seeks, finish, checkpoints };
+  return { source, seeks, finish, checkpoints, handle };
 }
 
 function mountRun(source: ReplaySource) {
@@ -156,6 +162,19 @@ describe("the replay scrubber", () => {
     expect(fake.seeks).toEqual([900, 0]);
     await fake.finish();
     expect(screen.queryByText(/Re-simulating/)).toBeNull();
+  });
+
+  it("reads a running seek's progress off the handle", () => {
+    vi.useFakeTimers();
+    const fake = fakeReplay(900);
+    mountRun(fake.source);
+    fireEvent.keyDown(scrubber(), { key: "End" });
+    act(() => vi.advanceTimersByTime(SCRUB_DEBOUNCE_MS));
+    const bar = () => within(screen.getByRole("status")).getByRole("progressbar");
+    expect(bar().getAttribute("aria-valuenow")).toBe("0");
+    fake.handle.progress = { target: 900, from: 0, tick: 450 };
+    act(() => vi.advanceTimersByTime(SEEK_POLL_MS));
+    expect(bar().getAttribute("aria-valuenow")).toBe("450");
   });
 });
 

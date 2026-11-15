@@ -6,6 +6,7 @@ import type { SceneIssue } from "../scene/types";
 import { saveHostOf } from "./runtime";
 import {
   freshLoad,
+  notJsonIssue,
   restoreParts,
   unsupported,
   worldSaveBlockers,
@@ -49,10 +50,18 @@ export function snapshotWorld(runtime: SceneRuntimeHandle): WorldSnapshotResult 
       }),
     };
   }
+  const { ctx } = runtime;
+  const persist = ctx.persist.value;
+  const data = (runtime.snapshot() ?? null) as JsonValue;
+  const subject = "the world snapshot";
+  const problem = notJsonIssue(subject, { persist, data });
+  if (problem) return { ok: false, issue: problem };
   const blockers = worldSaveBlockers(runtime);
   if (blockers.length > 0) return { ok: false, issue: unsupported(blockers) };
-  const { ctx } = runtime;
-  const world = structuredClone(worldStateOf(runtime, host));
+  const state = worldStateOf(runtime, host);
+  const worldProblem = notJsonIssue(subject, { world: state });
+  if (worldProblem) return { ok: false, issue: worldProblem };
+  const world = structuredClone(state);
   const held: Held = {
     tick: world.tick,
     backend: "geometry",
@@ -61,8 +70,8 @@ export function snapshotWorld(runtime: SceneRuntimeHandle): WorldSnapshotResult 
       world,
       sceneId: id,
       sublevels: ctx.flow.sublevels().map((s) => ({ ...s, at: [s.at[0], s.at[1]] })),
-      data: structuredClone((runtime.snapshot() ?? null) as JsonValue),
-      persist: structuredClone(ctx.persist.value),
+      data: structuredClone(data),
+      persist: structuredClone(persist),
       playTicks: host.playClock().ticks,
     },
   };

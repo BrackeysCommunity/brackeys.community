@@ -50,6 +50,11 @@ export type TimingsOptions = {
   window?: number;
   /** Read at each step's start: false skips timing that step. Default always on. */
   enabled?: () => boolean;
+  /**
+   * Until a window fills, `view()` gives the ticks timed so far instead of
+   * null: for a run that may end before its first window, as `runStats`'s.
+   */
+  partial?: boolean;
 };
 
 /**
@@ -63,7 +68,7 @@ export type Timings = {
   readonly window: number;
   /** The step's span, or null when `enabled` says to skip it. */
   begin(): TimingScope | null;
-  /** The last full window; null before one has filled. */
+  /** The last full window; null before one has filled (with `partial`, before any tick was timed). */
   view(): RuntimeTimings | null;
 };
 
@@ -95,6 +100,12 @@ const SYSTEM_HOOK_PHASES: Readonly<Record<string, TickPhase>> = {
   afterStep: "systems-after",
 };
 
+/** A behavior's step lap is its own phase; these hooks run inside the type systems' phases. */
+const BEHAVIOR_HOOK_PHASES: Readonly<Record<string, TickPhase>> = {
+  beforeStep: "systems-before",
+  beforePhysics: "physics",
+};
+
 /** Where a step's lap belongs; null for a name the runtime never laps. */
 export function phaseOf(part: string): PartOwner | null {
   const fixed = PART_PHASES[part];
@@ -102,9 +113,9 @@ export function phaseOf(part: string): PartOwner | null {
   if (part.startsWith("behavior.")) {
     const rest = part.slice("behavior.".length);
     const dot = rest.lastIndexOf(".");
-    const hook = dot < 0 ? "" : rest.slice(dot + 1);
-    const name = hook === "beforeStep" || hook === "beforePhysics" ? rest.slice(0, dot) : rest;
-    return { phase: "behaviors", behavior: name };
+    const phase = dot < 0 ? undefined : BEHAVIOR_HOOK_PHASES[rest.slice(dot + 1)];
+    if (phase) return { phase, behavior: rest.slice(0, dot) };
+    return { phase: "behaviors", behavior: rest };
   }
   if (part.startsWith("system.")) {
     const rest = part.slice("system.".length);
@@ -118,6 +129,20 @@ export function phaseOf(part: string): PartOwner | null {
 type Acc = { total: number; max: number; tick: number };
 
 const ms = (value: number) => Math.round(value * 1000) / 1000;
+
+/** Milliseconds as the timing views print them, to the microsecond: `1.250`. */
+export const formatMs = (value: number) => value.toFixed(3);
+
+function settle(acc: Acc): void {
+  acc.total += acc.tick;
+  if (acc.tick > acc.max) acc.max = acc.tick;
+  acc.tick = 0;
+}
+
+const statOf = (acc: Acc, count: number): TimingStat => ({
+  mean: count > 0 ? ms(acc.total / count) : 0,
+  max: ms(acc.max),
+});
 
 /** Builds the collector on `opts.clock` alone; nothing here reads any other clock. */
 export function createTimings(opts: TimingsOptions): Timings {
@@ -140,13 +165,7 @@ export function createTimings(opts: TimingsOptions): Timings {
     acc.tick += took;
   }
 
-  function settle(acc: Acc): void {
-    acc.total += acc.tick;
-    if (acc.tick > acc.max) acc.max = acc.tick;
-    acc.tick = 0;
-  }
-
-  const stat = (acc: Acc): TimingStat => ({ mean: ms(acc.total / ticks), max: ms(acc.max) });
+  const stat = (acc: Acc): TimingStat => statOf(acc, ticks);
 
   function statsOf(from: Map<string, Acc>): Record<string, TimingStat> {
     const out: Record<string, TimingStat> = {};
@@ -154,15 +173,19 @@ export function createTimings(opts: TimingsOptions): Timings {
     return out;
   }
 
-  function publish(): void {
+  function current(): RuntimeTimings {
     const byPhase = {} as Record<TickPhase, TimingStat>;
     for (const phase of TICK_PHASES) byPhase[phase] = stat(phases.get(phase)!);
-    last = Object.freeze({
+    return Object.freeze({
       ticks,
       phases: Object.freeze(byPhase),
       systems: Object.freeze(statsOf(systems)),
       behaviors: Object.freeze(statsOf(behaviors)),
     });
+  }
+
+  function publish(): void {
+    last = current();
     ticks = 0;
     for (const acc of phases.values()) acc.total = acc.max = 0;
     systems.clear();
@@ -190,6 +213,38 @@ export function createTimings(opts: TimingsOptions): Timings {
     begin() {
       collector.enabled = opts.enabled ? opts.enabled() : true;
       return scope.begin() ? scope : null;
+    },
+    view: () => last ?? (opts.partial && ticks > 0 ? current() : null),
+  };
+}
+
+/** The shell's half of `RuntimeTimings.frame`, windowed by rendered frames. */
+export type FrameTimings = {
+  /** Credits `took` ms to this frame's `part`. */
+  add(part: "render" | "present", took: number): void;
+  /** Closes the frame; every `window` frames the view moves on. */
+  end(): void;
+  /** The last full window; null before one has filled. */
+  view(): NonNullable<RuntimeTimings["frame"]> | null;
+};
+
+export function createFrameTimings(window: number = DEFAULT_TIMINGS_WINDOW): FrameTimings {
+  const size = Math.max(1, Math.floor(window));
+  const render: Acc = { total: 0, max: 0, tick: 0 };
+  const present: Acc = { total: 0, max: 0, tick: 0 };
+  let frames = 0;
+  let last: NonNullable<RuntimeTimings["frame"]> | null = null;
+  return {
+    add(part, took) {
+      (part === "render" ? render : present).tick += took;
+    },
+    end() {
+      settle(render);
+      settle(present);
+      if (++frames < size) return;
+      last = Object.freeze({ render: statOf(render, frames), present: statOf(present, frames) });
+      frames = 0;
+      render.total = render.max = present.total = present.max = 0;
     },
     view: () => last,
   };

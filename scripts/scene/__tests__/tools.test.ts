@@ -4157,6 +4157,15 @@ describe("frame and play --live", { timeout: 60_000 }, () => {
     );
   });
 
+  it("asks for the debug layers with debug, and says so", async () => {
+    const { asked } = await openEditor();
+    const r = await frame({ scene: "engine-yard", live: true, debug: true, url: server.url }, live);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({ source: "live", debug: true });
+    expect(r.text).toContain("debug layers on");
+    expect(asked).toEqual([{ debug: true }]);
+  });
+
   it("falls back to the schematic, saying so, when no editor answers", async () => {
     const out = join(liveRoot, "schematic.png");
     const r = await frame(
@@ -4229,6 +4238,11 @@ describe("frame and play --live", { timeout: 60_000 }, () => {
       timings: null,
     });
     expect(state.text).toContain("engine-yard: edit idle at t0");
+
+    const over = await run("step", "36001");
+    expect(over.exitCode).toBe(1);
+    expect(over.data).toMatchObject({ issues: [{ code: "live-refused" }] });
+    expect(over.text).toContain("from 1 to 36000");
   });
 
   it("refuses bad usage and reports live-no-editor with nobody there", async () => {

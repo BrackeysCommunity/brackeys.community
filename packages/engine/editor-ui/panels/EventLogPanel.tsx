@@ -19,9 +19,11 @@ import {
   Text,
 } from "../kit/index";
 import { loadedRunEvents, type LoadedRun, type LoadedRunReplayHost } from "../session/loaded-run";
-import { useEditorPrefabs } from "../session/use-editor-store";
+import { useEditorDoc, useEditorPrefabs } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 import { useReplayHandle, useReplaySeek, type ReplaySource } from "./LoadRunPanel";
+import { playPickOf } from "./PlayInspector";
+import { isSpawnedId } from "./SpawnedGroup";
 
 /** Rows the panel draws at most: the newest of what the filters match. */
 export const EVENT_LOG_ROWS = 500;
@@ -51,11 +53,42 @@ function useLogRevision(log: EventLog | null): number {
   return revision;
 }
 
+/** A typed tick bound; ticks start at 0, so a negative one reads as 0. */
 const tickOf = (text: string): number | undefined => {
   if (text.trim() === "") return undefined;
   const n = Number(text);
-  return Number.isFinite(n) ? Math.floor(n) : undefined;
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : undefined;
 };
+
+/** What a loaded run replays against, but the scene and prefabs, which the panel reads from the session. */
+export type EventLogReplayHost = Omit<LoadedRunReplayHost, "scene" | "prefabs">;
+
+/**
+ * The loaded run's log, replayed after the panel paints rather than during
+ * render, and again whenever the run, the scene, its prefabs or `host` change.
+ */
+function useLoadedRunLog(
+  run: LoadedRun | null,
+  host: EventLogReplayHost | null | undefined,
+  session: EditorSession,
+): EventLog | null {
+  const scene = useEditorDoc(session);
+  const prefabs = useEditorPrefabs(session);
+  const [replayed, setReplayed] = useState<{ run: LoadedRun; log: EventLog | null } | null>(null);
+  useEffect(() => {
+    if (!run || !host) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      const log = loadedRunEvents(run, { ...host, scene, prefabs });
+      if (live) setReplayed({ run, log });
+    }, 0);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [run, host, scene, prefabs]);
+  return run && host && replayed?.run === run ? replayed.log : null;
+}
 
 /** A payload as one line of JSON: event data is plain data. */
 function dataText(data: unknown): string | null {
@@ -70,7 +103,8 @@ function dataText(data: unknown): string | null {
 /**
  * Play's and a replay's step events, and a loaded run's from replaying it
  * headless here once, filtered by type, entity and tick range. A row seeks
- * a running replay to its tick, else selects the entity it names.
+ * a running replay to its tick, else picks the entity it names: for the
+ * play inspector in Play, else in the edit selection.
  */
 export function EventLogPanel(props: {
   events: EventLog | null;
@@ -78,23 +112,19 @@ export function EventLogPanel(props: {
   notify: EditorNotify;
   /** The run loaded into the editor; its events show beside Play's. */
   run?: Store<LoadedRun | null>;
-  /** What a loaded run replays against, read when one is loaded; null while it can't replay. */
-  replayHost?: (run: LoadedRun) => Omit<LoadedRunReplayHost, "scene" | "prefabs"> | null;
+  /** What a loaded run replays against; keep it the same object until one of its parts changes. */
+  replayHost?: EventLogReplayHost | null;
   /** The game whose running replay a row seeks. */
   replay?: ReplaySource | null;
+  /** Whether the scene is in Play, where a row picks its entity for the play inspector. */
+  playing?: boolean;
 }) {
-  const { events, session, notify, run: runStore, replayHost } = props;
+  const { events, session, notify, run: runStore, replayHost, playing = false } = props;
   const handle = useReplayHandle(props.replay);
   const { seek } = useReplaySeek(handle, notify);
   const [noRun] = useState(() => new Store<LoadedRun | null>(null));
   const run = useStoreValue(runStore ?? noRun);
-  const prefabs = useEditorPrefabs(session);
-  const runLog = useMemo(() => {
-    if (!run || !replayHost) return null;
-    const host = replayHost(run);
-    if (!host) return null;
-    return loadedRunEvents(run, { ...host, scene: session.getDoc(), prefabs });
-  }, [run, replayHost, session, prefabs]);
+  const runLog = useLoadedRunLog(run, replayHost, session);
 
   const liveRevision = useLogRevision(events);
   const [picked, setPicked] = useState<Source | null>(null);
@@ -115,10 +145,11 @@ export function EventLogPanel(props: {
     [log, liveRevision],
   );
   const types = useMemo(() => [...new Set(all.map((e) => e.type))].sort(), [all]);
+  const since = tickOf(from);
+  const until = tickOf(to);
+  const backwards = since !== undefined && until !== undefined && since > until;
   const matched = useMemo(() => {
     if (!log) return [];
-    const since = tickOf(from);
-    const until = tickOf(to);
     const list = log.list({
       ...(since !== undefined ? { since } : {}),
       ...(type !== ALL_TYPES ? { types: [type] } : {}),
@@ -126,17 +157,22 @@ export function EventLogPanel(props: {
     });
     return until === undefined ? list : list.filter((e) => e.tick <= until);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the revision is the log's change signal
-  }, [log, liveRevision, type, entity, from, to]);
+  }, [log, liveRevision, type, entity, since, until]);
   const shown = matched.length > EVENT_LOG_ROWS ? matched.slice(-EVENT_LOG_ROWS) : matched;
 
-  const select = (e: StepEvent) => {
-    if (handle) seek(e.tick);
-    else if (e.entityId !== undefined) session.select([e.entityId]);
+  /** What clicking the row does; null for a row that does nothing. */
+  const actionOf = (e: StepEvent): (() => void) | null => {
+    if (handle) return () => seek(e.tick);
+    const id = e.entityId;
+    if (id === undefined) return null;
+    if (playing) return () => playPickOf(session).setState(() => ({ id }));
+    // A runtime spawn has no document entity to select outside Play.
+    return isSpawnedId(id) ? null : () => session.select([id]);
   };
 
   return (
     <section aria-label="Event log" className="je-scene-panel je-problems">
-      <div className="je-panel-toolbar" role="toolbar" aria-label="Event filters">
+      <div className="je-panel-toolbar je-event-filters" role="toolbar" aria-label="Event filters">
         {runLog && run ? (
           <SegmentedControl
             size="xs"
@@ -163,6 +199,7 @@ export function EventLogPanel(props: {
         </Select>
         <Input
           size="sm"
+          className="je-event-entity"
           aria-label="Entity"
           placeholder="Entity"
           value={entity}
@@ -172,7 +209,9 @@ export function EventLogPanel(props: {
           size="sm"
           type="number"
           min={0}
+          className="je-event-tick"
           aria-label="From tick"
+          aria-invalid={backwards || undefined}
           placeholder="From"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
@@ -181,7 +220,9 @@ export function EventLogPanel(props: {
           size="sm"
           type="number"
           min={0}
+          className="je-event-tick"
           aria-label="To tick"
+          aria-invalid={backwards || undefined}
           placeholder="To"
           value={to}
           onChange={(e) => setTo(e.target.value)}
@@ -199,27 +240,23 @@ export function EventLogPanel(props: {
         ) : null}
       </div>
       {shown.length === 0 ? (
-        <Text as="p" size="xs" variant="muted" className="je-scene-panel-empty">
+        <Text as="p" size="xs" variant="muted" className="je-panel-empty">
           {all.length === 0
             ? "No events yet. Play the scene, or load a run, to log its events."
-            : "No events match the filters."}
+            : backwards
+              ? "From is after To: no tick is in that range."
+              : "No events match the filters."}
         </Text>
       ) : (
         <div className="je-scene-panel-scroll">
           {matched.length > shown.length ? (
-            <Text as="p" size="xs" variant="muted" className="je-scene-panel-empty">
+            <Text as="p" size="xs" variant="muted" className="je-event-truncated">
               The newest {shown.length} of {matched.length}.
             </Text>
           ) : null}
           <ul aria-label="Events">
             {shown.map((e, i) => (
-              <EventRow
-                key={`${e.tick}:${i}`}
-                event={e}
-                ppm={ppm}
-                seeks={handle !== null}
-                onSelect={select}
-              />
+              <EventRow key={`${e.tick}:${i}`} event={e} ppm={ppm} onClick={actionOf(e)} />
             ))}
           </ul>
         </div>
@@ -231,37 +268,43 @@ export function EventLogPanel(props: {
 function EventRow({
   event: e,
   ppm,
-  seeks,
-  onSelect,
+  onClick,
 }: {
   event: StepEvent;
   ppm: number;
-  seeks: boolean;
-  onSelect: (e: StepEvent) => void;
+  onClick: (() => void) | null;
 }) {
   const names = [e.entityId, e.other].filter((n) => n !== undefined).join(" → ");
   const seat = e.player !== undefined ? `seat ${e.player}` : "";
   const data = dataText(e.data);
   const at = `${formatLength(e.at.x, ppm)}, ${formatLength(e.at.y, ppm)}`;
+  const content = (
+    <>
+      <span className="je-run-marker-at">{e.tick}</span>
+      <span className="je-problems-text">
+        <span className="je-problems-message">
+          {e.type}
+          {names ? ` · ${names}` : ""}
+          {seat ? ` · ${seat}` : ""}
+          {data ? ` · ${data}` : ""}
+        </span>{" "}
+        <span className="je-problems-code">{at}</span>
+      </span>
+    </>
+  );
   return (
-    <li aria-label={`${e.type} at tick ${e.tick}`} className="je-problems-row">
-      <button
-        type="button"
-        disabled={!seeks && e.entityId === undefined}
-        onClick={() => onSelect(e)}
-        className="je-problems-show"
-      >
-        <span className="je-run-marker-at">{e.tick}</span>
-        <span className="je-problems-text">
-          <span className="je-problems-message">
-            {e.type}
-            {names ? ` · ${names}` : ""}
-            {seat ? ` · ${seat}` : ""}
-            {data ? ` · ${data}` : ""}
-          </span>{" "}
-          <span className="je-problems-code">{at}</span>
-        </span>
-      </button>
+    <li
+      aria-label={`${e.type} at tick ${e.tick}`}
+      className="je-problems-row"
+      data-inert={onClick ? undefined : ""}
+    >
+      {onClick ? (
+        <button type="button" onClick={onClick} className="je-problems-show">
+          {content}
+        </button>
+      ) : (
+        <div className="je-problems-show">{content}</div>
+      )}
     </li>
   );
 }

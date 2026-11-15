@@ -66,6 +66,24 @@ describe("runStats", () => {
     expect(report.wall.ticksPerSecond).toBeGreaterThan(0);
   });
 
+  it("times the ticks run when the script ends before `ticks`", async () => {
+    let now = 0;
+    const report = await runStats({
+      rapier,
+      game: testGame,
+      registry,
+      scene: yard,
+      script: { v: 1, steps: [{ wait: 15 }] },
+      ticks: 90,
+      warmup: 5,
+      timings: { clock: () => (now += 1) },
+    });
+    expect(report.ticks).toBeGreaterThan(0);
+    expect(report.ticks).toBeLessThan(90);
+    expect(report.wall.timings.ticks).toBe(report.ticks);
+    expect(report.wall.timings.phases.physics.mean).toBeGreaterThan(0);
+  });
+
   it("rejects a blocked run", async () => {
     await expect(
       runStats({

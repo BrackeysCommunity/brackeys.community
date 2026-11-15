@@ -53,6 +53,9 @@ function readText(file: Blob): Promise<string> {
 /** How long a drag rests before the replay seeks to it. */
 export const SCRUB_DEBOUNCE_MS = 50;
 
+/** How often a seek in flight is read for its progress. */
+export const SEEK_POLL_MS = 100;
+
 /** The game whose running replay the scrubber and the event log seek. */
 export type ReplaySource = {
   replayHandle(): ReplayHandle | null;
@@ -104,6 +107,20 @@ export function useReplaySeek(handle: ReplayHandle | null, notify: Pick<EditorNo
   return { seek, pending: handle ? pending : null };
 }
 
+/** The tick a seek to `target` has re-simulated to, read from the handle while it runs; null until it reports. */
+function useSeekReached(handle: ReplayHandle, target: number | null): number | null {
+  const [read, setRead] = useState<{ target: number; tick: number } | null>(null);
+  useEffect(() => {
+    if (target === null) return;
+    const timer = setInterval(() => {
+      const p = handle.progress;
+      if (p && p.target === target) setRead({ target, tick: p.tick });
+    }, SEEK_POLL_MS);
+    return () => clearInterval(timer);
+  }, [handle, target]);
+  return read && read.target === target ? read.tick : null;
+}
+
 /**
  * A range over the replay's ticks with the run's markers and the handle's
  * checkpoints under it. A drag shows its tick at once and seeks once it
@@ -121,6 +138,7 @@ function ReplayScrubber({
   notify: Pick<EditorNotify, "error">;
 }) {
   const { seek, pending } = useReplaySeek(handle, notify);
+  const polled = useSeekReached(handle, pending?.target ?? null);
   const [dragged, setDragged] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -143,7 +161,7 @@ function ReplayScrubber({
     }, SCRUB_DEBOUNCE_MS);
   };
   const reached = pending
-    ? Math.max(pending.from, ...handle.checkpoints.filter((c) => c <= pending.target))
+    ? (polled ?? Math.max(pending.from, ...handle.checkpoints.filter((c) => c <= pending.target)))
     : 0;
   return (
     <div className="je-run-scrub">

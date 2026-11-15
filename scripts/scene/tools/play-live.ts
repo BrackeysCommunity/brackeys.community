@@ -34,8 +34,6 @@ export type PlayLiveInput = {
 
 export const PLAY_LIVE_USAGE = `play <scene> --live ${PLAY_LIVE_ACTIONS.join("|")} [--ticks n] [--url ws://…|https://site [--token t]]`;
 
-const MAX_STEP_TICKS = 60 * 60 * 10;
-
 /** A live request's outcome: the editor's answer, or why none came, as an issue. */
 export type LiveOutcome =
   | { ok: true; response: LiveResponse & { ok: true }; project: string }
@@ -84,9 +82,10 @@ export function liveFailure(scene: string, issue: SceneIssue): ToolResult {
   };
 }
 
+/** A whole number of ticks above 0; the editor refuses a step over its own cap. */
 function parseTicks(text: string): number | null {
   const n = Number(text);
-  return /^\d+$/.test(text) && n >= 1 && n <= MAX_STEP_TICKS ? n : null;
+  return /^\d+$/.test(text) && n >= 1 && Number.isSafeInteger(n) ? n : null;
 }
 
 function stateText(scene: string, r: LiveResponse & { t: "state"; ok: true }): string {
@@ -119,8 +118,7 @@ export const playLive: Tool<PlayLiveInput> = async (input, ctx) => {
   if (input.ticks !== undefined) {
     if (action !== "step") return usage("--ticks goes with step");
     const n = parseTicks(input.ticks);
-    if (n === null)
-      return usage(`--ticks takes a whole number from 1 to ${MAX_STEP_TICKS}: ${input.ticks}`);
+    if (n === null) return usage(`--ticks takes a whole number above 0: ${input.ticks}`);
     ticks = n;
   }
   const scene = input.scene;

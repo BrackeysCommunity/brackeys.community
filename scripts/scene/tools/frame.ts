@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { readPngSize } from "@jams/engine/project";
 import type { SceneIssue } from "@jams/engine/scene";
 
 import {
@@ -21,6 +22,8 @@ export type FrameInput = {
   live: boolean;
   out?: string;
   viewport?: string;
+  /** Take the frame with the editor's debug layers showing. */
+  debug?: boolean;
   url?: string;
   token?: string;
   /** How long the editor has to answer; default `LIVE_REQUEST_TIMEOUT_MS`. */
@@ -29,13 +32,6 @@ export type FrameInput = {
 
 export const FRAME_USAGE =
   "frame <scene> --live [--out f.png] [--viewport n] [--url ws://…|https://site [--token t]]";
-
-/** The PNG's pixel size from its IHDR chunk. */
-function pngSize(bytes: Uint8Array): { width: number; height: number } | null {
-  if (bytes.length < 24 || bytes[0] !== 0x89 || bytes[1] !== 0x50) return null;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return { width: view.getUint32(16), height: view.getUint32(20) };
-}
 
 /**
  * The scene's schematic as a PNG, for when no editor gives a frame: written
@@ -53,7 +49,7 @@ async function schematic(
     const drawn = await render({ scene, out: file }, ctx);
     if (drawn.exitCode !== 0) return drawn;
     const bytes = new Uint8Array(await readFile(file));
-    const size = pngSize(bytes) ?? { width: 0, height: 0 };
+    const size = readPngSize(bytes) ?? { width: 0, height: 0 };
     return {
       exitCode: 0,
       data: {
@@ -98,7 +94,10 @@ export const frame: Tool<FrameInput> = async (input, ctx) => {
     { ...input, scene },
     {
       t: "frame",
-      opts: viewport === undefined ? {} : { viewport },
+      opts: {
+        ...(viewport === undefined ? {} : { viewport }),
+        ...(input.debug ? { debug: true } : {}),
+      },
     },
   );
   if (!asked.ok) {
@@ -117,12 +116,13 @@ export const frame: Tool<FrameInput> = async (input, ctx) => {
       scene,
       project,
       source: "live",
+      ...(input.debug ? { debug: true } : {}),
       width,
       height,
       tick,
       mode,
       ...(input.out ? { out: input.out } : { png: response.png }),
     },
-    text: `${scene}: ${input.out ? `wrote ${input.out}` : "the editor's frame"} (${width}x${height}, ${mode} at t${tick}), source: live${input.out ? "" : "; pass --out f.png to write it"}`,
+    text: `${scene}: ${input.out ? `wrote ${input.out}` : "the editor's frame"} (${width}x${height}, ${mode} at t${tick}${input.debug ? ", debug layers on" : ""}), source: live${input.out ? "" : "; pass --out f.png to write it"}`,
   };
 };

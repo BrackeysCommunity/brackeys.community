@@ -3002,6 +3002,11 @@ type TimingsOptions = {
     clock: Clock;
     /** Read at each step's start: false skips timing that step. Default always on. */
     enabled?: () => boolean;
+    /**
+     * Until a window fills, `view()` gives the ticks timed so far instead of
+     * null: for a run that may end before its first window, as `runStats`'s.
+     */
+    partial?: boolean;
     /** Ticks per window; default `DEFAULT_TIMINGS_WINDOW`. */
     window?: number;
 };

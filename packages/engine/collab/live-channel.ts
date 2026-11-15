@@ -13,6 +13,8 @@ export const LIVE_MESSAGE_MAX_BYTES = 1.5 * 1024 * 1024;
 export const LIVE_FRAME_MAX_BYTES = 1024 * 1024;
 /** How long a requester waits for an answer before `live-no-editor`. */
 export const LIVE_REQUEST_TIMEOUT_MS = 2000;
+/** The most ticks one `step` runs; they run synchronously in the editor's tab. */
+export const LIVE_STEP_MAX_TICKS = 60 * 60 * 10;
 
 /** What an agent asks the editor that has a scene open. */
 export type LiveRequest =
@@ -189,7 +191,12 @@ function plainClone<T>(value: T): T {
 
 async function answer(req: LiveRequest, opts: LiveResponderOptions): Promise<LiveResponse> {
   if (!opts.enabled()) {
-    return failure(req.t, req.id, "live-refused", "This editor doesn't let agents drive Play.");
+    return failure(
+      req.t,
+      req.id,
+      "live-refused",
+      "This editor doesn't let agents drive Play: turn on Let agents drive Play there.",
+    );
   }
   const game = opts.game();
   if (!game) return failure(req.t, req.id, "live-no-editor", "The editor has no game running.");
@@ -221,6 +228,18 @@ async function answer(req: LiveRequest, opts: LiveResponderOptions): Promise<Liv
       if (!isPlayAction(req.action)) {
         return failure("play", req.id, "live-refused", `Unknown play action "${req.action}".`);
       }
+      const ticks = req.ticks ?? 1;
+      if (
+        req.action === "step" &&
+        (!Number.isInteger(ticks) || ticks < 1 || ticks > LIVE_STEP_MAX_TICKS)
+      ) {
+        return failure(
+          "play",
+          req.id,
+          "live-refused",
+          `step takes a whole number of ticks from 1 to ${LIVE_STEP_MAX_TICKS}: ${String(req.ticks)}.`,
+        );
+      }
       if (req.action === "play") {
         if (!opts.play) {
           return failure(
@@ -233,7 +252,7 @@ async function answer(req: LiveRequest, opts: LiveResponderOptions): Promise<Liv
         await opts.play(req);
       } else if (req.action === "pause") game.pause();
       else if (req.action === "resume") game.resume();
-      else if (req.action === "step") game.step(req.ticks ?? 1);
+      else if (req.action === "step") game.step(ticks);
       else game.stop();
       const s = store();
       return {

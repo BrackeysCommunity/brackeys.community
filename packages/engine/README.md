@@ -9162,27 +9162,31 @@ numbers, so nothing deterministic may read them.
   ticks, default 120) fills `SceneRuntimeHandle.timings()` with the mean and
   worst ms per tick phase, per entity type's system and per behavior over
   the window. Without it the runtime reads no clock and `timings()` is
-  `null`. The store's `timings` carries them while a shown debug layer asks
-  for them.
+  `null`. The store's `timings` carries them, with the shell's `frame`
+  (render and present ms per rendered frame), while a shown debug layer
+  asks for them or a panel holds them on with `game.debug.wantTimings`.
 - **The perf layer.** F3 cycles off, grid, physics, debug-draw, perf, then
   the game's layers. The perf layer draws the window's phases as bars and
-  lists the slowest systems and behaviors (`PERF_SLOWEST`). The editor's
-  Perf tab in the bottom group shows the same numbers during Play.
+  the frame's render and present time, and lists the slowest systems and
+  behaviors (`PERF_SLOWEST`). The editor's Perf tab in the bottom group
+  shows the same numbers during Play, and holds timings on while it is open.
 - **`stats`.** `runStats` (`./headless`) runs a scene with timings on and
   reports deterministic `counts` (entities, bodies, colliders, behaviors,
   events, spawns, destroys) beside this machine's `wall`: ticks per second,
-  the timings and the machine. `vp run scene stats <scene>` prints the same
+  the timings and the machine. A run the script or the game ends early is
+  timed over the ticks it ran. `vp run scene stats <scene>` prints the same
   report.
 - **`engine:perf`.** `vp run engine:perf` runs the kitchen sink, large-5k
-  and its physics-free twin for 600 ticks, five times each, and judges the
-  median ticks per second against
-  `packages/engine/__tests__/perf/baseline.json`, keyed
-  `${arch}/node${major}`. Below 80% of the baseline fails, below 90% warns,
-  and a machine with no baseline passes with a notice. CI runs it on Linux
-  x64. Only the owner records a baseline (`vp run engine:perf --update`, or
-  `UPDATE_PERF_BASELINE=1`), on purpose and with the reason in the
-  changelog; a slower run is never fixed by lowering the baseline. The file
-  ships empty.
+  and its physics-free twin for 600 ticks after 60 warm-up ticks, five
+  times each, and judges the median ticks per second against
+  `packages/engine/__tests__/perf/baseline.json`, keyed by arch and the
+  runtime that ran it (`x64/bun1` under Bun, `arm64/node26` under Node).
+  Below 80% of the baseline fails, below 90% warns, and a machine with no
+  baseline passes with a notice, a loud one on CI. CI runs it on Linux x64,
+  whose key comes from a CI run's `engine-perf.json`. A baseline is recorded
+  on purpose (`vp run engine:perf --update`, or `UPDATE_PERF_BASELINE=1`),
+  with the reason in the changelog; a slower run is never fixed by lowering
+  the baseline.
 
 ```ts corridor-stats.ts
 import { createRegistry } from "@jams/engine/game";
@@ -9217,7 +9221,10 @@ none of `./debug`, and its `ctx.debug` is the frozen no-op.
   circles, shapes, paths and text for one tick, in world metres (`width` and
   text `size` in screen px). A draw made in tick t shows until tick t + 1
   commits and never enters state or a digest. `ctx.debug.active` is false
-  when nothing would show the draws, so skip expensive work then. The
+  when nothing would show the draws, so skip expensive work then, but only
+  work that changes no state (randomness, poses, events): `active` differs
+  between the editor and a headless replay, so gating state on it diverges
+  the run's recordings. The
   debug-draw layer shows the last tick's draws; a headless run keeps them
   with `collectDebugDraw` (the last tick's in `report.debug`), and
   `vp run scene render <scene> --debug-draw` draws them over the schematic.
@@ -9244,8 +9251,9 @@ paused })` and `game.replayHandle()` seek a replay. Seeking re-simulates
   with presentation muted (no sounds, effects, dialogue view or step
   listeners) from the nearest `snapshotWorld` checkpoint, taken every 300
   ticks (`SEEK_CHECKPOINT_EVERY`); a Rapier scene re-simulates from tick 0.
-  The Run panel's scrubber seeks once a drag rests for 50 ms and shows
-  progress over the checkpoints. Headless, `replayRecording({ seek })` stops
+  The handle's `progress` (plain data, read rather than pushed) is the
+  seek in flight's, or where the last one ended. The Run panel's scrubber
+  seeks once a drag rests for 50 ms and shows the seek's progress. Headless, `replayRecording({ seek })` stops
   at the tick and reports `at`, and `vp run scene replay <scene> --run <rec>
 --seek <tick>` prints it.
 

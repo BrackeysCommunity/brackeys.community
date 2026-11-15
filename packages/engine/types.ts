@@ -455,7 +455,10 @@ export type GameStoreState = {
   session: PlaySession | null;
   /** The active conversation after the last tick; null with none. */
   dialogue: Readonly<DialogueView> | null;
-  /** The runtime's timings, refreshed twice a second while a debug layer needs them; else null. */
+  /**
+   * The runtime's timings, with the shell's `frame`, refreshed twice a second
+   * while a debug layer or `debug.wantTimings` needs them; else null.
+   */
   timings: RuntimeTimings | null;
 };
 
@@ -474,6 +477,12 @@ export type GameDebug = {
   pick(p: Vec2): Promise<string | null>;
   /** Every step's events in Play and in a replay. */
   readonly events: EventLog;
+  /**
+   * Holds the store's `timings` on, as a shown debug layer that needs them
+   * does, for a panel that shows them: each `true` is undone by one `false`.
+   * Without a dev host's debug overlay there are none to turn on.
+   */
+  wantTimings(on: boolean): void;
 };
 
 /** `GameInstance.replay`'s options. */
@@ -496,7 +505,9 @@ export interface ReplayHandle {
   /** The recording's length in ticks. */
   readonly ticks: number;
   /** Re-simulates to `tick` with the view muted, from the nearest checkpoint at or before it. */
-  seek(tick: number, opts?: { onProgress?: (p: SeekProgress) => void }): Promise<void>;
+  seek(tick: number): Promise<void>;
+  /** The seek in flight's progress, else where the last one ended; null before any seek. */
+  readonly progress: SeekProgress | null;
   play(): void;
   pause(): void;
   step(n?: number): void;
@@ -509,9 +520,11 @@ export interface ReplayHandle {
  */
 export type ReplayHost = {
   /** Re-simulates the running replay to `target`; resolves once the view shows it. */
-  seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void>;
+  seekTo(target: number): Promise<void>;
   /** The ticks a seek can restore from, ascending. */
   checkpoints(): readonly number[];
+  /** The seek in flight's progress, else where the running replay's last seek ended; null before one. */
+  progress(): SeekProgress | null;
 };
 
 // ─── Game Instance ───────────────────────────────────────

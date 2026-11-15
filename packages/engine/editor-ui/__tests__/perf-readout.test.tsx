@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { TICK_PHASES, type RuntimeTimings } from "../../runtime/timings";
 import { createGameStore, setTimings } from "../../store";
@@ -20,8 +20,9 @@ const FIXTURE: RuntimeTimings = {
 function gameWith(timings: RuntimeTimings | null) {
   const store = createGameStore();
   setTimings(store, timings);
-  const game = { getStore: () => store } as unknown as PerfReadoutGame;
-  return { store, game };
+  const wantTimings = vi.fn();
+  const game = { getStore: () => store, debug: { wantTimings } } as unknown as PerfReadoutGame;
+  return { store, game, wantTimings };
 }
 
 describe("PerfReadout", () => {
@@ -49,8 +50,27 @@ describe("PerfReadout", () => {
       "0.300 ms · worst 0.900 ms",
     );
     expect(container.querySelector("[title]")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Frame" })).toBeNull();
+
+    act(() =>
+      setTimings(store, {
+        ...FIXTURE,
+        frame: { render: { mean: 0.8, max: 2 }, present: { mean: 1.25, max: 4 } },
+      }),
+    );
+    const frame = screen.getByRole("group", { name: "Frame" }).textContent;
+    expect(frame).toContain("Render0.800 ms · worst 2.000 ms");
+    expect(frame).toContain("Present1.250 ms · worst 4.000 ms");
 
     act(() => setTimings(store, null));
     expect(container.textContent).toContain("Nothing yet");
+  });
+
+  it("holds the game's timings on while it is open", () => {
+    const { game, wantTimings } = gameWith(null);
+    const { unmount } = render(<PerfReadout game={game} />);
+    expect(wantTimings.mock.calls).toEqual([[true]]);
+    unmount();
+    expect(wantTimings.mock.calls).toEqual([[true], [false]]);
   });
 });

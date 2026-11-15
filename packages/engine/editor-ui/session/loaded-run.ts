@@ -143,14 +143,22 @@ export function runIsStale(
 /** What a loaded run replays against in the page: everything `replayRecording` takes but the run. */
 export type LoadedRunReplayHost = Omit<ReplayOptions, "recording" | "seek" | "onEvents">;
 
-const runLogs = new WeakMap<RunRecording, WeakMap<SceneDefinition, EventLog | null>>();
+type RunLogEntry = { host: LoadedRunReplayHost; log: EventLog };
+
+const runLogs = new WeakMap<RunRecording, WeakMap<SceneDefinition, RunLogEntry>>();
+
+const sameHost = (a: LoadedRunReplayHost, b: LoadedRunReplayHost) => {
+  const keys = Object.keys(a) as (keyof LoadedRunReplayHost)[];
+  return keys.length === Object.keys(b).length && keys.every((k) => Object.is(a[k], b[k]));
+};
 
 /**
  * Every event of the loaded run, from replaying it headless once against
  * `host` (its swaps onto the live versions `host.versions` holds, as the
  * shell replays it), so a log of it covers ticks not yet watched. Kept per
- * recording and scene, so it replays again only once the scene changes;
- * null when the run can't replay here.
+ * recording, scene and host, so it replays again only once one of them
+ * changes; null when the run can't replay here, which is never kept, so a
+ * later call (once Rapier has loaded, say) tries again.
  */
 export function loadedRunEvents(
   run: LoadedRun,
@@ -158,20 +166,20 @@ export function loadedRunEvents(
   replay: typeof replayRecording = replayRecording,
 ): EventLog | null {
   let byScene = runLogs.get(run.recording);
-  if (byScene?.has(host.scene)) return byScene.get(host.scene) ?? null;
+  const kept = byScene?.get(host.scene);
+  if (kept && sameHost(kept.host, host)) return kept.log;
   const log = createEventLog();
-  let result: EventLog | null;
   try {
     const report = replay({
       ...host,
       recording: run.recording,
       onEvents: (tick, events) => log.append(tick, events),
     });
-    result = report.blocked ? null : log;
+    if (report.blocked) return null;
   } catch {
-    result = null;
+    return null;
   }
   if (!byScene) runLogs.set(run.recording, (byScene = new WeakMap()));
-  byScene.set(host.scene, result);
-  return result;
+  byScene.set(host.scene, { host, log });
+  return log;
 }

@@ -46,6 +46,16 @@ export type Checkpoints = {
   readonly refused: boolean;
 };
 
+/** The world's snapshot, or null when it refuses one or its game's `snapshot` throws. */
+function snapshotOf(world: SeekWorld): WorldSnapshot | null {
+  try {
+    const taken = world.snapshot();
+    return taken.ok ? taken.snapshot : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createCheckpoints(every: number = SEEK_CHECKPOINT_EVERY): Checkpoints {
   const step = Math.max(1, Math.floor(every));
   const held: Checkpoint[] = [];
@@ -57,12 +67,12 @@ export function createCheckpoints(every: number = SEEK_CHECKPOINT_EVERY): Checkp
       if (refused) return;
       const tick = world.tick();
       if (tick % step !== 0 || held.some((c) => c.tick === tick)) return;
-      const taken = world.snapshot();
-      if (!taken.ok) {
+      const snapshot = snapshotOf(world);
+      if (!snapshot) {
         refused = true;
         return;
       }
-      const checkpoint = { tick, snapshot: taken.snapshot, version: world.version() };
+      const checkpoint = { tick, snapshot, version: world.version() };
       const after = held.findIndex((c) => c.tick > tick);
       if (after < 0) held.push(checkpoint);
       else held.splice(after, 0, checkpoint);
@@ -84,8 +94,11 @@ export function seekTarget(target: number, ticks: number): number {
   return Math.min(Math.max(0, Math.floor(target)), Math.max(0, ticks));
 }
 
-/** Where a seek ended: the tick the world steps next, which is the target unless the replay stopped first. */
-export type SeekEnd = { tick: number; reached: boolean };
+/**
+ * Where a seek ended: the tick the world steps next, which is the target
+ * unless the replay stopped first, and the tick it re-simulated from.
+ */
+export type SeekEnd = { tick: number; from: number; reached: boolean };
 
 /**
  * Re-simulates `world` to `target`, one muted tick per yield: a backward
@@ -102,10 +115,10 @@ export function* seekSteps(
   const now = world.tick();
   const nearest = checkpoints.at(target);
   if (nearest && nearest.tick > now) {
-    if (!world.restore(nearest)) return { tick: world.tick(), reached: false };
+    if (!world.restore(nearest)) return { tick: world.tick(), from: now, reached: false };
   } else if (target < now) {
     const restored = nearest ? world.restore(nearest) : world.restart();
-    if (!restored) return { tick: world.tick(), reached: false };
+    if (!restored) return { tick: world.tick(), from: now, reached: false };
   }
   const from = world.tick();
   while (world.tick() < target) {
@@ -115,7 +128,7 @@ export function* seekSteps(
   }
   checkpoints.take(world);
   const tick = world.tick();
-  return { tick, reached: tick === target };
+  return { tick, from, reached: tick === target };
 }
 
 /** Runs a seek to its end at once, reporting progress on the way. */

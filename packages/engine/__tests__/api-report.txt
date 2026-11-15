@@ -4173,6 +4173,10 @@ type PerfBar = {
 type PerfPlan = {
     bars: PerfBar[];
     behaviors: PerfRow[];
+    frame: null | {
+        present: TimingStat;
+        render: TimingStat;
+    };
     scaleMs: number;
     systems: PerfRow[];
     ticks: number;
@@ -13875,6 +13879,7 @@ type TimingStat = {
 type TimingsOptions = {
     clock: Clock;
     enabled?: () => boolean;
+    partial?: boolean;
     window?: number;
 };
 
@@ -18651,6 +18656,7 @@ type GameDebug = {
     inspect(id: string): Promise<EntityInspection | null>;
     pick(p: Vec2): Promise<null | string>;
     readonly events: EventLog;
+    wantTimings(on: boolean): void;
 };
 type GameEventMap = {
     "audio:caption": {
@@ -18918,9 +18924,8 @@ type RendererConfig = {
 interface ReplayHandle {
     readonly tick: number;
     readonly ticks: number;
-    seek(tick: number, opts?: {
-        onProgress?: (p: SeekProgress) => void;
-    }): Promise<void>;
+    seek(tick: number): Promise<void>;
+    readonly progress: SeekProgress | null;
     play(): void;
     pause(): void;
     step(n?: number): void;
@@ -18928,7 +18933,8 @@ interface ReplayHandle {
 }
 type ReplayHost = {
     checkpoints(): readonly number[];
-    seekTo(target: number, onProgress?: (p: SeekProgress) => void): Promise<void>;
+    progress(): SeekProgress | null;
+    seekTo(target: number): Promise<void>;
 };
 type SceneSource = {
     list(): readonly SceneListEntry[];

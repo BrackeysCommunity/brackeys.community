@@ -3323,10 +3323,19 @@ vp run scene play kitchen-sink --live stop
 
 The editor answers only while its viewer's "Let agents drive Play"
 (Project settings → Agents) is on: on by default against the dev server,
-off on a hosted project. With it off the answer is `live-refused`. With
-several editors open, the lowest client id among those with it on answers.
-`--url` and `--token` reach a hosted project as the other `--live` readers
-do; MCP's `scene_frame` and `scene_play` do the same as the two commands.
+off on a hosted project. With it off the answer is `live-refused`, as it
+is for a request the editor can't carry out (a step of more than 36000
+ticks, a debug frame from an editor without the debug overlay), with the
+reason in its message. With several editors open, the lowest client id
+among those with it on answers. `--url` and `--token` reach a hosted
+project as the other `--live` readers do; MCP's `scene_frame` and
+`scene_play` do the same as the two commands. `scene_frame` with
+`debug: true` takes the frame with every debug layer F3 cycles through
+showing (the grid, physics, debug draws, perf and the game's own), then
+puts the overlay back as it was; debug draws appear from the next tick, so
+step a paused Play once to see them. A `play` request carrying an input
+script is refused: the open editor plays with its viewer's input, and a
+scripted run belongs headless, in `playtest`.
 
 ## MCP
 
@@ -3355,7 +3364,7 @@ functions as the CLI (it never spawns it), versioned with the engine
 | `scene_check`           | `check`                 | every kind, `connected` included; `reaches` takes `expect`                                                                                                                                                                                                                                                                                                                                                                      |
 | `dialogue_walk`         | `dialogue walk`         | `id`, `vars` (an object or its JSON), `maxDepth`; returns `endings` (each `ending`, its choice `path`, the `choices`' keys and the `nodes` passed), `unreached` and `truncated`                                                                                                                                                                                                                                                 |
 | `scene_render`          | `render`                | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes; `debugDraw` and `ticks` as `--debug-draw`                                                                                                                                                                                                                                                                               |
-| `scene_frame`           | `frame --live`          | `scene`, `viewport`, `url`; the open editor's canvas as a PNG `image` with `source: "live"`, else the schematic with `source: "schematic"`; `frame-too-large` and `live-refused` pass through                                                                                                                                                                                                                                   |
+| `scene_frame`           | `frame --live`          | `scene`, `viewport` (metres), `debug`, `url`; the open editor's canvas as a PNG `image` with `source: "live"`, `debug: true` with its debug layers showing, else the schematic with `source: "schematic"`; `frame-too-large` and `live-refused` pass through                                                                                                                                                                    |
 | `scene_play`            | `play --live`           | `scene`, `action` (`play`, `pause`, `resume`, `step`, `stop`, `state`), `ticks` with `step`, `url`; `live-no-editor` and `live-refused` pass through                                                                                                                                                                                                                                                                            |
 | `project_tree`          | `project tree`          |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `asset_refs`            | `project refs`          | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -4545,11 +4554,11 @@ a batch that reports each):
 The live channel adds these; `frame --live`, `play --live` and the MCP
 `scene_frame` and `scene_play` report them:
 
-| Code              | Severity | Meaning                                                           | Fix                                                |
-| ----------------- | -------- | ----------------------------------------------------------------- | -------------------------------------------------- |
-| `live-no-editor`  | info     | No editor with the scene open answered a live request in time.    | open the scene in an editor, or read the schematic |
-| `live-refused`    | warn     | The editor that has the scene open doesn't let agents drive Play. | turn on Let agents drive Play in that editor       |
-| `frame-too-large` | warn     | A live frame stayed over the frame cap after downscaling.         | ask for a smaller frame (`--viewport`)             |
+| Code              | Severity | Meaning                                                                                                                     | Fix                                                                                            |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `live-no-editor`  | info     | No editor with the scene open answered a live request in time.                                                              | open the scene in an editor, or read the schematic                                             |
+| `live-refused`    | warn     | The editor that has the scene open refused the request: its Let agents drive Play is off, or it couldn't do what was asked. | read the message: turn on Let agents drive Play in that editor, or change the request it names |
+| `frame-too-large` | warn     | A live frame stayed over the frame cap after downscaling.                                                                   | ask for a smaller frame (`--viewport`)                                                         |
 
 ## The agent surface version
 

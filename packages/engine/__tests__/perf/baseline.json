@@ -1,1 +1,7 @@
-{}
+{
+  "x64/bun1": {
+    "kitchen-sink": { "ticksPerSecond": 6112, "at": "2026-11-15T11:05:20.000Z" },
+    "large-5k": { "ticksPerSecond": 811, "at": "2026-11-15T11:05:20.000Z" },
+    "large-5k-geometry": { "ticksPerSecond": 398, "at": "2026-11-15T11:05:20.000Z" }
+  }
+}

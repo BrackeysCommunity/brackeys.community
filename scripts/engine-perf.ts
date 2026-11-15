@@ -1,8 +1,11 @@
 /**
  * The engine's speed budget: each case plays `ticks` ticks `runs` times
- * through `scene stats` and is judged on its median ticks per second against
- * this runner's baseline (`${arch}/node${major}`). Below 80% fails, below
- * 90% warns; a runner or case with no baseline passes with a notice.
+ * through `scene stats`, after `warmup` ticks left out of the measurement,
+ * and is judged on its median ticks per second against this runner's
+ * baseline. The key is the arch and the runtime that ran it, `x64/bun1`
+ * under Bun, `arm64/node26` under Node: Bun reports a Node version it is
+ * compatible with, which a Bun upgrade moves. Below 80% fails, below 90%
+ * warns; a runner or case with no baseline passes with a notice, loud on CI.
  *
  *   vp run engine:perf            # judge against the baseline
  *   vp run engine:perf --update   # (or UPDATE_PERF_BASELINE=1) record this runner's key
@@ -33,6 +36,9 @@ export type PerfCase = {
   ticks: 600;
   runs: 5;
 };
+
+/** Ticks each run plays first and leaves out, so JIT warm-up isn't in the median. */
+export const PERF_WARMUP_TICKS = 60;
 
 export type PerfBaseline = Readonly<
   Record<`${string}/${string}`, Readonly<Record<string, { ticksPerSecond: number; at: string }>>>
@@ -67,8 +73,15 @@ export type PerfResult = {
 
 export type PerfReport = { key: string; results: PerfResult[]; ok: boolean; updated: boolean };
 
-export const runnerKey = (arch = process.arch, node = process.versions.node) =>
-  `${arch}/node${node.split(".")[0]}` as const;
+type RuntimeVersions = { node?: string; bun?: string };
+
+export const runnerKey = (
+  arch: string = process.arch,
+  versions: RuntimeVersions = process.versions,
+): `${string}/${string}` =>
+  versions.bun
+    ? `${arch}/bun${versions.bun.split(".")[0]}`
+    : `${arch}/node${(versions.node ?? "0").split(".")[0]}`;
 
 export function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -156,12 +169,23 @@ async function cliRunner(): Promise<{ runner: PerfRunner; close(): Promise<void>
         await writeFile(scene, JSON.stringify(c.scene()));
         files.set(c.id, scene);
       }
-      const r = await stats({ scene, ticks: String(c.ticks) }, ctx);
+      const r = await stats({ scene, ticks: String(c.ticks), warmup: PERF_WARMUP_TICKS }, ctx);
       if (r.exitCode !== 0) throw new Error(`${c.id}: ${r.text}`);
       return (r.data as { wall: { ticksPerSecond: number } }).wall.ticksPerSecond;
     },
     close: () => rm(dir, { recursive: true, force: true }),
   };
+}
+
+/** What CI prints when the baseline has no key for its runner: the job then checks nothing. */
+export function missingKeyNotice(key: string): string {
+  const rule = "=".repeat(72);
+  return [
+    rule,
+    `engine:perf: NO BASELINE for ${key}. Every case passes, so this job checks nothing.`,
+    `Record one from this job's engine-perf.json, or run \`vp run engine:perf --update\` on ${key}.`,
+    rule,
+  ].join("\n");
 }
 
 export async function readBaseline(path = BASELINE_PATH): Promise<PerfBaseline> {
@@ -178,9 +202,13 @@ export async function main(
   const baselinePath = deps.baselinePath ?? BASELINE_PATH;
   const real = deps.runner ? null : await cliRunner();
   try {
+    const known = await readBaseline(baselinePath);
+    const key = runnerKey();
+    if (env.CI && !update && !known[key]) console.error(missingKeyNotice(key));
     const { report, baseline } = await runPerf({
       runner: deps.runner ?? real!.runner,
-      baseline: await readBaseline(baselinePath),
+      baseline: known,
+      key,
       update,
       log: (line) => console.log(line),
     });

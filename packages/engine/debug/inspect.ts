@@ -102,7 +102,6 @@ export function inspectEntity(runtime: SceneRuntimeHandle, id: string): EntityIn
   if (!entity) return null;
   const system = ctx.system(entity.type)?.inspect?.(id);
   const behaviors: Record<BehaviorName, JsonValue | undefined> = {};
-  for (const name of Object.keys(entity.behaviors ?? {})) behaviors[name] = undefined;
   for (const name of ctx.registry.behaviorNames) {
     const shown = ctx.behavior(name)?.inspect?.(id);
     if (shown !== undefined) behaviors[name] = shown;

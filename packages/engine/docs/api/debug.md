@@ -347,7 +347,7 @@ type PerfBar = {
     max: number;
     maxFrac: number;
     mean: number;
-    /** 0..1 of the scale */
+    /** `mean` and `max` as 0..1 of the plan's scale. */
     meanFrac: number;
     phase: TickPhase;
 };
@@ -365,6 +365,11 @@ What the perf layer draws for one `RuntimeTimings`.
 type PerfPlan = {
     bars: PerfBar[];
     behaviors: PerfRow[];
+    /** The shell's render and present ms per frame; null when the timings carry none. */
+    frame: null | {
+        present: TimingStat;
+        render: TimingStat;
+    };
     /** The widest bar's ms: the slowest phase's max. */
     scaleMs: number;
     systems: PerfRow[];
@@ -372,7 +377,7 @@ type PerfPlan = {
 };
 ```
 
-Refers to [`PerfBar`](#perfbar), [`PerfRow`](#perfrow).
+Refers to [`PerfBar`](#perfbar), [`PerfRow`](#perfrow), [`TimingStat`](#timingstat).
 
 ## `PerfRow`
 
@@ -555,7 +560,7 @@ Refers to [`EntityRow`](#entityrow).
 
 _const_ in `debug/perf.ts`
 
-The runtime's phases as bars, and the five slowest systems and behaviors, from `GameStoreState.timings`.
+The runtime's phases as bars, the shell's frame time, and the five slowest systems and behaviors, from `GameStoreState.timings`.
 
 ```ts
 declare const perfLayer: DebugLayerFactory;

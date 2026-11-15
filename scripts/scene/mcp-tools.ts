@@ -830,16 +830,23 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_frame",
     title: "Look at the editor's frame",
     description:
-      'A PNG of the open editor\'s canvas as the human sees it (`source: "live"`, with its tick and mode), asked over the scene\'s live channel of the dev collab server or, with an agent token, the hosted site. When no editor answers (`live-no-editor`) it falls back to the schematic `scene_render` draws from the scene file, with `source: "schematic"`. `live-refused` means the editor\'s "Let agents drive Play" toggle is off; `frame-too-large` that no downscale fit the PNG under 1 MiB (try a smaller viewport).',
+      'A PNG of the open editor\'s canvas as the human sees it (`source: "live"`, with its tick and mode), asked over the scene\'s live channel of the dev collab server or, with an agent token, the hosted site. When no editor answers (`live-no-editor`) it falls back to the schematic `scene_render` draws from the scene file, with `source: "schematic"`. `debug: true` takes it with every debug layer F3 cycles through showing, then puts the editor\'s overlay back as it was. `live-refused` means the editor refused: its "Let agents drive Play" toggle is off, or it couldn\'t do it (a debug frame without the debug overlay), as the message says; `frame-too-large` that no downscale fit the PNG under 1 MiB (try a smaller viewport).',
     annotations: { readOnlyHint: true, openWorldHint: true },
     input: {
       scene: sceneName,
       viewport: z
         .number()
-        .int()
-        .min(1)
+        .positive()
         .optional()
-        .describe("The frame's longest side in px; default the editor canvas's size."),
+        .describe(
+          "The world width to frame, in metres around the view's centre; default the whole canvas.",
+        ),
+      debug: z
+        .boolean()
+        .optional()
+        .describe(
+          "Show the editor's debug layers (grid, physics, debug draws, perf) in the frame.",
+        ),
       url: liveFields.url,
     },
     run: async (i, ctx) => {
@@ -851,7 +858,14 @@ export const MCP_TOOLS: readonly McpTool[] = [
       try {
         const out = await tmp.write("frame.png", "");
         const result = await frame(
-          { scene: i.scene, live: true, out, viewport: opt(i.viewport, String), url },
+          {
+            scene: i.scene,
+            live: true,
+            out,
+            viewport: opt(i.viewport, String),
+            ...(i.debug ? { debug: true } : {}),
+            url,
+          },
           ctx,
         );
         if (hasCode(result, "live-no-editor")) {
@@ -881,7 +895,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_play",
     title: "Drive the editor's Play",
     description:
-      "Drive Play in the open editor over the scene's live channel: `play` starts it through the editor's own Play (recordings and history as for a click), `pause`, `resume`, `step` (`ticks`, default 1, while paused), `stop` (back to the edit world), or `state` to read the phase, tick and outcome without changing anything. `live-no-editor` when no editor answers, `live-refused` when its \"Let agents drive Play\" toggle is off.",
+      "Drive Play in the open editor over the scene's live channel: `play` starts it through the editor's own Play (recordings and history as for a click), `pause`, `resume`, `step` (`ticks`, default 1, while paused), `stop` (back to the edit world), or `state` to read the phase, tick and outcome without changing anything. `live-no-editor` when no editor answers, `live-refused` when its \"Let agents drive Play\" toggle is off or it couldn't carry the request out (a step over 36000 ticks), as the message says. The open editor plays with its viewer's input; run an input script headless with scene_playtest.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,

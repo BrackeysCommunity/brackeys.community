@@ -7,7 +7,7 @@ import type { AudioSystemOptions } from "../audio/system";
 import { createGame } from "../engine";
 import { createRegistry, defineGame } from "../game/define";
 import type { EngineContext, GameDefinition } from "../game/types";
-import type { SeekProgress } from "../runtime/seek";
+import { createCheckpoints, type SeekWorld } from "../runtime/seek";
 import { parseSceneOrThrow } from "../scene/parse";
 import type { RunRecording } from "../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
@@ -197,19 +197,13 @@ describe("seeking a replay", () => {
     expect(handle.checkpoints).toEqual([0, 300, 600]);
 
     // Back to 300 restores its checkpoint and steps nothing.
-    const progress: SeekProgress[] = [];
-    await handle.seek(300, {
-      onProgress: (p: SeekProgress) => progress.push(p),
-    });
-    expect(progress).toEqual([]);
+    await handle.seek(300);
+    expect(handle.progress).toEqual({ target: 300, from: 300, tick: 300 });
     expect(stateOf(game)).toEqual(at300);
 
     // 450 restores 300 and re-simulates 150 ticks.
-    await handle.seek(450, {
-      onProgress: (p: SeekProgress) => progress.push(p),
-    });
-    expect(progress[0]).toEqual({ target: 450, from: 300, tick: 301 });
-    expect(progress.at(-1)).toEqual({ target: 450, from: 300, tick: 450 });
+    await handle.seek(450);
+    expect(handle.progress).toEqual({ target: 450, from: 300, tick: 450 });
     expect(stateOf(game)).toEqual(at450);
     expect(handle.tick).toBe(450);
     expect(game.getStore().state.sim.paused).toBe(true);
@@ -232,11 +226,8 @@ describe("seeking a replay", () => {
     expect(handle.checkpoints).toEqual([0, 100, 200, 300, 400, 500, 600]);
     const steps: number[] = [];
     game.on("scene:step", (r) => steps.push(r.tick));
-    const progress: SeekProgress[] = [];
-    await handle.seek(320, {
-      onProgress: (p: SeekProgress) => progress.push(p),
-    });
-    expect(progress.map((p) => p.from)).toEqual(Array(20).fill(300));
+    await handle.seek(320);
+    expect(handle.progress).toEqual({ target: 320, from: 300, tick: 320 });
     expect(stateOf(game)).toEqual(at320);
     expect(steps).toEqual([]);
   }, 30_000);
@@ -300,11 +291,8 @@ describe("seeking a replay", () => {
     await handle.seek(300);
     expect(handle.checkpoints).toEqual([]);
     expect(stateOf(game, false)).toEqual(at300);
-    const progress: SeekProgress[] = [];
-    await handle.seek(100, {
-      onProgress: (p: SeekProgress) => progress.push(p),
-    });
-    expect(progress[0]?.from).toBe(0);
+    await handle.seek(100);
+    expect(handle.progress).toEqual({ target: 100, from: 0, tick: 100 });
     expect(stateOf(game, false)).toEqual(at100);
   }, 30_000);
 });
@@ -384,3 +372,24 @@ describe("seeking across a live swap", () => {
     expect(stateOf(game)).toEqual(at400);
   }, 30_000);
 });
+
+describe("checkpoints", () => {
+  it("stop checkpointing, rather than throw, when the game's snapshot throws", () => {
+    const checkpoints = createCheckpoints(10);
+    const world: SeekWorld = {
+      tick: () => 10,
+      step: () => true,
+      snapshot: () => {
+        throw new DataCloneError();
+      },
+      version: () => null,
+      restore: () => true,
+      restart: () => true,
+    };
+    expect(() => checkpoints.take(world)).not.toThrow();
+    expect(checkpoints.refused).toBe(true);
+    expect(checkpoints.ticks()).toEqual([]);
+  });
+});
+
+class DataCloneError extends Error {}

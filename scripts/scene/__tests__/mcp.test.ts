@@ -249,6 +249,7 @@ describe("scene MCP server", () => {
     expect(field("scene_render", "margin")).toMatch(/^With around: metres of margin/);
     expect(field("scene_show", "near")).toMatch(/in metres/);
     expect(field("scene_playtest", "at")).toMatch(/in metres/);
+    expect(field("scene_frame", "viewport")).toMatch(/in metres/);
     expect(field("scene_apply_ops", "ops")).toContain(
       `format v${SCENE_FORMAT_VERSION}, lengths in metres`,
     );
@@ -2171,6 +2172,48 @@ describe("the open editor's frame and Play", { timeout: 60_000 }, () => {
 
       const bad = await play("pause", { ticks: 2 });
       expect(bad.structuredContent).toMatchObject({ exitCode: 2 });
+    } finally {
+      detach();
+    }
+  });
+
+  it("asks for the debug layers with debug, and passes a step over the cap's refusal through", async () => {
+    const png = new Uint8Array(await readFile(DOT));
+    const { game, calls } = fakeGame();
+    const asked: unknown[] = [];
+    const detach = createLiveResponder().attach(editor.provider as never, {
+      enabled: () => true,
+      game: () => game as never,
+      render: async (req) => {
+        asked.push(req.opts);
+        return png;
+      },
+    });
+    try {
+      const debug = await call("scene_frame", {
+        scene: "engine-yard",
+        url: server.url,
+        debug: true,
+      });
+      expect(debug.structuredContent).toMatchObject({ exitCode: 0, source: "live", debug: true });
+      const plain = await call("scene_frame", {
+        scene: "engine-yard",
+        url: server.url,
+        viewport: 2.5,
+      });
+      expect(plain.structuredContent).not.toHaveProperty("debug");
+      expect(asked).toEqual([{ debug: true }, { viewport: 2.5 }]);
+
+      const over = await call("scene_play", {
+        scene: "engine-yard",
+        action: "step",
+        ticks: 36001,
+        url: server.url,
+      });
+      expect(over.structuredContent).toMatchObject({ exitCode: 1 });
+      expect(JSON.stringify(over.structuredContent)).toContain("live-refused");
+      expect(JSON.stringify(over.structuredContent)).toContain("from 1 to 36000");
+      expect(calls).toEqual([]);
     } finally {
       detach();
     }

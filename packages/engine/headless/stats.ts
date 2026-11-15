@@ -85,6 +85,7 @@ export async function runStats(opts: StatsOptions): Promise<StatsReport> {
     timings: {
       clock,
       window: ticks,
+      partial: true,
       enabled: () => {
         const on = begun++ >= warmup;
         if (begun === warmup + 1) startedAt = clock();

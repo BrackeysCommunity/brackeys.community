@@ -1701,7 +1701,11 @@ interface DebugDraw {
     text(at: Vec2, text: string, opts?: DebugStyle & {
         size?: number;
     }): void;
-    /** False when nothing would show the draws: callers skip expensive work. */
+    /**
+     * False when nothing would show the draws: callers skip expensive work
+     * then, but only work that changes no state (randomness, poses, events),
+     * since it differs between the editor and a headless replay.
+     */
     readonly active: boolean;
 }
 ```

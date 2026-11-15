@@ -49,9 +49,9 @@ describe("createTimings", () => {
     const view = timings.view()!;
 
     expect(view.ticks).toBe(2);
-    expect(view.phases["systems-before"]).toEqual({ mean: 1, max: 1 });
+    expect(view.phases["systems-before"]).toEqual({ mean: 2, max: 2 });
     expect(view.phases["systems-after"]).toEqual({ mean: 1, max: 1 });
-    expect(view.phases.behaviors).toEqual({ mean: 3, max: 4 });
+    expect(view.phases.behaviors).toEqual({ mean: 2, max: 3 });
     expect(view.phases["dispatch-1"]).toEqual({ mean: 1, max: 1 });
     expect(view.phases["dispatch-2"]).toEqual({ mean: 1, max: 1 });
     expect(view.phases.physics).toEqual({ mean: 0, max: 0 });
@@ -71,8 +71,16 @@ describe("createTimings", () => {
 
   it("puts every part the runtime laps in one phase, scripts under their behavior name", () => {
     expect(phaseOf("behavior.script.beforePhysics")).toEqual({
-      phase: "behaviors",
+      phase: "physics",
       behavior: "script",
+    });
+    expect(phaseOf("behavior.anim.beforeStep")).toEqual({
+      phase: "systems-before",
+      behavior: "anim",
+    });
+    expect(phaseOf("behavior.my.afterStep")).toEqual({
+      phase: "behaviors",
+      behavior: "my.afterStep",
     });
     expect(phaseOf("behavior.my.script")).toEqual({ phase: "behaviors", behavior: "my.script" });
     expect(phaseOf("system.sensor.beforePhysics")).toEqual({ phase: "physics", system: "sensor" });

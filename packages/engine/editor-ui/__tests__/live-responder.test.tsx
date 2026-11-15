@@ -13,6 +13,7 @@ import {
   type LiveResponse,
   type StatelessProvider,
 } from "../../collab/index";
+import { createDebugOverlay } from "../../debug/index";
 import type { SceneDefinition } from "../../editor/index";
 import { defineGame } from "../../game/index";
 import { createGame, type GameInstance, type RapierModule } from "../../index";
@@ -148,6 +149,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  localStorage.removeItem("debug-overlay-mode");
   detach?.();
   live?.destroy();
   game?.destroy();
@@ -155,10 +157,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function setup(opts: { storage?: EditorStorage; hosted?: boolean } = {}) {
+async function setup(opts: { storage?: EditorStorage; hosted?: boolean; debug?: boolean } = {}) {
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
-  game = await createGame(canvas, { game: liveGame, rapier: async () => rapier, dev: true });
+  game = await createGame(canvas, {
+    game: liveGame,
+    rapier: async () => rapier,
+    dev: true,
+    ...(opts.debug ? { debug: createDebugOverlay } : {}),
+  });
   game.start();
   const doc = sceneToDoc(yard(), { key: sequentialKeys("t") });
   const net = relay();
@@ -273,6 +280,56 @@ describe("the editor's live responder", () => {
     const res = await ask({ t: "play", action: "play", script: { steps: [] } });
     expect(res).toMatchObject({ ok: false, code: "live-refused" });
     expect(state().mode).toBe("edit");
+  });
+
+  it("takes a debug frame with every debug layer showing, then puts the overlay back", async () => {
+    const { ask, capture } = await setup({ debug: true });
+    const seen: string[] = [];
+    capture.mockImplementation(async () => {
+      seen.push(state().debugMode);
+      return noise(8, 8);
+    });
+    expect(state().debugMode).toBe("off");
+    expect((await ask({ t: "frame", opts: { debug: true } })).ok).toBe(true);
+    expect(seen).toEqual(["perf"]);
+    expect(state().debugMode).toBe("off");
+
+    game!.router.dispatch({
+      kind: "key",
+      type: "down",
+      key: "F3",
+      code: "F3",
+      native: new KeyboardEvent("keydown", { key: "F3" }),
+    });
+    expect(state().debugMode).toBe("grid");
+    expect((await ask({ t: "frame", opts: { debug: true } })).ok).toBe(true);
+    expect((await ask({ t: "frame", opts: {} })).ok).toBe(true);
+    expect(seen).toEqual(["perf", "perf", "grid"]);
+    expect(state().debugMode).toBe("grid");
+    expect(localStorage.getItem("debug-overlay-mode")).toBe("grid");
+  });
+
+  it("puts the overlay back when a debug frame's capture fails", async () => {
+    const { ask, capture } = await setup({ debug: true });
+    capture.mockImplementationOnce(async () => {
+      throw new Error("lost the canvas");
+    });
+    expect(await ask({ t: "frame", opts: { debug: true } })).toMatchObject({
+      ok: false,
+      code: "live-refused",
+      message: "lost the canvas",
+    });
+    expect(state().debugMode).toBe("off");
+  });
+
+  it("refuses a debug frame from an editor without the debug overlay", async () => {
+    const { ask, capture } = await setup();
+    expect(await ask({ t: "frame", opts: { debug: true } })).toMatchObject({
+      ok: false,
+      code: "live-refused",
+      message: expect.stringMatching(/no debug overlay/),
+    });
+    expect(capture).not.toHaveBeenCalled();
   });
 
   it("keeps the toggle in the viewer's storage, never in a doc", async () => {

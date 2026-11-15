@@ -125,7 +125,7 @@ describe("the cases and the committed baseline", () => {
   it("is a well-formed baseline", async () => {
     const committed = JSON.parse(await readFile(BASELINE_PATH, "utf8")) as Record<string, unknown>;
     for (const [key, cases] of Object.entries(committed)) {
-      expect(key).toMatch(/^[a-z0-9_]+\/node\d+$/);
+      expect(key).toMatch(/^[a-z0-9_]+\/(node|bun)\d+$/);
       for (const entry of Object.values(cases as Record<string, { ticksPerSecond: number }>))
         expect(entry.ticksPerSecond).toBeGreaterThan(0);
     }

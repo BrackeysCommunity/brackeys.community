@@ -12,7 +12,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import type { Store } from "@tanstack/store";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import type { EventLog } from "../../debug/event-log";
 import type { EditorSession, Ref, SceneIssue } from "../../editor/index";
@@ -30,7 +30,7 @@ import { EditorHistory } from "./EditorHistory";
 import { EditorInspector } from "./EditorInspector";
 import { EditorOutliner } from "./EditorOutliner";
 import { EditorProject, useSelectedAsset } from "./EditorProject";
-import { EventLogPanel } from "./EventLogPanel";
+import { EventLogPanel, type EventLogReplayHost } from "./EventLogPanel";
 import { LoadRunPanel, type ReplaySource } from "./LoadRunPanel";
 import { PerfReadout } from "./PerfReadout";
 import { PlayInspector } from "./PlayInspector";
@@ -157,6 +157,36 @@ function InspectorForMode(
     <PlayInspector game={game} session={edit.session} notify={edit.notify} />
   ) : (
     <InspectorWithAsset {...edit} />
+  );
+}
+
+/** The event log, picking entities for the play inspector during Play. */
+function EventLogForMode({ controls }: { controls: PanelControls }) {
+  const { game, session, rapier, project, liveVersion } = controls;
+  const playing = usePlaying(game);
+  const registry = game?.registry ?? session.registry;
+  const runtime = project?.runtime;
+  const sceneId = project?.scene;
+  const replayHost = useMemo<EventLogReplayHost>(
+    () => ({
+      rapier: rapier ?? null,
+      registry,
+      ...(runtime ? { project: runtime } : {}),
+      ...(liveVersion ? { versions: liveVersion } : {}),
+      ...(sceneId ? { sceneId } : {}),
+    }),
+    [rapier, registry, runtime, liveVersion, sceneId],
+  );
+  return (
+    <EventLogPanel
+      events={debugEventsOf(game)}
+      session={session}
+      notify={controls.notify}
+      run={controls.runStore}
+      replay={replaySourceOf(game)}
+      replayHost={replayHost}
+      playing={playing}
+    />
   );
 }
 
@@ -317,22 +347,7 @@ export const PANELS: readonly PanelDef[] = [
     id: "event-log",
     title: "Event log",
     icon: Activity01Icon,
-    render: ({ controls }) => (
-      <EventLogPanel
-        events={debugEventsOf(controls.game)}
-        session={controls.session}
-        notify={controls.notify}
-        run={controls.runStore}
-        replay={replaySourceOf(controls.game)}
-        replayHost={() => ({
-          rapier: controls.rapier ?? null,
-          registry: controls.game?.registry ?? controls.session.registry,
-          ...(controls.project?.runtime ? { project: controls.project.runtime } : {}),
-          ...(controls.liveVersion ? { versions: controls.liveVersion } : {}),
-          ...(controls.project?.scene ? { sceneId: controls.project.scene } : {}),
-        })}
-      />
-    ),
+    render: ({ controls }) => <EventLogForMode controls={controls} />,
     skeleton: rows(3),
   },
   {

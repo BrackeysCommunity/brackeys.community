@@ -1,7 +1,9 @@
 /**
  * Checks that production builds hold no dev-only engine module: the debug
- * overlay, the editor and its UI, the dev server, or a game's debug layers,
- * and that a runtime without a host's sink gets the frozen no-op `ctx.debug`.
+ * overlay, the editor and its UI, the dev server, or a game's debug layers.
+ * Each build must also bundle the scene runtime and no debug-draw sink, and
+ * the runtime, run from source with no sink, must hand out the frozen no-op
+ * `ctx.debug`: together, a production `ctx.debug` can only be that no-op.
  * One list (`DEV_ONLY`) covers the site's client build and every game export.
  * Checked by module id from the build's chunk report
  * (`scripts/engine-bundle-report.ts`), since minification renames functions.
@@ -55,6 +57,8 @@ type Measure = {
   /** Dev-only modules in the route's chunks, and in any client chunk. */
   inRoute: string[];
   anywhere: string[];
+  /** Why the client build's `ctx.debug` may not be the no-op, as `debugDrawProblems` finds it. */
+  debugDraw: string[];
 };
 
 export type ExportMeasure = {
@@ -63,6 +67,7 @@ export type ExportMeasure = {
   engineModules: number;
   /** Dev-only modules in any of the export's chunks. */
   leaks: string[];
+  debugDraw: string[];
 };
 
 const shown = (id: string) => (id.startsWith(REPO) ? relative(REPO, id) : id);
@@ -97,6 +102,26 @@ export function devOnlyModules(chunks: ReportedChunk[], rules: RegExp[] = DEV_ON
         : [];
     }),
   );
+}
+
+const ENGINE_ROOT = "/(?:packages/engine|node_modules/@jams/engine)/";
+/** The module that defines `NOOP_DEBUG_DRAW` and hands it out when no sink is given. */
+const SCENE_RUNTIME = new RegExp(`${ENGINE_ROOT}runtime/runtime\\.ts$`);
+/** The only module that makes a drawing `ctx.debug`. */
+const DEBUG_DRAW_SINK = new RegExp(`${ENGINE_ROOT}debug/draw-sink\\.ts$`);
+
+/**
+ * Why a build's `ctx.debug` may not be the frozen no-op, by its chunks: the
+ * scene runtime must be in it (so the source check below speaks for it) and
+ * the debug-draw sink must not.
+ */
+export function debugDrawProblems(chunks: ReportedChunk[]): string[] {
+  const problems: string[] = [];
+  if (devOnlyModules(chunks, [SCENE_RUNTIME]).length === 0)
+    problems.push("no chunk holds the scene runtime (packages/engine/runtime/runtime.ts)");
+  for (const leak of devOnlyModules(chunks, [DEBUG_DRAW_SINK]))
+    problems.push(`a debug-draw sink is bundled: ${leak}`);
+  return problems;
 }
 
 function readChunks(file: string): ReportedChunk[] {
@@ -148,6 +173,7 @@ function measure(chunks: ReportedChunk[]): Measure {
     engineBytes: engine.reduce((n, [, size]) => n + size, 0),
     inRoute: devOnlyModules(routeChunks, NOT_IN_ROUTE),
     anywhere: devOnlyModules(chunks),
+    debugDraw: debugDrawProblems(chunks),
   };
 }
 
@@ -176,6 +202,7 @@ export async function checkExport(dir: string): Promise<ExportMeasure> {
       0,
     ),
     leaks: devOnlyModules(chunks),
+    debugDraw: debugDrawProblems(chunks),
   };
 }
 
@@ -249,8 +276,8 @@ export function noopDebugDrawProblem(draw: DebugDraw): string | null {
   return null;
 }
 
-/** The `ctx.debug` a runtime gets with no `debugDraw` sink, as every production host makes it. */
-async function productionDebugDraw(): Promise<DebugDraw> {
+/** The `ctx.debug` the source runtime gets with no `debugDraw` sink, as every production host makes it. */
+async function sinklessDebugDraw(): Promise<DebugDraw> {
   const { createSceneRuntime } = await import("../packages/engine/runtime/runtime");
   const runtime = createSceneRuntime({ rapier: null, view: null });
   try {
@@ -262,8 +289,8 @@ async function productionDebugDraw(): Promise<DebugDraw> {
 
 async function main(argv: string[]): Promise<number> {
   const failures: string[] = [];
-  const noop = noopDebugDrawProblem(await productionDebugDraw());
-  if (noop) failures.push(`a production runtime's ${noop}`);
+  const noop = noopDebugDrawProblem(await sinklessDebugDraw());
+  if (noop) failures.push(`a runtime with no debug-draw sink: ${noop}`);
   const exports = flagValues(argv, "--export");
   const reportAt = argv.indexOf("--report");
   const selfTest = argv.includes("--self-test");
@@ -279,6 +306,7 @@ async function main(argv: string[]): Promise<number> {
       failures.push(`dev-only modules in the game route:\n  ${base.inRoute.join("\n  ")}`);
     if (base.anywhere.length)
       failures.push(`dev-only modules in the client build:\n  ${base.anywhere.join("\n  ")}`);
+    for (const problem of base.debugDraw) failures.push(`client build: ${problem}`);
 
     if (selfTest) {
       const leaked = build({
@@ -326,6 +354,7 @@ async function main(argv: string[]): Promise<number> {
     );
     if (m.leaks.length)
       failures.push(`dev-only modules in export ${dir}:\n  ${m.leaks.join("\n  ")}`);
+    for (const problem of m.debugDraw) failures.push(`export ${dir}: ${problem}`);
   }
 
   if (selfTest) {

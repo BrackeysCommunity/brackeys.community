@@ -32,13 +32,18 @@ the owner.
   read-only JSON for a debugger.
 - `runtime/timings.ts`: `TICK_PHASES`, `TickPhase`, `RuntimeTimings`,
   `TimingStat`, `Clock`, `TimingsOptions`, `createTimings`, a windowed view
-  over the `RunTiming` collector. `SceneRuntimeOptions.timings` and
-  `SceneRuntimeHandle.timings()`; `GameStoreState.timings`.
+  over the `RunTiming` collector (`partial` gives the ticks so far before a
+  window fills), `createFrameTimings`, `FrameTimings` and `formatMs`.
+  `SceneRuntimeOptions.timings` and `SceneRuntimeHandle.timings()`;
+  `GameStoreState.timings`, which carries the shell's `frame` (render and
+  present ms per rendered frame).
 - `GameInstance.debug` (`GameDebug`: `inspect`, `entities` and `pick`
   return promises of plain data; `events` is an `EventLog`, filled from
   every step's events in Play and a replay when a dev host's overlay lends
-  one), `GameInstance.replayHandle()` with `ReplayHandle` and
-  `ReplayHost`, `GameReplayOptions` (`seek`, `checkpointEvery`, `paused`),
+  one; `wantTimings(on)` holds the store's timings on for a panel),
+  `GameInstance.replayHandle()` with `ReplayHandle` and `ReplayHost` (a
+  seek's progress is plain data the caller reads, `ReplayHandle.progress`
+  and `ReplayHost.progress()`, never a callback), `GameReplayOptions` (`seek`, `checkpointEvery`, `paused`),
   and `GameInstance.reopenAudio()`.
 - `./debug`: the `debug-draw` and `perf` layers in `ENGINE_DEBUG_LAYERS`
   (F3 now cycles off, grid, physics, debug-draw, perf, then the game's),
@@ -58,9 +63,12 @@ the owner.
   group, and the bottom group an Event log and a Perf tab.
 - Timings: `SceneRuntimeOptions.timings` now fills
   `SceneRuntimeHandle.timings()` with windowed (default 120 ticks) mean and
-  max ms per tick phase, per type system and per behavior; the `perf` debug
-  layer draws them (`perfPlan`, `perfLines`, `PERF_SLOWEST`, `PerfPlan`,
-  `PerfBar`, `PerfRow` in `./debug`) and the editor's Perf tab shows them.
+  max ms per tick phase, per type system and per behavior; a behavior's
+  `beforeStep` and `beforePhysics` count in `systems-before` and `physics`,
+  where they run, and its step in `behaviors`; the `perf` debug layer draws
+  them, with the shell's frame time, (`perfPlan`, `perfLines`, `PERF_SLOWEST`, `PerfPlan`,
+  `PerfBar`, `PerfRow` in `./debug`) and the editor's Perf tab shows them,
+  holding timings on while it is open.
   `RunTiming` gains the optional `onSpan`.
 - Live inspection: `inspectEntity`, `listEntities` and `pickEntity` in
   `./debug` (`EntityInspection.owners`, `InspectedTimer`); engine systems
@@ -99,8 +107,10 @@ the owner.
 - `snapshotWorld` / `restoreWorld` (physics-free): a world save's state
   held in memory, without JSON, including every system's and behavior's
   save (tweens, dialogue, anim, scripts, tree, timers, persisted cells).
-  Refuses what a world save refuses, with the same `save-unsupported`
-  issue; a Rapier scene gets the world save's message. `restoreWorld`
+  Refuses what a world save refuses, with the same issue: `save-unsupported`
+  (a Rapier scene gets the world save's message), and `schema` at the path
+  of a game state, `persist` or world value that isn't plain JSON, through
+  the one check `captureSave` uses. `restoreWorld`
   reloads the scene through its entry and restores in a world save's
   order. `captureSave`'s world depth now goes through the same capture
   walk, and its output is unchanged.
@@ -123,14 +133,19 @@ the owner.
   start. The site's game room gains a mute and volume menu for the master
   bus (behind `engine-games-enabled`), kept in the engine's prefs store.
 - `runStats` (headless) reports a run's deterministic `counts` and this
-  machine's `wall` ticks per second and per-phase timings;
+  machine's `wall` ticks per second and per-phase timings, over the ticks
+  it ran when the script or the game ends it early;
   `scene stats <scene> [--ticks n] [--json]` prints them.
 - `vp run engine:perf` judges the kitchen sink, large-5k and its
-  physics-free twin (600 ticks, 5 runs, median ticks/s) against
-  packages/engine/**tests**/perf/baseline.json keyed `${arch}/node${major}`:
-  below 80% fails, below 90% warns, no baseline passes with a notice;
-  `--update` / UPDATE_PERF_BASELINE=1 records the key. The baseline ships
-  empty: the owner records it.
+  physics-free twin (60 warm-up ticks, then 600 measured, 5 runs, median
+  ticks/s) against packages/engine/**tests**/perf/baseline.json, keyed by
+  arch and the runtime that ran it (`x64/bun1` under Bun, `arm64/node26`
+  under Node; Bun's reported Node version moves with Bun, so it isn't the
+  key): below 80% fails, below 90% warns, no baseline passes with a notice,
+  printed as a banner on CI; `--update` / UPDATE_PERF_BASELINE=1 records the
+  key. The `x64/bun1` key is CI's first engine-perf run (pipeline 1135,
+  2026-11-15, Bun 1.4.4 on Linux x64, measured before the warm-up ticks
+  were added, so it errs low); the arm64 key is still to be recorded.
 - `GameInstance.replay(doc, rec, { seek, checkpointEvery = 300, paused })`
   and `replayHandle()` seek. Seeking re-simulates with presentation muted
   (no step listeners, present requests, audio, effects or dialogue view)
@@ -139,12 +154,16 @@ the owner.
   re-poses the view with alpha 1 at the target. Rapier scenes re-simulate
   from tick 0. Live swaps are re-applied at their ticks, and a seek back
   past one restores onto the earlier version. Progress comes as plain-data
-  `SeekProgress` (with `seekTarget`, from the root and `./headless`).
+  `SeekProgress` (with `seekTarget`, from the root and `./headless`), read
+  from the handle. A game whose state isn't plain JSON stops checkpointing,
+  and its seeks re-simulate from the start; a seek that fails at
+  `replay(…, { seek })` warns in dev rather than rejecting unhandled.
   `replayRecording({ seek })` stops there and reports `ReplayReport.at`.
 - The Run panel's replay scrubber: a range over a running replay's ticks
   with the run's markers and the replay's checkpoints; dragging seeks after
   it rests 50 ms, shows 'Re-simulating to tick N' with progress over the
-  checkpoints while it re-simulates, and a newer drag supersedes an older
+  seek's progress (read off the handle every 100 ms) while it re-simulates,
+  and a newer drag supersedes an older
   seek. Clicking an event in the event log seeks a running replay to its
   tick, else selects its entity.
 - The editor answers agents' live requests on the open scene doc: frames of
@@ -171,14 +190,16 @@ the owner.
 
 ### Performance
 
-- The scripts-budget probe's function-form gap is documented:
-  `defineScript`'s `create` returns fresh `awake`/`step` closures per entity
-  (thousands of distinct call targets and contexts, against the class
-  form's one prototype method). The whole gap is inside the behavior's own
-  lap, not the host's phases. A function script that returns shared methods
-  runs level with the class form. On arm64 the ratios are about 1.1 (class)
-  and 1.2 (function); on CI Linux x64 about 1.5 and 1.7-2.2. The 2x budget
-  is unchanged.
+- The scripts-budget probe's function-form gap is documented from a
+  per-phase breakdown run on CI Linux x64 (pipeline 1135, Node 24, Ryzen 5 3600) and on arm64: every script form's extra time over one system is in
+  the behavior's own lap, none in the host's phases (under 0.05 ms a tick),
+  so it is the per-instance hook call. On x64 the class form read
+  1.43–1.64 and the function form 1.55–1.69 across three passes in one
+  job, the function form below the class in one; state on an object or
+  shared methods moved it no further than that spread. On arm64 they are
+  about 1.1 and 1.2. The 1.7–2.2 seen before were medians on a busy runner,
+  which the p10 comparison leaves out, so there is no host cause to fix.
+  The 2x budget is unchanged, and the temporary breakdown test is gone.
 
 ### Agent surface
 

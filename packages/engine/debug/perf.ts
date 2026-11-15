@@ -1,6 +1,7 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 
 import {
+  formatMs,
   TICK_PHASES,
   type RuntimeTimings,
   type TickPhase,
@@ -11,8 +12,7 @@ import type { DebugLayerFactory } from "./index";
 /** Systems and behaviors listed, slowest first. */
 export const PERF_SLOWEST = 5;
 
-/** Layout, canvas px. */
-// Clears the editor's floating Play toolbar.
+// Canvas px; ORIGIN.y clears the editor's floating Play toolbar.
 const ORIGIN = { x: 8, y: 60 } as const;
 const BAR_HEIGHT = 8;
 const ROW = 12;
@@ -33,7 +33,8 @@ export type PerfBar = {
   phase: TickPhase;
   mean: number;
   max: number;
-  /** 0..1 of the scale */ meanFrac: number;
+  /** `mean` and `max` as 0..1 of the plan's scale. */
+  meanFrac: number;
   maxFrac: number;
 };
 export type PerfRow = { name: string; mean: number; max: number };
@@ -46,6 +47,8 @@ export type PerfPlan = {
   bars: PerfBar[];
   systems: PerfRow[];
   behaviors: PerfRow[];
+  /** The shell's render and present ms per frame; null when the timings carry none. */
+  frame: { render: TimingStat; present: TimingStat } | null;
 };
 
 function slowest(from: Readonly<Record<string, TimingStat>>): PerfRow[] {
@@ -69,27 +72,32 @@ export function perfPlan(timings: RuntimeTimings): PerfPlan {
     }),
     systems: slowest(timings.systems),
     behaviors: slowest(timings.behaviors),
+    frame: timings.frame ?? null,
   };
 }
 
-const fmt = (v: number) => v.toFixed(3);
+const fmt = (s: TimingStat) => `${formatMs(s.mean)} / ${formatMs(s.max)}`;
 
 /** The plan's text lines, top to bottom; the bar rows line up with the first `TICK_PHASES.length` after the header. */
 export function perfLines(plan: PerfPlan): string[] {
   const lines = [`tick ms over ${plan.ticks} ticks (mean / max)`];
-  for (const bar of plan.bars) lines.push(`${bar.phase} ${fmt(bar.mean)} / ${fmt(bar.max)}`);
+  for (const bar of plan.bars) lines.push(`${bar.phase} ${fmt(bar)}`);
+  if (plan.frame) {
+    lines.push("frame ms (mean / max)");
+    lines.push(`  render ${fmt(plan.frame.render)}`, `  present ${fmt(plan.frame.present)}`);
+  }
   for (const [title, rows] of [
     ["slowest systems", plan.systems],
     ["slowest behaviors", plan.behaviors],
   ] as const) {
     if (rows.length === 0) continue;
     lines.push(title);
-    for (const row of rows) lines.push(`  ${row.name} ${fmt(row.mean)} / ${fmt(row.max)}`);
+    for (const row of rows) lines.push(`  ${row.name} ${fmt(row)}`);
   }
   return lines;
 }
 
-/** The runtime's phases as bars, and the five slowest systems and behaviors, from `GameStoreState.timings`. */
+/** The runtime's phases as bars, the shell's frame time, and the five slowest systems and behaviors, from `GameStoreState.timings`. */
 export const perfLayer: DebugLayerFactory = {
   id: "perf",
   needs: { timings: true },
@@ -131,10 +139,7 @@ export const perfLayer: DebugLayerFactory = {
         }
         const name = new Text({ text: bar.phase, style: textStyleOf() });
         name.position.set(0, y);
-        const value = new Text({
-          text: `${fmt(bar.mean)} / ${fmt(bar.max)}`,
-          style: textStyleOf(),
-        });
+        const value = new Text({ text: fmt(bar), style: textStyleOf() });
         value.position.set(LABEL_WIDTH + BAR_WIDTH + PANEL_PAD, y);
         labels.addChild(name, value);
         const top = y + (ROW - BAR_HEIGHT) / 2;

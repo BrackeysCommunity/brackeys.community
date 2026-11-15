@@ -109,6 +109,44 @@ export function useLiveRead<T>(
   return state;
 }
 
+/** A runtime entity's row, in the outliner's look; clicking it makes it the Play pick. */
+export function PlayPickRow({
+  session,
+  id,
+  detail,
+}: {
+  session: EditorSession;
+  id: string;
+  detail?: string;
+}) {
+  const pick = playPickOf(session);
+  const picked = useStoreValue(pick, (s) => s.id === id, Object.is);
+  return (
+    <button
+      type="button"
+      className="je-outliner-row je-play-pick-row"
+      data-play-pick={id}
+      data-selected={picked ? "" : undefined}
+      aria-pressed={picked}
+      onClick={() => pick.setState(() => ({ id }))}
+    >
+      <span className="je-sp-truncate">{id}</span>
+      {detail !== undefined ? (
+        <span className="je-insp-grow je-sp-truncate je-insp-muted">{detail}</span>
+      ) : null}
+    </button>
+  );
+}
+
+/** One empty-state line, shared by the Play views. */
+export function PlayEmpty({ children }: { children: ReactNode }) {
+  return (
+    <Text as="p" size="xs" variant="muted" className="je-panel-empty">
+      {children}
+    </Text>
+  );
+}
+
 /** Alt+click on the canvas picks the topmost entity there while this is mounted. */
 function useCanvasPick(game: PlayInspectorGame, pick: Store<PickState>) {
   useEffect(() => {
@@ -184,7 +222,15 @@ function poseRows(pose: EntityInspection["pose"], ppm: number): [string, ReactNo
   ];
 }
 
-function Inspection({ data, ppm }: { data: EntityInspection; ppm: number }) {
+function Inspection({
+  data,
+  ppm,
+  session,
+}: {
+  data: EntityInspection;
+  ppm: number;
+  session: EditorSession;
+}) {
   const behaviors = Object.entries(data.behaviors);
   return (
     <>
@@ -233,9 +279,7 @@ function Inspection({ data, ppm }: { data: EntityInspection; ppm: number }) {
       ) : null}
       <InspectorSection id="play:timers" title="Timers" defaultOpen={false}>
         {data.timers.length === 0 ? (
-          <Text as="p" size="xs" variant="muted">
-            None
-          </Text>
+          <PlayEmpty>No timers</PlayEmpty>
         ) : (
           <Facts
             label="Timers"
@@ -245,28 +289,18 @@ function Inspection({ data, ppm }: { data: EntityInspection; ppm: number }) {
       </InspectorSection>
       <InspectorSection id="play:contacts" title="Contacts">
         {data.contacts.length === 0 ? (
-          <Text as="p" size="xs" variant="muted">
-            None
-          </Text>
+          <PlayEmpty>No contacts</PlayEmpty>
         ) : (
           <ul className="je-play-contacts" aria-label="Contacts">
             {data.contacts.map((id) => (
-              <li key={id} className="je-sp-truncate">
-                {id}
+              <li key={id}>
+                <PlayPickRow session={session} id={id} />
               </li>
             ))}
           </ul>
         )}
       </InspectorSection>
     </>
-  );
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return (
-    <Text as="p" size="xs" variant="muted" className="je-panel-empty">
-      {children}
-    </Text>
   );
 }
 
@@ -288,22 +322,22 @@ export function PlayInspector(props: {
   let body: ReactNode;
   if (target === null || read.status === "idle") {
     body = (
-      <Empty>
+      <PlayEmpty>
         Select an entity, or <Hotkey chord="Alt" /> click one on the canvas.
-      </Empty>
+      </PlayEmpty>
     );
   } else if (read.status === "pending") {
-    body = <Empty>Reading {target}…</Empty>;
+    body = <PlayEmpty>Reading {target}…</PlayEmpty>;
   } else if (read.status === "failed") {
     body = (
-      <Empty>
+      <PlayEmpty>
         Couldn't read {target}: {read.message}
-      </Empty>
+      </PlayEmpty>
     );
   } else if (read.value === null) {
-    body = <Empty>{target} isn't live in this run.</Empty>;
+    body = <PlayEmpty>{target} isn't live in this run.</PlayEmpty>;
   } else {
-    body = <Inspection data={read.value} ppm={ppm} />;
+    body = <Inspection data={read.value} ppm={ppm} session={session} />;
   }
   return (
     <div className="je-inspector" aria-label="Play inspector" data-play-inspector="">

@@ -2047,6 +2047,35 @@
     padding: 0 2px;
   }
 
+  /* The event log's filters wrap onto a second row in a narrow panel, so none is cut off. */
+  .je-event-filters {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    height: auto;
+    min-height: var(--je-tab);
+    padding-block: 4px;
+  }
+
+  .je-event-filters > .je-select {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 96px;
+  }
+
+  .je-event-entity {
+    flex: 1 1 96px;
+    max-width: 200px;
+  }
+
+  .je-event-tick {
+    flex: 0 0 64px;
+    width: 64px;
+  }
+
+  .je-event-truncated {
+    padding: 4px 2px;
+  }
+
   .je-panel-skeleton {
     display: flex;
     flex-direction: column;
@@ -3327,7 +3356,6 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    font-size: var(--je-text);
   }
 
   /* Under the outliner while playing: the runtime's spawns, in the outliner's row look. */
@@ -3354,7 +3382,8 @@
     overflow-y: auto;
   }
 
-  .je-spawned-row {
+  /* A runtime entity's row (a spawn, a contact): picks it for the play inspector. */
+  .je-play-pick-row {
     padding-left: 8px;
   }
 
@@ -3389,6 +3418,10 @@
   .je-problems-row:hover,
   .je-history-row:hover {
     background: color-mix(in srgb, var(--je-muted) 60%, transparent);
+  }
+
+  .je-problems-row[data-inert]:hover {
+    background: none;
   }
 
   .je-problems-show {

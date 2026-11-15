@@ -9,6 +9,8 @@ export type StatsInput = {
   /** Ticks to measure; the tool's default when omitted. */
   ticks?: string;
   game?: string;
+  /** Ticks played first and left out of the measurements; the perf runner's, not a CLI flag. */
+  warmup?: number;
 };
 
 export const STATS_USAGE = "stats <scene|file> [--ticks n] [--game id] [--json]";
@@ -62,7 +64,12 @@ export const stats: Tool<StatsInput> = async (input, ctx) => {
   if (!loaded.ok) return loaded.result;
   const { registry } = loaded;
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
-  const script: InputScript = { v: 1, maxTicks: ticks, steps: [{ wait: ticks }] };
+  const warmup = Math.min(Math.max(0, Math.floor(input.warmup ?? 0)), MAX_STATS_TICKS - ticks);
+  const script: InputScript = {
+    v: 1,
+    maxTicks: warmup + ticks,
+    steps: [{ wait: warmup + ticks }],
+  };
   let report: StatsReport;
   try {
     report = await runStats({
@@ -74,6 +81,7 @@ export const stats: Tool<StatsInput> = async (input, ctx) => {
       project,
       script,
       ticks,
+      warmup,
     });
   } catch (err) {
     return failure(err instanceof Error ? err.message : String(err));

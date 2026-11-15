@@ -125,13 +125,19 @@ function runHashOf(runtime: SceneRuntimeHandle, host: SaveHost): string {
   return runHash(host.mainScene()!, ctx.time, ctx.registry, ctx.project, host.prefabs());
 }
 
-const notJson = (slot: string, problem: string) =>
-  failed(
-    makeIssue("schema", {
-      message: `slot "${slot}" can't be saved: ${problem}`,
-      path: problem.slice(0, problem.indexOf(":")),
-    }),
-  );
+/**
+ * The `schema` issue for the first of `parts` that isn't plain JSON, at its
+ * path; null when all are. `subject` opens the message, e.g. `slot "a"`.
+ * Every capture of a save's parts refuses through this.
+ */
+export function notJsonIssue(subject: string, parts: Record<string, unknown>): SceneIssue | null {
+  const problem = plainJsonProblem(parts);
+  if (!problem) return null;
+  return makeIssue("schema", {
+    message: `${subject} can't be saved: ${problem}`,
+    path: problem.slice(0, problem.indexOf(":")),
+  });
+}
 
 /**
  * A save of `runtime` at `opts.depth`, taken between ticks. `progress`
@@ -160,8 +166,9 @@ export function captureSave(
   const game = ctx.registry.game;
   const persist = ctx.persist.value;
   const data = (runtime.snapshot() ?? null) as JsonValue;
-  const problem = plainJsonProblem({ persist, data });
-  if (problem) return notJson(opts.slot, problem);
+  const subject = `slot "${opts.slot}"`;
+  const problem = notJsonIssue(subject, { persist, data });
+  if (problem) return failed(problem);
   const progress: SaveFile = {
     kind: "save",
     v: SAVE_VERSION,
@@ -193,8 +200,8 @@ export function captureSave(
   if (blockers.length > 0)
     return failed(unsupported(blockers, opts.slot, formatSaveFile(progress)));
   const world = worldStateOf(runtime, host);
-  const worldProblem = plainJsonProblem({ world });
-  if (worldProblem) return notJson(opts.slot, worldProblem);
+  const worldProblem = notJsonIssue(subject, { world });
+  if (worldProblem) return failed(worldProblem);
   return { ok: true, file: { ...progress, depth: "world", world: structuredClone(world) } };
 }
 

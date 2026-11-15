@@ -14,6 +14,7 @@ import {
   electResponder,
   LIVE_FRAME_MAX_BYTES,
   LIVE_MESSAGE_MAX_BYTES,
+  LIVE_STEP_MAX_TICKS,
   liveRequest,
   livePresence,
   relayableStateless,
@@ -247,6 +248,52 @@ describe("the responder", () => {
       await liveRequest(r, { t: "play", id: "p2", action: "play", from: "here" }),
     ).toMatchObject({ ok: true });
     expect(played).toEqual(["here"]);
+  });
+
+  it("steps only a whole number of ticks from 1 to LIVE_STEP_MAX_TICKS", async () => {
+    const h = hub();
+    const { game, calls } = fakeGame();
+    createLiveResponder().attach(h.peer(), {
+      enabled: () => true,
+      game: () => game,
+      render: async () => png(),
+    });
+    const r = h.peer();
+    for (const [id, ticks] of [
+      ["over", LIVE_STEP_MAX_TICKS + 1],
+      ["zero", 0],
+      ["part", 1.5],
+      ["huge", 1e12],
+    ] as const) {
+      const res = await liveRequest(r, { t: "play", id, action: "step", ticks });
+      expect(res, id).toMatchObject({ ok: false, code: "live-refused" });
+      if (!res.ok) expect(res.message, id).toContain(`from 1 to ${LIVE_STEP_MAX_TICKS}`);
+    }
+    expect(calls).toEqual([]);
+    expect(
+      await liveRequest(r, { t: "play", id: "cap", action: "step", ticks: LIVE_STEP_MAX_TICKS }),
+    ).toMatchObject({ ok: true });
+    expect(await liveRequest(r, { t: "play", id: "one", action: "step" })).toMatchObject({
+      ok: true,
+    });
+    expect(calls).toEqual([`step ${LIVE_STEP_MAX_TICKS}`, "step 1"]);
+  });
+
+  it("answers a request it couldn't carry out with live-refused and the reason", async () => {
+    const h = hub();
+    const { game } = fakeGame();
+    createLiveResponder().attach(h.peer(), {
+      enabled: () => true,
+      game: () => game,
+      render: async () => {
+        throw new Error("The editor's canvas can't be read.");
+      },
+    });
+    expect(await liveRequest(h.peer(), { t: "frame", id: "f", opts: {} })).toMatchObject({
+      ok: false,
+      code: "live-refused",
+      message: "The editor's canvas can't be read.",
+    });
   });
 
   it("caps a frame at LIVE_FRAME_MAX_BYTES with frame-too-large, and fits the cap in one message", async () => {

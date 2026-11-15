@@ -7,15 +7,21 @@ import { loadCompatRapier } from "../../__tests__/fixtures/compat-rapier";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
 import { createEventLog } from "../../debug/event-log";
+import type { EntityInspection } from "../../debug/inspect";
 import { createEditorSession, type SceneDefinition } from "../../editor/index";
 import { createRegistry } from "../../game/index";
+import type { replayRecording } from "../../headless/index";
 import { runPlaytest } from "../../headless/playtest";
 import type { StepEvent } from "../../runtime/types";
 import { parseSceneOrThrow } from "../../scene/parse";
 import engineYardJson from "../../scenes/engine-yard.json";
+import type { GameStoreState } from "../../types";
 import type { EditorNotify } from "../host";
+import { KitProvider } from "../kit/index";
 import { EventLogPanel } from "../panels/EventLogPanel";
-import type { LoadedRun } from "../session/loaded-run";
+import { PlayInspector, type PlayInspectorGame } from "../panels/PlayInspector";
+import { loadedRunEvents, type LoadedRun } from "../session/loaded-run";
+import { fakeGameDebug } from "./fake-world-game";
 
 const notify: EditorNotify = Object.assign(vi.fn(), {
   error: vi.fn(),
@@ -126,14 +132,80 @@ describe("EventLogPanel", () => {
     expect(screen.getByText("No events match the filters.")).toBeTruthy();
   });
 
-  it("selects the entity an event names", () => {
+  it("says when the tick range runs backwards, and reads a negative bound as 0", () => {
+    render(<EventLogPanel events={filled()} session={sessionOf()} notify={notify} />);
+    const from = screen.getByRole("spinbutton", { name: "From tick" });
+    const to = screen.getByRole("spinbutton", { name: "To tick" });
+    fireEvent.change(from, { target: { value: "10" } });
+    fireEvent.change(to, { target: { value: "3" } });
+    expect(screen.getByText(/From is after To/)).toBeTruthy();
+    expect(from.getAttribute("aria-invalid")).toBe("true");
+    expect(to.getAttribute("aria-invalid")).toBe("true");
+    fireEvent.change(from, { target: { value: "-5" } });
+    expect(from.hasAttribute("aria-invalid")).toBe(false);
+    expect(rows()).toEqual(["sensor:enter at tick 2"]);
+  });
+
+  it("selects the entity an event names, and leaves rows with nothing to do as plain text", () => {
     const session = sessionOf();
-    render(<EventLogPanel events={filled()} session={session} notify={notify} />);
+    const log = filled();
+    log.append(14, [ev(14, "spawn", { entityId: "bullet#3" })]);
+    render(<EventLogPanel events={log} session={session} notify={notify} />);
     const row = screen.getByRole("listitem", { name: "sensor:enter at tick 2" });
     fireEvent.click(within(row).getByRole("button"));
     expect(session.store.state.selection).toEqual(["zone"]);
-    const line = screen.getByRole("listitem", { name: "dialogue:line at tick 5" });
-    expect(within(line).getByRole("button").hasAttribute("disabled")).toBe(true);
+    for (const name of ["dialogue:line at tick 5", "spawn at tick 14"]) {
+      const inert = screen.getByRole("listitem", { name });
+      expect(within(inert).queryByRole("button")).toBeNull();
+      expect(inert.hasAttribute("data-inert")).toBe(true);
+    }
+  });
+
+  it("in Play, puts a spawned entity's event in the play inspector", async () => {
+    const session = sessionOf();
+    const log = createEventLog();
+    log.append(7, [ev(7, "spawn", { entityId: "bullet#12" })]);
+    const store = new Store({ mode: "play", tick: 0 } as unknown as GameStoreState);
+    const inspect = vi.fn(
+      async (id: string): Promise<EntityInspection | null> =>
+        id === "bullet#12"
+          ? {
+              id,
+              type: "bullet",
+              enabled: true,
+              pose: { x: 1, y: 2, rot: 0 },
+              prevPose: null,
+              entity: { id, type: "bullet" } as EntityInspection["entity"],
+              system: undefined,
+              behaviors: {},
+              body: null,
+              timers: [],
+              contacts: ["pad"],
+            }
+          : null,
+    );
+    const game = {
+      registry: session.registry,
+      getStore: () => store,
+      screenToWorld: (p: { x: number; y: number }) => p,
+      router: { register: () => () => {} },
+      debug: { ...fakeGameDebug(), inspect },
+    } as unknown as PlayInspectorGame;
+    render(
+      <KitProvider host={{ storage: null }}>
+        <EventLogPanel events={log} session={session} notify={notify} playing />
+        <PlayInspector game={game} session={session} notify={notify} />
+      </KitProvider>,
+    );
+    const row = screen.getByRole("listitem", { name: "spawn at tick 7" });
+    fireEvent.click(within(row).getByRole("button"));
+    const inspector = screen.getByLabelText("Play inspector");
+    await waitFor(() => expect(within(inspector).getByText("bullet#12")).toBeTruthy());
+    expect(session.store.state.selection).toEqual([]);
+
+    const contacts = within(inspector).getByRole("list", { name: "Contacts" });
+    fireEvent.click(within(contacts).getByRole("button", { name: "pad" }));
+    await waitFor(() => expect(inspect).toHaveBeenLastCalledWith("pad"));
   });
 
   it("follows a running log and clears it", async () => {
@@ -166,7 +238,7 @@ describe("EventLogPanel", () => {
       issuesDebounceMs: 0,
     });
     const run = new Store<LoadedRun | null>(null);
-    const replayHost = vi.fn(() => ({ rapier, game: testGame, registry }));
+    const replayHost = { rapier, game: testGame, registry };
     const live = createEventLog();
     render(
       <EventLogPanel
@@ -182,12 +254,37 @@ describe("EventLogPanel", () => {
     await waitFor(() =>
       expect(rows()).toEqual(played.events.map((e) => `${e.type} at tick ${e.tick}`)),
     );
-    expect(replayHost).toHaveBeenCalledTimes(1);
 
     act(() => live.append(0, [ev(0, "coin", { entityId: "zone" })]));
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     await waitFor(() => expect(rows()).toEqual(["coin at tick 0"]));
     fireEvent.click(screen.getByRole("button", { name: "run.json" }));
     await waitFor(() => expect(rows()).toHaveLength(played.events.length));
+  });
+});
+
+describe("loadedRunEvents", () => {
+  const yard = (): SceneDefinition => ({ v: 1, name: "y", bounds: [0, 0, 10, 10], entities: [] });
+  const run = { recording: {} as LoadedRun["recording"], name: "r" };
+
+  it("keeps a log per recording, scene and host, and never keeps a blocked replay", () => {
+    let blocked = true;
+    const replayed = vi.fn((opts: Parameters<typeof replayRecording>[0]) => {
+      opts.onEvents?.(1, [ev(1, "coin")]);
+      return { blocked } as ReturnType<typeof replayRecording>;
+    });
+    const replay = replayed as unknown as typeof replayRecording;
+    const scene = yard();
+    const registry = createRegistry();
+    expect(loadedRunEvents(run, { scene, registry, rapier: null }, replay)).toBeNull();
+    blocked = false;
+    const host = { scene, registry, rapier: null };
+    const log = loadedRunEvents(run, host, replay);
+    expect(log?.list().map((e) => e.type)).toEqual(["coin"]);
+    expect(loadedRunEvents(run, { ...host }, replay)).toBe(log);
+    expect(replayed).toHaveBeenCalledTimes(2);
+    expect(loadedRunEvents(run, { ...host, registry: createRegistry() }, replay)).not.toBe(log);
+    expect(loadedRunEvents(run, { ...host, scene: yard() }, replay)).not.toBe(log);
+    expect(replayed).toHaveBeenCalledTimes(4);
   });
 });

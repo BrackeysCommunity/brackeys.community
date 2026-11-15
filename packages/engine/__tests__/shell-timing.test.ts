@@ -174,3 +174,28 @@ describe("the debug overlay's timing readout", () => {
     expect(readout()).toBeNull();
   });
 });
+
+describe("the store's timings", () => {
+  it("carry the shell's render and present time while a panel holds them on", async () => {
+    let clock = 0;
+    const perfNow = vi.spyOn(performance, "now").mockImplementation(() => (clock += 1));
+    try {
+      const game = await playing({ dev: true, debug: createDebugOverlay });
+      game.debug.wantTimings(true);
+      for (let i = 0; i < 260; i++) {
+        frames(1);
+        gpu.draws[0]!();
+      }
+      const timings = game.getStore().state.timings;
+      expect(timings?.ticks).toBeGreaterThan(0);
+      expect(timings?.frame?.render.mean).toBeGreaterThan(0);
+      expect(timings?.frame?.present.mean).toBeGreaterThan(0);
+
+      game.debug.wantTimings(false);
+      frames(1);
+      expect(game.getStore().state.timings).toBeNull();
+    } finally {
+      perfNow.mockRestore();
+    }
+  });
+});

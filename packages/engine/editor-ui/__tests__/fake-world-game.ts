@@ -19,6 +19,7 @@ export function fakeGameDebug(): GameInstance["debug"] {
     entities: async () => [],
     pick: async () => null,
     events: { capacity: 0, list: () => [], clear() {}, subscribe: () => () => {} },
+    wantTimings() {},
   };
 }
 

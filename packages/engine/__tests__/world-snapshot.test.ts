@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { createRegistry, defineGame } from "../game/define";
 import type { GameDefinition } from "../game/types";
 import { listedSceneId, prepareRun, runLibrary, runLoop, startRun } from "../headless/play-loop";
 import { gamePersistCell } from "../runtime/persist";
@@ -11,6 +12,7 @@ import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import { restoreWorld, snapshotWorld } from "../runtime/world-snapshot";
 import { hashText } from "../scene/hash";
 import type { RunRecording } from "../scene/recording-schema";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import {
   loadRapier,
   probePhysics,
@@ -183,4 +185,53 @@ describe("world snapshots refuse what a world save refuses", () => {
       started.runtime.destroy();
     }
   });
+});
+
+/** A physics-free runtime whose game state is `state`, as `snapshot` returns it. */
+function runtimeSaving(state: () => unknown) {
+  const game = defineGame({
+    id: "not-json",
+    types: [],
+    actions: [],
+    world: { physics: "none" },
+    time: { kind: "fixed", rate: 60 },
+    createRuntime: () => ({ snapshot: () => state() as never }),
+  });
+  const registry = createRegistry(game);
+  const doc: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    game: game.id,
+    name: "not-json",
+    bounds: [0, 0, 10, 10],
+    settings: { physics: "none", gravity: [0, 0] },
+    entities: [],
+  };
+  const prepared = prepareRun(doc, registry);
+  if (!prepared.ok) throw new Error("blocked");
+  const started = startRun({ rapier: null, game, registry, scene: prepared.scene, play: {} });
+  if (!started.ok) throw new Error("load failed");
+  return started.runtime;
+}
+
+describe("world snapshots refuse a game state a save can't hold", () => {
+  for (const [what, state] of [
+    ["a function", () => ({ hit: () => 1 })],
+    ["a Map", () => ({ seen: new Map([["a", 1]]) })],
+  ] as const) {
+    it(`${what} in the game's state gets captureSave's issue, not a throw`, () => {
+      const runtime = runtimeSaving(state);
+      try {
+        const taken = snapshotWorld(runtime);
+        const saved = captureSave(runtime, { depth: "world", slot: "s", now: 0 });
+        expect(taken.ok).toBe(false);
+        expect(saved.ok).toBe(false);
+        if (taken.ok || saved.ok) return;
+        expect(taken.issue.code).toBe(saved.issue.code);
+        expect(taken.issue.code).toBe("schema");
+        expect(taken.issue.path).toBe(saved.issue.path);
+      } finally {
+        runtime.destroy();
+      }
+    });
+  }
 });
