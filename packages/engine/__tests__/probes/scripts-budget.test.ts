@@ -14,20 +14,18 @@ import { SCENE_FORMAT_VERSION, type EntityDef } from "../../scene/types";
 /**
  * What a script costs against the same work written as one system: 2,000
  * entities each circling its start, once as a behavior system over a map,
- * once as a script class and once as a function script. The runs take
- * turns in short bursts, in a rotating order, and their median tick times
- * are compared, so whatever else loads the machine falls on all of them
- * alike. A burst's first tick is not measured: it pays to bring the run back
- * into a cache the other runs just filled, which a game ticking one scene
- * never does, and which costs most to the form with the most objects per
- * entity. The ratio is printed; only past 2× is it a failure.
+ * once as a script class and once as a function script. The runs step in
+ * turn, tick by tick, in a rotating order, so whatever else loads the
+ * machine falls on all of them alike. What is compared is each run's fast
+ * tick, the 10th percentile: the work is the same every tick, so a slower
+ * tick is time another process took, and the median of a busy CI runner
+ * carries that into the ratio. The ratios are printed with the medians';
+ * only past 2× is it a failure.
  */
 
 const COUNT = 2000;
 const WARM_TICKS = 30;
-const BURSTS = 60;
-/** Ticks in a burst, the first of them unmeasured. */
-const BURST_TICKS = 6;
+const MEASURED_TICKS = 300;
 const BUDGET = 2;
 const NAME = "budget/orbit";
 
@@ -145,26 +143,25 @@ function open(behavior: BehaviorDef | typeof AsClass): SceneRuntimeHandle {
   return createHeadlessRuntime({ rapier: null, game, registry, scene });
 }
 
-const median = (xs: readonly number[]) => {
+/** The value `p` of the way up `xs` sorted, interpolated between neighbours. */
+const quantile = (xs: readonly number[], p: number) => {
   const sorted = [...xs].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  const at = (sorted.length - 1) * p;
+  const lo = Math.floor(at);
+  return sorted[lo]! + (sorted[Math.ceil(at)]! - sorted[lo]!) * (at - lo);
 };
 
 describe(`${COUNT} script instances against one system doing the same work`, () => {
   it(`stays within ${BUDGET}× the system's tick time, as a class and as a function`, () => {
     const runs = [open(asSystem), open(AsClass), open(asFunction)];
     const ticks: number[][] = runs.map(() => []);
-    for (const rt of runs) for (let i = 0; i < WARM_TICKS; i++) rt.step(rt.ctx.time.tickMs, []);
-    for (let b = 0; b < BURSTS; b++) {
+    for (let i = 0; i < WARM_TICKS + MEASURED_TICKS; i++) {
       for (let k = 0; k < runs.length; k++) {
-        const n = (b + k) % runs.length;
+        const n = (i + k) % runs.length;
         const rt = runs[n]!;
-        for (let i = 0; i < BURST_TICKS; i++) {
-          const t0 = performance.now();
-          rt.step(rt.ctx.time.tickMs, []);
-          if (i > 0) ticks[n]!.push(performance.now() - t0);
-        }
+        const t0 = performance.now();
+        rt.step(rt.ctx.time.tickMs, []);
+        if (i >= WARM_TICKS) ticks[n]!.push(performance.now() - t0);
       }
     }
     // The same work: every orbiter ends where the system put it.
@@ -174,10 +171,20 @@ describe(`${COUNT} script instances against one system doing the same work`, () 
       expect(want).toBeDefined();
       for (const rt of scripts) expect(rt.ctx.poses.get(id), id).toStrictEqual(want);
     }
-    const [systemMs, classMs, functionMs] = ticks.map(median) as [number, number, number];
+    const [systemMs, classMs, functionMs] = ticks.map((t) => quantile(t, 0.1)) as [
+      number,
+      number,
+      number,
+    ];
+    const [systemMed, classMed, functionMed] = ticks.map((t) => quantile(t, 0.5)) as [
+      number,
+      number,
+      number,
+    ];
     const ms = (x: number) => x.toFixed(3);
+    const ratio = (x: number, of: number) => (x / of).toFixed(3);
     console.info(
-      `${COUNT} orbiters: one system ${ms(systemMs)} ms/tick (median), script class ${ms(classMs)} (ratio ${(classMs / systemMs).toFixed(3)}), function script ${ms(functionMs)} (ratio ${(functionMs / systemMs).toFixed(3)})`,
+      `${COUNT} orbiters, ms/tick at p10 (median): one system ${ms(systemMs)} (${ms(systemMed)}), script class ${ms(classMs)} (${ms(classMed)}) ratio ${ratio(classMs, systemMs)} (${ratio(classMed, systemMed)}), function script ${ms(functionMs)} (${ms(functionMed)}) ratio ${ratio(functionMs, systemMs)} (${ratio(functionMed, systemMed)})`,
     );
     expect(classMs).toBeLessThanOrEqual(systemMs * BUDGET);
     expect(functionMs).toBeLessThanOrEqual(systemMs * BUDGET);
