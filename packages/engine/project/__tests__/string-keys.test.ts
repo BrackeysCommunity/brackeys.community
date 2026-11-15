@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { docLookup, type DocLookup } from "../kinds/define";
+import { createRegistry } from "../../game/define";
+import { docLookup, type DocLookup, type KindEnv } from "../kinds/define";
 import { prefabKind } from "../kinds/prefab";
 import { soundKind } from "../kinds/sound";
 import {
@@ -288,13 +289,14 @@ describe("missing string keys", () => {
 
   it("is raised by a sound's caption and a prefab's text keys through the same rule", () => {
     const lookup = fixture();
+    const env: KindEnv = { registry: createRegistry(), project: null };
     const brief = (issues: readonly { severity: string; path?: string; got?: unknown }[]) =>
       issues.map((i) => [i.severity, i.path, i.got]);
     expect(brief(soundKind.crossValidate!(FIXTURE.sound!.knock as never, lookup))).toEqual([
       ["error", "/caption", "door.knock"],
     ]);
     expect(brief(soundKind.crossValidate!(FIXTURE.sound!.quiet as never, lookup))).toEqual([]);
-    expect(brief(prefabKind.crossValidate!(FIXTURE.prefab!.door as never, lookup))).toEqual([
+    expect(brief(prefabKind.crossValidate!(FIXTURE.prefab!.door as never, lookup, env))).toEqual([
       ["info", "/entities/0/behaviors/text/key", "door.open"],
     ]);
   });
