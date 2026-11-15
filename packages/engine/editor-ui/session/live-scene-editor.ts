@@ -346,7 +346,12 @@ export type ProjectRegistry = {
   project(): ProjectRuntimeView;
   /** Resolves once every live material and runtime-view (game-settings, data-table, input-map, scene-list) doc has opened, so `current()` and `project()` hold them all. */
   ready(): Promise<void>;
-  /** Fires when `current()` or `project()` changes: one of those assets was added, deleted or edited. */
+  /**
+   * Fires when `current()` or `project()` changes in a way the game must be
+   * rebuilt for: a material, or a sim kind's asset added, deleted or edited.
+   * A view kind's edit (a synth patch, a sound) only moves `project()`, which
+   * `followAssets` hands the running game in place.
+   */
   subscribe(listener: () => void): () => void;
   /**
    * Hot reload of art: once the project doc holds the hash an `asset:changed`
@@ -355,7 +360,8 @@ export type ProjectRegistry = {
    * uses the asset, as a `pending` hold while it runs. While `game` plays,
    * a `project()` change (an edited input map, settings or table) reaches it
    * the same way with nothing `changed`, so the run keeps going on the new
-   * data. Returns the unsubscribe.
+   * data; a view kind's edit reaches it so in edit mode too. Returns the
+   * unsubscribe.
    */
   followAssets(
     changes: AssetChangeSource,
@@ -382,6 +388,12 @@ function reloadName(view: ReturnType<ProjectSession["view"]>, changed: readonly 
 const isWatchedKind = (kinds: KindRegistry, kind: string): boolean =>
   kind === MATERIAL_KIND || isRuntimeKind(kinds.get(kind));
 
+/** A presentation-only kind: what it holds changes how the game looks or sounds, never what it simulates. */
+const isViewKind = (kinds: KindRegistry, kind: string): boolean => {
+  const def = kinds.get(kind);
+  return isRuntimeKind(def) && def.runtime === "view";
+};
+
 /**
  * The registry a project's docs are read, validated and built with: the
  * session's code registry with the project's material assets overlaid
@@ -402,10 +414,12 @@ export function projectRegistry(
   type Held = { doc: SessionDoc | null; opened: Promise<void>; off: () => void };
   const held = new Map<string, Held>();
   const listeners = new Set<() => void>();
+  const viewListeners = new Set<() => void>();
   let current = session.registry;
   let project = runtimeView(session.view(), new Map(), session.registry, session.kinds);
   let materialsKey: string | null = null;
   let dataKey: string | null = null;
+  let viewKey: string | null = null;
   let destroyed = false;
 
   const watched = () =>
@@ -434,7 +448,15 @@ export function projectRegistry(
     const data = dataValues(entries);
     const nextMaterials = stableJson([...materials]);
     // Settings and tables also depend on where each asset sits, which orders them.
-    const nextData = stableJson([...data].map(([id, v]) => [id, view.byId.get(id)?.path, v]));
+    const keyOf = (pick: (kind: string) => boolean) =>
+      stableJson(
+        [...data]
+          .filter(([id]) => pick(view.byId.get(id)?.kind ?? ""))
+          .map(([id, v]) => [id, view.byId.get(id)?.path, v]),
+      );
+    const viewOnly = (kind: string) => isViewKind(session.kinds, kind);
+    const nextData = keyOf((kind) => !viewOnly(kind));
+    const nextView = keyOf(viewOnly);
     const first = materialsKey === null;
     let changed = false;
     if (nextMaterials !== materialsKey) {
@@ -445,8 +467,14 @@ export function projectRegistry(
     }
     if (nextData !== dataKey) {
       dataKey = nextData;
+      viewKey = nextView;
       project = runtimeView(view, data, session.registry, session.kinds);
       changed = true;
+    } else if (nextView !== viewKey) {
+      // Nothing the simulation reads moved: no rebuild, the running game takes it in place.
+      viewKey = nextView;
+      project = runtimeView(view, data, session.registry, session.kinds);
+      if (!first) for (const l of viewListeners) l();
     }
     if (changed && !first) for (const l of listeners) l();
   }
@@ -543,15 +571,21 @@ export function projectRegistry(
         if (destroyed || project === sent || game.getMode?.() !== "play") return;
         reload(session.view(), []);
       };
+      const followView = () => {
+        if (destroyed || project === sent) return;
+        reload(session.view(), []);
+      };
       const off = changes.onAssetChanged((message) => {
         pending.set(message.id, message.sha256);
         flush();
       });
       listeners.add(followProject);
+      viewListeners.add(followView);
       session.projectDoc.on("update", flush);
       return () => {
         off();
         listeners.delete(followProject);
+        viewListeners.delete(followView);
         session.projectDoc.off("update", flush);
       };
     },
@@ -561,6 +595,7 @@ export function projectRegistry(
       session.projectDoc.off("update", sync);
       for (const [name, entry] of held) letGo(name, entry);
       listeners.clear();
+      viewListeners.clear();
     },
   };
 }

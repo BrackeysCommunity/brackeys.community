@@ -17,6 +17,7 @@ import {
   createKindRegistry,
   dataTableKind,
   gameSettingsKind,
+  synthKind,
   type AssetEntry,
   type DocLayout,
 } from "../../project/index";
@@ -53,6 +54,8 @@ const code = createRegistry(cardGame);
 const kinds = createKindRegistry(cardGame);
 const tableLayout = dataTableKind.layout as DocLayout;
 const settingsLayout = gameSettingsKind.layout as DocLayout;
+const synthLayout = synthKind.layout as DocLayout;
+const ZAP = { kind: "synth", v: 1, wave: "square", freq: 440, sustainMs: 60, decayMs: 120 };
 
 const CARDS = {
   kind: "data-table",
@@ -82,6 +85,7 @@ function seed() {
       assets: {
         cards: entry("cards", "data-table", "data/cards.json"),
         settings: entry("settings", "game-settings", "game-settings.json"),
+        zap: entry("zap", "synth", "zap.synth.json"),
       },
       history: {},
       code: {},
@@ -91,6 +95,7 @@ function seed() {
   );
   layoutToDoc(host.doc("asset:p.cards"), tableLayout, CARDS);
   layoutToDoc(host.doc("asset:p.settings"), settingsLayout, SETTINGS);
+  layoutToDoc(host.doc("asset:p.zap"), synthLayout, ZAP);
   return host;
 }
 
@@ -167,5 +172,31 @@ describe("the editor's project data", () => {
       name: "Cards",
     });
     expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("hands a view kind's edit to the running game in place, edit mode too, with no rebuild", async () => {
+    const host = seed();
+    const { watch } = await join(host);
+    const rebuild = vi.fn();
+    watch.subscribe(rebuild);
+    const reloadAssets = vi.fn(() => Promise.resolve({ failed: [], errors: [] }));
+    watch.followAssets(
+      { onAssetChanged: () => () => {} },
+      { reloadAssets, getMode: () => "edit" as const },
+    );
+    const before = watch.project();
+
+    layoutPatch(host.doc("asset:p.zap"), synthLayout, { ...ZAP, osc2: { wave: "saw" } });
+    expect(rebuild).not.toHaveBeenCalled();
+    expect(watch.project()).not.toBe(before);
+    expect(reloadAssets).toHaveBeenCalledTimes(1);
+    expect(reloadAssets).toHaveBeenLastCalledWith(
+      expect.objectContaining({ project: watch.project(), changed: [] }),
+    );
+
+    // A sim kind's edit still rebuilds, and in edit mode reaches the game only through that.
+    layoutPatch(host.doc("asset:p.cards"), tableLayout, { ...CARDS, rows: [] });
+    expect(rebuild).toHaveBeenCalledTimes(1);
+    expect(reloadAssets).toHaveBeenCalledTimes(1);
   });
 });
