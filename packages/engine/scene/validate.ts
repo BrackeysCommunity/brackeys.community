@@ -640,9 +640,8 @@ export function validateScene(
       const hullTuple: ShapeTuple | undefined =
         hull.length >= 3 ? ["poly", ...hull.flat()] : undefined;
       const fixWith = canChain ? chain : hullTuple;
-      const splits = splitsAt(field);
-      // A lossless split beats the hull; a field that takes a chain keeps the chain.
-      const split = splits && !canChain ? decomposeBatch(def, ref, r) : undefined;
+      // Only the hint names the split; the fix stays the chain or the hull, which keep the entity's id.
+      const splits = splitsAt(field) && decomposeBatch(def, ref, r).ok;
       push("poly-invalid", {
         message: `${ref}'s poly isn't a simple convex polygon (non-convex, self-intersecting or zero area)`,
         path: at,
@@ -655,15 +654,13 @@ export function validateScene(
           : hullTuple
             ? `${splits ? 'Use "Split into convex pieces"' : "Split it into convex polys"}, or take its convex hull; ${type.type}'s ${field} can't be a chain.`
             : `Its points lie on one line; give it area, or remove it. ${type.type}'s ${field} can't be a chain.`,
-        fix: split?.ok
-          ? split.batch
-          : fixWith
-            ? batch(
-                canChain ? `Convert ${ref} to a chain` : `Replace ${ref} with its convex hull`,
-                [{ op: "update", ref, set: { [field]: fixWith } }],
-                [ref],
-              )
-            : undefined,
+        fix: fixWith
+          ? batch(
+              canChain ? `Convert ${ref} to a chain` : `Replace ${ref} with its convex hull`,
+              [{ op: "update", ref, set: { [field]: fixWith } }],
+              [ref],
+            )
+          : undefined,
       });
     };
     for (const { field, pointer: at, value, schema } of item.behaviorShapes) {

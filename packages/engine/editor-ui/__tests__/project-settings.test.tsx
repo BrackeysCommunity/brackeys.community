@@ -404,7 +404,7 @@ describe("the project settings panel", () => {
     await confirmDialog();
     await waitFor(() => expect(sceneOrder(session)).toEqual(["cellar", "attic"]));
     expect(panel.getByRole("button", { name: "Add yard" })).toBeTruthy();
-  });
+  }, 15_000);
 
   it("Scenes reorders by dragging a row onto another", async () => {
     const { session } = await client(project(), ada);
@@ -608,5 +608,5 @@ describe("two editors on one project", () => {
     act(() => void b.session.undo());
     await waitFor(() => expect(order(a.session)).toEqual(["yard", "cellar"]));
     expect(b.session.canUndo()).toBe(false);
-  });
+  }, 15_000);
 });

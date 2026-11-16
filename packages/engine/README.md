@@ -4300,8 +4300,8 @@ same type and fields and ids `<id>-1`, `<id>-2`, …, or with `group` a node
 named `id` holding them, as one op batch for `applyOps`. It refuses
 (`op-invalid`) while a joint or another behavior names the entity, since
 the pieces take new ids. The editor's inspector offers the same batch as
-**Split into convex pieces** under the shape it splits, `poly-invalid`
-offers it as its fix where the field can't be a chain (in place of the
+**Split into convex pieces** under the shape it splits, `poly-invalid`'s
+hint names it when the split would succeed (its fix stays the chain or the
 convex hull), and so do `vp run scene decompose <scene> <id> [--group]
 [--dry-run]` and the MCP tool `scene_decompose` (a dry run unless `dryRun`
 is false).

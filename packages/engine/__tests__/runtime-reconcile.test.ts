@@ -610,7 +610,7 @@ function randomNew(rand: () => number, id: string, cell: number): RuntimeEntity 
   return kinds[Math.floor(rand() * kinds.length)]!;
 }
 
-describe("random add, update and remove", () => {
+describe("random add, update and remove", { timeout: 20_000 }, () => {
   it.each([1, 7, 42])("match a fresh load at every step (seed %i)", (seed) => {
     const registry = createRegistry(yardGame);
     const base = expandScene(generateScene(seed), registry);

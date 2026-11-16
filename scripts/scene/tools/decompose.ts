@@ -47,24 +47,32 @@ export const decompose: Tool<DecomposeInput> = async (input, ctx) => {
       text: `${input.scene}: ${input.id} can't split\n${issueLine(built.issue)}`,
     };
 
-  const pieces = addedIds(built.batch);
+  // A collider's split keeps its first piece on the entity itself.
+  const kept = built.batch.ops.some((op) => op.op === "update" && op.ref === input.id);
+  const pieces = [...(kept ? [input.id] : []), ...addedIds(built.batch)];
   const ppm = pxPerMetreOf(loaded.registry);
   const toM2 = (area2: number) => area2 / 2 / (ppm * ppm);
   const area = toM2(built.area2);
-  const piecesArea = toM2(built.pieceArea2.reduce((sum, a) => sum + Math.abs(a), 0));
-  const result = await writeSceneBatch({ ...input, scene: input.scene }, ctx, built.batch);
+  const covered2 = built.pieceArea2.reduce((sum, a) => sum + Math.abs(a), 0);
+  const piecesArea = toM2(covered2);
+  const summary = { id: input.id, pieces, area, piecesArea, batch: built.batch };
+  if (covered2 !== built.area2)
+    return {
+      exitCode: 1,
+      data: { scene: input.scene, written: false, ...summary },
+      text: `${input.scene}: ${input.id}'s pieces don't cover it (area ${area} → pieces ${piecesArea}); nothing written`,
+    };
 
-  const areaLine = `area ${area} → pieces ${piecesArea} (${area === piecesArea ? "preserved" : "MISMATCH"})`;
+  const result = await writeSceneBatch({ ...input, scene: input.scene }, ctx, built.batch);
   return {
     ...result,
-    data: {
-      ...(result.data as Record<string, unknown>),
-      id: input.id,
-      pieces,
-      area,
-      piecesArea,
-      batch: built.batch,
-    },
-    text: [result.text, `pieces: ${pieces.join(", ")}`, areaLine].filter(Boolean).join("\n"),
+    data: { ...(result.data as Record<string, unknown>), ...summary },
+    text: [
+      result.text,
+      `pieces: ${pieces.join(", ")}`,
+      `area ${area} → pieces ${piecesArea} (preserved)`,
+    ]
+      .filter(Boolean)
+      .join("\n"),
   };
 };

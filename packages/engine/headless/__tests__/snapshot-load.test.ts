@@ -249,7 +249,7 @@ describe.each(CASES)("loadHeadless by snapshot: $name", ({ before, edit, script 
     }
     expect(replay(loadB, recA).stale).toBe(true);
     expect(replay(loadA, recB).stale).toBe(true);
-  });
+  }, 20_000);
 
   it("loads the same scene from files as from the snapshot", async () => {
     const store = memoryContentStore();

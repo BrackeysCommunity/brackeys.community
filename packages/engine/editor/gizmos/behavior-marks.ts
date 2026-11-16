@@ -1,9 +1,9 @@
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import { COLLIDER } from "../../game/behaviors/collider";
-import { JOINT } from "../../game/behaviors/joint";
 import { PATH_FOLLOW } from "../../game/behaviors/path-follow";
 import type { Registry } from "../../game/types";
 import { behaviorBlocks } from "../../scene/expand";
+import { jointBlockOf, midpoint } from "../../scene/render-geometry";
 import { rotateShape, translateShape } from "../../scene/shape-geometry";
 import { parseShape } from "../../scene/shapes";
 import type { Pt, Ref, SceneDefinition, ShapeObj } from "../../scene/types";
@@ -38,7 +38,6 @@ export type BehaviorMarks = {
 };
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 const deg = (v: Pt) => Math.atan2(v[1], v[0]) / DEG;
 
 /**
@@ -59,7 +58,7 @@ function colliderFromHandles(
       const sw = at("collider:resize:sw");
       const se = at("collider:resize:se");
       if (!nw || !ne || !sw || !se) return committed;
-      const [cx, cy] = mid(nw, se);
+      const [cx, cy] = midpoint(nw, se);
       const rotDeg = Math.round(deg([ne[0] - nw[0], ne[1] - nw[1]]));
       return { ...committed, cx, cy, hw: dist(nw, ne) / 2, hh: dist(nw, sw) / 2, rotDeg };
     }
@@ -211,7 +210,11 @@ export function pathFollowPath(
   return { pts: pts.map(([x, y]) => [x, y] as Pt), closed: path?.mode === "loop" };
 }
 
-/** The kind the `joint` block of entity `ref` writes, for its glyph; undefined without one. */
+/**
+ * The kind entity `ref`'s `joint` block draws its glyph for, read as the
+ * schematic renders read it; undefined without a joint. `def` is the
+ * resolved view, so an instance's children are among its entities.
+ */
 export function jointKindOf(
   def: SceneDefinition,
   registry: Registry,
@@ -219,8 +222,7 @@ export function jointKindOf(
 ): string | undefined {
   const e = (def.entities ?? []).find((x) => x.id === ref);
   if (!e || !registry.types.has(e.type)) return undefined;
-  const kind = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[JOINT.name]?.kind;
-  return typeof kind === "string" ? kind : undefined;
+  return jointBlockOf(behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD]))?.kind;
 }
 
 const isPt = (v: unknown): v is Pt =>

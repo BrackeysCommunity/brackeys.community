@@ -12,6 +12,7 @@ import { oneWaySideOf, TILEMAP_PRIMITIVE } from "../game/primitives";
 import { PRIMITIVE_TYPES, type RegisteredType, type Registry, type Side } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
+import { isPlainObject } from "../project/kinds/define";
 import type { ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
 import { expandScene, isExpandedScene } from "./expand";
@@ -787,6 +788,29 @@ export function sceneSprites(
 
 // ─── Joints ──────────────────────────────────────────────
 
+/** A `joint` block as the renders and the editor read it; `kind` is `"joint"` when it names none. */
+export type JointBlock = { kind: string; to: string; anchorA?: Pt; anchorB?: Pt };
+
+/**
+ * The `joint` block among an entity's merged behavior blocks (its type's
+ * defaults included); undefined without one or when it names no `to`.
+ */
+export function jointBlockOf(behaviors: unknown): JointBlock | undefined {
+  const b = isPlainObject(behaviors) ? behaviors[JOINT.name] : undefined;
+  if (!isPlainObject(b) || typeof b.to !== "string") return undefined;
+  const anchorA = pairOf(b.anchorA, () => true);
+  const anchorB = pairOf(b.anchorB, () => true);
+  return {
+    kind: typeof b.kind === "string" ? b.kind : "joint",
+    to: b.to,
+    ...(anchorA ? { anchorA } : {}),
+    ...(anchorB ? { anchorB } : {}),
+  };
+}
+
+/** The point halfway from `a` to `b`: where a joint's glyph sits on its line. */
+export const midpoint = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+
 /** A `joint` block as a render draws it: a line between the two anchors' world points. */
 export type DrawnJoint = {
   /** The entity carrying the block. */
@@ -808,7 +832,7 @@ export type DrawnJoint = {
 export function jointGlyph(kind: string): { mark: string; ascii: string } {
   switch (kind) {
     case "revolute":
-      return { mark: "○", ascii: "R" };
+      return { mark: "●", ascii: "R" };
     case "prismatic":
       return { mark: "↔", ascii: "P" };
     case "rope":
@@ -816,7 +840,7 @@ export function jointGlyph(kind: string): { mark: string; ascii: string } {
     case "weld":
       return { mark: "■", ascii: "W" };
     case "spring":
-      return { mark: "≈", ascii: "Z" };
+      return { mark: "ϟ", ascii: "Z" };
     default:
       return { mark: "j", ascii: "j" };
   }
@@ -832,7 +856,7 @@ export function drawnJoints(entities: readonly DrawnEntity[], pxPerMetre = 1): D
   const byId = new Map(entities.map((d) => [d.id, d]));
   const poseOf = (d: DrawnEntity) =>
     spritePose({ ...d, ...(d.entity.transform ? { transform: d.entity.transform } : {}) });
-  const place = (pose: { at: Pt; deg: number }, anchor: [number, number] | undefined): Pt => {
+  const place = (pose: { at: Pt; deg: number }, anchor: Pt | undefined): Pt => {
     const [x, y] = turnBy(
       [(anchor?.[0] ?? 0) * pxPerMetre, (anchor?.[1] ?? 0) * pxPerMetre],
       pose.deg * DEG,
@@ -841,28 +865,15 @@ export function drawnJoints(entities: readonly DrawnEntity[], pxPerMetre = 1): D
   };
   const out: DrawnJoint[] = [];
   for (const d of entities) {
-    const b = d.entity.behaviors?.[JOINT.name];
-    if (!b || typeof b !== "object" || Array.isArray(b)) continue;
-    const block = b as Record<string, unknown>;
-    if (typeof block.to !== "string") continue;
+    const block = jointBlockOf(d.entity.behaviors);
+    if (!block) continue;
     const other = byId.get(block.to);
     const self = poseOf(d);
     const there = other && poseOf(other);
     if (!self || !there) continue;
-    const from = place(
-      self,
-      pairOf(block.anchorA, () => true),
-    );
-    const anchorB = pairOf(block.anchorB, () => true);
-    const end = anchorB ? place(there, anchorB) : from;
-    out.push({
-      entity: d,
-      kind: typeof block.kind === "string" ? block.kind : "joint",
-      to: block.to,
-      from,
-      end,
-      mid: [(from[0] + end[0]) / 2, (from[1] + end[1]) / 2],
-    });
+    const from = place(self, block.anchorA);
+    const end = block.anchorB ? place(there, block.anchorB) : from;
+    out.push({ entity: d, kind: block.kind, to: block.to, from, end, mid: midpoint(from, end) });
   }
   return out;
 }

@@ -1,12 +1,14 @@
 // @vitest-environment node
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { loadCompatRapier } from "../../__tests__/fixtures/compat-rapier";
+import { bodyOf, loadTree } from "../../__tests__/fixtures/tree-rig";
 import { createRegistry, defineGame } from "../../game/define";
 import type { Registry } from "../../game/types";
 import { canDecompose, decomposeBatch, decomposePolygon, splittableSite } from "../decompose";
 import { expandScene } from "../expand";
 import { applyOps } from "../ops";
+import * as geometry from "../shape-geometry";
 import { cross3, isConvex, isSimplePolygon, segmentsMeet } from "../shape-geometry";
 import type { EntityDef, Pt, SceneDefinition } from "../types";
 import { validateScene } from "../validate";
@@ -298,6 +300,20 @@ describe("decomposePolygon", () => {
     expect(canDecompose(dip)).toBe(false);
   });
 
+  it("refuses rather than return pieces whose areas don't sum to the polygon's", () => {
+    const real = geometry.earClip;
+    // A triangulation that stops early, as ear clipping does when no ear is left.
+    const spy = vi.spyOn(geometry, "earClip").mockImplementation((ring) => real(ring).slice(1));
+    try {
+      const result = decomposePolygon(ell);
+      expect(!result.ok && result.issue.code).toBe("poly-invalid");
+      expect(!result.ok && result.issue.message).toContain("pieces cover");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(decomposePolygon(ell).ok).toBe(true);
+  });
+
   it("refuses a point off the whole-px grid rather than moving it", () => {
     const off: Pt[] = ell.map(([x, y], k): Pt => (k === 3 ? [x + 0.123, y] : [x, y]));
     expect(canDecompose(off)).toBe(false);
@@ -329,10 +345,9 @@ describe("decomposePolygon", () => {
 describe("decomposeBatch", () => {
   const rock = (over: Partial<EntityDef> = {}): EntityDef => ({
     id: "rock",
-    type: "prop",
+    type: "solid",
     shape: ["poly", ...ell.flat()],
-    density: 1,
-    restitution: 0,
+    oneWay: true,
     ...over,
   });
   const scene = (extra: EntityDef[]): SceneDefinition => ({
@@ -354,7 +369,7 @@ describe("decomposeBatch", () => {
     const ids = (applied.def.entities ?? []).map((e) => e.id);
     expect(ids).toEqual(["rock-2", "rock-3", "rock-1"]);
     const piece = applied.def.entities![0]!;
-    expect(piece).toMatchObject({ type: "prop", density: 1, restitution: 0 });
+    expect(piece).toMatchObject({ type: "solid", oneWay: true });
     expect(polyIssues(applied.def)).toEqual([]);
     expect(() => expandScene(applied.def, engine)).not.toThrow();
   });
@@ -368,8 +383,8 @@ describe("decomposeBatch", () => {
     const list = applied.def.entities ?? [];
     expect(list.map((e) => [e.id, e.type, e.parent])).toEqual([
       ["rock", "node", undefined],
-      ["rock-1", "prop", "rock"],
-      ["rock-2", "prop", "rock"],
+      ["rock-1", "solid", "rock"],
+      ["rock-2", "solid", "rock"],
     ]);
     expect(polyIssues(applied.def)).toEqual([]);
   });
@@ -414,6 +429,163 @@ describe("decomposeBatch", () => {
   });
 });
 
+describe("decomposeBatch keeps one body and one of each behavior", () => {
+  const lShape = ["poly", ...ell.flat()] as EntityDef["shape"];
+  const scene = (entities: EntityDef[]): SceneDefinition => ({
+    v: 1,
+    name: "t",
+    bounds: [-10, -10, 10, 10],
+    entities,
+  });
+  const split = (def: SceneDefinition, id: string, opts?: { group?: boolean }) => {
+    const made = decomposeBatch(def, id, engine, opts);
+    if (!made.ok) throw new Error(made.issue.message);
+    const applied = applyOps(def, made.batch, engine);
+    if (!applied.ok) throw new Error(JSON.stringify(applied));
+    expect(validateScene(applied.def, engine).filter((i) => i.code === "poly-invalid")).toEqual([]);
+    return applied.def.entities ?? [];
+  };
+  const withBlock = (list: readonly EntityDef[], name: string) =>
+    list.filter((e) => (e.behaviors as Record<string, unknown> | undefined)?.[name] !== undefined);
+
+  it("keeps a collider's entity, body and behaviors, the other pieces collider-only nodes under it", () => {
+    const lump: EntityDef = {
+      id: "lump",
+      type: "marker",
+      at: [0, -2],
+      behaviors: {
+        body: { kind: "dynamic" },
+        collider: { shape: lShape, density: 2, friction: 0.5 },
+        sprite: { asset: "crates", size: [1, 1] },
+        joint: { kind: "revolute", to: "floor" },
+        spawner: { prefab: "crate", rate: 1 },
+      },
+    };
+    const floor: EntityDef = { id: "floor", type: "solid", shape: ["box", 0, 5.5, 20, 0.5] };
+    // A ref to the entity doesn't block the split: its id stays.
+    const hook: EntityDef = {
+      id: "hook",
+      type: "marker",
+      at: [3, 3],
+      behaviors: { joint: { kind: "rope", to: "lump" } },
+    };
+    const list = split(scene([floor, lump, hook]), "lump");
+    expect(list.map((e) => [e.id, e.type, e.parent])).toEqual([
+      ["floor", "solid", undefined],
+      ["lump", "marker", undefined],
+      ["lump-1", "node", "lump"],
+      ["hook", "marker", undefined],
+    ]);
+    for (const name of ["body", "sprite", "joint", "spawner"])
+      expect(
+        withBlock(list, name).map((e) => e.id),
+        name,
+      ).toEqual(name === "joint" ? ["lump", "hook"] : ["lump"]);
+    expect(withBlock(list, "collider").map((e) => e.id)).toEqual(["lump", "lump-1"]);
+    const piece = list.find((e) => e.id === "lump-1")!;
+    expect(piece).toMatchObject({
+      at: [0, 0],
+      behaviors: { collider: { density: 2, friction: 0.5 } },
+    });
+    expect(Object.keys(piece.behaviors as object)).toEqual(["collider"]);
+  });
+
+  it("gives Rapier one body carrying every piece, of the whole shape's mass", async () => {
+    const rapier = await import("@dimforge/rapier2d");
+    const lump: EntityDef = {
+      id: "lump",
+      type: "marker",
+      at: [0, -4],
+      behaviors: { body: { kind: "dynamic" }, collider: { shape: lShape } },
+    };
+    const floor: EntityDef = { id: "floor", type: "solid", shape: ["box", 0, 5.5, 20, 0.5] };
+    const list = split(scene([floor, lump]), "lump");
+    const rt = loadTree({
+      registry: engine,
+      entities: list,
+      physics: "rapier",
+      rapier,
+      settings: { gravity: [0, 20] },
+      bounds: [-20, -20, 20, 20],
+    });
+    expect(rt.ctx.physics!.world.bodies.len()).toBe(2);
+    expect(bodyOf(rt, "lump-1")).toBe(bodyOf(rt, "lump"));
+    const body = rt.ctx.physics!.world.getRigidBody(bodyOf(rt, "lump"))!;
+    // The L is 4 × 1 m plus 1 × 2 m at the default density of 1 kg/m².
+    expect(body.mass()).toBeCloseTo(6, 3);
+    rt.destroy();
+  });
+
+  it("puts the pieces beside a type that can't hold children, at its pose, and refuses one with a body", () => {
+    const room: EntityDef = {
+      id: "room",
+      type: "nav",
+      shape: ["poly", 2, 2, 6, 2, 6, 6, 2, 6],
+      behaviors: { collider: { shape: lShape } },
+    };
+    const list = split(scene([room]), "room");
+    expect(list.map((e) => [e.id, e.type, e.parent, e.at])).toEqual([
+      ["room", "nav", undefined, undefined],
+      ["room-1", "node", undefined, [4, 4]],
+    ]);
+    const moving = {
+      ...room,
+      behaviors: { body: { kind: "kinematic" }, collider: { shape: lShape } },
+    } as EntityDef;
+    const made = decomposeBatch(scene([moving]), "room", engine);
+    expect(!made.ok && made.issue.code).toBe("op-invalid");
+    expect(!made.ok && made.issue.message).toContain("can't hold children");
+    expect(splittableSite(engine, moving)).toBeNull();
+  });
+
+  it("refuses a body type's or a sensor's shape, a sensor collider, and a solid with behaviors", () => {
+    const cases: [EntityDef, string][] = [
+      [
+        { id: "rock", type: "prop", shape: lShape, density: 1, restitution: 0 },
+        "a prop of its own",
+      ],
+      [
+        { id: "lift", type: "follower", shape: lShape, path: { pts: [[0, 0]] } },
+        "a follower of its own",
+      ],
+      [{ id: "zone", type: "sensor", shape: lShape }, "a sensor of its own"],
+      [
+        {
+          id: "lump",
+          type: "marker",
+          at: [0, 0],
+          behaviors: { collider: { shape: lShape, sensor: true } },
+        },
+        "sensor events",
+      ],
+      [
+        {
+          id: "ledge",
+          type: "solid",
+          shape: lShape,
+          behaviors: { sprite: { asset: "a", size: [1, 1] } },
+        },
+        "copy its sprite",
+      ],
+      [
+        {
+          id: "ledge",
+          type: "solid",
+          shape: lShape,
+          behaviors: { joint: { kind: "weld", to: "x" } },
+        },
+        "copy its joint",
+      ],
+    ];
+    for (const [entity, why] of cases) {
+      const made = decomposeBatch(scene([entity]), entity.id!, engine);
+      expect(!made.ok && made.issue.code, entity.id).toBe("op-invalid");
+      expect(!made.ok && made.issue.message, entity.id).toContain(why);
+      expect(splittableSite(engine, entity), entity.id).toBeNull();
+    }
+  });
+});
+
 describe("splittableSite", () => {
   const concave = ["poly", ...ell.flat()] as EntityDef["shape"];
   const collider = ["poly", 0, 0, 2, 0, 1, 0.5, 2, 1, 0, 1];
@@ -432,7 +604,9 @@ describe("splittableSite", () => {
       "room",
       engine,
     );
-    expect(made.ok && made.batch.ops.filter((o) => o.op === "add").length).toBeGreaterThan(1);
+    if (!made.ok) throw new Error(made.issue.message);
+    expect(made.batch.ops[0]).toMatchObject({ op: "update", ref: "room" });
+    expect(made.batch.ops.slice(1).every((o) => o.op === "add")).toBe(true);
   });
 
   it("judges at the game's px per metre", () => {
@@ -447,13 +621,7 @@ describe("splittableSite", () => {
     );
     // A 0.2 m notch is off the whole-px grid at 1 px per metre.
     const notched = ["poly", 0, 0, 4, 0, 4, 4, 2, 4, 2, 3.8, 1.9, 4, 0, 4];
-    const rock: EntityDef = {
-      id: "rock",
-      type: "prop",
-      shape: notched,
-      density: 1,
-      restitution: 0,
-    };
+    const rock: EntityDef = { id: "rock", type: "solid", shape: notched };
     expect(splittableSite(engine, rock)?.field).toBe("shape");
     expect(splittableSite(coarse, rock)).toBeNull();
     const def: SceneDefinition = { v: 1, name: "t", bounds: [0, 0, 10, 10], entities: [rock] };

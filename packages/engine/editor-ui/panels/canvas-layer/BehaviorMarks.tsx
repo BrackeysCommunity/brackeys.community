@@ -13,7 +13,7 @@ import {
   type Pt,
   type ToolOverlay,
 } from "../../../editor/index";
-import { jointGlyph } from "../../../scene/render-geometry";
+import { jointGlyph, midpoint } from "../../../scene/render-geometry";
 import { useEditorResolved, useEditorStore } from "../../session/use-editor-store";
 import { sessionSource } from "./tool-host";
 import { num, polylinePath, shapePath, worldPx, type View } from "./view";
@@ -159,9 +159,7 @@ export function BehaviorMarks({
   // On the anchors' line when it draws, else on the link to the partner.
   const jointLine = marks.lines.find((l) => l.kind === "anchors") ?? marks.lines[0];
   const glyphAt: Pt | undefined =
-    jointKind === undefined || !jointLine
-      ? undefined
-      : [(jointLine.from[0] + jointLine.to[0]) / 2, (jointLine.from[1] + jointLine.to[1]) / 2];
+    jointKind === undefined || !jointLine ? undefined : midpoint(jointLine.from, jointLine.to);
   const glyphR = worldPx(view, JOINT_GLYPH_PX);
   return (
     <g
@@ -222,18 +220,21 @@ export function BehaviorMarks({
             cx={num(glyphAt[0])}
             cy={num(glyphAt[1])}
             r={glyphR}
+            fill="var(--je-bg)"
+            stroke="var(--je-info)"
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
-            style={{ fill: "var(--je-bg)" }}
           />
           <text
             x={num(glyphAt[0])}
             y={num(glyphAt[1])}
+            fontFamily="var(--je-font)"
             fontSize={glyphR * 1.4}
+            fontWeight={600}
             textAnchor="middle"
             dominantBaseline="central"
+            fill="var(--je-info)"
             stroke="none"
-            style={{ fill: "var(--je-info)" }}
           >
             {jointGlyph(jointKind).mark}
           </text>

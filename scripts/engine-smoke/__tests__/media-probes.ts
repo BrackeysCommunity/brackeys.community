@@ -59,6 +59,7 @@ export function followProbe(
   const at = Array.from({ length: FOLLOW_FRAMES }, (_, i) => (i * 1000) / hz);
   return {
     renderer: "webgl",
+    pxPerMetre: 100,
     screen: at.map((_, i) => x(i)),
     origin: at.map((ms) => 120 - (FOLLOW_SPEED * 100 * ms) / 1000),
     at,

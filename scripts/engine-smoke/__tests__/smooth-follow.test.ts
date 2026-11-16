@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { resolveResolution, viewportFor } from "@jams/engine";
 import { createRegistry } from "@jams/engine/game";
 import { createHeadlessRuntime } from "@jams/engine/headless";
 import { expandScene, parseSceneOrThrow, validateScene } from "@jams/engine/scene";
@@ -9,7 +10,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { loadRapier } from "../browser/run";
 import {
+  FOLLOW_CANVAS,
   FOLLOW_HERO,
+  FOLLOW_RESOLUTION,
   FOLLOW_SPEED,
   followGame,
   followScene,
@@ -74,6 +77,14 @@ describe("judgeSmoothFollow", () => {
     expect(judgeSmoothFollow(jitter)).toBeNull();
   });
 
+  it("judges the world's speed by the recorded canvas's own scale", () => {
+    // The default 1080 px view on a 135 px canvas: an eighth of the px per metre.
+    const small = probe(60);
+    small.origin = small.at.map((ms) => 120 - (FOLLOW_SPEED * 12.5 * ms) / 1000);
+    expect(judgeSmoothFollow(small)).toMatch(/isn't moving/);
+    expect(judgeSmoothFollow({ ...small, pxPerMetre: 12.5 })).toBeNull();
+  });
+
   it("fails a passing outcome by its probe, and leaves a failed one's reason", () => {
     const bad = probe(144, (i) => 120 + i);
     expect(judgeSmoothOutcome({ status: "pass" as const }, bad)).toMatchObject({
@@ -88,6 +99,12 @@ describe("judgeSmoothFollow", () => {
 });
 
 describe("the smooth-follow scene", () => {
+  it("shows a metre as the length unit's px on its canvas", () => {
+    const vp = viewportFor(resolveResolution({ host: FOLLOW_RESOLUTION }), FOLLOW_CANVAS);
+    expect(vp.scale).toBe(1);
+    expect(vp.view).toEqual({ width: FOLLOW_CANVAS.width, height: FOLLOW_CANVAS.height });
+  });
+
   it("is valid, and its game pushes the hero to the run's speed", async () => {
     const registry = createRegistry(followGame);
     expect(validateScene(followScene, registry).filter((i) => i.severity === "error")).toEqual([]);

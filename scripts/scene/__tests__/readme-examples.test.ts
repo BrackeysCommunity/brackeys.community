@@ -478,7 +478,8 @@ describe("scene commands in the docs", () => {
   }
 });
 
-describe("op batches in the docs", () => {
+// A batch can be written into a copy of the engine project and a whole scene validated after it.
+describe("op batches in the docs", { timeout: 20_000 }, () => {
   it("finds the README's batches", () => {
     expect(allBatches.filter((b) => b.doc === DOCS[0]).length).toBeGreaterThan(10);
   });

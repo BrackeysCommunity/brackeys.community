@@ -289,12 +289,10 @@ export function isConvex(pts: readonly Pt[]): boolean {
  */
 export function convexHull(pts: readonly Pt[]): Pt[] {
   const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cross = (o: Pt, a: Pt, b: Pt) =>
-    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   const half = (list: Pt[]): Pt[] => {
     const out: Pt[] = [];
     for (const p of list) {
-      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0)
+      while (out.length >= 2 && cross3(out[out.length - 2]!, out[out.length - 1]!, p) <= 0)
         out.pop();
       out.push(p);
     }

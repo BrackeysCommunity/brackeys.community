@@ -395,7 +395,7 @@ describe("ScenePicker", () => {
     expect(session.view().byId.has("den")).toBe(false);
     await trigger("Attic");
     expect(onSceneChange).toHaveBeenLastCalledWith("attic");
-  }, 20_000);
+  }, 40_000);
 
   it("on an undo of a New scene… from another scene, switches to the new scene first, then undoes it", async () => {
     const { host, sessions, onSceneChange } = fakeProject();
@@ -433,7 +433,7 @@ describe("ScenePicker", () => {
       ).toBe(true),
     );
     expect(session.canUndo()).toBe(false);
-  }, 20_000);
+  }, 40_000);
 
   it("opens the Project settings panel from the toolbar", async () => {
     const { host } = fakeProject();

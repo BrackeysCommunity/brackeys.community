@@ -229,6 +229,7 @@ describe("genre probes", () => {
       "idle",
       "local-versus",
       "metroidvania",
+      "physics-sandbox",
       "point-and-click",
       "racing",
       "rhythm-tap",

@@ -960,25 +960,34 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
  * "Split into convex pieces" under the one shape field `splittableSite` would
  * split: one batch, so one undo restores it, that selects the pieces. A
  * refusal (a ref still naming the entity, say) toasts through the editor's
- * pending tasks, or shows inline outside an editor.
+ * pending tasks, or shows inline outside an editor until the scene changes.
  */
 function SplitConvexAction({ ctx, path }: { ctx: Ctx; path: string }) {
   const target = ctx.targets.length === 1 && !ctx.edit ? ctx.targets[0] : undefined;
-  if (target?.kind !== "entity") return null;
-  const entity = ctx.session.getDoc().entities?.find((e) => e.id === target.entity.id);
-  if (!entity || splittableSite(ctx.session.registry, entity)?.field !== path) return null;
-  return <SplitConvexButton key={entity.id} ctx={ctx} id={entity.id} />;
+  const id = target?.kind === "entity" ? target.entity.id : undefined;
+  const doc = ctx.session.getDoc();
+  const entity = id === undefined ? undefined : doc.entities?.find((e) => e.id === id);
+  const registry = ctx.session.registry;
+  // Decomposing runs ear clipping and convex merging, so only redo it when the entity changes.
+  const site = useMemo(
+    () => (entity ? splittableSite(registry, entity) : null),
+    [registry, entity],
+  );
+  if (!entity || site?.field !== path) return null;
+  return <SplitConvexButton key={entity.id} ctx={ctx} id={entity.id} doc={doc} />;
 }
 
-function SplitConvexButton({ ctx, id }: { ctx: Ctx; id: string }) {
+function SplitConvexButton({ ctx, id, doc }: { ctx: Ctx; id: string; doc: SceneDefinition }) {
   const pending = useOptionalPending();
-  const [error, setError] = useState<string | null>(null);
+  // A refusal describes the scene it was raised against; any later edit may have fixed its cause.
+  const [refusal, setRefusal] = useState<{ doc: SceneDefinition; message: string } | null>(null);
+  const error = refusal && refusal.doc === doc ? refusal.message : null;
   const scope = `inspector:split-convex:${id}`;
   const split = () => {
-    if (ctx.readOnly) return setError(READ_ONLY);
+    if (ctx.readOnly) return setRefusal({ doc, message: READ_ONLY });
     if (!pending) {
       const result = splitConvex(ctx.session, id);
-      return setError(result.ok ? null : result.issue.message);
+      return setRefusal(result.ok ? null : { doc, message: result.issue.message });
     }
     void pending.run(
       { label: `Splitting ${id} into convex pieces`, scope, error: `Couldn't split ${id}` },
@@ -995,7 +1004,7 @@ function SplitConvexButton({ ctx, id }: { ctx: Ctx; id: string }) {
         variant="outline"
         busyScope={scope}
         disabled={ctx.readOnly}
-        tooltip="Replace this concave polygon with convex pieces of the same type; undo restores it"
+        tooltip="Replace with convex pieces (undo restores)"
         onClick={split}
       >
         Split into convex pieces

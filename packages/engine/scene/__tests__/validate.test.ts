@@ -188,7 +188,15 @@ describe("validateScene", () => {
     const propIssue = only(validateScene(prop, engine), "poly-invalid");
     expect(propIssue.path).toBe("/entities/1/shape");
     expect(propIssue.hint).toContain("prop's shape can't be a chain");
-    expect(propIssue.fix).toEqual(expectSplit(prop, "rock"));
+    // A prop's pieces would each be a body, so the hint offers no split.
+    expect(propIssue.hint).not.toContain("Split into convex pieces");
+    expect(propIssue.fix?.ops).toEqual([
+      {
+        op: "update",
+        ref: "rock",
+        set: { shape: ["poly", 100, 800, 300, 800, 300, 900, 100, 900] },
+      },
+    ]);
 
     const pinned = scene({}, [
       { id: "rock", type: "prop", shape: [...concave], density: 1, restitution: 0 },
@@ -220,7 +228,24 @@ describe("validateScene", () => {
     const wall = scene({}, [{ id: "wall", type: "solid", shape: concave }]);
     const solid = only(validateScene(wall, engine), "poly-invalid");
     expect(solid.hint).toContain("Split into convex pieces");
-    expect(solid.fix?.ops).toHaveLength(1);
+    expect(solid.fix?.ops).toEqual([
+      { op: "update", ref: "wall", set: { shape: ["chain", ...concave.slice(1), 100, 800] } },
+    ]);
+    expectSplit(wall, "wall");
+    // A ref to the wall blocks its split, so the hint doesn't name it; the fix is unchanged.
+    const named = scene({}, [
+      { id: "wall", type: "solid", shape: concave },
+      {
+        id: "hinge",
+        type: "marker",
+        at: [1, 1],
+        behaviors: { joint: { kind: "weld", to: "wall" } },
+      },
+    ]);
+    const blocked = only(validateScene(named, engine), "poly-invalid");
+    expect(blocked.hint).not.toContain("Split into convex pieces");
+    expect(blocked.hint).toContain("split it into convex polys");
+    expect(blocked.fix?.ops).toEqual(solid.fix?.ops);
     // A bulk entry isn't an entity, so the split can't take it.
     const bulk = only(validateScene(scene({ solid: [concave] }), engine), "poly-invalid");
     expect(bulk.hint).not.toContain("Split into convex pieces");
@@ -239,7 +264,15 @@ describe("validateScene", () => {
     });
     expect(issue.at).toBeUndefined();
     expect(issue.hint).toContain("Split into convex pieces");
-    expect(issue.fix).toEqual(expectSplit(def, "lump"));
+    expect(issue.fix?.ops).toEqual([
+      {
+        op: "update",
+        ref: "lump",
+        set: { "behaviors.collider.shape": ["poly", 0, 0, 2, 0, 2, 1, 0, 1] },
+      },
+    ]);
+    expectFixClears(def, issue);
+    expectSplit(def, "lump");
   });
 
   it("poly-invalid's split takes a concave collider, never a nav area's polygon", () => {
@@ -254,7 +287,19 @@ describe("validateScene", () => {
     ]);
     const issue = only(validateScene(def, engine), "poly-invalid");
     expect(issue.path).toBe("/entities/1/behaviors/collider/shape");
-    expect(issue.fix).toEqual(expectSplit(def, "room"));
+    expect(issue.hint).toContain("Split into convex pieces");
+    expect(issue.fix?.ops).toEqual([
+      {
+        op: "update",
+        ref: "room",
+        set: { "behaviors.collider.shape": ["poly", 0, 0, 2, 0, 2, 1, 0, 1] },
+      },
+    ]);
+    const made = decomposeBatch(def, "room", engine);
+    if (!made.ok) throw new Error(made.issue.message);
+    // The nav area's own polygon stays whole on the one entity.
+    expect(made.batch.ops.some((o) => o.op === "update" && "shape" in (o.set ?? {}))).toBe(false);
+    expectSplit(def, "room");
   });
 
   describe("nav-invalid", () => {

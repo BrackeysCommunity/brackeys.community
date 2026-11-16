@@ -18,6 +18,12 @@ export const FOLLOW_SPEED = 3;
 
 export const FOLLOW_CANVAS = { width: 240, height: 135 } as const;
 
+/**
+ * The canvas shows its own height in virtual px, so a metre is the default
+ * 100 canvas px and the world passes fast enough for a stalled tick to show.
+ */
+export const FOLLOW_RESOLUTION = { virtual: { height: FOLLOW_CANVAS.height } } as const;
+
 /** Black, which the hero's drawing never is: every lit pixel is the hero's. */
 export const FOLLOW_BACKGROUND = 0x000000;
 
@@ -65,6 +71,8 @@ export const followScene: SceneDefinition = {
 /** What the page recorded: the hero's drawn x and the world origin's, canvas px, and each frame's rAF time. */
 export type SmoothFollowProbe = {
   renderer: string;
+  /** Client px per world metre on the recorded canvas. */
+  pxPerMetre: number;
   /** The hero's drawn centre on the canvas each recorded frame; null where nothing was drawn. */
   screen: (number | null)[];
   /** Where the world origin sat on the canvas each frame: how far the camera carried the world. */
@@ -112,8 +120,8 @@ export function judgeSmoothFollow(probe: SmoothFollowProbe | undefined): string 
   const xs = probe.screen as number[];
   const carried = Math.abs(probe.origin.at(-1)! - probe.origin[0]!);
   const seconds = (probe.at.at(-1)! - probe.at[0]!) / 1000;
-  // At 100 px per metre the world passes at 300 px/s; half that rules out a camera that didn't move.
-  if (!(seconds > 0) || carried / seconds < FOLLOW_SPEED * 50)
+  // Half the hero's speed rules out a camera that didn't move.
+  if (!(seconds > 0) || carried / seconds < (FOLLOW_SPEED * probe.pxPerMetre) / 2)
     return `the camera carried the world ${carried.toFixed(1)} px in ${seconds.toFixed(2)} s: the hero isn't moving under it`;
   for (let i = 1; i < xs.length; i++) {
     const step = xs[i]! - xs[i - 1]!;
@@ -162,11 +170,18 @@ export async function runSmoothFollow(
       displayWidth: FOLLOW_CANVAS.width,
       displayHeight: FOLLOW_CANVAS.height,
       backgroundColor: FOLLOW_BACKGROUND,
+      resolution: FOLLOW_RESOLUTION,
     });
     game.start();
     if (!game.runtime()) throw new Error("the smooth-follow scene didn't load");
     for (let i = 0; i < FOLLOW_SETTLE_FRAMES; i++) await frame();
-    const probe: SmoothFollowProbe = { renderer: "", screen: [], origin: [], at: [] };
+    const probe: SmoothFollowProbe = {
+      renderer: "",
+      pxPerMetre: game.worldToClient({ x: 1, y: 0 }).x - game.worldToClient({ x: 0, y: 0 }).x,
+      screen: [],
+      origin: [],
+      at: [],
+    };
     const box = canvas.getBoundingClientRect();
     for (let i = 0; i < FOLLOW_FRAMES; i++) {
       probe.at.push(await frame());

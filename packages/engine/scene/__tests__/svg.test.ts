@@ -901,7 +901,7 @@ describe("joints", () => {
       );
       expect(svg).toMatch(joint);
     });
-    expect(kinds.map((k) => jointGlyph(k).mark)).toEqual(["○", "↔", "~", "■", "≈"]);
+    expect(kinds.map((k) => jointGlyph(k).mark)).toEqual(["●", "↔", "~", "■", "ϟ"]);
   });
 
   it("ends a joint without anchorB under anchorA and draws nothing when `to` is missing", () => {
@@ -925,5 +925,65 @@ describe("joints", () => {
     );
     expect(svg).toMatch(/<g data-joint="arm" [^>]*><path d="M100 100L100 100"\/>/);
     expect(svg).not.toContain('data-joint="lost"');
+  });
+
+  it("draws a joint its type's default block names the kind of, and one on a prefab's child", () => {
+    const hinged = defineGame({
+      id: "hinged",
+      types: [
+        defineEntityType({
+          type: "hinge",
+          description: "A marker hinged to whatever it names.",
+          base: "marker",
+          fields: (env) => primitiveFields("marker", env),
+          behaviors: { defaults: { joint: { kind: "revolute" } } },
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const game = createRegistry(hinged);
+    const prefab: Prefab = {
+      kind: PREFAB_KIND,
+      v: SCENE_FORMAT_VERSION,
+      game: hinged.id,
+      id: "door",
+      entities: [
+        { id: "frame", type: "marker", at: [0, 0] },
+        { id: "leaf", type: "hinge", at: [1, 0], behaviors: { joint: { to: "frame" } } },
+      ],
+    };
+    const def: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: hinged.id,
+      name: "hinges",
+      bounds: [0, 0, 10, 4],
+      entities: [
+        { id: "post", type: "marker", at: [1, 1] },
+        { id: "gate", type: "hinge", at: [2, 1], behaviors: { joint: { to: "post" } } },
+      ],
+      instances: [{ id: "d", prefab: "door", at: [5, 2] }],
+    };
+    const svg = renderSceneSvg(def, { registry: game, prefabs: new Map([[prefab.id, prefab]]) });
+    const mark = jointGlyph("revolute").mark;
+    expect(svg).toMatch(
+      new RegExp(`<g data-joint="gate" data-kind="revolute" data-to="post">.*?>${mark}</text>`),
+    );
+    expect(svg).toMatch(
+      new RegExp(
+        `<g data-joint="d/leaf" data-kind="revolute" data-to="d/frame">.*?>${mark}</text>`,
+      ),
+    );
+  });
+
+  it("marks a joint block that names no kind with the unknown kind's glyph", () => {
+    const svg = renderSceneSvg(
+      scene([
+        { id: "arm", type: "marker", at: [1, 1], behaviors: { joint: { to: "post" } } },
+        { id: "post", type: "marker", at: [5, 1] },
+      ]),
+      { registry },
+    );
+    expect(svg).toMatch(/<g data-joint="arm" data-kind="joint" [^>]*>.*?>j<\/text>/);
   });
 });

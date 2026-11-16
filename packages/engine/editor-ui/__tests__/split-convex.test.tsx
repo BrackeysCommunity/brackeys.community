@@ -53,8 +53,8 @@ function setup(selection: string) {
   });
   session.select([selection]);
   const dispatch = vi.spyOn(session, "dispatch");
-  render(<EditorInspector session={session} />);
-  return { session, dispatch };
+  const { rerender } = render(<EditorInspector session={session} />);
+  return { session, dispatch, rerender };
 }
 
 const ids = (session: ReturnType<typeof setup>["session"]) =>
@@ -101,6 +101,45 @@ describe("Split into convex pieces", () => {
     act(() => session.select(["ell"]));
     await waitFor(() => expect(screen.queryByText(/hinge names it/)).toBeNull());
     expect(screen.getByRole("button", { name: SPLIT })).toBeTruthy();
+    session.destroy();
+  });
+
+  it("drops a refusal once the scene changes, and the split then goes through", async () => {
+    const { session } = setup("rock");
+    fireEvent.click(screen.getByRole("button", { name: SPLIT }));
+    await screen.findByText(/hinge names it/);
+    act(() => void session.dispatch({ ops: [{ op: "remove", refs: ["hinge"] }] }));
+    await waitFor(() => expect(screen.queryByText(/hinge names it/)).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: SPLIT }));
+    await waitFor(() => expect(ids(session)).not.toContain("rock"));
+    session.destroy();
+  });
+
+  it("names what it does in a short tooltip", async () => {
+    const { session } = setup("ell");
+    fireEvent.focus(screen.getByRole("button", { name: SPLIT }));
+    expect(await screen.findByText("Replace with convex pieces (undo restores)")).toBeTruthy();
+    session.destroy();
+  });
+
+  it("decomposes once per change of the entity, not on every render", async () => {
+    const decompose = await import("../../scene/decompose");
+    const original = decompose.splittableSite;
+    // Validation calls it too; count only the inspector's own runs.
+    let runs = 0;
+    const spy = vi.spyOn(decompose, "splittableSite").mockImplementation((registry, e) => {
+      if (new Error().stack?.includes("SplitConvexAction")) runs++;
+      return original(registry, e);
+    });
+    const { session, rerender } = setup("ell");
+    const settled = runs;
+    expect(settled).toBeGreaterThan(0);
+    rerender(<EditorInspector session={session} />);
+    rerender(<EditorInspector session={session} />);
+    expect(runs).toBe(settled);
+    act(() => void session.dispatch({ ops: [{ op: "remove", refs: ["hinge"] }] }));
+    await waitFor(() => expect(runs).toBeGreaterThan(settled));
+    spy.mockRestore();
     session.destroy();
   });
 });

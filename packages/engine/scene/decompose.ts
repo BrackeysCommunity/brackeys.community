@@ -1,6 +1,8 @@
 import type { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
+import { BODY } from "../game/behaviors/body";
+import { COLLIDER } from "../game/behaviors/collider";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { isPolygonField } from "../game/fields";
 import { NODE_TYPE } from "../game/primitives";
@@ -9,6 +11,7 @@ import { pxPerMetreOf } from "../game/units";
 import { refFields, setAt, takenIds } from "./fragment";
 import { jsonPointer, makeIssue } from "./issues";
 import { canBeInTree } from "./nav-type";
+import { entityFrame } from "./resolve";
 import { fieldKind, geometryFields } from "./schema";
 import { cross3, earClip, isConvex, isSimplePolygon, signedArea2 } from "./shape-geometry";
 import { parseShape } from "./shapes";
@@ -64,14 +67,9 @@ export function canDecompose(points: readonly Pt[], opts?: { pxPerMetre?: number
   return isSimplePolygon(px) && !isConvex(px) && decomposePolygon(points, opts).ok;
 }
 
-/**
- * Rapier's convex polygon drops a corner whose neighbouring edges' unit
- * normals dot to more than 1 minus this (parry's `sqrt(f32::EPSILON)`), a
- * turn under about 1.5°, and refuses a triangle that loses one.
- */
+/** Rapier drops a corner turning under ~1.5° (parry's sqrt(f32::EPSILON)) and refuses a triangle that loses one. */
 const RAPIER_MIN_TURN = Math.sqrt(2 ** -23);
 
-/** Whether Rapier keeps corner `b` between `a` and `c`: it turns by at least about 1.5°. */
 function rapierKeeps(a: Pt, b: Pt, c: Pt): boolean {
   const ux = b[0] - a[0];
   const uy = b[1] - a[1];
@@ -124,22 +122,30 @@ function inCircle(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
  */
 function delaunayFlips(px: readonly Pt[], tris: Tri[]): Tri[] {
   const n = px.length;
-  const at = (t: Tri, a: number, b: number) =>
-    t.findIndex((v, k) => v === a && t[(k + 1) % 3] === b);
+  // Directed edge a→b (as a * n + b) to the triangle that runs it.
+  const owner = new Map<number, number>();
+  const own = (t: Tri, i: number) => {
+    for (let k = 0; k < 3; k++) owner.set(t[k]! * n + t[(k + 1) % 3]!, i);
+  };
+  tris.forEach(own);
   for (let pass = 0, flipped = true; flipped && pass < n * n; pass++) {
     flipped = false;
     for (let i = 0; i < tris.length; i++)
       for (let k = 0; k < 3; k++) {
         const [a, b, c] = [tris[i]![k]!, tris[i]![(k + 1) % 3]!, tris[i]![(k + 2) % 3]!];
         if ((a + 1) % n === b || (b + 1) % n === a) continue;
-        const j = tris.findIndex((u, m) => m !== i && at(u, b, a) >= 0);
-        if (j < 0) continue;
+        const j = owner.get(b * n + a);
+        if (j === undefined || j === i) continue;
         const u = tris[j]!;
-        const d = u[(at(u, b, a) + 2) % 3]!;
+        const d = u[(u.indexOf(b) + 2) % 3]!;
         if (cross3(px[c]!, px[a]!, px[d]!) <= 0 || cross3(px[d]!, px[b]!, px[c]!) <= 0) continue;
         if (!inCircle(px[a]!, px[b]!, px[c]!, px[d]!)) continue;
+        owner.delete(a * n + b);
+        owner.delete(b * n + a);
         tris[i] = [a, d, c];
         tris[j] = [d, b, c];
+        own(tris[i]!, i);
+        own(tris[j]!, j);
         flipped = true;
       }
   }
@@ -200,6 +206,11 @@ export function decomposePolygon(points: readonly Pt[], opts?: DecomposeOptions)
     return flipped ? out.reverse() : out;
   });
   const pieceArea2 = rings.map((ring) => signedArea2(ring.map((i) => px[i]!)));
+  const covered = pieceArea2.reduce((sum, a) => sum + a, 0);
+  if (covered !== Math.abs(area2))
+    return refuse(
+      `its pieces cover ${covered / 2} px² of its ${Math.abs(area2) / 2} px²; split it by hand.`,
+    );
   return { ok: true, pieces, area2: Math.abs(area2), pieceArea2 };
 }
 
@@ -330,21 +341,74 @@ export function entityShapeSites(registry: Registry, e: EntityDef): ShapeSite[] 
 /** A shape site "Split into convex pieces" splits, with its poly's points (m). */
 export type SplittableSite = ShapeSite & { pts: Pt[] };
 
+const blockNames = (registry: Registry, e: EntityDef): string[] => {
+  const blocks = e[BEHAVIORS_FIELD];
+  const own =
+    blocks !== null && typeof blocks === "object" && !Array.isArray(blocks)
+      ? Object.keys(blocks)
+      : [];
+  return [...new Set([...registry.behaviorRules(e.type).required.keys(), ...own])];
+};
+
 /**
- * The shape `decomposeBatch` splits on entity `e`: its first poly, over
- * `entityShapeSites`, that may not be concave (a polygon field may) and that
- * `canDecompose` holds for at the game's px per metre; null when none.
+ * Why `decomposeBatch` won't split `site` on `e`, or null when it will.
+ * The split must leave one of everything the entity is: one body, one set of
+ * behaviors, one trigger. A collider's pieces join the entity (it keeps the
+ * first, collider-only nodes take the rest), so only a sensor or a body with
+ * nowhere to carry them refuses; a type's own shape splits into one entity
+ * per piece, so only a plain static solid with no behaviors does.
  */
-export function splittableSite(registry: Registry, e: EntityDef): SplittableSite | null {
+function splitBlocker(registry: Registry, e: EntityDef, site: ShapeSite): string | null {
+  const type = registry.types.get(e.type);
+  if (!type) return `${e.type} isn't a type of this game`;
+  if (site.behavior) {
+    const name = site.field.split(".")[1];
+    if (name !== COLLIDER.name)
+      return `only a ${COLLIDER.name}'s shape splits, not a ${name ?? "behavior"}'s`;
+    const block = (e[BEHAVIORS_FIELD] as Record<string, Record<string, unknown>>)[name];
+    if (block?.sensor === true)
+      return `its collider is a sensor, and each piece would raise its own sensor events`;
+    if (!registry.types.has(NODE_TYPE) || !registry.behaviorRules(NODE_TYPE).allowed.includes(name))
+      return `this game has no ${NODE_TYPE} type that takes a ${name} to hold the other pieces`;
+    if (!canBeInTree(type) && blockNames(registry, e).includes(BODY.name))
+      return `a ${e.type} can't hold children, so its body can't carry the other pieces`;
+    return null;
+  }
+  if ((type.base ?? type.type) !== "solid" || type.system !== undefined)
+    return `each piece would be a ${e.type} of its own (a body, a trigger or a system per piece); only a plain solid's shape or a ${COLLIDER.name} behavior's splits`;
+  const blocks = blockNames(registry, e);
+  if (blocks.length > 0)
+    return `each piece would copy its ${blocks.join(", ")}; move ${blocks.length === 1 ? "that" : "those"} to another entity first`;
+  return null;
+}
+
+/** Each concave poly of `e` that `canDecompose` holds for at the game's px per metre, with why it won't split. */
+function concaveSites(
+  registry: Registry,
+  e: EntityDef,
+): { site: SplittableSite; blocker: string | null }[] {
   const ppm = pxPerMetreOf(registry);
+  const out: { site: SplittableSite; blocker: string | null }[] = [];
   for (const site of entityShapeSites(registry, e)) {
     if (isPolygonField(site.schema)) continue;
     const parsed = parseShape(site.value);
     if (!parsed.ok || parsed.shape.type !== "poly") continue;
-    if (canDecompose(parsed.shape.pts, { pxPerMetre: ppm }))
-      return { ...site, pts: parsed.shape.pts };
+    if (!canDecompose(parsed.shape.pts, { pxPerMetre: ppm })) continue;
+    const found = { ...site, pts: parsed.shape.pts };
+    out.push({ site: found, blocker: splitBlocker(registry, e, found) });
   }
-  return null;
+  return out;
+}
+
+/**
+ * The shape `decomposeBatch` splits on entity `e`: its first poly, over
+ * `entityShapeSites`, that may not be concave (a polygon field may), that
+ * `canDecompose` holds for at the game's px per metre, and whose split keeps
+ * one body and one of each behavior (a plain solid's shape, or a non-sensor
+ * collider's); null when none.
+ */
+export function splittableSite(registry: Registry, e: EntityDef): SplittableSite | null {
+  return concaveSites(registry, e).find((s) => s.blocker === null)?.site ?? null;
 }
 
 /** The fields of entity `e` (type refs, then behavior fields) that name entity `id`, as dot-path segments. */
@@ -363,10 +427,28 @@ export type DecomposeBatchResult =
   | { ok: true; batch: OpBatch; area2: number; pieceArea2: readonly number[] }
   | { ok: false; issue: SceneIssue };
 
+/** The next `count` free ids `<id>-n`. */
+function pieceIds(def: SceneDefinition, id: string, count: number): string[] {
+  const taken = takenIds(def);
+  taken.delete(id);
+  const ids: string[] = [];
+  for (let n = 1; ids.length < count; n++) {
+    const next = `${id}-${n}`;
+    if (!taken.has(next)) ids.push(next);
+  }
+  return ids;
+}
+
+const polyTuple = (piece: readonly Pt[]) => ["poly", ...piece.flat()] as ShapeTuple;
+
 /**
- * The batch replacing `id`'s splittable poly (`splittableSite`) with one entity per
- * piece, ids `<id>-n`, or a `group` node named `id` holding them; children move with it.
- * Refused while another entity names `id`, since the pieces take new ids.
+ * The batch splitting `id`'s splittable poly (`splittableSite`) into convex
+ * pieces. A collider's: the entity keeps the first piece, its body and every
+ * behavior, and each other piece is a collider-only `node` under it, so it
+ * stays one body (beside it at its pose for a type that can't hold children,
+ * which refuses `group`). A plain solid's own shape: one solid per piece, ids
+ * `<id>-n`, or a `group` node named `id` holding them; children move with it,
+ * and it's refused while another entity names `id`, since the pieces take new ids.
  */
 export function decomposeBatch(
   def: SceneDefinition,
@@ -385,24 +467,72 @@ export function decomposeBatch(
         entityIds: [id],
       }),
     };
-  const site = splittableSite(registry, entity);
   const at = jsonPointer(["entities", index]);
-  if (!site)
+  const sites = concaveSites(registry, entity);
+  const site = sites.find((s) => s.blocker === null)?.site;
+  if (!site) {
+    const blocked = sites[0];
     return {
       ok: false,
-      issue: makeIssue("poly-invalid", {
-        message: `${id} has no simple concave poly to split into convex pieces.`,
-        path: at,
-        entityIds: [id],
-      }),
+      issue: blocked
+        ? makeIssue("op-invalid", {
+            message: `${id} can't split into convex pieces: ${blocked.blocker}.`,
+            path: `${at}${blocked.site.pointer}`,
+            entityIds: [id],
+          })
+        : makeIssue("poly-invalid", {
+            message: `${id} has no simple concave poly to split into convex pieces.`,
+            path: at,
+            entityIds: [id],
+          }),
     };
+  }
   const result = decomposePolygon(site.pts, { pxPerMetre: pxPerMetreOf(registry) });
   if (!result.ok)
     return {
       ok: false,
       issue: { ...result.issue, path: `${at}${site.pointer}`, entityIds: [id] },
     };
-  // The pieces take new ids, so a ref to `id` would dangle or name a bodiless group.
+  const into = `${result.pieces.length} convex pieces`;
+  const done = (label: string, ops: SceneOp[]): DecomposeBatchResult => ({
+    ok: true,
+    batch: { label, ops },
+    area2: result.area2,
+    pieceArea2: result.pieceArea2,
+  });
+
+  const group = opts?.group === true;
+  const inTree = canBeInTree(registry.types.get(entity.type));
+  if (group && !inTree)
+    return {
+      ok: false,
+      issue: makeIssue("parent-type", {
+        message: `${id} is a ${entity.type}, which can't be in the tree, so its pieces can't be grouped; split it without a group.`,
+        path: at,
+        entityIds: [id],
+      }),
+    };
+  if (site.behavior) {
+    const [first, ...rest] = result.pieces;
+    const name = site.field.split(".")[1]!;
+    const block = (entity[BEHAVIORS_FIELD] as Record<string, Record<string, unknown>>)[name]!;
+    const frame = entityFrame(registry, entity);
+    const ids = pieceIds(def, id, rest.length);
+    const ops: SceneOp[] = [{ op: "update", ref: id, set: { [site.field]: polyTuple(first!) } }];
+    rest.forEach((piece, k) => {
+      const node: EntityInput = {
+        id: ids[k]!,
+        type: NODE_TYPE,
+        at: inTree ? [0, 0] : frame.at,
+        [BEHAVIORS_FIELD]: { [name]: { ...structuredClone(block), shape: polyTuple(piece) } },
+      };
+      if (inTree) node.parent = id;
+      else if (frame.rot !== 0) node.rot = frame.rot;
+      ops.push({ op: "add", entity: node, index: index + 1 + k });
+    });
+    return done(`Split ${id}'s ${name} into ${into}`, ops);
+  }
+
   const referrers = entities
     .filter((e) => e.id !== id && entityRefSites(registry, e, id).length > 0)
     .map((e) => e.id);
@@ -416,7 +546,6 @@ export function decomposeBatch(
       }),
     };
 
-  const group = opts?.group === true;
   if (group && !registry.types.has(NODE_TYPE))
     return {
       ok: false,
@@ -426,22 +555,7 @@ export function decomposeBatch(
         entityIds: [id],
       }),
     };
-  if (group && !canBeInTree(registry.types.get(entity.type)))
-    return {
-      ok: false,
-      issue: makeIssue("parent-type", {
-        message: `${id} is a ${entity.type}, which can't be in the tree, so its pieces can't be grouped; split it without a group.`,
-        path: at,
-        entityIds: [id],
-      }),
-    };
-  const taken = takenIds(def);
-  taken.delete(id);
-  const ids: string[] = [];
-  for (let n = 1; ids.length < result.pieces.length; n++) {
-    const next = `${id}-${n}`;
-    if (!taken.has(next)) ids.push(next);
-  }
+  const ids = pieceIds(def, id, result.pieces.length);
   const parent = entity.parent;
   const children = entities
     .filter((e) => e.parent === id && e.id !== id)
@@ -458,22 +572,12 @@ export function decomposeBatch(
     ops.push({ op: "add", entity: node, index: slot++ });
   }
   result.pieces.forEach((piece, k) => {
-    const shape = ["poly", ...piece.flat()] as ShapeTuple;
     const e = structuredClone(entity) as EntityInput;
-    setAt(e, site.field.split("."), shape);
+    setAt(e, site.field.split("."), polyTuple(piece));
     e.id = ids[k]!;
     if (group) e.parent = id;
     ops.push({ op: "add", entity: e, index: slot++ });
   });
   if (group && children.length > 0) ops.push({ op: "reparent", refs: children, parent: id });
-  const into = `${result.pieces.length} convex pieces`;
-  return {
-    ok: true,
-    batch: {
-      label: group ? `Split ${id} into a group of ${into}` : `Split ${id} into ${into}`,
-      ops,
-    },
-    area2: result.area2,
-    pieceArea2: result.pieceArea2,
-  };
+  return done(group ? `Split ${id} into a group of ${into}` : `Split ${id} into ${into}`, ops);
 }

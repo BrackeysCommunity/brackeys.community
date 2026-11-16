@@ -508,7 +508,7 @@ export function renderSceneSvg(
         `<g data-joint="${esc(entity.id)}" data-kind="${esc(kind)}" data-to="${esc(to)}">` +
           `<path d="M${num(from[0])} ${num(from[1])}L${num(end[0])} ${num(end[1])}"/>` +
           `<circle cx="${num(mid[0])}" cy="${num(mid[1])}" r="${px(6)}" fill="${BACKGROUND}"/>` +
-          `<text x="${num(mid[0])}" y="${num(mid[1] + 3.2 * u)}" font-size="${px(9)}" text-anchor="middle" fill="${JOINT_COLOR}" stroke="none">${jointGlyph(kind).mark}</text></g>`,
+          `<text x="${num(mid[0])}" y="${num(mid[1] + 3.2 * u)}" font-size="${px(9)}" font-weight="600" text-anchor="middle" fill="${JOINT_COLOR}" stroke="none">${jointGlyph(kind).mark}</text></g>`,
       );
     out.push(`</g>`);
   }
