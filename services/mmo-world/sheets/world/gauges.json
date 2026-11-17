@@ -1,0 +1,41 @@
+{
+  "$schema": "../schema/world.gauges.schema.json",
+  "sheet": "world.gauges",
+  "rows": [
+    {
+      "id": "threat",
+      "max": 1000,
+      "dailyRise": 4,
+      "pullPercent": 5,
+      "wobble": 20
+    },
+    {
+      "id": "scarcity",
+      "max": 1000,
+      "dailyRise": -15,
+      "pullPercent": 5,
+      "wobble": 6
+    },
+    {
+      "id": "unrest",
+      "max": 1000,
+      "dailyRise": -10,
+      "pullPercent": 5,
+      "wobble": 8
+    },
+    {
+      "id": "corruption",
+      "max": 1000,
+      "dailyRise": 0,
+      "pullPercent": 5,
+      "wobble": 4
+    },
+    {
+      "id": "prosperity",
+      "max": 1000,
+      "dailyRise": 0,
+      "pullPercent": 5,
+      "wobble": 6
+    }
+  ]
+}

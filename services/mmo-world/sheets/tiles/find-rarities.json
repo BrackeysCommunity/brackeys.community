@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/tiles.find-rarities.schema.json",
+  "sheet": "tiles.find-rarities",
+  "rows": []
+}

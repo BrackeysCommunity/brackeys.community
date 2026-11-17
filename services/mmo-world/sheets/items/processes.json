@@ -1,0 +1,36 @@
+{
+  "$schema": "../schema/items.processes.schema.json",
+  "sheet": "items.processes",
+  "rows": [
+    {
+      "id": "alloy",
+      "stations": ["forge"],
+      "traits": ["tempered", "dense", "springy"]
+    },
+    {
+      "id": "shape",
+      "stations": ["forge", "bench"],
+      "traits": ["keen", "braced", "balanced", "hooked"]
+    },
+    {
+      "id": "infuse",
+      "stations": ["still"],
+      "traits": ["warm", "lingering", "cold"]
+    },
+    {
+      "id": "bind",
+      "stations": ["bench"],
+      "traits": ["arcing", "quick-drawn", "sure-gripped"]
+    },
+    {
+      "id": "inscribe",
+      "stations": ["bench"],
+      "traits": ["warded", "marked", "true"]
+    },
+    {
+      "id": "compose",
+      "stations": ["still"],
+      "traits": ["wide", "deep", "quiet"]
+    }
+  ]
+}

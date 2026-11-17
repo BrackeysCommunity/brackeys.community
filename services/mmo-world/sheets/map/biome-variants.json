@@ -1,0 +1,38 @@
+{
+  "$schema": "../schema/map.biome-variants.schema.json",
+  "sheet": "map.biome-variants",
+  "rows": [
+    {
+      "id": "glass-desert",
+      "terrain": "flats",
+      "minDistance": 60,
+      "cell": 7,
+      "share": 50,
+      "note": "provisional: spike E round 3"
+    },
+    {
+      "id": "sunken-city",
+      "terrain": "marsh",
+      "minDistance": 80,
+      "cell": 6,
+      "share": 50,
+      "note": "provisional: spike E round 3"
+    },
+    {
+      "id": "cable-forest",
+      "terrain": "forest",
+      "minDistance": 100,
+      "cell": 6,
+      "share": 50,
+      "note": "provisional: spike E round 3"
+    },
+    {
+      "id": "rust-steppe",
+      "terrain": "plain",
+      "minDistance": 140,
+      "cell": 8,
+      "share": 40,
+      "note": "provisional: spike E round 3"
+    }
+  ]
+}

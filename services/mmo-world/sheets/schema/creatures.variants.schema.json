@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creatures.variants",
+  "title": "creatures.variants",
+  "description": "Keyed tags that make a creature variant, by distance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "creatures.variants"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "tag", "minDistance"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary"
+          },
+          "minDistance": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "From the origin."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

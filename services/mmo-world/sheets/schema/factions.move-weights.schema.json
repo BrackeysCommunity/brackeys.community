@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "factions.move-weights",
+  "title": "factions.move-weights",
+  "description": "How each archetype scores each move.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "factions.move-weights"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "archetype", "move", "fit", "needWeight", "riskWeight"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "archetype": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "factions.archetypes"
+          },
+          "move": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "factions.moves"
+          },
+          "fit": {
+            "type": "integer",
+            "x-unit": "count",
+            "description": "Score points for fit to the archetype's goal."
+          },
+          "needWeight": {
+            "type": "integer",
+            "x-unit": "percent"
+          },
+          "riskWeight": {
+            "type": "integer",
+            "x-unit": "percent"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

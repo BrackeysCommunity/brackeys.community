@@ -1,0 +1,52 @@
+{
+  "$schema": "../schema/map.noise.schema.json",
+  "sheet": "map.noise",
+  "rows": [
+    {
+      "id": "elevation",
+      "cell": 56,
+      "octaves": 5,
+      "falloff": 55,
+      "max": 100,
+      "note": "provisional: spike E round 4: sprawling biomes"
+    },
+    {
+      "id": "moisture",
+      "cell": 64,
+      "octaves": 4,
+      "falloff": 50,
+      "max": 100,
+      "note": "provisional: spike E round 4: sprawling biomes"
+    },
+    {
+      "id": "ore",
+      "cell": 5,
+      "octaves": 2,
+      "falloff": 50,
+      "max": 100
+    },
+    {
+      "id": "fertility",
+      "cell": 6,
+      "octaves": 2,
+      "falloff": 50,
+      "max": 100
+    },
+    {
+      "id": "warp",
+      "cell": 24,
+      "octaves": 2,
+      "falloff": 50,
+      "max": 100,
+      "note": "provisional: spike E round 4: the domain warp that makes biome edges meander"
+    },
+    {
+      "id": "fade",
+      "cell": 20,
+      "octaves": 1,
+      "falloff": 100,
+      "max": 100,
+      "note": "provisional: spike E round 4: how wide an edge fades, from fade-min to fade-max"
+    }
+  ]
+}

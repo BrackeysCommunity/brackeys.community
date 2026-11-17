@@ -1,0 +1,129 @@
+{
+  "$schema": "../schema/tags.rules.schema.json",
+  "sheet": "tags.rules",
+  "rows": [
+    {
+      "id": "storm-charges",
+      "subject": ["creature", "marsh-born"],
+      "place": ["storm"],
+      "then": [
+        {
+          "kind": "add-tag",
+          "target": "subject",
+          "tag": "charged"
+        }
+      ]
+    },
+    {
+      "id": "conductive-bites",
+      "subject": ["item", "conductive"],
+      "other": ["charged"],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "wet-douses",
+      "subject": ["burning"],
+      "anywhere": ["wet"],
+      "then": [
+        {
+          "kind": "remove-tag",
+          "target": "subject",
+          "tag": "burning"
+        }
+      ]
+    },
+    {
+      "id": "dry-catches",
+      "subject": ["dry"],
+      "other": ["burning"],
+      "then": [
+        {
+          "kind": "add-tag",
+          "target": "subject",
+          "tag": "burning"
+        }
+      ]
+    },
+    {
+      "id": "thick-turns-edges",
+      "subject": ["item", "keen"],
+      "other": ["thick"],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "warm-thaws",
+      "subject": ["spell", "warm"],
+      "other": ["brittle"],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "packs-gather",
+      "subject": ["creature", "pack"],
+      "measure": "threat",
+      "atLeast": 600,
+      "then": [
+        {
+          "kind": "join",
+          "count": 1,
+          "beat": 3
+        }
+      ]
+    },
+    {
+      "id": "wary-flees",
+      "subject": ["creature", "wary"],
+      "measure": "party-size",
+      "atLeast": 3,
+      "then": [
+        {
+          "kind": "end",
+          "beat": 2
+        }
+      ]
+    },
+    {
+      "id": "scarcity-bids",
+      "subject": ["faction", "mercantile"],
+      "measure": "scarcity",
+      "atLeast": 700,
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "order-price",
+          "percent": 20
+        }
+      ]
+    },
+    {
+      "id": "corruption-spoils",
+      "subject": ["node", "corrupted"],
+      "then": [
+        {
+          "kind": "add-tag",
+          "target": "yield",
+          "tag": "corrupted"
+        },
+        {
+          "kind": "scale",
+          "measure": "yield-value",
+          "percent": -50
+        }
+      ]
+    }
+  ]
+}

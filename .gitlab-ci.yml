@@ -17,3 +17,4 @@ include:
   - local: .gitlab/release.gitlab-ci.yml
   - local: .gitlab/renovate.gitlab-ci.yml
   - local: .gitlab/chromatic.gitlab-ci.yml
+  - local: .gitlab/mmo-world.gitlab-ci.yml

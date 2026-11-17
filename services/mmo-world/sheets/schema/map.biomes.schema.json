@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.biomes",
+  "title": "map.biomes",
+  "description": "Which terrain an elevation and moisture make.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.biomes"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "terrain", "elevationMin", "elevationMax", "moistureMin", "moistureMax"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "terrain": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.terrain"
+          },
+          "elevationMin": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "elevationMax": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "moistureMin": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "moistureMax": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "materialTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

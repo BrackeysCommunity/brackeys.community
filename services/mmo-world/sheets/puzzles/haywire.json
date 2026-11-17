@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/puzzles.haywire.schema.json",
+  "sheet": "puzzles.haywire",
+  "rows": [
+    {
+      "id": "shock",
+      "effect": "shock",
+      "magnitude": 8,
+      "unit": "durability"
+    },
+    {
+      "id": "alarm",
+      "effect": "alarm",
+      "magnitude": 40,
+      "unit": "gauge"
+    },
+    {
+      "id": "short",
+      "effect": "short",
+      "magnitude": 1,
+      "unit": "count",
+      "tag": "charged"
+    },
+    {
+      "id": "lockdown",
+      "effect": "lockdown",
+      "magnitude": 1,
+      "unit": "days"
+    }
+  ]
+}

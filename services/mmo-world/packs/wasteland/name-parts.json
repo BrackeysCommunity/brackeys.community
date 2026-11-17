@@ -1,0 +1,646 @@
+{
+  "$schema": "../../sheets/schema/pack.name-parts.schema.json",
+  "sheet": "pack.name-parts",
+  "rows": [
+    {
+      "id": "region-head-ash",
+      "list": "region-head",
+      "text": "Ash"
+    },
+    {
+      "id": "region-head-burn",
+      "list": "region-head",
+      "text": "Burn"
+    },
+    {
+      "id": "region-head-cinder",
+      "list": "region-head",
+      "text": "Cinder"
+    },
+    {
+      "id": "region-head-dead",
+      "list": "region-head",
+      "text": "Dead"
+    },
+    {
+      "id": "region-head-dust",
+      "list": "region-head",
+      "text": "Dust"
+    },
+    {
+      "id": "region-head-grey",
+      "list": "region-head",
+      "text": "Grey"
+    },
+    {
+      "id": "region-head-iron",
+      "list": "region-head",
+      "text": "Iron"
+    },
+    {
+      "id": "region-head-junk",
+      "list": "region-head",
+      "text": "Junk"
+    },
+    {
+      "id": "region-head-lead",
+      "list": "region-head",
+      "text": "Lead"
+    },
+    {
+      "id": "region-head-low",
+      "list": "region-head",
+      "text": "Low"
+    },
+    {
+      "id": "region-head-null",
+      "list": "region-head",
+      "text": "Null"
+    },
+    {
+      "id": "region-head-rad",
+      "list": "region-head",
+      "text": "Rad"
+    },
+    {
+      "id": "region-head-rust",
+      "list": "region-head",
+      "text": "Rust"
+    },
+    {
+      "id": "region-head-salt",
+      "list": "region-head",
+      "text": "Salt"
+    },
+    {
+      "id": "region-head-scrap",
+      "list": "region-head",
+      "text": "Scrap"
+    },
+    {
+      "id": "region-head-silt",
+      "list": "region-head",
+      "text": "Silt"
+    },
+    {
+      "id": "region-head-slag",
+      "list": "region-head",
+      "text": "Slag"
+    },
+    {
+      "id": "region-head-static",
+      "list": "region-head",
+      "text": "Static"
+    },
+    {
+      "id": "region-head-tar",
+      "list": "region-head",
+      "text": "Tar"
+    },
+    {
+      "id": "region-head-wire",
+      "list": "region-head",
+      "text": "Wire"
+    },
+    {
+      "id": "region-tail-flats",
+      "list": "region-tail",
+      "text": "flats"
+    },
+    {
+      "id": "region-tail-yards",
+      "list": "region-tail",
+      "text": "yards"
+    },
+    {
+      "id": "region-tail-sprawl",
+      "list": "region-tail",
+      "text": "sprawl"
+    },
+    {
+      "id": "region-tail-reach",
+      "list": "region-tail",
+      "text": "reach"
+    },
+    {
+      "id": "region-tail-sink",
+      "list": "region-tail",
+      "text": "sink"
+    },
+    {
+      "id": "region-tail-line",
+      "list": "region-tail",
+      "text": "line"
+    },
+    {
+      "id": "region-tail-fields",
+      "list": "region-tail",
+      "text": "fields"
+    },
+    {
+      "id": "region-tail-bowl",
+      "list": "region-tail",
+      "text": "bowl"
+    },
+    {
+      "id": "region-tail-cut",
+      "list": "region-tail",
+      "text": "cut"
+    },
+    {
+      "id": "region-tail-drift",
+      "list": "region-tail",
+      "text": "drift"
+    },
+    {
+      "id": "region-tail-heap",
+      "list": "region-tail",
+      "text": "heap"
+    },
+    {
+      "id": "region-tail-pan",
+      "list": "region-tail",
+      "text": "pan"
+    },
+    {
+      "id": "region-tail-ridge",
+      "list": "region-tail",
+      "text": "ridge"
+    },
+    {
+      "id": "region-tail-water",
+      "list": "region-tail",
+      "text": "water"
+    },
+    {
+      "id": "region-tail-waste",
+      "list": "region-tail",
+      "text": "waste"
+    },
+    {
+      "id": "notable-given-ada",
+      "list": "notable-given",
+      "text": "Ada"
+    },
+    {
+      "id": "notable-given-bix",
+      "list": "notable-given",
+      "text": "Bix"
+    },
+    {
+      "id": "notable-given-cass",
+      "list": "notable-given",
+      "text": "Cass"
+    },
+    {
+      "id": "notable-given-dex",
+      "list": "notable-given",
+      "text": "Dex"
+    },
+    {
+      "id": "notable-given-echo",
+      "list": "notable-given",
+      "text": "Echo"
+    },
+    {
+      "id": "notable-given-fenn",
+      "list": "notable-given",
+      "text": "Fenn"
+    },
+    {
+      "id": "notable-given-gage",
+      "list": "notable-given",
+      "text": "Gage"
+    },
+    {
+      "id": "notable-given-hex",
+      "list": "notable-given",
+      "text": "Hex"
+    },
+    {
+      "id": "notable-given-ivo",
+      "list": "notable-given",
+      "text": "Ivo"
+    },
+    {
+      "id": "notable-given-jun",
+      "list": "notable-given",
+      "text": "Jun"
+    },
+    {
+      "id": "notable-given-kit",
+      "list": "notable-given",
+      "text": "Kit"
+    },
+    {
+      "id": "notable-given-lux",
+      "list": "notable-given",
+      "text": "Lux"
+    },
+    {
+      "id": "notable-given-mags",
+      "list": "notable-given",
+      "text": "Mags"
+    },
+    {
+      "id": "notable-given-nyx",
+      "list": "notable-given",
+      "text": "Nyx"
+    },
+    {
+      "id": "notable-given-ozzy",
+      "list": "notable-given",
+      "text": "Ozzy"
+    },
+    {
+      "id": "notable-given-pike",
+      "list": "notable-given",
+      "text": "Pike"
+    },
+    {
+      "id": "notable-given-rook",
+      "list": "notable-given",
+      "text": "Rook"
+    },
+    {
+      "id": "notable-given-sable",
+      "list": "notable-given",
+      "text": "Sable"
+    },
+    {
+      "id": "notable-given-tam",
+      "list": "notable-given",
+      "text": "Tam"
+    },
+    {
+      "id": "notable-given-vex",
+      "list": "notable-given",
+      "text": "Vex"
+    },
+    {
+      "id": "notable-family-ashgrove",
+      "list": "notable-family",
+      "text": "Ashgrove"
+    },
+    {
+      "id": "notable-family-bolt",
+      "list": "notable-family",
+      "text": "Bolt"
+    },
+    {
+      "id": "notable-family-calder",
+      "list": "notable-family",
+      "text": "Calder"
+    },
+    {
+      "id": "notable-family-dray",
+      "list": "notable-family",
+      "text": "Dray"
+    },
+    {
+      "id": "notable-family-flint",
+      "list": "notable-family",
+      "text": "Flint"
+    },
+    {
+      "id": "notable-family-gantry",
+      "list": "notable-family",
+      "text": "Gantry"
+    },
+    {
+      "id": "notable-family-holt",
+      "list": "notable-family",
+      "text": "Holt"
+    },
+    {
+      "id": "notable-family-kessler",
+      "list": "notable-family",
+      "text": "Kessler"
+    },
+    {
+      "id": "notable-family-lathe",
+      "list": "notable-family",
+      "text": "Lathe"
+    },
+    {
+      "id": "notable-family-mercer",
+      "list": "notable-family",
+      "text": "Mercer"
+    },
+    {
+      "id": "notable-family-novak",
+      "list": "notable-family",
+      "text": "Novak"
+    },
+    {
+      "id": "notable-family-rask",
+      "list": "notable-family",
+      "text": "Rask"
+    },
+    {
+      "id": "notable-family-solder",
+      "list": "notable-family",
+      "text": "Solder"
+    },
+    {
+      "id": "notable-family-vance",
+      "list": "notable-family",
+      "text": "Vance"
+    },
+    {
+      "id": "notable-family-wren",
+      "list": "notable-family",
+      "text": "Wren"
+    },
+    {
+      "id": "faction-head-black",
+      "list": "faction-head",
+      "text": "Black"
+    },
+    {
+      "id": "faction-head-dust",
+      "list": "faction-head",
+      "text": "Dust"
+    },
+    {
+      "id": "faction-head-grey",
+      "list": "faction-head",
+      "text": "Grey"
+    },
+    {
+      "id": "faction-head-hollow",
+      "list": "faction-head",
+      "text": "Hollow"
+    },
+    {
+      "id": "faction-head-iron",
+      "list": "faction-head",
+      "text": "Iron"
+    },
+    {
+      "id": "faction-head-last",
+      "list": "faction-head",
+      "text": "Last"
+    },
+    {
+      "id": "faction-head-long",
+      "list": "faction-head",
+      "text": "Long"
+    },
+    {
+      "id": "faction-head-red",
+      "list": "faction-head",
+      "text": "Red"
+    },
+    {
+      "id": "faction-head-rust",
+      "list": "faction-head",
+      "text": "Rust"
+    },
+    {
+      "id": "faction-head-static",
+      "list": "faction-head",
+      "text": "Static"
+    },
+    {
+      "id": "faction-tail-militia",
+      "list": "faction-tail",
+      "text": "Militia"
+    },
+    {
+      "id": "faction-tail-compact",
+      "list": "faction-tail",
+      "text": "Compact"
+    },
+    {
+      "id": "faction-tail-cartel",
+      "list": "faction-tail",
+      "text": "Cartel"
+    },
+    {
+      "id": "faction-tail-cult",
+      "list": "faction-tail",
+      "text": "Cult"
+    },
+    {
+      "id": "faction-tail-clans",
+      "list": "faction-tail",
+      "text": "Clans"
+    },
+    {
+      "id": "faction-tail-watch",
+      "list": "faction-tail",
+      "text": "Watch"
+    },
+    {
+      "id": "faction-tail-crew",
+      "list": "faction-tail",
+      "text": "Crew"
+    },
+    {
+      "id": "faction-tail-kin",
+      "list": "faction-tail",
+      "text": "Kin"
+    },
+    {
+      "id": "faction-tail-syndicate",
+      "list": "faction-tail",
+      "text": "Syndicate"
+    },
+    {
+      "id": "faction-tail-choir",
+      "list": "faction-tail",
+      "text": "Choir"
+    },
+    {
+      "id": "dungeon-head-blacked",
+      "list": "dungeon-head",
+      "text": "Blacked"
+    },
+    {
+      "id": "dungeon-head-buried",
+      "list": "dungeon-head",
+      "text": "Buried"
+    },
+    {
+      "id": "dungeon-head-cold",
+      "list": "dungeon-head",
+      "text": "Cold"
+    },
+    {
+      "id": "dungeon-head-dead",
+      "list": "dungeon-head",
+      "text": "Dead"
+    },
+    {
+      "id": "dungeon-head-drowned",
+      "list": "dungeon-head",
+      "text": "Drowned"
+    },
+    {
+      "id": "dungeon-head-hollow",
+      "list": "dungeon-head",
+      "text": "Hollow"
+    },
+    {
+      "id": "dungeon-head-locked",
+      "list": "dungeon-head",
+      "text": "Locked"
+    },
+    {
+      "id": "dungeon-head-silent",
+      "list": "dungeon-head",
+      "text": "Silent"
+    },
+    {
+      "id": "dungeon-head-sunk",
+      "list": "dungeon-head",
+      "text": "Sunk"
+    },
+    {
+      "id": "dungeon-head-vaulted",
+      "list": "dungeon-head",
+      "text": "Vaulted"
+    },
+    {
+      "id": "dungeon-tail-bunker",
+      "list": "dungeon-tail",
+      "text": "Bunker"
+    },
+    {
+      "id": "dungeon-tail-vault",
+      "list": "dungeon-tail",
+      "text": "Vault"
+    },
+    {
+      "id": "dungeon-tail-data-centre",
+      "list": "dungeon-tail",
+      "text": "Data-centre"
+    },
+    {
+      "id": "dungeon-tail-relay",
+      "list": "dungeon-tail",
+      "text": "Relay"
+    },
+    {
+      "id": "dungeon-tail-silo",
+      "list": "dungeon-tail",
+      "text": "Silo"
+    },
+    {
+      "id": "dungeon-tail-substation",
+      "list": "dungeon-tail",
+      "text": "Substation"
+    },
+    {
+      "id": "dungeon-tail-archive",
+      "list": "dungeon-tail",
+      "text": "Archive"
+    },
+    {
+      "id": "dungeon-tail-exchange",
+      "list": "dungeon-tail",
+      "text": "Exchange"
+    },
+    {
+      "id": "settlement-head-copper",
+      "list": "settlement-head",
+      "text": "Copper"
+    },
+    {
+      "id": "settlement-head-fuse",
+      "list": "settlement-head",
+      "text": "Fuse"
+    },
+    {
+      "id": "settlement-head-gantry",
+      "list": "settlement-head",
+      "text": "Gantry"
+    },
+    {
+      "id": "settlement-head-junction",
+      "list": "settlement-head",
+      "text": "Junction"
+    },
+    {
+      "id": "settlement-head-lantern",
+      "list": "settlement-head",
+      "text": "Lantern"
+    },
+    {
+      "id": "settlement-head-pylon",
+      "list": "settlement-head",
+      "text": "Pylon"
+    },
+    {
+      "id": "settlement-head-relay",
+      "list": "settlement-head",
+      "text": "Relay"
+    },
+    {
+      "id": "settlement-head-rivet",
+      "list": "settlement-head",
+      "text": "Rivet"
+    },
+    {
+      "id": "settlement-head-signal",
+      "list": "settlement-head",
+      "text": "Signal"
+    },
+    {
+      "id": "settlement-head-tollbridge",
+      "list": "settlement-head",
+      "text": "Tollbridge"
+    },
+    {
+      "id": "settlement-tail-yard",
+      "list": "settlement-tail",
+      "text": " Yard"
+    },
+    {
+      "id": "settlement-tail-gate",
+      "list": "settlement-tail",
+      "text": " Gate"
+    },
+    {
+      "id": "settlement-tail-hold",
+      "list": "settlement-tail",
+      "text": " Hold"
+    },
+    {
+      "id": "settlement-tail-cross",
+      "list": "settlement-tail",
+      "text": " Cross"
+    },
+    {
+      "id": "settlement-tail-depot",
+      "list": "settlement-tail",
+      "text": " Depot"
+    },
+    {
+      "id": "settlement-tail-works",
+      "list": "settlement-tail",
+      "text": " Works"
+    },
+    {
+      "id": "settlement-tail-stop",
+      "list": "settlement-tail",
+      "text": " Stop"
+    },
+    {
+      "id": "settlement-tail-point",
+      "list": "settlement-tail",
+      "text": " Point"
+    },
+    {
+      "id": "settlement-tail-camp",
+      "list": "settlement-tail",
+      "text": " Camp"
+    },
+    {
+      "id": "settlement-tail-market",
+      "list": "settlement-tail",
+      "text": " Market"
+    }
+  ]
+}

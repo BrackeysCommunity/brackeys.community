@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.tiers",
+  "title": "items.tiers",
+  "description": "Budgets, level caps and blade durability by tier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.tiers"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "tier", "budget", "levelCap", "gainAtCap", "bladeDurability"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tier"
+          },
+          "budget": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "pts"
+          },
+          "levelCap": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "level"
+          },
+          "gainAtCap": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "percent"
+          },
+          "bladeDurability": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "durability"
+          }
+        }
+      }
+    }
+  }
+}

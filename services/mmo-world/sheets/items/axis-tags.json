@@ -1,0 +1,12 @@
+{
+  "$schema": "../schema/items.axis-tags.schema.json",
+  "sheet": "items.axis-tags",
+  "rows": [
+    {
+      "id": "conductive",
+      "axis": "conduct",
+      "shareOfBudget": 35,
+      "tag": "conductive"
+    }
+  ]
+}

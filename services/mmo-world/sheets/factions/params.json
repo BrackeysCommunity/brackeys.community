@@ -1,0 +1,131 @@
+{
+  "$schema": "../schema/factions.params.schema.json",
+  "sheet": "factions.params",
+  "rows": [
+    {
+      "id": "regions-per-faction",
+      "value": 6,
+      "unit": "count"
+    },
+    {
+      "id": "start-strength",
+      "value": 100,
+      "unit": "count",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): a faction's starting strength."
+    },
+    {
+      "id": "start-stock",
+      "value": 100,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): a faction's starting stock."
+    },
+    {
+      "id": "daily-upkeep",
+      "value": 4,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): stock a faction eats per holding per day."
+    },
+    {
+      "id": "holding-income",
+      "value": 6,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): stock a holding yields per day, less scarcity."
+    },
+    {
+      "id": "holding-defence",
+      "value": 60,
+      "unit": "defence",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): a new holding's defence."
+    },
+    {
+      "id": "fortify-gain",
+      "value": 15,
+      "unit": "defence",
+      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+    },
+    {
+      "id": "raid-damage",
+      "value": 25,
+      "unit": "defence",
+      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+    },
+    {
+      "id": "raid-loot",
+      "value": 20,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+    },
+    {
+      "id": "expand-cost",
+      "value": 40,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+    },
+    {
+      "id": "trade-gain",
+      "value": 12,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+    },
+    {
+      "id": "court-gain",
+      "value": 10,
+      "unit": "count",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): disposition gained by courting."
+    },
+    {
+      "id": "betray-threshold",
+      "value": 40,
+      "unit": "count",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): disposition above which betrayal pays."
+    },
+    {
+      "id": "need-threshold",
+      "value": 60,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): stock below which a faction is in need."
+    },
+    {
+      "id": "notables-per-faction",
+      "value": 3,
+      "unit": "count",
+      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+    },
+    {
+      "id": "notable-death-chance",
+      "value": 0.15,
+      "unit": "chance",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): when a holding falls."
+    },
+    {
+      "id": "seat-spacing",
+      "value": 18,
+      "unit": "tiles",
+      "doc": "Faction seats no closer than this (GDD 4.13)."
+    },
+    {
+      "id": "betray-grudge",
+      "value": 60,
+      "unit": "days",
+      "doc": "Days a betrayed faction will not trade with or court its betrayer, and raids it first."
+    },
+    {
+      "id": "betray-infamy",
+      "value": 20,
+      "unit": "count",
+      "doc": "Disposition every other faction loses toward a betrayer."
+    },
+    {
+      "id": "betray-cooldown",
+      "value": 45,
+      "unit": "days",
+      "doc": "Days before a faction that betrayed anyone may betray again."
+    },
+    {
+      "id": "vengeance",
+      "value": 40,
+      "unit": "count",
+      "doc": "Added to the need term of a raid on a faction this one holds a grudge against."
+    }
+  ]
+}

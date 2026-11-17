@@ -1,0 +1,394 @@
+{
+  "$schema": "../schema/tags.vocabulary.schema.json",
+  "sheet": "tags.vocabulary",
+  "rows": [
+    {
+      "id": "item",
+      "kind": "class"
+    },
+    {
+      "id": "spell",
+      "kind": "class"
+    },
+    {
+      "id": "creature",
+      "kind": "class"
+    },
+    {
+      "id": "node",
+      "kind": "class"
+    },
+    {
+      "id": "faction",
+      "kind": "class"
+    },
+    {
+      "id": "tile",
+      "kind": "class"
+    },
+    {
+      "id": "blade",
+      "kind": "form"
+    },
+    {
+      "id": "plate",
+      "kind": "form"
+    },
+    {
+      "id": "tool",
+      "kind": "form"
+    },
+    {
+      "id": "hook",
+      "kind": "form"
+    },
+    {
+      "id": "focus",
+      "kind": "form"
+    },
+    {
+      "id": "charm",
+      "kind": "form"
+    },
+    {
+      "id": "tack",
+      "kind": "form"
+    },
+    {
+      "id": "rope",
+      "kind": "form"
+    },
+    {
+      "id": "provisions",
+      "kind": "form"
+    },
+    {
+      "id": "metal",
+      "kind": "substance"
+    },
+    {
+      "id": "timber",
+      "kind": "substance"
+    },
+    {
+      "id": "hide",
+      "kind": "substance"
+    },
+    {
+      "id": "glass",
+      "kind": "substance"
+    },
+    {
+      "id": "salt",
+      "kind": "substance"
+    },
+    {
+      "id": "fibre",
+      "kind": "substance"
+    },
+    {
+      "id": "ash",
+      "kind": "substance"
+    },
+    {
+      "id": "amber",
+      "kind": "substance"
+    },
+    {
+      "id": "stone",
+      "kind": "substance"
+    },
+    {
+      "id": "clay",
+      "kind": "substance"
+    },
+    {
+      "id": "conductive",
+      "kind": "property"
+    },
+    {
+      "id": "wired",
+      "kind": "property"
+    },
+    {
+      "id": "keen",
+      "kind": "property"
+    },
+    {
+      "id": "thick",
+      "kind": "property"
+    },
+    {
+      "id": "brittle",
+      "kind": "property"
+    },
+    {
+      "id": "light",
+      "kind": "property"
+    },
+    {
+      "id": "warm",
+      "kind": "property"
+    },
+    {
+      "id": "braced",
+      "kind": "property"
+    },
+    {
+      "id": "cold",
+      "kind": "property"
+    },
+    {
+      "id": "tempered",
+      "kind": "property"
+    },
+    {
+      "id": "dense",
+      "kind": "property"
+    },
+    {
+      "id": "springy",
+      "kind": "property"
+    },
+    {
+      "id": "balanced",
+      "kind": "property"
+    },
+    {
+      "id": "hooked",
+      "kind": "property"
+    },
+    {
+      "id": "lingering",
+      "kind": "property"
+    },
+    {
+      "id": "arcing",
+      "kind": "property"
+    },
+    {
+      "id": "quick-drawn",
+      "kind": "property"
+    },
+    {
+      "id": "sure-gripped",
+      "kind": "property"
+    },
+    {
+      "id": "warded",
+      "kind": "property"
+    },
+    {
+      "id": "marked",
+      "kind": "property"
+    },
+    {
+      "id": "true",
+      "kind": "property"
+    },
+    {
+      "id": "wide",
+      "kind": "property"
+    },
+    {
+      "id": "deep-cast",
+      "kind": "property"
+    },
+    {
+      "id": "quiet",
+      "kind": "property"
+    },
+    {
+      "id": "charged",
+      "kind": "state"
+    },
+    {
+      "id": "wet",
+      "kind": "state"
+    },
+    {
+      "id": "dry",
+      "kind": "state"
+    },
+    {
+      "id": "burning",
+      "kind": "state"
+    },
+    {
+      "id": "corrupted",
+      "kind": "state"
+    },
+    {
+      "id": "powered",
+      "kind": "state"
+    },
+    {
+      "id": "hidden",
+      "kind": "state"
+    },
+    {
+      "id": "worked-out",
+      "kind": "state"
+    },
+    {
+      "id": "open",
+      "kind": "state"
+    },
+    {
+      "id": "staged",
+      "kind": "state"
+    },
+    {
+      "id": "haunted",
+      "kind": "state"
+    },
+    {
+      "id": "marsh-born",
+      "kind": "origin"
+    },
+    {
+      "id": "deep",
+      "kind": "origin"
+    },
+    {
+      "id": "high",
+      "kind": "origin"
+    },
+    {
+      "id": "pack",
+      "kind": "behaviour"
+    },
+    {
+      "id": "wary",
+      "kind": "behaviour"
+    },
+    {
+      "id": "hoarding",
+      "kind": "behaviour"
+    },
+    {
+      "id": "fast",
+      "kind": "behaviour"
+    },
+    {
+      "id": "herd",
+      "kind": "behaviour"
+    },
+    {
+      "id": "small",
+      "kind": "behaviour"
+    },
+    {
+      "id": "slow",
+      "kind": "behaviour"
+    },
+    {
+      "id": "mercantile",
+      "kind": "disposition"
+    },
+    {
+      "id": "militant",
+      "kind": "disposition"
+    },
+    {
+      "id": "devout",
+      "kind": "disposition"
+    },
+    {
+      "id": "insular",
+      "kind": "disposition"
+    },
+    {
+      "id": "storm",
+      "kind": "weather"
+    },
+    {
+      "id": "frost",
+      "kind": "weather"
+    },
+    {
+      "id": "drought",
+      "kind": "weather"
+    },
+    {
+      "id": "fog",
+      "kind": "weather"
+    },
+    {
+      "id": "clear",
+      "kind": "weather"
+    },
+    {
+      "id": "plated",
+      "kind": "property"
+    },
+    {
+      "id": "swarming",
+      "kind": "behaviour"
+    },
+    {
+      "id": "scorched",
+      "kind": "state"
+    },
+    {
+      "id": "rusted",
+      "kind": "state"
+    },
+    {
+      "id": "hollow",
+      "kind": "property"
+    },
+    {
+      "id": "edge",
+      "kind": "origin"
+    },
+    {
+      "id": "dunes",
+      "kind": "origin"
+    },
+    {
+      "id": "strand-wood",
+      "kind": "origin"
+    },
+    {
+      "id": "mudflat",
+      "kind": "origin"
+    },
+    {
+      "id": "salt-pan",
+      "kind": "origin"
+    },
+    {
+      "id": "wetwood",
+      "kind": "origin"
+    },
+    {
+      "id": "fen",
+      "kind": "origin"
+    },
+    {
+      "id": "glade",
+      "kind": "origin"
+    },
+    {
+      "id": "scrub",
+      "kind": "origin"
+    },
+    {
+      "id": "downs",
+      "kind": "origin"
+    },
+    {
+      "id": "hanger",
+      "kind": "origin"
+    },
+    {
+      "id": "badlands",
+      "kind": "origin"
+    },
+    {
+      "id": "foothills",
+      "kind": "origin"
+    }
+  ]
+}

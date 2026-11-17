@@ -1,0 +1,48 @@
+{
+  "$schema": "../schema/puzzles.practice.schema.json",
+  "sheet": "puzzles.practice",
+  "rows": [
+    {
+      "id": "preview",
+      "practice": 2,
+      "gives": "preview"
+    },
+    {
+      "id": "countdown-4",
+      "practice": 4,
+      "gives": "countdown",
+      "percent": 10
+    },
+    {
+      "id": "hint-6",
+      "practice": 6,
+      "gives": "hint"
+    },
+    {
+      "id": "guide-line",
+      "practice": 8,
+      "gives": "guide-line"
+    },
+    {
+      "id": "countdown-10",
+      "practice": 10,
+      "gives": "countdown",
+      "percent": 20
+    },
+    {
+      "id": "hint-12",
+      "practice": 12,
+      "gives": "hint"
+    },
+    {
+      "id": "partner-glimpse",
+      "practice": 14,
+      "gives": "partner-glimpse"
+    },
+    {
+      "id": "mastery",
+      "practice": 16,
+      "gives": "mastery"
+    }
+  ]
+}

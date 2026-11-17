@@ -1,0 +1,81 @@
+{
+  "$schema": "../schema/map.shapes.schema.json",
+  "sheet": "map.shapes",
+  "rows": [
+    {
+      "id": "ring",
+      "kind": "ring"
+    },
+    {
+      "id": "triangle",
+      "kind": "triangle"
+    },
+    {
+      "id": "line",
+      "kind": "line"
+    },
+    {
+      "id": "cross",
+      "kind": "cross",
+      "arms": 4
+    },
+    {
+      "id": "star",
+      "kind": "star",
+      "arms": 6
+    },
+    {
+      "id": "spiral",
+      "kind": "spiral",
+      "step": 4
+    },
+    {
+      "id": "scatter",
+      "kind": "scatter",
+      "count": 5,
+      "step": 3
+    },
+    {
+      "id": "mark",
+      "kind": "glyph",
+      "offsets": [
+        {
+          "q": 0,
+          "r": 0
+        }
+      ],
+      "note": "One point: a glyph of a single offset."
+    },
+    {
+      "id": "hook",
+      "kind": "glyph",
+      "offsets": [
+        {
+          "q": 0,
+          "r": 0
+        },
+        {
+          "q": 1,
+          "r": 0
+        },
+        {
+          "q": 2,
+          "r": 0
+        },
+        {
+          "q": 2,
+          "r": -1
+        },
+        {
+          "q": 2,
+          "r": -2
+        },
+        {
+          "q": 1,
+          "r": -2
+        }
+      ],
+      "note": "provisional: an example row for spike E round 3"
+    }
+  ]
+}

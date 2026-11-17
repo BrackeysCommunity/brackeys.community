@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.methods",
+  "title": "items.methods",
+  "description": "Each process's methods and how they tilt the result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.methods"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "process"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "process": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.processes"
+          },
+          "axisA": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "tiltA": {
+            "type": "integer",
+            "x-unit": "percent"
+          },
+          "axisB": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "tiltB": {
+            "type": "integer",
+            "x-unit": "percent"
+          },
+          "durabilityCost": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "durability"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "../../sheets/schema/pack.palette.schema.json",
+  "sheet": "pack.palette",
+  "rows": [
+    {
+      "id": "ash",
+      "tags": [],
+      "hex": "#c9c4b8"
+    },
+    {
+      "id": "concrete",
+      "tags": [],
+      "hex": "#8d8a82"
+    },
+    {
+      "id": "rust",
+      "tags": ["militant", "burning"],
+      "hex": "#a4482a"
+    },
+    {
+      "id": "hazard",
+      "tags": ["militant"],
+      "hex": "#e0b424"
+    },
+    {
+      "id": "signal-green",
+      "tags": ["wired", "powered"],
+      "hex": "#4fbf6a"
+    },
+    {
+      "id": "coolant",
+      "tags": ["wet"],
+      "hex": "#2e7d9a"
+    },
+    {
+      "id": "cartel-gold",
+      "tags": ["mercantile"],
+      "hex": "#c9973a"
+    },
+    {
+      "id": "cult-violet",
+      "tags": ["devout"],
+      "hex": "#7a4fa0"
+    },
+    {
+      "id": "tar",
+      "tags": ["deep"],
+      "hex": "#1d1c1a"
+    },
+    {
+      "id": "corruption",
+      "tags": ["corrupted"],
+      "hex": "#b8358c"
+    }
+  ]
+}

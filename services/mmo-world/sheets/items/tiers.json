@@ -1,0 +1,38 @@
+{
+  "$schema": "../schema/items.tiers.schema.json",
+  "sheet": "items.tiers",
+  "rows": [
+    {
+      "id": "tier-1",
+      "tier": 1,
+      "budget": 70,
+      "levelCap": 10,
+      "gainAtCap": 15,
+      "bladeDurability": 60
+    },
+    {
+      "id": "tier-2",
+      "tier": 2,
+      "budget": 110,
+      "levelCap": 20,
+      "gainAtCap": 35,
+      "bladeDurability": 90
+    },
+    {
+      "id": "tier-3",
+      "tier": 3,
+      "budget": 160,
+      "levelCap": 30,
+      "gainAtCap": 50,
+      "bladeDurability": 130
+    },
+    {
+      "id": "tier-4",
+      "tier": 4,
+      "budget": 220,
+      "levelCap": 40,
+      "gainAtCap": 65,
+      "bladeDurability": 180
+    }
+  ]
+}

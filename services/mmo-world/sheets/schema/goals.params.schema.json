@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "goals.params",
+  "title": "goals.params",
+  "description": "Listing fees, limits, thresholds.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "goals.params"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "value", "unit"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "value": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "x-unit": "row",
+            "description": "In the unit named by the unit column."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "coin",
+              "goods",
+              "pts",
+              "durability",
+              "xp",
+              "level",
+              "tier",
+              "load",
+              "health",
+              "defence",
+              "gauge",
+              "standing",
+              "event-points",
+              "ticks",
+              "days",
+              "percent",
+              "ratio",
+              "count",
+              "tiles",
+              "weight",
+              "chance",
+              "band-steps",
+              "beat",
+              "seconds",
+              "degrees"
+            ],
+            "x-unit": "enum",
+            "description": "One of the quantity units."
+          },
+          "doc": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

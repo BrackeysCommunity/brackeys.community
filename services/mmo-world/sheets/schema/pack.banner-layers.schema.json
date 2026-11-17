@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pack.banner-layers",
+  "title": "pack.banner-layers",
+  "description": "SVG layers banners are composed from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "pack.banner-layers"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "layer", "path", "tags"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "layer": {
+            "type": "string",
+            "enum": ["field", "division", "ordinary", "charge"],
+            "x-unit": "enum"
+          },
+          "path": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "SVG path data."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags that make this layer likelier for a holder."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.practice",
+  "title": "puzzles.practice",
+  "description": "What each level of a family's practice buys.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.practice"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "practice", "gives"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "practice": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "x-unit": "level"
+          },
+          "gives": {
+            "type": "string",
+            "enum": ["preview", "countdown", "hint", "guide-line", "partner-glimpse", "mastery"],
+            "x-unit": "enum"
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "percent",
+            "description": "For countdown: the extra time."
+          }
+        }
+      }
+    }
+  }
+}

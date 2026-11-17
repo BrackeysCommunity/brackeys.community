@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/settlements.params.schema.json",
+  "sheet": "settlements.params",
+  "rows": []
+}

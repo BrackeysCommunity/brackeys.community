@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/tiles.counters.schema.json",
+  "sheet": "tiles.counters",
+  "rows": []
+}

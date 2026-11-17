@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mounts.speeds",
+  "title": "mounts.speeds",
+  "description": "Mount speed by terrain.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "mounts.speeds"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "mount", "terrain", "ratio"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "mount": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "terrain": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.terrain"
+          },
+          "ratio": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio",
+            "description": "Ticks to enter, against on foot."
+          }
+        }
+      }
+    }
+  }
+}

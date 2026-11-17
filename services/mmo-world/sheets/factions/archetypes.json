@@ -1,0 +1,41 @@
+{
+  "$schema": "../schema/factions.archetypes.schema.json",
+  "sheet": "factions.archetypes",
+  "rows": [
+    {
+      "id": "wardens",
+      "goal": "hold",
+      "buys": ["blade", "provisions", "stone"],
+      "tags": ["militant"],
+      "tends": ["fortify", "patrol"]
+    },
+    {
+      "id": "compact",
+      "goal": "take",
+      "buys": ["timber", "rope", "provisions"],
+      "tags": ["militant"],
+      "tends": ["raid", "besiege"]
+    },
+    {
+      "id": "guild",
+      "goal": "profit",
+      "buys": [],
+      "tags": ["mercantile"],
+      "tends": ["trade", "court"]
+    },
+    {
+      "id": "order",
+      "goal": "cleanse",
+      "buys": ["salt", "focus", "amber"],
+      "tags": ["devout"],
+      "tends": ["cull", "withdraw"]
+    },
+    {
+      "id": "clans",
+      "goal": "isolate",
+      "buys": ["hide", "tool"],
+      "tags": ["insular"],
+      "tends": ["migrate", "raid"]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/wear.params.schema.json",
+  "sheet": "wear.params",
+  "rows": []
+}

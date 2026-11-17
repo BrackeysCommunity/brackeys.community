@@ -1,0 +1,78 @@
+{
+  "$schema": "../schema/items.methods.schema.json",
+  "sheet": "items.methods",
+  "rows": [
+    {
+      "id": "slow-cool",
+      "process": "alloy",
+      "axisA": "edge",
+      "tiltA": 10
+    },
+    {
+      "id": "quench",
+      "process": "alloy",
+      "axisA": "flex",
+      "tiltA": 10
+    },
+    {
+      "id": "fold",
+      "process": "alloy",
+      "axisA": "weight",
+      "tiltA": 10
+    },
+    {
+      "id": "narrow-grind",
+      "process": "shape",
+      "axisA": "edge",
+      "tiltA": 10,
+      "axisB": "weight",
+      "tiltB": -10
+    },
+    {
+      "id": "broad-grind",
+      "process": "shape",
+      "axisA": "edge",
+      "tiltA": -10,
+      "axisB": "weight",
+      "tiltB": 10
+    },
+    {
+      "id": "steep",
+      "process": "infuse",
+      "axisA": "bond",
+      "tiltA": 10
+    },
+    {
+      "id": "boil",
+      "process": "infuse",
+      "axisA": "heat",
+      "tiltA": 10
+    },
+    {
+      "id": "lash",
+      "process": "bind",
+      "axisA": "flex",
+      "tiltA": 10
+    },
+    {
+      "id": "rivet",
+      "process": "bind",
+      "axisA": "ward",
+      "tiltA": 10
+    },
+    {
+      "id": "shallow",
+      "process": "inscribe",
+      "durabilityCost": 5
+    },
+    {
+      "id": "deep-cut",
+      "process": "inscribe",
+      "durabilityCost": 15
+    },
+    {
+      "id": "ordered",
+      "process": "compose"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world.gauges",
+  "title": "world.gauges",
+  "description": "The five region gauges.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "world.gauges"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "max", "dailyRise", "pullPercent", "wobble"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "gauge"
+          },
+          "dailyRise": {
+            "type": "integer",
+            "x-unit": "gauge",
+            "description": "Change per world day with nobody acting; negative falls."
+          },
+          "pullPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "Share of the gap to baseline closed each world day."
+          },
+          "wobble": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "gauge",
+            "description": "A keyed draw moves the gauge by up to this either way each world day, so nothing settles for good."
+          }
+        }
+      }
+    }
+  }
+}

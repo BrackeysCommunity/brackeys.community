@@ -1,0 +1,195 @@
+{
+  "$schema": "../schema/map.patterns.schema.json",
+  "sheet": "map.patterns",
+  "rows": [
+    {
+      "id": "ring-of-eight",
+      "shape": "ring",
+      "size": 24,
+      "anchor": "origin",
+      "parts": [
+        {
+          "place": "relay",
+          "at": "spaced",
+          "count": 8
+        }
+      ],
+      "area": "the-eye",
+      "seedFree": ["rotation", "which"]
+    },
+    {
+      "id": "triangle-of-pylons",
+      "shape": "triangle",
+      "size": 18,
+      "anchor": "origin",
+      "offsetDistance": 40,
+      "parts": [
+        {
+          "place": "pylon",
+          "at": "corners"
+        },
+        {
+          "place": "vault",
+          "at": "centre"
+        }
+      ],
+      "area": "the-pylon-field",
+      "seedFree": ["rotation", "offset", "solution"],
+      "note": "provisional: the area's name"
+    },
+    {
+      "id": "relay-cairns",
+      "shape": "mark",
+      "size": 1,
+      "anchor": "pattern",
+      "anchorPattern": "ring-of-eight",
+      "anchorAt": "points",
+      "offsetDistance": 5,
+      "parts": [
+        {
+          "place": "landmark",
+          "at": "every"
+        }
+      ],
+      "seedFree": ["offset"],
+      "note": "provisional: an example row for spike E round 3: a pattern chained to another's points"
+    },
+    {
+      "id": "home-landmark",
+      "shape": "mark",
+      "size": 1,
+      "anchor": "starting-settlement",
+      "offsetDistance": 3,
+      "parts": [
+        {
+          "place": "landmark",
+          "at": "every"
+        }
+      ],
+      "seedFree": ["offset"],
+      "note": "One landmark within sight of each starting settlement (GDD 4.13); the distance is provisional"
+    },
+    {
+      "id": "peak-beacons",
+      "shape": "mark",
+      "size": 1,
+      "anchor": "terrain",
+      "anchorTerrain": "mountain",
+      "chunkShare": 15,
+      "minDistance": 40,
+      "parts": [
+        {
+          "place": "beacon",
+          "at": "every"
+        }
+      ],
+      "seedFree": [],
+      "note": "provisional: an example row for spike E round 3"
+    },
+    {
+      "id": "frontier-line",
+      "shape": "line",
+      "size": 3,
+      "anchor": "frontier",
+      "perRegions": 8,
+      "maxDistance": 40,
+      "parts": [
+        {
+          "place": "landmark",
+          "at": "corners"
+        }
+      ],
+      "seedFree": ["rotation"],
+      "note": "provisional: an example row for spike E round 3: the home band's own patterns, so novelty holds near the origin too"
+    },
+    {
+      "id": "frontier-cross",
+      "shape": "cross",
+      "size": 4,
+      "anchor": "frontier",
+      "perRegions": 30,
+      "minDistance": 40,
+      "maxDistance": 120,
+      "parts": [
+        {
+          "place": "beacon",
+          "at": "corners"
+        },
+        {
+          "place": "dungeon",
+          "at": "centre"
+        }
+      ],
+      "seedFree": ["rotation"],
+      "note": "provisional: an example row for spike E round 3: one pattern per 30 new regions past 40 tiles out (GDD 4.13)"
+    },
+    {
+      "id": "frontier-spiral",
+      "shape": "spiral",
+      "size": 3,
+      "anchor": "frontier",
+      "perRegions": 60,
+      "minDistance": 80,
+      "parts": [
+        {
+          "place": "pylon",
+          "at": "every"
+        }
+      ],
+      "seedFree": ["rotation", "mirror"],
+      "note": "provisional: an example row for spike E round 3"
+    },
+    {
+      "id": "frontier-star",
+      "shape": "star",
+      "size": 5,
+      "anchor": "frontier",
+      "perRegions": 40,
+      "minDistance": 120,
+      "parts": [
+        {
+          "place": "beacon",
+          "at": "corners"
+        },
+        {
+          "place": "vault",
+          "at": "centre"
+        }
+      ],
+      "seedFree": ["rotation"],
+      "note": "provisional: an example row for spike E round 3: rarer shapes further out"
+    },
+    {
+      "id": "frontier-scatter",
+      "shape": "scatter",
+      "size": 6,
+      "anchor": "frontier",
+      "perRegions": 60,
+      "minDistance": 160,
+      "parts": [
+        {
+          "place": "relay",
+          "at": "every"
+        }
+      ],
+      "seedFree": ["which"],
+      "note": "provisional: an example row for spike E round 3"
+    },
+    {
+      "id": "frontier-hook",
+      "shape": "hook",
+      "size": 2,
+      "anchor": "frontier",
+      "perRegions": 90,
+      "minDistance": 160,
+      "parts": [
+        {
+          "place": "beacon",
+          "at": "every"
+        }
+      ],
+      "seedFree": ["rotation", "mirror"],
+      "note": "provisional: an example row for spike E round 3: a drawn glyph"
+    }
+  ]
+}

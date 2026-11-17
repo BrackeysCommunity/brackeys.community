@@ -1,0 +1,39 @@
+{
+  "$schema": "../schema/factions.moves.schema.json",
+  "sheet": "factions.moves",
+  "rows": [
+    {
+      "id": "expand"
+    },
+    {
+      "id": "fortify"
+    },
+    {
+      "id": "raid"
+    },
+    {
+      "id": "trade"
+    },
+    {
+      "id": "court"
+    },
+    {
+      "id": "betray"
+    },
+    {
+      "id": "withdraw"
+    },
+    {
+      "id": "patrol"
+    },
+    {
+      "id": "besiege"
+    },
+    {
+      "id": "cull"
+    },
+    {
+      "id": "migrate"
+    }
+  ]
+}

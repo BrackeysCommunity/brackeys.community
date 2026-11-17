@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.resonance",
+  "title": "items.resonance",
+  "description": "Traits that appear when bound components cross thresholds together.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.resonance"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "axisA", "axisB", "threshold", "trait"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "axisA": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "axisB": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "pts"
+          },
+          "trait": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.traits"
+          }
+        }
+      }
+    }
+  }
+}

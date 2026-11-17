@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pack.name-parts",
+  "title": "pack.name-parts",
+  "description": "Pieces generated names are built from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "pack.name-parts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "list", "text"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "list": {
+            "type": "string",
+            "enum": [
+              "region-head",
+              "region-tail",
+              "notable-given",
+              "notable-family",
+              "faction-head",
+              "faction-tail",
+              "dungeon-head",
+              "dungeon-tail",
+              "settlement-head",
+              "settlement-tail"
+            ],
+            "x-unit": "enum"
+          },
+          "text": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

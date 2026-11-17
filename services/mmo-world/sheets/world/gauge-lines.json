@@ -1,0 +1,70 @@
+{
+  "$schema": "../schema/world.gauge-lines.schema.json",
+  "sheet": "world.gauge-lines",
+  "rows": [
+    {
+      "id": "threat-spills",
+      "gauge": "threat",
+      "atLeast": 600,
+      "effect": "neighbour-pressure",
+      "magnitude": 15
+    },
+    {
+      "id": "threat-ambush",
+      "gauge": "threat",
+      "atLeast": 600,
+      "effect": "ambush",
+      "factKind": "region-ambushes"
+    },
+    {
+      "id": "threat-raid",
+      "gauge": "threat",
+      "atLeast": 800,
+      "effect": "raid",
+      "factKind": "region-raids"
+    },
+    {
+      "id": "threat-overrun",
+      "gauge": "threat",
+      "atLeast": 900,
+      "clearsBelow": 700,
+      "effect": "overrun",
+      "factKind": "region-overrun"
+    },
+    {
+      "id": "scarcity-yields",
+      "gauge": "scarcity",
+      "atLeast": 700,
+      "effect": "yields-halve",
+      "factKind": "region-worked-out"
+    },
+    {
+      "id": "unrest-fire",
+      "gauge": "unrest",
+      "atLeast": 700,
+      "effect": "fire-and-panic",
+      "factKind": "region-unrest"
+    },
+    {
+      "id": "corruption-spreads",
+      "gauge": "corruption",
+      "atLeast": 500,
+      "effect": "spread",
+      "magnitude": 10,
+      "factKind": "region-corruption-spreads"
+    },
+    {
+      "id": "corruption-nodes",
+      "gauge": "corruption",
+      "atLeast": 500,
+      "effect": "corrupted-nodes"
+    },
+    {
+      "id": "prosperity-caravans",
+      "gauge": "prosperity",
+      "atLeast": 600,
+      "effect": "caravans",
+      "factKind": "region-prospers"
+    }
+  ]
+}

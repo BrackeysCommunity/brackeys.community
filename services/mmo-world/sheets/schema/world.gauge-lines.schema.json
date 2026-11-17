@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world.gauge-lines",
+  "title": "world.gauge-lines",
+  "description": "Thresholds that change what a region does.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "world.gauge-lines"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "gauge", "atLeast", "effect"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "gauge": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.gauges"
+          },
+          "atLeast": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "gauge"
+          },
+          "clearsBelow": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "gauge",
+            "description": "Stays in force until the gauge falls below this; 0 means at the line."
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "ambush",
+              "raid",
+              "overrun",
+              "yields-halve",
+              "fire-and-panic",
+              "corrupted-nodes",
+              "caravans",
+              "spread",
+              "neighbour-pressure"
+            ],
+            "x-unit": "enum"
+          },
+          "factKind": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "story.fact-weights",
+            "description": "Fact written when the line is crossed."
+          },
+          "magnitude": {
+            "type": "integer",
+            "x-unit": "gauge",
+            "description": "For neighbour-pressure and spread: what one neighbour at the gauge's maximum adds per world day; a neighbour just over the line adds in proportion."
+          }
+        }
+      }
+    }
+  }
+}

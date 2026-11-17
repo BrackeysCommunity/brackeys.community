@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/emergence.traces.schema.json",
+  "sheet": "emergence.traces",
+  "rows": []
+}

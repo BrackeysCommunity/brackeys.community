@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.noise",
+  "title": "map.noise",
+  "description": "The noise layers generation reads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.noise"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "cell", "octaves", "falloff", "max"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "cell": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tiles",
+            "description": "Lattice spacing of the first octave."
+          },
+          "octaves": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "falloff": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "Each octave's weight against the one before."
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count",
+            "description": "The layer's values run 0 to max."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

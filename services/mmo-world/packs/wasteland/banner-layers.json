@@ -1,0 +1,114 @@
+{
+  "$schema": "../../sheets/schema/pack.banner-layers.schema.json",
+  "sheet": "pack.banner-layers",
+  "rows": [
+    {
+      "id": "field-plate",
+      "layer": "field",
+      "path": "M0 0H100V120H0Z",
+      "tags": []
+    },
+    {
+      "id": "field-tag",
+      "layer": "field",
+      "path": "M6 4H94L100 10V110L94 116H6L0 110V10Z",
+      "tags": []
+    },
+    {
+      "id": "division-hazard",
+      "layer": "division",
+      "path": "M0 0H20L0 24ZM0 48L40 0H60L0 72ZM0 96L80 0H100V24L20 120H0ZM40 120L100 48V72L60 120ZM80 120L100 96V120Z",
+      "tags": ["militant"]
+    },
+    {
+      "id": "division-split",
+      "layer": "division",
+      "path": "M50 0H100V120H50Z",
+      "tags": []
+    },
+    {
+      "id": "division-band",
+      "layer": "division",
+      "path": "M0 60H100V120H0Z",
+      "tags": ["mercantile"]
+    },
+    {
+      "id": "division-diagonal",
+      "layer": "division",
+      "path": "M0 0L100 120H0Z",
+      "tags": ["devout"]
+    },
+    {
+      "id": "ordinary-stripe",
+      "layer": "ordinary",
+      "path": "M0 48H100V72H0Z",
+      "tags": []
+    },
+    {
+      "id": "ordinary-bus",
+      "layer": "ordinary",
+      "path": "M44 0H56V120H44Z",
+      "tags": ["devout"]
+    },
+    {
+      "id": "ordinary-cross",
+      "layer": "ordinary",
+      "path": "M42 0H58V52H100V68H58V120H42V68H0V52H42Z",
+      "tags": ["militant"]
+    },
+    {
+      "id": "ordinary-header",
+      "layer": "ordinary",
+      "path": "M0 0H100V24H0Z",
+      "tags": ["mercantile"]
+    },
+    {
+      "id": "charge-pad",
+      "layer": "charge",
+      "path": "M38 48H62V72H38ZM44 54V66H56V54Z",
+      "tags": ["wired"]
+    },
+    {
+      "id": "charge-trace",
+      "layer": "charge",
+      "path": "M20 60H40L50 44H80V50H54L44 66H20Z",
+      "tags": ["conductive"]
+    },
+    {
+      "id": "charge-via",
+      "layer": "charge",
+      "path": "M50 42A18 18 0 1 1 49.99 42ZM50 52A8 8 0 1 0 50.01 52Z",
+      "tags": ["powered"]
+    },
+    {
+      "id": "charge-bolt",
+      "layer": "charge",
+      "path": "M56 32L36 64H48L42 88L66 54H54Z",
+      "tags": ["charged"]
+    },
+    {
+      "id": "charge-skull",
+      "layer": "charge",
+      "path": "M50 36C64 36 70 46 70 56C70 64 66 68 62 70V78H38V70C34 68 30 64 30 56C30 46 36 36 50 36ZM40 52V60H48V52ZM52 52V60H60V52Z",
+      "tags": ["militant"]
+    },
+    {
+      "id": "charge-flame",
+      "layer": "charge",
+      "path": "M50 34C62 50 66 60 60 74C58 66 54 64 52 60C52 70 46 76 40 78C34 70 38 54 50 34Z",
+      "tags": ["burning"]
+    },
+    {
+      "id": "charge-antenna",
+      "layer": "charge",
+      "path": "M48 40H52V86H48ZM34 50A22 22 0 0 1 66 50L62 54A16 16 0 0 0 38 54Z",
+      "tags": ["high", "devout"]
+    },
+    {
+      "id": "charge-gear",
+      "layer": "charge",
+      "path": "M46 36H54L56 44L62 47L69 43L75 49L71 56L74 62L82 64V72L74 74L71 80L75 87L69 93L62 89L56 92L54 100H46L44 92L38 89L31 93L25 87L29 80L26 74L18 72V64L26 62L29 56L25 49L31 43L38 47L44 44ZM50 58A10 10 0 1 0 50.01 58Z",
+      "tags": ["mercantile"]
+    }
+  ]
+}

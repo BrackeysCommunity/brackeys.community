@@ -250,6 +250,8 @@ const config = defineConfig({
       ".cache",
       ".output",
       "dist",
+      // Sheets and generated schemas are owned by the Go harness.
+      "services/mmo-world/",
     ],
   },
 

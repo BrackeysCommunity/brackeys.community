@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.families",
+  "title": "puzzles.families",
+  "description": "Machine puzzle families and where each appears.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.families"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "appearsOn",
+          "countdown",
+          "perLevel",
+          "scaleNote",
+          "haywires",
+          "soloRate"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "lockpick": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Played as a Lock beat."
+          },
+          "appearsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags that make the world pick this family."
+          },
+          "countdown": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "seconds",
+            "description": "At level 1, tier 1."
+          },
+          "perLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "seconds",
+            "description": "Added per level above 1."
+          },
+          "scaleNote": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "What a level adds to the machine."
+          },
+          "haywires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "puzzles.haywire",
+            "description": "Effects a failure draws from."
+          },
+          "soloRate": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "Harness solve rate at practice 0, level 1, tier 1."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

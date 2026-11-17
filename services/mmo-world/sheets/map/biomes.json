@@ -1,0 +1,95 @@
+{
+  "$schema": "../schema/map.biomes.schema.json",
+  "sheet": "map.biomes",
+  "rows": [
+    {
+      "id": "deep",
+      "terrain": "deep-water",
+      "elevationMin": 0,
+      "elevationMax": 30,
+      "moistureMin": 0,
+      "moistureMax": 100,
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "shore",
+      "terrain": "coast",
+      "elevationMin": 31,
+      "elevationMax": 34,
+      "moistureMin": 0,
+      "moistureMax": 100,
+      "materialTags": ["clay", "salt"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "bog",
+      "terrain": "marsh",
+      "elevationMin": 35,
+      "elevationMax": 44,
+      "moistureMin": 62,
+      "moistureMax": 100,
+      "materialTags": ["amber"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "salt-flats",
+      "terrain": "flats",
+      "elevationMin": 35,
+      "elevationMax": 50,
+      "moistureMin": 0,
+      "moistureMax": 27,
+      "materialTags": ["salt"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "lowland-wood",
+      "terrain": "forest",
+      "elevationMin": 35,
+      "elevationMax": 56,
+      "moistureMin": 55,
+      "moistureMax": 100,
+      "materialTags": ["timber"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "grass",
+      "terrain": "plain",
+      "elevationMin": 35,
+      "elevationMax": 56,
+      "moistureMin": 0,
+      "moistureMax": 100,
+      "materialTags": ["fibre"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "uplands",
+      "terrain": "hills",
+      "elevationMin": 57,
+      "elevationMax": 63,
+      "moistureMin": 0,
+      "moistureMax": 100,
+      "materialTags": ["stone"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "heights",
+      "terrain": "mountain",
+      "elevationMin": 64,
+      "elevationMax": 71,
+      "moistureMin": 0,
+      "moistureMax": 100,
+      "materialTags": ["metal"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    },
+    {
+      "id": "summits",
+      "terrain": "peak",
+      "elevationMin": 72,
+      "elevationMax": 100,
+      "moistureMin": 0,
+      "moistureMax": 100,
+      "materialTags": ["glass"],
+      "note": "provisional: not in the GDD yet; retuned for spike E round 3 (no rim)"
+    }
+  ]
+}

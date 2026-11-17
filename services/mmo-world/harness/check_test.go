@@ -1,0 +1,123 @@
+package harness
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestCheckIsGreen(t *testing.T) {
+	for _, r := range Check(ModuleRoot(), CheckOptions{}) {
+		if !r.OK() {
+			t.Errorf("%s: %v", r.Name, r.Problems)
+		}
+	}
+}
+
+// copyTree copies the module into a temp dir so a test can plant a fault.
+func copyTree(t *testing.T) string {
+	t.Helper()
+	src, dst := ModuleRoot(), t.TempDir()
+	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		if d.IsDir() {
+			if rel == "lint/testdata" {
+				return filepath.SkipDir
+			}
+			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dst, rel), b, 0o644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dst
+}
+
+func edit(t *testing.T, root, rel, old, new string) {
+	t.Helper()
+	p := filepath.Join(root, rel)
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), old) {
+		t.Fatalf("%s does not contain %q", rel, old)
+	}
+	if err := os.WriteFile(p, []byte(strings.Replace(string(b), old, new, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func failed(results []Result) map[string]string {
+	out := map[string]string{}
+	for _, r := range results {
+		if !r.OK() {
+			out[r.Name] = strings.Join(r.Problems, "\n")
+		}
+	}
+	return out
+}
+
+// Each planted fault fails the check that owns it.
+func TestCheckFailsOnPlantedFaults(t *testing.T) {
+	cases := []struct {
+		name  string
+		plant func(t *testing.T, root string)
+		check string
+		says  string
+	}{
+		{"over budget", func(t *testing.T, r string) {
+			edit(t, r, "sheets/items/materials.json", `"edge": 6,`, `"edge": 60,`)
+		}, "budgets", "over its tier budget"},
+		{"unknown column", func(t *testing.T, r string) {
+			edit(t, r, "sheets/items/tiers.json", `"budget": 70,`, `"budget": 70, "bonus": 3,`)
+		}, "rows match their schema", "bonus"},
+		{"dangling reference", func(t *testing.T, r string) {
+			edit(t, r, "sheets/tags/rules.json", `"charged"`, `"chargd"`)
+		}, "sheets load", `"chargd" is not an id in tags.vocabulary`},
+		{"param without a quantity unit", func(t *testing.T, r string) {
+			edit(t, r, "sheets/items/params.json", `"unit": "pts"`, `"unit": "tag"`)
+		}, "rows match their schema", "unit"},
+		{"float where a whole number goes", func(t *testing.T, r string) {
+			edit(t, r, "sheets/world/gauges.json", `"max": 1000,`, `"max": 1000.5,`)
+		}, "rows match their schema", ""},
+		{"stale schema", func(t *testing.T, r string) {
+			edit(t, r, "sheets/schema/items.tiers.schema.json", `"x-unit": "pts"`, `"x-unit": "coin"`)
+		}, "schemas are current", "items.tiers"},
+		{"unnamed material", func(t *testing.T, r string) {
+			edit(t, r, "packs/wasteland/names.json", `"ref": "items.materials:timber"`, `"ref": "items.materials:reedflax"`)
+		}, "pack names everything shown", "items.materials:timber"},
+		{"bad rule", func(t *testing.T, r string) {
+			edit(t, r, "sheets/tags/rules.json", `"steps": 1`, `"steps": 0`)
+		}, "rules compile", "band needs steps"},
+		{"tuning literal in sim", func(t *testing.T, r string) {
+			p := filepath.Join(r, "sim/fixed/planted.go")
+			if err := os.WriteFile(p, []byte("package fixed\n\nfunc threatLine(g int64) bool { return g >= 600 }\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}, "sim rules and no literals", "number 600"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := copyTree(t)
+			c.plant(t, root)
+			f := failed(Check(root, CheckOptions{SkipLint: c.check != "sim rules and no literals"}))
+			got, ok := f[c.check]
+			if !ok {
+				t.Fatalf("%q did not fail; failures: %v", c.check, f)
+			}
+			if !strings.Contains(got, c.says) {
+				t.Fatalf("%q failed without %q:\n%s", c.check, c.says, got)
+			}
+		})
+	}
+}

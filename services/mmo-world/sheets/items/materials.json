@@ -1,0 +1,321 @@
+{
+  "$schema": "../schema/items.materials.schema.json",
+  "sheet": "items.materials",
+  "rows": [
+    {
+      "id": "copper-ore",
+      "tier": 1,
+      "tags": ["metal"],
+      "vector": {
+        "edge": 6,
+        "weight": 10,
+        "flex": 0,
+        "conduct": 36,
+        "heat": 0,
+        "ward": 0,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "bog-iron",
+      "tier": 1,
+      "tags": ["metal"],
+      "vector": {
+        "edge": 24,
+        "weight": 26,
+        "flex": 0,
+        "conduct": 6,
+        "heat": 0,
+        "ward": 0,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "reedflax",
+      "tier": 1,
+      "tags": ["fibre"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 30,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 0,
+        "reach": 10,
+        "bond": 12
+      }
+    },
+    {
+      "id": "timber",
+      "tier": 1,
+      "tags": ["timber"],
+      "vector": {
+        "edge": 0,
+        "weight": 16,
+        "flex": 18,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 14,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "stalker-hide",
+      "tier": 1,
+      "tags": ["hide"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 18,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 26,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "ember-salt",
+      "tier": 1,
+      "tags": ["salt"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 38,
+        "ward": 0,
+        "reach": 0,
+        "bond": 8
+      }
+    },
+    {
+      "id": "reed-ash",
+      "tier": 1,
+      "tags": ["ash"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 10,
+        "ward": 0,
+        "reach": 0,
+        "bond": 26
+      }
+    },
+    {
+      "id": "saltglass",
+      "tier": 2,
+      "tags": ["glass", "salt"],
+      "vector": {
+        "edge": 40,
+        "weight": 0,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 18,
+        "ward": 10,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "marsh-amber",
+      "tier": 2,
+      "tags": ["amber"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 26,
+        "ward": 0,
+        "reach": 0,
+        "bond": 40
+      }
+    },
+    {
+      "id": "cinder-ore",
+      "tier": 2,
+      "tags": ["metal"],
+      "vector": {
+        "edge": 14,
+        "weight": 28,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 30,
+        "ward": 0,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "thick-hide",
+      "tier": 2,
+      "tags": ["hide", "thick"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 16,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 52,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "river-clay",
+      "tier": 1,
+      "tags": ["clay"],
+      "vector": {
+        "edge": 0,
+        "weight": 18,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 16,
+        "ward": 14,
+        "reach": 0,
+        "bond": 6
+      }
+    },
+    {
+      "id": "fieldstone",
+      "tier": 1,
+      "tags": ["stone"],
+      "vector": {
+        "edge": 8,
+        "weight": 30,
+        "flex": 0,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 18,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "feathers",
+      "tier": 1,
+      "tags": ["light"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 14,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 0,
+        "reach": 28,
+        "bond": 6
+      }
+    },
+    {
+      "id": "hide-scraps",
+      "tier": 1,
+      "tags": ["hide"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 14,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 18,
+        "reach": 0,
+        "bond": 8
+      }
+    },
+    {
+      "id": "heartwood",
+      "tier": 2,
+      "tags": ["timber"],
+      "vector": {
+        "edge": 0,
+        "weight": 18,
+        "flex": 26,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 20,
+        "reach": 0,
+        "bond": 12
+      }
+    },
+    {
+      "id": "chips",
+      "tier": 2,
+      "tags": ["glass"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 0,
+        "conduct": 30,
+        "heat": 0,
+        "ward": 0,
+        "reach": 22,
+        "bond": 24
+      }
+    },
+    {
+      "id": "deep-core",
+      "tier": 3,
+      "tags": ["metal", "dense"],
+      "vector": {
+        "edge": 30,
+        "weight": 34,
+        "flex": 0,
+        "conduct": 22,
+        "heat": 16,
+        "ward": 0,
+        "reach": 0,
+        "bond": 0
+      }
+    },
+    {
+      "id": "stormglass",
+      "tier": 3,
+      "tags": ["glass", "charged"],
+      "vector": {
+        "edge": 26,
+        "weight": 0,
+        "flex": 0,
+        "conduct": 40,
+        "heat": 10,
+        "ward": 0,
+        "reach": 26,
+        "bond": 0
+      }
+    },
+    {
+      "id": "old-silk",
+      "tier": 3,
+      "tags": ["fibre", "light"],
+      "vector": {
+        "edge": 0,
+        "weight": 0,
+        "flex": 44,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 0,
+        "reach": 28,
+        "bond": 32
+      }
+    },
+    {
+      "id": "vault-plate",
+      "tier": 3,
+      "tags": ["metal", "thick"],
+      "vector": {
+        "edge": 0,
+        "weight": 30,
+        "flex": 6,
+        "conduct": 0,
+        "heat": 0,
+        "ward": 68,
+        "reach": 0,
+        "bond": 0
+      }
+    }
+  ]
+}

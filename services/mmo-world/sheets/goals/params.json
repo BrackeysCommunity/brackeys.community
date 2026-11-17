@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/goals.params.schema.json",
+  "sheet": "goals.params",
+  "rows": []
+}

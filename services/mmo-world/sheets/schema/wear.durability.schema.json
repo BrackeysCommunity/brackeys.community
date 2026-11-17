@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wear.durability",
+  "title": "wear.durability",
+  "description": "Durability by slot and tier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "wear.durability"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "slot", "tier", "durability"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "slot": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.slots"
+          },
+          "tier": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.tiers"
+          },
+          "durability": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "durability"
+          }
+        }
+      }
+    }
+  }
+}

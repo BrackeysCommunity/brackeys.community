@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.haywire",
+  "title": "puzzles.haywire",
+  "description": "What a machine does when its countdown runs out.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.haywire"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "effect", "magnitude", "unit"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "effect": {
+            "type": "string",
+            "enum": ["shock", "alarm", "short", "lockdown"],
+            "x-unit": "enum"
+          },
+          "magnitude": {
+            "type": "integer",
+            "x-unit": "row",
+            "description": "In the unit named by the unit column."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "coin",
+              "goods",
+              "pts",
+              "durability",
+              "xp",
+              "level",
+              "tier",
+              "load",
+              "health",
+              "defence",
+              "gauge",
+              "standing",
+              "event-points",
+              "ticks",
+              "days",
+              "percent",
+              "ratio",
+              "count",
+              "tiles",
+              "weight",
+              "chance",
+              "band-steps",
+              "beat",
+              "seconds",
+              "degrees"
+            ],
+            "x-unit": "enum"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary"
+          }
+        }
+      }
+    }
+  }
+}

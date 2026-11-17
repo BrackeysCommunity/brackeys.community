@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/growth.level-curve.schema.json",
+  "sheet": "growth.level-curve",
+  "rows": []
+}

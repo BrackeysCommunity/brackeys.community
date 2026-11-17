@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tiles.find-rarities",
+  "title": "tiles.find-rarities",
+  "description": "Rarity of a trigger's find.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "tiles.find-rarities"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "chance"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "chance": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "maximum": 1,
+            "x-unit": "chance"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "../schema/map.terrain.schema.json",
+  "sheet": "map.terrain",
+  "rows": [
+    {
+      "id": "plain",
+      "enterTicks": 1,
+      "passable": true,
+      "sight": 3,
+      "cover": 20,
+      "tags": [],
+      "note": "provisional: not in the GDD yet; spike value cover"
+    },
+    {
+      "id": "forest",
+      "enterTicks": 2,
+      "passable": true,
+      "sight": 1,
+      "cover": 60,
+      "tags": []
+    },
+    {
+      "id": "marsh",
+      "enterTicks": 2,
+      "passable": true,
+      "sight": 2,
+      "cover": 40,
+      "tags": ["wet"],
+      "note": "provisional: not in the GDD yet; spike value cover"
+    },
+    {
+      "id": "hills",
+      "enterTicks": 2,
+      "passable": true,
+      "sight": 4,
+      "cover": 30,
+      "tags": [],
+      "note": "provisional: not in the GDD yet; spike value cover"
+    },
+    {
+      "id": "mountain",
+      "enterTicks": 3,
+      "passable": true,
+      "sight": 5,
+      "cover": 30,
+      "tags": ["cold"],
+      "note": "provisional: not in the GDD yet; spike value cover"
+    },
+    {
+      "id": "flats",
+      "enterTicks": 1,
+      "passable": true,
+      "sight": 4,
+      "cover": 0,
+      "tags": []
+    },
+    {
+      "id": "coast",
+      "enterTicks": 1,
+      "passable": true,
+      "sight": 3,
+      "cover": 10,
+      "tags": ["wet"],
+      "note": "provisional: not in the GDD yet; spike value cover"
+    },
+    {
+      "id": "deep-water",
+      "enterTicks": 0,
+      "passable": false,
+      "sight": 0,
+      "cover": 0,
+      "tags": ["wet"]
+    },
+    {
+      "id": "peak",
+      "enterTicks": 0,
+      "passable": false,
+      "sight": 0,
+      "cover": 0,
+      "tags": ["cold"]
+    }
+  ]
+}

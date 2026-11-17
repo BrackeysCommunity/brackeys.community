@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/growth.params.schema.json",
+  "sheet": "growth.params",
+  "rows": []
+}

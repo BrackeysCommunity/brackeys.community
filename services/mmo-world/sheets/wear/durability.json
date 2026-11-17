@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/wear.durability.schema.json",
+  "sheet": "wear.durability",
+  "rows": []
+}

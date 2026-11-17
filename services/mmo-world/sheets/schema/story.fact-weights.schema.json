@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.fact-weights",
+  "title": "story.fact-weights",
+  "description": "Weight of each fact kind, 0 to 100.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.fact-weights"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "weight"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "The fact kind, with dots replaced by dashes."
+          },
+          "kind": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "weight"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

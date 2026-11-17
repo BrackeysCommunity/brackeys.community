@@ -1,0 +1,102 @@
+{
+  "$schema": "../schema/map.ecotones.schema.json",
+  "sheet": "map.ecotones",
+  "rows": [
+    {
+      "id": "dunes",
+      "biomeA": "shore",
+      "biomeB": "grass",
+      "tag": "dunes",
+      "materialTags": ["salt", "fibre"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "strand-wood",
+      "biomeA": "shore",
+      "biomeB": "lowland-wood",
+      "tag": "strand-wood",
+      "materialTags": ["timber", "salt"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "mudflat",
+      "biomeA": "shore",
+      "biomeB": "bog",
+      "tag": "mudflat",
+      "materialTags": ["clay", "amber"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "salt-pan",
+      "biomeA": "shore",
+      "biomeB": "salt-flats",
+      "tag": "salt-pan",
+      "materialTags": ["salt"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "wetwood",
+      "biomeA": "bog",
+      "biomeB": "lowland-wood",
+      "tag": "wetwood",
+      "materialTags": ["timber", "amber"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "fen",
+      "biomeA": "bog",
+      "biomeB": "grass",
+      "tag": "fen",
+      "materialTags": ["fibre", "amber"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "glade",
+      "biomeA": "lowland-wood",
+      "biomeB": "grass",
+      "tag": "glade",
+      "materialTags": ["timber", "fibre"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "scrub",
+      "biomeA": "grass",
+      "biomeB": "salt-flats",
+      "tag": "scrub",
+      "materialTags": ["salt", "fibre"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "downs",
+      "biomeA": "grass",
+      "biomeB": "uplands",
+      "tag": "downs",
+      "materialTags": ["stone", "fibre"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "hanger",
+      "biomeA": "lowland-wood",
+      "biomeB": "uplands",
+      "tag": "hanger",
+      "materialTags": ["timber", "stone"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "badlands",
+      "biomeA": "salt-flats",
+      "biomeB": "uplands",
+      "tag": "badlands",
+      "materialTags": ["salt", "stone"],
+      "note": "provisional: spike E round 4"
+    },
+    {
+      "id": "foothills",
+      "biomeA": "uplands",
+      "biomeB": "heights",
+      "tag": "foothills",
+      "materialTags": ["stone", "metal"],
+      "note": "provisional: spike E round 4"
+    }
+  ]
+}

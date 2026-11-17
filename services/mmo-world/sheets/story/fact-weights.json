@@ -1,0 +1,194 @@
+{
+  "$schema": "../schema/story.fact-weights.schema.json",
+  "sheet": "story.fact-weights",
+  "rows": [
+    {
+      "id": "beat-won",
+      "kind": "beat.won",
+      "weight": 2
+    },
+    {
+      "id": "order-filled",
+      "kind": "order.filled",
+      "weight": 3
+    },
+    {
+      "id": "kind-discovered",
+      "kind": "kind.discovered",
+      "weight": 60
+    },
+    {
+      "id": "promotion",
+      "kind": "promotion",
+      "weight": 70
+    },
+    {
+      "id": "arc-stage-ended",
+      "kind": "arc.stage-ended",
+      "weight": 80
+    },
+    {
+      "id": "trouble-started",
+      "kind": "trouble.started",
+      "weight": 65
+    },
+    {
+      "id": "region-overrun",
+      "kind": "region.overrun",
+      "weight": 75
+    },
+    {
+      "id": "holding-fell",
+      "kind": "holding.fell",
+      "weight": 90
+    },
+    {
+      "id": "season-finale",
+      "kind": "season.finale",
+      "weight": 100
+    },
+    {
+      "id": "region-surge",
+      "kind": "region.surge",
+      "weight": 45
+    },
+    {
+      "id": "region-ambushes",
+      "kind": "region.ambushes",
+      "weight": 20,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "region-raids",
+      "kind": "region.raids",
+      "weight": 40,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "region-overrun-ended",
+      "kind": "region.overrun-ended",
+      "weight": 50,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "region-worked-out",
+      "kind": "region.worked-out",
+      "weight": 30,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "region-unrest",
+      "kind": "region.unrest",
+      "weight": 45,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "region-corruption-spreads",
+      "kind": "region.corruption-spreads",
+      "weight": 40,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "region-prospers",
+      "kind": "region.prospers",
+      "weight": 35,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-expanded",
+      "kind": "faction.expanded",
+      "weight": 60,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-fortified",
+      "kind": "faction.fortified",
+      "weight": 10,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-raided",
+      "kind": "faction.raided",
+      "weight": 45,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-traded",
+      "kind": "faction.traded",
+      "weight": 5,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-courted",
+      "kind": "faction.courted",
+      "weight": 15,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-betrayed",
+      "kind": "faction.betrayed",
+      "weight": 70,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-withdrew",
+      "kind": "faction.withdrew",
+      "weight": 55,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-patrolled",
+      "kind": "faction.patrolled",
+      "weight": 5,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-besieged",
+      "kind": "faction.besieged",
+      "weight": 50,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-culled",
+      "kind": "faction.culled",
+      "weight": 30,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-migrated",
+      "kind": "faction.migrated",
+      "weight": 40,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-starving",
+      "kind": "faction.starving",
+      "weight": 50,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "faction-fell",
+      "kind": "faction.fell",
+      "weight": 95,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "notable-died",
+      "kind": "notable.died",
+      "weight": 70,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "notable-promoted",
+      "kind": "notable.promoted",
+      "weight": 40,
+      "note": "provisional: not in the GDD yet; spike value"
+    },
+    {
+      "id": "land-calmer",
+      "kind": "land.calmer",
+      "weight": 40,
+      "note": "provisional: a starting settlement opened and the land round it re-tiered"
+    }
+  ]
+}

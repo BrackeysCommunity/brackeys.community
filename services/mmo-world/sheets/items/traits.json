@@ -1,0 +1,82 @@
+{
+  "$schema": "../schema/items.traits.schema.json",
+  "sheet": "items.traits",
+  "rows": [
+    {
+      "id": "tempered",
+      "tag": "tempered"
+    },
+    {
+      "id": "dense",
+      "tag": "dense"
+    },
+    {
+      "id": "springy",
+      "tag": "springy"
+    },
+    {
+      "id": "keen",
+      "tag": "keen"
+    },
+    {
+      "id": "braced",
+      "tag": "braced"
+    },
+    {
+      "id": "balanced",
+      "tag": "balanced"
+    },
+    {
+      "id": "hooked",
+      "tag": "hooked"
+    },
+    {
+      "id": "warm",
+      "tag": "warm"
+    },
+    {
+      "id": "lingering",
+      "tag": "lingering"
+    },
+    {
+      "id": "cold",
+      "tag": "cold"
+    },
+    {
+      "id": "arcing",
+      "tag": "arcing"
+    },
+    {
+      "id": "quick-drawn",
+      "tag": "quick-drawn"
+    },
+    {
+      "id": "sure-gripped",
+      "tag": "sure-gripped"
+    },
+    {
+      "id": "warded",
+      "tag": "warded"
+    },
+    {
+      "id": "marked",
+      "tag": "marked"
+    },
+    {
+      "id": "true",
+      "tag": "true"
+    },
+    {
+      "id": "wide",
+      "tag": "wide"
+    },
+    {
+      "id": "deep",
+      "tag": "deep-cast"
+    },
+    {
+      "id": "quiet",
+      "tag": "quiet"
+    }
+  ]
+}

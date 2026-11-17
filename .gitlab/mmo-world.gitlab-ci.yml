@@ -1,0 +1,67 @@
+# The MMO's Go core (services/mmo-world). Vite+ does not wrap Go, so these
+# jobs are its own. They run only when the module changes, so a site-only
+# change builds no Go.
+
+.mmo-world-paths:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - services/mmo-world/**/*
+        - .gitlab/mmo-world.gitlab-ci.yml
+    - if: $CI_COMMIT_BRANCH == 'main' && $CI_COMMIT_TITLE !~ /^Merge branch/
+      changes:
+        - services/mmo-world/**/*
+        - .gitlab/mmo-world.gitlab-ci.yml
+
+.mmo-world-go:
+  image: golang:1.27
+  variables:
+    # go.mod's toolchain line decides the exact version.
+    GOTOOLCHAIN: auto
+    GOPATH: $CI_PROJECT_DIR/.go
+    GOLANGCI_LINT_VERSION: v2.15.0
+  cache:
+    key: mmo-world-go
+    paths:
+      - .go/pkg/mod
+  before_script:
+    - cd services/mmo-world
+    - go mod download
+
+# gofmt, vet, the sim lints (banned imports, map range, floats, goroutines,
+# literals, exhaustiveness) and golangci-lint.
+mmo-world-lint:
+  extends: .mmo-world-go
+  stage: check
+  script:
+    - test -z "$(gofmt -l . | grep -v '^lint/testdata/')" || (gofmt -l . && exit 1)
+    - go vet ./...
+    - go run ./cmd/simlint ./...
+    - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
+    - $GOPATH/bin/golangci-lint run ./...
+  rules:
+    - !reference [.mmo-world-paths, rules]
+
+# Unit and property tests, including the planted-violation tests for the
+# lints and the Check run; -race everywhere outside sim/, which has no
+# goroutines to race.
+mmo-world-test:
+  extends: .mmo-world-go
+  stage: test
+  script:
+    - go test ./sim/...
+    - go test -race $(go list ./... | grep -v '/sim')
+  rules:
+    - !reference [.mmo-world-paths, rules]
+
+# The balance harness's Check run: schemas current, rows valid, units,
+# references, budgets, the pack, the rules, and the no-literals test.
+mmo-world-sheet-check:
+  extends: .mmo-world-go
+  stage: check
+  script:
+    - go run ./cmd/harness check
+  rules:
+    - !reference [.mmo-world-paths, rules]

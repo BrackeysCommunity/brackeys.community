@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.patterns",
+  "title": "map.patterns",
+  "description": "Patterns: shapes laid on the map before noise, with things on their points.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.patterns"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "shape", "size", "anchor", "parts", "seedFree"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "shape": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.shapes"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tiles",
+            "description": "A ring's radius, a triangle's side, a line's or an arm's length, a scatter's reach; a glyph's scale."
+          },
+          "anchor": {
+            "type": "string",
+            "enum": ["origin", "starting-settlement", "terrain", "pattern", "frontier"],
+            "x-unit": "enum"
+          },
+          "anchorTerrain": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.terrain",
+            "description": "terrain: the terrain whose highest tile in a chunk anchors one instance."
+          },
+          "chunkShare": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "terrain: the share of chunks that hold an instance."
+          },
+          "anchorPattern": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.patterns",
+            "description": "pattern: the rule whose instances anchor this one."
+          },
+          "anchorAt": {
+            "type": "string",
+            "enum": ["centre", "points"],
+            "x-unit": "enum",
+            "description": "pattern: one instance at the other's centre, or one at each of its points."
+          },
+          "perRegions": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "frontier: one instance per this many regions in the band."
+          },
+          "minDistance": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "frontier and terrain: the band's inner edge, from the origin."
+          },
+          "maxDistance": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "frontier and terrain: the band's outer edge; 0 is no edge."
+          },
+          "offsetDistance": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "How far the centre sits from the anchor."
+          },
+          "offsetBearing": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 359,
+            "x-unit": "degrees",
+            "description": "Which way, clockwise from east; the seed picks it when seedFree holds offset."
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["place", "at"],
+              "properties": {
+                "place": {
+                  "type": "string",
+                  "enum": [
+                    "relay",
+                    "pylon",
+                    "vault",
+                    "landmark",
+                    "dungeon",
+                    "beacon",
+                    "faction-seat"
+                  ],
+                  "x-unit": "enum"
+                },
+                "at": {
+                  "type": "string",
+                  "enum": ["corners", "edges", "every", "centre", "spaced", "indices"],
+                  "x-unit": "enum"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "count",
+                  "description": "spaced: this many points evenly round the outline."
+                },
+                "indices": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "x-unit": "count",
+                  "description": "indices: these points of the outline, in walk order."
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "area": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The area of interest the shape encloses."
+          },
+          "seedFree": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["rotation", "mirror", "which", "jitter", "offset", "solution"]
+            },
+            "uniqueItems": true,
+            "x-unit": "enum"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.slots",
+  "title": "items.slots",
+  "description": "Shape templates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.slots"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "durabilityRatio"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "edge": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "weight": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "flex": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "conduct": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "heat": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "ward": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "reach": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "bond": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio"
+          },
+          "strongestOther": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio",
+            "description": "Multiplier on the strongest axis the template does not name (a charm)."
+          },
+          "durabilityRatio": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio",
+            "description": "Durability against a blade's at the same tier."
+          }
+        }
+      }
+    }
+  }
+}

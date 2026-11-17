@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.shapes",
+  "title": "map.shapes",
+  "description": "The shapes patterns are laid in.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.shapes"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["ring", "triangle", "line", "cross", "star", "spiral", "scatter", "glyph"],
+            "x-unit": "enum"
+          },
+          "arms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 6,
+            "x-unit": "count",
+            "description": "cross and star: lines out from the centre, spread over the six hex directions."
+          },
+          "step": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "spiral: tiles between points along the winding; scatter: the least spacing."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "scatter: how many points."
+          },
+          "offsets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["q", "r"],
+              "properties": {
+                "q": {
+                  "type": "integer",
+                  "x-unit": "tiles"
+                },
+                "r": {
+                  "type": "integer",
+                  "x-unit": "tiles"
+                }
+              }
+            },
+            "x-unit": "tiles",
+            "description": "glyph: the points as axial offsets from the centre, scaled by the pattern's size."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

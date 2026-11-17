@@ -1,0 +1,144 @@
+{
+  "$schema": "../schema/meta.targets.schema.json",
+  "sheet": "meta.targets",
+  "rows": [
+    {
+      "id": "even-fight",
+      "text": "An even fight at equal tier is won 50% of the time, within 5 points",
+      "runs": "battle",
+      "holdsFrom": "MM2"
+    },
+    {
+      "id": "first-tool-level-5",
+      "text": "A first tool reaches level 5 within 10 minutes of play",
+      "runs": "battle, growth",
+      "holdsFrom": "MM2"
+    },
+    {
+      "id": "tier-2-level-20",
+      "text": "A tier-2 item reaches level 20 in 35 to 45 world days of daily play",
+      "runs": "growth",
+      "holdsFrom": "MM2"
+    },
+    {
+      "id": "tag-pairing-share",
+      "text": "No tag pairing wins more than 35% of the matchup matrix",
+      "runs": "battle, search",
+      "holdsFrom": "MM2"
+    },
+    {
+      "id": "kind-within-budget",
+      "text": "No sampled kind exceeds its tier budget",
+      "runs": "craft",
+      "holdsFrom": "MM2"
+    },
+    {
+      "id": "top-kinds-near-median",
+      "text": "Per tier and slot, the best kind a search finds is within 1.3 times the top decile of sampled kinds, by the sum of the two strongest axes",
+      "runs": "craft",
+      "holdsFrom": "MM2"
+    },
+    {
+      "id": "coin-band",
+      "text": "Coin per active character stays between 350 and 450 coin for 42 simulated days",
+      "runs": "economy",
+      "holdsFrom": "MM5"
+    },
+    {
+      "id": "settlements-stand",
+      "text": "An unattended world still has every settlement standing after 90 world days",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "world-no-collapse",
+      "text": "An unattended world has at most 3 regions overrun on day 90, and at least half its regions' threat still moves 60 or more over days 60 to 90",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "staging-stays-local",
+      "text": "An admin staging without limit moves no price in another settlement by more than 5%",
+      "runs": "economy, search",
+      "holdsFrom": "MM12"
+    },
+    {
+      "id": "structures-reachable",
+      "text": "Every pattern point, and every starting settlement, is reachable on foot from every starting settlement, on 1,000 sampled seeds and out to 200 tiles",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "chunk-order",
+      "text": "A tile's generation reads only a bounded neighbourhood: the same tile gives the same baseline whichever chunks were generated first",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "novelty-share",
+      "text": "At least 1 newly generated region in 3 holds something its server has not seen, at every distance band out to 200 tiles",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "biome-patches",
+      "text": "Biomes sprawl: the median land tile stands in a connected patch of one biome of at least 300 tiles",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "ecotone-share",
+      "text": "Between 10% and 20% of land tiles are ecotones, where two biomes fade into each other",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "cost-follows-discovery",
+      "text": "A world day's cost grows with discovered regions, not generated ones",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "first-class-unlock",
+      "text": "A new character's first class unlocks in 5 to 9 world days of daily play",
+      "runs": "growth",
+      "holdsFrom": "MM6"
+    },
+    {
+      "id": "class-share",
+      "text": "No class's abilities win more than 30% of the matchup matrix on their own",
+      "runs": "battle, search",
+      "holdsFrom": "MM6"
+    },
+    {
+      "id": "guild-works-sink",
+      "text": "No guild work returns more than it consumes, at any guild size",
+      "runs": "economy",
+      "holdsFrom": "MM6"
+    },
+    {
+      "id": "mount-shortens",
+      "text": "A mount on its terrain shortens a 12-tile journey by 25% to 40%",
+      "runs": "world",
+      "holdsFrom": "MM3"
+    },
+    {
+      "id": "spoils-conserved",
+      "text": "Finds from triggers never add goods: the spoils pool is conserved",
+      "runs": "economy",
+      "holdsFrom": "MM4"
+    },
+    {
+      "id": "guild-founds",
+      "text": "A guild of 5 can found a settlement within 10 world days; a city takes most of a season",
+      "runs": "economy",
+      "holdsFrom": "MM6"
+    },
+    {
+      "id": "puzzle-solve-rate",
+      "text": "A party at the expected practice level solves a floor's puzzle within its countdown 60% to 80% of the time",
+      "runs": "battle, search",
+      "holdsFrom": "MM2"
+    }
+  ]
+}

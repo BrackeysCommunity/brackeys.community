@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tags.rules",
+  "title": "tags.rules",
+  "description": "The rules, in the order they are tried.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "tags.rules"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "subject", "then"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "subject": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags the subject must hold."
+          },
+          "other": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags what the subject is against or beside must hold."
+          },
+          "place": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags the tile, its weather or its region must hold."
+          },
+          "anywhere": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags any of the three may hold."
+          },
+          "measure": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "tags.measures"
+          },
+          "atLeast": {
+            "type": "integer",
+            "x-unit": "measure",
+            "description": "In the measure's unit."
+          },
+          "then": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind"],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["add-tag", "remove-tag", "band", "scale", "join", "end"],
+                  "x-unit": "enum"
+                },
+                "target": {
+                  "type": "string",
+                  "enum": ["subject", "other", "place", "yield"],
+                  "x-unit": "enum"
+                },
+                "tag": {
+                  "type": "string",
+                  "x-unit": "tag",
+                  "x-ref": "tags.vocabulary"
+                },
+                "steps": {
+                  "type": "integer",
+                  "x-unit": "band-steps"
+                },
+                "measure": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "tags.measures"
+                },
+                "percent": {
+                  "type": "integer",
+                  "x-unit": "percent"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "count"
+                },
+                "beat": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "beat"
+                }
+              }
+            },
+            "x-unit": "effects"
+          }
+        }
+      }
+    }
+  }
+}

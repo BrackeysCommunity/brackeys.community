@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/economy.params.schema.json",
+  "sheet": "economy.params",
+  "rows": []
+}

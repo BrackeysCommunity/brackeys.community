@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.odds-bands",
+  "title": "fights.odds-bands",
+  "description": "The six odds bands (GDD 2.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.odds-bands"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "rank", "chance", "rolled"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "rank": {
+            "type": "integer",
+            "x-unit": "count",
+            "description": "Bands in order; a shift of one band moves one rank."
+          },
+          "chance": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "maximum": 1,
+            "x-unit": "chance"
+          },
+          "rolled": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "False for Certain, which never rolls."
+          }
+        }
+      }
+    }
+  }
+}

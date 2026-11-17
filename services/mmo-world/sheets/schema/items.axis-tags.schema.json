@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.axis-tags",
+  "title": "items.axis-tags",
+  "description": "Tags an item gains from a high axis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.axis-tags"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "axis", "shareOfBudget", "tag"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "axis": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "shareOfBudget": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "x-unit": "percent"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary"
+          }
+        }
+      }
+    }
+  }
+}

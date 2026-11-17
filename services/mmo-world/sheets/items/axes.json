@@ -1,0 +1,30 @@
+{
+  "$schema": "../schema/items.axes.schema.json",
+  "sheet": "items.axes",
+  "rows": [
+    {
+      "id": "edge"
+    },
+    {
+      "id": "weight"
+    },
+    {
+      "id": "flex"
+    },
+    {
+      "id": "conduct"
+    },
+    {
+      "id": "heat"
+    },
+    {
+      "id": "ward"
+    },
+    {
+      "id": "reach"
+    },
+    {
+      "id": "bond"
+    }
+  ]
+}

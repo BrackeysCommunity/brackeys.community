@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tags.vocabulary",
+  "title": "tags.vocabulary",
+  "description": "Every tag.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "tags.vocabulary"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "class",
+              "form",
+              "substance",
+              "property",
+              "state",
+              "origin",
+              "behaviour",
+              "disposition",
+              "weather"
+            ],
+            "x-unit": "enum"
+          }
+        }
+      }
+    }
+  }
+}

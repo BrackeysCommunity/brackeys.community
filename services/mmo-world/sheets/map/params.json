@@ -1,0 +1,209 @@
+{
+  "$schema": "../schema/map.params.schema.json",
+  "sheet": "map.params",
+  "rows": [
+    {
+      "id": "chunk-radius",
+      "value": 8,
+      "unit": "tiles",
+      "doc": "Generation works a hex of this radius at a time (217 tiles)."
+    },
+    {
+      "id": "region-spacing",
+      "value": 5,
+      "unit": "tiles",
+      "doc": "Region centres sit on a lattice this far apart. provisional: the GDD's 6 gives a median region of 35 tiles and half the land outside 19 to 37 (spike E round 3); 5 keeps 70% inside."
+    },
+    {
+      "id": "region-jitter",
+      "value": 1,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far the seed moves a region centre."
+    },
+    {
+      "id": "region-match-tiles",
+      "value": 6,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far a tile looks for a region centre of its own biome before it takes the nearest centre."
+    },
+    {
+      "id": "region-core-tiles",
+      "value": 2,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): a region's biome is the most common one within this many tiles of its centre."
+    },
+    {
+      "id": "biome-warp-tiles",
+      "value": 10,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 4): how far the domain warp moves where elevation and moisture are read."
+    },
+    {
+      "id": "fade-min",
+      "value": 0,
+      "unit": "count",
+      "doc": "provisional: spike E round 4: the narrowest fade margin, in elevation and moisture points; 0 is a sharp edge."
+    },
+    {
+      "id": "fade-max",
+      "value": 3,
+      "unit": "count",
+      "doc": "provisional: spike E round 4: the widest fade margin."
+    },
+    {
+      "id": "edge-region-tiles",
+      "value": 3,
+      "unit": "tiles",
+      "doc": "provisional: spike E round 4: ecotone tiles of one pair a region needs to hold that edge's material and creatures."
+    },
+    {
+      "id": "edge-creature-share",
+      "value": 60,
+      "unit": "percent",
+      "doc": "provisional: spike E round 4: share of edge regions whose edge creature is a variant of the pair."
+    },
+    {
+      "id": "region-min-tiles",
+      "value": 19,
+      "unit": "tiles"
+    },
+    {
+      "id": "region-max-tiles",
+      "value": 37,
+      "unit": "tiles"
+    },
+    {
+      "id": "spine-spacing",
+      "value": 24,
+      "unit": "tiles",
+      "doc": "Spine nodes sit on a lattice this far apart, each joined to its six neighbours."
+    },
+    {
+      "id": "spine-jitter",
+      "value": 4,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far the seed moves a spine node."
+    },
+    {
+      "id": "corridor-slack",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far a corridor may stray from the straight walk between its ends, as extra steps."
+    },
+    {
+      "id": "corridor-wall-ticks",
+      "value": 12,
+      "unit": "ticks",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): what a corridor search pays to cross a tile that must yield, so it crosses water and peaks where they are narrow."
+    },
+    {
+      "id": "river-max-tiles",
+      "value": 40,
+      "unit": "tiles",
+      "doc": "A river runs downhill for at most this many tiles."
+    },
+    {
+      "id": "river-source-elevation",
+      "value": 64,
+      "unit": "count",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): a chunk's highest tile starts a river only from this elevation up."
+    },
+    {
+      "id": "river-chunk-share",
+      "value": 60,
+      "unit": "percent",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): share of chunks with a high enough top tile that start a river."
+    },
+    {
+      "id": "river-along-ticks",
+      "value": 1,
+      "unit": "ticks"
+    },
+    {
+      "id": "river-across-ticks",
+      "value": 3,
+      "unit": "ticks"
+    },
+    {
+      "id": "settlement-spacing",
+      "value": 30,
+      "unit": "tiles",
+      "doc": "Starting settlements sit on a lattice this far apart."
+    },
+    {
+      "id": "settlement-jitter",
+      "value": 4,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far the seed moves a starting settlement; under half the spacing, so nearest-first order is exact."
+    },
+    {
+      "id": "settlement-clearance",
+      "value": 3,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): starting settlements keep this far outside the areas of origin-anchored patterns."
+    },
+    {
+      "id": "tier-step-tiles",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "Region tier rises one per this many tiles from the nearest open starting settlement (settled 2026-11-17)."
+    },
+    {
+      "id": "tier-ceiling",
+      "value": 4,
+      "unit": "tier",
+      "doc": "Region tier rises to this and no further; raised only by decision (GDD 4.17)."
+    },
+    {
+      "id": "sites-min",
+      "value": 3,
+      "unit": "count"
+    },
+    {
+      "id": "sites-max",
+      "value": 6,
+      "unit": "count"
+    },
+    {
+      "id": "dungeon-region-share",
+      "value": 3,
+      "unit": "count",
+      "doc": "One region in this many has a dungeon."
+    },
+    {
+      "id": "far-material-min-tiles",
+      "value": 40,
+      "unit": "tiles",
+      "doc": "Far materials appear past this distance from the origin."
+    },
+    {
+      "id": "far-material-cell-tiles",
+      "value": 15,
+      "unit": "tiles",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): each biome has its own far material per lattice cell this wide."
+    },
+    {
+      "id": "far-budget-min",
+      "value": 60,
+      "unit": "percent",
+      "doc": "A far material's vector is at least this share of its tier's budget."
+    },
+    {
+      "id": "far-budget-max",
+      "value": 75,
+      "unit": "percent"
+    },
+    {
+      "id": "far-material-axes",
+      "value": 3,
+      "unit": "count",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): axes a far material's profile spreads over."
+    },
+    {
+      "id": "creature-variant-share",
+      "value": 75,
+      "unit": "percent",
+      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): share of regions whose creature is a variant."
+    }
+  ]
+}

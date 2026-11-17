@@ -1,0 +1,12 @@
+{
+  "$schema": "../schema/story.params.schema.json",
+  "sheet": "story.params",
+  "rows": [
+    {
+      "id": "chronicle-min-weight",
+      "value": 60,
+      "unit": "weight",
+      "doc": "The chronicle posts facts at this weight and above."
+    }
+  ]
+}

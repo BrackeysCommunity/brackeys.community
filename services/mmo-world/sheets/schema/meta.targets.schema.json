@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "meta.targets",
+  "title": "meta.targets",
+  "description": "The targets the Report run measures (GDD 18.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "meta.targets"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "runs", "holdsFrom"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "text": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "runs": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The harness runs that hold it."
+          },
+          "holdsFrom": {
+            "type": "string",
+            "enum": [
+              "MM1",
+              "MM2",
+              "MM3",
+              "MM4",
+              "MM5",
+              "MM6",
+              "MM7",
+              "MM8",
+              "MM9",
+              "MM10",
+              "MM11",
+              "MM12",
+              "MM13",
+              "MM14"
+            ],
+            "x-unit": "enum"
+          }
+        }
+      }
+    }
+  }
+}

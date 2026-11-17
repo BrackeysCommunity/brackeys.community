@@ -1,0 +1,38 @@
+{
+  "$schema": "../schema/tags.measures.schema.json",
+  "sheet": "tags.measures",
+  "rows": [
+    {
+      "id": "threat",
+      "unit": "gauge"
+    },
+    {
+      "id": "scarcity",
+      "unit": "gauge"
+    },
+    {
+      "id": "unrest",
+      "unit": "gauge"
+    },
+    {
+      "id": "corruption",
+      "unit": "gauge"
+    },
+    {
+      "id": "prosperity",
+      "unit": "gauge"
+    },
+    {
+      "id": "party-size",
+      "unit": "count"
+    },
+    {
+      "id": "order-price",
+      "unit": "coin"
+    },
+    {
+      "id": "yield-value",
+      "unit": "coin"
+    }
+  ]
+}

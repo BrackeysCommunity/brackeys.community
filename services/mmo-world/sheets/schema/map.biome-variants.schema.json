@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.biome-variants",
+  "title": "map.biome-variants",
+  "description": "Biomes that appear only past a distance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.biome-variants"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "terrain", "minDistance", "cell", "share"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "terrain": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.terrain"
+          },
+          "minDistance": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "From the origin."
+          },
+          "cell": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tiles",
+            "description": "Lattice spacing of the variant's noise."
+          },
+          "share": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "Share of the terrain's tiles past the distance that turn."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

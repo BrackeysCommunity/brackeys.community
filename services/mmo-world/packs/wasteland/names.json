@@ -1,0 +1,484 @@
+{
+  "$schema": "../../sheets/schema/pack.names.schema.json",
+  "sheet": "pack.names",
+  "rows": [
+    {
+      "id": "materials-copper-ore",
+      "ref": "items.materials:copper-ore",
+      "name": "Copper wire"
+    },
+    {
+      "id": "materials-bog-iron",
+      "ref": "items.materials:bog-iron",
+      "name": "Scrap iron"
+    },
+    {
+      "id": "materials-reedflax",
+      "ref": "items.materials:reedflax",
+      "name": "Cable fibre"
+    },
+    {
+      "id": "materials-timber",
+      "ref": "items.materials:timber",
+      "name": "Salvage timber"
+    },
+    {
+      "id": "materials-stalker-hide",
+      "ref": "items.materials:stalker-hide",
+      "name": "Treated hide"
+    },
+    {
+      "id": "materials-ember-salt",
+      "ref": "items.materials:ember-salt",
+      "name": "Charge salt"
+    },
+    {
+      "id": "materials-reed-ash",
+      "ref": "items.materials:reed-ash",
+      "name": "Flux"
+    },
+    {
+      "id": "materials-saltglass",
+      "ref": "items.materials:saltglass",
+      "name": "Glass fibre"
+    },
+    {
+      "id": "materials-marsh-amber",
+      "ref": "items.materials:marsh-amber",
+      "name": "Resin stock"
+    },
+    {
+      "id": "materials-cinder-ore",
+      "ref": "items.materials:cinder-ore",
+      "name": "Scrap alloy"
+    },
+    {
+      "id": "materials-thick-hide",
+      "ref": "items.materials:thick-hide",
+      "name": "Plated hide"
+    },
+    {
+      "id": "materials-river-clay",
+      "ref": "items.materials:river-clay",
+      "name": "Sealant"
+    },
+    {
+      "id": "materials-fieldstone",
+      "ref": "items.materials:fieldstone",
+      "name": "Rubble"
+    },
+    {
+      "id": "materials-feathers",
+      "ref": "items.materials:feathers",
+      "name": "Servo parts"
+    },
+    {
+      "id": "materials-hide-scraps",
+      "ref": "items.materials:hide-scraps",
+      "name": "Hide scraps"
+    },
+    {
+      "id": "materials-heartwood",
+      "ref": "items.materials:heartwood",
+      "name": "Factory beams"
+    },
+    {
+      "id": "materials-chips",
+      "ref": "items.materials:chips",
+      "name": "Chips"
+    },
+    {
+      "id": "materials-deep-core",
+      "ref": "items.materials:deep-core",
+      "name": "Reactor core"
+    },
+    {
+      "id": "materials-stormglass",
+      "ref": "items.materials:stormglass",
+      "name": "Arc glass"
+    },
+    {
+      "id": "materials-old-silk",
+      "ref": "items.materials:old-silk",
+      "name": "Optic thread"
+    },
+    {
+      "id": "materials-vault-plate",
+      "ref": "items.materials:vault-plate",
+      "name": "Vault plate"
+    },
+    {
+      "id": "processes-alloy",
+      "ref": "items.processes:alloy",
+      "name": "Smelt"
+    },
+    {
+      "id": "processes-shape",
+      "ref": "items.processes:shape",
+      "name": "Fabricate"
+    },
+    {
+      "id": "processes-infuse",
+      "ref": "items.processes:infuse",
+      "name": "Flash"
+    },
+    {
+      "id": "processes-bind",
+      "ref": "items.processes:bind",
+      "name": "Splice"
+    },
+    {
+      "id": "processes-inscribe",
+      "ref": "items.processes:inscribe",
+      "name": "Patch"
+    },
+    {
+      "id": "processes-compose",
+      "ref": "items.processes:compose",
+      "name": "Compile"
+    },
+    {
+      "id": "archetypes-reed-rat",
+      "ref": "creatures.archetypes:reed-rat",
+      "name": "Scav drone",
+      "plural": "Scav drones"
+    },
+    {
+      "id": "archetypes-mire-stalker",
+      "ref": "creatures.archetypes:mire-stalker",
+      "name": "Wire-eel",
+      "plural": "Wire-eels"
+    },
+    {
+      "id": "archetypes-flat-runner",
+      "ref": "creatures.archetypes:flat-runner",
+      "name": "Dust runner",
+      "plural": "Dust runners"
+    },
+    {
+      "id": "archetypes-cinder-hound",
+      "ref": "creatures.archetypes:cinder-hound",
+      "name": "Rad-hound",
+      "plural": "Rad-hounds"
+    },
+    {
+      "id": "archetypes-seam-crawler",
+      "ref": "creatures.archetypes:seam-crawler",
+      "name": "Rust crawler",
+      "plural": "Rust crawlers"
+    },
+    {
+      "id": "archetypes-glass-heron",
+      "ref": "creatures.archetypes:glass-heron",
+      "name": "Turret nest",
+      "plural": "Turret nests"
+    },
+    {
+      "id": "archetypes-barrow-warden",
+      "ref": "creatures.archetypes:barrow-warden",
+      "name": "Tower guardian",
+      "plural": "Tower guardians"
+    },
+    {
+      "id": "archetypes-old-growth",
+      "ref": "creatures.archetypes:old-growth",
+      "name": "Walking factory",
+      "plural": "Walking factories"
+    },
+    {
+      "id": "archetypes-wardens",
+      "ref": "factions.archetypes:wardens",
+      "name": "Militia",
+      "plural": "Militias"
+    },
+    {
+      "id": "archetypes-compact",
+      "ref": "factions.archetypes:compact",
+      "name": "Raider Compact",
+      "plural": "Raider Compacts"
+    },
+    {
+      "id": "archetypes-guild",
+      "ref": "factions.archetypes:guild",
+      "name": "Cartel",
+      "plural": "Cartels"
+    },
+    {
+      "id": "archetypes-order",
+      "ref": "factions.archetypes:order",
+      "name": "Signal Cult",
+      "plural": "Signal Cults"
+    },
+    {
+      "id": "archetypes-clans",
+      "ref": "factions.archetypes:clans",
+      "name": "Scav Clans",
+      "plural": "Scav Clans"
+    },
+    {
+      "id": "terrain-plain",
+      "ref": "map.terrain:plain",
+      "name": "Scrubland"
+    },
+    {
+      "id": "terrain-forest",
+      "ref": "map.terrain:forest",
+      "name": "Deadwood"
+    },
+    {
+      "id": "terrain-marsh",
+      "ref": "map.terrain:marsh",
+      "name": "Sump"
+    },
+    {
+      "id": "terrain-hills",
+      "ref": "map.terrain:hills",
+      "name": "Slag hills"
+    },
+    {
+      "id": "terrain-mountain",
+      "ref": "map.terrain:mountain",
+      "name": "Ridge"
+    },
+    {
+      "id": "terrain-flats",
+      "ref": "map.terrain:flats",
+      "name": "Salt pan"
+    },
+    {
+      "id": "terrain-coast",
+      "ref": "map.terrain:coast",
+      "name": "Shoreline"
+    },
+    {
+      "id": "terrain-deep-water",
+      "ref": "map.terrain:deep-water",
+      "name": "Black water"
+    },
+    {
+      "id": "terrain-peak",
+      "ref": "map.terrain:peak",
+      "name": "Spire"
+    },
+    {
+      "id": "traits-tempered",
+      "ref": "items.traits:tempered",
+      "name": "Tempered"
+    },
+    {
+      "id": "traits-dense",
+      "ref": "items.traits:dense",
+      "name": "Dense"
+    },
+    {
+      "id": "traits-springy",
+      "ref": "items.traits:springy",
+      "name": "Springy"
+    },
+    {
+      "id": "traits-keen",
+      "ref": "items.traits:keen",
+      "name": "Keen"
+    },
+    {
+      "id": "traits-braced",
+      "ref": "items.traits:braced",
+      "name": "Braced"
+    },
+    {
+      "id": "traits-balanced",
+      "ref": "items.traits:balanced",
+      "name": "Balanced"
+    },
+    {
+      "id": "traits-hooked",
+      "ref": "items.traits:hooked",
+      "name": "Hooked"
+    },
+    {
+      "id": "traits-warm",
+      "ref": "items.traits:warm",
+      "name": "Warm"
+    },
+    {
+      "id": "traits-lingering",
+      "ref": "items.traits:lingering",
+      "name": "Lingering"
+    },
+    {
+      "id": "traits-cold",
+      "ref": "items.traits:cold",
+      "name": "Cold"
+    },
+    {
+      "id": "traits-arcing",
+      "ref": "items.traits:arcing",
+      "name": "Arcing"
+    },
+    {
+      "id": "traits-quick-drawn",
+      "ref": "items.traits:quick-drawn",
+      "name": "Quick-draw"
+    },
+    {
+      "id": "traits-sure-gripped",
+      "ref": "items.traits:sure-gripped",
+      "name": "Sure-grip"
+    },
+    {
+      "id": "traits-warded",
+      "ref": "items.traits:warded",
+      "name": "Shielded"
+    },
+    {
+      "id": "traits-marked",
+      "ref": "items.traits:marked",
+      "name": "Tagged"
+    },
+    {
+      "id": "traits-true",
+      "ref": "items.traits:true",
+      "name": "Calibrated"
+    },
+    {
+      "id": "traits-wide",
+      "ref": "items.traits:wide",
+      "name": "Broadcast"
+    },
+    {
+      "id": "traits-deep",
+      "ref": "items.traits:deep",
+      "name": "Deep-stack"
+    },
+    {
+      "id": "traits-quiet",
+      "ref": "items.traits:quiet",
+      "name": "Silent"
+    },
+    {
+      "id": "slots-blade",
+      "ref": "items.slots:blade",
+      "name": "Blade"
+    },
+    {
+      "id": "slots-plate",
+      "ref": "items.slots:plate",
+      "name": "Plate"
+    },
+    {
+      "id": "slots-tool",
+      "ref": "items.slots:tool",
+      "name": "Tool"
+    },
+    {
+      "id": "slots-hook",
+      "ref": "items.slots:hook",
+      "name": "Hook"
+    },
+    {
+      "id": "slots-focus",
+      "ref": "items.slots:focus",
+      "name": "Deck"
+    },
+    {
+      "id": "slots-charm",
+      "ref": "items.slots:charm",
+      "name": "Charm"
+    },
+    {
+      "id": "slots-tack",
+      "ref": "items.slots:tack",
+      "name": "Rig"
+    },
+    {
+      "id": "weather-storm",
+      "ref": "world.weather:storm",
+      "name": "EM storm"
+    },
+    {
+      "id": "weather-frost",
+      "ref": "world.weather:frost",
+      "name": "Cold snap"
+    },
+    {
+      "id": "weather-drought",
+      "ref": "world.weather:drought",
+      "name": "Ash front"
+    },
+    {
+      "id": "weather-fog",
+      "ref": "world.weather:fog",
+      "name": "Dead zone"
+    },
+    {
+      "id": "weather-clear",
+      "ref": "world.weather:clear",
+      "name": "Clear"
+    },
+    {
+      "id": "gauges-threat",
+      "ref": "world.gauges:threat",
+      "name": "Threat"
+    },
+    {
+      "id": "gauges-scarcity",
+      "ref": "world.gauges:scarcity",
+      "name": "Scarcity"
+    },
+    {
+      "id": "gauges-unrest",
+      "ref": "world.gauges:unrest",
+      "name": "Unrest"
+    },
+    {
+      "id": "gauges-corruption",
+      "ref": "world.gauges:corruption",
+      "name": "Corruption"
+    },
+    {
+      "id": "gauges-prosperity",
+      "ref": "world.gauges:prosperity",
+      "name": "Prosperity"
+    },
+    {
+      "id": "families-rewire",
+      "ref": "puzzles.families:rewire",
+      "name": "Rewire"
+    },
+    {
+      "id": "families-lock-pins",
+      "ref": "puzzles.families:lock-pins",
+      "name": "Pin lock"
+    },
+    {
+      "id": "families-lock-dial",
+      "ref": "puzzles.families:lock-dial",
+      "name": "Dial lock"
+    },
+    {
+      "id": "families-lock-maze",
+      "ref": "puzzles.families:lock-maze",
+      "name": "Tumbler maze"
+    },
+    {
+      "id": "families-circuit",
+      "ref": "puzzles.families:circuit",
+      "name": "Circuit"
+    },
+    {
+      "id": "families-signal",
+      "ref": "puzzles.families:signal",
+      "name": "Signal"
+    },
+    {
+      "id": "families-fuse",
+      "ref": "puzzles.families:fuse",
+      "name": "Fuse"
+    },
+    {
+      "id": "families-override",
+      "ref": "puzzles.families:override",
+      "name": "Override"
+    }
+  ]
+}

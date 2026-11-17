@@ -1,0 +1,42 @@
+{
+  "$schema": "../schema/fights.odds-bands.schema.json",
+  "sheet": "fights.odds-bands",
+  "rows": [
+    {
+      "id": "desperate",
+      "rank": 1,
+      "chance": 0.1,
+      "rolled": true
+    },
+    {
+      "id": "long-shot",
+      "rank": 2,
+      "chance": 0.25,
+      "rolled": true
+    },
+    {
+      "id": "even",
+      "rank": 3,
+      "chance": 0.5,
+      "rolled": true
+    },
+    {
+      "id": "likely",
+      "rank": 4,
+      "chance": 0.75,
+      "rolled": true
+    },
+    {
+      "id": "near-certain",
+      "rank": 5,
+      "chance": 0.9,
+      "rolled": true
+    },
+    {
+      "id": "certain",
+      "rank": 6,
+      "chance": 1,
+      "rolled": false
+    }
+  ]
+}

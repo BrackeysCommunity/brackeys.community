@@ -1,0 +1,62 @@
+{
+  "$schema": "../schema/creatures.archetypes.schema.json",
+  "sheet": "creatures.archetypes",
+  "rows": [
+    {
+      "id": "reed-rat",
+      "tier": 1,
+      "biomes": ["marsh", "plain"],
+      "tags": ["creature", "marsh-born", "pack", "small"],
+      "drops": ["reedflax"]
+    },
+    {
+      "id": "mire-stalker",
+      "tier": 2,
+      "biomes": ["marsh"],
+      "tags": ["creature", "marsh-born", "wary"],
+      "drops": ["stalker-hide", "marsh-amber"]
+    },
+    {
+      "id": "flat-runner",
+      "tier": 1,
+      "biomes": ["flats", "plain"],
+      "tags": ["creature", "fast", "herd"],
+      "drops": []
+    },
+    {
+      "id": "cinder-hound",
+      "tier": 2,
+      "biomes": ["hills"],
+      "tags": ["creature", "burning", "pack"],
+      "drops": ["cinder-ore", "ember-salt"]
+    },
+    {
+      "id": "seam-crawler",
+      "tier": 2,
+      "biomes": ["hills", "mountain"],
+      "tags": ["creature", "deep", "thick"],
+      "drops": ["saltglass"]
+    },
+    {
+      "id": "glass-heron",
+      "tier": 3,
+      "biomes": ["coast"],
+      "tags": ["creature", "brittle", "high"],
+      "drops": ["saltglass"]
+    },
+    {
+      "id": "barrow-warden",
+      "tier": 3,
+      "biomes": [],
+      "tags": ["creature", "deep", "hoarding", "braced"],
+      "drops": []
+    },
+    {
+      "id": "old-growth",
+      "tier": 4,
+      "biomes": ["forest"],
+      "tags": ["creature", "timber", "thick", "slow"],
+      "drops": []
+    }
+  ]
+}

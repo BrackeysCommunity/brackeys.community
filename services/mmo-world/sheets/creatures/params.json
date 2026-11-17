@@ -1,0 +1,5 @@
+{
+  "$schema": "../schema/creatures.params.schema.json",
+  "sheet": "creatures.params",
+  "rows": []
+}

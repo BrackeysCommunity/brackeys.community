@@ -1,0 +1,21 @@
+{
+  "$schema": "../schema/world.weather.schema.json",
+  "sheet": "world.weather",
+  "rows": [
+    {
+      "id": "storm"
+    },
+    {
+      "id": "frost"
+    },
+    {
+      "id": "drought"
+    },
+    {
+      "id": "fog"
+    },
+    {
+      "id": "clear"
+    }
+  ]
+}

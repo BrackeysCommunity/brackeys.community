@@ -1,0 +1,91 @@
+{
+  "$schema": "../schema/items.params.schema.json",
+  "sheet": "items.params",
+  "rows": [
+    {
+      "id": "alloy-agree-floor",
+      "value": 20,
+      "unit": "pts",
+      "doc": "Every input at or above this on an axis..."
+    },
+    {
+      "id": "alloy-agree-gain",
+      "value": 20,
+      "unit": "percent",
+      "doc": "...adds this share of the lowest input to that axis."
+    },
+    {
+      "id": "alloy-tier-step",
+      "value": 1,
+      "unit": "tier",
+      "doc": "Alloy makes a material this many tiers above the highest base material in its ancestry."
+    },
+    {
+      "id": "alloy-min-inputs",
+      "value": 2,
+      "unit": "count",
+      "doc": "Alloy takes at least this many different inputs; one material alloyed alone is refused."
+    },
+    {
+      "id": "bind-tail",
+      "value": 60,
+      "unit": "percent",
+      "doc": "Components after the first are summed at this share."
+    },
+    {
+      "id": "infuse-lent-axes",
+      "value": 2,
+      "unit": "count",
+      "doc": "How many of the minor input's strongest axes it lends."
+    },
+    {
+      "id": "resonance-threshold",
+      "value": 30,
+      "unit": "pts",
+      "doc": "Kept for the spike's eligibility count; the rule itself is in items.resonance."
+    },
+    {
+      "id": "shape-unnamed-carry",
+      "value": 0.5,
+      "unit": "ratio",
+      "doc": "Axes a slot template does not name are carried at this."
+    },
+    {
+      "id": "quirk-shift-max",
+      "value": 8,
+      "unit": "percent",
+      "doc": "The quirk shifts one axis by up to this."
+    },
+    {
+      "id": "quirk-trait-chance",
+      "value": 0.2,
+      "unit": "chance"
+    },
+    {
+      "id": "axis-cap-share",
+      "value": 45,
+      "unit": "percent",
+      "doc": "No axis may hold more than this share of its tier's budget; points over it are lost."
+    },
+    {
+      "id": "inscribe-durability-cost",
+      "value": 10,
+      "unit": "durability"
+    },
+    {
+      "id": "recipe-max-inputs",
+      "value": 4,
+      "unit": "count"
+    },
+    {
+      "id": "input-max-quantity",
+      "value": 4,
+      "unit": "count"
+    },
+    {
+      "id": "failed-salvage",
+      "value": 30,
+      "unit": "percent"
+    }
+  ]
+}

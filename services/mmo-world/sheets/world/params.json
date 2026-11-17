@@ -1,0 +1,89 @@
+{
+  "$schema": "../schema/world.params.schema.json",
+  "sheet": "world.params",
+  "rows": [
+    {
+      "id": "patrol-threat",
+      "value": -30,
+      "unit": "gauge",
+      "doc": "Threat a day while a faction patrols the region."
+    },
+    {
+      "id": "beat-won-threat",
+      "value": -2,
+      "unit": "gauge"
+    },
+    {
+      "id": "drought-scarcity",
+      "value": 10,
+      "unit": "gauge",
+      "doc": "Extra scarcity a day under drought."
+    },
+    {
+      "id": "baseline-min",
+      "value": 100,
+      "unit": "gauge",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): lowest generated gauge baseline."
+    },
+    {
+      "id": "baseline-max",
+      "value": 450,
+      "unit": "gauge",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): highest generated gauge baseline."
+    },
+    {
+      "id": "corruption-baseline-max",
+      "value": 150,
+      "unit": "gauge",
+      "doc": "provisional: not in the GDD yet; spike value (spike B): corruption starts low."
+    },
+    {
+      "id": "spill-cap",
+      "value": 15,
+      "unit": "gauge",
+      "doc": "Most a region gains a day from all its neighbours together. With the threat rise and the 5% pull, a region at the highest baseline settles under the overrun line even with every neighbour burning."
+    },
+    {
+      "id": "raid-unrest",
+      "value": 20,
+      "unit": "gauge",
+      "doc": "Unrest a day in a region while its raid line holds."
+    },
+    {
+      "id": "surge-chance",
+      "value": 0.2,
+      "unit": "chance",
+      "doc": "Chance each world day that something comes out of the wild into one region."
+    },
+    {
+      "id": "surge-min",
+      "value": 200,
+      "unit": "gauge",
+      "doc": "Smallest surge."
+    },
+    {
+      "id": "surge-max",
+      "value": 400,
+      "unit": "gauge",
+      "doc": "Largest surge."
+    },
+    {
+      "id": "surge-neighbour-share",
+      "value": 30,
+      "unit": "percent",
+      "doc": "Share of a surge each neighbouring region also takes."
+    },
+    {
+      "id": "settlement-watch",
+      "value": -20,
+      "unit": "gauge",
+      "doc": "Threat a day in a region whose starting settlement keeps a watch; nobody has to play for it."
+    },
+    {
+      "id": "overrun-ebb",
+      "value": -25,
+      "unit": "gauge",
+      "doc": "Threat a day in an overrun region: what overran it spends itself and moves on, so an overrun is an episode, not an ending."
+    }
+  ]
+}

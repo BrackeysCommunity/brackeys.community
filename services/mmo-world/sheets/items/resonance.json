@@ -1,0 +1,48 @@
+{
+  "$schema": "../schema/items.resonance.schema.json",
+  "sheet": "items.resonance",
+  "rows": [
+    {
+      "id": "charge-and-reach",
+      "axisA": "conduct",
+      "axisB": "reach",
+      "threshold": 35,
+      "trait": "arcing"
+    },
+    {
+      "id": "edge-and-flex",
+      "axisA": "edge",
+      "axisB": "flex",
+      "threshold": 35,
+      "trait": "quick-drawn"
+    },
+    {
+      "id": "flex-and-ward",
+      "axisA": "flex",
+      "axisB": "ward",
+      "threshold": 35,
+      "trait": "sure-gripped"
+    },
+    {
+      "id": "weight-and-ward",
+      "axisA": "weight",
+      "axisB": "ward",
+      "threshold": 35,
+      "trait": "braced"
+    },
+    {
+      "id": "heat-and-bond",
+      "axisA": "heat",
+      "axisB": "bond",
+      "threshold": 35,
+      "trait": "lingering"
+    },
+    {
+      "id": "edge-and-heat",
+      "axisA": "edge",
+      "axisB": "heat",
+      "threshold": 35,
+      "trait": "warm"
+    }
+  ]
+}

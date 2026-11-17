@@ -1,0 +1,56 @@
+{
+  "$schema": "../schema/creatures.variants.schema.json",
+  "sheet": "creatures.variants",
+  "rows": [
+    {
+      "id": "plated",
+      "tag": "plated",
+      "minDistance": 0
+    },
+    {
+      "id": "charged",
+      "tag": "charged",
+      "minDistance": 0
+    },
+    {
+      "id": "fast",
+      "tag": "fast",
+      "minDistance": 0
+    },
+    {
+      "id": "wary",
+      "tag": "wary",
+      "minDistance": 0
+    },
+    {
+      "id": "slow",
+      "tag": "slow",
+      "minDistance": 0
+    },
+    {
+      "id": "swarming",
+      "tag": "swarming",
+      "minDistance": 20
+    },
+    {
+      "id": "hoarding",
+      "tag": "hoarding",
+      "minDistance": 30
+    },
+    {
+      "id": "scorched",
+      "tag": "scorched",
+      "minDistance": 50
+    },
+    {
+      "id": "rusted",
+      "tag": "rusted",
+      "minDistance": 80
+    },
+    {
+      "id": "hollow",
+      "tag": "hollow",
+      "minDistance": 120
+    }
+  ]
+}

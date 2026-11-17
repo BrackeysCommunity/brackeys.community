@@ -1,0 +1,24 @@
+# General Go hygiene for the module. The sim's own rules (banned imports,
+# map range, floats, goroutines, literals) and the exhaustiveness checks
+# (exhaustive, gochecksumtype) run in cmd/simlint, scoped to this module's
+# types, where their planted-violation tests live.
+version: "2"
+run:
+  tests: true
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintln
+        - fmt.Fprintf
+        - fmt.Fprint
+  exclusions:
+    paths:
+      - lint/testdata
+formatters:
+  enable: [gofmt]

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.terrain",
+  "title": "map.terrain",
+  "description": "Terrain kinds: travel, sight, cover.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.terrain"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "enterTicks", "passable", "sight", "cover", "tags"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "enterTicks": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "ticks",
+            "description": "0 with passable false is impassable."
+          },
+          "passable": {
+            "type": "boolean",
+            "x-unit": "flag"
+          },
+          "sight": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles"
+          },
+          "cover": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

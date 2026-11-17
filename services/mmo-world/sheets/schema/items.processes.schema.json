@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.processes",
+  "title": "items.processes",
+  "description": "The six processes, their stations and trait tables.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.processes"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "stations", "traits"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "stations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["forge", "bench", "still", "loom"]
+            },
+            "uniqueItems": true,
+            "x-unit": "enum"
+          },
+          "traits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "items.traits",
+            "description": "The process's trait table, for quirks and milestone picks."
+          }
+        }
+      }
+    }
+  }
+}
