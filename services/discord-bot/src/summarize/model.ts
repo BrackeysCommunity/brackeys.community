@@ -69,6 +69,13 @@ export function defang(text: string): string {
  */
 export const OUTPUT_TOKENS = { shared: 10_000, private: 100_000 } as const;
 const CHUNK_TOKENS = 2_000;
+/**
+ * Adaptive thinking counts against `max_tokens` and can't be budgeted on its
+ * own, so each ceiling gets this on top; without it a long think leaves no
+ * room for the reply.
+ */
+const THINKING_HEADROOM = 32_000;
+const MODEL_MAX_TOKENS = 128_000;
 
 export interface ModelUsage {
   inputTokens: number;
@@ -79,6 +86,14 @@ export class SummaryRefusedError extends Error {
   constructor() {
     super("The model declined to summarize this history");
     this.name = "SummaryRefusedError";
+  }
+}
+
+/** The model ran out of room before writing anything; worth a retry. */
+export class EmptySummaryError extends Error {
+  constructor(stopReason: string | null) {
+    super(`The model wrote no summary text (stop: ${stopReason})`);
+    this.name = "EmptySummaryError";
   }
 }
 
@@ -106,7 +121,7 @@ export function createSummaryModel(apiKey: string): SummaryModel {
     const response = await client.messages
       .stream({
         model: MODEL,
-        max_tokens: maxTokens,
+        max_tokens: Math.min(maxTokens + THINKING_HEADROOM, MODEL_MAX_TOKENS),
         system,
         output_config: { effort },
         messages: [{ role: "user", content }],
@@ -118,6 +133,7 @@ export function createSummaryModel(apiKey: string): SummaryModel {
       .map((block) => block.text)
       .join("")
       .trim();
+    if (!text) throw new EmptySummaryError(response.stop_reason);
     const usage: ModelUsage = {
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,

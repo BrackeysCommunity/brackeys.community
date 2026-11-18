@@ -13,8 +13,6 @@ export const PART_SIZE = 300;
 export const QUIET_BELOW = 15;
 /** Windows this small skip the bucket cache and go to one call raw. */
 export const DIRECT_LIMIT = 300;
-/** The most messages one request reads from Discord. */
-export const MAX_FETCH = 3_000;
 
 export const WINDOWS = {
   "1h": 3_600_000,

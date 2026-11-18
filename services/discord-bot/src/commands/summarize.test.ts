@@ -28,7 +28,6 @@ const summary = (fields: Partial<Summary> = {}): Summary => ({
   from: NOW - 24 * 3_600_000,
   to: NOW,
   messageCount: 812,
-  truncated: false,
   finalCached: false,
   buckets: { cached: 3, summarized: 2, raw: 4 },
   inputTokens: 9000,
@@ -49,14 +48,6 @@ describe("summarizeChannel", () => {
       "812 messages · 10-25 15:30 – 10-26 15:30 UTC · AI summary, may miss things",
     );
     expect(reply.ephemeral).toBe(true);
-  });
-
-  test("says when it only covers the newest part of the window", async () => {
-    const reply = await summarizeChannel(
-      async () => summary({ truncated: true, messageCount: 3000 }),
-      input,
-    );
-    expect(reply.embeds[0].footer).toStartWith("Newest 3,000 messages only");
   });
 
   const longText = Array.from(
@@ -159,16 +150,20 @@ describe("summarizeChannel", () => {
     expect(none.embeds[0].title).toBe("Catch-up: the last 7 days");
     expect(none.embeds[0].footer).toContain("You haven't posted here in the last 7 days");
     const quiet = await summarizeChannel(
-      async () => summary({ text: "", sinceLastPost: true }),
+      async () => summary({ text: "", messageCount: 0, sinceLastPost: true }),
       mine,
     );
     expect(quiet.content).toBe("Nothing new here since you last posted.");
   });
 
   test("an empty window is a plain line", async () => {
-    const reply = await summarizeChannel(async () => summary({ text: "" }), input);
+    const reply = await summarizeChannel(async () => summary({ text: "", messageCount: 0 }), input);
     expect(reply.outcome).toBe("not_found");
     expect(reply.content).toBe("Nothing was said here in the last 24h.");
+  });
+
+  test("an empty summary of a busy window is a failure, not a quiet channel", async () => {
+    await expect(summarizeChannel(async () => summary({ text: "" }), input)).rejects.toThrow();
   });
 
   test("share posts it", async () => {

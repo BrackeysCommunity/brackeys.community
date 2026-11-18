@@ -89,7 +89,6 @@ const summarize: Summarize | undefined = summarizer
           input_tokens: summary.inputTokens,
           output_tokens: summary.outputTokens,
           cost_usd: summary.costUsd,
-          truncated: summary.truncated,
         });
       }
       return summary;

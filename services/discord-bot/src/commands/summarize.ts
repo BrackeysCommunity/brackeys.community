@@ -4,7 +4,7 @@ import { DiscordBackoffError } from "../../../../src/lib/discord-guard.ts";
 import { clampEmbed, EMBED_TITLE_MAX, notFound, plural, type Reply, truncate } from "../reply.ts";
 import { SINCE_MINE, type SummaryWindow } from "../summarize/buckets.ts";
 import { ChannelUnreadableError } from "../summarize/history.ts";
-import { SummaryRefusedError } from "../summarize/model.ts";
+import { EmptySummaryError, SummaryRefusedError } from "../summarize/model.ts";
 import { type PageSet, paginate, type SummaryPages } from "../summarize/pages.ts";
 import type { Summary, SummaryOptions } from "../summarize/summarizer.ts";
 import { formatStamp } from "../summarize/transcript.ts";
@@ -57,6 +57,12 @@ function unavailable(error: unknown): SummaryUnavailableError | null {
     return new SummaryUnavailableError(
       "busy",
       "Discord is rate-limiting the bot right now. Try again in a few minutes.",
+    );
+  }
+  if (error instanceof EmptySummaryError) {
+    return new SummaryUnavailableError(
+      "busy",
+      "The summarizer came back empty. Try again in a minute.",
     );
   }
   if (error instanceof SummaryRefusedError) {
@@ -120,6 +126,7 @@ export async function summarizeChannel(
   }
 
   if (!summary.text) {
+    if (summary.messageCount > 0) throw unavailable(new EmptySummaryError(null));
     return notFound(
       summary.sinceLastPost
         ? "Nothing new here since you last posted."
@@ -130,9 +137,7 @@ export async function summarizeChannel(
   const span = `${formatStamp(summary.from)} – ${formatStamp(summary.to)} UTC`;
   const noPost =
     summary.sinceLastPost === false ? " · You haven't posted here in the last 7 days" : "";
-  const footer = summary.truncated
-    ? `Newest ${plural(summary.messageCount, "message")} only · ${span}${noPost}`
-    : `${plural(summary.messageCount, "message")} · ${span}${noPost}`;
+  const footer = `${plural(summary.messageCount, "message")} · ${span}${noPost}`;
   const title = input.question
     ? truncate(`“${input.question}”`, EMBED_TITLE_MAX)
     : `Catch-up: ${summary.sinceLastPost ? "since you last posted" : coveredSpan(input.window)}`;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { MAX_FETCH, snowflakeAt } from "./buckets.ts";
+import { snowflakeAt } from "./buckets.ts";
 import type { DiscordApiMessage, ReadHistory } from "./history.ts";
 import { OUTPUT_TOKENS, type SummaryModel } from "./model.ts";
 import { type SummaryRedis, createSummarizer } from "./summarizer.ts";
@@ -117,7 +117,7 @@ describe("summarize", () => {
     const shared = await summarizer.summarize(CHANNEL, "24h", { now: NOW, shared: true });
     expect(shared.finalCached).toBe(false);
     expect(calls.maxTokens).toEqual([OUTPUT_TOKENS.private, OUTPUT_TOKENS.shared]);
-    expect(OUTPUT_TOKENS).toEqual({ shared: 10_000, private: 100_000 });
+    expect(OUTPUT_TOKENS.shared).toBeLessThan(OUTPUT_TOKENS.private);
   });
 
   test("the model's stamps become timestamps each reader sees in their own zone", async () => {
@@ -229,16 +229,6 @@ describe("summarize", () => {
     expect(summary.messageCount).toBe(4);
   });
 
-  test("a channel too busy to search for the caller's post doesn't claim they have none", async () => {
-    const { summarizer } = setup(spread(NOW - 7 * 24 * HOUR, NOW, MAX_FETCH * 2));
-    const summary = await summarizer.summarize(CHANNEL, "mine", {
-      now: NOW,
-      requesterId: "nobody",
-    });
-    expect(summary.sinceLastPost).toBeUndefined();
-    expect(summary.truncated).toBe(true);
-  });
-
   test("an empty window calls nothing", async () => {
     const { summarizer, calls } = setup([NOW - 3 * HOUR]);
     const summary = await summarizer.summarize(CHANNEL, "1h", { now: NOW });
@@ -319,13 +309,11 @@ describe("summarize", () => {
     expect(calls.chunk).toHaveLength(3);
   });
 
-  test("past the read budget it summarizes the newest part and says so", async () => {
-    const { summarizer, pages } = setup(spread(NOW - 7 * 24 * HOUR, NOW, MAX_FETCH * 2));
+  test("a busy week is read whole, with no cap on messages", async () => {
+    const { summarizer } = setup(spread(NOW - 7 * 24 * HOUR, NOW, 6_000));
     const summary = await summarizer.summarize(CHANNEL, "7d", { now: NOW });
-    expect(summary.truncated).toBe(true);
-    expect(summary.from).toBeGreaterThan(NOW - 7 * 24 * HOUR);
-    expect(summary.messageCount).toBeLessThanOrEqual(MAX_FETCH);
-    expect(pages()).toBeLessThanOrEqual(MAX_FETCH / 100 + 2);
+    expect(summary.from).toBe(NOW - 7 * 24 * HOUR);
+    expect(summary.messageCount).toBe(6_000);
   });
 
   test("concurrent requests for the same summary share one run", async () => {

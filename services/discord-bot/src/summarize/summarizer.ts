@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 
 import {
   DIRECT_LIMIT,
-  MAX_FETCH,
   QUIET_BELOW,
   SINCE_MINE,
   SINCE_MINE_MAX_MS,
@@ -45,11 +44,10 @@ export interface SummaryRedis {
 export interface Summary {
   /** Empty when nothing was said in the window. */
   text: string;
-  /** What the summary covers; later than the window's start when `truncated`. */
+  /** What the summary covers. */
   from: number;
   to: number;
   messageCount: number;
-  truncated: boolean;
   finalCached: boolean;
   buckets: { cached: number; summarized: number; raw: number };
   inputTokens: number;
@@ -121,52 +119,36 @@ export function createSummarizer(deps: {
 }) {
   const { redis, readHistory, model, guildId } = deps;
 
-  /** `[from, to)` newest page first; stops early once `budget` messages are read. */
-  async function readRange(channelId: string, from: number, to: number, budget: number) {
+  /** `[from, to)`, read newest page first, returned oldest first. */
+  async function readRange(channelId: string, from: number, to: number) {
     const messages: TranscriptMessage[] = [];
     let before = snowflakeAt(to);
-    let read = 0;
     for (;;) {
       const page = await readHistory(channelId, before);
-      read += page.length;
       for (const raw of page) {
-        if (snowflakeTime(raw.id) < from)
-          return { messages: messages.reverse(), read, reached: null };
+        if (snowflakeTime(raw.id) < from) return messages.reverse();
         const message = toTranscript(raw);
         if (message) messages.push(message);
       }
-      if (page.length < 100) return { messages: messages.reverse(), read, reached: null };
+      if (page.length < 100) return messages.reverse();
       before = page.at(-1)!.id;
-      if (read >= budget) {
-        return { messages: messages.reverse(), read, reached: snowflakeTime(before) };
-      }
     }
   }
 
-  /**
-   * The caller's newest message in the last `SINCE_MINE_MAX_MS`: `"none"`
-   * when they have none, `"unknown"` when the read budget ran out before
-   * the whole stretch was searched.
-   */
-  async function findLastPost(
-    channelId: string,
-    authorId: string,
-    now: number,
-  ): Promise<{ id: string; at: number } | "none" | "unknown"> {
+  /** The caller's newest message in the last `SINCE_MINE_MAX_MS`, if any. */
+  async function findLastPost(channelId: string, authorId: string, now: number) {
     const floor = now - SINCE_MINE_MAX_MS;
     let before = snowflakeAt(now + 1);
-    for (let read = 0; read < MAX_FETCH; ) {
+    for (;;) {
       const page = await readHistory(channelId, before);
-      read += page.length;
       for (const raw of page) {
         const at = snowflakeTime(raw.id);
-        if (at < floor) return "none";
+        if (at < floor) return null;
         if (raw.author.id === authorId) return { id: raw.id, at };
       }
-      if (page.length < 100) return "none";
+      if (page.length < 100) return null;
       before = page.at(-1)!.id;
     }
-    return "unknown";
   }
 
   /** A summary, or with `question` an answer to it drawn from the same history. */
@@ -179,11 +161,10 @@ export function createSummarizer(deps: {
     let windowKey: string = window;
     let sinceLastPost: boolean | undefined;
     if (window === SINCE_MINE) {
-      const found = requesterId ? await findLastPost(channelId, requesterId, now) : "none";
-      const post = typeof found === "object" ? found : null;
+      const post = requesterId ? await findLastPost(channelId, requesterId, now) : null;
       start = post ? post.at + 1 : now - SINCE_MINE_MAX_MS;
       windowKey = `${SINCE_MINE}:${post?.id ?? "none"}`;
-      sinceLastPost = found === "unknown" ? undefined : Boolean(post);
+      sinceLastPost = Boolean(post);
     } else {
       start = now - WINDOWS[window];
     }
@@ -193,7 +174,6 @@ export function createSummarizer(deps: {
       from: start,
       to: now,
       messageCount: 0,
-      truncated: false,
       finalCached: false,
       buckets: { cached: 0, summarized: 0, raw: 0 },
       inputTokens: usage.reduce((sum, u) => sum + u.inputTokens, 0),
@@ -232,7 +212,7 @@ export function createSummarizer(deps: {
     });
 
     // Contiguous spans with no cached summary are read in one pass each,
-    // newest first, so a budget cut drops the oldest part of the window.
+    // newest first.
     const ranges: Span[][] = [];
     for (const span of spans) {
       if (hits.has(span)) continue;
@@ -241,43 +221,33 @@ export function createSummarizer(deps: {
       else ranges.push([span]);
     }
     const fetched = new Map<Span, TranscriptMessage[]>();
-    let budget = MAX_FETCH;
-    let cut: number | null = null;
     for (const range of ranges.reverse()) {
-      const read = await readRange(channelId, range[0].from, range.at(-1)!.to, budget);
-      budget -= read.read;
+      const messages = await readRange(channelId, range[0].from, range.at(-1)!.to);
       for (const span of range) {
         fetched.set(
           span,
-          read.messages.filter((m) => m.at >= span.from && m.at < span.to),
+          messages.filter((m) => m.at >= span.from && m.at < span.to),
         );
-      }
-      if (read.reached !== null) {
-        cut = read.reached;
-        break;
       }
     }
 
-    const kept = cut === null ? spans : spans.filter((span) => span.to > cut);
-    const isPartial = (span: Span) => cut !== null && span.from < cut;
-    const count = kept.reduce(
+    const count = spans.reduce(
       (sum, span) => sum + (hits.get(span)?.count ?? fetched.get(span)?.length ?? 0),
       0,
     );
-    const from = cut ?? start;
-    if (count === 0) return result({ from, truncated: cut !== null });
+    if (count === 0) return result({});
 
     const buckets = { cached: 0, summarized: 0, raw: 0 };
     type Section =
       | { from: number; to: number; kind: "raw"; messages: TranscriptMessage[] }
       | { from: number; to: number; kind: "summary"; count: number; parts: string[] };
     let sections: Section[];
-    if (!kept.some((span) => hits.has(span)) && count <= DIRECT_LIMIT) {
-      const all = kept.flatMap((span) => fetched.get(span) ?? []);
-      buckets.raw = kept.filter((span) => fetched.get(span)?.length).length;
-      sections = [{ from, to: now, kind: "raw", messages: all }];
+    if (!spans.some((span) => hits.has(span)) && count <= DIRECT_LIMIT) {
+      const all = spans.flatMap((span) => fetched.get(span) ?? []);
+      buckets.raw = spans.filter((span) => fetched.get(span)?.length).length;
+      sections = [{ from: start, to: now, kind: "raw", messages: all }];
     } else {
-      const work = kept.map((span) => async (): Promise<Section | null> => {
+      const work = spans.map((span) => async (): Promise<Section | null> => {
         const hit = hits.get(span);
         if (hit) {
           buckets.cached++;
@@ -285,9 +255,9 @@ export function createSummarizer(deps: {
         }
         const messages = fetched.get(span) ?? [];
         if (!messages.length) return null;
-        if (span.bucket === null || isPartial(span) || messages.length < QUIET_BELOW) {
+        if (span.bucket === null || messages.length < QUIET_BELOW) {
           buckets.raw++;
-          return { from: Math.max(span.from, from), to: span.to, kind: "raw", messages };
+          return { from: span.from, to: span.to, kind: "raw", messages };
         }
         const parts = await Promise.all(
           splitParts(messages).map(async (part) => {
@@ -330,9 +300,7 @@ export function createSummarizer(deps: {
     const messageUrl = (id: string) => `https://discord.com/channels/${guildId}/${channelId}/${id}`;
     const summary = result({
       text: resolveTimes(resolveLinks(final.text, refs, messageUrl), now),
-      from,
       messageCount: count,
-      truncated: cut !== null,
       buckets,
     });
     await quietly(
