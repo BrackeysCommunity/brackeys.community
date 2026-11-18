@@ -28,7 +28,8 @@ func (g *Gen) isHome(id LatticeID) bool {
 		return v
 	}
 	h := g.homes.At(id)
-	ok := true
+	// A lattice point whose jitter found no dry land holds no settlement.
+	ok := g.passable(g.raw(h).terrain)
 	for _, a := range g.originAreas {
 		if Distance(h, a.centre) <= a.extent+g.p.homeClear {
 			ok = false

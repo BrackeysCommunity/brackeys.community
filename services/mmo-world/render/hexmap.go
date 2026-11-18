@@ -29,7 +29,6 @@ var (
 	dungeon    = color.RGBA{0x7a, 0x14, 0x1e, 0xff}
 	settlement = color.RGBA{0xff, 0xff, 0xff, 0xff}
 	ink        = color.RGBA{0x10, 0x10, 0x10, 0xff}
-	carved     = color.RGBA{0xd0, 0x2e, 0xc8, 0xff}
 	variant    = color.RGBA{0x5a, 0x1d, 0x6e, 0xff}
 	site       = color.RGBA{0x30, 0x2a, 0x22, 0xff}
 	paper      = color.RGBA{0xf6, 0xf3, 0xea, 0xff}
@@ -64,8 +63,8 @@ func HexMap(w *gen.Area, size float64) *image.RGBA {
 			if t.River {
 				c = blend(c, river, 0.65)
 			}
-			if t.Yielded {
-				c = blend(c, carved, 0.6)
+			if t.Ford {
+				c = blend(terrainColour["deep-water"], terrainColour["coast"], 0.55)
 			}
 			if t.Variant != "" {
 				c = blend(c, variant, 0.45)

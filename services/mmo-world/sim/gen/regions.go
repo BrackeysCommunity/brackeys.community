@@ -73,22 +73,97 @@ func (g *Gen) region(h Hex) LatticeID {
 	if id, ok := g.regionOf[h]; ok {
 		return id
 	}
+	id := g.pickAt(h, regionPasses)
+	g.regionOf[h] = id
+	return id
+}
+
+// structural: the floor is applied twice, so a region the first pass
+// left under it after its neighbours took their share does not stay.
+const regionPasses = 2
+
+// pickAt is the centre a tile joins at a pass. Pass 0 is the plain rule:
+// the nearest centre of the tile's biome by squared distance less weight,
+// failing that the nearest. At each later pass, a centre that took fewer
+// than region-floor-tiles at the pass before takes none, and no centre
+// takes a tile beyond the largest disc that fits region-ceiling-tiles;
+// those tiles go to their next choice.
+func (g *Gen) pickAt(h Hex, pass int) LatticeID {
+	if id, ok := g.picks[pickKey{h, pass}]; ok {
+		return id
+	}
 	terrain := g.raw(h).terrain
-	cands := g.regions.Near(h, g.p.regionMatch)
-	best, bestD, match := LatticeID{}, int64(-1), false
-	for _, id := range cands {
-		c := g.regions.At(id)
-		d := Distance(c, h)
+	ok := func(id LatticeID, d int64) bool {
+		return pass == 0 || (g.sizeAt(id, pass-1) >= g.p.regionFloor && DiscSize(d) <= g.p.regionCeiling)
+	}
+	best, bestD, match, found := LatticeID{}, int64(0), false, false
+	for _, id := range g.regions.Near(h, g.p.regionMatch) {
+		d := Distance(g.regions.At(id), h)
+		if !ok(id, d) {
+			continue
+		}
+		power := d*d - g.regionWeight(id)
 		m := g.centreBiome(id) == terrain
-		if (m && !match) || (m == match && (bestD < 0 || d < bestD)) {
-			best, bestD, match = id, d, m
+		if !found || (m && !match) || (m == match && power < bestD) {
+			best, bestD, match, found = id, power, m, true
 		}
 	}
-	if bestD < 0 {
-		best = g.regions.Nearest(h)
+	// Nothing within reach passes: the nearest centre that takes tiles.
+	for reach := g.p.regionMatch; !found; reach += g.p.regionSpacing {
+		for _, id := range g.regions.Near(h, reach) {
+			d := Distance(g.regions.At(id), h)
+			if (pass == 0 || g.sizeAt(id, pass-1) >= g.p.regionFloor) && (!found || d < bestD) {
+				best, bestD, found = id, d, true
+			}
+		}
 	}
-	g.regionOf[h] = best
+	g.picks[pickKey{h, pass}] = best
 	return best
+}
+
+type pickKey struct {
+	h    Hex
+	pass int
+}
+
+// sizeAt is how many tiles a centre takes at a pass.
+func (g *Gen) sizeAt(id LatticeID, pass int) int64 {
+	k := sizeKey{id, pass}
+	if n, ok := g.sizes[k]; ok {
+		return n
+	}
+	n := int64(0)
+	for _, h := range DiscAt(g.regions.At(id), g.p.regionMatch) {
+		if g.pickAt(h, pass) == id {
+			n++
+		}
+	}
+	g.sizes[k] = n
+	return n
+}
+
+type sizeKey struct {
+	id   LatticeID
+	pass int
+}
+
+// regionWeight is a centre's keyed size weight from map.region-weights:
+// a tile joins the centre with the least squared distance less weight, so
+// heavy centres reach further and light ones less (a power diagram).
+func (g *Gen) regionWeight(id LatticeID) int64 {
+	if w, ok := g.weights[id]; ok {
+		return w
+	}
+	shares := make([]int64, len(g.b.RegionWeights))
+	for i, r := range g.b.RegionWeights {
+		shares[i] = r.Share
+	}
+	w := int64(0)
+	if len(shares) > 0 {
+		w = g.b.RegionWeights[g.d.Pick(shares, "region.weight", draw.Int(id.I), draw.Int(id.J))].Weight
+	}
+	g.weights[id] = w
+	return w
 }
 
 // centreBiome is the terrain most of the tiles round a region centre

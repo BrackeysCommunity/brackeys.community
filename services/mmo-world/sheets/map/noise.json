@@ -47,6 +47,14 @@
       "falloff": 100,
       "max": 100,
       "note": "provisional: spike E round 4: how wide an edge fades, from fade-min to fade-max"
+    },
+    {
+      "id": "continent",
+      "cell": 64,
+      "octaves": 3,
+      "falloff": 50,
+      "max": 100,
+      "note": "provisional: spike E round 5: the very low-frequency layer that makes seas, coasts and continents"
     }
   ]
 }

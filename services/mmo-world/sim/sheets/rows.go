@@ -342,6 +342,16 @@ type PatternPart struct {
 	Indices []int64 `json:"indices,omitempty" unit:"count" doc:"indices: these points of the outline, in walk order."`
 }
 
+// RegionWeight is one size class of region centre. A tile joins the
+// centre with the least squared distance less weight, so weight is in
+// tiles squared; a centre draws its class by share.
+type RegionWeight struct {
+	ID     string `json:"id" unit:"id"`
+	Weight int64  `json:"weight" unit:"count" doc:"Tiles squared taken off the squared distance; negative shrinks a region."`
+	Share  int64  `json:"share" unit:"percent" min:"0" max:"100"`
+	Note   string `json:"note,omitempty" unit:"text"`
+}
+
 // Ecotone is what the fade between two land biomes holds: a tag both
 // tiles and finds there carry, beside "edge", and what its edge materials
 // are made of.

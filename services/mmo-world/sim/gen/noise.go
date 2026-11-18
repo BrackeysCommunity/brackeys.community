@@ -27,7 +27,7 @@ type raw struct {
 }
 
 type noiseLayers struct {
-	elevation, moisture, ore, fertility, warp, fade *sheets.NoiseLayer
+	elevation, moisture, ore, fertility, warp, fade, continent *sheets.NoiseLayer
 }
 
 func (g *Gen) layers() (noiseLayers, error) {
@@ -39,6 +39,7 @@ func (g *Gen) layers() (noiseLayers, error) {
 	}{
 		{"elevation", &out.elevation}, {"moisture", &out.moisture}, {"ore", &out.ore},
 		{"fertility", &out.fertility}, {"warp", &out.warp}, {"fade", &out.fade},
+		{"continent", &out.continent},
 	} {
 		v, ok := l[x.id]
 		if !ok {
@@ -60,8 +61,13 @@ func (g *Gen) raw(h Hex) raw {
 	mid := g.noise.warp.Max / halves
 	wx := (g.layerXY(g.noise.warp, "noise.warp.x", x, y) - mid) * amp / max(mid, 1)
 	wy := (g.layerXY(g.noise.warp, "noise.warp.y", x, y) - mid) * amp / max(mid, 1)
+	// The continent layer sinks whole stretches of land below the sea:
+	// where it falls under sea-level, elevation drops with its depth, so
+	// seas are seas and not only lakes. It never raises land.
+	sea := g.p.seaLevel
+	lift := -max(0, sea-g.layerXY(g.noise.continent, "noise.continent", x+wx, y+wy)) * g.p.continent / max(sea, 1)
 	r := raw{
-		elevation: g.layerXY(g.noise.elevation, "noise.elevation", x+wx, y+wy),
+		elevation: min(max(g.layerXY(g.noise.elevation, "noise.elevation", x+wx, y+wy)+lift, 0), g.noise.elevation.Max),
 		moisture:  g.layerXY(g.noise.moisture, "noise.moisture", x+wx, y+wy),
 		ore:       g.layer(g.noise.ore, h),
 		fertility: g.layer(g.noise.fertility, h),

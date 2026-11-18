@@ -74,6 +74,7 @@ type Book struct {
 	Noise         []NoiseLayer   `sheet:"map.noise" doc:"The noise layers generation reads."`
 	BiomeVariants []BiomeVariant `sheet:"map.biome-variants" doc:"Biomes that appear only past a distance."`
 	Ecotones      []Ecotone      `sheet:"map.ecotones" doc:"What the fade between two land biomes holds."`
+	RegionWeights []RegionWeight `sheet:"map.region-weights" doc:"Size classes of region centres and their shares."`
 	Shapes        []Shape        `sheet:"map.shapes" doc:"The shapes patterns are laid in."`
 	Patterns      []PatternRule  `sheet:"map.patterns" doc:"Patterns: shapes laid on the map before noise, with things on their points."`
 	MapParams     []Param        `sheet:"map.params" doc:"Loose cells for generation."`

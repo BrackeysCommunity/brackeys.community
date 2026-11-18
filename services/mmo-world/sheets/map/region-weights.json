@@ -1,0 +1,36 @@
+{
+  "$schema": "../schema/map.region-weights.schema.json",
+  "sheet": "map.region-weights",
+  "rows": [
+    {
+      "id": "absorbed",
+      "weight": -99,
+      "share": 14,
+      "note": "provisional: spike E round 5"
+    },
+    {
+      "id": "small",
+      "weight": -5,
+      "share": 22,
+      "note": "provisional: spike E round 5"
+    },
+    {
+      "id": "middling",
+      "weight": 0,
+      "share": 36,
+      "note": "provisional: spike E round 5"
+    },
+    {
+      "id": "large",
+      "weight": 9,
+      "share": 22,
+      "note": "provisional: spike E round 5"
+    },
+    {
+      "id": "vast",
+      "weight": 16,
+      "share": 6,
+      "note": "provisional: spike E round 5"
+    }
+  ]
+}

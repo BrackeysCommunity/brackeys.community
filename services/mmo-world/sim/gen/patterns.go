@@ -174,8 +174,14 @@ func (g *Gen) chunkAnchor(r sheets.PatternRule, cc ChunkCoord) (Hex, bool) {
 		if !inBand(centre) || g.d.Below(uint64(r.PerRegions*g.p.regionSpacing*g.p.regionSpacing), draw.Purpose("pattern.fire."+r.ID), draw.Int(cc.A), draw.Int(cc.B)) >= chunkTiles {
 			return Hex{}, false
 		}
-		k := g.d.Below(chunkTiles, draw.Purpose("pattern.where."+r.ID), draw.Int(cc.A), draw.Int(cc.B))
-		return centre.Add(Disc(g.p.chunk)[k]), true
+		// It stands on dry land: the first dry tile in a keyed order, if any.
+		disc := Disc(g.p.chunk)
+		for _, k := range g.d.Shuffle(len(disc), draw.Purpose("pattern.where."+r.ID), draw.Int(cc.A), draw.Int(cc.B)) {
+			if h := centre.Add(disc[k]); g.passable(g.raw(h).terrain) {
+				return h, true
+			}
+		}
+		return Hex{}, false
 	case anchorTerrain:
 		if int64(g.d.Below(percent, draw.Purpose("pattern.fire."+r.ID), draw.Int(cc.A), draw.Int(cc.B))) >= r.ChunkShare {
 			return Hex{}, false

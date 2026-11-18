@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.region-weights",
+  "title": "map.region-weights",
+  "description": "Size classes of region centres and their shares.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sheet", "rows"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.region-weights"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "weight", "share"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "weight": {
+            "type": "integer",
+            "x-unit": "count",
+            "description": "Tiles squared taken off the squared distance; negative shrinks a region."
+          },
+          "share": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

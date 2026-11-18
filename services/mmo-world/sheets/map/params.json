@@ -22,7 +22,7 @@
     },
     {
       "id": "region-match-tiles",
-      "value": 6,
+      "value": 7,
       "unit": "tiles",
       "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far a tile looks for a region centre of its own biome before it takes the nearest centre."
     },
@@ -33,16 +33,40 @@
       "doc": "provisional: not in the GDD yet; spike value (spike E round 3): a region's biome is the most common one within this many tiles of its centre."
     },
     {
+      "id": "region-floor-tiles",
+      "value": 8,
+      "unit": "tiles",
+      "doc": "provisional: spike E round 5: a centre that would take fewer tiles than this takes none, and its tiles go to their next choice."
+    },
+    {
+      "id": "region-ceiling-tiles",
+      "value": 80,
+      "unit": "tiles",
+      "doc": "provisional: spike E round 5: no centre takes a tile beyond the largest disc that holds at most this many tiles."
+    },
+    {
       "id": "biome-warp-tiles",
       "value": 10,
       "unit": "tiles",
       "doc": "provisional: not in the GDD yet; spike value (spike E round 4): how far the domain warp moves where elevation and moisture are read."
     },
     {
-      "id": "fade-min",
-      "value": 0,
+      "id": "continent-lift",
+      "value": 60,
       "unit": "count",
-      "doc": "provisional: spike E round 4: the narrowest fade margin, in elevation and moisture points; 0 is a sharp edge."
+      "doc": "provisional: spike E round 5: how far the continent layer sinks land at its lowest, in elevation points."
+    },
+    {
+      "id": "sea-level",
+      "value": 58,
+      "unit": "count",
+      "doc": "provisional: spike E round 5: where the continent layer is below this, land sinks toward the sea."
+    },
+    {
+      "id": "fade-min",
+      "value": -1,
+      "unit": "count",
+      "doc": "provisional: spike E round 5: the narrowest fade margin, in elevation and moisture points; at 0 or less an edge is sharp."
     },
     {
       "id": "fade-max",
@@ -80,21 +104,45 @@
     },
     {
       "id": "spine-jitter",
-      "value": 4,
+      "value": 6,
       "unit": "tiles",
-      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far the seed moves a spine node."
+      "doc": "provisional: spike E round 5: how far the seed moves a spine node, to dry land where it can."
     },
     {
       "id": "corridor-slack",
-      "value": 12,
+      "value": 4,
       "unit": "tiles",
-      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): how far a corridor may stray from the straight walk between its ends, as extra steps."
+      "doc": "provisional: spike E round 5: steps a corridor may wander beyond its detour share, so short ones can bend too."
     },
     {
       "id": "corridor-wall-ticks",
-      "value": 12,
+      "value": 1000,
       "unit": "ticks",
-      "doc": "provisional: not in the GDD yet; spike value (spike E round 3): what a corridor search pays to cross a tile that must yield, so it crosses water and peaks where they are narrow."
+      "doc": "provisional: spike E round 5: what a corridor pays per tile that must yield: more than any route over land inside its ellipse, so it never crosses water or peaks when a way round under about 3 times as long exists, and crosses with the fewest yielded tiles otherwise."
+    },
+    {
+      "id": "corridor-detour",
+      "value": 300,
+      "unit": "percent",
+      "doc": "provisional: spike E round 5: how long a corridor may be against the straight walk between its ends."
+    },
+    {
+      "id": "causeway-every",
+      "value": 5,
+      "unit": "tiles",
+      "doc": "provisional: spike E round 5: along a crossing over water, every this many tiles an island rises with the tiles round it."
+    },
+    {
+      "id": "island-reach-cells",
+      "value": 8,
+      "unit": "count",
+      "doc": "provisional: spike E round 5: a dry component of the spine lattice no bigger than a disc of this many hops is an island, and gets a link across the water."
+    },
+    {
+      "id": "island-link-cells",
+      "value": 3,
+      "unit": "count",
+      "doc": "provisional: spike E round 5: how many spine spacings an island looks for land to link to."
     },
     {
       "id": "river-max-tiles",

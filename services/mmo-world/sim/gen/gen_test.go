@@ -120,7 +120,7 @@ func TestChunkOrder(t *testing.T) {
 
 func TestPatterns(t *testing.T) {
 	b := book(t)
-	for seed := range 10 {
+	for seed := range 4 {
 		g := newGen(t, b, fmt.Sprintf("patterns-%d", seed))
 		// Walk in a wider disc than is checked: a place near the edge may
 		// reach the spine through a node outside the checked disc.

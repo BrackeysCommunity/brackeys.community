@@ -35,6 +35,7 @@ type TileBaseline struct {
 	HomeDist  int64  // to the nearest starting-settlement lattice point, open or not
 	Site      string // a settlement, a pattern's part, a site or a dungeon
 	Yielded   bool   // made passable so the spine or a place can be reached
+	Ford      bool   // yielded as shallows a corridor wades, not as land
 }
 
 // PatternPoint is one point of a pattern instance with something on it.
@@ -79,9 +80,10 @@ func (c *ChunkBaseline) Tile(h Hex) TileBaseline {
 type params struct {
 	chunk                                    int64
 	regionSpacing, regionJitter, regionMatch int64
-	regionCore                               int64
+	regionCore, regionFloor, regionCeiling   int64
 	spineSpacing, spineJitter                int64
-	slack, wall                              int64
+	slack, wall, detour, causeway            int64
+	islandReach, islandLink                  int64
 	riverMax, riverSource, riverShare        int64
 	along, across                            int64
 	homeSpacing, homeJitter, homeClear       int64
@@ -90,6 +92,7 @@ type params struct {
 	farMin, farCell, farLo, farHi, farAxes   int64
 	variantShare                             int64
 	warp, fadeMin, fadeMax                   int64
+	continent, seaLevel                      int64
 	edgeTiles, edgeCreatures                 int64
 }
 
@@ -120,6 +123,11 @@ type Gen struct {
 	regionOf      map[Hex]LatticeID
 	regionInfo    map[LatticeID]*RegionBaseline
 	centreTerrain map[LatticeID]string
+	weights       map[LatticeID]int64
+	isles         map[LatticeID]*island
+	links         map[LatticeID][]Hex
+	picks         map[pickKey]LatticeID
+	sizes         map[sizeKey]int64
 	regionSites   map[LatticeID]map[Hex]string
 	far           map[string]*FarMaterial
 	homeValid     map[LatticeID]bool
@@ -137,15 +145,17 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 		paths: map[pathKey][]Hex{}, rivers: map[ChunkCoord][]Hex{}, ground: map[ChunkCoord]*ground{},
 		chunks: map[ChunkCoord]*ChunkBaseline{}, points: map[ChunkCoord][]PatternPoint{},
 		instances: map[string]*instance{}, regionOf: map[Hex]LatticeID{},
-		regionInfo: map[LatticeID]*RegionBaseline{}, centreTerrain: map[LatticeID]string{}, regionSites: map[LatticeID]map[Hex]string{},
+		regionInfo: map[LatticeID]*RegionBaseline{}, centreTerrain: map[LatticeID]string{}, weights: map[LatticeID]int64{}, isles: map[LatticeID]*island{}, links: map[LatticeID][]Hex{}, picks: map[pickKey]LatticeID{}, sizes: map[sizeKey]int64{}, regionSites: map[LatticeID]map[Hex]string{},
 		far: map[string]*FarMaterial{}, homeValid: map[LatticeID]bool{}, homeRank: map[LatticeID]int{},
 	}
 	pi := func(id string) int64 { return sheets.IntParam(b.MapParams, id) }
 	g.p = params{
 		chunk:         pi("chunk-radius"),
-		regionSpacing: pi("region-spacing"), regionJitter: pi("region-jitter"), regionMatch: pi("region-match-tiles"), regionCore: pi("region-core-tiles"),
+		regionSpacing: pi("region-spacing"), regionJitter: pi("region-jitter"), regionMatch: pi("region-match-tiles"), regionCore: pi("region-core-tiles"), regionFloor: pi("region-floor-tiles"), regionCeiling: pi("region-ceiling-tiles"),
 		spineSpacing: pi("spine-spacing"), spineJitter: pi("spine-jitter"),
 		slack: pi("corridor-slack"), wall: pi("corridor-wall-ticks"),
+		detour: pi("corridor-detour"), causeway: pi("causeway-every"),
+		islandReach: pi("island-reach-cells"), islandLink: pi("island-link-cells"),
 		riverMax: pi("river-max-tiles"), riverSource: pi("river-source-elevation"), riverShare: pi("river-chunk-share"),
 		along: pi("river-along-ticks"), across: pi("river-across-ticks"),
 		homeSpacing: pi("settlement-spacing"), homeJitter: pi("settlement-jitter"), homeClear: pi("settlement-clearance"),
@@ -154,7 +164,7 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 		farMin: pi("far-material-min-tiles"), farCell: pi("far-material-cell-tiles"),
 		farLo: pi("far-budget-min"), farHi: pi("far-budget-max"), farAxes: pi("far-material-axes"),
 		variantShare: pi("creature-variant-share"),
-		warp:         pi("biome-warp-tiles"), fadeMin: pi("fade-min"), fadeMax: pi("fade-max"),
+		warp:         pi("biome-warp-tiles"), fadeMin: pi("fade-min"), fadeMax: pi("fade-max"), continent: pi("continent-lift"), seaLevel: pi("sea-level"),
 		edgeTiles: pi("edge-region-tiles"), edgeCreatures: pi("edge-creature-share"),
 	}
 	if g.p.homeJitter*halves >= g.p.homeSpacing {
@@ -173,6 +183,7 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 	}
 	g.regions = g.newLattice("region", g.p.regionSpacing, g.p.regionJitter, true)
 	g.spine = g.newLattice("spine", g.p.spineSpacing, g.p.spineJitter, true)
+	g.spine.prefer = func(h Hex) bool { return g.passable(g.raw(h).terrain) }
 	g.homes = g.newLattice("home", g.p.homeSpacing, g.p.homeJitter, false)
 	g.homes.prefer = func(h Hex) bool { return g.passable(g.raw(h).terrain) }
 	if err := g.checkPatterns(); err != nil {
@@ -238,7 +249,7 @@ func (g *Gen) Chunk(cc ChunkCoord) *ChunkBaseline {
 		c.Tiles[i] = TileBaseline{
 			Hex: h, Elevation: r.elevation, Moisture: r.moisture, Ore: r.ore, Fertility: r.fertility,
 			Terrain: t.terrain, Variant: g.variant(h, t.terrain), River: t.river,
-			Secondary: g.secondTerrain(r), Blend: r.blend, Edge: g.edgeOf(r),
+			Secondary: g.secondTerrain(r), Blend: r.blend, Edge: g.edgeOf(r), Ford: t.ford,
 			Region: reg, HomeDist: g.nearestHome(h), Site: site, Yielded: t.yielded,
 		}
 	}
@@ -253,6 +264,7 @@ type groundTile struct {
 	yielded bool
 	river   bool
 	place   string
+	ford    bool // a corridor over water: shallows, not land
 }
 
 type ground struct {
@@ -289,26 +301,47 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 	// Corridors: the spine's edges near the chunk, and every place's way to
 	// its nearest spine node.
 	corridor := make([]bool, len(gr.tiles))
+	island := make([]bool, len(gr.tiles))
 	mark := func(path []Hex) {
 		for _, h := range path {
 			if i, ok := in(h); ok {
 				corridor[i] = true
 			}
 		}
+		for _, h := range g.islands(path) {
+			if i, ok := in(h); ok {
+				island[i] = true
+			}
+		}
 	}
-	edgeReach := g.p.spineSpacing + halves*g.p.spineJitter + g.p.slack + g.p.chunk
+	// A corridor tile lies within half its limit plus half its length of
+	// either end, and an island one tile beyond.
+	edge := g.p.spineSpacing + halves*g.p.spineJitter
+	edgeReach := (g.limit(edge)+edge)/halves + 1 + g.p.chunk
 	for _, id := range g.spine.Near(centre, edgeReach) {
-		for k, step := range latticeSteps[:len(latticeSteps)/halves] {
+		for _, step := range latticeSteps[:len(latticeSteps)/halves] {
 			to := LatticeID{id.I + step.I, id.J + step.J}
-			if g.spineSkips(id, to, k) {
+			if g.spineSkips(id, to) {
 				continue
 			}
 			mark(g.path(g.spine.At(id), g.spine.At(to)))
 		}
 	}
-	placeReach := g.p.spineSpacing + g.p.slack + g.p.chunk
+	// A place links to a spine node at most three spacings off.
+	far := discSides * g.p.spineSpacing
+	placeReach := (g.limit(far)+far)/halves + 1 + g.p.chunk
+	// An island link starts at one of its nodes and runs at most the link
+	// reach plus a node's jitter.
+	var linked []LatticeID
+	link := g.p.islandLink*g.p.spineSpacing + g.p.spineJitter
+	for _, id := range g.spine.Near(centre, (g.limit(link)+link)/halves+1+g.p.chunk) {
+		if in, ok := g.islandOf(id); ok && !slices.Contains(linked, in.root) {
+			linked = append(linked, in.root)
+			mark(g.islandLinkOf(in))
+		}
+	}
 	for _, h := range g.placesNear(centre, placeReach) {
-		mark(g.path(h, g.spine.At(g.spine.Nearest(h))))
+		mark(g.path(h, g.spineNode(h)))
 	}
 	// Rivers from every source close enough to reach the chunk.
 	river := make([]bool, len(gr.tiles))
@@ -323,8 +356,9 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 		r := g.raw(centre.Add(off))
 		t := &gr.tiles[i]
 		t.terrain = r.terrain
-		if !g.passable(r.terrain) && (corridor[i] || t.place != "") {
+		if !g.passable(r.terrain) && (corridor[i] || island[i] || t.place != "") {
 			t.terrain, t.yielded = g.passableNear(r.elevation), true
+			t.ford = corridor[i] && !island[i] && t.place == "" && g.wet(centre.Add(off))
 		}
 		t.river = river[i] && g.passable(t.terrain)
 	}
@@ -338,22 +372,116 @@ func (g *Gen) groundAt(h Hex) groundTile {
 	return gr.tiles[g.discIndex[Hex{h.Q - gr.centre.Q, h.R - gr.centre.R}]]
 }
 
-// spineSkips: an edge between two nodes in open water is left out when
-// one of the two nodes beside both ends is dry. That node's edges to both
-// ends are kept, since it is dry, so the spine stays joined and a sea is
-// not crossed by a lattice of land bridges.
-func (g *Gen) spineSkips(a, b LatticeID, k int) bool {
-	if !g.wet(g.spine.At(a)) || !g.wet(g.spine.At(b)) {
-		return false
+// spineSkips: the spine runs over land. An edge with an end in water is
+// left out; a corridor between two dry nodes still crosses a strait at
+// its narrowest when no way round fits. Islands get their own link
+// (islandLink), and places in water link to the nearest dry node, so
+// seas are not crossed by a lattice of corridors.
+func (g *Gen) spineSkips(a, b LatticeID) bool {
+	return g.wet(g.spine.At(a)) || g.wet(g.spine.At(b))
+}
+
+func (g *Gen) dry(id LatticeID) bool { return !g.wet(g.spine.At(id)) }
+
+func (g *Gen) step(id LatticeID, k int) LatticeID {
+	return LatticeID{id.I + latticeSteps[k].I, id.J + latticeSteps[k].J}
+}
+
+// island is a dry component of the spine lattice (dry nodes joined
+// through dry neighbours) of at most as many nodes as a disc of
+// island-reach-cells holds: land the spine cannot reach over land. Its
+// root is its lowest node. A bigger component is mainland. The answer is
+// the component's own, so every node of it gets the same one.
+type island struct {
+	root  LatticeID
+	nodes []LatticeID
+}
+
+func (g *Gen) islandOf(id LatticeID) (*island, bool) {
+	if in, ok := g.isles[id]; ok {
+		return in, in != nil
 	}
-	n := len(latticeSteps)
-	for _, side := range [...]int{(k + n - 1) % n, (k + 1) % n} {
-		c := LatticeID{a.I + latticeSteps[side].I, a.J + latticeSteps[side].J}
-		if !g.wet(g.spine.At(c)) {
-			return true
+	if !g.dry(id) {
+		g.isles[id] = nil
+		return nil, false
+	}
+	limit := int(DiscSize(g.p.islandReach))
+	nodes := []LatticeID{id}
+	seen := map[LatticeID]bool{id: true}
+	for k := 0; k < len(nodes) && len(nodes) <= limit; k++ {
+		for d := range latticeSteps {
+			if n := g.step(nodes[k], d); g.dry(n) && !seen[n] {
+				seen[n] = true
+				nodes = append(nodes, n)
+			}
 		}
 	}
-	return false
+	// Every node reached is in the same component, so all share the answer.
+	var in *island
+	if len(nodes) <= limit {
+		in = &island{root: nodes[0], nodes: nodes}
+		for _, n := range nodes {
+			if n.I < in.root.I || (n.I == in.root.I && n.J < in.root.J) {
+				in.root = n
+			}
+		}
+	}
+	for _, n := range nodes {
+		g.isles[n] = in
+	}
+	return in, in != nil
+}
+
+// islandLink is the corridor that joins an island to the land beyond it:
+// between the closest pair of an island node and a mainland node within
+// island-link-cells of it, or failing a mainland node, of a node of
+// another island; it crosses at the narrowest place it can.
+func (g *Gen) islandLink(in *island) []Hex {
+	reach := g.p.islandLink * g.p.spineSpacing
+	var from, to Hex
+	bestD, bestMain, found := int64(0), false, false
+	for _, a := range in.nodes {
+		ha := g.spine.At(a)
+		for _, b := range g.spine.Near(ha, reach) {
+			if !g.dry(b) || slices.Contains(in.nodes, b) {
+				continue
+			}
+			_, isl := g.islandOf(b)
+			hb := g.spine.At(b)
+			d := Distance(ha, hb)
+			if !found || (!isl && !bestMain) || (!isl == bestMain && d < bestD) {
+				from, to, bestD, bestMain, found = ha, hb, d, !isl, true
+			}
+		}
+	}
+	if !found {
+		return nil
+	}
+	return g.path(from, to)
+}
+
+func (g *Gen) islandLinkOf(in *island) []Hex {
+	if p, ok := g.links[in.root]; ok {
+		return p
+	}
+	p := g.islandLink(in)
+	g.links[in.root] = p
+	return p
+}
+
+// spineNode is the nearest dry spine node to h within three spacings,
+// or failing that the nearest node.
+func (g *Gen) spineNode(h Hex) Hex {
+	best, bestD, found := Hex{}, int64(0), false
+	for _, id := range g.spine.Near(h, discSides*g.p.spineSpacing) {
+		if n := g.spine.At(id); g.dry(id) && (!found || Distance(n, h) < bestD) {
+			best, bestD, found = n, Distance(n, h), true
+		}
+	}
+	if !found {
+		return g.spine.At(g.spine.Nearest(h))
+	}
+	return best
 }
 
 // placesNear lists the tiles of settlements and pattern points within reach.
@@ -376,10 +504,36 @@ func (g *Gen) placesNear(h Hex, reach int64) []Hex {
 
 type pathKey struct{ from, to Hex }
 
+// limit is how long a corridor between ends this far apart may wander:
+// corridor-detour percent of the straight walk, plus the slack.
+func (g *Gen) limit(d int64) int64 { return d*g.p.detour/percent + g.p.slack }
+
+// islands are the stops along a corridor's long crossings: every
+// causeway-every tiles of a run over water, the tile and its neighbours
+// rise as an island, so a long crossing reads as a chain of islands and
+// short fords, not a ribbon.
+func (g *Gen) islands(path []Hex) []Hex {
+	var out []Hex
+	run := int64(0)
+	for _, h := range path {
+		if !g.wet(h) {
+			run = 0
+			continue
+		}
+		run++
+		if run%g.p.causeway == 0 {
+			out = append(out, DiscAt(h, 1)...)
+		}
+	}
+	return out
+}
+
 // path is the cheapest walk from a to b inside the ellipse of tiles whose
-// two distances to the ends add up to at most the straight walk plus the
-// slack. A tile that must yield costs the wall, so a corridor crosses
-// water or a range where it is narrowest. It reads only raw terrain.
+// two distances to the ends add up to at most the limit. A tile that must
+// yield costs the wall, more than any route over land inside the ellipse,
+// so a corridor never crosses water or peaks when a way round fits, and
+// otherwise crosses with the fewest yielded tiles: at the narrowest place.
+// It reads only raw terrain.
 func (g *Gen) path(a, b Hex) []Hex {
 	key := pathKey{a, b}
 	if b.Less(a) {
@@ -389,17 +543,19 @@ func (g *Gen) path(a, b Hex) []Hex {
 		return p
 	}
 	from, to := key.from, key.to
-	limit := Distance(from, to) + g.p.slack
+	limit := g.limit(Distance(from, to))
+	// A*: every step costs at least one tick, so the hex distance left is
+	// a lower bound on the cost left.
 	cost := map[Hex]int64{from: 0}
 	prev := map[Hex]Hex{}
 	pq := &queue{}
-	pq.push(item{from, 0})
+	pq.push(item{from, Distance(from, to)})
 	for pq.Len() > 0 {
 		it := pq.pop()
 		if it.at == to {
 			break
 		}
-		if it.cost > cost[it.at] {
+		if it.cost-Distance(it.at, to) > cost[it.at] {
 			continue
 		}
 		for d := range directions {
@@ -411,10 +567,10 @@ func (g *Gen) path(a, b Hex) []Hex {
 			if r := g.raw(n); g.passable(r.terrain) {
 				step = g.terrain[r.terrain].EnterTicks
 			}
-			c := it.cost + step
+			c := cost[it.at] + step
 			if old, seen := cost[n]; !seen || c < old {
 				cost[n], prev[n] = c, it.at
-				pq.push(item{n, c})
+				pq.push(item{n, c + Distance(n, to)})
 			}
 		}
 	}
