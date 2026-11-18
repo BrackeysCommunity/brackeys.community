@@ -13,9 +13,6 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: percentages are hundredths.
-const percent = fixed.Hundredths
-
 // System is one weather system.
 type System struct {
 	ID       int64   `json:"id"`
@@ -119,7 +116,7 @@ func (r *Rules) Covers(s System, h hex.Hex) bool { return hex.Distance(s.Centre,
 // pace is how many ticks a system takes to cross a tile of terrain t.
 func (r *Rules) pace(s System, t string) int64 {
 	base := max(1, r.paceBase-s.Strength/r.pacePer)
-	return max(1, base*r.terrain[t].WeatherPace/percent)
+	return max(1, fixed.PercentOf(base, r.terrain[t].WeatherPace))
 }
 
 // At is the strongest system over h, if any; ties go to the lower id.
@@ -218,7 +215,7 @@ func (s *Sky) meet(r *Rules) []Event {
 					at := hex.Line(a.Centre, b.Centre)
 					n := System{
 						ID: s.NextID, Kind: m.Leaves, Centre: at[len(at)/halves], Heading: a.Heading,
-						Strength: max(1, a.Strength*m.Strength/percent), Life: b.Life, Wait: max(1, a.Wait),
+						Strength: max(1, fixed.PercentOf(a.Strength, m.Strength)), Life: b.Life, Wait: max(1, a.Wait),
 						Met: []int64{a.ID, b.ID},
 					}
 					s.NextID++

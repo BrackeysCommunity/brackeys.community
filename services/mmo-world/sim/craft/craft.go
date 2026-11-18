@@ -14,11 +14,8 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: a percentage is hundredths.
-const (
-	percent = fixed.Hundredths
-	half    = 2
-)
+// structural: a half is two halves.
+const half = 2
 
 // Crafter makes things. The roll key draws appraisal offsets and
 // maturity savings; nothing it draws can be computed without it.
@@ -62,8 +59,8 @@ type Ranges struct {
 // Spread is the appraisal spread at a practice: the sheet's spread,
 // narrowed by a share of itself per practice point, never below none.
 func (c *Crafter) Spread(practice int64) fixed.F {
-	keep := max(0, percent-practice*c.param("appraisal-narrow"))
-	return fixed.Ratio(c.param("appraisal-spread")*keep, percent*percent)
+	keep := max(0, fixed.Hundredths-practice*c.param("appraisal-narrow"))
+	return fixed.Ratio(c.param("appraisal-spread")*keep, fixed.Hundredths*fixed.Hundredths)
 }
 
 // Appraise shows a recipe's ranges to one crafter at one practice. The

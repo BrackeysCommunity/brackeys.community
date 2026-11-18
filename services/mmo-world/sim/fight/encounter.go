@@ -251,7 +251,7 @@ func (r *Rules) Press(e *Encounter, ms []*Member, tick int64) ([]Pressed, []fact
 	downBefore := len(e.Down)
 	beat := r.beats[e.Beats[e.At]]
 	if beat.Health > 0 && e.Guardian < 0 {
-		e.Guardian = fixed.Ratio(r.tiers[e.Creature.Tier].HuntHealth*beat.Health, percent).Int()
+		e.Guardian = fixed.PercentOf(r.tiers[e.Creature.Tier].HuntHealth, beat.Health)
 	}
 	// Every pick is checked before any applies, so a refused press changes
 	// nothing a retry would repeat.
@@ -375,7 +375,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 				}
 			}
 			if oc.Puzzle != nil {
-				units = fixed.Ratio(units*r.P.HaulPercent(*oc.Puzzle), percent).Int()
+				units = fixed.PercentOf(units, r.P.HaulPercent(*oc.Puzzle))
 			}
 			r.haul(e, units, e.Press)
 			if o.Verb == "strike" || o.Verb == "smash" {
@@ -415,7 +415,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 	case "durability":
 		if g != nil {
 			if te := r.gearEffect(g, "wear-on-fail"); te != nil {
-				size = fixed.Ratio(size*(percent-te.Magnitude), percent).Int()
+				size = fixed.PercentOf(size, fixed.Hundredths-te.Magnitude)
 			}
 			facts = append(facts, r.wear(e, m, g, size, tick)...)
 		}
@@ -687,7 +687,7 @@ func (r *Rules) end(e *Encounter, ms []*Member, tick int64) []fact.Fact {
 		}
 	}
 	if e.Result == Lost {
-		r.loseHaul(e, fixed.Ratio(item.Total(e.Haul)*r.Param("haul-lost-on-down"), percent).Int())
+		r.loseHaul(e, fixed.PercentOf(item.Total(e.Haul), r.Param("haul-lost-on-down")))
 	}
 	subjects = append(subjects, fact.Ref{Kind: "archetype", ID: e.Creature.Archetype})
 	return []fact.Fact{r.fact(tick, "encounter."+e.Result, subjects, fact.N("beats", int64(len(e.Beats))), fact.N("haul", item.Total(e.Haul)))}

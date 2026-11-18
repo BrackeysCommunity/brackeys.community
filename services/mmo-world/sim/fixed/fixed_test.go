@@ -112,3 +112,22 @@ func TestOverflowPanics(t *testing.T) {
 	}()
 	FromInt(1 << 62)
 }
+
+func TestPercentOf(t *testing.T) {
+	cases := []struct{ n, pct, round, floor int64 }{
+		{10, 15, 2, 1},    // 1.5
+		{-10, 15, -2, -2}, // -1.5
+		{7, 10, 1, 0},     // 0.7
+		{3, 10, 0, 0},     // 0.3
+		{-3, 10, 0, -1},   // -0.3
+		{200, 50, 100, 100},
+	}
+	for _, c := range cases {
+		if got := PercentOf(c.n, c.pct); got != c.round {
+			t.Errorf("PercentOf(%d,%d) = %d, want %d", c.n, c.pct, got, c.round)
+		}
+		if got := PercentFloor(c.n, c.pct); got != c.floor {
+			t.Errorf("PercentFloor(%d,%d) = %d, want %d", c.n, c.pct, got, c.floor)
+		}
+	}
+}

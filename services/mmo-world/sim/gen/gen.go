@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -743,7 +744,7 @@ type pathKey struct{ from, to Hex }
 
 // limit is how long a corridor between ends this far apart may wander:
 // corridor-detour percent of the straight walk, plus the slack.
-func (g *Gen) limit(d int64) int64 { return d*g.p.detour/percent + g.p.slack }
+func (g *Gen) limit(d int64) int64 { return fixed.PercentFloor(d, g.p.detour) + g.p.slack }
 
 // islands are the stops along a corridor's long crossings: every
 // causeway-every tiles of a run over water, the tile and its neighbours

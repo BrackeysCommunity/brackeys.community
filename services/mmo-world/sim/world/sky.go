@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/weather"
@@ -95,7 +96,7 @@ func (d *day) weatherShares() {
 					n++
 				}
 			}
-			r.Weather[kinds[sys.Kind]] += n * percent / int64(max(1, len(tiles)))
+			r.Weather[kinds[sys.Kind]] += n * fixed.Hundredths / int64(max(1, len(tiles)))
 		}
 	}
 }

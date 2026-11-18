@@ -9,11 +9,10 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: smoothstep is 3t² − 2t³; percentages are hundredths.
+// structural: smoothstep is 3t² − 2t³.
 const (
 	smoothThree = 3
 	smoothTwo   = 2
-	percent     = fixed.Hundredths
 )
 
 // raw is what noise alone makes of a tile, before anything yields. Where
@@ -77,8 +76,8 @@ func (g *Gen) raw(h Hex) raw {
 		sunk:      lift < 0,
 	}
 	// Ore sits in hills and plants grow where it is wet.
-	r.ore = clampTo(g.layer(g.noise.ore, fieldOre, h)+(r.elevation-g.p.oreMid)*g.p.oreLift/percent, g.noise.ore.Max)
-	r.fertility = clampTo(g.layer(g.noise.fertility, fieldFertility, h)+(r.moisture-g.p.fertMid)*g.p.fertLift/percent, g.noise.fertility.Max)
+	r.ore = clampTo(g.layer(g.noise.ore, fieldOre, h)+fixed.PercentOf(r.elevation-g.p.oreMid, g.p.oreLift), g.noise.ore.Max)
+	r.fertility = clampTo(g.layer(g.noise.fertility, fieldFertility, h)+fixed.PercentOf(r.moisture-g.p.fertMid, g.p.fertLift), g.noise.fertility.Max)
 	r.biome = g.biome(r.elevation, r.moisture)
 	r.terrain = g.b.Biomes[r.biome].Terrain
 	r.ter = g.terrain[r.terrain]
@@ -115,7 +114,7 @@ var fadeSteps = [...]planeStep{{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}
 
 type planeStep struct{ de, dm int64 }
 
-const maxBlend = percent / halves
+const maxBlend = fixed.Hundredths / halves
 
 func (g *Gen) biome(e, m int64) int {
 	for i, b := range g.b.Biomes {
@@ -156,12 +155,12 @@ var fieldPurposes = [...]string{
 
 func (g *Gen) layerXY(l *sheets.NoiseLayer, field int, x, y int64) int64 {
 	var sum, wsum int64
-	weight := int64(percent)
+	weight := int64(fixed.Hundredths)
 	cell := l.Cell
 	for o := range l.Octaves {
 		sum += g.latticeXY(field, o, cell, l.Max, x, y) * weight
 		wsum += weight
-		weight = weight * l.Falloff / percent
+		weight = fixed.PercentFloor(weight, l.Falloff)
 		cell = max(1, cell/halves)
 	}
 	return sum / max(wsum, 1)
@@ -211,7 +210,7 @@ func clampTo(v, top int64) int64 { return min(max(v, 0), top) }
 func (g *Gen) cover(h Hex, terrain string) int64 {
 	mid := g.noise.cover.Max / halves
 	off := (g.layer(g.noise.cover, fieldCover, h) - mid) * g.p.coverSpread / max(mid, 1)
-	return clampTo(g.terrain[terrain].Cover+off, percent)
+	return clampTo(g.terrain[terrain].Cover+off, fixed.Hundredths)
 }
 
 func smooth(t, s int64) int64 { return t * t * (smoothThree*s - smoothTwo*t) / (s * s) }
@@ -258,7 +257,7 @@ func (g *Gen) variant(h Hex, terrain string) string {
 		if v.Terrain != terrain || d < v.MinDistance {
 			continue
 		}
-		if g.lattice(fieldVariants+k, 0, v.Cell, percent-1, h) < v.Share {
+		if g.lattice(fieldVariants+k, 0, v.Cell, fixed.Hundredths-1, h) < v.Share {
 			return v.ID
 		}
 	}

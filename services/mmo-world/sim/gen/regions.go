@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -57,7 +58,7 @@ func (m *FarMaterial) Vector(tiers []sheets.Tier, tier int64) []int64 {
 			budget = t.Budget
 		}
 	}
-	total := budget * m.Share / percent
+	total := fixed.PercentFloor(budget, m.Share)
 	out := make([]int64, len(m.Profile))
 	given, top := int64(0), 0
 	for a, w := range m.Profile {
@@ -278,7 +279,7 @@ func (g *Gen) profile(who []draw.Part) []int64 {
 	weights := make([]int64, len(axes))
 	var wsum int64
 	for k := range axes {
-		weights[k] = 1 + int64(g.d.Below(percent, "far.weight", append(who, draw.Int(int64(k)))...))
+		weights[k] = 1 + int64(g.d.Below(fixed.Hundredths, "far.weight", append(who, draw.Int(int64(k)))...))
 		wsum += weights[k]
 	}
 	out := make([]int64, len(g.b.Axes))

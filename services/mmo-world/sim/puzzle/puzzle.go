@@ -15,11 +15,9 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// structural: milliseconds in a second; a percentage is hundredths; a
-// square grid has four sides.
+// structural: milliseconds in a second; a square grid has four sides.
 const (
 	msPerSecond = 1000
-	percent     = fixed.Hundredths
 	sides       = 4
 	halfTurn    = 2
 )
@@ -114,9 +112,9 @@ func (p *Puzzles) Gifts(practice int64) Gifts {
 func (p *Puzzles) Countdown(family string, level, tier, practice int64) int64 {
 	f := p.families[family]
 	secs := f.Countdown + f.PerLevel*(level-1)
-	pct := percent + p.Param("countdown-per-tier")*(tier-1)
-	pct = fixed.Ratio(pct*(percent+p.Gifts(practice).Countdown), percent).Int()
-	return fixed.Ratio(secs*msPerSecond*pct, percent).Int()
+	pct := fixed.Hundredths + p.Param("countdown-per-tier")*(tier-1)
+	pct = fixed.PercentOf(pct, fixed.Hundredths+p.Gifts(practice).Countdown)
+	return fixed.PercentOf(secs*msPerSecond, pct)
 }
 
 // Layout is one machine, as the client draws it. The reward roll and the
@@ -284,7 +282,7 @@ func (p *Puzzles) Replay(l Layout, moves []Move, countdown int64, w Where) Resul
 	if solvedAt < 0 {
 		return Result{Haywire: p.Haywire(l.Family, w)}
 	}
-	clean := (countdown-solvedAt)*percent >= countdown*p.Param("clean-solve-left")
+	clean := (countdown-solvedAt)*fixed.Hundredths >= countdown*p.Param("clean-solve-left")
 	return Result{Solved: true, Clean: clean, At: solvedAt}
 }
 
@@ -301,9 +299,9 @@ func (p *Puzzles) HaywireRow(id string) *sheets.Haywire { return p.haywires[id] 
 func (p *Puzzles) HaulPercent(r Result) int64 {
 	switch {
 	case r.Clean:
-		return percent + p.Param("clean-solve-haul")
+		return fixed.Hundredths + p.Param("clean-solve-haul")
 	case r.Solved:
-		return percent
+		return fixed.Hundredths
 	}
 	return 0
 }
@@ -317,7 +315,7 @@ func (p *Puzzles) SolveRate(family string, practice, level, tier, party int64) f
 	pct := f.SoloRate.Add(fixed.FromInt(p.Param("solve-per-practice")*practice +
 		p.Param("solve-per-level")*(level-1) + p.Param("solve-per-tier")*(tier-1) + p.Param("party-help")*(party-1)))
 	lo, hi := fixed.FromInt(p.Param("solve-min")), fixed.FromInt(p.Param("solve-max"))
-	return fixed.Max(lo, fixed.Min(hi, pct)).Div(fixed.FromInt(percent))
+	return fixed.Max(lo, fixed.Min(hi, pct)).Div(fixed.FromInt(fixed.Hundredths))
 }
 
 // Families lists the families that a set of tags makes the world pick,

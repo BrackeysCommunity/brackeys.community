@@ -6,6 +6,7 @@ import (
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -34,7 +35,7 @@ func (s *State) Capacity(h hex.Hex, species string) int64 {
 	if !slices.Contains(c.Biomes, t.Terrain) {
 		return 0
 	}
-	n := s.cp("capacity-base") + t.Fertility*s.cp("capacity-fertility")/percent
+	n := s.cp("capacity-base") + fixed.PercentOf(t.Fertility, s.cp("capacity-fertility"))
 	if t.Water != "none" {
 		n += s.cp("capacity-wet")
 	}
@@ -62,7 +63,7 @@ func (s *State) slay(h hex.Hex, species string) {
 	t.Slay(species)
 	cap := s.Capacity(h, species)
 	n := max(0, s.Population(h, species)-1)
-	if n*percent < cap*s.cp("gone-share") {
+	if n*fixed.Hundredths < cap*s.cp("gone-share") {
 		n = 0
 	}
 	if t.Population == nil {
@@ -81,13 +82,13 @@ func (d *day) creatures() {
 			if n == 0 {
 				// Gone until it spreads back from a neighbour.
 				for _, nb := range t.Hex.Neighbours() {
-					if s.Population(nb, sp)*percent >= s.Capacity(nb, sp)*s.cp("spread-share") && s.Capacity(nb, sp) > 0 {
-						n = max(1, cap*s.cp("gone-share")/percent)
+					if s.Population(nb, sp)*fixed.Hundredths >= s.Capacity(nb, sp)*s.cp("spread-share") && s.Capacity(nb, sp) > 0 {
+						n = max(1, fixed.PercentOf(cap, s.cp("gone-share")))
 						break
 					}
 				}
 			} else {
-				n += max(1, (cap-n)*s.cp("breed-percent")/percent)
+				n += max(1, fixed.PercentOf(cap-n, s.cp("breed-percent")))
 			}
 			if n >= cap {
 				delete(t.Population, sp)

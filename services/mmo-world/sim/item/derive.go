@@ -19,11 +19,9 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// structural: a kind id is SHA-256 cut to 128 bits (GDD 9.1); a percentage
-// is hundredths.
+// structural: a kind id is SHA-256 cut to 128 bits (GDD 9.1).
 const (
 	kindBytes = 16
-	percent   = fixed.Hundredths
 	// Infuse takes a carrier and a minor input; Inscribe an item and a
 	// pattern's material.
 	infuseParts   = 2
@@ -448,7 +446,7 @@ func (d *Deriver) failed(k *KindProps) bool {
 	if k.Exploit != nil {
 		return k.Exploit.State == ""
 	}
-	return k.Vec.TopTwo()*percent < d.tiers[k.Tier].Budget*d.param("failed-share")
+	return k.Vec.TopTwo()*fixed.Hundredths < d.tiers[k.Tier].Budget*d.param("failed-share")
 }
 
 func (d *Deriver) alloy(parts []part, stationTier int64) (Vec, int64) {
@@ -469,7 +467,7 @@ func (d *Deriver) alloy(parts []part, stationTier int64) (Vec, int64) {
 		}
 		out[a] = fixed.Ratio(sum, qty).Int()
 		if lowest >= floor {
-			out[a] += fixed.Ratio(lowest*gain, percent).Int()
+			out[a] += fixed.PercentOf(lowest, gain)
 		}
 	}
 	tier := min(top+d.param("alloy-tier-step"), stationTier, d.maxTier)
@@ -522,7 +520,7 @@ func (d *Deriver) bind(parts []part, tail int64) (Vec, int64) {
 	tier := parts[0].tier
 	for _, p := range parts[1:] {
 		for a := range out {
-			out[a] += fixed.Ratio(p.vec[a]*tail, percent).Int()
+			out[a] += fixed.PercentOf(p.vec[a], tail)
 		}
 		tier = max(tier, p.tier)
 	}
@@ -604,7 +602,7 @@ func (d *Deriver) tilt(v Vec, m *sheets.Method) Vec {
 			continue
 		}
 		a := d.Axis(t.axis)
-		v[a] = max(0, v[a]+fixed.Ratio(v[a]*t.pct, percent).Int())
+		v[a] = max(0, v[a]+fixed.PercentOf(v[a], t.pct))
 	}
 	return v
 }
@@ -619,7 +617,7 @@ func (d *Deriver) applyQuirk(k *KindProps, id string) {
 	shift := int64(d.quirk.Below(span, "quirk.shift", draw.Str(id))) - maxShift
 	if shift != 0 && k.Vec[axis] != 0 {
 		k.QuirkAxis, k.QuirkShift = axis, shift
-		k.Vec[axis] = max(0, k.Vec[axis]+fixed.Ratio(k.Vec[axis]*shift, percent).Int())
+		k.Vec[axis] = max(0, k.Vec[axis]+fixed.PercentOf(k.Vec[axis], shift))
 	}
 	chance := sheets.ParamOf(d.params, "quirk-trait-chance")
 	if d.quirk.Roll(chance, "quirk.trait", draw.Str(id)) {
@@ -636,7 +634,7 @@ func (d *Deriver) applyQuirk(k *KindProps, id string) {
 // total never exceeds it. Points over the cap are lost, not moved.
 func (d *Deriver) trim(v Vec, tier int64) (Vec, int64) {
 	budget := d.tiers[tier].Budget
-	limit := fixed.Ratio(budget*d.param("axis-cap-share"), percent).Floor()
+	limit := fixed.PercentFloor(budget, d.param("axis-cap-share"))
 	before := v.Total()
 	out := make(Vec, len(v))
 	for a, x := range v {
@@ -685,7 +683,7 @@ func (d *Deriver) tagsOf(k *KindProps, parts []part) []tags.Tag {
 	}
 	budget := d.tiers[k.Tier].Budget
 	for _, at := range d.axisTags {
-		if k.Vec[d.Axis(at.Axis)]*percent >= budget*at.ShareOfBudget {
+		if k.Vec[d.Axis(at.Axis)]*fixed.Hundredths >= budget*at.ShareOfBudget {
 			add(tags.Tag(at.Tag))
 		}
 	}

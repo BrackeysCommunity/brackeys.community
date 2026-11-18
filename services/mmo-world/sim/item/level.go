@@ -56,7 +56,7 @@ func (g *Growth) Cap(tier int64) int64 { return g.d.tiers[tier].LevelCap }
 // Gain is what a level adds at a tier: gain at cap × level / cap.
 func (g *Growth) Gain(tier, level int64) fixed.F {
 	t := g.d.tiers[tier]
-	return fixed.Ratio(t.GainAtCap*level, t.LevelCap*percent)
+	return fixed.Ratio(t.GainAtCap*level, t.LevelCap*fixed.Hundredths)
 }
 
 // Stat is frozen points at a level: pts × (1 + gain), rounded. The base
@@ -226,7 +226,7 @@ func (g *Growth) FightXP(itemTier, creatureTier int64, won, troubled bool) int64
 		xp = g.Deed("win-two-below")
 	}
 	if troubled {
-		xp = fixed.Ratio(xp*(percent+g.Param("troubled-bonus")), percent).Int()
+		xp = fixed.PercentOf(xp, fixed.Hundredths+g.Param("troubled-bonus"))
 	}
 	return xp
 }
@@ -238,7 +238,7 @@ func (g *Growth) Maturity(crafts int64) fixed.F {
 	c := min(crafts, flat)
 	rest := flat - c
 	// max × (1 − (1 − c/flat)²)
-	return fixed.Ratio(top*(flat*flat-rest*rest), percent*flat*flat)
+	return fixed.Ratio(top*(flat*flat-rest*rest), fixed.Hundredths*flat*flat)
 }
 
 // ExploitBeats is how much longer an exploit's state lasts with level.

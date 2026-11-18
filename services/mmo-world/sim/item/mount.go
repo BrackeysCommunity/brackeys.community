@@ -65,7 +65,7 @@ func (m *Mounts) Load(in *Instance) int64 {
 			pct += o.Magnitude
 		}
 	}
-	return fixed.Ratio(load*(percent+pct), percent).Int()
+	return fixed.PercentOf(load, fixed.Hundredths+pct)
 }
 
 // PackLoad is a character's pack before mounts and traits.

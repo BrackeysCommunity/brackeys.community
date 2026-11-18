@@ -211,7 +211,7 @@ func (d *Deriver) Salvage(inputs []Input, share int64) []Spoil {
 	slices.SortFunc(all, func(a, b Spoil) int { return strings.Compare(a.Material, b.Material) })
 	var out []Spoil
 	for _, s := range all {
-		if n := fixed.Ratio(s.Qty*share, percent).Int(); n > 0 {
+		if n := fixed.PercentOf(s.Qty, share); n > 0 {
 			out = append(out, Spoil{Material: s.Material, Qty: n})
 		}
 	}
@@ -243,7 +243,7 @@ func RepairCost(in *Instance, wear []sheets.Param) int64 {
 	if missing <= 0 {
 		return 0
 	}
-	per := max(1, fixed.Ratio(in.MaxDurability*sheets.IntParam(wear, "repair-share-per-unit"), percent).Int())
+	per := max(1, fixed.PercentOf(in.MaxDurability, sheets.IntParam(wear, "repair-share-per-unit")))
 	return (missing + per - 1) / per
 }
 

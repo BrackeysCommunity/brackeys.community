@@ -43,6 +43,22 @@ func Percent(p int64) F { return Ratio(p, Hundredths) }
 // this one.
 const Hundredths = 100
 
+// PercentOf is pct percent of n, rounded half away from zero. It is how
+// the sim applies a whole-number percentage.
+func PercentOf(n, pct int64) int64 { return divRound(n, pct, Hundredths) }
+
+// PercentFloor is pct percent of n, rounded toward negative infinity. Only
+// for rules where rounding down is the rule: decay, spill, budget caps.
+func PercentFloor(n, pct int64) int64 {
+	q := divRound(n, pct, 1)
+	r := q % Hundredths
+	q /= Hundredths
+	if r < 0 {
+		q--
+	}
+	return q
+}
+
 // Int rounds to the nearest whole number.
 func (a F) Int() int64 { return divRound(int64(a), 1, Scale) }
 

@@ -18,11 +18,8 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// structural: a percentage is hundredths; a score halves its stat.
-const (
-	percent  = fixed.Hundredths
-	statHalf = 2
-)
+// structural: a score halves its stat.
+const statHalf = 2
 
 // Option kinds, as fights.options names them.
 const (
@@ -240,7 +237,7 @@ type Option struct {
 func (r *Rules) Difficulty(s Situation) int64 {
 	base := r.tiers[s.Creature.Tier].BaseDifficulty + r.beats[s.Kind].Modifier
 	if s.Party > 1 {
-		base = fixed.Ratio(base*(percent+r.Param("party-difficulty-step")*(s.Party-1)), percent).Int()
+		base = fixed.PercentOf(base, fixed.Hundredths+r.Param("party-difficulty-step")*(s.Party-1))
 	}
 	return base
 }

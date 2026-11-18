@@ -15,7 +15,6 @@ import (
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
-	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
@@ -23,9 +22,8 @@ import (
 	"jams.team/mmo-world/sim/weather"
 )
 
-// structural: percentages and the day come from fixed and sheets.
+// structural: the day comes from sheets.
 const (
-	percent     = fixed.Hundredths
 	ticksPerDay = sheets.TicksPerDay
 	none        = -1
 )

@@ -15,9 +15,6 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// structural: a percentage is hundredths.
-const percent = fixed.Hundredths
-
 // Slot names in the kit (GDD 5.2).
 const (
 	Hand    = "hand"
@@ -326,7 +323,7 @@ func (c *Character) Load(reg Kinds, mounts *item.Mounts, traitEffects []sheets.T
 		}
 		for _, te := range traitEffects {
 			if te.Effect == "load" && slices.Contains(k.Tags, tags.Tag(te.Tag)) {
-				load += fixed.Ratio(base*te.Magnitude, percent).Int()
+				load += fixed.PercentOf(base, te.Magnitude)
 			}
 		}
 	}

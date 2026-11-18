@@ -3,6 +3,7 @@ package world
 import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -213,7 +214,7 @@ func (d *day) faction(i int) {
 		if mw == nil {
 			return
 		}
-		plans = append(plans, plan{move, mw.Fit + relief*mw.NeedWeight/percent - risk*mw.RiskWeight/percent, target})
+		plans = append(plans, plan{move, mw.Fit + fixed.PercentOf(relief, mw.NeedWeight) - fixed.PercentOf(risk, mw.RiskWeight), target})
 	}
 	add("expand", 0, riskOf(s, free, threat, ambush), free, free != none && f.Stock >= s.p("expand-cost"))
 	// Lost defence is need too: a holding under siege wants walls, and a
@@ -222,7 +223,7 @@ func (d *day) faction(i int) {
 	if weakest != none {
 		want := s.p("holding-defence")
 		if len(held) == 1 {
-			want = want * s.p("last-holding-peril") / percent
+			want = fixed.PercentOf(want, s.p("last-holding-peril"))
 		}
 		peril = max(0, want-s.Regions[weakest].Defence)
 	}
@@ -373,7 +374,7 @@ func (d *day) hit(region int, damage int64, why string, by int, cause fact.ID) {
 	s := d.s
 	r := &s.Regions[region]
 	if r.Holder != none && d.holdings(r.Holder) == 1 {
-		damage = damage * s.p("last-holding-damage") / percent
+		damage = fixed.PercentOf(damage, s.p("last-holding-damage"))
 	}
 	r.Defence = max(0, r.Defence-damage)
 	if r.Defence > 0 {

@@ -5,6 +5,7 @@ import (
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -55,13 +56,13 @@ func (d *day) gauges() {
 				}
 			case scarcity:
 				for k, w := range s.b.Weather {
-					rise += w.Scarcity * r.Weather[k] / percent
+					rise += fixed.PercentOf(w.Scarcity, r.Weather[k])
 				}
 			}
 			v := r.Gauge[gi] + rise
 			v = max(v-fall, min(v, r.Base[gi]))
 			v += d.wobble(r, gi, g.Wobble)
-			v -= (v - r.Base[gi]) * g.PullPercent / percent
+			v -= fixed.PercentOf(v-r.Base[gi], g.PullPercent)
 			r.Gauge[gi] = min(max(v, 0), g.Max)
 		}
 		if r.Settlement {
@@ -120,7 +121,7 @@ func (d *day) surge() {
 		}
 		id := d.emit("region.surge", latticeRef(from), nil, nil, fact.N("threat", size), fact.N("beyond", 1))
 		for _, j := range hit {
-			raise(j, size*share/percent, id)
+			raise(j, fixed.PercentFloor(size, share), id)
 		}
 		return
 	}
@@ -129,7 +130,7 @@ func (d *day) surge() {
 	id := d.emit("region.surge", RegionRef(at), nil, nil, fact.N("threat", size))
 	s.Regions[at].SurgeFact = id
 	for _, n := range s.Regions[at].Neighbours {
-		raise(n, size*share/percent, id)
+		raise(n, fixed.PercentFloor(size, share), id)
 	}
 }
 

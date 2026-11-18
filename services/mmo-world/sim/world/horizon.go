@@ -8,6 +8,7 @@ import (
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/tile"
@@ -229,7 +230,7 @@ func (s *State) patternsIn(id gen.LatticeID) []string {
 func (s *State) Novel(band int64) (int64, int) {
 	for _, n := range s.Novelty {
 		if n.Band == band && n.Regions > 0 {
-			return int64(n.Novel) * percent / int64(n.Regions), n.Regions
+			return int64(n.Novel) * fixed.Hundredths / int64(n.Regions), n.Regions
 		}
 	}
 	return 0, 0
