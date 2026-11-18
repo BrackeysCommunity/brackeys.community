@@ -133,6 +133,18 @@
       "doc": "provisional: spike E round 5: along a crossing over water, every this many tiles an island rises with the tiles round it."
     },
     {
+      "id": "landing-hop",
+      "value": 8,
+      "unit": "tiles",
+      "doc": "provisional: spike E round 7: places afloat (in water, or cut off from their spine node by it) this close to each other form one group, which reaches the shore by a single crossing."
+    },
+    {
+      "id": "landing-group-max",
+      "value": 48,
+      "unit": "count",
+      "doc": "provisional: spike E round 7: a group of places afloat bigger than this is no group: each of its places runs to its own spine node."
+    },
+    {
       "id": "island-reach-cells",
       "value": 8,
       "unit": "count",
