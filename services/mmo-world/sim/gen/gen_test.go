@@ -192,3 +192,99 @@ func TestPatterns(t *testing.T) {
 		}
 	}
 }
+
+// A path over an area costs what the area's walk says.
+func TestAreaPath(t *testing.T) {
+	g := newGen(t, book(t), "area-path")
+	a := g.DiscArea(g.Settlement(0).Hex, 20)
+	homes := a.Settlements()
+	walk := a.Walk(homes[:1])
+	checked := 0
+	for j := range a.Tiles {
+		if j%37 != 0 {
+			continue
+		}
+		path, cost, ok := a.Path(homes[0], j)
+		if ok != (walk[j] >= 0) || (ok && cost != walk[j]) {
+			t.Fatalf("tile %d: path %v cost %d, walk %d", j, ok, cost, walk[j])
+		}
+		if ok && (path[0] != homes[0] || path[len(path)-1] != j) {
+			t.Fatalf("tile %d: path does not run from the start to it", j)
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("nothing checked")
+	}
+}
+
+// A chunk from a fresh generator, which pays for its neighbourhood.
+func BenchmarkColdChunk(b *testing.B) {
+	bk, err := harness.LoadBook(harness.ModuleRoot())
+	if err != nil {
+		b.Fatal(err)
+	}
+	i := 0
+	for b.Loop() {
+		g, err := gen.New(bk, keys.Throwaway(fmt.Sprint("cold-", i)).Generation)
+		if err != nil {
+			b.Fatal(err)
+		}
+		g.Chunk(gen.ChunkCoord{A: int64(i%5) + 2, B: -int64(i % 3)})
+		i++
+	}
+}
+
+// Pass two fills every baseline field: water classes, cover in range, ore
+// higher in the hills than on the plain, landmarks and region materials.
+func TestPassTwo(t *testing.T) {
+	b := book(t)
+	g := newGen(t, b, "pass-two")
+	a := g.DiscArea(g.Settlement(0).Hex, 80)
+	water := map[string]int{}
+	marks := 0
+	oreBy := map[string][2]int64{}
+	for _, tile := range a.Tiles {
+		water[tile.Water]++
+		if tile.Cover < 0 || tile.Cover > 100 || tile.Ore < 0 || tile.Ore > 100 || tile.Fertility < 0 || tile.Fertility > 100 {
+			t.Fatalf("%v: cover %d ore %d fertility %d out of range", tile.Hex, tile.Cover, tile.Ore, tile.Fertility)
+		}
+		if tile.Landmark != "" {
+			marks++
+		}
+		o := oreBy[tile.Terrain]
+		oreBy[tile.Terrain] = [2]int64{o[0] + tile.Ore, o[1] + 1}
+	}
+	for _, w := range []string{gen.WaterNone, gen.WaterCoast} {
+		if water[w] == 0 {
+			t.Errorf("no %s tiles in %v", w, water)
+		}
+	}
+	if water[gen.WaterRiver]+water[gen.WaterStream] == 0 {
+		t.Errorf("no running water in %v", water)
+	}
+	if water[gen.WaterLake]+water[gen.WaterSea] == 0 {
+		t.Errorf("no open water in %v", water)
+	}
+	if marks == 0 {
+		t.Error("no landmarks")
+	}
+	mean := func(k string) int64 { return oreBy[k][0] / max(oreBy[k][1], 1) }
+	if oreBy["hills"][1] > 0 && oreBy["plain"][1] > 0 && mean("hills") <= mean("plain") {
+		t.Errorf("ore in hills %d, on the plain %d", mean("hills"), mean("plain"))
+	}
+	tables := 0
+	for _, r := range a.Regions {
+		if r.Base.Creature != "" {
+			if c := g.Creatures(r.Base.Centre); len(c) > 0 {
+				tables++
+			}
+		}
+		if n := len(r.Base.Materials); r.Base.Materials != nil && (n < 3 || n > 5) {
+			t.Fatalf("region %v holds %d materials", r.Base.ID, n)
+		}
+	}
+	if tables == 0 {
+		t.Error("no tile has a creature table")
+	}
+}

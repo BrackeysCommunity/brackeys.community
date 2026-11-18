@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world.weather-meetings",
+  "title": "world.weather-meetings",
+  "description": "What two systems do when they meet.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "world.weather-meetings"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "meets",
+          "effect"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "kind": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.weather"
+          },
+          "meets": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.weather"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "leave",
+              "end"
+            ],
+            "x-unit": "enum",
+            "description": "leave: a new system of leaves forms where they met; end: the met system dies."
+          },
+          "leaves": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.weather"
+          },
+          "strength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "leave: the new system's strength, as a share of kind's."
+          }
+        }
+      }
+    }
+  }
+}

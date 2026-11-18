@@ -58,9 +58,9 @@
     },
     {
       "id": "sea-level",
-      "value": 58,
+      "value": 52,
       "unit": "count",
-      "doc": "provisional: spike E round 5: where the continent layer is below this, land sinks toward the sea."
+      "doc": "provisional: spike E round 6: where the continent layer is below this, land sinks toward the sea; 52 gives about a quarter of tiles water (58 gave a third)."
     },
     {
       "id": "fade-min",
@@ -252,6 +252,71 @@
       "value": 75,
       "unit": "percent",
       "doc": "provisional: not in the GDD yet; spike value (spike E round 3): share of regions whose creature is a variant."
+    },
+    {
+      "id": "cover-spread",
+      "value": 15,
+      "unit": "count",
+      "doc": "Cover strays this far either side of its terrain's, by the cover noise."
+    },
+    {
+      "id": "ore-elevation-mid",
+      "value": 55,
+      "unit": "count",
+      "doc": "Ore richness rises above this elevation and falls below it: ore sits in hills (GDD 4.2)."
+    },
+    {
+      "id": "ore-elevation-lift",
+      "value": 150,
+      "unit": "percent",
+      "doc": "Ore points per elevation point from the mid."
+    },
+    {
+      "id": "fertility-moisture-mid",
+      "value": 50,
+      "unit": "count",
+      "doc": "Fertility rises with moisture above this and falls below it."
+    },
+    {
+      "id": "fertility-moisture-lift",
+      "value": 60,
+      "unit": "percent",
+      "doc": "Fertility points per moisture point from the mid."
+    },
+    {
+      "id": "river-stream-tiles",
+      "value": 8,
+      "unit": "tiles",
+      "doc": "A river's first tiles from its source are a stream."
+    },
+    {
+      "id": "region-materials-min",
+      "value": 3,
+      "unit": "count",
+      "doc": "Kinds of material a region holds (GDD 4.2)."
+    },
+    {
+      "id": "region-materials-max",
+      "value": 5,
+      "unit": "count"
+    },
+    {
+      "id": "material-biome-weight",
+      "value": 6,
+      "unit": "weight",
+      "doc": "Draw weight of a material whose tags match the region's biome."
+    },
+    {
+      "id": "material-other-weight",
+      "value": 1,
+      "unit": "weight",
+      "doc": "Draw weight of any other material."
+    },
+    {
+      "id": "landmark-region-share",
+      "value": 30,
+      "unit": "percent",
+      "doc": "Share of land regions with a landmark of their own, on their highest free tile."
     }
   ]
 }

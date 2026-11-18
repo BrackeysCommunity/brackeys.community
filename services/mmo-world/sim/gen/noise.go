@@ -21,13 +21,15 @@ const (
 type raw struct {
 	elevation, moisture, ore, fertility int64
 	terrain                             string
+	ter                                 *sheets.Terrain
 	biome                               int // row in map.biomes
 	second                              int // row in map.biomes, or -1
 	blend                               int64
+	sunk                                bool // below the sea: open water here is sea, not a lake
 }
 
 type noiseLayers struct {
-	elevation, moisture, ore, fertility, warp, fade, continent *sheets.NoiseLayer
+	elevation, moisture, ore, fertility, warp, fade, continent, cover *sheets.NoiseLayer
 }
 
 func (g *Gen) layers() (noiseLayers, error) {
@@ -39,7 +41,7 @@ func (g *Gen) layers() (noiseLayers, error) {
 	}{
 		{"elevation", &out.elevation}, {"moisture", &out.moisture}, {"ore", &out.ore},
 		{"fertility", &out.fertility}, {"warp", &out.warp}, {"fade", &out.fade},
-		{"continent", &out.continent},
+		{"continent", &out.continent}, {"cover", &out.cover},
 	} {
 		v, ok := l[x.id]
 		if !ok {
@@ -51,7 +53,7 @@ func (g *Gen) layers() (noiseLayers, error) {
 }
 
 func (g *Gen) raw(h Hex) raw {
-	if r, ok := g.raws[h]; ok {
+	if r, ok := g.raws.get(h); ok {
 		return r
 	}
 	// Elevation and moisture are read through a domain warp, so biome
@@ -59,24 +61,27 @@ func (g *Gen) raw(h Hex) raw {
 	x, y := gridXY(h)
 	amp := g.p.warp * xPerTile
 	mid := g.noise.warp.Max / halves
-	wx := (g.layerXY(g.noise.warp, "noise.warp.x", x, y) - mid) * amp / max(mid, 1)
-	wy := (g.layerXY(g.noise.warp, "noise.warp.y", x, y) - mid) * amp / max(mid, 1)
+	wx := (g.layerXY(g.noise.warp, fieldWarpX, x, y) - mid) * amp / max(mid, 1)
+	wy := (g.layerXY(g.noise.warp, fieldWarpY, x, y) - mid) * amp / max(mid, 1)
 	// The continent layer sinks whole stretches of land below the sea:
 	// where it falls under sea-level, elevation drops with its depth, so
 	// seas are seas and not only lakes. It never raises land.
 	sea := g.p.seaLevel
-	lift := -max(0, sea-g.layerXY(g.noise.continent, "noise.continent", x+wx, y+wy)) * g.p.continent / max(sea, 1)
+	lift := -max(0, sea-g.layerXY(g.noise.continent, fieldContinent, x+wx, y+wy)) * g.p.continent / max(sea, 1)
 	r := raw{
-		elevation: min(max(g.layerXY(g.noise.elevation, "noise.elevation", x+wx, y+wy)+lift, 0), g.noise.elevation.Max),
-		moisture:  g.layerXY(g.noise.moisture, "noise.moisture", x+wx, y+wy),
-		ore:       g.layer(g.noise.ore, h),
-		fertility: g.layer(g.noise.fertility, h),
+		elevation: min(max(g.layerXY(g.noise.elevation, fieldElevation, x+wx, y+wy)+lift, 0), g.noise.elevation.Max),
+		moisture:  g.layerXY(g.noise.moisture, fieldMoisture, x+wx, y+wy),
 		second:    -1,
+		sunk:      lift < 0,
 	}
+	// Ore sits in hills and plants grow where it is wet.
+	r.ore = clampTo(g.layer(g.noise.ore, fieldOre, h)+(r.elevation-g.p.oreMid)*g.p.oreLift/percent, g.noise.ore.Max)
+	r.fertility = clampTo(g.layer(g.noise.fertility, fieldFertility, h)+(r.moisture-g.p.fertMid)*g.p.fertLift/percent, g.noise.fertility.Max)
 	r.biome = g.biome(r.elevation, r.moisture)
 	r.terrain = g.b.Biomes[r.biome].Terrain
+	r.ter = g.terrain[r.terrain]
 	g.ecotone(&r, h)
-	g.raws[h] = r
+	g.raws.put(h, r)
 	return r
 }
 
@@ -87,7 +92,7 @@ func (g *Gen) ecotone(r *raw, h Hex) {
 	if !g.passable(r.terrain) {
 		return
 	}
-	margin := g.p.fadeMin + g.layer(g.noise.fade, h)*(g.p.fadeMax-g.p.fadeMin)/max(g.noise.fade.Max, 1)
+	margin := g.p.fadeMin + g.layer(g.noise.fade, fieldFade, h)*(g.p.fadeMax-g.p.fadeMin)/max(g.noise.fade.Max, 1)
 	for step := int64(1); step <= margin; step++ {
 		for _, d := range fadeSteps {
 			e := min(max(r.elevation+d.de*step, 0), g.noise.elevation.Max)
@@ -121,28 +126,43 @@ func (g *Gen) biome(e, m int64) int {
 
 // layer is value noise: a lattice of keyed values per octave, smoothly
 // interpolated, octaves summed with falling weight.
-func (g *Gen) layer(l *sheets.NoiseLayer, h Hex) int64 {
+func (g *Gen) layer(l *sheets.NoiseLayer, field int, h Hex) int64 {
 	x, y := gridXY(h)
-	return g.layerXY(l, "noise."+l.ID, x, y)
+	return g.layerXY(l, field, x, y)
 }
 
-func (g *Gen) layerXY(l *sheets.NoiseLayer, purpose string, x, y int64) int64 {
+// Noise fields, each drawn under its own purpose. Biome variants follow
+// these, one field each.
+const (
+	fieldElevation = iota
+	fieldMoisture
+	fieldOre
+	fieldFertility
+	fieldFade
+	fieldWarpX
+	fieldWarpY
+	fieldContinent
+	fieldCover
+	fieldVariants
+)
+
+var fieldPurposes = [...]string{
+	fieldElevation: "noise.elevation", fieldMoisture: "noise.moisture", fieldOre: "noise.ore",
+	fieldFertility: "noise.fertility", fieldFade: "noise.fade", fieldWarpX: "noise.warp.x",
+	fieldWarpY: "noise.warp.y", fieldContinent: "noise.continent", fieldCover: "noise.cover",
+}
+
+func (g *Gen) layerXY(l *sheets.NoiseLayer, field int, x, y int64) int64 {
 	var sum, wsum int64
 	weight := int64(percent)
 	cell := l.Cell
 	for o := range l.Octaves {
-		sum += g.latticeXY(purpose, o, cell, l.Max, x, y) * weight
+		sum += g.latticeXY(field, o, cell, l.Max, x, y) * weight
 		wsum += weight
 		weight = weight * l.Falloff / percent
 		cell = max(1, cell/halves)
 	}
 	return sum / max(wsum, 1)
-}
-
-type latticeKey struct {
-	purpose string
-	octave  int64
-	i, j    int64
 }
 
 // structural: noise runs on a near-square grid laid over the hexes, so
@@ -157,25 +177,39 @@ const (
 
 func gridXY(h Hex) (int64, int64) { return xPerTile*h.Q + xPerR*h.R, yPerR * h.R }
 
-func (g *Gen) lattice(purpose string, octave, cell, top int64, h Hex) int64 {
+func (g *Gen) lattice(field int, octave, cell, top int64, h Hex) int64 {
 	x, y := gridXY(h)
-	return g.latticeXY(purpose, octave, cell, top, x, y)
+	return g.latticeXY(field, octave, cell, top, x, y)
 }
 
-func (g *Gen) latticeXY(purpose string, octave, cell, top, x, y int64) int64 {
+func (g *Gen) latticeXY(field int, octave, cell, top, x, y int64) int64 {
 	s := cell * xPerTile
 	i, j := floorDiv(x, s), floorDiv(y, s)
 	ax, ay := smooth(x-i*s, s), smooth(y-j*s, s)
+	purpose := draw.Purpose(g.purposes[field])
+	var blk *[blockArea]int64
+	bi, bj := int64(0), int64(0)
 	v := func(di, dj int64) int64 {
-		k := latticeKey{purpose, octave, i + di, j + dj}
-		if x, ok := g.lattices[k]; ok {
-			return x
+		pi, pj := i+di, j+dj
+		if blk == nil || pi>>blockShift != bi || pj>>blockShift != bj {
+			blk, bi, bj = g.lattices.blockFor(field, octave, pi, pj), pi>>blockShift, pj>>blockShift
 		}
-		x := int64(g.d.Below(uint64(top+1), draw.Purpose(purpose), draw.Int(octave), draw.Int(i+di), draw.Int(j+dj)))
-		g.lattices[k] = x
-		return x
+		n := noiseSlot(pi, pj)
+		if blk[n] == unset {
+			blk[n] = int64(g.d.Below(uint64(top+1), purpose, draw.Int(octave), draw.Int(pi), draw.Int(pj)))
+		}
+		return blk[n]
 	}
 	return (v(0, 0)*(s-ax)*(s-ay) + v(1, 0)*ax*(s-ay) + v(0, 1)*(s-ax)*ay + v(1, 1)*ax*ay) / (s * s)
+}
+
+func clampTo(v, top int64) int64 { return min(max(v, 0), top) }
+
+// cover is a tile's cover: its terrain's, strayed by the cover noise.
+func (g *Gen) cover(h Hex, terrain string) int64 {
+	mid := g.noise.cover.Max / halves
+	off := (g.layer(g.noise.cover, fieldCover, h) - mid) * g.p.coverSpread / max(mid, 1)
+	return clampTo(g.terrain[terrain].Cover+off, percent)
 }
 
 func smooth(t, s int64) int64 { return t * t * (smoothThree*s - smoothTwo*t) / (s * s) }
@@ -202,11 +236,11 @@ func (g *Gen) passable(terrain string) bool { return g.terrain[terrain].Passable
 // variant past the row's distance, where the variant's own noise is low.
 func (g *Gen) variant(h Hex, terrain string) string {
 	d := h.Len()
-	for _, v := range g.b.BiomeVariants {
+	for k, v := range g.b.BiomeVariants {
 		if v.Terrain != terrain || d < v.MinDistance {
 			continue
 		}
-		if g.lattice("variant."+v.ID, 0, v.Cell, percent-1, h) < v.Share {
+		if g.lattice(fieldVariants+k, 0, v.Cell, percent-1, h) < v.Share {
 			return v.ID
 		}
 	}

@@ -3,19 +3,48 @@
   "sheet": "world.weather",
   "rows": [
     {
-      "id": "storm"
+      "id": "storm",
+      "tag": "storm",
+      "tileTags": [
+        "wet"
+      ],
+      "enterTicks": 1,
+      "enterAt": 60,
+      "blockedLoss": 10,
+      "note": "EM storm (GDD 4.4): charges marsh-born creatures through the storm-charges rule; puts out fire through wet-douses."
     },
     {
-      "id": "frost"
+      "id": "frost",
+      "tag": "frost",
+      "tileTags": [
+        "cold"
+      ],
+      "crossTicks": 1,
+      "stopsRegrowth": true,
+      "note": "Cold snap: wet things turn brittle (rule frost-brittles); rivers and bog cross at 1 tick."
     },
     {
-      "id": "drought"
+      "id": "drought",
+      "tag": "drought",
+      "tileTags": [
+        "dry"
+      ],
+      "scarcity": 10,
+      "note": "Ash front: fire spreads through dry-catches; low water."
     },
     {
-      "id": "fog"
+      "id": "fog",
+      "tag": "fog",
+      "creatureTags": [
+        "hidden"
+      ],
+      "sight": 1,
+      "note": "Dead zone (signal fog): ambush chance up one band through the hidden tag."
     },
     {
-      "id": "clear"
+      "id": "clear",
+      "tag": "clear",
+      "highSight": 1
     }
   ]
 }

@@ -44,10 +44,15 @@ type Book struct {
 	Durability []Durability `sheet:"wear.durability" doc:"Durability by slot and tier."`
 	WearParams []Param      `sheet:"wear.params" doc:"Repair and salvage rates."`
 
-	Gauges      []Gauge       `sheet:"world.gauges" doc:"The five region gauges."`
-	GaugeLines  []GaugeLine   `sheet:"world.gauge-lines" doc:"Thresholds that change what a region does."`
-	Weather     []WeatherKind `sheet:"world.weather" doc:"Weather system kinds."`
-	WorldParams []Param       `sheet:"world.params" doc:"Loose cells for the world tick."`
+	Gauges      []Gauge          `sheet:"world.gauges" doc:"The five region gauges."`
+	GaugeLines  []GaugeLine      `sheet:"world.gauge-lines" doc:"Thresholds that change what a region does."`
+	Weather     []WeatherKind    `sheet:"world.weather" doc:"Weather system kinds and what each does on a tile."`
+	WeatherForm []WeatherForm    `sheet:"world.weather-forms" doc:"Which weather kind forms where, by terrain and season."`
+	Meetings    []WeatherMeeting `sheet:"world.weather-meetings" doc:"What two systems do when they meet."`
+	Seasons     []Season         `sheet:"world.seasons" doc:"The seasons, in order; each has its own prevailing wind."`
+	WorldParams []Param          `sheet:"world.params" doc:"Loose cells for the world tick."`
+
+	NPCTraits []NPCTrait `sheet:"npcs.traits" doc:"Traits notables and other NPCs draw from."`
 
 	Archetypes    []Archetype  `sheet:"factions.archetypes" doc:"Faction archetypes, what they buy and tend to do."`
 	Moves         []Move       `sheet:"factions.moves" doc:"The daily moves a faction can score."`
@@ -74,6 +79,7 @@ type Book struct {
 	Noise         []NoiseLayer   `sheet:"map.noise" doc:"The noise layers generation reads."`
 	BiomeVariants []BiomeVariant `sheet:"map.biome-variants" doc:"Biomes that appear only past a distance."`
 	Ecotones      []Ecotone      `sheet:"map.ecotones" doc:"What the fade between two land biomes holds."`
+	Landmarks     []Landmark     `sheet:"map.landmarks" doc:"Features a region's highest free tile can hold."`
 	RegionWeights []RegionWeight `sheet:"map.region-weights" doc:"Size classes of region centres and their shares."`
 	Shapes        []Shape        `sheet:"map.shapes" doc:"The shapes patterns are laid in."`
 	Patterns      []PatternRule  `sheet:"map.patterns" doc:"Patterns: shapes laid on the map before noise, with things on their points."`
@@ -81,14 +87,16 @@ type Book struct {
 
 	TileCounters []TileCounter `sheet:"tiles.counters" doc:"Decay per tile counter."`
 	FindRarities []FindRarity  `sheet:"tiles.find-rarities" doc:"Rarity of a trigger's find."`
+	TileParams   []Param       `sheet:"tiles.params" doc:"Rings and limits on what a tile keeps."`
 
 	Creatures        []Creature        `sheet:"creatures.archetypes" doc:"Creature archetypes: tier, biomes, tags, drops."`
 	CreatureVariants []CreatureVariant `sheet:"creatures.variants" doc:"Keyed tags that make a creature variant, by distance."`
 	CreatureParams   []Param           `sheet:"creatures.params" doc:"Breeding, pressure, migration."`
 
-	StructureCosts   []StructureCost `sheet:"settlements.structure-costs" doc:"What each structure costs per tier."`
-	GuildWorks       []GuildWork     `sheet:"settlements.guild-works" doc:"What each guild work consumes."`
-	SettlementParams []Param         `sheet:"settlements.params" doc:"Charter and city requirements."`
+	StructureCosts   []StructureCost     `sheet:"settlements.structure-costs" doc:"What each structure costs per tier."`
+	Starting         []StartingStructure `sheet:"settlements.starting" doc:"What a starting settlement opens with."`
+	GuildWorks       []GuildWork         `sheet:"settlements.guild-works" doc:"What each guild work consumes."`
+	SettlementParams []Param             `sheet:"settlements.params" doc:"Charter and city requirements."`
 
 	MountSpeeds []MountSpeed `sheet:"mounts.speeds" doc:"Mount speed by terrain."`
 	MountParams []Param      `sheet:"mounts.params" doc:"Load and upkeep."`

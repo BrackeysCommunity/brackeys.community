@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world.weather-forms",
+  "title": "world.weather-forms",
+  "description": "Which weather kind forms where, by terrain and season.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "world.weather-forms"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "weight"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "kind": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.weather"
+          },
+          "terrains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "map.terrain",
+            "description": "Empty matches any."
+          },
+          "season": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.seasons",
+            "description": "Empty matches any."
+          },
+          "low": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Only where the cell's centre lies at or under low-elevation."
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "weight"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "../schema/settlements.starting.schema.json",
+  "sheet": "settlements.starting",
+  "rows": [
+    {
+      "id": "forge",
+      "structure": "forge",
+      "tier": 1
+    },
+    {
+      "id": "bench",
+      "structure": "bench",
+      "tier": 1
+    },
+    {
+      "id": "still",
+      "structure": "still",
+      "tier": 1
+    },
+    {
+      "id": "loom",
+      "structure": "loom",
+      "tier": 1
+    },
+    {
+      "id": "market",
+      "structure": "market"
+    },
+    {
+      "id": "notice-board",
+      "structure": "notice-board"
+    },
+    {
+      "id": "tinker-bench",
+      "structure": "tinker-bench",
+      "note": "Where machine puzzles are practised (GDD 7.11)."
+    },
+    {
+      "id": "stable",
+      "structure": "stable",
+      "tier": 1,
+      "note": "Sells a tier-1 mount."
+    },
+    {
+      "id": "treasury",
+      "structure": "treasury",
+      "note": "Belongs to nobody; pays for the watch (GDD 4.3)."
+    }
+  ]
+}

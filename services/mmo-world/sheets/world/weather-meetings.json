@@ -1,0 +1,20 @@
+{
+  "$schema": "../schema/world.weather-meetings.schema.json",
+  "sheet": "world.weather-meetings",
+  "rows": [
+    {
+      "id": "storm-frost",
+      "kind": "storm",
+      "meets": "frost",
+      "effect": "leave",
+      "leaves": "frost",
+      "strength": 50
+    },
+    {
+      "id": "storm-drought",
+      "kind": "storm",
+      "meets": "drought",
+      "effect": "end"
+    }
+  ]
+}

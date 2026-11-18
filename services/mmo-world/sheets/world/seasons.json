@@ -1,0 +1,18 @@
+{
+  "$schema": "../schema/world.seasons.schema.json",
+  "sheet": "world.seasons",
+  "rows": [
+    {
+      "id": "thaw"
+    },
+    {
+      "id": "dry"
+    },
+    {
+      "id": "wet"
+    },
+    {
+      "id": "cold"
+    }
+  ]
+}

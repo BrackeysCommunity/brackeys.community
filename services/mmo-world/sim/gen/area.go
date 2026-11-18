@@ -1,6 +1,11 @@
 package gen
 
-import "slices"
+import (
+	"cmp"
+	"slices"
+
+	"jams.team/mmo-world/sim/hex"
+)
 
 // Area is a bounded piece of the world gathered from chunks: a disc of
 // tiles, or the regions a horizon has discovered. Walking is confined to
@@ -127,8 +132,8 @@ func (a *Area) EnterTicks(i, j int) int64 {
 
 // Neighbours returns the in-area neighbours of tile i, in direction order.
 func (a *Area) Neighbours(i int) []int {
-	out := make([]int, 0, len(directions))
-	for d := range directions {
+	out := make([]int, 0, nDirs)
+	for d := range nDirs {
 		if j := a.Index(a.Tiles[i].Hex.Neighbour(d)); j >= 0 {
 			out = append(out, j)
 		}
@@ -146,6 +151,28 @@ func (a *Area) Settlements() []int {
 	return out
 }
 
+// Path is the cheapest walk on foot from tile i to tile j inside the area,
+// as tile indices, and its ticks; ok is false when none exists. It knows
+// only the area's tiles.
+func (a *Area) Path(i, j int) ([]int, int64, bool) {
+	step := func(from, to Hex) (int64, bool) {
+		n := a.Index(to)
+		if n < 0 || !a.Passable(n) {
+			return 0, false
+		}
+		return a.EnterTicks(a.index[from], n), true
+	}
+	hs, cost, ok := hex.Path(a.Tiles[i].Hex, a.Tiles[j].Hex, step, 1, 0)
+	if !ok {
+		return nil, 0, false
+	}
+	out := make([]int, len(hs))
+	for k, h := range hs {
+		out[k] = a.index[h]
+	}
+	return out, cost, true
+}
+
 // Walk returns the ticks from the nearest source to every tile, -1 where
 // no source can reach on foot inside the area.
 func (a *Area) Walk(sources []int) []int64 {
@@ -153,27 +180,83 @@ func (a *Area) Walk(sources []int) []int64 {
 	for i := range dist {
 		dist[i] = -1
 	}
-	pq := &queue{}
+	pq := &hex.Queue{}
 	for _, s := range sources {
 		dist[s] = 0
-		pq.push(item{a.Tiles[s].Hex, 0})
+		pq.Push(a.Tiles[s].Hex, 0)
 	}
 	for pq.Len() > 0 {
-		it := pq.pop()
-		i := a.index[it.at]
-		if it.cost > dist[i] {
+		at, cost := pq.Pop()
+		i := a.index[at]
+		if cost > dist[i] {
 			continue
 		}
 		for _, n := range a.Neighbours(i) {
 			if !a.Passable(n) {
 				continue
 			}
-			c := it.cost + a.EnterTicks(i, n)
+			c := cost + a.EnterTicks(i, n)
 			if dist[n] < 0 || c < dist[n] {
 				dist[n] = c
-				pq.push(item{a.Tiles[n].Hex, c})
+				pq.Push(a.Tiles[n].Hex, c)
 			}
 		}
 	}
 	return dist
 }
+
+// RegionTiles lists a region's tiles, in ring order from its centre.
+func (g *Gen) RegionTiles(id LatticeID) []Hex {
+	if t, ok := g.tilesOf[id]; ok {
+		return t
+	}
+	t := g.regionTiles(id)
+	g.tilesOf[id] = t
+	return t
+}
+
+// RegionNeighbours lists the regions that share an edge with a region,
+// in lattice order.
+func (g *Gen) RegionNeighbours(id LatticeID) []LatticeID {
+	if n, ok := g.nextTo[id]; ok {
+		return n
+	}
+	var out []LatticeID
+	for _, h := range g.RegionTiles(id) {
+		for d := range nDirs {
+			if r := g.region(h.Neighbour(d)); r != id && !slices.Contains(out, r) {
+				out = append(out, r)
+			}
+		}
+	}
+	slices.SortFunc(out, CompareIDs)
+	g.nextTo[id] = out
+	return out
+}
+
+// CompareIDs orders lattice ids by I, then J.
+func CompareIDs(a, b LatticeID) int {
+	if c := cmp.Compare(a.I, b.I); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.J, b.J)
+}
+
+// RegionOf is the region a tile belongs to.
+func (g *Gen) RegionOf(h Hex) LatticeID { return g.region(h) }
+
+// RawTerrain is a tile's terrain from noise alone, before anything
+// yields: cheap, and enough for weather to steer by.
+func (g *Gen) RawTerrain(h Hex) string { return g.raw(h).terrain }
+
+// RawElevation is a tile's elevation from noise.
+func (g *Gen) RawElevation(h Hex) int64 { return g.raw(h).elevation }
+
+// SpineCell is the spine node nearest h: the cell weather forms in.
+func (g *Gen) SpineCell(h Hex) (LatticeID, Hex) {
+	id := g.spine.Nearest(h)
+	return id, g.spine.At(id)
+}
+
+// Passable reports whether a terrain can be walked.
+func (g *Gen) Passable(terrain string) bool { return g.passable(terrain) }

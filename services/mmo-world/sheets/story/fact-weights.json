@@ -189,6 +189,65 @@
       "kind": "land.calmer",
       "weight": 40,
       "note": "provisional: a starting settlement opened and the land round it re-tiered"
+    },
+    {
+      "id": "region-discovered",
+      "kind": "region.discovered",
+      "weight": 20
+    },
+    {
+      "id": "find-first-sight",
+      "kind": "find.first-sight",
+      "weight": 60,
+      "note": "GDD 4.17: a server's first sight is a fact."
+    },
+    {
+      "id": "weather-formed",
+      "kind": "weather.formed",
+      "weight": 5
+    },
+    {
+      "id": "weather-landfall",
+      "kind": "weather.landfall",
+      "weight": 35,
+      "note": "GDD 4.4: a system's landfall on a settlement."
+    },
+    {
+      "id": "weather-left",
+      "kind": "weather.left",
+      "weight": 10
+    },
+    {
+      "id": "notable-defected",
+      "kind": "notable.defected",
+      "weight": 65
+    },
+    {
+      "id": "notable-appointed",
+      "kind": "notable.appointed",
+      "weight": 15
+    },
+    {
+      "id": "world-week",
+      "kind": "world.week",
+      "weight": 1,
+      "note": "The weekly ledger report."
+    },
+    {
+      "id": "season-turned",
+      "kind": "season.turned",
+      "weight": 80
+    },
+    {
+      "id": "herd-arrived",
+      "kind": "herd.arrived",
+      "weight": 10
+    },
+    {
+      "id": "faction-seated",
+      "kind": "faction.seated",
+      "weight": 30,
+      "note": "A faction seated as its regions came inside the horizon."
     }
   ]
 }

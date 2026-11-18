@@ -9,6 +9,7 @@
       "sight": 3,
       "cover": 20,
       "tags": [],
+      "weatherPace": 100,
       "note": "provisional: not in the GDD yet; spike value cover"
     },
     {
@@ -17,7 +18,11 @@
       "passable": true,
       "sight": 1,
       "cover": 60,
-      "tags": []
+      "tags": [],
+      "weatherPace": 150,
+      "placeTags": [
+        "wooded"
+      ]
     },
     {
       "id": "marsh",
@@ -25,7 +30,11 @@
       "passable": true,
       "sight": 2,
       "cover": 40,
-      "tags": ["wet"],
+      "tags": [
+        "wet"
+      ],
+      "weatherPace": 100,
+      "weatherGain": 2,
       "note": "provisional: not in the GDD yet; spike value cover"
     },
     {
@@ -35,7 +44,11 @@
       "sight": 4,
       "cover": 30,
       "tags": [],
-      "note": "provisional: not in the GDD yet; spike value cover"
+      "weatherPace": 100,
+      "note": "provisional: not in the GDD yet; spike value cover",
+      "placeTags": [
+        "heights"
+      ]
     },
     {
       "id": "mountain",
@@ -43,8 +56,15 @@
       "passable": true,
       "sight": 5,
       "cover": 30,
-      "tags": ["cold"],
-      "note": "provisional: not in the GDD yet; spike value cover"
+      "tags": [
+        "cold"
+      ],
+      "weatherPace": 100,
+      "weatherBlock": true,
+      "note": "provisional: not in the GDD yet; spike value cover",
+      "placeTags": [
+        "heights"
+      ]
     },
     {
       "id": "flats",
@@ -52,7 +72,11 @@
       "passable": true,
       "sight": 4,
       "cover": 0,
-      "tags": []
+      "tags": [],
+      "weatherPace": 50,
+      "placeTags": [
+        "exposed"
+      ]
     },
     {
       "id": "coast",
@@ -60,7 +84,11 @@
       "passable": true,
       "sight": 3,
       "cover": 10,
-      "tags": ["wet"],
+      "tags": [
+        "wet"
+      ],
+      "weatherPace": 50,
+      "weatherGain": 2,
       "note": "provisional: not in the GDD yet; spike value cover"
     },
     {
@@ -69,7 +97,11 @@
       "passable": false,
       "sight": 0,
       "cover": 0,
-      "tags": ["wet"]
+      "tags": [
+        "wet"
+      ],
+      "weatherPace": 50,
+      "weatherGain": 2
     },
     {
       "id": "peak",
@@ -77,7 +109,11 @@
       "passable": false,
       "sight": 0,
       "cover": 0,
-      "tags": ["cold"]
+      "tags": [
+        "cold"
+      ],
+      "weatherPace": 100,
+      "weatherBlock": true
     }
   ]
 }

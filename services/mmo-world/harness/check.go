@@ -270,7 +270,7 @@ func ruleProblems(b *sheets.Book) []string {
 var namedSheets = []string{
 	"items.materials", "items.processes", "creatures.archetypes", "factions.archetypes",
 	"map.terrain", "items.traits", "items.slots", "world.weather", "world.gauges",
-	"puzzles.families",
+	"puzzles.families", "npcs.traits", "world.seasons", "map.landmarks",
 }
 
 func packProblems(b *sheets.Book) []string {

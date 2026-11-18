@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/tiles.params.schema.json",
+  "sheet": "tiles.params",
+  "rows": [
+    {
+      "id": "event-ring",
+      "value": 16,
+      "unit": "count",
+      "doc": "Heavy facts a tile keeps (GDD 4.10)."
+    },
+    {
+      "id": "tracks-kept",
+      "value": 5,
+      "unit": "count",
+      "doc": "Characters' tracks a tile keeps."
+    },
+    {
+      "id": "heavy-fact-weight",
+      "value": 40,
+      "unit": "weight",
+      "doc": "A fact this heavy or heavier joins its tile's event ring."
+    }
+  ]
+}

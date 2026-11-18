@@ -14,7 +14,7 @@ func (c chunker) det() int64 { return DiscSize(c.n) }
 
 func (c chunker) Centre(cc ChunkCoord) Hex {
 	n := c.n
-	return Hex{cc.A*(basisTwice*n+1) + cc.B*n, -cc.A*n + cc.B*(n+1)}
+	return Hex{Q: cc.A*(basisTwice*n+1) + cc.B*n, R: -cc.A*n + cc.B*(n+1)}
 }
 
 // Of finds the chunk holding h: invert the basis, then take the corner of
@@ -49,12 +49,4 @@ func (c chunker) Near(h Hex, reach int64) []ChunkCoord {
 		}
 	}
 	return out
-}
-
-func floorDiv(a, b int64) int64 {
-	q := a / b
-	if (a%b != 0) && ((a < 0) != (b < 0)) {
-		q--
-	}
-	return q
 }

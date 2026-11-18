@@ -479,6 +479,121 @@
       "id": "families-override",
       "ref": "puzzles.families:override",
       "name": "Override"
+    },
+    {
+      "id": "npc-trait-bold",
+      "ref": "npcs.traits:bold",
+      "name": "Bold"
+    },
+    {
+      "id": "npc-trait-wary",
+      "ref": "npcs.traits:wary",
+      "name": "Wary"
+    },
+    {
+      "id": "npc-trait-open",
+      "ref": "npcs.traits:open",
+      "name": "Open"
+    },
+    {
+      "id": "npc-trait-secretive",
+      "ref": "npcs.traits:secretive",
+      "name": "Secretive"
+    },
+    {
+      "id": "npc-trait-greedy",
+      "ref": "npcs.traits:greedy",
+      "name": "Greedy"
+    },
+    {
+      "id": "npc-trait-generous",
+      "ref": "npcs.traits:generous",
+      "name": "Generous"
+    },
+    {
+      "id": "npc-trait-proud",
+      "ref": "npcs.traits:proud",
+      "name": "Proud"
+    },
+    {
+      "id": "npc-trait-humble",
+      "ref": "npcs.traits:humble",
+      "name": "Humble"
+    },
+    {
+      "id": "npc-trait-patient",
+      "ref": "npcs.traits:patient",
+      "name": "Patient"
+    },
+    {
+      "id": "npc-trait-rash",
+      "ref": "npcs.traits:rash",
+      "name": "Rash"
+    },
+    {
+      "id": "npc-trait-cunning",
+      "ref": "npcs.traits:cunning",
+      "name": "Cunning"
+    },
+    {
+      "id": "npc-trait-devout",
+      "ref": "npcs.traits:devout",
+      "name": "Devout"
+    },
+    {
+      "id": "npc-trait-weary",
+      "ref": "npcs.traits:weary",
+      "name": "Weary"
+    },
+    {
+      "id": "season-thaw",
+      "ref": "world.seasons:thaw",
+      "name": "Thaw"
+    },
+    {
+      "id": "season-dry",
+      "ref": "world.seasons:dry",
+      "name": "Dry season"
+    },
+    {
+      "id": "season-wet",
+      "ref": "world.seasons:wet",
+      "name": "Storm season"
+    },
+    {
+      "id": "season-cold",
+      "ref": "world.seasons:cold",
+      "name": "Long cold"
+    },
+    {
+      "id": "landmark-crater",
+      "ref": "map.landmarks:crater",
+      "name": "Impact crater"
+    },
+    {
+      "id": "landmark-mast",
+      "ref": "map.landmarks:mast",
+      "name": "Fallen mast"
+    },
+    {
+      "id": "landmark-wreck",
+      "ref": "map.landmarks:wreck",
+      "name": "Grounded hulk"
+    },
+    {
+      "id": "landmark-dish",
+      "ref": "map.landmarks:dish",
+      "name": "Dead dish"
+    },
+    {
+      "id": "landmark-statue",
+      "ref": "map.landmarks:statue",
+      "name": "Faceless statue"
+    },
+    {
+      "id": "landmark-overgrown-tower",
+      "ref": "map.landmarks:overgrown-tower",
+      "name": "Overgrown tower"
     }
   ]
 }

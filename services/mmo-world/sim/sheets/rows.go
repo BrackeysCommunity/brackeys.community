@@ -156,7 +156,7 @@ type Durability struct {
 type Gauge struct {
 	ID          string `json:"id" unit:"id"`
 	Max         int64  `json:"max" unit:"gauge" min:"1"`
-	DailyRise   int64  `json:"dailyRise" unit:"gauge" doc:"Change per world day with nobody acting; negative falls."`
+	DailyRise   int64  `json:"dailyRise" unit:"gauge" doc:"Change per world day with nobody acting; negative falls toward the baseline and stops there."`
 	PullPercent int64  `json:"pullPercent" unit:"percent" min:"0" max:"100" doc:"Share of the gap to baseline closed each world day."`
 	Wobble      int64  `json:"wobble" unit:"gauge" min:"0" doc:"A keyed draw moves the gauge by up to this either way each world day, so nothing settles for good."`
 }
@@ -172,7 +172,49 @@ type GaugeLine struct {
 	Magnitude int64  `json:"magnitude,omitempty" unit:"gauge" doc:"For neighbour-pressure and spread: what one neighbour at the gauge's maximum adds per world day; a neighbour just over the line adds in proportion."`
 }
 
+// WeatherKind is a kind of weather system and what it does on the tiles
+// under it (GDD 4.4).
 type WeatherKind struct {
+	ID           string   `json:"id" unit:"id"`
+	Tag          string   `json:"tag" unit:"tag" ref:"tags.vocabulary" doc:"Every tile under the system carries it."`
+	TileTags     []string `json:"tileTags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Also added to the tile."`
+	CreatureTags []string `json:"creatureTags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Added to creatures under it."`
+	EnterTicks   int64    `json:"enterTicks,omitempty" unit:"ticks" min:"0" doc:"Added to entering a tile under a system of enterAt strength or more."`
+	EnterAt      int64    `json:"enterAt,omitempty" unit:"count" min:"0" max:"100"`
+	CrossTicks   int64    `json:"crossTicks,omitempty" unit:"ticks" min:"0" doc:"Rivers and wet ground take this to enter; 0 leaves them as they are."`
+	Sight        int64    `json:"sight,omitempty" unit:"tiles" min:"0" doc:"Sight falls to this; 0 leaves it."`
+	HighSight    int64    `json:"highSight,omitempty" unit:"tiles" min:"0" doc:"Sight gained on high ground."`
+	Scarcity     int64    `json:"scarcity,omitempty" unit:"gauge" doc:"Added each world day to a region's scarcity, scaled by its share of tiles under the system."`
+	Regrowth     bool     `json:"stopsRegrowth,omitempty" unit:"flag" doc:"Plants stop regrowing under it."`
+	BlockedLoss  int64    `json:"blockedLoss,omitempty" unit:"count" min:"0" doc:"Strength lost each tick its centre is blocked by high ground."`
+	Note         string   `json:"note,omitempty" unit:"text"`
+}
+
+// WeatherForm weights which kind forms in a spine cell. A kind's weight
+// is its first row whose terrain, season and lowness all match the
+// cell's majority; a kind with no matching row does not form.
+type WeatherForm struct {
+	ID       string   `json:"id" unit:"id"`
+	Kind     string   `json:"kind" unit:"ref" ref:"world.weather"`
+	Terrains []string `json:"terrains,omitempty" unit:"refs" ref:"map.terrain" doc:"Empty matches any."`
+	Season   string   `json:"season,omitempty" unit:"ref" ref:"world.seasons" doc:"Empty matches any."`
+	Low      bool     `json:"low,omitempty" unit:"flag" doc:"Only where the cell's centre lies at or under low-elevation."`
+	Weight   int64    `json:"weight" unit:"weight" min:"0" max:"100"`
+}
+
+// WeatherMeeting is what happens when two systems' footprints touch.
+type WeatherMeeting struct {
+	ID       string `json:"id" unit:"id"`
+	Kind     string `json:"kind" unit:"ref" ref:"world.weather"`
+	Meets    string `json:"meets" unit:"ref" ref:"world.weather"`
+	Effect   string `json:"effect" unit:"enum" enum:"leave|end" doc:"leave: a new system of leaves forms where they met; end: the met system dies."`
+	Leaves   string `json:"leaves,omitempty" unit:"ref" ref:"world.weather"`
+	Strength int64  `json:"strength,omitempty" unit:"percent" min:"0" max:"100" doc:"leave: the new system's strength, as a share of kind's."`
+}
+
+// Season is one season of the world's year; seasons run in row order
+// and repeat. Each has its own prevailing wind, keyed.
+type Season struct {
 	ID string `json:"id" unit:"id"`
 }
 
@@ -263,7 +305,14 @@ type Terrain struct {
 	Sight      int64    `json:"sight" unit:"tiles" min:"0"`
 	Cover      int64    `json:"cover" unit:"count" min:"0" max:"100"`
 	Tags       []string `json:"tags" unit:"tags" ref:"tags.vocabulary"`
-	Note       string   `json:"note,omitempty" unit:"text" doc:"Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."`
+	PlaceTags  []string `json:"placeTags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Tags a tile of this terrain carries as a place, for rules; not given to what is found there."`
+	// Weather crossing the terrain: how long a system takes to cross a
+	// tile against its pace, the strength it gains a tile, and whether its
+	// centre may enter at all.
+	WeatherPace  int64  `json:"weatherPace" unit:"percent" min:"1" doc:"A system's ticks per tile here, as a share of its pace."`
+	WeatherGain  int64  `json:"weatherGain,omitempty" unit:"count" doc:"Strength a system gains entering a tile."`
+	WeatherBlock bool   `json:"weatherBlock,omitempty" unit:"flag" doc:"A system's centre cannot enter."`
+	Note         string `json:"note,omitempty" unit:"text" doc:"Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."`
 }
 
 // NoiseLayer is one field of layered value noise.
@@ -352,6 +401,13 @@ type RegionWeight struct {
 	Note   string `json:"note,omitempty" unit:"text"`
 }
 
+// Landmark is a feature a region can stand on its highest free tile:
+// something to name, rumour and steer by (GDD 4.10).
+type Landmark struct {
+	ID       string   `json:"id" unit:"id"`
+	Terrains []string `json:"terrains" unit:"refs" ref:"map.terrain" doc:"Terrains it can stand on."`
+}
+
 // Ecotone is what the fade between two land biomes holds: a tag both
 // tiles and finds there carry, beside "edge", and what its edge materials
 // are made of.
@@ -406,7 +462,25 @@ type CreatureVariant struct {
 	Note        string `json:"note,omitempty" unit:"text"`
 }
 
+// ---- NPCs ----
+
+// NPCTrait is a trait a notable or other NPC can carry. Two opposed
+// traits are never drawn together.
+type NPCTrait struct {
+	ID      string `json:"id" unit:"id"`
+	Opposes string `json:"opposes,omitempty" unit:"ref" ref:"npcs.traits"`
+	Tag     string `json:"tag,omitempty" unit:"tag" ref:"tags.vocabulary" doc:"A tag rules can read."`
+}
+
 // ---- Settlements ----
+
+// StartingStructure is what a starting settlement opens with (GDD 4.8).
+type StartingStructure struct {
+	ID        string `json:"id" unit:"id"`
+	Structure string `json:"structure" unit:"enum" enum:"forge|bench|still|loom|market|notice-board|tinker-bench|stable|treasury"`
+	Tier      int64  `json:"tier,omitempty" unit:"tier" min:"0" doc:"0 for a structure without tiers."`
+	Note      string `json:"note,omitempty" unit:"text"`
+}
 
 type StructureCost struct {
 	ID        string `json:"id" unit:"id"`

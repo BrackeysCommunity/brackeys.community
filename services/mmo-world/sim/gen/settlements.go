@@ -79,7 +79,7 @@ func (g *Gen) extendHomes() {
 	k := int64(0)
 	if len(g.homeOrder) > 0 {
 		last := g.homeOrder[len(g.homeOrder)-1]
-		k = Hex{last.I, last.J}.Len() + 1
+		k = Hex{Q: last.I, R: last.J}.Len() + 1
 	}
 	for {
 		var ids []LatticeID
@@ -102,7 +102,7 @@ func (g *Gen) extendHomes() {
 		})
 		exact := 0
 		for _, id := range ids {
-			if (Hex{id.I, id.J}).Len() <= k {
+			if (Hex{Q: id.I, R: id.J}).Len() <= k {
 				exact++
 			}
 		}

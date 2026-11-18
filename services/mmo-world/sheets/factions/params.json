@@ -8,94 +8,88 @@
       "unit": "count"
     },
     {
-      "id": "start-strength",
-      "value": 100,
-      "unit": "count",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): a faction's starting strength."
-    },
-    {
       "id": "start-stock",
       "value": 100,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): a faction's starting stock."
+      "doc": "GDD 4.5: a faction's starting stock."
     },
     {
       "id": "daily-upkeep",
       "value": 4,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): stock a faction eats per holding per day."
+      "doc": "GDD 4.5: stock a faction eats per holding per day."
     },
     {
       "id": "holding-income",
       "value": 6,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): stock a holding yields per day, less scarcity."
+      "doc": "GDD 4.5: stock a holding yields per day, less scarcity."
     },
     {
       "id": "holding-defence",
       "value": 60,
       "unit": "defence",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): a new holding's defence."
+      "doc": "GDD 4.5: a new holding's defence."
     },
     {
       "id": "fortify-gain",
       "value": 15,
       "unit": "defence",
-      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+      "doc": "GDD 4.5."
     },
     {
       "id": "raid-damage",
       "value": 25,
       "unit": "defence",
-      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+      "doc": "GDD 4.5."
     },
     {
       "id": "raid-loot",
       "value": 20,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+      "doc": "GDD 4.5."
     },
     {
       "id": "expand-cost",
       "value": 40,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+      "doc": "GDD 4.5."
     },
     {
       "id": "trade-gain",
       "value": 12,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+      "doc": "GDD 4.5."
     },
     {
       "id": "court-gain",
       "value": 10,
       "unit": "count",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): disposition gained by courting."
+      "doc": "GDD 4.5: disposition gained by courting."
     },
     {
       "id": "betray-threshold",
       "value": 40,
       "unit": "count",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): disposition above which betrayal pays."
+      "doc": "GDD 4.5: disposition above which betrayal pays."
     },
     {
       "id": "need-threshold",
       "value": 60,
       "unit": "goods",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): stock below which a faction is in need."
+      "doc": "GDD 4.5: stock below which a faction is in need."
     },
     {
       "id": "notables-per-faction",
       "value": 3,
       "unit": "count",
-      "doc": "provisional: not in the GDD yet; spike value (spike B)"
+      "doc": "GDD 4.6: a leader, a captain and a factor."
     },
     {
       "id": "notable-death-chance",
       "value": 0.15,
       "unit": "chance",
-      "doc": "provisional: not in the GDD yet; spike value (spike B): when a holding falls."
+      "doc": "GDD 4.5: when a holding falls."
     },
     {
       "id": "seat-spacing",
@@ -126,6 +120,70 @@
       "value": 40,
       "unit": "count",
       "doc": "Added to the need term of a raid on a faction this one holds a grudge against."
+    },
+    {
+      "id": "captain-per-holdings",
+      "value": 3,
+      "unit": "count",
+      "doc": "One more captain per this many holdings (GDD 4.6)."
+    },
+    {
+      "id": "notable-traits",
+      "value": 2,
+      "unit": "count",
+      "doc": "Traits a notable draws from npcs.traits, never an opposed pair."
+    },
+    {
+      "id": "loyalty-min",
+      "value": 40,
+      "unit": "count"
+    },
+    {
+      "id": "loyalty-max",
+      "value": 90,
+      "unit": "count"
+    },
+    {
+      "id": "loyalty-betrayal",
+      "value": -10,
+      "unit": "count",
+      "doc": "Each notable's loyalty when their faction betrays anyone."
+    },
+    {
+      "id": "loyalty-starving",
+      "value": -15,
+      "unit": "count",
+      "doc": "When their faction starts starving."
+    },
+    {
+      "id": "loyalty-holding",
+      "value": 5,
+      "unit": "count",
+      "doc": "Per holding their faction takes."
+    },
+    {
+      "id": "defect-below",
+      "value": 30,
+      "unit": "count",
+      "doc": "A notable under this loyalty may defect."
+    },
+    {
+      "id": "defect-chance",
+      "value": 0.2,
+      "unit": "chance",
+      "doc": "Each world day, for a notable under defect-below."
+    },
+    {
+      "id": "last-holding-damage",
+      "value": 40,
+      "unit": "percent",
+      "doc": "Share of raid damage a faction's last holding takes: a cornered faction digs in (MM1 World run: two-faction wars wiped one out)."
+    },
+    {
+      "id": "last-holding-peril",
+      "value": 200,
+      "unit": "percent",
+      "doc": "A faction's last holding wants this share of a holding's defence; what it lacks counts as need for fortifying it."
     }
   ]
 }

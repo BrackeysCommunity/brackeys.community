@@ -3,6 +3,7 @@
 //	harness check            schemas, units, references, budgets, the pack, the rules, the sim lints
 //	harness report           every target and its last reading
 //	harness schema           regenerate sheets/schema from the row types
+//	harness world -out DIR   the World run: 90 unattended days, and what a day costs
 //	harness spike-a|b|e -out DIR
 package main
 
@@ -36,6 +37,17 @@ func main() {
 		harness.Report(os.Stdout, b, nil)
 	case "schema":
 		exitOn(harness.WriteSchemas(root))
+	case "world":
+		if *out == "" {
+			fmt.Fprintln(os.Stderr, "-out is required")
+			os.Exit(2)
+		}
+		b, err := harness.LoadBook(root)
+		exitOn(err)
+		exitOn(os.MkdirAll(*out, 0o755))
+		readings, err := harness.WorldRun(b, *out, *n)
+		exitOn(err)
+		harness.Report(os.Stdout, b, readings)
 	case "spike-a", "spike-b", "spike-e":
 		if *out == "" {
 			fmt.Fprintln(os.Stderr, "-out is required")
@@ -51,7 +63,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: harness check|report|schema|spike-a|spike-b|spike-e [-out DIR] [-n N]")
+	fmt.Fprintln(os.Stderr, "usage: harness check|report|schema|world|spike-a|spike-b|spike-e [-out DIR] [-n N]")
 	os.Exit(2)
 }
 

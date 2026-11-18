@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "npcs.traits",
+  "title": "npcs.traits",
+  "description": "Traits notables and other NPCs draw from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "npcs.traits"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "opposes": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "npcs.traits"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "A tag rules can read."
+          }
+        }
+      }
+    }
+  }
+}

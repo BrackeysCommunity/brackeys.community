@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -77,6 +78,16 @@ type worldStats struct {
 	pic, close *image.RGBA
 }
 
+// workers is how many worlds run at once: SPIKE_WORKERS, or one per
+// core. A world's disc holds a few hundred megabytes, so a machine short
+// of memory runs fewer.
+func workers() int {
+	if v, err := strconv.Atoi(os.Getenv("SPIKE_WORKERS")); err == nil && v > 0 {
+		return v
+	}
+	return runtime.NumCPU()
+}
+
 func spikeE(b *sheets.Book, out string, n int) error {
 	if n == 0 {
 		n = 1000
@@ -85,7 +96,7 @@ func spikeE(b *sheets.Book, out string, n int) error {
 	var wg sync.WaitGroup
 	next := make(chan int)
 	errs := make(chan error, n)
-	for range runtime.NumCPU() {
+	for range workers() {
 		wg.Go(func() {
 			for i := range next {
 				s, err := oneWorld(b, i)
@@ -318,7 +329,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	p("")
 	p("| Measure | Value |")
 	p("| --- | --- |")
-	p("| Water (target: 25%% to 35%%) | **%.1f%%** of tiles |", pct(waterTiles, waterTiles+landTiles))
+	p("| Water (target: 24%% to 26%%) | **%.1f%%** of tiles |", pct(waterTiles, waterTiles+landTiles))
 	p("| Biggest connected sea per world: tiles (p10, median, p90) | %s, %s, %s |", comma(int64(q(seaSizes, 0.1))), comma(int64(q(seaSizes, 0.5))), comma(int64(q(seaSizes, 0.9))))
 	p("| Biggest sea's span in tiles (p10, median, p90) | %d, %d, %d |", q(seaSpans, 0.1), q(seaSpans, 0.5), q(seaSpans, 0.9))
 	p("| Worlds whose biggest sea spans %d spine cells or more (%d tiles; target: every world) | **%d of %d** |", spikeESeaCells, spikeESeaCells*spineSpacing(b), wideSea, n)
@@ -388,7 +399,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	p("| Measure | Value |")
 	p("| --- | --- |")
 	p("| Chunks per world (radius %d) | %s |", spikeEOut+spikeEMargin, comma(int64(chunks/n)))
-	p("| Per chunk, generating a world's disc in order, %d worlds at once on %d cores (median, p90) | %s, %s |", runtime.NumCPU(), runtime.NumCPU(), q(sweeps, 0.5).Round(time.Microsecond), q(sweeps, 0.9).Round(time.Microsecond))
+	p("| Per chunk, generating a world's disc in order, %d worlds at once on %d cores (median, p90) | %s, %s |", workers(), runtime.NumCPU(), q(sweeps, 0.5).Round(time.Microsecond), q(sweeps, 0.9).Round(time.Microsecond))
 	p("| One chunk from a fresh generator, alone on one core, %d worlds × %d chunks (median, p90, max) | %s, %s, %s |", spikeECold, spikeEColdChunks, q(colds, 0.5).Round(time.Microsecond), q(colds, 0.9).Round(time.Microsecond), colds[len(colds)-1].Round(time.Microsecond))
 	p("")
 	p("## Shape of the worlds")

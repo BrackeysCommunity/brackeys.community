@@ -4,8 +4,13 @@
   "rows": [
     {
       "id": "storm-charges",
-      "subject": ["creature", "marsh-born"],
-      "place": ["storm"],
+      "subject": [
+        "creature",
+        "marsh-born"
+      ],
+      "place": [
+        "storm"
+      ],
       "then": [
         {
           "kind": "add-tag",
@@ -16,8 +21,13 @@
     },
     {
       "id": "conductive-bites",
-      "subject": ["item", "conductive"],
-      "other": ["charged"],
+      "subject": [
+        "item",
+        "conductive"
+      ],
+      "other": [
+        "charged"
+      ],
       "then": [
         {
           "kind": "band",
@@ -27,8 +37,12 @@
     },
     {
       "id": "wet-douses",
-      "subject": ["burning"],
-      "anywhere": ["wet"],
+      "subject": [
+        "burning"
+      ],
+      "anywhere": [
+        "wet"
+      ],
       "then": [
         {
           "kind": "remove-tag",
@@ -39,8 +53,12 @@
     },
     {
       "id": "dry-catches",
-      "subject": ["dry"],
-      "other": ["burning"],
+      "subject": [
+        "dry"
+      ],
+      "other": [
+        "burning"
+      ],
       "then": [
         {
           "kind": "add-tag",
@@ -50,9 +68,30 @@
       ]
     },
     {
+      "id": "frost-brittles",
+      "subject": [
+        "wet"
+      ],
+      "place": [
+        "frost"
+      ],
+      "then": [
+        {
+          "kind": "add-tag",
+          "target": "subject",
+          "tag": "brittle"
+        }
+      ]
+    },
+    {
       "id": "thick-turns-edges",
-      "subject": ["item", "keen"],
-      "other": ["thick"],
+      "subject": [
+        "item",
+        "keen"
+      ],
+      "other": [
+        "thick"
+      ],
       "then": [
         {
           "kind": "band",
@@ -62,8 +101,13 @@
     },
     {
       "id": "warm-thaws",
-      "subject": ["spell", "warm"],
-      "other": ["brittle"],
+      "subject": [
+        "spell",
+        "warm"
+      ],
+      "other": [
+        "brittle"
+      ],
       "then": [
         {
           "kind": "band",
@@ -73,7 +117,10 @@
     },
     {
       "id": "packs-gather",
-      "subject": ["creature", "pack"],
+      "subject": [
+        "creature",
+        "pack"
+      ],
       "measure": "threat",
       "atLeast": 600,
       "then": [
@@ -86,7 +133,10 @@
     },
     {
       "id": "wary-flees",
-      "subject": ["creature", "wary"],
+      "subject": [
+        "creature",
+        "wary"
+      ],
       "measure": "party-size",
       "atLeast": 3,
       "then": [
@@ -98,7 +148,10 @@
     },
     {
       "id": "scarcity-bids",
-      "subject": ["faction", "mercantile"],
+      "subject": [
+        "faction",
+        "mercantile"
+      ],
       "measure": "scarcity",
       "atLeast": 700,
       "then": [
@@ -111,7 +164,10 @@
     },
     {
       "id": "corruption-spoils",
-      "subject": ["node", "corrupted"],
+      "subject": [
+        "node",
+        "corrupted"
+      ],
       "then": [
         {
           "kind": "add-tag",
@@ -122,6 +178,102 @@
           "kind": "scale",
           "measure": "yield-value",
           "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "wooded-ambush",
+      "subject": [
+        "creature"
+      ],
+      "place": [
+        "wooded"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "wooded-reach",
+      "subject": [
+        "item",
+        "reaching"
+      ],
+      "place": [
+        "wooded"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "wet-weighs",
+      "subject": [
+        "item",
+        "heavy"
+      ],
+      "place": [
+        "wet"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "heights-favour",
+      "subject": [
+        "item"
+      ],
+      "other": [
+        "creature"
+      ],
+      "place": [
+        "heights"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "exposed-no-ambush",
+      "subject": [
+        "creature"
+      ],
+      "place": [
+        "exposed"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "fog-hides",
+      "subject": [
+        "creature"
+      ],
+      "place": [
+        "fog"
+      ],
+      "then": [
+        {
+          "kind": "add-tag",
+          "target": "subject",
+          "tag": "hidden"
         }
       ]
     }

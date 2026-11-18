@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "world.weather",
   "title": "world.weather",
-  "description": "Weather system kinds.",
+  "description": "Weather system kinds and what each does on a tile.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -22,13 +22,90 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "id"
+          "id",
+          "tag"
         ],
         "properties": {
           "id": {
             "type": "string",
             "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
             "x-unit": "id"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "Every tile under the system carries it."
+          },
+          "tileTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Also added to the tile."
+          },
+          "creatureTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Added to creatures under it."
+          },
+          "enterTicks": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "ticks",
+            "description": "Added to entering a tile under a system of enterAt strength or more."
+          },
+          "enterAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "crossTicks": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "ticks",
+            "description": "Rivers and wet ground take this to enter; 0 leaves them as they are."
+          },
+          "sight": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "Sight falls to this; 0 leaves it."
+          },
+          "highSight": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles",
+            "description": "Sight gained on high ground."
+          },
+          "scarcity": {
+            "type": "integer",
+            "x-unit": "gauge",
+            "description": "Added each world day to a region's scarcity, scaled by its share of tiles under the system."
+          },
+          "stopsRegrowth": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Plants stop regrowing under it."
+          },
+          "blockedLoss": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Strength lost each tick its centre is blocked by high ground."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
           }
         }
       }

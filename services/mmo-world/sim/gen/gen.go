@@ -12,6 +12,7 @@ import (
 const (
 	PlaceSettlement = "starting-settlement"
 	PlaceDungeon    = "dungeon"
+	PlaceLandmark   = "landmark"
 	SiteOrdinary    = "site"
 )
 
@@ -31,12 +32,27 @@ type TileBaseline struct {
 	Blend     int64
 	Edge      string
 	River     bool
+	Water     string // none, stream, river, ford, coast, bog, lake or sea
+	Cover     int64  // 0 to 100
 	Region    LatticeID
 	HomeDist  int64  // to the nearest starting-settlement lattice point, open or not
 	Site      string // a settlement, a pattern's part, a site or a dungeon
 	Yielded   bool   // made passable so the spine or a place can be reached
 	Ford      bool   // yielded as shallows a corridor wades, not as land
+	Landmark  string // a map.landmarks row, a pattern's landmark rule, or ""
 }
+
+// What water a tile holds (GDD 4.10).
+const (
+	WaterNone   = "none"
+	WaterStream = "stream"
+	WaterRiver  = "river"
+	WaterFord   = "ford"
+	WaterCoast  = "coast"
+	WaterBog    = "bog"
+	WaterLake   = "lake"
+	WaterSea    = "sea"
+)
 
 // PatternPoint is one point of a pattern instance with something on it.
 type PatternPoint struct {
@@ -94,6 +110,10 @@ type params struct {
 	warp, fadeMin, fadeMax                   int64
 	continent, seaLevel                      int64
 	edgeTiles, edgeCreatures                 int64
+	coverSpread, oreMid, oreLift             int64
+	fertMid, fertLift, stream                int64
+	matMin, matMax, matBiome, matOther       int64
+	landmarkShare                            int64
 }
 
 // Gen answers for one world. Its caches only remember pure answers, so the
@@ -112,23 +132,28 @@ type Gen struct {
 	regions, spine, homes *lattice
 
 	discIndex     map[Hex]int
-	raws          map[Hex]raw
-	lattices      map[latticeKey]int64
+	raws          tileCache[raw]
+	search        corridorSearch
+	lattices      noiseCache
+	purposes      []string
 	paths         map[pathKey][]Hex
 	rivers        map[ChunkCoord][]Hex
 	ground        map[ChunkCoord]*ground
 	chunks        map[ChunkCoord]*ChunkBaseline
 	points        map[ChunkCoord][]PatternPoint
 	instances     map[string]*instance
-	regionOf      map[Hex]LatticeID
+	regionOf      tileCache[LatticeID]
 	regionInfo    map[LatticeID]*RegionBaseline
 	centreTerrain map[LatticeID]string
 	weights       map[LatticeID]int64
 	isles         map[LatticeID]*island
 	links         map[LatticeID][]Hex
-	picks         map[pickKey]LatticeID
+	picks         [regionPasses + 1]tileCache[LatticeID]
 	sizes         map[sizeKey]int64
 	regionSites   map[LatticeID]map[Hex]string
+	marks         map[LatticeID]landmark
+	tilesOf       map[LatticeID][]Hex
+	nextTo        map[LatticeID][]LatticeID
 	far           map[string]*FarMaterial
 	homeValid     map[LatticeID]bool
 	homeOrder     []LatticeID
@@ -141,12 +166,19 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 	g := &Gen{
 		b: b, d: draw.NewDrawer(key),
 		terrain: sheets.Lookup(b.Terrain), shapes: sheets.Lookup(b.Shapes), rules: map[string]int{},
-		discIndex: map[Hex]int{}, raws: map[Hex]raw{}, lattices: map[latticeKey]int64{},
+		discIndex: map[Hex]int{}, raws: newTileCache[raw](), lattices: noiseCache{blocks: map[noiseKey]*[blockArea]int64{}},
 		paths: map[pathKey][]Hex{}, rivers: map[ChunkCoord][]Hex{}, ground: map[ChunkCoord]*ground{},
 		chunks: map[ChunkCoord]*ChunkBaseline{}, points: map[ChunkCoord][]PatternPoint{},
-		instances: map[string]*instance{}, regionOf: map[Hex]LatticeID{},
-		regionInfo: map[LatticeID]*RegionBaseline{}, centreTerrain: map[LatticeID]string{}, weights: map[LatticeID]int64{}, isles: map[LatticeID]*island{}, links: map[LatticeID][]Hex{}, picks: map[pickKey]LatticeID{}, sizes: map[sizeKey]int64{}, regionSites: map[LatticeID]map[Hex]string{},
+		instances: map[string]*instance{}, regionOf: newTileCache[LatticeID](),
+		regionInfo: map[LatticeID]*RegionBaseline{}, centreTerrain: map[LatticeID]string{}, weights: map[LatticeID]int64{}, isles: map[LatticeID]*island{}, links: map[LatticeID][]Hex{}, sizes: map[sizeKey]int64{}, regionSites: map[LatticeID]map[Hex]string{}, marks: map[LatticeID]landmark{}, tilesOf: map[LatticeID][]Hex{}, nextTo: map[LatticeID][]LatticeID{},
 		far: map[string]*FarMaterial{}, homeValid: map[LatticeID]bool{}, homeRank: map[LatticeID]int{},
+	}
+	for k := range g.picks {
+		g.picks[k] = newTileCache[LatticeID]()
+	}
+	g.purposes = append([]string(nil), fieldPurposes[:]...)
+	for _, v := range b.BiomeVariants {
+		g.purposes = append(g.purposes, "variant."+v.ID)
 	}
 	pi := func(id string) int64 { return sheets.IntParam(b.MapParams, id) }
 	g.p = params{
@@ -166,6 +198,11 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 		variantShare: pi("creature-variant-share"),
 		warp:         pi("biome-warp-tiles"), fadeMin: pi("fade-min"), fadeMax: pi("fade-max"), continent: pi("continent-lift"), seaLevel: pi("sea-level"),
 		edgeTiles: pi("edge-region-tiles"), edgeCreatures: pi("edge-creature-share"),
+		coverSpread: pi("cover-spread"), oreMid: pi("ore-elevation-mid"), oreLift: pi("ore-elevation-lift"),
+		fertMid: pi("fertility-moisture-mid"), fertLift: pi("fertility-moisture-lift"), stream: pi("river-stream-tiles"),
+		matMin: pi("region-materials-min"), matMax: pi("region-materials-max"),
+		matBiome: pi("material-biome-weight"), matOther: pi("material-other-weight"),
+		landmarkShare: pi("landmark-region-share"),
 	}
 	if g.p.homeJitter*halves >= g.p.homeSpacing {
 		return nil, fmt.Errorf("gen: settlement-jitter must stay under half the spacing, so nearest-first order is exact")
@@ -227,7 +264,7 @@ func (g *Gen) ChunkRadius() int64            { return g.p.chunk }
 // Baseline is one tile: its chunk's answer for it.
 func (g *Gen) Baseline(h Hex) TileBaseline {
 	c := g.Chunk(g.ch.Of(h))
-	return c.Tiles[g.discIndex[Hex{h.Q - c.Centre.Q, h.R - c.Centre.R}]]
+	return c.Tiles[g.discIndex[Hex{Q: h.Q - c.Centre.Q, R: h.R - c.Centre.R}]]
 }
 
 // Chunk is every tile of one chunk.
@@ -242,15 +279,19 @@ func (g *Gen) Chunk(cc ChunkCoord) *ChunkBaseline {
 		h := gr.centre.Add(gr.offsets[i])
 		r := g.raw(h)
 		reg := g.region(h)
-		site := t.place
+		site, mark := t.place, t.landmark
 		if site == "" {
 			site = g.sitesOf(reg)[h]
+		}
+		if mark == "" && g.landmarkOf(reg).at == h {
+			mark = g.landmarkOf(reg).id
 		}
 		c.Tiles[i] = TileBaseline{
 			Hex: h, Elevation: r.elevation, Moisture: r.moisture, Ore: r.ore, Fertility: r.fertility,
 			Terrain: t.terrain, Variant: g.variant(h, t.terrain), River: t.river,
 			Secondary: g.secondTerrain(r), Blend: r.blend, Edge: g.edgeOf(r), Ford: t.ford,
 			Region: reg, HomeDist: g.nearestHome(h), Site: site, Yielded: t.yielded,
+			Water: g.water(r, t), Cover: g.cover(h, t.terrain), Landmark: mark,
 		}
 	}
 	g.chunks[cc] = c
@@ -260,11 +301,34 @@ func (g *Gen) Chunk(cc ChunkCoord) *ChunkBaseline {
 // ---- the ground: terrain after yielding, rivers and places ----
 
 type groundTile struct {
-	terrain string
-	yielded bool
-	river   bool
-	place   string
-	ford    bool // a corridor over water: shallows, not land
+	terrain  string
+	yielded  bool
+	river    bool
+	stream   bool // a river this near its source
+	place    string
+	landmark string // a pattern's landmark rule
+	ford     bool   // a corridor over water: shallows, not land
+}
+
+// water is what water a tile holds, from its ground and raw terrain.
+func (g *Gen) water(r raw, t groundTile) string {
+	switch {
+	case t.ford:
+		return WaterFord
+	case t.river && t.stream:
+		return WaterStream
+	case t.river:
+		return WaterRiver
+	case !g.passable(t.terrain) && r.sunk && slices.Contains(g.terrain[t.terrain].Tags, "wet"):
+		return WaterSea
+	case !g.passable(t.terrain) && slices.Contains(g.terrain[t.terrain].Tags, "wet"):
+		return WaterLake
+	case t.terrain == r.terrain && slices.Contains(g.terrain[t.terrain].Tags, "wet") && g.terrain[t.terrain].EnterTicks <= 1:
+		return WaterCoast
+	case slices.Contains(g.terrain[t.terrain].Tags, "wet"):
+		return WaterBog
+	}
+	return WaterNone
 }
 
 type ground struct {
@@ -283,7 +347,7 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 	gr := &ground{centre: centre, offsets: Disc(g.p.chunk)}
 	gr.tiles = make([]groundTile, len(gr.offsets))
 	in := func(h Hex) (int, bool) {
-		i, ok := g.discIndex[Hex{h.Q - centre.Q, h.R - centre.R}]
+		i, ok := g.discIndex[Hex{Q: h.Q - centre.Q, R: h.R - centre.R}]
 		return i, ok
 	}
 	// Places: starting settlements, then pattern points.
@@ -297,6 +361,9 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 	for _, p := range gr.points {
 		i, _ := in(p.Hex)
 		gr.tiles[i].place = p.Place
+		if p.Place == PlaceLandmark {
+			gr.tiles[i].landmark = p.Rule
+		}
 	}
 	// Corridors: the spine's edges near the chunk, and every place's way to
 	// its nearest spine node.
@@ -345,10 +412,15 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 	}
 	// Rivers from every source close enough to reach the chunk.
 	river := make([]bool, len(gr.tiles))
+	stream := make([]bool, len(gr.tiles))
+	for i := range stream {
+		stream[i] = true
+	}
 	for _, src := range g.ch.Near(centre, g.p.riverMax+g.p.chunk) {
-		for _, h := range g.river(src) {
+		for k, h := range g.river(src) {
 			if i, ok := in(h); ok {
 				river[i] = true
+				stream[i] = stream[i] && int64(k) < g.p.stream
 			}
 		}
 	}
@@ -361,6 +433,7 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 			t.ford = corridor[i] && !island[i] && t.place == "" && g.wet(centre.Add(off))
 		}
 		t.river = river[i] && g.passable(t.terrain)
+		t.stream = t.river && stream[i]
 	}
 	g.ground[cc] = gr
 	return gr
@@ -369,7 +442,7 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 // groundAt is a tile's terrain after yielding, and what stands on it.
 func (g *Gen) groundAt(h Hex) groundTile {
 	gr := g.groundOf(g.ch.Of(h))
-	return gr.tiles[g.discIndex[Hex{h.Q - gr.centre.Q, h.R - gr.centre.R}]]
+	return gr.tiles[g.discIndex[Hex{Q: h.Q - gr.centre.Q, R: h.R - gr.centre.R}]]
 }
 
 // spineSkips: the spine runs over land. An edge with an end in water is
@@ -542,43 +615,7 @@ func (g *Gen) path(a, b Hex) []Hex {
 	if p, ok := g.paths[key]; ok {
 		return p
 	}
-	from, to := key.from, key.to
-	limit := g.limit(Distance(from, to))
-	// A*: every step costs at least one tick, so the hex distance left is
-	// a lower bound on the cost left.
-	cost := map[Hex]int64{from: 0}
-	prev := map[Hex]Hex{}
-	pq := &queue{}
-	pq.push(item{from, Distance(from, to)})
-	for pq.Len() > 0 {
-		it := pq.pop()
-		if it.at == to {
-			break
-		}
-		if it.cost-Distance(it.at, to) > cost[it.at] {
-			continue
-		}
-		for d := range directions {
-			n := it.at.Neighbour(d)
-			if Distance(n, from)+Distance(n, to) > limit {
-				continue
-			}
-			step := g.p.wall
-			if r := g.raw(n); g.passable(r.terrain) {
-				step = g.terrain[r.terrain].EnterTicks
-			}
-			c := cost[it.at] + step
-			if old, seen := cost[n]; !seen || c < old {
-				cost[n], prev[n] = c, it.at
-				pq.push(item{n, c + Distance(n, to)})
-			}
-		}
-	}
-	out := []Hex{to}
-	for h := to; h != from; {
-		h = prev[h]
-		out = append(out, h)
-	}
+	out := g.search.run(g, key.from, key.to, g.limit(Distance(key.from, key.to)))
 	g.paths[key] = out
 	return out
 }
@@ -607,7 +644,7 @@ func (g *Gen) river(cc ChunkCoord) []Hex {
 		cur := top
 		for range g.p.riverMax {
 			next, found := Hex{}, false
-			for d := range directions {
+			for d := range nDirs {
 				n := cur.Neighbour(d)
 				if slices.Contains(visited, n) {
 					continue
@@ -632,56 +669,4 @@ func (g *Gen) river(cc ChunkCoord) []Hex {
 func (g *Gen) wet(h Hex) bool {
 	t := g.terrain[g.raw(h).terrain]
 	return !t.Passable && slices.Contains(t.Tags, "wet")
-}
-
-// ---- a small priority queue over hexes ----
-
-type item struct {
-	at   Hex
-	cost int64
-}
-type queue []item
-
-func (q queue) Len() int { return len(q) }
-func (q queue) less(i, j int) bool {
-	if q[i].cost != q[j].cost {
-		return q[i].cost < q[j].cost
-	}
-	return q[i].at.Less(q[j].at)
-}
-
-func (q *queue) push(x item) {
-	*q = append(*q, x)
-	i := len(*q) - 1
-	for i > 0 {
-		p := (i - 1) / halves
-		if !q.less(i, p) {
-			break
-		}
-		(*q)[i], (*q)[p] = (*q)[p], (*q)[i]
-		i = p
-	}
-}
-
-func (q *queue) pop() item {
-	old := *q
-	top := old[0]
-	n := len(old) - 1
-	old[0] = old[n]
-	*q = old[:n]
-	i := 0
-	for {
-		l, r, m := halves*i+1, halves*i+halves, i
-		if l < n && q.less(l, m) {
-			m = l
-		}
-		if r < n && q.less(r, m) {
-			m = r
-		}
-		if m == i {
-			return top
-		}
-		(*q)[i], (*q)[m] = (*q)[m], (*q)[i]
-		i = m
-	}
 }

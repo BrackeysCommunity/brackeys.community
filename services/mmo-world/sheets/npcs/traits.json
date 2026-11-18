@@ -1,0 +1,55 @@
+{
+  "$schema": "../schema/npcs.traits.schema.json",
+  "sheet": "npcs.traits",
+  "rows": [
+    {
+      "id": "bold",
+      "opposes": "wary"
+    },
+    {
+      "id": "wary",
+      "opposes": "bold"
+    },
+    {
+      "id": "open",
+      "opposes": "secretive"
+    },
+    {
+      "id": "secretive",
+      "opposes": "open"
+    },
+    {
+      "id": "greedy",
+      "opposes": "generous"
+    },
+    {
+      "id": "generous",
+      "opposes": "greedy"
+    },
+    {
+      "id": "proud",
+      "opposes": "humble"
+    },
+    {
+      "id": "humble",
+      "opposes": "proud"
+    },
+    {
+      "id": "patient",
+      "opposes": "rash"
+    },
+    {
+      "id": "rash",
+      "opposes": "patient"
+    },
+    {
+      "id": "cunning"
+    },
+    {
+      "id": "devout"
+    },
+    {
+      "id": "weary"
+    }
+  ]
+}

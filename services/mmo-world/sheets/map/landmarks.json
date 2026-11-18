@@ -1,0 +1,53 @@
+{
+  "$schema": "../schema/map.landmarks.schema.json",
+  "sheet": "map.landmarks",
+  "rows": [
+    {
+      "id": "crater",
+      "terrains": [
+        "plain",
+        "flats",
+        "hills"
+      ]
+    },
+    {
+      "id": "mast",
+      "terrains": [
+        "hills",
+        "mountain",
+        "plain"
+      ]
+    },
+    {
+      "id": "wreck",
+      "terrains": [
+        "coast",
+        "marsh",
+        "flats"
+      ]
+    },
+    {
+      "id": "dish",
+      "terrains": [
+        "hills",
+        "mountain",
+        "flats"
+      ]
+    },
+    {
+      "id": "statue",
+      "terrains": [
+        "plain",
+        "forest",
+        "marsh"
+      ]
+    },
+    {
+      "id": "overgrown-tower",
+      "terrains": [
+        "forest",
+        "marsh"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "settlements.starting",
+  "title": "settlements.starting",
+  "description": "What a starting settlement opens with.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "settlements.starting"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "structure"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "structure": {
+            "type": "string",
+            "enum": [
+              "forge",
+              "bench",
+              "still",
+              "loom",
+              "market",
+              "notice-board",
+              "tinker-bench",
+              "stable",
+              "treasury"
+            ],
+            "x-unit": "enum"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tier",
+            "description": "0 for a structure without tiers."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

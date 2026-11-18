@@ -24,8 +24,8 @@ func (g *Gen) newLattice(purpose string, spacing, jitter int64, offset bool) *la
 	l := &lattice{g: g, purpose: purpose, spacing: spacing, jitter: jitter, cache: map[LatticeID]Hex{}}
 	if offset {
 		l.offset = Hex{
-			int64(g.d.Below(uint64(spacing), draw.Purpose(purpose+".offset"), draw.Int(0))),
-			int64(g.d.Below(uint64(spacing), draw.Purpose(purpose+".offset"), draw.Int(1))),
+			Q: int64(g.d.Below(uint64(spacing), draw.Purpose(purpose+".offset"), draw.Int(0))),
+			R: int64(g.d.Below(uint64(spacing), draw.Purpose(purpose+".offset"), draw.Int(1))),
 		}
 	}
 	return l
@@ -38,7 +38,7 @@ func (l *lattice) At(id LatticeID) Hex {
 	if h, ok := l.cache[id]; ok {
 		return h
 	}
-	h := Hex{id.I*l.spacing + l.offset.Q, id.J*l.spacing + l.offset.R}
+	h := Hex{Q: id.I*l.spacing + l.offset.Q, R: id.J*l.spacing + l.offset.R}
 	switch {
 	case l.jitter > 0 && l.prefer != nil:
 		disc := DiscAt(h, l.jitter)
@@ -97,7 +97,7 @@ func (l *lattice) Nearest(h Hex) LatticeID {
 // discOffset is the kth tile of the disc of radius r, as an offset.
 func discOffset(r, k int64) Hex {
 	for ring := int64(0); ring <= r; ring++ {
-		n := max(1, int64(len(directions))*ring)
+		n := max(1, int64(nDirs)*ring)
 		if k < n {
 			return Ring(Hex{}, ring)[k]
 		}

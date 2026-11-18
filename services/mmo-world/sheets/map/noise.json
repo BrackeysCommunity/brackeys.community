@@ -55,6 +55,14 @@
       "falloff": 50,
       "max": 100,
       "note": "provisional: spike E round 5: the very low-frequency layer that makes seas, coasts and continents"
+    },
+    {
+      "id": "cover",
+      "cell": 3,
+      "octaves": 2,
+      "falloff": 50,
+      "max": 100,
+      "note": "How a tile's cover strays from its terrain's (GDD 4.10)."
     }
   ]
 }

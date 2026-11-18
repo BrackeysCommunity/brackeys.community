@@ -91,7 +91,7 @@ func TestOneApplyChains(t *testing.T) {
 	}
 }
 
-// Each of the ten starter rules fires on its own pattern, and only there.
+// Each starter and terrain rule fires on its own pattern, and only there.
 func TestStarterRules(t *testing.T) {
 	rs := rules(t)
 	m := func(id string, v int64) tags.Measure {
@@ -104,7 +104,14 @@ func TestStarterRules(t *testing.T) {
 		want    []string
 	}{
 		{"storm", set("", "creature", "marsh-born"), tags.Context{Place: set("", "storm")}, []string{"storm-charges"}},
-		{"no storm", set("", "creature", "marsh-born"), tags.Context{Place: set("", "fog")}, nil},
+		{"no storm", set("", "creature", "marsh-born"), tags.Context{Place: set("", "clear")}, nil},
+		{"fog hides", set("", "creature"), tags.Context{Place: set("", "fog")}, []string{"fog-hides"}},
+		{"frost brittles", set("", "node", "wet"), tags.Context{Place: set("", "frost")}, []string{"frost-brittles"}},
+		{"wooded ambush", set("", "creature"), tags.Context{Place: set("", "wooded")}, []string{"wooded-ambush"}},
+		{"wooded reach", set("", "item", "reaching"), tags.Context{Place: set("", "wooded")}, []string{"wooded-reach"}},
+		{"wet weighs", set("", "item", "heavy"), tags.Context{Place: set("", "wet")}, []string{"wet-weighs"}},
+		{"heights", set("", "item"), tags.Context{Place: set("", "heights"), Other: set("", "creature")}, []string{"heights-favour"}},
+		{"exposed", set("", "creature"), tags.Context{Place: set("", "exposed")}, []string{"exposed-no-ambush"}},
 		{"thick", set("", "item", "keen"), tags.Context{Other: set("", "thick")}, []string{"thick-turns-edges"}},
 		{"warm", set("", "spell", "warm"), tags.Context{Other: set("", "brittle")}, []string{"warm-thaws"}},
 		{"warm item is not a spell", set("", "item", "warm"), tags.Context{Other: set("", "brittle")}, nil},

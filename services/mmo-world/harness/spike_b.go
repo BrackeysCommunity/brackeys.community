@@ -37,11 +37,18 @@ func runWorldB(b *sheets.Book, seed int) (*runB, error) {
 		return nil, err
 	}
 	w := g.Discovered(g.Settlement(0).Hex, spikeBHorizon)
-	s, err := world.New(b, w, k.Roll)
+	s, err := world.New(b, g, k.Roll)
 	if err != nil {
 		return nil, err
 	}
 	r := &runB{w: w, s: s, log: &fact.Mem{}}
+	// Discovered: the regions whose centres lie within the horizon of the
+	// first settlement; the world wakes the regions round them.
+	for _, reg := range w.Regions {
+		if err := s.Discover(r.log, reg.Base.Centre, fact.Ref{Kind: "harness", ID: "spike-b"}); err != nil {
+			return nil, err
+		}
+	}
 	threat := slices.IndexFunc(b.Gauges, func(g sheets.Gauge) bool { return g.ID == "threat" })
 	snap := func() {
 		var t []int64
@@ -52,7 +59,7 @@ func runWorldB(b *sheets.Book, seed int) (*runB, error) {
 	}
 	snap()
 	for range spikeBDays {
-		if err := s.Advance(r.log); err != nil {
+		if err := s.AdvanceDay(r.log); err != nil {
 			return nil, err
 		}
 		snap()
@@ -106,7 +113,7 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
 	p("# Spike B: gauges and factions for %d world days, no players", spikeBDays)
 	p("")
-	p("World 0 of %d (the regions within %d tiles of the first starting settlement, as a horizon would hold them: %d regions, %d factions, %d open starting settlement of the %d lattice points there). Throwaway keys `spike-b-<n>`. Weather is not modelled (MM1). Variant: %q.", n, spikeBHorizon, len(main.s.Regions), len(main.s.Factions), main.s.Opened, len(main.w.Settlements()), variant)
+	p("World 0 of %d (the regions within %d tiles of the first starting settlement discovered, and the horizon round them awake: %d regions, %d factions, %d open starting settlement of the %d lattice points there). Throwaway keys `spike-b-<n>`. Weather, creatures and notables run (MM1). Variant: %q.", n, spikeBHorizon, len(main.s.Regions), len(main.s.Factions), main.s.Opened, len(main.w.Settlements()), variant)
 	p("")
 	p("Replay: two runs of world 0 give state-and-ledger digest `%s` and `%s`: %s.", d1.String()[:16], d2.String()[:16], map[bool]string{true: "identical", false: "DIFFERENT"}[d1 == d2])
 	p("")

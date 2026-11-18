@@ -139,6 +139,24 @@
       "text": "A party at the expected practice level solves a floor's puzzle within its countdown 60% to 80% of the time",
       "runs": "battle, search",
       "holdsFrom": "MM2"
+    },
+    {
+      "id": "gauges-not-pinned",
+      "text": "In 90 unattended world days, no region's gauge stays pinned at 0 or at its maximum for more than 7 world days in a row",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "factions-keep-holdings",
+      "text": "In 90 unattended world days, no faction loses its last holding",
+      "runs": "world",
+      "holdsFrom": "MM1"
+    },
+    {
+      "id": "replay-matches",
+      "text": "A snapshot plus recorded actions replays to the same digest",
+      "runs": "world",
+      "holdsFrom": "MM1"
     }
   ]
 }

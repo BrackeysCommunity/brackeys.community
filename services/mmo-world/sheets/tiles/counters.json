@@ -1,5 +1,30 @@
 {
   "$schema": "../schema/tiles.counters.schema.json",
   "sheet": "tiles.counters",
-  "rows": []
+  "rows": [
+    {
+      "id": "visits",
+      "decayPercent": 10
+    },
+    {
+      "id": "passage",
+      "decayPercent": 10
+    },
+    {
+      "id": "battles-won",
+      "decayPercent": 10
+    },
+    {
+      "id": "battles-lost",
+      "decayPercent": 10
+    },
+    {
+      "id": "gathered",
+      "decayPercent": 10
+    },
+    {
+      "id": "spoils",
+      "decayPercent": 10
+    }
+  ]
 }

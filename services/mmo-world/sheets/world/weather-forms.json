@@ -1,0 +1,57 @@
+{
+  "$schema": "../schema/world.weather-forms.schema.json",
+  "sheet": "world.weather-forms",
+  "rows": [
+    {
+      "id": "storm-wet",
+      "kind": "storm",
+      "terrains": [
+        "coast",
+        "marsh",
+        "deep-water"
+      ],
+      "weight": 4
+    },
+    {
+      "id": "storm",
+      "kind": "storm",
+      "weight": 1
+    },
+    {
+      "id": "frost-heights",
+      "kind": "frost",
+      "terrains": [
+        "hills",
+        "mountain",
+        "peak"
+      ],
+      "season": "cold",
+      "weight": 4
+    },
+    {
+      "id": "frost",
+      "kind": "frost",
+      "weight": 1
+    },
+    {
+      "id": "drought-flats",
+      "kind": "drought",
+      "terrains": [
+        "flats"
+      ],
+      "season": "dry",
+      "weight": 4
+    },
+    {
+      "id": "fog-low",
+      "kind": "fog",
+      "low": true,
+      "weight": 3
+    },
+    {
+      "id": "clear",
+      "kind": "clear",
+      "weight": 5
+    }
+  ]
+}

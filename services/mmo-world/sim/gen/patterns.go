@@ -222,7 +222,7 @@ func (g *Gen) instance(ri int, id string, anchor Hex) *instance {
 	}
 	rot := int64(0)
 	if free("rotation") {
-		rot = int64(g.d.Below(uint64(len(directions)), "pattern.rotation", who...))
+		rot = int64(g.d.Below(uint64(nDirs), "pattern.rotation", who...))
 	}
 	mirror := free("mirror") && g.d.Below(halves, "pattern.mirror", who...) == 1
 	sh := g.shapes[r.Shape]
@@ -293,12 +293,12 @@ func (g *Gen) shapeOffsets(sh *sheets.Shape, size int64, who []draw.Part) (outli
 	switch sh.Kind {
 	case "ring":
 		outline = Ring(Hex{}, size)
-		for k := range directions {
+		for k := range nDirs {
 			corners = append(corners, outline[int64(k)*size])
 		}
 	case "triangle":
-		a, b, c := Hex{}, directions[0].Scale(size), directions[1].Scale(size)
-		mid := Hex{divRound(a.Q+b.Q+c.Q, discSides), divRound(a.R+b.R+c.R, discSides)}
+		a, b, c := Hex{}, direction(0).Scale(size), direction(1).Scale(size)
+		mid := Hex{Q: divRound(a.Q+b.Q+c.Q, discSides), R: divRound(a.R+b.R+c.R, discSides)}
 		a, b, c = a.Add(mid.Scale(-1)), b.Add(mid.Scale(-1)), c.Add(mid.Scale(-1))
 		corners = []Hex{a, b, c}
 		outline = append(outline, Line(a, b)...)
@@ -306,12 +306,12 @@ func (g *Gen) shapeOffsets(sh *sheets.Shape, size int64, who []draw.Part) (outli
 		ca := Line(c, a)
 		outline = append(outline, ca[1:len(ca)-1]...)
 	case "line":
-		outline = Line(Hex{}, directions[0].Scale(size))
+		outline = Line(Hex{}, direction(0).Scale(size))
 		corners = []Hex{outline[0], outline[len(outline)-1]}
 	case "cross", "star":
 		arms := max(1, sh.Arms)
 		for k := range arms {
-			d := directions[k*int64(len(directions))/arms]
+			d := direction(int(k * int64(nDirs) / arms))
 			for s := int64(1); s <= size; s++ {
 				outline = append(outline, d.Scale(s))
 			}
@@ -342,7 +342,7 @@ func (g *Gen) shapeOffsets(sh *sheets.Shape, size int64, who []draw.Part) (outli
 		corners = outline
 	case "glyph":
 		for _, o := range sh.Offsets {
-			outline = append(outline, Hex{o.Q * size, o.R * size})
+			outline = append(outline, Hex{Q: o.Q * size, R: o.R * size})
 		}
 		corners = outline
 	}
@@ -358,7 +358,7 @@ func (g *Gen) shapeExtent(sh *sheets.Shape, size int64) int64 {
 	case "glyph":
 		var e int64
 		for _, o := range sh.Offsets {
-			e = max(e, Hex{o.Q * size, o.R * size}.Len())
+			e = max(e, Hex{Q: o.Q * size, R: o.R * size}.Len())
 		}
 		return e
 	}

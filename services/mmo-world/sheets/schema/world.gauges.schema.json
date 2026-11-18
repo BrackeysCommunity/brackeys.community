@@ -42,7 +42,7 @@
           "dailyRise": {
             "type": "integer",
             "x-unit": "gauge",
-            "description": "Change per world day with nobody acting; negative falls."
+            "description": "Change per world day with nobody acting; negative falls toward the baseline and stops there."
           },
           "pullPercent": {
             "type": "integer",

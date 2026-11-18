@@ -2,6 +2,7 @@ package gen
 
 import (
 	"slices"
+	"strings"
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/sheets"
@@ -25,6 +26,9 @@ type RegionBaseline struct {
 	Edge         string
 	EdgeMaterial *FarMaterial
 	EdgeCreature string
+	// Materials are the 3 to 5 authored kinds the region holds, weighted
+	// toward its biome; the world offers those its tier allows.
+	Materials []string
 }
 
 // FarMaterial is a material generated past far-material-min-tiles: a keyed
@@ -70,11 +74,11 @@ func (m *FarMaterial) Vector(tiers []sheets.Tier, tier int64) []int64 {
 // the nearest centre. It reads raw biomes only, so it never depends on
 // what yielded.
 func (g *Gen) region(h Hex) LatticeID {
-	if id, ok := g.regionOf[h]; ok {
+	if id, ok := g.regionOf.get(h); ok {
 		return id
 	}
 	id := g.pickAt(h, regionPasses)
-	g.regionOf[h] = id
+	g.regionOf.put(h, id)
 	return id
 }
 
@@ -89,7 +93,7 @@ const regionPasses = 2
 // takes a tile beyond the largest disc that fits region-ceiling-tiles;
 // those tiles go to their next choice.
 func (g *Gen) pickAt(h Hex, pass int) LatticeID {
-	if id, ok := g.picks[pickKey{h, pass}]; ok {
+	if id, ok := g.picks[pass].get(h); ok {
 		return id
 	}
 	terrain := g.raw(h).terrain
@@ -117,13 +121,8 @@ func (g *Gen) pickAt(h Hex, pass int) LatticeID {
 			}
 		}
 	}
-	g.picks[pickKey{h, pass}] = best
+	g.picks[pass].put(h, best)
 	return best
-}
-
-type pickKey struct {
-	h    Hex
-	pass int
 }
 
 // sizeAt is how many tiles a centre takes at a pass.
@@ -240,6 +239,7 @@ func (g *Gen) Region(id LatticeID) *RegionBaseline {
 	}
 	if g.passable(r.Terrain) {
 		g.edges(r)
+		r.Materials = g.regionMaterials(id, g.raw(c).biome)
 	}
 	g.regionInfo[id] = r
 	return r
@@ -318,5 +318,99 @@ func (g *Gen) sitesOf(id LatticeID) map[Hex]string {
 		}
 	}
 	g.regionSites[id] = out
+	return out
+}
+
+// regionMaterials draws a region's authored materials, without
+// replacement, weighted toward those whose tags its biome's materials
+// carry.
+func (g *Gen) regionMaterials(id LatticeID, biome int) []string {
+	who := []draw.Part{draw.Int(id.I), draw.Int(id.J)}
+	tags := append(slices.Clone(g.b.Biomes[biome].MaterialTags), g.terrain[g.b.Biomes[biome].Terrain].Tags...)
+	weights := make([]int64, len(g.b.Materials))
+	for i, m := range g.b.Materials {
+		weights[i] = g.p.matOther
+		for _, t := range m.Tags {
+			if slices.Contains(tags, t) {
+				weights[i] = g.p.matBiome
+			}
+		}
+	}
+	n := g.p.matMin + int64(g.d.Below(uint64(g.p.matMax-g.p.matMin+1), "region.materials", who...))
+	var out []string
+	for k := int64(0); k < n && k < int64(len(weights)); k++ {
+		i := g.d.Pick(weights, "region.material", append(who, draw.Int(k))...)
+		out = append(out, g.b.Materials[i].ID)
+		weights[i] = 0
+	}
+	return out
+}
+
+type landmark struct {
+	id string
+	at Hex
+}
+
+// landmarkOf is a region's own landmark, in a share of land regions: on
+// its highest free passable tile, a kind its terrain allows.
+func (g *Gen) landmarkOf(id LatticeID) landmark {
+	if m, ok := g.marks[id]; ok {
+		return m
+	}
+	var m landmark
+	who := []draw.Part{draw.Int(id.I), draw.Int(id.J)}
+	r := g.Region(id)
+	var kinds []string
+	for _, l := range g.b.Landmarks {
+		if slices.Contains(l.Terrains, r.Terrain) {
+			kinds = append(kinds, l.ID)
+		}
+	}
+	if len(kinds) > 0 && int64(g.d.Below(percent, "landmark.region", who...)) < g.p.landmarkShare {
+		sites := g.sitesOf(id)
+		best, found := Hex{}, false
+		for _, h := range g.regionTiles(id) {
+			t := g.groundAt(h)
+			if t.place != "" || sites[h] != "" || !g.passable(t.terrain) {
+				continue
+			}
+			if !found || g.raw(h).elevation > g.raw(best).elevation {
+				best, found = h, true
+			}
+		}
+		if found {
+			m = landmark{id: kinds[g.d.Below(uint64(len(kinds)), "landmark.kind", who...)], at: best}
+		}
+	}
+	g.marks[id] = m
+	return m
+}
+
+// Creatures is a tile's base creature table: every archetype of its
+// terrain, by tier, then id; the region's own creature leads when it
+// lives there (GDD 4.10).
+func (g *Gen) Creatures(h Hex) []string {
+	t := g.Baseline(h)
+	var rows []sheets.Creature
+	for _, c := range g.b.Creatures {
+		if slices.Contains(c.Biomes, t.Terrain) {
+			rows = append(rows, c)
+		}
+	}
+	slices.SortFunc(rows, func(a, b sheets.Creature) int {
+		if a.Tier != b.Tier {
+			return int(a.Tier - b.Tier)
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
+	out := make([]string, 0, len(rows))
+	own := g.Region(t.Region).Creature
+	for _, c := range rows {
+		if c.ID == own {
+			out = append([]string{c.ID}, out...)
+			continue
+		}
+		out = append(out, c.ID)
+	}
 	return out
 }

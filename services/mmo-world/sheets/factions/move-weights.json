@@ -8,8 +8,8 @@
       "move": "expand",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-fortify",
@@ -17,8 +17,8 @@
       "move": "fortify",
       "fit": 30,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-raid",
@@ -26,8 +26,8 @@
       "move": "raid",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-trade",
@@ -35,8 +35,8 @@
       "move": "trade",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-court",
@@ -44,8 +44,8 @@
       "move": "court",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-betray",
@@ -53,8 +53,8 @@
       "move": "betray",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-withdraw",
@@ -62,8 +62,8 @@
       "move": "withdraw",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-patrol",
@@ -71,8 +71,8 @@
       "move": "patrol",
       "fit": 30,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-besiege",
@@ -80,8 +80,8 @@
       "move": "besiege",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-cull",
@@ -89,8 +89,8 @@
       "move": "cull",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "wardens-migrate",
@@ -98,404 +98,404 @@
       "move": "migrate",
       "fit": 10,
       "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "riskWeight": 140,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-expand",
       "archetype": "compact",
       "move": "expand",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-fortify",
       "archetype": "compact",
       "move": "fortify",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-raid",
       "archetype": "compact",
       "move": "raid",
       "fit": 30,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-trade",
       "archetype": "compact",
       "move": "trade",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-court",
       "archetype": "compact",
       "move": "court",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-betray",
       "archetype": "compact",
       "move": "betray",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-withdraw",
       "archetype": "compact",
       "move": "withdraw",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-patrol",
       "archetype": "compact",
       "move": "patrol",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-besiege",
       "archetype": "compact",
       "move": "besiege",
       "fit": 30,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-cull",
       "archetype": "compact",
       "move": "cull",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "compact-migrate",
       "archetype": "compact",
       "move": "migrate",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 120,
+      "riskWeight": 60,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-expand",
       "archetype": "guild",
       "move": "expand",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-fortify",
       "archetype": "guild",
       "move": "fortify",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-raid",
       "archetype": "guild",
       "move": "raid",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-trade",
       "archetype": "guild",
       "move": "trade",
       "fit": 30,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-court",
       "archetype": "guild",
       "move": "court",
       "fit": 30,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-betray",
       "archetype": "guild",
       "move": "betray",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-withdraw",
       "archetype": "guild",
       "move": "withdraw",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-patrol",
       "archetype": "guild",
       "move": "patrol",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-besiege",
       "archetype": "guild",
       "move": "besiege",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-cull",
       "archetype": "guild",
       "move": "cull",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "guild-migrate",
       "archetype": "guild",
       "move": "migrate",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 130,
+      "riskWeight": 110,
+      "note": "GDD 4.5"
     },
     {
       "id": "order-expand",
       "archetype": "order",
       "move": "expand",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-fortify",
       "archetype": "order",
       "move": "fortify",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-raid",
       "archetype": "order",
       "move": "raid",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-trade",
       "archetype": "order",
       "move": "trade",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-court",
       "archetype": "order",
       "move": "court",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-betray",
       "archetype": "order",
       "move": "betray",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-withdraw",
       "archetype": "order",
       "move": "withdraw",
       "fit": 30,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-patrol",
       "archetype": "order",
       "move": "patrol",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-besiege",
       "archetype": "order",
       "move": "besiege",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-cull",
       "archetype": "order",
       "move": "cull",
       "fit": 30,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "order-migrate",
       "archetype": "order",
       "move": "migrate",
       "fit": 10,
-      "needWeight": 100,
+      "needWeight": 90,
       "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-expand",
       "archetype": "clans",
       "move": "expand",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-fortify",
       "archetype": "clans",
       "move": "fortify",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-raid",
       "archetype": "clans",
       "move": "raid",
       "fit": 30,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-trade",
       "archetype": "clans",
       "move": "trade",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-court",
       "archetype": "clans",
       "move": "court",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-betray",
       "archetype": "clans",
       "move": "betray",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-withdraw",
       "archetype": "clans",
       "move": "withdraw",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-patrol",
       "archetype": "clans",
       "move": "patrol",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-besiege",
       "archetype": "clans",
       "move": "besiege",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-cull",
       "archetype": "clans",
       "move": "cull",
       "fit": 10,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     },
     {
       "id": "clans-migrate",
       "archetype": "clans",
       "move": "migrate",
       "fit": 30,
-      "needWeight": 100,
-      "riskWeight": 100,
-      "note": "provisional: not in the GDD yet; spike value"
+      "needWeight": 110,
+      "riskWeight": 150,
+      "note": "GDD 4.5"
     }
   ]
 }

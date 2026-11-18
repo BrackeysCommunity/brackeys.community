@@ -27,7 +27,8 @@
           "passable",
           "sight",
           "cover",
-          "tags"
+          "tags",
+          "weatherPace"
         ],
         "properties": {
           "id": {
@@ -64,6 +65,32 @@
             "uniqueItems": true,
             "x-unit": "tags",
             "x-ref": "tags.vocabulary"
+          },
+          "placeTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags a tile of this terrain carries as a place, for rules; not given to what is found there."
+          },
+          "weatherPace": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "percent",
+            "description": "A system's ticks per tile here, as a share of its pace."
+          },
+          "weatherGain": {
+            "type": "integer",
+            "x-unit": "count",
+            "description": "Strength a system gains entering a tile."
+          },
+          "weatherBlock": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "A system's centre cannot enter."
           },
           "note": {
             "type": "string",

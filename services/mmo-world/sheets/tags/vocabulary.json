@@ -389,6 +389,26 @@
     {
       "id": "foothills",
       "kind": "origin"
+    },
+    {
+      "id": "wooded",
+      "kind": "property"
+    },
+    {
+      "id": "exposed",
+      "kind": "property"
+    },
+    {
+      "id": "heights",
+      "kind": "property"
+    },
+    {
+      "id": "heavy",
+      "kind": "property"
+    },
+    {
+      "id": "reaching",
+      "kind": "property"
     }
   ]
 }

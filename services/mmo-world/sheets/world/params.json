@@ -14,12 +14,6 @@
       "unit": "gauge"
     },
     {
-      "id": "drought-scarcity",
-      "value": 10,
-      "unit": "gauge",
-      "doc": "Extra scarcity a day under drought."
-    },
-    {
       "id": "baseline-min",
       "value": 100,
       "unit": "gauge",
@@ -81,9 +75,150 @@
     },
     {
       "id": "overrun-ebb",
-      "value": -25,
+      "value": -30,
       "unit": "gauge",
-      "doc": "Threat a day in an overrun region: what overran it spends itself and moves on, so an overrun is an episode, not an ending."
+      "doc": "Threat a day in an overrun region: what overran it spends itself and moves on, so an overrun is an episode, not an ending. MM1 World run: 30, not GDD 4.3's 25, so a run of surges on a small horizon ends with no more than 3 regions overrun."
+    },
+    {
+      "id": "season-days",
+      "value": 42,
+      "unit": "days",
+      "doc": "A season (GDD 2.2)."
+    },
+    {
+      "id": "weather-regions-per-system",
+      "value": 6,
+      "unit": "count",
+      "doc": "At most one live system per this many regions inside the horizon."
+    },
+    {
+      "id": "weather-form-chance",
+      "value": 0.12,
+      "unit": "chance",
+      "doc": "Each world day, each spine cell inside the horizon rolls once for a new system."
+    },
+    {
+      "id": "weather-strength-min",
+      "value": 20,
+      "unit": "count",
+      "doc": "A new system's least strength."
+    },
+    {
+      "id": "weather-strength-max",
+      "value": 60,
+      "unit": "count",
+      "doc": "A new system's greatest strength."
+    },
+    {
+      "id": "weather-strength-cap",
+      "value": 100,
+      "unit": "count",
+      "doc": "No system grows stronger."
+    },
+    {
+      "id": "weather-radius-per",
+      "value": 20,
+      "unit": "count",
+      "doc": "Footprint radius is 1 tile plus strength over this."
+    },
+    {
+      "id": "weather-pace-base",
+      "value": 14,
+      "unit": "ticks",
+      "doc": "A system moves a tile every (this − strength ÷ weather-pace-per) ticks."
+    },
+    {
+      "id": "weather-pace-per",
+      "value": 10,
+      "unit": "count"
+    },
+    {
+      "id": "weather-life-min",
+      "value": 1,
+      "unit": "days"
+    },
+    {
+      "id": "weather-life-max",
+      "value": 5,
+      "unit": "days"
+    },
+    {
+      "id": "weather-weak",
+      "value": 15,
+      "unit": "count",
+      "doc": "Under this strength a system loses a world day of life."
+    },
+    {
+      "id": "weather-turn",
+      "value": 1,
+      "unit": "count",
+      "doc": "Steps of heading a system may turn toward the wind each world day."
+    },
+    {
+      "id": "weather-forecast-ticks",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "The forecast is exact this far ahead."
+    },
+    {
+      "id": "low-elevation",
+      "value": 40,
+      "unit": "count",
+      "doc": "Tiles at or under this elevation are low: dead zones pool there."
+    },
+    {
+      "id": "horizon-hops",
+      "value": 2,
+      "unit": "count",
+      "doc": "The horizon holds discovered regions and those within this many regions of one (GDD 4.2)."
+    },
+    {
+      "id": "surge-beyond-share",
+      "value": 25,
+      "unit": "percent",
+      "doc": "Share of surges that come from a dormant region just past the horizon, spilling into its awake neighbours."
+    },
+    {
+      "id": "gather-scarcity",
+      "value": 1,
+      "unit": "gauge",
+      "doc": "Scarcity a region gains per unit gathered in it."
+    },
+    {
+      "id": "weather-reach",
+      "value": 24,
+      "unit": "tiles",
+      "doc": "A system whose centre strays this far from every awake region's centre leaves the map."
+    },
+    {
+      "id": "high-elevation",
+      "value": 57,
+      "unit": "count",
+      "doc": "Tiles at or over this elevation are high ground: clear weather lengthens sight there."
+    },
+    {
+      "id": "week-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "The ledger report's clock (GDD 4.7)."
+    },
+    {
+      "id": "structure-condition",
+      "value": 100,
+      "unit": "count",
+      "doc": "A structure's condition when built (GDD 4.16)."
+    },
+    {
+      "id": "settlement-defence",
+      "value": 100,
+      "unit": "defence",
+      "doc": "A starting settlement's defence: its watch, paid by its treasury (MM1 World run: at a holding's 60, one surge onto a settlement could raid it down in 3 days)."
+    },
+    {
+      "id": "watch-repair",
+      "value": 20,
+      "unit": "defence",
+      "doc": "Defence a starting settlement's watch restores each world day, up to settlement-defence."
     }
   ]
 }

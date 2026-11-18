@@ -1,5 +1,60 @@
 {
   "$schema": "../schema/creatures.params.schema.json",
   "sheet": "creatures.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "capacity-base",
+      "value": 4,
+      "unit": "count",
+      "doc": "Animals of a species a tile of its biome carries before fertility."
+    },
+    {
+      "id": "capacity-fertility",
+      "value": 12,
+      "unit": "percent",
+      "doc": "More carried per fertility point."
+    },
+    {
+      "id": "capacity-wet",
+      "value": 3,
+      "unit": "count",
+      "doc": "More carried on a tile with water."
+    },
+    {
+      "id": "capacity-tier-step",
+      "value": 2,
+      "unit": "count",
+      "doc": "Capacity divides by this per archetype tier above 1: bigger creatures are fewer."
+    },
+    {
+      "id": "breed-percent",
+      "value": 5,
+      "unit": "percent",
+      "doc": "A population grows this share of the way to capacity each world day (GDD 4.15)."
+    },
+    {
+      "id": "gone-share",
+      "value": 10,
+      "unit": "percent",
+      "doc": "Under this share of capacity a species is gone from the tile."
+    },
+    {
+      "id": "spread-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "A species returns to a tile where it is gone from a neighbour at this share of capacity or more."
+    },
+    {
+      "id": "herd-size",
+      "value": 24,
+      "unit": "count",
+      "doc": "Animals in a migrating herd."
+    },
+    {
+      "id": "pack-sight",
+      "value": 6,
+      "unit": "tiles",
+      "doc": "How far a pack sees prey to follow."
+    }
+  ]
 }
