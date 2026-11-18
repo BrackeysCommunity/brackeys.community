@@ -90,7 +90,7 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	}
 
 	names := newNamer(b)
-	var doc mdDoc
+	var doc lineDoc
 	p := doc.p
 	p("# Spike B: gauges and factions for %d world days, no players", worldDays)
 	p("")
@@ -181,7 +181,7 @@ func spikeB(b *sheets.Book, out string, n int) error {
 			}
 			switch f.Kind {
 			case "holding.fell":
-				if d, _ := f.Get("settlement"); d.N == 1 {
+				if settlementFell(f) {
 					a.settlementsFell++
 				} else {
 					a.holdingsFell++
@@ -245,13 +245,12 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	}
 	p("Faction facts over all worlds: %s.", mapList(moves))
 	p("")
-	// The World run's target: no collapse, no stasis.
 	collapse, stasis, quiet, fell := 0, 0, 0, 0
 	for _, a := range ag {
-		if a.overrunAtEnd > worldOverrun {
+		if collapsed(a.overrunAtEnd) {
 			collapse++
 		}
-		if a.movingLate*2 < a.regions {
+		if stagnant(a.movingLate, a.regions) {
 			stasis++
 		}
 		if a.overruns == 0 && a.holdingsFell == 0 {
@@ -278,14 +277,14 @@ func spikeB(b *sheets.Book, out string, n int) error {
 		p("| %d | %d threat | %d threat | %d threat | %d | %d |", day, t[0], t[len(t)/2], t[len(t)-1], atLeast(t, 600), atLeast(t, 900))
 	}
 	p("")
-	if err := doc.Write(out, "spike-b.md"); err != nil {
+	if err := doc.save(out, "spike-b.md"); err != nil {
 		return err
 	}
-	var ledger mdDoc
+	var ledger lineDoc
 	for _, f := range all {
 		ledger.p("%s", names.line(main.s, f))
 	}
-	return ledger.Write(out, "spike-b-ledger.txt")
+	return ledger.save(out, "spike-b-ledger.txt")
 }
 
 func countAtLeast(fs []fact.Fact, w int64) int {

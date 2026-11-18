@@ -22,7 +22,7 @@ import (
 	"jams.team/mmo-world/sim/weather"
 )
 
-// structural: the day comes from sheets.
+// structural: the day comes from sheets; none marks no index.
 const (
 	ticksPerDay = sheets.TicksPerDay
 	none        = -1

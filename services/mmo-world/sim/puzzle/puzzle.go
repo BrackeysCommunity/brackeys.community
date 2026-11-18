@@ -15,7 +15,8 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// structural: milliseconds in a second; a square grid has four sides.
+// structural: milliseconds in a second; a square grid has four sides,
+// and a half turn is two of them.
 const (
 	msPerSecond = 1000
 	sides       = 4
@@ -113,7 +114,7 @@ func (p *Puzzles) Countdown(family string, level, tier, practice int64) int64 {
 	f := p.families[family]
 	secs := f.Countdown + f.PerLevel*(level-1)
 	pct := fixed.Hundredths + p.Param("countdown-per-tier")*(tier-1)
-	pct = fixed.PercentOf(pct, fixed.Hundredths+p.Gifts(practice).Countdown)
+	pct = fixed.PercentPlus(pct, p.Gifts(practice).Countdown)
 	return fixed.PercentOf(secs*msPerSecond, pct)
 }
 
@@ -282,7 +283,7 @@ func (p *Puzzles) Replay(l Layout, moves []Move, countdown int64, w Where) Resul
 	if solvedAt < 0 {
 		return Result{Haywire: p.Haywire(l.Family, w)}
 	}
-	clean := (countdown-solvedAt)*fixed.Hundredths >= countdown*p.Param("clean-solve-left")
+	clean := fixed.AtPercent(countdown-solvedAt, countdown, p.Param("clean-solve-left"))
 	return Result{Solved: true, Clean: clean, At: solvedAt}
 }
 
@@ -315,7 +316,7 @@ func (p *Puzzles) SolveRate(family string, practice, level, tier, party int64) f
 	pct := f.SoloRate.Add(fixed.FromInt(p.Param("solve-per-practice")*practice +
 		p.Param("solve-per-level")*(level-1) + p.Param("solve-per-tier")*(tier-1) + p.Param("party-help")*(party-1)))
 	lo, hi := fixed.FromInt(p.Param("solve-min")), fixed.FromInt(p.Param("solve-max"))
-	return fixed.Max(lo, fixed.Min(hi, pct)).Div(fixed.FromInt(fixed.Hundredths))
+	return fixed.Max(lo, fixed.Min(hi, pct)).AsFraction()
 }
 
 // Families lists the families that a set of tags makes the world pick,

@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/tally"
 )
 
 // Hunt is a creature with a health pool that many characters wear down
@@ -22,11 +23,11 @@ type Hunt struct {
 	Health   int64          `json:"health"`
 	Max      int64          `json:"max"`
 	Ends     int64          `json:"ends"` // tick
-	Removed  item.Tally     `json:"removed"`
+	Removed  tally.Tally    `json:"removed"`
 	Beats    int64          `json:"beats"`
 	Over     bool           `json:"over"`
 	Slain    bool           `json:"slain"`
-	Failures item.Tally     `json:"failures"`
+	Failures tally.Tally    `json:"failures"`
 	Down     []string       `json:"down"`
 	States   []State        `json:"states"`
 	Salvage  []Salvaged     `json:"salvage,omitempty"` // left by gear that broke
@@ -103,7 +104,7 @@ func (r *Rules) Spoils(h *Hunt) map[string][]item.Spoil {
 	}
 	var haul []item.Spoil
 	for i, s := range r.hunts[h.Row].Spoils {
-		lo := fixed.Ratio(s.Quantity, statHalf).Int()
+		lo := fixed.Ratio(s.Quantity, halved).Int()
 		n := r.roll.Between(lo, s.Quantity, "hunt.spoils", draw.Str(h.ID), draw.Int(int64(i)))
 		haul = append(haul, item.Spoil{Material: s.Material, Qty: n})
 	}

@@ -127,7 +127,7 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	elapsed := time.Since(start)
 
-	var doc mdDoc
+	var doc lineDoc
 	p := doc.p
 	p("# Craft run")
 	p("")
@@ -196,13 +196,7 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 				continue
 			}
 			slices.Sort(peaks)
-			p90 := q(peaks, 0.9)
-			var bestPts int64
-			if c := best[cellKey(t.Tier, slot)]; c != nil {
-				bestPts = c.Vec.TopTwo()
-			}
-			ratio := float64(bestPts) / float64(max(p90, 1))
-			ok := ratio <= craftStrength
+			p90, bestPts, ratio, ok := strength(peaks, best[cellKey(t.Tier, slot)])
 			cells++
 			if ok {
 				holding++
@@ -213,7 +207,7 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	p("")
 	p("Cells holding: %d of %d; worst ratio %.2f.", holding, cells, worst)
-	if err := doc.Write(out, "craft.md"); err != nil {
+	if err := doc.save(out, "craft.md"); err != nil {
 		return nil, err
 	}
 	return []Measured{
@@ -239,6 +233,17 @@ func dedupe(in []item.Input, maxQty int64) []item.Input {
 type found struct {
 	*item.Kind
 	d *item.Deriver
+}
+
+// strength judges one tier and slot: the search's best against the p90 of
+// the sorted random peaks.
+func strength(sorted []int64, best *found) (p90, bestPts int64, ratio float64, ok bool) {
+	p90 = q(sorted, 0.9)
+	if best != nil {
+		bestPts = best.Vec.TopTwo()
+	}
+	ratio = float64(bestPts) / float64(max(p90, 1))
+	return p90, bestPts, ratio, ratio <= craftStrength
 }
 
 // searchBest is the craft-strength adversary: it enumerates shallow

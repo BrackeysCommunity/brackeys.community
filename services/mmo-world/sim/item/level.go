@@ -226,7 +226,7 @@ func (g *Growth) FightXP(itemTier, creatureTier int64, won, troubled bool) int64
 		xp = g.Deed("win-two-below")
 	}
 	if troubled {
-		xp = fixed.PercentOf(xp, fixed.Hundredths+g.Param("troubled-bonus"))
+		xp = fixed.PercentPlus(xp, g.Param("troubled-bonus"))
 	}
 	return xp
 }

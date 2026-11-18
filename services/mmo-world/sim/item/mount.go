@@ -5,6 +5,8 @@ import (
 
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/tally"
 )
 
 // Mounts are items too: found, bred or made, traded and levelled by use
@@ -65,7 +67,7 @@ func (m *Mounts) Load(in *Instance) int64 {
 			pct += o.Magnitude
 		}
 	}
-	return fixed.PercentOf(load, fixed.Hundredths+pct)
+	return fixed.PercentPlus(load, pct)
 }
 
 // PackLoad is a character's pack before mounts and traits.
@@ -79,16 +81,17 @@ func (m *Mounts) Upkeep(days, ticksRidden int64) int64 {
 
 // Ridden records a tile entered and gives xp when the terrain suits it.
 func (m *Mounts) Ridden(in *Instance, terrain string, road, laden bool) Levelled {
-	in.Record.Add("ridden", "any")
+	var ts []tags.Tag
 	if laden {
-		in.Record.Bump("ridden:laden", 1)
+		ts = append(ts, "laden")
 	}
 	if road {
-		in.Record.Bump("ridden:road", 1)
+		ts = append(ts, "road")
 	}
+	in.Record.Add("ridden", ts...)
 	if !m.Suits(in, terrain, road) {
 		return Levelled{From: in.Level, To: in.Level}
 	}
-	in.Record.Bump("ridden:suited", 1)
+	in.Record.Bump(tally.Key("ridden", "suited"), 1)
 	return m.g.AddXP(in, nil, m.g.Deed("mount-tile"))
 }

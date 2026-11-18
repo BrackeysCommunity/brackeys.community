@@ -96,7 +96,7 @@ func (d *day) weatherShares() {
 					n++
 				}
 			}
-			r.Weather[kinds[sys.Kind]] += n * fixed.Hundredths / int64(max(1, len(tiles)))
+			r.Weather[kinds[sys.Kind]] += fixed.ShareFloor(n, int64(len(tiles)))
 		}
 	}
 }

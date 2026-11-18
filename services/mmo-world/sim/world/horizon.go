@@ -230,7 +230,7 @@ func (s *State) patternsIn(id gen.LatticeID) []string {
 func (s *State) Novel(band int64) (int64, int) {
 	for _, n := range s.Novelty {
 		if n.Band == band && n.Regions > 0 {
-			return int64(n.Novel) * fixed.Hundredths / int64(n.Regions), n.Regions
+			return fixed.ShareFloor(int64(n.Novel), int64(n.Regions)), n.Regions
 		}
 	}
 	return 0, 0

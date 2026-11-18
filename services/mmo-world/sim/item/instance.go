@@ -10,12 +10,6 @@ import (
 	"jams.team/mmo-world/sim/tally"
 )
 
-// Count and Tally live in sim/tally; an item's record is one.
-type (
-	Count = tally.Count
-	Tally = tally.Tally
-)
-
 // Instance is one item a character holds: a kind, plus what this one has
 // lived through. Level, picks and record stay with it when it is sold.
 type Instance struct {
@@ -30,10 +24,10 @@ type Instance struct {
 	Offers []string `json:"offers,omitempty"`
 	// Waiting are milestones reached while another's offers stood, in
 	// order; each is offered once the one before is picked.
-	Waiting []int64 `json:"waiting,omitempty"`
-	Dormant bool    `json:"dormant,omitempty"`
-	Maker   string  `json:"maker,omitempty"`
-	Record  Tally   `json:"record"`
+	Waiting []int64     `json:"waiting,omitempty"`
+	Dormant bool        `json:"dormant,omitempty"`
+	Maker   string      `json:"maker,omitempty"`
+	Record  tally.Tally `json:"record"`
 	// Mount names a mounts.kinds row when the instance is a mount.
 	Mount string `json:"mount,omitempty"`
 	// Exploit is the exploit instance a deck holds.

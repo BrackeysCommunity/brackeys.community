@@ -129,7 +129,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	}
 	elapsed := time.Since(start)
 
-	var doc mdDoc
+	var doc lineDoc
 	p := doc.p
 	axes := d.Axes()
 	p("# Spike A: item derivation over %s random recipes", comma(int64(n)))
@@ -310,17 +310,14 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			}
 			sorted := slices.Clone(peaks)
 			slices.Sort(sorted)
-			med, p90, top := q(sorted, 0.5), q(sorted, 0.9), q(sorted, 0.999)
+			med, top := q(sorted, 0.5), q(sorted, 0.999)
 			cell := best[cellKey(t.Tier, slot)]
-			var bestPts int64
+			p90, bestPts, ratio, ok := strength(sorted, cell)
 			recipe := "none found"
 			if cell != nil {
-				bestPts = cell.Vec.TopTwo()
 				recipe = describe(cell.d, names, cell.Recipe)
 			}
-			ratio := float64(bestPts) / float64(max(p90, 1))
 			cells++
-			ok := ratio <= craftStrength
 			if ok {
 				holding++
 			}
@@ -424,10 +421,10 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	}
 	p("")
 
-	if err := doc.Write(out, "spike-a.md"); err != nil {
+	if err := doc.save(out, "spike-a.md"); err != nil {
 		return err
 	}
-	var csv mdDoc
+	var csv lineDoc
 	csv.p("kind,tier,slot,depth,total_pts,%s,trimmed_pts,traits,tags", strings.Join(axes, ","))
 	for _, s := range samples {
 		k := s.kind
@@ -442,7 +439,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 		csv.p("%s,%d,%s,%d,%d,%s,%d,%s,%s", k.ID, k.Tier, k.Recipe.Slot, s.depth, k.Vec.Total(), strings.Join(vs, ","), k.Trimmed,
 			strings.Join(k.Traits, " "), strings.Join(ts, " "))
 	}
-	return csv.Write(out, "spike-a-kinds.csv")
+	return csv.save(out, "spike-a-kinds.csv")
 }
 
 func order(v item.Vec) []int {

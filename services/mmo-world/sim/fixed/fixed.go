@@ -36,40 +36,46 @@ func Raw(n int64) F { return F(n) }
 // Ratio is num/den, rounded.
 func Ratio(num, den int64) F { return F(divRound(num, Scale, den)) }
 
-// Percent is p/100 as a fraction.
-func Percent(p int64) F { return Ratio(p, Hundredths) }
-
-// structural: per cent means hundredths. Every sim package's percent is
-// this one.
+// structural: per cent means hundredths.
 const Hundredths = 100
 
-// PercentOf is pct percent of n, rounded half away from zero. It is how
-// the sim applies a whole-number percentage.
+// PercentOf is pct percent of n, rounded half away from zero. Use it
+// unless PercentFloor's rule applies.
 func PercentOf(n, pct int64) int64 { return divRound(n, pct, Hundredths) }
 
-// PercentFloor is pct percent of n, rounded toward negative infinity. Only
-// for rules where rounding down is the rule: decay, spill, budget caps.
-func PercentFloor(n, pct int64) int64 {
-	q := divRound(n, pct, 1)
-	r := q % Hundredths
-	q /= Hundredths
-	if r < 0 {
-		q--
+// PercentPlus is n raised by delta percent, rounded as PercentOf.
+func PercentPlus(n, delta int64) int64 { return PercentOf(n, Hundredths+delta) }
+
+// AtPercent reports whether part is at least pct percent of whole, with no
+// rounding.
+func AtPercent(part, whole, pct int64) bool {
+	return mustMul(part, Hundredths) >= mustMul(whole, pct)
+}
+
+// ShareFloor is part as a percent of whole, rounded down; 0 when whole is
+// not positive.
+func ShareFloor(part, whole int64) int64 {
+	if whole <= 0 {
+		return 0
 	}
-	return q
+	return floorDivMul(part, Hundredths, whole)
+}
+
+// PercentFloor is pct percent of n, rounded toward negative infinity: for
+// decay, spill and budget caps, where rounding down is the rule.
+func PercentFloor(n, pct int64) int64 {
+	return floorDivMul(n, pct, Hundredths)
 }
 
 // Int rounds to the nearest whole number.
 func (a F) Int() int64 { return divRound(int64(a), 1, Scale) }
 
 // Floor rounds toward negative infinity.
-func (a F) Floor() int64 {
-	q := int64(a) / Scale
-	if int64(a)%Scale < 0 {
-		q--
-	}
-	return q
-}
+func (a F) Floor() int64 { return floorDiv(int64(a), Scale) }
+
+// AsFraction is a/100, rounded: the one way to read a percent as a
+// fraction.
+func (a F) AsFraction() F { return F(divRound(int64(a), 1, Hundredths)) }
 
 func (a F) Add(b F) F { return F(mustAdd(int64(a), int64(b))) }
 func (a F) Sub(b F) F { return F(mustAdd(int64(a), -int64(b))) }
@@ -185,6 +191,43 @@ func (a *F) UnmarshalJSON(b []byte) error {
 	}
 	*a = v
 	return nil
+}
+
+// floorDiv is a/d rounded toward negative infinity; d must be positive.
+func floorDiv(a, d int64) int64 {
+	q := a / d
+	if a%d < 0 {
+		q--
+	}
+	return q
+}
+
+// floorDivMul computes floor(x*y/d) with a 128-bit intermediate; d must be
+// positive.
+func floorDivMul(x, y, d int64) int64 {
+	if d <= 0 {
+		panic("fixed: non-positive divisor")
+	}
+	neg := (x < 0) != (y < 0)
+	hi, lo := bits.Mul64(abs(x), abs(y))
+	ud := uint64(d)
+	if hi >= ud {
+		panic("fixed: overflow")
+	}
+	q, r := bits.Div64(hi, lo, ud)
+	if neg && r != 0 {
+		q++
+	}
+	if neg {
+		if q > math.MaxInt64+1 {
+			panic("fixed: overflow")
+		}
+		return int64(-q)
+	}
+	if q > math.MaxInt64 {
+		panic("fixed: overflow")
+	}
+	return int64(q)
 }
 
 // divRound computes round(x*y/d) with a 128-bit intermediate.

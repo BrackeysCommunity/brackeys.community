@@ -121,6 +121,8 @@ func TestPercentOf(t *testing.T) {
 		{3, 10, 0, 0},     // 0.3
 		{-3, 10, 0, -1},   // -0.3
 		{200, 50, 100, 100},
+		{1 << 60, 50, 1 << 59, 1 << 59}, // n*pct overflows int64
+		{-(1 << 60), 50, -(1 << 59), -(1 << 59)},
 	}
 	for _, c := range cases {
 		if got := PercentOf(c.n, c.pct); got != c.round {
@@ -128,6 +130,55 @@ func TestPercentOf(t *testing.T) {
 		}
 		if got := PercentFloor(c.n, c.pct); got != c.floor {
 			t.Errorf("PercentFloor(%d,%d) = %d, want %d", c.n, c.pct, got, c.floor)
+		}
+	}
+}
+
+func TestAsFraction(t *testing.T) {
+	if got := FromInt(55).AsFraction(); got != Ratio(55, 100) {
+		t.Errorf("55%% as a fraction = %s, want 0.55", got)
+	}
+	if got := Raw(50).AsFraction(); got != Raw(1) {
+		t.Errorf("Raw(50).AsFraction() = %d, want raw 1", got)
+	}
+}
+
+func TestPercentPlus(t *testing.T) {
+	if got := PercentPlus(10, 15); got != 12 { // 11.5
+		t.Errorf("PercentPlus(10,15) = %d, want 12", got)
+	}
+	if got := PercentPlus(10, -15); got != 9 { // 8.5
+		t.Errorf("PercentPlus(10,-15) = %d, want 9", got)
+	}
+}
+
+func TestAtPercent(t *testing.T) {
+	for _, c := range []struct {
+		part, whole, pct int64
+		want             bool
+	}{
+		{25, 100, 25, true},
+		{24, 100, 25, false},
+		{1, 3, 33, true},
+		{1, 3, 34, false},
+		{0, 0, 50, true},
+	} {
+		if got := AtPercent(c.part, c.whole, c.pct); got != c.want {
+			t.Errorf("AtPercent(%d,%d,%d) = %v, want %v", c.part, c.whole, c.pct, got, c.want)
+		}
+	}
+}
+
+func TestShareFloor(t *testing.T) {
+	for _, c := range []struct{ part, whole, want int64 }{
+		{1, 3, 33},
+		{2, 3, 66},
+		{3, 3, 100},
+		{-1, 3, -34},
+		{5, 0, 0},
+	} {
+		if got := ShareFloor(c.part, c.whole); got != c.want {
+			t.Errorf("ShareFloor(%d,%d) = %d, want %d", c.part, c.whole, got, c.want)
 		}
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/tally"
 )
 
 func play(t *testing.T) *harness.Play {
@@ -310,7 +311,7 @@ func TestHuntKeepsSalvage(t *testing.T) {
 }
 
 func TestSplitIsExact(t *testing.T) {
-	share := item.Tally{{Key: "a", N: 1}, {Key: "b", N: 1}, {Key: "c", N: 1}}
+	share := tally.Tally{{Key: "a", N: 1}, {Key: "b", N: 1}, {Key: "c", N: 1}}
 	got := fight.Split([]item.Spoil{{Material: "x", Qty: 10}}, share)
 	var n int64
 	for _, ss := range got {

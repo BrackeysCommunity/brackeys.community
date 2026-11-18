@@ -446,7 +446,7 @@ func (d *Deriver) failed(k *KindProps) bool {
 	if k.Exploit != nil {
 		return k.Exploit.State == ""
 	}
-	return k.Vec.TopTwo()*fixed.Hundredths < d.tiers[k.Tier].Budget*d.param("failed-share")
+	return !fixed.AtPercent(k.Vec.TopTwo(), d.tiers[k.Tier].Budget, d.param("failed-share"))
 }
 
 func (d *Deriver) alloy(parts []part, stationTier int64) (Vec, int64) {
@@ -683,7 +683,7 @@ func (d *Deriver) tagsOf(k *KindProps, parts []part) []tags.Tag {
 	}
 	budget := d.tiers[k.Tier].Budget
 	for _, at := range d.axisTags {
-		if k.Vec[d.Axis(at.Axis)]*fixed.Hundredths >= budget*at.ShareOfBudget {
+		if fixed.AtPercent(k.Vec[d.Axis(at.Axis)], budget, at.ShareOfBudget) {
 			add(tags.Tag(at.Tag))
 		}
 	}

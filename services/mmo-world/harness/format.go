@@ -51,17 +51,17 @@ func abs64(x int64) int64 {
 	return x
 }
 
-// mdDoc is a report built line by line and written to the run's folder.
-type mdDoc struct{ b strings.Builder }
+// lineDoc is a text file built line by line.
+type lineDoc struct{ b strings.Builder }
 
 // p writes one formatted line.
-func (d *mdDoc) p(f string, a ...any) { fmt.Fprintf(&d.b, f+"\n", a...) }
+func (d *lineDoc) p(f string, a ...any) { fmt.Fprintf(&d.b, f+"\n", a...) }
 
-func (d *mdDoc) Write(out, name string) error {
+// save writes the doc to name in the run folder out.
+func (d *lineDoc) save(out, name string) error {
 	return os.WriteFile(filepath.Join(out, name), []byte(d.b.String()), 0o644)
 }
 
-// either is yes when ok, else no.
 func either(ok bool, yes, no string) string {
 	if ok {
 		return yes
@@ -69,7 +69,7 @@ func either(ok bool, yes, no string) string {
 	return no
 }
 
-// holds is the pass/fail mark of a target in every report.
+// holds marks a target's pass ("yes") or fail ("**NO**").
 func holds(ok bool) string { return either(ok, "yes", "**NO**") }
 
 func comma(n int64) string {

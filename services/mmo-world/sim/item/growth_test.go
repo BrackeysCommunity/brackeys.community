@@ -232,6 +232,25 @@ func TestMounts(t *testing.T) {
 	}
 }
 
+// Every tile ridden counts once under ridden:any and once per tag, so a
+// mount kept on the road is offered swift first.
+func TestRiddenRecord(t *testing.T) {
+	p := play(t)
+	trike := p.Mounts.NewMount("trike-1", "road-trike")
+	const n = 30
+	for range n {
+		p.Mounts.Ridden(trike, "plain", true, true)
+	}
+	for _, k := range []string{"ridden:any", "ridden:road", "ridden:laden", "ridden:suited"} {
+		if got := trike.Record.Get(k); got != n {
+			t.Errorf("%s = %d, want %d", k, got, n)
+		}
+	}
+	if len(trike.Offers) == 0 || trike.Offers[0] != "swift" {
+		t.Fatalf("a road-ridden mount is offered %v, swift not first", trike.Offers)
+	}
+}
+
 func TestMaturity(t *testing.T) {
 	p := play(t)
 	for crafts, want := range map[int64]string{0: "0", 250: "0.1875", 500: "0.25", 5000: "0.25"} {

@@ -63,7 +63,7 @@ func (s *State) slay(h hex.Hex, species string) {
 	t.Slay(species)
 	cap := s.Capacity(h, species)
 	n := max(0, s.Population(h, species)-1)
-	if n*fixed.Hundredths < cap*s.cp("gone-share") {
+	if !fixed.AtPercent(n, cap, s.cp("gone-share")) {
 		n = 0
 	}
 	if t.Population == nil {
@@ -82,7 +82,7 @@ func (d *day) creatures() {
 			if n == 0 {
 				// Gone until it spreads back from a neighbour.
 				for _, nb := range t.Hex.Neighbours() {
-					if s.Population(nb, sp)*fixed.Hundredths >= s.Capacity(nb, sp)*s.cp("spread-share") && s.Capacity(nb, sp) > 0 {
+					if nc := s.Capacity(nb, sp); nc > 0 && fixed.AtPercent(s.Population(nb, sp), nc, s.cp("spread-share")) {
 						n = max(1, fixed.PercentOf(cap, s.cp("gone-share")))
 						break
 					}

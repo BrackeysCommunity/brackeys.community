@@ -68,7 +68,7 @@ func TestRollMatchesChance(t *testing.T) {
 		hits := 0
 		const draws = 100000
 		for i := range draws {
-			if d.Roll(fixed.Percent(pct), "roll", Int(pct), Int(int64(i))) {
+			if d.Roll(fixed.FromInt(pct).AsFraction(), "roll", Int(pct), Int(int64(i))) {
 				hits++
 			}
 		}

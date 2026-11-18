@@ -12,6 +12,7 @@ import (
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/tally"
 )
 
 // Where a state sits.
@@ -53,12 +54,12 @@ type Encounter struct {
 	Press    int64          `json:"press"`
 	Guardian int64          `json:"guardian"` // a guardian beat's health left
 	States   []State        `json:"states"`
-	Failures item.Tally     `json:"failures"`
+	Failures tally.Tally    `json:"failures"`
 	Down     []string       `json:"down"`
 	Gone     []string       `json:"gone"`   // backed out of a party
 	Warded   []string       `json:"warded"` // characters whose ward has been used
 	Haul     []item.Spoil   `json:"haul"`
-	Share    item.Tally     `json:"share"` // contribution, for splitting the haul
+	Share    tally.Tally    `json:"share"` // contribution, for splitting the haul
 	Party    int64          `json:"party"`
 	Troubled bool           `json:"troubled"`
 	Floor    int64          `json:"floor"`
@@ -343,12 +344,8 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 			return
 		}
 		g.Inst.Record.Add(event, tags.Tag(o.Verb), tags.Tag(s.Kind))
-		for _, t := range creatureTags {
-			g.Inst.Record.Bump("vs:"+string(t), 1)
-		}
-		for _, t := range s.Place {
-			g.Inst.Record.Bump("in:"+string(t), 1)
-		}
+		g.Inst.Record.Each("vs", creatureTags...)
+		g.Inst.Record.Each("in", s.Place...)
 	}
 	if o.Puzzle {
 		facts = append(facts, r.machine(e, m, s, oc, tick)...)
@@ -409,13 +406,13 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 	}
 	size := o.RiskSize
 	if half {
-		size /= statHalf
+		size /= halved
 	}
 	switch o.Risk {
 	case "durability":
 		if g != nil {
 			if te := r.gearEffect(g, "wear-on-fail"); te != nil {
-				size = fixed.PercentOf(size, fixed.Hundredths-te.Magnitude)
+				size = fixed.PercentPlus(size, -te.Magnitude)
 			}
 			facts = append(facts, r.wear(e, m, g, size, tick)...)
 		}
@@ -482,7 +479,7 @@ func (r *Rules) afterBeat(e *Encounter, ms []*Member, out []Pressed, wins int64,
 		e.Over, e.Result = true, Lost
 	}
 	if !e.Over {
-		won := wins*statHalf >= stillUp && wins > 0
+		won := wins*majority >= stillUp && wins > 0
 		careful := allCareful(out)
 		switch {
 		case e.Guardian > 0:
@@ -695,7 +692,7 @@ func (r *Rules) end(e *Encounter, ms []*Member, tick int64) []fact.Fact {
 
 // Split shares a haul by contribution, largest remainder first, ties by
 // id: what each member takes home.
-func Split(haul []item.Spoil, share item.Tally) map[string][]item.Spoil {
+func Split(haul []item.Spoil, share tally.Tally) map[string][]item.Spoil {
 	out := map[string][]item.Spoil{}
 	var whole int64
 	for _, c := range share {

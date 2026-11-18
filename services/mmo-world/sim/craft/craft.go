@@ -14,7 +14,7 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: a half is two halves.
+// structural: an appraisal offset is centred, half the spread either side.
 const half = 2
 
 // Crafter makes things. The roll key draws appraisal offsets and

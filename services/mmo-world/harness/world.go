@@ -100,6 +100,18 @@ func (t threatTrace) moving(late int, span int64) int {
 	return n
 }
 
+// collapsed is a world with too many regions overrun on its last day.
+func collapsed(overrunEnd int) bool { return overrunEnd > worldOverrun }
+
+// stagnant is a world where under half the regions' threat moved late on.
+func stagnant(moving, regions int) bool { return moving*2 < regions }
+
+// settlementFell is a holding.fell fact for a starting settlement.
+func settlementFell(f fact.Fact) bool {
+	d, ok := f.Get("settlement")
+	return ok && d.N == 1
+}
+
 // overrunAtEnd counts the regions overrun now.
 func overrunAtEnd(b *sheets.Book, s *world.State) int {
 	overrun := slices.IndexFunc(b.GaugeLines, func(l sheets.GaugeLine) bool { return l.Effect == "overrun" })
@@ -172,7 +184,7 @@ func runWorld(b *sheets.Book, seed int) (worldResult, error) {
 		case "faction.fell":
 			res.fallenFactions++
 		case "holding.fell":
-			if d, ok := f.Get("settlement"); ok && d.N == 1 {
+			if settlementFell(f) {
 				res.settlementsFell++
 			}
 		case "weather.formed":
@@ -285,7 +297,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		cost = append(cost, rows...)
 	}
 
-	var doc mdDoc
+	var doc lineDoc
 	p := doc.p
 	sum := func(get func(worldResult) int) (total, worlds int) {
 		for _, r := range results {
@@ -302,10 +314,10 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	settle, settleWorlds := sum(func(r worldResult) int { return r.settlementsFell })
 	collapse, stasis := 0, 0
 	for _, r := range results {
-		if r.overrunEnd > worldOverrun {
+		if collapsed(r.overrunEnd) {
 			collapse++
 		}
-		if r.moving*2 < r.regions {
+		if stagnant(r.moving, r.regions) {
 			stasis++
 		}
 	}
@@ -378,7 +390,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		{"factions-keep-holdings", fmt.Sprintf("%d fell in %d worlds", fallen, n), fallen == 0},
 		{"cost-follows-discovery", fmt.Sprintf("%s per 1,000 stored tiles a day; far chunks leave it %s", tickCost.Round(time.Microsecond), either(flat, "flat", "rising")), flat},
 	}
-	if err := doc.Write(out, "world.md"); err != nil {
+	if err := doc.save(out, "world.md"); err != nil {
 		return nil, err
 	}
 	return readings, nil

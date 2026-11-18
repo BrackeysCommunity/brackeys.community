@@ -363,7 +363,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if err != nil {
 		return nil, err
 	}
-	var doc mdDoc
+	var doc lineDoc
 	pr := doc.p
 	pr("# Battle run")
 	pr("")
@@ -447,7 +447,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		pr("")
 		readings = append(readings, Measured{Target: "even-fight", Value: strings.Join(evenNotes, ", ") + " (best policy)", Holds: evenOK})
 		if only == "even" {
-			return readings, doc.Write(out, "battle.md")
+			return readings, doc.save(out, "battle.md")
 		}
 
 	}
@@ -501,7 +501,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	pr("")
 	readings = append(readings, Measured{Target: "tag-pairing-share", Value: fmt.Sprintf("top pairing %s wins %.1f%% of %d cells", worst, worstShare, cells), Holds: worstShare <= float64(limit)})
 	if only == "matrix" {
-		return readings, doc.Write(out, "battle.md")
+		return readings, doc.save(out, "battle.md")
 	}
 
 	// Growth from play.
@@ -543,7 +543,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	readings = append(readings, Measured{Target: "puzzle-solve-rate", Value: fmt.Sprintf("%.1f%% over every cell", 100*rate),
 		Holds: rate*100 >= float64(pz.Param("solve-target-min")) && rate*100 <= float64(pz.Param("solve-target-max"))})
 	pr("Took %s.", time.Since(start).Round(time.Second))
-	if err := doc.Write(out, "battle.md"); err != nil {
+	if err := doc.save(out, "battle.md"); err != nil {
 		return nil, err
 	}
 	return readings, nil

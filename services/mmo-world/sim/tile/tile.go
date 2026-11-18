@@ -126,8 +126,8 @@ func NewParams(b *sheets.Book) Params {
 	return p
 }
 
-// decay takes a percentage off a counter, rounding the loss up (the rest
-// down), so a counter nobody feeds reaches zero.
+// decay takes a percentage off a counter, rounding the loss up so a
+// counter nobody feeds reaches zero.
 func decay(v, pct int64) int64 {
 	if v <= 0 || pct == 0 {
 		return v

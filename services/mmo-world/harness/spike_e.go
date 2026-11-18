@@ -210,7 +210,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	slices.Sort(sweeps)
 	slices.Sort(colds)
 
-	var doc mdDoc
+	var doc lineDoc
 	p := doc.p
 	p("# Spike E: %s endless worlds, out to %d tiles", comma(int64(n)), spikeEOut)
 	p("")
@@ -402,7 +402,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 		return err
 	}
 	p("Pictures: `world-000.png` to `world-003.png` are the %d-tile disc round the origin; `near-000.png` to `near-003.png` the %d tiles nearest it; `contact-sheet.png` worlds 0 to %d. White discs are starting settlements; dark red relays and dungeons; orange pylons; violet vaults; yellow beacons; black landmarks; small dots sites. Pale blue-sand tiles are fords where a corridor wades across water; the islands along a crossing and the passes it cuts are drawn as their terrain; blue lines carry rivers, purple-tinted tiles are biome variants, blended colours are ecotones, thin lines are region borders.", spikeEOut, spikeENear-30, spikeEPictures-1)
-	return doc.Write(out, "spike-e.md")
+	return doc.save(out, "spike-e.md")
 }
 
 func oneWorld(b *sheets.Book, seed int) (worldStats, error) {
