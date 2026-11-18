@@ -38,7 +38,6 @@ const SUMMARY_KINDS: Record<SummaryUnavailableError["reason"], FailureKind> = {
   unreadable: "rejected",
   refused: "rejected",
   busy: "throttled",
-  slow: "timeout",
   expired: "rejected",
 };
 

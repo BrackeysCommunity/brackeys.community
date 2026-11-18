@@ -204,11 +204,58 @@ describe("summarizeChannel", () => {
     expect(await reasonOf(bug)).toBe(bug);
   });
 
-  test("gives up waiting after the timeout", async () => {
-    const never: Summarize = () => new Promise(() => {});
-    await expect(summarizeChannel(never, input, { timeoutMs: 5 })).rejects.toMatchObject({
-      reason: "slow",
-    });
+  const slowly =
+    (result: () => Summary | Promise<never>, ms = 20): Summarize =>
+    () =>
+      new Promise((resolve, reject) =>
+        setTimeout(() => Promise.resolve(result()).then(resolve, reject), ms),
+      );
+
+  test("a quick summary is the reply itself", async () => {
+    const reply = await summarizeChannel(
+      slowly(() => summary(), 1),
+      input,
+      { patienceMs: 50 },
+    );
+    expect(reply.outcome).toBe("hit");
+    expect(reply.later).toBeUndefined();
+  });
+
+  test("past the patience window the reply is a note and the summary comes later", async () => {
+    const reply = await summarizeChannel(
+      slowly(() => summary()),
+      input,
+      { patienceMs: 5 },
+    );
+    expect(reply.outcome).toBe("pending");
+    expect(reply.embeds).toHaveLength(0);
+    expect(reply.content).toContain("as a new message");
+    const late = await reply.later!;
+    expect(late.outcome).toBe("hit");
+    expect(late.embeds[0].title).toBe("Catch-up: the last 24h");
+  });
+
+  test("a shared note says the summary will be posted here", async () => {
+    const reply = await summarizeChannel(
+      slowly(() => summary()),
+      { ...input, share: true },
+      {
+        patienceMs: 5,
+      },
+    );
+    expect(reply.ephemeral).toBe(false);
+    expect(reply.content).toContain("posted here");
+    expect((await reply.later!).ephemeral).toBe(false);
+  });
+
+  test("a failure after the note arrives through later, translated", async () => {
+    const reply = await summarizeChannel(
+      slowly(() => Promise.reject(new DiscordBackoffError(Date.now() + 1000))),
+      input,
+      { patienceMs: 5 },
+    );
+    expect(reply.outcome).toBe("pending");
+    await expect(reply.later!).rejects.toMatchObject({ reason: "busy" });
   });
 
   test("the failure embed shows the summary's own line", () => {

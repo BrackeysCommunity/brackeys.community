@@ -180,6 +180,45 @@ export function createInteractionHandler(options: AdapterOptions) {
         share_denied: decision.denied,
         latency_ms: elapsed(startedAt),
       });
+      if (reply.later) {
+        void deliverLate(reply.later, {
+          visibility,
+          label,
+          followUp: (message) => interaction.followUp(message).then(() => {}),
+          sendDirect: async (message, ephemeral) => {
+            if (ephemeral) {
+              await interaction.user.send(message);
+              return;
+            }
+            const channel = await interaction.client.channels.fetch(interaction.channelId);
+            if (!channel?.isSendable()) throw new Error("channel not sendable");
+            await channel.send(message);
+          },
+          log,
+          onSettled: (outcome) =>
+            telemetry.capture(EVENTS.botCommandInvoked, {
+              ...props,
+              api_outcome: outcome,
+              delivered_late: true,
+              latency_ms: elapsed(startedAt),
+            }),
+          onFailed: (error, failure) => {
+            if (
+              !(error instanceof ApiUnavailableError || error instanceof SummaryUnavailableError)
+            ) {
+              telemetry.captureException(error, { ...props, scope: "command" });
+            }
+            telemetry.capture(EVENTS.botCommandFailed, {
+              ...props,
+              api_outcome: failure.kind,
+              failure_code: failure.code,
+              delivered_late: true,
+              latency_ms: elapsed(startedAt),
+            });
+          },
+          appUrl,
+        });
+      }
     } catch (error) {
       const failure = classifyFailure(error);
       log(`[command] ${label} failed (${failure.kind} ${failure.code}): ${describe(error)}`);
@@ -369,6 +408,59 @@ export function toInvocation(interaction: ChatInputCommandInteraction): Invocati
     }
   }
   return inv;
+}
+
+type LateMessage = Pick<
+  ReturnType<typeof toMessage>,
+  "content" | "embeds" | "components" | "allowedMentions"
+>;
+
+/**
+ * Delivers an answer that outlived the command's patience. It is always a
+ * new message: a follow-up while the interaction token lives (15 minutes),
+ * then a plain message, in the channel for a shared answer or by DM for a
+ * private one. A failure stays private, like every other failure line.
+ */
+export async function deliverLate(
+  later: Promise<Reply>,
+  target: {
+    visibility: "public" | "ephemeral";
+    label: string;
+    appUrl: string;
+    followUp: (message: LateMessage & { flags?: MessageFlags.Ephemeral }) => Promise<void>;
+    sendDirect: (message: LateMessage, ephemeral: boolean) => Promise<void>;
+    log: (line: string) => void;
+    onSettled?: (outcome: Reply["outcome"]) => void;
+    onFailed?: (error: unknown, failure: Failure) => void;
+  },
+): Promise<void> {
+  let message: LateMessage;
+  let ephemeral = target.visibility === "ephemeral";
+  try {
+    const reply = await later;
+    message = toMessage(reply);
+    target.onSettled?.(reply.outcome);
+  } catch (error) {
+    const failure = classifyFailure(error);
+    target.log(
+      `[command] ${target.label} failed late (${failure.kind} ${failure.code}): ${describe(error)}`,
+    );
+    target.onFailed?.(error, failure);
+    if (failure.forbidden) return;
+    message = toMessage(failureReply(failure, { appUrl: target.appUrl, label: target.label }));
+    ephemeral = true;
+  }
+  try {
+    await target.followUp(ephemeral ? { ...message, flags: MessageFlags.Ephemeral } : message);
+    return;
+  } catch (error) {
+    target.log(`[command] ${target.label} follow-up failed, sending directly: ${describe(error)}`);
+  }
+  try {
+    await target.sendDirect(message, ephemeral);
+  } catch (error) {
+    target.log(`[command] ${target.label} could not be delivered: ${describe(error)}`);
+  }
 }
 
 export function toMessage(reply: Reply): InteractionEditReplyOptions & InteractionReplyOptions {

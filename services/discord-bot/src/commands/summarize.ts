@@ -20,11 +20,10 @@ export type Summarize = (
 export const QUESTION_MAX = 300;
 
 /**
- * Past this the member gets an answer, not a spinner; the work finishes
- * into the cache. Discord stops taking the reply 15 minutes after the
- * command, and a private answer at its full length needs most of that.
+ * Past this the command's reply becomes a note and the summary is posted
+ * as a new message when it's ready, however long that takes.
  */
-export const SUMMARY_TIMEOUT_MS = 12 * 60_000;
+export const SUMMARY_PATIENCE_MS = 60_000;
 
 const SUMMARY_COLOR = 0x5865f2;
 
@@ -41,7 +40,7 @@ function coveredSpan(window: SummaryWindow): string {
  */
 export class SummaryUnavailableError extends Error {
   constructor(
-    readonly reason: "unreadable" | "busy" | "refused" | "slow" | "expired",
+    readonly reason: "unreadable" | "busy" | "refused" | "expired",
     readonly userMessage: string,
   ) {
     super(`summary unavailable: ${reason}`);
@@ -81,50 +80,58 @@ function unavailable(error: unknown): SummaryUnavailableError | null {
   return null;
 }
 
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () =>
-        reject(
-          new SummaryUnavailableError(
-            "slow",
-            "That took too long. Try again shortly (it will be quicker), or pick a shorter window.",
-          ),
-        ),
-      ms,
-    );
-  });
-  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+interface SummaryInput {
+  channelId: string;
+  window: SummaryWindow;
+  share: boolean;
+  question?: string;
+  requesterId?: string;
+  requesterName?: string;
 }
 
 export async function summarizeChannel(
   summarize: Summarize,
-  input: {
-    channelId: string;
-    window: SummaryWindow;
-    share: boolean;
-    question?: string;
-    requesterId?: string;
-    requesterName?: string;
-  },
-  { pages, timeoutMs = SUMMARY_TIMEOUT_MS }: { pages?: SummaryPages; timeoutMs?: number } = {},
+  input: SummaryInput,
+  { pages, patienceMs = SUMMARY_PATIENCE_MS }: { pages?: SummaryPages; patienceMs?: number } = {},
 ): Promise<Reply> {
-  let summary: Summary;
-  try {
-    summary = await withTimeout(
-      summarize(input.channelId, input.window, {
-        question: input.question,
-        requesterId: input.requesterId,
-        requesterName: input.requesterName,
-        shared: input.share,
-      }),
-      timeoutMs,
-    );
-  } catch (error) {
-    throw unavailable(error) ?? error;
-  }
+  const answer = summarize(input.channelId, input.window, {
+    question: input.question,
+    requesterId: input.requesterId,
+    requesterName: input.requesterName,
+    shared: input.share,
+  }).then(
+    (summary) => summaryReply(summary, input, pages),
+    (error: unknown) => {
+      throw unavailable(error) ?? error;
+    },
+  );
+  // Settles after the note is sent too; this keeps a late failure from
+  // counting as unhandled before the adapter awaits it.
+  answer.catch(() => {});
 
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const waited = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), patienceMs);
+  });
+  const first = await Promise.race([answer, waited]).finally(() => clearTimeout(timer));
+  if (first) return first;
+  return {
+    content: input.share
+      ? "This one is taking a while. The summary will be posted here as a new message when it's ready."
+      : "This one is taking a while. You'll get the summary as a new message when it's ready.",
+    embeds: [],
+    buttons: [],
+    ephemeral: !input.share,
+    outcome: "pending",
+    later: answer,
+  };
+}
+
+async function summaryReply(
+  summary: Summary,
+  input: SummaryInput,
+  pages: SummaryPages | undefined,
+): Promise<Reply> {
   if (!summary.text) {
     if (summary.messageCount > 0) throw unavailable(new EmptySummaryError(null));
     return notFound(

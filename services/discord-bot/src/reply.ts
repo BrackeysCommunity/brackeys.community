@@ -43,8 +43,10 @@ export interface Reply {
    */
   notice?: string;
   /** What the API said, for the command telemetry. Thrown errors carry the
-   *  other two outcomes. */
-  outcome: "hit" | "not_found";
+   *  other two outcomes; `pending` is a holding note whose answer is `later`. */
+  outcome: "hit" | "not_found" | "pending";
+  /** The real answer, still being made: it lands as a new message once it settles. */
+  later?: Promise<Reply>;
 }
 
 // Discord's embed limits.
