@@ -2,8 +2,6 @@ package harness
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -129,8 +127,8 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	elapsed := time.Since(start)
 
-	var w strings.Builder
-	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
+	var doc mdDoc
+	p := doc.p
 	p("# Craft run")
 	p("")
 	p("%s recipes sampled, %s kinds made, in %s. Station tier %d. Throwaway key `craft-run`.", comma(int64(n)), comma(int64(len(kinds))), elapsed.Round(time.Millisecond), craftStation)
@@ -184,7 +182,7 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("")
 	p("| Tier | Slot | Random kinds | p90 pts | Search best pts | Ratio | Holds |")
 	p("| --- | --- | --- | --- | --- | --- | --- |")
-	holds, cells := 0, 0
+	holding, cells := 0, 0
 	worst := 0.0
 	for _, t := range b.Tiers {
 		for _, slot := range slots {
@@ -207,20 +205,20 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 			ok := ratio <= craftStrength
 			cells++
 			if ok {
-				holds++
+				holding++
 			}
 			worst = max(worst, ratio)
-			p("| tier %d | %s | %s | %d | %d | %.2f | %s |", t.Tier, slot, comma(int64(len(peaks))), p90, bestPts, ratio, yesNo(ok))
+			p("| tier %d | %s | %s | %d | %d | %.2f | %s |", t.Tier, slot, comma(int64(len(peaks))), p90, bestPts, ratio, holds(ok))
 		}
 	}
 	p("")
-	p("Cells holding: %d of %d; worst ratio %.2f.", holds, cells, worst)
-	if err := os.WriteFile(filepath.Join(out, "craft.md"), []byte(w.String()), 0o644); err != nil {
+	p("Cells holding: %d of %d; worst ratio %.2f.", holding, cells, worst)
+	if err := doc.Write(out, "craft.md"); err != nil {
 		return nil, err
 	}
 	return []Measured{
 		{Target: "kind-within-budget", Value: fmt.Sprintf("%d of %s over budget", over, comma(int64(len(kinds)))), Holds: over == 0},
-		{Target: "top-kinds-near-median", Value: fmt.Sprintf("%d of %d cells; worst %.2f", holds, cells, worst), Holds: holds == cells},
+		{Target: "top-kinds-near-median", Value: fmt.Sprintf("%d of %d cells; worst %.2f", holding, cells, worst), Holds: holding == cells},
 	}, nil
 }
 

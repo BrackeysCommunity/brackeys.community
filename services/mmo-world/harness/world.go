@@ -2,11 +2,8 @@ package harness
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"slices"
-	"strings"
 	"time"
 
 	"jams.team/mmo-world/sim/fact"
@@ -288,8 +285,8 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		cost = append(cost, rows...)
 	}
 
-	var sb strings.Builder
-	p := func(f string, a ...any) { fmt.Fprintf(&sb, f+"\n", a...) }
+	var doc mdDoc
+	p := doc.p
 	sum := func(get func(worldResult) int) (total, worlds int) {
 		for _, r := range results {
 			v := get(r)
@@ -322,12 +319,11 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("")
 	p("| Target | Worlds failing | Reading | Holds |")
 	p("| --- | --- | --- | --- |")
-	yes := func(ok bool) string { return map[bool]string{true: "yes", false: "**NO**"}[ok] }
-	p("| No gauge pinned at 0 or its maximum for more than %d world days | %d of %d | %d region gauges; longest run %d days | %s |", worldPin, pinnedWorlds, n, pinned, worst, yes(pinned == 0))
-	p("| No faction loses its last holding | %d of %d | %d factions fell | %s |", fallenWorlds, n, fallen, yes(fallen == 0))
-	p("| Every starting settlement stands on day %d | %d of %d | %d fell | %s |", worldDays, settleWorlds, n, settle, yes(settle == 0))
-	p("| At most %d regions overrun on day %d | %d of %d | | %s |", worldOverrun, worldDays, collapse, n, yes(collapse == 0))
-	p("| Half the regions' threat moves %d or more in days %d to %d | %d of %d | | %s |", worldMoving, worldDays-worldLate, worldDays, stasis, n, yes(stasis == 0))
+	p("| No gauge pinned at 0 or its maximum for more than %d world days | %d of %d | %d region gauges; longest run %d days | %s |", worldPin, pinnedWorlds, n, pinned, worst, holds(pinned == 0))
+	p("| No faction loses its last holding | %d of %d | %d factions fell | %s |", fallenWorlds, n, fallen, holds(fallen == 0))
+	p("| Every starting settlement stands on day %d | %d of %d | %d fell | %s |", worldDays, settleWorlds, n, settle, holds(settle == 0))
+	p("| At most %d regions overrun on day %d | %d of %d | | %s |", worldOverrun, worldDays, collapse, n, holds(collapse == 0))
+	p("| Half the regions' threat moves %d or more in days %d to %d | %d of %d | | %s |", worldMoving, worldDays-worldLate, worldDays, stasis, n, holds(stasis == 0))
 	p("")
 	med := func(get func(worldResult) int) int {
 		var xs []int
@@ -374,15 +370,15 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	slices.Sort(slopes)
 	tickCost := slopes[len(slopes)/2]
 	p("")
-	p("Tick cost: a world day costs a median **%s per 1,000 stored tiles** (all clocks; %s a tick). Generating far chunks leaves the day's cost %s.", tickCost.Round(time.Microsecond), (tickCost / sheets.TicksPerDay).Round(time.Microsecond), map[bool]string{true: "flat", false: "**not flat**"}[flat])
+	p("Tick cost: a world day costs a median **%s per 1,000 stored tiles** (all clocks; %s a tick). Generating far chunks leaves the day's cost %s.", tickCost.Round(time.Microsecond), (tickCost / sheets.TicksPerDay).Round(time.Microsecond), either(flat, "flat", "**not flat**"))
 	readings := []Measured{
 		{"settlements-stand", fmt.Sprintf("%d fell in %d worlds", settle, n), settle == 0},
 		{"world-no-collapse", fmt.Sprintf("%d collapsed, %d still, of %d", collapse, stasis, n), collapse == 0 && stasis == 0},
 		{"gauges-not-pinned", fmt.Sprintf("%d pinned; longest %d days", pinned, worst), pinned == 0},
 		{"factions-keep-holdings", fmt.Sprintf("%d fell in %d worlds", fallen, n), fallen == 0},
-		{"cost-follows-discovery", fmt.Sprintf("%s per 1,000 stored tiles a day; far chunks leave it %s", tickCost.Round(time.Microsecond), map[bool]string{true: "flat", false: "rising"}[flat]), flat},
+		{"cost-follows-discovery", fmt.Sprintf("%s per 1,000 stored tiles a day; far chunks leave it %s", tickCost.Round(time.Microsecond), either(flat, "flat", "rising")), flat},
 	}
-	if err := os.WriteFile(filepath.Join(out, "world.md"), []byte(sb.String()), 0o644); err != nil {
+	if err := doc.Write(out, "world.md"); err != nil {
 		return nil, err
 	}
 	return readings, nil

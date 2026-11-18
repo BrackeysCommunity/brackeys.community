@@ -27,12 +27,12 @@ func Report(w io.Writer, b *sheets.Book, readings []Measured) {
 	fmt.Fprintln(w, "| Target | Holds from | Runs | Reading | Holds |")
 	fmt.Fprintln(w, "| --- | --- | --- | --- | --- |")
 	for _, t := range b.Targets {
-		reading, holds := "not measured", "–"
+		reading, mark := "not measured", "–"
 		if m, ok := got[t.ID]; ok {
 			reading = m.Value
-			holds = map[bool]string{true: "yes", false: "NO"}[m.Holds]
+			mark = holds(m.Holds)
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | %s | %s |\n", t.Text, t.HoldsFrom, t.Runs, reading, holds)
+		fmt.Fprintf(w, "| %s | %s | %s | %s | %s |\n", t.Text, t.HoldsFrom, t.Runs, reading, mark)
 	}
 	fmt.Fprintf(w, "\n%d targets, %d measured.\n", len(b.Targets), len(readings))
 }

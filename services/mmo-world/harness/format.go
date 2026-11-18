@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -49,12 +51,26 @@ func abs64(x int64) int64 {
 	return x
 }
 
-func yesNo(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
+// mdDoc is a report built line by line and written to the run's folder.
+type mdDoc struct{ b strings.Builder }
+
+// p writes one formatted line.
+func (d *mdDoc) p(f string, a ...any) { fmt.Fprintf(&d.b, f+"\n", a...) }
+
+func (d *mdDoc) Write(out, name string) error {
+	return os.WriteFile(filepath.Join(out, name), []byte(d.b.String()), 0o644)
 }
+
+// either is yes when ok, else no.
+func either(ok bool, yes, no string) string {
+	if ok {
+		return yes
+	}
+	return no
+}
+
+// holds is the pass/fail mark of a target in every report.
+func holds(ok bool) string { return either(ok, "yes", "**NO**") }
 
 func comma(n int64) string {
 	s := fmt.Sprint(n)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -91,13 +90,13 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	}
 
 	names := newNamer(b)
-	var w strings.Builder
-	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
+	var doc mdDoc
+	p := doc.p
 	p("# Spike B: gauges and factions for %d world days, no players", worldDays)
 	p("")
 	p("World 0 of %d (the regions within %d tiles of the first starting settlement discovered, and the horizon round them awake: %d regions, %d factions, %d open starting settlement of the %d lattice points there). Throwaway keys `spike-b-<n>`. Weather, creatures and notables run (MM1). Variant: %q.", n, spikeBHorizon, len(main.s.Regions), len(main.s.Factions), main.s.Opened, len(main.w.Settlements()), variant)
 	p("")
-	p("Replay: two runs of world 0 give state-and-ledger digest `%s` and `%s`: %s.", d1.String()[:16], d2.String()[:16], map[bool]string{true: "identical", false: "DIFFERENT"}[d1 == d2])
+	p("Replay: two runs of world 0 give state-and-ledger digest `%s` and `%s`: %s.", d1.String()[:16], d2.String()[:16], either(d1 == d2, "identical", "**DIFFERENT**"))
 	p("")
 	p("## The factions after %d days", worldDays)
 	p("")
@@ -264,10 +263,10 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	p("")
 	p("| Target, per world | Worlds failing | Holds |")
 	p("| --- | --- | --- |")
-	p("| At most %d regions overrun on day %d (no collapse) | %d of %d | %s |", worldOverrun, worldDays, collapse, n, yesNo(collapse == 0))
-	p("| At least half the regions' threat spans %d or more over days %d to %d (no stasis) | %d of %d | %s |", worldMoving, worldDays-worldLate, worldDays, stasis, n, yesNo(stasis == 0))
-	p("| Something is lost in %d days: an overrun or a fallen holding (pressure exists) | %d of %d quiet | %s |", worldDays, quiet, n, yesNo(quiet*10 <= n))
-	p("| Every starting settlement stands on day %d | %d fell | %s |", worldDays, fell, yesNo(fell == 0))
+	p("| At most %d regions overrun on day %d (no collapse) | %d of %d | %s |", worldOverrun, worldDays, collapse, n, holds(collapse == 0))
+	p("| At least half the regions' threat spans %d or more over days %d to %d (no stasis) | %d of %d | %s |", worldMoving, worldDays-worldLate, worldDays, stasis, n, holds(stasis == 0))
+	p("| Something is lost in %d days: an overrun or a fallen holding (pressure exists) | %d of %d quiet | %s |", worldDays, quiet, n, holds(quiet*10 <= n))
+	p("| Every starting settlement stands on day %d | %d fell | %s |", worldDays, fell, holds(fell == 0))
 	p("")
 	p("## Threat over time, world 0")
 	p("")
@@ -279,14 +278,14 @@ func spikeB(b *sheets.Book, out string, n int) error {
 		p("| %d | %d threat | %d threat | %d threat | %d | %d |", day, t[0], t[len(t)/2], t[len(t)-1], atLeast(t, 600), atLeast(t, 900))
 	}
 	p("")
-	if err := os.WriteFile(filepath.Join(out, "spike-b.md"), []byte(w.String()), 0o644); err != nil {
+	if err := doc.Write(out, "spike-b.md"); err != nil {
 		return err
 	}
-	var full strings.Builder
+	var ledger mdDoc
 	for _, f := range all {
-		fmt.Fprintf(&full, "%s\n", names.line(main.s, f))
+		ledger.p("%s", names.line(main.s, f))
 	}
-	return os.WriteFile(filepath.Join(out, "spike-b-ledger.txt"), []byte(full.String()), 0o644)
+	return ledger.Write(out, "spike-b-ledger.txt")
 }
 
 func countAtLeast(fs []fact.Fact, w int64) int {

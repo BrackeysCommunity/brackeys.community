@@ -3,7 +3,6 @@ package harness
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -364,8 +363,8 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if err != nil {
 		return nil, err
 	}
-	var w strings.Builder
-	pr := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
+	var doc mdDoc
+	pr := doc.p
 	pr("# Battle run")
 	pr("")
 	pr("%s encounters a cell. Reference gear is the sampled top decile of each tier and slot among kinds with no trait, so loadouts differ only by what they add (%s recipes). Throwaway key `battle-run`.", comma(int64(n)), comma(battleSamples))
@@ -448,7 +447,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		pr("")
 		readings = append(readings, Measured{Target: "even-fight", Value: strings.Join(evenNotes, ", ") + " (best policy)", Holds: evenOK})
 		if only == "even" {
-			return readings, os.WriteFile(filepath.Join(out, "battle.md"), []byte(w.String()), 0o644)
+			return readings, doc.Write(out, "battle.md")
 		}
 
 	}
@@ -502,7 +501,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	pr("")
 	readings = append(readings, Measured{Target: "tag-pairing-share", Value: fmt.Sprintf("top pairing %s wins %.1f%% of %d cells", worst, worstShare, cells), Holds: worstShare <= float64(limit)})
 	if only == "matrix" {
-		return readings, os.WriteFile(filepath.Join(out, "battle.md"), []byte(w.String()), 0o644)
+		return readings, doc.Write(out, "battle.md")
 	}
 
 	// Growth from play.
@@ -544,7 +543,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	readings = append(readings, Measured{Target: "puzzle-solve-rate", Value: fmt.Sprintf("%.1f%% over every cell", 100*rate),
 		Holds: rate*100 >= float64(pz.Param("solve-target-min")) && rate*100 <= float64(pz.Param("solve-target-max"))})
 	pr("Took %s.", time.Since(start).Round(time.Second))
-	if err := os.WriteFile(filepath.Join(out, "battle.md"), []byte(w.String()), 0o644); err != nil {
+	if err := doc.Write(out, "battle.md"); err != nil {
 		return nil, err
 	}
 	return readings, nil

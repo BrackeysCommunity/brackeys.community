@@ -5,7 +5,6 @@ import (
 	"maps"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -134,8 +133,8 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	}
 	elapsed := time.Since(start)
 
-	var w strings.Builder
-	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
+	var doc mdDoc
+	p := doc.p
 	axes := d.Axes()
 	p("# Spike A: item derivation over %s random recipes", comma(int64(n)))
 	p("")
@@ -299,7 +298,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 		ratio float64
 	}
 	var outliers []outlier
-	holds, cells := 0, 0
+	holding, cells := 0, 0
 	for _, t := range b.Tiers {
 		for _, slot := range slots {
 			var ss []sample
@@ -327,16 +326,16 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			cells++
 			ok := ratio <= craftStrength
 			if ok {
-				holds++
+				holding++
 			}
-			p("| tier %d | %s | %s | %d pts | %d pts | %d pts | %d pts | %.2f | %s | %s |", t.Tier, slot, comma(int64(len(ss))), med, p90, top, bestPts, ratio, yesNo(ok), recipe)
+			p("| tier %d | %s | %s | %d pts | %d pts | %d pts | %d pts | %.2f | %s | %s |", t.Tier, slot, comma(int64(len(ss))), med, p90, top, bestPts, ratio, holds(ok), recipe)
 			for i, s := range ss {
 				outliers = append(outliers, outlier{s, float64(peaks[i]) / float64(max(med, 1))})
 			}
 		}
 	}
 	p("")
-	p("Cells holding the target: %d of %d. The axis cap is %d%% of the tier budget.", holds, cells, sheets.IntParam(b.ItemParams, "axis-cap-share"))
+	p("Cells holding the target: %d of %d. The axis cap is %d%% of the tier budget.", holding, cells, sheets.IntParam(b.ItemParams, "axis-cap-share"))
 	p("")
 	tierCount := map[int64]int{}
 	for _, s := range samples {
@@ -430,11 +429,11 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	}
 	p("")
 
-	if err := os.WriteFile(filepath.Join(out, "spike-a.md"), []byte(w.String()), 0o644); err != nil {
+	if err := doc.Write(out, "spike-a.md"); err != nil {
 		return err
 	}
-	var csv strings.Builder
-	csv.WriteString("kind,tier,slot,depth,total_pts," + strings.Join(axes, ",") + ",trimmed_pts,traits,tags\n")
+	var csv mdDoc
+	csv.p("kind,tier,slot,depth,total_pts,%s,trimmed_pts,traits,tags", strings.Join(axes, ","))
 	for _, s := range samples {
 		k := s.kind
 		var vs []string
@@ -445,10 +444,10 @@ func spikeA(b *sheets.Book, out string, n int) error {
 		for _, t := range k.Tags {
 			ts = append(ts, string(t))
 		}
-		fmt.Fprintf(&csv, "%s,%d,%s,%d,%d,%s,%d,%s,%s\n", k.ID, k.Tier, k.Recipe.Slot, s.depth, k.Vec.Total(), strings.Join(vs, ","), k.Trimmed,
+		csv.p("%s,%d,%s,%d,%d,%s,%d,%s,%s", k.ID, k.Tier, k.Recipe.Slot, s.depth, k.Vec.Total(), strings.Join(vs, ","), k.Trimmed,
 			strings.Join(k.Traits, " "), strings.Join(ts, " "))
 	}
-	return os.WriteFile(filepath.Join(out, "spike-a-kinds.csv"), []byte(csv.String()), 0o644)
+	return csv.Write(out, "spike-a-kinds.csv")
 }
 
 // resonates: two components at or above the threshold on the same two axes.

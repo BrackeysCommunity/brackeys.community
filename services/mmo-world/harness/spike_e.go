@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strings"
 	"time"
 
 	"jams.team/mmo-world/render"
@@ -211,8 +210,8 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	slices.Sort(sweeps)
 	slices.Sort(colds)
 
-	var w strings.Builder
-	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
+	var doc mdDoc
+	p := doc.p
 	p("# Spike E: %s endless worlds, out to %d tiles", comma(int64(n)), spikeEOut)
 	p("")
 	p("Throwaway keys `spike-e-<n>`. Each world is generated chunk by chunk over the disc of radius %d around the origin (%s tiles); every measure below counts only what lies within %d tiles, and walking runs over the whole disc, so a place near the edge can reach the spine through a node outside. Raw output.", spikeEOut+spikeEMargin, comma(hex.DiscSize(spikeEOut+spikeEMargin)), spikeEOut)
@@ -403,7 +402,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 		return err
 	}
 	p("Pictures: `world-000.png` to `world-003.png` are the %d-tile disc round the origin; `near-000.png` to `near-003.png` the %d tiles nearest it; `contact-sheet.png` worlds 0 to %d. White discs are starting settlements; dark red relays and dungeons; orange pylons; violet vaults; yellow beacons; black landmarks; small dots sites. Pale blue-sand tiles are fords where a corridor wades across water; the islands along a crossing and the passes it cuts are drawn as their terrain; blue lines carry rivers, purple-tinted tiles are biome variants, blended colours are ecotones, thin lines are region borders.", spikeEOut, spikeENear-30, spikeEPictures-1)
-	return os.WriteFile(filepath.Join(out, "spike-e.md"), []byte(w.String()), 0o644)
+	return doc.Write(out, "spike-e.md")
 }
 
 func oneWorld(b *sheets.Book, seed int) (worldStats, error) {
