@@ -482,7 +482,7 @@
       "then": [
         {
           "kind": "score",
-          "score": 4
+          "score": 1
         }
       ]
     },
@@ -492,10 +492,13 @@
         "strike",
         "storm-blade"
       ],
+      "other": [
+        "charged"
+      ],
       "then": [
         {
           "kind": "score",
-          "score": 3
+          "score": 2
         }
       ]
     },

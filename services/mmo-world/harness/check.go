@@ -230,6 +230,7 @@ func budgetProblems(b *sheets.Book) []string {
 			p = append(p, fmt.Sprintf("fights.odds-bands %s: bands must rise by one rank and in chance", c.ID))
 		}
 	}
+	p = append(p, playProblems(b)...)
 	gauges := sheets.Lookup(b.Gauges)
 	for _, l := range b.GaugeLines {
 		if g, ok := gauges[l.Gauge]; ok && (l.AtLeast > g.Max || l.ClearsAt > l.AtLeast) {
@@ -344,4 +345,61 @@ func lintProblems(root string) []string {
 	}
 	slices.Sort(p)
 	return slices.Compact(p)
+}
+
+// playProblems checks the item and fight sheets' own invariants.
+func playProblems(b *sheets.Book) []string {
+	var p []string
+	coef := sheets.ParamOf(b.GrowthParams, "level-coefficient")
+	var so int64
+	for i, s := range b.LevelCurve {
+		want := coef.MulInt(s.Level * s.Level).Int()
+		if s.Level != int64(i+1) || s.XPToNext != want || s.XPSoFar != so {
+			p = append(p, fmt.Sprintf("growth.level-curve %s: want level %d, %d xp to next, %d so far", s.ID, i+1, want, so))
+		}
+		so += s.XPToNext
+	}
+	have := map[string]bool{}
+	for _, d := range b.Durability {
+		have[d.Slot+"/"+d.Tier] = true
+	}
+	for _, sl := range b.Slots {
+		for _, t := range b.Tiers {
+			if !have[sl.ID+"/"+t.ID] {
+				p = append(p, fmt.Sprintf("wear.durability: no row for %s at %s", sl.ID, t.ID))
+			}
+		}
+	}
+	for i := 1; i < len(b.Margins); i++ {
+		if b.Margins[i].AtLeast >= b.Margins[i-1].AtLeast {
+			p = append(p, "fights.margins "+b.Margins[i].ID+": margins must fall row by row")
+		}
+	}
+	tiers := map[int64]bool{}
+	for _, t := range b.FightTiers {
+		tiers[t.Tier] = true
+		if t.BeatsMax < t.BeatsMin {
+			p = append(p, "fights.tiers "+t.ID+": beatsMax under beatsMin")
+		}
+	}
+	for _, c := range b.Creatures {
+		if !tiers[c.Tier] {
+			p = append(p, fmt.Sprintf("creatures.archetypes %s: no fights.tiers row for tier %d", c.ID, c.Tier))
+		}
+	}
+	fams := map[string]bool{}
+	for _, l := range b.PuzzleLayouts {
+		fams[l.Family] = true
+	}
+	for _, f := range b.PuzzleFamilies {
+		if !fams[f.ID] {
+			p = append(p, "puzzles.layouts: no layout for "+f.ID)
+		}
+	}
+	for _, o := range b.Options {
+		if o.Slot != "none" && o.Axis == "" {
+			p = append(p, "fights.options "+o.ID+": an item option needs a governing axis")
+		}
+	}
+	return p
 }

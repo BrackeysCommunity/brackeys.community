@@ -4,6 +4,8 @@
 //	harness report           every target and its last reading
 //	harness schema           regenerate sheets/schema from the row types
 //	harness world -out DIR   the World run: 90 unattended days, and what a day costs
+//	harness craft -out DIR   the Craft run: sampled kinds against budgets and a search
+//	harness battle -out DIR  the Battle run: the matchup matrix, growth and puzzles
 //	harness spike-a|b|e -out DIR
 package main
 
@@ -37,6 +39,21 @@ func main() {
 		harness.Report(os.Stdout, b, nil)
 	case "schema":
 		exitOn(harness.WriteSchemas(root))
+	case "craft", "battle":
+		if *out == "" {
+			fmt.Fprintln(os.Stderr, "-out is required")
+			os.Exit(2)
+		}
+		b, err := harness.LoadBook(root)
+		exitOn(err)
+		exitOn(os.MkdirAll(*out, 0o755))
+		run := harness.CraftRun
+		if cmd == "battle" {
+			run = harness.BattleRun
+		}
+		readings, err := run(b, *out, *n)
+		exitOn(err)
+		harness.Report(os.Stdout, b, readings)
 	case "world":
 		if *out == "" {
 			fmt.Fprintln(os.Stderr, "-out is required")
@@ -63,7 +80,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: harness check|report|schema|world|spike-a|spike-b|spike-e [-out DIR] [-n N]")
+	fmt.Fprintln(os.Stderr, "usage: harness check|report|schema|world|craft|battle|spike-a|spike-b|spike-e [-out DIR] [-n N]")
 	os.Exit(2)
 }
 

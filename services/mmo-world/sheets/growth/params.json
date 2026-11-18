@@ -104,13 +104,13 @@
     },
     {
       "id": "daily-encounters",
-      "value": 9,
+      "value": 5,
       "unit": "count",
       "doc": "Harness: encounters a daily player fights in a world day at its gear's tier."
     },
     {
       "id": "daily-troubled",
-      "value": 20,
+      "value": 40,
       "unit": "percent",
       "doc": "Harness: share of a daily player's encounters in troubled regions."
     },

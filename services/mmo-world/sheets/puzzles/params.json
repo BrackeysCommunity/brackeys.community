@@ -147,7 +147,7 @@
     },
     {
       "id": "party-help",
-      "value": 6,
+      "value": 8,
       "unit": "percent",
       "doc": "provisional: harness solve rate gained per party member past the first."
     },
@@ -159,7 +159,7 @@
     },
     {
       "id": "expected-practice-base",
-      "value": 1,
+      "value": 2,
       "unit": "level",
       "doc": "Harness: and at tier 1, this."
     },

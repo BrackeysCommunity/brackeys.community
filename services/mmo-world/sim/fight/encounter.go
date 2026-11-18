@@ -279,6 +279,8 @@ func (r *Rules) Press(e *Encounter, ms []*Member, tick int64) ([]Pressed, []fact
 		case o.Kind == WayOut:
 			left = true
 			e.Gone = append(e.Gone, m.Ch.ID)
+		case o.Kind == Cast && oc.Success && !e.Final():
+			wins++
 		case o.Kind == Win && oc.Success:
 			wins++
 			e.Share.Bump(m.Ch.ID, max(1, o.Score))
@@ -481,8 +483,6 @@ func (r *Rules) afterBeat(e *Encounter, ms []*Member, out []Pressed, wins, up in
 			e.Over, e.Result = true, Held
 		case e.Final():
 			e.Press++
-		case castOnly(out):
-			e.Press++
 		default:
 			e.At++
 			e.Press = 0
@@ -509,15 +509,6 @@ func countOut(e *Encounter, ms []*Member) int {
 func allCareful(out []Pressed) bool {
 	for _, p := range out {
 		if p.Option.Kind != Careful || !p.Outcome.Success {
-			return false
-		}
-	}
-	return len(out) > 0
-}
-
-func castOnly(out []Pressed) bool {
-	for _, p := range out {
-		if p.Option.Kind != Cast {
 			return false
 		}
 	}

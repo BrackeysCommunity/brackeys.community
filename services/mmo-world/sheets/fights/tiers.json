@@ -10,7 +10,8 @@
       "beatsMax": 4,
       "huntHealth": 150,
       "expectedLevel": 5,
-      "expectedPractice": 2
+      "expectedPractice": 6,
+      "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     },
     {
       "id": "tier-2",
@@ -19,8 +20,9 @@
       "beatsMin": 3,
       "beatsMax": 5,
       "huntHealth": 400,
-      "expectedLevel": 10,
-      "expectedPractice": 6
+      "expectedLevel": 8,
+      "expectedPractice": 4,
+      "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     },
     {
       "id": "tier-3",
@@ -30,7 +32,8 @@
       "beatsMax": 5,
       "huntHealth": 1000,
       "expectedLevel": 15,
-      "expectedPractice": 10
+      "expectedPractice": 14,
+      "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     },
     {
       "id": "tier-4",
@@ -39,8 +42,9 @@
       "beatsMin": 4,
       "beatsMax": 6,
       "huntHealth": 2500,
-      "expectedLevel": 25,
-      "expectedPractice": 14
+      "expectedLevel": 26,
+      "expectedPractice": 17,
+      "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     }
   ]
 }

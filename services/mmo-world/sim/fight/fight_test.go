@@ -248,3 +248,40 @@ func TestSplitIsExact(t *testing.T) {
 		t.Fatalf("split %v", got)
 	}
 }
+
+// A landed exploit wins an earlier beat and leaves its state; on the
+// final beat it lands but the beat must still be won.
+func TestCastLandsAndAdvances(t *testing.T) {
+	p := play(t)
+	ex, err := p.Deriver.Derive(item.Recipe{Process: "compose", Method: "ordered", Inputs: []item.Input{{Kind: "ember-salt", Qty: 1}, {Kind: "reed-ash", Qty: 1}}}, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deckKind := p.Deriver.Reg.Freeze(&item.Kind{ID: "deck", KindProps: item.KindProps{Tier: 1, Slot: "focus", Vec: item.Vec{0, 0, 0, 0, 30, 0, 10, 30}, Durability: 50, Tags: []tags.Tag{"focus", "item"}}})
+	for i := range 40 {
+		c := char.New("caster", hex.Hex{})
+		equip(p, c, char.Hand, blade(p, "b", 1, item.Vec{30, 10, 0, 0, 0, 0, 0, 0}), 1)
+		deck := equip(p, c, char.OffHand, deckKind, 1)
+		deck.Exploit = item.NewInstance("ex", ex, "")
+		c.Practice = []char.Skill{{ID: "fight", Level: 20}}
+		e := p.Fight.Assemble(fight.Site{ID: "cast-" + string(rune('a'+i)), Party: 1}, p.Fight.Spawn("flat-runner", nil, nil, nil))
+		if e.Final() {
+			continue
+		}
+		before := deck.Durability
+		out, _, err := p.Fight.Press(e, []*fight.Member{{Ch: c, Kit: p.Fight.KitOf(c), Pick: "cast"}}, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if deck.Durability >= before {
+			t.Fatal("a cast spent no charge")
+		}
+		if out[0].Outcome.Success {
+			if e.At != 1 || !slices.ContainsFunc(e.States, func(s fight.State) bool { return s.Tag == "burning" && s.On == fight.OnCreature }) {
+				t.Fatalf("a landed cast: at %d, states %v", e.At, e.States)
+			}
+			return
+		}
+	}
+	t.Fatal("no cast landed in 40 tries")
+}

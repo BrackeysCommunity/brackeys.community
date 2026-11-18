@@ -343,6 +343,9 @@ func (r *Rules) Options(s Situation, k Kit) []Option {
 		if (row.Kind == Win || row.Kind == Cast) && r.unanswered(s, g) {
 			continue
 		}
+		if row.Kind == Cast && !lands(g, s) {
+			continue
+		}
 		out = append(out, r.option(s, k, row, g, axis, pairs))
 	}
 	r.balance(out)
@@ -358,9 +361,14 @@ func (r *Rules) option(s Situation, k Kit, row sheets.OptionRow, g *Gear, axis s
 		o.Practice = s.Puzzle
 	}
 	var why Why
-	if g != nil && axis != "" {
-		pts := g.Kind.Vec[r.D.Axis(axis)]
-		o.Stat = r.G.Stat(pts, g.Kind.Tier, g.Inst.Level)
+	// A deck governs the exploit it runs; the exploit takes the xp.
+	gov := g
+	if row.Slot == "deck" && k.OffHand != nil {
+		gov = k.OffHand
+	}
+	if gov != nil && axis != "" {
+		pts := gov.Kind.Vec[r.D.Axis(axis)]
+		o.Stat = r.G.Stat(pts, gov.Kind.Tier, gov.Inst.Level)
 		why.Parts = append(why.Parts, Part{Label: axis + " pts", Value: pts}, Part{Label: axis + " at level", Value: o.Stat})
 	}
 	practice := k.practice(o.Practice)
@@ -500,4 +508,18 @@ func (r *Rules) ModelPuzzle(s Situation, k Kit, party int64, id Roll) puzzle.Res
 		return puzzle.Result{Solved: true}
 	}
 	return puzzle.Result{Haywire: r.P.Haywire(s.Puzzle, puzzle.Where{Place: id.Encounter, Beat: id.Beat})}
+}
+
+// lands: an exploit that needs its target to hold a tag is not offered
+// against a creature without it.
+func lands(g *Gear, s Situation) bool {
+	x := g.Kind.Exploit
+	if x == nil || x.State == "" {
+		return false
+	}
+	if x.OnlyTag == "" || x.Target == "caster" {
+		return true
+	}
+	t := tags.Tag(x.OnlyTag)
+	return slices.Contains(s.Creature.Tags, t) || slices.Contains(s.Other, t)
 }

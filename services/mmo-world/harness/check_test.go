@@ -121,3 +121,22 @@ func TestCheckFailsOnPlantedFaults(t *testing.T) {
 		})
 	}
 }
+
+func TestPlayRunsSmall(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the harness")
+	}
+	b, err := LoadBook(ModuleRoot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if _, err := CraftRun(b, dir, 300); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("BATTLE_ONLY", "even")
+	readings, err := BattleRun(b, dir, 7)
+	if err != nil || len(readings) != 1 {
+		t.Fatal(readings, err)
+	}
+}

@@ -43,7 +43,7 @@
       "id": "guardian",
       "modifier": 10,
       "haul": 3,
-      "health": 40
+      "health": 12
     },
     {
       "id": "puzzle",

@@ -112,6 +112,12 @@
       "value": 144,
       "unit": "ticks",
       "doc": "Ticks in a hunt's world day."
+    },
+    {
+      "id": "even-spread",
+      "value": 3,
+      "unit": "level",
+      "doc": "Harness: the even fight averages characters this far either side of the expected practice."
     }
   ]
 }

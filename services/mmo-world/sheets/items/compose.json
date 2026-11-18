@@ -45,14 +45,6 @@
       "castTag": "sparking"
     },
     {
-      "id": "fibre-sparks",
-      "tag": "fibre",
-      "position": "first",
-      "state": "charged",
-      "target": "creature",
-      "castTag": "sparking"
-    },
-    {
       "id": "amber-lingers",
       "tag": "amber",
       "position": "later",
