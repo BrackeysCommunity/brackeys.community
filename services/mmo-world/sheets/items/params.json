@@ -39,12 +39,6 @@
       "doc": "How many of the minor input's strongest axes it lends."
     },
     {
-      "id": "resonance-threshold",
-      "value": 30,
-      "unit": "pts",
-      "doc": "Kept for the spike's eligibility count; the rule itself is in items.resonance."
-    },
-    {
       "id": "shape-unnamed-carry",
       "value": 0.5,
       "unit": "ratio",

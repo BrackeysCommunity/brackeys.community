@@ -56,8 +56,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	var samples []sample
 	refined := []string{} // refined kinds so far, usable as inputs
 	refineDepth := map[string]int{}
-	resonanceEligible, binds, resonant := 0, 0, 0
-	threshold := sheets.IntParam(b.ItemParams, "resonance-threshold")
+	binds, resonant := 0, 0
 	start := time.Now()
 	draws := 0
 	for i := range n {
@@ -105,9 +104,6 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			}
 			if proc == item.Bind {
 				binds++
-				if resonates(b, plain, rec, threshold) {
-					resonanceEligible++
-				}
 				if pk, ok := plain.Reg.Kind(kd.ID); ok && len(pk.Traits) > 0 {
 					resonant++
 				}
@@ -387,7 +383,6 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	p("| Traits seen | %s |", mapList(traitCount))
 	p("| Points the quirk moved (median, p90, max) | %d pts, %d pts, %d pts |", q(moved, 0.5), q(moved, 0.9), moved[len(moved)-1])
 	p("| Binds | %s |", comma(int64(binds)))
-	p("| Binds whose components cross %d pts on two shared axes (the old eligibility count) | %s (%.0f%%) |", threshold, comma(int64(resonanceEligible)), pct(resonanceEligible, max(binds, 1)))
 	p("| Binds that resonate under item.resonance | %s (%.1f%%) |", comma(int64(resonant)), pct(resonant, max(binds, 1)))
 	p("")
 
@@ -448,37 +443,6 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			strings.Join(k.Traits, " "), strings.Join(ts, " "))
 	}
 	return csv.Write(out, "spike-a-kinds.csv")
-}
-
-// resonates: two components at or above the threshold on the same two axes.
-func resonates(b *sheets.Book, plain *item.Deriver, rec item.Recipe, threshold int64) bool {
-	var vs []item.Vec
-	for _, in := range rec.Inputs {
-		if k, ok := plain.Reg.Kind(in.Kind); ok {
-			vs = append(vs, k.Vec)
-			continue
-		}
-		for _, m := range b.Materials {
-			if m.ID == in.Kind {
-				v := m.Vector
-				vs = append(vs, item.Vec(v.Slice()))
-			}
-		}
-	}
-	for i := range vs {
-		for j := i + 1; j < len(vs); j++ {
-			shared := 0
-			for a := range vs[i] {
-				if vs[i][a] >= threshold && vs[j][a] >= threshold {
-					shared++
-				}
-			}
-			if shared >= 2 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func order(v item.Vec) []int {
