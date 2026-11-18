@@ -47,6 +47,8 @@ export interface Reply {
   outcome: "hit" | "not_found" | "pending";
   /** The real answer, still being made: it lands as a new message once it settles. */
   later?: Promise<Reply>;
+  /** Messages posted right after this one, in order: a shared answer too long for one embed. */
+  more?: Reply[];
 }
 
 // Discord's embed limits.

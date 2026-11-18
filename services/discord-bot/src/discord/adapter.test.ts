@@ -80,3 +80,13 @@ test("a late failure is told privately, even for a shared summary", async () => 
   expect(followUps[0].ephemeral).toBe(true);
   expect(followUps[0].title).not.toBe("Catch-up: the last 24h");
 });
+
+test("a late shared answer posts every part, in order", async () => {
+  const { target, followUps } = lateTarget("public");
+  const part = (title: string): Reply => ({ ...answer, embeds: [{ title, description: "-" }] });
+  await deliverLate(
+    Promise.resolve({ ...part("one"), more: [part("two"), part("three")] }),
+    target,
+  );
+  expect(followUps.map((m) => m.title)).toEqual(["one", "two", "three"]);
+});

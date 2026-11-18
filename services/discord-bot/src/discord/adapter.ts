@@ -172,6 +172,7 @@ export function createInteractionHandler(options: AdapterOptions) {
       const answer = await runInvocation(api, inv, context(), decision);
       const reply = decision.denied ? withNotice(answer, decision.notice) : answer;
       await interaction.editReply(toMessage(reply));
+      for (const next of reply.more ?? []) await interaction.followUp(toMessage(next));
       telemetry.capture(EVENTS.botCommandInvoked, {
         ...props,
         api_outcome: reply.outcome,
@@ -434,11 +435,11 @@ export async function deliverLate(
     onFailed?: (error: unknown, failure: Failure) => void;
   },
 ): Promise<void> {
-  let message: LateMessage;
+  let messages: LateMessage[];
   let ephemeral = target.visibility === "ephemeral";
   try {
     const reply = await later;
-    message = toMessage(reply);
+    messages = [reply, ...(reply.more ?? [])].map(toMessage);
     target.onSettled?.(reply.outcome);
   } catch (error) {
     const failure = classifyFailure(error);
@@ -447,19 +448,24 @@ export async function deliverLate(
     );
     target.onFailed?.(error, failure);
     if (failure.forbidden) return;
-    message = toMessage(failureReply(failure, { appUrl: target.appUrl, label: target.label }));
+    messages = [toMessage(failureReply(failure, { appUrl: target.appUrl, label: target.label }))];
     ephemeral = true;
   }
-  try {
-    await target.followUp(ephemeral ? { ...message, flags: MessageFlags.Ephemeral } : message);
-    return;
-  } catch (error) {
-    target.log(`[command] ${target.label} follow-up failed, sending directly: ${describe(error)}`);
-  }
-  try {
-    await target.sendDirect(message, ephemeral);
-  } catch (error) {
-    target.log(`[command] ${target.label} could not be delivered: ${describe(error)}`);
+  for (const message of messages) {
+    try {
+      await target.followUp(ephemeral ? { ...message, flags: MessageFlags.Ephemeral } : message);
+      continue;
+    } catch (error) {
+      target.log(
+        `[command] ${target.label} follow-up failed, sending directly: ${describe(error)}`,
+      );
+    }
+    try {
+      await target.sendDirect(message, ephemeral);
+    } catch (error) {
+      target.log(`[command] ${target.label} could not be delivered: ${describe(error)}`);
+      return;
+    }
   }
 }
 

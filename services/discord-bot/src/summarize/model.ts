@@ -97,48 +97,83 @@ export class EmptySummaryError extends Error {
   }
 }
 
+export interface ModelReply {
+  text: string;
+  usage: ModelUsage;
+  /** False when even the lowest effort ran out of room mid-reply: show it, never cache it. */
+  complete?: boolean;
+}
+
 export interface SummaryModel {
-  chunk(transcript: string): Promise<{ text: string; usage: ModelUsage }>;
-  final(sections: string, maxTokens: number): Promise<{ text: string; usage: ModelUsage }>;
+  chunk(transcript: string): Promise<ModelReply>;
+  final(sections: string, maxTokens: number): Promise<ModelReply>;
   /** A member's question answered against the same history. */
   answer(
     ask: { question: string; asker?: string },
     sections: string,
     maxTokens: number,
-  ): Promise<{ text: string; usage: ModelUsage }>;
+  ): Promise<ModelReply>;
+}
+
+type Effort = "low" | "medium" | "high";
+const LESS_EFFORT: Partial<Record<Effort, Effort>> = { high: "medium", medium: "low" };
+
+/** The parts of an API response a reply is made from. */
+export interface ModelResponse {
+  stop_reason: string | null;
+  content: { type: string; text?: string }[];
+  usage: { input_tokens: number; output_tokens: number };
+}
+
+/**
+ * One reply, retried at a lower effort while the model runs out of room:
+ * thinking counts against `max_tokens`, so thinking less leaves the reply
+ * more. Usage is summed across the attempts.
+ */
+export async function replyWithin(
+  send: (effort: Effort) => Promise<ModelResponse>,
+  effort: Effort,
+): Promise<ModelReply> {
+  const usage: ModelUsage = { inputTokens: 0, outputTokens: 0 };
+  for (let level = effort; ; ) {
+    const response = await send(level);
+    if (response.stop_reason === "refusal") throw new SummaryRefusedError();
+    usage.inputTokens += response.usage.input_tokens;
+    usage.outputTokens += response.usage.output_tokens;
+    const cutShort = response.stop_reason === "max_tokens";
+    const lower = LESS_EFFORT[level];
+    if (cutShort && lower) {
+      level = lower;
+      continue;
+    }
+    const text = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text ?? "")
+      .join("")
+      .trim();
+    if (!text) throw new EmptySummaryError(response.stop_reason);
+    return { text, usage, complete: !cutShort };
+  }
 }
 
 export function createSummaryModel(apiKey: string): SummaryModel {
   const client = new Anthropic({ apiKey });
 
-  async function complete(
-    system: string,
-    content: string,
-    maxTokens: number,
-    effort: "medium" | "high",
-  ) {
-    // Streamed because a ceiling this high can outlast a plain request's timeout.
-    const response = await client.messages
-      .stream({
-        model: MODEL,
-        max_tokens: Math.min(maxTokens + THINKING_HEADROOM, MODEL_MAX_TOKENS),
-        system,
-        output_config: { effort },
-        messages: [{ role: "user", content }],
-      })
-      .finalMessage();
-    if (response.stop_reason === "refusal") throw new SummaryRefusedError();
-    const text = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("")
-      .trim();
-    if (!text) throw new EmptySummaryError(response.stop_reason);
-    const usage: ModelUsage = {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-    };
-    return { text, usage };
+  function complete(system: string, content: string, maxTokens: number, effort: Effort) {
+    return replyWithin(
+      (level) =>
+        // Streamed because a ceiling this high can outlast a plain request's timeout.
+        client.messages
+          .stream({
+            model: MODEL,
+            max_tokens: Math.min(maxTokens + THINKING_HEADROOM, MODEL_MAX_TOKENS),
+            system,
+            output_config: { effort: level },
+            messages: [{ role: "user", content }],
+          })
+          .finalMessage(),
+      effort,
+    );
   }
 
   return {

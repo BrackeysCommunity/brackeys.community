@@ -259,25 +259,30 @@ export function createSummarizer(deps: {
           buckets.raw++;
           return { from: span.from, to: span.to, kind: "raw", messages };
         }
+        let whole = true;
         const parts = await Promise.all(
           splitParts(messages).map(async (part) => {
             const refs = new RefTable();
             const reply = await model.chunk(formatLines(part, refs));
             usage.push(reply.usage);
+            if (reply.complete === false) whole = false;
             return storeLinks(reply.text, refs);
           }),
         );
         const entry: CachedBucket = { count: messages.length, parts };
-        await quietly(
-          () =>
-            redis.set(
-              bucketKey(channelId, span.bucket!),
-              JSON.stringify(entry),
-              "EX",
-              BUCKET_TTL_SECONDS,
-            ),
-          null,
-        );
+        // A cut-off summary is used this once and made again next time.
+        if (whole) {
+          await quietly(
+            () =>
+              redis.set(
+                bucketKey(channelId, span.bucket!),
+                JSON.stringify(entry),
+                "EX",
+                BUCKET_TTL_SECONDS,
+              ),
+            null,
+          );
+        }
         buckets.summarized++;
         return { from: span.from, to: span.to, kind: "summary", count: messages.length, parts };
       });
@@ -303,10 +308,12 @@ export function createSummarizer(deps: {
       messageCount: count,
       buckets,
     });
-    await quietly(
-      () => redis.set(finalKey, JSON.stringify(summary), "EX", FINAL_TTL_SECONDS),
-      null,
-    );
+    if (final.complete !== false) {
+      await quietly(
+        () => redis.set(finalKey, JSON.stringify(summary), "EX", FINAL_TTL_SECONDS),
+        null,
+      );
+    }
     return summary;
   }
 

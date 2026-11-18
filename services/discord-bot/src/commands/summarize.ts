@@ -154,6 +154,27 @@ async function summaryReply(
     footer: `${footer} · AI summary, may miss things`,
     pages: paginate(summary.text),
   };
+  // Anyone can press a shared message's buttons, so a shared answer is
+  // never paged: one embed when it fits, consecutive messages when not.
+  if (input.share) {
+    const count = set.pages.length;
+    const [first, ...rest] = set.pages.map(
+      (description, i): Reply => ({
+        embeds: [
+          clampEmbed({
+            title: i === 0 ? set.title : undefined,
+            description,
+            color: SUMMARY_COLOR,
+            footer: count > 1 ? `Part ${i + 1}/${count} · ${set.footer}` : set.footer,
+          }),
+        ],
+        buttons: [],
+        ephemeral: false,
+        outcome: "hit",
+      }),
+    );
+    return rest.length ? { ...first, more: rest } : first;
+  }
   const token = set.pages.length > 1 ? ((await pages?.save(set)) ?? null) : null;
   return summaryPage(set, 0, token, !input.share);
 }

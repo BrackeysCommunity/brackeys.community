@@ -93,6 +93,43 @@ describe("summarizeChannel", () => {
     expect(last.ephemeral).toBe(false);
   });
 
+  test("a shared summary that fits is one unbroken embed", async () => {
+    const pages = memoryPages();
+    const text = "- a point\n".repeat(300);
+    const reply = await summarizeChannel(
+      async () => summary({ text }),
+      { ...input, share: true },
+      {
+        pages,
+      },
+    );
+    expect(reply.more).toBeUndefined();
+    expect(reply.buttons).toHaveLength(0);
+    expect(reply.embeds[0].description).toBe(text.trim());
+    expect(reply.embeds[0].footer).toStartWith("812 messages");
+    expect(pages.sets.size).toBe(0);
+  });
+
+  test("a shared summary too long for one embed is consecutive messages, never pages", async () => {
+    const pages = memoryPages();
+    const reply = await summarizeChannel(
+      async () => summary({ text: longText }),
+      { ...input, share: true },
+      { pages },
+    );
+    const all = [reply, ...(reply.more ?? [])];
+    expect(all.length).toBeGreaterThan(1);
+    expect(pages.sets.size).toBe(0);
+    for (const [i, part] of all.entries()) {
+      expect(part.buttons).toHaveLength(0);
+      expect(part.ephemeral).toBe(false);
+      expect(part.embeds[0].footer).toStartWith(`Part ${i + 1}/${all.length} · 812 messages`);
+      expect(embedLength(part.embeds[0])).toBeLessThanOrEqual(EMBED_TOTAL_MAX);
+    }
+    expect(all[0].embeds[0].title).toBe("Catch-up: the last 24h");
+    expect(all[1].embeds[0].title).toBeUndefined();
+  });
+
   test("a short summary has no pages, buttons or stored copy", async () => {
     const pages = memoryPages();
     const reply = await summarizeChannel(async () => summary(), input, { pages });

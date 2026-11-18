@@ -327,3 +327,19 @@ describe("summarize", () => {
     expect([first.finalCached, second.finalCached]).toEqual([false, true]);
   });
 });
+
+test("a cut-off reply is shown but never cached", async () => {
+  const { readHistory } = channel(spread(NOW - 20 * HOUR, NOW, 400));
+  const redis = memoryRedis();
+  const usage = { inputTokens: 1, outputTokens: 1 };
+  const cutShort: SummaryModel = {
+    chunk: async () => ({ text: "a partial section", usage, complete: false }),
+    final: async () => ({ text: "a partial summary", usage, complete: false }),
+    answer: async () => ({ text: "a partial answer", usage, complete: false }),
+  };
+  const summarizer = createSummarizer({ redis, readHistory, model: cutShort, guildId: GUILD });
+  const summary = await summarizer.summarize(CHANNEL, "24h", { now: NOW });
+  expect(summary.text).toBe("a partial summary");
+  expect(summary.buckets.summarized).toBeGreaterThan(0);
+  expect([...redis.store.keys()].filter((key) => key.startsWith("summarize:"))).toEqual([]);
+});
