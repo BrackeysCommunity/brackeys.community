@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/tally"
 )
 
 // Slot names in the kit (GDD 5.2).
@@ -47,11 +48,11 @@ type Skill struct {
 // Fights is what a character has fought: beats won and lost by creature
 // tag, times down and where, and a nemesis.
 type Fights struct {
-	Won      item.Tally `json:"won"`
-	Lost     item.Tally `json:"lost"`
-	Downs    int64      `json:"downs"`
-	DownedAt []hex.Hex  `json:"downedAt"`
-	DownedBy item.Tally `json:"downedBy"`
+	Won      tally.Tally `json:"won"`
+	Lost     tally.Tally `json:"lost"`
+	Downs    int64       `json:"downs"`
+	DownedAt []hex.Hex   `json:"downedAt"`
+	DownedBy tally.Tally `json:"downedBy"`
 }
 
 // Nemesis is what has downed them most, by archetype.
@@ -111,8 +112,8 @@ type Character struct {
 	Practice []Skill `json:"practice"`
 
 	// Standing
-	Standing      item.Tally `json:"standing"`      // per faction
-	GuildStanding item.Tally `json:"guildStanding"` // per guild
+	Standing      tally.Tally `json:"standing"`      // per faction
+	GuildStanding tally.Tally `json:"guildStanding"` // per guild
 
 	// Journey ring: the last heavy facts naming them.
 	Journey []fact.ID `json:"journey"`
@@ -127,27 +128,27 @@ type Character struct {
 	People []Disposition `json:"people"`
 
 	// Making
-	Discovered []string   `json:"discovered"`
-	Crafts     item.Tally `json:"crafts"` // by process
-	SoldStamp  int64      `json:"soldStamp"`
+	Discovered []string    `json:"discovered"`
+	Crafts     tally.Tally `json:"crafts"` // by process
+	SoldStamp  int64       `json:"soldStamp"`
 
 	// Trade
-	Earned item.Tally `json:"earned"` // by source
-	Spent  item.Tally `json:"spent"`  // by sink
-	Hauled item.Tally `json:"hauled"` // by route
+	Earned tally.Tally `json:"earned"` // by source
+	Spent  tally.Tally `json:"spent"`  // by sink
+	Hauled tally.Tally `json:"hauled"` // by route
 
 	// Goals
-	Goals item.Tally `json:"goals"` // posted, met, lapsed, vows-kept, vows-broken
+	Goals tally.Tally `json:"goals"` // posted, met, lapsed, vows-kept, vows-broken
 
 	// Travel
-	Discoveries  int64      `json:"discoveries"`
-	Walked       int64      `json:"walked"`
-	FurthestHome int64      `json:"furthestHome"`
-	Deepest      item.Tally `json:"deepest"` // dungeon -> deepest floor
+	Discoveries  int64       `json:"discoveries"`
+	Walked       int64       `json:"walked"`
+	FurthestHome int64       `json:"furthestHome"`
+	Deepest      tally.Tally `json:"deepest"` // dungeon -> deepest floor
 
 	// Streaks and firsts
-	Streaks item.Tally `json:"streaks"`
-	Firsts  []string   `json:"firsts"`
+	Streaks tally.Tally `json:"streaks"`
+	Firsts  []string    `json:"firsts"`
 
 	// Flags
 	Flags    []string `json:"flags"`
