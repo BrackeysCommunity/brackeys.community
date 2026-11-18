@@ -140,13 +140,15 @@ if (memberRelay) {
   });
 }
 
+const summaryGuilds = new Set([config.DISCORD_GUILD_ID, ...config.SUMMARIZE_GUILD_IDS]);
+
 if (summarizer) {
   client.on(Events.MessageDelete, (message) => {
-    if (message.guildId !== config.DISCORD_GUILD_ID) return;
+    if (!summaryGuilds.has(message.guildId ?? "")) return;
     void summarizer.invalidate(message.channelId, [message.id]);
   });
   client.on(Events.MessageBulkDelete, (messages, channel) => {
-    if (channel.guildId !== config.DISCORD_GUILD_ID) return;
+    if (!summaryGuilds.has(channel.guildId)) return;
     void summarizer.invalidate(channel.id, [...messages.keys()]);
   });
 }
@@ -163,6 +165,7 @@ client.on(
     summaryPages: summarizer && redis ? createSummaryPages(redis) : undefined,
     appUrl: config.APP_URL,
     hostName: config.JAM_HOST_NAME,
+    homeGuildId: config.DISCORD_GUILD_ID,
     shareGate: {
       roleIds: config.SHARE_ROLE_IDS,
       userIds: config.ADMIN_DISCORD_IDS,
@@ -173,20 +176,39 @@ client.on(
   }),
 );
 
-client.once(Events.ClientReady, async (ready) => {
-  log(`[boot] gateway ready as ${ready.user.tag}`);
+const manifest = buildManifest(siteName(config.APP_URL), manifestOptions(config));
+
+/** The home server gets every command; the others `/summarize` alone. */
+async function registerIn(rest: Client["rest"], guildId: string) {
+  const commands =
+    guildId === config.DISCORD_GUILD_ID
+      ? manifest
+      : manifest.filter((command) => command.name === COMMAND.summarize);
   try {
-    await syncGuildCommands(ready.rest, {
+    await syncGuildCommands(rest, {
       applicationId: config.DISCORD_APPLICATION_ID,
-      guildId: config.DISCORD_GUILD_ID,
-      commands: buildManifest(siteName(config.APP_URL), manifestOptions(config)),
+      guildId,
+      commands,
       log,
     });
   } catch (error) {
     // Registration failing must not crash-loop the process: each loop would
     // re-attempt the PUT. Commands already registered keep working.
-    console.error("[register] failed", error);
+    console.error(`[register] ${guildId} failed`, error);
     telemetry.captureException(error, { scope: "register" });
+  }
+}
+
+// A server invited after boot gets its command without waiting for a restart.
+client.on(Events.GuildCreate, (guild) => {
+  if (config.SUMMARIZE_GUILD_IDS.includes(guild.id)) void registerIn(client.rest, guild.id);
+});
+
+client.once(Events.ClientReady, async (ready) => {
+  log(`[boot] gateway ready as ${ready.user.tag}`);
+  await registerIn(ready.rest, config.DISCORD_GUILD_ID);
+  for (const guildId of config.SUMMARIZE_GUILD_IDS) {
+    if (ready.guilds.cache.has(guildId)) await registerIn(ready.rest, guildId);
   }
 });
 

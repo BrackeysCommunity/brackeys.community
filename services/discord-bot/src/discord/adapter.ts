@@ -74,6 +74,8 @@ export interface AdapterOptions {
   appUrl: string;
   hostName: string;
   shareGate: ShareGateConfig;
+  /** The server the bot is built for. Elsewhere only `/summarize` is registered. */
+  homeGuildId: string;
   summarize?: Summarize;
   summaryPages?: SummaryPages;
   now?: () => Date;
@@ -90,6 +92,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     appUrl,
     hostName,
     shareGate,
+    homeGuildId,
     summarize,
     summaryPages,
     now = () => new Date(),
@@ -135,6 +138,15 @@ export function createInteractionHandler(options: AdapterOptions) {
     // Before the defer, because Discord fixes visibility at the first
     // response: a refused share has to be private from the outset, not
     // corrected afterwards.
+    const away = interaction.guildId !== homeGuildId;
+    // Only `/summarize` is registered in other servers; anything else is a stale registration.
+    if (away && inv.command !== COMMAND.summarize) {
+      await interaction.reply({
+        content: "That command isn't available in this server.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
     const decision = decideShare(
       {
         wanted: shareRequested(inv),
@@ -142,7 +154,9 @@ export function createInteractionHandler(options: AdapterOptions) {
         actorRoleIds: inv.actorRoleIds ?? [],
         channelId: inv.channelId ?? null,
       },
-      shareGate,
+      // Role ids are unique across servers, so one list serves every server;
+      // the bot channel is the home server's own.
+      away ? { ...shareGate, botChannelId: null } : shareGate,
     );
     const visibility = replyVisibility(inv, decision);
     const props = {
@@ -386,6 +400,7 @@ export function toInvocation(interaction: ChatInputCommandInteraction): Invocati
     options: {},
     actorRoleIds: actorRoleIds(interaction),
     channelId: interaction.channelId,
+    guildId: interaction.guildId,
     actorId: interaction.user.id,
     // The same pick the transcript makes, so the two names match.
     actorName: interaction.user.globalName || interaction.user.username,

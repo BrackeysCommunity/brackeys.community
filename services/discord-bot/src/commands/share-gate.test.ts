@@ -63,4 +63,10 @@ describe("share gate", () => {
     expect(notice.length).toBeLessThanOrEqual(100);
     expect(notice).toContain("#bot");
   });
+
+  test("with no bot channel the refusal doesn't point at one", () => {
+    expect(shareNotice({ ...gate, botChannelId: null })).toBe(
+      "Kept private — sharing to a channel is staff-only.",
+    );
+  });
 });

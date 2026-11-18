@@ -40,7 +40,8 @@ export type ShareDecision =
   | { shared: false; denied: true; notice: string };
 
 export function shareNotice(config: ShareGateConfig): string {
-  return `Kept private — sharing to a channel is staff-only. Use #${config.botChannelName}.`;
+  const where = config.botChannelId == null ? "" : ` Use #${config.botChannelName}.`;
+  return `Kept private — sharing to a channel is staff-only.${where}`;
 }
 
 export function decideShare(request: ShareRequest, config: ShareGateConfig): ShareDecision {

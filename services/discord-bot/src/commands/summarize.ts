@@ -21,7 +21,10 @@ import { pagerButtons } from "./format.ts";
 export type Summarize = (
   channelId: string,
   window: SummaryWindow,
-  options: Pick<SummaryOptions, "question" | "requesterId" | "requesterName" | "shared">,
+  options: Pick<
+    SummaryOptions,
+    "question" | "requesterId" | "requesterName" | "shared" | "guildId"
+  >,
 ) => Promise<Summary>;
 
 /** Discord's option cap; also keeps the question a question rather than a prompt dump. */
@@ -92,6 +95,7 @@ function unavailable(error: unknown): SummaryUnavailableError | null {
 
 interface SummaryInput {
   channelId: string;
+  guildId?: string;
   window: SummaryWindow;
   share: boolean;
   question?: string;
@@ -109,6 +113,7 @@ export async function summarizeChannel(
     requesterId: input.requesterId,
     requesterName: input.requesterName,
     shared: input.share,
+    guildId: input.guildId,
   }).then(
     (summary) => summaryReply(summary, input, pages),
     (error: unknown) => {

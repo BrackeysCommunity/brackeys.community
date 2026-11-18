@@ -3,6 +3,16 @@ import { z } from "zod";
 import { parseServiceConfig } from "../../../src/lib/service-config.ts";
 
 const snowflake = z.string().regex(/^\d{17,20}$/, "expected a Discord snowflake id");
+/** A comma-separated list of ids; anything that isn't one is dropped. */
+const snowflakeList = z
+  .string()
+  .default("")
+  .transform((raw) =>
+    raw
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => /^\d{17,20}$/.test(id)),
+  );
 
 const schema = z
   .object({
@@ -23,26 +33,10 @@ const schema = z
     // Comma-separated role ids; empty leaves sharing unrestricted, which is
     // how every other absent setting in this service behaves — a deploy
     // that hasn't been given the ids must not silently stop staff sharing.
-    SHARE_ROLE_IDS: z
-      .string()
-      .default("")
-      .transform((raw) =>
-        raw
-          .split(",")
-          .map((id) => id.trim())
-          .filter((id) => /^\d{17,20}$/.test(id)),
-      ),
+    SHARE_ROLE_IDS: snowflakeList,
     // The site's break-glass admins (the same variable Web reads, referenced
     // from it in Railway): they may share anywhere without a staff role.
-    ADMIN_DISCORD_IDS: z
-      .string()
-      .default("")
-      .transform((raw) =>
-        raw
-          .split(",")
-          .map((id) => id.trim())
-          .filter((id) => /^\d{17,20}$/.test(id)),
-      ),
+    ADMIN_DISCORD_IDS: snowflakeList,
     // The room where the gate doesn't apply, because it exists for this.
     BOT_CHANNEL_ID: snowflake.optional(),
     // How that room is named in the one-line refusal. Footers don't resolve
@@ -75,6 +69,8 @@ const schema = z
       .default(10 * 60_000),
     // Off: `/summarize` registers for members with Manage Messages only.
     SUMMARIZE_OPEN: z.stringbool().default(false),
+    // Other servers that get `/summarize` alone. Their sharing roles go in SHARE_ROLE_IDS.
+    SUMMARIZE_GUILD_IDS: snowflakeList,
   })
   .transform(({ DISCORD_APPLICATION_ID, DISCORD_CLIENT_ID, ...rest }, ctx) => {
     const applicationId = DISCORD_APPLICATION_ID ?? DISCORD_CLIENT_ID;

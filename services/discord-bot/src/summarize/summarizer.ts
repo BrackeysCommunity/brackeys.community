@@ -65,6 +65,8 @@ export interface SummaryOptions {
   requesterId?: string;
   /** The asker as the transcript names them, so an answer can tell their own messages apart. */
   requesterName?: string;
+  /** The server the channel is in, for message links; the home guild otherwise. */
+  guildId?: string;
   /** The reply goes to the whole channel, which gets the smaller output ceiling. */
   shared?: boolean;
 }
@@ -155,7 +157,14 @@ export function createSummarizer(deps: {
   async function summarize(
     channelId: string,
     window: SummaryWindow,
-    { now = Date.now(), question, requesterId, requesterName, shared = false }: SummaryOptions = {},
+    {
+      now = Date.now(),
+      question,
+      requesterId,
+      requesterName,
+      shared = false,
+      guildId: inGuild = guildId,
+    }: SummaryOptions = {},
   ): Promise<Summary> {
     let start: number;
     let windowKey: string = window;
@@ -302,7 +311,7 @@ export function createSummarizer(deps: {
       ? await model.answer({ question, asker: requesterName }, history, maxTokens)
       : await model.final(history, maxTokens);
     usage.push(final.usage);
-    const messageUrl = (id: string) => `https://discord.com/channels/${guildId}/${channelId}/${id}`;
+    const messageUrl = (id: string) => `https://discord.com/channels/${inGuild}/${channelId}/${id}`;
     const summary = result({
       text: resolveTimes(resolveLinks(final.text, refs, messageUrl), now, start),
       messageCount: count,
