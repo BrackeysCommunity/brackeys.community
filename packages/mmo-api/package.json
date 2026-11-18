@@ -1,0 +1,11 @@
+{
+  "name": "@jams/mmo-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The world service's API types, generated from services/mmo-world/api by tygo.",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

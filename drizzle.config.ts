@@ -5,7 +5,8 @@ config({ path: [".env.local", ".env"] });
 
 export default defineConfig({
   out: "./drizzle",
-  schema: "./src/db/schema.ts",
+  // `mmo.ts` is the Discord MMO's own schema, kept out of the site's client.
+  schema: ["./src/db/schema.ts", "./src/db/mmo.ts"],
   dialect: "postgresql",
   dbCredentials: {
     url: process.env.DATABASE_URL!,
@@ -27,5 +28,6 @@ export default defineConfig({
     "media",
     "forum",
     "canvas",
+    "mmo",
   ],
 });

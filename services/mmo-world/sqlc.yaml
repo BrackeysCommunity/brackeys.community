@@ -1,0 +1,20 @@
+# Go queries over the mmo schema. Drizzle owns the DDL: the schema here is
+# the drizzle migrations that touch "mmo", in order (store/sqlc_test.go
+# fails when one is missing). CI regenerates with the pinned sqlc and fails
+# on a diff.
+version: "2"
+sql:
+  - engine: postgresql
+    schema:
+      - ../../drizzle/20261118220241_mmo-world/migration.sql
+    queries: store/queries.sql
+    gen:
+      go:
+        package: db
+        out: store/db
+        sql_package: pgx/v5
+        emit_json_tags: false
+        overrides:
+          - db_type: jsonb
+            go_type:
+              type: "[]byte"

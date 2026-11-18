@@ -1,0 +1,5 @@
+# Generates packages/mmo-api from api/. CI regenerates it with the pinned
+# tygo and fails on a diff.
+packages:
+  - path: "jams.team/mmo-world/api"
+    output_path: "../../packages/mmo-api/src/index.ts"

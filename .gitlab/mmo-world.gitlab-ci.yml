@@ -10,6 +10,9 @@
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes: &mmo-world-changes
         - services/mmo-world/**/*
+        - packages/mmo-api/**/*
+        - drizzle/*mmo*/**/*
+        - src/db/mmo.ts
         - .gitlab/mmo-world.gitlab-ci.yml
     - if: $CI_COMMIT_BRANCH == 'main' && $CI_COMMIT_TITLE !~ /^Merge branch/
       changes: *mmo-world-changes
@@ -18,6 +21,8 @@
     GOTOOLCHAIN: auto
     GOPATH: $CI_PROJECT_DIR/.go
     GOLANGCI_LINT_VERSION: v2.15.0
+    SQLC_VERSION: v1.30.0
+    TYGO_VERSION: v0.2.18
   cache:
     key: mmo-world-go
     paths:
@@ -39,11 +44,20 @@ mmo-world-lint:
 
 # Unit and property tests, including the planted-violation tests for the
 # lints and the Check run; -race everywhere outside sim/, which has no
-# goroutines to race.
+# goroutines to race. The store, service and proof tests make throwaway
+# databases on the job's own Postgres; the nightly replay test needs
+# pg_dump and psql.
 mmo-world-test:
   extends: .mmo-world-go
   stage: test
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    POSTGRES_HOST_AUTH_METHOD: trust
+    MMO_TEST_DATABASE_URL: postgres://postgres@postgres:5432/postgres?sslmode=disable
   script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends postgresql-client >/dev/null
     - go test ./sim/...
     - go test -race $(go list ./... | grep -v '^jams.team/mmo-world/sim\(/\|$\)')
 
@@ -54,3 +68,15 @@ mmo-world-sheet-check:
   stage: check
   script:
     - go run ./cmd/harness check -skip-lint
+
+# The generated code is current: sqlc's queries against the drizzle
+# migrations, and packages/mmo-api against api/.
+mmo-world-generated:
+  extends: .mmo-world-go
+  stage: check
+  script:
+    - go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}
+    - go install github.com/gzuidhof/tygo@${TYGO_VERSION}
+    - $GOPATH/bin/sqlc diff
+    - $GOPATH/bin/tygo generate
+    - git diff --exit-code -- ../../packages/mmo-api
