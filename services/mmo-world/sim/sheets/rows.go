@@ -46,6 +46,12 @@ type Vector struct {
 	Bond    int64 `json:"bond" unit:"pts" min:"0"`
 }
 
+// Slice is the vector in field order, which the Check run holds to
+// items.axes's order.
+func (v Vector) Slice() []int64 {
+	return []int64{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond}
+}
+
 type Material struct {
 	ID     string   `json:"id" unit:"id"`
 	Tier   int64    `json:"tier" unit:"tier" min:"1"`
@@ -92,6 +98,11 @@ type Slot struct {
 	Bond            fixed.F `json:"bond,omitempty" unit:"ratio" min:"0"`
 	StrongestOther  fixed.F `json:"strongestOther,omitempty" unit:"ratio" min:"0" doc:"Multiplier on the strongest axis the template does not name (a charm)."`
 	DurabilityRatio fixed.F `json:"durabilityRatio" unit:"ratio" min:"0" doc:"Durability against a blade's at the same tier."`
+}
+
+// Multipliers are the slot's axis multipliers in Vector's order.
+func (s Slot) Multipliers() []fixed.F {
+	return []fixed.F{s.Edge, s.Weight, s.Flex, s.Conduct, s.Heat, s.Ward, s.Reach, s.Bond}
 }
 
 type Trait struct {
@@ -361,8 +372,7 @@ type Offset struct {
 }
 
 // PatternRule is a row in map.patterns: a shape laid on the map with
-// something standing on its points (GDD 4.13). Placement only; the
-// puzzle that opens a pattern is a later column.
+// something standing on its points (GDD 4.13).
 type PatternRule struct {
 	ID     string `json:"id" unit:"id"`
 	Shape  string `json:"shape" unit:"ref" ref:"map.shapes"`

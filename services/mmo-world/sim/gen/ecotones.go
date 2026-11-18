@@ -69,20 +69,11 @@ func (g *Gen) edges(r *RegionBaseline) {
 	}
 	row := g.b.Ecotones[e]
 	r.Edge = row.ID
-	ci, cj := floorDiv(r.Centre.Q, g.p.farCell), floorDiv(r.Centre.R, g.p.farCell)
-	mid := "edge." + row.ID + "." + itoa(ci) + "." + itoa(cj)
-	m, ok := g.far[mid]
-	if !ok {
-		who := []draw.Part{draw.Str(row.ID), draw.Int(ci), draw.Int(cj)}
-		m = &FarMaterial{ID: mid, Biome: row.ID}
-		m.Share = g.p.farLo + int64(g.d.Below(uint64(g.p.farHi-g.p.farLo+1), "edge.share", who...))
-		m.Profile = g.profile(append([]draw.Part{draw.Str("edge")}, who...))
-		m.Tags = append([]string{TagEdge, row.Tag}, row.MaterialTags...)
-		g.far[mid] = m
-	}
-	r.EdgeMaterial = m
+	r.EdgeMaterial = g.farAt("edge", row.ID, r.Centre, "edge.share", []draw.Part{draw.Str("edge")}, func() []string {
+		return append([]string{TagEdge, row.Tag}, row.MaterialTags...)
+	})
 	who := []draw.Part{draw.Int(r.ID.I), draw.Int(r.ID.J)}
-	if int64(g.d.Below(percent, "region.edge-creature", who...)) >= g.p.edgeCreatures {
+	if !g.d.Percent(g.p.edgeCreatures, "region.edge-creature", who...) {
 		return
 	}
 	var ta, tb string

@@ -3,7 +3,7 @@ package weather_test
 import (
 	"testing"
 
-	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
@@ -28,7 +28,7 @@ func (g ground) Elevation(h hex.Hex) int64 {
 
 func rules(t *testing.T) *weather.Rules {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

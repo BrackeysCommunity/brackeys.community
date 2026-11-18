@@ -4,14 +4,14 @@ import (
 	"slices"
 	"testing"
 
-	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/puzzle"
 )
 
 func puzzles(t *testing.T) *puzzle.Puzzles {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +49,23 @@ func TestReplay(t *testing.T) {
 				}
 				if again := p.Generate(fam, level, tier, w); !slices.Equal(again.Target, l.Target) || !slices.Equal(again.Order, l.Order) || !slices.Equal(again.Walls, l.Walls) || !slices.Equal(again.Turn, l.Turn) {
 					t.Fatalf("%s: layout not deterministic", fam)
+				}
+			}
+		}
+	}
+}
+
+// A move out of range breaks the machine instead of the process.
+func TestReplayRejectsWildMoves(t *testing.T) {
+	p := puzzles(t)
+	for _, fam := range families {
+		w := puzzle.Where{Place: "tile:0,0", Beat: 1}
+		l := p.Generate(fam, 3, 2, w)
+		cd := p.Countdown(fam, 3, 2, 0)
+		for _, a := range []int64{-1, -1 << 40, 1 << 40} {
+			for _, b := range []int64{0, -1, 1 << 40} {
+				if r := p.Replay(l, []puzzle.Move{{A: a, B: b, C: b}}, cd, w); r.Solved {
+					t.Fatalf("%s: move a=%d b=%d solved", fam, a, b)
 				}
 			}
 		}

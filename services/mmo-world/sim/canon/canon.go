@@ -169,12 +169,22 @@ func encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
 			name = f.Name
 		}
 		fv := v.Field(i)
-		if hasOpt(opts, "omitempty") && fv.IsZero() {
+		if hasOpt(opts, "omitempty") && empty(fv) {
 			continue
 		}
 		ms = append(ms, member{name, fv})
 	}
 	return encodeMembers(b, ms)
+}
+
+// empty is omitempty's test. Like encoding/json it drops a non-nil
+// empty slice or map, so a digest survives a JSON round trip.
+func empty(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Slice, reflect.Map, reflect.String:
+		return v.Len() == 0
+	}
+	return v.IsZero()
 }
 
 func hasOpt(opts, want string) bool {

@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -118,7 +119,9 @@ type params struct {
 }
 
 // Gen answers for one world. Its caches only remember pure answers, so the
-// same tile comes out the same whatever was asked first. A Gen is not safe
+// same tile comes out the same whatever was asked first. The caches are
+// never evicted, so a long-lived Gen grows with every area asked about;
+// dropping it for a fresh one loses nothing but speed. A Gen is not safe
 // for concurrent use.
 type Gen struct {
 	b       *sheets.Book
@@ -220,7 +223,7 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 		return nil, err
 	}
 	g.ch = chunker{g.p.chunk}
-	for i, h := range Disc(g.p.chunk) {
+	for i, h := range hex.Disc(g.p.chunk) {
 		g.discIndex[h] = i
 	}
 	g.regions = g.newLattice("region", g.p.regionSpacing, g.p.regionJitter, true)
@@ -235,7 +238,7 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 	return g, nil
 }
 
-// Baseline is the contract form: one tile from a fresh generator.
+// Baseline is one tile from a fresh Gen, so no cache state can colour it.
 func Baseline(b *sheets.Book, key draw.Key, h Hex) (TileBaseline, error) {
 	g, err := New(b, key)
 	if err != nil {
@@ -244,7 +247,7 @@ func Baseline(b *sheets.Book, key draw.Key, h Hex) (TileBaseline, error) {
 	return g.Baseline(h), nil
 }
 
-// Chunk is the contract form of (*Gen).Chunk.
+// Chunk is (*Gen).Chunk on a fresh Gen.
 func Chunk(b *sheets.Book, key draw.Key, cc ChunkCoord) (*ChunkBaseline, error) {
 	g, err := New(b, key)
 	if err != nil {
@@ -253,7 +256,7 @@ func Chunk(b *sheets.Book, key draw.Key, cc ChunkCoord) (*ChunkBaseline, error) 
 	return g.Chunk(cc), nil
 }
 
-// Patterns is the contract form of (*Gen).Patterns.
+// Patterns is (*Gen).Patterns on a fresh Gen.
 func Patterns(b *sheets.Book, key draw.Key, cc ChunkCoord) ([]PatternPoint, error) {
 	g, err := New(b, key)
 	if err != nil {
@@ -324,13 +327,13 @@ func (g *Gen) water(r raw, t groundTile) string {
 		return WaterStream
 	case t.river:
 		return WaterRiver
-	case !g.passable(t.terrain) && r.sunk && slices.Contains(g.terrain[t.terrain].Tags, "wet"):
+	case !g.passable(t.terrain) && r.sunk && g.terrain[t.terrain].Wet():
 		return WaterSea
-	case !g.passable(t.terrain) && slices.Contains(g.terrain[t.terrain].Tags, "wet"):
+	case !g.passable(t.terrain) && g.terrain[t.terrain].Wet():
 		return WaterLake
-	case t.terrain == r.terrain && slices.Contains(g.terrain[t.terrain].Tags, "wet") && g.terrain[t.terrain].EnterTicks <= 1:
+	case t.terrain == r.terrain && g.terrain[t.terrain].Wet() && g.terrain[t.terrain].EnterTicks <= 1:
 		return WaterCoast
-	case slices.Contains(g.terrain[t.terrain].Tags, "wet"):
+	case g.terrain[t.terrain].Wet():
 		return WaterBog
 	}
 	return WaterNone
@@ -349,7 +352,7 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 		return gr
 	}
 	centre := g.ch.Centre(cc)
-	gr := &ground{centre: centre, offsets: Disc(g.p.chunk)}
+	gr := &ground{centre: centre, offsets: hex.Disc(g.p.chunk)}
 	gr.tiles = make([]groundTile, len(gr.offsets))
 	in := func(h Hex) (int, bool) {
 		i, ok := g.discIndex[Hex{Q: h.Q - centre.Q, R: h.R - centre.R}]
@@ -370,8 +373,8 @@ func (g *Gen) groundOf(cc ChunkCoord) *ground {
 			gr.tiles[i].landmark = p.Rule
 		}
 	}
-	// Corridors: the spine's edges near the chunk, and every place's way to
-	// its nearest spine node.
+	// Corridors: spine edges near the chunk, island links, and each place's
+	// way to its landing.
 	corridor := make([]bool, len(gr.tiles))
 	island := make([]bool, len(gr.tiles))
 	mark := func(path []Hex) {
@@ -450,11 +453,8 @@ func (g *Gen) groundAt(h Hex) groundTile {
 	return gr.tiles[g.discIndex[Hex{Q: h.Q - gr.centre.Q, R: h.R - gr.centre.R}]]
 }
 
-// spineSkips: the spine runs over land. An edge with an end in water is
-// left out; a corridor between two dry nodes still crosses a strait at
-// its narrowest when no way round fits. Islands get their own link
-// (islandLink), and places in water link to the nearest dry node, so
-// seas are not crossed by a lattice of corridors.
+// spineSkips leaves out a spine edge with an end in water; islands and
+// places afloat get their own links (islandLink, landing).
 func (g *Gen) spineSkips(a, b LatticeID) bool {
 	return g.wet(g.spine.At(a)) || g.wet(g.spine.At(b))
 }
@@ -545,7 +545,7 @@ func (g *Gen) islandOf(id LatticeID) (*island, bool) {
 		g.isles[id] = nil
 		return nil, false
 	}
-	limit := int(DiscSize(g.p.islandReach))
+	limit := int(hex.DiscSize(g.p.islandReach))
 	nodes := []LatticeID{id}
 	seen := map[LatticeID]bool{id: true}
 	for k := 0; k < len(nodes) && len(nodes) <= limit; k++ {
@@ -588,7 +588,7 @@ func (g *Gen) islandLink(in *island) []Hex {
 			}
 			_, isl := g.islandOf(b)
 			hb := g.spine.At(b)
-			d := Distance(ha, hb)
+			d := hex.Distance(ha, hb)
 			if !found || (!isl && !bestMain) || (!isl == bestMain && d < bestD) {
 				from, to, bestD, bestMain, found = ha, hb, d, !isl, true
 			}
@@ -617,8 +617,8 @@ func (g *Gen) spineNode(h Hex) Hex {
 	}
 	best, bestD, found := Hex{}, int64(0), false
 	for _, id := range g.spine.Near(h, discSides*g.p.spineSpacing) {
-		if n := g.spine.At(id); g.dry(id) && (!found || Distance(n, h) < bestD) {
-			best, bestD, found = n, Distance(n, h), true
+		if n := g.spine.At(id); g.dry(id) && (!found || hex.Distance(n, h) < bestD) {
+			best, bestD, found = n, hex.Distance(n, h), true
 		}
 	}
 	if !found {
@@ -647,7 +647,7 @@ func (g *Gen) placeTiles(h Hex, reach int64) []Hex {
 	}
 	for _, cc := range g.ch.Near(h, reach) {
 		for _, p := range g.Patterns(cc) {
-			if Distance(p.Hex, h) <= reach {
+			if hex.Distance(p.Hex, h) <= reach {
 				out = append(out, p.Hex)
 			}
 		}
@@ -713,7 +713,7 @@ func (g *Gen) landGroup(h Hex) map[Hex]Hex {
 func (g *Gen) linkGroup(group, joined []Hex) map[Hex]Hex {
 	links := make(map[Hex]Hex, len(group))
 	nearer := func(h, to, j Hex, d int64) (Hex, int64) {
-		if dj := Distance(h, j); dj < d || (dj == d && j.Less(to)) {
+		if dj := hex.Distance(h, j); dj < d || (dj == d && j.Less(to)) {
 			return j, dj
 		}
 		return to, d
@@ -722,7 +722,7 @@ func (g *Gen) linkGroup(group, joined []Hex) map[Hex]Hex {
 		best, bestTo, bestD := 0, Hex{}, int64(-1)
 		for k, h := range group {
 			to := g.spineNode(h)
-			d := Distance(h, to)
+			d := hex.Distance(h, to)
 			for _, j := range joined {
 				to, d = nearer(h, to, j, d)
 			}
@@ -759,7 +759,7 @@ func (g *Gen) islands(path []Hex) []Hex {
 		}
 		run++
 		if run%g.p.causeway == 0 {
-			out = append(out, DiscAt(h, 1)...)
+			out = append(out, hex.DiscAt(h, 1)...)
 		}
 	}
 	return out
@@ -779,7 +779,7 @@ func (g *Gen) path(a, b Hex) []Hex {
 	if p, ok := g.paths[key]; ok {
 		return p
 	}
-	out := g.search.run(g, key.from, key.to, g.limit(Distance(key.from, key.to)))
+	out := g.search.run(g, key.from, key.to, g.limit(hex.Distance(key.from, key.to)))
 	g.paths[key] = out
 	return out
 }
@@ -795,7 +795,7 @@ func (g *Gen) river(cc ChunkCoord) []Hex {
 	}
 	centre := g.ch.Centre(cc)
 	top := centre
-	for _, off := range Disc(g.p.chunk) {
+	for _, off := range hex.Disc(g.p.chunk) {
 		h := centre.Add(off)
 		if e, te := g.raw(h).elevation, g.raw(top).elevation; e > te || (e == te && h.Less(top)) {
 			top = h
@@ -803,7 +803,7 @@ func (g *Gen) river(cc ChunkCoord) []Hex {
 	}
 	var out []Hex
 	if g.raw(top).elevation >= g.p.riverSource &&
-		int64(g.d.Below(percent, "river.source", draw.Int(cc.A), draw.Int(cc.B))) < g.p.riverShare {
+		g.d.Percent(g.p.riverShare, "river.source", draw.Int(cc.A), draw.Int(cc.B)) {
 		visited := []Hex{top}
 		cur := top
 		for range g.p.riverMax {
@@ -832,5 +832,5 @@ func (g *Gen) river(cc ChunkCoord) []Hex {
 // wet is open water a river ends in: impassable and wet.
 func (g *Gen) wet(h Hex) bool {
 	t := g.terrain[g.raw(h).terrain]
-	return !t.Passable && slices.Contains(t.Tags, "wet")
+	return !t.Passable && t.Wet()
 }

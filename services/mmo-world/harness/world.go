@@ -7,25 +7,24 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
-	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
 
-// The World run: worlds left alone for 90 world days against the MM1
-// targets, then what a world day costs as the discovered world grows,
-// and as undiscovered chunks are generated.
+// The World run: worlds left alone for worldDays against the world
+// targets, then what a world day costs as the discovered world grows and
+// as undiscovered chunks are generated.
 const (
 	worldDays     = 90
 	worldPin      = 7  // days a gauge may sit at 0 or its maximum
-	worldMoving   = 60 // threat span over days 60 to 90 that counts as moving
-	worldOverrun  = 3
+	worldMoving   = 60 // threat span over the last worldLate days that counts as moving
+	worldLate     = 30
+	worldOverrun  = 3 // regions overrun on the last day that still count as no collapse
 	worldCostRuns = 3
 	worldCostDays = 5
 	worldFarChunk = 40 // chunks per ring of the far generation test
@@ -63,7 +62,7 @@ func (e *Explorer) Day(s *world.State, perDay int) []world.Action {
 		if !s.Gen().Passable(t.Terrain) {
 			continue
 		}
-		out = append(out, world.Action{Kind: world.ActVisit, Hex: h, By: e.Who, Dir: -1})
+		out = append(out, world.Action{Kind: world.ActVisit, Hex: h, By: e.Who})
 		if r := s.Gen().Region(t.Region); len(r.Materials) > 0 && e.at%3 == 0 {
 			out = append(out, world.Action{Kind: world.ActGather, Hex: h, By: e.Who, Material: r.Materials[0], Units: 4})
 		}
@@ -73,6 +72,47 @@ func (e *Explorer) Day(s *world.State, perDay int) []world.Action {
 		}
 	}
 	return out
+}
+
+// threatTrace is every region's threat, one row per day from day 0.
+type threatTrace [][]int64
+
+func (t *threatTrace) snap(s *world.State) {
+	threat := s.GaugeIndex("threat")
+	var row []int64
+	for _, r := range s.Regions {
+		row = append(row, r.Gauge[threat])
+	}
+	*t = append(*t, row)
+}
+
+// moving counts the regions whose threat spans at least span over the
+// last late days.
+func (t threatTrace) moving(late int, span int64) int {
+	end := len(t) - 1
+	n := 0
+	for ri := range t[end] {
+		lo, hi := t[end-late][ri], t[end-late][ri]
+		for d := end - late; d <= end; d++ {
+			lo, hi = min(lo, t[d][ri]), max(hi, t[d][ri])
+		}
+		if hi-lo >= span {
+			n++
+		}
+	}
+	return n
+}
+
+// overrunAtEnd counts the regions overrun now.
+func overrunAtEnd(b *sheets.Book, s *world.State) int {
+	overrun := slices.IndexFunc(b.GaugeLines, func(l sheets.GaugeLine) bool { return l.Effect == "overrun" })
+	n := 0
+	for _, r := range s.Regions {
+		if r.Active[overrun] {
+			n++
+		}
+	}
+	return n
 }
 
 type worldResult struct {
@@ -89,12 +129,7 @@ type worldResult struct {
 }
 
 func runWorld(b *sheets.Book, seed int) (worldResult, error) {
-	k := keys.Throwaway(fmt.Sprintf("world-%d", seed))
-	g, err := gen.New(b, k.Generation)
-	if err != nil {
-		return worldResult{}, err
-	}
-	s, err := world.New(b, g, k.Roll)
+	_, s, err := newWorld(b, fmt.Sprintf("world-%d", seed))
 	if err != nil {
 		return worldResult{}, err
 	}
@@ -102,15 +137,14 @@ func runWorld(b *sheets.Book, seed int) (worldResult, error) {
 	res := worldResult{seed: seed, regions: len(s.Regions), factions: len(s.Factions)}
 	nG := len(b.Gauges)
 	runs := make([][]int, len(s.Regions)*nG)
-	threat := slices.IndexFunc(b.Gauges, func(x sheets.Gauge) bool { return x.ID == "threat" })
-	var daily [][]int64
+	var trace threatTrace
+	trace.snap(s)
 	for range worldDays {
 		if err := s.AdvanceDay(log); err != nil {
 			return res, err
 		}
-		var t []int64
+		trace.snap(s)
 		for ri, r := range s.Regions {
-			t = append(t, r.Gauge[threat])
 			for gi, v := range r.Gauge {
 				k := ri*nG + gi
 				if v == 0 || v == b.Gauges[gi].Max {
@@ -123,7 +157,6 @@ func runWorld(b *sheets.Book, seed int) (worldResult, error) {
 				}
 			}
 		}
-		daily = append(daily, t)
 	}
 	for _, rs := range runs {
 		worst := 0
@@ -135,19 +168,8 @@ func runWorld(b *sheets.Book, seed int) (worldResult, error) {
 			res.pinned++
 		}
 	}
-	overrun := slices.IndexFunc(b.GaugeLines, func(l sheets.GaugeLine) bool { return l.Effect == "overrun" })
-	for ri, r := range s.Regions {
-		if r.Active[overrun] {
-			res.overrunEnd++
-		}
-		lo, hi := daily[worldDays-31][ri], daily[worldDays-31][ri]
-		for d := worldDays - 31; d < worldDays; d++ {
-			lo, hi = min(lo, daily[d][ri]), max(hi, daily[d][ri])
-		}
-		if hi-lo >= worldMoving {
-			res.moving++
-		}
-	}
+	res.overrunEnd = overrunAtEnd(b, s)
+	res.moving = trace.moving(worldLate, worldMoving)
 	for _, f := range log.Since(0) {
 		switch f.Kind {
 		case "faction.fell":
@@ -179,12 +201,7 @@ type costRow struct {
 // awake tile, and times its days; then generates far chunks nobody has
 // discovered and times its days again.
 func worldCost(b *sheets.Book, seed int) ([]costRow, error) {
-	k := keys.Throwaway(fmt.Sprintf("world-cost-%d", seed))
-	g, err := gen.New(b, k.Generation)
-	if err != nil {
-		return nil, err
-	}
-	s, err := world.New(b, g, k.Roll)
+	g, s, err := newWorld(b, fmt.Sprintf("world-cost-%d", seed))
 	if err != nil {
 		return nil, err
 	}
@@ -255,25 +272,12 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		n = 50
 	}
 	results := make([]worldResult, n)
-	errs := make([]error, n)
-	var wg sync.WaitGroup
-	next := make(chan int)
-	for range runtime.NumCPU() {
-		wg.Go(func() {
-			for i := range next {
-				results[i], errs[i] = runWorld(b, i)
-			}
-		})
-	}
-	for i := range n {
-		next <- i
-	}
-	close(next)
-	wg.Wait()
-	for _, err := range errs {
-		if err != nil {
-			return nil, err
-		}
+	if err := runParallel(n, func(i int) error {
+		var err error
+		results[i], err = runWorld(b, i)
+		return err
+	}); err != nil {
+		return nil, err
 	}
 	var cost []costRow
 	for seed := range worldCostRuns {
@@ -323,7 +327,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("| No faction loses its last holding | %d of %d | %d factions fell | %s |", fallenWorlds, n, fallen, yes(fallen == 0))
 	p("| Every starting settlement stands on day %d | %d of %d | %d fell | %s |", worldDays, settleWorlds, n, settle, yes(settle == 0))
 	p("| At most %d regions overrun on day %d | %d of %d | | %s |", worldOverrun, worldDays, collapse, n, yes(collapse == 0))
-	p("| Half the regions' threat moves %d or more in days 60 to 90 | %d of %d | | %s |", worldMoving, stasis, n, yes(stasis == 0))
+	p("| Half the regions' threat moves %d or more in days %d to %d | %d of %d | | %s |", worldMoving, worldDays-worldLate, worldDays, stasis, n, yes(stasis == 0))
 	p("")
 	med := func(get func(worldResult) int) int {
 		var xs []int
@@ -356,7 +360,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		if c.tiles > 0 {
 			per = c.perDay * 1000 / time.Duration(c.tiles)
 		}
-		p("| %d | %d | %d | %d | %s | %s | %s |", c.seed, c.regions, c.tiles, c.chunks, c.perDay.Round(time.Microsecond), (c.perDay / 144).Round(time.Microsecond), per.Round(time.Microsecond))
+		p("| %d | %d | %d | %d | %s | %s | %s |", c.seed, c.regions, c.tiles, c.chunks, c.perDay.Round(time.Microsecond), (c.perDay / sheets.TicksPerDay).Round(time.Microsecond), per.Round(time.Microsecond))
 		if c.chunks > 0 && i > 0 {
 			before := cost[i-1].perDay
 			// Flat: within half again of the day before the far chunks.
@@ -370,7 +374,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	slices.Sort(slopes)
 	tickCost := slopes[len(slopes)/2]
 	p("")
-	p("Tick cost: a world day costs a median **%s per 1,000 stored tiles** (all clocks; %s a tick). Generating far chunks leaves the day's cost %s.", tickCost.Round(time.Microsecond), (tickCost / 144).Round(time.Microsecond), map[bool]string{true: "flat", false: "**not flat**"}[flat])
+	p("Tick cost: a world day costs a median **%s per 1,000 stored tiles** (all clocks; %s a tick). Generating far chunks leaves the day's cost %s.", tickCost.Round(time.Microsecond), (tickCost / sheets.TicksPerDay).Round(time.Microsecond), map[bool]string{true: "flat", false: "**not flat**"}[flat])
 	readings := []Measured{
 		{"settlements-stand", fmt.Sprintf("%d fell in %d worlds", settle, n), settle == 0},
 		{"world-no-collapse", fmt.Sprintf("%d collapsed, %d still, of %d", collapse, stasis, n), collapse == 0 && stasis == 0},

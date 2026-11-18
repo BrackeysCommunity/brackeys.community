@@ -1,3 +1,3 @@
-// Package store holds the sqlc-generated queries over the mmo schema. The
-// schema itself is owned by drizzle in src/db; sqlc reads its migrations.
+// Package store will hold sqlc-generated queries over the mmo schema,
+// which drizzle owns.
 package store

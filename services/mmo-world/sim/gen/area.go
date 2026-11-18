@@ -33,7 +33,7 @@ type Region struct {
 
 // DiscArea is every tile within radius of centre.
 func (g *Gen) DiscArea(centre Hex, radius int64) *Area {
-	return g.area(centre, radius, DiscAt(centre, radius))
+	return g.area(centre, radius, hex.DiscAt(centre, radius))
 }
 
 // Discovered is every tile of every region whose centre lies within radius
@@ -120,14 +120,7 @@ func (a *Area) Passable(i int) bool { return a.g.passable(a.Tiles[i].Terrain) }
 // EnterTicks is the cost of stepping from tile i onto tile j.
 func (a *Area) EnterTicks(i, j int) int64 {
 	tj := a.Tiles[j]
-	enter := a.g.terrain[tj.Terrain].EnterTicks
-	if tj.River {
-		if a.Tiles[i].River {
-			return a.g.p.along
-		}
-		return max(a.g.p.across, enter)
-	}
-	return enter
+	return a.g.StepTicks(tj.Terrain, a.Tiles[i].River, tj.River)
 }
 
 // Neighbours returns the in-area neighbours of tile i, in direction order.
@@ -151,18 +144,20 @@ func (a *Area) Settlements() []int {
 	return out
 }
 
+// step is a move on foot between neighbouring tiles of the area.
+func (a *Area) step(from, to Hex) (int64, bool) {
+	n := a.Index(to)
+	if n < 0 || !a.Passable(n) {
+		return 0, false
+	}
+	return a.EnterTicks(a.index[from], n), true
+}
+
 // Path is the cheapest walk on foot from tile i to tile j inside the area,
 // as tile indices, and its ticks; ok is false when none exists. It knows
 // only the area's tiles.
 func (a *Area) Path(i, j int) ([]int, int64, bool) {
-	step := func(from, to Hex) (int64, bool) {
-		n := a.Index(to)
-		if n < 0 || !a.Passable(n) {
-			return 0, false
-		}
-		return a.EnterTicks(a.index[from], n), true
-	}
-	hs, cost, ok := hex.Path(a.Tiles[i].Hex, a.Tiles[j].Hex, step, 1, 0)
+	hs, cost, ok := hex.Path(a.Tiles[i].Hex, a.Tiles[j].Hex, a.step, 1, 0)
 	if !ok {
 		return nil, 0, false
 	}
@@ -176,30 +171,16 @@ func (a *Area) Path(i, j int) ([]int, int64, bool) {
 // Walk returns the ticks from the nearest source to every tile, -1 where
 // no source can reach on foot inside the area.
 func (a *Area) Walk(sources []int) []int64 {
+	from := make([]Hex, len(sources))
+	for k, s := range sources {
+		from[k] = a.Tiles[s].Hex
+	}
+	reach := hex.Reach(from, a.step, 0)
 	dist := make([]int64, len(a.Tiles))
-	for i := range dist {
+	for i, t := range a.Tiles {
 		dist[i] = -1
-	}
-	pq := &hex.Queue{}
-	for _, s := range sources {
-		dist[s] = 0
-		pq.Push(a.Tiles[s].Hex, 0)
-	}
-	for pq.Len() > 0 {
-		at, cost := pq.Pop()
-		i := a.index[at]
-		if cost > dist[i] {
-			continue
-		}
-		for _, n := range a.Neighbours(i) {
-			if !a.Passable(n) {
-				continue
-			}
-			c := cost + a.EnterTicks(i, n)
-			if dist[n] < 0 || c < dist[n] {
-				dist[n] = c
-				pq.Push(a.Tiles[n].Hex, c)
-			}
+		if c, ok := reach[t.Hex]; ok {
+			dist[i] = c
 		}
 	}
 	return dist

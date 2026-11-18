@@ -4,6 +4,7 @@ package char
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 
 	"jams.team/mmo-world/sim/fact"
@@ -15,7 +16,7 @@ import (
 )
 
 // structural: a percentage is hundredths.
-const percent = 100
+const percent = fixed.Hundredths
 
 // Slot names in the kit (GDD 5.2).
 const (
@@ -189,13 +190,36 @@ func (c *Character) In(slot string, index int) *item.Instance {
 	return nil
 }
 
-// Equip puts a pack item in a slot, replacing what was there.
-func (c *Character) Equip(slot string, index int, id string) {
-	c.Equipped = slices.DeleteFunc(c.Equipped, func(e Equipped) bool { return e.Slot == slot && e.Index == index })
+// Equip puts a pack item in a slot, replacing what was there and
+// moving it out of any other slot it held.
+func (c *Character) Equip(slot string, index int, id string) error {
+	if c.Item(id) == nil {
+		return fmt.Errorf("char: %s has no %s to equip", c.ID, id)
+	}
+	c.equip(slot, index, id)
+	return nil
+}
+
+// Carry puts a new instance in the pack and equips it.
+func (c *Character) Carry(slot string, index int, in *item.Instance) {
+	c.Pack = append(c.Pack, in)
+	c.equip(slot, index, in.ID)
+}
+
+func (c *Character) equip(slot string, index int, id string) {
+	c.Equipped = slices.DeleteFunc(c.Equipped, func(e Equipped) bool {
+		return (e.Slot == slot && e.Index == index) || e.Item == id
+	})
 	c.Equipped = append(c.Equipped, Equipped{Slot: slot, Index: index, Item: id})
 	slices.SortFunc(c.Equipped, func(a, b Equipped) int {
 		return cmp.Or(cmp.Compare(a.Slot, b.Slot), cmp.Compare(a.Index, b.Index))
 	})
+}
+
+// Drop takes an instance out of the pack and every slot.
+func (c *Character) Drop(id string) {
+	c.Pack = slices.DeleteFunc(c.Pack, func(in *item.Instance) bool { return in.ID == id })
+	c.Equipped = slices.DeleteFunc(c.Equipped, func(e Equipped) bool { return e.Item == id })
 }
 
 // Kinds resolves instances to their kinds.

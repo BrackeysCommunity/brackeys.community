@@ -1,5 +1,7 @@
 package gen
 
+import "jams.team/mmo-world/sim/hex"
+
 // ChunkCoord names a chunk: a hex of tiles of the chunk radius. Chunks tile
 // the plane; chunk (A, B) is centred at A·(2n+1, −n) + B·(n, n+1).
 type ChunkCoord struct{ A, B int64 }
@@ -10,7 +12,7 @@ const basisTwice = 2
 
 type chunker struct{ n int64 }
 
-func (c chunker) det() int64 { return DiscSize(c.n) }
+func (c chunker) det() int64 { return hex.DiscSize(c.n) }
 
 func (c chunker) Centre(cc ChunkCoord) Hex {
 	n := c.n
@@ -21,12 +23,12 @@ func (c chunker) Centre(cc ChunkCoord) Hex {
 // the cell whose hex holds it.
 func (c chunker) Of(h Hex) ChunkCoord {
 	n, det := c.n, c.det()
-	a := floorDiv((n+1)*h.Q-n*h.R, det)
-	b := floorDiv(n*h.Q+(basisTwice*n+1)*h.R, det)
+	a := hex.FloorDiv((n+1)*h.Q-n*h.R, det)
+	b := hex.FloorDiv(n*h.Q+(basisTwice*n+1)*h.R, det)
 	for da := int64(-1); da <= basisTwice; da++ {
 		for db := int64(-1); db <= basisTwice; db++ {
 			cc := ChunkCoord{a + da, b + db}
-			if Distance(c.Centre(cc), h) <= n {
+			if hex.Distance(c.Centre(cc), h) <= n {
 				return cc
 			}
 		}
@@ -43,7 +45,7 @@ func (c chunker) Near(h Hex, reach int64) []ChunkCoord {
 	for da := -span; da <= span; da++ {
 		for db := -span; db <= span; db++ {
 			cc := ChunkCoord{home.A + da, home.B + db}
-			if Distance(c.Centre(cc), h) <= reach+n {
+			if hex.Distance(c.Centre(cc), h) <= reach+n {
 				out = append(out, cc)
 			}
 		}

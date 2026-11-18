@@ -3,7 +3,7 @@ package char_test
 import (
 	"testing"
 
-	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestPractice(t *testing.T) {
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestPractice(t *testing.T) {
 }
 
 func TestRingsAndChecks(t *testing.T) {
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

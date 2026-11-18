@@ -413,11 +413,11 @@ func Compile(rows []sheets.RuleRow) ([]Rule, error) {
 	out := make([]Rule, 0, len(rows))
 	for _, r := range rows {
 		rule := Rule{ID: r.ID, When: Pattern{
-			Subject:  toTags(r.Subject),
-			Other:    toTags(r.Other),
-			Place:    toTags(r.Place),
-			Anywhere: toTags(r.Anywhere),
-			Lacks:    toTags(r.Lacks),
+			Subject:  Of(r.Subject),
+			Other:    Of(r.Other),
+			Place:    Of(r.Place),
+			Anywhere: Of(r.Anywhere),
+			Lacks:    Of(r.Lacks),
 			Measure:  r.Measure,
 			AtLeast:  r.AtLeast,
 		}}
@@ -499,7 +499,8 @@ func roleOf(s string) (Role, error) {
 	return 0, fmt.Errorf("unknown target %q", s)
 }
 
-func toTags(ss []string) []Tag {
+// Of converts sheet strings to tags.
+func Of(ss []string) []Tag {
 	out := make([]Tag, len(ss))
 	for i, s := range ss {
 		out[i] = Tag(s)

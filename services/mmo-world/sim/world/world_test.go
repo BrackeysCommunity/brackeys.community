@@ -5,8 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"jams.team/mmo-world/harness"
-	"jams.team/mmo-world/sim/canon"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
@@ -18,7 +17,7 @@ import (
 
 func book(t testing.TB) *sheets.Book {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +52,7 @@ func run(t testing.TB, label string, days int) (*world.State, *fact.Mem) {
 
 func digest(t testing.TB, s *world.State, log *fact.Mem) string {
 	t.Helper()
-	d, err := canon.Digest([]any{s, log.Since(0)})
+	d, err := world.Digest(s, log)
 	if err != nil {
 		t.Fatal(err)
 	}

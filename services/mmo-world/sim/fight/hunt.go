@@ -26,6 +26,10 @@ type Hunt struct {
 	Beats    int64          `json:"beats"`
 	Over     bool           `json:"over"`
 	Slain    bool           `json:"slain"`
+	Failures item.Tally     `json:"failures"`
+	Down     []string       `json:"down"`
+	States   []State        `json:"states"`
+	Salvage  []Salvaged     `json:"salvage,omitempty"` // left by gear that broke
 	Measures []tags.Measure `json:"-"`
 }
 
@@ -41,26 +45,43 @@ func (r *Rules) StartHunt(id, row string, site Site, tick int64) (*Hunt, error) 
 		Ends: tick + h.WindowDays*r.Param("hunt-day-ticks"), Measures: site.Measures}, nil
 }
 
+// Close ends a hunt whose window has run out by tick, and reports
+// whether it is over.
+func (h *Hunt) Close(tick int64) bool {
+	if tick >= h.Ends {
+		h.Over = true
+	}
+	return h.Over
+}
+
 // HuntBeat is one character's press against a hunt: a Clash with the
-// creature's tier, resolved like any beat.
+// creature's tier, resolved like any beat. Failures, downs, states and
+// broken gear's salvage carry on the hunt from press to press. A refused
+// press leaves the hunt unchanged.
 func (r *Rules) HuntBeat(h *Hunt, m *Member, tick int64) (Pressed, []fact.Fact, error) {
 	if h.Over || tick >= h.Ends {
-		h.Over = true
 		return Pressed{}, nil, fmt.Errorf("fight: hunt %s is over", h.ID)
 	}
+	if slices.Contains(h.Down, m.Ch.ID) {
+		return Pressed{}, nil, fmt.Errorf("fight: %s is down in hunt %s", m.Ch.ID, h.ID)
+	}
 	e := &Encounter{ID: h.ID, Creature: h.Creature, Site: h.Site, Measures: h.Measures, Beats: []string{"clash"},
-		Machines: []string{""}, Levels: []int64{0}, Party: 1, Guardian: -1}
-	m.Kit.Self = append(m.Kit.Self, m.Ch.ConditionTags(tick)...)
-	s := r.Situation(e, m.Ch.ID)
-	opts := r.Options(s, m.Kit)
-	i := slices.IndexFunc(opts, func(o Option) bool { return o.ID == m.Pick })
-	if i < 0 {
+		Machines: []string{""}, Levels: []int64{0}, Party: 1, Guardian: -1,
+		Failures: h.Failures, Down: h.Down, States: h.States}
+	s, k, opts := r.Choices(e, m.Ch, m.Kit, tick)
+	o, ok := OptionByID(opts, m.Pick)
+	if !ok {
 		return Pressed{}, nil, fmt.Errorf("fight: %s cannot pick %q in a hunt", m.Ch.ID, m.Pick)
 	}
-	o := opts[i]
+	pm := *m
+	pm.Kit = k
+	m = &pm
 	h.Beats++
 	oc, why := r.Resolve(o, Roll{Who: m.Ch.ID, Encounter: h.ID, Beat: h.Beats})
 	facts := r.apply(e, m, s, o, oc, tick)
+	r.tickStates(e, []*Member{m}, tick, &facts)
+	h.Failures, h.Down, h.States = e.Failures, e.Down, e.States
+	h.Salvage = append(h.Salvage, e.Salvage...)
 	if oc.Success && o.Kind == Win {
 		took := min(h.Health, o.Score)
 		h.Health -= took
@@ -83,7 +104,7 @@ func (r *Rules) Spoils(h *Hunt) map[string][]item.Spoil {
 	var haul []item.Spoil
 	for i, s := range r.hunts[h.Row].Spoils {
 		lo := fixed.Ratio(s.Quantity, statHalf).Int()
-		n := lo + int64(r.roll.Below(uint64(s.Quantity-lo+1), "hunt.spoils", draw.Str(h.ID), draw.Int(int64(i))))
+		n := r.roll.Between(lo, s.Quantity, "hunt.spoils", draw.Str(h.ID), draw.Int(int64(i)))
 		haul = append(haul, item.Spoil{Material: s.Material, Qty: n})
 	}
 	return Split(haul, h.Removed)

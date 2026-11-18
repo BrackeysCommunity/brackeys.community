@@ -1,6 +1,6 @@
 // Command harness runs the balance harness and the spikes.
 //
-//	harness check            schemas, units, references, budgets, the pack, the rules, the sim lints
+//	harness check [-skip-lint] schemas, units, references, budgets, the pack, the rules, the sim lints
 //	harness report           every target and its last reading
 //	harness schema           regenerate sheets/schema from the row types
 //	harness world -out DIR   the World run: 90 unattended days, and what a day costs
@@ -12,75 +12,61 @@ package main
 import (
 	"flag"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
+	"strings"
 
 	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 )
 
 func main() {
 	if len(os.Args) < 2 {
 		usage()
 	}
-	root := harness.ModuleRoot()
+	root := sheetfs.ModuleRoot()
 	cmd, args := os.Args[1], os.Args[2:]
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	out := fs.String("out", "", "directory for spike output")
 	n := fs.Int("n", 0, "sample size (0 = the spike's own)")
+	skipLint := fs.Bool("skip-lint", false, "check: leave the sim analyzers to simlint")
 	_ = fs.Parse(args)
 
 	switch cmd {
 	case "check":
-		if !harness.PrintCheck(os.Stdout, harness.Check(root, harness.CheckOptions{})) {
+		if !harness.PrintCheck(os.Stdout, harness.Check(root, harness.CheckOptions{SkipLint: *skipLint})) {
 			os.Exit(1)
 		}
 	case "report":
-		b, err := harness.LoadBook(root)
+		b, err := sheetfs.LoadBook(root)
 		exitOn(err)
 		harness.Report(os.Stdout, b, nil)
 	case "schema":
 		exitOn(harness.WriteSchemas(root))
-	case "craft", "battle":
+	default:
+		run, ok := harness.Runs[cmd]
+		if !ok {
+			usage()
+		}
 		if *out == "" {
 			fmt.Fprintln(os.Stderr, "-out is required")
 			os.Exit(2)
 		}
-		b, err := harness.LoadBook(root)
+		b, err := sheetfs.LoadBook(root)
 		exitOn(err)
 		exitOn(os.MkdirAll(*out, 0o755))
-		run := harness.CraftRun
-		if cmd == "battle" {
-			run = harness.BattleRun
-		}
 		readings, err := run(b, *out, *n)
 		exitOn(err)
-		harness.Report(os.Stdout, b, readings)
-	case "world":
-		if *out == "" {
-			fmt.Fprintln(os.Stderr, "-out is required")
-			os.Exit(2)
+		if readings != nil {
+			harness.Report(os.Stdout, b, readings)
 		}
-		b, err := harness.LoadBook(root)
-		exitOn(err)
-		exitOn(os.MkdirAll(*out, 0o755))
-		readings, err := harness.WorldRun(b, *out, *n)
-		exitOn(err)
-		harness.Report(os.Stdout, b, readings)
-	case "spike-a", "spike-b", "spike-e":
-		if *out == "" {
-			fmt.Fprintln(os.Stderr, "-out is required")
-			os.Exit(2)
-		}
-		b, err := harness.LoadBook(root)
-		exitOn(err)
-		exitOn(os.MkdirAll(*out, 0o755))
-		exitOn(harness.RunSpike(cmd, b, *out, *n))
-	default:
-		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: harness check|report|schema|world|craft|battle|spike-a|spike-b|spike-e [-out DIR] [-n N]")
+	cmds := append([]string{"check", "report", "schema"}, slices.Sorted(maps.Keys(harness.Runs))...)
+	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N]\n", strings.Join(cmds, "|"))
 	os.Exit(2)
 }
 

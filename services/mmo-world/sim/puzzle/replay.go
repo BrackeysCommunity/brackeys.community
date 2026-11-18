@@ -251,10 +251,10 @@ func (st *state) apply(l Layout, m Move) (ok, done bool) {
 		}
 		return true, st.k == n
 	case Maze:
-		sd := int64(east) << (m.A % sides)
 		if !in(m.A, sides) {
 			return false, false
 		}
+		sd := int64(east) << m.A
 		if l.Walls[st.cell]&sd == 0 {
 			st.cell, _ = step(st.cell, sd, n)
 		}

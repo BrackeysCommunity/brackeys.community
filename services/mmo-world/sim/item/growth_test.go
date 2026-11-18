@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/tags"
@@ -12,7 +13,7 @@ import (
 
 func play(t *testing.T) *harness.Play {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,19 +78,31 @@ func TestMilestoneOffers(t *testing.T) {
 	if !slices.Equal(in.Offers, twin.Offers) {
 		t.Fatal("offers are not fixed")
 	}
-	if err := p.Growth.Pick(in, "not-offered"); err == nil {
+	if err := p.Growth.Pick(in, k, "not-offered"); err == nil {
 		t.Fatal("picked something not on offer")
 	}
-	if err := p.Growth.Pick(in, in.Offers[0]); err != nil || len(in.Offers) != 0 {
+	if err := p.Growth.Pick(in, k, in.Offers[0]); err != nil || len(in.Offers) != 0 {
 		t.Fatal(err)
 	}
 	if mat, n := p.Growth.PickCost(k); n != 3 || mat == "" {
 		t.Fatalf("pick cost %d of %q", n, mat)
 	}
-	// Level stops at the tier's cap.
+	// Level stops at the tier's cap; milestones passed together are
+	// offered one after another.
+	before := len(in.Picks)
 	p.Growth.AddXP(in, k, 1_000_000)
 	if in.Level != 20 {
 		t.Fatalf("tier-2 level %d, want the cap 20", in.Level)
+	}
+	picked := 0
+	for len(in.Offers) > 0 {
+		if err := p.Growth.Pick(in, k, in.Offers[0]); err != nil {
+			t.Fatal(err)
+		}
+		picked++
+	}
+	if picked < 2 || len(in.Picks) != before+picked {
+		t.Fatalf("picked %d of the milestones passed at once", picked)
 	}
 }
 

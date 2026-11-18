@@ -40,7 +40,7 @@ func (s *State) notable(role string) Notable {
 		Given:   given[s.d.Below(uint64(len(given)), "notable.given", who)],
 		Family:  family[s.d.Below(uint64(len(family)), "notable.family", who)],
 		Role:    role,
-		Loyalty: lo + int64(s.d.Below(uint64(hi-lo+1), "notable.loyalty", who)),
+		Loyalty: s.d.Between(lo, hi, "notable.loyalty", who),
 	}
 	order := s.d.Shuffle(len(s.b.NPCTraits), "notable.traits", who)
 	for _, k := range order {
@@ -83,7 +83,7 @@ func (s *State) appoint(d *day, fi int, founding bool) {
 	captains := 1 + holdings/int(s.p("captain-per-holdings"))
 	say := func(kind string, n Notable) {
 		if !founding && d != nil {
-			d.emit(kind, regionRef(f.Seat), []fact.Ref{notableRef(n), factionRef(fi)}, nil, fact.S("role", n.Role))
+			d.emit(kind, RegionRef(f.Seat), []fact.Ref{notableRef(n), factionRef(fi)}, nil, fact.S("role", n.Role))
 		}
 	}
 	if f.count(RoleLeader) == 0 {
@@ -162,7 +162,7 @@ func (d *day) defect(fi int) {
 			s.Regions[r].Defence -= taken
 			s.Regions[s.Factions[to].Seat].Defence += taken
 		}
-		d.emit("notable.defected", regionRef(f.Seat), []fact.Ref{notableRef(n), factionRef(fi), factionRef(to)}, nil, fact.N("defence", taken))
+		d.emit("notable.defected", RegionRef(f.Seat), []fact.Ref{notableRef(n), factionRef(fi), factionRef(to)}, nil, fact.N("defence", taken))
 		f = &s.Factions[fi]
 	}
 }

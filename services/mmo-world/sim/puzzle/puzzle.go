@@ -12,13 +12,14 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/tags"
 )
 
 // structural: milliseconds in a second; a percentage is hundredths; a
 // square grid has four sides.
 const (
 	msPerSecond = 1000
-	percent     = 100
+	percent     = fixed.Hundredths
 	sides       = 4
 	halfTurn    = 2
 )
@@ -159,12 +160,8 @@ func (p *Puzzles) Generate(family string, level, tier int64, w Where) Layout {
 	s := p.gen.Stream("puzzle.layout", append(w.parts(family), draw.Int(level), draw.Int(tier))...)
 	perm := func(n int64) []int64 {
 		out := make([]int64, n)
-		for i := range out {
-			out[i] = int64(i)
-		}
-		for i := n - 1; i > 0; i-- {
-			j := int64(s.Below(uint64(i + 1)))
-			out[i], out[j] = out[j], out[i]
+		for i, x := range s.Perm(int(n)) {
+			out[i] = int64(x)
 		}
 		return out
 	}
@@ -221,10 +218,7 @@ func (p *Puzzles) Generate(family string, level, tier int64, w Where) Layout {
 			l.Clues = append(l.Clues, Clue{l.Order[a], l.Order[b]})
 		}
 		c := l.Clues
-		for i := len(c) - 1; i > 0; i-- {
-			j := int(s.Below(uint64(i + 1)))
-			c[i], c[j] = c[j], c[i]
-		}
+		s.Shuffle(len(c), func(i, j int) { c[i], c[j] = c[j], c[i] })
 	case Override:
 		l.Order = make([]int64, n)
 		for i := range l.Order {
@@ -327,8 +321,8 @@ func (p *Puzzles) SolveRate(family string, practice, level, tier, party int64) f
 }
 
 // Families lists the families that a set of tags makes the world pick,
-// in sheet order.
-func (p *Puzzles) Families(ts []string, lockpick bool) []string {
+// in id order.
+func (p *Puzzles) Families(ts []tags.Tag, lockpick bool) []string {
 	var out []string
 	for _, id := range slices.Sorted(maps.Keys(p.families)) {
 		f := p.families[id]
@@ -336,7 +330,7 @@ func (p *Puzzles) Families(ts []string, lockpick bool) []string {
 			continue
 		}
 		for _, t := range f.AppearsOn {
-			if slices.Contains(ts, t) {
+			if slices.Contains(ts, tags.Tag(t)) {
 				out = append(out, id)
 				break
 			}

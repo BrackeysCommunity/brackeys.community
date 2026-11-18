@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/keys"
@@ -34,12 +33,7 @@ type TickActions struct {
 // snapshots it, then records after more days of explorer actions and the
 // digest they reach.
 func RecordReplay(b *sheets.Book, label string, before, after int, explore bool) (*Replay, error) {
-	k := keys.Throwaway(label)
-	g, err := gen.New(b, k.Generation)
-	if err != nil {
-		return nil, err
-	}
-	s, err := world.New(b, g, k.Roll)
+	g, s, err := newWorld(b, label)
 	if err != nil {
 		return nil, err
 	}
@@ -57,13 +51,8 @@ func RecordReplay(b *sheets.Book, label string, before, after int, explore bool)
 			if record != nil && len(acts) > 0 {
 				*record = append(*record, TickActions{Tick: s.Tick + 1, Actions: acts})
 			}
-			if _, _, err := world.Advance(s, log, acts, s.Tick+1); err != nil {
+			if err := s.AdvanceDayWith(log, acts); err != nil {
 				return err
-			}
-			for range ticksPerDay - 1 {
-				if _, _, err := world.Advance(s, log, nil, s.Tick+1); err != nil {
-					return err
-				}
 			}
 		}
 		return nil
@@ -75,11 +64,11 @@ func RecordReplay(b *sheets.Book, label string, before, after int, explore bool)
 	if err != nil {
 		return nil, err
 	}
-	r := &Replay{Label: label, Snapshot: snap, Facts: log.Since(0), Ticks: int64(after) * ticksPerDay}
+	r := &Replay{Label: label, Snapshot: snap, Facts: log.Since(0), Ticks: int64(after) * sheets.TicksPerDay}
 	if err := play(after, &r.Actions); err != nil {
 		return nil, err
 	}
-	d, err := canon.Digest([]any{s, log.Since(0)})
+	d, err := world.Digest(s, log)
 	if err != nil {
 		return nil, err
 	}
@@ -87,10 +76,26 @@ func RecordReplay(b *sheets.Book, label string, before, after int, explore bool)
 	return r, nil
 }
 
+// newGen builds a generator under a throwaway key, and the key set.
+func newGen(b *sheets.Book, label string) (*gen.Gen, keys.Set, error) {
+	k := keys.Throwaway(label)
+	g, err := gen.New(b, k.Generation)
+	return g, k, err
+}
+
+// newWorld builds a fresh world under a throwaway key.
+func newWorld(b *sheets.Book, label string) (*gen.Gen, *world.State, error) {
+	g, k, err := newGen(b, label)
+	if err != nil {
+		return nil, nil, err
+	}
+	s, err := world.New(b, g, k.Roll)
+	return g, s, err
+}
+
 // Play replays a fixture from its snapshot and returns the digest.
 func (r *Replay) Play(b *sheets.Book) (string, error) {
-	k := keys.Throwaway(r.Label)
-	g, err := gen.New(b, k.Generation)
+	g, k, err := newGen(b, r.Label)
 	if err != nil {
 		return "", err
 	}
@@ -119,18 +124,17 @@ func (r *Replay) Play(b *sheets.Book) (string, error) {
 	if at != len(r.Actions) {
 		return "", fmt.Errorf("replay %s: %d recorded action ticks never came due", r.Label, len(r.Actions)-at)
 	}
-	d, err := canon.Digest([]any{&s, log.Since(0)})
+	d, err := world.Digest(&s, log)
 	if err != nil {
 		return "", err
 	}
 	return d.String(), nil
 }
 
-// structural: the fixtures' script: an explorer out to 40 tiles, 12 tiles
-// a day, and a second settlement opening on day 12.
+// The fixtures' explorer script; changing it means re-recording
+// sim/world/testdata/replay.
 const (
 	explorerRadius = 40
 	explorerPerDay = 12
 	settleDay      = 12
-	ticksPerDay    = 144
 )

@@ -1,13 +1,18 @@
 package world
 
 import (
-	"slices"
-
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/tile"
+	"jams.team/mmo-world/sim/weather"
 )
+
+// TerrainTags is what a terrain gives a place: its tags, then its place
+// tags. A fight site off the map reads the same.
+func TerrainTags(t *sheets.Terrain) []tags.Tag {
+	return append(tags.Of(t.Tags), tags.Of(t.PlaceTags)...)
+}
 
 // Place is what rules read of a tile as a place (GDD 4.12, 8.6): its
 // terrain's tags and place tags, its ecotone's tags, the weather over it
@@ -22,17 +27,14 @@ func (s *State) Place(h hex.Hex) tags.TagSet {
 			set.Add(tags.Held{Tag: tags.Tag(x), From: from})
 		}
 	}
-	add(tags.Source{Note: "terrain:" + t.Terrain}, ter.Tags...)
-	add(tags.Source{Note: "terrain:" + t.Terrain}, ter.PlaceTags...)
-	if t.Edge != "" {
-		for _, e := range s.b.Ecotones {
-			if e.ID == t.Edge {
-				add(tags.Source{Note: "ecotone:" + e.ID}, "edge", e.Tag)
-			}
-		}
+	for _, x := range TerrainTags(ter) {
+		set.Add(tags.Held{Tag: x, From: tags.Source{Note: "terrain:" + t.Terrain}})
 	}
-	if sys, ok := s.Weather(h); ok {
-		add(tags.Source{Note: "weather:" + sys.Kind}, s.sky.Effects(sys.Kind, sys.Strength).TileTags...)
+	if e, ok := s.ecotones[t.Edge]; ok {
+		add(tags.Source{Note: "ecotone:" + e.ID}, "edge", e.Tag)
+	}
+	if e, kind := s.weatherAt(h); kind != "" {
+		add(tags.Source{Note: "weather:" + kind}, e.TileTags...)
 	}
 	if st := s.Tile(h); st != nil {
 		add(tags.Source{Note: "tile:" + "weather"}, st.WeatherTags...)
@@ -43,25 +45,31 @@ func (s *State) Place(h hex.Hex) tags.TagSet {
 			add(tags.Source{Note: "tile:" + "corruption"}, "corrupted")
 		}
 	}
-	if r := s.RegionAt(h); r >= 0 && s.Regions[r].Gauge[s.gaugeIndex("corruption")] >= lineAt(s.b, "corrupted-nodes") {
-		add(tags.Source{Note: "region:" + regionRef(r)}, "corrupted")
+	if r := s.RegionAt(h); r >= 0 && s.Regions[r].Gauge[s.GaugeIndex("corruption")] >= lineAt(s.b, "corrupted-nodes") {
+		add(tags.Source{Note: "region:" + RegionRef(r)}, "corrupted")
 	}
 	return set
 }
 
 // CreatureTags is what the weather over a tile adds to creatures there.
 func (s *State) CreatureTags(h hex.Hex) []string {
-	if sys, ok := s.Weather(h); ok {
-		return s.sky.Effects(sys.Kind, sys.Strength).CreatureTags
+	e, _ := s.weatherAt(h)
+	return e.CreatureTags
+}
+
+// weatherAt is the effects of the weather over h and its kind; none gives
+// zero effects and an empty kind.
+func (s *State) weatherAt(h hex.Hex) (weather.Effects, string) {
+	sys, ok := s.Weather(h)
+	if !ok {
+		return weather.Effects{}, ""
 	}
-	return nil
+	return s.sky.Effects(sys.Kind, sys.Strength), sys.Kind
 }
 
 func (s *State) terrain(id string) *sheets.Terrain {
-	for i := range s.b.Terrain {
-		if s.b.Terrain[i].ID == id {
-			return &s.b.Terrain[i]
-		}
+	if t := s.g.Terrain(id); t != nil {
+		return t
 	}
 	panic("world: no terrain " + id)
 }
@@ -72,8 +80,7 @@ func (s *State) terrain(id string) *sheets.Terrain {
 func (s *State) Sight(h hex.Hex) int64 {
 	t := s.g.Baseline(h)
 	sight := s.terrain(t.Terrain).Sight
-	if sys, ok := s.Weather(h); ok {
-		e := s.sky.Effects(sys.Kind, sys.Strength)
+	if e, kind := s.weatherAt(h); kind != "" {
 		if e.Sight > 0 {
 			sight = min(sight, e.Sight)
 		}
@@ -84,26 +91,18 @@ func (s *State) Sight(h hex.Hex) int64 {
 	return sight
 }
 
-// EnterTicks is what stepping from one tile onto a neighbour costs on
-// foot now: the baseline cost, a strong storm's drag, and a cold snap
-// freezing rivers and wet ground to one tick. Impassable is false.
-func (s *State) EnterTicks(from, to hex.Hex) (int64, bool) {
+// EnterTicks is the cost on foot of stepping from one tile onto a
+// neighbour now: the baseline, the weather's crossing cost on rivers and
+// wet ground, plus its drag. ok is false onto impassable terrain.
+func (s *State) EnterTicks(from, to hex.Hex) (cost int64, ok bool) {
 	t := s.g.Baseline(to)
 	ter := s.terrain(t.Terrain)
 	if !ter.Passable {
 		return 0, false
 	}
-	cost := ter.EnterTicks
-	if t.River {
-		if s.g.Baseline(from).River {
-			cost = sheets.IntParam(s.b.MapParams, "river-along-ticks")
-		} else {
-			cost = max(sheets.IntParam(s.b.MapParams, "river-across-ticks"), cost)
-		}
-	}
-	if sys, ok := s.Weather(to); ok {
-		e := s.sky.Effects(sys.Kind, sys.Strength)
-		if e.CrossTicks > 0 && (t.River || slices.Contains(ter.Tags, "wet")) {
+	cost = s.g.StepTicks(t.Terrain, t.River && s.g.Baseline(from).River, t.River)
+	if e, kind := s.weatherAt(to); kind != "" {
+		if e.CrossTicks > 0 && (t.River || ter.Wet()) {
 			cost = e.CrossTicks
 		}
 		cost += e.EnterTicks

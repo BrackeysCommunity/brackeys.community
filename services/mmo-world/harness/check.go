@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/tools/go/packages"
 
 	"jams.team/mmo-world/lint"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 )
@@ -32,12 +34,12 @@ type CheckOptions struct {
 }
 
 // Check is the Check run: schemas, units, references, budgets, the pack,
-// the rules, and the no-literals test (GDD 18.4).
+// the rules, and the sim lints unless opt.SkipLint (GDD 18.4).
 func Check(root string, opt CheckOptions) []Result {
 	var out []Result
 	add := func(name string, problems []string) { out = append(out, Result{name, problems}) }
 
-	files, err := ReadSheetFiles(root)
+	files, err := sheetfs.ReadSheetFiles(root)
 	if err != nil {
 		add("read sheets", []string{err.Error()})
 		return out
@@ -54,6 +56,7 @@ func Check(root string, opt CheckOptions) []Result {
 	add("sheets load", nil)
 	add("units", unitProblems(book))
 	add("budgets", budgetProblems(book))
+	add("play sheets", playProblems(book))
 	add("rules compile", ruleProblems(book))
 	add("pack names everything shown", packProblems(book))
 	if !opt.SkipLint {
@@ -67,7 +70,7 @@ func splitErr(err error) []string {
 }
 
 func schemaPath(root, sheet string) string {
-	return filepath.Join(root, SchemaDir, sheet+".schema.json")
+	return filepath.Join(root, sheetfs.SchemaDir, sheet+".schema.json")
 }
 
 func staleSchemas(root string) []string {
@@ -88,7 +91,7 @@ func staleSchemas(root string) []string {
 
 // WriteSchemas regenerates every schema file.
 func WriteSchemas(root string) error {
-	dir := filepath.Join(root, SchemaDir)
+	dir := filepath.Join(root, sheetfs.SchemaDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -173,20 +176,14 @@ func schemaViolations(root string, files []sheets.File) []string {
 
 func unitProblems(b *sheets.Book) []string {
 	var p []string
-	for _, group := range []struct {
-		sheet string
-		rows  []sheets.Param
-	}{
-		{"items.params", b.ItemParams}, {"growth.params", b.GrowthParams}, {"fights.params", b.FightParams},
-		{"wear.params", b.WearParams}, {"world.params", b.WorldParams}, {"factions.params", b.FactionParams},
-		{"story.params", b.StoryParams}, {"economy.params", b.EconomyParams}, {"goals.params", b.GoalParams},
-		{"liveops.params", b.LiveOpsParams}, {"map.params", b.MapParams}, {"creatures.params", b.CreatureParams},
-		{"settlements.params", b.SettlementParams}, {"mounts.params", b.MountParams}, {"classes.params", b.ClassParams},
-		{"puzzles.params", b.PuzzleParams},
-	} {
-		for _, r := range group.rows {
+	for _, def := range sheets.Defs() {
+		rows, ok := b.Params(def)
+		if !ok {
+			continue
+		}
+		for _, r := range rows {
 			if !slices.Contains(sheets.QuantityUnits, r.Unit) {
-				p = append(p, fmt.Sprintf("%s %s: unit %q is not a quantity unit", group.sheet, r.ID, r.Unit))
+				p = append(p, fmt.Sprintf("%s %s: unit %q is not a quantity unit", def.Name, r.ID, r.Unit))
 			}
 		}
 	}
@@ -213,14 +210,27 @@ func budgetProblems(b *sheets.Book) []string {
 		}
 		prev = t
 	}
+	var axes, fields []string
+	for _, a := range b.Axes {
+		axes = append(axes, a.ID)
+	}
+	for f := range reflect.TypeFor[sheets.Vector]().Fields() {
+		fields = append(fields, strings.Split(f.Tag.Get("json"), ",")[0])
+	}
+	if !slices.Equal(axes, fields) {
+		p = append(p, fmt.Sprintf("items.axes: ids %v must match the vector's fields %v in order", axes, fields))
+	}
 	for _, m := range b.Materials {
 		bud, ok := budget[m.Tier]
 		if !ok {
 			p = append(p, fmt.Sprintf("items.materials %s: no tier %d", m.ID, m.Tier))
 			continue
 		}
-		v := m.Vector
-		if total := v.Edge + v.Weight + v.Flex + v.Conduct + v.Heat + v.Ward + v.Reach + v.Bond; total > bud {
+		var total int64
+		for _, x := range m.Vector.Slice() {
+			total += x
+		}
+		if total > bud {
 			p = append(p, fmt.Sprintf("items.materials %s: %d pts over its tier budget of %d pts", m.ID, total, bud))
 		}
 	}
@@ -230,7 +240,6 @@ func budgetProblems(b *sheets.Book) []string {
 			p = append(p, fmt.Sprintf("fights.odds-bands %s: bands must rise by one rank and in chance", c.ID))
 		}
 	}
-	p = append(p, playProblems(b)...)
 	gauges := sheets.Lookup(b.Gauges)
 	for _, l := range b.GaugeLines {
 		if g, ok := gauges[l.Gauge]; ok && (l.AtLeast > g.Max || l.ClearsAt > l.AtLeast) {
@@ -268,7 +277,7 @@ func ruleProblems(b *sheets.Book) []string {
 	return nil
 }
 
-// Shown things the setting must name.
+// namedSheets are the sheets whose every id the setting pack must name.
 var namedSheets = []string{
 	"items.materials", "items.processes", "creatures.archetypes", "factions.archetypes",
 	"map.terrain", "items.traits", "items.slots", "world.weather", "world.gauges",

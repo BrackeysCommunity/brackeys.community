@@ -137,7 +137,8 @@ func TestStreamWordsFixedByIndex(t *testing.T) {
 	}
 }
 
-// What one draw costs, for the harness budget. See the spike report.
+// BenchmarkDrawFresh is the cost of one fresh keyed draw, which the
+// harness budgets against.
 func BenchmarkDrawFresh(b *testing.B) {
 	for i := range b.N {
 		Draw(testKey, "beat.option", Int(int64(i)), Int(3), Int(5))
@@ -165,5 +166,24 @@ func BenchmarkPCGBaseline(b *testing.B) {
 	r := rand.New(rand.NewPCG(1, 2))
 	for range b.N {
 		r.Uint64()
+	}
+}
+
+// Between and Percent spend the same draw as the Below they stand for.
+func TestBetweenAndPercentMatchBelow(t *testing.T) {
+	d := NewDrawer(testKey)
+	for i := range int64(200) {
+		if got, want := d.Between(-3, 9, "x", Int(i)), -3+int64(d.Below(13, "x", Int(i))); got != want {
+			t.Fatalf("between %d, want %d", got, want)
+		}
+		if got, want := d.Percent(37, "y", Int(i)), int64(d.Below(fixed.Hundredths, "y", Int(i))) < 37; got != want {
+			t.Fatalf("percent %v, want %v", got, want)
+		}
+	}
+	s, u := d.Stream("z"), d.Stream("z")
+	for range 50 {
+		if got, want := s.Between(2, 5), 2+int64(u.Below(4)); got != want {
+			t.Fatalf("stream between %d, want %d", got, want)
+		}
 	}
 }

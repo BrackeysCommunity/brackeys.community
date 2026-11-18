@@ -21,14 +21,7 @@ type Band struct {
 	Region  int     `json:"region"`
 }
 
-func (s *State) creature(id string) *sheets.Creature {
-	for i := range s.b.Creatures {
-		if s.b.Creatures[i].ID == id {
-			return &s.b.Creatures[i]
-		}
-	}
-	return nil
-}
+func (s *State) creature(id string) *sheets.Creature { return s.creatures[id] }
 
 // Capacity is how many of a species a tile can carry: none off its
 // biomes, more with fertility and water, fewer for bigger creatures.
@@ -82,7 +75,7 @@ func (s *State) slay(h hex.Hex, species string) {
 func (d *day) creatures() {
 	s := d.s
 	for _, t := range s.Tiles {
-		for _, sp := range sortedKeys(t.Population) {
+		for _, sp := range slices.Sorted(maps.Keys(t.Population)) {
 			cap := s.Capacity(t.Hex, sp)
 			n := t.Population[sp]
 			if n == 0 {
@@ -107,8 +100,6 @@ func (d *day) creatures() {
 		d.moveBand(i)
 	}
 }
-
-func sortedKeys(m map[string]int64) []string { return slices.Sorted(maps.Keys(m)) }
 
 // spawnBand gives a newly woken region a band of its creature, when that
 // creature moves in herds or packs.
@@ -172,7 +163,7 @@ func (d *day) moveBand(i int) {
 	if r := s.RegionAt(next); r >= 0 && r != b.Region {
 		b.Region = r
 		if b.Herd {
-			d.emit("herd.arrived", regionRef(r), nil, nil, fact.S("species", b.Species), fact.N("count", b.Count))
+			d.emit("herd.arrived", RegionRef(r), nil, nil, fact.S("species", b.Species), fact.N("count", b.Count))
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
@@ -11,7 +12,7 @@ import (
 
 func play(t *testing.T) *harness.Play {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,5 +121,24 @@ func TestMaturitySavesUnits(t *testing.T) {
 	pat, _, err := p.Crafter.WritePattern(res.Kind.ID, "x", "pat", 0)
 	if err != nil || pat.Pattern != res.Kind.ID {
 		t.Fatal("pattern", err)
+	}
+}
+
+func TestAlloyCapIsPerStation(t *testing.T) {
+	p := play(t)
+	low, _, err := p.Crafter.Craft(craft.Order{Recipe: smelt, Station: craft.Station{Kind: "forge", Tier: 1}, By: "x", Press: "lo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	high, _, err := p.Crafter.Craft(craft.Order{Recipe: smelt, Station: craft.Station{Kind: "forge", Tier: 3}, By: "x", Press: "hi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if low.Kind.ID == high.Kind.ID || low.Kind.Tier >= high.Kind.Tier {
+		t.Fatalf("tier 1 made %s at %d, tier 3 made %s at %d", low.Kind.ID, low.Kind.Tier, high.Kind.ID, high.Kind.Tier)
+	}
+	r, err := p.Crafter.Appraise(smelt, craft.Station{Kind: "forge", Tier: 3}, 0, "x")
+	if err != nil || !r.Known || r.Tier != high.Kind.Tier {
+		t.Fatalf("appraisal at tier 3: %+v %v", r, err)
 	}
 }

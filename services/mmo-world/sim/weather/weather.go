@@ -13,11 +13,8 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: percentages are hundredths; a world day is 144 ticks.
-const (
-	percent     = 100
-	ticksPerDay = 144
-)
+// structural: percentages are hundredths.
+const percent = fixed.Hundredths
 
 // System is one weather system.
 type System struct {
@@ -250,7 +247,7 @@ func (s *Sky) Day(r *Rules, d *draw.Drawer, g Ground, day int64, cells []Cell, r
 		sys := &s.Systems[i]
 		sys.Heading = turnToward(sys.Heading, wind, int(r.turn))
 		if sys.Strength < r.weak {
-			sys.Life -= ticksPerDay
+			sys.Life -= sheets.TicksPerDay
 		}
 	}
 	var events []Event
@@ -273,8 +270,8 @@ func (s *Sky) Day(r *Rules, d *draw.Drawer, g Ground, day int64, cells []Cell, r
 		kind := r.order[d.Pick(weights, "weather.kind", who...)]
 		sys := System{
 			ID: s.NextID, Kind: kind, Centre: c.Centre, Heading: wind,
-			Strength: r.strLo + int64(d.Below(uint64(r.strHi-r.strLo+1), "weather.strength", who...)),
-			Life:     (r.lifeLo + int64(d.Below(uint64(r.lifeHi-r.lifeLo+1), "weather.life", who...))) * ticksPerDay,
+			Strength: d.Between(r.strLo, r.strHi, "weather.strength", who...),
+			Life:     d.Between(r.lifeLo, r.lifeHi, "weather.life", who...) * sheets.TicksPerDay,
 		}
 		sys.Wait = r.pace(sys, g.Terrain(c.Centre))
 		s.NextID++

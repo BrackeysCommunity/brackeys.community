@@ -65,10 +65,13 @@ type Instance struct {
 	MaxDurability int64    `json:"maxDurability"`
 	Picks         []string `json:"picks"`
 	// Offers are a reached milestone's two offers, fixed when reached.
-	Offers  []string `json:"offers,omitempty"`
-	Dormant bool     `json:"dormant,omitempty"`
-	Maker   string   `json:"maker,omitempty"`
-	Record  Tally    `json:"record"`
+	Offers []string `json:"offers,omitempty"`
+	// Waiting are milestones reached while another's offers stood, in
+	// order; each is offered once the one before is picked.
+	Waiting []int64 `json:"waiting,omitempty"`
+	Dormant bool    `json:"dormant,omitempty"`
+	Maker   string  `json:"maker,omitempty"`
+	Record  Tally   `json:"record"`
 	// Mount names a mounts.kinds row when the instance is a mount.
 	Mount string `json:"mount,omitempty"`
 	// Exploit is the exploit instance a deck holds.
@@ -109,6 +112,9 @@ func (in *Instance) Tags(k *Kind, d *Deriver) []tags.Tag {
 // Usable: not dormant and not worn to nothing.
 func (in *Instance) Usable() bool { return !in.Dormant && (in.MaxDurability == 0 || in.Durability > 0) }
 
+// Broken: worn to nothing with no pick to keep it, so gone.
+func (in *Instance) Broken() bool { return in.MaxDurability > 0 && !in.Dormant && in.Durability == 0 }
+
 // Wear is what using an item does to it.
 type Wear int
 
@@ -119,9 +125,10 @@ const (
 )
 
 // Use spends durability. At 0 an item with no milestone pick yet breaks;
-// one that has taken a pick goes dormant (GDD 9.11).
+// one that has taken a pick goes dormant (GDD 9.11). Broke is reported
+// once, on the use that breaks it.
 func (in *Instance) Use(n int64) Wear {
-	if in.MaxDurability == 0 || in.Dormant || n <= 0 {
+	if in.MaxDurability == 0 || in.Dormant || n <= 0 || in.Durability == 0 {
 		return Worn
 	}
 	in.Durability = max(0, in.Durability-n)
@@ -139,6 +146,30 @@ func (in *Instance) Use(n int64) Wear {
 type Spoil struct {
 	Material string `json:"material"`
 	Qty      int64  `json:"qty"`
+}
+
+// AddSpoil adds n of a material to a list, merging with its line; n of 0
+// or less adds nothing.
+func AddSpoil(list []Spoil, material string, n int64) []Spoil {
+	if n <= 0 {
+		return list
+	}
+	for i := range list {
+		if list[i].Material == material {
+			list[i].Qty += n
+			return list
+		}
+	}
+	return append(list, Spoil{Material: material, Qty: n})
+}
+
+// Total is a list's whole quantity.
+func Total(ss []Spoil) int64 {
+	var n int64
+	for _, s := range ss {
+		n += s.Qty
+	}
+	return n
 }
 
 // Materials is what a kind is made of, in base materials, per unit made.
@@ -174,12 +205,7 @@ func (d *Deriver) Salvage(inputs []Input, share int64) []Spoil {
 	var all []Spoil
 	for _, in := range inputs {
 		for _, s := range d.Materials(in.Kind) {
-			i := slices.IndexFunc(all, func(x Spoil) bool { return x.Material == s.Material })
-			if i < 0 {
-				all = append(all, Spoil{Material: s.Material})
-				i = len(all) - 1
-			}
-			all[i].Qty += s.Qty * in.Qty
+			all = AddSpoil(all, s.Material, s.Qty*in.Qty)
 		}
 	}
 	slices.SortFunc(all, func(a, b Spoil) int { return strings.Compare(a.Material, b.Material) })

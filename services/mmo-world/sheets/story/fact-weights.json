@@ -286,6 +286,12 @@
       "weight": 10
     },
     {
+      "id": "encounter-held",
+      "kind": "encounter.held",
+      "weight": 5,
+      "note": "The final beat held off by caution, not won."
+    },
+    {
       "id": "character-down",
       "kind": "character.down",
       "weight": 45

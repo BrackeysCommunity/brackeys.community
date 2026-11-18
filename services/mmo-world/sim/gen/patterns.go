@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -85,7 +86,7 @@ func (g *Gen) Patterns(cc ChunkCoord) []PatternPoint {
 	for ri := range g.b.Patterns {
 		for _, in := range g.instancesNear(ri, centre, g.reach(ri)+g.p.chunk) {
 			for _, p := range in.points {
-				if Distance(p.Hex, centre) > g.p.chunk || g.ch.Of(p.Hex) != cc {
+				if hex.Distance(p.Hex, centre) > g.p.chunk || g.ch.Of(p.Hex) != cc {
 					continue
 				}
 				taken := slices.ContainsFunc(out, func(o PatternPoint) bool { return o.Hex == p.Hex }) ||
@@ -121,7 +122,7 @@ func (g *Gen) instancesNear(ri int, h Hex, reach int64) []*instance {
 	var out []*instance
 	add := func(id string, anchor Hex) {
 		in := g.instance(ri, id, anchor)
-		if Distance(in.centre, h) <= reach {
+		if hex.Distance(in.centre, h) <= reach {
 			out = append(out, in)
 		}
 	}
@@ -170,12 +171,12 @@ func (g *Gen) chunkAnchor(r sheets.PatternRule, cc ChunkCoord) (Hex, bool) {
 	case anchorFrontier:
 		// About one instance per perRegions regions: a chunk holds the
 		// chunk's tiles over the region lattice's tiles per region.
-		chunkTiles := uint64(DiscSize(g.p.chunk))
+		chunkTiles := uint64(hex.DiscSize(g.p.chunk))
 		if !inBand(centre) || g.d.Below(uint64(r.PerRegions*g.p.regionSpacing*g.p.regionSpacing), draw.Purpose("pattern.fire."+r.ID), draw.Int(cc.A), draw.Int(cc.B)) >= chunkTiles {
 			return Hex{}, false
 		}
 		// It stands on dry land: the first dry tile in a keyed order, if any.
-		disc := Disc(g.p.chunk)
+		disc := hex.Disc(g.p.chunk)
 		for _, k := range g.d.Shuffle(len(disc), draw.Purpose("pattern.where."+r.ID), draw.Int(cc.A), draw.Int(cc.B)) {
 			if h := centre.Add(disc[k]); g.passable(g.raw(h).terrain) {
 				return h, true
@@ -183,11 +184,11 @@ func (g *Gen) chunkAnchor(r sheets.PatternRule, cc ChunkCoord) (Hex, bool) {
 		}
 		return Hex{}, false
 	case anchorTerrain:
-		if int64(g.d.Below(percent, draw.Purpose("pattern.fire."+r.ID), draw.Int(cc.A), draw.Int(cc.B))) >= r.ChunkShare {
+		if !g.d.Percent(r.ChunkShare, draw.Purpose("pattern.fire."+r.ID), draw.Int(cc.A), draw.Int(cc.B)) {
 			return Hex{}, false
 		}
 		best, found := Hex{}, false
-		for _, off := range Disc(g.p.chunk) {
+		for _, off := range hex.Disc(g.p.chunk) {
 			h := centre.Add(off)
 			rh := g.raw(h)
 			if rh.terrain != r.AnchorTerrain || !inBand(h) {
@@ -212,7 +213,7 @@ func (g *Gen) instance(ri int, id string, anchor Hex) *instance {
 	free := func(what string) bool { return slices.Contains(r.SeedFree, what) }
 	centre := anchor
 	if d := r.OffsetDistance; d > 0 {
-		ring := Ring(anchor, d)
+		ring := hex.Ring(anchor, d)
 		n := int64(len(ring))
 		k := (eastSide*d - r.OffsetBearing*n/fullTurn + n) % n
 		if free("offset") {
@@ -278,8 +279,7 @@ func (g *Gen) instance(ri int, id string, anchor Hex) *instance {
 	jit := g.jitterOf(r)
 	for k, h := range pts {
 		if jit > 0 {
-			n := DiscSize(jit)
-			h = h.Add(discOffset(jit, int64(g.d.Below(uint64(n), "pattern.jitter", append(who, draw.Int(int64(k)))...))))
+			h = g.jitter(h, jit, "pattern.jitter", append(who, draw.Int(int64(k)))...)
 		}
 		in.points = append(in.points, PatternPoint{Rule: r.ID, Instance: id, Place: places[k], Hex: h, Index: k, Centre: centre, Area: r.Area})
 	}
@@ -292,26 +292,26 @@ func (g *Gen) instance(ri int, id string, anchor Hex) *instance {
 func (g *Gen) shapeOffsets(sh *sheets.Shape, size int64, who []draw.Part) (outline, corners []Hex) {
 	switch sh.Kind {
 	case "ring":
-		outline = Ring(Hex{}, size)
+		outline = hex.Ring(Hex{}, size)
 		for k := range nDirs {
 			corners = append(corners, outline[int64(k)*size])
 		}
 	case "triangle":
-		a, b, c := Hex{}, direction(0).Scale(size), direction(1).Scale(size)
-		mid := Hex{Q: divRound(a.Q+b.Q+c.Q, discSides), R: divRound(a.R+b.R+c.R, discSides)}
+		a, b, c := Hex{}, hex.Direction(0).Scale(size), hex.Direction(1).Scale(size)
+		mid := Hex{Q: hex.DivRound(a.Q+b.Q+c.Q, discSides), R: hex.DivRound(a.R+b.R+c.R, discSides)}
 		a, b, c = a.Add(mid.Scale(-1)), b.Add(mid.Scale(-1)), c.Add(mid.Scale(-1))
 		corners = []Hex{a, b, c}
-		outline = append(outline, Line(a, b)...)
-		outline = append(outline, Line(b, c)[1:]...)
-		ca := Line(c, a)
+		outline = append(outline, hex.Line(a, b)...)
+		outline = append(outline, hex.Line(b, c)[1:]...)
+		ca := hex.Line(c, a)
 		outline = append(outline, ca[1:len(ca)-1]...)
 	case "line":
-		outline = Line(Hex{}, direction(0).Scale(size))
+		outline = hex.Line(Hex{}, hex.Direction(0).Scale(size))
 		corners = []Hex{outline[0], outline[len(outline)-1]}
 	case "cross", "star":
 		arms := max(1, sh.Arms)
 		for k := range arms {
-			d := direction(int(k * int64(nDirs) / arms))
+			d := hex.Direction(int(k * int64(nDirs) / arms))
 			for s := int64(1); s <= size; s++ {
 				outline = append(outline, d.Scale(s))
 			}
@@ -321,21 +321,21 @@ func (g *Gen) shapeOffsets(sh *sheets.Shape, size int64, who []draw.Part) (outli
 		step := max(1, sh.Step)
 		var walk []Hex
 		for r := int64(1); r <= size; r++ {
-			walk = append(walk, Ring(Hex{}, r)...)
+			walk = append(walk, hex.Ring(Hex{}, r)...)
 		}
 		for k := step - 1; k < int64(len(walk)); k += step {
 			outline = append(outline, walk[k])
 		}
 		corners = outline
 	case "scatter":
-		disc := Disc(size)
+		disc := hex.Disc(size)
 		order := g.d.Shuffle(len(disc), "pattern.scatter", who...)
 		for _, k := range order {
 			if int64(len(outline)) == sh.Count {
 				break
 			}
 			o := disc[k]
-			if !slices.ContainsFunc(outline, func(x Hex) bool { return Distance(x, o) < sh.Step }) {
+			if !slices.ContainsFunc(outline, func(x Hex) bool { return hex.Distance(x, o) < sh.Step }) {
 				outline = append(outline, o)
 			}
 		}

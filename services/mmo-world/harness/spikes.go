@@ -1,25 +1,23 @@
 package harness
 
 import (
-	"cmp"
-	"fmt"
-	"iter"
-	"maps"
-
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// RunSpike runs one spike and writes its raw output under out.
-func RunSpike(name string, b *sheets.Book, out string, n int) error {
-	switch name {
-	case "spike-a":
-		return spikeA(b, out, n)
-	case "spike-b":
-		return spikeB(b, out, n)
-	case "spike-e":
-		return spikeE(b, out, n)
-	}
-	return fmt.Errorf("unknown spike %s", name)
+// Run is a harness run or spike: it writes its raw output under out and
+// returns its readings (a spike has none).
+type Run func(b *sheets.Book, out string, n int) ([]Measured, error)
+
+// Runs are the harness runs and spikes by name.
+var Runs = map[string]Run{
+	"world":   WorldRun,
+	"craft":   CraftRun,
+	"battle":  BattleRun,
+	"spike-a": spike(spikeA),
+	"spike-b": spike(spikeB),
+	"spike-e": spike(spikeE),
 }
 
-func keysOf[K cmp.Ordered, V any](m map[K]V) iter.Seq[K] { return maps.Keys(m) }
+func spike(f func(*sheets.Book, string, int) error) Run {
+	return func(b *sheets.Book, out string, n int) ([]Measured, error) { return nil, f(b, out, n) }
+}

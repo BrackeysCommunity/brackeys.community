@@ -15,9 +15,8 @@ type Measured struct {
 	Holds  bool
 }
 
-// Report prints every target with its last reading. No run measures a
-// target yet, so every row reads "not measured"; runs add readings as
-// their milestones land.
+// Report prints every target with its reading from readings, or "not
+// measured".
 func Report(w io.Writer, b *sheets.Book, readings []Measured) {
 	got := map[string]Measured{}
 	for _, m := range readings {

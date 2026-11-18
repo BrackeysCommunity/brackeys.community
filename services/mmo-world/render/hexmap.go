@@ -1,5 +1,4 @@
-// Package render draws pictures from state. It runs after a state change,
-// never inside a reply window, and stores by state digest.
+// Package render draws pictures of generated areas.
 package render
 
 import (
@@ -21,6 +20,17 @@ var terrainColour = map[string]color.RGBA{
 	"coast":      {0xd8, 0xcf, 0xa8, 0xff},
 	"deep-water": {0x2f, 0x5d, 0x8c, 0xff},
 	"peak":       {0xee, 0xee, 0xf2, 0xff},
+}
+
+// unknownTerrain marks a terrain the palette has no colour for, so a new
+// sheet row shows up instead of rendering as transparent black.
+var unknownTerrain = color.RGBA{0xff, 0x00, 0xff, 0xff}
+
+func terrainOf(id string) color.RGBA {
+	if c, ok := terrainColour[id]; ok {
+		return c
+	}
+	return unknownTerrain
 }
 
 var (
@@ -56,9 +66,9 @@ func HexMap(w *gen.Area, size float64) *image.RGBA {
 				continue
 			}
 			t := w.Tiles[i]
-			c := terrainColour[t.Terrain]
+			c := terrainOf(t.Terrain)
 			if t.Secondary != "" {
-				c = blend(c, terrainColour[t.Secondary], float64(t.Blend)/100)
+				c = blend(c, terrainOf(t.Secondary), float64(t.Blend)/100)
 			}
 			if t.River {
 				c = blend(c, river, 0.65)

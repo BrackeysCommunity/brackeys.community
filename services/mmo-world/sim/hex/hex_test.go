@@ -108,3 +108,13 @@ func TestQueueOrder(t *testing.T) {
 		last = c
 	}
 }
+
+func TestDiscOffsetWalksTheDisc(t *testing.T) {
+	for r := range int64(6) {
+		for k, h := range hex.Disc(r) {
+			if got := hex.DiscOffset(r, int64(k)); got != h {
+				t.Fatalf("radius %d, tile %d: %v, want %v", r, k, got, h)
+			}
+		}
+	}
+}

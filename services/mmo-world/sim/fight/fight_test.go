@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -15,7 +17,7 @@ import (
 
 func play(t *testing.T) *harness.Play {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +38,7 @@ func blade(p *harness.Play, id string, tier int64, vec item.Vec, ts ...tags.Tag)
 func equip(p *harness.Play, c *char.Character, slot string, k *item.Kind, level int64) *item.Instance {
 	in := item.NewInstance(c.ID+"-"+slot, k, "")
 	in.Level = level
-	c.Pack = append(c.Pack, in)
-	c.Equip(slot, 0, in.ID)
+	c.Carry(slot, 0, in)
 	return in
 }
 
@@ -166,6 +167,29 @@ func TestAssemble(t *testing.T) {
 	}
 }
 
+// A creature that flees early still leaves a dungeon floor its hazard,
+// lock or puzzle.
+func TestFloorMixSurvivesAFlight(t *testing.T) {
+	p := play(t)
+	party := []tags.Measure{{ID: "party-size", Value: 3}}
+	fled := 0
+	for i := range 200 {
+		site := fight.Site{ID: "flee-" + string(rune('a'+i%26)) + string(rune('a'+i/26)), Party: 3, Floor: 1 + int64(i%7),
+			Tags: []tags.Tag{"dungeon"}, Measures: party}
+		arch := p.Fight.Archetypes()[i%len(p.Fight.Archetypes())]
+		e := p.Fight.Assemble(site, p.Fight.Spawn(arch, []tags.Tag{"wary"}, nil, party))
+		if slices.Contains(e.Why, "flees") {
+			fled++
+		}
+		if !slices.ContainsFunc(e.Beats, func(b string) bool { return b == "hazard" || b == "lock" || b == "puzzle" }) {
+			t.Fatalf("%s: a dungeon floor without a hazard, lock or puzzle: %v %v", site.ID, e.Beats, e.Why)
+		}
+	}
+	if fled == 0 {
+		t.Fatal("no creature fled")
+	}
+}
+
 // Two failures put a character down; the haul is lost; a wound follows
 // a failed clash.
 func TestSecondFailureDowns(t *testing.T) {
@@ -192,6 +216,25 @@ func TestSecondFailureDowns(t *testing.T) {
 		}
 	}
 	t.Fatal("a twig never lost to a walking factory")
+}
+
+// A member down from an earlier beat does not count against the one
+// still standing.
+func TestPressWithAMemberAlreadyDown(t *testing.T) {
+	p := play(t)
+	a, b := char.New("a", hex.Hex{}), char.New("b", hex.Hex{})
+	equip(p, a, char.Hand, blade(p, "a-blade", 1, item.Vec{30, 10, 0, 0, 0, 0, 0, 0}), 1)
+	equip(p, b, char.Hand, blade(p, "b-blade", 1, item.Vec{30, 10, 0, 0, 0, 0, 0, 0}), 1)
+	cr := p.Fight.Spawn("old-growth", nil, nil, nil)
+	e := p.Fight.Assemble(fight.Site{ID: "pair", Party: 2}, cr)
+	e.Down = append(e.Down, a.ID)
+	ms := []*fight.Member{{Ch: a, Kit: p.Fight.KitOf(a), Pick: "hold"}, {Ch: b, Kit: p.Fight.KitOf(b), Pick: "hold"}}
+	if _, _, err := p.Fight.Press(e, ms, 0); err != nil {
+		t.Fatal(err)
+	}
+	if e.Result == fight.Lost && !slices.Contains(e.Down, b.ID) {
+		t.Fatalf("lost with b still up: %+v", e)
+	}
 }
 
 func TestHuntSplitsByHealth(t *testing.T) {
@@ -234,6 +277,35 @@ func TestHuntSplitsByHealth(t *testing.T) {
 	}
 	if whole == 0 || len(spoils) == 0 {
 		t.Fatal("no spoils")
+	}
+}
+
+// Gear that breaks on a hunt beat leaves its salvage on the hunt.
+func TestHuntKeepsSalvage(t *testing.T) {
+	p := play(t)
+	h, err := p.Fight.StartHunt("hunt-glass", "walking-factory", fight.Site{}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := p.Deriver.Reg.Freeze(&item.Kind{ID: "glass-hunt", Recipe: item.Recipe{Inputs: []item.Input{{Kind: "copper-ore", Qty: 10}}},
+		KindProps: item.KindProps{Tier: 1, Slot: "blade", Vec: item.Vec{2, 2, 0, 0, 0, 0, 0, 0}, Durability: 1, Tags: []tags.Tag{"item", "blade"}}})
+	c := char.New("brittle", hex.Hex{})
+	equip(p, c, char.Hand, k, 1)
+	_, facts, err := p.Fight.HuntBeat(h, &fight.Member{Ch: c, Kit: p.Fight.KitOf(c), Pick: "strike"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(facts, func(f fact.Fact) bool { return f.Kind == "item.broke" }) {
+		t.Fatalf("no break: %+v", facts)
+	}
+	if len(h.Salvage) != 1 || h.Salvage[0].Who != c.ID || len(h.Salvage[0].Spoil) == 0 {
+		t.Fatalf("salvage %+v", h.Salvage)
+	}
+	if h.Close(h.Ends - 1) {
+		t.Fatal("closed before its window ran out")
+	}
+	if !h.Close(h.Ends) {
+		t.Fatal("still open after its window")
 	}
 }
 
@@ -284,4 +356,76 @@ func TestCastLandsAndAdvances(t *testing.T) {
 		}
 	}
 	t.Fatal("no cast landed in 40 tries")
+}
+
+// Gear that breaks on a press's wear breaks once, even when the failed
+// press wears it again.
+func TestGearBreaksOnce(t *testing.T) {
+	p := play(t)
+	k := p.Deriver.Reg.Freeze(&item.Kind{ID: "glass", KindProps: item.KindProps{Tier: 1, Slot: "blade", Vec: item.Vec{2, 2, 0, 0, 0, 0, 0, 0},
+		Durability: 1, Tags: []tags.Tag{"item", "blade"}}})
+	cr := p.Fight.Spawn("old-growth", nil, nil, nil)
+	for i := range 200 {
+		c := char.New("brittle", hex.Hex{})
+		in := equip(p, c, char.Hand, k, 1)
+		e := p.Fight.Assemble(fight.Site{ID: "glass-" + string(rune('a'+i)), Party: 1}, cr)
+		at := slices.Index(e.Beats, "clash")
+		if at < 0 {
+			continue
+		}
+		e.At = at
+		out, facts, err := p.Fight.Press(e, []*fight.Member{{Ch: c, Kit: p.Fight.KitOf(c), Pick: "strike"}}, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		broke := 0
+		for _, f := range facts {
+			if f.Kind == "item.broke" {
+				broke++
+			}
+		}
+		if broke != 1 || !in.Broken() {
+			t.Fatalf("broke %d times: %+v", broke, facts)
+		}
+		if !out[0].Outcome.Success {
+			return
+		}
+	}
+	t.Fatal("a glass blade never failed a strike")
+}
+
+// A member whose failure ends the encounter by escape ends the press:
+// the members after them do not act.
+func TestEscapeEndsThePress(t *testing.T) {
+	p := play(t)
+	cr := p.Fight.Spawn("flat-runner", nil, nil, nil)
+	coat := p.Deriver.Reg.Freeze(&item.Kind{ID: "coat", KindProps: item.KindProps{Tier: 1, Slot: "coat", Vec: item.Vec{0, 2, 2, 0, 0, 0, 0, 0},
+		Durability: 90, Tags: []tags.Tag{"item", "coat"}}})
+	for i := range 400 {
+		a, b := char.New("a", hex.Hex{}), char.New("b", hex.Hex{})
+		equip(p, a, char.Body, coat, 1)
+		e := p.Fight.Assemble(fight.Site{ID: "run-" + string(rune('a'+i)), Party: 2}, cr)
+		at := slices.Index(e.Beats, "chase")
+		if at < 0 {
+			continue
+		}
+		e.At = at
+		_, _, opts := p.Fight.Choices(e, a, p.Fight.KitOf(a), 0)
+		if _, ok := fight.OptionByID(opts, "pursue"); !ok {
+			t.Fatalf("no pursue on a chase: %+v", opts)
+		}
+		ms := []*fight.Member{{Ch: a, Kit: p.Fight.KitOf(a), Pick: "pursue"}, {Ch: b, Kit: p.Fight.KitOf(b), Pick: "hold"}}
+		out, _, err := p.Fight.Press(e, ms, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.Result != fight.Escaped {
+			continue
+		}
+		if len(out) != 1 || out[0].Who != a.ID {
+			t.Fatalf("members acted after the escape: %+v", out)
+		}
+		return
+	}
+	t.Fatal("a pursuit never let the creature escape")
 }

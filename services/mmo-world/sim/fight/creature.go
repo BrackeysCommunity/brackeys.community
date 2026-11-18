@@ -23,7 +23,7 @@ type Creature struct {
 func (r *Rules) Spawn(archetype string, extra []tags.Tag, place []tags.Tag, measures []tags.Measure) Creature {
 	a := r.creatures[archetype]
 	c := Creature{Archetype: archetype, Tier: a.Tier, Drops: slices.Clone(a.Drops)}
-	ts := append(toTags(a.Tags), extra...)
+	ts := append(tags.Of(a.Tags), extra...)
 	subject := set("archetype:"+archetype, ts)
 	effects, _ := tags.Apply(r.rules, subject, tags.Context{Place: set("place", place), Measures: measures})
 	for _, e := range effects {
@@ -77,12 +77,4 @@ func (r *Rules) Behave(c Creature, place []tags.Tag, measures []tags.Measure) Be
 // Archetypes lists the archetype ids, in sheet order.
 func (r *Rules) Archetypes() []string {
 	return slices.Sorted(maps.Keys(r.creatures))
-}
-
-func toTags(ss []string) []tags.Tag {
-	out := make([]tags.Tag, len(ss))
-	for i, s := range ss {
-		out[i] = tags.Tag(s)
-	}
-	return out
 }

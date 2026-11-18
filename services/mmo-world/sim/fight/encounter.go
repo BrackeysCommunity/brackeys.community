@@ -39,8 +39,8 @@ type State struct {
 	Left int64    `json:"left"`
 }
 
-// Encounter is 3 to 6 beats against one creature, edited in place from
-// beat to beat (GDD 7.1).
+// Encounter is a run of beats against one creature, its count from the
+// creature's tier, edited in place from beat to beat (GDD 7.1).
 type Encounter struct {
 	ID       string         `json:"id"`
 	Creature Creature       `json:"creature"`
@@ -65,11 +65,22 @@ type Encounter struct {
 	Over     bool           `json:"over"`
 	Result   string         `json:"result,omitempty"`
 	Why      []string       `json:"why,omitempty"`
+	Salvage  []Salvaged     `json:"salvage,omitempty"` // left by gear that broke
 }
 
-// Site is where an encounter happens.
+// Salvaged is what one character's broken gear left them.
+type Salvaged struct {
+	Who   string       `json:"who"`
+	Spoil []item.Spoil `json:"spoil"`
+}
+
+// Site is where an encounter happens. ID is the encounter's own
+// identity and keys its draws, so two encounters on one tile differ;
+// Place is the tile or floor its machines stand on ("tile:q,r" or
+// "floor:<dungeon>/<n>"), ID when empty.
 type Site struct {
 	ID       string
+	Place    string
 	Tags     []tags.Tag // the tile's, its weather's and its region's
 	Measures []tags.Measure
 	Party    int64
@@ -86,7 +97,7 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		Party: max(1, site.Party), Troubled: site.Troubled, Floor: site.Floor, Guardian: -1}
 	tier := r.tiers[c.Tier]
 	pick := r.gen.Stream("encounter.beats", draw.Str(site.ID))
-	n := tier.BeatsMin + int64(pick.Below(uint64(tier.BeatsMax-tier.BeatsMin+1)))
+	n := pick.Between(tier.BeatsMin, tier.BeatsMax)
 	all := append(slices.Clone(c.Tags), site.Tags...)
 	weights := make([]int64, len(r.beatIDs))
 	for _, bt := range r.beatTags {
@@ -95,9 +106,12 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		}
 	}
 	for range n {
-		e.Beats = append(e.Beats, r.beatIDs[pickWeighted(weights, pick)])
+		e.Beats = append(e.Beats, r.beatIDs[pick.Pick(weights)])
 	}
-	if site.Floor > 0 && !slices.ContainsFunc(e.Beats, r.mixes) {
+	mix := func() {
+		if site.Floor == 0 || slices.ContainsFunc(e.Beats, r.mixes) {
+			return
+		}
 		best := ""
 		for i, id := range r.beatIDs {
 			if r.mixes(id) && (best == "" || weights[i] > weights[slices.Index(r.beatIDs, best)]) {
@@ -107,6 +121,7 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		e.Beats[0] = best
 		e.Why = append(e.Why, "floor-mix")
 	}
+	mix()
 	hardest := 0
 	for i, b := range e.Beats {
 		if r.beats[b].Modifier >= r.beats[e.Beats[hardest]].Modifier {
@@ -128,14 +143,24 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		e.Beats = e.Beats[:beh.EndsAt]
 		e.Why = append(e.Why, "flees")
 	}
+	// A flight can cut off the mixing beat the hardest swap moved last.
+	mix()
 	for i, b := range e.Beats {
 		fam, lvl := "", int64(0)
 		if r.beats[b].Puzzle {
-			fams := r.P.Families(tagStrings(all), b == "lock")
+			fams := r.P.Families(all, b == "lock")
 			if len(fams) == 0 {
-				fams = r.P.Families(r.P.Family(firstFamily(r, b == "lock")).AppearsOn, b == "lock")
+				fallback := puzzle.Rewire
+				if b == "lock" {
+					fallback = puzzle.Pins
+				}
+				fams = r.P.Families(tags.Of(r.P.Family(fallback).AppearsOn), b == "lock")
 			}
-			w := puzzle.Where{Place: site.ID, Beat: int64(i)}
+			place := site.Place
+			if place == "" {
+				place = site.ID
+			}
+			w := puzzle.Where{Place: place, Beat: int64(i)}
 			fam = fams[r.gen.Below(uint64(len(fams)), "encounter.machine", draw.Str(site.ID), draw.Int(int64(i)))]
 			lvl = r.P.Level(fam, c.Tier, site.Floor, w)
 		}
@@ -145,44 +170,8 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 	return e
 }
 
-func firstFamily(r *Rules, lockpick bool) string {
-	for _, f := range r.P.Families(nil, lockpick) {
-		return f
-	}
-	if lockpick {
-		return puzzle.Pins
-	}
-	return puzzle.Rewire
-}
-
 func (r *Rules) mixes(beat string) bool {
 	return beat == "hazard" || r.beats[beat].Puzzle
-}
-
-func pickWeighted(w []int64, s *draw.Stream) int {
-	var total int64
-	for _, x := range w {
-		total += x
-	}
-	if total == 0 {
-		return 0
-	}
-	n := int64(s.Below(uint64(total)))
-	for i, x := range w {
-		if n < x {
-			return i
-		}
-		n -= x
-	}
-	return 0
-}
-
-func tagStrings(ts []tags.Tag) []string {
-	out := make([]string, len(ts))
-	for i, t := range ts {
-		out[i] = string(t)
-	}
-	return out
 }
 
 // Final reports whether the encounter is on its last beat.
@@ -202,6 +191,23 @@ func (r *Rules) Situation(e *Encounter, who string) Situation {
 		}
 	}
 	return s
+}
+
+// Choices is what a character sees on the current beat: the situation,
+// their kit with their states and conditions added, and its options.
+func (r *Rules) Choices(e *Encounter, c *char.Character, k Kit, tick int64) (Situation, Kit, []Option) {
+	k.Self = slices.Concat(k.Self, e.SelfStates(c.ID), c.ConditionTags(tick))
+	s := r.Situation(e, c.ID)
+	return s, k, r.Options(s, k)
+}
+
+// OptionByID finds a picked option.
+func OptionByID(opts []Option, id string) (Option, bool) {
+	i := slices.IndexFunc(opts, func(o Option) bool { return o.ID == id })
+	if i < 0 {
+		return Option{}, false
+	}
+	return opts[i], true
 }
 
 // SelfStates are the states on one character.
@@ -240,37 +246,45 @@ func (r *Rules) Press(e *Encounter, ms []*Member, tick int64) ([]Pressed, []fact
 	}
 	var out []Pressed
 	var facts []fact.Fact
-	var wins, up int64
+	var wins int64
 	left := false
 	downBefore := len(e.Down)
 	beat := r.beats[e.Beats[e.At]]
 	if beat.Health > 0 && e.Guardian < 0 {
 		e.Guardian = fixed.Ratio(r.tiers[e.Creature.Tier].HuntHealth*beat.Health, percent).Int()
 	}
+	// Every pick is checked before any applies, so a refused press changes
+	// nothing a retry would repeat.
+	type chosen struct {
+		m *Member
+		s Situation
+		o Option
+	}
+	var picks []chosen
 	for _, m := range ms {
 		if slices.Contains(e.Down, m.Ch.ID) || slices.Contains(e.Gone, m.Ch.ID) {
 			continue
 		}
-		up++
-		m.Kit.Self = append(m.Kit.Self, e.SelfStates(m.Ch.ID)...)
-		m.Kit.Self = append(m.Kit.Self, m.Ch.ConditionTags(tick)...)
-		s := r.Situation(e, m.Ch.ID)
-		opts := r.Options(s, m.Kit)
-		i := slices.IndexFunc(opts, func(o Option) bool { return o.ID == m.Pick })
-		if i < 0 {
+		s, k, opts := r.Choices(e, m.Ch, m.Kit, tick)
+		o, ok := OptionByID(opts, m.Pick)
+		if !ok {
 			return nil, nil, fmt.Errorf("fight: %s cannot pick %q here", m.Ch.ID, m.Pick)
 		}
-		o := opts[i]
-		id := Roll{Who: m.Ch.ID, Encounter: e.ID, Beat: int64(e.At), Press: e.Press}
+		if o.Puzzle && m.Puzzle == nil {
+			return nil, nil, fmt.Errorf("fight: %s's %s needs a replayed machine", m.Ch.ID, o.ID)
+		}
+		pm := *m
+		pm.Kit = k
+		picks = append(picks, chosen{&pm, s, o})
+	}
+	for _, p := range picks {
+		m, s, o := p.m, p.s, p.o
 		var oc Outcome
 		var why Why
-		switch {
-		case o.Puzzle && m.Puzzle == nil:
-			return nil, nil, fmt.Errorf("fight: %s's %s needs a replayed machine", m.Ch.ID, o.ID)
-		case o.Puzzle:
+		if o.Puzzle {
 			oc, why = r.ResolvePuzzle(o, *m.Puzzle), o.Why
-		default:
-			oc, why = r.Resolve(o, id)
+		} else {
+			oc, why = r.Resolve(o, Roll{Who: m.Ch.ID, Encounter: e.ID, Beat: int64(e.At), Press: e.Press})
 		}
 		out = append(out, Pressed{Who: m.Ch.ID, Option: o, Outcome: oc, Why: why})
 		f := r.apply(e, m, s, o, oc, tick)
@@ -288,15 +302,18 @@ func (r *Rules) Press(e *Encounter, ms []*Member, tick int64) ([]Pressed, []fact
 				e.Guardian = max(0, e.Guardian-o.Score)
 			}
 		}
+		if e.Over {
+			break
+		}
 	}
 	if len(e.Down) > downBefore {
-		for _, m := range ms {
-			if !slices.Contains(e.Down, m.Ch.ID) {
-				r.put(e, m, State{Tag: "shaken", On: OnSelf, Who: m.Ch.ID}, tick)
+		for _, p := range picks {
+			if !slices.Contains(e.Down, p.m.Ch.ID) && !slices.Contains(e.Gone, p.m.Ch.ID) {
+				r.put(e, p.m, State{Tag: "shaken", On: OnSelf, Who: p.m.Ch.ID}, tick)
 			}
 		}
 	}
-	facts = append(facts, r.afterBeat(e, ms, out, wins, up, left, tick)...)
+	facts = append(facts, r.afterBeat(e, ms, out, wins, left, tick)...)
 	return out, facts, nil
 }
 
@@ -307,7 +324,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 	g := o.Gear
 	beat := r.beats[s.Kind]
 	if g != nil {
-		facts = append(facts, r.wear(m, g, r.Param("beat-wear"), tick)...)
+		facts = append(facts, r.wear(e, m, g, r.Param("beat-wear"), tick)...)
 	}
 	if o.Kind == Cast {
 		charge := r.Param("cast-charge")
@@ -317,12 +334,12 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 					charge = max(r.Param("cast-charge-min"), charge-off.Magnitude)
 				}
 			}
-			facts = append(facts, r.wear(m, m.Kit.OffHand, charge, tick)...)
+			facts = append(facts, r.wear(e, m, m.Kit.OffHand, charge, tick)...)
 		}
 	}
 	creatureTags := append(slices.Clone(e.Creature.Tags), s.Other...)
 	record := func(event string) {
-		if g == nil {
+		if g == nil || g.Inst.Broken() {
 			return
 		}
 		g.Inst.Record.Add(event, tags.Tag(o.Verb), tags.Tag(s.Kind))
@@ -400,7 +417,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 			if te := r.gearEffect(g, "wear-on-fail"); te != nil {
 				size = fixed.Ratio(size*(percent-te.Magnitude), percent).Int()
 			}
-			facts = append(facts, r.wear(m, g, size, tick)...)
+			facts = append(facts, r.wear(e, m, g, size, tick)...)
 		}
 	case "wound":
 		m.Ch.Set("wounded", tick+r.Param("wound-ticks"))
@@ -435,7 +452,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick int64) []fact.Fact {
 	who := fact.Ref{Kind: "character", ID: m.Ch.ID}
 	if oc.Puzzle.Solved {
-		return []fact.Fact{r.fact(tick, "puzzle.solved", []fact.Ref{who}, fact.S("family", s.Puzzle), fact.N("level", s.Level), fact.N("clean", boolN(oc.Puzzle.Clean)))}
+		return []fact.Fact{r.fact(tick, "puzzle.solved", []fact.Ref{who}, fact.S("family", s.Puzzle), fact.N("level", s.Level), fact.B("clean", oc.Puzzle.Clean))}
 	}
 	var facts []fact.Fact
 	facts = append(facts, r.practise(m.Ch, s.Puzzle, r.P.Param("haywire-uses"), tick)...)
@@ -443,7 +460,7 @@ func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick i
 	switch hw.Effect {
 	case "shock":
 		if m.Kit.Hand != nil {
-			facts = append(facts, r.wear(m, m.Kit.Hand, hw.Magnitude, tick)...)
+			facts = append(facts, r.wear(e, m, m.Kit.Hand, hw.Magnitude, tick)...)
 		}
 	case "short":
 		r.put(e, m, State{Tag: tags.Tag(hw.Tag), On: OnSelf, Who: m.Ch.ID}, tick)
@@ -452,18 +469,11 @@ func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick i
 	return append(facts, r.fact(tick, "puzzle.haywire", []fact.Ref{who}, fact.S("family", s.Puzzle), fact.S("haywire", hw.ID), fact.N("magnitude", hw.Magnitude)))
 }
 
-func boolN(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
 // afterBeat moves the encounter on: a won (or held, or failed) beat
 // advances, the final beat must be won, and states tick down.
-func (r *Rules) afterBeat(e *Encounter, ms []*Member, out []Pressed, wins, up int64, left bool, tick int64) []fact.Fact {
+func (r *Rules) afterBeat(e *Encounter, ms []*Member, out []Pressed, wins int64, left bool, tick int64) []fact.Fact {
 	var facts []fact.Fact
-	stillUp := up - int64(countOut(e, ms))
+	stillUp := countUp(e, ms)
 	switch {
 	case e.Over:
 	case left && stillUp == 0 && len(e.Down) == 0:
@@ -496,10 +506,10 @@ func (r *Rules) afterBeat(e *Encounter, ms []*Member, out []Pressed, wins, up in
 	return facts
 }
 
-func countOut(e *Encounter, ms []*Member) int {
-	n := 0
+func countUp(e *Encounter, ms []*Member) int64 {
+	var n int64
 	for _, m := range ms {
-		if slices.Contains(e.Down, m.Ch.ID) || slices.Contains(e.Gone, m.Ch.ID) {
+		if !slices.Contains(e.Down, m.Ch.ID) && !slices.Contains(e.Gone, m.Ch.ID) {
 			n++
 		}
 	}
@@ -529,7 +539,7 @@ func (r *Rules) tickStates(e *Encounter, ms []*Member, tick int64, facts *[]fact
 			case OnSelf:
 				for _, m := range ms {
 					if m.Ch.ID == st.Who && m.Kit.Hand != nil {
-						*facts = append(*facts, r.wear(m, m.Kit.Hand, row.Wear, tick)...)
+						*facts = append(*facts, r.wear(e, m, m.Kit.Hand, row.Wear, tick)...)
 					}
 				}
 			case OnCreature:
@@ -640,7 +650,7 @@ func (r *Rules) haul(e *Encounter, units, press int64) {
 	}
 	for u := range units {
 		d := e.Creature.Drops[r.gen.Below(uint64(len(e.Creature.Drops)), "encounter.drop", draw.Str(e.ID), draw.Int(int64(e.At)), draw.Int(press), draw.Int(u))]
-		e.Haul = addSpoil(e.Haul, d, 1)
+		e.Haul = item.AddSpoil(e.Haul, d, 1)
 	}
 }
 
@@ -651,16 +661,6 @@ func (r *Rules) loseHaul(e *Encounter, units int64) {
 		units -= take
 	}
 	e.Haul = slices.DeleteFunc(e.Haul, func(s item.Spoil) bool { return s.Qty == 0 })
-}
-
-func addSpoil(list []item.Spoil, m string, n int64) []item.Spoil {
-	for i := range list {
-		if list[i].Material == m {
-			list[i].Qty += n
-			return list
-		}
-	}
-	return append(list, item.Spoil{Material: m, Qty: n})
 }
 
 // down: a second failure. The character cannot act; others in the beat
@@ -687,18 +687,10 @@ func (r *Rules) end(e *Encounter, ms []*Member, tick int64) []fact.Fact {
 		}
 	}
 	if e.Result == Lost {
-		r.loseHaul(e, fixed.Ratio(total(e.Haul)*r.Param("haul-lost-on-down"), percent).Int())
+		r.loseHaul(e, fixed.Ratio(item.Total(e.Haul)*r.Param("haul-lost-on-down"), percent).Int())
 	}
 	subjects = append(subjects, fact.Ref{Kind: "archetype", ID: e.Creature.Archetype})
-	return []fact.Fact{r.fact(tick, "encounter."+e.Result, subjects, fact.N("beats", int64(len(e.Beats))), fact.N("haul", total(e.Haul)))}
-}
-
-func total(ss []item.Spoil) int64 {
-	var n int64
-	for _, s := range ss {
-		n += s.Qty
-	}
-	return n
+	return []fact.Fact{r.fact(tick, "encounter."+e.Result, subjects, fact.N("beats", int64(len(e.Beats))), fact.N("haul", item.Total(e.Haul)))}
 }
 
 // Split shares a haul by contribution, largest remainder first, ties by
@@ -746,15 +738,20 @@ func Split(haul []item.Spoil, share item.Tally) map[string][]item.Spoil {
 	return out
 }
 
-// wear spends durability and reports a break or dormancy.
-func (r *Rules) wear(m *Member, g *Gear, n int64, tick int64) []fact.Fact {
+// wear spends durability and reports a break or dormancy. Broken gear
+// leaves the pack and the kit, and its salvage goes on the encounter.
+func (r *Rules) wear(e *Encounter, m *Member, g *Gear, n int64, tick int64) []fact.Fact {
 	who := fact.Ref{Kind: "character", ID: m.Ch.ID}
 	it := fact.Ref{Kind: "item", ID: g.Inst.ID}
 	switch g.Inst.Use(n) {
 	case item.Broke:
-		m.Ch.Pack = slices.DeleteFunc(m.Ch.Pack, func(in *item.Instance) bool { return in.ID == g.Inst.ID })
+		m.Ch.Drop(g.Inst.ID)
+		m.Kit.drop(g)
 		salvage := r.D.Salvage(g.Kind.Recipe.Inputs, sheets.IntParam(r.wearParams, "salvage-break"))
-		return []fact.Fact{r.fact(tick, "item.broke", []fact.Ref{who, it}, fact.N("salvage", total(salvage)))}
+		if len(salvage) > 0 {
+			e.Salvage = append(e.Salvage, Salvaged{Who: m.Ch.ID, Spoil: salvage})
+		}
+		return []fact.Fact{r.fact(tick, "item.broke", []fact.Ref{who, it}, fact.N("salvage", item.Total(salvage)))}
 	case item.WentDormant:
 		return []fact.Fact{r.fact(tick, "item.dormant", []fact.Ref{who, it})}
 	case item.Worn:
@@ -763,6 +760,9 @@ func (r *Rules) wear(m *Member, g *Gear, n int64, tick int64) []fact.Fact {
 }
 
 func (r *Rules) grow(m *Member, g *Gear, xp int64, tick int64) []fact.Fact {
+	if g.Inst.Broken() {
+		return nil
+	}
 	lv := r.G.AddXP(g.Inst, g.Kind, xp)
 	if lv.To == lv.From {
 		return nil
@@ -783,7 +783,11 @@ func (r *Rules) practise(c *char.Character, skill string, uses, tick int64) []fa
 }
 
 func (r *Rules) fact(tick int64, kind string, subjects []fact.Ref, data ...fact.Datum) fact.Fact {
-	return fact.Fact{Tick: tick, Kind: kind, Subjects: subjects, Data: data, Weight: r.weights[kind]}
+	f, err := r.weights.New(tick, kind, "", subjects, nil, data...)
+	if err != nil {
+		panic(err)
+	}
+	return f
 }
 
 // KitOf resolves a character's equipped items into a kit.

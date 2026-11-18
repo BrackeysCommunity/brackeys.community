@@ -18,7 +18,7 @@ type Action struct {
 	Species  string   `json:"species,omitempty"`
 	Tag      string   `json:"tag,omitempty"`
 	Units    int64    `json:"units,omitempty"`
-	Dir      int      `json:"dir,omitempty"`
+	Dir      *int     `json:"dir,omitempty"` // nil: no direction
 }
 
 // Action kinds.
@@ -32,17 +32,91 @@ const (
 	ActFall           = "fall"     // a character went down on Hex
 )
 
+// actions is every action kind: what it needs to be applied, checked
+// before anything changes, and what it does.
+var actions = map[string]struct {
+	check func(*State, Action) error
+	apply func(*State, fact.Log, Action) error
+}{
+	ActOpenSettlement: {nil, func(s *State, _ fact.Log, _ Action) error {
+		s.OpenSettlement()
+		return nil
+	}},
+	ActDiscover: {needsBy, func(s *State, log fact.Log, a Action) error { return s.Discover(log, a.Hex, a.By) }},
+	ActVisit: {needsBy, func(s *State, log fact.Log, a Action) error {
+		t := s.touch(a.Hex)
+		t.Visit(s.tp, a.By, s.Tick)
+		if a.Dir != nil && *a.Dir >= 0 && *a.Dir < hex.Directions {
+			back := (*a.Dir + hex.Directions/halves) % hex.Directions
+			s.touch(a.Hex.Neighbour(back)).Leave(*a.Dir)
+		}
+		return s.Discover(log, a.Hex, a.By)
+	}},
+	ActGather: {func(_ *State, a Action) error {
+		if a.Material == "" || a.Units <= 0 {
+			return fmt.Errorf("world: gather of %d %q", a.Units, a.Material)
+		}
+		return nil
+	}, func(s *State, _ fact.Log, a Action) error {
+		s.touch(a.Hex).Gather(a.Material, a.Units)
+		if r := s.RegionAt(a.Hex); r >= 0 {
+			s.addGauge(r, s.GaugeIndex("scarcity"), a.Units*s.wp("gather-scarcity"))
+		}
+		return nil
+	}},
+	ActWinBeat: {nil, func(s *State, _ fact.Log, a Action) error {
+		s.touch(a.Hex).WonBeat(a.Tag)
+		if r := s.RegionAt(a.Hex); r >= 0 {
+			s.addGauge(r, s.GaugeIndex("threat"), s.wp("beat-won-threat"))
+		}
+		return nil
+	}},
+	ActSlay: {func(s *State, a Action) error {
+		if s.creature(a.Species) == nil {
+			return fmt.Errorf("world: slay of unknown species %q", a.Species)
+		}
+		return nil
+	}, func(s *State, _ fact.Log, a Action) error {
+		s.slay(a.Hex, a.Species)
+		return nil
+	}},
+	ActFall: {nil, func(s *State, _ fact.Log, a Action) error {
+		s.touch(a.Hex).BattlesLost++
+		return nil
+	}},
+}
+
+func needsBy(_ *State, a Action) error {
+	if a.By.ID == "" {
+		return fmt.Errorf("world: %s with no one doing it", a.Kind)
+	}
+	return nil
+}
+
 // Advance runs the world to tick, which must be the next one: the
-// actions first, then every clock that falls due (GDD 4.7). It returns
-// the facts it wrote. The state is changed in place and returned.
-func Advance(s *State, log fact.Log, actions []Action, tick int64) (*State, []fact.Fact, error) {
+// actions, then every clock that falls due (GDD 4.7). It changes the
+// state in place and returns it with the facts written. An error after
+// the actions' checks leaves the state part-way; the caller restores
+// from a snapshot.
+func Advance(s *State, log fact.Log, acts []Action, tick int64) (*State, []fact.Fact, error) {
 	if tick != s.Tick+1 {
 		return s, nil, fmt.Errorf("world: advance to tick %d from %d", tick, s.Tick)
 	}
+	for _, a := range acts {
+		act, ok := actions[a.Kind]
+		if !ok {
+			return s, nil, fmt.Errorf("world: unknown action %q", a.Kind)
+		}
+		if act.check != nil {
+			if err := act.check(s, a); err != nil {
+				return s, nil, err
+			}
+		}
+	}
 	first := fact.ID(log.Len())
 	s.Tick = tick
-	for _, a := range actions {
-		if err := s.apply(log, a); err != nil {
+	for _, a := range acts {
+		if err := actions[a.Kind].apply(s, log, a); err != nil {
 			return s, nil, err
 		}
 	}
@@ -59,48 +133,18 @@ func Advance(s *State, log fact.Log, actions []Action, tick int64) (*State, []fa
 
 // AdvanceDay runs the world through to the end of the next world day,
 // with no actions.
-func (s *State) AdvanceDay(log fact.Log) error {
-	for range ticksPerDay {
-		if _, _, err := Advance(s, log, nil, s.Tick+1); err != nil {
+func (s *State) AdvanceDay(log fact.Log) error { return s.AdvanceDayWith(log, nil) }
+
+// AdvanceDayWith is AdvanceDay with actions on its first tick.
+func (s *State) AdvanceDayWith(log fact.Log, first []Action) error {
+	for i := range ticksPerDay {
+		var acts []Action
+		if i == 0 {
+			acts = first
+		}
+		if _, _, err := Advance(s, log, acts, s.Tick+1); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (s *State) apply(log fact.Log, a Action) error {
-	switch a.Kind {
-	case ActOpenSettlement:
-		s.OpenSettlement()
-	case ActDiscover:
-		return s.Discover(log, a.Hex, a.By)
-	case ActVisit:
-		t := s.touch(a.Hex)
-		t.Visit(s.tp, a.By, s.Tick)
-		if a.Dir >= 0 && a.Dir < hex.Directions {
-			back := (a.Dir + hex.Directions/halves) % hex.Directions
-			s.touch(a.Hex.Neighbour(back)).Leave(a.Dir)
-		}
-		return s.Discover(log, a.Hex, a.By)
-	case ActGather:
-		s.touch(a.Hex).Gather(a.Material, a.Units)
-		if r := s.RegionAt(a.Hex); r >= 0 {
-			sc := s.gaugeIndex("scarcity")
-			s.Regions[r].Gauge[sc] = min(s.b.Gauges[sc].Max, s.Regions[r].Gauge[sc]+a.Units*s.wp("gather-scarcity"))
-		}
-	case ActWinBeat:
-		s.touch(a.Hex).WonBeat(a.Tag)
-		if r := s.RegionAt(a.Hex); r >= 0 {
-			th := s.gaugeIndex("threat")
-			s.Regions[r].Gauge[th] = max(0, s.Regions[r].Gauge[th]+s.wp("beat-won-threat"))
-		}
-	case ActSlay:
-		s.slay(a.Hex, a.Species)
-	case ActFall:
-		t := s.touch(a.Hex)
-		t.BattlesLost++
-	default:
-		return fmt.Errorf("world: unknown action %q", a.Kind)
 	}
 	return nil
 }
@@ -118,12 +162,11 @@ func (d *day) emit(kind, region string, subjects []fact.Ref, causes []fact.ID, d
 	if d.err != nil || d.log == nil {
 		return 0
 	}
-	w, ok := d.s.weights[kind]
-	if !ok {
-		d.err = fmt.Errorf("world: no weight for fact kind %s", kind)
+	f, err := d.s.weights.New(d.s.Tick, kind, region, subjects, causes, data...)
+	if err != nil {
+		d.err = err
 		return 0
 	}
-	f := fact.Fact{Tick: d.s.Tick, Kind: kind, Region: region, Subjects: subjects, Causes: causes, Data: data, Weight: w}
 	id, err := d.log.Append(f)
 	if err != nil {
 		d.err = err
@@ -140,8 +183,8 @@ func (d *day) remember(f fact.Fact) {
 	if f.Weight < d.s.tp.HeavyFact {
 		return
 	}
-	var r int
-	if _, err := fmt.Sscanf(f.Region, "r-%d", &r); err != nil || r < 0 || r >= len(d.s.Regions) {
+	r, ok := ParseRegionRef(f.Region)
+	if !ok || r < 0 || r >= len(d.s.Regions) {
 		return
 	}
 	d.s.touch(d.s.centre(r)).Remember(d.s.tp, f)
@@ -210,7 +253,7 @@ func (d *day) open() {
 				calmer++
 			}
 		}
-		d.emit("land.calmer", regionRef(r), nil, nil, fact.N("settlement", int64(home.N)), fact.N("regions", calmer))
+		d.emit("land.calmer", RegionRef(r), nil, nil, fact.N("settlement", int64(home.N)), fact.N("regions", calmer))
 	}
 }
 

@@ -2,9 +2,19 @@ package sheets
 
 import (
 	"reflect"
+	"slices"
 
 	"jams.team/mmo-world/sim/fixed"
 )
+
+// TagWet marks terrain that holds water.
+const TagWet = "wet"
+
+// Wet reports whether the terrain holds water.
+func (t *Terrain) Wet() bool { return slices.Contains(t.Tags, TagWet) }
+
+// structural: the world clock's day, what turns a days cell into ticks.
+const TicksPerDay = 144
 
 // QuantityUnits are the units a number can carry (GDD 2.1), plus the
 // dimensionless ones a sheet needs.
@@ -38,8 +48,8 @@ func Lookup[T any](rows []T) map[string]*T {
 	return out
 }
 
-// Param finds a cell in a params sheet. A missing cell is a sheet error the
-// Check run reports; inside the sim it panics.
+// ParamOf finds a cell in a params sheet. A missing cell is a sheet error
+// the Check run reports; inside the sim it panics.
 func ParamOf(rows []Param, id string) fixed.F {
 	for _, r := range rows {
 		if r.ID == id {

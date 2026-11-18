@@ -1,8 +1,10 @@
 package world
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
@@ -85,7 +87,7 @@ func (s *State) discoverRegion(log fact.Log, id gen.LatticeID) error {
 	s.Regions[i].Discovered = true
 	s.relink()
 	d := &day{s: s, log: log}
-	d.emit("region.discovered", regionRef(i), nil, nil, fact.N("distance", s.g.Region(id).Distance))
+	d.emit("region.discovered", RegionRef(i), nil, nil, fact.N("distance", s.g.Region(id).Distance))
 	d.finds(i)
 	s.seatFactions(d)
 	return d.err
@@ -110,7 +112,7 @@ func (s *State) wake(id gen.LatticeID) {
 		if g.ID == "corruption" {
 			top = corruptionHi
 		}
-		v := lo + int64(s.d.Below(uint64(top-lo+1), "world.baseline", append(who, draw.Int(int64(gi)))...))
+		v := s.d.Between(lo, top, "world.baseline", append(who, draw.Int(int64(gi)))...)
 		reg.Gauge = append(reg.Gauge, v)
 		reg.Base = append(reg.Base, v)
 	}
@@ -155,7 +157,7 @@ func (d *day) finds(i int) {
 	var news []Find
 	add := func(kind, key string, vector []int64) {
 		k := kind + ":" + key
-		if _, ok := slices.BinarySearchFunc(s.Finds, k, func(f Find, k string) int { return compareStr(f.Key, k) }); ok {
+		if _, ok := slices.BinarySearchFunc(s.Finds, k, func(f Find, k string) int { return strings.Compare(f.Key, k) }); ok {
 			return
 		}
 		for _, n := range news {
@@ -186,31 +188,19 @@ func (d *day) finds(i int) {
 		add("pattern", p, nil)
 	}
 	band := base.Distance / noveltyBand * noveltyBand
-	k := slices.IndexFunc(s.Novelty, func(n NoveltyBand) bool { return n.Band == band })
-	if k < 0 {
-		s.Novelty = append(s.Novelty, NoveltyBand{Band: band})
-		slices.SortFunc(s.Novelty, func(a, b NoveltyBand) int { return int(a.Band - b.Band) })
-		k = slices.IndexFunc(s.Novelty, func(n NoveltyBand) bool { return n.Band == band })
+	k, ok := slices.BinarySearchFunc(s.Novelty, band, func(n NoveltyBand, b int64) int { return cmp.Compare(n.Band, b) })
+	if !ok {
+		s.Novelty = slices.Insert(s.Novelty, k, NoveltyBand{Band: band})
 	}
 	s.Novelty[k].Regions++
 	if len(news) > 0 {
 		s.Novelty[k].Novel++
 	}
 	for _, f := range news {
-		f.Fact = d.emit("find.first-sight", regionRef(i), nil, nil, fact.S("find", f.Key), fact.N("tier", f.Tier))
+		f.Fact = d.emit("find.first-sight", RegionRef(i), nil, nil, fact.S("find", f.Key), fact.N("tier", f.Tier))
 		s.Finds = append(s.Finds, f)
 	}
-	slices.SortFunc(s.Finds, func(a, b Find) int { return compareStr(a.Key, b.Key) })
-}
-
-func compareStr(a, b string) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	}
-	return 0
+	slices.SortFunc(s.Finds, func(a, b Find) int { return strings.Compare(a.Key, b.Key) })
 }
 
 // patternsIn lists the pattern instances with a point in a region.
@@ -279,9 +269,6 @@ func (s *State) seatFactions(d *day) {
 			ID: i, Archetype: arch, Seat: seat, Stock: s.p("start-stock"),
 			Head: heads[s.d.Below(uint64(len(heads)), "world.faction-name", draw.Int(int64(i)))],
 		}
-		for j := range s.Factions {
-			s.Factions[j].grow()
-		}
 		s.Factions = append(s.Factions, f)
 		for j := range s.Factions {
 			for len(s.Factions[j].Disposition) < len(s.Factions) {
@@ -290,7 +277,7 @@ func (s *State) seatFactions(d *day) {
 		}
 		s.Regions[seat].Holder, s.Regions[seat].Defence = i, s.p("holding-defence")
 		s.appoint(d, i, true)
-		d.emit("faction.seated", regionRef(seat), []fact.Ref{factionRef(i)}, nil)
+		d.emit("faction.seated", RegionRef(seat), []fact.Ref{factionRef(i)}, nil)
 	}
 }
 
@@ -299,5 +286,5 @@ func (s *State) centre(r int) hex.Hex { return s.g.Region(s.Regions[r].Lattice).
 // Describe names a region for reports.
 func (s *State) Describe(r int) string {
 	id := s.Regions[r].Lattice
-	return fmt.Sprintf("%s (%s)", regionRef(r), latticeRef(id))
+	return fmt.Sprintf("%s (%s)", RegionRef(r), latticeRef(id))
 }

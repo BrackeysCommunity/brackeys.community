@@ -213,8 +213,16 @@ func Load(files []File) (*Book, error) {
 
 var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// Rows returns a sheet's rows as reflect values.
+// rows returns a sheet's rows as reflect values.
 func (b *Book) rows(d Def) reflect.Value { return reflect.ValueOf(b).Elem().Field(d.field) }
+
+// Params returns a sheet's rows when it is a params sheet.
+func (b *Book) Params(d Def) ([]Param, bool) {
+	if d.Row != reflect.TypeFor[Param]() {
+		return nil, false
+	}
+	return b.rows(d).Interface().([]Param), true
+}
 
 // IDs returns every id in a sheet, in row order.
 func (b *Book) IDs(sheet string) []string {
@@ -289,6 +297,19 @@ func checkValue(v reflect.Value, where string, has func(sheet, id string) bool) 
 	return errs
 }
 
+// EnumValues is a column's allowed values from its enum tag ("a|b", or
+// "quantity" for QuantityUnits); nil when it has none.
+func EnumValues(f reflect.StructField) []string {
+	switch e := f.Tag.Get("enum"); e {
+	case "":
+		return nil
+	case "quantity":
+		return QuantityUnits
+	default:
+		return strings.Split(e, "|")
+	}
+}
+
 func checkCell(f reflect.StructField, v reflect.Value, at string, has func(sheet, id string) bool) []error {
 	var errs []error
 	var strs []string
@@ -310,13 +331,10 @@ func checkCell(f reflect.StructField, v reflect.Value, at string, has func(sheet
 			errs = append(errs, fmt.Errorf("%s: %s is above %s", at, cellString(v), hi))
 		}
 	}
-	enum := f.Tag.Get("enum")
-	if enum == "quantity" {
-		enum = strings.Join(QuantityUnits, "|")
-	}
+	enum := EnumValues(f)
 	for _, s := range strs {
-		if enum != "" && !slices.Contains(strings.Split(enum, "|"), s) {
-			errs = append(errs, fmt.Errorf("%s: %q is not one of %s", at, s, enum))
+		if enum != nil && !slices.Contains(enum, s) {
+			errs = append(errs, fmt.Errorf("%s: %q is not one of %s", at, s, strings.Join(enum, "|")))
 		}
 		switch ref := f.Tag.Get("ref"); ref {
 		case "":

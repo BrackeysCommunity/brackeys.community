@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"testing"
 
-	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 )
 
 func book(t *testing.T) *sheets.Book {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,20 +32,20 @@ func newGen(t *testing.T, b *sheets.Book, label string) *gen.Gen {
 }
 
 func TestHexBasics(t *testing.T) {
-	if n := len(gen.Ring(gen.Hex{}, 24)); n != 144 {
+	if n := len(hex.Ring(gen.Hex{}, 24)); n != 144 {
 		t.Fatalf("ring of 24 has %d tiles", n)
 	}
-	for _, h := range gen.Ring(gen.Hex{Q: 3, R: -1}, 5) {
-		if gen.Distance(h, gen.Hex{Q: 3, R: -1}) != 5 {
+	for _, h := range hex.Ring(gen.Hex{Q: 3, R: -1}, 5) {
+		if hex.Distance(h, gen.Hex{Q: 3, R: -1}) != 5 {
 			t.Fatalf("%v is not 5 steps out", h)
 		}
 	}
-	if n := len(gen.Disc(25)); n != 1951 || gen.DiscSize(25) != 1951 {
+	if n := len(hex.Disc(25)); n != 1951 || hex.DiscSize(25) != 1951 {
 		t.Fatalf("disc of 25 has %d tiles", n)
 	}
-	line := gen.Line(gen.Hex{}, gen.Hex{Q: 7, R: -3})
+	line := hex.Line(gen.Hex{}, gen.Hex{Q: 7, R: -3})
 	for i := 1; i < len(line); i++ {
-		if gen.Distance(line[i-1], line[i]) != 1 {
+		if hex.Distance(line[i-1], line[i]) != 1 {
 			t.Fatalf("line skips at %d: %v", i, line)
 		}
 	}
@@ -61,7 +62,7 @@ func TestChunksTile(t *testing.T) {
 	seen := map[gen.Hex]gen.ChunkCoord{}
 	for _, cc := range []gen.ChunkCoord{{0, 0}, {1, 0}, {0, 1}, {-1, 1}, {2, -3}, {-4, 5}} {
 		c := g.Chunk(cc)
-		if int64(len(c.Tiles)) != gen.DiscSize(n) {
+		if int64(len(c.Tiles)) != hex.DiscSize(n) {
 			t.Fatalf("chunk %v has %d tiles", cc, len(c.Tiles))
 		}
 		for _, tile := range c.Tiles {
@@ -74,8 +75,8 @@ func TestChunksTile(t *testing.T) {
 			}
 		}
 	}
-	for _, h := range gen.Disc(60) {
-		if gen.Distance(g.ChunkCentre(g.ChunkOf(h)), h) > n {
+	for _, h := range hex.Disc(60) {
+		if hex.Distance(g.ChunkCentre(g.ChunkOf(h)), h) > n {
 			t.Fatalf("%v is outside its chunk", h)
 		}
 	}
@@ -220,7 +221,7 @@ func TestAreaPath(t *testing.T) {
 
 // A chunk from a fresh generator, which pays for its neighbourhood.
 func BenchmarkColdChunk(b *testing.B) {
-	bk, err := harness.LoadBook(harness.ModuleRoot())
+	bk, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -235,11 +236,11 @@ func BenchmarkColdChunk(b *testing.B) {
 	}
 }
 
-// Pass two fills every baseline field: water classes, cover in range, ore
+// Every baseline field is filled: water classes, cover in range, ore
 // higher in the hills than on the plain, landmarks and region materials.
-func TestPassTwo(t *testing.T) {
+func TestBaselineFields(t *testing.T) {
 	b := book(t)
-	g := newGen(t, b, "pass-two")
+	g := newGen(t, b, "baseline-fields")
 	a := g.DiscArea(g.Settlement(0).Hex, 80)
 	water := map[string]int{}
 	marks := 0

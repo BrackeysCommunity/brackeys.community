@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -26,16 +27,17 @@ type RegionBaseline struct {
 	Edge         string
 	EdgeMaterial *FarMaterial
 	EdgeCreature string
-	// Materials are the 3 to 5 authored kinds the region holds, weighted
-	// toward its biome; the world offers those its tier allows.
+	// Materials are the authored kinds the region holds
+	// (region-materials-min to -max), weighted toward its biome; the world
+	// offers those its tier allows.
 	Materials []string
 }
 
 // FarMaterial is a material generated past far-material-min-tiles: a keyed
-// axis profile at 60% to 75% of a tier's budget, tagged by its biome. Its
-// id names its biome and lattice cell; the pack names it. Tier depends on
-// which settlements are open, so the world freezes its vector at the tier
-// it is first discovered at.
+// axis profile at far-budget-min to far-budget-max percent of a tier's
+// budget, tagged by its biome. Its id names its biome and lattice cell; the
+// pack names it. The world freezes its vector at the tier it is first
+// discovered at, since tier depends on which settlements are open.
 type FarMaterial struct {
 	ID      string
 	Biome   string
@@ -98,11 +100,11 @@ func (g *Gen) pickAt(h Hex, pass int) LatticeID {
 	}
 	terrain := g.raw(h).terrain
 	ok := func(id LatticeID, d int64) bool {
-		return pass == 0 || (g.sizeAt(id, pass-1) >= g.p.regionFloor && DiscSize(d) <= g.p.regionCeiling)
+		return pass == 0 || (g.sizeAt(id, pass-1) >= g.p.regionFloor && hex.DiscSize(d) <= g.p.regionCeiling)
 	}
 	best, bestD, match, found := LatticeID{}, int64(0), false, false
 	for _, id := range g.regions.Near(h, g.p.regionMatch) {
-		d := Distance(g.regions.At(id), h)
+		d := hex.Distance(g.regions.At(id), h)
 		if !ok(id, d) {
 			continue
 		}
@@ -115,7 +117,7 @@ func (g *Gen) pickAt(h Hex, pass int) LatticeID {
 	// Nothing within reach passes: the nearest centre that takes tiles.
 	for reach := g.p.regionMatch; !found; reach += g.p.regionSpacing {
 		for _, id := range g.regions.Near(h, reach) {
-			d := Distance(g.regions.At(id), h)
+			d := hex.Distance(g.regions.At(id), h)
 			if (pass == 0 || g.sizeAt(id, pass-1) >= g.p.regionFloor) && (!found || d < bestD) {
 				best, bestD, found = id, d, true
 			}
@@ -132,7 +134,7 @@ func (g *Gen) sizeAt(id LatticeID, pass int) int64 {
 		return n
 	}
 	n := int64(0)
-	for _, h := range DiscAt(g.regions.At(id), g.p.regionMatch) {
+	for _, h := range hex.DiscAt(g.regions.At(id), g.p.regionMatch) {
 		if g.pickAt(h, pass) == id {
 			n++
 		}
@@ -173,7 +175,7 @@ func (g *Gen) centreBiome(id LatticeID) string {
 		return t
 	}
 	count := make([]int, len(g.b.Terrain))
-	for _, h := range DiscAt(g.regions.At(id), g.p.regionCore) {
+	for _, h := range hex.DiscAt(g.regions.At(id), g.p.regionCore) {
 		for k, t := range g.b.Terrain {
 			if t.ID == g.raw(h).terrain {
 				count[k]++
@@ -196,7 +198,7 @@ func (g *Gen) centreBiome(id LatticeID) string {
 // centres of its own.
 func (g *Gen) regionTiles(id LatticeID) []Hex {
 	var out []Hex
-	for _, h := range DiscAt(g.regions.At(id), g.p.regionMatch) {
+	for _, h := range hex.DiscAt(g.regions.At(id), g.p.regionMatch) {
 		if g.region(h) == id {
 			out = append(out, h)
 		}
@@ -232,7 +234,7 @@ func (g *Gen) Region(id LatticeID) *RegionBaseline {
 					tags = append(tags, v.Tag)
 				}
 			}
-			if len(tags) > 0 && int64(g.d.Below(percent, "region.variant", who...)) < g.p.variantShare {
+			if len(tags) > 0 && g.d.Percent(g.p.variantShare, "region.variant", who...) {
 				r.Variant = tags[g.d.Below(uint64(len(tags)), "region.variant-tag", who...)]
 			}
 		}
@@ -248,16 +250,24 @@ func (g *Gen) Region(id LatticeID) *RegionBaseline {
 // farMaterial is the far material of a biome in the cell holding h.
 func (g *Gen) farMaterial(biome int, h Hex) *FarMaterial {
 	b := g.b.Biomes[biome]
-	ci, cj := floorDiv(h.Q, g.p.farCell), floorDiv(h.R, g.p.farCell)
-	id := "far." + b.ID + "." + itoa(ci) + "." + itoa(cj)
+	return g.farAt("far", b.ID, h, "far.share", nil, func() []string {
+		return append(slices.Clone(g.terrain[b.Terrain].Tags), b.MaterialTags...)
+	})
+}
+
+// farAt is the generated material of an owner (a biome or an ecotone) in
+// the lattice cell holding at, made once and cached: a keyed share of the
+// tier budget and a keyed profile, salted by salt.
+func (g *Gen) farAt(prefix, owner string, at Hex, share draw.Purpose, salt []draw.Part, tags func() []string) *FarMaterial {
+	ci, cj := hex.FloorDiv(at.Q, g.p.farCell), hex.FloorDiv(at.R, g.p.farCell)
+	id := prefix + "." + owner + "." + itoa(ci) + "." + itoa(cj)
 	if m, ok := g.far[id]; ok {
 		return m
 	}
-	who := []draw.Part{draw.Str(b.ID), draw.Int(ci), draw.Int(cj)}
-	m := &FarMaterial{ID: id, Biome: b.ID}
-	m.Share = g.p.farLo + int64(g.d.Below(uint64(g.p.farHi-g.p.farLo+1), "far.share", who...))
-	m.Profile = g.profile(who)
-	m.Tags = append(slices.Clone(g.terrain[b.Terrain].Tags), b.MaterialTags...)
+	who := []draw.Part{draw.Str(owner), draw.Int(ci), draw.Int(cj)}
+	m := &FarMaterial{ID: id, Biome: owner, Tags: tags()}
+	m.Share = g.d.Between(g.p.farLo, g.p.farHi, share, who...)
+	m.Profile = g.profile(append(slices.Clone(salt), who...))
 	g.far[id] = m
 	return m
 }
@@ -281,8 +291,8 @@ func (g *Gen) profile(who []draw.Part) []int64 {
 	return out
 }
 
-// sitesOf places 3 to 6 sites on a region's free passable tiles, one of
-// them a dungeon in one region of every few.
+// sitesOf places sites-min to sites-max sites on a region's free passable
+// tiles, one a dungeon in one region per dungeon-region-share.
 func (g *Gen) sitesOf(id LatticeID) map[Hex]string {
 	if s, ok := g.regionSites[id]; ok {
 		return s
@@ -299,7 +309,7 @@ func (g *Gen) sitesOf(id LatticeID) map[Hex]string {
 	out := map[Hex]string{}
 	if len(free) > 0 {
 		who := []draw.Part{draw.Int(id.I), draw.Int(id.J)}
-		n := g.p.sitesMin + int64(g.d.Below(uint64(g.p.sitesMax-g.p.sitesMin+1), "sites.count", who...))
+		n := g.d.Between(g.p.sitesMin, g.p.sitesMax, "sites.count", who...)
 		order := g.d.Shuffle(len(free), "sites.where", who...)
 		dungeon := g.d.Below(uint64(g.p.dungeonShare), "sites.dungeon", who...) == 0
 		for k := int64(0); k < n && k < int64(len(free)); k++ {
@@ -336,7 +346,7 @@ func (g *Gen) regionMaterials(id LatticeID, biome int) []string {
 			}
 		}
 	}
-	n := g.p.matMin + int64(g.d.Below(uint64(g.p.matMax-g.p.matMin+1), "region.materials", who...))
+	n := g.d.Between(g.p.matMin, g.p.matMax, "region.materials", who...)
 	var out []string
 	for k := int64(0); k < n && k < int64(len(weights)); k++ {
 		i := g.d.Pick(weights, "region.material", append(who, draw.Int(k))...)
@@ -366,7 +376,7 @@ func (g *Gen) landmarkOf(id LatticeID) landmark {
 			kinds = append(kinds, l.ID)
 		}
 	}
-	if len(kinds) > 0 && int64(g.d.Below(percent, "landmark.region", who...)) < g.p.landmarkShare {
+	if len(kinds) > 0 && g.d.Percent(g.p.landmarkShare, "landmark.region", who...) {
 		sites := g.sitesOf(id)
 		best, found := Hex{}, false
 		for _, h := range g.regionTiles(id) {

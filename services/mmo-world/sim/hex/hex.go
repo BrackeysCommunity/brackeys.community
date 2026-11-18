@@ -89,10 +89,33 @@ func DiscAt(centre Hex, radius int64) []Hex {
 	return out
 }
 
+// DiscOffset is the kth tile of Disc(radius), found without walking the
+// rings before it.
+func DiscOffset(radius, k int64) Hex {
+	if k == 0 {
+		return Hex{}
+	}
+	k--
+	for ring := int64(1); ring <= radius; ring++ {
+		if n := int64(Directions) * ring; k >= n {
+			k -= n
+			continue
+		}
+		side, step := k/ring, k%ring
+		h := directions[ringStartDir].Scale(ring)
+		for d := range side {
+			h = h.Add(directions[d].Scale(ring))
+		}
+		return h.Add(directions[side].Scale(step))
+	}
+	return Hex{}
+}
+
 // DiscSize is the number of tiles within radius of a tile.
 func DiscSize(radius int64) int64 { return discSides*radius*radius + discSides*radius + 1 }
 
-// Rotate turns an offset by k sixths of a turn, anticlockwise.
+// Rotate turns an offset by k sixths of a turn, clockwise as render
+// draws the map (east goes to south-east).
 func (h Hex) Rotate(k int64) Hex {
 	n := int64(Directions)
 	k = ((k % n) + n) % n
@@ -102,7 +125,8 @@ func (h Hex) Rotate(k int64) Hex {
 	return h
 }
 
-// Mirror reflects an offset across the east-west axis.
+// Mirror reflects an offset across the q axis: r and s swap, so east
+// goes to north-east.
 func (h Hex) Mirror() Hex { return Hex{h.Q, h.S()} }
 
 // Less orders hexes by q, then r: the tie-break everywhere order matters.

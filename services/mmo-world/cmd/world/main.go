@@ -1,6 +1,6 @@
 // Command world is the world service: the only writer of game state and
-// the only holder of the keys. For now it loads its configuration, derives
-// the keys and the sheets, and reports what it would run with.
+// the only holder of the keys. It loads its configuration, derives the
+// keys and the sheets, and reports what it would run with.
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 	"os"
 	"strconv"
 
-	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/keys"
 )
 
@@ -19,6 +19,7 @@ const (
 	envMaster = "MMO_MASTER_SECRET"
 	envWorld  = "MMO_WORLD_ID"
 	envEpoch  = "MMO_ROLL_EPOCH"
+	envSheets = "MMO_SHEETS_ROOT" // the directory holding sheets/ and packs/; the working directory when unset
 )
 
 func main() {
@@ -38,7 +39,11 @@ func main() {
 		fail(err.Error())
 	}
 	clear(master)
-	book, err := harness.LoadBook(harness.ModuleRoot())
+	root := os.Getenv(envSheets)
+	if root == "" {
+		root = "."
+	}
+	book, err := sheetfs.LoadBook(root)
 	if err != nil {
 		fail(err.Error())
 	}

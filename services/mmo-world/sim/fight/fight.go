@@ -7,7 +7,9 @@ import (
 	"cmp"
 	"slices"
 
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
@@ -18,7 +20,7 @@ import (
 
 // structural: a percentage is hundredths; a score halves its stat.
 const (
-	percent  = 100
+	percent  = fixed.Hundredths
 	statHalf = 2
 )
 
@@ -50,7 +52,7 @@ type Rules struct {
 	hunts      map[string]*sheets.Hunt
 	params     []sheets.Param
 	wearParams []sheets.Param
-	weights    map[string]int64
+	weights    fact.Weights
 	roll       *draw.Drawer
 	gen        *draw.Drawer
 }
@@ -63,7 +65,7 @@ func New(b *sheets.Book, d *item.Deriver, g *item.Growth, p *puzzle.Puzzles, k k
 	r := &Rules{D: d, G: g, P: p, rules: rs, tiers: map[int64]*sheets.FightTier{}, beats: sheets.Lookup(b.Beats),
 		beatTags: b.BeatTags, options: b.Options, states: map[tags.Tag]*sheets.StateRow{}, traitFx: b.TraitEffects,
 		margins: b.Margins, bands: b.OddsBands, pairings: b.Pairings, creatures: sheets.Lookup(b.Creatures),
-		hunts: sheets.Lookup(b.Hunts), params: b.FightParams, wearParams: b.WearParams, weights: map[string]int64{},
+		hunts: sheets.Lookup(b.Hunts), params: b.FightParams, wearParams: b.WearParams, weights: fact.NewWeights(b.FactWeights),
 		roll: draw.NewDrawer(k.Roll), gen: draw.NewDrawer(k.Generation)}
 	for i := range b.FightTiers {
 		r.tiers[b.FightTiers[i].Tier] = &b.FightTiers[i]
@@ -73,9 +75,6 @@ func New(b *sheets.Book, d *item.Deriver, g *item.Growth, p *puzzle.Puzzles, k k
 	}
 	for i := range b.States {
 		r.states[tags.Tag(b.States[i].Tag)] = &b.States[i]
-	}
-	for _, w := range b.FactWeights {
-		r.weights[w.Kind] = w.Weight
 	}
 	slices.SortFunc(r.bands, func(a, c sheets.OddsBand) int { return cmp.Compare(a.Rank, c.Rank) })
 	return r, nil
@@ -111,18 +110,31 @@ type Kit struct {
 
 func (k Kit) slot(s string) *Gear {
 	switch s {
-	case "hand":
+	case char.Hand:
 		return k.Hand
-	case "off-hand":
+	case char.OffHand:
 		return k.OffHand
-	case "body":
+	case char.Body:
 		return k.Body
-	case "deck":
+	case deckSlot:
 		if k.OffHand != nil && k.Exploit != nil && k.OffHand.has("focus") {
 			return k.Exploit
 		}
 	}
 	return nil
+}
+
+// deckSlot is an option's slot for the exploit an off-hand focus holds.
+const deckSlot = "deck"
+
+// drop takes broken gear out of the kit.
+func (k *Kit) drop(g *Gear) {
+	for _, p := range []**Gear{&k.Hand, &k.OffHand, &k.Body, &k.Exploit} {
+		if *p == g {
+			*p = nil
+		}
+	}
+	k.Charms = slices.DeleteFunc(k.Charms, func(c *Gear) bool { return c == g })
 }
 
 func (k Kit) all() []*Gear {

@@ -32,6 +32,14 @@ type Datum struct {
 func N(key string, n int64) Datum { return Datum{Key: key, N: n} }
 func S(key, s string) Datum       { return Datum{Key: key, S: s} }
 
+// B is a flag datum: 1 for true, 0 for false.
+func B(key string, b bool) Datum {
+	if b {
+		return N(key, 1)
+	}
+	return N(key, 0)
+}
+
 type Fact struct {
 	ID       ID      `json:"id"`
 	Tick     int64   `json:"tick"`
@@ -53,8 +61,7 @@ func (f Fact) Get(key string) (Datum, bool) {
 	return f.Data[i], true
 }
 
-// Log is the append-only ledger. A world service backs it with the fact
-// table; the harness and the spikes use Mem.
+// Log is the append-only ledger; Mem keeps it in memory.
 type Log interface {
 	// Append stores f, assigning its ID, and returns that ID.
 	Append(f Fact) (ID, error)

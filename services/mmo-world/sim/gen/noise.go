@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -11,7 +13,7 @@ import (
 const (
 	smoothThree = 3
 	smoothTwo   = 2
-	percent     = 100
+	percent     = fixed.Hundredths
 )
 
 // raw is what noise alone makes of a tile, before anything yields. Where
@@ -184,7 +186,7 @@ func (g *Gen) lattice(field int, octave, cell, top int64, h Hex) int64 {
 
 func (g *Gen) latticeXY(field int, octave, cell, top, x, y int64) int64 {
 	s := cell * xPerTile
-	i, j := floorDiv(x, s), floorDiv(y, s)
+	i, j := hex.FloorDiv(x, s), hex.FloorDiv(y, s)
 	ax, ay := smooth(x-i*s, s), smooth(y-j*s, s)
 	purpose := draw.Purpose(g.purposes[field])
 	var blk *[blockArea]int64
@@ -231,6 +233,22 @@ func (g *Gen) passableNear(elevation int64) string {
 }
 
 func (g *Gen) passable(terrain string) bool { return g.terrain[terrain].Passable }
+
+// Terrain is a map.terrain row, or nil.
+func (g *Gen) Terrain(id string) *sheets.Terrain { return g.terrain[id] }
+
+// StepTicks is the baseline cost on foot onto a tile of terrain ter: a
+// river is quick to follow and slow to cross.
+func (g *Gen) StepTicks(ter string, fromRiver, toRiver bool) int64 {
+	enter := g.terrain[ter].EnterTicks
+	if toRiver {
+		if fromRiver {
+			return g.p.along
+		}
+		return max(g.p.across, enter)
+	}
+	return enter
+}
 
 // variant is the biome variant a tile turns into, or "": its terrain's
 // variant past the row's distance, where the variant's own noise is low.

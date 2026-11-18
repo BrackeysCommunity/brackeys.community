@@ -2,12 +2,12 @@ package harness
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
@@ -17,30 +17,23 @@ import (
 )
 
 const (
-	spikeBHorizon    = 30 // discovered: regions within this many tiles of the first starting settlement
-	spikeBDays       = 90
-	spikeBMoving     = 60 // threat span that counts as still moving
-	spikeBMaxOverrun = 3  // regions overrun on day 90 that still count as no collapse
+	spikeBHorizon = 30 // discovered: regions within this many tiles of the first starting settlement
+	daysPerWeek   = 7  // the chronicle folds a faction's expansions by the week
 )
 
 type runB struct {
 	w     *gen.Area
 	s     *world.State
 	log   *fact.Mem
-	daily [][]int64 // per day: threat of every region
+	daily threatTrace
 }
 
 func runWorldB(b *sheets.Book, seed int) (*runB, error) {
-	k := keys.Throwaway(fmt.Sprintf("spike-b-%d", seed))
-	g, err := gen.New(b, k.Generation)
+	g, s, err := newWorld(b, fmt.Sprintf("spike-b-%d", seed))
 	if err != nil {
 		return nil, err
 	}
 	w := g.Discovered(g.Settlement(0).Hex, spikeBHorizon)
-	s, err := world.New(b, g, k.Roll)
-	if err != nil {
-		return nil, err
-	}
 	r := &runB{w: w, s: s, log: &fact.Mem{}}
 	// Discovered: the regions whose centres lie within the horizon of the
 	// first settlement; the world wakes the regions round them.
@@ -49,20 +42,12 @@ func runWorldB(b *sheets.Book, seed int) (*runB, error) {
 			return nil, err
 		}
 	}
-	threat := slices.IndexFunc(b.Gauges, func(g sheets.Gauge) bool { return g.ID == "threat" })
-	snap := func() {
-		var t []int64
-		for _, reg := range s.Regions {
-			t = append(t, reg.Gauge[threat])
-		}
-		r.daily = append(r.daily, t)
-	}
-	snap()
-	for range spikeBDays {
+	r.daily.snap(s)
+	for range worldDays {
 		if err := s.AdvanceDay(r.log); err != nil {
 			return nil, err
 		}
-		snap()
+		r.daily.snap(s)
 	}
 	return r, nil
 }
@@ -75,7 +60,7 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	switch variant {
 	case "":
 	case "spill-only-when-overrun":
-		// Neighbours push threat only from 900, not from 600.
+		// Neighbours push threat only once a region is overrun.
 		for i := range b.GaugeLines {
 			if b.GaugeLines[i].ID == "threat-spills" {
 				b.GaugeLines[i].AtLeast = 900
@@ -96,28 +81,25 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	if err != nil {
 		return err
 	}
-	d1, err := canon.Digest(struct {
-		S *world.State
-		F []fact.Fact
-	}{main.s, main.log.Since(0)})
+	d1, err := world.Digest(main.s, main.log)
 	if err != nil {
 		return err
 	}
-	d2, _ := canon.Digest(struct {
-		S *world.State
-		F []fact.Fact
-	}{again.s, again.log.Since(0)})
+	d2, err := world.Digest(again.s, again.log)
+	if err != nil {
+		return err
+	}
 
 	names := newNamer(b)
 	var w strings.Builder
 	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
-	p("# Spike B: gauges and factions for %d world days, no players", spikeBDays)
+	p("# Spike B: gauges and factions for %d world days, no players", worldDays)
 	p("")
 	p("World 0 of %d (the regions within %d tiles of the first starting settlement discovered, and the horizon round them awake: %d regions, %d factions, %d open starting settlement of the %d lattice points there). Throwaway keys `spike-b-<n>`. Weather, creatures and notables run (MM1). Variant: %q.", n, spikeBHorizon, len(main.s.Regions), len(main.s.Factions), main.s.Opened, len(main.w.Settlements()), variant)
 	p("")
 	p("Replay: two runs of world 0 give state-and-ledger digest `%s` and `%s`: %s.", d1.String()[:16], d2.String()[:16], map[bool]string{true: "identical", false: "DIFFERENT"}[d1 == d2])
 	p("")
-	p("## The factions after %d days", spikeBDays)
+	p("## The factions after %d days", worldDays)
 	p("")
 	for _, f := range main.s.Factions {
 		var ns []string
@@ -170,11 +152,12 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	}
 	p("| Fact kind | World 0 | Weight |")
 	p("| --- | --- | --- |")
-	for _, k := range slices.Sorted(keysOf(kinds)) {
-		p("| %s | %d | %d |", k, kinds[k], weightOf(b, k))
+	weights := fact.NewWeights(b.FactWeights)
+	for _, k := range slices.Sorted(maps.Keys(kinds)) {
+		p("| %s | %d | %d |", k, kinds[k], weights[k])
 	}
 	p("")
-	p("Facts in 90 days: %s; at weight %d and above: %d (%.1f a day).", comma(int64(len(all))), cut, countAtLeast(all, cut), float64(countAtLeast(all, cut))/spikeBDays)
+	p("Facts in %d days: %s; at weight %d and above: %d (%.1f a day).", worldDays, comma(int64(len(all))), cut, countAtLeast(all, cut), float64(countAtLeast(all, cut))/worldDays)
 	p("")
 
 	// Many worlds.
@@ -216,26 +199,11 @@ func spikeB(b *sheets.Book, out string, n int) error {
 			}
 		}
 		a.threatEnd = r.daily[len(r.daily)-1]
-		overrun := slices.IndexFunc(b.GaugeLines, func(l sheets.GaugeLine) bool { return l.Effect == "overrun" })
-		for _, reg := range r.s.Regions {
-			if reg.Active[overrun] {
-				a.overrunAtEnd++
-			}
-		}
+		a.overrunAtEnd = overrunAtEnd(b, r.s)
 		a.surges = a.moves["region.surge"]
 		a.betrayals = a.moves["faction.betrayed"]
-		// A region is still moving late when its threat spans at least
-		// spikeBMoving over the last 30 days.
 		a.regions = len(r.s.Regions)
-		for ri := range r.s.Regions {
-			lo, hi := r.daily[spikeBDays-30][ri], r.daily[spikeBDays-30][ri]
-			for day := spikeBDays - 30; day <= spikeBDays; day++ {
-				lo, hi = min(lo, r.daily[day][ri]), max(hi, r.daily[day][ri])
-			}
-			if hi-lo >= spikeBMoving {
-				a.movingLate++
-			}
-		}
+		a.movingLate = r.daily.moving(worldLate, worldMoving)
 		ag = append(ag, a)
 	}
 	p("## Across %d worlds", n)
@@ -248,7 +216,7 @@ func spikeB(b *sheets.Book, out string, n int) error {
 		slices.Sort(xs)
 		return xs[0], xs[len(xs)/2], xs[len(xs)-1]
 	}
-	p("| Per world, 90 days | Min | Median | Max |")
+	p("| Per world, %d days | Min | Median | Max |", worldDays)
 	p("| --- | --- | --- | --- |")
 	for _, row := range []struct {
 		name string
@@ -260,10 +228,10 @@ func spikeB(b *sheets.Book, out string, n int) error {
 		{"Starting settlements fallen", func(a agg) int { return a.settlementsFell }},
 		{"Factions fallen", func(a agg) int { return a.factionsFell }},
 		{"Factions starving", func(a agg) int { return a.starving }},
-		{"Regions overrun on day 90", func(a agg) int { return a.overrunAtEnd }},
+		{fmt.Sprintf("Regions overrun on day %d", worldDays), func(a agg) int { return a.overrunAtEnd }},
 		{"Surges", func(a agg) int { return a.surges }},
 		{"Betrayals", func(a agg) int { return a.betrayals }},
-		{fmt.Sprintf("Regions whose threat still spans %d or more over days 60 to 90", spikeBMoving), func(a agg) int { return a.movingLate }},
+		{fmt.Sprintf("Regions whose threat still spans %d or more over days %d to %d", worldMoving, worldDays-worldLate, worldDays), func(a agg) int { return a.movingLate }},
 		{"Regions", func(a agg) int { return a.regions }},
 	} {
 		lo, mid, hi := col(row.get)
@@ -281,7 +249,7 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	// The World run's target: no collapse, no stasis.
 	collapse, stasis, quiet, fell := 0, 0, 0, 0
 	for _, a := range ag {
-		if a.overrunAtEnd > spikeBMaxOverrun {
+		if a.overrunAtEnd > worldOverrun {
 			collapse++
 		}
 		if a.movingLate*2 < a.regions {
@@ -296,10 +264,10 @@ func spikeB(b *sheets.Book, out string, n int) error {
 	p("")
 	p("| Target, per world | Worlds failing | Holds |")
 	p("| --- | --- | --- |")
-	p("| At most %d regions overrun on day 90 (no collapse) | %d of %d | %s |", spikeBMaxOverrun, collapse, n, yesNo(collapse == 0))
-	p("| At least half the regions' threat spans %d or more over days 60 to 90 (no stasis) | %d of %d | %s |", spikeBMoving, stasis, n, yesNo(stasis == 0))
-	p("| Something is lost in 90 days: an overrun or a fallen holding (pressure exists) | %d of %d quiet | %s |", quiet, n, yesNo(quiet*10 <= n))
-	p("| Every starting settlement stands on day 90 | %d fell | %s |", fell, yesNo(fell == 0))
+	p("| At most %d regions overrun on day %d (no collapse) | %d of %d | %s |", worldOverrun, worldDays, collapse, n, yesNo(collapse == 0))
+	p("| At least half the regions' threat spans %d or more over days %d to %d (no stasis) | %d of %d | %s |", worldMoving, worldDays-worldLate, worldDays, stasis, n, yesNo(stasis == 0))
+	p("| Something is lost in %d days: an overrun or a fallen holding (pressure exists) | %d of %d quiet | %s |", worldDays, quiet, n, yesNo(quiet*10 <= n))
+	p("| Every starting settlement stands on day %d | %d fell | %s |", worldDays, fell, yesNo(fell == 0))
 	p("")
 	p("## Threat over time, world 0")
 	p("")
@@ -341,18 +309,8 @@ func atLeast(xs []int64, v int64) int {
 	return c
 }
 
-func weightOf(b *sheets.Book, kind string) int64 {
-	for _, fw := range b.FactWeights {
-		if fw.Kind == kind {
-			return fw.Weight
-		}
-	}
-	return -1
-}
-
-// namer turns ids into the setting pack's names. Region names are drawn
-// from the pack's parts by a throwaway key, as a stand-in for the naming
-// MM1 will specify.
+// namer turns ids into the setting pack's names; region names are drawn
+// from the pack's parts by a throwaway key.
 type namer struct {
 	b     *sheets.Book
 	d     *draw.Drawer
@@ -398,8 +356,7 @@ func (n *namer) plural(s *world.State, f int) bool {
 // verb picks the singular or plural form for a fact's first subject.
 func (n *namer) verb(s *world.State, f fact.Fact, one, many string) string {
 	if len(f.Subjects) > 0 && f.Subjects[0].Kind == "faction" {
-		var id int
-		_, _ = fmt.Sscanf(f.Subjects[0].ID[2:], "%d", &id)
+		id, _ := world.RefIndex(f.Subjects[0])
 		if n.plural(s, id) {
 			return many
 		}
@@ -408,8 +365,7 @@ func (n *namer) verb(s *world.State, f fact.Fact, one, many string) string {
 }
 
 // chronicle renders the facts at or above the cut, folding a faction's
-// expansions within one week into one line: a prototype of the chronicle
-// renderer's aggregation.
+// expansions within one week into one line.
 func (n *namer) chronicle(s *world.State, all []fact.Fact, cut int64) []string {
 	var out []string
 	for i := 0; i < len(all); i++ {
@@ -421,11 +377,11 @@ func (n *namer) chronicle(s *world.State, all []fact.Fact, cut int64) []string {
 			out = append(out, n.line(s, f))
 			continue
 		}
-		week := f.Tick / 144 / 7
+		week := f.Tick / sheets.TicksPerDay / daysPerWeek
 		places := []string{n.regionOf(f)}
 		for j := i + 1; j < len(all); j++ {
 			g := all[j]
-			if g.Tick/144/7 != week {
+			if g.Tick/sheets.TicksPerDay/daysPerWeek != week {
 				break
 			}
 			if g.Kind == "faction.expanded" && g.Subjects[0] == f.Subjects[0] {
@@ -441,20 +397,25 @@ func (n *namer) chronicle(s *world.State, all []fact.Fact, cut int64) []string {
 			continue
 		}
 		list := strings.Join(places[:len(places)-1], ", ") + " and " + places[len(places)-1]
-		out = append(out, fmt.Sprintf("Week of day %d · %s %s %d regions: %s.", week*7+1, capital(n.ref(s, f.Subjects[0])), n.verb(s, f, "takes", "take"), len(places), list))
+		out = append(out, fmt.Sprintf("Week of day %d · %s %s %d regions: %s.", week*daysPerWeek+1, capital(n.ref(s, f.Subjects[0])), n.verb(s, f, "takes", "take"), len(places), list))
 	}
 	return out
 }
 
+// regionOf names a fact's region, or says where it fell outside one: a
+// dormant region's facts carry a lattice ref.
 func (n *namer) regionOf(f fact.Fact) string {
-	var region int
-	_, _ = fmt.Sscanf(f.Region, "r-%d", &region)
-	return n.region(region)
+	if region, ok := world.ParseRegionRef(f.Region); ok {
+		return n.region(region)
+	}
+	if f.Region == "" {
+		return "somewhere"
+	}
+	return "beyond the horizon (" + f.Region + ")"
 }
 
 func (n *namer) ref(s *world.State, r fact.Ref) string {
-	var id int
-	_, _ = fmt.Sscanf(r.ID[2:], "%d", &id)
+	id, _ := world.RefIndex(r)
 	switch r.Kind {
 	case "faction":
 		return n.faction(s, id)
@@ -472,10 +433,8 @@ func (n *namer) ref(s *world.State, r fact.Ref) string {
 }
 
 func (n *namer) line(s *world.State, f fact.Fact) string {
-	var region int
-	_, _ = fmt.Sscanf(f.Region, "r-%d", &region)
-	where := n.region(region)
-	day := f.Tick / 144
+	where := n.regionOf(f)
+	day := f.Tick / sheets.TicksPerDay
 	who := func(i int) string {
 		if i < len(f.Subjects) {
 			return n.ref(s, f.Subjects[i])

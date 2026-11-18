@@ -11,20 +11,10 @@ import "jams.team/mmo-world/sim/hex"
 // Hex is an axial coordinate (sim/hex).
 type Hex = hex.Hex
 
-// structural: the grid's own numbers, mirrored from sim/hex.
+// structural: halving, thirding (a disc's three sides, a triangle's
+// centroid), and the grid's directions.
 const (
 	discSides = 3
 	halves    = 2
 	nDirs     = hex.Directions
 )
-
-func Distance(a, b Hex) int64               { return hex.Distance(a, b) }
-func Ring(centre Hex, radius int64) []Hex   { return hex.Ring(centre, radius) }
-func Disc(radius int64) []Hex               { return hex.Disc(radius) }
-func DiscAt(centre Hex, radius int64) []Hex { return hex.DiscAt(centre, radius) }
-func DiscSize(radius int64) int64           { return hex.DiscSize(radius) }
-func Line(a, b Hex) []Hex                   { return hex.Line(a, b) }
-func Directions() int                       { return nDirs }
-func direction(d int) Hex                   { return hex.Direction(d) }
-func divRound(x, n int64) int64             { return hex.DivRound(x, n) }
-func floorDiv(a, b int64) int64             { return hex.FloorDiv(a, b) }

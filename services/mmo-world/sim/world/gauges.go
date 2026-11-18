@@ -11,11 +11,11 @@ import (
 // gauges runs a world day's gauges (GDD 4.3): the daily rise, the keyed
 // wobble, spill from neighbours over a line, faction patrols, a
 // settlement's watch, an overrun spending itself, unrest under raids,
-// scarcity under an ash front, and the pull back to baseline. Crossing a
-// line records a fact.
+// scarcity under weather that brings it, and the pull back to baseline.
+// Crossing a line records a fact.
 func (d *day) gauges() {
 	s := d.s
-	threat, unrest, scarcity := s.gaugeIndex("threat"), s.gaugeIndex("unrest"), s.gaugeIndex("scarcity")
+	threat, unrest, scarcity := s.GaugeIndex("threat"), s.GaugeIndex("unrest"), s.GaugeIndex("scarcity")
 	before := make([][]int64, len(s.Regions))
 	for i, r := range s.Regions {
 		before[i] = slices.Clone(r.Gauge)
@@ -24,9 +24,7 @@ func (d *day) gauges() {
 	for i := range s.Regions {
 		r := &s.Regions[i]
 		for gi, g := range s.b.Gauges {
-			// Rises add; falls (the daily recovery, a patrol, a settlement's
-			// watch, an overrun spending itself) bring a gauge down toward
-			// its baseline and stop there.
+			// Falls stop at the baseline; rises do not.
 			rise, fall := max(g.DailyRise, 0), max(-g.DailyRise, 0)
 			var spill int64
 			for _, l := range s.b.GaugeLines {
@@ -35,7 +33,7 @@ func (d *day) gauges() {
 				}
 				for _, n := range r.Neighbours {
 					if over := before[n][gi] - l.AtLeast; over > 0 {
-						spill += l.Magnitude * over / (g.Max - l.AtLeast)
+						spill += l.Magnitude * over / max(1, g.Max-l.AtLeast)
 					}
 				}
 			}
@@ -79,6 +77,12 @@ func (d *day) gauges() {
 	}
 }
 
+// addGauge moves one region's gauge, held to [0, the gauge's max].
+func (s *State) addGauge(r, gi int, by int64) {
+	g := &s.Regions[r].Gauge[gi]
+	*g = min(max(*g+by, 0), s.b.Gauges[gi].Max)
+}
+
 // wobble is the day's keyed move of one gauge in one region: up to w
 // either way.
 func (d *day) wobble(r *Region, gauge int, w int64) int64 {
@@ -99,11 +103,14 @@ func (d *day) surge() {
 		return
 	}
 	lo, hi := s.wp("surge-min"), s.wp("surge-max")
-	size := lo + int64(s.d.Below(uint64(hi-lo+1), "world.surge.size", draw.Int(s.Day)))
-	threat := s.gaugeIndex("threat")
-	g := s.b.Gauges[threat]
+	size := s.d.Between(lo, hi, "world.surge.size", draw.Int(s.Day))
+	threat := s.GaugeIndex("threat")
 	share := s.wp("surge-neighbour-share")
-	if len(s.Dormant) > 0 && int64(s.d.Below(percent, "world.surge.beyond", draw.Int(s.Day))) < s.wp("surge-beyond-share") {
+	raise := func(j int, by int64, id fact.ID) {
+		s.addGauge(j, threat, by)
+		s.Regions[j].SurgeFact = id
+	}
+	if len(s.Dormant) > 0 && s.d.Percent(s.wp("surge-beyond-share"), "world.surge.beyond", draw.Int(s.Day)) {
 		from := s.Dormant[s.d.Below(uint64(len(s.Dormant)), "world.surge.where", draw.Int(s.Day))]
 		var hit []int
 		for _, n := range s.g.RegionNeighbours(from) {
@@ -113,21 +120,16 @@ func (d *day) surge() {
 		}
 		id := d.emit("region.surge", latticeRef(from), nil, nil, fact.N("threat", size), fact.N("beyond", 1))
 		for _, j := range hit {
-			r := &s.Regions[j]
-			r.Gauge[threat] = min(g.Max, r.Gauge[threat]+size*share/percent)
-			r.SurgeFact = id
+			raise(j, size*share/percent, id)
 		}
 		return
 	}
 	at := int(s.d.Below(uint64(len(s.Regions)), "world.surge.where", draw.Int(s.Day)))
-	r := &s.Regions[at]
-	r.Gauge[threat] = min(g.Max, r.Gauge[threat]+size)
-	id := d.emit("region.surge", regionRef(at), nil, nil, fact.N("threat", size))
-	r.SurgeFact = id
-	for _, n := range r.Neighbours {
-		nr := &s.Regions[n]
-		nr.Gauge[threat] = min(g.Max, nr.Gauge[threat]+size*share/percent)
-		nr.SurgeFact = id
+	s.addGauge(at, threat, size)
+	id := d.emit("region.surge", RegionRef(at), nil, nil, fact.N("threat", size))
+	s.Regions[at].SurgeFact = id
+	for _, n := range s.Regions[at].Neighbours {
+		raise(n, size*share/percent, id)
 	}
 }
 
@@ -137,7 +139,7 @@ func (d *day) lines(i int) {
 	s := d.s
 	r := &s.Regions[i]
 	for li, l := range s.b.GaugeLines {
-		v := r.Gauge[s.gaugeIndex(l.Gauge)]
+		v := r.Gauge[s.GaugeIndex(l.Gauge)]
 		clears := l.AtLeast
 		if l.ClearsAt > 0 {
 			clears = l.ClearsAt
@@ -150,7 +152,7 @@ func (d *day) lines(i int) {
 				if r.SurgeFact != 0 && l.Gauge == "threat" {
 					causes = append(causes, r.SurgeFact)
 				}
-				id := d.emit(d.kindOf(l.FactKind), regionRef(i), nil, causes, fact.N(l.Gauge, v), fact.S("line", l.ID))
+				id := d.emit(d.kindOf(l.FactKind), RegionRef(i), nil, causes, fact.N(l.Gauge, v), fact.S("line", l.ID))
 				if l.Effect == "raid" {
 					r.RaidFact = id
 				}
@@ -158,7 +160,7 @@ func (d *day) lines(i int) {
 		case r.Active[li] && v < clears:
 			r.Active[li] = false
 			if l.Effect == "overrun" {
-				d.emit("region.overrun-ended", regionRef(i), nil, nil, fact.N(l.Gauge, v))
+				d.emit("region.overrun-ended", RegionRef(i), nil, nil, fact.N(l.Gauge, v))
 			}
 		}
 		if r.Active[li] && l.Effect == "raid" && (r.Holder != none || r.Settlement) {
@@ -168,10 +170,8 @@ func (d *day) lines(i int) {
 }
 
 func (d *day) kindOf(sheetID string) string {
-	for _, fw := range d.s.b.FactWeights {
-		if fw.ID == sheetID {
-			return fw.Kind
-		}
+	if fw, ok := d.s.factRows[sheetID]; ok {
+		return fw.Kind
 	}
 	return sheetID
 }

@@ -4,26 +4,25 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// Spike E round 3 measures an endless world out to spikeEOut tiles from
-// the origin. Walking runs over a wider disc, so a place near the edge
-// can reach the spine through a node outside the measured one.
+// spikeE measures endless worlds out to spikeEOut tiles; walking runs
+// spikeEMargin further so edge places can reach the spine.
 const (
 	spikeEOut        = 200
 	spikeEMargin     = 50
@@ -55,7 +54,7 @@ type worldStats struct {
 	biggestSea                     int
 	biggestSpan                    int64
 	lakes, lakesOver2, worstLake   int
-	crossings                      []int // per water body of 10 tiles or more
+	crossings                      []int // per water body of at least spikeELakeMin tiles
 	pointRuns                      int
 	fordRun                        int // the longest connected run of fords
 	pairs                          map[string]bool
@@ -78,43 +77,16 @@ type worldStats struct {
 	pic, close *image.RGBA
 }
 
-// workers is how many worlds run at once: SPIKE_WORKERS, or one per
-// core. A world's disc holds a few hundred megabytes, so a machine short
-// of memory runs fewer.
-func workers() int {
-	if v, err := strconv.Atoi(os.Getenv("SPIKE_WORKERS")); err == nil && v > 0 {
-		return v
-	}
-	return runtime.NumCPU()
-}
-
 func spikeE(b *sheets.Book, out string, n int) error {
 	if n == 0 {
 		n = 1000
 	}
 	stats := make([]worldStats, n)
-	var wg sync.WaitGroup
-	next := make(chan int)
-	errs := make(chan error, n)
-	for range workers() {
-		wg.Go(func() {
-			for i := range next {
-				s, err := oneWorld(b, i)
-				if err != nil {
-					errs <- err
-					continue
-				}
-				stats[i] = s
-			}
-		})
-	}
-	for i := range n {
-		next <- i
-	}
-	close(next)
-	wg.Wait()
-	close(errs)
-	if err := <-errs; err != nil {
+	if err := runParallel(n, func(i int) error {
+		s, err := oneWorld(b, i)
+		stats[i] = s
+		return err
+	}); err != nil {
 		return err
 	}
 	cold, err := coldChunks(b)
@@ -241,9 +213,9 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 
 	var w strings.Builder
 	p := func(f string, a ...any) { fmt.Fprintf(&w, f+"\n", a...) }
-	p("# Spike E round 3: %s endless worlds, out to %d tiles", comma(int64(n)), spikeEOut)
+	p("# Spike E: %s endless worlds, out to %d tiles", comma(int64(n)), spikeEOut)
 	p("")
-	p("Throwaway keys `spike-e-<n>`. Each world is generated chunk by chunk over the disc of radius %d around the origin (%s tiles); every measure below counts only what lies within %d tiles, and walking runs over the whole disc, so a place near the edge can reach the spine through a node outside. Raw output.", spikeEOut+spikeEMargin, comma(gen.DiscSize(spikeEOut+spikeEMargin)), spikeEOut)
+	p("Throwaway keys `spike-e-<n>`. Each world is generated chunk by chunk over the disc of radius %d around the origin (%s tiles); every measure below counts only what lies within %d tiles, and walking runs over the whole disc, so a place near the edge can reach the spine through a node outside. Raw output.", spikeEOut+spikeEMargin, comma(hex.DiscSize(spikeEOut+spikeEMargin)), spikeEOut)
 	p("")
 	p("## Reachability")
 	p("")
@@ -315,7 +287,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	p("")
 	p("| Pair (primary, secondary terrain) | Worlds meeting it |")
 	p("| --- | --- |")
-	for _, k := range slices.Sorted(keysOf(pairs)) {
+	for _, k := range slices.Sorted(maps.Keys(pairs)) {
 		p("| %s | %s |", k, comma(int64(pairs[k])))
 	}
 	p("")
@@ -384,7 +356,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	p("")
 	p("| Band (tiles) | Regions | Holding something new | Worst world | Far material | Creature variant | Biome variant | Pattern | Edge material | Edge creature |")
 	p("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-	for _, band := range slices.Sorted(keysOf(novelty)) {
+	for _, band := range slices.Sorted(maps.Keys(novelty)) {
 		v := novelty[band]
 		k := kinds[band]
 		worstWorld := slices.Min(bandNovel[band])
@@ -410,7 +382,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	p("")
 	p("| Terrain | Share of tiles |")
 	p("| --- | --- |")
-	for _, k := range slices.Sorted(keysOf(terrain)) {
+	for _, k := range slices.Sorted(maps.Keys(terrain)) {
 		p("| %s | %.1f%% |", k, pct(terrain[k], tiles))
 	}
 	p("")
@@ -560,9 +532,9 @@ func oneWorld(b *sheets.Book, seed int) (worldStats, error) {
 		}
 	}
 
-	regionsAndNovelty(b, a, &s, inside)
+	regionsAndNovelty(b, g, a, &s, inside)
 	biomes(a, &s, inside)
-	seas(b, a, &s, inside)
+	seas(b, g, a, &s, inside)
 	s.fordRun = fordRun(a, inside)
 	opened(b, g, a, &s, inside)
 
@@ -579,7 +551,7 @@ func oneWorld(b *sheets.Book, seed int) (worldStats, error) {
 func chunksIn(g *gen.Gen, reach int64) []gen.ChunkCoord {
 	var out []gen.ChunkCoord
 	seen := map[gen.ChunkCoord]bool{}
-	for _, h := range gen.Disc(reach) {
+	for _, h := range hex.Disc(reach) {
 		if cc := g.ChunkOf(h); !seen[cc] {
 			seen[cc] = true
 			out = append(out, cc)
@@ -652,15 +624,11 @@ func coldChunks(b *sheets.Book) ([]time.Duration, error) {
 	return out, nil
 }
 
-func regionsAndNovelty(b *sheets.Book, a *gen.Area, s *worldStats, inside func(gen.Hex) bool) {
+func regionsAndNovelty(b *sheets.Book, g *gen.Gen, a *gen.Area, s *worldStats, inside func(gen.Hex) bool) {
 	minT, maxT := sheets.IntParam(b.MapParams, "region-min-tiles"), sheets.IntParam(b.MapParams, "region-max-tiles")
-	passable := map[string]bool{}
-	for _, t := range b.Terrain {
-		passable[t.ID] = t.Passable
-	}
 	var land []int
 	for id, r := range a.Regions {
-		if passable[r.Base.Terrain] && inside(r.Base.Centre) {
+		if g.Passable(r.Base.Terrain) && inside(r.Base.Centre) {
 			land = append(land, id)
 		}
 	}
@@ -730,7 +698,7 @@ func regionsAndNovelty(b *sheets.Book, a *gen.Area, s *worldStats, inside func(g
 	}
 }
 
-// Region sizes outside these are the round-5 failures.
+// Region sizes, in tiles, outside which a region counts as a failure.
 const (
 	spikeERegionFloor   = 8
 	spikeERegionCeiling = 80
@@ -742,14 +710,10 @@ const spikeESeaCells = 2
 func spineSpacing(b *sheets.Book) int { return int(sheets.IntParam(b.MapParams, "spine-spacing")) }
 
 // seas measures water bodies and the crossings over them.
-func seas(b *sheets.Book, a *gen.Area, s *worldStats, inside func(gen.Hex) bool) {
+func seas(b *sheets.Book, g *gen.Gen, a *gen.Area, s *worldStats, inside func(gen.Hex) bool) {
 	deep := int64(-1)
-	terr := map[string]sheets.Terrain{}
-	for _, t := range b.Terrain {
-		terr[t.ID] = t
-	}
 	for _, bb := range b.Biomes {
-		if t := terr[bb.Terrain]; !t.Passable && slices.Contains(t.Tags, "wet") {
+		if t := g.Terrain(bb.Terrain); !t.Passable && t.Wet() {
 			deep = max(deep, bb.ElevationMax)
 		}
 	}
@@ -883,15 +847,11 @@ const (
 var spikeEOpen = []int{1, 3, 10}
 
 func opened(b *sheets.Book, g *gen.Gen, a *gen.Area, s *worldStats, inside func(gen.Hex) bool) {
-	land := map[string]bool{}
-	for _, t := range b.Terrain {
-		land[t.ID] = t.Passable
-	}
 	passable := func(i int) bool { return a.Passable(i) }
 	for _, n := range spikeEOpen {
 		m := map[int64]int{}
 		for id, r := range a.Regions {
-			if inside(r.Base.Centre) && land[r.Base.Terrain] {
+			if inside(r.Base.Centre) && g.Passable(r.Base.Terrain) {
 				m[a.RegionTier(id, n)]++
 			}
 		}
@@ -979,8 +939,10 @@ func writePNG(path string, img image.Image) error {
 	return f.Close()
 }
 
+const minutesPerDay = 24 * 60
+
 func ticks(t int64) string {
-	m := t * 10
+	m := t * minutesPerDay / sheets.TicksPerDay
 	if m < 60 {
 		return fmt.Sprintf("%d ticks (%d min)", t, m)
 	}

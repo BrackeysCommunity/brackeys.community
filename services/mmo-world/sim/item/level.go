@@ -18,6 +18,8 @@ type Growth struct {
 	exploit   []sheets.Offer
 	mount     []sheets.Offer
 	mountRows map[string]*sheets.MountKind
+	exploitBy map[string]*sheets.Offer
+	mountBy   map[string]*sheets.Offer
 	offers    *draw.Drawer
 }
 
@@ -30,6 +32,7 @@ func NewGrowth(b *sheets.Book, d *Deriver, rollKey draw.Key) *Growth {
 	for _, s := range b.LevelCurve {
 		g.curve[s.Level] = s
 	}
+	g.exploitBy, g.mountBy = sheets.Lookup(b.ExploitOffers), sheets.Lookup(b.MountOffers)
 	return g
 }
 
@@ -85,10 +88,18 @@ func (g *Growth) AddXP(in *Instance, k *Kind, xp int64) Levelled {
 	for in.Level < limit && in.XP >= g.ToNext(in.Level) {
 		in.XP -= g.ToNext(in.Level)
 		in.Level++
-		if g.Milestone(in.Level) && int64(len(in.Picks)) < g.Param("max-picks") {
+		// Only a milestone that can still become a pick is announced:
+		// picks taken, the open offer and those waiting all count.
+		pending := int64(len(in.Picks) + len(in.Waiting))
+		if len(in.Offers) > 0 {
+			pending++
+		}
+		if g.Milestone(in.Level) && pending < g.Param("max-picks") {
 			out.Milestones = append(out.Milestones, in.Level)
 			if len(in.Offers) == 0 {
-				in.Offers = g.Offers(in, k)
+				in.Offers = g.offersAt(in, k, in.Level)
+			} else {
+				in.Waiting = append(in.Waiting, in.Level)
 			}
 		}
 	}
@@ -104,7 +115,9 @@ func (g *Growth) AddXP(in *Instance, k *Kind, xp int64) Levelled {
 // weighed by how often its step appears; mounts and exploits offer from
 // their own tables. Candidates rank by the record keys they favour, then
 // by a keyed draw, and the top two are the offers.
-func (g *Growth) Offers(in *Instance, k *Kind) []string {
+func (g *Growth) Offers(in *Instance, k *Kind) []string { return g.offersAt(in, k, in.Level) }
+
+func (g *Growth) offersAt(in *Instance, k *Kind, level int64) []string {
 	type cand struct {
 		id    string
 		score int64
@@ -115,7 +128,7 @@ func (g *Growth) Offers(in *Instance, k *Kind) []string {
 		if slices.Contains(in.Picks, id) || slices.ContainsFunc(cs, func(c cand) bool { return c.id == id }) {
 			return
 		}
-		tie := g.offers.Draw("milestone.offer", draw.Str(in.ID), draw.Int(in.Level), draw.Str(id))
+		tie := g.offers.Draw("milestone.offer", draw.Str(in.ID), draw.Int(level), draw.Str(id))
 		cs = append(cs, cand{id: id, score: (in.Record.Score(favours) + 1) * weight, tie: tie})
 	}
 	switch {
@@ -159,12 +172,21 @@ func (g *Growth) Offers(in *Instance, k *Kind) []string {
 }
 
 // Pick takes one of a milestone's fixed offers. There is no re-roll.
-func (g *Growth) Pick(in *Instance, offer string) error {
+// A milestone waiting behind it is offered next.
+func (g *Growth) Pick(in *Instance, k *Kind, offer string) error {
 	if !slices.Contains(in.Offers, offer) {
 		return fmt.Errorf("item: %q is not on offer", offer)
 	}
 	in.Picks = append(in.Picks, offer)
 	in.Offers = nil
+	for len(in.Waiting) > 0 && len(in.Offers) == 0 && int64(len(in.Picks)) < g.Param("max-picks") {
+		level := in.Waiting[0]
+		in.Waiting = in.Waiting[1:]
+		in.Offers = g.offersAt(in, k, level)
+	}
+	if len(in.Waiting) == 0 || len(in.Offers) == 0 {
+		in.Waiting = nil
+	}
 	return nil
 }
 
@@ -174,21 +196,14 @@ func (g *Growth) PickCost(k *Kind) (string, int64) {
 }
 
 // ExploitOffer is an exploit-offers row, for a pick an exploit has taken.
-func (g *Growth) ExploitOffer(id string) (sheets.Offer, bool) {
-	for _, o := range g.exploit {
-		if o.ID == id {
-			return o, true
-		}
-	}
-	return sheets.Offer{}, false
-}
+func (g *Growth) ExploitOffer(id string) (sheets.Offer, bool) { return offerOf(g.exploitBy, id) }
 
 // MountOffer is a mounts.offers row.
-func (g *Growth) MountOffer(id string) (sheets.Offer, bool) {
-	for _, o := range g.mount {
-		if o.ID == id {
-			return o, true
-		}
+func (g *Growth) MountOffer(id string) (sheets.Offer, bool) { return offerOf(g.mountBy, id) }
+
+func offerOf(rows map[string]*sheets.Offer, id string) (sheets.Offer, bool) {
+	if o, ok := rows[id]; ok {
+		return *o, true
 	}
 	return sheets.Offer{}, false
 }

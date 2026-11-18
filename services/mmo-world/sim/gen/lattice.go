@@ -1,6 +1,9 @@
 package gen
 
-import "jams.team/mmo-world/sim/draw"
+import (
+	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/hex"
+)
 
 // LatticeID names a point of a jittered lattice by its lattice coordinates.
 type LatticeID struct{ I, J int64 }
@@ -41,7 +44,7 @@ func (l *lattice) At(id LatticeID) Hex {
 	h := Hex{Q: id.I*l.spacing + l.offset.Q, R: id.J*l.spacing + l.offset.R}
 	switch {
 	case l.jitter > 0 && l.prefer != nil:
-		disc := DiscAt(h, l.jitter)
+		disc := hex.DiscAt(h, l.jitter)
 		order := l.g.d.Shuffle(len(disc), draw.Purpose(l.purpose+".jitter"), draw.Int(id.I), draw.Int(id.J))
 		h = disc[order[0]]
 		for _, k := range order {
@@ -51,9 +54,7 @@ func (l *lattice) At(id LatticeID) Hex {
 			}
 		}
 	case l.jitter > 0:
-		n := DiscSize(l.jitter)
-		k := int64(l.g.d.Below(uint64(n), draw.Purpose(l.purpose+".jitter"), draw.Int(id.I), draw.Int(id.J)))
-		h = h.Add(discOffset(l.jitter, k))
+		h = l.g.jitter(h, l.jitter, draw.Purpose(l.purpose+".jitter"), draw.Int(id.I), draw.Int(id.J))
 	}
 	l.cache[id] = h
 	return h
@@ -62,13 +63,13 @@ func (l *lattice) At(id LatticeID) Hex {
 // Near lists the lattice points within reach of h, in lattice order.
 func (l *lattice) Near(h Hex, reach int64) []LatticeID {
 	r := reach + l.jitter
-	i0, i1 := floorDiv(h.Q-l.offset.Q-r, l.spacing), floorDiv(h.Q-l.offset.Q+r, l.spacing)+1
-	j0, j1 := floorDiv(h.R-l.offset.R-r, l.spacing), floorDiv(h.R-l.offset.R+r, l.spacing)+1
+	i0, i1 := hex.FloorDiv(h.Q-l.offset.Q-r, l.spacing), hex.FloorDiv(h.Q-l.offset.Q+r, l.spacing)+1
+	j0, j1 := hex.FloorDiv(h.R-l.offset.R-r, l.spacing), hex.FloorDiv(h.R-l.offset.R+r, l.spacing)+1
 	var out []LatticeID
 	for i := i0; i <= i1; i++ {
 		for j := j0; j <= j1; j++ {
 			id := LatticeID{i, j}
-			if Distance(l.At(id), h) <= reach {
+			if hex.Distance(l.At(id), h) <= reach {
 				out = append(out, id)
 			}
 		}
@@ -78,30 +79,32 @@ func (l *lattice) Near(h Hex, reach int64) []LatticeID {
 
 // Nearest is the lattice point nearest h; ties go to the lower id.
 func (l *lattice) Nearest(h Hex) LatticeID {
+	id, _ := l.NearestWhere(h, func(LatticeID) bool { return true })
+	return id
+}
+
+// NearestWhere is the nearest lattice point to h that ok accepts, and its
+// distance; ties go to the lower id. Some point must be accepted.
+func (l *lattice) NearestWhere(h Hex, ok func(LatticeID) bool) (LatticeID, int64) {
 	for reach := l.spacing; ; reach += l.spacing {
-		ids := l.Near(h, reach)
-		if len(ids) == 0 {
-			continue
-		}
-		best := ids[0]
-		for _, id := range ids[1:] {
-			if Distance(l.At(id), h) < Distance(l.At(best), h) {
-				best = id
+		var best LatticeID
+		dist := int64(-1)
+		for _, id := range l.Near(h, reach) {
+			if !ok(id) {
+				continue
+			}
+			if d := hex.Distance(l.At(id), h); dist < 0 || d < dist {
+				best, dist = id, d
 			}
 		}
 		// Anything nearer than best would be within this reach already.
-		return best
+		if dist >= 0 {
+			return best, dist
+		}
 	}
 }
 
-// discOffset is the kth tile of the disc of radius r, as an offset.
-func discOffset(r, k int64) Hex {
-	for ring := int64(0); ring <= r; ring++ {
-		n := max(1, int64(nDirs)*ring)
-		if k < n {
-			return Ring(Hex{}, ring)[k]
-		}
-		k -= n
-	}
-	return Hex{}
+// jitter moves h to a keyed tile of the disc of radius r round it.
+func (g *Gen) jitter(h Hex, r int64, p draw.Purpose, parts ...draw.Part) Hex {
+	return h.Add(hex.DiscOffset(r, int64(g.d.Below(uint64(hex.DiscSize(r)), p, parts...))))
 }

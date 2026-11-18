@@ -4,14 +4,14 @@ import (
 	"slices"
 	"testing"
 
-	"jams.team/mmo-world/harness"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/tags"
 )
 
 func rules(t *testing.T) []tags.Rule {
 	t.Helper()
-	b, err := harness.LoadBook(harness.ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

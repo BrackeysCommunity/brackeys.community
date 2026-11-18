@@ -94,3 +94,32 @@ func TestIdempotent(t *testing.T) {
 		}
 	}
 }
+
+// An empty omitempty slice or map digests the same once a JSON round
+// trip has made it nil.
+func TestOmitEmptySurvivesRoundTrip(t *testing.T) {
+	type tile struct {
+		Rumours []string       `json:"rumours,omitempty"`
+		Marks   map[string]int `json:"marks,omitempty"`
+	}
+	before := tile{Rumours: []string{}, Marks: map[string]int{}}
+	b, err := json.Marshal(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var after tile
+	if err := json.Unmarshal(b, &after); err != nil {
+		t.Fatal(err)
+	}
+	d1, err := Digest(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d2, err := Digest(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d1 != d2 {
+		t.Fatal("digest changed across a JSON round trip")
+	}
+}

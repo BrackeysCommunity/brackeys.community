@@ -13,11 +13,8 @@ type corridorSearch struct {
 	q     hex.Queue
 }
 
-// run is the cheapest walk from `from` to `to` among tiles whose two
-// distances to the ends add up to at most limit, listed from `to` back to
-// `from`. A passable tile costs its terrain's ticks; one that must yield
-// costs the wall. Every step costs at least one tick, so the hex distance
-// left bounds the cost left. Ties pop in hex order.
+// run is the search behind (*Gen).path, listed from `to` back to `from`;
+// ties pop in hex order.
 func (s *corridorSearch) run(g *Gen, from, to Hex, limit int64) []Hex {
 	side := halves*limit + 1
 	if n := int(side * side); len(s.cost) < n {
@@ -33,19 +30,19 @@ func (s *corridorSearch) run(g *Gen, from, to Hex, limit int64) []Hex {
 	start := at(from)
 	s.stamp[start], s.cost[start] = s.now, 0
 	s.q.Reset()
-	s.q.Push(from, Distance(from, to))
+	s.q.Push(from, hex.Distance(from, to))
 	for s.q.Len() > 0 {
 		h, c := s.q.Pop()
 		if h == to {
 			break
 		}
 		hi := at(h)
-		if c-Distance(h, to) > s.cost[hi] {
+		if c-hex.Distance(h, to) > s.cost[hi] {
 			continue
 		}
 		for d := range nDirs {
 			n := h.Neighbour(d)
-			if Distance(n, from)+Distance(n, to) > limit {
+			if hex.Distance(n, from)+hex.Distance(n, to) > limit {
 				continue
 			}
 			step := g.p.wall
@@ -56,7 +53,7 @@ func (s *corridorSearch) run(g *Gen, from, to Hex, limit int64) []Hex {
 			nc := s.cost[hi] + step
 			if !seen(ni) || nc < s.cost[ni] {
 				s.stamp[ni], s.cost[ni], s.prev[ni] = s.now, nc, hi
-				s.q.Push(n, nc+Distance(n, to))
+				s.q.Push(n, nc+hex.Distance(n, to))
 			}
 		}
 	}

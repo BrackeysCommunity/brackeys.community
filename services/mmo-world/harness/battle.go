@@ -18,6 +18,7 @@ import (
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/world"
 )
 
 // The Battle run: a matrix of tier, level, archetype and loadout, with
@@ -46,8 +47,9 @@ type battle struct {
 	// ref is the reference gear per tier and slot.
 	ref map[string]*item.Kind
 	// exploits by state.
-	exploits map[string]*item.Kind
-	n        int
+	exploits  map[string]*item.Kind
+	creatures map[string]*sheets.Creature
+	n         int
 }
 
 func chanceOf(b *battle, o fight.Option, e *fight.Encounter) fixed.F {
@@ -121,6 +123,9 @@ var policies = []Policy{
 				ids = append(ids, o.ID)
 			}
 		}
+		if len(ids) == 0 && len(opts) > 0 {
+			return opts[0].ID
+		}
 		return ids[b.pick.Below(uint64(len(ids)), "battle.random", draw.Str(e.ID), draw.Int(int64(e.At)), draw.Int(e.Press), draw.Str(who))]
 	}},
 }
@@ -151,7 +156,8 @@ func newBattle(b *sheets.Book, n int) (*battle, error) {
 	if err != nil {
 		return nil, err
 	}
-	bt := &battle{p: p, pick: draw.NewDrawer(k.Roll), ref: map[string]*item.Kind{}, exploits: map[string]*item.Kind{}, n: n}
+	bt := &battle{p: p, pick: draw.NewDrawer(k.Roll), ref: map[string]*item.Kind{}, exploits: map[string]*item.Kind{},
+		creatures: sheets.Lookup(b.Creatures), n: n}
 	s := newSampler(b, p.Deriver, k)
 	by := map[string][]*item.Kind{}
 	for i := range battleSamples {
@@ -223,8 +229,7 @@ func (b *battle) character(id string, l Loadout, tier, level, practice int64, ha
 	put := func(slot string, kind *item.Kind, lvl int64) *item.Instance {
 		in := item.NewInstance(id+"-"+slot, kind, "")
 		in.Level = lvl
-		c.Pack = append(c.Pack, in)
-		c.Equip(slot, 0, in.ID)
+		c.Carry(slot, 0, in)
 		return in
 	}
 	put(char.Hand, b.variant(b.ref[cellKey(tier, hand)], l.Hand), level)
@@ -232,8 +237,7 @@ func (b *battle) character(id string, l Loadout, tier, level, practice int64, ha
 	if len(l.Charm) > 0 {
 		in := item.NewInstance(id+"-charm", b.variant(b.ref[cellKey(tier, "charm")], l.Charm), "")
 		in.Level = level
-		c.Pack = append(c.Pack, in)
-		c.Equip(char.Charm, 0, in.ID)
+		c.Carry(char.Charm, 0, in)
 	}
 	if l.Exploit != "" {
 		deck := put(char.OffHand, b.ref[cellKey(tier, "focus")], level)
@@ -254,14 +258,12 @@ func (b *battle) character(id string, l Loadout, tier, level, practice int64, ha
 // site is where encounter i against a creature happens: its biome's
 // terrain tags, sometimes troubled.
 func (b *battle) site(id string, arch string, troubledPct int64) fight.Site {
-	a := sheets.Lookup(b.p.Book.Creatures)[arch]
+	a := b.creatures[arch]
 	var ts []tags.Tag
 	if len(a.Biomes) > 0 {
-		for _, t := range b.p.Book.Terrain {
-			if t.ID == a.Biomes[b.pick.Below(uint64(len(a.Biomes)), "battle.biome", draw.Str(id))] {
-				ts = append(ts, toTags(t.Tags)...)
-				ts = append(ts, toTags(t.PlaceTags)...)
-				ts = append(ts, tags.Tag(t.ID))
+		for i := range b.p.Book.Terrain {
+			if t := &b.p.Book.Terrain[i]; t.ID == a.Biomes[b.pick.Below(uint64(len(a.Biomes)), "battle.biome", draw.Str(id))] {
+				ts = append(ts, world.TerrainTags(t)...)
 			}
 		}
 	} else {
@@ -269,14 +271,6 @@ func (b *battle) site(id string, arch string, troubledPct int64) fight.Site {
 	}
 	troubled := int64(b.pick.Below(100, "battle.troubled", draw.Str(id))) < troubledPct
 	return fight.Site{ID: id, Tags: ts, Party: 1, Troubled: troubled}
-}
-
-func toTags(ss []string) []tags.Tag {
-	out := make([]tags.Tag, len(ss))
-	for i, s := range ss {
-		out[i] = tags.Tag(s)
-	}
-	return out
 }
 
 // fightOne runs one encounter to its end with a policy and reports its
@@ -288,18 +282,15 @@ func (b *battle) fightOne(c *char.Character, site fight.Site, arch string, pol P
 	cast := false
 	presses := 0
 	for !e.Over && presses < pressCap {
-		kit := f.KitOf(c)
-		s := f.Situation(e, c.ID)
-		kit.Self = append(kit.Self, e.SelfStates(c.ID)...)
-		kit.Self = append(kit.Self, c.ConditionTags(0)...)
-		opts := f.Options(s, kit)
+		s, kit, opts := f.Choices(e, c, f.KitOf(c), 0)
 		pick := pol.Pick(b, opts, e, cast, c.ID)
 		m := &fight.Member{Ch: c, Kit: f.KitOf(c), Pick: pick}
-		if o, _ := find(opts, pick); o.Puzzle {
+		o, _ := fight.OptionByID(opts, pick)
+		if o.Puzzle {
 			res := f.ModelPuzzle(s, kit, 1, fight.Roll{Who: c.ID, Encounter: e.ID, Beat: int64(e.At)})
 			m.Puzzle = &res
 		}
-		if o, _ := find(opts, pick); o.Kind == fight.Cast {
+		if o.Kind == fight.Cast {
 			cast = true
 		}
 		if _, _, err := f.Press(e, []*fight.Member{m}, 0); err != nil {
@@ -308,15 +299,6 @@ func (b *battle) fightOne(c *char.Character, site fight.Site, arch string, pol P
 		presses++
 	}
 	return e, presses, nil
-}
-
-func find(opts []fight.Option, id string) (fight.Option, bool) {
-	for _, o := range opts {
-		if o.ID == id {
-			return o, true
-		}
-	}
-	return fight.Option{}, false
 }
 
 type tally struct {
@@ -340,7 +322,7 @@ func (t tally) rate() float64 { return float64(t.won) / float64(max(t.n, 1)) }
 
 // cell runs n encounters of one archetype with one loadout and policy.
 func (b *battle) cell(name, arch string, l Loadout, level, practice int64, pol Policy, n int) (tally, error) {
-	tier := sheets.Lookup(b.p.Book.Creatures)[arch].Tier
+	tier := b.creatures[arch].Tier
 	var t tally
 	for i := range n {
 		id := fmt.Sprintf("%s-%s-%d", name, arch, i)
@@ -412,8 +394,8 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		}
 		cr := bt.p.Fight.Spawn(arch, nil, nil, nil)
 		opts := bt.p.Fight.Options(fight.Situation{Encounter: "ref", Kind: "clash", Creature: &cr, Party: 1}, bt.p.Fight.KitOf(c))
-		strike, _ := find(opts, "strike")
-		hold, _ := find(opts, "hold")
+		strike, _ := fight.OptionByID(opts, "strike")
+		hold, _ := fight.OptionByID(opts, "hold")
 		pr("| tier %d | %v | %v | %d | %d | %d | %d | %d |", ft.Tier, bt.ref[cellKey(ft.Tier, "blade")].Vec, bt.ref[cellKey(ft.Tier, "plate")].Vec,
 			ft.ExpectedLevel, ft.ExpectedPractice, strike.Score, hold.Score, ft.BaseDifficulty)
 	}
@@ -601,7 +583,8 @@ func (b *battle) firstTool() ([]float64, error) {
 	return out, nil
 }
 
-// tierTwoDays: world days of daily play for a tier-2 item to reach 20.
+// tierTwoDays: world days of daily play for a tier-2 item to reach its
+// level cap.
 func (b *battle) tierTwoDays() ([]int64, error) {
 	g := b.p.Growth
 	var archs []string

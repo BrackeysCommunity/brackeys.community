@@ -71,8 +71,8 @@ func (m *Mounts) Load(in *Instance) int64 {
 // PackLoad is a character's pack before mounts and traits.
 func (m *Mounts) PackLoad() int64 { return m.param("pack-load") }
 
-// Upkeep is the provisions a mount eats: one a world day, and one more
-// per so many ticks ridden.
+// Upkeep is the provisions a mount eats: upkeep-daily a world day, plus
+// one per upkeep-ridden ticks ridden.
 func (m *Mounts) Upkeep(days, ticksRidden int64) int64 {
 	return days*m.param("upkeep-daily") + ticksRidden/m.param("upkeep-ridden")
 }

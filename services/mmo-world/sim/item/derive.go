@@ -5,7 +5,7 @@
 package item
 
 import (
-	"crypto/sha256"
+	"cmp"
 	"encoding/hex"
 	"fmt"
 	"maps"
@@ -23,7 +23,7 @@ import (
 // is hundredths.
 const (
 	kindBytes = 16
-	percent   = 100
+	percent   = fixed.Hundredths
 	// Infuse takes a carrier and a minor input; Inscribe an item and a
 	// pattern's material.
 	infuseParts   = 2
@@ -76,6 +76,7 @@ type Recipe struct {
 	Method  string  `json:"method"`
 	Slot    string  `json:"slot,omitempty"`
 	Inputs  []Input `json:"inputs"`
+	Cap     int64   `json:"cap,omitempty"` // the station tier that held an Alloy down
 }
 
 // Exploit is what a composed kind does when run from a deck (GDD 9.13).
@@ -240,19 +241,35 @@ func (d *Deriver) Trait(id string) *sheets.Trait { return d.traits[id] }
 
 func (d *Deriver) param(id string) int64 { return sheets.IntParam(d.params, id) }
 
-// KindID is the recipe's identity: canonical JSON, hashed. Inputs are
-// sorted, except for Compose, whose order is part of the recipe.
+// KindID is the recipe's identity: canonical JSON, hashed. Only inputs
+// whose position means nothing are sorted: all of an Alloy's, and a
+// Bind's after the first.
 func KindID(r Recipe) string {
-	r.Inputs = slices.Clone(r.Inputs)
-	if r.Process != Compose {
-		slices.SortFunc(r.Inputs, func(a, b Input) int { return strings.Compare(a.Kind, b.Kind) })
-	}
-	b, err := canon.Marshal(r)
+	sum, err := canon.Digest(canonical(r))
 	if err != nil {
 		panic(err)
 	}
-	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:kindBytes])
+}
+
+// canonical is r with the inputs whose position means nothing sorted.
+func canonical(r Recipe) Recipe {
+	r.Inputs = slices.Clone(r.Inputs)
+	byKind := func(a, b Input) int {
+		if c := strings.Compare(a.Kind, b.Kind); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Qty, b.Qty)
+	}
+	switch r.Process {
+	case Alloy:
+		slices.SortFunc(r.Inputs, byKind)
+	case Bind:
+		if len(r.Inputs) > 1 {
+			slices.SortFunc(r.Inputs[1:], byKind)
+		}
+	}
+	return r
 }
 
 // part is a resolved input.
@@ -270,10 +287,9 @@ type part struct {
 
 func (d *Deriver) resolve(in Input) (part, error) {
 	if m, ok := d.materials[in.Kind]; ok {
-		v := m.Vector
 		return part{
-			vec:  Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond},
-			tier: m.Tier, baseTier: m.Tier, tags: toTags(m.Tags), qty: in.Qty,
+			vec:  m.Vector.Slice(),
+			tier: m.Tier, baseTier: m.Tier, tags: tags.Of(m.Tags), qty: in.Qty,
 		}, nil
 	}
 	if k, ok := d.Reg.Kind(in.Kind); ok {
@@ -283,9 +299,32 @@ func (d *Deriver) resolve(in Input) (part, error) {
 	return part{}, fmt.Errorf("item: unknown input %q", in.Kind)
 }
 
-// Derive makes (or returns) the kind a recipe gives, and freezes it in
-// the registry. stationTier caps what an Alloy can reach.
+// At is the recipe as made at a station of stationTier: an Alloy the
+// station holds below its natural tier records the cap, so it is a kind
+// of its own. Any cap the recipe arrived with is dropped.
+func (d *Deriver) At(r Recipe, stationTier int64) Recipe {
+	r.Cap = 0
+	if r.Process != Alloy {
+		return r
+	}
+	var top int64
+	for _, in := range r.Inputs {
+		p, err := d.resolve(in)
+		if err != nil {
+			return r
+		}
+		top = max(top, p.baseTier)
+	}
+	if stationTier < min(top+d.param("alloy-tier-step"), d.maxTier) {
+		r.Cap = stationTier
+	}
+	return r
+}
+
+// Derive makes (or returns) the kind a recipe gives at a station, and
+// freezes it in the registry.
 func (d *Deriver) Derive(r Recipe, stationTier int64) (*Kind, error) {
+	r = d.At(r, stationTier)
 	id := KindID(r)
 	if k, ok := d.Reg.Kind(id); ok {
 		return k, nil
@@ -297,12 +336,23 @@ func (d *Deriver) Derive(r Recipe, stationTier int64) (*Kind, error) {
 	return d.Reg.Freeze(&Kind{ID: id, Recipe: r, KindProps: p}), nil
 }
 
-// Props derives a recipe's properties without freezing them. Appraisal
-// reads it with the quirk off.
+// Props derives a recipe's properties without freezing them; SkipQuirk
+// leaves the quirk out.
 func (d *Deriver) Props(r Recipe, stationTier int64) (KindProps, error) {
+	return d.props(r, stationTier, !d.SkipQuirk)
+}
+
+// PropsNoQuirk is Props without the quirk, as appraisal shows it.
+func (d *Deriver) PropsNoQuirk(r Recipe, stationTier int64) (KindProps, error) {
+	return d.props(r, stationTier, false)
+}
+
+func (d *Deriver) props(r Recipe, stationTier int64, quirk bool) (KindProps, error) {
 	if len(r.Inputs) == 0 || int64(len(r.Inputs)) > d.param("recipe-max-inputs") {
 		return KindProps{}, fmt.Errorf("item: %d inputs", len(r.Inputs))
 	}
+	// Inputs that share a kind id resolve in one order, so their traits do too.
+	r = canonical(r)
 	parts := make([]part, len(r.Inputs))
 	for i, in := range r.Inputs {
 		if in.Qty < 1 || in.Qty > d.param("input-max-quantity") {
@@ -375,7 +425,7 @@ func (d *Deriver) Props(r Recipe, stationTier int64) (KindProps, error) {
 	}
 	slices.Sort(k.Steps)
 	k.Traits = lent
-	if !d.SkipQuirk {
+	if quirk {
 		d.applyQuirk(&k, KindID(r))
 	}
 	k.Vec, k.Trimmed = d.trim(k.Vec, k.Tier)
@@ -427,7 +477,7 @@ func (d *Deriver) alloy(parts []part, stationTier int64) (Vec, int64) {
 }
 
 func (d *Deriver) shape(p part, slot *sheets.Slot) Vec {
-	mult := []fixed.F{slot.Edge, slot.Weight, slot.Flex, slot.Conduct, slot.Heat, slot.Ward, slot.Reach, slot.Bond}
+	mult := slot.Multipliers()
 	carry := sheets.ParamOf(d.params, "shape-unnamed-carry")
 	strongest := -1
 	if slot.StrongestOther != 0 {
@@ -559,11 +609,9 @@ func (d *Deriver) tilt(v Vec, m *sheets.Method) Vec {
 	return v
 }
 
-// applyQuirk: a keyed hash of the kind picks one axis and shifts it by up
-// to the sheet's share either way, and may grant a trait. The trait comes
-// from one step of the recipe's ancestry, each step equally likely, so a
-// blade alloyed twice and shaped once draws from Alloy two times in three.
-// Nobody without the quirk key can compute it.
+// applyQuirk: a keyed hash of the kind shifts one axis by up to the
+// sheet's share either way, and may grant a trait drawn from one step of
+// the ancestry, each step equally likely.
 func (d *Deriver) applyQuirk(k *KindProps, id string) {
 	maxShift := d.param("quirk-shift-max")
 	span := uint64(maxShift + maxShift + 1)
@@ -645,13 +693,5 @@ func (d *Deriver) tagsOf(k *KindProps, parts []part) []tags.Tag {
 		add(tags.Tag(d.traits[tr].Tag))
 	}
 	slices.Sort(out)
-	return out
-}
-
-func toTags(ss []string) []tags.Tag {
-	out := make([]tags.Tag, len(ss))
-	for i, s := range ss {
-		out[i] = tags.Tag(s)
-	}
 	return out
 }

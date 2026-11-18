@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"jams.team/mmo-world/sheetfs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,7 +9,7 @@ import (
 )
 
 func TestCheckIsGreen(t *testing.T) {
-	for _, r := range Check(ModuleRoot(), CheckOptions{}) {
+	for _, r := range Check(sheetfs.ModuleRoot(), CheckOptions{}) {
 		if !r.OK() {
 			t.Errorf("%s: %v", r.Name, r.Problems)
 		}
@@ -18,7 +19,7 @@ func TestCheckIsGreen(t *testing.T) {
 // copyTree copies the module into a temp dir so a test can plant a fault.
 func copyTree(t *testing.T) string {
 	t.Helper()
-	src, dst := ModuleRoot(), t.TempDir()
+	src, dst := sheetfs.ModuleRoot(), t.TempDir()
 	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -126,7 +127,7 @@ func TestPlayRunsSmall(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the harness")
 	}
-	b, err := LoadBook(ModuleRoot())
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

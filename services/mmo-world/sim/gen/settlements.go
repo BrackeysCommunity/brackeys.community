@@ -1,6 +1,10 @@
 package gen
 
-import "slices"
+import (
+	"slices"
+
+	"jams.team/mmo-world/sim/hex"
+)
 
 // Starting settlements sit on a jittered lattice, skipping points inside
 // (or within the clearance of) the areas of origin-anchored patterns, so
@@ -31,7 +35,7 @@ func (g *Gen) isHome(id LatticeID) bool {
 	// A lattice point whose jitter found no dry land holds no settlement.
 	ok := g.passable(g.raw(h).terrain)
 	for _, a := range g.originAreas {
-		if Distance(h, a.centre) <= a.extent+g.p.homeClear {
+		if hex.Distance(h, a.centre) <= a.extent+g.p.homeClear {
 			ok = false
 		}
 	}
@@ -84,7 +88,7 @@ func (g *Gen) extendHomes() {
 	for {
 		var ids []LatticeID
 		for ring := int64(0); ring <= k+1; ring++ {
-			for _, h := range Ring(Hex{}, ring) {
+			for _, h := range hex.Ring(Hex{}, ring) {
 				if id := (LatticeID{h.Q, h.R}); g.isHome(id) {
 					ids = append(ids, id)
 				}
@@ -119,20 +123,8 @@ func (g *Gen) extendHomes() {
 
 // nearestHome is the distance from h to the nearest starting settlement.
 func (g *Gen) nearestHome(h Hex) int64 {
-	for reach := g.p.homeSpacing; ; reach += g.p.homeSpacing {
-		best := int64(-1)
-		for _, id := range g.homes.Near(h, reach) {
-			if !g.isHome(id) {
-				continue
-			}
-			if d := Distance(g.homes.At(id), h); best < 0 || d < best {
-				best = d
-			}
-		}
-		if best >= 0 {
-			return best
-		}
-	}
+	_, d := g.homes.NearestWhere(h, g.isHome)
+	return d
 }
 
 // TierAt is a tile's tier when the first opened starting settlements are
@@ -146,7 +138,7 @@ func (g *Gen) TierAt(h Hex, opened int) int64 {
 		if s.N >= opened {
 			continue
 		}
-		if d := Distance(s.Hex, h); best < 0 || d < best {
+		if d := hex.Distance(s.Hex, h); best < 0 || d < best {
 			best = d
 		}
 	}

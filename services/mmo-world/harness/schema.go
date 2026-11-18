@@ -131,14 +131,10 @@ func columnSchema(f reflect.StructField, unit string) (ordered, error) {
 }
 
 func enumOf(f reflect.StructField) ordered {
-	e := f.Tag.Get("enum")
-	switch e {
-	case "":
-		return nil
-	case "quantity":
-		return ordered{{"enum", sheets.QuantityUnits}}
+	if e := sheets.EnumValues(f); e != nil {
+		return ordered{{"enum", e}}
 	}
-	return ordered{{"enum", strings.Split(e, "|")}}
+	return nil
 }
 
 func fixedStep() json.Number {

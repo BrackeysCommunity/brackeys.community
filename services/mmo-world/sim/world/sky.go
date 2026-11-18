@@ -56,7 +56,7 @@ func (d *day) landfall() {
 				continue
 			}
 			s.Landfalls = append(s.Landfalls, Landfall{sys.ID, n})
-			d.emit("weather.landfall", regionRef(s.RegionAt(h)), nil, nil, fact.S("kind", sys.Kind), fact.N("strength", sys.Strength), fact.N("settlement", int64(n)))
+			d.emit("weather.landfall", s.refAt(h), nil, nil, fact.S("kind", sys.Kind), fact.N("strength", sys.Strength), fact.N("settlement", int64(n)))
 		}
 	}
 	live := s.Landfalls[:0]
@@ -121,7 +121,7 @@ func (d *day) weatherDay() {
 	s.Sky.Systems = kept
 	for _, e := range s.Sky.Day(s.sky, s.d, ground{s.g}, s.Day, s.cells(), len(s.Regions)) {
 		if e.Kind == weather.EventFormed {
-			d.emit("weather.formed", regionRef(s.RegionAt(e.System.Centre)), nil, nil, fact.S("kind", e.System.Kind), fact.N("strength", e.System.Strength))
+			d.emit("weather.formed", s.refAt(e.System.Centre), nil, nil, fact.S("kind", e.System.Kind), fact.N("strength", e.System.Strength))
 		}
 	}
 }

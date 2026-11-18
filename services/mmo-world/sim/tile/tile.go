@@ -9,11 +9,12 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// State is a tile's stored state: the twenty-five fields of GDD 4.10.
+// State is a tile's stored state (GDD 4.10).
 type State struct {
 	Hex hex.Hex `json:"hex"`
 
@@ -126,7 +127,7 @@ func NewParams(b *sheets.Book) Params {
 }
 
 // structural: percentages are hundredths.
-const percent = 100
+const percent = fixed.Hundredths
 
 // decay takes a percentage off a counter, rounding up, so a counter
 // nobody feeds reaches zero.
@@ -138,17 +139,15 @@ func decay(v, pct int64) int64 {
 }
 
 func decayMap(m map[string]int64, pct int64) {
-	for _, k := range sortedKeys(m) {
+	for _, k := range slices.Sorted(maps.Keys(m)) {
 		if m[k] = decay(m[k], pct); m[k] == 0 {
 			delete(m, k)
 		}
 	}
 }
 
-func sortedKeys(m map[string]int64) []string { return slices.Sorted(maps.Keys(m)) }
-
-// Decay runs a world day's forgetting over the counters, and ages fire,
-// rumours and tracks.
+// Decay runs a world day's forgetting over the counters and drops
+// expired rumours. Tracks are left alone: Visit caps them.
 func (s *State) Decay(p Params, tick int64) {
 	s.Visits = decay(s.Visits, p.decay[CounterVisits])
 	for d := range s.Passage {

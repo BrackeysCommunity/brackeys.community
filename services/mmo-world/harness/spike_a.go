@@ -2,6 +2,7 @@ package harness
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -73,27 +74,27 @@ func spikeA(b *sheets.Book, out string, n int) error {
 		base := pool()
 		depth := refineDepth[base]
 		for range r(3) {
-			proc := []string{"alloy", "alloy", "infuse", "bind"}[r(4)]
+			proc := []string{item.Alloy, item.Alloy, item.Infuse, item.Bind}[r(4)]
 			rec := item.Recipe{Process: proc, Method: methodsOf[proc][r(len(methodsOf[proc]))]}
 			switch proc {
-			case "alloy":
+			case item.Alloy:
 				rec.Inputs = []item.Input{{Kind: base, Qty: int64(1 + r(int(maxQty)))}}
 				for range r(int(maxIn)) {
 					rec.Inputs = append(rec.Inputs, item.Input{Kind: pool(), Qty: int64(1 + r(int(maxQty)))})
 				}
-			case "infuse":
+			case item.Infuse:
 				rec.Inputs = []item.Input{{Kind: base, Qty: 1}, {Kind: pool(), Qty: 1}}
-			case "bind":
+			case item.Bind:
 				rec.Inputs = []item.Input{{Kind: base, Qty: 1}}
 				for range 1 + r(int(maxIn)-1) {
 					rec.Inputs = append(rec.Inputs, item.Input{Kind: pool(), Qty: 1})
 				}
 			}
-			rec.Inputs = dedupe(rec.Inputs)
-			if proc == "alloy" && int64(len(rec.Inputs)) < sheets.IntParam(b.ItemParams, "alloy-min-inputs") {
+			rec.Inputs = dedupe(rec.Inputs, sheets.IntParam(b.ItemParams, "input-max-quantity"))
+			if proc == item.Alloy && int64(len(rec.Inputs)) < sheets.IntParam(b.ItemParams, "alloy-min-inputs") {
 				continue
 			}
-			if proc == "infuse" && len(rec.Inputs) != 2 {
+			if proc == item.Infuse && len(rec.Inputs) != 2 {
 				continue
 			}
 			kd, err := d.Derive(rec, stationTier)
@@ -103,7 +104,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			if _, err := plain.Derive(rec, stationTier); err != nil {
 				return err
 			}
-			if proc == "bind" {
+			if proc == item.Bind {
 				binds++
 				if resonates(b, plain, rec, threshold) {
 					resonanceEligible++
@@ -119,7 +120,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			}
 			base, depth = kd.ID, refineDepth[kd.ID]
 		}
-		shape := item.Recipe{Process: "shape", Method: methodsOf["shape"][r(len(methodsOf["shape"]))],
+		shape := item.Recipe{Process: item.Shape, Method: methodsOf[item.Shape][r(len(methodsOf[item.Shape]))],
 			Slot: slots[r(len(slots))], Inputs: []item.Input{{Kind: base, Qty: 1}}}
 		kd, err := d.Derive(shape, stationTier)
 		if err != nil {
@@ -163,7 +164,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	over, trimmed := 0, 0
 	byTier := map[int64][]int64{}
 	for _, s := range samples {
-		bud := tierBudget(b, s.kind.Tier)
+		bud := d.Budget(s.kind.Tier)
 		if s.kind.Vec.Total() > bud {
 			over++
 		}
@@ -237,7 +238,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	matVecs := []item.Vec{}
 	for _, m := range b.Materials {
 		v := m.Vector
-		matVecs = append(matVecs, item.Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond})
+		matVecs = append(matVecs, item.Vec(v.Slice()))
 	}
 	p("Mean cosine similarity of random pairs (1.0 = the same shape; lower is more varied):")
 	p("")
@@ -253,7 +254,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	}
 	mc, hi = meanCos(refinedVecs, pick, "ref")
 	p("| Refined intermediates | 5,000 | %.3f | %.0f%% |", mc, hi*100)
-	for _, depth := range slices.Sorted(keysOf(byDepth)) {
+	for _, depth := range slices.Sorted(maps.Keys(byDepth)) {
 		mc, hi = meanCos(byDepth[depth], pick, fmt.Sprint("depth", depth))
 		p("| Intermediates %d refinements deep (%s) | 5,000 | %.3f | %.0f%% |", depth, comma(int64(len(byDepth[depth]))), mc, hi*100)
 	}
@@ -306,10 +307,10 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			for _, s := range samples {
 				if s.kind.Tier == t.Tier && s.kind.Recipe.Slot == slot {
 					ss = append(ss, s)
-					peaks = append(peaks, topTwo(s.kind.Vec))
+					peaks = append(peaks, s.kind.Vec.TopTwo())
 				}
 			}
-			if len(ss) < 20 {
+			if len(ss) < craftMinCell {
 				continue
 			}
 			sorted := slices.Clone(peaks)
@@ -319,12 +320,12 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			var bestPts int64
 			recipe := "none found"
 			if cell != nil {
-				bestPts = topTwo(cell.Vec)
+				bestPts = cell.Vec.TopTwo()
 				recipe = describe(cell.d, names, cell.Recipe)
 			}
 			ratio := float64(bestPts) / float64(max(p90, 1))
 			cells++
-			ok := ratio <= 1.3
+			ok := ratio <= craftStrength
 			if ok {
 				holds++
 			}
@@ -450,19 +451,6 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	return os.WriteFile(filepath.Join(out, "spike-a-kinds.csv"), []byte(csv.String()), 0o644)
 }
 
-func dedupe(in []item.Input) []item.Input {
-	var out []item.Input
-	for _, x := range in {
-		i := slices.IndexFunc(out, func(y item.Input) bool { return y.Kind == x.Kind })
-		if i >= 0 {
-			out[i].Qty = min(out[i].Qty+x.Qty, 4)
-			continue
-		}
-		out = append(out, x)
-	}
-	return out
-}
-
 // resonates: two components at or above the threshold on the same two axes.
 func resonates(b *sheets.Book, plain *item.Deriver, rec item.Recipe, threshold int64) bool {
 	var vs []item.Vec
@@ -474,7 +462,7 @@ func resonates(b *sheets.Book, plain *item.Deriver, rec item.Recipe, threshold i
 		for _, m := range b.Materials {
 			if m.ID == in.Kind {
 				v := m.Vector
-				vs = append(vs, item.Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond})
+				vs = append(vs, item.Vec(v.Slice()))
 			}
 		}
 	}
@@ -492,15 +480,6 @@ func resonates(b *sheets.Book, plain *item.Deriver, rec item.Recipe, threshold i
 		}
 	}
 	return false
-}
-
-func tierBudget(b *sheets.Book, tier int64) int64 {
-	for _, t := range b.Tiers {
-		if t.Tier == tier {
-			return t.Budget
-		}
-	}
-	return 0
 }
 
 func order(v item.Vec) []int {
@@ -627,130 +606,6 @@ func vecString(axes []string, v item.Vec) string {
 		}
 	}
 	return strings.Join(parts, ", ") + fmt.Sprintf(" pts (%d pts)", v.Total())
-}
-
-func nameIndex(b *sheets.Book) map[string]string {
-	out := map[string]string{}
-	for _, n := range b.Names {
-		out[n.Ref] = n.Name
-	}
-	return out
-}
-
-func mapList(m map[string]int) string {
-	var parts []string
-	for _, k := range slices.Sorted(keysOf(m)) {
-		parts = append(parts, fmt.Sprintf("%s %d", k, m[k]))
-	}
-	return strings.Join(parts, ", ")
-}
-
-func q[T int | int64 | time.Duration](sorted []T, f float64) T {
-	if len(sorted) == 0 {
-		return 0
-	}
-	i := int(math.Ceil(f*float64(len(sorted)))) - 1
-	return sorted[max(0, min(i, len(sorted)-1))]
-}
-
-func pct(a, b int) float64 {
-	if b == 0 {
-		return 0
-	}
-	return 100 * float64(a) / float64(b)
-}
-
-func abs64(x int64) int64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-func yesNo(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
-}
-
-func comma(n int64) string {
-	s := fmt.Sprint(n)
-	neg := strings.HasPrefix(s, "-")
-	s = strings.TrimPrefix(s, "-")
-	for i := len(s) - 3; i > 0; i -= 3 {
-		s = s[:i] + "," + s[i:]
-	}
-	if neg {
-		return "-" + s
-	}
-	return s
-}
-
-type found struct {
-	*item.Kind
-	d *item.Deriver
-}
-
-func topTwo(v item.Vec) int64 {
-	o := order(v)
-	return v[o[0]] + v[o[1]]
-}
-
-func cellKey(tier int64, slot string) string { return fmt.Sprint(tier, "/", slot) }
-
-// searchBest is the craft-strength adversary: it enumerates shallow
-// recipes and keeps, per tier and slot, the kind with the strongest axis.
-func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots []string, stationTier int64) (map[string]*found, int) {
-	d := item.NewDeriver(b, k.Quirk)
-	best := map[string]*found{}
-	n := 0
-	keep := func(base string) {
-		for _, slot := range slots {
-			for _, m := range methodsOf["shape"] {
-				kd, err := d.Derive(item.Recipe{Process: "shape", Method: m, Slot: slot, Inputs: []item.Input{{Kind: base, Qty: 1}}}, stationTier)
-				if err != nil {
-					continue
-				}
-				n++
-				key := cellKey(kd.Tier, slot)
-				if cur := best[key]; cur == nil || topTwo(kd.Vec) > topTwo(cur.Vec) ||
-					(topTwo(kd.Vec) == topTwo(cur.Vec) && kd.ID < cur.ID) {
-					best[key] = &found{kd, d}
-				}
-			}
-		}
-	}
-	var mats []string
-	for _, m := range b.Materials {
-		mats = append(mats, m.ID)
-		keep(m.ID)
-	}
-	alloy := func(in []item.Input) {
-		for _, m := range methodsOf["alloy"] {
-			kd, err := d.Derive(item.Recipe{Process: "alloy", Method: m, Inputs: in}, stationTier)
-			if err != nil {
-				continue
-			}
-			n++
-			keep(kd.ID)
-		}
-	}
-	for i := range mats {
-		for j := i + 1; j < len(mats); j++ {
-			for qi := int64(1); qi <= 4; qi++ {
-				for qj := int64(1); qj <= 4; qj++ {
-					alloy([]item.Input{{Kind: mats[i], Qty: qi}, {Kind: mats[j], Qty: qj}})
-				}
-			}
-			for l := j + 1; l < len(mats); l++ {
-				for _, qs := range [][3]int64{{1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}, {2, 2, 1}, {2, 1, 2}, {1, 2, 2}} {
-					alloy([]item.Input{{Kind: mats[i], Qty: qs[0]}, {Kind: mats[j], Qty: qs[1]}, {Kind: mats[l], Qty: qs[2]}})
-				}
-			}
-		}
-	}
-	return best, n
 }
 
 func known(d *item.Deriver, id string) *item.Kind {

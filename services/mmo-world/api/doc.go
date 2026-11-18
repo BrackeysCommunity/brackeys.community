@@ -1,4 +1,3 @@
-// Package api holds the world service's internal HTTP request and reply
-// types. They are the one contract with the bot and the site:
-// packages/mmo-api is generated from them by tygo, never written by hand.
+// Package api will hold the world service's HTTP request and reply
+// types, the source packages/mmo-api is generated from.
 package api

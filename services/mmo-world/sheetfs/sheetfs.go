@@ -1,7 +1,5 @@
-// Package harness runs the balance harness: the Check run, the Report run,
-// and the spikes. It is the sim's I/O: it reads sheets from disk, runs the
-// pure sim, and writes reports.
-package harness
+// Package sheetfs reads the sheet files from disk; sim/sheets loads them.
+package sheetfs
 
 import (
 	"io/fs"

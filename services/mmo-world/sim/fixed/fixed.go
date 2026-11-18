@@ -37,10 +37,11 @@ func Raw(n int64) F { return F(n) }
 func Ratio(num, den int64) F { return F(divRound(num, Scale, den)) }
 
 // Percent is p/100 as a fraction.
-func Percent(p int64) F { return Ratio(p, percent) }
+func Percent(p int64) F { return Ratio(p, Hundredths) }
 
-// structural: per cent means hundredths.
-const percent = 100
+// structural: per cent means hundredths. Every sim package's percent is
+// this one.
+const Hundredths = 100
 
 // Int rounds to the nearest whole number.
 func (a F) Int() int64 { return divRound(int64(a), 1, Scale) }

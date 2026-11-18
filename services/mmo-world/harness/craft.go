@@ -19,7 +19,7 @@ import (
 const (
 	craftSamples     = 30000
 	craftStation     = 4
-	craftStrength    = 1.3 // the target's line: search best within 1.3 × p90
+	craftStrength    = 1.3 // the search's best may reach this many times the sampled p90
 	craftMinCell     = 20
 	craftComposeOdds = 8 // one sample in this many is an exploit
 	craftPatchOdds   = 6 // one shaped sample in this many is patched
@@ -88,7 +88,7 @@ func (s *sampler) one(i int) *item.Kind {
 		for range extra {
 			rec.Inputs = append(rec.Inputs, item.Input{Kind: pool(), Qty: int64(1 + r(int(s.maxQty)))})
 		}
-		rec.Inputs = dedupe(rec.Inputs)
+		rec.Inputs = dedupe(rec.Inputs, s.maxQty)
 		k, err := s.d.Derive(rec, craftStation)
 		if err != nil {
 			continue
@@ -140,7 +140,7 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	traits := map[string]int{}
 	states := map[string]int{}
 	for _, kd := range kinds {
-		if kd.Vec.Total() > tierBudget(b, kd.Tier) {
+		if kd.Vec.Total() > d.Budget(kd.Tier) {
 			over++
 		}
 		if kd.Failed {
@@ -222,4 +222,78 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		{Target: "kind-within-budget", Value: fmt.Sprintf("%d of %s over budget", over, comma(int64(len(kinds)))), Holds: over == 0},
 		{Target: "top-kinds-near-median", Value: fmt.Sprintf("%d of %d cells; worst %.2f", holds, cells, worst), Holds: holds == cells},
 	}, nil
+}
+
+// dedupe merges repeated inputs, their quantity capped at maxQty.
+func dedupe(in []item.Input, maxQty int64) []item.Input {
+	var out []item.Input
+	for _, x := range in {
+		i := slices.IndexFunc(out, func(y item.Input) bool { return y.Kind == x.Kind })
+		if i >= 0 {
+			out[i].Qty = min(out[i].Qty+x.Qty, maxQty)
+			continue
+		}
+		out = append(out, x)
+	}
+	return out
+}
+
+type found struct {
+	*item.Kind
+	d *item.Deriver
+}
+
+// searchBest is the craft-strength adversary: it enumerates shallow
+// recipes and keeps, per tier and slot, the kind with the strongest axis.
+func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots []string, stationTier int64) (map[string]*found, int) {
+	d := item.NewDeriver(b, k.Quirk)
+	maxQty := sheets.IntParam(b.ItemParams, "input-max-quantity")
+	best := map[string]*found{}
+	n := 0
+	keep := func(base string) {
+		for _, slot := range slots {
+			for _, m := range methodsOf[item.Shape] {
+				kd, err := d.Derive(item.Recipe{Process: item.Shape, Method: m, Slot: slot, Inputs: []item.Input{{Kind: base, Qty: 1}}}, stationTier)
+				if err != nil {
+					continue
+				}
+				n++
+				key := cellKey(kd.Tier, slot)
+				if cur := best[key]; cur == nil || kd.Vec.TopTwo() > cur.Vec.TopTwo() ||
+					(kd.Vec.TopTwo() == cur.Vec.TopTwo() && kd.ID < cur.ID) {
+					best[key] = &found{kd, d}
+				}
+			}
+		}
+	}
+	var mats []string
+	for _, m := range b.Materials {
+		mats = append(mats, m.ID)
+		keep(m.ID)
+	}
+	alloy := func(in []item.Input) {
+		for _, m := range methodsOf[item.Alloy] {
+			kd, err := d.Derive(item.Recipe{Process: item.Alloy, Method: m, Inputs: in}, stationTier)
+			if err != nil {
+				continue
+			}
+			n++
+			keep(kd.ID)
+		}
+	}
+	for i := range mats {
+		for j := i + 1; j < len(mats); j++ {
+			for qi := int64(1); qi <= maxQty; qi++ {
+				for qj := int64(1); qj <= maxQty; qj++ {
+					alloy([]item.Input{{Kind: mats[i], Qty: qi}, {Kind: mats[j], Qty: qj}})
+				}
+			}
+			for l := j + 1; l < len(mats); l++ {
+				for _, qs := range [][3]int64{{1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}, {2, 2, 1}, {2, 1, 2}, {1, 2, 2}} {
+					alloy([]item.Input{{Kind: mats[i], Qty: qs[0]}, {Kind: mats[j], Qty: qs[1]}, {Kind: mats[l], Qty: qs[2]}})
+				}
+			}
+		}
+	}
+	return best, n
 }

@@ -16,7 +16,7 @@ import (
 
 // structural: a percentage is hundredths.
 const (
-	percent = 100
+	percent = fixed.Hundredths
 	half    = 2
 )
 
@@ -26,16 +26,13 @@ type Crafter struct {
 	d        *item.Deriver
 	g        *item.Growth
 	params   []sheets.Param
-	weights  map[string]int64
+	weights  fact.Weights
 	stations map[string][]string
 	roll     *draw.Drawer
 }
 
 func New(b *sheets.Book, d *item.Deriver, g *item.Growth, rollKey draw.Key) *Crafter {
-	c := &Crafter{d: d, g: g, params: b.ItemParams, weights: map[string]int64{}, stations: map[string][]string{}, roll: draw.NewDrawer(rollKey)}
-	for _, w := range b.FactWeights {
-		c.weights[w.Kind] = w.Weight
-	}
+	c := &Crafter{d: d, g: g, params: b.ItemParams, weights: fact.NewWeights(b.FactWeights), stations: map[string][]string{}, roll: draw.NewDrawer(rollKey)}
 	for _, p := range b.Processes {
 		c.stations[p.ID] = p.Stations
 	}
@@ -76,14 +73,11 @@ func (c *Crafter) Appraise(r item.Recipe, st Station, practice int64, who string
 	if err := c.at(r, st); err != nil {
 		return Ranges{}, err
 	}
-	id := item.KindID(r)
+	id := item.KindID(c.d.At(r, st.Tier))
 	if k, ok := c.d.Reg.Kind(id); ok {
 		return Ranges{Kind: id, Tier: k.Tier, Slot: k.Slot, Lo: k.Vec, Hi: k.Vec, Known: true}, nil
 	}
-	skip := c.d.SkipQuirk
-	c.d.SkipQuirk = true
-	p, err := c.d.Props(r, st.Tier)
-	c.d.SkipQuirk = skip
+	p, err := c.d.PropsNoQuirk(r, st.Tier)
 	if err != nil {
 		return Ranges{}, err
 	}
@@ -91,8 +85,8 @@ func (c *Crafter) Appraise(r item.Recipe, st Station, practice int64, who string
 	out := Ranges{Kind: id, Tier: p.Tier, Slot: p.Slot, Lo: make(item.Vec, len(p.Vec)), Hi: make(item.Vec, len(p.Vec)), Spread: spread}
 	for a, v := range p.Vec {
 		w := spread.Of(v)
-		// The true value sits anywhere from the low quarter to the high
-		// quarter of its range.
+		// The true value sits between a quarter and three quarters of
+		// the way up its range.
 		off := int64(0)
 		if w > 0 {
 			off = int64(c.roll.Below(uint64(w+1), "appraise.offset", draw.Str(who), draw.Str(id), draw.Int(int64(a)))) - w/half
@@ -139,7 +133,7 @@ func (c *Crafter) Craft(o Order) (Result, []fact.Fact, error) {
 	if err := c.at(o.Recipe, o.Station); err != nil {
 		return Result{}, nil, err
 	}
-	id := item.KindID(o.Recipe)
+	id := item.KindID(c.d.At(o.Recipe, o.Station.Tier))
 	_, known := c.d.Reg.Kind(id)
 	k, err := c.d.Derive(o.Recipe, o.Station.Tier)
 	if err != nil {
@@ -157,22 +151,26 @@ func (c *Crafter) Craft(o Order) (Result, []fact.Fact, error) {
 		res.Failed = true
 		res.Consumed = c.inputs(o.Recipe)
 		res.Salvage = c.d.Salvage(o.Recipe.Inputs, c.param("failed-salvage"))
-		facts = append(facts, c.fact(o.Tick, "craft.failed", []fact.Ref{who, kindRef}, fact.N("salvage", total(res.Salvage))))
+		facts = append(facts, c.fact(o.Tick, "craft.failed", []fact.Ref{who, kindRef}, fact.N("salvage", item.Total(res.Salvage))))
 		return res, facts, nil
 	}
 	discount := c.g.Maturity(c.d.Reg.Crafts(k.ID))
+	// A kind listed twice draws its later units after its earlier ones.
+	drawn := map[string]int64{}
 	for _, in := range o.Recipe.Inputs {
 		var used, kept int64
-		for u := range in.Qty {
+		from := drawn[in.Kind]
+		drawn[in.Kind] += in.Qty
+		for u := from; u < from+in.Qty; u++ {
 			if c.roll.Roll(discount, "craft.maturity", draw.Str(o.Press), draw.Str(in.Kind), draw.Int(u)) {
 				kept++
 			} else {
 				used++
 			}
 		}
-		res.Consumed = addSpoil(res.Consumed, item.Spoil{Material: in.Kind, Qty: used})
+		res.Consumed = item.AddSpoil(res.Consumed, in.Kind, used)
 		if kept > 0 {
-			res.Saved = addSpoil(res.Saved, item.Spoil{Material: in.Kind, Qty: kept})
+			res.Saved = item.AddSpoil(res.Saved, in.Kind, kept)
 		}
 	}
 	c.d.Reg.AddCraft(k.ID)
@@ -199,32 +197,15 @@ func (c *Crafter) WritePattern(kindID, by, press string, tick int64) (*item.Inst
 func (c *Crafter) inputs(r item.Recipe) []item.Spoil {
 	var out []item.Spoil
 	for _, in := range r.Inputs {
-		out = addSpoil(out, item.Spoil{Material: in.Kind, Qty: in.Qty})
+		out = item.AddSpoil(out, in.Kind, in.Qty)
 	}
 	return out
 }
 
 func (c *Crafter) fact(tick int64, kind string, subjects []fact.Ref, data ...fact.Datum) fact.Fact {
-	return fact.Fact{Tick: tick, Kind: kind, Subjects: subjects, Data: data, Weight: c.weights[kind]}
-}
-
-func addSpoil(list []item.Spoil, s item.Spoil) []item.Spoil {
-	if s.Qty <= 0 {
-		return list
+	f, err := c.weights.New(tick, kind, "", subjects, nil, data...)
+	if err != nil {
+		panic(err)
 	}
-	for i := range list {
-		if list[i].Material == s.Material {
-			list[i].Qty += s.Qty
-			return list
-		}
-	}
-	return append(list, s)
-}
-
-func total(ss []item.Spoil) int64 {
-	var n int64
-	for _, s := range ss {
-		n += s.Qty
-	}
-	return n
+	return f
 }

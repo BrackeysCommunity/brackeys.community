@@ -10,9 +10,12 @@ package world
 import (
 	"fmt"
 	"slices"
+	"strings"
 
+	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
@@ -20,10 +23,10 @@ import (
 	"jams.team/mmo-world/sim/weather"
 )
 
-// structural: percentages are hundredths; a world day is 144 ticks.
+// structural: percentages and the day come from fixed and sheets.
 const (
-	percent     = 100
-	ticksPerDay = 144
+	percent     = fixed.Hundredths
+	ticksPerDay = sheets.TicksPerDay
 	none        = -1
 )
 
@@ -72,16 +75,19 @@ type State struct {
 	Opened  int `json:"opened"`
 	Opening int `json:"opening"`
 
-	g       *gen.Gen
-	b       *sheets.Book
-	d       *draw.Drawer
-	sky     *weather.Rules
-	tp      tile.Params
-	weights map[string]int64
-	moves   map[string]*sheets.MoveWeight
-	region  map[gen.LatticeID]int
-	tileAt  map[hex.Hex]int
-	gauge   map[string]int
+	g         *gen.Gen
+	b         *sheets.Book
+	d         *draw.Drawer
+	sky       *weather.Rules
+	tp        tile.Params
+	weights   fact.Weights
+	factRows  map[string]*sheets.FactWeight
+	creatures map[string]*sheets.Creature
+	ecotones  map[string]*sheets.Ecotone
+	moves     map[string]*sheets.MoveWeight
+	region    map[gen.LatticeID]int
+	tileAt    map[hex.Hex]int
+	gauge     map[string]int
 }
 
 // New starts a world: the first starting settlement is open and its
@@ -106,10 +112,8 @@ func (s *State) Attach(b *sheets.Book, g *gen.Gen, key draw.Key) {
 	s.b, s.g, s.d = b, g, draw.NewDrawer(key)
 	s.sky = weather.NewRules(b)
 	s.tp = tile.NewParams(b)
-	s.weights, s.moves = map[string]int64{}, map[string]*sheets.MoveWeight{}
-	for _, fw := range b.FactWeights {
-		s.weights[fw.Kind] = fw.Weight
-	}
+	s.weights, s.moves = fact.NewWeights(b.FactWeights), map[string]*sheets.MoveWeight{}
+	s.factRows, s.creatures, s.ecotones = sheets.Lookup(b.FactWeights), sheets.Lookup(b.Creatures), sheets.Lookup(b.Ecotones)
 	for i := range b.MoveWeights {
 		mw := &b.MoveWeights[i]
 		s.moves[mw.Archetype+"/"+mw.Move] = mw
@@ -182,18 +186,47 @@ func (s *State) prune() {
 	}
 }
 
-func regionRef(r int) string    { return fmt.Sprintf("r-%d", r) }
+// RegionRef is how a fact names region r.
+func RegionRef(r int) string { return fmt.Sprintf("r-%d", r) }
+
+// ParseRegionRef reads a RegionRef back.
+func ParseRegionRef(ref string) (int, bool) {
+	var r int
+	_, err := fmt.Sscanf(ref, "r-%d", &r)
+	return r, err == nil
+}
+
+// RefIndex is the index a faction or notable ref carries.
+func RefIndex(r fact.Ref) (int, bool) {
+	_, n, ok := strings.Cut(r.ID, "-")
+	if !ok {
+		return 0, false
+	}
+	var i int
+	_, err := fmt.Sscanf(n, "%d", &i)
+	return i, err == nil
+}
 func factionRef(f int) fact.Ref { return fact.Ref{Kind: "faction", ID: fmt.Sprintf("f-%d", f)} }
 func notableRef(n Notable) fact.Ref {
 	return fact.Ref{Kind: "notable", ID: fmt.Sprintf("n-%d", n.ID)}
 }
 func latticeRef(id gen.LatticeID) string { return fmt.Sprintf("l-%d.%d", id.I, id.J) }
 
+// refAt names the awake region holding h, or its lattice cell when the
+// region is dormant.
+func (s *State) refAt(h hex.Hex) string {
+	if r := s.RegionAt(h); r >= 0 {
+		return RegionRef(r)
+	}
+	return latticeRef(s.g.RegionOf(h))
+}
+
 // OpenSettlement asks for the next starting settlement to open. It opens
 // at the start of the next world day.
 func (s *State) OpenSettlement() { s.Opening++ }
 
-func (s *State) gaugeIndex(id string) int {
+// GaugeIndex is a world.gauges row's index in every region's Gauge.
+func (s *State) GaugeIndex(id string) int {
 	i, ok := s.gauge[id]
 	if !ok {
 		panic("world: no gauge " + id)
@@ -225,4 +258,9 @@ func (s *State) furnish(h hex.Hex) {
 	for _, st := range s.b.Starting {
 		t.Structures = append(t.Structures, tile.Structure{Kind: st.Structure, Tier: st.Tier, Condition: s.wp("structure-condition")})
 	}
+}
+
+// Digest is the state's and its ledger's identity, as replays compare it.
+func Digest(s *State, log fact.Log) (canon.Sum, error) {
+	return canon.Digest([]any{s, log.Since(0)})
 }

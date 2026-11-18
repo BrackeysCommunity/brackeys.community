@@ -26,8 +26,8 @@ type Faction struct {
 	Notables     []Notable `json:"notables"`
 	Fallen       bool      `json:"fallen"`
 	// Needs are what the faction is short of, by what it buys: the
-	// shortfall spread over its archetype's buys. They become buy orders
-	// at its settlements once markets exist (GDD 10.4).
+	// shortfall spread over its archetype's buys (the buy orders of GDD
+	// 10.4).
 	Needs []Need `json:"needs"`
 }
 
@@ -66,7 +66,7 @@ func (d *day) held(f int) []int {
 }
 
 func (d *day) safest(f int) int {
-	threat := d.s.gaugeIndex("threat")
+	threat := d.s.GaugeIndex("threat")
 	best := none
 	for _, i := range d.held(f) {
 		if best == none || d.s.Regions[i].Gauge[threat] < d.s.Regions[best].Gauge[threat] {
@@ -113,7 +113,7 @@ func (d *day) faction(i int) {
 	s := d.s
 	f := &s.Factions[i]
 	held := d.held(i)
-	threat, scarcity, corruption := s.gaugeIndex("threat"), s.gaugeIndex("scarcity"), s.gaugeIndex("corruption")
+	threat, scarcity, corruption := s.GaugeIndex("threat"), s.GaugeIndex("scarcity"), s.GaugeIndex("corruption")
 	yieldsHalve := lineAt(s.b, "yields-halve")
 	for _, r := range held {
 		income := s.p("holding-income")
@@ -127,7 +127,7 @@ func (d *day) faction(i int) {
 		if !f.Starving {
 			f.Starving = true
 			f.loyalty(s.p("loyalty-starving"))
-			d.emit("faction.starving", regionRef(f.Seat), []fact.Ref{factionRef(i)}, nil)
+			d.emit("faction.starving", RegionRef(f.Seat), []fact.Ref{factionRef(i)}, nil)
 		}
 	} else if f.Stock >= s.p("need-threshold") {
 		f.Starving = false
@@ -301,13 +301,13 @@ func (d *day) act(i int, p plan) {
 		f.Stock -= s.p("expand-cost")
 		s.Regions[p.target].Holder, s.Regions[p.target].Defence = i, s.p("holding-defence")
 		f.loyalty(s.p("loyalty-holding"))
-		d.emit("faction.expanded", regionRef(p.target), me, nil)
+		d.emit("faction.expanded", RegionRef(p.target), me, nil)
 	case "fortify":
 		s.Regions[p.target].Defence += s.p("fortify-gain")
-		d.emit("faction.fortified", regionRef(p.target), me, nil, fact.N("defence", s.Regions[p.target].Defence))
+		d.emit("faction.fortified", RegionRef(p.target), me, nil, fact.N("defence", s.Regions[p.target].Defence))
 	case "patrol":
 		s.Regions[p.target].Patrolled = true
-		d.emit("faction.patrolled", regionRef(p.target), me, nil)
+		d.emit("faction.patrolled", RegionRef(p.target), me, nil)
 	case "raid", "besiege", "betray":
 		victim := s.Regions[p.target].Holder
 		loot := min(s.p("raid-loot"), s.Factions[victim].Stock)
@@ -322,7 +322,7 @@ func (d *day) act(i int, p plan) {
 		case p.move != "betray" && f.Grudge[victim] > 0 && f.Wrong[victim] != 0:
 			causes = append(causes, f.Wrong[victim])
 		}
-		cause := d.emit(kind, regionRef(p.target), []fact.Ref{factionRef(i), factionRef(victim)}, causes, fact.N("loot", loot))
+		cause := d.emit(kind, RegionRef(p.target), []fact.Ref{factionRef(i), factionRef(victim)}, causes, fact.N("loot", loot))
 		if p.move == "betray" {
 			v := &s.Factions[victim]
 			v.Disposition[i] = -s.p("betray-threshold")
@@ -343,27 +343,27 @@ func (d *day) act(i int, p plan) {
 		s.Factions[p.target].Stock += gain
 		f.Disposition[p.target] += s.p("court-gain")
 		s.Factions[p.target].Disposition[i] += s.p("court-gain")
-		id := d.emit("faction.traded", regionRef(f.Seat), []fact.Ref{factionRef(i), factionRef(p.target)}, nil, fact.N("goods", gain))
+		id := d.emit("faction.traded", RegionRef(f.Seat), []fact.Ref{factionRef(i), factionRef(p.target)}, nil, fact.N("goods", gain))
 		f.Ties[p.target], s.Factions[p.target].Ties[i] = id, id
 	case "court":
 		f.Disposition[p.target] += s.p("court-gain")
 		s.Factions[p.target].Disposition[i] += s.p("court-gain")
-		id := d.emit("faction.courted", regionRef(f.Seat), []fact.Ref{factionRef(i), factionRef(p.target)}, nil)
+		id := d.emit("faction.courted", RegionRef(f.Seat), []fact.Ref{factionRef(i), factionRef(p.target)}, nil)
 		f.Ties[p.target], s.Factions[p.target].Ties[i] = id, id
 	case "withdraw":
 		s.Regions[p.target].Holder = none
 		if f.Seat == p.target {
 			f.Seat = d.safest(i)
 		}
-		d.emit("faction.withdrew", regionRef(p.target), me, nil)
+		d.emit("faction.withdrew", RegionRef(p.target), me, nil)
 	case "cull":
-		b := s.gaugeIndex("corruption")
-		s.Regions[p.target].Gauge[b] = max(0, s.Regions[p.target].Gauge[b]-s.p("fortify-gain"))
-		d.emit("faction.culled", regionRef(p.target), me, nil)
+		b := s.GaugeIndex("corruption")
+		s.addGauge(p.target, b, -s.p("fortify-gain"))
+		d.emit("faction.culled", RegionRef(p.target), me, nil)
 	case "migrate":
 		from := f.Seat
 		f.Seat = p.target
-		d.emit("faction.migrated", regionRef(p.target), me, nil, fact.S("from", regionRef(from)))
+		d.emit("faction.migrated", RegionRef(p.target), me, nil, fact.S("from", RegionRef(from)))
 	}
 }
 
@@ -391,7 +391,7 @@ func (d *day) hit(region int, damage int64, why string, by int, cause fact.ID) {
 	if cause != 0 {
 		causes = append(causes, cause)
 	}
-	fell := d.emit("holding.fell", regionRef(region), subjects, causes, fact.S("cause", why), fact.N("settlement", boolN(r.Settlement)))
+	fell := d.emit("holding.fell", RegionRef(region), subjects, causes, fact.S("cause", why), fact.B("settlement", r.Settlement))
 	r.Holder, r.Settlement = none, false
 	if holder == none {
 		return
@@ -400,19 +400,12 @@ func (d *day) hit(region int, damage int64, why string, by int, cause fact.ID) {
 	if k := f.living(); k >= 0 && s.d.Roll(sheets.ParamOf(s.b.FactionParams, "notable-death-chance"), "notable.dies", draw.Int(s.Day), draw.Int(int64(region))) {
 		f.Notables[k].Dead = true
 		dead := f.Notables[k]
-		d.emit("notable.died", regionRef(region), []fact.Ref{notableRef(dead), factionRef(holder)}, []fact.ID{fell}, fact.S("role", dead.Role))
+		d.emit("notable.died", RegionRef(region), []fact.Ref{notableRef(dead), factionRef(holder)}, []fact.ID{fell}, fact.S("role", dead.Role))
 	}
 	if d.holdings(holder) == 0 {
 		f.Fallen = true
-		d.emit("faction.fell", regionRef(region), []fact.Ref{factionRef(holder)}, []fact.ID{fell})
+		d.emit("faction.fell", RegionRef(region), []fact.Ref{factionRef(holder)}, []fact.ID{fell})
 	} else if f.Seat == region {
 		f.Seat = d.safest(holder)
 	}
-}
-
-func boolN(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
 }
