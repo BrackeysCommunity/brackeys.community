@@ -304,7 +304,7 @@ export function createSummarizer(deps: {
     usage.push(final.usage);
     const messageUrl = (id: string) => `https://discord.com/channels/${guildId}/${channelId}/${id}`;
     const summary = result({
-      text: resolveTimes(resolveLinks(final.text, refs, messageUrl), now),
+      text: resolveTimes(resolveLinks(final.text, refs, messageUrl), now, start),
       messageCount: count,
       buckets,
     });

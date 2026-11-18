@@ -46,6 +46,9 @@ export function formatStamp(ms: number): string {
 }
 
 const STAMP_TOKEN = /\{(\d{2})-(\d{2}) (\d{2}):(\d{2})\}/g;
+/** A 24-hour clock time on its own, never part of a number, a stamp or an am/pm time. */
+const BARE_TIME =
+  /(?<![\d:.\/])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])(?!\s?[AaPp]\.?[Mm]\b)(?: UTC\b)?/g;
 const DAY_MS = 86_400_000;
 
 /**
@@ -54,7 +57,33 @@ const DAY_MS = 86_400_000;
  * last day, the date with it further back. A stamp carries no year, so one
  * that would land after `now` belongs to the year before.
  */
-export function resolveTimes(text: string, now: number): string {
+export function resolveTimes(text: string, now: number, from = now - DAY_MS): string {
+  return resolveStamps(text, now).replace(BARE_TIME, (whole, h: string, mi: string) => {
+    const at = latestAt(Number(h), Number(mi), from, now);
+    return at === null ? whole : ts(new Date(at), now - at < DAY_MS ? "t" : "f");
+  });
+}
+
+/**
+ * A bare time the model wrote despite the prompt, read as UTC like the
+ * history: its latest occurrence inside the window, if any.
+ */
+function latestAt(hour: number, minute: number, from: number, now: number): number | null {
+  const today = new Date(now);
+  for (let back = 0; back <= Math.ceil((now - from) / DAY_MS); back++) {
+    const at = Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate() - back,
+      hour,
+      minute,
+    );
+    if (at <= now && at >= from) return at;
+  }
+  return null;
+}
+
+function resolveStamps(text: string, now: number): string {
   return text.replace(STAMP_TOKEN, (_, mo: string, d: string, h: string, mi: string) => {
     const [month, day, hour, minute] = [mo, d, h, mi].map(Number);
     if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) {

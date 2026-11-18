@@ -1,13 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { DiscordBackoffError } from "../../../../src/lib/discord-guard.ts";
-import { clampEmbed, EMBED_TITLE_MAX, notFound, plural, type Reply, truncate } from "../reply.ts";
+import {
+  clampEmbed,
+  EMBED_TITLE_MAX,
+  EMBED_TOTAL_MAX,
+  notFound,
+  plural,
+  type Reply,
+  truncate,
+  ts,
+} from "../reply.ts";
 import { SINCE_MINE, type SummaryWindow } from "../summarize/buckets.ts";
 import { ChannelUnreadableError } from "../summarize/history.ts";
 import { EmptySummaryError, SummaryRefusedError } from "../summarize/model.ts";
 import { type PageSet, paginate, type SummaryPages } from "../summarize/pages.ts";
 import type { Summary, SummaryOptions } from "../summarize/summarizer.ts";
-import { formatStamp } from "../summarize/transcript.ts";
 import { pagerButtons } from "./format.ts";
 
 export type Summarize = (
@@ -26,6 +34,8 @@ export const QUESTION_MAX = 300;
 export const SUMMARY_PATIENCE_MS = 60_000;
 
 const SUMMARY_COLOR = 0x5865f2;
+/** Room left in a shared message for its "Part n/n · " label. */
+const SHARED_PART_SLACK = 32;
 
 /** What the window covered: "the last 24h", or for since-I-last-posted the
  *  longest window, which it falls back to when the caller hadn't posted. */
@@ -141,10 +151,12 @@ async function summaryReply(
     );
   }
 
-  const span = `${formatStamp(summary.from)} – ${formatStamp(summary.to)} UTC`;
+  // Footers can't render timestamps, so the span closes the text instead,
+  // in each reader's own zone.
+  const span = `Covers ${ts(new Date(summary.from), "f")} – ${ts(new Date(summary.to), "f")}`;
   const noPost =
     summary.sinceLastPost === false ? " · You haven't posted here in the last 7 days" : "";
-  const footer = `${plural(summary.messageCount, "message")} · ${span}${noPost}`;
+  const footer = `${plural(summary.messageCount, "message")}${noPost}`;
   const title = input.question
     ? truncate(`“${input.question}”`, EMBED_TITLE_MAX)
     : `Catch-up: ${summary.sinceLastPost ? "since you last posted" : coveredSpan(input.window)}`;
@@ -152,27 +164,36 @@ async function summaryReply(
     channelId: input.channelId,
     title,
     footer: `${footer} · AI summary, may miss things`,
-    pages: paginate(summary.text),
+    pages: paginate(`${summary.text.trim()}\n\n${span}`),
   };
   // Anyone can press a shared message's buttons, so a shared answer is
-  // never paged: one embed when it fits, consecutive messages when not.
+  // never paged: past one embed it continues in a second embed of the same
+  // message, and only past a message's total in further messages.
   if (input.share) {
-    const count = set.pages.length;
-    const [first, ...rest] = set.pages.map(
-      (description, i): Reply => ({
-        embeds: [
+    const room = EMBED_TOTAL_MAX - set.title.length - set.footer.length - SHARED_PART_SLACK;
+    const chunks = paginate(`${summary.text.trim()}\n\n${span}`, room);
+    const count = chunks.length;
+    const [first, ...rest] = chunks.map((chunk, i): Reply => {
+      const descriptions = paginate(chunk);
+      return {
+        embeds: descriptions.map((description, j) =>
           clampEmbed({
-            title: i === 0 ? set.title : undefined,
+            title: i === 0 && j === 0 ? set.title : undefined,
             description,
             color: SUMMARY_COLOR,
-            footer: count > 1 ? `Part ${i + 1}/${count} · ${set.footer}` : set.footer,
+            footer:
+              j < descriptions.length - 1
+                ? undefined
+                : count > 1
+                  ? `Part ${i + 1}/${count} · ${set.footer}`
+                  : set.footer,
           }),
-        ],
+        ),
         buttons: [],
         ephemeral: false,
         outcome: "hit",
-      }),
-    );
+      };
+    });
     return rest.length ? { ...first, more: rest } : first;
   }
   const token = set.pages.length > 1 ? ((await pages?.save(set)) ?? null) : null;

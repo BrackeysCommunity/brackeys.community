@@ -44,9 +44,8 @@ describe("summarizeChannel", () => {
     const [embed] = reply.embeds;
     expect(embed.title).toBe("Catch-up: the last 24h");
     expect(embed.description).toContain("Serbia election");
-    expect(embed.footer).toBe(
-      "812 messages · 10-25 15:30 – 10-26 15:30 UTC · AI summary, may miss things",
-    );
+    expect(embed.description).toEndWith("Covers <t:1792942200:f> – <t:1793028600:f>");
+    expect(embed.footer).toBe("812 messages · AI summary, may miss things");
     expect(reply.ephemeral).toBe(true);
   });
 
@@ -105,7 +104,9 @@ describe("summarizeChannel", () => {
     );
     expect(reply.more).toBeUndefined();
     expect(reply.buttons).toHaveLength(0);
-    expect(reply.embeds[0].description).toBe(text.trim());
+    expect(reply.embeds).toHaveLength(1);
+    expect(reply.embeds[0].description).toStartWith(text.trim());
+    expect(reply.embeds[0].description).toEndWith("Covers <t:1792942200:f> – <t:1793028600:f>");
     expect(reply.embeds[0].footer).toStartWith("812 messages");
     expect(pages.sets.size).toBe(0);
   });
@@ -123,9 +124,12 @@ describe("summarizeChannel", () => {
     for (const [i, part] of all.entries()) {
       expect(part.buttons).toHaveLength(0);
       expect(part.ephemeral).toBe(false);
-      expect(part.embeds[0].footer).toStartWith(`Part ${i + 1}/${all.length} · 812 messages`);
-      expect(embedLength(part.embeds[0])).toBeLessThanOrEqual(EMBED_TOTAL_MAX);
+      expect(part.embeds.at(-1)!.footer).toStartWith(`Part ${i + 1}/${all.length} · 812 messages`);
+      const total = part.embeds.reduce((sum, embed) => sum + embedLength(embed), 0);
+      expect(total).toBeLessThanOrEqual(EMBED_TOTAL_MAX);
     }
+    // A message carries a second embed before the answer spills into another message.
+    expect(all[0].embeds.length).toBeGreaterThan(1);
     expect(all[0].embeds[0].title).toBe("Catch-up: the last 24h");
     expect(all[1].embeds[0].title).toBeUndefined();
   });
@@ -176,7 +180,7 @@ describe("summarizeChannel", () => {
     );
     expect(seen).toBe("who argued for voting?");
     expect(reply.embeds[0].title).toBe("“who argued for voting?”");
-    expect(reply.embeds[0].description).toBe("Job argued for voting.");
+    expect(reply.embeds[0].description).toStartWith("Job argued for voting.\n\nCovers <t:");
   });
 
   test("since I last posted: titled for it, or for the 7-day cap when there was none", async () => {

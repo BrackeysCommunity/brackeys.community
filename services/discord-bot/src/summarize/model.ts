@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 /** Part of every bucket cache key: changing a prompt below must bump it. */
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 const MODEL = "claude-haiku-5-5";
 
@@ -20,7 +20,7 @@ const CITE_FORM =
 
 /** The model copies stamps; `resolveTimes` turns them into each reader's own clock. */
 const TIMES =
-  "Every time in the history is UTC. When you mention a time of day, write it as a stamp in braces copied from the history's own form, like {11-13 18:04}, and never as a bare clock time: each reader sees a stamp in their own time zone. A span is two stamps, {11-13 18:00} to {11-14 04:00}.";
+  "Every time in the history is UTC. When you mention a time of day, write it as a stamp in braces copied from the history's own form, like {11-13 18:04}, and never as a bare clock time, not even for an hour (“the {11-13 16:00} hour”, never “the 16:00 hour”): each reader sees a stamp in their own time zone, but a bare time only in UTC. A span is two stamps, {11-13 18:00} to {11-14 04:00}.";
 
 const CITE = `${CITE_FORM} Cite the key message of each topic and each side of a debate, at most once per bullet, and never make up a number.`;
 

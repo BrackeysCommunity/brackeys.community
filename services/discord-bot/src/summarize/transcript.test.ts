@@ -75,4 +75,21 @@ describe("resolveTimes", () => {
       "13-40 25:61 UTC and {not a stamp}",
     );
   });
+
+  test("a bare time is read as UTC and placed at its latest occurrence in the window", () => {
+    const now = Date.parse("2026-11-18T16:28:00Z");
+    const from = now - 24 * 3_600_000;
+    expect(resolveTimes("still argued in the 16:00 hour, around 16:10 UTC", now, from)).toBe(
+      `still argued in the <t:${unix("2026-11-18T16:00:00Z")}:t> hour, around <t:${unix("2026-11-18T16:10:00Z")}:t>`,
+    );
+    expect(resolveTimes("at 17:00", now, from)).toBe(`at <t:${unix("2026-11-17T17:00:00Z")}:t>`);
+  });
+
+  test("leaves times it can't place, am/pm times and numbers alone", () => {
+    const now = Date.parse("2026-11-18T16:28:00Z");
+    const from = now - 3_600_000;
+    expect(resolveTimes("at 09:00, at 4:30 pm, ratio 3:2, v1.12:30", now, from)).toBe(
+      "at 09:00, at 4:30 pm, ratio 3:2, v1.12:30",
+    );
+  });
 });
