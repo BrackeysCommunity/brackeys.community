@@ -5,7 +5,10 @@
   "description": "Faction archetypes, what they buy and tend to do.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "goal", "buys", "tags", "tends"],
+        "required": [
+          "id",
+          "goal",
+          "buys",
+          "tags",
+          "tends"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -27,7 +36,13 @@
           },
           "goal": {
             "type": "string",
-            "enum": ["hold", "take", "profit", "cleanse", "isolate"],
+            "enum": [
+              "hold",
+              "take",
+              "profit",
+              "cleanse",
+              "isolate"
+            ],
             "x-unit": "enum"
           },
           "buys": {

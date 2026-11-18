@@ -5,7 +5,10 @@
   "description": "What each structure costs per tier.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "structure", "tier", "material", "quantity"],
+        "required": [
+          "id",
+          "structure",
+          "tier",
+          "material",
+          "quantity"
+        ],
         "properties": {
           "id": {
             "type": "string",

@@ -5,7 +5,10 @@
   "description": "Base materials and their authored vectors.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "tier", "tags", "vector"],
+        "required": [
+          "id",
+          "tier",
+          "tags",
+          "vector"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -42,7 +50,16 @@
           "vector": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["edge", "weight", "flex", "conduct", "heat", "ward", "reach", "bond"],
+            "required": [
+              "edge",
+              "weight",
+              "flex",
+              "conduct",
+              "heat",
+              "ward",
+              "reach",
+              "bond"
+            ],
             "properties": {
               "edge": {
                 "type": "integer",

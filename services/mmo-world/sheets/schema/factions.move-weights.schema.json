@@ -5,7 +5,10 @@
   "description": "How each archetype scores each move.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "archetype", "move", "fit", "needWeight", "riskWeight"],
+        "required": [
+          "id",
+          "archetype",
+          "move",
+          "fit",
+          "needWeight",
+          "riskWeight"
+        ],
         "properties": {
           "id": {
             "type": "string",

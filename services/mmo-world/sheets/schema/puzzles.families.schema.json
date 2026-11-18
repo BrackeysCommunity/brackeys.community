@@ -5,7 +5,10 @@
   "description": "Machine puzzle families and where each appears.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"

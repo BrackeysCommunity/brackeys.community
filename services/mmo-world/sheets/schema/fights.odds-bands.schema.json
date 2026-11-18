@@ -5,7 +5,10 @@
   "description": "The six odds bands (GDD 2.3).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "rank", "chance", "rolled"],
+        "required": [
+          "id",
+          "rank",
+          "chance",
+          "rolled"
+        ],
         "properties": {
           "id": {
             "type": "string",

@@ -5,7 +5,10 @@
   "description": "Which terrain an elevation and moisture make.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "terrain", "elevationMin", "elevationMax", "moistureMin", "moistureMax"],
+        "required": [
+          "id",
+          "terrain",
+          "elevationMin",
+          "elevationMax",
+          "moistureMin",
+          "moistureMax"
+        ],
         "properties": {
           "id": {
             "type": "string",

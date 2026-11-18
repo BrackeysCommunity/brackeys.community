@@ -5,7 +5,10 @@
   "description": "What a machine does when its countdown runs out.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "effect", "magnitude", "unit"],
+        "required": [
+          "id",
+          "effect",
+          "magnitude",
+          "unit"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -27,7 +35,12 @@
           },
           "effect": {
             "type": "string",
-            "enum": ["shock", "alarm", "short", "lockdown"],
+            "enum": [
+              "shock",
+              "alarm",
+              "short",
+              "lockdown"
+            ],
             "x-unit": "enum"
           },
           "magnitude": {

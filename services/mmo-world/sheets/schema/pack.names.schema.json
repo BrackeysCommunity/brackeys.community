@@ -5,7 +5,10 @@
   "description": "What the setting calls each thing.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "ref", "name"],
+        "required": [
+          "id",
+          "ref",
+          "name"
+        ],
         "properties": {
           "id": {
             "type": "string",

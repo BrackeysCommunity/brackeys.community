@@ -5,7 +5,10 @@
   "description": "Creature archetypes: tier, biomes, tags, drops.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "tier", "biomes", "tags", "drops"],
+        "required": [
+          "id",
+          "tier",
+          "biomes",
+          "tags",
+          "drops"
+        ],
         "properties": {
           "id": {
             "type": "string",

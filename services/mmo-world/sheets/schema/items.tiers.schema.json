@@ -5,7 +5,10 @@
   "description": "Budgets, level caps and blade durability by tier.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "tier", "budget", "levelCap", "gainAtCap", "bladeDurability"],
+        "required": [
+          "id",
+          "tier",
+          "budget",
+          "levelCap",
+          "gainAtCap",
+          "bladeDurability"
+        ],
         "properties": {
           "id": {
             "type": "string",

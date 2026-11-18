@@ -5,7 +5,10 @@
   "description": "Decay per tile counter.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "decayPercent"],
+        "required": [
+          "id",
+          "decayPercent"
+        ],
         "properties": {
           "id": {
             "type": "string",

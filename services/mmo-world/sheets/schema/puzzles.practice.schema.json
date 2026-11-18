@@ -5,7 +5,10 @@
   "description": "What each level of a family's practice buys.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "practice", "gives"],
+        "required": [
+          "id",
+          "practice",
+          "gives"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -33,7 +40,14 @@
           },
           "gives": {
             "type": "string",
-            "enum": ["preview", "countdown", "hint", "guide-line", "partner-glimpse", "mastery"],
+            "enum": [
+              "preview",
+              "countdown",
+              "hint",
+              "guide-line",
+              "partner-glimpse",
+              "mastery"
+            ],
             "x-unit": "enum"
           },
           "percent": {

@@ -5,7 +5,10 @@
   "description": "Each process's methods and how they tilt the result.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "process"],
+        "required": [
+          "id",
+          "process"
+        ],
         "properties": {
           "id": {
             "type": "string",

@@ -5,7 +5,10 @@
   "description": "SVG layers banners are composed from.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "layer", "path", "tags"],
+        "required": [
+          "id",
+          "layer",
+          "path",
+          "tags"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -27,7 +35,12 @@
           },
           "layer": {
             "type": "string",
-            "enum": ["field", "division", "ordinary", "charge"],
+            "enum": [
+              "field",
+              "division",
+              "ordinary",
+              "charge"
+            ],
             "x-unit": "enum"
           },
           "path": {

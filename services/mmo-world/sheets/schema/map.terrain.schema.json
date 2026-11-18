@@ -5,7 +5,10 @@
   "description": "Terrain kinds: travel, sight, cover.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "enterTicks", "passable", "sight", "cover", "tags"],
+        "required": [
+          "id",
+          "enterTicks",
+          "passable",
+          "sight",
+          "cover",
+          "tags"
+        ],
         "properties": {
           "id": {
             "type": "string",

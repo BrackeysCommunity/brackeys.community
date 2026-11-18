@@ -5,7 +5,10 @@
   "description": "Rarity of a trigger's find.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "chance"],
+        "required": [
+          "id",
+          "chance"
+        ],
         "properties": {
           "id": {
             "type": "string",

@@ -5,7 +5,10 @@
   "description": "The rules, in the order they are tried.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "subject", "then"],
+        "required": [
+          "id",
+          "subject",
+          "then"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -80,16 +87,30 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["kind"],
+              "required": [
+                "kind"
+              ],
               "properties": {
                 "kind": {
                   "type": "string",
-                  "enum": ["add-tag", "remove-tag", "band", "scale", "join", "end"],
+                  "enum": [
+                    "add-tag",
+                    "remove-tag",
+                    "band",
+                    "scale",
+                    "join",
+                    "end"
+                  ],
                   "x-unit": "enum"
                 },
                 "target": {
                   "type": "string",
-                  "enum": ["subject", "other", "place", "yield"],
+                  "enum": [
+                    "subject",
+                    "other",
+                    "place",
+                    "yield"
+                  ],
                   "x-unit": "enum"
                 },
                 "tag": {

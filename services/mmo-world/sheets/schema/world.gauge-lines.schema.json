@@ -5,7 +5,10 @@
   "description": "Thresholds that change what a region does.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "gauge", "atLeast", "effect"],
+        "required": [
+          "id",
+          "gauge",
+          "atLeast",
+          "effect"
+        ],
         "properties": {
           "id": {
             "type": "string",

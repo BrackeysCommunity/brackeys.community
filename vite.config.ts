@@ -213,7 +213,8 @@ logger.warnOnce = (msg, options) => {
 const config = defineConfig({
   customLogger: logger,
   staged: {
-    "*": "vp check --fix",
+    // Explicit paths bypass fmt's ignorePatterns; the Go harness owns services/mmo-world.
+    "{*,!(services)/**,services/!(mmo-world)/**}": "vp check --fix",
   },
 
   run: {

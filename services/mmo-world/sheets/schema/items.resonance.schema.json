@@ -5,7 +5,10 @@
   "description": "Traits that appear when bound components cross thresholds together.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "axisA", "axisB", "threshold", "trait"],
+        "required": [
+          "id",
+          "axisA",
+          "axisB",
+          "threshold",
+          "trait"
+        ],
         "properties": {
           "id": {
             "type": "string",

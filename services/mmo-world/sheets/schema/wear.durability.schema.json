@@ -5,7 +5,10 @@
   "description": "Durability by slot and tier.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "slot", "tier", "durability"],
+        "required": [
+          "id",
+          "slot",
+          "tier",
+          "durability"
+        ],
         "properties": {
           "id": {
             "type": "string",

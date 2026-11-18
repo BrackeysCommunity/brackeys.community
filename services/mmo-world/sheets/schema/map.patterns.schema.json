@@ -5,7 +5,10 @@
   "description": "Patterns: shapes laid on the map before noise, with things on their points.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "shape", "size", "anchor", "parts", "seedFree"],
+        "required": [
+          "id",
+          "shape",
+          "size",
+          "anchor",
+          "parts",
+          "seedFree"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -38,7 +48,13 @@
           },
           "anchor": {
             "type": "string",
-            "enum": ["origin", "starting-settlement", "terrain", "pattern", "frontier"],
+            "enum": [
+              "origin",
+              "starting-settlement",
+              "terrain",
+              "pattern",
+              "frontier"
+            ],
             "x-unit": "enum"
           },
           "anchorTerrain": {
@@ -62,7 +78,10 @@
           },
           "anchorAt": {
             "type": "string",
-            "enum": ["centre", "points"],
+            "enum": [
+              "centre",
+              "points"
+            ],
             "x-unit": "enum",
             "description": "pattern: one instance at the other's centre, or one at each of its points."
           },
@@ -102,7 +121,10 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["place", "at"],
+              "required": [
+                "place",
+                "at"
+              ],
               "properties": {
                 "place": {
                   "type": "string",
@@ -119,7 +141,14 @@
                 },
                 "at": {
                   "type": "string",
-                  "enum": ["corners", "edges", "every", "centre", "spaced", "indices"],
+                  "enum": [
+                    "corners",
+                    "edges",
+                    "every",
+                    "centre",
+                    "spaced",
+                    "indices"
+                  ],
                   "x-unit": "enum"
                 },
                 "count": {
@@ -149,7 +178,14 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["rotation", "mirror", "which", "jitter", "offset", "solution"]
+              "enum": [
+                "rotation",
+                "mirror",
+                "which",
+                "jitter",
+                "offset",
+                "solution"
+              ]
             },
             "uniqueItems": true,
             "x-unit": "enum"

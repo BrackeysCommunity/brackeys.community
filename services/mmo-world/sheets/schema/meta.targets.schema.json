@@ -5,7 +5,10 @@
   "description": "The targets the Report run measures (GDD 18.3).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "text", "runs", "holdsFrom"],
+        "required": [
+          "id",
+          "text",
+          "runs",
+          "holdsFrom"
+        ],
         "properties": {
           "id": {
             "type": "string",

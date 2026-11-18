@@ -5,7 +5,10 @@
   "description": "Derived from growth.params; never edited by hand.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "level", "xpToNext", "xpSoFar"],
+        "required": [
+          "id",
+          "level",
+          "xpToNext",
+          "xpSoFar"
+        ],
         "properties": {
           "id": {
             "type": "string",

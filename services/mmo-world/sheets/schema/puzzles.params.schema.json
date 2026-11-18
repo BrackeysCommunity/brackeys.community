@@ -5,7 +5,10 @@
   "description": "Countdown scaling, practice gains, mastery, rewards, the solve model.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "value", "unit"],
+        "required": [
+          "id",
+          "value",
+          "unit"
+        ],
         "properties": {
           "id": {
             "type": "string",

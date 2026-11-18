@@ -5,7 +5,10 @@
   "description": "Pieces generated names are built from.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "list", "text"],
+        "required": [
+          "id",
+          "list",
+          "text"
+        ],
         "properties": {
           "id": {
             "type": "string",

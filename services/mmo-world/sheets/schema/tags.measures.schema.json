@@ -5,7 +5,10 @@
   "description": "Numbers a rule can test or scale.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "unit"],
+        "required": [
+          "id",
+          "unit"
+        ],
         "properties": {
           "id": {
             "type": "string",

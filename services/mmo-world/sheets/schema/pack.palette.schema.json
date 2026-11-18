@@ -5,7 +5,10 @@
   "description": "Banner colours and the tags that favour them.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "tags", "hex"],
+        "required": [
+          "id",
+          "tags",
+          "hex"
+        ],
         "properties": {
           "id": {
             "type": "string",

@@ -5,7 +5,10 @@
   "description": "What the fade between two land biomes holds.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "biomeA", "biomeB", "tag"],
+        "required": [
+          "id",
+          "biomeA",
+          "biomeB",
+          "tag"
+        ],
         "properties": {
           "id": {
             "type": "string",

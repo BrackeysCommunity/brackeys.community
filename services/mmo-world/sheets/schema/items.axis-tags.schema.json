@@ -5,7 +5,10 @@
   "description": "Tags an item gains from a high axis.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "axis", "shareOfBudget", "tag"],
+        "required": [
+          "id",
+          "axis",
+          "shareOfBudget",
+          "tag"
+        ],
         "properties": {
           "id": {
             "type": "string",

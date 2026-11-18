@@ -5,7 +5,10 @@
   "description": "Biomes that appear only past a distance.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["sheet", "rows"],
+  "required": [
+    "sheet",
+    "rows"
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -18,7 +21,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "terrain", "minDistance", "cell", "share"],
+        "required": [
+          "id",
+          "terrain",
+          "minDistance",
+          "cell",
+          "share"
+        ],
         "properties": {
           "id": {
             "type": "string",
