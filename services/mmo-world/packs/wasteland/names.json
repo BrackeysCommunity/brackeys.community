@@ -594,6 +594,281 @@
       "id": "landmark-overgrown-tower",
       "ref": "map.landmarks:overgrown-tower",
       "name": "Overgrown tower"
+    },
+    {
+      "id": "kinds-pack-mule",
+      "ref": "mounts.kinds:pack-mule",
+      "name": "Pack mule"
+    },
+    {
+      "id": "kinds-stilt-rig",
+      "ref": "mounts.kinds:stilt-rig",
+      "name": "Stilt rig"
+    },
+    {
+      "id": "kinds-rad-goat",
+      "ref": "mounts.kinds:rad-goat",
+      "name": "Rad goat"
+    },
+    {
+      "id": "kinds-road-trike",
+      "ref": "mounts.kinds:road-trike",
+      "name": "Road trike"
+    },
+    {
+      "id": "beats-clash",
+      "ref": "fights.beats:clash",
+      "name": "Clash"
+    },
+    {
+      "id": "beats-standoff",
+      "ref": "fights.beats:standoff",
+      "name": "Standoff"
+    },
+    {
+      "id": "beats-chase",
+      "ref": "fights.beats:chase",
+      "name": "Chase"
+    },
+    {
+      "id": "beats-hazard",
+      "ref": "fights.beats:hazard",
+      "name": "Hazard"
+    },
+    {
+      "id": "beats-lock",
+      "ref": "fights.beats:lock",
+      "name": "Lock"
+    },
+    {
+      "id": "beats-parley",
+      "ref": "fights.beats:parley",
+      "name": "Parley"
+    },
+    {
+      "id": "beats-harvest",
+      "ref": "fights.beats:harvest",
+      "name": "Harvest"
+    },
+    {
+      "id": "beats-guardian",
+      "ref": "fights.beats:guardian",
+      "name": "Guardian"
+    },
+    {
+      "id": "beats-puzzle",
+      "ref": "fights.beats:puzzle",
+      "name": "Machine"
+    },
+    {
+      "id": "options-strike",
+      "ref": "fights.options:strike",
+      "name": "Strike"
+    },
+    {
+      "id": "options-smash",
+      "ref": "fights.options:smash",
+      "name": "Smash"
+    },
+    {
+      "id": "options-feint",
+      "ref": "fights.options:feint",
+      "name": "Feint"
+    },
+    {
+      "id": "options-guard",
+      "ref": "fights.options:guard",
+      "name": "Guard"
+    },
+    {
+      "id": "options-pursue",
+      "ref": "fights.options:pursue",
+      "name": "Pursue"
+    },
+    {
+      "id": "options-brace-through",
+      "ref": "fights.options:brace-through",
+      "name": "Brace through"
+    },
+    {
+      "id": "options-scramble",
+      "ref": "fights.options:scramble",
+      "name": "Scramble"
+    },
+    {
+      "id": "options-pick",
+      "ref": "fights.options:pick",
+      "name": "Pick the lock"
+    },
+    {
+      "id": "options-hack",
+      "ref": "fights.options:hack",
+      "name": "Hack it"
+    },
+    {
+      "id": "options-talk",
+      "ref": "fights.options:talk",
+      "name": "Talk"
+    },
+    {
+      "id": "options-gather",
+      "ref": "fights.options:gather",
+      "name": "Take it"
+    },
+    {
+      "id": "options-cast",
+      "ref": "fights.options:cast",
+      "name": "Run the exploit"
+    },
+    {
+      "id": "options-hold",
+      "ref": "fights.options:hold",
+      "name": "Hold"
+    },
+    {
+      "id": "options-pay-toll",
+      "ref": "fights.options:pay-toll",
+      "name": "Pay the toll"
+    },
+    {
+      "id": "options-back-out",
+      "ref": "fights.options:back-out",
+      "name": "Back out"
+    },
+    {
+      "id": "states-charged",
+      "ref": "fights.states:charged",
+      "name": "Charged"
+    },
+    {
+      "id": "states-burning",
+      "ref": "fights.states:burning",
+      "name": "Burning"
+    },
+    {
+      "id": "states-wet",
+      "ref": "fights.states:wet",
+      "name": "Wet"
+    },
+    {
+      "id": "states-brittle",
+      "ref": "fights.states:brittle",
+      "name": "Brittle"
+    },
+    {
+      "id": "states-hidden",
+      "ref": "fights.states:hidden",
+      "name": "Hidden"
+    },
+    {
+      "id": "states-braced",
+      "ref": "fights.states:braced",
+      "name": "Braced"
+    },
+    {
+      "id": "states-bleeding",
+      "ref": "fights.states:bleeding",
+      "name": "Bleeding"
+    },
+    {
+      "id": "states-shaken",
+      "ref": "fights.states:shaken",
+      "name": "Shaken"
+    },
+    {
+      "id": "states-off-guard",
+      "ref": "fights.states:off-guard",
+      "name": "Off guard"
+    },
+    {
+      "id": "states-slow",
+      "ref": "fights.states:slow",
+      "name": "Slowed"
+    },
+    {
+      "id": "states-marked",
+      "ref": "fights.states:marked",
+      "name": "Tagged"
+    },
+    {
+      "id": "pairings-edge-and-ember",
+      "ref": "items.pairings:edge-and-ember",
+      "name": "Edge-and-ember"
+    },
+    {
+      "id": "pairings-storm-blade",
+      "ref": "items.pairings:storm-blade",
+      "name": "Storm blade"
+    },
+    {
+      "id": "pairings-shatter",
+      "ref": "items.pairings:shatter",
+      "name": "Shatter"
+    },
+    {
+      "id": "pairings-smoke-and-knife",
+      "ref": "items.pairings:smoke-and-knife",
+      "name": "Smoke and knife"
+    },
+    {
+      "id": "pairings-wildfire",
+      "ref": "items.pairings:wildfire",
+      "name": "Wildfire"
+    },
+    {
+      "id": "pairings-bulwark",
+      "ref": "items.pairings:bulwark",
+      "name": "Bulwark"
+    },
+    {
+      "id": "exploit-offers-wide",
+      "ref": "growth.exploit-offers:wide",
+      "name": "Broadcast"
+    },
+    {
+      "id": "exploit-offers-deep",
+      "ref": "growth.exploit-offers:deep",
+      "name": "Deep-stack"
+    },
+    {
+      "id": "exploit-offers-lingering",
+      "ref": "growth.exploit-offers:lingering",
+      "name": "Lingering"
+    },
+    {
+      "id": "exploit-offers-cheap",
+      "ref": "growth.exploit-offers:cheap",
+      "name": "Cheap"
+    },
+    {
+      "id": "exploit-offers-echo",
+      "ref": "growth.exploit-offers:echo",
+      "name": "Echo"
+    },
+    {
+      "id": "offers-sure-footed",
+      "ref": "mounts.offers:sure-footed",
+      "name": "Sure-footed"
+    },
+    {
+      "id": "offers-pack",
+      "ref": "mounts.offers:pack",
+      "name": "Pack"
+    },
+    {
+      "id": "offers-steady",
+      "ref": "mounts.offers:steady",
+      "name": "Steady"
+    },
+    {
+      "id": "offers-swift",
+      "ref": "mounts.offers:swift",
+      "name": "Swift"
+    },
+    {
+      "id": "offers-bonded",
+      "ref": "mounts.offers:bonded",
+      "name": "Bonded"
     }
   ]
 }

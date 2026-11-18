@@ -1,0 +1,46 @@
+{
+  "$schema": "../schema/fights.tiers.schema.json",
+  "sheet": "fights.tiers",
+  "rows": [
+    {
+      "id": "tier-1",
+      "tier": 1,
+      "baseDifficulty": 20,
+      "beatsMin": 3,
+      "beatsMax": 4,
+      "huntHealth": 150,
+      "expectedLevel": 5,
+      "expectedPractice": 2
+    },
+    {
+      "id": "tier-2",
+      "tier": 2,
+      "baseDifficulty": 35,
+      "beatsMin": 3,
+      "beatsMax": 5,
+      "huntHealth": 400,
+      "expectedLevel": 10,
+      "expectedPractice": 6
+    },
+    {
+      "id": "tier-3",
+      "tier": 3,
+      "baseDifficulty": 55,
+      "beatsMin": 4,
+      "beatsMax": 5,
+      "huntHealth": 1000,
+      "expectedLevel": 15,
+      "expectedPractice": 10
+    },
+    {
+      "id": "tier-4",
+      "tier": 4,
+      "baseDifficulty": 80,
+      "beatsMin": 4,
+      "beatsMax": 6,
+      "huntHealth": 2500,
+      "expectedLevel": 25,
+      "expectedPractice": 14
+    }
+  ]
+}

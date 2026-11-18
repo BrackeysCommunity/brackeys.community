@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mounts.kinds",
+  "title": "mounts.kinds",
+  "description": "Mounts: tier, the terrains each suits, load.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "mounts.kinds"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tier",
+          "suits",
+          "load"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tier"
+          },
+          "suits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "map.terrain",
+            "description": "Terrains where it lowers the cost of entering a tile."
+          },
+          "roadOnly": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Suits road tiles only, where it buys load, not speed."
+          },
+          "load": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "load"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,156 @@
 {
   "$schema": "../schema/growth.params.schema.json",
   "sheet": "growth.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "level-coefficient",
+      "value": 4.6,
+      "unit": "ratio",
+      "doc": "xp to the next level is this times the level squared, rounded (GDD 9.12)."
+    },
+    {
+      "id": "milestone-pick-units",
+      "value": 3,
+      "unit": "goods",
+      "doc": "A pick costs this many units of the recipe's highest-tier input, plus the station fee."
+    },
+    {
+      "id": "milestone-offers",
+      "value": 2,
+      "unit": "count",
+      "doc": "Offers at each milestone."
+    },
+    {
+      "id": "max-picks",
+      "value": 3,
+      "unit": "count"
+    },
+    {
+      "id": "troubled-bonus",
+      "value": 25,
+      "unit": "percent",
+      "doc": "More xp for a beat won in a troubled region."
+    },
+    {
+      "id": "troubled-threat",
+      "value": 800,
+      "unit": "gauge",
+      "doc": "Threat at which a region counts as troubled."
+    },
+    {
+      "id": "practice-max",
+      "value": 20,
+      "unit": "level"
+    },
+    {
+      "id": "practice-uses",
+      "value": 20,
+      "unit": "count",
+      "doc": "Successful uses to the next practice level, times that level (GDD 5.3)."
+    },
+    {
+      "id": "practice-score",
+      "value": 2,
+      "unit": "pts",
+      "doc": "Score per practice point."
+    },
+    {
+      "id": "maturity-max",
+      "value": 25,
+      "unit": "percent",
+      "doc": "The most maturity takes off a kind's material cost (GDD 9.14)."
+    },
+    {
+      "id": "maturity-crafts",
+      "value": 500,
+      "unit": "count",
+      "doc": "Crafts at which the maturity curve flattens."
+    },
+    {
+      "id": "exploit-beats-per",
+      "value": 10,
+      "unit": "level",
+      "doc": "An exploit's state lasts one beat longer per this many levels."
+    },
+    {
+      "id": "exploit-reach-per",
+      "value": 15,
+      "unit": "level",
+      "doc": "An exploit's state reaches one more creature per this many levels."
+    },
+    {
+      "id": "seconds-per-beat",
+      "value": 20,
+      "unit": "seconds",
+      "doc": "Harness: a press and its read, for the first-ten-minutes model."
+    },
+    {
+      "id": "seconds-per-gather",
+      "value": 30,
+      "unit": "seconds",
+      "doc": "Harness: one gathering press."
+    },
+    {
+      "id": "first-minutes",
+      "value": 10,
+      "unit": "count",
+      "doc": "Minutes of play the first-tool target allows."
+    },
+    {
+      "id": "first-level",
+      "value": 5,
+      "unit": "level",
+      "doc": "The level a first tool must reach in those minutes."
+    },
+    {
+      "id": "daily-encounters",
+      "value": 9,
+      "unit": "count",
+      "doc": "Harness: encounters a daily player fights in a world day at its gear's tier."
+    },
+    {
+      "id": "daily-troubled",
+      "value": 20,
+      "unit": "percent",
+      "doc": "Harness: share of a daily player's encounters in troubled regions."
+    },
+    {
+      "id": "tier-2-days-min",
+      "value": 35,
+      "unit": "days"
+    },
+    {
+      "id": "tier-2-days-max",
+      "value": 45,
+      "unit": "days"
+    },
+    {
+      "id": "trail-tiles",
+      "value": 12,
+      "unit": "count",
+      "doc": "Tiles a character remembers walking (GDD 5.7)."
+    },
+    {
+      "id": "journey-facts",
+      "value": 32,
+      "unit": "count",
+      "doc": "Heavy facts in a character's journey ring."
+    },
+    {
+      "id": "company-size",
+      "value": 10,
+      "unit": "count",
+      "doc": "Characters a character remembers keeping company with."
+    },
+    {
+      "id": "standing-min",
+      "value": -100,
+      "unit": "standing"
+    },
+    {
+      "id": "standing-max",
+      "value": 100,
+      "unit": "standing"
+    }
+  ]
 }

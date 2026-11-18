@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.states",
+  "title": "fights.states",
+  "description": "The states that last for beats.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.states"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tag",
+          "beats"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary"
+          },
+          "beats": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "beat",
+            "description": "How long it lasts; 0 is the rest of the encounter."
+          },
+          "wear": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "durability",
+            "description": "Durability a beat off the hand item of a character holding it; health a beat off a hunted creature."
+          },
+          "endsOn": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "Ends at once when its holder gains this."
+          },
+          "woundsAtEnd": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Leaves its holder wounded when the encounter ends, unless bound."
+          },
+          "halvesNext": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "The holder's next failed beat costs half."
+          },
+          "unanswered": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "While the creature holds it, only cautious and way-out options are offered."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

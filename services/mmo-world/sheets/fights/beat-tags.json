@@ -1,0 +1,138 @@
+{
+  "$schema": "../schema/fights.beat-tags.schema.json",
+  "sheet": "fights.beat-tags",
+  "rows": [
+    {
+      "id": "creature-clash",
+      "tag": "creature",
+      "beat": "clash",
+      "weight": 6
+    },
+    {
+      "id": "pack-clash",
+      "tag": "pack",
+      "beat": "clash",
+      "weight": 2
+    },
+    {
+      "id": "thick-clash",
+      "tag": "thick",
+      "beat": "clash",
+      "weight": 2
+    },
+    {
+      "id": "wary-standoff",
+      "tag": "wary",
+      "beat": "standoff",
+      "weight": 4
+    },
+    {
+      "id": "fast-chase",
+      "tag": "fast",
+      "beat": "chase",
+      "weight": 4
+    },
+    {
+      "id": "herd-chase",
+      "tag": "herd",
+      "beat": "chase",
+      "weight": 3
+    },
+    {
+      "id": "deep-hazard",
+      "tag": "deep",
+      "beat": "hazard",
+      "weight": 3
+    },
+    {
+      "id": "burning-hazard",
+      "tag": "burning",
+      "beat": "hazard",
+      "weight": 2
+    },
+    {
+      "id": "marsh-born-hazard",
+      "tag": "marsh-born",
+      "beat": "hazard",
+      "weight": 1
+    },
+    {
+      "id": "hoarding-lock",
+      "tag": "hoarding",
+      "beat": "lock",
+      "weight": 3
+    },
+    {
+      "id": "wired-puzzle",
+      "tag": "wired",
+      "beat": "puzzle",
+      "weight": 2
+    },
+    {
+      "id": "powered-puzzle",
+      "tag": "powered",
+      "beat": "puzzle",
+      "weight": 1
+    },
+    {
+      "id": "guardian-guardian",
+      "tag": "guardian",
+      "beat": "guardian",
+      "weight": 10
+    },
+    {
+      "id": "wooded-standoff",
+      "tag": "wooded",
+      "beat": "standoff",
+      "weight": 2
+    },
+    {
+      "id": "heights-standoff",
+      "tag": "heights",
+      "beat": "standoff",
+      "weight": 1
+    },
+    {
+      "id": "wet-hazard",
+      "tag": "wet",
+      "beat": "hazard",
+      "weight": 1
+    },
+    {
+      "id": "dungeon-hazard",
+      "tag": "dungeon",
+      "beat": "hazard",
+      "weight": 2
+    },
+    {
+      "id": "dungeon-lock",
+      "tag": "dungeon",
+      "beat": "lock",
+      "weight": 1
+    },
+    {
+      "id": "corrupted-puzzle",
+      "tag": "corrupted",
+      "beat": "puzzle",
+      "weight": 2
+    },
+    {
+      "id": "node-harvest",
+      "tag": "node",
+      "beat": "harvest",
+      "weight": 2
+    },
+    {
+      "id": "mercantile-parley",
+      "tag": "mercantile",
+      "beat": "parley",
+      "weight": 3
+    },
+    {
+      "id": "toll-parley",
+      "tag": "toll",
+      "beat": "parley",
+      "weight": 4
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "../schema/items.compose.schema.json",
+  "sheet": "items.compose",
+  "rows": [
+    {
+      "id": "glass-freezes",
+      "tag": "glass",
+      "position": "first",
+      "state": "brittle",
+      "target": "tile",
+      "onlyTag": "wet",
+      "castTag": "freezing"
+    },
+    {
+      "id": "clay-douses",
+      "tag": "clay",
+      "position": "first",
+      "state": "wet",
+      "target": "tile",
+      "castTag": "dousing"
+    },
+    {
+      "id": "ash-cloaks",
+      "tag": "ash",
+      "position": "first",
+      "state": "hidden",
+      "target": "caster",
+      "castTag": "cloaking"
+    },
+    {
+      "id": "salt-ignites",
+      "tag": "salt",
+      "position": "first",
+      "state": "burning",
+      "target": "creature",
+      "castTag": "igniting"
+    },
+    {
+      "id": "metal-sparks",
+      "tag": "metal",
+      "position": "first",
+      "state": "charged",
+      "target": "tagged",
+      "onlyTag": "marsh-born",
+      "castTag": "sparking"
+    },
+    {
+      "id": "fibre-sparks",
+      "tag": "fibre",
+      "position": "first",
+      "state": "charged",
+      "target": "creature",
+      "castTag": "sparking"
+    },
+    {
+      "id": "amber-lingers",
+      "tag": "amber",
+      "position": "later",
+      "trait": "lingering"
+    },
+    {
+      "id": "light-quiets",
+      "tag": "light",
+      "position": "later",
+      "trait": "quiet"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "../schema/fights.beats.schema.json",
+  "sheet": "fights.beats",
+  "rows": [
+    {
+      "id": "clash",
+      "modifier": 0,
+      "haul": 1
+    },
+    {
+      "id": "standoff",
+      "modifier": -5,
+      "haul": 0
+    },
+    {
+      "id": "chase",
+      "modifier": 0,
+      "haul": 1,
+      "ends": true
+    },
+    {
+      "id": "hazard",
+      "modifier": 0,
+      "haul": 0
+    },
+    {
+      "id": "lock",
+      "modifier": 0,
+      "haul": 2,
+      "puzzle": true
+    },
+    {
+      "id": "parley",
+      "modifier": 0,
+      "haul": 0
+    },
+    {
+      "id": "harvest",
+      "modifier": -5,
+      "haul": 2
+    },
+    {
+      "id": "guardian",
+      "modifier": 10,
+      "haul": 3,
+      "health": 40
+    },
+    {
+      "id": "puzzle",
+      "modifier": 0,
+      "haul": 2,
+      "puzzle": true
+    }
+  ]
+}

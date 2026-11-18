@@ -1,5 +1,38 @@
 {
   "$schema": "../schema/growth.xp-by-deed.schema.json",
   "sheet": "growth.xp-by-deed",
-  "rows": []
+  "rows": [
+    {
+      "id": "win-at-tier",
+      "xp": 30
+    },
+    {
+      "id": "win-tier-above",
+      "xp": 45
+    },
+    {
+      "id": "win-tier-below",
+      "xp": 15
+    },
+    {
+      "id": "win-two-below",
+      "xp": 0
+    },
+    {
+      "id": "beat-lost",
+      "xp": 10
+    },
+    {
+      "id": "gather-tick",
+      "xp": 10
+    },
+    {
+      "id": "craft-at-tier",
+      "xp": 20
+    },
+    {
+      "id": "mount-tile",
+      "xp": 6
+    }
+  ]
 }

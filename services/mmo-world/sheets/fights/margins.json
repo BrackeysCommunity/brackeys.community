@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/fights.margins.schema.json",
+  "sheet": "fights.margins",
+  "rows": [
+    {
+      "id": "near-certain",
+      "atLeast": 20,
+      "band": "near-certain"
+    },
+    {
+      "id": "likely",
+      "atLeast": 10,
+      "band": "likely"
+    },
+    {
+      "id": "even",
+      "atLeast": -9,
+      "band": "even"
+    },
+    {
+      "id": "long-shot",
+      "atLeast": -19,
+      "band": "long-shot"
+    },
+    {
+      "id": "desperate",
+      "atLeast": -1000,
+      "band": "desperate"
+    }
+  ]
+}

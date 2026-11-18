@@ -1,0 +1,217 @@
+{
+  "$schema": "../schema/fights.options.schema.json",
+  "sheet": "fights.options",
+  "rows": [
+    {
+      "id": "strike",
+      "verb": "strike",
+      "beats": [
+        "clash",
+        "standoff",
+        "chase",
+        "guardian"
+      ],
+      "slot": "hand",
+      "needs": [
+        "blade",
+        "hook",
+        "tool"
+      ],
+      "axis": "edge",
+      "practice": "fight",
+      "risk": "durability",
+      "riskSize": 4,
+      "kind": "win"
+    },
+    {
+      "id": "smash",
+      "verb": "smash",
+      "beats": [
+        "clash",
+        "guardian",
+        "hazard"
+      ],
+      "slot": "hand",
+      "needs": [
+        "blade",
+        "tool"
+      ],
+      "axis": "weight",
+      "practice": "fight",
+      "risk": "wound",
+      "kind": "win"
+    },
+    {
+      "id": "feint",
+      "verb": "feint",
+      "beats": [
+        "standoff"
+      ],
+      "slot": "hand",
+      "needs": [
+        "blade",
+        "hook"
+      ],
+      "axis": "reach",
+      "practice": "fight",
+      "risk": "first-strike",
+      "kind": "win"
+    },
+    {
+      "id": "guard",
+      "verb": "guard",
+      "beats": [
+        "standoff"
+      ],
+      "slot": "body",
+      "axis": "ward",
+      "practice": "fight",
+      "risk": "first-strike",
+      "kind": "win"
+    },
+    {
+      "id": "pursue",
+      "verb": "pursue",
+      "beats": [
+        "chase"
+      ],
+      "slot": "body",
+      "axis": "flex",
+      "practice": "travel",
+      "risk": "escape",
+      "kind": "win"
+    },
+    {
+      "id": "brace-through",
+      "verb": "brace-through",
+      "beats": [
+        "hazard"
+      ],
+      "slot": "body",
+      "axis": "ward",
+      "practice": "travel",
+      "risk": "wound",
+      "kind": "win"
+    },
+    {
+      "id": "scramble",
+      "verb": "scramble",
+      "beats": [
+        "hazard"
+      ],
+      "slot": "body",
+      "axis": "flex",
+      "practice": "travel",
+      "risk": "ticks",
+      "riskSize": 1,
+      "kind": "win"
+    },
+    {
+      "id": "pick",
+      "verb": "pick",
+      "beats": [
+        "lock"
+      ],
+      "slot": "none",
+      "practice": "lockpick",
+      "risk": "none",
+      "kind": "win",
+      "note": "Resolved by the lock's puzzle."
+    },
+    {
+      "id": "hack",
+      "verb": "hack",
+      "beats": [
+        "puzzle"
+      ],
+      "slot": "none",
+      "practice": "puzzle",
+      "risk": "none",
+      "kind": "win",
+      "note": "Resolved by the machine's puzzle; practice is the family's."
+    },
+    {
+      "id": "talk",
+      "verb": "talk",
+      "beats": [
+        "parley"
+      ],
+      "slot": "none",
+      "practice": "standing",
+      "risk": "standing",
+      "riskSize": 2,
+      "kind": "win"
+    },
+    {
+      "id": "gather",
+      "verb": "gather",
+      "beats": [
+        "harvest"
+      ],
+      "slot": "hand",
+      "needs": [
+        "tool",
+        "hook"
+      ],
+      "axis": "flex",
+      "practice": "gather",
+      "risk": "ticks",
+      "riskSize": 1,
+      "kind": "win"
+    },
+    {
+      "id": "cast",
+      "verb": "cast",
+      "beats": [
+        "clash",
+        "standoff",
+        "chase",
+        "guardian",
+        "hazard"
+      ],
+      "slot": "deck",
+      "needs": [
+        "exploit"
+      ],
+      "axis": "bond",
+      "practice": "fight",
+      "risk": "durability",
+      "riskSize": 2,
+      "kind": "cast"
+    },
+    {
+      "id": "hold",
+      "verb": "hold",
+      "beats": [],
+      "slot": "body",
+      "axis": "ward",
+      "fallbackSlot": "hand",
+      "fallbackAxis": "weight",
+      "practice": "fight",
+      "risk": "durability",
+      "riskSize": 2,
+      "kind": "cautious"
+    },
+    {
+      "id": "pay-toll",
+      "verb": "pay-toll",
+      "beats": [
+        "parley"
+      ],
+      "slot": "none",
+      "practice": "standing",
+      "risk": "coin",
+      "riskSize": 10,
+      "kind": "way-out"
+    },
+    {
+      "id": "back-out",
+      "verb": "back-out",
+      "beats": [],
+      "slot": "none",
+      "practice": "travel",
+      "risk": "none",
+      "kind": "way-out"
+    }
+  ]
+}

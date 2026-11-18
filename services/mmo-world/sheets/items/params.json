@@ -86,6 +86,42 @@
       "id": "failed-salvage",
       "value": 30,
       "unit": "percent"
+    },
+    {
+      "id": "compose-min-inputs",
+      "value": 2,
+      "unit": "count",
+      "doc": "Compose orders at least this many components."
+    },
+    {
+      "id": "compose-tail",
+      "value": 50,
+      "unit": "percent",
+      "doc": "Components after the first add this share of their vector to an exploit."
+    },
+    {
+      "id": "failed-share",
+      "value": 25,
+      "unit": "percent",
+      "doc": "A kind whose two strongest axes sum to under this share of its tier's budget is a failure: salvage, recorded."
+    },
+    {
+      "id": "appraisal-spread",
+      "value": 12,
+      "unit": "percent",
+      "doc": "Appraisal shows each axis within this much either way at practice 0."
+    },
+    {
+      "id": "appraisal-narrow",
+      "value": 4,
+      "unit": "percent",
+      "doc": "Each practice point narrows the spread by this share of it."
+    },
+    {
+      "id": "salvage-break",
+      "value": 40,
+      "unit": "percent",
+      "doc": "Share of its materials an item breaks into at 0 durability before its first milestone."
     }
   ]
 }

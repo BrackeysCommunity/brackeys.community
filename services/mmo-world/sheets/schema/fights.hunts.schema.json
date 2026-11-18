@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.hunts",
+  "title": "fights.hunts",
+  "description": "Hunts: a creature's health pool, window and spoils.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.hunts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "creature",
+          "healthRatio",
+          "windowDays",
+          "spoils"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "creature": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "creatures.archetypes"
+          },
+          "healthRatio": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "ratio",
+            "description": "Times the tier's hunt health."
+          },
+          "windowDays": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "spoils": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "material",
+                "quantity"
+              ],
+              "properties": {
+                "material": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "items.materials"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "goods"
+                }
+              }
+            },
+            "x-unit": "goods"
+          }
+        }
+      }
+    }
+  }
+}

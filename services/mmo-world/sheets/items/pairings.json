@@ -1,0 +1,42 @@
+{
+  "$schema": "../schema/items.pairings.schema.json",
+  "sheet": "items.pairings",
+  "rows": [
+    {
+      "id": "edge-and-ember",
+      "tagA": "keen",
+      "tagB": "warm",
+      "tag": "edge-and-ember"
+    },
+    {
+      "id": "storm-blade",
+      "tagA": "conductive",
+      "tagB": "sparking",
+      "tag": "storm-blade"
+    },
+    {
+      "id": "shatter",
+      "tagA": "heavy",
+      "tagB": "freezing",
+      "tag": "shatter"
+    },
+    {
+      "id": "smoke-and-knife",
+      "tagA": "quick-drawn",
+      "tagB": "cloaking",
+      "tag": "smoke-and-knife"
+    },
+    {
+      "id": "wildfire",
+      "tagA": "igniting",
+      "tagB": "reaching",
+      "tag": "wildfire"
+    },
+    {
+      "id": "bulwark",
+      "tagA": "braced-grip",
+      "tagB": "thick",
+      "tag": "bulwark"
+    }
+  ]
+}

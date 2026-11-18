@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.compose",
+  "title": "items.compose",
+  "description": "What an exploit's components set: the first one's state and target, later ones' traits. The first row a component matches counts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.compose"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tag",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "A tag the component holds."
+          },
+          "position": {
+            "type": "string",
+            "enum": [
+              "first",
+              "later"
+            ],
+            "x-unit": "enum"
+          },
+          "state": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "fights.states",
+            "description": "first: the state the exploit adds."
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "creature",
+              "tile",
+              "caster",
+              "tagged"
+            ],
+            "x-unit": "enum",
+            "description": "first: one creature, everything on the tile, the caster, or every creature holding onlyTag."
+          },
+          "onlyTag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "tagged: the tag a creature needs; first: a tag the target needs, or the state does not land."
+          },
+          "castTag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "first: the tag the exploit carries for pairings."
+          },
+          "trait": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.traits",
+            "description": "later: the trait it lends."
+          }
+        }
+      }
+    }
+  }
+}

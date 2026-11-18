@@ -23,23 +23,34 @@ import (
 type Book struct {
 	Targets []Target `sheet:"meta.targets" doc:"The targets the Report run measures (GDD 18.3)."`
 
-	Axes       []Axis      `sheet:"items.axes" doc:"The eight affinity axes, in vector order."`
-	Materials  []Material  `sheet:"items.materials" doc:"Base materials and their authored vectors."`
-	Tiers      []Tier      `sheet:"items.tiers" doc:"Budgets, level caps and blade durability by tier."`
-	Processes  []Process   `sheet:"items.processes" doc:"The six processes, their stations and trait tables."`
-	Methods    []Method    `sheet:"items.methods" doc:"Each process's methods and how they tilt the result."`
-	Slots      []Slot      `sheet:"items.slots" doc:"Shape templates."`
-	Traits     []Trait     `sheet:"items.traits" doc:"Traits and the tag each gives."`
-	AxisTags   []AxisTag   `sheet:"items.axis-tags" doc:"Tags an item gains from a high axis."`
-	Resonance  []Resonance `sheet:"items.resonance" doc:"Traits that appear when bound components cross thresholds together."`
-	ItemParams []Param     `sheet:"items.params" doc:"Loose cells for derivation."`
+	Axes       []Axis       `sheet:"items.axes" doc:"The eight affinity axes, in vector order."`
+	Materials  []Material   `sheet:"items.materials" doc:"Base materials and their authored vectors."`
+	Tiers      []Tier       `sheet:"items.tiers" doc:"Budgets, level caps and blade durability by tier."`
+	Processes  []Process    `sheet:"items.processes" doc:"The six processes, their stations and trait tables."`
+	Methods    []Method     `sheet:"items.methods" doc:"Each process's methods and how they tilt the result."`
+	Slots      []Slot       `sheet:"items.slots" doc:"Shape templates."`
+	Traits     []Trait      `sheet:"items.traits" doc:"Traits and the tag each gives."`
+	AxisTags   []AxisTag    `sheet:"items.axis-tags" doc:"Tags an item gains from a high axis."`
+	Resonance  []Resonance  `sheet:"items.resonance" doc:"Traits that appear when bound components cross thresholds together."`
+	Compose    []ComposeRow `sheet:"items.compose" doc:"What an exploit's components set: the first one's state and target, later ones' traits. The first row a component matches counts."`
+	Pairings   []Pairing    `sheet:"items.pairings" doc:"Tags that pair across equipped items and exploits, and the tag the pairing gives."`
+	ItemParams []Param      `sheet:"items.params" doc:"Loose cells for derivation."`
 
-	LevelCurve   []LevelStep `sheet:"growth.level-curve" doc:"Derived from growth.params; never edited by hand."`
-	XPByDeed     []DeedXP    `sheet:"growth.xp-by-deed" doc:"Experience for each deed that matters."`
-	GrowthParams []Param     `sheet:"growth.params" doc:"Level curve shape, practice, maturity."`
+	LevelCurve    []LevelStep `sheet:"growth.level-curve" doc:"Derived from growth.params; never edited by hand."`
+	XPByDeed      []DeedXP    `sheet:"growth.xp-by-deed" doc:"Experience for each deed that matters."`
+	ExploitOffers []Offer     `sheet:"growth.exploit-offers" doc:"What an exploit's milestones offer besides its process's traits."`
+	GrowthParams  []Param     `sheet:"growth.params" doc:"Level curve shape, practice, maturity."`
 
-	OddsBands   []OddsBand `sheet:"fights.odds-bands" doc:"The six odds bands (GDD 2.3)."`
-	FightParams []Param    `sheet:"fights.params" doc:"Loose cells for encounters."`
+	OddsBands    []OddsBand    `sheet:"fights.odds-bands" doc:"The six odds bands (GDD 2.3)."`
+	Margins      []MarginBand  `sheet:"fights.margins" doc:"Which band a margin falls in."`
+	FightTiers   []FightTier   `sheet:"fights.tiers" doc:"Per creature tier: base difficulty, beats, hunt health, and the expected character the Battle run fields."`
+	Beats        []BeatKind    `sheet:"fights.beats" doc:"The nine kinds of beat."`
+	BeatTags     []BeatTag     `sheet:"fights.beat-tags" doc:"How a site's and a creature's tags choose its beats."`
+	Options      []OptionRow   `sheet:"fights.options" doc:"Which options each tag offers, and what governs and risks each."`
+	States       []StateRow    `sheet:"fights.states" doc:"The states that last for beats."`
+	TraitEffects []TraitEffect `sheet:"fights.trait-effects" doc:"What a trait does that a band or score rule cannot say."`
+	Hunts        []Hunt        `sheet:"fights.hunts" doc:"Hunts: a creature's health pool, window and spoils."`
+	FightParams  []Param       `sheet:"fights.params" doc:"Loose cells for encounters."`
 
 	Durability []Durability `sheet:"wear.durability" doc:"Durability by slot and tier."`
 	WearParams []Param      `sheet:"wear.params" doc:"Repair and salvage rates."`
@@ -98,8 +109,9 @@ type Book struct {
 	GuildWorks       []GuildWork         `sheet:"settlements.guild-works" doc:"What each guild work consumes."`
 	SettlementParams []Param             `sheet:"settlements.params" doc:"Charter and city requirements."`
 
-	MountSpeeds []MountSpeed `sheet:"mounts.speeds" doc:"Mount speed by terrain."`
-	MountParams []Param      `sheet:"mounts.params" doc:"Load and upkeep."`
+	MountKinds  []MountKind `sheet:"mounts.kinds" doc:"Mounts: tier, the terrains each suits, load."`
+	MountOffers []Offer     `sheet:"mounts.offers" doc:"What a mount's milestones offer."`
+	MountParams []Param     `sheet:"mounts.params" doc:"Load and upkeep."`
 
 	Classes     []Class `sheet:"classes.classes" doc:"Classes and what unlocks them."`
 	ClassParams []Param `sheet:"classes.params" doc:"Class levels and ability magnitudes."`
@@ -107,6 +119,7 @@ type Book struct {
 	PuzzleFamilies []PuzzleFamily `sheet:"puzzles.families" doc:"Machine puzzle families and where each appears."`
 	Haywires       []Haywire      `sheet:"puzzles.haywire" doc:"What a machine does when its countdown runs out."`
 	PuzzlePractice []PracticeGift `sheet:"puzzles.practice" doc:"What each level of a family's practice buys."`
+	PuzzleLayouts  []PuzzleLayout `sheet:"puzzles.layouts" doc:"How each family's layout grows with level."`
 	PuzzleParams   []Param        `sheet:"puzzles.params" doc:"Countdown scaling, practice gains, mastery, rewards, the solve model."`
 
 	Names        []Name        `sheet:"pack.names" doc:"What the setting calls each thing."`

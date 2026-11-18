@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mounts.offers",
+  "title": "mounts.offers",
+  "description": "What a mount's milestones offer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "mounts.offers"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "effect",
+          "favours"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "tick-saving",
+              "load",
+              "steady",
+              "route",
+              "call",
+              "trait",
+              "charge",
+              "echo"
+            ],
+            "x-unit": "enum"
+          },
+          "magnitude": {
+            "type": "integer",
+            "x-unit": "row",
+            "description": "In the unit named by the unit column."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "coin",
+              "goods",
+              "pts",
+              "durability",
+              "xp",
+              "level",
+              "tier",
+              "load",
+              "health",
+              "defence",
+              "gauge",
+              "standing",
+              "event-points",
+              "ticks",
+              "days",
+              "percent",
+              "ratio",
+              "count",
+              "tiles",
+              "weight",
+              "chance",
+              "band-steps",
+              "beat",
+              "seconds",
+              "degrees"
+            ],
+            "x-unit": "enum"
+          },
+          "trait": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.traits",
+            "description": "trait: the trait the pick gives."
+          },
+          "favours": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "text",
+            "description": "Record keys (event:tag) that make this the offer."
+          }
+        }
+      }
+    }
+  }
+}

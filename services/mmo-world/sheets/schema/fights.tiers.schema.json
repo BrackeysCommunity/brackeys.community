@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.tiers",
+  "title": "fights.tiers",
+  "description": "Per creature tier: base difficulty, beats, hunt health, and the expected character the Battle run fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.tiers"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tier",
+          "baseDifficulty",
+          "beatsMin",
+          "beatsMax",
+          "huntHealth",
+          "expectedLevel",
+          "expectedPractice"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tier"
+          },
+          "baseDifficulty": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "pts"
+          },
+          "beatsMin": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "beatsMax": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "huntHealth": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "health",
+            "description": "A hunt's pool for one creature of this tier, before the hunt's own ratio."
+          },
+          "expectedLevel": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "level",
+            "description": "The level of the gear a character fighting at this tier is expected to carry."
+          },
+          "expectedPractice": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "level",
+            "description": "The practice a character fighting at this tier is expected to have."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

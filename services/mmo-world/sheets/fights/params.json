@@ -1,5 +1,117 @@
 {
   "$schema": "../schema/fights.params.schema.json",
   "sheet": "fights.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "party-difficulty-step",
+      "value": 15,
+      "unit": "percent",
+      "doc": "Difficulty rises this much per party member past the first (GDD 7.5)."
+    },
+    {
+      "id": "party-pick-window",
+      "value": 120,
+      "unit": "seconds",
+      "doc": "A party beat resolves after this; anyone who has not picked takes the cautious option."
+    },
+    {
+      "id": "failures-to-down",
+      "value": 2,
+      "unit": "count",
+      "doc": "Failures in one encounter that put a character down."
+    },
+    {
+      "id": "beat-wear",
+      "value": 1,
+      "unit": "durability",
+      "doc": "Durability a beat costs the item used (GDD 9.11)."
+    },
+    {
+      "id": "standing-per-point",
+      "value": 10,
+      "unit": "standing",
+      "doc": "Standing that counts as one practice point in a parley."
+    },
+    {
+      "id": "band-floor",
+      "value": 1,
+      "unit": "count",
+      "doc": "The lowest band rank rules can push an option to."
+    },
+    {
+      "id": "band-ceiling",
+      "value": 5,
+      "unit": "count",
+      "doc": "The highest band rank a rolled option can reach; certain is never rolled."
+    },
+    {
+      "id": "haul-lost-on-down",
+      "value": 100,
+      "unit": "percent",
+      "doc": "Share of the haul lost when a character goes down (GDD 5.6)."
+    },
+    {
+      "id": "cast-charge",
+      "value": 2,
+      "unit": "durability",
+      "doc": "Deck durability one cast spends."
+    },
+    {
+      "id": "cast-charge-min",
+      "value": 1,
+      "unit": "durability"
+    },
+    {
+      "id": "join-beat",
+      "value": 1,
+      "unit": "count",
+      "doc": "Beats a joining creature adds."
+    },
+    {
+      "id": "battle-runs",
+      "value": 2000,
+      "unit": "count",
+      "doc": "Harness: encounters per Battle matrix cell."
+    },
+    {
+      "id": "pairing-share-max",
+      "value": 35,
+      "unit": "percent",
+      "doc": "Harness: the most of the matchup matrix one tag pairing may win."
+    },
+    {
+      "id": "even-target",
+      "value": 50,
+      "unit": "percent"
+    },
+    {
+      "id": "even-tolerance",
+      "value": 5,
+      "unit": "percent"
+    },
+    {
+      "id": "charm-slots",
+      "value": 2,
+      "unit": "count",
+      "doc": "Charm slots in the kit (GDD 5.2)."
+    },
+    {
+      "id": "wound-ticks",
+      "value": 144,
+      "unit": "ticks",
+      "doc": "A wound lasts a world day (GDD 5.5)."
+    },
+    {
+      "id": "crawl-ticks",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "Crawling out takes this (GDD 5.5)."
+    },
+    {
+      "id": "hunt-day-ticks",
+      "value": 144,
+      "unit": "ticks",
+      "doc": "Ticks in a hunt's world day."
+    }
+  ]
 }

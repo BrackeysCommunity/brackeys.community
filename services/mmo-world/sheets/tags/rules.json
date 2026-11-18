@@ -84,22 +84,6 @@
       ]
     },
     {
-      "id": "thick-turns-edges",
-      "subject": [
-        "item",
-        "keen"
-      ],
-      "other": [
-        "thick"
-      ],
-      "then": [
-        {
-          "kind": "band",
-          "steps": -1
-        }
-      ]
-    },
-    {
       "id": "warm-thaws",
       "subject": [
         "spell",
@@ -274,6 +258,296 @@
           "kind": "add-tag",
           "target": "subject",
           "tag": "hidden"
+        }
+      ]
+    },
+    {
+      "id": "keen-bites",
+      "subject": [
+        "strike",
+        "keen"
+      ],
+      "otherLacks": [
+        "thick"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "id": "dense-cracks",
+      "subject": [
+        "strike",
+        "dense"
+      ],
+      "other": [
+        "thick"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "braced-grip-holds",
+      "subject": [
+        "hold",
+        "braced-grip"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "warm-heat",
+      "subject": [
+        "heat-led",
+        "warm"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "id": "sure-grip-heights",
+      "subject": [
+        "option",
+        "sure-gripped"
+      ],
+      "place": [
+        "heights"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "marked-target",
+      "subject": [
+        "strike"
+      ],
+      "other": [
+        "marked"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "id": "brittle-breaks",
+      "subject": [
+        "weight-led"
+      ],
+      "other": [
+        "brittle"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "wet-heavy",
+      "subject": [
+        "heavy",
+        "wet"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "burning-falters",
+      "subject": [
+        "option"
+      ],
+      "other": [
+        "burning"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "id": "slowed-target",
+      "subject": [
+        "option"
+      ],
+      "other": [
+        "slow"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "id": "hidden-caster",
+      "subject": [
+        "option",
+        "hidden"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "shaken-falters",
+      "subject": [
+        "option",
+        "shaken"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "off-guard-falters",
+      "subject": [
+        "option",
+        "off-guard"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "wounded-falters",
+      "subject": [
+        "option",
+        "wounded"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "hungry-falters",
+      "subject": [
+        "option",
+        "hungry"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": -1
+        }
+      ]
+    },
+    {
+      "id": "edge-and-ember-bites",
+      "subject": [
+        "strike",
+        "edge-and-ember"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "id": "storm-blade-bites",
+      "subject": [
+        "strike",
+        "storm-blade"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "id": "shatter-cracks",
+      "subject": [
+        "smash",
+        "shatter"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 4
+        }
+      ]
+    },
+    {
+      "id": "smoke-and-knife-strikes",
+      "subject": [
+        "strike",
+        "smoke-and-knife"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "id": "wildfire-spreads",
+      "subject": [
+        "cast",
+        "wildfire"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 3
+        }
+      ]
+    },
+    {
+      "id": "bulwark-holds",
+      "subject": [
+        "hold",
+        "bulwark"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 4
         }
       ]
     }

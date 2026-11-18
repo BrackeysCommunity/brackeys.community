@@ -152,8 +152,10 @@ type Pattern struct {
 	Other    []Tag
 	Place    []Tag
 	Anywhere []Tag
-	Measure  string
-	AtLeast  int64
+	// Lacks are tags Other must not hold.
+	Lacks   []Tag
+	Measure string
+	AtLeast int64
 }
 
 // Rule is a compiled tags.rules row.
@@ -201,6 +203,12 @@ type Scale struct {
 	Percent int64
 }
 
+// Score adds points to an option's score.
+type Score struct {
+	base
+	Points int64
+}
+
 // Join adds creatures to an encounter at a beat.
 type Join struct {
 	base
@@ -219,6 +227,7 @@ func (RemoveTag) effect() {}
 func (Band) effect()      {}
 func (Scale) effect()     {}
 func (Join) effect()      {}
+func (Score) effect()     {}
 func (End) effect()       {}
 
 // Match is one thing a rule matched on.
@@ -321,7 +330,7 @@ func Apply(rules []Rule, subject TagSet, ctx Context) ([]Effect, Why) {
 					if e.Target != Yield {
 						sets[e.Target].Remove(e.Tag)
 					}
-				case Band, Scale, Join, End:
+				case Band, Scale, Join, End, Score:
 				}
 			}
 		}
@@ -350,6 +359,9 @@ func stamp(e Effect, step int) Effect {
 	case End:
 		e.base = b
 		return e
+	case Score:
+		e.base = b
+		return e
 	}
 	panic("tags: unknown effect")
 }
@@ -366,6 +378,11 @@ func match(p Pattern, sets *[Yield]TagSet, ctx Context) ([]Match, bool) {
 				return nil, false
 			}
 			out = append(out, Match{Role: need.role, Tag: t, From: h.From})
+		}
+	}
+	for _, t := range p.Lacks {
+		if sets[Other].Has(t) {
+			return nil, false
 		}
 	}
 	for _, t := range p.Anywhere {
@@ -400,6 +417,7 @@ func Compile(rows []sheets.RuleRow) ([]Rule, error) {
 			Other:    toTags(r.Other),
 			Place:    toTags(r.Place),
 			Anywhere: toTags(r.Anywhere),
+			Lacks:    toTags(r.Lacks),
 			Measure:  r.Measure,
 			AtLeast:  r.AtLeast,
 		}}
@@ -453,6 +471,11 @@ func compileEffect(e sheets.EffectRow) (Effect, error) {
 			return nil, fmt.Errorf("join needs a count and a beat")
 		}
 		return Join{Count: e.Count, Beat: e.Beat}, nil
+	case "score":
+		if e.Score == 0 {
+			return nil, fmt.Errorf("score needs points")
+		}
+		return Score{Points: e.Score}, nil
 	case "end":
 		if e.Beat == 0 {
 			return nil, fmt.Errorf("end needs a beat")

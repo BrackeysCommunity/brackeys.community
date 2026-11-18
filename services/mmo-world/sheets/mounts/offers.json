@@ -1,0 +1,50 @@
+{
+  "$schema": "../schema/mounts.offers.schema.json",
+  "sheet": "mounts.offers",
+  "rows": [
+    {
+      "id": "sure-footed",
+      "effect": "tick-saving",
+      "magnitude": 1,
+      "unit": "ticks",
+      "favours": [
+        "ridden:suited"
+      ]
+    },
+    {
+      "id": "pack",
+      "effect": "load",
+      "magnitude": 25,
+      "unit": "percent",
+      "favours": [
+        "ridden:laden"
+      ]
+    },
+    {
+      "id": "steady",
+      "effect": "steady",
+      "favours": [
+        "ridden:ambushed"
+      ]
+    },
+    {
+      "id": "swift",
+      "effect": "route",
+      "magnitude": 10,
+      "unit": "percent",
+      "favours": [
+        "ridden:road",
+        "ridden:any"
+      ]
+    },
+    {
+      "id": "bonded",
+      "effect": "call",
+      "magnitude": 3,
+      "unit": "tiles",
+      "favours": [
+        "ridden:home"
+      ]
+    }
+  ]
+}

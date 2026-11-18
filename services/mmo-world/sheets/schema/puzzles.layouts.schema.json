@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.layouts",
+  "title": "puzzles.layouts",
+  "description": "How each family's layout grows with level.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.layouts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "base",
+          "perLevel",
+          "max"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "family": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "puzzles.families"
+          },
+          "base": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count",
+            "description": "Wires, pins, dials, maze side, grid side, knobs, fuses or sequence length at level 1."
+          },
+          "perLevel": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Added per level above 1, rounded down."
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "decoyBase": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Look-alike ports, false pins, reversals, decoy tiles, noise or redundant clues at level 1."
+          },
+          "decoyPerLevel": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "x-unit": "count"
+          },
+          "range": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Values a dial, knob or symbol can take."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

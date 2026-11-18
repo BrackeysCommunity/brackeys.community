@@ -248,6 +248,107 @@
       "kind": "faction.seated",
       "weight": 30,
       "note": "A faction seated as its regions came inside the horizon."
+    },
+    {
+      "id": "craft-made",
+      "kind": "craft.made",
+      "weight": 3
+    },
+    {
+      "id": "craft-failed",
+      "kind": "craft.failed",
+      "weight": 15,
+      "note": "A combination that made nothing useful (GDD 9.10)."
+    },
+    {
+      "id": "craft-pattern",
+      "kind": "craft.pattern",
+      "weight": 10
+    },
+    {
+      "id": "encounter-won",
+      "kind": "encounter.won",
+      "weight": 15
+    },
+    {
+      "id": "encounter-lost",
+      "kind": "encounter.lost",
+      "weight": 30
+    },
+    {
+      "id": "encounter-left",
+      "kind": "encounter.left",
+      "weight": 5
+    },
+    {
+      "id": "encounter-escaped",
+      "kind": "encounter.escaped",
+      "weight": 10
+    },
+    {
+      "id": "character-down",
+      "kind": "character.down",
+      "weight": 45
+    },
+    {
+      "id": "beat-lost",
+      "kind": "beat.lost",
+      "weight": 3
+    },
+    {
+      "id": "hunt-slain",
+      "kind": "hunt.slain",
+      "weight": 70
+    },
+    {
+      "id": "hunt-wounded",
+      "kind": "hunt.wounded",
+      "weight": 10
+    },
+    {
+      "id": "item-levelled",
+      "kind": "item.levelled",
+      "weight": 8
+    },
+    {
+      "id": "item-milestone",
+      "kind": "item.milestone",
+      "weight": 35
+    },
+    {
+      "id": "item-broke",
+      "kind": "item.broke",
+      "weight": 25
+    },
+    {
+      "id": "item-dormant",
+      "kind": "item.dormant",
+      "weight": 20
+    },
+    {
+      "id": "item-repaired",
+      "kind": "item.repaired",
+      "weight": 5
+    },
+    {
+      "id": "practice-levelled",
+      "kind": "practice.levelled",
+      "weight": 12
+    },
+    {
+      "id": "puzzle-solved",
+      "kind": "puzzle.solved",
+      "weight": 15
+    },
+    {
+      "id": "puzzle-haywire",
+      "kind": "puzzle.haywire",
+      "weight": 25
+    },
+    {
+      "id": "mount-levelled",
+      "kind": "mount.levelled",
+      "weight": 8
     }
   ]
 }

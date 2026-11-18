@@ -132,7 +132,7 @@
     },
     {
       "id": "braced",
-      "kind": "property"
+      "kind": "state"
     },
     {
       "id": "cold",
@@ -180,7 +180,7 @@
     },
     {
       "id": "marked",
-      "kind": "property"
+      "kind": "state"
     },
     {
       "id": "true",
@@ -280,7 +280,7 @@
     },
     {
       "id": "slow",
-      "kind": "behaviour"
+      "kind": "state"
     },
     {
       "id": "mercantile",
@@ -408,6 +408,238 @@
     },
     {
       "id": "reaching",
+      "kind": "property"
+    },
+    {
+      "id": "option",
+      "kind": "action"
+    },
+    {
+      "id": "strike",
+      "kind": "action"
+    },
+    {
+      "id": "smash",
+      "kind": "action"
+    },
+    {
+      "id": "hold",
+      "kind": "action"
+    },
+    {
+      "id": "guard",
+      "kind": "action"
+    },
+    {
+      "id": "feint",
+      "kind": "action"
+    },
+    {
+      "id": "back-out",
+      "kind": "action"
+    },
+    {
+      "id": "pay-toll",
+      "kind": "action"
+    },
+    {
+      "id": "pursue",
+      "kind": "action"
+    },
+    {
+      "id": "scramble",
+      "kind": "action"
+    },
+    {
+      "id": "brace-through",
+      "kind": "action"
+    },
+    {
+      "id": "pick",
+      "kind": "action"
+    },
+    {
+      "id": "hack",
+      "kind": "action"
+    },
+    {
+      "id": "talk",
+      "kind": "action"
+    },
+    {
+      "id": "gather",
+      "kind": "action"
+    },
+    {
+      "id": "cast",
+      "kind": "action"
+    },
+    {
+      "id": "edge-led",
+      "kind": "action"
+    },
+    {
+      "id": "weight-led",
+      "kind": "action"
+    },
+    {
+      "id": "flex-led",
+      "kind": "action"
+    },
+    {
+      "id": "conduct-led",
+      "kind": "action"
+    },
+    {
+      "id": "heat-led",
+      "kind": "action"
+    },
+    {
+      "id": "ward-led",
+      "kind": "action"
+    },
+    {
+      "id": "reach-led",
+      "kind": "action"
+    },
+    {
+      "id": "bond-led",
+      "kind": "action"
+    },
+    {
+      "id": "clash",
+      "kind": "beat"
+    },
+    {
+      "id": "standoff",
+      "kind": "beat"
+    },
+    {
+      "id": "chase",
+      "kind": "beat"
+    },
+    {
+      "id": "hazard",
+      "kind": "beat"
+    },
+    {
+      "id": "lock",
+      "kind": "beat"
+    },
+    {
+      "id": "parley",
+      "kind": "beat"
+    },
+    {
+      "id": "harvest",
+      "kind": "beat"
+    },
+    {
+      "id": "guardian",
+      "kind": "behaviour"
+    },
+    {
+      "id": "puzzle",
+      "kind": "beat"
+    },
+    {
+      "id": "bleeding",
+      "kind": "state"
+    },
+    {
+      "id": "shaken",
+      "kind": "state"
+    },
+    {
+      "id": "off-guard",
+      "kind": "state"
+    },
+    {
+      "id": "wounded",
+      "kind": "condition"
+    },
+    {
+      "id": "hungry",
+      "kind": "condition"
+    },
+    {
+      "id": "laden",
+      "kind": "condition"
+    },
+    {
+      "id": "down",
+      "kind": "condition"
+    },
+    {
+      "id": "arc-marked",
+      "kind": "condition"
+    },
+    {
+      "id": "braced-grip",
+      "kind": "property"
+    },
+    {
+      "id": "sparking",
+      "kind": "property"
+    },
+    {
+      "id": "igniting",
+      "kind": "property"
+    },
+    {
+      "id": "dousing",
+      "kind": "property"
+    },
+    {
+      "id": "freezing",
+      "kind": "property"
+    },
+    {
+      "id": "cloaking",
+      "kind": "property"
+    },
+    {
+      "id": "edge-and-ember",
+      "kind": "pairing"
+    },
+    {
+      "id": "storm-blade",
+      "kind": "pairing"
+    },
+    {
+      "id": "shatter",
+      "kind": "pairing"
+    },
+    {
+      "id": "smoke-and-knife",
+      "kind": "pairing"
+    },
+    {
+      "id": "wildfire",
+      "kind": "pairing"
+    },
+    {
+      "id": "bulwark",
+      "kind": "pairing"
+    },
+    {
+      "id": "exploit",
+      "kind": "class"
+    },
+    {
+      "id": "mount",
+      "kind": "class"
+    },
+    {
+      "id": "dungeon",
+      "kind": "origin"
+    },
+    {
+      "id": "troubled",
+      "kind": "origin"
+    },
+    {
+      "id": "toll",
       "kind": "property"
     }
   ]

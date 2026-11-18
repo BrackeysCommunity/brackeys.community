@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.margins",
+  "title": "fights.margins",
+  "description": "Which band a margin falls in.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.margins"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "atLeast",
+          "band"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "atLeast": {
+            "type": "integer",
+            "x-unit": "pts"
+          },
+          "band": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "fights.odds-bands"
+          }
+        }
+      }
+    }
+  }
+}

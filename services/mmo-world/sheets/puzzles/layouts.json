@@ -1,0 +1,87 @@
+{
+  "$schema": "../schema/puzzles.layouts.schema.json",
+  "sheet": "puzzles.layouts",
+  "rows": [
+    {
+      "id": "rewire",
+      "family": "rewire",
+      "base": 3,
+      "perLevel": 1,
+      "max": 9,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "note": "Wires; look-alike ports"
+    },
+    {
+      "id": "lock-pins",
+      "family": "lock-pins",
+      "base": 3,
+      "perLevel": 0.5,
+      "max": 8,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.34,
+      "note": "Pins; false pins"
+    },
+    {
+      "id": "lock-dial",
+      "family": "lock-dial",
+      "base": 1,
+      "perLevel": 0.34,
+      "max": 4,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "range": 40,
+      "note": "Dials; reversals"
+    },
+    {
+      "id": "lock-maze",
+      "family": "lock-maze",
+      "base": 4,
+      "perLevel": 0.5,
+      "max": 9,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "note": "Side of the maze; extra openings that make dead ends"
+    },
+    {
+      "id": "circuit",
+      "family": "circuit",
+      "base": 3,
+      "perLevel": 0.5,
+      "max": 7,
+      "decoyBase": 1,
+      "decoyPerLevel": 0.5,
+      "note": "Grid side; decoy tiles"
+    },
+    {
+      "id": "signal",
+      "family": "signal",
+      "base": 1,
+      "perLevel": 0.34,
+      "max": 4,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "range": 24,
+      "note": "Knobs; noise"
+    },
+    {
+      "id": "fuse",
+      "family": "fuse",
+      "base": 3,
+      "perLevel": 0.5,
+      "max": 8,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "note": "Fuses; redundant clues"
+    },
+    {
+      "id": "override",
+      "family": "override",
+      "base": 3,
+      "perLevel": 1,
+      "max": 12,
+      "range": 4,
+      "note": "Sequence length; symbols"
+    }
+  ]
+}

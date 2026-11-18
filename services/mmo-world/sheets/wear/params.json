@@ -1,5 +1,24 @@
 {
   "$schema": "../schema/wear.params.schema.json",
   "sheet": "wear.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "gather-tick-wear",
+      "value": 1,
+      "unit": "durability",
+      "doc": "Durability a gathering tick costs the tool."
+    },
+    {
+      "id": "repair-share-per-unit",
+      "value": 25,
+      "unit": "percent",
+      "doc": "One unit of the kind's highest-tier input restores this share of its maximum."
+    },
+    {
+      "id": "salvage-break",
+      "value": 40,
+      "unit": "percent",
+      "doc": "Share of its materials an item breaks into (GDD 9.11)."
+    }
+  ]
 }

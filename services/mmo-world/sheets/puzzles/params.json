@@ -127,6 +127,57 @@
       "value": -8,
       "unit": "percent",
       "doc": "provisional: harness solve rate per tier above 1."
+    },
+    {
+      "id": "level-per-tier",
+      "value": 2,
+      "unit": "level",
+      "doc": "A family's lowest level at a tier is this times the tier, less one (GDD 7.11)."
+    },
+    {
+      "id": "solve-min",
+      "value": 5,
+      "unit": "percent",
+      "doc": "Harness: the solve rate never falls under this."
+    },
+    {
+      "id": "solve-max",
+      "value": 95,
+      "unit": "percent"
+    },
+    {
+      "id": "party-help",
+      "value": 6,
+      "unit": "percent",
+      "doc": "provisional: harness solve rate gained per party member past the first."
+    },
+    {
+      "id": "expected-practice-per-tier",
+      "value": 3,
+      "unit": "level",
+      "doc": "Harness: the practice a party is expected to have in a family, per tier."
+    },
+    {
+      "id": "expected-practice-base",
+      "value": 1,
+      "unit": "level",
+      "doc": "Harness: and at tier 1, this."
+    },
+    {
+      "id": "floors",
+      "value": 7,
+      "unit": "count",
+      "doc": "Harness: floors of a dungeon the puzzle target samples."
+    },
+    {
+      "id": "solve-target-min",
+      "value": 60,
+      "unit": "percent"
+    },
+    {
+      "id": "solve-target-max",
+      "value": 80,
+      "unit": "percent"
     }
   ]
 }

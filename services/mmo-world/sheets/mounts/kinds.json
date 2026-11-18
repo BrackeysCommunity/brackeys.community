@@ -1,0 +1,40 @@
+{
+  "$schema": "../schema/mounts.kinds.schema.json",
+  "sheet": "mounts.kinds",
+  "rows": [
+    {
+      "id": "pack-mule",
+      "tier": 1,
+      "suits": [
+        "plain",
+        "flats"
+      ],
+      "load": 20
+    },
+    {
+      "id": "stilt-rig",
+      "tier": 2,
+      "suits": [
+        "marsh",
+        "coast"
+      ],
+      "load": 10
+    },
+    {
+      "id": "rad-goat",
+      "tier": 2,
+      "suits": [
+        "hills",
+        "mountain"
+      ],
+      "load": 10
+    },
+    {
+      "id": "road-trike",
+      "tier": 3,
+      "suits": [],
+      "roadOnly": true,
+      "load": 40
+    }
+  ]
+}

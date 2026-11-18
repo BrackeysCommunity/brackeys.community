@@ -42,7 +42,11 @@
               "origin",
               "behaviour",
               "disposition",
-              "weather"
+              "weather",
+              "action",
+              "beat",
+              "condition",
+              "pairing"
             ],
             "x-unit": "enum"
           }

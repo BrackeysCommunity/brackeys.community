@@ -4,79 +4,150 @@
   "rows": [
     {
       "id": "tempered",
-      "tag": "tempered"
+      "tag": "tempered",
+      "favours": [
+        "in:wet",
+        "in:frost"
+      ]
     },
     {
       "id": "dense",
-      "tag": "dense"
+      "tag": "dense",
+      "favours": [
+        "won:smash",
+        "vs:thick"
+      ]
     },
     {
       "id": "springy",
-      "tag": "springy"
+      "tag": "springy",
+      "favours": [
+        "lost:any"
+      ]
     },
     {
       "id": "keen",
-      "tag": "keen"
+      "tag": "keen",
+      "favours": [
+        "won:strike"
+      ]
     },
     {
       "id": "braced",
-      "tag": "braced"
+      "tag": "braced-grip",
+      "favours": [
+        "won:hold"
+      ]
     },
     {
       "id": "balanced",
-      "tag": "balanced"
+      "tag": "balanced",
+      "favours": [
+        "lost:any",
+        "won:any"
+      ]
     },
     {
       "id": "hooked",
-      "tag": "hooked"
+      "tag": "hooked",
+      "favours": [
+        "gathered:any"
+      ]
     },
     {
       "id": "warm",
-      "tag": "warm"
+      "tag": "warm",
+      "favours": [
+        "won:heat-led",
+        "in:frost"
+      ]
     },
     {
       "id": "lingering",
-      "tag": "lingering"
+      "tag": "lingering",
+      "favours": [
+        "landed:wet",
+        "landed:burning"
+      ]
     },
     {
       "id": "cold",
-      "tag": "cold"
+      "tag": "cold",
+      "favours": [
+        "vs:fast",
+        "won:any"
+      ]
     },
     {
       "id": "arcing",
-      "tag": "arcing"
+      "tag": "arcing",
+      "favours": [
+        "vs:charged",
+        "vs:pack"
+      ]
     },
     {
       "id": "quick-drawn",
-      "tag": "quick-drawn"
+      "tag": "quick-drawn",
+      "favours": [
+        "won:feint",
+        "won:standoff"
+      ]
     },
     {
       "id": "sure-gripped",
-      "tag": "sure-gripped"
+      "tag": "sure-gripped",
+      "favours": [
+        "in:heights",
+        "won:hazard"
+      ]
     },
     {
       "id": "warded",
-      "tag": "warded"
+      "tag": "warded",
+      "favours": [
+        "suffered:any"
+      ]
     },
     {
       "id": "marked",
-      "tag": "marked"
+      "tag": "marked",
+      "favours": [
+        "vs:pack",
+        "won:any"
+      ]
     },
     {
       "id": "true",
-      "tag": "true"
+      "tag": "true",
+      "favours": [
+        "vs:hidden",
+        "in:fog"
+      ],
+      "strong": true
     },
     {
       "id": "wide",
-      "tag": "wide"
+      "tag": "wide",
+      "favours": [
+        "landed:any",
+        "vs:pack"
+      ]
     },
     {
       "id": "deep",
-      "tag": "deep-cast"
+      "tag": "deep-cast",
+      "favours": [
+        "landed:any"
+      ]
     },
     {
       "id": "quiet",
-      "tag": "quiet"
+      "tag": "quiet",
+      "favours": [
+        "cast:any",
+        "vs:wary"
+      ]
     }
   ]
 }

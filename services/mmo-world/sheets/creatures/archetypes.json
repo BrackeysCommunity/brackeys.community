@@ -5,58 +5,136 @@
     {
       "id": "reed-rat",
       "tier": 1,
-      "biomes": ["marsh", "plain"],
-      "tags": ["creature", "marsh-born", "pack", "small"],
-      "drops": ["reedflax"]
+      "biomes": [
+        "marsh",
+        "plain"
+      ],
+      "tags": [
+        "creature",
+        "marsh-born",
+        "pack",
+        "small",
+        "wired"
+      ],
+      "drops": [
+        "reedflax",
+        "hide-scraps"
+      ]
     },
     {
       "id": "mire-stalker",
       "tier": 2,
-      "biomes": ["marsh"],
-      "tags": ["creature", "marsh-born", "wary"],
-      "drops": ["stalker-hide", "marsh-amber"]
+      "biomes": [
+        "marsh"
+      ],
+      "tags": [
+        "creature",
+        "marsh-born",
+        "wary"
+      ],
+      "drops": [
+        "stalker-hide",
+        "marsh-amber"
+      ]
     },
     {
       "id": "flat-runner",
       "tier": 1,
-      "biomes": ["flats", "plain"],
-      "tags": ["creature", "fast", "herd"],
-      "drops": []
+      "biomes": [
+        "flats",
+        "plain"
+      ],
+      "tags": [
+        "creature",
+        "fast",
+        "herd"
+      ],
+      "drops": [
+        "hide-scraps"
+      ]
     },
     {
       "id": "cinder-hound",
       "tier": 2,
-      "biomes": ["hills"],
-      "tags": ["creature", "burning", "pack"],
-      "drops": ["cinder-ore", "ember-salt"]
+      "biomes": [
+        "hills"
+      ],
+      "tags": [
+        "creature",
+        "burning",
+        "pack"
+      ],
+      "drops": [
+        "cinder-ore",
+        "ember-salt"
+      ]
     },
     {
       "id": "seam-crawler",
       "tier": 2,
-      "biomes": ["hills", "mountain"],
-      "tags": ["creature", "deep", "thick"],
-      "drops": ["saltglass"]
+      "biomes": [
+        "hills",
+        "mountain"
+      ],
+      "tags": [
+        "creature",
+        "deep",
+        "thick"
+      ],
+      "drops": [
+        "bog-iron",
+        "saltglass"
+      ]
     },
     {
       "id": "glass-heron",
       "tier": 3,
-      "biomes": ["coast"],
-      "tags": ["creature", "brittle", "high"],
-      "drops": ["saltglass"]
+      "biomes": [
+        "coast"
+      ],
+      "tags": [
+        "creature",
+        "brittle",
+        "high",
+        "wired",
+        "powered"
+      ],
+      "drops": [
+        "saltglass",
+        "feathers"
+      ]
     },
     {
       "id": "barrow-warden",
       "tier": 3,
       "biomes": [],
-      "tags": ["creature", "deep", "hoarding", "braced"],
+      "tags": [
+        "creature",
+        "deep",
+        "hoarding",
+        "braced",
+        "wired",
+        "powered",
+        "guardian"
+      ],
       "drops": []
     },
     {
       "id": "old-growth",
       "tier": 4,
-      "biomes": ["forest"],
-      "tags": ["creature", "timber", "thick", "slow"],
-      "drops": []
+      "biomes": [
+        "forest"
+      ],
+      "tags": [
+        "creature",
+        "timber",
+        "thick",
+        "slow",
+        "powered"
+      ],
+      "drops": [
+        "heartwood"
+      ]
     }
   ]
 }

@@ -23,7 +23,8 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "tag"
+          "tag",
+          "favours"
         ],
         "properties": {
           "id": {
@@ -35,6 +36,20 @@
             "type": "string",
             "x-unit": "tag",
             "x-ref": "tags.vocabulary"
+          },
+          "favours": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "text",
+            "description": "Record keys (event:tag) that make a milestone offer this trait; the busiest key wins."
+          },
+          "strong": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Inscribe's deep method draws only strong traits, its shallow method only the rest."
           }
         }
       }

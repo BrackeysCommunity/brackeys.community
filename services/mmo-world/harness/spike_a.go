@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"jams.team/mmo-world/sim/draw"
-	"jams.team/mmo-world/sim/items"
+	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -25,8 +25,8 @@ func spikeA(b *sheets.Book, out string, n int) error {
 		n = 10000
 	}
 	k := keys.Throwaway("spike-a")
-	d := items.NewDeriver(b, k.Quirk)
-	plain := items.NewDeriver(b, k.Quirk)
+	d := item.NewDeriver(b, k.Quirk)
+	plain := item.NewDeriver(b, k.Quirk)
 	plain.SkipQuirk = true
 	pick := draw.NewDrawer(k.Roll)
 	names := nameIndex(b)
@@ -48,10 +48,10 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	const stationTier = 4
 
 	type sample struct {
-		kind    *items.Kind
-		plain   *items.Kind
+		kind    *item.Kind
+		plain   *item.Kind
 		depth   int
-		recipes []items.Recipe // refinements, then the shape
+		recipes []item.Recipe // refinements, then the shape
 	}
 	var samples []sample
 	refined := []string{} // refined kinds so far, usable as inputs
@@ -69,24 +69,24 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			}
 			return materials[r(len(materials))]
 		}
-		var chain []items.Recipe
+		var chain []item.Recipe
 		base := pool()
 		depth := refineDepth[base]
 		for range r(3) {
 			proc := []string{"alloy", "alloy", "infuse", "bind"}[r(4)]
-			rec := items.Recipe{Process: proc, Method: methodsOf[proc][r(len(methodsOf[proc]))]}
+			rec := item.Recipe{Process: proc, Method: methodsOf[proc][r(len(methodsOf[proc]))]}
 			switch proc {
 			case "alloy":
-				rec.Inputs = []items.Input{{Kind: base, Qty: int64(1 + r(int(maxQty)))}}
+				rec.Inputs = []item.Input{{Kind: base, Qty: int64(1 + r(int(maxQty)))}}
 				for range r(int(maxIn)) {
-					rec.Inputs = append(rec.Inputs, items.Input{Kind: pool(), Qty: int64(1 + r(int(maxQty)))})
+					rec.Inputs = append(rec.Inputs, item.Input{Kind: pool(), Qty: int64(1 + r(int(maxQty)))})
 				}
 			case "infuse":
-				rec.Inputs = []items.Input{{Kind: base, Qty: 1}, {Kind: pool(), Qty: 1}}
+				rec.Inputs = []item.Input{{Kind: base, Qty: 1}, {Kind: pool(), Qty: 1}}
 			case "bind":
-				rec.Inputs = []items.Input{{Kind: base, Qty: 1}}
+				rec.Inputs = []item.Input{{Kind: base, Qty: 1}}
 				for range 1 + r(int(maxIn)-1) {
-					rec.Inputs = append(rec.Inputs, items.Input{Kind: pool(), Qty: 1})
+					rec.Inputs = append(rec.Inputs, item.Input{Kind: pool(), Qty: 1})
 				}
 			}
 			rec.Inputs = dedupe(rec.Inputs)
@@ -108,7 +108,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 				if resonates(b, plain, rec, threshold) {
 					resonanceEligible++
 				}
-				if pk := plain.Known[kd.ID]; pk != nil && len(pk.Traits) > 0 {
+				if pk, ok := plain.Reg.Kind(kd.ID); ok && len(pk.Traits) > 0 {
 					resonant++
 				}
 			}
@@ -119,8 +119,8 @@ func spikeA(b *sheets.Book, out string, n int) error {
 			}
 			base, depth = kd.ID, refineDepth[kd.ID]
 		}
-		shape := items.Recipe{Process: "shape", Method: methodsOf["shape"][r(len(methodsOf["shape"]))],
-			Slot: slots[r(len(slots))], Inputs: []items.Input{{Kind: base, Qty: 1}}}
+		shape := item.Recipe{Process: "shape", Method: methodsOf["shape"][r(len(methodsOf["shape"]))],
+			Slot: slots[r(len(slots))], Inputs: []item.Input{{Kind: base, Qty: 1}}}
 		kd, err := d.Derive(shape, stationTier)
 		if err != nil {
 			return fmt.Errorf("shape %v: %w", shape, err)
@@ -210,7 +210,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	p("%s Profiles | Profile entropy |", hdr)
 	p("%s --- | --- |", sep)
 	for _, slot := range slots {
-		var ks []*items.Kind
+		var ks []*item.Kind
 		for _, s := range samples {
 			if s.kind.Recipe.Slot == slot {
 				ks = append(ks, s.kind)
@@ -234,10 +234,10 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	// Mush: similarity within a slot and tier against the base materials.
 	p("## Mush")
 	p("")
-	matVecs := []items.Vec{}
+	matVecs := []item.Vec{}
 	for _, m := range b.Materials {
 		v := m.Vector
-		matVecs = append(matVecs, items.Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond})
+		matVecs = append(matVecs, item.Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond})
 	}
 	p("Mean cosine similarity of random pairs (1.0 = the same shape; lower is more varied):")
 	p("")
@@ -245,11 +245,11 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	p("| --- | --- | --- | --- |")
 	mc, hi := meanCos(matVecs, pick, "mat")
 	p("| Base materials | all | %.3f | %.0f%% |", mc, hi*100)
-	var refinedVecs []items.Vec
-	byDepth := map[int][]items.Vec{}
+	var refinedVecs []item.Vec
+	byDepth := map[int][]item.Vec{}
 	for _, id := range refined {
-		refinedVecs = append(refinedVecs, d.Known[id].Vec)
-		byDepth[refineDepth[id]] = append(byDepth[refineDepth[id]], d.Known[id].Vec)
+		refinedVecs = append(refinedVecs, known(d, id).Vec)
+		byDepth[refineDepth[id]] = append(byDepth[refineDepth[id]], known(d, id).Vec)
 	}
 	mc, hi = meanCos(refinedVecs, pick, "ref")
 	p("| Refined intermediates | 5,000 | %.3f | %.0f%% |", mc, hi*100)
@@ -258,7 +258,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 		p("| Intermediates %d refinements deep (%s) | 5,000 | %.3f | %.0f%% |", depth, comma(int64(len(byDepth[depth]))), mc, hi*100)
 	}
 	for _, slot := range slots {
-		var vs []items.Vec
+		var vs []item.Vec
 		for _, s := range samples {
 			if s.kind.Recipe.Slot == slot && s.kind.Tier == 2 {
 				vs = append(vs, s.kind.Vec)
@@ -271,7 +271,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	near := 0
 	for _, slot := range slots {
 		for _, t := range b.Tiers {
-			var vs []items.Vec
+			var vs []item.Vec
 			for _, s := range samples {
 				if s.kind.Recipe.Slot == slot && s.kind.Tier == t.Tier {
 					vs = append(vs, s.kind.Vec)
@@ -388,7 +388,7 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	p("| Points the quirk moved (median, p90, max) | %d pts, %d pts, %d pts |", q(moved, 0.5), q(moved, 0.9), moved[len(moved)-1])
 	p("| Binds | %s |", comma(int64(binds)))
 	p("| Binds whose components cross %d pts on two shared axes (the old eligibility count) | %s (%.0f%%) |", threshold, comma(int64(resonanceEligible)), pct(resonanceEligible, max(binds, 1)))
-	p("| Binds that resonate under items.resonance | %s (%.1f%%) |", comma(int64(resonant)), pct(resonant, max(binds, 1)))
+	p("| Binds that resonate under item.resonance | %s (%.1f%%) |", comma(int64(resonant)), pct(resonant, max(binds, 1)))
 	p("")
 
 	// Cost.
@@ -450,10 +450,10 @@ func spikeA(b *sheets.Book, out string, n int) error {
 	return os.WriteFile(filepath.Join(out, "spike-a-kinds.csv"), []byte(csv.String()), 0o644)
 }
 
-func dedupe(in []items.Input) []items.Input {
-	var out []items.Input
+func dedupe(in []item.Input) []item.Input {
+	var out []item.Input
 	for _, x := range in {
-		i := slices.IndexFunc(out, func(y items.Input) bool { return y.Kind == x.Kind })
+		i := slices.IndexFunc(out, func(y item.Input) bool { return y.Kind == x.Kind })
 		if i >= 0 {
 			out[i].Qty = min(out[i].Qty+x.Qty, 4)
 			continue
@@ -464,17 +464,17 @@ func dedupe(in []items.Input) []items.Input {
 }
 
 // resonates: two components at or above the threshold on the same two axes.
-func resonates(b *sheets.Book, plain *items.Deriver, rec items.Recipe, threshold int64) bool {
-	var vs []items.Vec
+func resonates(b *sheets.Book, plain *item.Deriver, rec item.Recipe, threshold int64) bool {
+	var vs []item.Vec
 	for _, in := range rec.Inputs {
-		if k, ok := plain.Known[in.Kind]; ok {
+		if k, ok := plain.Reg.Kind(in.Kind); ok {
 			vs = append(vs, k.Vec)
 			continue
 		}
 		for _, m := range b.Materials {
 			if m.ID == in.Kind {
 				v := m.Vector
-				vs = append(vs, items.Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond})
+				vs = append(vs, item.Vec{v.Edge, v.Weight, v.Flex, v.Conduct, v.Heat, v.Ward, v.Reach, v.Bond})
 			}
 		}
 	}
@@ -503,7 +503,7 @@ func tierBudget(b *sheets.Book, tier int64) int64 {
 	return 0
 }
 
-func order(v items.Vec) []int {
+func order(v item.Vec) []int {
 	o := make([]int, len(v))
 	for i := range o {
 		o[i] = i
@@ -528,7 +528,7 @@ func entropy(counts map[string]int) float64 {
 	return h / math.Log(float64(len(counts)))
 }
 
-func cosine(a, b items.Vec) float64 {
+func cosine(a, b item.Vec) float64 {
 	var dot, na, nb float64
 	for i := range a {
 		dot += float64(a[i] * b[i])
@@ -541,7 +541,7 @@ func cosine(a, b items.Vec) float64 {
 	return dot / math.Sqrt(na*nb)
 }
 
-func meanCos(vs []items.Vec, pick *draw.Drawer, label string) (float64, float64) {
+func meanCos(vs []item.Vec, pick *draw.Drawer, label string) (float64, float64) {
 	if len(vs) < 2 {
 		return 0, 0
 	}
@@ -575,7 +575,7 @@ func meanCos(vs []items.Vec, pick *draw.Drawer, label string) (float64, float64)
 	return sum / float64(n), float64(hi) / float64(n)
 }
 
-func nearTwins(vs []items.Vec, within int64) int {
+func nearTwins(vs []item.Vec, within int64) int {
 	count := 0
 	for i := range vs {
 		for j := range vs {
@@ -595,17 +595,17 @@ func nearTwins(vs []items.Vec, within int64) int {
 	return count
 }
 
-func describe(d *items.Deriver, names map[string]string, r items.Recipe) string {
+func describe(d *item.Deriver, names map[string]string, r item.Recipe) string {
 	return describeDepth(d, names, r, 0)
 }
 
-func describeDepth(d *items.Deriver, names map[string]string, r items.Recipe, depth int) string {
+func describeDepth(d *item.Deriver, names map[string]string, r item.Recipe, depth int) string {
 	var parts []string
 	for _, in := range r.Inputs {
 		var name string
 		if n, ok := names["items.materials:"+in.Kind]; ok {
 			name = n
-		} else if k, ok := d.Known[in.Kind]; ok && depth < 2 {
+		} else if k, ok := d.Reg.Kind(in.Kind); ok && depth < 2 {
 			name = "(" + describeDepth(d, names, k.Recipe, depth+1) + ")"
 		} else {
 			name = "kind " + in.Kind[:8]
@@ -619,7 +619,7 @@ func describeDepth(d *items.Deriver, names map[string]string, r items.Recipe, de
 	return s + ": " + strings.Join(parts, ", ")
 }
 
-func vecString(axes []string, v items.Vec) string {
+func vecString(axes []string, v item.Vec) string {
 	var parts []string
 	for a, x := range v {
 		if x != 0 {
@@ -688,11 +688,11 @@ func comma(n int64) string {
 }
 
 type found struct {
-	*items.Kind
-	d *items.Deriver
+	*item.Kind
+	d *item.Deriver
 }
 
-func topTwo(v items.Vec) int64 {
+func topTwo(v item.Vec) int64 {
 	o := order(v)
 	return v[o[0]] + v[o[1]]
 }
@@ -702,13 +702,13 @@ func cellKey(tier int64, slot string) string { return fmt.Sprint(tier, "/", slot
 // searchBest is the craft-strength adversary: it enumerates shallow
 // recipes and keeps, per tier and slot, the kind with the strongest axis.
 func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots []string, stationTier int64) (map[string]*found, int) {
-	d := items.NewDeriver(b, k.Quirk)
+	d := item.NewDeriver(b, k.Quirk)
 	best := map[string]*found{}
 	n := 0
 	keep := func(base string) {
 		for _, slot := range slots {
 			for _, m := range methodsOf["shape"] {
-				kd, err := d.Derive(items.Recipe{Process: "shape", Method: m, Slot: slot, Inputs: []items.Input{{Kind: base, Qty: 1}}}, stationTier)
+				kd, err := d.Derive(item.Recipe{Process: "shape", Method: m, Slot: slot, Inputs: []item.Input{{Kind: base, Qty: 1}}}, stationTier)
 				if err != nil {
 					continue
 				}
@@ -726,9 +726,9 @@ func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots
 		mats = append(mats, m.ID)
 		keep(m.ID)
 	}
-	alloy := func(in []items.Input) {
+	alloy := func(in []item.Input) {
 		for _, m := range methodsOf["alloy"] {
-			kd, err := d.Derive(items.Recipe{Process: "alloy", Method: m, Inputs: in}, stationTier)
+			kd, err := d.Derive(item.Recipe{Process: "alloy", Method: m, Inputs: in}, stationTier)
 			if err != nil {
 				continue
 			}
@@ -740,15 +740,20 @@ func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots
 		for j := i + 1; j < len(mats); j++ {
 			for qi := int64(1); qi <= 4; qi++ {
 				for qj := int64(1); qj <= 4; qj++ {
-					alloy([]items.Input{{Kind: mats[i], Qty: qi}, {Kind: mats[j], Qty: qj}})
+					alloy([]item.Input{{Kind: mats[i], Qty: qi}, {Kind: mats[j], Qty: qj}})
 				}
 			}
 			for l := j + 1; l < len(mats); l++ {
 				for _, qs := range [][3]int64{{1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}, {2, 2, 1}, {2, 1, 2}, {1, 2, 2}} {
-					alloy([]items.Input{{Kind: mats[i], Qty: qs[0]}, {Kind: mats[j], Qty: qs[1]}, {Kind: mats[l], Qty: qs[2]}})
+					alloy([]item.Input{{Kind: mats[i], Qty: qs[0]}, {Kind: mats[j], Qty: qs[1]}, {Kind: mats[l], Qty: qs[2]}})
 				}
 			}
 		}
 	}
 	return best, n
+}
+
+func known(d *item.Deriver, id string) *item.Kind {
+	k, _ := d.Reg.Kind(id)
+	return k
 }

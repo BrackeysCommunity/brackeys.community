@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.trait-effects",
+  "title": "fights.trait-effects",
+  "description": "What a trait does that a band or score rule cannot say.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.trait-effects"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tag",
+          "effect"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "The trait's tag."
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "arc",
+              "ignore-state",
+              "gather-units",
+              "state-beats",
+              "load",
+              "wear-on-fail",
+              "worst-band",
+              "on-hit-state",
+              "no-first-strike",
+              "ignore-risk",
+              "ward-first",
+              "wide",
+              "quiet"
+            ],
+            "x-unit": "enum"
+          },
+          "magnitude": {
+            "type": "integer",
+            "x-unit": "row",
+            "description": "In the unit named by the unit column."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "coin",
+              "goods",
+              "pts",
+              "durability",
+              "xp",
+              "level",
+              "tier",
+              "load",
+              "health",
+              "defence",
+              "gauge",
+              "standing",
+              "event-points",
+              "ticks",
+              "days",
+              "percent",
+              "ratio",
+              "count",
+              "tiles",
+              "weight",
+              "chance",
+              "band-steps",
+              "beat",
+              "seconds",
+              "degrees"
+            ],
+            "x-unit": "enum"
+          },
+          "state": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "The state it ignores, extends or puts on a hit creature."
+          },
+          "place": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "Only where the encounter's place holds this."
+          },
+          "lacks": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "Not against a creature holding this."
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "durability",
+              "wound",
+              "haul",
+              "first-strike",
+              "escape",
+              "coin",
+              "standing",
+              "ticks",
+              "none"
+            ],
+            "x-unit": "enum"
+          }
+        }
+      }
+    }
+  }
+}

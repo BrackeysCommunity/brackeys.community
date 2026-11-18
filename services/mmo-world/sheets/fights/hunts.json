@@ -1,0 +1,50 @@
+{
+  "$schema": "../schema/fights.hunts.schema.json",
+  "sheet": "fights.hunts",
+  "rows": [
+    {
+      "id": "walking-factory",
+      "creature": "old-growth",
+      "healthRatio": 1,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "heartwood",
+          "quantity": 30
+        },
+        {
+          "material": "deep-core",
+          "quantity": 4
+        }
+      ]
+    },
+    {
+      "id": "dust-runner-migration",
+      "creature": "flat-runner",
+      "healthRatio": 2,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "hide-scraps",
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "id": "tower-guardian",
+      "creature": "barrow-warden",
+      "healthRatio": 1,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "vault-plate",
+          "quantity": 4
+        },
+        {
+          "material": "stormglass",
+          "quantity": 4
+        }
+      ]
+    }
+  ]
+}

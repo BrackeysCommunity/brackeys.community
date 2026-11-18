@@ -72,6 +72,16 @@
             "x-ref": "tags.vocabulary",
             "description": "Tags any of the three may hold."
           },
+          "otherLacks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Tags what the subject is against must not hold."
+          },
           "measure": {
             "type": "string",
             "x-unit": "ref",
@@ -99,7 +109,8 @@
                     "band",
                     "scale",
                     "join",
-                    "end"
+                    "end",
+                    "score"
                   ],
                   "x-unit": "enum"
                 },
@@ -140,6 +151,11 @@
                   "type": "integer",
                   "minimum": 0,
                   "x-unit": "beat"
+                },
+                "score": {
+                  "type": "integer",
+                  "x-unit": "pts",
+                  "description": "score: points added to an option's score."
                 }
               }
             },

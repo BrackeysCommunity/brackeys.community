@@ -182,6 +182,7 @@ func unitProblems(b *sheets.Book) []string {
 		{"story.params", b.StoryParams}, {"economy.params", b.EconomyParams}, {"goals.params", b.GoalParams},
 		{"liveops.params", b.LiveOpsParams}, {"map.params", b.MapParams}, {"creatures.params", b.CreatureParams},
 		{"settlements.params", b.SettlementParams}, {"mounts.params", b.MountParams}, {"classes.params", b.ClassParams},
+		{"puzzles.params", b.PuzzleParams},
 	} {
 		for _, r := range group.rows {
 			if !slices.Contains(sheets.QuantityUnits, r.Unit) {
@@ -271,6 +272,8 @@ var namedSheets = []string{
 	"items.materials", "items.processes", "creatures.archetypes", "factions.archetypes",
 	"map.terrain", "items.traits", "items.slots", "world.weather", "world.gauges",
 	"puzzles.families", "npcs.traits", "world.seasons", "map.landmarks",
+	"mounts.kinds", "fights.beats", "fights.options", "fights.states", "items.pairings",
+	"growth.exploit-offers", "mounts.offers",
 }
 
 func packProblems(b *sheets.Book) []string {

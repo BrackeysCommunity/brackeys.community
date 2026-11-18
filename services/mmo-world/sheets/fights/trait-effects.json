@@ -1,0 +1,117 @@
+{
+  "$schema": "../schema/fights.trait-effects.schema.json",
+  "sheet": "fights.trait-effects",
+  "rows": [
+    {
+      "id": "arcing",
+      "tag": "arcing",
+      "effect": "arc"
+    },
+    {
+      "id": "tempered-wet",
+      "tag": "tempered",
+      "effect": "ignore-state",
+      "state": "wet"
+    },
+    {
+      "id": "tempered-brittle",
+      "tag": "tempered",
+      "effect": "ignore-state",
+      "state": "brittle"
+    },
+    {
+      "id": "hooked",
+      "tag": "hooked",
+      "effect": "gather-units",
+      "magnitude": 1,
+      "unit": "goods"
+    },
+    {
+      "id": "lingering",
+      "tag": "lingering",
+      "effect": "state-beats",
+      "magnitude": 1,
+      "unit": "beat",
+      "place": "wet"
+    },
+    {
+      "id": "dense-load",
+      "tag": "dense",
+      "effect": "load",
+      "magnitude": 20,
+      "unit": "percent"
+    },
+    {
+      "id": "springy",
+      "tag": "springy",
+      "effect": "wear-on-fail",
+      "magnitude": 50,
+      "unit": "percent"
+    },
+    {
+      "id": "balanced",
+      "tag": "balanced",
+      "effect": "worst-band",
+      "magnitude": 1,
+      "unit": "band-steps"
+    },
+    {
+      "id": "warm",
+      "tag": "warm",
+      "effect": "ignore-state",
+      "state": "frost"
+    },
+    {
+      "id": "cold",
+      "tag": "cold",
+      "effect": "on-hit-state",
+      "state": "slow",
+      "lacks": "thick"
+    },
+    {
+      "id": "quick-drawn",
+      "tag": "quick-drawn",
+      "effect": "no-first-strike"
+    },
+    {
+      "id": "warded",
+      "tag": "warded",
+      "effect": "ward-first"
+    },
+    {
+      "id": "marked",
+      "tag": "marked",
+      "effect": "on-hit-state",
+      "state": "marked"
+    },
+    {
+      "id": "true-hidden",
+      "tag": "true",
+      "effect": "ignore-state",
+      "state": "hidden"
+    },
+    {
+      "id": "true-fog",
+      "tag": "true",
+      "effect": "ignore-state",
+      "state": "fog"
+    },
+    {
+      "id": "wide",
+      "tag": "wide",
+      "effect": "wide"
+    },
+    {
+      "id": "deep-cast",
+      "tag": "deep-cast",
+      "effect": "state-beats",
+      "magnitude": 2,
+      "unit": "beat"
+    },
+    {
+      "id": "quiet",
+      "tag": "quiet",
+      "effect": "quiet"
+    }
+  ]
+}

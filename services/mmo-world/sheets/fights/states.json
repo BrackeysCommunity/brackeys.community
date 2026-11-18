@@ -1,0 +1,66 @@
+{
+  "$schema": "../schema/fights.states.schema.json",
+  "sheet": "fights.states",
+  "rows": [
+    {
+      "id": "charged",
+      "tag": "charged",
+      "beats": 0
+    },
+    {
+      "id": "burning",
+      "tag": "burning",
+      "beats": 2,
+      "wear": 4,
+      "endsOn": "wet"
+    },
+    {
+      "id": "wet",
+      "tag": "wet",
+      "beats": 3
+    },
+    {
+      "id": "brittle",
+      "tag": "brittle",
+      "beats": 0
+    },
+    {
+      "id": "hidden",
+      "tag": "hidden",
+      "beats": 1,
+      "unanswered": true
+    },
+    {
+      "id": "braced",
+      "tag": "braced",
+      "beats": 1,
+      "halvesNext": true
+    },
+    {
+      "id": "bleeding",
+      "tag": "bleeding",
+      "beats": 0,
+      "woundsAtEnd": true
+    },
+    {
+      "id": "shaken",
+      "tag": "shaken",
+      "beats": 1
+    },
+    {
+      "id": "off-guard",
+      "tag": "off-guard",
+      "beats": 1
+    },
+    {
+      "id": "slow",
+      "tag": "slow",
+      "beats": 1
+    },
+    {
+      "id": "marked",
+      "tag": "marked",
+      "beats": 0
+    }
+  ]
+}

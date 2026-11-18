@@ -1,5 +1,36 @@
 {
   "$schema": "../schema/mounts.params.schema.json",
   "sheet": "mounts.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "tick-saving",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "A mount lowers the cost of entering a tile it suits by this."
+    },
+    {
+      "id": "min-enter-ticks",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Never under this."
+    },
+    {
+      "id": "upkeep-daily",
+      "value": 1,
+      "unit": "goods",
+      "doc": "Provisions a mount eats each world day."
+    },
+    {
+      "id": "upkeep-ridden",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "And one more provision per this many ticks ridden."
+    },
+    {
+      "id": "pack-load",
+      "value": 30,
+      "unit": "load",
+      "doc": "A character's pack before mounts and traits (GDD 5.2)."
+    }
+  ]
 }

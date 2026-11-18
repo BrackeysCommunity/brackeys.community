@@ -7,6 +7,18 @@
       "axis": "conduct",
       "shareOfBudget": 35,
       "tag": "conductive"
+    },
+    {
+      "id": "heavy",
+      "axis": "weight",
+      "shareOfBudget": 30,
+      "tag": "heavy"
+    },
+    {
+      "id": "reaching",
+      "axis": "reach",
+      "shareOfBudget": 30,
+      "tag": "reaching"
     }
   ]
 }

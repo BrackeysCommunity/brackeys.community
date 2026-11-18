@@ -1,5 +1,174 @@
 {
   "$schema": "../schema/wear.durability.schema.json",
   "sheet": "wear.durability",
-  "rows": []
+  "rows": [
+    {
+      "id": "blade-1",
+      "slot": "blade",
+      "tier": "tier-1",
+      "durability": 60
+    },
+    {
+      "id": "blade-2",
+      "slot": "blade",
+      "tier": "tier-2",
+      "durability": 90
+    },
+    {
+      "id": "blade-3",
+      "slot": "blade",
+      "tier": "tier-3",
+      "durability": 130
+    },
+    {
+      "id": "blade-4",
+      "slot": "blade",
+      "tier": "tier-4",
+      "durability": 180
+    },
+    {
+      "id": "plate-1",
+      "slot": "plate",
+      "tier": "tier-1",
+      "durability": 90
+    },
+    {
+      "id": "plate-2",
+      "slot": "plate",
+      "tier": "tier-2",
+      "durability": 135
+    },
+    {
+      "id": "plate-3",
+      "slot": "plate",
+      "tier": "tier-3",
+      "durability": 195
+    },
+    {
+      "id": "plate-4",
+      "slot": "plate",
+      "tier": "tier-4",
+      "durability": 270
+    },
+    {
+      "id": "tool-1",
+      "slot": "tool",
+      "tier": "tier-1",
+      "durability": 72
+    },
+    {
+      "id": "tool-2",
+      "slot": "tool",
+      "tier": "tier-2",
+      "durability": 108
+    },
+    {
+      "id": "tool-3",
+      "slot": "tool",
+      "tier": "tier-3",
+      "durability": 156
+    },
+    {
+      "id": "tool-4",
+      "slot": "tool",
+      "tier": "tier-4",
+      "durability": 216
+    },
+    {
+      "id": "hook-1",
+      "slot": "hook",
+      "tier": "tier-1",
+      "durability": 60
+    },
+    {
+      "id": "hook-2",
+      "slot": "hook",
+      "tier": "tier-2",
+      "durability": 90
+    },
+    {
+      "id": "hook-3",
+      "slot": "hook",
+      "tier": "tier-3",
+      "durability": 130
+    },
+    {
+      "id": "hook-4",
+      "slot": "hook",
+      "tier": "tier-4",
+      "durability": 180
+    },
+    {
+      "id": "focus-1",
+      "slot": "focus",
+      "tier": "tier-1",
+      "durability": 48
+    },
+    {
+      "id": "focus-2",
+      "slot": "focus",
+      "tier": "tier-2",
+      "durability": 72
+    },
+    {
+      "id": "focus-3",
+      "slot": "focus",
+      "tier": "tier-3",
+      "durability": 104
+    },
+    {
+      "id": "focus-4",
+      "slot": "focus",
+      "tier": "tier-4",
+      "durability": 144
+    },
+    {
+      "id": "charm-1",
+      "slot": "charm",
+      "tier": "tier-1",
+      "durability": 30
+    },
+    {
+      "id": "charm-2",
+      "slot": "charm",
+      "tier": "tier-2",
+      "durability": 45
+    },
+    {
+      "id": "charm-3",
+      "slot": "charm",
+      "tier": "tier-3",
+      "durability": 65
+    },
+    {
+      "id": "charm-4",
+      "slot": "charm",
+      "tier": "tier-4",
+      "durability": 90
+    },
+    {
+      "id": "tack-1",
+      "slot": "tack",
+      "tier": "tier-1",
+      "durability": 72
+    },
+    {
+      "id": "tack-2",
+      "slot": "tack",
+      "tier": "tier-2",
+      "durability": 108
+    },
+    {
+      "id": "tack-3",
+      "slot": "tack",
+      "tier": "tier-3",
+      "durability": 156
+    },
+    {
+      "id": "tack-4",
+      "slot": "tack",
+      "tier": "tier-4",
+      "durability": 216
+    }
+  ]
 }

@@ -1,5 +1,249 @@
 {
   "$schema": "../schema/growth.level-curve.schema.json",
   "sheet": "growth.level-curve",
-  "rows": []
+  "rows": [
+    {
+      "id": "level-1",
+      "level": 1,
+      "xpToNext": 5,
+      "xpSoFar": 0
+    },
+    {
+      "id": "level-2",
+      "level": 2,
+      "xpToNext": 18,
+      "xpSoFar": 5
+    },
+    {
+      "id": "level-3",
+      "level": 3,
+      "xpToNext": 41,
+      "xpSoFar": 23
+    },
+    {
+      "id": "level-4",
+      "level": 4,
+      "xpToNext": 74,
+      "xpSoFar": 64
+    },
+    {
+      "id": "level-5",
+      "level": 5,
+      "xpToNext": 115,
+      "xpSoFar": 138,
+      "milestone": true
+    },
+    {
+      "id": "level-6",
+      "level": 6,
+      "xpToNext": 166,
+      "xpSoFar": 253
+    },
+    {
+      "id": "level-7",
+      "level": 7,
+      "xpToNext": 225,
+      "xpSoFar": 419
+    },
+    {
+      "id": "level-8",
+      "level": 8,
+      "xpToNext": 294,
+      "xpSoFar": 644
+    },
+    {
+      "id": "level-9",
+      "level": 9,
+      "xpToNext": 373,
+      "xpSoFar": 938
+    },
+    {
+      "id": "level-10",
+      "level": 10,
+      "xpToNext": 460,
+      "xpSoFar": 1311,
+      "milestone": true
+    },
+    {
+      "id": "level-11",
+      "level": 11,
+      "xpToNext": 557,
+      "xpSoFar": 1771
+    },
+    {
+      "id": "level-12",
+      "level": 12,
+      "xpToNext": 662,
+      "xpSoFar": 2328
+    },
+    {
+      "id": "level-13",
+      "level": 13,
+      "xpToNext": 777,
+      "xpSoFar": 2990
+    },
+    {
+      "id": "level-14",
+      "level": 14,
+      "xpToNext": 902,
+      "xpSoFar": 3767
+    },
+    {
+      "id": "level-15",
+      "level": 15,
+      "xpToNext": 1035,
+      "xpSoFar": 4669,
+      "milestone": true
+    },
+    {
+      "id": "level-16",
+      "level": 16,
+      "xpToNext": 1178,
+      "xpSoFar": 5704
+    },
+    {
+      "id": "level-17",
+      "level": 17,
+      "xpToNext": 1329,
+      "xpSoFar": 6882
+    },
+    {
+      "id": "level-18",
+      "level": 18,
+      "xpToNext": 1490,
+      "xpSoFar": 8211
+    },
+    {
+      "id": "level-19",
+      "level": 19,
+      "xpToNext": 1661,
+      "xpSoFar": 9701
+    },
+    {
+      "id": "level-20",
+      "level": 20,
+      "xpToNext": 1840,
+      "xpSoFar": 11362
+    },
+    {
+      "id": "level-21",
+      "level": 21,
+      "xpToNext": 2029,
+      "xpSoFar": 13202
+    },
+    {
+      "id": "level-22",
+      "level": 22,
+      "xpToNext": 2226,
+      "xpSoFar": 15231
+    },
+    {
+      "id": "level-23",
+      "level": 23,
+      "xpToNext": 2433,
+      "xpSoFar": 17457
+    },
+    {
+      "id": "level-24",
+      "level": 24,
+      "xpToNext": 2650,
+      "xpSoFar": 19890
+    },
+    {
+      "id": "level-25",
+      "level": 25,
+      "xpToNext": 2875,
+      "xpSoFar": 22540
+    },
+    {
+      "id": "level-26",
+      "level": 26,
+      "xpToNext": 3110,
+      "xpSoFar": 25415
+    },
+    {
+      "id": "level-27",
+      "level": 27,
+      "xpToNext": 3353,
+      "xpSoFar": 28525
+    },
+    {
+      "id": "level-28",
+      "level": 28,
+      "xpToNext": 3606,
+      "xpSoFar": 31878
+    },
+    {
+      "id": "level-29",
+      "level": 29,
+      "xpToNext": 3869,
+      "xpSoFar": 35484
+    },
+    {
+      "id": "level-30",
+      "level": 30,
+      "xpToNext": 4140,
+      "xpSoFar": 39353
+    },
+    {
+      "id": "level-31",
+      "level": 31,
+      "xpToNext": 4421,
+      "xpSoFar": 43493
+    },
+    {
+      "id": "level-32",
+      "level": 32,
+      "xpToNext": 4710,
+      "xpSoFar": 47914
+    },
+    {
+      "id": "level-33",
+      "level": 33,
+      "xpToNext": 5009,
+      "xpSoFar": 52624
+    },
+    {
+      "id": "level-34",
+      "level": 34,
+      "xpToNext": 5318,
+      "xpSoFar": 57633
+    },
+    {
+      "id": "level-35",
+      "level": 35,
+      "xpToNext": 5635,
+      "xpSoFar": 62951
+    },
+    {
+      "id": "level-36",
+      "level": 36,
+      "xpToNext": 5962,
+      "xpSoFar": 68586
+    },
+    {
+      "id": "level-37",
+      "level": 37,
+      "xpToNext": 6297,
+      "xpSoFar": 74548
+    },
+    {
+      "id": "level-38",
+      "level": 38,
+      "xpToNext": 6642,
+      "xpSoFar": 80845
+    },
+    {
+      "id": "level-39",
+      "level": 39,
+      "xpToNext": 6997,
+      "xpSoFar": 87487
+    },
+    {
+      "id": "level-40",
+      "level": 40,
+      "xpToNext": 7360,
+      "xpSoFar": 94484
+    }
+  ]
 }

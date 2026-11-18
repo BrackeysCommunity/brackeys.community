@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fights.options",
+  "title": "fights.options",
+  "description": "Which options each tag offers, and what governs and risks each.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "fights.options"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "verb",
+          "beats",
+          "slot",
+          "practice",
+          "risk",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "verb": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "The option's own tag, which rules read."
+          },
+          "beats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "fights.beats",
+            "description": "Beats that offer it; empty is every beat."
+          },
+          "slot": {
+            "type": "string",
+            "enum": [
+              "hand",
+              "off-hand",
+              "body",
+              "deck",
+              "none"
+            ],
+            "x-unit": "enum",
+            "description": "The item whose axis governs it."
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "The item must hold one of these."
+          },
+          "axis": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes",
+            "description": "The governing axis; empty means the practice alone."
+          },
+          "fallbackSlot": {
+            "type": "string",
+            "enum": [
+              "hand",
+              "off-hand",
+              "body",
+              "deck",
+              "none"
+            ],
+            "x-unit": "enum",
+            "description": "Governs when slot holds nothing."
+          },
+          "fallbackAxis": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "practice": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The practice it adds: travel, fight, gather, lockpick, a process, or a puzzle family."
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "durability",
+              "wound",
+              "haul",
+              "first-strike",
+              "escape",
+              "coin",
+              "standing",
+              "ticks",
+              "none"
+            ],
+            "x-unit": "enum"
+          },
+          "riskSize": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Durability, haul units, coin, standing or ticks lost."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "win",
+              "cautious",
+              "way-out",
+              "cast"
+            ],
+            "x-unit": "enum"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

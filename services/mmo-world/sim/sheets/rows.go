@@ -95,8 +95,10 @@ type Slot struct {
 }
 
 type Trait struct {
-	ID  string `json:"id" unit:"id"`
-	Tag string `json:"tag" unit:"tag" ref:"tags.vocabulary"`
+	ID      string   `json:"id" unit:"id"`
+	Tag     string   `json:"tag" unit:"tag" ref:"tags.vocabulary"`
+	Favours []string `json:"favours" unit:"text" doc:"Record keys (event:tag) that make a milestone offer this trait; the busiest key wins."`
+	Strong  bool     `json:"strong,omitempty" unit:"flag" doc:"Inscribe's deep method draws only strong traits, its shallow method only the rest."`
 }
 
 // AxisTag gives a tag to anything holding at least a share of its tier's
@@ -265,7 +267,7 @@ type Trace struct {
 
 type Vocab struct {
 	ID   string `json:"id" unit:"id"`
-	Kind string `json:"kind" unit:"enum" enum:"class|form|substance|property|state|origin|behaviour|disposition|weather"`
+	Kind string `json:"kind" unit:"enum" enum:"class|form|substance|property|state|origin|behaviour|disposition|weather|action|beat|condition|pairing"`
 }
 
 // Measure is a number a rule can test or scale: a gauge, a party size, a price.
@@ -280,13 +282,14 @@ type RuleRow struct {
 	Other    []string    `json:"other,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Tags what the subject is against or beside must hold."`
 	Place    []string    `json:"place,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Tags the tile, its weather or its region must hold."`
 	Anywhere []string    `json:"anywhere,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Tags any of the three may hold."`
+	Lacks    []string    `json:"otherLacks,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"Tags what the subject is against must not hold."`
 	Measure  string      `json:"measure,omitempty" unit:"ref" ref:"tags.measures"`
 	AtLeast  int64       `json:"atLeast,omitempty" unit:"measure" doc:"In the measure's unit."`
 	Then     []EffectRow `json:"then" unit:"effects"`
 }
 
 type EffectRow struct {
-	Kind    string `json:"kind" unit:"enum" enum:"add-tag|remove-tag|band|scale|join|end"`
+	Kind    string `json:"kind" unit:"enum" enum:"add-tag|remove-tag|band|scale|join|end|score"`
 	Target  string `json:"target,omitempty" unit:"enum" enum:"subject|other|place|yield"`
 	Tag     string `json:"tag,omitempty" unit:"tag" ref:"tags.vocabulary"`
 	Steps   int64  `json:"steps,omitempty" unit:"band-steps"`
@@ -294,6 +297,7 @@ type EffectRow struct {
 	Percent int64  `json:"percent,omitempty" unit:"percent"`
 	Count   int64  `json:"count,omitempty" unit:"count" min:"0"`
 	Beat    int64  `json:"beat,omitempty" unit:"beat" min:"0"`
+	Score   int64  `json:"score,omitempty" unit:"pts" doc:"score: points added to an option's score."`
 }
 
 // ---- Map ----
@@ -498,11 +502,14 @@ type GuildWork struct {
 
 // ---- Mounts ----
 
-type MountSpeed struct {
-	ID      string  `json:"id" unit:"id"`
-	Mount   string  `json:"mount" unit:"text"`
-	Terrain string  `json:"terrain" unit:"ref" ref:"map.terrain"`
-	Ratio   fixed.F `json:"ratio" unit:"ratio" min:"0" doc:"Ticks to enter, against on foot."`
+// MountKind is a mount the world can hold: its tier, the terrains it
+// suits and the load it adds (GDD 6.2).
+type MountKind struct {
+	ID       string   `json:"id" unit:"id"`
+	Tier     int64    `json:"tier" unit:"tier" min:"1"`
+	Suits    []string `json:"suits" unit:"refs" ref:"map.terrain" doc:"Terrains where it lowers the cost of entering a tile."`
+	RoadOnly bool     `json:"roadOnly,omitempty" unit:"flag" doc:"Suits road tiles only, where it buys load, not speed."`
+	Load     int64    `json:"load" unit:"load" min:"0"`
 }
 
 // ---- Classes ----
