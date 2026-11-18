@@ -18,6 +18,7 @@
         "marsh",
         "coast"
       ],
+      "river": true,
       "load": 10
     },
     {

@@ -9,9 +9,13 @@ package keys
 
 import (
 	"crypto/hkdf"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"strconv"
+	"strings"
 
 	"jams.team/mmo-world/sim/draw"
 )
@@ -63,4 +67,26 @@ func Throwaway(label string) Set {
 		panic(err)
 	}
 	return s
+}
+
+// Check is an HMAC under the generation key that names the key set
+// without revealing it: stored with a world, it refuses a service started
+// with the wrong master secret.
+func (s Set) Check() string {
+	m := hmac.New(sha256.New, s.Generation[:])
+	m.Write([]byte("mmo/key-check"))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+// Needles are the forms a leaked key would take in text: the master and
+// each derived key in hex and base64. The start-up check looks for them in
+// the database and the log guard in every line written.
+func Needles(master []byte, s Set) []string {
+	var out []string
+	for _, k := range [][]byte{master, s.Generation[:], s.Roll[:], s.Quirk[:]} {
+		out = append(out, hex.EncodeToString(k), strings.ToUpper(hex.EncodeToString(k)),
+			base64.StdEncoding.EncodeToString(k), base64.RawStdEncoding.EncodeToString(k),
+			base64.URLEncoding.EncodeToString(k), base64.RawURLEncoding.EncodeToString(k))
+	}
+	return out
 }

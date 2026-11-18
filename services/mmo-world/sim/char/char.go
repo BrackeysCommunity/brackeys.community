@@ -100,6 +100,7 @@ type Character struct {
 	// Kit
 	Pack     []*item.Instance `json:"pack"`
 	Equipped []Equipped       `json:"equipped"`
+	Goods    []item.Spoil     `json:"goods"` // materials carried
 
 	// Knowledge
 	Recipes   []string `json:"recipes"`
@@ -162,7 +163,7 @@ type Limits struct {
 
 // New is a fresh character: no class, no stats, only what it carries.
 func New(id string, at hex.Hex) *Character {
-	return &Character{ID: id, At: at, Pack: []*item.Instance{}, Equipped: []Equipped{}, Practice: []Skill{},
+	return &Character{ID: id, At: at, Pack: []*item.Instance{}, Equipped: []Equipped{}, Goods: []item.Spoil{}, Practice: []Skill{},
 		Conditions: []Condition{}, Route: []hex.Hex{}, Trail: []hex.Hex{}, Journey: []fact.ID{}, Company: []Met{},
 		People: []Disposition{}, Recipes: []string{}, Patterns: []string{}, Rumours: []string{}, Landmarks: []string{},
 		Discovered: []string{}, Firsts: []string{}, Flags: []string{}}

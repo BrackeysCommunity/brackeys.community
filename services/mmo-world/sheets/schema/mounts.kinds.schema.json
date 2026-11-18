@@ -53,6 +53,11 @@
             "x-unit": "flag",
             "description": "Suits road tiles only, where it buys load, not speed."
           },
+          "river": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Also suits river tiles, whatever their terrain (GDD 6.2)."
+          },
           "load": {
             "type": "integer",
             "minimum": 0,

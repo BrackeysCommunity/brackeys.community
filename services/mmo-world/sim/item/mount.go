@@ -30,20 +30,27 @@ func (m *Mounts) NewMount(id, kind string) *Instance {
 
 func (m *Mounts) Kind(id string) *sheets.MountKind { return m.kinds[id] }
 
+// Ground is what a mount reads of a tile it enters.
+type Ground struct {
+	Terrain string
+	Road    bool
+	River   bool
+}
+
 // Suits reports whether a mount lowers the cost of a tile.
-func (m *Mounts) Suits(in *Instance, terrain string, road bool) bool {
+func (m *Mounts) Suits(in *Instance, at Ground) bool {
 	k := m.kinds[in.Mount]
 	if k.RoadOnly {
-		return road
+		return at.Road
 	}
-	return slices.Contains(k.Suits, terrain)
+	return slices.Contains(k.Suits, at.Terrain) || k.River && at.River
 }
 
 // EnterTicks is the cost of entering a tile ridden: a suited tile costs
 // the saving less (more with Sure-footed), never under the floor. An
 // unfed mount does not carry.
-func (m *Mounts) EnterTicks(in *Instance, base int64, terrain string, road, fed bool) int64 {
-	if in == nil || !fed || !m.Suits(in, terrain, road) {
+func (m *Mounts) EnterTicks(in *Instance, base int64, at Ground, fed bool) int64 {
+	if in == nil || !fed || !m.Suits(in, at) {
 		return base
 	}
 	saving := m.param("tick-saving")
@@ -80,16 +87,16 @@ func (m *Mounts) Upkeep(days, ticksRidden int64) int64 {
 }
 
 // Ridden records a tile entered and gives xp when the terrain suits it.
-func (m *Mounts) Ridden(in *Instance, terrain string, road, laden bool) Levelled {
+func (m *Mounts) Ridden(in *Instance, at Ground, laden bool) Levelled {
 	var ts []tags.Tag
 	if laden {
 		ts = append(ts, "laden")
 	}
-	if road {
+	if at.Road {
 		ts = append(ts, "road")
 	}
 	in.Record.Add("ridden", ts...)
-	if !m.Suits(in, terrain, road) {
+	if !m.Suits(in, at) {
 		return Levelled{From: in.Level, To: in.Level}
 	}
 	in.Record.Bump(tally.Key("ridden", "suited"), 1)

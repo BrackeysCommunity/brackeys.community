@@ -219,6 +219,48 @@
       "value": 20,
       "unit": "defence",
       "doc": "Defence a starting settlement's watch restores each world day, up to settlement-defence."
+    },
+    {
+      "id": "provisions-free-ticks",
+      "value": 2,
+      "unit": "ticks",
+      "doc": "A journey's first ticks cost no provisions (GDD 6.4)."
+    },
+    {
+      "id": "hungry-enter-ticks",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Added to entering a tile while hungry (GDD 6.4)."
+    },
+    {
+      "id": "rest-ticks",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "How long a rest takes (GDD 6)."
+    },
+    {
+      "id": "gather-ticks-min",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Shortest gather (GDD 6)."
+    },
+    {
+      "id": "gather-ticks-max",
+      "value": 3,
+      "unit": "ticks",
+      "doc": "Longest gather (GDD 6)."
+    },
+    {
+      "id": "gather-units",
+      "value": 2,
+      "unit": "goods",
+      "doc": "provisional: not in the GDD yet; units of a node's material a gathering tick yields before traits (Hooked adds 1)."
+    },
+    {
+      "id": "ambush-chance",
+      "value": 15,
+      "unit": "percent",
+      "doc": "provisional: not in the GDD yet; chance a tile entered in a region at the ambush line or above springs an ambush."
     }
   ]
 }

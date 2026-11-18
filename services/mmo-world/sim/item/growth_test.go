@@ -202,27 +202,31 @@ func TestInscribeCostsDurability(t *testing.T) {
 func TestMounts(t *testing.T) {
 	p := play(t)
 	goat := p.Mounts.NewMount("goat-1", "rad-goat")
-	if got := p.Mounts.EnterTicks(goat, 3, "hills", false, true); got != 2 {
+	if got := p.Mounts.EnterTicks(goat, 3, item.Ground{Terrain: "hills"}, true); got != 2 {
 		t.Fatalf("a rad goat in hills: %d ticks, want 2", got)
 	}
-	if got := p.Mounts.EnterTicks(goat, 3, "marsh", false, true); got != 3 {
+	if got := p.Mounts.EnterTicks(goat, 3, item.Ground{Terrain: "marsh"}, true); got != 3 {
 		t.Fatalf("off its terrain: %d", got)
 	}
-	if got := p.Mounts.EnterTicks(goat, 1, "hills", false, true); got != 1 {
+	if got := p.Mounts.EnterTicks(goat, 1, item.Ground{Terrain: "hills"}, true); got != 1 {
 		t.Fatal("never under 1 tick")
 	}
-	if got := p.Mounts.EnterTicks(goat, 3, "hills", false, false); got != 3 {
+	if got := p.Mounts.EnterTicks(goat, 3, item.Ground{Terrain: "hills"}, false); got != 3 {
 		t.Fatal("an unfed mount does not carry")
 	}
+	rig := p.Mounts.NewMount("rig-1", "stilt-rig")
+	if got := p.Mounts.EnterTicks(rig, 3, item.Ground{Terrain: "hills", River: true}, true); got != 2 {
+		t.Fatalf("a stilt rig crossing a river: %d ticks, want 2", got)
+	}
 	trike := p.Mounts.NewMount("trike-1", "road-trike")
-	if p.Mounts.EnterTicks(trike, 1, "plain", true, true) != 1 || p.Mounts.Load(trike) != 40 {
+	if p.Mounts.EnterTicks(trike, 1, item.Ground{Terrain: "plain", Road: true}, true) != 1 || p.Mounts.Load(trike) != 40 {
 		t.Fatal("a trike buys load on a road, not speed")
 	}
 	if got := p.Mounts.Upkeep(2, 13); got != 4 {
 		t.Fatalf("upkeep %d, want 2 + 13/6", got)
 	}
 	for range 30 {
-		p.Mounts.Ridden(goat, "hills", false, false)
+		p.Mounts.Ridden(goat, item.Ground{Terrain: "hills"}, false)
 	}
 	if goat.Level < 5 || len(goat.Offers) != 2 {
 		t.Fatalf("goat level %d offers %v", goat.Level, goat.Offers)
@@ -236,10 +240,14 @@ func TestMounts(t *testing.T) {
 // mount kept on the road is offered swift first.
 func TestRiddenRecord(t *testing.T) {
 	p := play(t)
+	rig := p.Mounts.NewMount("rig-1", "stilt-rig")
+	if got := p.Mounts.EnterTicks(rig, 3, item.Ground{Terrain: "hills", River: true}, true); got != 2 {
+		t.Fatalf("a stilt rig crossing a river: %d ticks, want 2", got)
+	}
 	trike := p.Mounts.NewMount("trike-1", "road-trike")
 	const n = 30
 	for range n {
-		p.Mounts.Ridden(trike, "plain", true, true)
+		p.Mounts.Ridden(trike, item.Ground{Terrain: "plain", Road: true}, true)
 	}
 	for _, k := range []string{"ridden:any", "ridden:road", "ridden:laden", "ridden:suited"} {
 		if got := trike.Record.Get(k); got != n {

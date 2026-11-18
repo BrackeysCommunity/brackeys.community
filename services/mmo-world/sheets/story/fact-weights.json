@@ -355,6 +355,66 @@
       "id": "mount-levelled",
       "kind": "mount.levelled",
       "weight": 8
+    },
+    {
+      "id": "character-arrived",
+      "kind": "character.arrived",
+      "weight": 10
+    },
+    {
+      "id": "travel-entered",
+      "kind": "travel.entered",
+      "weight": 1
+    },
+    {
+      "id": "travel-arrived",
+      "kind": "travel.arrived",
+      "weight": 2
+    },
+    {
+      "id": "travel-stopped",
+      "kind": "travel.stopped",
+      "weight": 1
+    },
+    {
+      "id": "travel-ambushed",
+      "kind": "travel.ambushed",
+      "weight": 20
+    },
+    {
+      "id": "ambush-defaulted",
+      "kind": "ambush.defaulted",
+      "weight": 10
+    },
+    {
+      "id": "gather-done",
+      "kind": "gather.done",
+      "weight": 1
+    },
+    {
+      "id": "rest-done",
+      "kind": "rest.done",
+      "weight": 1
+    },
+    {
+      "id": "ledger-corrected",
+      "kind": "ledger.corrected",
+      "weight": 30
+    },
+    {
+      "id": "character-banned",
+      "kind": "character.banned",
+      "weight": 30
+    },
+    {
+      "id": "character-unbanned",
+      "kind": "character.unbanned",
+      "weight": 30
+    },
+    {
+      "id": "item-granted",
+      "kind": "item.granted",
+      "weight": 30
     }
   ]
 }

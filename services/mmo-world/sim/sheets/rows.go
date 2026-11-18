@@ -519,6 +519,7 @@ type MountKind struct {
 	Tier     int64    `json:"tier" unit:"tier" min:"1"`
 	Suits    []string `json:"suits" unit:"refs" ref:"map.terrain" doc:"Terrains where it lowers the cost of entering a tile."`
 	RoadOnly bool     `json:"roadOnly,omitempty" unit:"flag" doc:"Suits road tiles only, where it buys load, not speed."`
+	River    bool     `json:"river,omitempty" unit:"flag" doc:"Also suits river tiles, whatever their terrain (GDD 6.2)."`
 	Load     int64    `json:"load" unit:"load" min:"0"`
 }
 

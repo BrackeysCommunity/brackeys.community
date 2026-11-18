@@ -383,7 +383,22 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	tickCost := slopes[len(slopes)/2]
 	p("")
 	p("Tick cost: a world day costs a median **%s per 1,000 stored tiles** (all clocks; %s a tick). Generating far chunks leaves the day's cost %s.", tickCost.Round(time.Microsecond), (tickCost / sheets.TicksPerDay).Round(time.Microsecond), either(flat, "flat", "**not flat**"))
+	mount, mounts, err := MountJourneys(b, 0)
+	if err != nil {
+		return nil, err
+	}
+	p("")
+	p("## Mounts on their terrain")
+	p("")
+	p("On %d worlds, journeys that set out from a terrain a mount suits and that costs more than %d tick on foot, to a passable tile %d tiles away: the quickest way ridden against the quickest way on foot. A mount with no such terrain buys load, not speed (GDD 6.2).", journeyWorlds, sheets.IntParam(b.MountParams, "min-enter-ticks"), journeyTiles)
+	p("")
+	p("| Mount | Buys speed | Journeys | Saving (median) | 10th to 90th percentile |")
+	p("| --- | --- | --- | --- | --- |")
+	for _, r := range mounts {
+		p("| %s | %s | %d | %d%% | %d%% to %d%% |", r.Kind, either(r.Speed, "yes", "no, load"), r.Journeys, r.Median, r.Lo, r.Hi)
+	}
 	readings := []Measured{
+		mount,
 		{"settlements-stand", fmt.Sprintf("%d fell in %d worlds", settle, n), settle == 0},
 		{"world-no-collapse", fmt.Sprintf("%d collapsed, %d still, of %d", collapse, stasis, n), collapse == 0 && stasis == 0},
 		{"gauges-not-pinned", fmt.Sprintf("%d pinned; longest %d days", pinned, worst), pinned == 0},
