@@ -1,9 +1,6 @@
-// Package pgtest gives tests a throwaway Postgres database with the mmo
-// migrations applied. It uses the server at MMO_TEST_DATABASE_URL when set
-// (CI's service container); otherwise it starts a private cluster from
-// the server binaries beside the postgres on PATH, in a temporary
-// directory, and skips the test when there are none. It never touches a
-// shared database.
+// Package pgtest gives each test a fresh database with the mmo migrations,
+// on the server at MMO_TEST_DATABASE_URL or else a private cluster from
+// the postgres on PATH; with neither, the test skips.
 package pgtest
 
 import (
@@ -24,6 +21,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const envURL = "MMO_TEST_DATABASE_URL"
@@ -81,7 +79,7 @@ func start() {
 		skip = "initdb: " + string(out)
 		return
 	}
-	port, err := freePort()
+	port, err := FreePort()
 	if err != nil {
 		skip = err.Error()
 		return
@@ -97,7 +95,12 @@ func start() {
 	server = fmt.Sprintf("postgres://postgres@127.0.0.1:%d/postgres?sslmode=disable", port)
 }
 
-func freePort() (int, error) {
+// External reports whether tests use a server named in the environment
+// rather than a private cluster.
+func External() bool { return os.Getenv(envURL) != "" }
+
+// FreePort is a local TCP port nothing listens on now.
+func FreePort() (int, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
@@ -126,6 +129,10 @@ func DB(t testing.TB) string {
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
 		t.Fatal(err)
 	}
+	if External() {
+		// Cleanups run last first, so the test's pools are closed by now.
+		t.Cleanup(func() { drop(t, name) })
+	}
 	u, _ := url.Parse(server)
 	u.Path = "/" + name
 	conn, err := pgx.Connect(ctx, u.String())
@@ -143,6 +150,35 @@ func DB(t testing.TB) string {
 		}
 	}
 	return u.String()
+}
+
+// drop removes a test's database from a server that outlives the tests.
+func drop(t testing.TB, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	admin, err := pgx.Connect(ctx, server)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer func() { _ = admin.Close(ctx) }()
+	if _, err := admin.Exec(ctx, "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)"); err != nil {
+		t.Error(err)
+	}
+}
+
+// Pool opens a pool on a fresh database, closed when the test ends.
+func Pool(t testing.TB) *pgxpool.Pool { return PoolOn(t, DB(t)) }
+
+// PoolOn opens a pool on a database DB made, closed when the test ends.
+func PoolOn(t testing.TB, url string) *pgxpool.Pool {
+	t.Helper()
+	pool, err := pgxpool.New(context.Background(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
 }
 
 // Server is the admin URL of the server DB makes databases on.

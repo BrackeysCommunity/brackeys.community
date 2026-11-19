@@ -9,7 +9,7 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// Play is every item and fight system wired to one book and key set.
+// Play is fight.Systems plus a crafter, under one book and key set.
 type Play struct {
 	Book    *sheets.Book
 	Keys    keys.Set
@@ -23,12 +23,10 @@ type Play struct {
 
 // NewPlay wires the systems.
 func NewPlay(b *sheets.Book, k keys.Set) (*Play, error) {
-	d := item.NewDeriver(b, k.Quirk)
-	g := item.NewGrowth(b, d, k.Roll)
-	p := puzzle.New(b, k.Generation)
-	f, err := fight.New(b, d, g, p, k)
+	s, err := fight.Wire(b, k)
 	if err != nil {
 		return nil, err
 	}
-	return &Play{Book: b, Keys: k, Deriver: d, Growth: g, Mounts: item.NewMounts(b, g), Crafter: craft.New(b, d, g, k.Roll), Puzzles: p, Fight: f}, nil
+	return &Play{Book: b, Keys: k, Deriver: s.Deriver, Growth: s.Growth, Mounts: s.Mounts, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
+		Puzzles: s.Puzzles, Fight: s.Fight}, nil
 }

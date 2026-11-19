@@ -2,10 +2,10 @@
 # and production, each with its own master secret). Create the service by
 # hand pointing at this repo, leave Root Directory blank (the Dockerfile
 # builds from the repo root), and set "Config file path" to
-# services/mmo-world/railway.toml. Variables: DATABASE_URL, MMO_MASTER_SECRET
-# (32+ random bytes, base64), MMO_WORLD_ID, MMO_ROLL_EPOCH, MMO_KEY_VERSION,
-# MMO_API_TOKEN, MMO_OPERATOR_TOKEN, POSTHOG_KEY; optionally
-# MMO_TICK_SECONDS and POSTHOG_HOST. It serves only the private network.
+# services/mmo-world/railway.toml. Variables: the Env* names in
+# service/env.go (MMO_MASTER_SECRET is 32+ random bytes, base64);
+# MMO_DISPOSABLE=1 only on a test world that may be wiped. It serves only
+# the private network.
 #
 # One replica: the world's advisory lock lets a second instance wait in
 # standby (health up, API down), which is what a rolling deploy needs.

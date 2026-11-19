@@ -7,12 +7,10 @@ package replay
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/store"
-	"jams.team/mmo-world/store/db"
 )
 
 // Report is what a replay found. Mismatch is the first tick whose digest
@@ -28,6 +26,7 @@ type Report struct {
 	Mismatch *Mismatch `json:"mismatch,omitempty"`
 }
 
+// Mismatch is a tick whose replayed digest differs from the recorded one.
 type Mismatch struct {
 	Tick int64  `json:"tick"`
 	Got  string `json:"got"`
@@ -37,40 +36,24 @@ type Mismatch struct {
 // Run replays st's world from the snapshot at or before from to tick to.
 func Run(ctx context.Context, st *store.Store, r *game.Rules, from, to int64) (Report, error) {
 	out := Report{World: st.World, To: to}
-	snap, err := st.Q.SnapshotAtOrBefore(ctx, db.SnapshotAtOrBeforeParams{WorldID: st.World, Tick: from})
+	g, seq, err := st.LoadSnapshot(ctx, r, from)
 	if err != nil {
-		return out, fmt.Errorf("replay: no snapshot at or before tick %d: %w", from, err)
+		return out, fmt.Errorf("replay: %w", err)
 	}
-	g := &game.Game{}
-	if err := json.Unmarshal(snap.Body, g); err != nil {
-		return out, err
-	}
-	g.Attach(r)
-	if d, err := g.Digest(); err != nil || d.String() != snap.Digest {
-		return out, fmt.Errorf("replay: snapshot at tick %d does not load to its digest", snap.Tick)
-	}
-	out.From = snap.Tick
-	acts, err := st.Q.ListActionsAfter(ctx, db.ListActionsAfterParams{WorldID: st.World, Seq: snap.Seq})
+	out.From = g.Tick()
+	acts, err := st.ActionsAfter(ctx, seq, to)
 	if err != nil {
 		return out, err
 	}
-	ticks, err := st.Q.ListTicks(ctx, db.ListTicksParams{WorldID: st.World, After: snap.Tick, Upto: to})
+	want, err := st.TickDigests(ctx, g.Tick(), to)
 	if err != nil {
 		return out, err
-	}
-	want := make(map[int64]string, len(ticks))
-	for _, t := range ticks {
-		want[t.Tick] = t.Digest
 	}
 	next := 0
 	for g.Tick() < to {
 		for ; next < len(acts) && acts[next].AfterTick == g.Tick(); next++ {
-			var cmd game.Command
-			if err := json.Unmarshal(acts[next].Command, &cmd); err != nil {
-				return out, err
-			}
-			if _, err := g.Act(cmd); err != nil {
-				return out, fmt.Errorf("replay: action %d (%s) at tick %d: %w", acts[next].Seq, cmd.Kind, g.Tick(), err)
+			if _, err := g.Act(acts[next].Cmd); err != nil {
+				return out, fmt.Errorf("replay: action %d (%s) at tick %d: %w", acts[next].Seq, acts[next].Cmd.Kind, g.Tick(), err)
 			}
 			g.Flush()
 			out.Actions++

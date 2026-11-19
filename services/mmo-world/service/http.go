@@ -14,12 +14,15 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 )
 
-// structural: the widest tile query, in tiles from its centre.
-const maxTileRadius = 30
+// structural: the widest tile query, in tiles from its centre, and the
+// largest request body.
+const (
+	maxTileRadius = 30
+	maxBody       = 64 << 10
+)
 
 // Handler is the service's HTTP API.
 func (s *Server) Handler() http.Handler {
@@ -36,12 +39,12 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
 	}
 	op("POST "+api.PathOperator, s.operator)
-	op("GET "+api.PathOperator+"/character", s.inspectCharacter)
-	op("GET "+api.PathOperator+"/tile", s.inspectTile)
-	op("GET "+api.PathOperator+"/audit", s.auditHandler)
-	op("GET "+api.PathOperator+"/digest", s.digestHandler)
-	op("POST "+api.PathOperator+"/reset", s.reset)
-	op("POST "+api.PathOperator+"/clock", s.clock)
+	op("GET "+api.PathOperatorCharacter, s.inspectCharacter)
+	op("GET "+api.PathOperatorTile, s.inspectTile)
+	op("GET "+api.PathOperatorAudit, s.auditHandler)
+	op("GET "+api.PathOperatorDigest, s.digestHandler)
+	op("POST "+api.PathOperatorReset, s.reset)
+	op("POST "+api.PathOperatorClock, s.clock)
 	return mux
 }
 
@@ -91,7 +94,7 @@ func reply(w http.ResponseWriter, status int, v any) {
 func refuse(w http.ResponseWriter, status int, r api.Refusal) { reply(w, status, r) }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: err.Error()})
@@ -100,12 +103,20 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// health is down while the world is not ready, is stale or has stalled, so
+// the platform can see it.
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	if !s.ready.Load() {
 		reply(w, http.StatusServiceUnavailable, api.Health{World: s.cfg.World, Version: api.Version})
 		return
 	}
-	reply(w, http.StatusOK, api.Health{OK: true, World: s.cfg.World, Tick: s.Tick(), Due: s.Due(), Version: api.Version})
+	h := api.Health{OK: true, World: s.cfg.World, Tick: s.Tick(), Due: s.Due(), Version: api.Version,
+		Stalled: s.stalled.Load() || s.stale.Load()}
+	status := http.StatusOK
+	if h.Stalled {
+		h.OK, status = false, http.StatusServiceUnavailable
+	}
+	reply(w, status, h)
 }
 
 func (s *Server) action(w http.ResponseWriter, r *http.Request) {
@@ -113,15 +124,10 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if game.Operator(req.Kind) {
-		refuse(w, http.StatusForbidden, api.Refusal{Code: api.CodeForbidden, Message: "operator actions take the operator path"})
+	cmd, ref, status := playerCommand(req)
+	if ref != nil {
+		refuse(w, status, *ref)
 		return
-	}
-	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
-		Ticks: req.Ticks, Option: req.Option}
-	if req.To != nil {
-		h := simHex(*req.To)
-		cmd.To = &h
 	}
 	s.apply(w, r.Context(), cmd, req.DiscordID, req.Version, true)
 }
@@ -131,92 +137,60 @@ func (s *Server) operator(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if !game.Operator(req.Kind) {
-		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "not an operator action"})
-		return
-	}
-	s.apply(w, r.Context(), game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset,
-		Units: req.Units, Note: req.Note}, "", 0, false)
-}
-
-// apply validates, resolves and writes one command, idempotent on its
-// interaction id: a second send gets the first one's stored reply.
-func (s *Server) apply(w http.ResponseWriter, ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) {
-	start := time.Now()
-	if cmd.Key == "" {
-		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "interactionId is required"})
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if stored, err := s.st.Reply(ctx, cmd.Key); err != nil {
-		s.internal(w, err)
-		return
-	} else if stored != nil {
-		s.duplicate(w, stored)
-		return
-	}
-	if cmd.Kind == game.Create {
-		if discord == "" {
-			refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "create needs discordId"})
-			return
-		}
-		if id, err := s.st.CharacterOf(ctx, discord); err != nil {
-			s.internal(w, err)
-			return
-		} else if id != "" {
-			refuse(w, http.StatusConflict, api.Refusal{Code: api.CodeSecondPC, Message: "this user already plays " + id})
-			return
-		}
-	}
-	res, ref, status, err := act(s.g, cmd, version, checkVersion)
+	cmd, ref, status := operatorCommand(req)
 	if ref != nil {
 		refuse(w, status, *ref)
 		return
 	}
-	if err != nil {
-		s.internal(w, s.reload(ctx, err))
+	s.apply(w, r.Context(), cmd, "", 0, false)
+}
+
+// structural: how long a write may run once begun. It runs apart from the
+// request, so a client that hangs up cannot cancel it half way and leave
+// the world to reload.
+const writeTimeout = 30 * time.Second
+
+func writeContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), writeTimeout)
+}
+
+// apply runs one command against the held world. A failure after the game
+// was touched restores the world from the store; a write that lost a race
+// with the same interaction id gets the stored reply.
+func (s *Server) apply(w http.ResponseWriter, ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) {
+	start := time.Now()
+	ctx, cancel := writeContext(ctx)
+	defer cancel()
+	unlock, ok := s.hold(ctx, w, true)
+	if !ok {
 		return
 	}
-	body, err := json.Marshal(actionReply(s.g, res))
+	defer unlock()
+	out, err := applyCommand(ctx, s.g, s.st, cmd, discord, version, checkVersion, s.cfg.Now())
 	if err != nil {
-		s.internal(w, s.reload(ctx, err))
-		return
-	}
-	if err := s.st.SaveAction(ctx, s.g, cmd, res.Char, discord, body, s.cfg.Now()); err != nil {
-		err = s.reload(ctx, err)
-		if stored, e := s.st.Reply(ctx, cmd.Key); e == nil && stored != nil && uniqueViolation(err) {
-			s.duplicate(w, stored)
-			return
+		if !errors.As(err, new(untouched)) {
+			err = s.reload(ctx, err)
+		}
+		if uniqueViolation(err) {
+			if stored, e := s.st.Reply(ctx, cmd.Key); e == nil && stored != nil {
+				s.duplicate(w, stored)
+				return
+			}
 		}
 		s.internal(w, err)
 		return
 	}
-	s.cfg.Events.Capture("mmo_action", res.Char.C.ID, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
-		"ms": time.Since(start).Milliseconds(), "facts": len(res.Facts)})
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(body)
-}
-
-// act checks a command's row version and runs it. A refusal comes back
-// with its HTTP status; nothing changed.
-func act(g *game.Game, cmd game.Command, version int64, checkVersion bool) (game.Result, *api.Refusal, int, error) {
-	if c := g.Char(cmd.Char); c != nil && checkVersion && cmd.Kind != game.Create && c.Version != version {
-		return game.Result{}, &api.Refusal{Code: api.CodeStale, Message: "the character has changed", Version: c.Version}, http.StatusConflict, nil
+	switch {
+	case out.ref != nil:
+		refuse(w, out.status, *out.ref)
+	case out.dup:
+		s.duplicate(w, out.body)
+	default:
+		s.capture("mmo_action", out.res.Char.C.ID, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
+			"ms": time.Since(start).Milliseconds(), "facts": len(out.res.Facts)})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(out.body)
 	}
-	res, err := g.Act(cmd)
-	var ref *game.Refused
-	if errors.As(err, &ref) {
-		out := &api.Refusal{Code: ref.Code, Message: ref.Msg}
-		status := http.StatusUnprocessableEntity
-		if c := g.Char(cmd.Char); c != nil {
-			out.Version = c.Version
-		} else if ref.Code == game.NoSuchChar {
-			status = http.StatusNotFound
-		}
-		return res, out, status, nil
-	}
-	return res, nil, 0, err
 }
 
 func actionReply(g *game.Game, res game.Result) api.ActionReply {
@@ -229,13 +203,33 @@ func uniqueViolation(err error) bool {
 }
 
 func (s *Server) duplicate(w http.ResponseWriter, stored []byte) {
-	var out api.ActionReply
-	if err := json.Unmarshal(stored, &out); err != nil {
+	out, err := decodeReply(stored, true)
+	if err != nil {
 		s.internal(w, err)
 		return
 	}
-	out.Duplicate = true
 	reply(w, http.StatusOK, out)
+}
+
+// hold takes the world for a request, or refuses it while the world may
+// not be used.
+func (s *Server) hold(ctx context.Context, w http.ResponseWriter, needGame bool) (unlock func(), ok bool) {
+	unlock, err := s.take(ctx, needGame)
+	if err != nil {
+		refuseUnusable(w, err)
+		return nil, false
+	}
+	return unlock, true
+}
+
+// refuseUnusable answers a request the world could not take, as take
+// reported it.
+func refuseUnusable(w http.ResponseWriter, err error) {
+	msg := "the world is closing"
+	if !errors.Is(err, errClosed) {
+		msg = "the world is reloading"
+	}
+	refuse(w, http.StatusServiceUnavailable, api.Refusal{Code: api.CodeInternal, Message: msg})
 }
 
 func (s *Server) internal(w http.ResponseWriter, err error) {
@@ -253,8 +247,11 @@ func (s *Server) charFor(w http.ResponseWriter, id string) *game.Char {
 }
 
 func (s *Server) options(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	if c := s.charFor(w, r.URL.Query().Get("characterId")); c != nil {
 		reply(w, http.StatusOK, apiOptions(s.g, c))
 	}
@@ -267,19 +264,18 @@ func (s *Server) preview(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	c := s.charFor(w, req.CharacterID)
 	if c == nil {
 		return
 	}
-	if f := s.g.Choose(c).Fight; f != nil {
-		for _, o := range f.Options {
-			if o.ID == req.Option {
-				reply(w, http.StatusOK, apiOption(s.g, o))
-				return
-			}
-		}
+	if o, ok := s.g.Option(c, req.Option); ok {
+		reply(w, http.StatusOK, apiOption(s.g, o))
+		return
 	}
 	refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: "no such option on this beat"})
 }
@@ -311,8 +307,11 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "radius is 0 to " + strconv.Itoa(maxTileRadius)})
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	out := api.Tiles{Tick: s.g.Tick(), Tiles: []api.Tile{}}
 	for _, h := range hex.DiscAt(centre, radius) {
 		if t, ok := apiTile(s.g, h); ok {
@@ -323,8 +322,11 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) character(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	if c := s.charFor(w, r.URL.Query().Get("id")); c != nil {
 		reply(w, http.StatusOK, apiCharacter(s.g, c))
 	}
@@ -335,37 +337,25 @@ func (s *Server) place(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t, ok := apiTile(s.g, h)
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
+	out, ok := apiPlace(s.g, h)
 	if !ok {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: "nobody has found that tile"})
 		return
 	}
-	out := api.Place{Tick: s.g.Tick(), Tile: t, Gauges: []api.Gauge{}, Here: []string{}}
-	if ri := s.g.World.RegionAt(h); ri >= 0 {
-		reg := s.g.World.Regions[ri]
-		for i, gg := range s.rules.Book.Gauges {
-			out.Gauges = append(out.Gauges, api.Gauge{ID: gg.ID, Value: reg.Gauge[i], Unit: "gauge"})
-		}
-		if reg.Holder >= 0 {
-			out.Holder = "f-" + strconv.Itoa(reg.Holder)
-		}
-	}
-	for _, c := range s.g.Chars {
-		if c.C.At == h {
-			out.Here = append(out.Here, c.C.ID)
-		}
-	}
-	site := s.rules.Gen.Baseline(h).Site
-	out.Rest = site == gen.PlaceSettlement
-	out.Explore = site != "" && site != gen.PlaceSettlement
 	reply(w, http.StatusOK, out)
 }
 
 func (s *Server) inspectCharacter(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	if c := s.charFor(w, r.URL.Query().Get("id")); c != nil {
 		reply(w, http.StatusOK, c)
 	}
@@ -378,37 +368,45 @@ func (s *Server) inspectTile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	reply(w, http.StatusOK, map[string]any{"baseline": s.rules.Gen.Baseline(h), "state": s.g.World.Tile(h), "region": s.g.World.RegionAt(h)})
 }
 
 func (s *Server) auditHandler(w http.ResponseWriter, r *http.Request) {
 	bad, err := s.Audit(r.Context())
-	if err != nil {
+	switch {
+	case errors.Is(err, errClosed) || errors.Is(err, errStale):
+		refuseUnusable(w, err)
+		return
+	case err != nil:
 		s.internal(w, err)
 		return
 	}
-	reply(w, http.StatusOK, map[string]any{"discrepancies": bad})
+	reply(w, http.StatusOK, api.Audit{Discrepancies: bad})
 }
 
-func (s *Server) digestHandler(w http.ResponseWriter, _ *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Server) digestHandler(w http.ResponseWriter, r *http.Request) {
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
 	d, err := s.g.Digest()
 	if err != nil {
 		s.internal(w, err)
 		return
 	}
-	reply(w, http.StatusOK, map[string]any{"tick": s.g.Tick(), "digest": d.String()})
+	reply(w, http.StatusOK, api.Digest{Tick: s.g.Tick(), Digest: d.String()})
 }
 
 // reset wipes a disposable world and founds it again, now, with the
-// sheets the service runs on.
+// sheets the service runs on. A failed reset leaves the world as it was.
 func (s *Server) reset(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		World string `json:"world"`
-	}
+	var req api.ResetRequest
 	if !decode(w, r, &req) {
 		return
 	}
@@ -416,23 +414,25 @@ func (s *Server) reset(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "name the world to reset"})
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	digest, err := SheetsDigest(s.cfg.Book)
-	if err == nil {
-		err = s.st.Reset(r.Context())
+	ctx, cancel := writeContext(r.Context())
+	defer cancel()
+	unlock, ok := s.hold(ctx, w, false)
+	if !ok {
+		return
 	}
-	if err == nil {
-		err = s.found(r.Context(), digest)
+	defer unlock()
+	if !s.resettable(s.meta.Load()) {
+		refuse(w, http.StatusForbidden, api.Refusal{Code: api.CodeForbidden,
+			Message: "only a disposable world under a service that founds disposable worlds is reset"})
+		return
 	}
-	if err != nil {
-		s.internal(w, err)
+	if err := s.found(ctx, true); err != nil {
+		s.internal(w, s.reload(ctx, err))
 		return
 	}
 	s.due.Store(0)
-	s.tick.Store(0)
 	s.cfg.Log.Warn("world reset", "world", s.cfg.World)
-	reply(w, http.StatusOK, map[string]any{"world": s.cfg.World, "tick": s.g.Tick()})
+	reply(w, http.StatusOK, api.ResetReply{World: s.cfg.World, Tick: s.g.Tick()})
 }
 
 // clock sets the manual clock's due tick.
@@ -441,12 +441,10 @@ func (s *Server) clock(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusForbidden, api.Refusal{Code: api.CodeForbidden, Message: "this world keeps wall time"})
 		return
 	}
-	var req struct {
-		Due int64 `json:"due"`
-	}
+	var req api.ClockRequest
 	if !decode(w, r, &req) {
 		return
 	}
 	s.due.Store(req.Due)
-	reply(w, http.StatusOK, map[string]any{"due": req.Due})
+	reply(w, http.StatusOK, req)
 }

@@ -16,6 +16,9 @@ import (
 	"jams.team/mmo-world/sim/tally"
 )
 
+// Ref is the fact ref of a character.
+func Ref(id string) fact.Ref { return fact.Ref{Kind: "character", ID: id} }
+
 // Slot names in the kit (GDD 5.2).
 const (
 	Hand    = "hand"
@@ -23,6 +26,13 @@ const (
 	Body    = "body"
 	Charm   = "charm"
 	Mount   = "mount"
+)
+
+// Conditions the rules set and clear by name.
+const (
+	Hungry  = "hungry"
+	Wounded = "wounded"
+	Down    = "down"
 )
 
 // Condition is a condition and the tick it ends at (0: until cleared).

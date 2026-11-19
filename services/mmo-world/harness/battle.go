@@ -513,14 +513,14 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	pr("## Growth")
 	pr("")
 	pr("A first tool, tier 1, level 1, practice 0, fighting tier-1 encounters with the best policy at %d s a press: minutes to level %d over %d trials: median %.1f, p90 %.1f.",
-		g.Param("seconds-per-beat"), g.Param("first-level"), firstTrials, first[len(first)/2], first[len(first)*9/10])
-	readings = append(readings, Measured{Target: "first-tool-level-5", Value: fmt.Sprintf("median %.1f min, p90 %.1f min", first[len(first)/2], first[len(first)*9/10]), Holds: first[len(first)/2] <= float64(g.Param("first-minutes"))})
+		g.Param("seconds-per-beat"), g.Param("first-level"), firstTrials, percentile(first, 50), percentile(first, 90))
+	readings = append(readings, Measured{Target: "first-tool-level-5", Value: fmt.Sprintf("median %.1f min, p90 %.1f min", percentile(first, 50), percentile(first, 90)), Holds: percentile(first, 50) <= float64(g.Param("first-minutes"))})
 	days, err := bt.tierTwoDays()
 	if err != nil {
 		return nil, err
 	}
 	lo, hi := g.Param("tier-2-days-min"), g.Param("tier-2-days-max")
-	med := days[len(days)/2]
+	med := percentile(days, 50)
 	pr("")
 	pr("A tier-2 blade from level 1, %d encounters a world day at tier 2 (%d%% troubled), practice from the tier's expected and rising: world days to level 20 over %d trials: median %d, range %d to %d.",
 		g.Param("daily-encounters"), g.Param("daily-troubled"), dailyTrials, med, days[0], days[len(days)-1])

@@ -1,7 +1,6 @@
 # Go queries over the mmo schema. Drizzle owns the DDL: the schema here is
-# the drizzle migrations that touch "mmo", in order (store/sqlc_test.go
-# fails when one is missing). CI regenerates with the pinned sqlc and fails
-# on a diff.
+# the drizzle migrations that touch "mmo", in order (TestSqlcSeesEveryMigration
+# fails when one is missing). CI's sqlc diff, with the pinned sqlc, fails when store/db is stale.
 version: "2"
 sql:
   - engine: postgresql

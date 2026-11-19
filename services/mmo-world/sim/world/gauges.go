@@ -69,7 +69,7 @@ func (d *day) gauges() {
 			r.Defence = min(s.wp("settlement-defence"), r.Defence+s.wp("watch-repair"))
 		}
 		r.Patrolled = false
-		if r.Gauge[threat] < lineAt(s.b, "ambush") {
+		if r.Gauge[threat] < LineAt(s.b, "ambush") {
 			r.SurgeFact = 0
 		}
 	}

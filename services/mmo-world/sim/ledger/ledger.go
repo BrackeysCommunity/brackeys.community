@@ -41,6 +41,8 @@ const (
 	ToOperator   = Sink + "operator"
 )
 
+// Material, Item and Char name a material asset, an item asset and a
+// character's account.
 func Material(id string) string { return matPrefix + id }
 func Item(id string) string     { return itemPrefix + id }
 func Char(id string) string     { return Holder + id }
@@ -51,6 +53,8 @@ func MaterialOf(asset string) (string, bool) { return strings.CutPrefix(asset, m
 // ItemOf reads an item asset back.
 func ItemOf(asset string) (string, bool) { return strings.CutPrefix(asset, itemPrefix) }
 
+// Leg is one account's side of a transaction; a Txn's legs sum to zero
+// per asset.
 type Leg struct {
 	Account string `json:"account"`
 	Asset   string `json:"asset"`
@@ -66,11 +70,19 @@ type Txn struct {
 	Legs []Leg   `json:"legs"`
 }
 
+// SubKey is the key of one of several transactions a single interaction
+// or tick causes. Interaction ids carry no '/', so a derived key never
+// equals another interaction's own.
+func SubKey(key string, parts ...string) string {
+	return strings.Join(append([]string{key}, parts...), "/")
+}
+
 // Move is the two-leg transaction that moves units of an asset.
 func Move(key, kind string, tick int64, from, to, asset string, units int64) Txn {
 	return Txn{Key: key, Kind: kind, Tick: tick, Legs: []Leg{{from, asset, -units}, {to, asset, units}}}
 }
 
+// Balance is what an account holds of one asset.
 type Balance struct {
 	Account string `json:"account"`
 	Asset   string `json:"asset"`

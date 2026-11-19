@@ -74,6 +74,7 @@ type Script struct {
 	dice    *draw.Drawer
 }
 
+// NewScript drives players against c; label names the run.
 func NewScript(c Client, players []*Player, label string) *Script {
 	return &Script{Client: c, Players: players, dice: draw.NewDrawer(keys.Throwaway("agent/" + label).Roll)}
 }
@@ -83,7 +84,7 @@ func NewScript(c Client, players []*Player, label string) *Script {
 // fixed by player and tick, so two runs send the same presses.
 func (s *Script) Turn(ctx context.Context, tick int64) error {
 	for _, p := range s.Players {
-		id := fmt.Sprintf("%s/t%d", p.Discord, tick)
+		id := fmt.Sprintf("%s-t%d", p.Discord, tick)
 		var req api.ActionRequest
 		if p.Character == "" {
 			req = api.ActionRequest{Kind: api.ActCreate, DiscordID: p.Discord}

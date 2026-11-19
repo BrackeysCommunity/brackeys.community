@@ -12,12 +12,9 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * The Discord MMO's game state (`services/mmo-world`). The world service is
- * its only writer; Go reads and writes it through sqlc queries generated from
- * these migrations. No table here is shared with the site, and nothing in it
- * is secret: the world row holds a key version, never a key or a seed.
- * Bodies are the sim's own JSON, stored as deltas over the generated
- * baseline: a tile has a row only once it differs from it.
+ * The Discord MMO's game state (`services/mmo-world`), written only by the
+ * world service. No table is shared with the site, and nothing here is
+ * secret: the world row holds a key version, never a key or a seed.
  */
 export const mmoSchema = pgSchema("mmo");
 
@@ -28,21 +25,18 @@ const big = (name: string) => bigint(name, { mode: "number" });
 export const mmoWorld = mmoSchema.table("world", {
   id: text("id").primaryKey(),
   keyVersion: integer("key_version").notNull(),
-  // An HMAC under the world's keys, so a service started with the wrong
-  // master secret refuses the world instead of generating a different one.
-  // It reveals nothing of the keys.
+  // HMAC under the world's keys: a service with the wrong master secret refuses the world.
   keyCheck: text("key_check").notNull(),
   rulesEpoch: integer("rules_epoch").notNull(),
   tick: big("tick").notNull().default(0),
   season: integer("season").notNull().default(0),
-  // Test worlds may be reset with their sheets until the first closed season.
+  // A disposable world may be wiped: by an operator's reset, or at start-up when its sheets changed.
   disposable: boolean("disposable").notNull().default(true),
   sheetsDigest: text("sheets_digest").notNull(),
   // Tick n falls due at startedAt + n * tickSeconds.
   startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
   tickSeconds: integer("tick_seconds").notNull(),
-  // Everything of the game not in the tables below (weather, bands, finds,
-  // pending world effects, the ledger count, the fact chain).
+  // Everything of the game not in the tables below, as the sim's JSON.
   sim: jsonb("sim").notNull(),
   digest: text("digest").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

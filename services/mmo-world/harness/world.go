@@ -227,7 +227,7 @@ func worldCost(b *sheets.Book, seed int) ([]costRow, error) {
 			ds = append(ds, time.Since(start))
 		}
 		slices.Sort(ds)
-		return ds[len(ds)/2], nil
+		return percentile(ds, 50), nil
 	}
 	var out []costRow
 	chunks := 0
@@ -343,7 +343,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 			xs = append(xs, get(r))
 		}
 		slices.Sort(xs)
-		return xs[len(xs)/2]
+		return percentile(xs, 50)
 	}
 	p("| Per world (median) | Value |")
 	p("| --- | --- |")
@@ -380,7 +380,7 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		}
 	}
 	slices.Sort(slopes)
-	tickCost := slopes[len(slopes)/2]
+	tickCost := percentile(slopes, 50)
 	p("")
 	p("Tick cost: a world day costs a median **%s per 1,000 stored tiles** (all clocks; %s a tick). Generating far chunks leaves the day's cost %s.", tickCost.Round(time.Microsecond), (tickCost / sheets.TicksPerDay).Round(time.Microsecond), either(flat, "flat", "**not flat**"))
 	mount, mounts, err := MountJourneys(b, 0)

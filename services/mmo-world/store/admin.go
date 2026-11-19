@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -24,7 +23,7 @@ func (s *Store) EnsurePartitions(ctx context.Context, now time.Time) error {
 		name := fmt.Sprintf("fact_y%04dm%02d", m.Year(), int(m.Month()))
 		sql := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS mmo.%s PARTITION OF mmo.fact FOR VALUES FROM ('%s') TO ('%s')`,
 			name, m.Format(time.DateOnly), next.Format(time.DateOnly))
-		if _, err := s.Pool.Exec(ctx, sql); err != nil {
+		if _, err := s.pool.Exec(ctx, sql); err != nil {
 			return fmt.Errorf("store: partition %s: %w", name, err)
 		}
 		m = next
@@ -54,6 +53,17 @@ func TryLock(ctx context.Context, pool *pgxpool.Pool, worldID string) (*Lock, bo
 	return &Lock{conn: conn, world: worldID}, true, nil
 }
 
+// Held reports whether the lock's connection still holds it: a dropped
+// connection loses it, and another service may then take the world.
+func (l *Lock) Held(ctx context.Context) (bool, error) {
+	var ok bool
+	err := l.conn.QueryRow(ctx, `WITH k AS (SELECT hashtextextended($1::text, 0) AS h)
+		SELECT EXISTS (SELECT 1 FROM pg_locks, k WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted
+			AND objsubid = 1 AND classid::text::bigint = (k.h >> 32) & 4294967295 AND objid::text::bigint = k.h & 4294967295)`,
+		l.world).Scan(&ok)
+	return ok, err
+}
+
 // Release gives the lock up. A process that dies loses its connection,
 // and the lock with it.
 func (l *Lock) Release(ctx context.Context) {
@@ -61,69 +71,75 @@ func (l *Lock) Release(ctx context.Context) {
 	l.conn.Release()
 }
 
-// mmoTables are the schema's tables that carry a world_id, children first.
-var mmoTables = []string{"fact", "ledger_entry", "ledger_txn", "action", "tick", "snapshot", "character", "tile", "notable", "faction", "region_state"}
-
 // Reset deletes every row of a disposable world, the world row last.
 // The caller holds the world's lock.
 func (s *Store) Reset(ctx context.Context) error {
-	m, _, err := s.Meta(ctx)
+	s.resetCache()
+	return s.tx(ctx, func(q *db.Queries) error { return s.wipe(ctx, q) })
+}
+
+// wipe deletes a disposable world's rows. A table without a delete here
+// survives a reset, which TestResetEmptiesEveryTable catches.
+func (s *Store) wipe(ctx context.Context, q *db.Queries) error {
+	m, err := metaOf(ctx, q, s.World)
 	if err != nil {
 		return err
 	}
 	if !m.Disposable {
 		return fmt.Errorf("store: world %s is not disposable", s.World)
 	}
-	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
-		for _, t := range mmoTables {
-			if _, err := tx.Exec(ctx, "DELETE FROM mmo."+t+" WHERE world_id = $1", s.World); err != nil {
-				return err
-			}
+	for _, del := range []func(context.Context, string) error{
+		q.DeleteWorldFacts, q.DeleteWorldLedgerEntries, q.DeleteWorldLedgerTxns, q.DeleteWorldActions, q.DeleteWorldTicks,
+		q.DeleteWorldSnapshots, q.DeleteWorldCharacters, q.DeleteWorldTiles, q.DeleteWorldNotables, q.DeleteWorldFactions,
+		q.DeleteWorldRegions, q.DeleteWorld,
+	} {
+		if err := del(ctx, s.World); err != nil {
+			return err
 		}
-		_, err := tx.Exec(ctx, "DELETE FROM mmo.world WHERE id = $1", s.World)
-		return err
-	})
+	}
+	return nil
 }
 
-// Audit is the conservation check (GDD 10.9) over what is stored: every
-// transaction balances, and every character row holds exactly what the
-// ledger says it does. It returns each discrepancy.
+// Audit is the conservation check over what is stored: every transaction
+// balances and every character row holds what the ledger says. It reads
+// one snapshot, so a concurrent action cannot skew it. It returns each
+// discrepancy.
 func (s *Store) Audit(ctx context.Context) ([]string, error) {
 	var out []string
-	bad, err := s.Q.UnbalancedTxns(ctx, s.World)
-	if err != nil {
-		return nil, err
-	}
-	for _, b := range bad {
-		out = append(out, fmt.Sprintf("transaction %d: %s sums to %d", b.Txn, b.Asset, b.Units))
-	}
-	bal, err := s.Q.LedgerBalances(ctx, s.World)
-	if err != nil {
-		return nil, err
-	}
-	var ledgerBal []ledger.Balance
-	for _, b := range bal {
-		ledgerBal = append(ledgerBal, ledger.Balance{Account: b.Account, Asset: b.Asset, Units: b.Units})
-	}
-	rows, err := s.Q.ListCharacters(ctx, s.World)
-	if err != nil {
-		return nil, err
-	}
-	g := &game.Game{}
-	for _, r := range rows {
-		var c game.Char
-		if err := json.Unmarshal(r.Body, &c); err != nil {
-			return nil, err
+	err := pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		q := s.q.WithTx(tx)
+		bad, err := q.UnbalancedTxns(ctx, s.World)
+		if err != nil {
+			return err
 		}
-		g.Chars = append(g.Chars, &c)
-	}
-	return append(out, ledger.Audit(ledgerBal, g.Holdings())...), nil
+		for _, b := range bad {
+			out = append(out, fmt.Sprintf("transaction %d: %s sums to %d", b.Txn, b.Asset, b.Units))
+		}
+		bal, err := balances(ctx, q, s.World)
+		if err != nil {
+			return err
+		}
+		rows, err := q.ListCharacters(ctx, s.World)
+		if err != nil {
+			return err
+		}
+		chars, err := decodeChars(rows)
+		if err != nil {
+			return err
+		}
+		out = append(out, ledger.Audit(bal, game.HoldingsOf(chars))...)
+		return nil
+	})
+	return out, err
 }
 
 // FindText reports which mmo tables hold any of the needles anywhere in a
 // row's text form: the start-up check that no key reached the database.
+// A partitioned table is read through its partitions only, so no row is
+// read twice.
 func FindText(ctx context.Context, pool *pgxpool.Pool, needles []string) ([]string, error) {
-	rows, err := pool.Query(ctx, `SELECT table_name FROM information_schema.tables WHERE table_schema = 'mmo' AND table_type = 'BASE TABLE' ORDER BY table_name`)
+	rows, err := pool.Query(ctx, `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'mmo' AND c.relkind = 'r' ORDER BY c.relname`)
 	if err != nil {
 		return nil, err
 	}

@@ -7,16 +7,18 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
-// Events sends product events to PostHog's batch endpoint: one per tick
-// and one per action. With no key it sends nothing. A full queue drops
-// events rather than slow a tick.
+// Events sends product events to PostHog's batch endpoint. With no key it
+// sends nothing; a full queue drops events rather than slow a tick.
 type Events struct {
 	host, key string
 	client    *http.Client
 	log       *slog.Logger
+	mu        sync.RWMutex // guards closed against a Capture racing Close
+	closed    bool
 	queue     chan event
 	done      chan struct{}
 }
@@ -35,6 +37,7 @@ const (
 	eventWait  = 5 * time.Second
 )
 
+// NewEvents sends to PostHog at host; an empty key sends nothing.
 func NewEvents(host, key string, log *slog.Logger) *Events {
 	e := &Events{host: strings.TrimRight(host, "/"), key: key, client: &http.Client{Timeout: 10 * time.Second}, log: log,
 		queue: make(chan event, eventQueue), done: make(chan struct{})}
@@ -47,8 +50,14 @@ func NewEvents(host, key string, log *slog.Logger) *Events {
 }
 
 // Capture queues an event. Properties carry ids, never a Discord id.
+// After Close it drops the event.
 func (e *Events) Capture(name, distinct string, props map[string]any) {
 	if e == nil || e.key == "" {
+		return
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed {
 		return
 	}
 	select {
@@ -62,7 +71,12 @@ func (e *Events) Close() {
 	if e == nil || e.key == "" {
 		return
 	}
-	close(e.queue)
+	e.mu.Lock()
+	if !e.closed {
+		e.closed = true
+		close(e.queue)
+	}
+	e.mu.Unlock()
 	<-e.done
 }
 

@@ -10,8 +10,11 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// structural: what a score part counts in.
-const unitPts = "pts"
+// structural: what a score part and a region gauge count in.
+const (
+	unitPts   = "pts"
+	unitGauge = "gauge"
+)
 
 func apiHex(h hex.Hex) api.Hex { return api.Hex{Q: h.Q, R: h.R} }
 func simHex(h api.Hex) hex.Hex { return hex.Hex{Q: h.Q, R: h.R} }
@@ -145,6 +148,30 @@ func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
 	}
 	if w, ok := g.World.Weather(h); ok {
 		out.Weather = w.Kind
+	}
+	return out, true
+}
+
+// apiPlace is a discovered tile with its region's gauges and holder and who
+// stands there; ok is false for a tile nobody has found.
+func apiPlace(g *game.Game, h hex.Hex) (api.Place, bool) {
+	t, ok := apiTile(g, h)
+	if !ok {
+		return api.Place{}, false
+	}
+	out := api.Place{Tick: g.Tick(), Tile: t, Gauges: []api.Gauge{}, Here: []string{}, Rest: g.CanRest(h), Explore: g.CanExplore(h)}
+	if gauges, holder, ok := g.RegionGauges(h); ok {
+		for _, m := range gauges {
+			out.Gauges = append(out.Gauges, api.Gauge{ID: m.ID, Value: m.Value, Unit: unitGauge})
+		}
+		if holder >= 0 {
+			out.Holder = world.FactionRef(holder)
+		}
+	}
+	for _, c := range g.Chars {
+		if c.C.At == h {
+			out.Here = append(out.Here, c.C.ID)
+		}
 	}
 	return out, true
 }

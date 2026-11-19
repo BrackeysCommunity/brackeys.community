@@ -1,13 +1,9 @@
-// Command op is the operator's CLI for closed tests: inspect a character
-// or a tile, correct a balance with a recorded fact, grant a mount, ban,
-// check conservation, reset a test world, and replay a range of ticks.
+// Command op is the operator CLI: inspect, correct, grant, ban, audit,
+// reset and replay a world.
 //
-// Everything that writes goes through the running world service's
-// operator API (MMO_URL, MMO_OPERATOR_TOKEN), so the service stays the
-// only writer and every correction is a fact that replays. replay reads
-// the database directly (DATABASE_URL) with the world's keys
-// (MMO_MASTER_SECRET and the rest), so it runs where those already are.
-// reset -direct resets a stopped service's world in the database.
+// Writes go through the running service's operator API, so the service
+// stays the only writer and every correction replays. replay reads the
+// database directly with the world's keys.
 package main
 
 import (
@@ -18,25 +14,21 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"jams.team/mmo-world/api"
-	"jams.team/mmo-world/harness/agent"
+	"jams.team/mmo-world/api/client"
 	"jams.team/mmo-world/replay"
 	"jams.team/mmo-world/service"
-	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store"
 )
 
-const usage = `op <command>
+const usage = `op [-id <interaction id>] <command>
+  -id names a write's interaction id, so a rerun after a timeout applies it once
   inspect character <id>          the character as the world holds it
   inspect tile <q> <r>            a tile's stored state and its baseline
   correct <id> <asset> <units> <note...>   coin, provisions or mat:<id>; negative takes
@@ -54,8 +46,8 @@ func main() {
 	}
 }
 
-func client() *agent.HTTP {
-	return agent.NewHTTP(service.Getenv("MMO_URL", "http://localhost:8080"), os.Getenv("MMO_OPERATOR_TOKEN"))
+func cli() *client.HTTP {
+	return client.New(service.Getenv(service.EnvURL, "http://localhost:8080"), os.Getenv(service.EnvOperatorToken))
 }
 
 func show(v any) error {
@@ -64,17 +56,28 @@ func show(v any) error {
 	return enc.Encode(v)
 }
 
-// call sends one operator request and prints the reply.
-func call(method, path string, in any) error {
-	var out json.RawMessage
-	ref, err := client().Do(context.Background(), method, path, in, &out)
+// operate sends one operator action and prints the reply. A send that
+// fails in transport is sent once more with the same interaction id, so
+// one the service already applied comes back as its stored reply.
+func operate(req api.OperatorRequest) error {
+	fmt.Fprintln(os.Stderr, "interaction", req.InteractionID)
+	c := cli()
+	out, ref, err := c.Operate(context.Background(), req)
+	if err != nil {
+		out, ref, err = c.Operate(context.Background(), req)
+	}
+	if err := client.Refused(req.Kind, ref, err); err != nil {
+		return err
+	}
+	return show(out)
+}
+
+// shown prints a reply, or returns the call's error.
+func shown(v any, err error) error {
 	if err != nil {
 		return err
 	}
-	if ref != nil {
-		return fmt.Errorf("%s: %s", ref.Code, ref.Message)
-	}
-	return show(out)
+	return show(v)
 }
 
 func interaction() string {
@@ -91,6 +94,15 @@ func need(args []string, n int) error {
 }
 
 func run(args []string) error {
+	fs := flag.NewFlagSet("op", flag.ContinueOnError)
+	id := fs.String("id", "", "the interaction id of a write (default: a fresh one)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	args = fs.Args()
+	if *id == "" {
+		*id = interaction()
+	}
 	if err := need(args, 1); err != nil {
 		return err
 	}
@@ -100,10 +112,22 @@ func run(args []string) error {
 		if err := need(rest, 2); err != nil {
 			return err
 		}
-		if rest[0] == "tile" && len(rest) == 3 {
-			return call(http.MethodGet, api.PathOperator+"/tile?q="+url.QueryEscape(rest[1])+"&r="+url.QueryEscape(rest[2]), nil)
+		ctx := context.Background()
+		switch {
+		case rest[0] == "character" && len(rest) == 2:
+			return shown(cli().Character(ctx, rest[1]))
+		case rest[0] == "tile" && len(rest) == 3:
+			q, err := strconv.ParseInt(rest[1], 10, 64)
+			if err != nil {
+				return err
+			}
+			r, err := strconv.ParseInt(rest[2], 10, 64)
+			if err != nil {
+				return err
+			}
+			return shown(cli().Tile(ctx, q, r))
 		}
-		return call(http.MethodGet, api.PathOperator+"/character?id="+url.QueryEscape(rest[1]), nil)
+		return errors.New(usage)
 	case api.OpCorrect:
 		if err := need(rest, 4); err != nil {
 			return err
@@ -112,24 +136,24 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return call(http.MethodPost, api.PathOperator, api.OperatorRequest{InteractionID: interaction(), CharacterID: rest[0], Kind: cmd,
+		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: rest[0], Kind: cmd,
 			Asset: rest[1], Units: units, Note: strings.Join(rest[3:], " ")})
 	case api.OpGrant:
 		if err := need(rest, 3); err != nil {
 			return err
 		}
-		return call(http.MethodPost, api.PathOperator, api.OperatorRequest{InteractionID: interaction(), CharacterID: rest[0], Kind: cmd,
+		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: rest[0], Kind: cmd,
 			Asset: rest[1], Note: strings.Join(rest[2:], " ")})
 	case api.OpBan, api.OpUnban:
 		if err := need(rest, 2); err != nil {
 			return err
 		}
-		return call(http.MethodPost, api.PathOperator, api.OperatorRequest{InteractionID: interaction(), CharacterID: rest[0], Kind: cmd,
+		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: rest[0], Kind: cmd,
 			Note: strings.Join(rest[1:], " ")})
 	case "audit":
-		return call(http.MethodGet, api.PathOperator+"/audit", nil)
+		return shown(cli().Audit(context.Background()))
 	case "digest":
-		return call(http.MethodGet, api.PathOperator+"/digest", nil)
+		return shown(cli().Digest(context.Background()))
 	case "reset":
 		return reset(rest)
 	case "replay":
@@ -147,10 +171,10 @@ func reset(args []string) error {
 	world := args[0]
 	_ = fs.Parse(args[1:])
 	if !*direct {
-		return call(http.MethodPost, api.PathOperator+"/reset", map[string]string{"world": world})
+		return shown(cli().Reset(context.Background(), world))
 	}
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, os.Getenv(service.EnvDatabase))
+	pool, err := service.PoolFromEnv(ctx)
 	if err != nil {
 		return err
 	}
@@ -182,7 +206,7 @@ func replayCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	book, err := sheetfs.LoadBook(service.Getenv(service.EnvSheets, "."))
+	book, err := service.BookFromEnv()
 	if err != nil {
 		return err
 	}
@@ -191,21 +215,19 @@ func replayCmd(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, os.Getenv(service.EnvDatabase))
+	pool, err := service.PoolFromEnv(ctx)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
 	st := store.New(pool, sec.World)
-	m, w, err := st.Meta(ctx)
-	if err != nil {
-		return err
-	}
-	if m.KeyCheck != sec.Keys.Check() {
-		return errors.New("these keys are not the world's")
+	if _, err := st.MetaFor(ctx, sec.Keys, sec.KeyVersion, sec.Epoch, book); err != nil {
+		return fmt.Errorf("replay with the world's own keys and sheets: %w", err)
 	}
 	if *to < 0 {
-		*to = w.Tick
+		if *to, err = st.Tick(ctx); err != nil {
+			return err
+		}
 	}
 	if *from < 0 {
 		*from = max(0, *to-sheets.TicksPerDay)

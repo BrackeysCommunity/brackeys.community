@@ -115,7 +115,7 @@ func (d *day) faction(i int) {
 	f := &s.Factions[i]
 	held := d.held(i)
 	threat, scarcity, corruption := s.GaugeIndex("threat"), s.GaugeIndex("scarcity"), s.GaugeIndex("corruption")
-	yieldsHalve := lineAt(s.b, "yields-halve")
+	yieldsHalve := LineAt(s.b, "yields-halve")
 	for _, r := range held {
 		income := s.p("holding-income")
 		if s.Regions[r].Gauge[scarcity] >= yieldsHalve {
@@ -137,8 +137,8 @@ func (d *day) faction(i int) {
 	d.defect(i)
 	f = &s.Factions[i]
 
-	ambush := lineAt(s.b, "ambush")
-	corruptionLine := lineAt(s.b, "corrupted-nodes")
+	ambush := LineAt(s.b, "ambush")
+	corruptionLine := LineAt(s.b, "corrupted-nodes")
 	hunger := max(0, s.p("need-threshold")-f.Stock)
 	s.needs(f, hunger)
 	danger, worst, weakest, corrupted := int64(0), none, none, none
@@ -259,7 +259,8 @@ func (d *day) faction(i int) {
 	d.act(i, best)
 }
 
-func lineAt(b *sheets.Book, effect string) int64 {
+// LineAt is where a gauge line with this effect starts.
+func LineAt(b *sheets.Book, effect string) int64 {
 	return b.GaugeLines[lineIndex(b, effect)].AtLeast
 }
 

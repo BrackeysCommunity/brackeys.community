@@ -417,7 +417,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 			facts = append(facts, r.wear(e, m, g, size, tick)...)
 		}
 	case "wound":
-		m.Ch.Set("wounded", tick+r.Param("wound-ticks"))
+		m.Ch.Set(char.Wounded, tick+r.Param("wound-ticks"))
 	case "haul":
 		r.loseHaul(e, size)
 	case "first-strike":
@@ -447,7 +447,7 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 // practice; a haywire does its row's damage and is not a failure of the
 // fight.
 func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick int64) []fact.Fact {
-	who := fact.Ref{Kind: "character", ID: m.Ch.ID}
+	who := char.Ref(m.Ch.ID)
 	if oc.Puzzle.Solved {
 		return []fact.Fact{r.fact(tick, "puzzle.solved", []fact.Ref{who}, fact.S("family", s.Puzzle), fact.N("level", s.Level), fact.B("clean", oc.Puzzle.Clean))}
 	}
@@ -664,11 +664,11 @@ func (r *Rules) loseHaul(e *Encounter, units int64) {
 // are shaken; what was carried out of the outing is lost.
 func (r *Rules) down(e *Encounter, m *Member, tick int64) []fact.Fact {
 	e.Down = append(e.Down, m.Ch.ID)
-	m.Ch.Set("down", 0)
+	m.Ch.Set(char.Down, 0)
 	m.Ch.Fights.Downs++
 	m.Ch.Fights.DownedBy.Bump(e.Creature.Archetype, 1)
 	m.Ch.Fights.DownedAt = append(m.Ch.Fights.DownedAt, m.Ch.At)
-	return []fact.Fact{r.fact(tick, "character.down", []fact.Ref{{Kind: "character", ID: m.Ch.ID}, {Kind: "archetype", ID: e.Creature.Archetype}})}
+	return []fact.Fact{r.fact(tick, "character.down", []fact.Ref{char.Ref(m.Ch.ID), {Kind: "archetype", ID: e.Creature.Archetype}})}
 }
 
 // end closes an encounter: bleeding becomes a wound, a loss costs the
@@ -676,10 +676,10 @@ func (r *Rules) down(e *Encounter, m *Member, tick int64) []fact.Fact {
 func (r *Rules) end(e *Encounter, ms []*Member, tick int64) []fact.Fact {
 	var subjects []fact.Ref
 	for _, m := range ms {
-		subjects = append(subjects, fact.Ref{Kind: "character", ID: m.Ch.ID})
+		subjects = append(subjects, char.Ref(m.Ch.ID))
 		for _, st := range e.States {
 			if st.On == OnSelf && st.Who == m.Ch.ID && r.states[st.Tag] != nil && r.states[st.Tag].WoundsAtEnd {
-				m.Ch.Set("wounded", tick+r.Param("wound-ticks"))
+				m.Ch.Set(char.Wounded, tick+r.Param("wound-ticks"))
 			}
 		}
 	}
@@ -738,7 +738,7 @@ func Split(haul []item.Spoil, share tally.Tally) map[string][]item.Spoil {
 // wear spends durability and reports a break or dormancy. Broken gear
 // leaves the pack and the kit, and its salvage goes on the encounter.
 func (r *Rules) wear(e *Encounter, m *Member, g *Gear, n int64, tick int64) []fact.Fact {
-	who := fact.Ref{Kind: "character", ID: m.Ch.ID}
+	who := char.Ref(m.Ch.ID)
 	it := fact.Ref{Kind: "item", ID: g.Inst.ID}
 	switch g.Inst.Use(n) {
 	case item.Broke:
@@ -764,7 +764,7 @@ func (r *Rules) grow(m *Member, g *Gear, xp int64, tick int64) []fact.Fact {
 	if lv.To == lv.From {
 		return nil
 	}
-	refs := []fact.Ref{{Kind: "character", ID: m.Ch.ID}, {Kind: "item", ID: g.Inst.ID}}
+	refs := []fact.Ref{char.Ref(m.Ch.ID), {Kind: "item", ID: g.Inst.ID}}
 	facts := []fact.Fact{r.fact(tick, "item.levelled", refs, fact.N("level", lv.To))}
 	for _, ms := range lv.Milestones {
 		facts = append(facts, r.fact(tick, "item.milestone", refs, fact.N("level", ms)))
@@ -774,7 +774,7 @@ func (r *Rules) grow(m *Member, g *Gear, xp int64, tick int64) []fact.Fact {
 
 func (r *Rules) practise(c *char.Character, skill string, uses, tick int64) []fact.Fact {
 	if n := c.Practise(skill, uses, r.G.Params()); n > 0 {
-		return []fact.Fact{r.fact(tick, "practice.levelled", []fact.Ref{{Kind: "character", ID: c.ID}}, fact.S("skill", skill), fact.N("level", c.Level(skill)))}
+		return []fact.Fact{r.fact(tick, "practice.levelled", []fact.Ref{char.Ref(c.ID)}, fact.S("skill", skill), fact.N("level", c.Level(skill)))}
 	}
 	return nil
 }

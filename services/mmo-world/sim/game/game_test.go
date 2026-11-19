@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
-	"jams.team/mmo-world/sheetfs"
+	"jams.team/mmo-world/internal/testkit"
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
@@ -16,15 +19,7 @@ import (
 
 func rules(t testing.TB) *game.Rules {
 	t.Helper()
-	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := game.NewRules(b, keys.Throwaway("game-test"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return r
+	return testkit.Rules(t, testkit.Book(t), keys.Throwaway("game-test"))
 }
 
 // script plays a few characters for ticks, choosing by a keyed draw, and
@@ -134,6 +129,7 @@ func TestRefusedChangesNothing(t *testing.T) {
 		{Key: "c", Char: id, Kind: game.Press, Option: "hold"},
 		{Key: "d", Char: id, Kind: game.Gather, Material: "nothing", Ticks: 1},
 		{Key: "e", Char: "c-99", Kind: game.Rest},
+		{Key: "f", Char: id, Kind: game.Correct, Asset: ledger.Material("no-such-ore"), Units: 1, Note: "typo"},
 	} {
 		var ref *game.Refused
 		if _, err := g.Act(cmd); !errors.As(err, &ref) {
@@ -146,9 +142,9 @@ func TestRefusedChangesNothing(t *testing.T) {
 	}
 }
 
-// TestAmbushAwayDefault walks a character through a region at the ambush
-// line until an ambush springs, stays away, and checks it resolves with
-// the way out at the tick the journey would have ended.
+// TestAmbushAwayDefault walks a character past the ambush line until an
+// ambush springs, stays away, and checks it resolves with the way out the
+// tick after the journey would have ended.
 func TestAmbushAwayDefault(t *testing.T) {
 	r := rules(t)
 	g, _ := game.New(r)
@@ -223,4 +219,163 @@ func TestOneLongActionAtATime(t *testing.T) {
 	if c.Long != nil {
 		t.Fatal("rest did not come due on its tick")
 	}
+}
+
+// TestAmbushNeedsCreatures walks past the ambush line where nothing lives:
+// no ambush may spring, and no tick may fail.
+func TestAmbushNeedsCreatures(t *testing.T) {
+	b := testkit.Book(t)
+	b.Creatures = slices.Clone(b.Creatures)
+	for i := range b.Creatures {
+		b.Creatures[i].Biomes = nil
+	}
+	r := testkit.Rules(t, b, keys.Throwaway("game-test"))
+	g, _ := game.New(r)
+	res, err := g.Act(game.Command{Key: "k0", Kind: game.Create})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Char
+	threat := g.World.GaugeIndex("threat")
+	for n := 1; n < 400; n++ {
+		for i := range g.World.Regions {
+			g.World.Regions[i].Gauge[threat] = 900
+		}
+		if c.Long == nil {
+			walk(t, g, c, fmt.Sprintf("k%d", n))
+		}
+		if _, err := g.Advance(); err != nil {
+			t.Fatal(err)
+		}
+		if c.Fight != nil {
+			t.Fatal("an ambush sprang where nothing lives")
+		}
+	}
+	if c.C.Walked == 0 {
+		t.Fatal("nobody walked")
+	}
+}
+
+// walk starts a one-tile step in the first open direction.
+func walk(t *testing.T, g *game.Game, c *game.Char, key string) {
+	t.Helper()
+	for _, m := range g.Choose(c).Moves {
+		if m.Open {
+			if _, err := g.Act(game.Command{Key: key, Char: c.C.ID, Kind: game.Step, Dir: m.Dir}); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+	}
+}
+
+// hungryWalker is a character with no provisions five tiles out from
+// home, by tiles it has entered.
+func hungryWalker(t *testing.T) (*game.Game, *game.Char, hex.Hex) {
+	t.Helper()
+	g, _ := game.New(rules(t))
+	res, err := g.Act(game.Command{Key: "k0", Kind: game.Create})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Char
+	var home hex.Hex
+	for n := range 5 {
+		walk(t, g, c, fmt.Sprintf("out-%d", n))
+		for c.Long != nil {
+			if _, err := g.Advance(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if n == 0 {
+			home = c.C.At
+		}
+	}
+	return g, c, home
+}
+
+// TestHungerEnds sends a character with no provisions on a journey long
+// enough to go hungry, and checks the hunger ends when the journey does:
+// on arrival, and on a cancel.
+func TestHungerEnds(t *testing.T) {
+	g, c, home := hungryWalker(t)
+	far := c.C.At
+	if _, err := g.Act(game.Command{Key: "home", Char: c.C.ID, Kind: game.Travel, To: &home}); err != nil {
+		t.Fatal(err)
+	}
+	hungry := false
+	for c.Long != nil {
+		if _, err := g.Advance(); err != nil {
+			t.Fatal(err)
+		}
+		hungry = hungry || (c.Long != nil && c.C.Has(char.Hungry, g.Tick()))
+	}
+	if !hungry {
+		t.Fatal("a journey past the free ticks with no provisions never went hungry")
+	}
+	if c.C.Has(char.Hungry, g.Tick()) {
+		t.Fatal("still hungry after the journey ended")
+	}
+	if _, err := g.Act(game.Command{Key: "back", Char: c.C.ID, Kind: game.Travel, To: &far}); err != nil {
+		t.Fatal(err)
+	}
+	for c.Long != nil && !c.C.Has(char.Hungry, g.Tick()) {
+		if _, err := g.Advance(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c.Long == nil {
+		t.Fatal("the way back never went hungry")
+	}
+	if _, err := g.Act(game.Command{Key: "stop", Char: c.C.ID, Kind: game.Cancel}); err != nil {
+		t.Fatal(err)
+	}
+	if c.C.Has(char.Hungry, g.Tick()) {
+		t.Fatal("still hungry after the journey was cancelled")
+	}
+}
+
+// TestHungryAmbush walks a hungry character back and forth past the ambush
+// line until an ambush springs while they are hungry: the hunger ends with
+// the journey, and the ambush still leaves its owner a tick to answer.
+func TestHungryAmbush(t *testing.T) {
+	g, c, home := hungryWalker(t)
+	far := c.C.At
+	threat := g.World.GaugeIndex("threat")
+	for n := range 200 {
+		if c.Fight != nil {
+			if _, err := g.Advance(); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		to := home
+		if n%2 == 1 {
+			to = far
+		}
+		if _, err := g.Act(game.Command{Key: fmt.Sprintf("j%d", n), Char: c.C.ID, Kind: game.Travel, To: &to}); err != nil {
+			continue
+		}
+		for c.Long != nil {
+			for i := range g.World.Regions {
+				g.World.Regions[i].Gauge[threat] = 900
+			}
+			was := c.C.Has(char.Hungry, g.Tick())
+			ends := c.Long.Ends
+			if _, err := g.Advance(); err != nil {
+				t.Fatal(err)
+			}
+			if c.Fight == nil || !was {
+				continue
+			}
+			if c.C.Has(char.Hungry, g.Tick()) {
+				t.Fatal("still hungry after an ambush ended the journey")
+			}
+			if c.Fight.Due < g.Tick() || c.Fight.Due < ends {
+				t.Fatalf("an ambush at tick %d is due at %d, before the journey's end %d", g.Tick(), c.Fight.Due, ends)
+			}
+			return
+		}
+	}
+	t.Skip("no ambush sprang on a hungry traveller")
 }

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
-	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -35,7 +35,8 @@ const (
 )
 
 // Command is one thing done to the game between ticks. Key is the
-// interaction id: every ledger transaction it causes is keyed on it.
+// interaction id; every ledger transaction it causes is keyed on it or on a
+// ledger.SubKey of it.
 type Command struct {
 	Key      string   `json:"key"`
 	Char     string   `json:"char,omitempty"`
@@ -89,8 +90,8 @@ type Result struct {
 // nothing. Any other error leaves the game part-way, and the caller
 // reloads it.
 func (g *Game) Act(cmd Command) (Result, error) {
-	if cmd.Key == "" {
-		return Result{}, refuse(BadArgs, "a command needs its interaction id")
+	if err := ValidKey(cmd.Key); err != nil {
+		return Result{}, err
 	}
 	first := fact.ID(g.Log.Len())
 	var c *Char
@@ -141,6 +142,15 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
 
+// ValidKey refuses an interaction id a command may not carry: empty, too
+// long, or holding the '/' that ledger.SubKey reserves.
+func ValidKey(key string) error {
+	if key == "" || len(key) > maxKey || strings.Contains(key, "/") {
+		return refuse(BadArgs, "a command needs an interaction id of at most %d characters, with no '/'", maxKey)
+	}
+	return nil
+}
+
 // create makes a character at the first starting settlement. Nothing is
 // granted: no purse, no kit (GDD 10.1 rule 6).
 func (g *Game) create() (*Char, error) {
@@ -152,8 +162,12 @@ func (g *Game) create() (*Char, error) {
 	return c, err
 }
 
-// structural: ids are written in decimal.
-const decimal = 10
+// structural: ids are written in decimal; an interaction id fits Discord's
+// and the Activity's.
+const (
+	decimal = 10
+	maxKey  = 128
+)
 
 // free reports why a character cannot start something new: a long action
 // running or an encounter open.
@@ -172,8 +186,7 @@ func (g *Game) explore(c *Char) error {
 	if err := free(c); err != nil {
 		return err
 	}
-	site := g.r.Gen.Baseline(c.C.At).Site
-	if site == "" || site == gen.PlaceSettlement {
+	if !g.CanExplore(c.C.At) {
 		return refuse(NotHere, "nothing to explore on this tile")
 	}
 	return g.begin(c, false, 0)
@@ -193,13 +206,9 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	place := g.World.Place(h).Tags()
 	ms := g.measures(h)
 	cr := g.r.Fight.Spawn(arch, nil, place, ms)
-	e := g.r.Fight.Assemble(fight.Site{ID: id, Place: "tile:" + hexRef(h), Tags: place, Measures: ms, Party: 1}, cr)
+	e := g.r.Fight.Assemble(fight.Site{ID: id, Place: "tile:" + h.Ref(), Tags: place, Measures: ms, Party: 1}, cr)
 	c.Fight = &Fight{E: e, Measures: ms, Ambush: ambush, Due: due}
 	return nil
-}
-
-func hexRef(h hex.Hex) string {
-	return strconv.FormatInt(h.Q, decimal) + "," + strconv.FormatInt(h.R, decimal)
 }
 
 // press resolves the current beat with the picked option; an encounter
@@ -214,7 +223,7 @@ func (g *Game) press(c *Char, cmd Command) ([]fight.Pressed, error) {
 func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Pressed, error) {
 	f := g.r.Fight
 	e := c.Fight.E
-	_, kit, opts := f.Choices(e, c.C, f.KitOf(c.C), tick)
+	kit, opts := g.beat(c, tick)
 	o, ok := fight.OptionByID(opts, pick)
 	if !ok {
 		return nil, refuse(BadArgs, "no option %q on this beat", pick)
@@ -236,7 +245,7 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Press
 		return nil, err
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
-		g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: charRef(c.C.ID), Tag: e.Creature.Archetype})
+		g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: char.Ref(c.C.ID), Tag: e.Creature.Archetype})
 	}
 	if e.Over {
 		return pressed, g.close(c, key, tick)
@@ -251,22 +260,22 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 	c.Fight = nil
 	acc := ledger.Char(c.C.ID)
 	for i, s := range e.Haul {
-		if err := g.receive(c, ledger.Move(key+"/haul/"+strconv.Itoa(i), "haul", tick, ledger.FromHaul, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+		if err := g.receive(c, ledger.Move(ledger.SubKey(key, "haul", strconv.Itoa(i)), "haul", tick, ledger.FromHaul, acc, ledger.Material(s.Material), s.Qty)); err != nil {
 			return err
 		}
 	}
 	for _, sv := range e.Salvage {
 		for i, s := range sv.Spoil {
-			if err := g.receive(c, ledger.Move(key+"/salvage/"+strconv.Itoa(i), "salvage", tick, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", strconv.Itoa(i)), "salvage", tick, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
 				return err
 			}
 		}
 	}
 	switch e.Result {
 	case fight.Won:
-		g.Pending = append(g.Pending, world.Action{Kind: world.ActSlay, Hex: c.C.At, By: charRef(c.C.ID), Species: e.Creature.Archetype})
+		g.Pending = append(g.Pending, world.Action{Kind: world.ActSlay, Hex: c.C.At, By: char.Ref(c.C.ID), Species: e.Creature.Archetype})
 	case fight.Lost:
-		g.Pending = append(g.Pending, world.Action{Kind: world.ActFall, Hex: c.C.At, By: charRef(c.C.ID)})
+		g.Pending = append(g.Pending, world.Action{Kind: world.ActFall, Hex: c.C.At, By: char.Ref(c.C.ID)})
 	}
 	return nil
 }
@@ -325,7 +334,7 @@ func packIDs(c *char.Character) []string {
 func (g *Game) lost(c *Char, key string, before []string, tick int64) error {
 	for _, id := range before {
 		if c.C.Item(id) == nil {
-			if err := g.post(ledger.Move(key+"/lost/"+id, "broke", tick, ledger.Char(c.C.ID), ledger.ToLost, ledger.Item(id), 1)); err != nil {
+			if err := g.post(ledger.Move(ledger.SubKey(key, "lost", id), "broke", tick, ledger.Char(c.C.ID), ledger.ToLost, ledger.Item(id), 1)); err != nil {
 				return err
 			}
 		}
@@ -336,7 +345,7 @@ func (g *Game) lost(c *Char, key string, before []string, tick int64) error {
 // correct is an operator's correction of a balance, recorded as a fact
 // and moved through the operator's source or sink.
 func (g *Game) correct(c *Char, cmd Command) error {
-	if cmd.Units == 0 || cmd.Note == "" || (cmd.Asset != ledger.Coin && cmd.Asset != ledger.Provisions) && !isMaterial(cmd.Asset) {
+	if cmd.Units == 0 || cmd.Note == "" || (cmd.Asset != ledger.Coin && cmd.Asset != ledger.Provisions) && !g.isMaterial(cmd.Asset) {
 		return refuse(BadArgs, "a correction needs a coin, provisions or material asset, units and a note")
 	}
 	if cmd.Units < 0 && g.Ledger.Of(ledger.Char(c.C.ID), cmd.Asset) < -cmd.Units {
@@ -353,17 +362,19 @@ func (g *Game) correct(c *Char, cmd Command) error {
 	}
 	t := ledger.Move(cmd.Key, "correction", g.Tick(), from, to, cmd.Asset, units)
 	t.Fact = f.ID
-	if err := g.post(t); err != nil {
-		return err
-	}
-	hold(c.C, cmd.Asset, cmd.Units)
-	return nil
+	return g.receive(c, t)
 }
 
-func isMaterial(asset string) bool { _, ok := ledger.MaterialOf(asset); return ok }
+// isMaterial reports whether asset names a base material of the sheets.
+func (g *Game) isMaterial(asset string) bool {
+	id, ok := ledger.MaterialOf(asset)
+	if ok {
+		_, ok = g.r.Fight.D.Material(id)
+	}
+	return ok
+}
 
-// grant is an operator giving a character a mount of a mounts.kinds row,
-// for closed tests until mounts are found, bred and made in play.
+// grant gives a character a mount of a mounts.kinds row, as an operator.
 func (g *Game) grant(c *Char, cmd Command) error {
 	if g.r.Mounts.Kind(cmd.Asset) == nil || cmd.Note == "" {
 		return refuse(BadArgs, "a grant needs a mount kind and a note")
@@ -390,25 +401,40 @@ func (g *Game) ban(c *Char, on bool, note string) error {
 		return refuse(BadArgs, "a ban or unban needs a note and must change something")
 	}
 	c.Banned = on
-	kind := "character.unbanned"
-	if on {
-		kind = "character.banned"
-		c.Long = nil
+	if !on {
+		_, err := g.fact(c, "character.unbanned", g.Tick(), fact.S("note", note))
+		return err
 	}
-	_, err := g.fact(c, kind, g.Tick(), fact.S("note", note))
+	// A banned character neither travels nor fights: an open encounter
+	// ends unpaid.
+	data := []fact.Datum{fact.S("note", note)}
+	if c.Fight != nil {
+		data = append(data, fact.S("encounter", c.Fight.E.ID))
+	}
+	endJourney(c)
+	c.Fight = nil
+	_, err := g.fact(c, "character.banned", g.Tick(), data...)
 	return err
+}
+
+// RegionGauges are the gauges of the region holding a tile, in sheet
+// order, sourced to the region, and the index of the faction holding it
+// (-1 for none); ok is false outside every region.
+func (g *Game) RegionGauges(h hex.Hex) (gauges []tags.Measure, holder int, ok bool) {
+	r := g.World.RegionAt(h)
+	if r < 0 {
+		return nil, -1, false
+	}
+	reg := g.World.Regions[r]
+	from := tags.Source{Note: "region:" + world.RegionRef(r)}
+	for i, gg := range g.r.Book.Gauges {
+		gauges = append(gauges, tags.Measure{ID: gg.ID, Value: reg.Gauge[i], From: from})
+	}
+	return gauges, reg.Holder, true
 }
 
 // measures are the region's gauges a rule may test, at a tile.
 func (g *Game) measures(h hex.Hex) []tags.Measure {
-	r := g.World.RegionAt(h)
-	if r < 0 {
-		return nil
-	}
-	reg := g.World.Regions[r]
-	var out []tags.Measure
-	for i, gg := range g.r.Book.Gauges {
-		out = append(out, tags.Measure{ID: gg.ID, Value: reg.Gauge[i], From: tags.Source{Note: "region:" + world.RegionRef(r)}})
-	}
-	return out
+	ms, _, _ := g.RegionGauges(h)
+	return ms
 }

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/fight"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -13,18 +15,16 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// The mount journeys: setting out from a tile of a mount's terrain to any
-// passable tile journeyTiles away, the quickest way on foot against the
-// quickest way ridden, on generated worlds.
+// Mount journeys: on foot against ridden, to a passable tile journeyTiles away.
 const (
-	journeyTiles   = 12
-	journeyWorlds  = 8
-	journeyStarts  = 40 // per mount and world
-	journeyRadius  = 60 // starts are drawn this close to the origin
-	journeyDetour  = 3  // a path may stray this many times the straight distance
-	journeyLoPct   = 25
-	journeyHiPct   = 40
-	percentOfWhole = 100
+	journeyTiles  = 12
+	journeyWorlds = 8
+	journeyStarts = 40 // per mount and world
+	journeyRadius = 60 // starts are drawn this close to the origin
+	journeyDetour = 3  // a path may stray this many times the straight distance
+	// The median saving a speed mount must land in, in percent.
+	journeyLoPct = 25
+	journeyHiPct = 40
 )
 
 // MountRow is one mount kind's journeys.
@@ -36,19 +36,19 @@ type MountRow struct {
 	Lo, Hi   int64 // tenth and ninetieth percentile
 }
 
-// MountJourneys measures how much each mount kind shortens a journey on
-// its terrain: one that sets out from a terrain it suits that costs more
-// than the floor on foot, and goes where the land takes it. Where a terrain already costs the floor a mount
-// buys load, not speed (GDD 6.2), so mounts with no such terrain are
-// reported but not held to the target.
+// MountJourneys measures how much each mount shortens a journey from a
+// terrain where it buys speed (speedTerrains). A mount with none buys load,
+// not speed (GDD 6.2): it is reported, not held to the band.
 func MountJourneys(b *sheets.Book, worlds int) (Measured, []MountRow, error) {
 	if worlds == 0 {
 		worlds = journeyWorlds
 	}
 	floor := sheets.IntParam(b.MountParams, "min-enter-ticks")
-	k := keys.Throwaway("mounts")
-	growth := item.NewGrowth(b, item.NewDeriver(b, k.Quirk), k.Roll)
-	mounts := item.NewMounts(b, growth)
+	sys, err := fight.Wire(b, keys.Throwaway("mounts"))
+	if err != nil {
+		return Measured{}, nil, err
+	}
+	mounts := sys.Mounts
 	var rows []MountRow
 	savings := map[string][]int64{}
 	for w := range worlds {
@@ -67,7 +67,7 @@ func MountJourneys(b *sheets.Book, worlds int) (Measured, []MountRow, error) {
 				foot := journeyCost(g, s, nil, mounts)
 				ride := journeyCost(g, s, ridden, mounts)
 				if foot > 0 && ride > 0 {
-					savings[mk.ID] = append(savings[mk.ID], (foot-ride)*percentOfWhole/foot)
+					savings[mk.ID] = append(savings[mk.ID], fixed.ShareFloor(foot-ride, foot))
 				}
 			}
 		}
@@ -77,8 +77,8 @@ func MountJourneys(b *sheets.Book, worlds int) (Measured, []MountRow, error) {
 		row := MountRow{Kind: mk.ID, Speed: len(speedTerrains(b, mk, floor)) > 0}
 		if s := savings[mk.ID]; len(s) > 0 {
 			slices.Sort(s)
-			row.Journeys, row.Median = len(s), s[len(s)/2]
-			row.Lo, row.Hi = s[len(s)/10], s[len(s)*9/10]
+			row.Journeys, row.Median = len(s), percentile(s, 50)
+			row.Lo, row.Hi = percentile(s, 10), percentile(s, 90)
 		}
 		rows = append(rows, row)
 		if row.Speed {

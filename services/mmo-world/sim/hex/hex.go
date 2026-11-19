@@ -3,8 +3,18 @@
 // knows about.
 package hex
 
+import "strconv"
+
 // Hex is an axial coordinate.
 type Hex struct{ Q, R int64 }
+
+// structural: a ref is written in decimal.
+const decimal = 10
+
+// Ref is a hex's text form, "q,r".
+func (h Hex) Ref() string {
+	return strconv.FormatInt(h.Q, decimal) + "," + strconv.FormatInt(h.R, decimal)
+}
 
 // structural: a hex has six neighbours, in this order, starting east and
 // turning anticlockwise.

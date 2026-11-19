@@ -49,7 +49,7 @@ func (g *Game) Choose(c *Char) Choices {
 	out := Choices{Long: c.Long, CanCancel: c.Long != nil, FreeToMove: free(c) == nil}
 	if c.Fight != nil {
 		e := c.Fight.E
-		_, _, opts := g.r.Fight.Choices(e, c.C, g.r.Fight.KitOf(c.C), t)
+		_, opts := g.beat(c, t)
 		v := &FightView{ID: e.ID, Beat: e.At, Beats: len(e.Beats), Kind: e.Beats[e.At], Creature: e.Creature.Archetype,
 			Options: opts, Ambush: c.Fight.Ambush, Due: c.Fight.Due}
 		if c.Fight.Ambush {
@@ -68,11 +68,36 @@ func (g *Game) Choose(c *Char) Choices {
 	}
 	out.Materials = g.Materials(c.C.At)
 	out.GatherMin, out.GatherMax = g.r.wp("gather-ticks-min"), g.r.wp("gather-ticks-max")
-	site := g.r.Gen.Baseline(c.C.At).Site
-	out.Rest = site == gen.PlaceSettlement
-	out.Explore = site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Creatures(c.C.At)) > 0
+	out.Rest = g.CanRest(c.C.At)
+	out.Explore = g.CanExplore(c.C.At)
 	return out
+}
+
+// CanRest reports whether a tile is somewhere to rest: a settlement.
+func (g *Game) CanRest(h hex.Hex) bool { return g.r.Gen.Baseline(h).Site == gen.PlaceSettlement }
+
+// CanExplore reports whether a tile has a site to explore and something
+// living there to meet.
+func (g *Game) CanExplore(h hex.Hex) bool {
+	site := g.r.Gen.Baseline(h).Site
+	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Creatures(h)) > 0
 }
 
 // BandName is the odds band an option's band rank names.
 func (g *Game) BandName(rank int64) string { return g.r.Fight.BandName(rank) }
+
+// beat is c's kit and options on its encounter's current beat.
+func (g *Game) beat(c *Char, tick int64) (fight.Kit, []fight.Option) {
+	_, kit, opts := g.r.Fight.Choices(c.Fight.E, c.C, g.r.Fight.KitOf(c.C), tick)
+	return kit, opts
+}
+
+// Option is the option id on c's current beat, if c is in an encounter
+// and the beat offers it.
+func (g *Game) Option(c *Char, id string) (fight.Option, bool) {
+	if c.Fight == nil {
+		return fight.Option{}, false
+	}
+	_, opts := g.beat(c, g.Tick())
+	return fight.OptionByID(opts, id)
+}

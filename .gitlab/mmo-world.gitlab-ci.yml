@@ -42,11 +42,8 @@ mmo-world-lint:
     - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
     - $GOPATH/bin/golangci-lint run ./...
 
-# Unit and property tests, including the planted-violation tests for the
-# lints and the Check run; -race everywhere outside sim/, which has no
-# goroutines to race. The store, service and proof tests make throwaway
-# databases on the job's own Postgres; the nightly replay test needs
-# pg_dump and psql.
+# -race outside sim/, which has no goroutines. Database tests use the job's
+# Postgres; the nightly replay test needs pg_dump and psql.
 mmo-world-test:
   extends: .mmo-world-go
   stage: test

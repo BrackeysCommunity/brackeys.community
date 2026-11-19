@@ -1,13 +1,18 @@
 -- name: GetWorld :one
 SELECT * FROM mmo.world WHERE id = $1;
 
+-- name: WorldTick :one
+SELECT tick FROM mmo.world WHERE id = $1;
+
 -- name: InsertWorld :exec
-INSERT INTO mmo.world (id, key_version, key_check, rules_epoch, tick, sheets_digest, started_at, tick_seconds, sim, digest)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+INSERT INTO mmo.world (id, key_version, key_check, rules_epoch, tick, sheets_digest, started_at, tick_seconds, sim, digest, disposable)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- name: SaveWorld :execrows
-UPDATE mmo.world SET tick = @tick, season = @season, sim = @sim, digest = @digest, updated_at = now()
-WHERE id = @id AND tick = @was;
+-- Every save changes the digest, so a writer whose last save is not the
+-- stored one matches no row.
+UPDATE mmo.world SET tick = @tick, sim = @sim, digest = @digest, updated_at = now()
+WHERE id = @id AND tick = @was AND digest = @was_digest;
 
 -- name: ListRegions :many
 SELECT * FROM mmo.region_state WHERE world_id = $1 ORDER BY region;
@@ -60,8 +65,8 @@ WHERE world_id = @world_id AND id = @id AND version = @was;
 INSERT INTO mmo.fact (world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
--- name: ListFacts :many
-SELECT * FROM mmo.fact WHERE world_id = $1 AND id > $2 AND id <= $3 ORDER BY id;
+-- name: LastFactID :one
+SELECT coalesce(max(id), 0)::bigint FROM mmo.fact WHERE world_id = $1;
 
 -- name: InsertLedgerTxns :copyfrom
 INSERT INTO mmo.ledger_txn (world_id, txn, key, tick, kind, fact_id) VALUES ($1, $2, $3, $4, $5, $6);
@@ -77,8 +82,8 @@ WHERE world_id = $1 GROUP BY account, asset HAVING sum(units) <> 0 ORDER BY acco
 SELECT txn, asset, sum(units)::bigint AS units FROM mmo.ledger_entry
 WHERE world_id = $1 GROUP BY txn, asset HAVING sum(units) <> 0 ORDER BY txn, asset;
 
--- name: CountLedgerTxns :one
-SELECT count(*) FROM mmo.ledger_txn WHERE world_id = $1;
+-- name: LastLedgerTxn :one
+SELECT coalesce(max(txn), 0)::bigint FROM mmo.ledger_txn WHERE world_id = $1;
 
 -- name: InsertAction :exec
 INSERT INTO mmo.action (world_id, seq, interaction_id, after_tick, character_id, kind, command, reply)
@@ -88,7 +93,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 SELECT reply FROM mmo.action WHERE world_id = $1 AND interaction_id = $2;
 
 -- name: ListActionsAfter :many
-SELECT * FROM mmo.action WHERE world_id = $1 AND seq > $2 ORDER BY seq;
+SELECT * FROM mmo.action WHERE world_id = @world_id AND seq > @seq AND after_tick < @upto ORDER BY seq;
 
 -- name: LastActionSeq :one
 SELECT coalesce(max(seq), 0)::bigint FROM mmo.action WHERE world_id = $1;
@@ -110,3 +115,41 @@ SELECT pg_try_advisory_lock(hashtextextended(@world_id::text, 0));
 
 -- name: UnlockWorld :one
 SELECT pg_advisory_unlock(hashtextextended(@world_id::text, 0));
+
+-- A world's rows, children first, then the world row.
+
+-- name: DeleteWorldFacts :exec
+DELETE FROM mmo.fact WHERE world_id = $1;
+
+-- name: DeleteWorldLedgerEntries :exec
+DELETE FROM mmo.ledger_entry WHERE world_id = $1;
+
+-- name: DeleteWorldLedgerTxns :exec
+DELETE FROM mmo.ledger_txn WHERE world_id = $1;
+
+-- name: DeleteWorldActions :exec
+DELETE FROM mmo.action WHERE world_id = $1;
+
+-- name: DeleteWorldTicks :exec
+DELETE FROM mmo.tick WHERE world_id = $1;
+
+-- name: DeleteWorldSnapshots :exec
+DELETE FROM mmo.snapshot WHERE world_id = $1;
+
+-- name: DeleteWorldCharacters :exec
+DELETE FROM mmo.character WHERE world_id = $1;
+
+-- name: DeleteWorldTiles :exec
+DELETE FROM mmo.tile WHERE world_id = $1;
+
+-- name: DeleteWorldNotables :exec
+DELETE FROM mmo.notable WHERE world_id = $1;
+
+-- name: DeleteWorldFactions :exec
+DELETE FROM mmo.faction WHERE world_id = $1;
+
+-- name: DeleteWorldRegions :exec
+DELETE FROM mmo.region_state WHERE world_id = $1;
+
+-- name: DeleteWorld :exec
+DELETE FROM mmo.world WHERE id = $1;

@@ -43,17 +43,6 @@ func (q *Queries) CharacterByDiscord(ctx context.Context, arg CharacterByDiscord
 	return id, err
 }
 
-const countLedgerTxns = `-- name: CountLedgerTxns :one
-SELECT count(*) FROM mmo.ledger_txn WHERE world_id = $1
-`
-
-func (q *Queries) CountLedgerTxns(ctx context.Context, worldID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countLedgerTxns, worldID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const deleteNotable = `-- name: DeleteNotable :exec
 DELETE FROM mmo.notable WHERE world_id = $1 AND faction = $2 AND idx = $3
 `
@@ -81,6 +70,116 @@ type DeleteTileParams struct {
 
 func (q *Queries) DeleteTile(ctx context.Context, arg DeleteTileParams) error {
 	_, err := q.db.Exec(ctx, deleteTile, arg.WorldID, arg.Q, arg.R)
+	return err
+}
+
+const deleteWorld = `-- name: DeleteWorld :exec
+DELETE FROM mmo.world WHERE id = $1
+`
+
+func (q *Queries) DeleteWorld(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteWorld, id)
+	return err
+}
+
+const deleteWorldActions = `-- name: DeleteWorldActions :exec
+DELETE FROM mmo.action WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldActions(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldActions, worldID)
+	return err
+}
+
+const deleteWorldCharacters = `-- name: DeleteWorldCharacters :exec
+DELETE FROM mmo.character WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldCharacters(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldCharacters, worldID)
+	return err
+}
+
+const deleteWorldFactions = `-- name: DeleteWorldFactions :exec
+DELETE FROM mmo.faction WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldFactions(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldFactions, worldID)
+	return err
+}
+
+const deleteWorldFacts = `-- name: DeleteWorldFacts :exec
+
+DELETE FROM mmo.fact WHERE world_id = $1
+`
+
+// A world's rows, children first, then the world row.
+func (q *Queries) DeleteWorldFacts(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldFacts, worldID)
+	return err
+}
+
+const deleteWorldLedgerEntries = `-- name: DeleteWorldLedgerEntries :exec
+DELETE FROM mmo.ledger_entry WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldLedgerEntries(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldLedgerEntries, worldID)
+	return err
+}
+
+const deleteWorldLedgerTxns = `-- name: DeleteWorldLedgerTxns :exec
+DELETE FROM mmo.ledger_txn WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldLedgerTxns(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldLedgerTxns, worldID)
+	return err
+}
+
+const deleteWorldNotables = `-- name: DeleteWorldNotables :exec
+DELETE FROM mmo.notable WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldNotables(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldNotables, worldID)
+	return err
+}
+
+const deleteWorldRegions = `-- name: DeleteWorldRegions :exec
+DELETE FROM mmo.region_state WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldRegions(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldRegions, worldID)
+	return err
+}
+
+const deleteWorldSnapshots = `-- name: DeleteWorldSnapshots :exec
+DELETE FROM mmo.snapshot WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldSnapshots(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldSnapshots, worldID)
+	return err
+}
+
+const deleteWorldTicks = `-- name: DeleteWorldTicks :exec
+DELETE FROM mmo.tick WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldTicks(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldTicks, worldID)
+	return err
+}
+
+const deleteWorldTiles = `-- name: DeleteWorldTiles :exec
+DELETE FROM mmo.tile WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldTiles(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldTiles, worldID)
 	return err
 }
 
@@ -247,8 +346,8 @@ func (q *Queries) InsertTick(ctx context.Context, arg InsertTickParams) error {
 }
 
 const insertWorld = `-- name: InsertWorld :exec
-INSERT INTO mmo.world (id, key_version, key_check, rules_epoch, tick, sheets_digest, started_at, tick_seconds, sim, digest)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO mmo.world (id, key_version, key_check, rules_epoch, tick, sheets_digest, started_at, tick_seconds, sim, digest, disposable)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertWorldParams struct {
@@ -262,6 +361,7 @@ type InsertWorldParams struct {
 	TickSeconds  int32
 	Sim          []byte
 	Digest       string
+	Disposable   bool
 }
 
 func (q *Queries) InsertWorld(ctx context.Context, arg InsertWorldParams) error {
@@ -276,6 +376,7 @@ func (q *Queries) InsertWorld(ctx context.Context, arg InsertWorldParams) error 
 		arg.TickSeconds,
 		arg.Sim,
 		arg.Digest,
+		arg.Disposable,
 	)
 	return err
 }
@@ -286,6 +387,28 @@ SELECT coalesce(max(seq), 0)::bigint FROM mmo.action WHERE world_id = $1
 
 func (q *Queries) LastActionSeq(ctx context.Context, worldID string) (int64, error) {
 	row := q.db.QueryRow(ctx, lastActionSeq, worldID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const lastFactID = `-- name: LastFactID :one
+SELECT coalesce(max(id), 0)::bigint FROM mmo.fact WHERE world_id = $1
+`
+
+func (q *Queries) LastFactID(ctx context.Context, worldID string) (int64, error) {
+	row := q.db.QueryRow(ctx, lastFactID, worldID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const lastLedgerTxn = `-- name: LastLedgerTxn :one
+SELECT coalesce(max(txn), 0)::bigint FROM mmo.ledger_txn WHERE world_id = $1
+`
+
+func (q *Queries) LastLedgerTxn(ctx context.Context, worldID string) (int64, error) {
+	row := q.db.QueryRow(ctx, lastLedgerTxn, worldID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -323,16 +446,17 @@ func (q *Queries) LedgerBalances(ctx context.Context, worldID string) ([]LedgerB
 }
 
 const listActionsAfter = `-- name: ListActionsAfter :many
-SELECT world_id, seq, interaction_id, after_tick, character_id, kind, command, reply, at FROM mmo.action WHERE world_id = $1 AND seq > $2 ORDER BY seq
+SELECT world_id, seq, interaction_id, after_tick, character_id, kind, command, reply, at FROM mmo.action WHERE world_id = $1 AND seq > $2 AND after_tick < $3 ORDER BY seq
 `
 
 type ListActionsAfterParams struct {
 	WorldID string
 	Seq     int64
+	Upto    int64
 }
 
 func (q *Queries) ListActionsAfter(ctx context.Context, arg ListActionsAfterParams) ([]MmoAction, error) {
-	rows, err := q.db.Query(ctx, listActionsAfter, arg.WorldID, arg.Seq)
+	rows, err := q.db.Query(ctx, listActionsAfter, arg.WorldID, arg.Seq, arg.Upto)
 	if err != nil {
 		return nil, err
 	}
@@ -408,48 +532,6 @@ func (q *Queries) ListFactions(ctx context.Context, worldID string) ([]MmoFactio
 	for rows.Next() {
 		var i MmoFaction
 		if err := rows.Scan(&i.WorldID, &i.Idx, &i.Body); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFacts = `-- name: ListFacts :many
-SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id > $2 AND id <= $3 ORDER BY id
-`
-
-type ListFactsParams struct {
-	WorldID string
-	ID      int64
-	ID_2    int64
-}
-
-func (q *Queries) ListFacts(ctx context.Context, arg ListFactsParams) ([]MmoFact, error) {
-	rows, err := q.db.Query(ctx, listFacts, arg.WorldID, arg.ID, arg.ID_2)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []MmoFact
-	for rows.Next() {
-		var i MmoFact
-		if err := rows.Scan(
-			&i.WorldID,
-			&i.ID,
-			&i.Tick,
-			&i.Kind,
-			&i.Region,
-			&i.Weight,
-			&i.Subjects,
-			&i.Data,
-			&i.Causes,
-			&i.StagedBy,
-			&i.At,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -621,27 +703,29 @@ func (q *Queries) SaveCharacter(ctx context.Context, arg SaveCharacterParams) (i
 }
 
 const saveWorld = `-- name: SaveWorld :execrows
-UPDATE mmo.world SET tick = $1, season = $2, sim = $3, digest = $4, updated_at = now()
-WHERE id = $5 AND tick = $6
+UPDATE mmo.world SET tick = $1, sim = $2, digest = $3, updated_at = now()
+WHERE id = $4 AND tick = $5 AND digest = $6
 `
 
 type SaveWorldParams struct {
-	Tick   int64
-	Season int32
-	Sim    []byte
-	Digest string
-	ID     string
-	Was    int64
+	Tick      int64
+	Sim       []byte
+	Digest    string
+	ID        string
+	Was       int64
+	WasDigest string
 }
 
+// Every save changes the digest, so a writer whose last save is not the
+// stored one matches no row.
 func (q *Queries) SaveWorld(ctx context.Context, arg SaveWorldParams) (int64, error) {
 	result, err := q.db.Exec(ctx, saveWorld,
 		arg.Tick,
-		arg.Season,
 		arg.Sim,
 		arg.Digest,
 		arg.ID,
 		arg.Was,
+		arg.WasDigest,
 	)
 	if err != nil {
 		return 0, err
@@ -811,4 +895,15 @@ func (q *Queries) UpsertTile(ctx context.Context, arg UpsertTileParams) error {
 		arg.Body,
 	)
 	return err
+}
+
+const worldTick = `-- name: WorldTick :one
+SELECT tick FROM mmo.world WHERE id = $1
+`
+
+func (q *Queries) WorldTick(ctx context.Context, id string) (int64, error) {
+	row := q.db.QueryRow(ctx, worldTick, id)
+	var tick int64
+	err := row.Scan(&tick)
+	return tick, err
 }

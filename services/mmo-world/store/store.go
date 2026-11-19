@@ -2,7 +2,9 @@
 // world row, and a row per region, faction, notable, stored tile and
 // character, each the sim's own JSON. A tile is stored only while it
 // differs from its baseline. Every save is one transaction, and writes
-// only the rows whose bodies changed since the last one.
+// only the rows whose bodies changed since the last one. After a failed
+// save the caller reloads the game: the store's record of what it wrote
+// may name writes that rolled back.
 package store
 
 import (
@@ -21,6 +23,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tile"
@@ -28,8 +31,8 @@ import (
 	"jams.team/mmo-world/store/db"
 )
 
-// ErrConflict is a save whose world tick or character version moved
-// under it: another writer got there first.
+// ErrConflict is a save whose world row or character version moved under
+// it: another writer got there first.
 var ErrConflict = errors.New("store: the row changed under this write")
 
 // Meta is a world row's fixed part.
@@ -46,7 +49,7 @@ type Meta struct {
 
 // DueTick is the tick that falls due at now.
 func (m Meta) DueTick(now time.Time) int64 {
-	if now.Before(m.StartedAt) {
+	if now.Before(m.StartedAt) || m.TickSeconds <= 0 {
 		return 0
 	}
 	return int64(now.Sub(m.StartedAt) / (time.Duration(m.TickSeconds) * time.Second))
@@ -54,19 +57,27 @@ func (m Meta) DueTick(now time.Time) int64 {
 
 // Store is one world's rows and what was last written for each.
 type Store struct {
-	Pool  *pgxpool.Pool
-	Q     *db.Queries
-	World string
-	saved map[string][sha256.Size]byte
-	seq   map[hex.Hex]int64
-	next  int64 // the next tile seq
-	vers  map[string]int64
-	tick  int64 // the world row's tick as stored
-	acts  int64 // the last action seq stored
+	World  string
+	pool   *pgxpool.Pool
+	q      *db.Queries
+	saved  map[string][sha256.Size]byte
+	seq    map[hex.Hex]int64
+	next   int64 // the next tile seq
+	vers   map[string]int64
+	tick   int64  // the world row's tick as stored
+	digest string // the world row's digest as stored
+	acts   int64  // the last action seq stored
 }
 
+// New is the store of one world in pool.
 func New(pool *pgxpool.Pool, worldID string) *Store {
-	return &Store{Pool: pool, Q: db.New(pool), World: worldID}
+	return &Store{pool: pool, q: db.New(pool), World: worldID}
+}
+
+// resetCache forgets what was written, before a load or a new world.
+func (s *Store) resetCache() {
+	s.saved, s.seq, s.vers = map[string][sha256.Size]byte{}, map[hex.Hex]int64{}, map[string]int64{}
+	s.next, s.tick, s.digest, s.acts = 0, 0, "", 0
 }
 
 // sim is the world row's sim column: everything of the game not in the
@@ -93,7 +104,23 @@ func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Val
 
 // Create writes a new world and its first snapshot.
 func (s *Store) Create(ctx context.Context, m Meta, g *game.Game) error {
+	return s.create(ctx, m, g, false)
+}
+
+// Recreate wipes a disposable world and writes it anew, in one
+// transaction: a failure leaves the old world as it was.
+func (s *Store) Recreate(ctx context.Context, m Meta, g *game.Game) error {
+	return s.create(ctx, m, g, true)
+}
+
+func (s *Store) create(ctx context.Context, m Meta, g *game.Game, wipe bool) error {
+	s.resetCache()
 	return s.tx(ctx, func(q *db.Queries) error {
+		if wipe {
+			if err := s.wipe(ctx, q); err != nil {
+				return err
+			}
+		}
 		body, err := simOf(g)
 		if err != nil {
 			return err
@@ -103,10 +130,10 @@ func (s *Store) Create(ctx context.Context, m Meta, g *game.Game) error {
 			return err
 		}
 		if err := q.InsertWorld(ctx, db.InsertWorldParams{ID: m.ID, KeyVersion: m.KeyVersion, KeyCheck: m.KeyCheck, RulesEpoch: m.RulesEpoch, Tick: g.Tick(),
-			SheetsDigest: m.SheetsDigest, StartedAt: ts(m.StartedAt), TickSeconds: m.TickSeconds, Sim: body, Digest: d.String()}); err != nil {
+			SheetsDigest: m.SheetsDigest, StartedAt: ts(m.StartedAt), TickSeconds: m.TickSeconds, Sim: body, Digest: d.String(), Disposable: m.Disposable}); err != nil {
 			return err
 		}
-		s.tick = g.Tick()
+		s.tick, s.digest = g.Tick(), d.String()
 		if err := s.rows(ctx, q, g); err != nil {
 			return err
 		}
@@ -115,23 +142,70 @@ func (s *Store) Create(ctx context.Context, m Meta, g *game.Game) error {
 }
 
 func (s *Store) tx(ctx context.Context, f func(q *db.Queries) error) error {
-	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error { return f(s.Q.WithTx(tx)) })
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error { return f(s.q.WithTx(tx)) })
 }
 
 // Meta reads a world's fixed part, or pgx.ErrNoRows.
-func (s *Store) Meta(ctx context.Context) (Meta, db.MmoWorld, error) {
-	w, err := s.Q.GetWorld(ctx, s.World)
+func (s *Store) Meta(ctx context.Context) (Meta, error) {
+	return metaOf(ctx, s.q, s.World)
+}
+
+// MetaFor reads a world's fixed part and checks it against the keys, rules
+// epoch and sheets a process runs with. ErrOtherSheets comes with the Meta.
+func (s *Store) MetaFor(ctx context.Context, k keys.Set, keyVersion, rulesEpoch int32, book *sheets.Book) (Meta, error) {
+	m, err := s.Meta(ctx)
 	if err != nil {
-		return Meta{}, w, err
+		return m, err
+	}
+	digest, err := book.Digest()
+	if err != nil {
+		return m, err
+	}
+	return m, m.Matches(k, keyVersion, rulesEpoch, digest)
+}
+
+// Tick is the world's tick as stored.
+func (s *Store) Tick(ctx context.Context) (int64, error) {
+	return s.q.WorldTick(ctx, s.World)
+}
+
+// ErrOtherKeys and ErrOtherSheets are a stored world that is not this
+// process's: founded under other keys or another roll epoch, or run on
+// other sheets.
+var (
+	ErrOtherKeys   = errors.New("store: the world was founded under other keys")
+	ErrOtherSheets = errors.New("store: the world runs on other sheets")
+)
+
+// Matches checks a stored world against the keys, rules epoch and sheets a
+// process runs with. The key check names the generation key only, so the
+// epoch, which the roll key is derived under, is checked on its own.
+func (m Meta) Matches(k keys.Set, keyVersion, rulesEpoch int32, sheetsDigest string) error {
+	if m.KeyCheck != k.Check() || m.KeyVersion != keyVersion {
+		return fmt.Errorf("%w: world %s, key version %d", ErrOtherKeys, m.ID, m.KeyVersion)
+	}
+	if m.RulesEpoch != rulesEpoch {
+		return fmt.Errorf("%w: world %s runs roll epoch %d, this process %d", ErrOtherKeys, m.ID, m.RulesEpoch, rulesEpoch)
+	}
+	if m.SheetsDigest != sheetsDigest {
+		return fmt.Errorf("%w: world %s runs on %s, these are %s", ErrOtherSheets, m.ID, m.SheetsDigest, sheetsDigest)
+	}
+	return nil
+}
+
+func metaOf(ctx context.Context, q *db.Queries, id string) (Meta, error) {
+	w, err := q.GetWorld(ctx, id)
+	if err != nil {
+		return Meta{}, err
 	}
 	return Meta{ID: w.ID, KeyVersion: w.KeyVersion, KeyCheck: w.KeyCheck, RulesEpoch: w.RulesEpoch, SheetsDigest: w.SheetsDigest,
-		StartedAt: w.StartedAt.Time, TickSeconds: w.TickSeconds, Disposable: w.Disposable}, w, nil
+		StartedAt: w.StartedAt.Time, TickSeconds: w.TickSeconds, Disposable: w.Disposable}, nil
 }
 
 // Load reads a game back and binds it to its rules. Its digest is checked
 // against the one stored with it.
 func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
-	_, w, err := s.Meta(ctx)
+	w, err := s.q.GetWorld(ctx, s.World)
 	if err != nil {
 		return nil, err
 	}
@@ -143,36 +217,86 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 	if err := json.Unmarshal(sm.World, g.World); err != nil {
 		return nil, err
 	}
-	s.saved, s.seq, s.vers = map[string][sha256.Size]byte{}, map[hex.Hex]int64{}, map[string]int64{}
+	s.resetCache()
 	if err := s.loadRows(ctx, g); err != nil {
 		return nil, err
 	}
-	bal, err := s.Q.LedgerBalances(ctx, s.World)
+	bs, err := balances(ctx, s.q, s.World)
 	if err != nil {
 		return nil, err
-	}
-	var bs []ledger.Balance
-	for _, b := range bal {
-		bs = append(bs, ledger.Balance{Account: b.Account, Asset: b.Asset, Units: b.Units})
 	}
 	g.Ledger = ledger.Rebuild(bs, sm.Posted)
-	g.Attach(r)
-	d, err := g.Digest()
-	if err != nil {
+	if err := attachChecked(g, r, w.Digest, "world "+s.World); err != nil {
 		return nil, err
 	}
-	if d.String() != w.Digest {
-		return nil, fmt.Errorf("store: world %s loads to digest %s, stored %s", s.World, d, w.Digest)
+	if err := s.checkLog(ctx, g); err != nil {
+		return nil, err
 	}
-	s.tick = g.Tick()
-	if s.acts, err = s.Q.LastActionSeq(ctx, s.World); err != nil {
+	s.tick, s.digest = g.Tick(), w.Digest
+	if s.acts, err = s.q.LastActionSeq(ctx, s.World); err != nil {
 		return nil, err
 	}
 	return g, nil
 }
 
+// attachChecked binds a decoded game to its rules and checks it against
+// the digest stored with it.
+func attachChecked(g *game.Game, r *game.Rules, want, what string) error {
+	g.Attach(r)
+	d, err := g.Digest()
+	if err != nil {
+		return err
+	}
+	if d.String() != want {
+		return fmt.Errorf("store: %s loads to digest %s, stored %s", what, d, want)
+	}
+	return nil
+}
+
+// checkLog holds when the world row's fact chain and ledger count end
+// where the stored facts and transactions do.
+func (s *Store) checkLog(ctx context.Context, g *game.Game) error {
+	facts, err := s.q.LastFactID(ctx, s.World)
+	if err != nil {
+		return err
+	}
+	txns, err := s.q.LastLedgerTxn(ctx, s.World)
+	if err != nil {
+		return err
+	}
+	if facts != int64(g.Log.Count) || txns != g.Ledger.Posted {
+		return fmt.Errorf("store: world %s counts %d facts and %d ledger transactions, stored %d and %d",
+			s.World, g.Log.Count, g.Ledger.Posted, facts, txns)
+	}
+	return nil
+}
+
+func balances(ctx context.Context, q *db.Queries, worldID string) ([]ledger.Balance, error) {
+	rows, err := q.LedgerBalances(ctx, worldID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ledger.Balance, len(rows))
+	for i, b := range rows {
+		out[i] = ledger.Balance{Account: b.Account, Asset: b.Asset, Units: b.Units}
+	}
+	return out, nil
+}
+
+func decodeChars(rows []db.MmoCharacter) ([]*game.Char, error) {
+	out := make([]*game.Char, len(rows))
+	for i, x := range rows {
+		var c game.Char
+		if err := json.Unmarshal(x.Body, &c); err != nil {
+			return nil, err
+		}
+		out[i] = &c
+	}
+	return out, nil
+}
+
 func (s *Store) loadRows(ctx context.Context, g *game.Game) error {
-	regions, err := s.Q.ListRegions(ctx, s.World)
+	regions, err := s.q.ListRegions(ctx, s.World)
 	if err != nil {
 		return err
 	}
@@ -184,7 +308,7 @@ func (s *Store) loadRows(ctx context.Context, g *game.Game) error {
 		g.World.Regions = append(g.World.Regions, r)
 		s.mark(regionKey(int(x.Region)), x.Body)
 	}
-	factions, err := s.Q.ListFactions(ctx, s.World)
+	factions, err := s.q.ListFactions(ctx, s.World)
 	if err != nil {
 		return err
 	}
@@ -197,7 +321,7 @@ func (s *Store) loadRows(ctx context.Context, g *game.Game) error {
 		g.World.Factions = append(g.World.Factions, f)
 		s.mark(factionKey(int(x.Idx)), x.Body)
 	}
-	notables, err := s.Q.ListNotables(ctx, s.World)
+	notables, err := s.q.ListNotables(ctx, s.World)
 	if err != nil {
 		return err
 	}
@@ -210,7 +334,7 @@ func (s *Store) loadRows(ctx context.Context, g *game.Game) error {
 		f.Notables = append(f.Notables, n)
 		s.mark(notableKey(int(x.Faction), int(x.Idx)), x.Body)
 	}
-	tiles, err := s.Q.ListTiles(ctx, s.World)
+	tiles, err := s.q.ListTiles(ctx, s.World)
 	if err != nil {
 		return err
 	}
@@ -225,17 +349,14 @@ func (s *Store) loadRows(ctx context.Context, g *game.Game) error {
 		s.next = max(s.next, x.Seq+1)
 		s.mark(tileKey(h), x.Body)
 	}
-	chars, err := s.Q.ListCharacters(ctx, s.World)
+	rows, err := s.q.ListCharacters(ctx, s.World)
 	if err != nil {
 		return err
 	}
-	g.Chars = []*game.Char{}
-	for _, x := range chars {
-		var c game.Char
-		if err := json.Unmarshal(x.Body, &c); err != nil {
-			return err
-		}
-		g.Chars = append(g.Chars, &c)
+	if g.Chars, err = decodeChars(rows); err != nil {
+		return err
+	}
+	for _, x := range rows {
 		s.vers[x.ID] = x.Version
 		s.mark(charKey(x.ID), x.Body)
 	}
@@ -246,9 +367,7 @@ func regionKey(i int) string     { return "r/" + strconv.Itoa(i) }
 func factionKey(i int) string    { return "f/" + strconv.Itoa(i) }
 func notableKey(f, i int) string { return "n/" + strconv.Itoa(f) + "/" + strconv.Itoa(i) }
 func charKey(id string) string   { return "c/" + id }
-func tileKey(h hex.Hex) string {
-	return "t/" + strconv.FormatInt(h.Q, 10) + "," + strconv.FormatInt(h.R, 10)
-}
+func tileKey(h hex.Hex) string   { return "t/" + h.Ref() }
 
 // mark records what a row's body was when last written or read; changed
 // says whether body differs from it.
@@ -263,7 +382,7 @@ func (s *Store) changed(key string, body []byte) bool {
 // body changed, and deletes tiles back at their baseline.
 func (s *Store) rows(ctx context.Context, q *db.Queries, g *game.Game) error {
 	if s.saved == nil {
-		s.saved, s.seq, s.vers = map[string][sha256.Size]byte{}, map[hex.Hex]int64{}, map[string]int64{}
+		s.resetCache()
 	}
 	for i, r := range g.World.Regions {
 		body, err := json.Marshal(r)
@@ -407,8 +526,7 @@ func (s *Store) char(ctx context.Context, q *db.Queries, c *game.Char, discord s
 	return nil
 }
 
-// world writes the world row, checking it was still at the tick last
-// written.
+// world writes the world row, checking it was still as last written.
 func (s *Store) world(ctx context.Context, q *db.Queries, g *game.Game) (string, error) {
 	body, err := simOf(g)
 	if err != nil {
@@ -418,7 +536,7 @@ func (s *Store) world(ctx context.Context, q *db.Queries, g *game.Game) (string,
 	if err != nil {
 		return "", err
 	}
-	n, err := q.SaveWorld(ctx, db.SaveWorldParams{ID: s.World, Tick: g.Tick(), Season: 0, Sim: body, Digest: d.String(), Was: s.tick})
+	n, err := q.SaveWorld(ctx, db.SaveWorldParams{ID: s.World, Tick: g.Tick(), Sim: body, Digest: d.String(), Was: s.tick, WasDigest: s.digest})
 	if err != nil {
 		return "", err
 	}
@@ -433,12 +551,13 @@ func (s *Store) appendLog(ctx context.Context, q *db.Queries, facts []fact.Fact,
 	if len(facts) > 0 {
 		rows := make([]db.InsertFactsParams, len(facts))
 		for i, f := range facts {
-			subj, _ := json.Marshal(f.Subjects)
-			data, _ := json.Marshal(f.Data)
-			causes, _ := json.Marshal(f.Causes)
-			var staged []byte
+			var subj, data, causes, staged []byte
+			err := errors.Join(marshal(&subj, f.Subjects), marshal(&data, f.Data), marshal(&causes, f.Causes))
 			if f.StagedBy != nil {
-				staged, _ = json.Marshal(f.StagedBy)
+				err = errors.Join(err, marshal(&staged, f.StagedBy))
+			}
+			if err != nil {
+				return err
 			}
 			rows[i] = db.InsertFactsParams{WorldID: s.World, ID: int64(f.ID), Tick: f.Tick, Kind: f.Kind, Region: pgtype.Text{String: f.Region, Valid: f.Region != ""},
 				Weight: int32(f.Weight), Subjects: subj, Data: data, Causes: causes, StagedBy: staged, At: ts(now)}
@@ -467,14 +586,17 @@ func (s *Store) appendLog(ctx context.Context, q *db.Queries, facts []fact.Fact,
 	return err
 }
 
+func marshal(dst *[]byte, v any) error {
+	b, err := json.Marshal(v)
+	*dst = b
+	return err
+}
+
 // TickSaved is what a tick's save records.
 type TickSaved struct {
 	Digest string
 	Facts  int
 }
-
-// A failed save leaves the store's record of what it wrote behind the
-// database's; the caller reloads the game before going on.
 
 // SaveTick writes one tick in one transaction: the changed rows, the
 // world row, the tick's facts and ledger, its digest, and at a world
@@ -482,12 +604,13 @@ type TickSaved struct {
 func (s *Store) SaveTick(ctx context.Context, g *game.Game, ms int64, now time.Time) (TickSaved, error) {
 	facts, txns := g.Flush()
 	var out TickSaved
+	var d string
 	err := s.tx(ctx, func(q *db.Queries) error {
+		var err error
 		if err := s.rows(ctx, q, g); err != nil {
 			return err
 		}
-		d, err := s.world(ctx, q, g)
-		if err != nil {
+		if d, err = s.world(ctx, q, g); err != nil {
 			return err
 		}
 		if err := s.appendLog(ctx, q, facts, txns, g.Ledger.Posted, now); err != nil {
@@ -505,7 +628,7 @@ func (s *Store) SaveTick(ctx context.Context, g *game.Game, ms int64, now time.T
 		return nil
 	})
 	if err == nil {
-		s.tick = g.Tick()
+		s.tick, s.digest = g.Tick(), d
 	}
 	return out, err
 }
@@ -529,6 +652,7 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 		return err
 	}
 	seq := s.acts + 1
+	var d string
 	err = s.tx(ctx, func(q *db.Queries) error {
 		if err := q.InsertAction(ctx, db.InsertActionParams{WorldID: s.World, Seq: seq, InteractionID: cmd.Key, AfterTick: g.Tick(),
 			CharacterID: c.C.ID, Kind: cmd.Kind, Command: cmdJSON, Reply: reply}); err != nil {
@@ -537,7 +661,8 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 		if err := s.char(ctx, q, c, discord); err != nil {
 			return err
 		}
-		if _, err := s.world(ctx, q, g); err != nil {
+		var err error
+		if d, err = s.world(ctx, q, g); err != nil {
 			return err
 		}
 		return s.appendLog(ctx, q, facts, txns, g.Ledger.Posted, now)
@@ -545,13 +670,13 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 	if err != nil {
 		return err
 	}
-	s.acts = seq
+	s.acts, s.digest = seq, d
 	return nil
 }
 
 // Reply is the stored reply to an interaction already applied, or nil.
 func (s *Store) Reply(ctx context.Context, interaction string) ([]byte, error) {
-	r, err := s.Q.ActionReply(ctx, db.ActionReplyParams{WorldID: s.World, InteractionID: interaction})
+	r, err := s.q.ActionReply(ctx, db.ActionReplyParams{WorldID: s.World, InteractionID: interaction})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -560,7 +685,7 @@ func (s *Store) Reply(ctx context.Context, interaction string) ([]byte, error) {
 
 // CharacterOf is the character a Discord user plays, or "".
 func (s *Store) CharacterOf(ctx context.Context, discord string) (string, error) {
-	id, err := s.Q.CharacterByDiscord(ctx, db.CharacterByDiscordParams{WorldID: s.World, DiscordID: discord})
+	id, err := s.q.CharacterByDiscord(ctx, db.CharacterByDiscordParams{WorldID: s.World, DiscordID: discord})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}

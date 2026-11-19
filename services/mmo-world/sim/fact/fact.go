@@ -97,19 +97,28 @@ func Normalize(f *Fact) error {
 	return nil
 }
 
+// prepare normalizes a fact about to take id next and checks that every
+// cause is already in the log.
+func prepare(f *Fact, next ID) error {
+	if err := Normalize(f); err != nil {
+		return err
+	}
+	for _, c := range f.Causes {
+		if c < 1 || c >= next {
+			return fmt.Errorf("fact %s: cause %d is not in the log", f.Kind, c)
+		}
+	}
+	f.ID = next
+	return nil
+}
+
 // Mem is an in-memory Log.
 type Mem struct{ facts []Fact }
 
 func (m *Mem) Append(f Fact) (ID, error) {
-	if err := Normalize(&f); err != nil {
+	if err := prepare(&f, ID(len(m.facts)+1)); err != nil {
 		return 0, err
 	}
-	for _, c := range f.Causes {
-		if c < 1 || int(c) > len(m.facts) {
-			return 0, fmt.Errorf("fact %s: cause %d is not in the log", f.Kind, c)
-		}
-	}
-	f.ID = ID(len(m.facts) + 1)
 	m.facts = append(m.facts, f)
 	return f.ID, nil
 }

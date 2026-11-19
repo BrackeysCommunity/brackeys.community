@@ -3,58 +3,81 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
 )
 
-// Local is a game played in this process through the API's types, with
-// no store: the harness's simulated players use it, so a policy sees the
-// same options and replies over HTTP or here. Replies and Discord users
-// are remembered in memory.
+// Local is a game played in process through the API's types, with no
+// store: a policy sees the same options, replies and refusals as over
+// HTTP. A failure that is not a refusal breaks it for good.
 type Local struct {
-	G       *game.Game
-	replies map[string]api.ActionReply
-	players map[string]string
+	G      *game.Game
+	mem    memory
+	broken error
 }
 
+// NewLocal plays g in process.
 func NewLocal(g *game.Game) *Local {
-	return &Local{G: g, replies: map[string]api.ActionReply{}, players: map[string]string{}}
+	return &Local{G: g, mem: memory{replies: map[string][]byte{}, players: map[string]string{}}}
 }
 
-func (l *Local) Act(_ context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
-	if out, ok := l.replies[req.InteractionID]; ok {
-		out.Duplicate = true
-		return out, nil, nil
+func (l *Local) check() error {
+	if l.broken != nil {
+		return fmt.Errorf("service: the local game broke: %w", l.broken)
 	}
-	if req.Kind == api.ActCreate {
-		if id, ok := l.players[req.DiscordID]; ok || req.DiscordID == "" {
-			return api.ActionReply{}, &api.Refusal{Code: api.CodeSecondPC, Message: "this user already plays " + id}, nil
-		}
+	return nil
+}
+
+func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+	if err := l.check(); err != nil {
+		return api.ActionReply{}, nil, err
 	}
-	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
-		Ticks: req.Ticks, Option: req.Option}
-	if req.To != nil {
-		h := simHex(*req.To)
-		cmd.To = &h
+	cmd, ref, _ := playerCommand(req)
+	if ref != nil {
+		return api.ActionReply{}, ref, nil
 	}
-	res, ref, _, err := act(l.G, cmd, req.Version, !game.Operator(req.Kind))
-	if ref != nil || err != nil {
-		return api.ActionReply{}, ref, err
+	out, err := applyCommand(ctx, l.G, l.mem, cmd, req.DiscordID, req.Version, true, time.Time{})
+	if err != nil {
+		l.broken = err
+		return api.ActionReply{}, nil, err
 	}
-	l.G.Flush()
-	out := actionReply(l.G, res)
-	l.replies[req.InteractionID] = out
-	if req.Kind == api.ActCreate {
-		l.players[req.DiscordID] = res.Char.C.ID
+	if out.ref != nil {
+		return api.ActionReply{}, out.ref, nil
 	}
-	return out, nil, nil
+	rep, err := decodeReply(out.body, out.dup)
+	return rep, nil, err
 }
 
 func (l *Local) Options(_ context.Context, id string) (api.Options, error) {
+	if err := l.check(); err != nil {
+		return api.Options{}, err
+	}
 	c := l.G.Char(id)
 	if c == nil {
 		return api.Options{}, fmt.Errorf("no character %s", id)
 	}
 	return apiOptions(l.G, c), nil
+}
+
+// memory is a Local's records.
+type memory struct {
+	replies map[string][]byte
+	players map[string]string
+}
+
+func (m memory) Reply(_ context.Context, key string) ([]byte, error) { return m.replies[key], nil }
+
+func (m memory) CharacterOf(_ context.Context, discord string) (string, error) {
+	return m.players[discord], nil
+}
+
+func (m memory) SaveAction(_ context.Context, g *game.Game, cmd game.Command, c *game.Char, discord string, reply []byte, _ time.Time) error {
+	g.Flush()
+	m.replies[cmd.Key] = reply
+	if cmd.Kind == game.Create {
+		m.players[discord] = c.C.ID
+	}
+	return nil
 }

@@ -19,7 +19,6 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
-	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
@@ -44,14 +43,12 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := item.NewDeriver(b, k.Quirk)
-	gr := item.NewGrowth(b, d, k.Roll)
-	f, err := fight.New(b, d, gr, puzzle.New(b, k.Generation), k)
+	s, err := fight.Wire(b, k)
 	if err != nil {
 		return nil, err
 	}
-	return &Rules{Book: b, Gen: g, Fight: f, Mounts: item.NewMounts(b, gr), Growth: gr, draw: draw.NewDrawer(k.Roll),
-		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(gr.Params())}, nil
+	return &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, draw: draw.NewDrawer(k.Roll),
+		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params())}, nil
 }
 
 func (r *Rules) wp(id string) int64 { return sheets.IntParam(r.Book.WorldParams, id) }
@@ -72,8 +69,8 @@ type Char struct {
 }
 
 // Fight is an encounter and the measures it was assembled under. An
-// ambush waits for its owner through Due, the tick the journey would have
-// ended, and at the next tick resolves with its default option (GDD 6).
+// ambush waits for its owner through Due (the journey's expected end, at
+// the earliest now) and then resolves with its default option (GDD 6).
 type Fight struct {
 	E        *fight.Encounter `json:"e"`
 	Measures []tags.Measure   `json:"measures"`
@@ -121,7 +118,7 @@ func (g *Game) Tick() int64   { return g.World.Tick }
 
 // Char finds a character, or nil.
 func (g *Game) Char(id string) *Char {
-	i, ok := slices.BinarySearchFunc(g.Chars, id, func(c *Char, id string) int { return cmp.Compare(c.C.ID, id) })
+	i, ok := slices.BinarySearchFunc(g.Chars, id, byID)
 	if !ok {
 		return nil
 	}
@@ -129,9 +126,11 @@ func (g *Game) Char(id string) *Char {
 }
 
 func (g *Game) insert(c *Char) {
-	i, _ := slices.BinarySearchFunc(g.Chars, c.C.ID, func(c *Char, id string) int { return cmp.Compare(c.C.ID, id) })
+	i, _ := slices.BinarySearchFunc(g.Chars, c.C.ID, byID)
 	g.Chars = slices.Insert(g.Chars, i, c)
 }
+
+func byID(c *Char, id string) int { return cmp.Compare(c.C.ID, id) }
 
 // Digest is the game's identity: its state, the ledger and the chain over
 // every fact, as replays compare it.
@@ -143,9 +142,12 @@ func (g *Game) Flush() ([]fact.Fact, []ledger.Txn) { return g.Log.Flush(), g.Led
 
 // Holdings is what the state says each character holds, as ledger
 // balances, for the conservation check.
-func (g *Game) Holdings() []ledger.Balance {
+func (g *Game) Holdings() []ledger.Balance { return HoldingsOf(g.Chars) }
+
+// HoldingsOf is what characters hold, as ledger balances.
+func HoldingsOf(chars []*Char) []ledger.Balance {
 	var out []ledger.Balance
-	for _, c := range g.Chars {
+	for _, c := range chars {
 		acc := ledger.Char(c.C.ID)
 		add := func(asset string, n int64) {
 			if n != 0 {
@@ -164,15 +166,13 @@ func (g *Game) Holdings() []ledger.Balance {
 	return out
 }
 
-func charRef(id string) fact.Ref { return fact.Ref{Kind: "character", ID: id} }
-
 // fact writes a fact of a sheet-weighed kind about a character.
 func (g *Game) fact(c *Char, kind string, tick int64, data ...fact.Datum) (fact.Fact, error) {
 	region := ""
 	if r := g.World.RegionAt(c.C.At); r >= 0 {
 		region = world.RegionRef(r)
 	}
-	f, err := g.r.weights.New(tick, kind, region, []fact.Ref{charRef(c.C.ID)}, nil, data...)
+	f, err := g.r.weights.New(tick, kind, region, []fact.Ref{char.Ref(c.C.ID)}, nil, data...)
 	if err != nil {
 		return f, err
 	}

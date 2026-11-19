@@ -20,6 +20,16 @@ const (
 	PathHealth    = "/healthz"
 )
 
+// Operator paths, behind the operator token.
+const (
+	PathOperatorCharacter = "/v1/operator/character"
+	PathOperatorTile      = "/v1/operator/tile"
+	PathOperatorAudit     = "/v1/operator/audit"
+	PathOperatorDigest    = "/v1/operator/digest"
+	PathOperatorReset     = "/v1/operator/reset"
+	PathOperatorClock     = "/v1/operator/clock"
+)
+
 // Action kinds a player sends; operators send the operator kinds through
 // PathOperator.
 const (
@@ -37,6 +47,7 @@ const (
 	OpUnban    = "unban"
 )
 
+// Hex is an axial tile coordinate.
 type Hex struct {
 	Q int64 `json:"q"`
 	R int64 `json:"r"`
@@ -61,10 +72,10 @@ type Why struct {
 }
 
 // ActionRequest is one press. InteractionID is Discord's interaction id
-// (or the Activity's equivalent): the same id twice writes once. Version
-// is the character's row version the client last saw; a stale one is
-// refused with the current version. Create names the Discord user instead
-// of a character.
+// (or the Activity's equivalent), with no '/': the same id twice writes
+// once. Version is the character's row version the client last saw; a
+// stale one is refused with the current version. Create names the Discord
+// user instead of a character.
 type ActionRequest struct {
 	InteractionID string `json:"interactionId"`
 	DiscordID     string `json:"discordId,omitempty"`
@@ -107,7 +118,7 @@ type Refusal struct {
 	Version int64  `json:"version,omitempty"`
 }
 
-// Refusal codes beside the rules' own.
+// Refusal codes the service adds.
 const (
 	CodeStale     = "stale"
 	CodeBadJSON   = "bad-request"
@@ -117,16 +128,30 @@ const (
 	CodeSecondPC  = "second-character"
 )
 
+// Refusal codes the rules give.
+const (
+	CodeNoSuchCharacter = "no-such-character"
+	CodeBusy            = "busy"
+	CodeBadArgs         = "bad-arguments"
+	CodeNotHere         = "not-here"
+	CodeBanned          = "banned"
+	CodeNoEncounter     = "no-encounter"
+	CodeNeedsActivity   = "needs-activity"
+)
+
+// Goods are units of a material a character carries.
 type Goods struct {
 	Material string `json:"material"`
 	Units    int64  `json:"units"`
 }
 
+// Skill is a skill and its level.
 type Skill struct {
 	ID    string `json:"id"`
 	Level int64  `json:"level"`
 }
 
+// Mount is a character's mount: its item id, kind and level.
 type Mount struct {
 	ID    string `json:"id"`
 	Kind  string `json:"kind"`
@@ -134,7 +159,7 @@ type Mount struct {
 }
 
 // Long is the character's long action: due is the tick its next step
-// comes, ends the tick it was planned to finish.
+// comes, ends the tick it is expected to finish.
 type Long struct {
 	Kind     string `json:"kind"`
 	Due      int64  `json:"due"`
@@ -185,7 +210,7 @@ type Option struct {
 }
 
 // Fight is the beat a character faces. An ambush resolves with Default at
-// tick Due if its owner has not answered.
+// the first tick after Due if its owner has not answered.
 type Fight struct {
 	ID       string   `json:"id"`
 	Beat     int      `json:"beat"`
@@ -231,11 +256,13 @@ type Pressed struct {
 	Why     Why    `json:"why"`
 }
 
+// Ref names a thing a fact is about: its kind and id.
 type Ref struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
 }
 
+// Datum is one keyed value of a fact, a number or a string.
 type Datum struct {
 	Key string `json:"k"`
 	N   int64  `json:"n,omitempty"`
@@ -275,6 +302,7 @@ type Tile struct {
 	Found      int64    `json:"found"` // the tick it was first entered
 }
 
+// Tiles is the reply to a TileQuery.
 type Tiles struct {
 	Tick  int64  `json:"tick"`
 	Tiles []Tile `json:"tiles"`
@@ -300,11 +328,40 @@ type Place struct {
 
 // Health is the service's liveness and where the world is. Standby is a
 // service waiting for another to give the world up: alive, not serving.
+// Stalled is a world whose ticks keep failing or that no longer loads.
 type Health struct {
 	OK      bool   `json:"ok"`
 	Standby bool   `json:"standby,omitempty"`
+	Stalled bool   `json:"stalled,omitempty"`
 	World   string `json:"world"`
 	Tick    int64  `json:"tick"`
 	Due     int64  `json:"due"`
 	Version int    `json:"version"`
+}
+
+// Digest is the world's tick and digest.
+type Digest struct {
+	Tick   int64  `json:"tick"`
+	Digest string `json:"digest"`
+}
+
+// Audit is the conservation check's discrepancies; none when it holds.
+type Audit struct {
+	Discrepancies []string `json:"discrepancies"`
+}
+
+// ResetRequest names the disposable world to wipe and found again.
+type ResetRequest struct {
+	World string `json:"world"`
+}
+
+// ResetReply is the founded world and its tick.
+type ResetReply struct {
+	World string `json:"world"`
+	Tick  int64  `json:"tick"`
+}
+
+// ClockRequest sets a manual clock's due tick; the reply echoes it.
+type ClockRequest struct {
+	Due int64 `json:"due"`
 }

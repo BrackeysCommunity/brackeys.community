@@ -13,9 +13,8 @@ import (
 	"jams.team/mmo-world/store"
 )
 
-// Guard is the writer under the service's logs: a line that would carry
-// a key in any of its text forms has it replaced before it is written,
-// and is counted.
+// Guard is the writer under the service's logs: it redacts every key form
+// a line carries and counts each in Leaks.
 type Guard struct {
 	mu      sync.Mutex
 	w       io.Writer
@@ -23,6 +22,7 @@ type Guard struct {
 	Leaks   atomic.Int64
 }
 
+// NewGuard writes guarded lines to w; it redacts nothing until armed.
 func NewGuard(w io.Writer) *Guard { return &Guard{w: w} }
 
 // Arm sets the forms to look for, once the keys are known.
@@ -54,8 +54,8 @@ func (g *Guard) Write(p []byte) (int, error) {
 }
 
 // CheckKeys is the start-up check that no key is in the database or the
-// logs: it scans every mmo table for each needle, and proves the guard by
-// writing a needle through a copy of it that writes nowhere.
+// logs: no mmo table holds a needle, and a guard armed with them redacts
+// each one.
 func CheckKeys(ctx context.Context, pool *pgxpool.Pool, needles []string) error {
 	hits, err := store.FindText(ctx, pool, needles)
 	if err != nil {

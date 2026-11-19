@@ -3,8 +3,8 @@ package service_test
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,12 +16,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/api/client"
 	"jams.team/mmo-world/harness/agent"
+	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/replay"
 	"jams.team/mmo-world/service"
-	"jams.team/mmo-world/sheetfs"
-	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store"
 	"jams.team/mmo-world/store/pgtest"
@@ -34,58 +33,59 @@ const (
 	opToken = "op-test-token"
 )
 
-var master = sha256.Sum256([]byte("mmo/test-master"))
-
 type running struct {
 	srv  *service.Server
 	http *httptest.Server
-	op   *agent.HTTP
-	cli  *agent.HTTP
+	op   *client.HTTP
+	cli  *client.HTTP
 	pool *pgxpool.Pool
-	stop func()
 	book *sheets.Book
-	set  keys.Set
+	cfg  service.Config
+	// done closes once Run has returned, with its error in runErr.
+	done   chan struct{}
+	runErr error
+	stop   func()
 }
 
-func start(t *testing.T, dbURL string, logs io.Writer) *running {
+// start runs a disposable world on the manual clock in a fresh database.
+func start(t *testing.T, logs io.Writer) *running {
+	t.Helper()
+	return startOn(t, pgtest.Pool(t), logs, nil)
+}
+
+// startOn runs the world in pool; edit, if any, changes its config.
+func startOn(t *testing.T, pool *pgxpool.Pool, logs io.Writer, edit func(*service.Config)) *running {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	pool, err := pgxpool.New(ctx, dbURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	book, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
-	if err != nil {
-		t.Fatal(err)
-	}
-	set, err := keys.Derive(master[:], world, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	sec, _ := testkit.Secrets(t, "mmo/test-master", world)
 	guard := service.NewGuard(logs)
-	guard.Arm(keys.Needles(master[:], set))
-	log := slog.New(slog.NewJSONHandler(guard, nil))
-	if err := service.CheckKeys(ctx, pool, keys.Needles(master[:], set)); err != nil {
+	guard.Arm(sec.Needles)
+	if err := service.CheckKeys(ctx, pool, sec.Needles); err != nil {
 		t.Fatal(err)
 	}
-	srv, err := service.Open(ctx, pool, service.Config{World: world, KeyVersion: 1, TickSeconds: 600, Book: book, Keys: set,
-		OperatorToken: opToken, ManualClock: true, Poll: time.Millisecond, Log: log, Events: service.NewEvents("", "", log)})
+	cfg := service.Config{Secrets: sec, TickSeconds: 600, Book: testkit.Book(t), OperatorToken: opToken, ManualClock: true,
+		Disposable: true, Poll: time.Millisecond, Log: slog.New(slog.NewJSONHandler(guard, nil))}
+	if edit != nil {
+		edit(&cfg)
+	}
+	srv, err := service.Open(ctx, pool, cfg)
 	if err != nil {
+		cancel()
 		t.Fatal(err)
 	}
 	hs := httptest.NewServer(srv.Handler())
-	done := make(chan struct{})
+	r := &running{srv: srv, http: hs, op: client.New(hs.URL, opToken), cli: client.New(hs.URL, ""), pool: pool, book: cfg.Book,
+		cfg: cfg, done: make(chan struct{})}
 	go func() {
-		defer close(done)
-		_ = srv.Run(ctx)
+		defer close(r.done)
+		r.runErr = srv.Run(ctx)
 	}()
-	r := &running{srv: srv, http: hs, op: agent.NewHTTP(hs.URL, opToken), cli: agent.NewHTTP(hs.URL, ""), pool: pool, book: book, set: set}
+	r.op.Poll, r.cli.Poll = time.Millisecond, time.Millisecond
 	r.stop = func() {
 		cancel()
-		<-done
+		<-r.done
 		hs.Close()
 		srv.Close(context.Background())
-		pool.Close()
 	}
 	t.Cleanup(func() {
 		if r.stop != nil {
@@ -95,52 +95,61 @@ func start(t *testing.T, dbURL string, logs io.Writer) *running {
 	return r
 }
 
+// halt stops a running world before the test ends.
+func (r *running) halt() {
+	r.stop()
+	r.stop = nil
+}
+
+// replays replays the world from tick 0 to tick to and expects it to end
+// on the live digest.
+func replays(t *testing.T, ctx context.Context, r *running, to int64, live string) replay.Report {
+	t.Helper()
+	rep, err := replay.Run(ctx, store.New(r.pool, world), testkit.Rules(t, r.book, r.cfg.Keys), 0, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Mismatch != nil || rep.Digest != live {
+		t.Fatalf("replay: %+v, live digest %s", rep, live)
+	}
+	return rep
+}
+
+// structural: how long a test waits for the world to reach a tick.
+const tickWait = 10 * time.Second
+
 // advance sets the manual clock to tick and waits for the world to reach it.
 func advance(t *testing.T, ctx context.Context, r *running, tick int64) {
 	t.Helper()
-	if _, err := r.op.Do(ctx, http.MethodPost, api.PathOperator+"/clock", map[string]int64{"due": tick}, nil); err != nil {
+	wait, cancel := context.WithTimeout(ctx, tickWait)
+	defer cancel()
+	if err := r.op.Advance(wait, tick); err != nil {
 		t.Fatal(err)
 	}
-	for range 10000 {
-		h, err := r.cli.Health(ctx)
-		if err == nil && h.Tick >= tick {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("world never reached tick %d", tick)
 }
 
 func digest(t *testing.T, ctx context.Context, r *running) (int64, string) {
 	t.Helper()
-	var out struct {
-		Tick   int64  `json:"tick"`
-		Digest string `json:"digest"`
+	d, err := r.op.Digest(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if ref, err := r.op.Do(ctx, http.MethodGet, api.PathOperator+"/digest", nil, &out); err != nil || ref != nil {
-		t.Fatal(ref, err)
-	}
-	return out.Tick, out.Digest
+	return d.Tick, d.Digest
 }
 
-func players(b *sheets.Book) []*agent.Player {
-	return agent.Players("u", 6, agent.Wanderer{BandOrder: agent.Bands(b)}, &agent.Traveller{})
-}
-
-// TestScriptedWeek is the milestone's proof: the scripted client plays a
-// simulated week through the API; the world replays from its snapshots
-// to the digests it recorded; the ledger holds; a double-sent action
-// writes once; a preview never carries an outcome; and no key reaches
-// the logs or the database.
+// TestScriptedWeek has the scripted client play a simulated week through the
+// API, then checks that the world replays to its recorded digests, the ledger
+// holds, a double-sent action writes once, no preview carries an outcome, and
+// no key reaches the logs or the database.
 func TestScriptedWeek(t *testing.T) {
 	if testing.Short() {
 		t.Skip("a simulated week")
 	}
 	ctx := context.Background()
 	var logs bytes.Buffer
-	r := start(t, pgtest.DB(t), &logs)
+	r := start(t, &logs)
 	week := int64(7 * sheets.TicksPerDay)
-	ps := players(r.book)
+	ps := testkit.Team(r.book, "u", 6)
 	s := agent.NewScript(r.cli, ps, "week")
 	for tick := int64(0); tick < week; tick++ {
 		if err := s.Turn(ctx, tick); err != nil {
@@ -172,23 +181,13 @@ func TestScriptedWeek(t *testing.T) {
 		t.Fatal("the week did too little to prove anything")
 	}
 
-	var audit struct {
-		Discrepancies []string `json:"discrepancies"`
-	}
-	if ref, err := r.op.Do(ctx, http.MethodGet, api.PathOperator+"/audit", nil, &audit); err != nil || ref != nil || len(audit.Discrepancies) > 0 {
-		t.Fatal("conservation check:", audit.Discrepancies, ref, err)
+	if audit, err := r.op.Audit(ctx); err != nil || len(audit.Discrepancies) > 0 {
+		t.Fatal("conservation check:", audit.Discrepancies, err)
 	}
 
-	rules, err := game.NewRules(r.book, r.set)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rep, err := replay.Run(ctx, store.New(r.pool, world), rules, 0, week)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rep.Mismatch != nil || rep.Digest != d || rep.Checked != week {
-		t.Fatalf("replay: %+v, live digest %s", rep, d)
+	rep := replays(t, ctx, r, week, d)
+	if rep.Checked != week {
+		t.Fatalf("replay checked %d of %d ticks", rep.Checked, week)
 	}
 	t.Logf("replay: %d ticks and %d actions from tick %d, every digest matched", rep.Ticks, rep.Actions, rep.From)
 
@@ -198,7 +197,7 @@ func TestScriptedWeek(t *testing.T) {
 	if strings.Contains(logs.String(), "[redacted]") {
 		t.Fatal("a key reached the log guard")
 	}
-	if err := service.CheckKeys(ctx, r.pool, keys.Needles(master[:], r.set)); err != nil {
+	if err := service.CheckKeys(ctx, r.pool, r.cfg.Needles); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -289,4 +288,107 @@ func preview(t *testing.T, ctx context.Context, r *running, ps []*agent.Player) 
 		return
 	}
 	t.Fatal("no character could be put in front of a beat to preview")
+}
+
+// TestFailedSaveReloads breaks the stored world row under a running
+// service: the tick's save fails, the world goes stale and nothing is
+// served from it. Once the row is right again the world loads, ticks,
+// takes actions and replays to its recorded digests.
+func TestFailedSaveReloads(t *testing.T) {
+	ctx := context.Background()
+	r := start(t, io.Discard)
+	advance(t, ctx, r, 2)
+	var good string
+	if err := r.pool.QueryRow(ctx, "SELECT digest FROM mmo.world WHERE id = $1", world).Scan(&good); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, "UPDATE mmo.world SET digest = 'broken' WHERE id = $1", world); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.op.SetClock(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	down, cancel := context.WithTimeout(ctx, tickWait)
+	defer cancel()
+	if err := r.cli.WaitHealth(down, func(_ api.Health, err error) bool { return err != nil }); err != nil {
+		t.Fatal("health stayed up while the world could not load")
+	}
+	if _, err := r.op.Digest(ctx); err == nil {
+		t.Fatal("a stale world was served")
+	}
+	if _, err := r.pool.Exec(ctx, "UPDATE mmo.world SET digest = $2 WHERE id = $1", world, good); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, ctx, r, 3)
+	if _, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "after-1", DiscordID: "u-after", Kind: api.ActCreate}); err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	advance(t, ctx, r, 4)
+	if h, err := r.cli.Health(ctx); err != nil || !h.OK {
+		t.Fatalf("health after recovery: %+v %v", h, err)
+	}
+	tick, d := digest(t, ctx, r)
+	replays(t, ctx, r, tick, d)
+}
+
+// TestStaleRecoversWithoutTraffic breaks the world row so an action's save
+// fails and the world goes stale with no tick due, mends it, and expects
+// health to come back with no further request.
+func TestStaleRecoversWithoutTraffic(t *testing.T) {
+	ctx := context.Background()
+	r := start(t, io.Discard)
+	advance(t, ctx, r, 1)
+	var good string
+	if err := r.pool.QueryRow(ctx, "SELECT digest FROM mmo.world WHERE id = $1", world).Scan(&good); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.pool.Exec(ctx, "UPDATE mmo.world SET digest = 'broken' WHERE id = $1", world); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "c-stale", DiscordID: "u-stale", Kind: api.ActCreate}); err == nil {
+		t.Fatal("an action saved over a broken world row")
+	}
+	wait, cancel := context.WithTimeout(ctx, tickWait)
+	defer cancel()
+	if err := r.cli.WaitHealth(wait, func(_ api.Health, err error) bool { return err != nil }); err != nil {
+		t.Fatal("health stayed up while the world could not load")
+	}
+	if _, err := r.pool.Exec(ctx, "UPDATE mmo.world SET digest = $2 WHERE id = $1", world, good); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.cli.WaitHealth(wait, func(h api.Health, err error) bool { return err == nil && h.OK && h.Tick == 1 }); err != nil {
+		t.Fatal("the world did not recover by itself")
+	}
+}
+
+// TestLostLockStopsRun ends the lock's connection under a running world
+// and expects Run to stop with the lock lost.
+func TestLostLockStopsRun(t *testing.T) {
+	ctx := context.Background()
+	r := start(t, io.Discard)
+	var n int
+	if err := r.pool.QueryRow(ctx, `SELECT count(pg_terminate_backend(pid)) FROM pg_locks
+		WHERE locktype = 'advisory' AND pid <> pg_backend_pid()`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("ended %d lock holders (%v)", n, err)
+	}
+	select {
+	case <-r.done:
+	case <-time.After(tickWait):
+		t.Fatal("Run kept going without its lock")
+	}
+	if r.runErr == nil || !strings.Contains(r.runErr.Error(), "lost the world's lock") {
+		t.Fatalf("Run returned %v", r.runErr)
+	}
+}
+
+// TestOtherEpochRefused founds a world, then opens it on another roll
+// epoch: the roll key differs, so the open must be refused.
+func TestOtherEpochRefused(t *testing.T) {
+	r := start(t, io.Discard)
+	r.halt()
+	cfg := r.cfg
+	cfg.Epoch++
+	if _, err := service.Open(context.Background(), r.pool, cfg); !errors.Is(err, store.ErrOtherKeys) {
+		t.Fatalf("a world opened on another roll epoch: %v", err)
+	}
 }

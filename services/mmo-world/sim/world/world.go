@@ -204,7 +204,11 @@ func RefIndex(r fact.Ref) (int, bool) {
 	_, err := fmt.Sscanf(n, "%d", &i)
 	return i, err == nil
 }
-func factionRef(f int) fact.Ref { return fact.Ref{Kind: "faction", ID: fmt.Sprintf("f-%d", f)} }
+
+// FactionRef names a faction by its index.
+func FactionRef(f int) string { return fmt.Sprintf("f-%d", f) }
+
+func factionRef(f int) fact.Ref { return fact.Ref{Kind: "faction", ID: FactionRef(f)} }
 func notableRef(n Notable) fact.Ref {
 	return fact.Ref{Kind: "notable", ID: fmt.Sprintf("n-%d", n.ID)}
 }

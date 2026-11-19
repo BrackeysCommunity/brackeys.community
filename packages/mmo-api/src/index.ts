@@ -47,6 +47,30 @@ export const PathOperator = "/v1/operator";
  */
 export const PathHealth = "/healthz";
 /**
+ * Operator paths, behind the operator token.
+ */
+export const PathOperatorCharacter = "/v1/operator/character";
+/**
+ * Operator paths, behind the operator token.
+ */
+export const PathOperatorTile = "/v1/operator/tile";
+/**
+ * Operator paths, behind the operator token.
+ */
+export const PathOperatorAudit = "/v1/operator/audit";
+/**
+ * Operator paths, behind the operator token.
+ */
+export const PathOperatorDigest = "/v1/operator/digest";
+/**
+ * Operator paths, behind the operator token.
+ */
+export const PathOperatorReset = "/v1/operator/reset";
+/**
+ * Operator paths, behind the operator token.
+ */
+export const PathOperatorClock = "/v1/operator/clock";
+/**
  * Action kinds a player sends; operators send the operator kinds through
  * PathOperator.
  */
@@ -106,6 +130,9 @@ export const OpBan = "ban";
  * PathOperator.
  */
 export const OpUnban = "unban";
+/**
+ * Hex is an axial tile coordinate.
+ */
 export interface Hex {
   q: number /* int64 */;
   r: number /* int64 */;
@@ -132,10 +159,10 @@ export interface Why {
 }
 /**
  * ActionRequest is one press. InteractionID is Discord's interaction id
- * (or the Activity's equivalent): the same id twice writes once. Version
- * is the character's row version the client last saw; a stale one is
- * refused with the current version. Create names the Discord user instead
- * of a character.
+ * (or the Activity's equivalent), with no '/': the same id twice writes
+ * once. Version is the character's row version the client last saw; a
+ * stale one is refused with the current version. Create names the Discord
+ * user instead of a character.
  */
 export interface ActionRequest {
   interactionId: string;
@@ -182,37 +209,74 @@ export interface Refusal {
   version?: number /* int64 */;
 }
 /**
- * Refusal codes beside the rules' own.
+ * Refusal codes the service adds.
  */
 export const CodeStale = "stale";
 /**
- * Refusal codes beside the rules' own.
+ * Refusal codes the service adds.
  */
 export const CodeBadJSON = "bad-request";
 /**
- * Refusal codes beside the rules' own.
+ * Refusal codes the service adds.
  */
 export const CodeNotFound = "not-found";
 /**
- * Refusal codes beside the rules' own.
+ * Refusal codes the service adds.
  */
 export const CodeForbidden = "forbidden";
 /**
- * Refusal codes beside the rules' own.
+ * Refusal codes the service adds.
  */
 export const CodeInternal = "internal";
 /**
- * Refusal codes beside the rules' own.
+ * Refusal codes the service adds.
  */
 export const CodeSecondPC = "second-character";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeNoSuchCharacter = "no-such-character";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeBusy = "busy";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeBadArgs = "bad-arguments";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeNotHere = "not-here";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeBanned = "banned";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeNoEncounter = "no-encounter";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeNeedsActivity = "needs-activity";
+/**
+ * Goods are units of a material a character carries.
+ */
 export interface Goods {
   material: string;
   units: number /* int64 */;
 }
+/**
+ * Skill is a skill and its level.
+ */
 export interface Skill {
   id: string;
   level: number /* int64 */;
 }
+/**
+ * Mount is a character's mount: its item id, kind and level.
+ */
 export interface Mount {
   id: string;
   kind: string;
@@ -220,7 +284,7 @@ export interface Mount {
 }
 /**
  * Long is the character's long action: due is the tick its next step
- * comes, ends the tick it was planned to finish.
+ * comes, ends the tick it is expected to finish.
  */
 export interface Long {
   kind: string;
@@ -275,7 +339,7 @@ export interface Option {
 }
 /**
  * Fight is the beat a character faces. An ambush resolves with Default at
- * tick Due if its owner has not answered.
+ * the first tick after Due if its owner has not answered.
  */
 export interface Fight {
   id: string;
@@ -324,10 +388,16 @@ export interface Pressed {
   success: boolean;
   why: Why;
 }
+/**
+ * Ref names a thing a fact is about: its kind and id.
+ */
 export interface Ref {
   kind: string;
   id: string;
 }
+/**
+ * Datum is one keyed value of a fact, a number or a string.
+ */
 export interface Datum {
   k: string;
   n?: number /* int64 */;
@@ -369,6 +439,9 @@ export interface Tile {
   weather?: string;
   found: number /* int64 */; // the tick it was first entered
 }
+/**
+ * Tiles is the reply to a TileQuery.
+ */
 export interface Tiles {
   tick: number /* int64 */;
   tiles: Tile[];
@@ -396,12 +469,46 @@ export interface Place {
 /**
  * Health is the service's liveness and where the world is. Standby is a
  * service waiting for another to give the world up: alive, not serving.
+ * Stalled is a world whose ticks keep failing or that no longer loads.
  */
 export interface Health {
   ok: boolean;
   standby?: boolean;
+  stalled?: boolean;
   world: string;
   tick: number /* int64 */;
   due: number /* int64 */;
   version: number /* int */;
+}
+/**
+ * Digest is the world's tick and digest.
+ */
+export interface Digest {
+  tick: number /* int64 */;
+  digest: string;
+}
+/**
+ * Audit is the conservation check's discrepancies; none when it holds.
+ */
+export interface Audit {
+  discrepancies: string[];
+}
+/**
+ * ResetRequest names the disposable world to wipe and found again.
+ */
+export interface ResetRequest {
+  world: string;
+}
+/**
+ * ResetReply is the founded world and its tick.
+ */
+export interface ResetReply {
+  world: string;
+  tick: number /* int64 */;
+}
+/**
+ * ClockRequest sets a manual clock's due tick; the reply echoes it.
+ */
+export interface ClockRequest {
+  due: number /* int64 */;
 }

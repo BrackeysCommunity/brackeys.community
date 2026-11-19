@@ -10,8 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
 )
+
+// percentile is the pct-th percentile of a sorted, non-empty slice.
+func percentile[T any](sorted []T, pct int) T {
+	return sorted[len(sorted)*pct/int(fixed.Hundredths)]
+}
 
 func nameIndex(b *sheets.Book) map[string]string {
 	out := map[string]string{}
