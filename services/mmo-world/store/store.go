@@ -328,7 +328,7 @@ func (s *Store) npcs(ctx context.Context, q *db.Queries, g *game.Game) error {
 		if err != nil {
 			return err
 		}
-		if err := q.UpsertNPC(ctx, db.UpsertNPCParams{WorldID: s.World, Seq: n.Seq, ID: n.ID, Body: body}); err != nil {
+		if err := q.UpsertNPC(ctx, db.UpsertNPCParams{WorldID: s.World, Seq: n.Seq, ID: n.Stub.ID, Body: body}); err != nil {
 			return err
 		}
 	}

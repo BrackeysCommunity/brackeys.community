@@ -5,7 +5,7 @@
     {
       "id": "first-meeting",
       "when": "first-meeting",
-      "weight": 20,
+      "weight": 90,
       "choices": [
         {
           "id": "introduce",
@@ -207,6 +207,80 @@
         }
       ],
       "line": "{npc} was there when you beat the {thing}."
+    },
+    {
+      "id": "a-regular",
+      "when": "memory",
+      "entry": "traded",
+      "also": "greeted",
+      "weight": 45,
+      "choices": [
+        {
+          "id": "chat",
+          "effect": "standing",
+          "line": "You talk shop.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "ask-discount",
+          "effect": "discount",
+          "line": "You ask for a regular's discount.",
+          "remember": "traded",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} greets you as a regular: \"The {thing} sold well.\""
+    },
+    {
+      "id": "a-haggler",
+      "when": "memory",
+      "entry": "traded",
+      "also": "asked",
+      "weight": 45,
+      "choices": [
+        {
+          "id": "ask-prices",
+          "effect": "none",
+          "line": "You ask where prices are going.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "ask-news",
+          "effect": "rumour",
+          "line": "You ask what the traders are saying.",
+          "remember": "asked",
+          "weight": 30
+        }
+      ],
+      "line": "{npc}: \"You ask a lot of questions for someone who sells {thing}.\""
+    },
+    {
+      "id": "a-cold-customer",
+      "when": "memory",
+      "entry": "traded",
+      "also": "slighted",
+      "weight": 45,
+      "choices": [
+        {
+          "id": "apologise",
+          "effect": "standing",
+          "line": "You apologise for last time.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "just-trade",
+          "effect": "none",
+          "line": "You keep it to business.",
+          "remember": "traded",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} takes your {thing} without a smile."
     },
     {
       "id": "thanks-for-a-sale",

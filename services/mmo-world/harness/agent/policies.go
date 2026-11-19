@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"cmp"
 	"slices"
 	"sync"
 
@@ -22,10 +23,13 @@ func Bands(b *sheets.Book) []string {
 
 // best is the option with the best band, never a machine (those are
 // worked in the Activity); ties keep the first.
-func best(f *api.Fight, bands []string) string {
+func best(f *api.Fight, bands []string) string { return bestOf(f, bands, "") }
+
+// bestOf is best among options of one kind, or of any kind for "".
+func bestOf(f *api.Fight, bands []string, kind string) string {
 	pick, rank := "", len(bands)
 	for _, o := range f.Options {
-		if o.Puzzle {
+		if o.Puzzle || (kind != "" && o.Kind != kind) {
 			continue
 		}
 		if r := slices.Index(bands, o.Band); r >= 0 && r < rank {
@@ -39,15 +43,22 @@ func has(list []string, x string) bool { return slices.Contains(list, x) }
 
 // Wanderer roams near where it is: fights what it meets for the best
 // band, explores sites, gathers, rests off its wounds, and otherwise steps
-// a random open way.
-type Wanderer struct{ BandOrder []string }
+// a random open way. A bold one presses to win rather than back out.
+type Wanderer struct {
+	BandOrder []string
+	Bold      bool
+}
 
 func (Wanderer) Name() string { return "wanderer" }
 
 func (w Wanderer) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 	switch {
 	case o.Fight != nil:
-		if pick := best(o.Fight, w.BandOrder); pick != "" {
+		pick := best(o.Fight, w.BandOrder)
+		if w.Bold {
+			pick = cmp.Or(bestOf(o.Fight, w.BandOrder, "win"), pick)
+		}
+		if pick != "" {
 			return api.ActionRequest{Kind: api.ActPress, Option: pick}, true
 		}
 		return api.ActionRequest{}, false

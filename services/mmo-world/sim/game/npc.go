@@ -76,7 +76,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 	var out []Person
 	seen := func(id string) bool { return slices.ContainsFunc(out, func(p Person) bool { return p.ID == id }) }
 	add := func(n *npc.NPC) {
-		if !seen(n.ID) {
+		if !seen(n.Stub.ID) {
 			out = append(out, Person{Stub: n.Stub, Saved: true, Visit: slices.Contains(n.Visits, c.C.ID)})
 		}
 	}
@@ -142,7 +142,7 @@ func (g *Game) talk(c *Char, cmd Command) error {
 	first := n.Meeting(c.C.ID) == nil
 	n.Meet(c.C.ID, t)
 	g.NPCs.Visited(n, c.C.ID)
-	c.C.Meet(char.Met{Who: "npc:" + n.ID, How: "met", Tick: t}, g.r.limits)
+	c.C.Meet(char.Met{Who: "npc:" + n.Stub.ID, How: "met", Tick: t}, g.r.limits)
 	if _, err := g.npcFact(c, n, "npc.met", t, fact.B("first", first)); err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ var roleTrades = map[string][]string{
 
 // recognised is the held-item check a first meeting makes.
 func (g *Game) recognised(c *Char, n *npc.NPC) bool {
-	slots := roleTrades[n.Role]
+	slots := roleTrades[n.Stub.Role]
 	return slices.ContainsFunc(c.C.Equipped, func(e char.Equipped) bool {
 		in := c.C.Item(e.Item)
 		if in == nil {
@@ -186,10 +186,10 @@ func (g *Game) recognised(c *Char, n *npc.NPC) bool {
 // standingKey is whose standing an NPC's choices move: the faction
 // holding its home region, else its settlement.
 func (g *Game) standingKey(n *npc.NPC) string {
-	if r := g.World.RegionAt(n.Home); r >= 0 && g.World.Regions[r].Holder >= 0 {
+	if r := g.World.RegionAt(n.Stub.Home); r >= 0 && g.World.Regions[r].Holder >= 0 {
 		return "faction:" + strconv.Itoa(g.World.Regions[r].Holder)
 	}
-	return "place:" + n.Home.Ref()
+	return "place:" + n.Stub.Home.Ref()
 }
 
 func (g *Game) standing(c *Char, n *npc.NPC, by int64) {
@@ -202,7 +202,7 @@ func (g *Game) npcFact(c *Char, n *npc.NPC, kind string, t int64, data ...fact.D
 	if r := g.World.RegionAt(c.C.At); r >= 0 {
 		region = world.RegionRef(r)
 	}
-	f, err := g.r.weights.New(t, kind, region, []fact.Ref{char.Ref(c.C.ID), npc.Ref(n.ID)}, nil, data...)
+	f, err := g.r.weights.New(t, kind, region, []fact.Ref{char.Ref(c.C.ID), npc.Ref(n.Stub.ID)}, nil, data...)
 	if err != nil {
 		return f, err
 	}
@@ -266,19 +266,19 @@ func (g *Game) Converse(c *Char, id string) (Conversation, error) {
 		Player string
 		Day    int64
 		Topics []TopicView
-	}{n.ID, c.C.ID, day, cands})
+	}{n.Stub.ID, c.C.ID, day, cands})
 	out.Digest = sum.String()
 	return out, err
 }
 
 func (g *Game) tieBreak(n *npc.NPC, c *Char, day int64, topic string) uint64 {
-	return g.r.draw.Draw("npc.pick", draw.Str(n.ID), draw.Str(c.C.ID), draw.Int(day), draw.Str(topic))
+	return g.r.draw.Draw("npc.pick", draw.Str(n.Stub.ID), draw.Str(c.C.ID), draw.Int(day), draw.Str(topic))
 }
 
 // topic tests one topic's predicate against what the NPC remembers and
 // knows now, and voices it from fields.
 func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView, bool) {
-	fields := []npc.Field{{Key: "npc", Value: n.Name}, {Key: "role", Value: g.r.NPC.Role(n.Role).Role}, {Key: "place", Value: g.placeName(n.Home)}}
+	fields := []npc.Field{{Key: "npc", Value: n.Stub.Name}, {Key: "role", Value: g.r.NPC.Role(n.Stub.Role).Role}, {Key: "place", Value: g.placeName(n.Stub.Home)}}
 	sal := row.Weight
 	own := false
 	m := n.Meeting(c.C.ID)
@@ -292,6 +292,13 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		if !ok {
 			return TopicView{}, false
 		}
+		if row.Also != "" {
+			also, ok := g.r.NPC.About(n, c.C.ID, row.Also, t)
+			if !ok {
+				return TopicView{}, false
+			}
+			sal += g.r.NPC.Salience(also, t)
+		}
 		own = true
 		sal += g.r.NPC.Salience(e, t)
 		fields = append(fields, npc.Field{Key: "thing", Value: e.Thing})
@@ -300,7 +307,7 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		if m != nil && m.Count > 1 {
 			since = m.Prev
 		}
-		best, ok := g.newsNear(n.Home, since, row.AtLeast)
+		best, ok := g.newsNear(n.Stub.Home, since, row.AtLeast)
 		if !ok {
 			return TopicView{}, false
 		}
@@ -310,7 +317,7 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		if row.When == "corruption" {
 			gauge = "corruption"
 		}
-		v, ok := g.gaugeAt(n.Home, gauge)
+		v, ok := g.gaugeAt(n.Stub.Home, gauge)
 		if !ok || v < row.AtLeast {
 			return TopicView{}, false
 		}
@@ -329,7 +336,7 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		pct := (now - n.RouteTicks) * fixedHundred / n.RouteTicks
 		fields = append(fields, npc.Field{Key: "n", Value: strconv.FormatInt(pct, decimal)}, npc.Field{Key: "unit", Value: "per cent"})
 	case "pattern":
-		if len(g.r.Gen.Chunk(g.r.Gen.ChunkOf(n.Home)).Points) == 0 {
+		if len(g.r.Gen.Chunk(g.r.Gen.ChunkOf(n.Stub.Home)).Points) == 0 {
 			return TopicView{}, false
 		}
 	default:
@@ -452,7 +459,7 @@ func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t
 	case "standing":
 		g.standing(c, n, row.Standing)
 	case "coin":
-		purse := ledger.NPCPool(n.ID)
+		purse := ledger.NPCPool(n.Stub.ID)
 		from, to, units := ledger.Char(c.C.ID), purse, -row.Coin
 		if row.Coin > 0 {
 			from, to, units = purse, ledger.Char(c.C.ID), min(row.Coin, g.Ledger.Of(purse, ledger.Coin))
@@ -467,7 +474,7 @@ func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t
 	case "rumour":
 		g.rumour(c, n)
 	case "discount":
-		c.C.Flags = appendOnce(c.C.Flags, "discount:"+n.ID)
+		c.C.Flags = appendOnce(c.C.Flags, "discount:"+n.Stub.ID)
 	}
 	return nil
 }
@@ -484,13 +491,13 @@ func appendOnce(s []string, x string) []string {
 func (g *Game) rumour(c *Char, n *npc.NPC) {
 	rng := g.r.NPC.Param("news-range")
 	for _, l := range g.Left {
-		if l.Hidden && l.By != c.C.ID && hex.Distance(l.Hex, n.Home) <= rng {
+		if l.Hidden && l.By != c.C.ID && hex.Distance(l.Hex, n.Stub.Home) <= rng {
 			c.C.Rumours = appendOnce(c.C.Rumours, CacheRumour(l.Hex))
 			return
 		}
 	}
 	for r := int64(1); r <= rng; r++ {
-		for _, h := range hex.Ring(n.Home, r) {
+		for _, h := range hex.Ring(n.Stub.Home, r) {
 			b := g.r.Gen.Baseline(h)
 			if b.Site == "" || b.Site == gen.PlaceSettlement {
 				continue

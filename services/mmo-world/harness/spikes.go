@@ -13,6 +13,7 @@ var Runs = map[string]Run{
 	"world":   WorldRun,
 	"craft":   CraftRun,
 	"battle":  BattleRun,
+	"social":  SocialRun,
 	"spike-a": spike(spikeA),
 	"spike-b": spike(spikeB),
 	"spike-e": spike(spikeE),

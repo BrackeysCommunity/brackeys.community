@@ -69,6 +69,20 @@
             "x-unit": "enum",
             "description": "The memory entry a memory topic reads."
           },
+          "also": {
+            "type": "string",
+            "enum": [
+              "greeted",
+              "asked",
+              "slighted",
+              "helped",
+              "wronged",
+              "traded",
+              "fought"
+            ],
+            "x-unit": "enum",
+            "description": "A second entry the topic needs as well; both add their salience."
+          },
           "atLeast": {
             "type": "integer",
             "x-unit": "row",

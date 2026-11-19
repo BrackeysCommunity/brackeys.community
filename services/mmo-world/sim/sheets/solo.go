@@ -70,6 +70,7 @@ type Topic struct {
 	ID      string        `json:"id" unit:"id"`
 	When    string        `json:"when" unit:"enum" enum:"first-meeting|memory|resold|sold-on|crowding|longer-road|news|trouble|promise-kept|promise-broken|rival|weather|pattern|moved-away|corruption"`
 	Entry   string        `json:"entry,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought" doc:"The memory entry a memory topic reads."`
+	Also    string        `json:"also,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought" doc:"A second entry the topic needs as well; both add their salience."`
 	AtLeast int64         `json:"atLeast,omitempty" unit:"row" doc:"The predicate's threshold, in its unit column."`
 	Unit    string        `json:"unit,omitempty" unit:"enum" enum:"quantity"`
 	Weight  int64         `json:"weight" unit:"weight" min:"0" max:"100" doc:"Salience before memory adds to it."`

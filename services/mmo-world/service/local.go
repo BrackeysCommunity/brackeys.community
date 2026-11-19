@@ -7,6 +7,7 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/ledger"
 )
 
 // Local is a game played in process through the API's types, with no
@@ -20,7 +21,15 @@ type Local struct {
 
 // NewLocal plays g in process.
 func NewLocal(g *game.Game) *Local {
-	return &Local{G: g, mem: memory{replies: map[string][]byte{}, players: map[string]string{}}}
+	return &Local{G: g, mem: memory{replies: map[string][]byte{}, players: map[string]string{}, kept: &[]ledger.Txn{}}}
+}
+
+// Txns hands over the ledger transactions the actions applied since the
+// last call, for a run that audits them.
+func (l *Local) Txns() []ledger.Txn {
+	out := *l.mem.kept
+	*l.mem.kept = nil
+	return out
 }
 
 func (l *Local) check() error {
@@ -65,6 +74,7 @@ func (l *Local) Options(_ context.Context, id string) (api.Options, error) {
 type memory struct {
 	replies map[string][]byte
 	players map[string]string
+	kept    *[]ledger.Txn
 }
 
 func (m memory) Reply(_ context.Context, key string) ([]byte, error) { return m.replies[key], nil }
@@ -74,7 +84,8 @@ func (m memory) CharacterOf(_ context.Context, discord string) (string, error) {
 }
 
 func (m memory) SaveAction(_ context.Context, g *game.Game, cmd game.Command, c *game.Char, discord string, reply []byte, _ time.Time) error {
-	g.Flush()
+	_, txns := g.Flush()
+	*m.kept = append(*m.kept, txns...)
 	m.replies[cmd.Key] = reply
 	if cmd.Kind == game.Create {
 		m.players[discord] = c.C.ID

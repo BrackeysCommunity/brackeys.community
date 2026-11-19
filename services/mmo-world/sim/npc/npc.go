@@ -39,7 +39,7 @@ type Stub struct {
 
 // NPC is a saved NPC: its stub, its route, its memory and its meetings.
 type NPC struct {
-	Stub
+	Stub       Stub        `json:"stub"`
 	Seq        int64       `json:"seq"`
 	Saved      int64       `json:"saved"` // tick
 	Route      []hex.Hex   `json:"route"` // a loop through home, at most route-max tiles
@@ -210,22 +210,22 @@ const favoured = 2
 // tiles. cost is what entering a tile takes, false where it cannot be.
 func (r *Rules) LayRoute(n *NPC, tick int64, cost func(from, to hex.Hex) (int64, bool)) {
 	reach, most := r.Param("route-reach"), r.Param("route-max")
-	route := []hex.Hex{n.Home}
-	at := n.Home
+	route := []hex.Hex{n.Stub.Home}
+	at := n.Stub.Home
 	var ticks int64
 	for step := int64(1); int64(len(route)) < most; step++ {
-		dirs := r.gen.Shuffle(hex.Directions, "npc.route", draw.Str(n.ID), draw.Int(tick), draw.Int(step))
+		dirs := r.gen.Shuffle(hex.Directions, "npc.route", draw.Str(n.Stub.ID), draw.Int(tick), draw.Int(step))
 		moved := false
 		for _, d := range dirs {
 			next := at.Neighbour(d)
 			c, ok := cost(at, next)
-			if !ok || hex.Distance(next, n.Home) > reach || slices.Contains(route, next) {
+			if !ok || hex.Distance(next, n.Stub.Home) > reach || slices.Contains(route, next) {
 				continue
 			}
 			route, at, ticks, moved = append(route, next), next, ticks+c, true
 			break
 		}
-		if !moved || hex.Distance(at, n.Home) == reach {
+		if !moved || hex.Distance(at, n.Stub.Home) == reach {
 			break
 		}
 	}
@@ -236,7 +236,7 @@ func (r *Rules) LayRoute(n *NPC, tick int64, cost func(from, to hex.Hex) (int64,
 // the hour. It walks out along the route and back over the day.
 func (r *Rules) At(n *NPC, tick int64) hex.Hex {
 	if len(n.Route) <= 1 {
-		return n.Home
+		return n.Stub.Home
 	}
 	loop := int64(len(n.Route))*halves - halves
 	slot := (tick % r.perDay) * loop / r.perDay
@@ -423,7 +423,7 @@ func (b *Book) Len() int { return len(b.List) }
 func (b *Book) Rebuild() {
 	b.ids, b.index, b.visits = make([]idSeq, 0, len(b.List)), nil, nil
 	for _, n := range b.List {
-		b.ids = append(b.ids, idSeq{n.ID, n.Seq})
+		b.ids = append(b.ids, idSeq{n.Stub.ID, n.Seq})
 		for _, h := range n.Route {
 			b.index = append(b.index, stop{h, n.Seq})
 		}

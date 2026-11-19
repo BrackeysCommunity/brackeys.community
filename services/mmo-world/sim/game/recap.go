@@ -76,7 +76,7 @@ func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 		add(rule, fs)
 	}
 	for _, n := range g.Visitors(c) {
-		lines = append(lines, RecapLine{Rule: RecapVisit, NPC: n.ID})
+		lines = append(lines, RecapLine{Rule: RecapVisit, NPC: n.Stub.ID})
 	}
 	near := g.r.wp("recap-range")
 	var close, rest []fact.Fact

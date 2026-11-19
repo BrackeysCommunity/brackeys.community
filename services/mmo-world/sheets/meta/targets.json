@@ -125,7 +125,7 @@
     {
       "id": "spoils-conserved",
       "text": "Finds from triggers never add goods: the spoils pool is conserved",
-      "runs": "economy",
+      "runs": "social",
       "holdsFrom": "MM4"
     },
     {
@@ -157,6 +157,24 @@
       "text": "A snapshot plus recorded actions replays to the same digest",
       "runs": "world",
       "holdsFrom": "MM1"
+    },
+    {
+      "id": "npc-own-history",
+      "text": "A second NPC meeting raises a topic from the player's own history in 60% or more of meetings",
+      "runs": "social",
+      "holdsFrom": "MM4"
+    },
+    {
+      "id": "npc-top-differs",
+      "text": "Two players with different histories with one NPC see different top topics in 80% or more of cases",
+      "runs": "social",
+      "holdsFrom": "MM4"
+    },
+    {
+      "id": "npc-cost-flat",
+      "text": "A world day costs the same whether the world holds 10 saved NPCs or 1,000,000",
+      "runs": "social",
+      "holdsFrom": "MM4"
     }
   ]
 }
