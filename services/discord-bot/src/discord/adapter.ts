@@ -11,6 +11,7 @@ import {
   type UserContextMenuCommandInteraction,
 } from "discord.js";
 
+import { describe } from "../../../../packages/discord-kit/src/errors.ts";
 import {
   buttonRows,
   toMessage as kitMessage,
@@ -38,13 +39,7 @@ import type { Choice, Memo } from "../memo.ts";
 import { type Reply, withNotice } from "../reply.ts";
 import type { SummaryPages } from "../summarize/pages.ts";
 
-/**
- * The one file that touches discord.js interaction objects. It turns an
- * interaction into a plain `Invocation`, defers, runs the command, and
- * writes the `Reply` descriptor back — plus the three failure modes the
- * plan names: the outage line when the API is down, "run the command
- * again" for a stale button, and a loud log (never a retry) on 403.
- */
+/** Converts Discord interactions to invocations and sends their replies. */
 
 export const STALE_BUTTON_LINE =
   "That button is from an older version of the bot — run the command again.";
@@ -377,10 +372,6 @@ export function toMessage(reply: Reply): InteractionEditReplyOptions & Interacti
     embeds: reply.embeds,
     rows: buttonRows(reply.buttons),
   }) as unknown as InteractionEditReplyOptions & InteractionReplyOptions;
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
 function elapsed(startedAt: number): number {

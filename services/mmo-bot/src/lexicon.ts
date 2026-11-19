@@ -1,6 +1,6 @@
 import type * as api from "./api.ts";
 
-/** What the setting calls things, from the world's lexicon. */
+/** What the setting calls things, and the sheet numbers cards state, from the world's lexicon. */
 export class Lexicon {
   constructor(private readonly data: api.Lexicon) {}
 
@@ -20,9 +20,23 @@ export class Lexicon {
     }
     return out;
   }
+  get starts(): readonly string[] {
+    return this.data.starts;
+  }
+  bandRank(id: string): number {
+    const rank = this.data.bands.indexOf(id);
+    return rank < 0 ? this.data.bands.length : rank;
+  }
+  get numbers(): api.Numbers {
+    return this.data.numbers;
+  }
 }
 
-export function readable(id: string): string {
-  const s = id.replace(/[-_]/g, " ");
+export function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** An id as words: dashes and underscores to spaces, capitalised. */
+export function readable(id: string): string {
+  return capitalise(id.replace(/[-_]/g, " "));
 }

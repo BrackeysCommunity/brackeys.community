@@ -94,7 +94,29 @@ func SubKey(key string, parts ...string) string {
 
 // Move is the two-leg transaction that moves units of an asset.
 func Move(key, kind string, tick int64, from, to, asset string, units int64) Txn {
-	return Txn{Key: key, Kind: kind, Tick: tick, Legs: []Leg{{from, asset, -units}, {to, asset, units}}}
+	return Txn{Key: key, Kind: kind, Tick: tick, Legs: Pair(from, to, asset, units)}
+}
+
+// Pair is the two legs that move units of an asset from one account to
+// another.
+func Pair(from, to, asset string, units int64) []Leg {
+	return []Leg{{from, asset, -units}, {to, asset, units}}
+}
+
+// Merge sums legs on the same account and asset, dropping any that come
+// to nothing, so a transaction that takes and gives back one asset posts
+// it once.
+func Merge(legs []Leg) []Leg {
+	var out []Leg
+	for _, l := range legs {
+		i := slices.IndexFunc(out, func(o Leg) bool { return o.Account == l.Account && o.Asset == l.Asset })
+		if i < 0 {
+			out = append(out, l)
+			continue
+		}
+		out[i].Units += l.Units
+	}
+	return slices.DeleteFunc(out, func(l Leg) bool { return l.Units == 0 })
 }
 
 // Balance is what an account holds of one asset.

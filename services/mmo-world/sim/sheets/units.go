@@ -1,6 +1,7 @@
 package sheets
 
 import (
+	"cmp"
 	"reflect"
 	"slices"
 
@@ -13,8 +14,11 @@ const TagWet = "wet"
 // Wet reports whether the terrain holds water.
 func (t *Terrain) Wet() bool { return slices.Contains(t.Tags, TagWet) }
 
-// structural: the world clock's day, what turns a days cell into ticks.
-const TicksPerDay = 144
+// structural: the world clock, expressed in ticks.
+const (
+	TicksPerHour = 6
+	TicksPerDay  = 144
+)
 
 // QuantityUnits are the units a number can carry (GDD 2.1), plus the
 // dimensionless ones a sheet needs.
@@ -66,4 +70,15 @@ func IntParam(rows []Param, id string) int64 {
 		panic("sheets: param " + id + " is not a whole number")
 	}
 	return v.Int()
+}
+
+// BandsByRank returns the odds band IDs in strongest-first order.
+func BandsByRank(b *Book) []string {
+	rows := slices.Clone(b.OddsBands)
+	slices.SortFunc(rows, func(x, y OddsBand) int { return cmp.Compare(y.Rank, x.Rank) })
+	out := make([]string, len(rows))
+	for i, row := range rows {
+		out[i] = row.ID
+	}
+	return out
 }

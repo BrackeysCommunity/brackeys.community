@@ -1,8 +1,3 @@
-/**
- * The bot's settings, from the environment. A missing required one stops
- * the bot at boot with its name, never with a default that points
- * somewhere real.
- */
 function need(name: string): string {
   const v = process.env[name]?.trim();
   if (!v) throw new Error(`${name} is required`);
@@ -16,9 +11,19 @@ export interface Config {
   worldUrl: string;
   worldToken: string;
   redisUrl?: string;
-  threatLine: number;
+  /** The threat line routes stop before; the world's ambush line when unset. */
+  threatLine?: number;
 }
 
+function integer(name: string): number | undefined {
+  const v = process.env[name]?.trim();
+  if (!v) return undefined;
+  const n = Number(v);
+  if (!Number.isSafeInteger(n)) throw new Error(`${name} must be a whole number, not "${v}"`);
+  return n;
+}
+
+/** Reads the bot settings and fails at startup if a required value is missing. */
 export function loadConfig(): Config {
   return {
     token: need("DISCORD_TOKEN"),
@@ -27,6 +32,6 @@ export function loadConfig(): Config {
     worldUrl: process.env.MMO_WORLD_URL?.trim() || "http://localhost:8080",
     worldToken: process.env.MMO_API_TOKEN?.trim() ?? "",
     redisUrl: process.env.REDIS_URL?.trim() || undefined,
-    threatLine: Number(process.env.MMO_THREAT_LINE ?? 600),
+    threatLine: integer("MMO_THREAT_LINE"),
   };
 }

@@ -2,9 +2,12 @@ package game
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
@@ -25,8 +28,8 @@ const (
 	Consent = "consent"
 )
 
-// News is a heavy fact the world keeps in memory for what NPCs and the
-// recap read: the last news-kept of weight news-weight or more.
+// News is a heavy fact kept in memory for NPC topics: the last news-kept
+// of weight news-weight or more.
 type News struct {
 	ID     fact.ID `json:"id"`
 	Tick   int64   `json:"tick"`
@@ -34,23 +37,19 @@ type News struct {
 	Region string  `json:"region,omitempty"`
 	At     hex.Hex `json:"at"`
 	Weight int64   `json:"weight"`
+	// Placeless news happened nowhere in particular, so it is never local.
+	Placeless bool `json:"placeless,omitempty"`
 }
-
-// structural: a fact names its tile through q and r data, when it has one.
-const (
-	keyQ = "q"
-	keyR = "r"
-)
 
 // keepNews adds the heavy facts among fs to the news ring.
 func (g *Game) keepNews(fs []fact.Fact) {
-	line, kept := g.r.wp("news-weight"), g.r.wp("news-kept")
+	line, kept := g.NewsWeight(), g.r.wp("news-kept")
 	for _, f := range fs {
 		if f.Weight < line {
 			continue
 		}
-		n := News{ID: f.ID, Tick: f.Tick, Kind: f.Kind, Region: f.Region, Weight: f.Weight}
-		n.At, _ = g.factAt(f)
+		at, ok := g.factAt(f)
+		n := News{ID: f.ID, Tick: f.Tick, Kind: f.Kind, Region: f.Region, At: at, Weight: f.Weight, Placeless: !ok}
 		g.News = append(g.News, n)
 	}
 	if over := int64(len(g.News)) - kept; over > 0 {
@@ -65,9 +64,6 @@ type Person struct {
 	Visit bool `json:"visit"` // it has queued a visit to this character
 }
 
-// structural: the place kind a starting settlement's residents fill.
-const placeSettlement = "starting-settlement"
-
 // PeopleHere are the NPCs on a tile at this hour: a settlement's
 // residents at home or on their routes, saved NPCs whose routes pass now,
 // and the day's wanderer. Nothing is walked: the route index answers.
@@ -81,7 +77,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 		}
 	}
 	if g.r.Gen.Baseline(h).Site == gen.PlaceSettlement {
-		for _, s := range g.r.NPC.Residents(placeSettlement, h.Ref(), h) {
+		for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h) {
 			if n := g.NPCs.Get(s.ID); n != nil {
 				if g.r.NPC.At(n, t) == h {
 					add(n)
@@ -114,21 +110,21 @@ func (g *Game) wanderer(h hex.Hex, t int64) (npc.Stub, bool) {
 	return g.r.NPC.MeetWanderer(h, t/sheets.TicksPerDay, tileTags)
 }
 
-// Visitors are the saved NPCs that want a word with a character, checked
-// when the character moves or opens the hub: here, or sending word.
+// Visitors are the saved NPCs that want a word with a character.
 func (g *Game) Visitors(c *Char) []*npc.NPC { return g.NPCs.Visiting(c.C.ID) }
 
 // talk opens a conversation: the NPC is saved on its first, the meeting
 // is recorded, and a first meeting may set off recognised (GDD 8.6).
 func (g *Game) talk(c *Char, cmd Command) error {
-	if c.Fight != nil {
-		return refuse(Busy, "%s is in an encounter", c.C.ID)
+	if err := canTrade(c); err != nil {
+		return err
 	}
-	i := slices.IndexFunc(g.PeopleHere(c, c.C.At), func(p Person) bool { return p.ID == cmd.NPC })
+	people := g.PeopleHere(c, c.C.At)
+	i := slices.IndexFunc(people, func(p Person) bool { return p.ID == cmd.NPC })
 	if i < 0 {
 		return refuse(NotHere, "%s is not here", cmd.NPC)
 	}
-	p := g.PeopleHere(c, c.C.At)[i]
+	p := people[i]
 	t := g.Tick()
 	n := g.NPCs.Get(p.ID)
 	if n == nil {
@@ -192,22 +188,30 @@ func (g *Game) standingKey(n *npc.NPC) string {
 	return "place:" + n.Stub.Home.Ref()
 }
 
+// StandingName resolves persisted standings for display.
+func (g *Game) StandingName(key string) string {
+	kind, ref, _ := strings.Cut(key, ":")
+	switch kind {
+	case "faction":
+		if id, err := strconv.Atoi(ref); err == nil && id >= 0 && id < len(g.World.Factions) {
+			return g.FactionName(id)
+		}
+	case "place":
+		var h hex.Hex
+		if _, err := fmt.Sscanf(ref, "%d,%d", &h.Q, &h.R); err == nil {
+			return g.PlaceName(h)
+		}
+	}
+	return key
+}
+
 func (g *Game) standing(c *Char, n *npc.NPC, by int64) {
 	gp := g.r.Growth.Params()
 	c.C.AdjustStanding(g.standingKey(n), by, sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max"))
 }
 
 func (g *Game) npcFact(c *Char, n *npc.NPC, kind string, t int64, data ...fact.Datum) (fact.Fact, error) {
-	region := ""
-	if r := g.World.RegionAt(c.C.At); r >= 0 {
-		region = world.RegionRef(r)
-	}
-	f, err := g.r.weights.New(t, kind, region, []fact.Ref{char.Ref(c.C.ID), npc.Ref(n.Stub.ID)}, nil, data...)
-	if err != nil {
-		return f, err
-	}
-	f.ID, err = g.Log.Append(f)
-	return f, err
+	return g.factWith(c, []fact.Ref{npc.Ref(n.Stub.ID)}, kind, t, data...)
 }
 
 // TopicView is one topic as a conversation offers it.
@@ -317,7 +321,7 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		if row.When == "corruption" {
 			gauge = "corruption"
 		}
-		v, ok := g.gaugeAt(n.Stub.Home, gauge)
+		v, ok := g.World.GaugeAt(n.Stub.Home, gauge)
 		if !ok || v < row.AtLeast {
 			return TopicView{}, false
 		}
@@ -341,7 +345,8 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		}
 	default:
 		// resold, sold-on, crowding, rival, promise-kept, promise-broken and
-		// moved-away read NPC trade, building and goals, which come later.
+		// moved-away need NPC trade, building and goals, which the sim does
+		// not model yet.
 		return TopicView{}, false
 	}
 	v := TopicView{ID: row.ID, Line: npc.Line(row.Line, fields...), Own: own, Salience: sal}
@@ -358,19 +363,11 @@ func (g *Game) newsNear(home hex.Hex, since, weight int64) (News, bool) {
 	rng := g.r.NPC.Param("news-range")
 	for i := len(g.News) - 1; i >= 0; i-- {
 		n := g.News[i]
-		if n.Tick > since && n.Weight >= weight && hex.Distance(n.At, home) <= rng {
+		if n.Tick > since && n.Weight >= weight && !n.Placeless && hex.Distance(n.At, home) <= rng {
 			return n, true
 		}
 	}
 	return News{}, false
-}
-
-func (g *Game) gaugeAt(h hex.Hex, id string) (int64, bool) {
-	r := g.World.RegionAt(h)
-	if r < 0 {
-		return 0, false
-	}
-	return g.World.Regions[r].Gauge[g.World.GaugeIndex(id)], true
 }
 
 func (g *Game) weatherOnRoute(n *npc.NPC, strength int64) (string, bool) {
@@ -418,6 +415,12 @@ func (g *Game) PlaceName(h hex.Hex) string { return g.placeName(h) }
 // choose takes a choice on a topic the conversation offers: its effect,
 // what the NPC remembers of it, and the line it keeps (GDD 4.18).
 func (g *Game) choose(c *Char, cmd Command) error {
+	if err := canTrade(c); err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(g.PeopleHere(c, c.C.At), func(p Person) bool { return p.ID == cmd.NPC }) {
+		return refuse(NotHere, "%s is not here", cmd.NPC)
+	}
 	conv, err := g.Converse(c, cmd.NPC)
 	if err != nil {
 		return err
@@ -427,21 +430,20 @@ func (g *Game) choose(c *Char, cmd Command) error {
 	if ti < 0 {
 		return refuse(BadArgs, "%s is not raising %q", cmd.NPC, topicID)
 	}
-	var row sheets.TopicChoice
-	for _, tp := range g.r.NPC.Topics() {
-		if tp.ID == topicID {
-			for _, ch := range tp.Choices {
-				if ch.ID == choiceID {
-					row = ch
-				}
-			}
-		}
-	}
-	if row.ID == "" {
+	row, ok := g.r.NPC.Choice(topicID, choiceID)
+	if !ok {
 		return refuse(BadArgs, "no choice %q on %s", choiceID, topicID)
 	}
 	n := g.NPCs.Get(cmd.NPC)
 	t := g.Tick()
+	day := t / sheets.TicksPerDay
+	m := n.Meeting(c.C.ID)
+	if m == nil {
+		return refuse(NotHere, "%s has not spoken with %s", c.C.ID, cmd.NPC)
+	}
+	if m.HasAnswered(topicID, day) {
+		return refuse(BadArgs, "%s has answered %s today", c.C.ID, topicID)
+	}
 	if err := g.effect(c, n, cmd.Key, row, t); err != nil {
 		return err
 	}
@@ -450,16 +452,27 @@ func (g *Game) choose(c *Char, cmd Command) error {
 		return err
 	}
 	if row.Remember != "" {
-		e := npc.Entry{Kind: row.Remember, Player: c.C.ID, Weight: row.Weight, Tick: t, Fact: int64(f.ID), Thing: strings.TrimSuffix(strings.ToLower(row.Line[:1])+row.Line[1:], ".")}
-		g.r.NPC.Remember(n, e, t)
-		if g.r.NPC.Wants(e) {
-			g.NPCs.Queue(n, c.C.ID)
-		}
+		g.note(n, c, npc.Entry{Kind: row.Remember, Player: c.C.ID, Weight: row.Weight, Tick: t, Fact: int64(f.ID), Thing: lowerFirst(strings.TrimSuffix(row.Line, "."))}, t)
 	}
-	if m := n.Meeting(c.C.ID); m != nil {
-		m.Topic, m.Line = topicID, conv.Topics[ti].Line
-	}
+	m.Answer(topicID, conv.Topics[ti].Line, day)
 	return g.NPCs.Touched(n)
+}
+
+func lowerFirst(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	if n == 0 {
+		return s
+	}
+	return string(unicode.ToLower(r)) + s[n:]
+}
+
+// note has an NPC remember an entry about a character, and queue a visit
+// to them when the entry is one it wants a word about.
+func (g *Game) note(n *npc.NPC, c *Char, e npc.Entry, t int64) {
+	g.r.NPC.Remember(n, e, t)
+	if g.r.NPC.Wants(e) {
+		g.NPCs.Queue(n, c.C.ID)
+	}
 }
 
 // effect applies a choice: standing with whose the NPC is, coin with its
@@ -477,7 +490,7 @@ func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t
 		if units <= 0 {
 			return nil
 		}
-		if from == ledger.Char(c.C.ID) && c.C.Coin < units {
+		if from == ledger.Char(c.C.ID) && g.balance(c, ledger.Coin) < units {
 			return refuse(BadArgs, "that takes %d coin", units)
 		}
 		return g.receive(c, ledger.Move(key, "npc", t, from, to, ledger.Coin, units))
@@ -522,7 +535,7 @@ func (g *Game) rumour(c *Char, n *npc.NPC) {
 	}
 }
 
-// Naming consent (GDD 4.18, D34): by default a player may be named to
+// Naming consent (GDD 4.18): by default a player may be named to
 // players of the same server and is "a traveller from" their guild to
 // others; each can change both.
 const (
@@ -560,11 +573,7 @@ func (g *Game) fought(c *Char, h hex.Hex, creature string, t int64) error {
 		if g.r.NPC.At(n, t) != h {
 			continue
 		}
-		e := npc.Entry{Kind: "fought", Player: c.C.ID, Weight: g.r.NPC.Param("fought-weight"), Tick: t, Thing: g.r.Name("creatures.archetypes:" + creature)}
-		g.r.NPC.Remember(n, e, t)
-		if g.r.NPC.Wants(e) {
-			g.NPCs.Queue(n, c.C.ID)
-		}
+		g.note(n, c, npc.Entry{Kind: "fought", Player: c.C.ID, Weight: g.r.NPC.Param("fought-weight"), Tick: t, Thing: g.r.Name("creatures.archetypes:" + creature)}, t)
 		if err := g.NPCs.Touched(n); err != nil {
 			return err
 		}
@@ -575,12 +584,12 @@ func (g *Game) fought(c *Char, h hex.Hex, creature string, t int64) error {
 // traded records a sale with the settlement's trader, if it is saved.
 func (g *Game) traded(c *Char, material string, t int64) error {
 	h := c.C.At
-	for _, s := range g.r.NPC.Residents(placeSettlement, h.Ref(), h) {
+	for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h) {
 		if s.Role != "settlement-trader" {
 			continue
 		}
 		if n := g.NPCs.Get(s.ID); n != nil {
-			g.r.NPC.Remember(n, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.r.Name("items.materials:" + material)}, t)
+			g.note(n, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.r.Name("items.materials:" + material)}, t)
 			return g.NPCs.Touched(n)
 		}
 	}

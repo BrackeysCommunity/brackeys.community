@@ -18,15 +18,25 @@ import { talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
 import samples from "./fixtures/world.json";
 
-/**
- * MM4.23: every card the bot draws, from replies a scripted run recorded
- * off a real world, keeps the card standard: a picture unless a pure form,
- * no number without its unit, a why button where a modifier shows, and a
- * band on every option that can fail.
- */
+/** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
 
 const w = samples as unknown as Record<string, unknown>;
-const lex = new Lexicon(w.lexicon as api.Lexicon);
+const NUMBERS: api.Numbers = {
+  ambushLine: 600,
+  overrunLine: 900,
+  crawlTicks: 6,
+  woundedTicks: 1,
+  freeTicks: 2,
+  stepMin: 1,
+  stepMax: 3,
+  beatsMin: 3,
+  beatsMax: 6,
+};
+const lex = new Lexicon({
+  ...(w.lexicon as Omit<api.Lexicon, "numbers">),
+  numbers: NUMBERS,
+  starts: ["hook", "knife", "deck"],
+});
 const names = lex.goodsNames();
 const o = w.options as api.Options;
 const here = w.here as api.Here;
@@ -36,14 +46,20 @@ const press = (w["act:press"] as { reply: api.ActionReply }).reply;
 const craft = (w["act:craft"] as { reply: api.ActionReply }).reply;
 
 const cards: [string, () => Card][] = [
-  ["start", () => startCard()],
+  ["start", () => startCard(lex)],
   ["hub", () => hubCard(o, here, sheet, lex)],
   ["where", () => whereCard(o, here, lex)],
-  ["travel", () => travelCard(o, w.map as api.MapView, here, lex, 600)],
+  ["travel", () => travelCard(o, w.map as api.MapView, here, lex, NUMBERS.ambushLine)],
   [
     "travel on the road",
     () =>
-      travelCard((w["options:travel"] ?? o) as api.Options, w.map as api.MapView, here, lex, 600),
+      travelCard(
+        (w["options:travel"] ?? o) as api.Options,
+        w.map as api.MapView,
+        here,
+        lex,
+        NUMBERS.ambushLine,
+      ),
   ],
   ["field", () => fieldCard(o, here, lex)],
   ["beat", () => beatCard(w["options:fight"] as api.Options, here, lex)],
@@ -58,7 +74,7 @@ const cards: [string, () => Card][] = [
   ["resolved", () => resolvedCard(o, here, lex, press.pressed ?? [], press.facts)],
   ["why options", () => whyCard(w["options:fight"] as api.Options, here, lex, "options")],
   ["why moves", () => whyCard(o, here, lex, "moves")],
-  ["down", () => downCard((w["options:down"] ?? o) as api.Options, here)],
+  ["down", () => downCard((w["options:down"] ?? o) as api.Options, here, lex)],
   ["craft", () => craftCard(o, here, sheet, recipes, lex, {})],
   [
     "craft chosen",
@@ -84,6 +100,16 @@ const cards: [string, () => Card][] = [
   ["market", () => marketCard(o, here, sheet, lex)],
   ["character", () => characterCard(o, here, sheet, lex)],
   ["item", () => itemCard(o, here, [...sheet.kit, ...sheet.pack][0]!, lex)],
+  [
+    "item to wear",
+    () =>
+      itemCard(
+        o,
+        here,
+        { ...[...sheet.kit, ...sheet.pack][0]!, worn: "", wearIn: ["hand", "off-hand"] },
+        lex,
+      ),
+  ],
   ["recipes", () => recipesCard(o, here, recipes, lex)],
   [
     "since you left",
@@ -143,6 +169,30 @@ describe("the checker fails what breaks the standard", () => {
       names,
     );
     expect(p).toHaveLength(2);
+  });
+  test("rows Discord would cut", () => {
+    const b = (id: string) => ({ kind: "page" as const, label: "Go", customId: id });
+    const p = problems(
+      {
+        ...base,
+        rows: [
+          { buttons: [b("mm|a||1"), b("mm|a||1")] },
+          {
+            select: {
+              customId: "mm|s||1",
+              placeholder: "p",
+              options: [
+                { label: "x", value: "v" },
+                { label: "y", value: "v" },
+              ],
+            },
+          },
+          ...Array.from({ length: 4 }, (_, i) => ({ buttons: [b(`mm|r|${i}|1`)] })),
+        ],
+      },
+      names,
+    );
+    expect(p).toHaveLength(3);
   });
   test("changes, bands and identifiers are not bare", () => {
     expect(

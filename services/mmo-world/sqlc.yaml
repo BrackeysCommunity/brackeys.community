@@ -7,6 +7,8 @@ sql:
     schema:
       - ../../drizzle/20261118220241_mmo-world/migration.sql
       - ../../drizzle/20261119123214_mmo-npc/migration.sql
+      - ../../drizzle/20261119171759_mmo-fact-region/migration.sql
+      - ../../drizzle/20261119192946_mmo-fact-subjects/migration.sql
     queries: store/queries.sql
     gen:
       go:

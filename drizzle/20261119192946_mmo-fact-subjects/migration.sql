@@ -1,0 +1,1 @@
+CREATE INDEX "fact_subjects_idx" ON "mmo"."fact" USING gin ("subjects" jsonb_path_ops);

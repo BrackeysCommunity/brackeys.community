@@ -23,7 +23,7 @@ func (g *Game) look(c *Char) error {
 const (
 	RecapCost    = iota + 1 // what cost the player
 	RecapPaid               // what paid them
-	RecapDue                // their goals and pledges falling due
+	RecapDue                // reserved: goals and pledges falling due
 	RecapVisit              // NPCs who want a word
 	RecapNear               // heavy facts near where they stand
 	RecapLargest            // the world's heaviest since they left
@@ -51,7 +51,7 @@ type Recap struct {
 }
 
 // Recap selects from the facts naming the character since it was last
-// seen, and the world's heavy facts in the same span, by the six rules;
+// seen, and the world's heavy facts in the same span, by the recap rules;
 // ties go to the newer fact.
 func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 	since := c.Seen
@@ -81,7 +81,7 @@ func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 	near := g.r.wp("recap-range")
 	var close, rest []fact.Fact
 	for _, f := range heavy {
-		if f.Tick <= since || f.Weight < g.r.wp("news-weight") {
+		if f.Tick <= since || f.Weight < g.NewsWeight() {
 			continue
 		}
 		if at, ok := g.factAt(f); ok && hex.Distance(at, c.C.At) <= near {
@@ -105,10 +105,8 @@ func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 
 // factAt is the tile a fact names, or its region's centre.
 func (g *Game) factAt(f fact.Fact) (hex.Hex, bool) {
-	q, okq := f.Get(keyQ)
-	r, okr := f.Get(keyR)
-	if okq && okr {
-		return hex.Hex{Q: q.N, R: r.N}, true
+	if h, ok := fact.HexOf(f); ok {
+		return h, true
 	}
 	if i, ok := world.ParseRegionRef(f.Region); ok && i < len(g.World.Regions) {
 		return g.r.Gen.Region(g.World.Regions[i].Lattice).Centre, true
@@ -117,4 +115,8 @@ func (g *Game) factAt(f fact.Fact) (hex.Hex, bool) {
 }
 
 // RecapWindow is how far back a recap reads facts, at most.
+// NewsWeight is the minimum weight for regional news.
+func (g *Game) NewsWeight() int64 { return g.r.wp("news-weight") }
+
+// RecapWindow is the maximum lookback, in ticks.
 func (g *Game) RecapWindow() int64 { return g.r.wp("recap-days") * sheets.TicksPerDay }

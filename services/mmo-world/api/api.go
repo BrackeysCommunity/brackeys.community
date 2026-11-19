@@ -87,9 +87,7 @@ type ActionRequest struct {
 	Material      string `json:"material,omitempty"`
 	Ticks         int64  `json:"ticks,omitempty"`
 	Option        string `json:"option,omitempty"`
-	// The solo loop's fields (GDD 3.1, 6): an amount and an asset, an
-	// item and where it goes, a recipe, a route's stops, an NPC, and a new
-	// character's Discord server.
+	// The solo loop's fields (GDD 3.1, 6).
 	Units  int64   `json:"units,omitempty"`
 	Asset  string  `json:"asset,omitempty"`
 	Item   string  `json:"item,omitempty"`
@@ -149,6 +147,13 @@ const (
 	CodeNoEncounter     = "no-encounter"
 	CodeNeedsActivity   = "needs-activity"
 	CodeDown            = "down"
+)
+
+// Character condition IDs.
+const (
+	CondDown    = "down"
+	CondWounded = "wounded"
+	CondHungry  = "hungry"
 )
 
 // Goods are units of a material a character carries.
@@ -336,6 +341,7 @@ type Place struct {
 	Here    []string `json:"here"` // characters standing on the tile
 	Explore bool     `json:"explore"`
 	Rest    bool     `json:"rest"`
+	Overrun bool     `json:"overrun,omitempty"`
 }
 
 // Health is the service's liveness and where the world is. Standby is a

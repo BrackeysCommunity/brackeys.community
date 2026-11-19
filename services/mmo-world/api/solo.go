@@ -87,8 +87,11 @@ type Item struct {
 	Maker      string   `json:"maker,omitempty"`
 	Mount      string   `json:"mount,omitempty"`
 	Exploit    *Item    `json:"exploit,omitempty"`
-	Sigil      string   `json:"sigil"` // a media key
-	Value      int64    `json:"value"` // coin, at reference
+	WearIn     []string `json:"wearIn"`          // kit slots it may be worn in
+	Deck       bool     `json:"deck,omitempty"`  // accepts a loaded exploit
+	Loads      bool     `json:"loads,omitempty"` // an exploit, loaded into a deck
+	Sigil      string   `json:"sigil"`           // a media key
+	Value      int64    `json:"value"`           // coin, at reference
 }
 
 // Standing is standing with a faction or a place.
@@ -249,9 +252,10 @@ type Recipes struct {
 
 // Process is a process, its methods and its stations.
 type Process struct {
-	ID       string   `json:"id"`
-	Methods  []string `json:"methods"`
-	Stations []string `json:"stations"`
+	ID        string   `json:"id"`
+	Methods   []string `json:"methods"`
+	Stations  []string `json:"stations"`
+	NeedsSlot bool     `json:"needsSlot"` // its recipe names a slot
 }
 
 // Known is a kind the character made, discovered or carries.
@@ -315,9 +319,25 @@ type MapView struct {
 	Image  string `json:"image"` // a media key
 }
 
-// Lexicon is what the setting calls things, by "sheet:id", and the odds
-// bands best first.
+// Lexicon is what the setting calls things, by "sheet:id", the odds
+// bands best first, and the rules' numbers the cards state.
 type Lexicon struct {
-	Names map[string]string `json:"names"`
-	Bands []string          `json:"bands"`
+	Names   map[string]string `json:"names"`
+	Bands   []string          `json:"bands"`
+	Starts  []string          `json:"starts"`
+	Numbers Numbers           `json:"numbers"`
+}
+
+// Numbers are sheet values the cards state, so a retuned sheet never
+// leaves a card saying the old number.
+type Numbers struct {
+	AmbushLine   int64 `json:"ambushLine"`   // threat
+	OverrunLine  int64 `json:"overrunLine"`  // threat
+	CrawlTicks   int64 `json:"crawlTicks"`   // ticks
+	WoundedTicks int64 `json:"woundedTicks"` // ticks a wound adds to a long action
+	FreeTicks    int64 `json:"freeTicks"`    // journey ticks before provisions are eaten
+	StepMin      int64 `json:"stepMin"`      // ticks a tile
+	StepMax      int64 `json:"stepMax"`      // ticks a tile
+	BeatsMin     int64 `json:"beatsMin"`     // beats in a first-tier encounter
+	BeatsMax     int64 `json:"beatsMax"`     // beats in a first-tier encounter
 }

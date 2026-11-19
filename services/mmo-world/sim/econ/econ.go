@@ -1,6 +1,6 @@
 // Package econ is coin for the solo loop: reference values (GDD 10.10),
 // the faction buy orders each starting settlement posts at them, and the
-// fees the loop pays. MM5's books and stabiliser build on these values.
+// fees the loop pays.
 package econ
 
 import (
@@ -9,6 +9,7 @@ import (
 
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/item"
+	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -18,11 +19,11 @@ type Values struct {
 	materials map[string]*sheets.Material
 	sorted    []sheets.Material
 	params    []sheets.Param
-	archs     []sheets.Archetype
+	archs     map[string]*sheets.Archetype
 }
 
 func New(b *sheets.Book) *Values {
-	v := &Values{ref: map[int64]sheets.RefValue{}, materials: sheets.Lookup(b.Materials), params: b.EconomyParams, archs: b.Archetypes}
+	v := &Values{ref: map[int64]sheets.RefValue{}, materials: sheets.Lookup(b.Materials), params: b.EconomyParams, archs: sheets.Lookup(b.Archetypes)}
 	v.sorted = slices.Clone(b.Materials)
 	slices.SortFunc(v.sorted, func(a, b sheets.Material) int { return cmp.Compare(a.ID, b.ID) })
 	for _, r := range b.RefValues {
@@ -30,6 +31,9 @@ func New(b *sheets.Book) *Values {
 	}
 	return v
 }
+
+// Archetype is a faction archetype's row, or nil.
+func (v *Values) Archetype(id string) *sheets.Archetype { return v.archs[id] }
 
 // Param is an economy.params cell.
 func (v *Values) Param(id string) int64 { return sheets.IntParam(v.params, id) }
@@ -52,8 +56,8 @@ func (v *Values) Material(id string) int64 {
 	return max(1, fixed.Ratio(r.Base*total, r.Median).Int())
 }
 
-// Kind is a made kind's value: its inputs, plus the step markup a
-// process in its ancestry.
+// Kind is a made kind's value: its inputs' values plus step-markup,
+// compounding once per process in its ancestry.
 func (v *Values) Kind(reg item.Registry, k *item.Kind) int64 {
 	var sum int64
 	for _, in := range k.Recipe.Inputs {
@@ -73,9 +77,6 @@ type Order struct {
 	Price    int64  `json:"price"` // coin each
 }
 
-// Provisions is the asset id an order for provisions names.
-const Provisions = "provisions"
-
 // Keepers is the Faction of an order the settlement's own keepers post.
 const Keepers = -1
 
@@ -87,12 +88,8 @@ const Keepers = -1
 func (v *Values) Orders(factions []string) []Order {
 	var out []Order
 	buys := func(arch, tag string) bool {
-		for _, a := range v.archs {
-			if a.ID == arch {
-				return slices.Contains(a.Buys, tag)
-			}
-		}
-		return false
+		a, ok := v.archs[arch]
+		return ok && slices.Contains(a.Buys, tag)
 	}
 	for _, m := range v.sorted {
 		o := Order{Faction: Keepers, Material: m.ID, Price: v.Material(m.ID)}
@@ -105,13 +102,17 @@ func (v *Values) Orders(factions []string) []Order {
 		out = append(out, o)
 	}
 	for fi, arch := range factions {
-		if buys(arch, Provisions) {
-			out = append(out, Order{Faction: fi, Material: Provisions, Price: v.Param("provisions-value")})
+		if buys(arch, ledger.Provisions) {
+			out = append(out, Order{Faction: fi, Material: ledger.Provisions, Price: v.Param("provisions-value")})
 			break
 		}
 	}
 	return out
 }
 
-// Fee is a faction order's fee on a fill, rounded down.
-func (v *Values) Fee(coin int64) int64 { return fixed.PercentFloor(coin, v.Param("fill-fee")) }
+// Fee is a faction order's fee on a fill, rounded up so splitting a sale
+// never pays less than making it whole.
+func (v *Values) Fee(coin int64) int64 { return -fixed.PercentFloor(-coin, v.FeePercent()) }
+
+// FeePercent is a faction order's fee, as a percent of the fill.
+func (v *Values) FeePercent() int64 { return v.Param("fill-fee") }

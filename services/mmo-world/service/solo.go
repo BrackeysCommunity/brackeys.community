@@ -21,14 +21,11 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// structural: the map crop's default and widest radius, in tiles; recent
-// facts a place shows; ticks an hour; pictures the media cache keeps.
 const (
-	mapRadius    = 4
-	mapRadiusMax = 6
-	recentFacts  = 5
-	ticksPerHour = 6
-	mediaKept    = 1024
+	mapRadius    = 4    // tiles
+	mapRadiusMax = 6    // tiles
+	recentFacts  = 5    // facts shown on a place card
+	mediaKept    = 1024 // cached images
 )
 
 func simRecipe(r api.Recipe) item.Recipe {
@@ -54,7 +51,16 @@ type media struct {
 	order []string
 }
 
+// put draws a picture outside the cache's lock, so pictures render side
+// by side; two draws of one key give the same bytes.
 func (m *media) put(key string, draw func() ([]byte, error)) (string, error) {
+	if _, ok := m.get(key); ok {
+		return key, nil
+	}
+	b, err := draw()
+	if err != nil {
+		return "", err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.png == nil {
@@ -62,10 +68,6 @@ func (m *media) put(key string, draw func() ([]byte, error)) (string, error) {
 	}
 	if _, ok := m.png[key]; ok {
 		return key, nil
-	}
-	b, err := draw()
-	if err != nil {
-		return "", err
 	}
 	m.png[key] = b
 	m.order = append(m.order, key)
@@ -83,7 +85,7 @@ func (m *media) get(key string) ([]byte, bool) {
 	return b, ok
 }
 
-// picture renders a picture under the key of its input, once.
+// picture caches an image under a key derived from its input.
 func (s *Server) picture(kind string, input any, draw func() (*render.Canvas, error)) (string, error) {
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -110,30 +112,43 @@ func (s *Server) mediaHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-// withChar runs a read for the character a query names, under the lock.
-func (s *Server) withChar(w http.ResponseWriter, r *http.Request, f func(c *game.Char)) {
+// withChar runs a read for the character a query names, under the lock,
+// and reports whether it ran; when it did not, the reply is written.
+func (s *Server) withChar(w http.ResponseWriter, r *http.Request, f func(c *game.Char)) bool {
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
-		return
+		return false
 	}
 	defer unlock()
-	if c := s.charFor(w, r.URL.Query().Get("characterId")); c != nil {
+	c := s.charFor(w, r.URL.Query().Get("characterId"))
+	if c != nil {
 		f(c)
 	}
+	return c != nil
 }
 
 func (s *Server) sheet(w http.ResponseWriter, r *http.Request) {
-	s.withChar(w, r, func(c *game.Char) {
-		out, err := s.apiSheet(c)
-		if err != nil {
-			s.internal(w, err)
-			return
+	var out api.Sheet
+	var err error
+	var pictures []func() error
+	if !s.withChar(w, r, func(c *game.Char) { out, err = s.apiSheet(c, &pictures) }) {
+		return
+	}
+	if err == nil {
+		for _, draw := range pictures {
+			if err = draw(); err != nil {
+				break
+			}
 		}
-		reply(w, http.StatusOK, out)
-	})
+	}
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, out)
 }
 
-func (s *Server) apiSheet(c *game.Char) (api.Sheet, error) {
+func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, error) {
 	g := s.g
 	out := api.Sheet{Character: apiCharacter(g, c), Start: c.Start, Kit: []api.Item{}, Pack: []api.Item{}, Standing: []api.Standing{},
 		Record: []api.Count{}, Finds: []api.Find{}, Owed: c.Owed, Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
@@ -143,7 +158,7 @@ func (s *Server) apiSheet(c *game.Char) (api.Sheet, error) {
 		worn[e.Item] = e.Slot
 	}
 	for _, in := range c.C.Pack {
-		it, err := s.apiItem(in, worn[in.ID])
+		it, err := s.apiItem(in, worn[in.ID], pictures)
 		if err != nil {
 			return out, err
 		}
@@ -154,7 +169,7 @@ func (s *Server) apiSheet(c *game.Char) (api.Sheet, error) {
 		}
 	}
 	for _, x := range c.C.Standing {
-		out.Standing = append(out.Standing, api.Standing{With: x.Key, Value: x.N})
+		out.Standing = append(out.Standing, api.Standing{With: g.StandingName(x.Key), Value: x.N})
 	}
 	f := c.C.Fights
 	out.Record = append(out.Record,
@@ -183,12 +198,13 @@ func apiFind(f game.Find) api.Find {
 	return out
 }
 
-// apiItem is an item's card, with its sigil drawn.
-func (s *Server) apiItem(in *item.Instance, worn string) (api.Item, error) {
+// apiItem prepares an item's card and queues its sigil for rendering.
+func (s *Server) apiItem(in *item.Instance, worn string, pictures *[]func() error) (api.Item, error) {
 	g := s.g
 	r := g.Rules()
 	out := api.Item{ID: in.ID, Kind: in.Kind, Worn: worn, Level: in.Level, XP: in.XP, Durability: in.Durability, Max: in.MaxDurability,
-		Dormant: in.Dormant, Axes: []api.Part{}, Traits: []string{}, Picks: append([]string{}, in.Picks...), Offers: in.Offers, Maker: in.Maker, Mount: in.Mount}
+		Dormant: in.Dormant, Axes: []api.Part{}, Traits: []string{}, Picks: append([]string{}, in.Picks...), Offers: slices.Clone(in.Offers), Maker: in.Maker, Mount: in.Mount,
+		WearIn: []string{}}
 	if in.Mount != "" {
 		out.Name, out.Slot = r.Name("mounts.kinds:"+in.Mount), char.Mount
 		if m := r.Mounts.Kind(in.Mount); m != nil {
@@ -198,6 +214,7 @@ func (s *Server) apiItem(in *item.Instance, worn string) (api.Item, error) {
 	k, ok := g.Kinds.Kind(in.Kind)
 	if ok {
 		out.Name, out.Slot, out.Tier, out.Value = g.Kinds.Name(k.ID), k.Slot, k.Tier, r.Values.Kind(&g.Kinds, k)
+		out.WearIn, out.Loads, out.Deck = append(out.WearIn, game.WearIn(k.Slot)...), game.Loads(k), game.IsDeck(k)
 		out.ToNext = r.Growth.ToNext(in.Level)
 		axes := r.Fight.D.Axes()
 		for i, v := range k.Vec {
@@ -208,14 +225,19 @@ func (s *Server) apiItem(in *item.Instance, worn string) (api.Item, error) {
 		out.Traits = append(out.Traits, in.Traits(k, r.Fight.D)...)
 		top := topTwo(k.Vec)
 		sig := render.SigilInput{Process: k.Recipe.Process, Slot: k.Slot, Axes: top, Level: in.Level, Picks: len(in.Picks), Maker: in.Maker, Dormant: in.Dormant}
-		key, err := s.picture("sigil", sig, func() (*render.Canvas, error) { return render.Sigil(sig), nil })
+		body, err := json.Marshal(sig)
 		if err != nil {
 			return out, err
 		}
-		out.Sigil = key
+		out.Sigil = render.Key("sigil", body)
+		key := out.Sigil
+		*pictures = append(*pictures, func() error {
+			_, err := s.media.put(key, func() ([]byte, error) { return render.Sigil(sig).PNG() })
+			return err
+		})
 	}
 	if in.Exploit != nil {
-		x, err := s.apiItem(in.Exploit, "")
+		x, err := s.apiItem(in.Exploit, "", pictures)
 		if err != nil {
 			return out, err
 		}
@@ -236,18 +258,31 @@ func topTwo(v item.Vec) [2]int {
 	return [2]int{a, b}
 }
 
+// here reads the place under the lock, and its recent facts from the
+// store after, so a slow query never holds up ticks.
 func (s *Server) here(w http.ResponseWriter, r *http.Request) {
-	s.withChar(w, r, func(c *game.Char) {
-		out, err := s.apiHere(r, c)
-		if err != nil {
-			s.internal(w, err)
-			return
-		}
-		reply(w, http.StatusOK, out)
-	})
+	var out api.Here
+	var banner render.BannerInput
+	if !s.withChar(w, r, func(c *game.Char) {
+		out = s.apiHere(c)
+		banner = s.bannerInput(c.C.At)
+	}) {
+		return
+	}
+	var err error
+	if out.Banner, err = s.banner(banner); err == nil && out.Place.Tile.Region != "" {
+		var recent []fact.Fact
+		recent, err = s.st.RecentIn(r.Context(), out.Place.Tile.Region, recentFacts)
+		out.Recent = apiFacts(recent)
+	}
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, out)
 }
 
-func (s *Server) apiHere(r *http.Request, c *game.Char) (api.Here, error) {
+func (s *Server) apiHere(c *game.Char) api.Here {
 	g := s.g
 	h := c.C.At
 	place := placeView(g, h)
@@ -255,20 +290,13 @@ func (s *Server) apiHere(r *http.Request, c *game.Char) (api.Here, error) {
 		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{}}
 	rv := g.Rules().Values
 	for _, st := range g.Stations(h) {
-		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: st.Tier * rv.Param("station-fee")})
+		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: g.StationFee(st)})
 	}
 	for _, o := range g.Orders(h) {
-		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Fee: rv.Param("fill-fee")})
+		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Fee: rv.FeePercent()})
 	}
-	if g.HasStructure(h, "market") {
-		out.Offers = append(out.Offers, api.Offer{Asset: "provisions", Price: rv.Param("provisions-price")})
-	}
-	if g.HasStructure(h, "stable") {
-		for _, m := range g.Rules().Book.MountKinds {
-			if m.Tier == g.Rules().Book.Tiers[0].Tier {
-				out.Offers = append(out.Offers, api.Offer{Asset: m.ID, Price: m.Tier * rv.Param("mount-price")})
-			}
-		}
+	for _, o := range g.Offers(h) {
+		out.Offers = append(out.Offers, api.Offer{Asset: o.Asset, Price: o.Price})
 	}
 	for _, p := range g.PeopleHere(c, h) {
 		out.People = append(out.People, apiPerson(g, p))
@@ -288,16 +316,7 @@ func (s *Server) apiHere(r *http.Request, c *game.Char) (api.Here, error) {
 	if sg, ok := g.Suggest(h); ok {
 		out.Suggest = &api.Suggest{At: apiHex(sg.At), Tiles: sg.Tiles, Dir: sg.Dir}
 	}
-	if place.Tile.Region != "" {
-		recent, err := s.st.RecentIn(r.Context(), place.Tile.Region, recentFacts)
-		if err != nil {
-			return out, err
-		}
-		out.Recent = apiFacts(recent)
-	}
-	key, err := s.banner(h)
-	out.Banner = key
-	return out, err
+	return out
 }
 
 func apiPerson(g *game.Game, p game.Person) api.Person {
@@ -305,35 +324,37 @@ func apiPerson(g *game.Game, p game.Person) api.Person {
 	if row := g.Rules().NPC.Role(p.Role); row != nil {
 		role = row.Role
 	}
-	return api.Person{ID: p.ID, Name: p.Name, Role: role, Kind: p.Kind, Traits: p.Traits, Saved: p.Saved, Visit: p.Visit}
+	return api.Person{ID: p.ID, Name: p.Name, Role: role, Kind: p.Kind, Traits: slices.Clone(p.Traits), Saved: p.Saved, Visit: p.Visit}
 }
 
-// banner draws the banner of the region a tile is in, as it stands now.
-func (s *Server) banner(h hex.Hex) (string, error) {
+func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
 	g := s.g
 	r := g.Rules()
 	b := r.Gen.Baseline(h)
-	in := render.BannerInput{Terrain: b.Terrain, Hour: (g.Tick() % sheets.TicksPerDay) / ticksPerHour, Settlement: b.Site == gen.PlaceSettlement}
+	in := render.BannerInput{Terrain: b.Terrain, Hour: (g.Tick() % sheets.TicksPerDay) / sheets.TicksPerHour, Settlement: b.Site == gen.PlaceSettlement}
 	if ri := g.World.RegionAt(h); ri >= 0 {
 		reg := g.World.Regions[ri]
 		in.Seed = world.RegionRef(ri)
-		in.Threat = reg.Gauge[g.World.GaugeIndex("threat")]
-		in.Corruption = reg.Gauge[g.World.GaugeIndex("corruption")]
-		in.Danger = in.Threat >= world.LineAt(r.Book, "ambush")
-		in.Overrun = in.Threat >= world.LineAt(r.Book, "overrun")
-		in.Corrupted = in.Corruption >= world.LineAt(r.Book, "corrupted-nodes")
+		in.Threat, _ = g.World.GaugeAt(h, "threat")
+		in.Corruption, _ = g.World.GaugeAt(h, "corruption")
+		in.Danger = g.World.Past(h, "ambush")
+		in.Overrun = g.World.Past(h, "overrun")
+		in.Corrupted = g.World.Past(h, "corrupted-nodes")
 		if reg.Holder >= 0 {
-			for _, a := range r.Book.Archetypes {
-				if a.ID == g.World.Factions[reg.Holder].Archetype {
-					in.Tags = a.Tags
-				}
+			if a := r.Values.Archetype(g.World.Factions[reg.Holder].Archetype); a != nil {
+				in.Tags = a.Tags
 			}
 		}
 	}
 	if w, ok := g.World.Weather(h); ok {
 		in.Weather = w.Kind
 	}
-	return s.picture("banner", in, func() (*render.Canvas, error) { return render.Banner(in, r.Book.BannerLayers, r.Book.Palette) })
+	return in
+}
+
+func (s *Server) banner(in render.BannerInput) (string, error) {
+	b := s.rules.Book
+	return s.picture("banner", in, func() (*render.Canvas, error) { return render.Banner(in, b.BannerLayers, b.Palette) })
 }
 
 func (s *Server) appraise(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +402,7 @@ func (s *Server) recipes(w http.ResponseWriter, r *http.Request) {
 		b := s.g.Rules().Book
 		out := api.Recipes{Processes: []api.Process{}, Slots: []string{}, Known: []api.Known{}}
 		for _, p := range b.Processes {
-			x := api.Process{ID: p.ID, Stations: p.Stations, Methods: []string{}}
+			x := api.Process{ID: p.ID, Stations: p.Stations, Methods: []string{}, NeedsSlot: game.NeedsSlot(p.ID)}
 			for _, m := range b.Methods {
 				if m.Process == p.ID {
 					x.Methods = append(x.Methods, m.ID)
@@ -409,16 +430,24 @@ func (s *Server) recipes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// recap reads the facts from the store outside the lock, then selects
+// from them under it.
 func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
+	var id string
+	var since, weight int64
+	if !s.withChar(w, r, func(c *game.Char) {
+		id, since, weight = c.C.ID, max(c.Seen, s.g.Tick()-s.g.RecapWindow()), s.g.NewsWeight()
+	}) {
+		return
+	}
+	own, heavy, err := s.st.RecapFacts(r.Context(), id, since, weight)
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
 	s.withChar(w, r, func(c *game.Char) {
-		since := max(c.Seen, s.g.Tick()-s.g.RecapWindow())
 		view := *c
 		view.Seen = since
-		own, heavy, err := s.st.RecapFacts(r.Context(), c.C.ID, since, newsWeight(s.g))
-		if err != nil {
-			s.internal(w, err)
-			return
-		}
 		rc := s.g.Recap(&view, own, heavy)
 		out := api.Recap{Since: rc.Since, Tick: s.g.Tick(), Lines: []api.RecapLine{}, More: rc.More}
 		for _, l := range rc.Lines {
@@ -433,18 +462,17 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func newsWeight(g *game.Game) int64 {
-	return sheets.IntParam(g.Rules().Book.WorldParams, "news-weight")
-}
-
 func (s *Server) npcHandler(w http.ResponseWriter, r *http.Request) {
-	s.withChar(w, r, func(c *game.Char) {
-		conv, err := s.g.Converse(c, r.URL.Query().Get("npc"))
+	var out api.Conversation
+	var banner render.BannerInput
+	var err error
+	if !s.withChar(w, r, func(c *game.Char) {
+		var conv game.Conversation
+		conv, err = s.g.Converse(c, r.URL.Query().Get("npc"))
 		if err != nil {
-			s.refused(w, err)
 			return
 		}
-		out := api.Conversation{NPC: apiPerson(s.g, game.Person{Stub: conv.NPC, Saved: true}), Topics: []api.Topic{}, Last: conv.Last, Met: conv.Met, Digest: conv.Digest}
+		out = api.Conversation{NPC: apiPerson(s.g, game.Person{Stub: conv.NPC, Saved: true}), Topics: []api.Topic{}, Last: conv.Last, Met: conv.Met, Digest: conv.Digest}
 		for _, t := range conv.Topics {
 			x := api.Topic{ID: t.ID, Line: t.Line, Own: t.Own, Choices: []api.Choice{}}
 			for _, ch := range t.Choices {
@@ -452,14 +480,20 @@ func (s *Server) npcHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			out.Topics = append(out.Topics, x)
 		}
-		key, err := s.banner(c.C.At)
-		if err != nil {
-			s.internal(w, err)
-			return
-		}
-		out.Banner = key
-		reply(w, http.StatusOK, out)
-	})
+		banner = s.bannerInput(c.C.At)
+	}) {
+		return
+	}
+	if err != nil {
+		s.refused(w, err)
+		return
+	}
+	out.Banner, err = s.banner(banner)
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, out)
 }
 
 func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
@@ -468,13 +502,14 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 		radius = mapRadius
 	}
 	radius = min(max(radius, 1), mapRadiusMax)
-	s.withChar(w, r, func(c *game.Char) {
+	var out api.MapView
+	var crop render.MapCrop
+	if !s.withChar(w, r, func(c *game.Char) {
 		g := s.g
-		out := api.MapView{Tick: g.Tick(), Centre: apiHex(c.C.At), Radius: radius, Tiles: []api.Tile{}}
-		crop := render.MapCrop{Centre: c.C.At, Radius: radius, At: c.C.At, ThreatLine: world.LineAt(g.Rules().Book, "ambush"),
-			CorruptionLine: world.LineAt(g.Rules().Book, "corrupted-nodes")}
+		out = api.MapView{Tick: g.Tick(), Centre: apiHex(c.C.At), Radius: radius, Tiles: []api.Tile{}}
+		crop = render.MapCrop{Centre: c.C.At, Radius: radius, At: c.C.At}
 		if c.Long != nil {
-			crop.Route = c.Long.Route
+			crop.Route = slices.Clone(c.Long.Route)
 		}
 		for _, h := range hex.DiscAt(c.C.At, radius) {
 			t, known := apiTile(g, h)
@@ -483,43 +518,40 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 				out.Tiles = append(out.Tiles, t)
 				b := g.Rules().Gen.Baseline(h)
 				mt.Terrain, mt.River, mt.Road, mt.Site, mt.Weather, mt.Region = t.Terrain, b.River, t.Road, t.Site, t.Weather, t.Region
-				if v, ok := gauge(g, h, "threat"); ok {
+				mt.Danger = g.World.Past(h, "ambush")
+				mt.Corrupted = g.World.Past(h, "corrupted-nodes")
+				if v, ok := g.World.GaugeAt(h, "threat"); ok {
 					mt.Threat = v
 				}
-				if v, ok := gauge(g, h, "corruption"); ok {
+				if v, ok := g.World.GaugeAt(h, "corruption"); ok {
 					mt.Corruption = v
 				}
 			}
 			crop.Tiles = append(crop.Tiles, mt)
 		}
-		key, err := s.picture("map", crop, func() (*render.Canvas, error) { return render.Map(crop), nil })
-		if err != nil {
-			s.internal(w, err)
-			return
-		}
-		out.Image = key
-		reply(w, http.StatusOK, out)
-	})
-}
-
-func gauge(g *game.Game, h hex.Hex, id string) (int64, bool) {
-	ri := g.World.RegionAt(h)
-	if ri < 0 {
-		return 0, false
+	}) {
+		return
 	}
-	return g.World.Regions[ri].Gauge[g.World.GaugeIndex(id)], true
+	key, err := s.picture("map", crop, func() (*render.Canvas, error) { return render.Map(crop), nil })
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	out.Image = key
+	reply(w, http.StatusOK, out)
 }
 
 func (s *Server) lexicon(w http.ResponseWriter, _ *http.Request) {
 	b := s.rules.Book
-	out := api.Lexicon{Names: map[string]string{}, Bands: []string{}}
+	n := s.rules.CardNumbers()
+	out := api.Lexicon{Names: map[string]string{}, Bands: sheets.BandsByRank(b), Starts: make([]string, 0, len(b.Starts)), Numbers: api.Numbers{AmbushLine: n.AmbushLine, OverrunLine: n.OverrunLine,
+		CrawlTicks: n.CrawlTicks, WoundedTicks: n.WoundedTicks, FreeTicks: n.FreeTicks, StepMin: n.StepMin, StepMax: n.StepMax,
+		BeatsMin: n.FirstBeatsMin, BeatsMax: n.FirstBeatsMax}}
 	for _, n := range b.Names {
 		out.Names[n.Ref] = n.Name
 	}
-	bands := slices.Clone(b.OddsBands)
-	slices.SortFunc(bands, func(x, y sheets.OddsBand) int { return int(y.Rank - x.Rank) })
-	for _, x := range bands {
-		out.Bands = append(out.Bands, x.ID)
+	for _, start := range b.Starts {
+		out.Starts = append(out.Starts, start.ID)
 	}
 	reply(w, http.StatusOK, out)
 }

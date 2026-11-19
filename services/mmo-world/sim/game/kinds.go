@@ -24,8 +24,16 @@ type KindCount struct {
 	Named string `json:"named,omitempty"` // the character who named it
 }
 
+func (k *Kinds) kindAt(id string) (int, bool) {
+	return slices.BinarySearchFunc(k.List, id, func(x *item.Kind, id string) int { return cmp.Compare(x.ID, id) })
+}
+
+func (k *Kinds) madeAt(id string) (int, bool) {
+	return slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+}
+
 func (k *Kinds) Kind(id string) (*item.Kind, bool) {
-	i, ok := slices.BinarySearchFunc(k.List, id, func(x *item.Kind, id string) int { return cmp.Compare(x.ID, id) })
+	i, ok := k.kindAt(id)
 	if !ok {
 		return nil, false
 	}
@@ -33,7 +41,7 @@ func (k *Kinds) Kind(id string) (*item.Kind, bool) {
 }
 
 func (k *Kinds) Freeze(x *item.Kind) *item.Kind {
-	i, ok := slices.BinarySearchFunc(k.List, x.ID, func(y *item.Kind, id string) int { return cmp.Compare(y.ID, id) })
+	i, ok := k.kindAt(x.ID)
 	if ok {
 		return k.List[i]
 	}
@@ -42,7 +50,7 @@ func (k *Kinds) Freeze(x *item.Kind) *item.Kind {
 }
 
 func (k *Kinds) count(id string) *KindCount {
-	i, ok := slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+	i, ok := k.madeAt(id)
 	if !ok {
 		k.Made = slices.Insert(k.Made, i, KindCount{ID: id})
 	}
@@ -50,7 +58,7 @@ func (k *Kinds) count(id string) *KindCount {
 }
 
 func (k *Kinds) Crafts(id string) int64 {
-	i, ok := slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+	i, ok := k.madeAt(id)
 	if !ok {
 		return 0
 	}
@@ -61,7 +69,7 @@ func (k *Kinds) AddCraft(id string) { k.count(id).N++ }
 
 // Name is a kind's name, or "" before anyone names it.
 func (k *Kinds) Name(id string) string {
-	i, ok := slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+	i, ok := k.madeAt(id)
 	if !ok {
 		return ""
 	}

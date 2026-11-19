@@ -45,7 +45,7 @@ func (s *State) Place(h hex.Hex) tags.TagSet {
 			add(tags.Source{Note: "tile:" + "corruption"}, "corrupted")
 		}
 	}
-	if r := s.RegionAt(h); r >= 0 && s.Regions[r].Gauge[s.GaugeIndex("corruption")] >= LineAt(s.b, "corrupted-nodes") {
+	if r := s.RegionAt(h); r >= 0 && s.Past(h, "corrupted-nodes") {
 		add(tags.Source{Note: "region:" + RegionRef(r)}, "corrupted")
 	}
 	return set

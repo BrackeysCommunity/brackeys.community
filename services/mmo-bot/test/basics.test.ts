@@ -9,7 +9,7 @@ test("a custom_id carries action, target and version, and nothing else decodes",
   const id = encodeId("press", "strike", 12);
   expect(decodeId(id)).toEqual({ action: "press", target: "strike", version: 12 });
   expect(decodeId("jam:page:2")).toBeNull();
-  expect(() => encodeId("x", "y".repeat(120))).toThrow();
+  expect(() => encodeId("press", "y".repeat(120))).toThrow();
 });
 
 test("units read as the GDD writes them", () => {

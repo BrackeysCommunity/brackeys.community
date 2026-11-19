@@ -52,7 +52,7 @@ type Dropped struct {
 	Lost []item.Spoil `json:"lost"`
 }
 
-// Left is an item lying on a tile: cached by a character, or dropped.
+// Left is an item a character cached on a tile.
 type Left struct {
 	Hex    hex.Hex        `json:"hex"`
 	By     string         `json:"by"`
@@ -82,12 +82,16 @@ func (g *Game) StockLeft(h hex.Hex, material string) int64 {
 
 // WorkedOut reports whether a node is gathered past its stock.
 func (g *Game) WorkedOut(h hex.Hex, material string) bool {
+	return g.stockWorkedOut(g.StockLeft(h, material))
+}
+
+func (g *Game) stockWorkedOut(left int64) bool {
 	stock := sheets.IntParam(g.r.Book.TileParams, "node-stock")
-	return fixed.AtPercent(stock-g.StockLeft(h, material), stock, g.trigger(TrigWorkedOut).Magnitude)
+	return fixed.AtPercent(stock-left, stock, g.trigger(TrigWorkedOut).Magnitude)
 }
 
 func (g *Game) workedOut(c *Char, material string, t int64) error {
-	_, err := g.fact(c, "node.worked-out", t, fact.S("material", material), fact.N("q", c.C.At.Q), fact.N("r", c.C.At.R), fact.S("trigger", TrigWorkedOut))
+	_, err := g.fact(c, "node.worked-out", t, append(append([]fact.Datum{fact.S("material", material)}, fact.At(c.C.At)...), fact.S("trigger", TrigWorkedOut))...)
 	return err
 }
 
@@ -103,20 +107,11 @@ func (g *Game) toolUse(c *Char, t int64) error {
 		return nil
 	}
 	tool.Use(1)
-	tier, _ := g.materialTier(c.Long.Material)
+	tier, _ := g.r.Fight.D.Material(c.Long.Material)
 	if tier >= k.Tier {
 		return g.levelled(c, tool, g.r.Growth.Deed("gather-tick"), t)
 	}
 	return nil
-}
-
-func (g *Game) materialTier(id string) (int64, bool) {
-	for _, m := range g.r.Book.Materials {
-		if m.ID == id {
-			return m.Tier, true
-		}
-	}
-	return 0, false
 }
 
 // arrived runs the arrival triggers on the tile just entered.
@@ -203,7 +198,7 @@ func (g *Game) fromPool(c *Char, h hex.Hex, rarity string, most int64) (Find, bo
 		var goods []item.Spoil
 		for _, b := range g.Ledger.Held(poolOf(h)) {
 			m, ok := ledger.MaterialOf(b.Asset)
-			if mt, known := g.materialTier(m); ok && known && mt == want && most > 0 {
+			if mt, known := g.r.Fight.D.Material(m); ok && known && mt == want && most > 0 {
 				n := min(b.Units, most)
 				goods = item.AddSpoil(goods, m, n)
 				most -= n
@@ -226,17 +221,17 @@ func (g *Game) found(c *Char, h hex.Hex, key string, f Find, t int64) error {
 	acc := ledger.Char(c.C.ID)
 	var legs []ledger.Leg
 	for _, s := range f.Goods {
-		a := ledger.Material(s.Material)
-		legs = append(legs, ledger.Leg{Account: poolOf(h), Asset: a, Units: -s.Qty}, ledger.Leg{Account: acc, Asset: a, Units: s.Qty})
+		legs = append(legs, ledger.Pair(poolOf(h), acc, ledger.Material(s.Material), s.Qty)...)
 	}
 	if f.Item != "" {
 		i := slices.IndexFunc(g.Left, func(l *Left) bool { return l.Item.ID == f.Item })
-		c.C.Pack = append(c.C.Pack, g.Left[i].Item)
+		in := g.Left[i].Item
+		c.C.Pack = append(c.C.Pack, in)
 		g.Left = slices.Delete(g.Left, i, i+1)
-		legs = append(legs, ledger.Leg{Account: poolOf(h), Asset: ledger.Item(f.Item), Units: -1}, ledger.Leg{Account: acc, Asset: ledger.Item(f.Item), Units: 1})
+		legs = append(legs, itemLegs(in, poolOf(h), acc)...)
 	}
-	data := []fact.Datum{fact.S("trigger", f.Trigger), fact.S("rarity", f.Rarity), fact.N("chance", f.Chance.Of(fixed.Hundredths)),
-		fact.N("goods", item.Total(f.Goods)), fact.N("q", h.Q), fact.N("r", h.R)}
+	data := append([]fact.Datum{fact.S("trigger", f.Trigger), fact.S("rarity", f.Rarity), fact.N("chance", f.Chance.Of(fixed.Hundredths)),
+		fact.N("goods", item.Total(f.Goods))}, fact.At(h)...)
 	if f.Item != "" {
 		data = append(data, fact.S("item", f.Item))
 	}
@@ -251,6 +246,15 @@ func (g *Game) found(c *Char, h hex.Hex, key string, f Find, t int64) error {
 	return nil
 }
 
+// itemLegs move an item, and the exploit loaded in it, between accounts.
+func itemLegs(in *item.Instance, from, to string) []ledger.Leg {
+	legs := ledger.Pair(from, to, ledger.Item(in.ID), 1)
+	if in.Exploit != nil {
+		legs = append(legs, ledger.Pair(from, to, ledger.Item(in.Exploit.ID), 1)...)
+	}
+	return legs
+}
+
 // drop leaves a lost encounter's dropped haul in the tile's pool and
 // remembers it was this character's (GDD 5.6, 8.6).
 func (g *Game) drop(c *Char, key string, lost []item.Spoil, t int64) error {
@@ -260,8 +264,7 @@ func (g *Game) drop(c *Char, key string, lost []item.Spoil, t int64) error {
 	h := c.C.At
 	var legs []ledger.Leg
 	for _, s := range lost {
-		a := ledger.Material(s.Material)
-		legs = append(legs, ledger.Leg{Account: ledger.FromHaul, Asset: a, Units: -s.Qty}, ledger.Leg{Account: poolOf(h), Asset: a, Units: s.Qty})
+		legs = append(legs, ledger.Pair(ledger.FromHaul, poolOf(h), ledger.Material(s.Material), s.Qty)...)
 	}
 	if err := g.post(ledger.Txn{Key: ledger.SubKey(key, "dropped"), Kind: "dropped", Tick: t, Legs: legs}); err != nil {
 		return err
@@ -288,22 +291,26 @@ func (g *Game) stash(c *Char, cmd Command) error {
 		return refuse(BadArgs, "%s carries no unworn %s", c.C.ID, cmd.Item)
 	}
 	h := c.C.At
-	if err := g.post(ledger.Move(cmd.Key, "cache", g.Tick(), ledger.Char(c.C.ID), poolOf(h), ledger.Item(in.ID), 1)); err != nil {
+	if err := g.post(ledger.Txn{Key: cmd.Key, Kind: "cache", Tick: g.Tick(), Legs: itemLegs(in, ledger.Char(c.C.ID), poolOf(h))}); err != nil {
 		return err
 	}
 	c.C.Drop(in.ID)
 	g.Left = append(g.Left, &Left{Hex: h, By: c.C.ID, Hidden: true, Item: in})
-	_, err := g.fact(c, "item.cached", g.Tick(), fact.S("item", in.ID), fact.N("q", h.Q), fact.N("r", h.R))
+	_, err := g.fact(c, "item.cached", g.Tick(), append([]fact.Datum{fact.S("item", in.ID)}, fact.At(h)...)...)
 	return err
 }
 
 // CacheRumour is the rumour that names a tile's cache.
 func CacheRumour(h hex.Hex) string { return "cache:" + h.Ref() }
 
+func (g *Game) cacheAt(h hex.Hex) int {
+	return slices.IndexFunc(g.Left, func(l *Left) bool { return l.Hex == h && l.Hidden })
+}
+
 // CanSearch reports whether a character who heard of a cache here may
 // search for it.
 func (g *Game) CanSearch(c *Char, h hex.Hex) bool {
-	return slices.Contains(c.C.Rumours, CacheRumour(h)) && slices.ContainsFunc(g.Left, func(l *Left) bool { return l.Hex == h && l.Hidden })
+	return slices.Contains(c.C.Rumours, CacheRumour(h)) && g.cacheAt(h) >= 0
 }
 
 func (g *Game) search(c *Char, cmd Command) error {
@@ -314,7 +321,7 @@ func (g *Game) search(c *Char, cmd Command) error {
 	if !g.CanSearch(c, h) {
 		return refuse(NotHere, "nothing here you have heard of")
 	}
-	i := slices.IndexFunc(g.Left, func(l *Left) bool { return l.Hex == h && l.Hidden })
+	i := g.cacheAt(h)
 	c.C.Rumours = slices.DeleteFunc(c.C.Rumours, func(r string) bool { return r == CacheRumour(h) })
 	tr := g.trigger(TrigCache)
 	return g.found(c, h, cmd.Key, Find{Trigger: TrigCache, Rarity: rarityRare, Chance: tr.Chance, Item: g.Left[i].Item.ID}, g.Tick())
@@ -383,7 +390,8 @@ func (g *Game) encounterTags(c *Char, h hex.Hex, arch string) (creature, place [
 const cameFrom = 2
 
 // thin reports whether a tile's creatures are under the thin-herds line
-// and the draw says nothing shows.
+// and the draw says nothing shows. The draw holds for the tick, so
+// exploring again waits for the next one.
 func (g *Game) thin(c *Char, h hex.Hex) bool {
 	tr := g.trigger(TrigThin)
 	var n, capacity int64
@@ -391,11 +399,11 @@ func (g *Game) thin(c *Char, h hex.Hex) bool {
 		n += g.World.Population(h, sp)
 		capacity += g.World.Capacity(h, sp)
 	}
-	return !fixed.AtPercent(n, capacity, tr.Magnitude) && g.r.draw.Roll(tr.Chance, "game.thin", draw.Str(c.C.ID), draw.Int(c.Encounters), draw.Int(g.Tick()))
+	return !fixed.AtPercent(n, capacity, tr.Magnitude) && g.r.draw.Roll(tr.Chance, "game.thin", draw.Str(c.C.ID), draw.Str(h.Ref()), draw.Int(g.Tick()))
 }
 
 // nameKind gives a kind its plain generated name the first time it is
-// made (GDD 9.10; suggestions and the player's own wait for MM11).
+// made (GDD 9.10).
 func (g *Game) nameKind(k *item.Kind, by string) {
 	if g.Kinds.Name(k.ID) != "" {
 		return

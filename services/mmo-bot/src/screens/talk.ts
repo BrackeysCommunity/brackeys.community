@@ -1,6 +1,7 @@
 import type { Button } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import type { Card } from "../card.ts";
+import { target } from "../ids.ts";
 import { amount, signed } from "../units.ts";
 import { back, btn, PRIVATE } from "./common.ts";
 
@@ -11,7 +12,7 @@ export function talkCard(o: api.Options, conv: api.Conversation, said?: string):
   for (const t of conv.topics.slice(0, 3)) {
     const buttons: Button[] = t.choices
       .slice(0, 4)
-      .map((c) => btn(choiceLabel(c), "choose", `${conv.npc.id}/${t.id}/${c.id}`, v));
+      .map((c) => btn(choiceLabel(c), "choose", target("/", conv.npc.id, t.id, c.id), v));
     rows.push({ buttons });
   }
   rows.push({ buttons: [btn("Where I am", "where", "", v), back(v)] });

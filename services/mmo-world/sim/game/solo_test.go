@@ -123,7 +123,7 @@ func TestSoloLoop(t *testing.T) {
 			}
 			s.wait()
 		}
-		if s.act(game.Command{Kind: game.Explore}) != nil {
+		if s.act(game.Command{Kind: game.Explore}) != nil || s.c.Fight == nil {
 			if _, err := g.Advance(); err != nil {
 				t.Fatal(err)
 			}
@@ -173,6 +173,9 @@ func TestSoloLoop(t *testing.T) {
 			t.Fatalf("craft %s: %v", ap.Name, err)
 		}
 		t.Logf("crafted %s at the %s for %d coin, by tick %d", ap.Name, ap.Station.Kind, ap.Fee, g.Tick())
+		if !ap.Ranges.Known && !slices.ContainsFunc(g.News, func(n game.News) bool { return n.Kind == "kind.discovered" }) {
+			t.Fatalf("a discovery between ticks is not in the news: %+v", g.News)
+		}
 	}
 	if problems := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)

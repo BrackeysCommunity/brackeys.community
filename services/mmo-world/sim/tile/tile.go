@@ -25,7 +25,6 @@ type State struct {
 	Passage     [hex.Directions]int64 `json:"passage"`
 	BattlesWon  map[string]int64      `json:"battlesWon,omitempty"` // beats won here, by creature tag
 	BattlesLost int64                 `json:"battlesLost,omitempty"`
-	Spoils      map[string]int64      `json:"spoils,omitempty"`     // goods lost here, by material
 	Population  map[string]int64      `json:"population,omitempty"` // per species, where it differs from capacity
 	Slain       map[string]int64      `json:"slain,omitempty"`      // per species, this season
 	Residents   []string              `json:"residents,omitempty"`  // NPCs living or camped here
@@ -38,7 +37,6 @@ type State struct {
 	Structures  []Structure           `json:"structures,omitempty"`
 	Owner       *fact.Ref             `json:"owner,omitempty"` // a guild or a faction
 	Tracks      []Track               `json:"tracks,omitempty"`
-	Cached      []Cache               `json:"cached,omitempty"`
 	Graves      []Grave               `json:"graves,omitempty"`
 	Events      []fact.ID             `json:"events,omitempty"` // the last heavy facts here, oldest first
 	Rumours     []Rumour              `json:"rumours,omitempty"`
@@ -74,12 +72,6 @@ type Track struct {
 	Tick int64    `json:"tick"`
 }
 
-type Cache struct {
-	Item   string   `json:"item"`
-	By     fact.Ref `json:"by"`
-	Hidden bool     `json:"hidden,omitempty"`
-}
-
 type Grave struct {
 	Who  fact.Ref `json:"who"`
 	Tick int64    `json:"tick"`
@@ -104,7 +96,6 @@ const (
 	CounterBattlesWon  = "battles-won"
 	CounterBattlesLost = "battles-lost"
 	CounterGathered    = "gathered"
-	CounterSpoils      = "spoils"
 )
 
 // Params are the tile cells the sim reads.
@@ -154,7 +145,6 @@ func (s *State) Decay(p Params, tick int64) {
 	decayMap(s.BattlesWon, p.decay[CounterBattlesWon])
 	s.BattlesLost = decay(s.BattlesLost, p.decay[CounterBattlesLost])
 	decayMap(s.Gathered, p.decay[CounterGathered])
-	decayMap(s.Spoils, p.decay[CounterSpoils])
 	s.Rumours = slices.DeleteFunc(s.Rumours, func(r Rumour) bool { return r.Expires <= tick })
 }
 
@@ -226,7 +216,7 @@ func (s *State) NewSeason() {
 // Tidy drops maps left empty, so a tile reads the same before and after
 // a snapshot round trip.
 func (s *State) Tidy() {
-	for _, m := range []*map[string]int64{&s.BattlesWon, &s.Spoils, &s.Population, &s.Slain, &s.Stock, &s.Gathered, &s.Season} {
+	for _, m := range []*map[string]int64{&s.BattlesWon, &s.Population, &s.Slain, &s.Stock, &s.Gathered, &s.Season} {
 		if len(*m) == 0 {
 			*m = nil
 		}
@@ -237,10 +227,10 @@ func (s *State) Tidy() {
 // need not be stored.
 func (s *State) Empty() bool {
 	return s.Discovered == nil && s.Visits == 0 && s.Passage == [hex.Directions]int64{} &&
-		len(s.BattlesWon) == 0 && s.BattlesLost == 0 && len(s.Spoils) == 0 && len(s.Population) == 0 &&
+		len(s.BattlesWon) == 0 && s.BattlesLost == 0 && len(s.Population) == 0 &&
 		len(s.Slain) == 0 && len(s.Residents) == 0 && len(s.Stock) == 0 && len(s.Gathered) == 0 &&
 		s.Corruption == 0 && s.Fire == (Fire{}) && len(s.WeatherTags) == 0 && s.Road == 0 &&
-		len(s.Structures) == 0 && s.Owner == nil && len(s.Tracks) == 0 && len(s.Cached) == 0 &&
+		len(s.Structures) == 0 && s.Owner == nil && len(s.Tracks) == 0 &&
 		len(s.Graves) == 0 && len(s.Events) == 0 && len(s.Rumours) == 0 && len(s.Goals) == 0 &&
 		s.Dungeon == nil && len(s.Season) == 0
 }

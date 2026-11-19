@@ -21,10 +21,6 @@
     {
       "id": "gathered",
       "decayPercent": 10
-    },
-    {
-      "id": "spoils",
-      "decayPercent": 10
     }
   ]
 }

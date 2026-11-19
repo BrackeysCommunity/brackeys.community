@@ -41,6 +41,17 @@ type Condition struct {
 	Ends int64    `json:"ends"`
 }
 
+// structural: charms are worn two at once; every other slot holds one.
+const charmSlots = 2
+
+// SlotCount is how many items a kit slot holds, by index from 0.
+func SlotCount(slot string) int {
+	if slot == Charm {
+		return charmSlots
+	}
+	return 1
+}
+
 // Equipped is an item in a kit slot. Charms take two slots, by index.
 type Equipped struct {
 	Slot  string `json:"slot"`
@@ -204,6 +215,9 @@ func (c *Character) In(slot string, index int) *item.Instance {
 func (c *Character) Equip(slot string, index int, id string) error {
 	if c.Item(id) == nil {
 		return fmt.Errorf("char: %s has no %s to equip", c.ID, id)
+	}
+	if index < 0 || index >= SlotCount(slot) {
+		return fmt.Errorf("char: the %s has no place %d", slot, index)
 	}
 	c.equip(slot, index, id)
 	return nil

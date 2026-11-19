@@ -71,7 +71,7 @@ export function truncate(text: string, max: number): string {
   return `${trimPartialEmojiToken(text.slice(0, cut)).trimEnd()}…`;
 }
 
-/** One-line prose: newlines collapse so a scraped blurb stays a row. */
+/** One-line prose: whitespace runs collapse to a single space, then truncate. */
 export function oneLine(text: string | null | undefined, max: number): string {
   if (!text) return "";
   return truncate(text.replace(/\s+/g, " ").trim(), max);
@@ -101,10 +101,7 @@ export function link(label: string, url: string): string {
 
 export type TimestampStyle = "R" | "D" | "d" | "f" | "F" | "t" | "T";
 
-/**
- * Discord renders `<t:unix:R>` in each reader's own zone, which is why no
- * jam date in this service ever goes through `toLocaleString`.
- */
+/** A Discord timestamp: rendered in each reader's own zone. */
 export function ts(date: Date | string, style: TimestampStyle = "R"): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return `<t:${Math.floor(d.getTime() / 1000)}:${style}>`;
@@ -118,9 +115,8 @@ export function hexColor(hex: string | null | undefined): number | undefined {
 }
 
 /**
- * Enforce every per-part limit on one embed. Listings stay under the 6000
- * total by construction (ten rows, truncated blurbs); this is the backstop
- * that keeps a single pathological title from failing the whole reply.
+ * Enforce every per-part limit on one embed, then the 6000 total, so one
+ * pathological part cannot fail the whole reply.
  */
 export function clampEmbed(embed: Embed): Embed {
   const out: Embed = { ...embed };
@@ -160,7 +156,7 @@ export function clampEmbed(embed: Embed): Embed {
   return out;
 }
 
-/** Pluralise the boring way; every count in an embed goes through it. */
+/** Pluralise the boring way; formats counts with grouping separators. */
 export function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? singular : pluralForm}`;
 }

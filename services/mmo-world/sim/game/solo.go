@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math"
 	"slices"
 	"strconv"
 
@@ -28,20 +29,12 @@ const (
 	Crawl  = "crawl"
 )
 
-// structural: the asset a forage yields and the market sells.
-const assetProvisions = econ.Provisions
-
 // start gives a new character the one thing it chose to have carried:
 // made from its start row at tier 1, level 1, with nobody as its maker.
 func (g *Game) start(c *Char, key, choice string) error {
-	var row *sheets.Start
-	for i := range g.r.Book.Starts {
-		if g.r.Book.Starts[i].ID == choice {
-			row = &g.r.Book.Starts[i]
-		}
-	}
-	if row == nil {
-		return refuse(BadArgs, "no start %q", choice)
+	row, err := g.startRow(choice)
+	if err != nil {
+		return err
 	}
 	in, err := g.startItem(row.Process, row.Method, row.Slot, row.Inputs, "start-"+c.C.ID)
 	if err != nil {
@@ -67,6 +60,16 @@ func (g *Game) start(c *Char, key, choice string) error {
 	c.C.Practise(row.Skill, g.practiceUses(row.Practice), g.r.Growth.Params())
 	_, err = g.fact(c, "character.started", g.Tick(), fact.S("start", choice), fact.S("kind", in.Kind))
 	return err
+}
+
+// startRow is the start a new character chose, or a refusal.
+func (g *Game) startRow(choice string) (*sheets.Start, error) {
+	for i := range g.r.Book.Starts {
+		if g.r.Book.Starts[i].ID == choice {
+			return &g.r.Book.Starts[i], nil
+		}
+	}
+	return nil, refuse(BadArgs, "no start %q", choice)
 }
 
 // practiceUses is the uses that take a skill from 0 to a level.
@@ -152,22 +155,26 @@ const (
 )
 
 func (g *Game) sell(c *Char, cmd Command) error {
-	if c.Fight != nil {
-		return refuse(Busy, "%s is in an encounter", c.C.ID)
+	if err := canTrade(c); err != nil {
+		return err
 	}
-	i := slices.IndexFunc(g.Orders(c.C.At), func(o econ.Order) bool { return o.Material == cmd.Material })
+	orders := g.Orders(c.C.At)
+	i := slices.IndexFunc(orders, func(o econ.Order) bool { return o.Material == cmd.Material })
 	if i < 0 {
 		return refuse(NotHere, "no faction here buys %s", cmd.Material)
 	}
-	o := g.Orders(c.C.At)[i]
+	o := orders[i]
 	asset := ledger.Material(o.Material)
-	if o.Material == assetProvisions {
+	if o.Material == ledger.Provisions {
 		asset = ledger.Provisions
 	}
 	if cmd.Units <= 0 || g.Ledger.Of(ledger.Char(c.C.ID), asset) < cmd.Units {
 		return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, cmd.Units, o.Material)
 	}
-	coin := o.Price * cmd.Units
+	coin, ok := times(cmd.Units, o.Price)
+	if !ok {
+		return refuse(BadArgs, "no order fills %d %s", cmd.Units, o.Material)
+	}
 	fee := g.r.Values.Fee(coin)
 	f, err := g.fact(c, "order.filled", g.Tick(), fact.S("material", o.Material), fact.N("units", cmd.Units),
 		fact.N("price", o.Price), fact.N("coin", coin), fact.N("fee", fee), fact.N("faction", int64(o.Faction)))
@@ -175,12 +182,10 @@ func (g *Game) sell(c *Char, cmd Command) error {
 		return err
 	}
 	acc := ledger.Char(c.C.ID)
-	t := ledger.Txn{Key: cmd.Key, Kind: "faction-order", Tick: g.Tick(), Fact: f.ID, Legs: []ledger.Leg{
-		{Account: acc, Asset: asset, Units: -cmd.Units}, {Account: ledger.ToFaction, Asset: asset, Units: cmd.Units},
-		{Account: ledger.FromFaction, Asset: ledger.Coin, Units: -coin}, {Account: acc, Asset: ledger.Coin, Units: coin},
-	}}
+	t := ledger.Txn{Key: cmd.Key, Kind: "faction-order", Tick: g.Tick(), Fact: f.ID,
+		Legs: append(ledger.Pair(acc, ledger.ToFaction, asset, cmd.Units), ledger.Pair(ledger.FromFaction, acc, ledger.Coin, coin)...)}
 	if fee > 0 {
-		t.Legs = append(t.Legs, ledger.Leg{Account: acc, Asset: ledger.Coin, Units: -fee}, ledger.Leg{Account: ledger.ToFees, Asset: ledger.Coin, Units: fee})
+		t.Legs = append(t.Legs, ledger.Pair(acc, ledger.ToFees, ledger.Coin, fee)...)
 	}
 	if err := g.receive(c, t); err != nil {
 		return err
@@ -189,54 +194,114 @@ func (g *Game) sell(c *Char, cmd Command) error {
 	return g.traded(c, o.Material, g.Tick())
 }
 
-// buy is the market's provisions, or the stable's mounts.
+// buy is what the tile offers: the market's provisions, or the stable's
+// mounts.
 func (g *Game) buy(c *Char, cmd Command) error {
-	if c.Fight != nil {
-		return refuse(Busy, "%s is in an encounter", c.C.ID)
+	if err := canTrade(c); err != nil {
+		return err
 	}
-	if cmd.Asset == assetProvisions {
-		if !g.HasStructure(c.C.At, structureMarket) {
+	offers := g.Offers(c.C.At)
+	i := slices.IndexFunc(offers, func(o Offer) bool { return o.Asset == cmd.Asset })
+	if i < 0 {
+		if cmd.Asset == ledger.Provisions {
 			return refuse(NotHere, "provisions are bought at a market")
 		}
+		if g.r.Mounts.Kind(cmd.Asset) == nil {
+			return refuse(BadArgs, "nothing called %q is for sale", cmd.Asset)
+		}
+		return refuse(NotHere, "a stable here sells tier-%d mounts", g.r.firstTier())
+	}
+	o := offers[i]
+	if cmd.Asset == ledger.Provisions {
 		if cmd.Units <= 0 {
 			return refuse(BadArgs, "buy at least one provision")
 		}
-		cost := cmd.Units * g.r.Values.Param("provisions-price")
-		return g.trade(c, cmd.Key, "trade.bought", ledger.Provisions, cmd.Units, cost, fact.S("asset", assetProvisions))
+		cost, ok := times(cmd.Units, o.Price)
+		if !ok {
+			return refuse(BadArgs, "the market holds fewer than %d provisions", cmd.Units)
+		}
+		return g.trade(c, cmd.Key, "trade.bought", ledger.Provisions, cmd.Units, cost, fact.S("asset", ledger.Provisions))
 	}
-	m := g.r.Mounts.Kind(cmd.Asset)
-	if m == nil {
-		return refuse(BadArgs, "nothing called %q is for sale", cmd.Asset)
-	}
-	if !g.HasStructure(c.C.At, structureStable) || m.Tier != g.r.firstTier() {
-		return refuse(NotHere, "a stable here sells tier-%d mounts", g.r.firstTier())
-	}
+	return g.giveMount(c, cmd.Key, cmd.Asset, func(id string) error {
+		return g.trade(c, cmd.Key, "mount.bought", ledger.Item(id), 1, o.Price, fact.S("kind", cmd.Asset), fact.S("item", id))
+	})
+}
+
+// giveMount gives a character a mount of a kind, once pay has posted its
+// transaction for the mount's id.
+func (g *Game) giveMount(c *Char, key, kind string, pay func(id string) error) error {
 	if c.C.In(char.Mount, 0) != nil {
 		return refuse(Busy, "%s already has a mount", c.C.ID)
 	}
-	id := "m-" + cmd.Key
-	if err := g.trade(c, cmd.Key, "mount.bought", ledger.Item(id), 1, m.Tier*g.r.Values.Param("mount-price"), fact.S("kind", m.ID), fact.S("item", id)); err != nil {
+	id := "m-" + key
+	if err := pay(id); err != nil {
 		return err
 	}
-	c.C.Carry(char.Mount, 0, g.r.Mounts.NewMount(id, m.ID))
+	c.C.Carry(char.Mount, 0, g.r.Mounts.NewMount(id, kind))
 	return nil
+}
+
+// times is units at a price, or false when the product would overflow.
+func times(units, price int64) (int64, bool) {
+	if price > 0 && units > math.MaxInt64/price {
+		return 0, false
+	}
+	return units * price, true
+}
+
+// canTrade reports why a character cannot trade, feed or talk: down, or
+// in an encounter. A long action does not stop it; a journey through a
+// settlement may sell on the way.
+func canTrade(c *Char) error {
+	if err := notDown(c); err != nil {
+		return err
+	}
+	if c.Fight != nil {
+		return refuse(Busy, "%s is in an encounter", c.C.ID)
+	}
+	return nil
+}
+
+func (g *Game) provisionsPrice() int64 { return g.r.Values.Param("provisions-price") }
+
+func (g *Game) mountPrice(tier int64) int64 { return tier * g.r.Values.Param("mount-price") }
+
+// Offer is something a tile's market or stable sells, at a price each.
+type Offer struct {
+	Asset string
+	Price int64
+}
+
+// Offers are what a tile sells: provisions at a market, first-tier mounts
+// at a stable, at the prices buy charges.
+func (g *Game) Offers(h hex.Hex) []Offer {
+	var out []Offer
+	if g.HasStructure(h, structureMarket) {
+		out = append(out, Offer{Asset: ledger.Provisions, Price: g.provisionsPrice()})
+	}
+	if g.HasStructure(h, structureStable) {
+		for _, m := range g.r.Book.MountKinds {
+			if m.Tier == g.r.firstTier() {
+				out = append(out, Offer{Asset: m.ID, Price: g.mountPrice(m.Tier)})
+			}
+		}
+	}
+	return out
 }
 
 // trade pays coin into the market's sink for units of an asset from its
 // source, as one transaction behind one fact.
 func (g *Game) trade(c *Char, key, kind, asset string, units, cost int64, data ...fact.Datum) error {
 	acc := ledger.Char(c.C.ID)
-	if c.C.Coin < cost {
-		return refuse(BadArgs, "that costs %d coin; %s has %d coin", cost, c.C.ID, c.C.Coin)
+	if have := g.balance(c, ledger.Coin); have < cost {
+		return refuse(BadArgs, "that costs %d coin; %s has %d coin", cost, c.C.ID, have)
 	}
 	f, err := g.fact(c, kind, g.Tick(), append(data, fact.N("units", units), fact.N("coin", cost))...)
 	if err != nil {
 		return err
 	}
-	t := ledger.Txn{Key: key, Kind: "market", Tick: g.Tick(), Fact: f.ID, Legs: []ledger.Leg{
-		{Account: acc, Asset: ledger.Coin, Units: -cost}, {Account: ledger.ToMarket, Asset: ledger.Coin, Units: cost},
-		{Account: ledger.FromMarket, Asset: asset, Units: -units}, {Account: acc, Asset: asset, Units: units},
-	}}
+	t := ledger.Txn{Key: key, Kind: "market", Tick: g.Tick(), Fact: f.ID,
+		Legs: append(ledger.Pair(acc, ledger.ToMarket, ledger.Coin, cost), ledger.Pair(ledger.FromMarket, acc, asset, units)...)}
 	if err := g.receive(c, t); err != nil {
 		return err
 	}
@@ -247,11 +312,14 @@ func (g *Game) trade(c *Char, key, kind, asset string, units, cost int64, data .
 // feed pays a mount's unpaid upkeep from provisions; a fed mount carries
 // again (GDD 6.2).
 func (g *Game) feed(c *Char, cmd Command) error {
+	if err := canTrade(c); err != nil {
+		return err
+	}
 	if c.Owed == 0 {
 		return refuse(BadArgs, "%s's mount is fed", c.C.ID)
 	}
-	if c.C.Provisions < c.Owed {
-		return refuse(BadArgs, "feeding takes %d provisions; %s has %d", c.Owed, c.C.ID, c.C.Provisions)
+	if have := g.balance(c, ledger.Provisions); have < c.Owed {
+		return refuse(BadArgs, "feeding takes %d provisions; %s has %d", c.Owed, c.C.ID, have)
 	}
 	if err := g.receive(c, ledger.Move(cmd.Key, "upkeep", g.Tick(), ledger.Char(c.C.ID), ledger.ToUpkeep, ledger.Provisions, c.Owed)); err != nil {
 		return err
@@ -263,30 +331,34 @@ func (g *Game) feed(c *Char, cmd Command) error {
 
 // upkeep charges each mount its day: provisions for the day and the ticks
 // ridden. What cannot be paid leaves the mount unfed until fed.
-func (g *Game) upkeep(c *Char, t int64) error {
+func (g *Game) upkeep(c *Char, t int64) (bool, error) {
 	m := c.C.In(char.Mount, 0)
 	if m == nil {
-		return nil
+		return false, nil
 	}
 	owe := g.r.Mounts.Upkeep(1, c.Rode)
+	changed := c.Rode != 0 || owe > 0
 	c.Rode = 0
 	pay := min(owe, c.C.Provisions)
 	if pay > 0 {
 		key := ledger.SubKey("tick", strconv.FormatInt(t, decimal), c.C.ID, "upkeep")
 		if err := g.receive(c, ledger.Move(key, "upkeep", t, ledger.Char(c.C.ID), ledger.ToUpkeep, ledger.Provisions, pay)); err != nil {
-			return err
+			return false, err
 		}
 	}
 	if pay < owe {
 		c.Owed += owe - pay
 		_, err := g.fact(c, "mount.unfed", t, fact.N("owed", c.Owed))
-		return err
+		return changed, err
 	}
-	return nil
+	return changed, nil
 }
 
 // Fed reports whether a character's mount will carry.
 func (c *Char) Fed() bool { return c.Owed == 0 }
+
+// WearIn is where an item of a kind's slot may be worn.
+func WearIn(slot string) []string { return equipSlots[slot] }
 
 // equipSlots says where a kind's slot may be worn.
 var equipSlots = map[string][]string{
@@ -296,6 +368,21 @@ var equipSlots = map[string][]string{
 
 // structural: the deck slot loads an exploit into the off-hand focus.
 const slotDeck = "deck"
+
+// Loads reports whether a kind loads into a deck rather than being worn.
+func Loads(k *item.Kind) bool { return k.Exploit != nil }
+
+// structural: a deck is an off-hand focus, the gear a fight reads an
+// exploit from.
+const slotFocus = "focus"
+
+// IsDeck reports whether a kind is a deck an exploit loads into.
+func IsDeck(k *item.Kind) bool { return k.Slot == slotFocus }
+
+func (g *Game) isDeck(in *item.Instance) bool {
+	k, ok := g.Kinds.Kind(in.Kind)
+	return ok && IsDeck(k)
+}
 
 func (g *Game) equip(c *Char, cmd Command) error {
 	if err := free(c); err != nil {
@@ -311,7 +398,7 @@ func (g *Game) equip(c *Char, cmd Command) error {
 	}
 	if cmd.Slot == slotDeck {
 		deck := c.C.In(char.OffHand, 0)
-		if k.Exploit == nil || deck == nil {
+		if !Loads(k) || deck == nil || !g.isDeck(deck) {
 			return refuse(BadArgs, "an exploit loads into a deck held in the off-hand")
 		}
 		if deck.Exploit != nil {
@@ -357,13 +444,14 @@ func (g *Game) Appraise(c *Char, r item.Recipe) (Appraisal, error) {
 	if name == "" {
 		name = g.plainName(r)
 	}
-	return Appraisal{Ranges: rg, Station: st, Fee: g.stationFee(st), Name: name}, nil
+	return Appraisal{Ranges: rg, Station: st, Fee: g.StationFee(st), Name: name}, nil
 }
 
 // structural: the practice a craft trains.
 const practiceCraft = "craft"
 
-func (g *Game) stationFee(st Station) int64 { return st.Tier * g.r.Values.Param("station-fee") }
+// StationFee is what working at a station costs.
+func (g *Game) StationFee(st Station) int64 { return st.Tier * g.r.Values.Param("station-fee") }
 
 // recipeOK holds recipes the chat cards can build: base materials only,
 // a method of the process, and a slot unless it composes.
@@ -371,16 +459,23 @@ func (g *Game) recipeOK(r item.Recipe) error {
 	if len(r.Inputs) == 0 {
 		return refuse(BadArgs, "a recipe needs inputs")
 	}
-	for _, in := range r.Inputs {
+	for i, in := range r.Inputs {
 		if _, ok := g.r.Fight.D.Material(in.Kind); !ok || in.Qty <= 0 {
 			return refuse(BadArgs, "%q is not a material", in.Kind)
 		}
+		if slices.ContainsFunc(r.Inputs[:i], func(x item.Input) bool { return x.Kind == in.Kind }) {
+			return refuse(BadArgs, "a recipe names %s once", in.Kind)
+		}
 	}
-	if r.Process != item.Compose && r.Slot == "" && r.Process != item.Alloy {
+	if NeedsSlot(r.Process) && r.Slot == "" {
 		return refuse(BadArgs, "%s needs a slot", r.Process)
 	}
 	return nil
 }
+
+// NeedsSlot reports whether a process makes a slot's item, so its recipe
+// names one; composing and alloying do not.
+func NeedsSlot(process string) bool { return process != item.Compose && process != item.Alloy }
 
 func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if err := free(c); err != nil {
@@ -400,7 +495,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 			return refuse(BadArgs, "the recipe takes %d %s", in.Qty, in.Kind)
 		}
 	}
-	if c.C.Coin < ap.Fee {
+	if g.balance(c, ledger.Coin) < ap.Fee {
 		return refuse(BadArgs, "the %s's fee is %d coin", ap.Station.Kind, ap.Fee)
 	}
 	t := g.Tick()
@@ -420,18 +515,18 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	}
 	legs := []ledger.Leg{}
 	if ap.Fee > 0 {
-		legs = append(legs, ledger.Leg{Account: acc, Asset: ledger.Coin, Units: -ap.Fee}, ledger.Leg{Account: ledger.ToFees, Asset: ledger.Coin, Units: ap.Fee})
+		legs = append(legs, ledger.Pair(acc, ledger.ToFees, ledger.Coin, ap.Fee)...)
 	}
 	for _, s := range res.Consumed {
-		legs = append(legs, ledger.Leg{Account: acc, Asset: ledger.Material(s.Material), Units: -s.Qty}, ledger.Leg{Account: ledger.ToCraft, Asset: ledger.Material(s.Material), Units: s.Qty})
+		legs = append(legs, ledger.Pair(acc, ledger.ToCraft, ledger.Material(s.Material), s.Qty)...)
 	}
 	if res.Instance != nil {
-		legs = append(legs, ledger.Leg{Account: ledger.FromCraft, Asset: ledger.Item(res.Instance.ID), Units: -1}, ledger.Leg{Account: acc, Asset: ledger.Item(res.Instance.ID), Units: 1})
+		legs = append(legs, ledger.Pair(ledger.FromCraft, acc, ledger.Item(res.Instance.ID), 1)...)
 	}
 	for _, s := range res.Salvage {
-		legs = append(legs, ledger.Leg{Account: ledger.FromSalvage, Asset: ledger.Material(s.Material), Units: -s.Qty}, ledger.Leg{Account: acc, Asset: ledger.Material(s.Material), Units: s.Qty})
+		legs = append(legs, ledger.Pair(ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)...)
 	}
-	if err := g.receive(c, ledger.Txn{Key: cmd.Key, Kind: "craft", Tick: t, Legs: mergeLegs(legs)}); err != nil {
+	if err := g.receive(c, ledger.Txn{Key: cmd.Key, Kind: "craft", Tick: t, Legs: ledger.Merge(legs)}); err != nil {
 		return err
 	}
 	if res.Instance != nil {
@@ -443,22 +538,6 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		return g.levelled(c, tool, res.ToolXP, t)
 	}
 	return nil
-}
-
-// mergeLegs sums legs on the same account and asset, dropping any that
-// come to nothing, so a craft that consumes and salvages one material
-// posts once.
-func mergeLegs(legs []ledger.Leg) []ledger.Leg {
-	var out []ledger.Leg
-	for _, l := range legs {
-		i := slices.IndexFunc(out, func(o ledger.Leg) bool { return o.Account == l.Account && o.Asset == l.Asset })
-		if i < 0 {
-			out = append(out, l)
-			continue
-		}
-		out[i].Units += l.Units
-	}
-	return slices.DeleteFunc(out, func(l ledger.Leg) bool { return l.Units == 0 })
 }
 
 // levelled adds xp to an item and records its levels and milestones.
@@ -515,7 +594,7 @@ func (g *Game) RepairCost(in *item.Instance, k *item.Kind) Cost {
 // PickCost is what taking a milestone pick costs at a station.
 func (g *Game) PickCost(k *item.Kind, st Station) Cost {
 	m, n := g.r.Growth.PickCost(k)
-	return Cost{Coin: g.stationFee(st), Material: m, Units: n}
+	return Cost{Coin: g.StationFee(st), Material: m, Units: n}
 }
 
 func (g *Game) pick(c *Char, cmd Command) error {
@@ -562,7 +641,7 @@ func (g *Game) atStation(c *Char, id string) (*item.Instance, *item.Kind, Statio
 // craft sink, as one transaction.
 func (g *Game) payStation(c *Char, key, kind string, coin int64, material string, units int64) error {
 	acc := ledger.Char(c.C.ID)
-	if c.C.Coin < coin {
+	if g.balance(c, ledger.Coin) < coin {
 		return refuse(BadArgs, "that costs %d coin", coin)
 	}
 	if units > 0 && g.Ledger.Of(acc, ledger.Material(material)) < units {
@@ -570,15 +649,19 @@ func (g *Game) payStation(c *Char, key, kind string, coin int64, material string
 	}
 	var legs []ledger.Leg
 	if coin > 0 {
-		legs = append(legs, ledger.Leg{Account: acc, Asset: ledger.Coin, Units: -coin}, ledger.Leg{Account: ledger.ToFees, Asset: ledger.Coin, Units: coin})
+		legs = append(legs, ledger.Pair(acc, ledger.ToFees, ledger.Coin, coin)...)
 	}
 	if units > 0 {
-		legs = append(legs, ledger.Leg{Account: acc, Asset: ledger.Material(material), Units: -units}, ledger.Leg{Account: ledger.ToCraft, Asset: ledger.Material(material), Units: units})
+		legs = append(legs, ledger.Pair(acc, ledger.ToCraft, ledger.Material(material), units)...)
 	}
 	if len(legs) == 0 {
 		return nil
 	}
 	return g.receive(c, ledger.Txn{Key: key, Kind: kind, Tick: g.Tick(), Legs: legs})
+}
+
+func (g *Game) balance(c *Char, asset string) int64 {
+	return g.Ledger.Of(ledger.Char(c.C.ID), asset)
 }
 
 // ForageYield is the provisions one tick of foraging finds on a tile: the
@@ -598,7 +681,7 @@ func (g *Game) ForageYield(h hex.Hex) int64 {
 const fertilityScale = 100
 
 func (g *Game) forage(c *Char, cmd Command) error {
-	cmd.Material = assetProvisions
+	cmd.Material = ledger.Provisions
 	return g.gather(c, cmd)
 }
 
@@ -611,9 +694,8 @@ func (g *Game) crawl(c *Char, cmd Command) error {
 	if c.Long != nil || c.Fight != nil {
 		return refuse(Busy, "%s is busy", c.C.ID)
 	}
-	t := g.Tick()
 	n := g.r.wp("crawl-ticks")
-	c.Long = &Long{Kind: Crawl, Key: cmd.Key, Started: t, Due: t + n, Ends: t + n}
+	g.startLong(c, Crawl, cmd.Key, n, n)
 	return nil
 }
 

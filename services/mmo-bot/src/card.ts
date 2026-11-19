@@ -1,9 +1,17 @@
 import {
+  BUTTON_LABEL_MAX,
   clampEmbed,
   type EmbedField,
   type Message,
+  OPTIONS_MAX,
+  PER_ROW,
   type Row,
+  ROWS_MAX,
+  SELECT_LABEL_MAX,
+  SELECT_VALUE_MAX,
 } from "../../../packages/discord-kit/src/index.ts";
+import { decodeId } from "./ids.ts";
+import { BAND_LABELS } from "./units.ts";
 
 /**
  * One card builder for every screen (GDD 17.4). A card names where it
@@ -47,7 +55,6 @@ export interface Card {
 }
 
 export const AUTHOR_MAX = 60;
-const PER_ROW = 5;
 export const COLOUR = {
   ash: 0xc9c4b8,
   rust: 0xa4482a,
@@ -190,30 +197,68 @@ export function problems(card: Card, names: Set<string>): string[] {
   const texts = [card.title, card.description ?? "", card.footer, card.author];
   for (const f of card.fields ?? []) texts.push(`${f.name}: ${f.value}`);
   if (card.table) {
-    for (const h of card.table.header)
-      if (
-        !/\(.+\)|coin|pts|xp|ticks|load|durability|level|tier|%/.test(h) &&
-        card.table.rows.some((r) => /\d/.test(r[card.table!.header.indexOf(h)] ?? ""))
-      )
+    const hasUnit = (h: string) =>
+      /\(.+\)/.test(h) ||
+      h
+        .toLowerCase()
+        .split(/\s+/)
+        .some((w) => UNITS.has(w));
+    card.table.header.forEach((h, i) => {
+      if (!hasUnit(h) && card.table!.rows.some((r) => /\d/.test(r[i] ?? "")))
         out.push(`table header "${h}" has no unit`);
+    });
   }
   for (const t of texts)
     for (const n of bareNumbers(t, names)) out.push(`bare number ${n} in "${t.slice(0, 60)}"`);
-  for (const r of card.rows) {
-    if ("buttons" in r) {
-      if (r.buttons.length > PER_ROW) out.push("more than 5 buttons in a row");
-      for (const b of r.buttons)
-        for (const n of bareNumbers(b.label, names))
-          out.push(`bare number ${n} in button "${b.label}"`);
-    }
-  }
+  out.push(...rowProblems(card.rows, names));
   const buttons = card.rows.flatMap((r) => ("buttons" in r ? r.buttons : []));
-  if (card.modifiers && !buttons.some((b) => b.kind === "page" && b.customId.startsWith("mm|why|")))
+  if (
+    card.modifiers &&
+    !buttons.some((b) => b.kind === "page" && decodeId(b.customId)?.action === "why")
+  )
     out.push("shows a modifier but has no why button");
   for (const label of card.failable ?? []) {
     const b = buttons.find((x) => x.label.startsWith(label));
-    if (!b || !/Certain|Near certain|Likely|Even|Long shot|Desperate/.test(b.label))
+    if (!b || !BAND_LABELS.some((x) => b.label.includes(x)))
       out.push(`option "${label}" can fail but shows no band`);
+  }
+  return out;
+}
+
+/** The limits toMessage would otherwise enforce by dropping or cutting. */
+function rowProblems(rows: Row[], names: Set<string>): string[] {
+  const out: string[] = [];
+  if (rows.length > ROWS_MAX) out.push(`${rows.length} rows; Discord shows ${ROWS_MAX}`);
+  const ids = new Set<string>();
+  const once = (id: string) => {
+    if (ids.has(id)) out.push(`custom id ${id} is used twice`);
+    ids.add(id);
+  };
+  for (const r of rows) {
+    if ("buttons" in r) {
+      if (r.buttons.length > PER_ROW) out.push(`more than ${PER_ROW} buttons in a row`);
+      for (const b of r.buttons) {
+        if (b.label.length > BUTTON_LABEL_MAX) out.push(`button "${b.label}" is too long`);
+        if (b.kind === "page") once(b.customId);
+        for (const n of bareNumbers(b.label, names))
+          out.push(`bare number ${n} in button "${b.label}"`);
+      }
+      continue;
+    }
+    const s = r.select;
+    once(s.customId);
+    if (!s.options.length) out.push(`select ${s.customId} has no options`);
+    if (s.options.length > OPTIONS_MAX) out.push(`select ${s.customId} has too many options`);
+    const values = new Set<string>();
+    for (const o of s.options) {
+      if (o.value.length > SELECT_VALUE_MAX || values.has(o.value))
+        out.push(`select value "${o.value}" is too long or repeated`);
+      values.add(o.value);
+      for (const t of [o.label, o.description ?? ""]) {
+        if (t.length > SELECT_LABEL_MAX) out.push(`select text "${t}" is too long`);
+        for (const n of bareNumbers(t, names)) out.push(`bare number ${n} in select "${t}"`);
+      }
+    }
   }
   return out;
 }

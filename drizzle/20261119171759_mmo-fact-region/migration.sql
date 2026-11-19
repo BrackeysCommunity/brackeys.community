@@ -1,0 +1,1 @@
+CREATE INDEX "fact_world_region_idx" ON "mmo"."fact" ("world_id","region","id" DESC NULLS LAST);

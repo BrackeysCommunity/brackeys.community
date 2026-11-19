@@ -12,13 +12,7 @@ import (
 // Bands ranks the odds bands best first, from the sheet, for policies
 // that see bands by name only.
 func Bands(b *sheets.Book) []string {
-	rows := slices.Clone(b.OddsBands)
-	slices.SortFunc(rows, func(x, y sheets.OddsBand) int { return int(y.Rank - x.Rank) })
-	out := make([]string, len(rows))
-	for i, r := range rows {
-		out[i] = r.ID
-	}
-	return out
+	return sheets.BandsByRank(b)
 }
 
 // best is the option with the best band, never a machine (those are
@@ -64,9 +58,9 @@ func (w Wanderer) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 		return api.ActionRequest{}, false
 	case o.Long != nil:
 		return api.ActionRequest{}, false
-	case has(o.Conditions, "down"):
+	case has(o.Conditions, api.CondDown):
 		return api.ActionRequest{Kind: api.ActCrawl}, true
-	case o.Rest && has(o.Conditions, "wounded"):
+	case o.Rest && has(o.Conditions, api.CondWounded):
 		return api.ActionRequest{Kind: api.ActRest}, true
 	case o.Explore && d.Percent(wandererExplore, "wander.explore"):
 		return api.ActionRequest{Kind: api.ActExplore}, true
@@ -119,7 +113,7 @@ func (t *Traveller) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 	if o.Fight != nil || o.Long != nil {
 		return api.ActionRequest{}, false
 	}
-	if has(o.Conditions, "down") {
+	if has(o.Conditions, api.CondDown) {
 		return api.ActionRequest{Kind: api.ActCrawl}, true
 	}
 	t.mu.Lock()

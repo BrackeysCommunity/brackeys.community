@@ -1,9 +1,8 @@
-import { type Button, type Embed, httpUrl } from "./embed.ts";
+import { BUTTON_LABEL_MAX, type Button, type Embed, httpUrl } from "./embed.ts";
 
 /**
- * Messages as the raw JSON an interaction answers with. discord.js takes
- * component JSON as it is, so neither bot builds components through it,
- * and this file needs no dependency.
+ * Messages as the raw JSON an interaction answers with; discord.js accepts
+ * it as is, so this file needs no dependency.
  */
 
 /** A select menu the bot answers through its custom id. */
@@ -33,9 +32,11 @@ export interface Message {
 
 const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4, link: 5 } as const;
 const COMPONENT = { row: 1, button: 2, select: 3 } as const;
-const ROWS_MAX = 5;
-const PER_ROW = 5;
-const OPTIONS_MAX = 25;
+export const ROWS_MAX = 5;
+export const PER_ROW = 5;
+export const OPTIONS_MAX = 25;
+export const SELECT_LABEL_MAX = 100;
+export const SELECT_VALUE_MAX = 100;
 
 export interface MessageJson {
   content: string;
@@ -76,9 +77,9 @@ export function toMessage(message: Message): MessageJson {
             placeholder: s.placeholder.slice(0, 150),
             disabled: s.disabled ?? false,
             options: s.options.slice(0, OPTIONS_MAX).map((o) => ({
-              label: o.label.slice(0, 100),
+              label: o.label.slice(0, SELECT_LABEL_MAX),
               value: o.value,
-              description: o.description?.slice(0, 100),
+              description: o.description?.slice(0, SELECT_LABEL_MAX),
               default: o.default ?? false,
             })),
           },
@@ -96,11 +97,16 @@ export function toMessage(message: Message): MessageJson {
       .slice(0, PER_ROW)
       .map((b) =>
         b.kind === "link"
-          ? { type: COMPONENT.button, style: STYLE.link, label: b.label.slice(0, 80), url: b.url }
+          ? {
+              type: COMPONENT.button,
+              style: STYLE.link,
+              label: b.label.slice(0, BUTTON_LABEL_MAX),
+              url: b.url,
+            }
           : {
               type: COMPONENT.button,
               style: STYLE[b.style ?? "secondary"],
-              label: b.label.slice(0, 80),
+              label: b.label.slice(0, BUTTON_LABEL_MAX),
               custom_id: b.customId,
               disabled: b.disabled ?? false,
               ...(b.emoji ? { emoji: { name: b.emoji } } : {}),

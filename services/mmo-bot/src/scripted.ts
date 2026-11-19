@@ -8,12 +8,9 @@ import { httpWorld, type World } from "./world.ts";
 
 /**
  * The scripted client: one player through the first sitting (GDD 3.1),
- * pressing only the buttons and selects the bot's own cards offer, through
- * the same handlers Discord drives. It travels to the suggested site,
- * fights until the tool in hand reaches level 5, gathers, goes home, sells
- * to a faction order and crafts; then opens every other card once. Every
- * card is checked against the card standard, and the world's conservation
- * audit runs at the end.
+ * pressing only what the bot's cards offer through the same handlers
+ * Discord drives; every card is checked against the card standard and the
+ * conservation audit runs at the end.
  */
 
 export interface Run {
@@ -158,7 +155,7 @@ export async function scripted(
     while (has("press")) {
       const o = await world.options(id);
       const wins = o.fight!.options.filter((x) => x.kind === "win" && !x.puzzle);
-      const best = wins.sort((a, b) => rank(b.band) - rank(a.band))[0];
+      const best = wins.sort((a, b) => ctx.lex.bandRank(a.band) - ctx.lex.bandRank(b.band))[0];
       await press("press", best?.id ?? "back-out");
     }
     run.encounters++;
@@ -168,10 +165,9 @@ export async function scripted(
     `tool level ${run.toolLevel} after ${run.encounters} encounters; carrying ${JSON.stringify((await world.sheet(id)).character.goods)}`,
   );
 
-  // Gather a tick of the node's material, then home.
+  // Gather twice, keeping two units for the craft, then head home.
   await openHub();
   await press("field");
-  // Two ticks: two units to keep for the craft and the rest to sell.
   const node = (await world.here(id)).materials.find((m) => !m.workedOut)?.material;
   if (node) {
     await press("gather", `${node}:1`);
@@ -284,11 +280,6 @@ export async function scripted(
   return run;
 }
 
-const ORDER = ["desperate", "long-shot", "even", "likely", "near-certain", "certain"];
-function rank(b: string) {
-  return ORDER.indexOf(b);
-}
-
 if (import.meta.main) {
   const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
   const samples: Record<string, unknown> = {};
@@ -297,7 +288,7 @@ if (import.meta.main) {
   const lex = new Lexicon(await world.lexicon());
   const started = Date.now();
   const r = await scripted(
-    { world, lex, threatLine: 600 },
+    { world, lex, threatLine: lex.numbers.ambushLine },
     { operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" } },
   ).catch((e: unknown) => {
     console.error(e);

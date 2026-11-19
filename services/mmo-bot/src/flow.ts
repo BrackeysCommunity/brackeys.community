@@ -1,7 +1,8 @@
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
-import type { Id } from "./ids.ts";
-import type { Lexicon } from "./lexicon.ts";
+import { fields, type Id, integerTarget } from "./ids.ts";
+import { capitalise, type Lexicon } from "./lexicon.ts";
+import type { CommandName } from "./manifest.ts";
 import { backCards } from "./screens/back.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
 import { hubCard, recapCard, startCard, whereCard } from "./screens/hub.ts";
@@ -19,7 +20,8 @@ import {
 } from "./screens/make.ts";
 import { talkCard } from "./screens/talk.ts";
 import { travelCard } from "./screens/travel.ts";
-import { isRefusal, type World } from "./world.ts";
+import { amount } from "./units.ts";
+import type { World } from "./world.ts";
 
 /**
  * The bot's whole behaviour as a pure function of a press: what to write
@@ -52,17 +54,15 @@ export interface Answer {
   long?: boolean;
 }
 
-export const COMMANDS = ["play", "character", "recipes", "map"] as const;
-
 export async function answer(ctx: Ctx, press: Press): Promise<Answer> {
   const { world } = ctx;
   const id = await world.player(press.user);
   if (!id) {
     if (press.id?.action === "start") return start(ctx, press, press.id.target);
-    return { card: startCard() };
+    return { card: startCard(ctx.lex) };
   }
   const s = new Session(ctx, press, id);
-  if (press.command) return s.command(press.command);
+  if (press.command) return s.command(press.command as CommandName);
   if (press.id) return s.button(press.id, press.values ?? []);
   return s.hub();
 }
@@ -76,7 +76,15 @@ async function start(ctx: Ctx, press: Press, choice: string): Promise<Answer> {
     option: choice,
     server: press.guild,
   });
-  if (!res.ok) return { card: startCard() };
+  if (!res.ok) {
+    if (res.refusal.code === api.CodeSecondPC) {
+      const id = await ctx.world.player(press.user);
+      if (id) return new Session(ctx, press, id).hub();
+    }
+    const card = startCard(ctx.lex);
+    card.title = capitalise(res.refusal.message);
+    return { card };
+  }
   const s = new Session(ctx, press, res.reply.character.id);
   return s.hub(`You take the ${choice}. The road is yours.`);
 }
@@ -118,7 +126,18 @@ class Session {
     return { card, character: this.character, long };
   }
 
-  async command(name: string): Promise<Answer> {
+  /** An answer whose card's title is replaced, when there is one. */
+  private retitled(a: Answer, title?: string): Answer {
+    if (title) a.card.title = title;
+    return a;
+  }
+
+  /** The hub after a press that queues a long action, unless it was refused. */
+  private async longAnswer(notice: string, why?: string): Promise<Answer> {
+    return { ...(await this.hub(why ?? notice)), long: !why };
+  }
+
+  async command(name: CommandName): Promise<Answer> {
     switch (name) {
       case "character":
         return this.character_();
@@ -126,6 +145,7 @@ class Session {
         return this.recipes();
       case "map":
         return this.travel();
+      case "play":
       default:
         return this.open();
     }
@@ -135,25 +155,27 @@ class Session {
   async open(): Promise<Answer> {
     const { o, here } = await this.load();
     const recap = await this.world.recap(this.character);
-    await this.act(api.ActLook, o.version);
+    const look = await this.act(api.ActLook, o.version);
     if (recap.lines.length === 0) return this.hub();
-    const people = new Map(here.people.map((p) => [p.id, p.name]));
-    return this.done(recapCard({ ...o, version: o.version + 1 }, here, recap, this.lex, people));
+    const version = look.ok ? look.reply.character.version : o.version;
+    return this.done(recapCard({ ...o, version }, here, recap, this.lex, peopleOf(here)));
   }
 
   async hub(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     const sheet = await this.world.sheet(this.character);
-    if (o.conditions.includes("down") && !o.long && !notice) return this.done(downCard(o, here));
+    if (o.conditions.includes(api.CondDown) && !o.long && !notice)
+      return this.done(downCard(o, here, this.lex));
     return this.done(hubCard(o, here, sheet, this.lex, notice));
   }
 
   async travel(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     const map = await this.world.map(this.character);
-    const card = travelCard(o, map, here, this.lex, this.ctx.threatLine);
-    if (notice) card.title = notice;
-    return this.done(card);
+    return this.retitled(
+      this.done(travelCard(o, map, here, this.lex, this.ctx.threatLine)),
+      notice,
+    );
   }
 
   async character_(): Promise<Answer> {
@@ -195,21 +217,20 @@ class Session {
     const sheet = await this.world.sheet(this.character);
     const it = [...sheet.kit, ...sheet.pack].find((x) => x.id === itemId);
     if (!it) return this.done(characterCard(o, here, sheet, this.lex));
-    return this.done(itemCard(o, here, it, this.lex));
+    const deckHeld = sheet.kit.some((x) => x.worn === "off-hand" && x.deck);
+    return this.done(itemCard(o, here, it, this.lex, deckHeld));
   }
 
   async talk(npc: string, said?: string): Promise<Answer> {
     const o = await this.world.options(this.character);
     const conv = await this.world.npc(this.character, npc);
-    if (isRefusal(conv)) return this.where(conv.message);
-    return this.done(talkCard(o, conv, said));
+    if (!conv.ok) return this.where(conv.refusal.message);
+    return this.done(talkCard(o, conv.reply, said));
   }
 
   async where(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
-    const card = whereCard(o, here, this.lex);
-    if (notice) card.title = notice;
-    return this.done(card);
+    return this.retitled(this.done(whereCard(o, here, this.lex)), notice);
   }
 
   /** A write, then the card it leads to; a refusal shows its reason on that card. */
@@ -232,8 +253,26 @@ class Session {
 
   async button(id: Id, values: string[]): Promise<Answer> {
     const v = id.version;
-    const [a, b] = id.target.split(":");
     const value = values[0] ?? "";
+    const isPair =
+      id.action === "sell" ||
+      id.action === "buy" ||
+      id.action === "equip" ||
+      id.action === "pick" ||
+      id.action === "gather" ||
+      id.action === "consent";
+    const pair = isPair ? fields(id.target, ":", 2) : null;
+    if (isPair && !pair) return backCards.unknown(this.character);
+    const [a, b] = pair ?? ["", ""];
+    const quantity = integerTarget(b!);
+    if (
+      (id.action === "buy" ||
+        id.action === "sell" ||
+        id.action === "gather" ||
+        id.action === "consent") &&
+      quantity === undefined
+    )
+      return backCards.unknown(this.character);
     switch (id.action) {
       case "hub":
         return this.hub();
@@ -262,12 +301,8 @@ class Session {
           characterId: this.character,
           recipe: draftRecipe(d),
         });
-        if (isRefusal(ap)) {
-          const card = (await this.craft({})).card;
-          card.title = capitalise(ap.message);
-          return this.done(card);
-        }
-        return this.done(appraisalCard(o, here, ap, this.lex, d));
+        if (!ap.ok) return this.retitled(await this.craft({}), capitalise(ap.refusal.message));
+        return this.done(appraisalCard(o, here, ap.reply, this.lex, d));
       }
       case "craft-go":
         return this.write(
@@ -275,11 +310,7 @@ class Session {
           v,
           { recipe: draftRecipe(parseDraft(id.target)) },
           async (r, why) => {
-            if (!r) {
-              const card = (await this.craft({})).card;
-              card.title = why!;
-              return this.done(card);
-            }
+            if (!r) return this.retitled(await this.craft({}), why);
             const { o, here } = await this.load();
             return this.done(madeCard(o, here, r.facts, this.lex));
           },
@@ -287,14 +318,11 @@ class Session {
       case "market":
         return this.market();
       case "sell":
-        return this.write(api.ActSell, v, { material: a, units: Number(b) }, (r, why) =>
-          this.market(
-            why ??
-              (r ? `Sold: ${r.character.coin.toLocaleString("en-US")} coin in hand` : undefined),
-          ),
+        return this.write(api.ActSell, v, { material: a, units: quantity }, (r, why) =>
+          this.market(why ?? (r ? `Sold: ${amount(r.character.coin, "coin")} in hand` : undefined)),
         );
       case "buy":
-        return this.write(api.ActBuy, v, { asset: a, units: Number(b) }, (_, why) =>
+        return this.write(api.ActBuy, v, { asset: a, units: quantity }, (_, why) =>
           this.market(why),
         );
       case "feed":
@@ -305,24 +333,22 @@ class Session {
         return this.item(value || id.target);
       case "equip":
         return this.write(api.ActEquip, v, { item: a, slot: b }, async (_, why) =>
-          why ? this.item(a!).then((x) => ((x.card.title = why), x)) : this.character_(),
+          why ? this.retitled(await this.item(a!), why) : this.character_(),
         );
       case "repair":
         return this.write(api.ActRepair, v, { item: id.target }, async (_, why) =>
-          this.item(id.target).then((x) => (why && (x.card.title = why), x)),
+          this.retitled(await this.item(id.target), why),
         );
       case "pick":
         return this.write(api.ActPick, v, { item: a, option: b }, async (_, why) =>
-          this.item(a!).then((x) => (why && (x.card.title = why), x)),
+          this.retitled(await this.item(a!), why),
         );
       case "recipes":
         return this.recipes();
       case "recap": {
         const { o, here } = await this.load();
         const recap = await this.world.recap(this.character);
-        return this.done(
-          recapCard(o, here, recap, this.lex, new Map(here.people.map((p) => [p.id, p.name]))),
-        );
+        return this.done(recapCard(o, here, recap, this.lex, peopleOf(here)));
       }
       case "step":
         return this.write(api.ActStep, v, { dir: Number(id.target) }, async (_, why) =>
@@ -330,11 +356,14 @@ class Session {
         );
       case "goto":
       case "follow": {
-        const [q, r] = (value || id.target).split(",").map(Number);
+        const coords = fields(value || id.target, ",", 2);
+        const q = integerTarget(coords?.[0] ?? "");
+        const r = integerTarget(coords?.[1] ?? "");
+        if (q === undefined || r === undefined) return backCards.unknown(this.character);
         return this.write(
           api.ActTravel,
           v,
-          { to: { q: q!, r: r! }, stop: { threat: this.ctx.threatLine } },
+          { to: { q, r }, stop: { threat: this.ctx.threatLine } },
           async (_, why) => {
             const ans = await this.travel(why ?? "On your way");
             return { ...ans, long: !why };
@@ -347,27 +376,18 @@ class Session {
         );
       case "explore":
         return this.write(api.ActExplore, v, {}, async (_, why) => {
-          if (why) {
-            const { o, here } = await this.load();
-            const card = fieldCard(o, here, this.lex);
-            card.title = why;
-            return this.done(card);
-          }
           const { o, here } = await this.load();
-          if (o.fight) return this.done(beatCard(o, here, this.lex));
-          const card = fieldCard(o, here, this.lex);
-          card.title = "The herd here is thin: nothing shows itself";
-          return this.done(card);
+          if (!why && o.fight) return this.done(beatCard(o, here, this.lex));
+          return this.retitled(
+            this.done(fieldCard(o, here, this.lex)),
+            why ?? "The herd here is thin: nothing shows itself",
+          );
         });
       case "fight":
         return this.fight();
       case "press":
         return this.write(api.ActPress, v, { option: id.target }, async (r, why) => {
-          if (!r) {
-            const ans = await this.fight();
-            if (why) ans.card.title = why;
-            return ans;
-          }
+          if (!r) return this.retitled(await this.fight(), why);
           return this.fight(r);
         });
       case "why": {
@@ -375,32 +395,28 @@ class Session {
         return this.done(whyCard(o, here, this.lex, id.target === "options" ? "options" : "moves"));
       }
       case "crawl":
-        return this.write(api.ActCrawl, v, {}, async (_, why) => ({
-          ...(await this.hub(why ?? "You start crawling out")),
-          long: !why,
-        }));
+        return this.write(api.ActCrawl, v, {}, (_, why) =>
+          this.longAnswer("You start crawling out", why),
+        );
       case "rest":
-        return this.write(api.ActRest, v, {}, async (_, why) => ({
-          ...(await this.hub(why ?? "You rest")),
-          long: !why,
-        }));
+        return this.write(api.ActRest, v, {}, (_, why) => this.longAnswer("You rest", why));
       case "gather":
-        return this.write(api.ActGather, v, { material: a, ticks: Number(b) }, async (_, why) => ({
-          ...(await this.hub(why ?? "You set to gathering")),
-          long: !why,
-        }));
+        return this.write(api.ActGather, v, { material: a, ticks: quantity }, (_, why) =>
+          this.longAnswer("You set to gathering", why),
+        );
       case "forage":
-        return this.write(api.ActForage, v, { ticks: Number(id.target) }, async (_, why) => ({
-          ...(await this.hub(why ?? "You forage")),
-          long: !why,
-        }));
+        return this.write(api.ActForage, v, { ticks: Number(id.target) }, (_, why) =>
+          this.longAnswer("You forage", why),
+        );
       case "talk":
         return this.write(api.ActTalk, v, { npc: id.target }, async (_, why) =>
           why ? this.where(why) : this.talk(id.target),
         );
       case "choose": {
-        const [npc, topic, choice] = id.target.split("/");
-        return this.write(api.ActChoose, v, { npc, option: `${topic}/${choice}` }, async (_, why) =>
+        const choice = fields(id.target, "/", 3);
+        if (!choice) return backCards.unknown(this.character);
+        const [npc, topic, option] = choice;
+        return this.write(api.ActChoose, v, { npc, option: `${topic}/${option}` }, async (_, why) =>
           this.talk(npc!, why),
         );
       }
@@ -409,8 +425,8 @@ class Session {
           this.where(why ?? "You find what was hidden"),
         );
       case "consent":
-        return this.write(api.ActConsent, v, { option: a, units: Number(b) }, async () =>
-          this.character_(),
+        return this.write(api.ActConsent, v, { option: a, units: quantity }, async (_, why) =>
+          this.retitled(await this.character_(), why),
         );
       case "start":
         return this.hub();
@@ -420,6 +436,6 @@ class Session {
   }
 }
 
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function peopleOf(here: api.Here): Map<string, string> {
+  return new Map(here.people.map((p) => [p.id, p.name]));
 }

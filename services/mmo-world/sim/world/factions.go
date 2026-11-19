@@ -4,6 +4,7 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -262,6 +263,13 @@ func (d *day) faction(i int) {
 // LineAt is where a gauge line with this effect starts.
 func LineAt(b *sheets.Book, effect string) int64 {
 	return b.GaugeLines[lineIndex(b, effect)].AtLeast
+}
+
+// Past reports whether the region at h has reached the gauge line for effect.
+func (s *State) Past(h hex.Hex, effect string) bool {
+	line := s.b.GaugeLines[lineIndex(s.b, effect)]
+	v, ok := s.GaugeAt(h, line.Gauge)
+	return ok && v >= line.AtLeast
 }
 
 func lineIndex(b *sheets.Book, effect string) int {

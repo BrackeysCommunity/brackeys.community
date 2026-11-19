@@ -73,6 +73,24 @@ type Meeting struct {
 	Count  int64  `json:"count"`
 	Topic  string `json:"topic,omitempty"`
 	Line   string `json:"line,omitempty"`
+	// Day and Answered are the world day and the topics the player
+	// answered on it: a topic is answered once a day.
+	Day      int64    `json:"day,omitempty"`
+	Answered []string `json:"answered,omitempty"`
+}
+
+// HasAnswered reports whether the player answered a topic on a day.
+func (m *Meeting) HasAnswered(topic string, day int64) bool {
+	return m.Day == day && slices.Contains(m.Answered, topic)
+}
+
+// Answer records an answered topic and what the NPC said.
+func (m *Meeting) Answer(topic, line string, day int64) {
+	if m.Day != day {
+		m.Day, m.Answered = day, nil
+	}
+	m.Answered = append(m.Answered, topic)
+	m.Topic, m.Line = topic, line
 }
 
 // Rules are the NPC sheets and the keys they draw under. Stubs draw on
@@ -130,6 +148,21 @@ func (r *Rules) ParamF(id string) fixed.F { return sheets.ParamOf(r.params, id) 
 
 // Topics are the topic rows.
 func (r *Rules) Topics() []sheets.Topic { return r.topics }
+
+// Choice is a topic's choice row.
+func (r *Rules) Choice(topic, choice string) (sheets.TopicChoice, bool) {
+	for _, t := range r.topics {
+		if t.ID != topic {
+			continue
+		}
+		for _, ch := range t.Choices {
+			if ch.ID == choice {
+				return ch, true
+			}
+		}
+	}
+	return sheets.TopicChoice{}, false
+}
 
 // Role is an npcs.roles row.
 func (r *Rules) Role(id string) *sheets.NPCRole {

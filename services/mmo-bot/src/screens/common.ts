@@ -1,7 +1,8 @@
-import type { Button } from "../../../../packages/discord-kit/src/index.ts";
+import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
-import { encodeId } from "../ids.ts";
-import type { Lexicon } from "../lexicon.ts";
+import type { Picture } from "../card.ts";
+import { type Action, encodeId } from "../ids.ts";
+import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, ticks } from "../units.ts";
 
 /** Where every hub card appears and who sees it. */
@@ -10,7 +11,7 @@ export const PRIVATE = "Your hub · only you can see this";
 /** A button the bot answers, by action and target, at a state version. */
 export function btn(
   label: string,
-  action: string,
+  action: Action,
   target = "",
   version = 0,
   extra: Partial<Extract<Button, { kind: "page" }>> = {},
@@ -32,11 +33,38 @@ export const DIRECTIONS = [
   { arrow: "↘", name: "SE" },
 ];
 
+/** The default picture: the banner of the region here; extra goes on the alt text. */
+export function banner(here: api.Here, extra = ""): Picture {
+  return { media: here.banner, alt: `Banner of ${here.name}${extra}` };
+}
+
 function datum(f: api.Fact, k: string): api.Datum | undefined {
   return f.data.find((d) => d.k === k);
 }
-const n = (f: api.Fact, k: string) => datum(f, k)?.n ?? 0;
-const s = (f: api.Fact, k: string) => datum(f, k)?.s ?? "";
+/** A fact's number under a key, or 0. */
+export const factNum = (f: api.Fact, k: string) => datum(f, k)?.n ?? 0;
+/** A fact's string under a key, or "". */
+export const factStr = (f: api.Fact, k: string) => datum(f, k)?.s ?? "";
+const n = factNum;
+const s = factStr;
+
+/** A station as one line: its name, tier and fee. */
+export function stationLine(st: api.Station, lex: Lexicon): string {
+  return `${lex.name("settlements.starting", st.kind)} (tier ${st.tier}, fee ${amount(st.fee, "coin")})`;
+}
+
+/** Ticks until a long action ends. */
+export function timeLeft(o: api.Options): number {
+  return Math.max(0, (o.long?.ends ?? o.tick) - o.tick);
+}
+
+export function conditionsField(o: api.Options): EmbedField {
+  return {
+    name: "Conditions",
+    value: o.conditions.length ? o.conditions.join(", ") : "none",
+    inline: true,
+  };
+}
 
 /** A fact as one templated line. Text is made from facts and never stored (GDD 12.1). */
 export function factLine(f: api.Fact, lex: Lexicon): string {
@@ -95,7 +123,7 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
     case "kind.named":
       return "A kind was named.";
     default:
-      return `${f.kind.replace(/[.-]/g, " ")}.`.replace(/^./, (c) => c.toUpperCase());
+      return capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
   }
 }
 

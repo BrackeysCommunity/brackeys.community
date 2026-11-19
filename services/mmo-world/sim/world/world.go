@@ -236,6 +236,15 @@ func (s *State) GaugeIndex(id string) int {
 	return i
 }
 
+// GaugeAt is a gauge of the region holding a tile, if a region holds it.
+func (s *State) GaugeAt(h hex.Hex, id string) (int64, bool) {
+	r := s.RegionAt(h)
+	if r < 0 {
+		return 0, false
+	}
+	return s.Regions[r].Gauge[s.GaugeIndex(id)], true
+}
+
 func (s *State) parts(list string) []string {
 	var out []string
 	for _, p := range s.b.NameParts {

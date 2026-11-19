@@ -1,9 +1,10 @@
 import { type Button, buttonRows } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
+import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, outOf, signed } from "../units.ts";
-import { back, btn, PRIVATE } from "./common.ts";
+import { back, banner, btn, factNum, PRIVATE, stationLine } from "./common.ts";
 
 /** A recipe as the craft card carries it between selects: process.method.slot.material.qty. */
 export interface Draft {
@@ -14,12 +15,21 @@ export interface Draft {
   qty?: number;
 }
 
+const DRAFT_SEP = ".";
+
 export function draftKey(d: Draft): string {
-  return [d.process ?? "", d.method ?? "", d.slot ?? "", d.material ?? "", d.qty ?? ""].join(".");
+  const parts = [
+    d.process ?? "",
+    d.method ?? "",
+    d.slot ?? "",
+    d.material ?? "",
+    String(d.qty ?? ""),
+  ];
+  return target(DRAFT_SEP, ...parts);
 }
 
 export function parseDraft(s: string): Draft {
-  const [process, method, slot, material, qty] = s.split(".");
+  const [process, method, slot, material, qty] = s.split(DRAFT_SEP);
   return {
     process: process || undefined,
     method: method || undefined,
@@ -38,8 +48,6 @@ export function draftRecipe(d: Draft): api.Recipe {
   };
 }
 
-const NEEDS_SLOT = new Set(["shape", "bind", "inscribe", "infuse"]);
-
 /** Craft: stations here, and a recipe built by selects, one choice at a time (GDD 9.10). */
 export function craftCard(
   o: api.Options,
@@ -54,10 +62,13 @@ export function craftCard(
   const kinds = new Set(here.stations.map((s) => s.kind));
   const can = recipes.processes.filter((p) => p.stations.some((s) => kinds.has(s)));
   const key = draftKey(d);
-  if (!d.process) {
+  let unavailable = "";
+  if (!can.length) {
+    unavailable = "No station here can work a recipe.";
+  } else if (!d.process) {
     rows.push({
       select: {
-        customId: `mm|craft-p|${key}|${v}`,
+        customId: encodeId("craft-p", key, v),
         placeholder: "Choose a process",
         options: can.map((p) => ({
           label: lex.name("items.processes", p.id),
@@ -70,31 +81,33 @@ export function craftCard(
     const p = recipes.processes.find((x) => x.id === d.process)!;
     rows.push({
       select: {
-        customId: `mm|craft-m|${key}|${v}`,
+        customId: encodeId("craft-m", key, v),
         placeholder: "Choose a method",
-        options: p.methods.map((m) => ({ label: m.replace(/-/g, " "), value: m })),
+        options: p.methods.map((m) => ({ label: lex.name("items.methods", m), value: m })),
       },
     });
-  } else if (!d.slot && NEEDS_SLOT.has(d.process)) {
+  } else if (!d.slot && recipes.processes.find((x) => x.id === d.process)?.needsSlot) {
     rows.push({
       select: {
-        customId: `mm|craft-s|${key}|${v}`,
+        customId: encodeId("craft-s", key, v),
         placeholder: "Choose what to make",
         options: recipes.slots.map((s) => ({ label: lex.name("items.slots", s), value: s })),
       },
     });
   } else if (!d.material) {
     const goods = sheet.character.goods.filter((g) => g.units > 0);
-    rows.push({
-      select: {
-        customId: `mm|craft-i|${key}|${v}`,
-        placeholder: goods.length ? "Choose the material" : "You carry no materials",
-        options: goods.map((g) => ({
-          label: amount(g.units, lex.material(g.material)),
-          value: g.material,
-        })),
-      },
-    });
+    if (!goods.length) unavailable = "You carry no materials.";
+    else
+      rows.push({
+        select: {
+          customId: encodeId("craft-i", key, v),
+          placeholder: "Choose the material",
+          options: goods.map((g) => ({
+            label: amount(g.units, lex.material(g.material)),
+            value: g.material,
+          })),
+        },
+      });
   } else if (!d.qty) {
     const have = sheet.character.goods.find((g) => g.material === d.material)?.units ?? 0;
     rows.push({
@@ -108,7 +121,7 @@ export function craftCard(
   rows.push({ buttons: [...(key !== "...." ? [btn("Start over", "craft", "", v)] : []), back(v)] });
   const chosen = [
     d.process && `Process: ${lex.name("items.processes", d.process)}`,
-    d.method && `Method: ${d.method.replace(/-/g, " ")}`,
+    d.method && `Method: ${lex.name("items.methods", d.method)}`,
     d.slot && `Makes: ${lex.name("items.slots", d.slot)}`,
     d.material && `Material: ${lex.material(d.material)}`,
   ].filter(Boolean);
@@ -117,14 +130,12 @@ export function craftCard(
     author: `Craft · ${here.name}`,
     title: here.stations.length ? "At the stations" : "No stations here",
     description: here.stations.length
-      ? `${chosen.join("\n") || "Build a recipe one choice at a time. Before you commit, appraisal shows a range for each axis."}`
+      ? `${[...chosen, unavailable].filter(Boolean).join("\n") || "Build a recipe one choice at a time. Before you commit, appraisal shows a range for each axis."}`
       : "Crafting needs a station: a settlement's forge, bench or still.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
-    fields: here.stations.map((s) => ({
-      name: lex.name("settlements.starting", s.kind),
-      value: `tier ${s.tier}, fee ${amount(s.fee, "coin")}`,
-      inline: true,
-    })),
+    picture: banner(here),
+    fields: here.stations.length
+      ? [{ name: "Stations", value: here.stations.map((s) => stationLine(s, lex)).join("\n") }]
+      : [],
     footer: "A station charges its fee per craft; the quirk is never shown before.",
     rows,
   };
@@ -146,7 +157,7 @@ export function appraisalCard(
     description: ap.known
       ? "You know this kind: the values are exact."
       : "Each axis lies inside its range; practice narrows it.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     table: {
       header: ["Axis", "Low (pts)", "High (pts)"],
       rows: ap.axes.map((a) => [a.axis, String(a.lo), String(a.hi)]),
@@ -155,7 +166,7 @@ export function appraisalCard(
       { name: "Tier", value: `tier ${ap.tier}`, inline: true },
       {
         name: "Station",
-        value: `${lex.name("settlements.starting", ap.station.kind)}, fee ${amount(ap.station.fee, "coin")}`,
+        value: stationLine(ap.station, lex),
         inline: true,
       },
       {
@@ -193,10 +204,10 @@ export function madeCard(o: api.Options, here: api.Here, facts: api.Fact[], lex:
       : discovered
         ? "You are its first maker, and the record says so. It takes its plain name for now; naming your own comes later."
         : "It is in your pack.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     fields: levelled.map((f) => ({
       name: "Your tool",
-      value: `level ${f.data.find((x) => x.k === "to")?.n ?? 0}`,
+      value: `level ${factNum(f, "to")}`,
       inline: true,
     })),
     footer: "Equip it from your character.",
@@ -213,7 +224,7 @@ export function madeCard(o: api.Options, here: api.Here, facts: api.Fact[], lex:
   };
 }
 
-/** Market: the faction orders here and what you can sell to them; provisions and mounts (GDD 10, MM4's slice). */
+/** Market: the faction orders here and what you can sell to them; provisions and mounts (GDD 10). */
 export function marketCard(
   o: api.Options,
   here: api.Here,
@@ -231,7 +242,7 @@ export function marketCard(
         btn(
           `Sell ${amount(g.units, lex.material(g.material))}`,
           "sell",
-          `${g.material}:${g.units}`,
+          target(":", g.material, g.units),
           v,
           { style: "success" },
         ),
@@ -253,7 +264,7 @@ export function marketCard(
       btn(
         `Buy a ${lex.name("mounts.kinds", m.asset)} · ${amount(m.price, "coin")}`,
         "buy",
-        `${m.asset}:1`,
+        target(":", m.asset, 1),
         v,
         { disabled: !!sheet.character.mount },
       ),
@@ -270,7 +281,7 @@ export function marketCard(
     description: here.orders.length
       ? `Factions buy at reference prices; each fill pays a ${fee}% fee.`
       : "Faction orders stand in settlements.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     table: here.orders.length
       ? {
           header: ["Good", "Price (coin each)", "Buyer"],
@@ -335,7 +346,7 @@ export function characterCard(
       name: "Finds",
       value: sheet.finds
         .slice(-3)
-        .map((f) => `${f.rarity} (${f.chance}% of finds), ${f.trigger.replace(/-/g, " ")}`)
+        .map((f) => `${f.rarity} (${f.chance}% of finds), ${lex.name("tiles.triggers", f.trigger)}`)
         .join("\n"),
     });
   const sigil = sheet.kit.find((i) => i.sigil)?.sigil;
@@ -343,62 +354,54 @@ export function characterCard(
     context: PRIVATE,
     author: "Character · kit, practice, standing",
     title: `${sheet.start ? `Carrying a ${sheet.start} from the gate` : "Your character"}`,
-    picture: sigil
-      ? { media: sigil, alt: "The sigil of what you carry in hand" }
-      : { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: sigil ? { media: sigil, alt: "The sigil of what you carry in hand" } : banner(here),
     fields,
-    footer: "Open an item for its card: level, picks, repair.",
+    footer: all.length ? "Open an item for its card: level, picks, repair." : "You carry no items.",
     rows: [
-      {
-        select: {
-          customId: `mm|item||${v}`,
-          placeholder: "Open an item…",
-          options: all.slice(0, 25).map((i) => ({
-            label: i.name || i.id,
-            value: i.id,
-            description: i.worn ? `worn: ${i.worn}` : "in the pack",
-          })),
-        },
-      },
-      {
-        buttons: [
-          btn("Recipes", "recipes", "", v),
-          btn(
-            sheet.consent.sameServer ? "NPCs may name me here: on" : "NPCs may name me here: off",
-            "consent",
-            sheet.consent.sameServer ? "same-server:0" : "same-server:1",
-            v,
-          ),
-          back(v),
-        ],
-      },
+      ...(all.length
+        ? [
+            {
+              select: {
+                customId: encodeId("item", "", v),
+                placeholder: "Open an item…",
+                options: all.slice(0, 25).map((i) => ({
+                  label: i.name || i.id,
+                  value: i.id,
+                  description: i.worn ? `worn: ${i.worn}` : "in the pack",
+                })),
+              },
+            },
+          ]
+        : []),
+      { buttons: [btn("Recipes", "recipes", "", v), back(v)] },
     ],
   };
 }
 
-const WEAR: Record<string, string[]> = {
-  blade: ["hand", "off-hand"],
-  tool: ["hand", "off-hand"],
-  hook: ["hand", "off-hand"],
-  focus: ["off-hand"],
-  plate: ["body"],
-  charm: ["charm"],
-};
-
-/** An item's card: its sigil, axes, level, durability, and what it can take (GDD 9.11, 9.12, 16.3). */
-export function itemCard(o: api.Options, here: api.Here, it: api.Item, lex: Lexicon): Card {
+/**
+ * An item's card: its sigil, axes, level, durability, and what it can
+ * take (GDD 9.11, 9.12, 16.3). deckHeld says a deck is in the off-hand
+ * for an exploit to load into.
+ */
+export function itemCard(
+  o: api.Options,
+  here: api.Here,
+  it: api.Item,
+  lex: Lexicon,
+  deckHeld = false,
+): Card {
   const v = o.version;
   const atStation = here.stations.length > 0;
   const buttons: Button[] = [];
-  if (!it.worn && it.slot && WEAR[it.slot])
-    for (const w of WEAR[it.slot]!.slice(0, 2))
-      buttons.push(btn(`Wear in ${w}`, "equip", `${it.id}:${w}`, v));
-  if (!it.worn && it.kind && !it.slot)
-    buttons.push(btn("Load into your deck", "equip", `${it.id}:deck`, v));
+  if (!it.worn)
+    for (const w of (it.wearIn ?? []).slice(0, 2))
+      buttons.push(btn(`Wear in ${w}`, "equip", target(":", it.id, w), v));
+  if (!it.worn && it.loads && deckHeld)
+    buttons.push(btn("Load into your deck", "equip", target(":", it.id, "deck"), v));
   if (it.durability < it.max || it.dormant)
     buttons.push(btn("Repair", "repair", it.id, v, { disabled: !atStation }));
   const picks: Button[] = (it.offers ?? []).map((off) =>
-    btn(`Pick: ${lex.name("items.traits", off)}`, "pick", `${it.id}:${off}`, v, {
+    btn(`Pick: ${lex.name("items.traits", off)}`, "pick", target(":", it.id, off), v, {
       style: "success",
       disabled: !atStation,
     }),
@@ -417,7 +420,7 @@ export function itemCard(o: api.Options, here: api.Here, it: api.Item, lex: Lexi
           media: it.sigil,
           alt: `Sigil of ${it.name}: its outline, slot, strongest axes, ${amount(1 + Math.floor(it.level / 5), "notches")} for its level and a dot per pick`,
         }
-      : { media: here.banner, alt: `Banner of ${here.name}` },
+      : banner(here),
     fields: [
       { name: "Level", value: `level ${it.level}, ${outOf(it.xp, it.toNext, "xp")}`, inline: true },
       { name: "Durability", value: outOf(it.durability, it.max, "durability"), inline: true },
@@ -457,7 +460,7 @@ export function recipesCard(o: api.Options, here: api.Here, r: api.Recipes, lex:
     description: r.known.length
       ? undefined
       : "Craft something and it is here: the first maker of a kind is recorded.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     table: r.known.length
       ? {
           header: ["Kind", "Process", "Inputs (goods)"],

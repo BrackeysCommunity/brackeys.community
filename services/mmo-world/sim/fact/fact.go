@@ -6,6 +6,8 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+
+	"jams.team/mmo-world/sim/hex"
 )
 
 // ID numbers facts in the order they were appended, from 1.
@@ -38,6 +40,22 @@ func B(key string, b bool) Datum {
 		return N(key, 1)
 	}
 	return N(key, 0)
+}
+
+// structural: a fact names its tile through q and r data, when it has one.
+const (
+	keyQ = "q"
+	keyR = "r"
+)
+
+// At is the data that names a tile.
+func At(h hex.Hex) []Datum { return []Datum{N(keyQ, h.Q), N(keyR, h.R)} }
+
+// HexOf is the tile a fact's data names, if it names one.
+func HexOf(f Fact) (hex.Hex, bool) {
+	q, okq := f.Get(keyQ)
+	r, okr := f.Get(keyR)
+	return hex.Hex{Q: q.N, R: r.N}, okq && okr
 }
 
 type Fact struct {

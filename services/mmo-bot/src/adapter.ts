@@ -8,7 +8,7 @@ import {
   SnowflakeUtil,
 } from "discord.js";
 
-import { toMessage } from "../../../packages/discord-kit/src/index.ts";
+import { describe, toMessage } from "../../../packages/discord-kit/src/index.ts";
 import { render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
 import { answer, type Answer, type Ctx, type Press } from "./flow.ts";
@@ -17,8 +17,8 @@ import { WorldUnavailableError } from "./world.ts";
 
 /**
  * The one file that touches discord.js interactions. Every press is
- * answered through its own interaction (spike D rule 1): a defer inside
- * three seconds, then an edit of the same ephemeral card. A hub older than
+ * answered through its own interaction: a defer inside three seconds,
+ * then an edit of the same ephemeral card. A hub older than
  * 14 minutes is past what its token can edit, so the next press retires it
  * and answers with a fresh hub (GDD 17.3).
  */
@@ -46,12 +46,44 @@ export interface AdapterOptions {
 export function createHandler(opts: AdapterOptions) {
   const { ctx, budget, media, onLong, log = console.log, now = Date.now } = opts;
 
+  /** The card as a message. A picture the world no longer holds drops out rather than failing the card. */
   async function messageOf(a: Answer): Promise<InteractionEditReplyOptions> {
     const r = render(a.card);
     const files = await Promise.all(
-      r.media.map(async (m) => ({ name: m.name, data: await media(m.key), description: m.alt })),
+      r.media.map(async (m) => {
+        try {
+          return { name: m.name, data: await media(m.key), description: m.alt };
+        } catch (e) {
+          if (e instanceof WorldUnavailableError) throw e;
+          log(`[media] ${m.key}: ${describe(e)}`);
+          return null;
+        }
+      }),
     );
-    return toMessage({ ...r.message, files }) as unknown as InteractionEditReplyOptions;
+    const got = files.filter((f) => f !== null);
+    const missing = new Set(
+      r.media.filter((_, i) => !files[i]).map((m) => `attachment://${m.name}`),
+    );
+    const embeds = r.message.embeds.map((e) => ({
+      ...e,
+      image: e.image && missing.has(e.image) ? undefined : e.image,
+      thumbnail: e.thumbnail && missing.has(e.thumbnail) ? undefined : e.thumbnail,
+    }));
+    return toMessage({
+      ...r.message,
+      embeds,
+      files: got,
+    }) as unknown as InteractionEditReplyOptions;
+  }
+
+  /** A short ephemeral reply; a failed reply is logged, never left unhandled. */
+  async function say(
+    i: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction,
+    content: string,
+  ) {
+    await i
+      .reply({ content, flags: MessageFlags.Ephemeral })
+      .catch((e: unknown) => log(`[reply] ${describe(e)}`));
   }
 
   async function run(press: Press): Promise<InteractionEditReplyOptions> {
@@ -60,11 +92,14 @@ export function createHandler(opts: AdapterOptions) {
     return messageOf(a);
   }
 
+  const failureText = (error: unknown) =>
+    error instanceof WorldUnavailableError ? DOWN_LINE : `Something went wrong: ${describe(error)}`;
+
   async function onCommand(i: ChatInputCommandInteraction) {
     const gate = await budget.take(i.user.id);
-    if (!gate.allowed) return void i.reply({ content: SLOW_LINE, flags: MessageFlags.Ephemeral });
-    await i.deferReply({ flags: MessageFlags.Ephemeral });
+    if (!gate.allowed) return say(i, SLOW_LINE);
     try {
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
       await i.editReply(
         await run({
           user: i.user.id,
@@ -77,8 +112,7 @@ export function createHandler(opts: AdapterOptions) {
       log(`[command] /${i.commandName} failed: ${describe(e)}`);
       await i
         .editReply({
-          content:
-            e instanceof WorldUnavailableError ? DOWN_LINE : `Something went wrong: ${describe(e)}`,
+          content: failureText(e),
           embeds: [],
           components: [],
         })
@@ -88,9 +122,9 @@ export function createHandler(opts: AdapterOptions) {
 
   async function onComponent(i: ButtonInteraction | StringSelectMenuInteraction) {
     const id = decodeId(i.customId);
-    if (!id) return void i.reply({ content: STALE_LINE, flags: MessageFlags.Ephemeral });
+    if (!id) return say(i, STALE_LINE);
     const gate = await budget.take(i.user.id);
-    if (!gate.allowed) return void i.reply({ content: SLOW_LINE, flags: MessageFlags.Ephemeral });
+    if (!gate.allowed) return say(i, SLOW_LINE);
     const press: Press = {
       user: i.user.id,
       guild: i.guildId ?? undefined,
@@ -113,8 +147,7 @@ export function createHandler(opts: AdapterOptions) {
       log(`[press] ${i.customId} failed: ${describe(e)}`);
       await i
         .followUp({
-          content:
-            e instanceof WorldUnavailableError ? DOWN_LINE : `Something went wrong: ${describe(e)}`,
+          content: failureText(e),
           flags: MessageFlags.Ephemeral,
         })
         .catch(() => {});
@@ -127,8 +160,4 @@ export function createHandler(opts: AdapterOptions) {
     if (i.isChatInputCommand()) return onCommand(i);
     if (i.isButton() || i.isStringSelectMenu()) return onComponent(i);
   };
-}
-
-export function describe(e: unknown): string {
-  return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }

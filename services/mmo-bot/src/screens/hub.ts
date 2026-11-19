@@ -1,35 +1,46 @@
 import type { Button } from "../../../../packages/discord-kit/src/index.ts";
 import { buttonRows } from "../../../../packages/discord-kit/src/index.ts";
-import type * as api from "../api.ts";
+import * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
+import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, outOf, ticks } from "../units.ts";
-import { back, btn, factLine, gauges, PRIVATE } from "./common.ts";
+import {
+  back,
+  banner,
+  btn,
+  conditionsField,
+  factLine,
+  gauges,
+  PRIVATE,
+  stationLine,
+  timeLeft,
+} from "./common.ts";
 
-/** What testers are told before they start (MM4.24). */
+/** What testers are told before they start. */
 export const TESTER_NOTE =
   "This is a test world. It stores your Discord user id, your character and what it does, and nothing else about you. Test worlds are wiped when the rules change; nothing here carries over. Full terms come before launch.";
 
 /** /play before a character exists: one paragraph of arrival and the choice of three (GDD 3.1). */
-export function startCard(): Card {
+export function startCard(lex: Lexicon): Card {
   return {
     context: "Only you can see this",
     author: "Arrival · a new character",
     title: "You come in off the ash road",
     description:
-      "The gate of the settlement is a rusted cargo door on rollers. Someone hands you one thing to carry for the road, and asks which.\n\nA **hook** reaches and pulls; a **knife** cuts; a **deck** runs an exploit. Each is tier 1, level 1, and none is stronger.",
+      "The gate of the settlement is a rusted cargo door on rollers. Someone hands you one thing to carry for the road, and asks which. Each starts at tier 1, level 1.",
     picture: "form",
     fields: [{ name: "Before you start", value: TESTER_NOTE }],
     footer: "The choice is yours to keep: the thing you carry levels with use.",
-    rows: buttonRows([
-      btn("Take the hook", "start", "hook", 0, { style: "primary" }),
-      btn("Take the knife", "start", "knife", 0, { style: "primary" }),
-      btn("Take the deck", "start", "deck", 0, { style: "primary" }),
-    ]),
+    rows: buttonRows(
+      lex.starts.map((id) =>
+        btn(`Take: ${lex.name("items.starts", id)}`, "start", id, 0, { style: "primary" }),
+      ),
+    ),
   };
 }
 
-/** The hub: where you are, what you are doing, and the eight buttons (GDD 17.3). */
+/** The hub shows the current activity and available actions. */
 export function hubCard(
   o: api.Options,
   here: api.Here,
@@ -39,7 +50,7 @@ export function hubCard(
 ): Card {
   const c = sheet.character;
   const doing = o.long
-    ? `${longLabel(o.long, lex)}: ${ticks(Math.max(0, o.long.ends - o.tick))} to go`
+    ? `${longLabel(o.long, lex)}: ${ticks(timeLeft(o))} to go`
     : o.fight
       ? "In an encounter"
       : "Free to act";
@@ -48,11 +59,7 @@ export function hubCard(
     { name: "Provisions", value: amount(c.provisions, "provisions"), inline: true },
     { name: "Load", value: outOf(sheet.load.carried, sheet.load.capacity, "load"), inline: true },
     { name: "Doing", value: doing, inline: true },
-    {
-      name: "Conditions",
-      value: o.conditions.length ? o.conditions.join(", ") : "none",
-      inline: true,
-    },
+    conditionsField(o),
     { name: "Region", value: gauges(here.place, lex) || "outside every region", inline: true },
   ];
   const v = o.version;
@@ -70,7 +77,7 @@ export function hubCard(
   ];
   const urgent: Button[] = [];
   if (o.fight) urgent.push(btn("Back to the fight", "fight", "", v, { style: "danger" }));
-  if (o.conditions.includes("down"))
+  if (o.conditions.includes(api.CondDown))
     urgent.push(btn("Crawl out", "crawl", "", v, { style: "danger" }));
   if (o.long) urgent.push(btn("Stop", "cancel", "", v));
   return {
@@ -78,11 +85,11 @@ export function hubCard(
     author: `Hub · ${here.name}`,
     title: notice ?? (o.fight ? "Something is in your way" : `You are at ${here.name}`),
     description: `${lex.name("map.terrain", here.place.tile.terrain)}${here.place.tile.weather ? `, under ${lex.name("world.weather", here.place.tile.weather).toLowerCase()}` : ""}.`,
-    picture: { media: here.banner, alt: `Banner of ${here.name}: ${gauges(here.place, lex)}` },
+    picture: banner(here, `: ${gauges(here.place, lex)}`),
     fields,
     footer: "Goals open in a later build. The hub refreshes on your next press after 14 minutes.",
     rows: [...(urgent.length ? [{ buttons: urgent }] : []), { buttons: top }, { buttons: second }],
-    colour: o.fight || o.conditions.includes("down") ? COLOUR.rust : COLOUR.ash,
+    colour: o.fight || o.conditions.includes(api.CondDown) ? COLOUR.rust : COLOUR.ash,
   };
 }
 
@@ -117,11 +124,11 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   );
   const more: Button[] = [];
   for (const t of here.trails.slice(0, 1))
-    more.push(btn(`Follow the trail`, "follow", `${t.now.q},${t.now.r}`, v));
+    more.push(btn(`Follow the trail`, "follow", target(",", t.now.q, t.now.r), v));
   if (here.search) more.push(btn("Search the cache", "search", "", v, { style: "success" }));
   if (here.place.rest) more.push(btn("Rest", "rest", "", v));
   more.push(back(v));
-  const overrun = here.place.gauges.some((g) => g.id === "threat" && g.value >= 900);
+  const overrun = here.place.overrun;
   const fields = [
     {
       name: "Gauges",
@@ -134,12 +141,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   if (here.stations.length) {
     fields.push({
       name: "Stations",
-      value: here.stations
-        .map(
-          (s) =>
-            `${lex.name("settlements.starting", s.kind)} (tier ${s.tier}, fee ${amount(s.fee, "coin")})`,
-        )
-        .join(", "),
+      value: here.stations.map((s) => stationLine(s, lex)).join(", "),
     });
   }
   if (people.length)
@@ -169,7 +171,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     description: overrun
       ? "Fire behind the wall. Nothing here is safe until threat falls."
       : undefined,
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     fields,
     footer: "Every heavy fact on this tile is kept in its record.",
     rows: [...(buttons.length ? [{ buttons }] : []), { buttons: more }],
@@ -177,7 +179,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   };
 }
 
-/** Since you left: the recap, at most eight lines and then how many more (GDD 3.3). */
+/** Since you left: the recap, a short list and then how many more (GDD 3.3). */
 export function recapCard(
   o: api.Options,
   here: api.Here,
@@ -198,7 +200,7 @@ export function recapCard(
     description:
       lines.join("\n") ||
       "The world ticked on. Prices, gauges and the road are where the hub shows them.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     fields: [{ name: "Away for", value: ticks(away) }],
     footer: "What cost you comes first, then what paid you, then the world near you.",
     rows: [{ buttons: [back(o.version)] }],

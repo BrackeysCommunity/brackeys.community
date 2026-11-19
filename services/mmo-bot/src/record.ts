@@ -1,3 +1,4 @@
+import { CondDown } from "./api.ts";
 import type { World } from "./world.ts";
 
 /**
@@ -17,21 +18,29 @@ export function recording(world: World, samples: Record<string, unknown>): World
       const o = await world.options(id);
       if (o.fight) samples["options:fight"] = o;
       else if (o.long?.kind === "travel") samples["options:travel"] = o;
-      else if (o.conditions.includes("down")) samples["options:down"] = o;
+      else if (o.conditions.includes(CondDown)) samples["options:down"] = o;
       else samples.options = o;
       return o;
     },
     sheet: async (id) => keep("sheet", await world.sheet(id)),
     here: async (id) => keep("here", await world.here(id)),
     map: async (id, r) => keep("map", await world.map(id, r)),
-    appraise: async (req) => keep("appraise", await world.appraise(req)),
+    appraise: async (req) => {
+      const result = await world.appraise(req);
+      if (result.ok) keep("appraise", result.reply);
+      return result;
+    },
     recipes: async (id) => keep("recipes", await world.recipes(id)),
     recap: async (id) => {
       const r = await world.recap(id);
       if (r.lines.length) samples.recap = r;
       return r;
     },
-    npc: async (id, n) => keep("npc", await world.npc(id, n)),
+    npc: async (id, n) => {
+      const result = await world.npc(id, n);
+      if (result.ok) keep("npc", result.reply);
+      return result;
+    },
     lexicon: async () => keep("lexicon", await world.lexicon()),
   };
 }

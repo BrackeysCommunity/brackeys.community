@@ -2,11 +2,7 @@ import type IORedis from "ioredis";
 
 import { createCooldown } from "../../../packages/discord-kit/src/index.ts";
 
-/**
- * The game's own cooldown budget (GDD 17.5): sized for many cheap presses,
- * kept in Dragonfly under its own keys so it shares nothing with any other
- * bot. Without Redis it falls back to an in-process window.
- */
+/** The game's interaction budget, backed by Redis or local memory. */
 export interface Budget {
   readonly limit: number;
   readonly windowMs: number;

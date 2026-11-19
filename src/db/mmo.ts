@@ -157,6 +157,8 @@ export const mmoFact = mmoSchema.table(
     primaryKey({ columns: [t.worldId, t.id, t.at] }),
     index("fact_world_tick_idx").on(t.worldId, t.tick),
     index("fact_world_weight_idx").on(t.worldId, t.weight, t.tick),
+    index("fact_world_region_idx").on(t.worldId, t.region, t.id.desc()),
+    index("fact_subjects_idx").using("gin", t.subjects.op("jsonb_path_ops")),
   ],
 );
 

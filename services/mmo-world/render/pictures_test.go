@@ -18,7 +18,7 @@ func TestPictures(t *testing.T) {
 		tiles = append(tiles, render.MapTile{Hex: h, Known: h.Len() < 3, Terrain: []string{"plain", "forest", "hills", "marsh"}[(h.Q+8)%4], River: h.R == 1,
 			Site: map[bool]string{true: "starting-settlement"}[h == hex.Hex{}], Weather: map[bool]string{true: "storm"}[h.Q > 1], Region: "r-1", Threat: 640})
 	}
-	m := render.Map(render.MapCrop{Radius: 4, Tiles: tiles, Route: []hex.Hex{{Q: 1}, {Q: 2}}, ThreatLine: 600, CorruptionLine: 500})
+	m := render.Map(render.MapCrop{Radius: 4, Tiles: tiles, Route: []hex.Hex{{Q: 1}, {Q: 2}}})
 	ban, err := render.Banner(render.BannerInput{Seed: "r-3", Terrain: "hills", Weather: "storm", Hour: 14, Threat: 640, Danger: true, Settlement: true, Tags: []string{"militant"}}, b.BannerLayers, b.Palette)
 	if err != nil {
 		t.Fatal(err)

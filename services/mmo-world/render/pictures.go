@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 
+	"jams.team/mmo-world/sim/gen"
 	simhex "jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -43,6 +44,8 @@ type MapTile struct {
 	Region     string     `json:"region,omitempty"`
 	Threat     int64      `json:"threat,omitempty"`
 	Corruption int64      `json:"corruption,omitempty"`
+	Danger     bool       `json:"danger,omitempty"`
+	Corrupted  bool       `json:"corrupted,omitempty"`
 }
 
 // MapCrop is a map picture's input.
@@ -52,9 +55,6 @@ type MapCrop struct {
 	Tiles  []MapTile    `json:"tiles"`
 	At     simhex.Hex   `json:"at"`
 	Route  []simhex.Hex `json:"route,omitempty"`
-	// Lines are the gauge lines shading starts at: threat, corruption.
-	ThreatLine     int64 `json:"threatLine"`
-	CorruptionLine int64 `json:"corruptionLine"`
 }
 
 // structural: map tile size and picture margin, in pixels.
@@ -64,8 +64,13 @@ const (
 )
 
 func (m MapCrop) centreOf(h simhex.Hex, origin Pt) Pt {
-	d := h.Sub(m.Centre)
-	return Pt{origin.X + hexSize*math.Sqrt(3)*(float64(d.Q)+float64(d.R)/2), origin.Y + hexSize*1.5*float64(d.R)}
+	return hexCentre(h.Sub(m.Centre), hexSize, origin)
+}
+
+// hexCentre is where a pointy-top hex, as an offset from the one drawn at
+// origin, is drawn.
+func hexCentre(d simhex.Hex, size float64, origin Pt) Pt {
+	return Pt{origin.X + size*math.Sqrt(3)*(float64(d.Q)+float64(d.R)/2), origin.Y + size*1.5*float64(d.R)}
 }
 
 func hexPoly(c Pt, size float64) []Pt {
@@ -99,10 +104,10 @@ func Map(m MapCrop) *Canvas {
 		if t.River {
 			c.Line([]Pt{{at.X - hexSize*0.7, at.Y + 3}, {at.X, at.Y - 2}, {at.X + hexSize*0.7, at.Y + 3}}, 4, river)
 		}
-		if t.Corruption >= m.CorruptionLine && m.CorruptionLine > 0 {
+		if t.Corrupted {
 			c.Fill([][]Pt{poly}, Alpha(corrupt, 0x60))
 		}
-		if t.Threat >= m.ThreatLine && m.ThreatLine > 0 {
+		if t.Danger {
 			for k := -2; k <= 2; k++ {
 				o := float64(k) * hexSize / 3
 				c.Line([]Pt{{at.X + o - 6, at.Y + 8}, {at.X + o + 6, at.Y - 8}}, 2, Alpha(rust, 0xa0))
@@ -115,19 +120,19 @@ func Map(m MapCrop) *Canvas {
 			c.Circle(at, 3+float64(t.Road), color.RGBA{0x5a, 0x4a, 0x3a, 0xff})
 		}
 		switch t.Site {
-		case "starting-settlement":
+		case gen.PlaceSettlement:
 			c.Fill([][]Pt{{{at.X, at.Y - 11}, {at.X + 11, at.Y}, {at.X, at.Y + 11}, {at.X - 11, at.Y}}}, ink)
 			c.Fill([][]Pt{{{at.X, at.Y - 8}, {at.X + 8, at.Y}, {at.X, at.Y + 8}, {at.X - 8, at.Y}}}, settlement)
-		case "dungeon":
+		case gen.PlaceDungeon:
 			c.Fill([][]Pt{{{at.X - 7, at.Y - 7}, {at.X + 7, at.Y - 7}, {at.X + 7, at.Y + 7}, {at.X - 7, at.Y + 7}}}, dungeon)
 		case "":
 		default:
 			c.Circle(at, 5, site)
 		}
-		if t.Region != "" && !labelled[t.Region] && (t.Threat >= m.ThreatLine || t.Corruption >= m.CorruptionLine) {
+		if t.Region != "" && !labelled[t.Region] && (t.Danger || t.Corrupted) {
 			labelled[t.Region] = true
 			label := strconv.FormatInt(t.Threat, 10) + " threat"
-			if t.Corruption >= m.CorruptionLine {
+			if t.Corrupted {
 				label = strconv.FormatInt(t.Corruption, 10) + " corruption"
 			}
 			c.Label(Pt{at.X - float64(TextWidth(label))/2, at.Y - hexSize*0.55}, label)

@@ -38,22 +38,20 @@ const (
 // interaction id; every ledger transaction it causes is keyed on it or on a
 // ledger.SubKey of it.
 type Command struct {
-	Key      string   `json:"key"`
-	Char     string   `json:"char,omitempty"`
-	Kind     string   `json:"kind"`
-	Dir      int      `json:"dir,omitempty"`
-	To       *hex.Hex `json:"to,omitempty"`
-	Material string   `json:"material,omitempty"`
-	Ticks    int64    `json:"ticks,omitempty"`
-	Option   string   `json:"option,omitempty"`
-	Asset    string   `json:"asset,omitempty"`
-	Units    int64    `json:"units,omitempty"`
-	Note     string   `json:"note,omitempty"`
-	// Item and Slot name a carried item and where it goes.
-	Item string `json:"item,omitempty"`
-	Slot string `json:"slot,omitempty"`
-	// Recipe is a craft's recipe.
-	Recipe *item.Recipe `json:"recipe,omitempty"`
+	Key      string       `json:"key"`
+	Char     string       `json:"char,omitempty"`
+	Kind     string       `json:"kind"`
+	Dir      int          `json:"dir,omitempty"`
+	To       *hex.Hex     `json:"to,omitempty"`
+	Material string       `json:"material,omitempty"`
+	Ticks    int64        `json:"ticks,omitempty"`
+	Option   string       `json:"option,omitempty"`
+	Asset    string       `json:"asset,omitempty"`
+	Units    int64        `json:"units,omitempty"`
+	Note     string       `json:"note,omitempty"`
+	Item     string       `json:"item,omitempty"`
+	Slot     string       `json:"slot,omitempty"`
+	Recipe   *item.Recipe `json:"recipe,omitempty"`
 	// Stop holds a route's stop conditions (GDD 6.1).
 	Stop *Stop `json:"stop,omitempty"`
 	// NPC names who a conversation is with.
@@ -119,6 +117,11 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	var err error
 	var pressed []fight.Pressed
 	if cmd.Kind == Create {
+		if cmd.Option != "" {
+			if _, err := g.startRow(cmd.Option); err != nil {
+				return Result{}, err
+			}
+		}
 		c, err = g.create()
 		if err == nil {
 			c.Server = cmd.Server
@@ -142,7 +145,9 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if !Operator(cmd.Kind) {
 		c.Acted = g.Tick()
 	}
-	return Result{Char: c, Facts: g.Log.Since(first), Pressed: pressed}, nil
+	facts := g.Log.Since(first)
+	g.keepNews(facts)
+	return Result{Char: c, Facts: facts, Pressed: pressed}, nil
 }
 
 func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
@@ -231,14 +236,21 @@ const (
 // free reports why a character cannot start something new: a long action
 // running, an encounter open, or down.
 func free(c *Char) error {
-	if slices.ContainsFunc(c.C.Conditions, func(x char.Condition) bool { return x.Tag == char.Down }) {
-		return refuse(DownCode, "%s is down", c.C.ID)
+	if err := notDown(c); err != nil {
+		return err
 	}
 	if c.Long != nil {
 		return refuse(Busy, "%s is already %s", c.C.ID, c.Long.Kind)
 	}
 	if c.Fight != nil {
 		return refuse(Busy, "%s is in an encounter", c.C.ID)
+	}
+	return nil
+}
+
+func notDown(c *Char) error {
+	if slices.ContainsFunc(c.C.Conditions, func(x char.Condition) bool { return x.Tag == char.Down }) {
+		return refuse(DownCode, "%s is down", c.C.ID)
 	}
 	return nil
 }
@@ -252,7 +264,6 @@ func (g *Game) explore(c *Char) error {
 		return refuse(NotHere, "nothing to explore on this tile")
 	}
 	if g.thin(c, c.C.At) {
-		c.Encounters++
 		_, err := g.fact(c, "trigger.fired", g.Tick(), fact.S("trigger", TrigThin))
 		return err
 	}
@@ -281,7 +292,7 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	e := g.r.Fight.Assemble(site, cr)
 	c.Fight = &Fight{E: e, Measures: ms, Ambush: ambush, Due: due}
 	if site.Floor > 0 {
-		_, err := g.fact(c, "dungeon.entered", g.Tick(), fact.N("floor", site.Floor), fact.N("q", h.Q), fact.N("r", h.R))
+		_, err := g.fact(c, "dungeon.entered", g.Tick(), append([]fact.Datum{fact.N("floor", site.Floor)}, fact.At(h)...)...)
 		return err
 	}
 	return nil
@@ -307,7 +318,7 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Press
 	if o.Puzzle {
 		return nil, refuse(InActivity, "a machine is worked in the Activity")
 	}
-	pack := packIDs(c.C)
+	pack := slices.Clone(c.C.Pack)
 	pressed, facts, err := f.Press(e, []*fight.Member{{Ch: c.C, Kit: kit, Pick: pick}}, tick)
 	if err != nil {
 		return nil, err
@@ -356,7 +367,7 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 		if e.Floor > 0 {
 			g.Pending = append(g.Pending, world.Action{Kind: world.ActClearFloor, Hex: c.C.At, By: char.Ref(c.C.ID), Units: e.Floor})
 			c.C.Deepest.Bump(c.C.At.Ref(), max(0, e.Floor-c.C.Deepest.Get(c.C.At.Ref())))
-			if _, err := g.fact(c, "dungeon.floor-cleared", tick, fact.N("floor", e.Floor), fact.N("q", c.C.At.Q), fact.N("r", c.C.At.R)); err != nil {
+			if _, err := g.fact(c, "dungeon.floor-cleared", tick, append([]fact.Datum{fact.N("floor", e.Floor)}, fact.At(c.C.At)...)...); err != nil {
 				return err
 			}
 		}
@@ -411,19 +422,13 @@ func addGoods(list []item.Spoil, material string, n int64) []item.Spoil {
 	return list
 }
 
-func packIDs(c *char.Character) []string {
-	out := make([]string, len(c.Pack))
-	for i, in := range c.Pack {
-		out[i] = in.ID
-	}
-	return out
-}
-
-// lost writes off items that left the pack during a press: broken gear.
-func (g *Game) lost(c *Char, key string, before []string, tick int64) error {
-	for _, id := range before {
-		if c.C.Item(id) == nil {
-			if err := g.post(ledger.Move(ledger.SubKey(key, "lost", id), "broke", tick, ledger.Char(c.C.ID), ledger.ToLost, ledger.Item(id), 1)); err != nil {
+// lost writes off items that left the pack during a press: broken gear,
+// with any exploit loaded in it.
+func (g *Game) lost(c *Char, key string, before []*item.Instance, tick int64) error {
+	for _, in := range before {
+		if c.C.Item(in.ID) == nil {
+			t := ledger.Txn{Key: ledger.SubKey(key, "lost", in.ID), Kind: "broke", Tick: tick, Legs: itemLegs(in, ledger.Char(c.C.ID), ledger.ToLost)}
+			if err := g.post(t); err != nil {
 				return err
 			}
 		}
@@ -468,21 +473,15 @@ func (g *Game) grant(c *Char, cmd Command) error {
 	if g.r.Mounts.Kind(cmd.Asset) == nil || cmd.Note == "" {
 		return refuse(BadArgs, "a grant needs a mount kind and a note")
 	}
-	if c.C.In(char.Mount, 0) != nil {
-		return refuse(Busy, "%s already has a mount", c.C.ID)
-	}
-	id := "m-" + cmd.Key
-	f, err := g.fact(c, "item.granted", g.Tick(), fact.S("kind", cmd.Asset), fact.S("item", id), fact.S("note", cmd.Note))
-	if err != nil {
-		return err
-	}
-	t := ledger.Move(cmd.Key, "grant", g.Tick(), ledger.FromOperator, ledger.Char(c.C.ID), ledger.Item(id), 1)
-	t.Fact = f.ID
-	if err := g.post(t); err != nil {
-		return err
-	}
-	c.C.Carry(char.Mount, 0, g.r.Mounts.NewMount(id, cmd.Asset))
-	return nil
+	return g.giveMount(c, cmd.Key, cmd.Asset, func(id string) error {
+		f, err := g.fact(c, "item.granted", g.Tick(), fact.S("kind", cmd.Asset), fact.S("item", id), fact.S("note", cmd.Note))
+		if err != nil {
+			return err
+		}
+		t := ledger.Move(cmd.Key, "grant", g.Tick(), ledger.FromOperator, ledger.Char(c.C.ID), ledger.Item(id), 1)
+		t.Fact = f.ID
+		return g.post(t)
+	})
 }
 
 func (g *Game) ban(c *Char, on bool, note string) error {

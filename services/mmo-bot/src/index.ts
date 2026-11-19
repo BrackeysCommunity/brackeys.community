@@ -1,14 +1,14 @@
-import { Client, Events, GatewayIntentBits, REST } from "discord.js";
+import { Client, Events, GatewayIntentBits } from "discord.js";
 import IORedis from "ioredis";
 
-import { syncGuildCommands } from "../../../packages/discord-kit/src/index.ts";
-import { createHandler, describe } from "./adapter.ts";
+import { describe } from "../../../packages/discord-kit/src/index.ts";
+import { createHandler } from "./adapter.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
 import { Lexicon } from "./lexicon.ts";
-import { MANIFEST } from "./manifest.ts";
 import { MediaCache } from "./media.ts";
 import { Notifier } from "./notify.ts";
+import { registerCommands } from "./register.ts";
 import { httpWorld } from "./world.ts";
 
 /**
@@ -16,6 +16,7 @@ import { httpWorld } from "./world.ts";
  * privileged intents; the game reads no messages), answering interactions
  * from the world service's API.
  */
+process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
 const world = httpWorld(config.worldUrl, config.worldToken);
 const lex = new Lexicon(await world.lexicon());
@@ -30,7 +31,7 @@ const notifier = new Notifier(world, async (user, text) => {
 });
 const media = new MediaCache((key) => world.media(key));
 const handle = createHandler({
-  ctx: { world, lex, threatLine: config.threatLine },
+  ctx: { world, lex, threatLine: config.threatLine ?? lex.numbers.ambushLine },
   budget: redis ? redisBudget(redis) : localBudget(),
   media: (key) => media.get(key),
   onLong: (user, character) => notifier.watch(user, character),
@@ -41,13 +42,7 @@ client.on(Events.InteractionCreate, (i) => {
 });
 client.once(Events.ClientReady, async (c) => {
   console.log(`[ready] ${c.user.tag}`);
-  const rest = new REST().setToken(config.token);
-  await syncGuildCommands(rest, {
-    applicationId: config.applicationId,
-    guildId: config.guildId,
-    commands: MANIFEST,
-    log: console.log,
-  }).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
+  await registerCommands(config).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
   notifier.start();
 });
 await client.login(config.token);

@@ -45,6 +45,12 @@ func (g *Game) woundedTicks(c *Char, t int64) int64 {
 	return 0
 }
 
+func (g *Game) startLong(c *Char, kind, key string, first, total int64) *Long {
+	t := g.Tick()
+	c.Long = &Long{Kind: kind, Key: key, Started: t, Due: t + first, Ends: t + total}
+	return c.Long
+}
+
 // Part is one line of a why: a label and what it adds, in a unit.
 type Part struct {
 	Label string `json:"label"`
@@ -145,7 +151,8 @@ func (g *Game) travel(c *Char, cmd Command) error {
 	}
 	first, _, _ := g.EnterCost(c, c.C.At, route[0], t)
 	slow := g.woundedTicks(c, t)
-	c.Long = &Long{Kind: Travel, Key: cmd.Key, Started: t, Due: t + first + slow, Ends: t + total + slow, Route: route, StepTicks: first + slow, Stop: cmd.Stop}
+	l := g.startLong(c, Travel, cmd.Key, first+slow, total+slow)
+	l.Route, l.StepTicks, l.Stop = route, first+slow, cmd.Stop
 	return nil
 }
 
@@ -156,15 +163,15 @@ func (g *Game) gather(c *Char, cmd Command) error {
 	if cmd.Ticks < g.r.wp("gather-ticks-min") || cmd.Ticks > g.r.wp("gather-ticks-max") {
 		return refuse(BadArgs, "a gather takes %d to %d ticks", g.r.wp("gather-ticks-min"), g.r.wp("gather-ticks-max"))
 	}
-	if cmd.Material != assetProvisions && !slices.Contains(g.Materials(c.C.At), cmd.Material) {
+	if cmd.Material != ledger.Provisions && !slices.Contains(g.Materials(c.C.At), cmd.Material) {
 		return refuse(NotHere, "no %s to gather here", cmd.Material)
 	}
-	if cmd.Material != assetProvisions && g.WorkedOut(c.C.At, cmd.Material) {
+	if cmd.Material != ledger.Provisions && g.WorkedOut(c.C.At, cmd.Material) {
 		return refuse(NotHere, "the %s here is worked out", cmd.Material)
 	}
-	t := g.Tick()
-	slow := g.woundedTicks(c, t)
-	c.Long = &Long{Kind: Gather, Key: cmd.Key, Started: t, Due: t + 1 + slow, Ends: t + cmd.Ticks + slow, Material: cmd.Material, Left: cmd.Ticks}
+	slow := g.woundedTicks(c, g.Tick())
+	l := g.startLong(c, Gather, cmd.Key, 1+slow, cmd.Ticks+slow)
+	l.Material, l.Left = cmd.Material, cmd.Ticks
 	return nil
 }
 
@@ -180,9 +187,8 @@ func (g *Game) rest(c *Char, cmd Command) error {
 	if !g.CanRest(c.C.At) {
 		return refuse(NotHere, "rest is taken in a settlement")
 	}
-	t := g.Tick()
 	n := g.r.wp("rest-ticks")
-	c.Long = &Long{Kind: Rest, Key: cmd.Key, Started: t, Due: t + n, Ends: t + n}
+	g.startLong(c, Rest, cmd.Key, n, n)
 	return nil
 }
 
@@ -205,7 +211,7 @@ func (g *Game) stopFor(c *Char, l *Long, next hex.Hex, cost int64) string {
 		return ""
 	}
 	if l.Stop.Threat > 0 {
-		if r := g.World.RegionAt(next); r >= 0 && g.World.Regions[r].Gauge[g.World.GaugeIndex("threat")] >= l.Stop.Threat {
+		if v, ok := g.World.GaugeAt(next, "threat"); ok && v >= l.Stop.Threat {
 			return "threat"
 		}
 	}
@@ -235,6 +241,7 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	first := fact.ID(g.Log.Len())
 	acts := g.Pending
 	g.Pending = []world.Action{}
+	var gathered map[gatherNode]int64
 	for _, c := range g.Chars {
 		if c.Fight != nil && c.Fight.Ambush && c.Fight.Due < t {
 			if err := g.defaulted(c, t); err != nil {
@@ -251,7 +258,10 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 		case Travel:
 			acts, err = g.enter(c, t, acts)
 		case Gather:
-			acts, err = g.gatherTick(c, t, acts)
+			if gathered == nil {
+				gathered = make(map[gatherNode]int64)
+			}
+			acts, err = g.gatherTick(c, t, acts, gathered)
 		case Rest:
 			err = g.rested(c, t)
 		case Crawl:
@@ -263,8 +273,10 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	}
 	if t%sheets.TicksPerDay == 0 {
 		for _, c := range g.Chars {
-			if err := g.upkeep(c, t); err != nil {
+			if changed, err := g.upkeep(c, t); err != nil {
 				return nil, err
+			} else if changed {
+				c.Version++
 			}
 		}
 	}
@@ -316,7 +328,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if err := g.provision(c, t); err != nil {
 		return acts, err
 	}
-	if _, err := g.fact(c, "travel.entered", t, fact.N("q", to.Q), fact.N("r", to.R), fact.N("ticks", l.StepTicks)); err != nil {
+	if _, err := g.fact(c, "travel.entered", t, append(fact.At(to), fact.N("ticks", l.StepTicks))...); err != nil {
 		return acts, err
 	}
 	if err := g.arrived(c, to, ledger.SubKey(l.Key, "arrive", strconv.FormatInt(l.Steps, decimal)), t); err != nil {
@@ -384,31 +396,47 @@ func (g *Game) provision(c *Char, t int64) error {
 // ambushed draws whether entering a tile springs an ambush: only where
 // something lives, in a region at the ambush line or above (GDD 4.3, 6).
 func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
-	r := g.World.RegionAt(h)
-	if r < 0 || g.World.Regions[r].Gauge[g.World.GaugeIndex("threat")] < world.LineAt(g.r.Book, "ambush") || len(g.r.Gen.Creatures(h)) == 0 {
+	if !g.World.Past(h, "ambush") || len(g.r.Gen.Creatures(h)) == 0 {
 		return false
 	}
 	return g.r.draw.Percent(g.r.wp("ambush-chance"), "game.ambush", draw.Str(c.C.ID), draw.Int(t))
 }
 
-func (g *Game) gatherTick(c *Char, t int64, acts []world.Action) ([]world.Action, error) {
+type gatherNode struct {
+	hex      hex.Hex
+	material string
+}
+
+func (g *Game) gatherTick(c *Char, t int64, acts []world.Action, gathered map[gatherNode]int64) ([]world.Action, error) {
 	l := c.Long
 	key := ledger.SubKey(l.Key, "gather", strconv.FormatInt(l.Steps, decimal))
 	var n int64
-	if l.Material == assetProvisions {
+	exhausted := false
+	if l.Material == ledger.Provisions {
 		n = g.ForageYield(c.C.At)
 		if err := g.receive(c, ledger.Move(key, "forage", t, ledger.FromForage, ledger.Char(c.C.ID), ledger.Provisions, n)); err != nil {
 			return acts, err
 		}
 	} else {
-		n = min(g.r.wp("gather-units"), g.StockLeft(c.C.At, l.Material))
+		node := gatherNode{c.C.At, l.Material}
+		left := max(0, g.StockLeft(node.hex, node.material)-gathered[node])
+		if !g.stockWorkedOut(left) {
+			n = min(g.r.wp("gather-units"), left)
+		}
 		if n > 0 {
 			if err := g.receive(c, ledger.Move(key, "gather", t, ledger.FromGather, ledger.Char(c.C.ID), ledger.Material(l.Material), n)); err != nil {
 				return acts, err
 			}
 			acts = append(acts, world.Action{Kind: world.ActGather, Hex: c.C.At, By: char.Ref(c.C.ID), Material: l.Material, Units: n})
+			gathered[node] += n
+			exhausted = g.stockWorkedOut(left - n)
 			if err := g.toolUse(c, t); err != nil {
 				return acts, err
+			}
+			if exhausted {
+				if err := g.workedOut(c, l.Material, t); err != nil {
+					return acts, err
+				}
 			}
 		}
 	}
@@ -416,18 +444,14 @@ func (g *Game) gatherTick(c *Char, t int64, acts []world.Action) ([]world.Action
 	l.Steps++
 	l.Left--
 	l.Spent += n
-	if l.Left > 0 && n > 0 {
+	if l.Left > 0 && n > 0 && !exhausted {
 		l.Due = t + 1
 		return acts, nil
 	}
 	c.Long = nil
 	kind := "gather.done"
-	if l.Material == assetProvisions {
+	if l.Material == ledger.Provisions {
 		kind = "forage.done"
-	} else if g.WorkedOut(c.C.At, l.Material) {
-		if err := g.workedOut(c, l.Material, t); err != nil {
-			return acts, err
-		}
 	}
 	_, err := g.fact(c, kind, t, fact.S("material", l.Material), fact.N("units", l.Spent))
 	return acts, err

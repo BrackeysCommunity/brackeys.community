@@ -14,13 +14,7 @@ export interface Reply {
   embeds: Embed[];
   buttons: Button[];
   ephemeral: boolean;
-  /**
-   * One line about the reply itself rather than its subject — today, why an
-   * answer the caller asked to share stayed private. Rendered into the
-   * first embed's footer, because the footer is the only part of an embed
-   * that already reads as chrome. Plain text: footers don't resolve
-   * mentions, so the copy names `#bot` rather than linking it.
-   */
+  /** Plain-text reply notice shown in the first embed's footer. */
   notice?: string;
   /** What the API said, for the command telemetry. Thrown errors carry the
    *  other two outcomes. */

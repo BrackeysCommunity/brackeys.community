@@ -14,6 +14,11 @@ export function amount(n: number, unit: string): string {
   return `${num(n)} ${unit}`;
 }
 
+/** A count with its unit in the singular or plural: "1 tile", "3 tiles". */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return amount(n, n === 1 ? one : many);
+}
+
 /** A value that changed, shown as the change. */
 export function change(from: number, to: number, unit: string, of?: number): string {
   const tail = of === undefined ? unit : `of ${num(of)} ${unit}`;
@@ -27,7 +32,7 @@ export function outOf(n: number, of: number, unit: string): string {
 
 /** "2 ticks (20 min)". */
 export function ticks(n: number): string {
-  return `${amount(n, n === 1 ? "tick" : "ticks")} (${num(n * MINUTES_PER_TICK)} min)`;
+  return `${plural(n, "tick")} (${num(n * MINUTES_PER_TICK)} min)`;
 }
 
 export function percent(n: number): string {
@@ -57,3 +62,6 @@ export function band(id: string): string {
 export function bandShort(id: string): string {
   return (BANDS[id] ?? id).replace(/ \(.*\)$/, "");
 }
+
+/** Every band's short name. */
+export const BAND_LABELS = Object.keys(BANDS).map(bandShort);

@@ -1,9 +1,14 @@
-import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
-import type * as api from "../api.ts";
+import {
+  type Button,
+  buttonRows,
+  type EmbedField,
+} from "../../../../packages/discord-kit/src/index.ts";
+import * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
+import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
-import { amount, band, bandShort, num, ticks } from "../units.ts";
-import { back, btn, DIRECTIONS, PRIVATE } from "./common.ts";
+import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
+import { back, banner, btn, DIRECTIONS, factNum, PRIVATE } from "./common.ts";
 
 const RISK_UNIT: Record<string, string> = {
   durability: "durability",
@@ -68,15 +73,11 @@ export function beatCard(
         : `Encounter · ${beat}`,
     title: `${beat}: ${creature}`,
     description: `${opening}${lines.join("\n")}`,
-    picture: {
-      media: here.banner,
-      alt: `Banner of ${here.name}; ${creature} in a ${beat.toLowerCase()}`,
-    },
+    picture: banner(here, `; ${creature} in a ${beat.toLowerCase()}`),
     fields,
     footer: "The last beat is the hardest and must be won. Two failures and you go down.",
     rows: [
-      { buttons: buttons.slice(0, 5) },
-      ...(buttons.length > 5 ? [{ buttons: buttons.slice(5, 10) }] : []),
+      ...buttonRows(buttons.slice(0, 10)),
       { buttons: [btn("Why these odds", "why", "options", v), back(v)] },
     ],
     colour: f.ambush ? COLOUR.hazard : COLOUR.rust,
@@ -96,7 +97,7 @@ export function resolvedCard(
   const v = o.version;
   const end = facts.find((f) => f.kind.startsWith("encounter."));
   const result = end?.kind.slice("encounter.".length) ?? "over";
-  const haul = end?.data.find((d) => d.k === "haul")?.n ?? 0;
+  const haul = end ? factNum(end, "haul") : 0;
   const p = pressed[0];
   const titles: Record<string, string> = {
     won: "You won",
@@ -116,11 +117,11 @@ export function resolvedCard(
   if (levelled.length)
     fields.push({
       name: "Levels",
-      value: levelled.map((f) => `level ${f.data.find((d) => d.k === "to")?.n ?? 0}`).join(", "),
+      value: levelled.map((f) => `level ${factNum(f, "to")}`).join(", "),
       inline: true,
     });
   const buttons: Button[] = [];
-  if (o.conditions.includes("down"))
+  if (o.conditions.includes(api.CondDown))
     buttons.push(btn("Crawl out", "crawl", "", v, { style: "danger" }));
   else if (o.explore) buttons.push(btn("Explore again", "explore", "", v, { style: "primary" }));
   buttons.push(btn("Where I am", "where", "", v), back(v));
@@ -131,11 +132,11 @@ export function resolvedCard(
     description: p
       ? `${lex.name("fights.options", p.option)} at ${band(p.band).toLowerCase()}: ${p.success ? "it worked" : "it failed"}.`
       : undefined,
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     fields,
     footer:
       result === "lost"
-        ? `Danger never takes what you wear. Crawling out takes ${ticks(6)} and leaves you wounded.`
+        ? `Danger never takes what you wear. Crawling out takes ${ticks(lex.numbers.crawlTicks)} and leaves you wounded.`
         : "The tile remembers who fought here.",
     rows: [{ buttons }],
     colour: result === "won" ? COLOUR.signal : COLOUR.rust,
@@ -143,14 +144,15 @@ export function resolvedCard(
 }
 
 /** Down: what it costs and the way out (GDD 5.5). */
-export function downCard(o: api.Options, here: api.Here): Card {
+export function downCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const v = o.version;
+  const n = lex.numbers;
   return {
     context: PRIVATE,
     author: "Down",
     title: `Down at ${here.name}`,
-    description: `You cannot act. Crawling out takes ${ticks(6)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${amount(1, "tick")} longer, for a day or until you rest.`,
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    description: `You cannot act. Crawling out takes ${ticks(n.crawlTicks)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${ticks(n.woundedTicks)} longer, for a day or until you rest.`,
+    picture: banner(here),
     footer: "Calling for help arrives with goals.",
     rows: [{ buttons: [btn("Crawl out", "crawl", "", v, { style: "danger" }), back(v)] }],
     colour: COLOUR.rust,
@@ -168,9 +170,7 @@ export function whyCard(
   const lines: string[] = [];
   if (what === "options" && o.fight) {
     for (const x of o.fight.options) {
-      const parts = x.why.parts
-        .map((p) => `${p.label} ${p.value >= 0 ? "+" : "−"}${amount(Math.abs(p.value), p.unit)}`)
-        .join(", ");
+      const parts = x.why.parts.map((p) => `${p.label} ${signed(p.value, p.unit)}`).join(", ");
       const rules = x.why.rules?.length
         ? `; rules: ${x.why.rules.map((r) => r.replace(/-/g, " ")).join(", ")}`
         : "";
@@ -200,7 +200,7 @@ export function whyCard(
     title:
       what === "options" ? "Why the odds are what they are" : "Why each way costs what it does",
     description: lines.join("\n") || "Nothing is modifying this.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     footer: "Every modifier is a rule over tags you can read in the sheets.",
     rows: [{ buttons: [btn("Back", what === "options" ? "fight" : "travel", "", v), back(v)] }],
   };
@@ -209,7 +209,7 @@ export function whyCard(
 /** Explore / Gather: the site here, the nodes and what they hold, foraging (GDD 6, 6.4). */
 export function fieldCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const v = o.version;
-  const busy = !!o.long || !!o.fight || o.conditions.includes("down");
+  const busy = !!o.long || !!o.fight || o.conditions.includes(api.CondDown);
   const buttons: Button[] = [];
   if (o.explore)
     buttons.push(
@@ -229,7 +229,7 @@ export function fieldCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
       btn(
         `Gather ${lex.material(m.material)} · ${amount(1, "tick")}`,
         "gather",
-        `${m.material}:1`,
+        target(":", m.material, 1),
         v,
         { disabled: busy },
       ),
@@ -240,9 +240,9 @@ export function fieldCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     author: `Explore / Gather · ${here.name}`,
     title: o.explore ? "There is something to explore here" : "Nothing to explore here",
     description: o.explore
-      ? `A site, and something living there. An encounter is ${amount(3, "beats")} to ${amount(6, "beats")}, with the odds on every option.`
+      ? `A site, and something living there. An encounter is ${amount(lex.numbers.beatsMin, "beats")} to ${amount(lex.numbers.beatsMax, "beats")}, with the odds on every option.`
       : "No site with anything living on this tile.",
-    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    picture: banner(here),
     fields: [
       { name: "Nodes", value: nodes.join("\n") || "none" },
       { name: "Foraging", value: `${amount(here.forage, "provisions")} a tick here`, inline: true },

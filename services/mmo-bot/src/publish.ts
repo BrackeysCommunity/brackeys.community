@@ -1,14 +1,10 @@
-/**
- * The posting rules spike D measured (docs: spikes/D-discord-platform.md):
- * messages to one channel are batched and sent no faster than one every
- * two seconds, several lines in a window going out as one message; and
- * threads open against a per-server budget of 40 per 300 seconds and 500
- * active, under Discord's 50 and 1,000.
- */
+import { createCooldown } from "../../../packages/discord-kit/src/index.ts";
+
+/** Public posts are batched; thread budgets leave room under Discord's limits. */
 
 export const POST_EVERY_MS = 2_000;
 
-/** Lines queued per channel, flushed as one message at most every two seconds. */
+/** Combines queued lines into one message per channel at the configured interval. */
 export class PostQueue {
   private readonly pending = new Map<string, string[]>();
   private readonly last = new Map<string, number>();
@@ -46,23 +42,20 @@ export const THREADS_PER_WINDOW = 40;
 export const THREAD_WINDOW_MS = 300_000;
 export const THREADS_ACTIVE = 500;
 
-/** A per-server token bucket for opening threads. */
+/** A per-server budget for opening threads: a sliding window, and a cap on those open. */
 export class ThreadBudget {
-  private readonly opened = new Map<string, number[]>();
+  private readonly window = createCooldown({
+    limit: THREADS_PER_WINDOW,
+    windowMs: THREAD_WINDOW_MS,
+  });
   private readonly active = new Map<string, number>();
 
   constructor(private readonly now: () => number = Date.now) {}
 
   /** Takes a thread for a server if the budget allows it. */
   take(server: string): boolean {
-    const t = this.now();
-    const recent = (this.opened.get(server) ?? []).filter((x) => x > t - THREAD_WINDOW_MS);
-    if (recent.length >= THREADS_PER_WINDOW || (this.active.get(server) ?? 0) >= THREADS_ACTIVE) {
-      this.opened.set(server, recent);
-      return false;
-    }
-    recent.push(t);
-    this.opened.set(server, recent);
+    if ((this.active.get(server) ?? 0) >= THREADS_ACTIVE) return false;
+    if (!this.window.check(server, this.now()).allowed) return false;
     this.active.set(server, (this.active.get(server) ?? 0) + 1);
     return true;
   }

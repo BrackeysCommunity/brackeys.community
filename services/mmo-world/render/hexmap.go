@@ -88,8 +88,8 @@ func HexMap(w *gen.Area, size float64) *image.RGBA {
 		}
 	}
 	centre := func(h gen.Hex) (float64, float64) {
-		h = gen.Hex{Q: h.Q - w.Centre.Q, R: h.R - w.Centre.R}
-		return cx + size*math.Sqrt(3)*(float64(h.Q)+float64(h.R)/2), cy + size*1.5*float64(h.R)
+		p := hexCentre(h.Sub(w.Centre), size, Pt{cx, cy})
+		return p.X, p.Y
 	}
 	mark := math.Max(size, 2.5)
 	for _, t := range w.Tiles {

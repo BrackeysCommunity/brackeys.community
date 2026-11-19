@@ -523,6 +523,12 @@
       "kind": "item.equipped",
       "weight": 1,
       "note": "provisional"
+    },
+    {
+      "id": "item-cached",
+      "kind": "item.cached",
+      "weight": 1,
+      "note": "provisional"
     }
   ]
 }

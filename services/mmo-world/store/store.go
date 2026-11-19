@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"jams.team/mmo-world/sim/canon"
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
@@ -766,7 +767,7 @@ func factsOf(rows []db.MmoFact, err error) ([]fact.Fact, error) {
 // RecapFacts are the facts naming a character since a tick, and the
 // world's facts of a weight or more since then, newest first.
 func (s *Store) RecapFacts(ctx context.Context, character string, since, weight int64) (own, heavy []fact.Fact, err error) {
-	subject, err := json.Marshal([]fact.Ref{{Kind: "character", ID: character}})
+	subject, err := json.Marshal([]fact.Ref{char.Ref(character)})
 	if err != nil {
 		return nil, nil, err
 	}

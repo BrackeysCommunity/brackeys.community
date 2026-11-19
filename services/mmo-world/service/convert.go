@@ -176,7 +176,7 @@ func apiPlace(g *game.Game, h hex.Hex) (api.Place, bool) {
 // stands.
 func placeView(g *game.Game, h hex.Hex) api.Place {
 	t := tileView(g, h)
-	out := api.Place{Tick: g.Tick(), Tile: t, Gauges: []api.Gauge{}, Here: []string{}, Rest: g.CanRest(h), Explore: g.CanExplore(h)}
+	out := api.Place{Tick: g.Tick(), Tile: t, Gauges: []api.Gauge{}, Here: []string{}, Rest: g.CanRest(h), Explore: g.CanExplore(h), Overrun: g.World.Past(h, "overrun")}
 	if gauges, holder, ok := g.RegionGauges(h); ok {
 		for _, m := range gauges {
 			out.Gauges = append(out.Gauges, api.Gauge{ID: m.ID, Value: m.Value, Unit: unitGauge})

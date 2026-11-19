@@ -16,6 +16,7 @@ import (
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/keys"
 )
@@ -151,7 +152,8 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.OpCorrect, game.Correct}, {api.OpGrant, game.Grant}, {api.OpBan, game.Ban}, {api.OpUnban, game.Unban},
 		{api.CodeNoSuchCharacter, game.NoSuchChar}, {api.CodeBusy, game.Busy}, {api.CodeBadArgs, game.BadArgs},
 		{api.CodeNotHere, game.NotHere}, {api.CodeBanned, game.BannedCode}, {api.CodeNoEncounter, game.NoFight},
-		{api.CodeNeedsActivity, game.InActivity},
+		{api.CodeNeedsActivity, game.InActivity}, {api.CodeDown, game.DownCode},
+		{api.CondDown, char.Down}, {api.CondWounded, char.Wounded}, {api.CondHungry, char.Hungry},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("the API says %q where the rules say %q", pair[0], pair[1])

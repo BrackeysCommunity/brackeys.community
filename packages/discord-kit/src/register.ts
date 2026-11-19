@@ -1,10 +1,7 @@
 /**
- * Guild command registration with a diff in front of it.
- *
- * A bulk PUT counts one create per command against the 200-per-day guild
- * budget, so a crash loop that re-PUTs on every boot spends it by lunch.
- * The service GETs what the guild has, normalises both sides to the
- * fields *we* set, and PUTs only when they differ — five restarts, one PUT.
+ * Guild command registration behind a diff: a bulk PUT spends the
+ * 200-a-day create budget, so GET first, compare only the fields the
+ * manifest sets, and PUT only on a change.
  */
 
 type Json = Record<string, unknown>;

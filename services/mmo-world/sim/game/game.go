@@ -220,11 +220,17 @@ func HoldingsOf(chars []*Char) []ledger.Balance {
 
 // fact writes a fact of a sheet-weighed kind about a character.
 func (g *Game) fact(c *Char, kind string, tick int64, data ...fact.Datum) (fact.Fact, error) {
+	return g.factWith(c, nil, kind, tick, data...)
+}
+
+// factWith writes a fact about a character and others it names; a heavy
+// one stays in the character's memory.
+func (g *Game) factWith(c *Char, also []fact.Ref, kind string, tick int64, data ...fact.Datum) (fact.Fact, error) {
 	region := ""
 	if r := g.World.RegionAt(c.C.At); r >= 0 {
 		region = world.RegionRef(r)
 	}
-	f, err := g.r.weights.New(tick, kind, region, []fact.Ref{char.Ref(c.C.ID)}, nil, data...)
+	f, err := g.r.weights.New(tick, kind, region, append([]fact.Ref{char.Ref(c.C.ID)}, also...), nil, data...)
 	if err != nil {
 		return f, err
 	}

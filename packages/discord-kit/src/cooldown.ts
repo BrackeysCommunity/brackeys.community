@@ -1,8 +1,4 @@
-/**
- * Per-user sliding window over command invocations. In-process on purpose:
- * one gateway connection sees every interaction, so there is nothing to
- * share, and a restart forgetting the windows is harmless.
- */
+/** An in-memory sliding window per key. Restarting clears the windows. */
 export interface Cooldown {
   /** The allowance, for telling a member what the rule is. */
   readonly limit: number;

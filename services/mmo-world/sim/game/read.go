@@ -5,6 +5,7 @@ import (
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/world"
 )
 
 // Move is one of the six steps from where a character stands.
@@ -141,4 +142,34 @@ func (g *Game) Suggest(from hex.Hex) (Suggestion, bool) {
 		}
 	}
 	return Suggestion{}, false
+}
+
+// CardNumbers are the sheet values the chat cards state.
+type CardNumbers struct {
+	AmbushLine, OverrunLine      int64 // threat
+	CrawlTicks, WoundedTicks     int64
+	FreeTicks                    int64 // journey ticks before provisions are eaten
+	StepMin, StepMax             int64 // ticks a tile, by terrain
+	FirstBeatsMin, FirstBeatsMax int64 // beats in a first-tier encounter
+}
+
+// CardNumbers reads them from the book.
+func (r *Rules) CardNumbers() CardNumbers {
+	out := CardNumbers{AmbushLine: world.LineAt(r.Book, "ambush"), OverrunLine: world.LineAt(r.Book, "overrun"),
+		CrawlTicks: r.wp("crawl-ticks"), WoundedTicks: r.wp("wounded-ticks"), FreeTicks: r.wp("provisions-free-ticks")}
+	for _, t := range r.Book.Terrain {
+		if !t.Passable {
+			continue
+		}
+		if out.StepMin == 0 || t.EnterTicks < out.StepMin {
+			out.StepMin = t.EnterTicks
+		}
+		out.StepMax = max(out.StepMax, t.EnterTicks)
+	}
+	for _, t := range r.Book.FightTiers {
+		if t.Tier == r.firstTier() {
+			out.FirstBeatsMin, out.FirstBeatsMax = t.BeatsMin, t.BeatsMax
+		}
+	}
+	return out
 }

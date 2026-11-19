@@ -176,9 +176,7 @@ export interface ActionRequest {
   ticks?: number /* int64 */;
   option?: string;
   /**
-   * The solo loop's fields (GDD 3.1, 6): an amount and an asset, an
-   * item and where it goes, a recipe, a route's stops, an NPC, and a new
-   * character's Discord server.
+   * The solo loop's fields (GDD 3.1, 6).
    */
   units?: number /* int64 */;
   asset?: string;
@@ -277,6 +275,18 @@ export const CodeNeedsActivity = "needs-activity";
  * Refusal codes the rules give.
  */
 export const CodeDown = "down";
+/**
+ * Character condition IDs.
+ */
+export const CondDown = "down";
+/**
+ * Character condition IDs.
+ */
+export const CondWounded = "wounded";
+/**
+ * Character condition IDs.
+ */
+export const CondHungry = "hungry";
 /**
  * Goods are units of a material a character carries.
  */
@@ -482,6 +492,7 @@ export interface Place {
   here: string[]; // characters standing on the tile
   explore: boolean;
   rest: boolean;
+  overrun?: boolean;
 }
 /**
  * Health is the service's liveness and where the world is. Standby is a
@@ -698,6 +709,9 @@ export interface Item {
   maker?: string;
   mount?: string;
   exploit?: Item;
+  wearIn: string[]; // kit slots it may be worn in
+  deck?: boolean; // accepts a loaded exploit
+  loads?: boolean; // an exploit, loaded into a deck
   sigil: string; // a media key
   value: number /* int64 */; // coin, at reference
 }
@@ -883,6 +897,7 @@ export interface Process {
   id: string;
   methods: string[];
   stations: string[];
+  needsSlot: boolean; // its recipe names a slot
 }
 /**
  * Known is a kind the character made, discovered or carries.
@@ -953,10 +968,27 @@ export interface MapView {
   image: string; // a media key
 }
 /**
- * Lexicon is what the setting calls things, by "sheet:id", and the odds
- * bands best first.
+ * Lexicon is what the setting calls things, by "sheet:id", the odds
+ * bands best first, and the rules' numbers the cards state.
  */
 export interface Lexicon {
   names: { [key: string]: string};
   bands: string[];
+  starts: string[];
+  numbers: Numbers;
+}
+/**
+ * Numbers are sheet values the cards state, so a retuned sheet never
+ * leaves a card saying the old number.
+ */
+export interface Numbers {
+  ambushLine: number /* int64 */; // threat
+  overrunLine: number /* int64 */; // threat
+  crawlTicks: number /* int64 */; // ticks
+  woundedTicks: number /* int64 */; // ticks a wound adds to a long action
+  freeTicks: number /* int64 */; // journey ticks before provisions are eaten
+  stepMin: number /* int64 */; // ticks a tile
+  stepMax: number /* int64 */; // ticks a tile
+  beatsMin: number /* int64 */; // beats in a first-tier encounter
+  beatsMax: number /* int64 */; // beats in a first-tier encounter
 }

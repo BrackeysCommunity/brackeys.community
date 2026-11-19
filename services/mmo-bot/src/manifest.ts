@@ -9,4 +9,6 @@ export const MANIFEST = [
   { type: 1, name: "character", description: "Your kit, practice, standing and record" },
   { type: 1, name: "recipes", description: "The kinds you know how to make" },
   { type: 1, name: "map", description: "The map round you, with the six ways out" },
-];
+] as const;
+
+export type CommandName = (typeof MANIFEST)[number]["name"];

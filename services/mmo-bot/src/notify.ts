@@ -1,5 +1,6 @@
+import { CondDown } from "./api.ts";
 import { PostQueue } from "./publish.ts";
-import type { World } from "./world.ts";
+import { type World, WorldRequestError } from "./world.ts";
 
 /**
  * A long action that outlives the hub's token runs on in the world; its
@@ -32,18 +33,32 @@ export class Notifier {
         this.watched.delete(character);
         const what = o.fight
           ? "An ambush stopped you on the road."
-          : o.conditions.includes("down")
+          : o.conditions.includes(CondDown)
             ? "You went down."
-            : "Your long action is done.";
+            : "Your long action has ended.";
         this.queue.post(user, `${what} Open /play to see where it left you.`);
-      } catch {
-        // The world is away: try again next poll.
+      } catch (error) {
+        if (error instanceof WorldRequestError && error.status === 404) {
+          this.watched.delete(character);
+        }
       }
     }
   }
 
+  /** Schedules the next poll after the current poll finishes. */
   start(): () => void {
-    const t = setInterval(() => void this.poll(), POLL_MS);
-    return () => clearInterval(t);
+    let stopped = false;
+    let t: ReturnType<typeof setTimeout>;
+    const next = () => {
+      t = setTimeout(async () => {
+        await this.poll();
+        if (!stopped) next();
+      }, POLL_MS);
+    };
+    next();
+    return () => {
+      stopped = true;
+      clearTimeout(t);
+    };
   }
 }
