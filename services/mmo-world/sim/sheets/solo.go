@@ -26,7 +26,10 @@ type Start struct {
 	Inputs  []StartInput `json:"inputs" unit:"parts"`
 	// Exploit is the exploit a deck starts loaded with.
 	Exploit []StartInput `json:"exploit,omitempty" unit:"parts" doc:"Composed into the exploit a deck holds."`
-	Doc     string       `json:"doc,omitempty" unit:"text"`
+	// Skill and Practice are the practice a new character starts with.
+	Skill    string `json:"skill" unit:"text"`
+	Practice int64  `json:"practice" unit:"level" min:"0" doc:"Tier 1's expected practice (fights.tiers), so a first outing is winnable."`
+	Doc      string `json:"doc,omitempty" unit:"text"`
 }
 
 // StartInput is one line of a start's recipe.

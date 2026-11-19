@@ -27,7 +27,9 @@
           "process",
           "method",
           "slot",
-          "inputs"
+          "inputs",
+          "skill",
+          "practice"
         ],
         "properties": {
           "id": {
@@ -107,6 +109,16 @@
             },
             "x-unit": "parts",
             "description": "Composed into the exploit a deck holds."
+          },
+          "skill": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "practice": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "level",
+            "description": "Tier 1's expected practice (fights.tiers), so a first outing is winnable."
           },
           "doc": {
             "type": "string",

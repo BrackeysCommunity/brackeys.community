@@ -151,15 +151,35 @@ func encodeMap(b []byte, v reflect.Value) ([]byte, error) {
 }
 
 func encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
+	ms, err := members(v)
+	if err != nil {
+		return nil, err
+	}
+	return encodeMembers(b, ms)
+}
+
+// members are a struct's fields as JSON names them. An untagged embedded
+// struct's fields are promoted as encoding/json promotes them, so a digest
+// survives a JSON round trip; a field of the outer struct wins a clash.
+func members(v reflect.Value) ([]member, error) {
 	t := v.Type()
 	ms := make([]member, 0, t.NumField())
+	var promoted []member
 	for i := range t.NumField() {
 		f := t.Field(i)
-		if !f.IsExported() {
+		if f.Anonymous && f.Tag.Get("json") == "" {
+			if f.Type.Kind() != reflect.Struct {
+				return nil, fmt.Errorf("canon: embedded field %s in %s", f.Name, t)
+			}
+			inner, err := members(v.Field(i))
+			if err != nil {
+				return nil, err
+			}
+			promoted = append(promoted, inner...)
 			continue
 		}
-		if f.Anonymous {
-			return nil, fmt.Errorf("canon: embedded field %s in %s", f.Name, t)
+		if !f.IsExported() {
+			continue
 		}
 		name, opts, _ := strings.Cut(f.Tag.Get("json"), ",")
 		if name == "-" && opts == "" {
@@ -174,7 +194,12 @@ func encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
 		}
 		ms = append(ms, member{name, fv})
 	}
-	return encodeMembers(b, ms)
+	for _, p := range promoted {
+		if !slices.ContainsFunc(ms, func(m member) bool { return m.name == p.name }) {
+			ms = append(ms, p)
+		}
+	}
+	return ms, nil
 }
 
 // empty is omitempty's test. Like encoding/json it drops a non-nil

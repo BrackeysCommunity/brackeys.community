@@ -76,10 +76,14 @@ type Order struct {
 // Provisions is the asset id an order for provisions names.
 const Provisions = "provisions"
 
+// Keepers is the Faction of an order the settlement's own keepers post.
+const Keepers = -1
+
 // Orders are the buy orders a starting settlement holds: for each
 // material, the first faction (in world order) whose archetype buys one of
-// its tags, at its reference value; provisions from the first faction that
-// buys them. factions are the world's factions' archetype ids.
+// its tags, at its reference value, else the settlement's keepers, so a
+// new character can always sell a haul; provisions from the first faction
+// that buys them. factions are the world's factions' archetype ids.
 func (v *Values) Orders(factions []string) []Order {
 	var out []Order
 	buys := func(arch, tag string) bool {
@@ -91,12 +95,14 @@ func (v *Values) Orders(factions []string) []Order {
 		return false
 	}
 	for _, m := range v.sorted {
+		o := Order{Faction: Keepers, Material: m.ID, Price: v.Material(m.ID)}
 		for fi, arch := range factions {
 			if slices.ContainsFunc(m.Tags, func(t string) bool { return buys(arch, t) }) {
-				out = append(out, Order{Faction: fi, Material: m.ID, Price: v.Material(m.ID)})
+				o.Faction = fi
 				break
 			}
 		}
+		out = append(out, o)
 	}
 	for fi, arch := range factions {
 		if buys(arch, Provisions) {

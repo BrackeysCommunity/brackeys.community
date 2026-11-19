@@ -137,28 +137,45 @@ func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
 	if st == nil || st.Discovered == nil {
 		return api.Tile{}, false
 	}
+	return tileView(g, h), true
+}
+
+// tileView is a tile as a client sees it, found or not: only for a tile
+// the asking character stands on.
+func tileView(g *game.Game, h hex.Hex) api.Tile {
 	b := g.Rules().Gen.Baseline(h)
-	out := api.Tile{Hex: apiHex(h), Terrain: b.Terrain, Water: b.Water, Site: b.Site, Landmark: b.Landmark, Road: st.Road,
-		Found: st.Discovered.Tick}
+	out := api.Tile{Hex: apiHex(h), Terrain: b.Terrain, Water: b.Water, Site: b.Site, Landmark: b.Landmark}
+	if st := g.World.Tile(h); st != nil {
+		out.Road = st.Road
+		if st.Discovered != nil {
+			out.Found = st.Discovered.Tick
+		}
+		for _, s := range st.Structures {
+			out.Structures = append(out.Structures, s.Kind)
+		}
+	}
 	if r := g.World.RegionAt(h); r >= 0 {
 		out.Region = world.RegionRef(r)
-	}
-	for _, s := range st.Structures {
-		out.Structures = append(out.Structures, s.Kind)
 	}
 	if w, ok := g.World.Weather(h); ok {
 		out.Weather = w.Kind
 	}
-	return out, true
+	return out
 }
 
 // apiPlace is a discovered tile with its region's gauges and holder and who
 // stands there; ok is false for a tile nobody has found.
 func apiPlace(g *game.Game, h hex.Hex) (api.Place, bool) {
-	t, ok := apiTile(g, h)
-	if !ok {
+	if _, ok := apiTile(g, h); !ok {
 		return api.Place{}, false
 	}
+	return placeView(g, h), true
+}
+
+// placeView is a place found or not: only for where the asking character
+// stands.
+func placeView(g *game.Game, h hex.Hex) api.Place {
+	t := tileView(g, h)
 	out := api.Place{Tick: g.Tick(), Tile: t, Gauges: []api.Gauge{}, Here: []string{}, Rest: g.CanRest(h), Explore: g.CanExplore(h)}
 	if gauges, holder, ok := g.RegionGauges(h); ok {
 		for _, m := range gauges {
@@ -173,5 +190,5 @@ func apiPlace(g *game.Game, h hex.Hex) (api.Place, bool) {
 			out.Here = append(out.Here, c.C.ID)
 		}
 	}
-	return out, true
+	return out
 }

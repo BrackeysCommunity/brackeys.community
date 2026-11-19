@@ -158,8 +158,8 @@ func (s *Server) apiSheet(c *game.Char) (api.Sheet, error) {
 	}
 	f := c.C.Fights
 	out.Record = append(out.Record,
-		api.Count{Key: "walked", N: c.C.Walked, Unit: "tiles"}, api.Count{Key: "downs", N: f.Downs, Unit: "count"},
-		api.Count{Key: "discoveries", N: c.C.Discoveries, Unit: "count"}, api.Count{Key: "encounters", N: c.Encounters, Unit: "count"})
+		api.Count{Key: "walked", N: c.C.Walked, Unit: "tiles"}, api.Count{Key: "downs", N: f.Downs, Unit: "times"},
+		api.Count{Key: "discoveries", N: c.C.Discoveries, Unit: "kinds"}, api.Count{Key: "encounters", N: c.Encounters, Unit: "encounters"})
 	for _, x := range f.Won {
 		out.Record = append(out.Record, api.Count{Key: "won:" + x.Key, N: x.N, Unit: "beats"})
 	}
@@ -188,7 +188,7 @@ func (s *Server) apiItem(in *item.Instance, worn string) (api.Item, error) {
 	g := s.g
 	r := g.Rules()
 	out := api.Item{ID: in.ID, Kind: in.Kind, Worn: worn, Level: in.Level, XP: in.XP, Durability: in.Durability, Max: in.MaxDurability,
-		Dormant: in.Dormant, Axes: []api.Part{}, Traits: []string{}, Picks: slices.Clone(in.Picks), Offers: in.Offers, Maker: in.Maker, Mount: in.Mount}
+		Dormant: in.Dormant, Axes: []api.Part{}, Traits: []string{}, Picks: append([]string{}, in.Picks...), Offers: in.Offers, Maker: in.Maker, Mount: in.Mount}
 	if in.Mount != "" {
 		out.Name, out.Slot = r.Name("mounts.kinds:"+in.Mount), char.Mount
 		if m := r.Mounts.Kind(in.Mount); m != nil {
@@ -205,7 +205,7 @@ func (s *Server) apiItem(in *item.Instance, worn string) (api.Item, error) {
 				out.Axes = append(out.Axes, api.Part{Label: axes[i], Value: r.Growth.Stat(v, k.Tier, in.Level), Unit: "pts"})
 			}
 		}
-		out.Traits = in.Traits(k, r.Fight.D)
+		out.Traits = append(out.Traits, in.Traits(k, r.Fight.D)...)
 		top := topTwo(k.Vec)
 		sig := render.SigilInput{Process: k.Recipe.Process, Slot: k.Slot, Axes: top, Level: in.Level, Picks: len(in.Picks), Maker: in.Maker, Dormant: in.Dormant}
 		key, err := s.picture("sigil", sig, func() (*render.Canvas, error) { return render.Sigil(sig), nil })
@@ -250,7 +250,7 @@ func (s *Server) here(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiHere(r *http.Request, c *game.Char) (api.Here, error) {
 	g := s.g
 	h := c.C.At
-	place, _ := apiPlace(g, h)
+	place := placeView(g, h)
 	out := api.Here{Place: place, Name: g.PlaceName(h), Stations: []api.Station{}, Orders: []api.Order{}, Offers: []api.Offer{},
 		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{}}
 	rv := g.Rules().Values
@@ -258,7 +258,7 @@ func (s *Server) apiHere(r *http.Request, c *game.Char) (api.Here, error) {
 		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: st.Tier * rv.Param("station-fee")})
 	}
 	for _, o := range g.Orders(h) {
-		out.Orders = append(out.Orders, api.Order{Faction: world.FactionRef(o.Faction), Material: o.Material, Price: o.Price, Fee: rv.Param("fill-fee")})
+		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Fee: rv.Param("fill-fee")})
 	}
 	if g.HasStructure(h, "market") {
 		out.Offers = append(out.Offers, api.Offer{Asset: "provisions", Price: rv.Param("provisions-price")})
@@ -284,6 +284,9 @@ func (s *Server) apiHere(r *http.Request, c *game.Char) (api.Here, error) {
 	}
 	for _, m := range g.Materials(h) {
 		out.Materials = append(out.Materials, api.Stock{Material: m, Left: g.StockLeft(h, m), WorkedOut: g.WorkedOut(h, m)})
+	}
+	if sg, ok := g.Suggest(h); ok {
+		out.Suggest = &api.Suggest{At: apiHex(sg.At), Tiles: sg.Tiles, Dir: sg.Dir}
 	}
 	if place.Tile.Region != "" {
 		recent, err := s.st.RecentIn(r.Context(), place.Tile.Region, recentFacts)
@@ -519,4 +522,13 @@ func (s *Server) lexicon(w http.ResponseWriter, _ *http.Request) {
 		out.Bands = append(out.Bands, x.ID)
 	}
 	reply(w, http.StatusOK, out)
+}
+
+func (s *Server) playerOf(w http.ResponseWriter, r *http.Request) {
+	id, err := s.st.CharacterOf(r.Context(), r.URL.Query().Get("discordId"))
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	reply(w, http.StatusOK, api.Player{CharacterID: id})
 }

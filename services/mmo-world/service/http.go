@@ -43,6 +43,7 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathNPC, s.npcHandler)
 	player("GET "+api.PathMap, s.mapHandler)
 	player("GET "+api.PathLexicon, s.lexicon)
+	player("GET "+api.PathPlayer, s.playerOf)
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))

@@ -177,6 +177,9 @@ func TestSoloLoop(t *testing.T) {
 	if problems := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
+	if _, err := g.Digest(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // nearestSite is the closest explorable tile to h.

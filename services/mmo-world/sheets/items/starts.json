@@ -14,7 +14,9 @@
           "qty": 2
         }
       ],
-      "doc": "Reaches and pulls; leads with Flex."
+      "doc": "Reaches and pulls; leads with Flex.",
+      "skill": "fight",
+      "practice": 6
     },
     {
       "id": "knife",
@@ -28,7 +30,9 @@
           "qty": 2
         }
       ],
-      "doc": "Cuts; leads with Edge."
+      "doc": "Cuts; leads with Edge.",
+      "skill": "fight",
+      "practice": 6
     },
     {
       "id": "deck",
@@ -52,7 +56,9 @@
           "qty": 1
         }
       ],
-      "doc": "Runs an exploit; leads with Bond."
+      "doc": "Runs an exploit; leads with Bond.",
+      "skill": "fight",
+      "practice": 6
     }
   ]
 }

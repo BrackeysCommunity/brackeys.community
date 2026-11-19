@@ -11,7 +11,13 @@ const (
 	PathMap      = "/v1/map"
 	PathLexicon  = "/v1/lexicon"
 	PathMedia    = "/v1/media/"
+	PathPlayer   = "/v1/player"
 )
+
+// Player is the character a Discord user plays, or "" before /play.
+type Player struct {
+	CharacterID string `json:"characterId"`
+}
 
 // Action kinds of the solo loop.
 const (
@@ -189,6 +195,15 @@ type Here struct {
 	Materials []Stock   `json:"materials"`
 	Forage    int64     `json:"forage"` // provisions a tick
 	Recent    []Fact    `json:"recent"`
+	Suggest   *Suggest  `json:"suggest,omitempty"`
+}
+
+// Suggest is the nearest site to explore: where, how far, and the first
+// step toward it.
+type Suggest struct {
+	At    Hex   `json:"at"`
+	Tiles int64 `json:"tiles"`
+	Dir   int   `json:"dir"`
 }
 
 // Stock is a node's material and what it still holds.

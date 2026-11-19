@@ -213,8 +213,10 @@ func ValidKey(key string) error {
 func (g *Game) create() (*Char, error) {
 	g.NextChar++
 	id := "c-" + strconv.FormatInt(g.NextChar, decimal)
-	c := &Char{C: char.New(id, g.r.Gen.Settlement(0).Hex), Born: g.Tick()}
+	home := g.r.Gen.Settlement(0).Hex
+	c := &Char{C: char.New(id, home), Born: g.Tick()}
 	g.insert(c)
+	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: home, By: char.Ref(id)})
 	_, err := g.fact(c, "character.arrived", g.Tick())
 	return c, err
 }

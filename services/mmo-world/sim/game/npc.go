@@ -402,6 +402,16 @@ func (g *Game) placeName(h hex.Hex) string {
 	return h.Ref()
 }
 
+// FactionName is a faction's name: its head and what its archetype is
+// called.
+func (g *Game) FactionName(i int) string {
+	if i < 0 {
+		return "the keepers"
+	}
+	f := g.World.Factions[i]
+	return f.Head + " " + g.r.Name("factions.archetypes:"+f.Archetype)
+}
+
 // PlaceName is the name a tile goes by: its settlement's, or its region's.
 func (g *Game) PlaceName(h hex.Hex) string { return g.placeName(h) }
 

@@ -64,9 +64,19 @@ func (g *Game) start(c *Char, key, choice string) error {
 	}
 	c.C.Carry(row.Wear, 0, in)
 	c.Start = choice
+	c.C.Practise(row.Skill, g.practiceUses(row.Practice), g.r.Growth.Params())
 	_, err = g.fact(c, "character.started", g.Tick(), fact.S("start", choice), fact.S("kind", in.Kind))
 	return err
 }
+
+// practiceUses is the uses that take a skill from 0 to a level.
+func (g *Game) practiceUses(level int64) int64 {
+	per := sheets.IntParam(g.r.Growth.Params(), "practice-uses")
+	return per * level * (level + 1) / halves
+}
+
+// structural: uses to a level sum an arithmetic series, halved.
+const halves = 2
 
 // structural: the one compose method.
 const composeMethod = "ordered"

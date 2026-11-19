@@ -118,3 +118,27 @@ func (g *Game) Option(c *Char, id string) (fight.Option, bool) {
 	_, opts := g.beat(c, g.Tick())
 	return fight.OptionByID(opts, id)
 }
+
+// Suggestion is a first outing: the nearest site to explore, how far, and
+// the first step toward it (GDD 3.1).
+type Suggestion struct {
+	At    hex.Hex `json:"at"`
+	Tiles int64   `json:"tiles"`
+	Dir   int     `json:"dir"`
+}
+
+// Suggest is the nearest explorable site within the suggestion radius a
+// character can walk to, or false.
+func (g *Game) Suggest(from hex.Hex) (Suggestion, bool) {
+	for r := int64(1); r <= g.r.wp("suggest-radius"); r++ {
+		for _, h := range hex.Ring(from, r) {
+			if !g.CanExplore(h) {
+				continue
+			}
+			if path, _, ok := g.World.Path(from, h); ok && len(path) > 1 {
+				return Suggestion{At: h, Tiles: int64(len(path) - 1), Dir: from.DirectionTo(path[1])}, true
+			}
+		}
+	}
+	return Suggestion{}, false
+}

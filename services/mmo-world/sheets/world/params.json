@@ -333,6 +333,12 @@
       "value": 7,
       "unit": "days",
       "doc": "How far back a recap reads at most."
+    },
+    {
+      "id": "suggest-radius",
+      "value": 4,
+      "unit": "tiles",
+      "doc": "A first outing is suggested within this many tiles (GDD 3.1)."
     }
   ]
 }

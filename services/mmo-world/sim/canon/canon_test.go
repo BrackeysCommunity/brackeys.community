@@ -123,3 +123,20 @@ func TestOmitEmptySurvivesRoundTrip(t *testing.T) {
 		t.Fatal("digest changed across a JSON round trip")
 	}
 }
+
+// An untagged embedded struct's fields are promoted, as encoding/json
+// promotes them, and the outer field wins a clash.
+func TestEmbeddedPromoted(t *testing.T) {
+	type Inner struct {
+		A int64 `json:"a"`
+		C int64 `json:"c"`
+	}
+	type Outer struct {
+		Inner
+		C int64 `json:"c"`
+	}
+	got, err := Marshal(Outer{Inner: Inner{A: 1, C: 9}, C: 2})
+	if err != nil || string(got) != `{"a":1,"c":2}` {
+		t.Fatalf("%s %v", got, err)
+	}
+}

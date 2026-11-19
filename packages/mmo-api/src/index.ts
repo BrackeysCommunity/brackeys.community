@@ -570,6 +570,16 @@ export const PathLexicon = "/v1/lexicon";
  */
 export const PathMedia = "/v1/media/";
 /**
+ * Paths of the solo loop's reads.
+ */
+export const PathPlayer = "/v1/player";
+/**
+ * Player is the character a Discord user plays, or "" before /play.
+ */
+export interface Player {
+  characterId: string;
+}
+/**
  * Action kinds of the solo loop.
  */
 export const ActSell = "sell";
@@ -809,6 +819,16 @@ export interface Here {
   materials: Stock[];
   forage: number /* int64 */; // provisions a tick
   recent: Fact[];
+  suggest?: Suggest;
+}
+/**
+ * Suggest is the nearest site to explore: where, how far, and the first
+ * step toward it.
+ */
+export interface Suggest {
+  at: Hex;
+  tiles: number /* int64 */;
+  dir: number /* int */;
 }
 /**
  * Stock is a node's material and what it still holds.
