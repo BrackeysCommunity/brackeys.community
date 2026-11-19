@@ -87,6 +87,17 @@ type ActionRequest struct {
 	Material      string `json:"material,omitempty"`
 	Ticks         int64  `json:"ticks,omitempty"`
 	Option        string `json:"option,omitempty"`
+	// The solo loop's fields (GDD 3.1, 6): an amount and an asset, an
+	// item and where it goes, a recipe, a route's stops, an NPC, and a new
+	// character's Discord server.
+	Units  int64   `json:"units,omitempty"`
+	Asset  string  `json:"asset,omitempty"`
+	Item   string  `json:"item,omitempty"`
+	Slot   string  `json:"slot,omitempty"`
+	Recipe *Recipe `json:"recipe,omitempty"`
+	Stop   *Stop   `json:"stop,omitempty"`
+	NPC    string  `json:"npc,omitempty"`
+	Server string  `json:"server,omitempty"`
 }
 
 // OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -137,6 +148,7 @@ const (
 	CodeBanned          = "banned"
 	CodeNoEncounter     = "no-encounter"
 	CodeNeedsActivity   = "needs-activity"
+	CodeDown            = "down"
 )
 
 // Goods are units of a material a character carries.

@@ -138,6 +138,15 @@ func (q *Queries) DeleteWorldLedgerTxns(ctx context.Context, worldID string) err
 	return err
 }
 
+const deleteWorldNPCs = `-- name: DeleteWorldNPCs :exec
+DELETE FROM mmo.npc WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldNPCs(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldNPCs, worldID)
+	return err
+}
+
 const deleteWorldNotables = `-- name: DeleteWorldNotables :exec
 DELETE FROM mmo.notable WHERE world_id = $1
 `
@@ -183,6 +192,55 @@ func (q *Queries) DeleteWorldTiles(ctx context.Context, worldID string) error {
 	return err
 }
 
+const factsAbout = `-- name: FactsAbout :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND tick > $2 AND subjects @> $3::jsonb
+ORDER BY id DESC LIMIT $4
+`
+
+type FactsAboutParams struct {
+	WorldID string
+	Since   int64
+	Subject []byte
+	Lim     int32
+}
+
+func (q *Queries) FactsAbout(ctx context.Context, arg FactsAboutParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, factsAbout,
+		arg.WorldID,
+		arg.Since,
+		arg.Subject,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorld = `-- name: GetWorld :one
 SELECT id, key_version, key_check, rules_epoch, tick, season, disposable, sheets_digest, started_at, tick_seconds, sim, digest, updated_at FROM mmo.world WHERE id = $1
 `
@@ -206,6 +264,55 @@ func (q *Queries) GetWorld(ctx context.Context, id string) (MmoWorld, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const heavyFactsSince = `-- name: HeavyFactsSince :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND tick > $2 AND weight >= $3
+ORDER BY id DESC LIMIT $4
+`
+
+type HeavyFactsSinceParams struct {
+	WorldID string
+	Since   int64
+	Weight  int32
+	Lim     int32
+}
+
+func (q *Queries) HeavyFactsSince(ctx context.Context, arg HeavyFactsSinceParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, heavyFactsSince,
+		arg.WorldID,
+		arg.Since,
+		arg.Weight,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertAction = `-- name: InsertAction :exec
@@ -542,6 +649,35 @@ func (q *Queries) ListFactions(ctx context.Context, worldID string) ([]MmoFactio
 	return items, nil
 }
 
+const listNPCs = `-- name: ListNPCs :many
+SELECT world_id, seq, id, body FROM mmo.npc WHERE world_id = $1 ORDER BY seq
+`
+
+func (q *Queries) ListNPCs(ctx context.Context, worldID string) ([]MmoNpc, error) {
+	rows, err := q.db.Query(ctx, listNPCs, worldID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoNpc
+	for rows.Next() {
+		var i MmoNpc
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.Seq,
+			&i.ID,
+			&i.Body,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNotables = `-- name: ListNotables :many
 SELECT world_id, faction, idx, body FROM mmo.notable WHERE world_id = $1 ORDER BY faction, idx
 `
@@ -658,6 +794,49 @@ func (q *Queries) ListTiles(ctx context.Context, worldID string) ([]MmoTile, err
 			&i.Seq,
 			&i.FoundTick,
 			&i.Body,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recentFactsIn = `-- name: RecentFactsIn :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2
+ORDER BY id DESC LIMIT $3
+`
+
+type RecentFactsInParams struct {
+	WorldID string
+	Region  pgtype.Text
+	Lim     int32
+}
+
+func (q *Queries) RecentFactsIn(ctx context.Context, arg RecentFactsInParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, recentFactsIn, arg.WorldID, arg.Region, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
 		); err != nil {
 			return nil, err
 		}
@@ -822,6 +1001,28 @@ type UpsertFactionParams struct {
 
 func (q *Queries) UpsertFaction(ctx context.Context, arg UpsertFactionParams) error {
 	_, err := q.db.Exec(ctx, upsertFaction, arg.WorldID, arg.Idx, arg.Body)
+	return err
+}
+
+const upsertNPC = `-- name: UpsertNPC :exec
+INSERT INTO mmo.npc (world_id, seq, id, body) VALUES ($1, $2, $3, $4)
+ON CONFLICT (world_id, seq) DO UPDATE SET body = excluded.body
+`
+
+type UpsertNPCParams struct {
+	WorldID string
+	Seq     int64
+	ID      string
+	Body    []byte
+}
+
+func (q *Queries) UpsertNPC(ctx context.Context, arg UpsertNPCParams) error {
+	_, err := q.db.Exec(ctx, upsertNPC,
+		arg.WorldID,
+		arg.Seq,
+		arg.ID,
+		arg.Body,
+	)
 	return err
 }
 

@@ -11,6 +11,7 @@ import (
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
 
@@ -32,6 +33,16 @@ type Long struct {
 	// Gather: the material and the ticks left.
 	Material string `json:"material,omitempty"`
 	Left     int64  `json:"left,omitempty"`
+	// Stop holds a journey's stop conditions.
+	Stop *Stop `json:"stop,omitempty"`
+}
+
+// woundedTicks is what being wounded adds to a long action (GDD 5.5).
+func (g *Game) woundedTicks(c *Char, t int64) int64 {
+	if c.C.Has(char.Wounded, t) {
+		return g.r.wp("wounded-ticks")
+	}
+	return 0
 }
 
 // Part is one line of a why: a label and what it adds, in a unit.
@@ -55,8 +66,12 @@ func (g *Game) EnterCost(c *Char, from, to hex.Hex, tick int64) (int64, []Part, 
 		return 0, nil, false
 	}
 	why := []Part{{"terrain", cost, unitTicks}}
+	if low, ok := g.lowWater(to, cost); ok {
+		why = append(why, Part{TrigLowWater, low - cost, unitTicks})
+		cost = low
+	}
 	if m := c.C.In(char.Mount, 0); m != nil {
-		if r := g.r.Mounts.EnterTicks(m, cost, g.ground(to), true); r != cost {
+		if r := g.r.Mounts.EnterTicks(m, cost, g.ground(to), c.Fed()); r != cost {
 			why = append(why, Part{"mount", r - cost, unitTicks})
 			cost = r
 		}
@@ -64,6 +79,11 @@ func (g *Game) EnterCost(c *Char, from, to hex.Hex, tick int64) (int64, []Part, 
 	if c.C.Has(char.Hungry, tick) {
 		n := g.r.wp("hungry-enter-ticks")
 		why = append(why, Part{char.Hungry, n, unitTicks})
+		cost += n
+	}
+	if g.Laden(c) {
+		n := g.r.wp("laden-enter-ticks")
+		why = append(why, Part{"laden", n, unitTicks})
 		cost += n
 	}
 	return cost, why, true
@@ -124,7 +144,8 @@ func (g *Game) travel(c *Char, cmd Command) error {
 		}
 	}
 	first, _, _ := g.EnterCost(c, c.C.At, route[0], t)
-	c.Long = &Long{Kind: Travel, Key: cmd.Key, Started: t, Due: t + first, Ends: t + total, Route: route, StepTicks: first}
+	slow := g.woundedTicks(c, t)
+	c.Long = &Long{Kind: Travel, Key: cmd.Key, Started: t, Due: t + first + slow, Ends: t + total + slow, Route: route, StepTicks: first + slow, Stop: cmd.Stop}
 	return nil
 }
 
@@ -135,11 +156,15 @@ func (g *Game) gather(c *Char, cmd Command) error {
 	if cmd.Ticks < g.r.wp("gather-ticks-min") || cmd.Ticks > g.r.wp("gather-ticks-max") {
 		return refuse(BadArgs, "a gather takes %d to %d ticks", g.r.wp("gather-ticks-min"), g.r.wp("gather-ticks-max"))
 	}
-	if !slices.Contains(g.Materials(c.C.At), cmd.Material) {
+	if cmd.Material != assetProvisions && !slices.Contains(g.Materials(c.C.At), cmd.Material) {
 		return refuse(NotHere, "no %s to gather here", cmd.Material)
 	}
+	if cmd.Material != assetProvisions && g.WorkedOut(c.C.At, cmd.Material) {
+		return refuse(NotHere, "the %s here is worked out", cmd.Material)
+	}
 	t := g.Tick()
-	c.Long = &Long{Kind: Gather, Key: cmd.Key, Started: t, Due: t + 1, Ends: t + cmd.Ticks, Material: cmd.Material, Left: cmd.Ticks}
+	slow := g.woundedTicks(c, t)
+	c.Long = &Long{Kind: Gather, Key: cmd.Key, Started: t, Due: t + 1 + slow, Ends: t + cmd.Ticks + slow, Material: cmd.Material, Left: cmd.Ticks}
 	return nil
 }
 
@@ -172,6 +197,27 @@ func (g *Game) cancel(c *Char) error {
 	endJourney(c)
 	_, err := g.fact(c, "travel.stopped", g.Tick())
 	return err
+}
+
+// stopFor is the stop condition the next tile of a journey meets, or "".
+func (g *Game) stopFor(c *Char, l *Long, next hex.Hex, cost int64) string {
+	if l.Stop == nil {
+		return ""
+	}
+	if l.Stop.Threat > 0 {
+		if r := g.World.RegionAt(next); r >= 0 && g.World.Regions[r].Gauge[g.World.GaugeIndex("threat")] >= l.Stop.Threat {
+			return "threat"
+		}
+	}
+	if l.Stop.Provisions && max(0, l.Spent+cost-g.r.wp("provisions-free-ticks"))-l.Owed > c.C.Provisions {
+		return "provisions"
+	}
+	if l.Stop.Unknown {
+		if tl := g.World.Tile(next); tl == nil || tl.Discovered == nil {
+			return "unknown"
+		}
+	}
+	return ""
 }
 
 // endJourney is every way a journey ends: the hunger it brought ends too.
@@ -208,9 +254,18 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 			acts, err = g.gatherTick(c, t, acts)
 		case Rest:
 			err = g.rested(c, t)
+		case Crawl:
+			err = g.crawled(c, t)
 		}
 		if err != nil {
 			return nil, err
+		}
+	}
+	if t%sheets.TicksPerDay == 0 {
+		for _, c := range g.Chars {
+			if err := g.upkeep(c, t); err != nil {
+				return nil, err
+			}
 		}
 	}
 	acts = append(acts, g.Pending...)
@@ -218,7 +273,9 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	if _, _, err := world.Advance(g.World, g.Log, acts, t); err != nil {
 		return nil, err
 	}
-	return g.Log.Since(first), nil
+	out := g.Log.Since(first)
+	g.keepNews(out)
+	return out, nil
 }
 
 // defaulted resolves an ambush its owner was away for with the way out.
@@ -249,8 +306,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	c.C.Walk(to, g.r.limits)
 	c.C.Facing = dir
 	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir})
-	if m := c.C.In(char.Mount, 0); m != nil {
-		g.r.Mounts.Ridden(m, g.ground(to), false)
+	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
+		g.r.Mounts.Ridden(m, g.ground(to), g.Laden(c))
+		c.Rode += l.StepTicks
 	}
 	c.C.Practise("travel", 1, g.r.Growth.Params())
 	l.Spent += l.StepTicks
@@ -259,6 +317,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 		return acts, err
 	}
 	if _, err := g.fact(c, "travel.entered", t, fact.N("q", to.Q), fact.N("r", to.R), fact.N("ticks", l.StepTicks)); err != nil {
+		return acts, err
+	}
+	if err := g.arrived(c, to, ledger.SubKey(l.Key, "arrive", strconv.FormatInt(l.Steps, decimal)), t); err != nil {
 		return acts, err
 	}
 	l.Route = l.Route[1:]
@@ -279,6 +340,11 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if !ok {
 		endJourney(c)
 		_, err := g.fact(c, "travel.stopped", t)
+		return acts, err
+	}
+	if why := g.stopFor(c, l, l.Route[0], cost); why != "" {
+		endJourney(c)
+		_, err := g.fact(c, "travel.stopped", t, fact.S("why", why))
 		return acts, err
 	}
 	for _, p := range why {
@@ -327,21 +393,43 @@ func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
 
 func (g *Game) gatherTick(c *Char, t int64, acts []world.Action) ([]world.Action, error) {
 	l := c.Long
-	n := g.r.wp("gather-units")
 	key := ledger.SubKey(l.Key, "gather", strconv.FormatInt(l.Steps, decimal))
-	if err := g.receive(c, ledger.Move(key, "gather", t, ledger.FromGather, ledger.Char(c.C.ID), ledger.Material(l.Material), n)); err != nil {
-		return acts, err
+	var n int64
+	if l.Material == assetProvisions {
+		n = g.ForageYield(c.C.At)
+		if err := g.receive(c, ledger.Move(key, "forage", t, ledger.FromForage, ledger.Char(c.C.ID), ledger.Provisions, n)); err != nil {
+			return acts, err
+		}
+	} else {
+		n = min(g.r.wp("gather-units"), g.StockLeft(c.C.At, l.Material))
+		if n > 0 {
+			if err := g.receive(c, ledger.Move(key, "gather", t, ledger.FromGather, ledger.Char(c.C.ID), ledger.Material(l.Material), n)); err != nil {
+				return acts, err
+			}
+			acts = append(acts, world.Action{Kind: world.ActGather, Hex: c.C.At, By: char.Ref(c.C.ID), Material: l.Material, Units: n})
+			if err := g.toolUse(c, t); err != nil {
+				return acts, err
+			}
+		}
 	}
-	acts = append(acts, world.Action{Kind: world.ActGather, Hex: c.C.At, By: char.Ref(c.C.ID), Material: l.Material, Units: n})
 	c.C.Practise("gather", 1, g.r.Growth.Params())
 	l.Steps++
 	l.Left--
-	if l.Left > 0 {
+	l.Spent += n
+	if l.Left > 0 && n > 0 {
 		l.Due = t + 1
 		return acts, nil
 	}
 	c.Long = nil
-	_, err := g.fact(c, "gather.done", t, fact.S("material", l.Material), fact.N("units", n*l.Steps))
+	kind := "gather.done"
+	if l.Material == assetProvisions {
+		kind = "forage.done"
+	} else if g.WorkedOut(c.C.At, l.Material) {
+		if err := g.workedOut(c, l.Material, t); err != nil {
+			return acts, err
+		}
+	}
+	_, err := g.fact(c, kind, t, fact.S("material", l.Material), fact.N("units", l.Spent))
 	return acts, err
 }
 

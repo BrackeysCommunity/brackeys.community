@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.starts",
+  "title": "items.starts",
+  "description": "The three things a new character can choose to have carried (GDD 3.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "items.starts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "wear",
+          "process",
+          "method",
+          "slot",
+          "inputs"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "wear": {
+            "type": "string",
+            "enum": [
+              "hand",
+              "off-hand"
+            ],
+            "x-unit": "enum",
+            "description": "The kit slot it starts in."
+          },
+          "process": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.processes"
+          },
+          "method": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.methods"
+          },
+          "slot": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.slots"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "material",
+                "qty"
+              ],
+              "properties": {
+                "material": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "items.materials"
+                },
+                "qty": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "goods"
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "exploit": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "material",
+                "qty"
+              ],
+              "properties": {
+                "material": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "items.materials"
+                },
+                "qty": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "goods"
+                }
+              }
+            },
+            "x-unit": "parts",
+            "description": "Composed into the exploit a deck holds."
+          },
+          "doc": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -20,11 +20,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tile"
 	"jams.team/mmo-world/sim/world"
@@ -88,6 +90,10 @@ type sim struct {
 	NextChar int64           `json:"nextChar"`
 	Log      *fact.Tail      `json:"log"`
 	Posted   int64           `json:"posted"`
+	Kinds    game.Kinds      `json:"kinds"`
+	Left     []*game.Left    `json:"left,omitempty"`
+	News     []game.News     `json:"news"`
+	NPCChain canon.Sum       `json:"npcChain"`
 }
 
 func simOf(g *game.Game) ([]byte, error) {
@@ -97,7 +103,8 @@ func simOf(g *game.Game) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted})
+	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted, Kinds: g.Kinds, Left: g.Left,
+		News: g.News, NPCChain: g.NPCs.Chain})
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
@@ -213,7 +220,11 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 	if err := json.Unmarshal(w.Sim, &sm); err != nil {
 		return nil, err
 	}
-	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log}
+	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log, Kinds: sm.Kinds, Left: sm.Left,
+		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}}
+	if g.News == nil {
+		g.News = []game.News{}
+	}
 	if err := json.Unmarshal(sm.World, g.World); err != nil {
 		return nil, err
 	}
@@ -295,7 +306,39 @@ func decodeChars(rows []db.MmoCharacter) ([]*game.Char, error) {
 	return out, nil
 }
 
+func (s *Store) loadNPCs(ctx context.Context, g *game.Game) error {
+	rows, err := s.q.ListNPCs(ctx, s.World)
+	if err != nil {
+		return err
+	}
+	for _, x := range rows {
+		n := &npc.NPC{}
+		if err := json.Unmarshal(x.Body, n); err != nil {
+			return err
+		}
+		g.NPCs.List = append(g.NPCs.List, n)
+	}
+	return nil
+}
+
+// npcs writes the NPCs changed since the last save.
+func (s *Store) npcs(ctx context.Context, q *db.Queries, g *game.Game) error {
+	for _, n := range g.NPCs.Flush() {
+		body, err := json.Marshal(n)
+		if err != nil {
+			return err
+		}
+		if err := q.UpsertNPC(ctx, db.UpsertNPCParams{WorldID: s.World, Seq: n.Seq, ID: n.ID, Body: body}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Store) loadRows(ctx context.Context, g *game.Game) error {
+	if err := s.loadNPCs(ctx, g); err != nil {
+		return err
+	}
 	regions, err := s.q.ListRegions(ctx, s.World)
 	if err != nil {
 		return err
@@ -526,8 +569,12 @@ func (s *Store) char(ctx context.Context, q *db.Queries, c *game.Char, discord s
 	return nil
 }
 
-// world writes the world row, checking it was still as last written.
+// world writes the world row, checking it was still as last written, and
+// the NPCs changed with it.
 func (s *Store) world(ctx context.Context, q *db.Queries, g *game.Game) (string, error) {
+	if err := s.npcs(ctx, q, g); err != nil {
+		return "", err
+	}
 	body, err := simOf(g)
 	if err != nil {
 		return "", err
@@ -690,4 +737,48 @@ func (s *Store) CharacterOf(ctx context.Context, discord string) (string, error)
 		return "", nil
 	}
 	return id, err
+}
+
+// most is how many facts a recap or a place reads at once.
+const most = 200
+
+func factOf(x db.MmoFact) (fact.Fact, error) {
+	f := fact.Fact{ID: fact.ID(x.ID), Tick: x.Tick, Kind: x.Kind, Region: x.Region.String, Weight: int64(x.Weight)}
+	err := errors.Join(json.Unmarshal(x.Subjects, &f.Subjects), json.Unmarshal(x.Data, &f.Data))
+	return f, err
+}
+
+func factsOf(rows []db.MmoFact, err error) ([]fact.Fact, error) {
+	if err != nil {
+		return nil, err
+	}
+	out := make([]fact.Fact, 0, len(rows))
+	for _, x := range rows {
+		f, err := factOf(x)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
+// RecapFacts are the facts naming a character since a tick, and the
+// world's facts of a weight or more since then, newest first.
+func (s *Store) RecapFacts(ctx context.Context, character string, since, weight int64) (own, heavy []fact.Fact, err error) {
+	subject, err := json.Marshal([]fact.Ref{{Kind: "character", ID: character}})
+	if err != nil {
+		return nil, nil, err
+	}
+	own, err = factsOf(s.q.FactsAbout(ctx, db.FactsAboutParams{WorldID: s.World, Since: since, Subject: subject, Lim: most}))
+	if err != nil {
+		return nil, nil, err
+	}
+	heavy, err = factsOf(s.q.HeavyFactsSince(ctx, db.HeavyFactsSinceParams{WorldID: s.World, Since: since, Weight: int32(weight), Lim: most}))
+	return own, heavy, err
+}
+
+// RecentIn are a region's latest facts, newest first.
+func (s *Store) RecentIn(ctx context.Context, region string, n int32) ([]fact.Fact, error) {
+	return factsOf(s.q.RecentFactsIn(ctx, db.RecentFactsInParams{WorldID: s.World, Region: pgtype.Text{String: region, Valid: true}, Lim: n}))
 }

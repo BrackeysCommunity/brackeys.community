@@ -35,6 +35,7 @@ type Book struct {
 	Compose    []ComposeRow `sheet:"items.compose" doc:"What an exploit's components set: the first one's state and target, later ones' traits. The first row a component matches counts."`
 	Pairings   []Pairing    `sheet:"items.pairings" doc:"Tags that pair across equipped items and exploits, and the tag the pairing gives."`
 	ItemParams []Param      `sheet:"items.params" doc:"Loose cells for derivation."`
+	Starts     []Start      `sheet:"items.starts" doc:"The three things a new character can choose to have carried (GDD 3.1)."`
 
 	LevelCurve    []LevelStep `sheet:"growth.level-curve" doc:"Derived from growth.params; never edited by hand."`
 	XPByDeed      []DeedXP    `sheet:"growth.xp-by-deed" doc:"Experience for each deed that matters."`
@@ -64,6 +65,9 @@ type Book struct {
 	WorldParams []Param          `sheet:"world.params" doc:"Loose cells for the world tick."`
 
 	NPCTraits []NPCTrait `sheet:"npcs.traits" doc:"Traits notables and other NPCs draw from."`
+	NPCRoles  []NPCRole  `sheet:"npcs.roles" doc:"Role slots each place fills with residents, and the roles wanderers take."`
+	Topics    []Topic    `sheet:"npcs.topics" doc:"What an NPC can bring up, when, and the choices it offers (GDD 4.18)."`
+	NPCParams []Param    `sheet:"npcs.params" doc:"Memory, salience, routes and visits."`
 
 	Archetypes    []Archetype  `sheet:"factions.archetypes" doc:"Faction archetypes, what they buy and tend to do."`
 	Moves         []Move       `sheet:"factions.moves" doc:"The daily moves a faction can score."`
@@ -73,7 +77,8 @@ type Book struct {
 	FactWeights []FactWeight `sheet:"story.fact-weights" doc:"Weight of each fact kind, 0 to 100."`
 	StoryParams []Param      `sheet:"story.params" doc:"Pacing, deadlines, the chronicle's cut-off."`
 
-	EconomyParams []Param `sheet:"economy.params" doc:"Fees, the faucet, the stabiliser, limits."`
+	EconomyParams []Param    `sheet:"economy.params" doc:"Fees, the faucet, the stabiliser, limits."`
+	RefValues     []RefValue `sheet:"economy.reference" doc:"Each tier's base value and median vector total (GDD 10.10)."`
 
 	GoalParams []Param `sheet:"goals.params" doc:"Listing fees, limits, thresholds."`
 
@@ -98,6 +103,7 @@ type Book struct {
 
 	TileCounters []TileCounter `sheet:"tiles.counters" doc:"Decay per tile counter."`
 	FindRarities []FindRarity  `sheet:"tiles.find-rarities" doc:"Rarity of a trigger's find."`
+	Triggers     []Trigger     `sheet:"tiles.triggers" doc:"What tile and character data set off, with chances and magnitudes (GDD 8.6)."`
 	TileParams   []Param       `sheet:"tiles.params" doc:"Rings and limits on what a tile keeps."`
 
 	Creatures        []Creature        `sheet:"creatures.archetypes" doc:"Creature archetypes: tier, biomes, tags, drops."`

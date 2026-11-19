@@ -53,7 +53,9 @@ func (w Wanderer) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 		return api.ActionRequest{}, false
 	case o.Long != nil:
 		return api.ActionRequest{}, false
-	case o.Rest && (has(o.Conditions, "wounded") || has(o.Conditions, "down")):
+	case has(o.Conditions, "down"):
+		return api.ActionRequest{Kind: api.ActCrawl}, true
+	case o.Rest && has(o.Conditions, "wounded"):
 		return api.ActionRequest{Kind: api.ActRest}, true
 	case o.Explore && d.Percent(wandererExplore, "wander.explore"):
 		return api.ActionRequest{Kind: api.ActExplore}, true
@@ -105,6 +107,9 @@ func (*Traveller) Name() string { return "traveller" }
 func (t *Traveller) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 	if o.Fight != nil || o.Long != nil {
 		return api.ActionRequest{}, false
+	}
+	if has(o.Conditions, "down") {
+		return api.ActionRequest{Kind: api.ActCrawl}, true
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()

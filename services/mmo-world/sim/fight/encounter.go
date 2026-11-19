@@ -59,7 +59,8 @@ type Encounter struct {
 	Gone     []string       `json:"gone"`   // backed out of a party
 	Warded   []string       `json:"warded"` // characters whose ward has been used
 	Haul     []item.Spoil   `json:"haul"`
-	Share    tally.Tally    `json:"share"` // contribution, for splitting the haul
+	Lost     []item.Spoil   `json:"lost,omitempty"` // haul dropped on going down, left on the tile
+	Share    tally.Tally    `json:"share"`          // contribution, for splitting the haul
 	Party    int64          `json:"party"`
 	Troubled bool           `json:"troubled"`
 	Floor    int64          `json:"floor"`
@@ -655,6 +656,7 @@ func (r *Rules) loseHaul(e *Encounter, units int64) {
 	for i := len(e.Haul) - 1; i >= 0 && units > 0; i-- {
 		take := min(units, e.Haul[i].Qty)
 		e.Haul[i].Qty -= take
+		e.Lost = item.AddSpoil(e.Lost, e.Haul[i].Material, take)
 		units -= take
 	}
 	e.Haul = slices.DeleteFunc(e.Haul, func(s item.Spoil) bool { return s.Qty == 0 })

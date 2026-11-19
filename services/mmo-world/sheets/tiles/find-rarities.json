@@ -1,5 +1,22 @@
 {
   "$schema": "../schema/tiles.find-rarities.schema.json",
   "sheet": "tiles.find-rarities",
-  "rows": []
+  "rows": [
+    {
+      "id": "common",
+      "chance": 0.6
+    },
+    {
+      "id": "uncommon",
+      "chance": 0.28
+    },
+    {
+      "id": "rare",
+      "chance": 0.1
+    },
+    {
+      "id": "storied",
+      "chance": 0.02
+    }
+  ]
 }

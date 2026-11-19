@@ -415,6 +415,114 @@
       "id": "item-granted",
       "kind": "item.granted",
       "weight": 30
+    },
+    {
+      "id": "character-started",
+      "kind": "character.started",
+      "weight": 5,
+      "note": "provisional"
+    },
+    {
+      "id": "trade-bought",
+      "kind": "trade.bought",
+      "weight": 1,
+      "note": "provisional"
+    },
+    {
+      "id": "mount-bought",
+      "kind": "mount.bought",
+      "weight": 15,
+      "note": "provisional"
+    },
+    {
+      "id": "mount-unfed",
+      "kind": "mount.unfed",
+      "weight": 10,
+      "note": "provisional"
+    },
+    {
+      "id": "mount-fed",
+      "kind": "mount.fed",
+      "weight": 1,
+      "note": "provisional"
+    },
+    {
+      "id": "forage-done",
+      "kind": "forage.done",
+      "weight": 1,
+      "note": "provisional"
+    },
+    {
+      "id": "character-crawled",
+      "kind": "character.crawled",
+      "weight": 20,
+      "note": "provisional"
+    },
+    {
+      "id": "item-picked",
+      "kind": "item.picked",
+      "weight": 35,
+      "note": "provisional"
+    },
+    {
+      "id": "find-made",
+      "kind": "find.made",
+      "weight": 30,
+      "note": "provisional"
+    },
+    {
+      "id": "trigger-fired",
+      "kind": "trigger.fired",
+      "weight": 5,
+      "note": "provisional"
+    },
+    {
+      "id": "node-worked-out",
+      "kind": "node.worked-out",
+      "weight": 40,
+      "note": "provisional"
+    },
+    {
+      "id": "dungeon-entered",
+      "kind": "dungeon.entered",
+      "weight": 20,
+      "note": "provisional"
+    },
+    {
+      "id": "dungeon-floor-cleared",
+      "kind": "dungeon.floor-cleared",
+      "weight": 45,
+      "note": "provisional"
+    },
+    {
+      "id": "npc-met",
+      "kind": "npc.met",
+      "weight": 5,
+      "note": "provisional"
+    },
+    {
+      "id": "npc-chose",
+      "kind": "npc.chose",
+      "weight": 10,
+      "note": "provisional"
+    },
+    {
+      "id": "npc-visit",
+      "kind": "npc.visit",
+      "weight": 15,
+      "note": "provisional"
+    },
+    {
+      "id": "kind-named",
+      "kind": "kind.named",
+      "weight": 50,
+      "note": "provisional"
+    },
+    {
+      "id": "item-equipped",
+      "kind": "item.equipped",
+      "weight": 1,
+      "note": "provisional"
     }
   ]
 }

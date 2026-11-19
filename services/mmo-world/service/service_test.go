@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -192,7 +193,7 @@ func TestScriptedWeek(t *testing.T) {
 	t.Logf("replay: %d ticks and %d actions from tick %d, every digest matched", rep.Ticks, rep.Actions, rep.From)
 
 	doubleSend(t, ctx, r, ps)
-	preview(t, ctx, r, ps)
+	preview(t, ctx, r, s, ps, week)
 
 	if strings.Contains(logs.String(), "[redacted]") {
 		t.Fatal("a key reached the log guard")
@@ -243,25 +244,49 @@ func doubleSend(t *testing.T, ctx context.Context, r *running, ps []*agent.Playe
 	}
 }
 
-// preview finds a character in a fight, previews every option, and checks
-// that no preview names a chance, a roll or an outcome, and that
+// exploreTries is how often preview explores before trying the next
+// player, and previewTicks how long the team plays on to find a beat.
+const (
+	exploreTries = 6
+	previewTicks = 72
+)
+
+// preview plays the team on until a character stands in front of a beat,
+// then checks its previews.
+func preview(t *testing.T, ctx context.Context, r *running, s *agent.Script, ps []*agent.Player, tick int64) {
+	for range previewTicks {
+		if previewOnce(t, ctx, r, ps) {
+			return
+		}
+		if err := s.Turn(ctx, tick); err != nil {
+			t.Fatal(err)
+		}
+		tick++
+		advance(t, ctx, r, tick)
+	}
+	t.Fatal("no character could be put in front of a beat to preview")
+}
+
+// previewOnce finds a character in a fight, previews every option, and
+// checks that no preview names a chance, a roll or an outcome, and that
 // previewing changes nothing.
-func preview(t *testing.T, ctx context.Context, r *running, ps []*agent.Player) {
+func previewOnce(t *testing.T, ctx context.Context, r *running, ps []*agent.Player) bool {
 	for _, p := range ps {
 		o, err := r.cli.Options(ctx, p.Character)
 		if err != nil {
 			t.Fatal(err)
 		}
+		// A thin herd can leave an explore empty: try a few times.
+		for try := 0; o.Fight == nil && o.Explore && o.Long == nil && try < exploreTries; try++ {
+			if _, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: fmt.Sprintf("explore-%s-%d", p.Discord, try), CharacterID: p.Character, Version: o.Version, Kind: api.ActExplore}); err != nil || ref != nil {
+				break
+			}
+			if o, err = r.cli.Options(ctx, p.Character); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if o.Fight == nil {
-			if !o.Explore || o.Long != nil {
-				continue
-			}
-			if _, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "explore-" + p.Discord, CharacterID: p.Character, Version: o.Version, Kind: api.ActExplore}); err != nil || ref != nil {
-				continue
-			}
-			if o, err = r.cli.Options(ctx, p.Character); err != nil || o.Fight == nil {
-				continue
-			}
+			continue
 		}
 		_, before := digest(t, ctx, r)
 		for _, opt := range o.Fight.Options {
@@ -285,9 +310,9 @@ func preview(t *testing.T, ctx context.Context, r *running, ps []*agent.Player) 
 		if _, after := digest(t, ctx, r); after != before {
 			t.Fatal("a preview changed the world")
 		}
-		return
+		return true
 	}
-	t.Fatal("no character could be put in front of a beat to preview")
+	return false
 }
 
 // TestFailedSaveReloads breaks the stored world row under a running

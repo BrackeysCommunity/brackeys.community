@@ -125,7 +125,7 @@
       "id": "weather-pace-base",
       "value": 14,
       "unit": "ticks",
-      "doc": "A system moves a tile every (this − strength ÷ weather-pace-per) ticks."
+      "doc": "A system moves a tile every (this \u2212 strength \u00f7 weather-pace-per) ticks."
     },
     {
       "id": "weather-pace-per",
@@ -261,6 +261,78 @@
       "value": 15,
       "unit": "percent",
       "doc": "provisional: not in the GDD yet; chance a tile entered in a region at the ambush line or above springs an ambush."
+    },
+    {
+      "id": "forage-min",
+      "value": 1,
+      "unit": "count",
+      "doc": "Provisions a forage tick finds at least (GDD 6.4)."
+    },
+    {
+      "id": "forage-max",
+      "value": 3,
+      "unit": "count",
+      "doc": "Provisions a forage tick finds at most, on fertile ground by water."
+    },
+    {
+      "id": "laden-enter-ticks",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Laden adds this to each tile entered (GDD 5.5)."
+    },
+    {
+      "id": "crawl-ticks",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "Crawling out of a lost fight takes this long (GDD 5.5)."
+    },
+    {
+      "id": "wound-days",
+      "value": 1,
+      "unit": "days",
+      "doc": "Wounded ends after this long, or a rest (GDD 5.5)."
+    },
+    {
+      "id": "wounded-ticks",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Wounded makes each long action this much longer (GDD 5.5)."
+    },
+    {
+      "id": "news-weight",
+      "value": 60,
+      "unit": "weight",
+      "doc": "A fact this heavy joins the news NPCs and the recap read (GDD 3.3, 4.18)."
+    },
+    {
+      "id": "news-kept",
+      "value": 256,
+      "unit": "count",
+      "doc": "News facts the world keeps in memory."
+    },
+    {
+      "id": "dungeon-refill-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "A cleared dungeon floor refills after this long (GDD 4.9)."
+    },
+    {
+      "id": "recap-range",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "The recap's heavy facts nearby fall within this many tiles (GDD 3.3)."
+    },
+    {
+      "id": "recap-lines",
+      "value": 8,
+      "unit": "count",
+      "doc": "Lines a recap shows before \"and N more\" (GDD 3.3)."
+    },
+    {
+      "id": "recap-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "How far back a recap reads at most."
     }
   ]
 }

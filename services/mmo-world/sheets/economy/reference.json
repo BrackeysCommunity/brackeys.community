@@ -1,0 +1,30 @@
+{
+  "$schema": "../schema/economy.reference.schema.json",
+  "sheet": "economy.reference",
+  "rows": [
+    {
+      "id": "tier-1",
+      "tier": 1,
+      "base": 8,
+      "median": 56
+    },
+    {
+      "id": "tier-2",
+      "tier": 2,
+      "base": 24,
+      "median": 78
+    },
+    {
+      "id": "tier-3",
+      "tier": 3,
+      "base": 72,
+      "median": 108
+    },
+    {
+      "id": "tier-4",
+      "tier": 4,
+      "base": 216,
+      "median": 140
+    }
+  ]
+}

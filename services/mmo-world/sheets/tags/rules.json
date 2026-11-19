@@ -553,6 +553,37 @@
           "score": 4
         }
       ]
+    },
+    {
+      "id": "high-ground-reaches",
+      "subject": [
+        "item",
+        "reaching"
+      ],
+      "place": [
+        "high-ground"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "nemesis-known",
+      "subject": [
+        "item"
+      ],
+      "other": [
+        "nemesis"
+      ],
+      "then": [
+        {
+          "kind": "score",
+          "score": 2
+        }
+      ]
     }
   ]
 }

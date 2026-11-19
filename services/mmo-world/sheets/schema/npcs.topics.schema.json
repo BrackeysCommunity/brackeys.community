@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "npcs.topics",
+  "title": "npcs.topics",
+  "description": "What an NPC can bring up, when, and the choices it offers (GDD 4.18).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "npcs.topics"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "when",
+          "weight",
+          "choices",
+          "line"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "when": {
+            "type": "string",
+            "enum": [
+              "first-meeting",
+              "memory",
+              "resold",
+              "sold-on",
+              "crowding",
+              "longer-road",
+              "news",
+              "trouble",
+              "promise-kept",
+              "promise-broken",
+              "rival",
+              "weather",
+              "pattern",
+              "moved-away",
+              "corruption"
+            ],
+            "x-unit": "enum"
+          },
+          "entry": {
+            "type": "string",
+            "enum": [
+              "greeted",
+              "asked",
+              "slighted",
+              "helped",
+              "wronged",
+              "traded",
+              "fought"
+            ],
+            "x-unit": "enum",
+            "description": "The memory entry a memory topic reads."
+          },
+          "atLeast": {
+            "type": "integer",
+            "x-unit": "row",
+            "description": "The predicate's threshold, in its unit column."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "coin",
+              "goods",
+              "pts",
+              "durability",
+              "xp",
+              "level",
+              "tier",
+              "load",
+              "health",
+              "defence",
+              "gauge",
+              "standing",
+              "event-points",
+              "ticks",
+              "days",
+              "percent",
+              "ratio",
+              "count",
+              "tiles",
+              "weight",
+              "chance",
+              "band-steps",
+              "beat",
+              "seconds",
+              "degrees"
+            ],
+            "x-unit": "enum"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "weight",
+            "description": "Salience before memory adds to it."
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "effect",
+                "line"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                  "x-unit": "id"
+                },
+                "effect": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "standing",
+                    "coin",
+                    "discount",
+                    "rumour",
+                    "goal"
+                  ],
+                  "x-unit": "enum"
+                },
+                "standing": {
+                  "type": "integer",
+                  "x-unit": "standing"
+                },
+                "coin": {
+                  "type": "integer",
+                  "x-unit": "coin",
+                  "description": "Positive: the NPC pays from its purse; negative: the player pays it."
+                },
+                "remember": {
+                  "type": "string",
+                  "enum": [
+                    "greeted",
+                    "asked",
+                    "slighted",
+                    "helped",
+                    "wronged",
+                    "traded",
+                    "fought"
+                  ],
+                  "x-unit": "enum"
+                },
+                "weight": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "x-unit": "weight",
+                  "description": "The salience the memory starts at."
+                },
+                "line": {
+                  "type": "string",
+                  "x-unit": "text"
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "line": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The templated line: {npc}, {role}, {thing}, {place}, {n} and {unit} come from fields."
+          }
+        }
+      }
+    }
+  }
+}

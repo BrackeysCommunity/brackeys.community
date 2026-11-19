@@ -1,0 +1,58 @@
+{
+  "$schema": "../schema/items.starts.schema.json",
+  "sheet": "items.starts",
+  "rows": [
+    {
+      "id": "hook",
+      "wear": "hand",
+      "process": "shape",
+      "method": "broad-grind",
+      "slot": "hook",
+      "inputs": [
+        {
+          "material": "reedflax",
+          "qty": 2
+        }
+      ],
+      "doc": "Reaches and pulls; leads with Flex."
+    },
+    {
+      "id": "knife",
+      "wear": "hand",
+      "process": "shape",
+      "method": "narrow-grind",
+      "slot": "blade",
+      "inputs": [
+        {
+          "material": "bog-iron",
+          "qty": 2
+        }
+      ],
+      "doc": "Cuts; leads with Edge."
+    },
+    {
+      "id": "deck",
+      "wear": "off-hand",
+      "process": "shape",
+      "method": "narrow-grind",
+      "slot": "focus",
+      "inputs": [
+        {
+          "material": "reed-ash",
+          "qty": 2
+        }
+      ],
+      "exploit": [
+        {
+          "material": "ember-salt",
+          "qty": 1
+        },
+        {
+          "material": "reed-ash",
+          "qty": 1
+        }
+      ],
+      "doc": "Runs an exploit; leads with Bond."
+    }
+  ]
+}

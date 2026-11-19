@@ -1,0 +1,116 @@
+{
+  "$schema": "../schema/npcs.roles.schema.json",
+  "sheet": "npcs.roles",
+  "rows": [
+    {
+      "id": "settlement-keeper",
+      "place": "starting-settlement",
+      "role": "keeper",
+      "count": 1,
+      "works": "market"
+    },
+    {
+      "id": "settlement-smith",
+      "place": "starting-settlement",
+      "role": "smith",
+      "count": 1,
+      "works": "forge"
+    },
+    {
+      "id": "settlement-tinker",
+      "place": "starting-settlement",
+      "role": "tinker",
+      "count": 1,
+      "works": "tinker-bench"
+    },
+    {
+      "id": "settlement-trader",
+      "place": "starting-settlement",
+      "role": "trader",
+      "count": 1,
+      "works": "market"
+    },
+    {
+      "id": "settlement-stablehand",
+      "place": "starting-settlement",
+      "role": "stablehand",
+      "count": 1,
+      "works": "stable"
+    },
+    {
+      "id": "settlement-watch",
+      "place": "starting-settlement",
+      "role": "watch captain",
+      "count": 1,
+      "works": "wall"
+    },
+    {
+      "id": "holding-captain",
+      "place": "faction-holding",
+      "role": "captain",
+      "count": 1,
+      "works": "wall"
+    },
+    {
+      "id": "holding-quartermaster",
+      "place": "faction-holding",
+      "role": "quartermaster",
+      "count": 1,
+      "works": "market"
+    },
+    {
+      "id": "structure-keeper",
+      "place": "structure",
+      "role": "keeper",
+      "count": 1,
+      "works": "structure"
+    },
+    {
+      "id": "dungeon-guard",
+      "place": "structure",
+      "role": "guard",
+      "count": 1,
+      "works": "structure"
+    },
+    {
+      "id": "road-scrapper",
+      "place": "road",
+      "role": "scrap trader",
+      "count": 1,
+      "works": "road",
+      "tags": [
+        "metal"
+      ]
+    },
+    {
+      "id": "road-drover",
+      "place": "road",
+      "role": "drover",
+      "count": 1,
+      "works": "road",
+      "tags": [
+        "herd"
+      ]
+    },
+    {
+      "id": "road-pilgrim",
+      "place": "road",
+      "role": "pilgrim",
+      "count": 1,
+      "works": "road",
+      "tags": [
+        "devout"
+      ]
+    },
+    {
+      "id": "road-scout",
+      "place": "road",
+      "role": "scout",
+      "count": 1,
+      "works": "road",
+      "tags": [
+        "exposed"
+      ]
+    }
+  ]
+}

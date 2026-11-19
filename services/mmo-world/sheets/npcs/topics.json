@@ -1,0 +1,526 @@
+{
+  "$schema": "../schema/npcs.topics.schema.json",
+  "sheet": "npcs.topics",
+  "rows": [
+    {
+      "id": "first-meeting",
+      "when": "first-meeting",
+      "weight": 20,
+      "choices": [
+        {
+          "id": "introduce",
+          "effect": "standing",
+          "line": "You give your name.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 40
+        },
+        {
+          "id": "ask-news",
+          "effect": "rumour",
+          "line": "You ask what is new.",
+          "remember": "asked",
+          "weight": 40
+        },
+        {
+          "id": "walk-on",
+          "effect": "none",
+          "line": "You nod and move on.",
+          "remember": "slighted",
+          "weight": 40
+        }
+      ],
+      "line": "{npc}, {role} here. I have not seen you before."
+    },
+    {
+      "id": "remembers-name",
+      "when": "memory",
+      "entry": "greeted",
+      "weight": 30,
+      "choices": [
+        {
+          "id": "greet",
+          "effect": "standing",
+          "line": "You greet them by name.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "ask-news",
+          "effect": "rumour",
+          "line": "You ask what has changed.",
+          "remember": "asked",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} knows your name: \"Back again, and still walking.\""
+    },
+    {
+      "id": "remembers-question",
+      "when": "memory",
+      "entry": "asked",
+      "weight": 32,
+      "choices": [
+        {
+          "id": "ask-more",
+          "effect": "rumour",
+          "line": "You ask what they heard.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "thank",
+          "effect": "standing",
+          "line": "You thank them.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        }
+      ],
+      "line": "{npc}: \"You were asking about the road. I have heard more since.\""
+    },
+    {
+      "id": "cold-shoulder",
+      "when": "memory",
+      "entry": "slighted",
+      "weight": 34,
+      "choices": [
+        {
+          "id": "apologise",
+          "effect": "standing",
+          "line": "You apologise.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "walk-on",
+          "effect": "none",
+          "line": "You walk past again.",
+          "remember": "slighted",
+          "weight": 40
+        }
+      ],
+      "line": "{npc} remembers you walked past without a word."
+    },
+    {
+      "id": "debt",
+      "when": "memory",
+      "entry": "helped",
+      "weight": 50,
+      "choices": [
+        {
+          "id": "call-in",
+          "effect": "coin",
+          "line": "You call it in.",
+          "coin": 10,
+          "remember": "traded",
+          "weight": 30
+        },
+        {
+          "id": "forgive",
+          "effect": "standing",
+          "line": "You forgive it.",
+          "standing": 3,
+          "remember": "greeted",
+          "weight": 40
+        }
+      ],
+      "line": "{npc} owes you for your help, and says so."
+    },
+    {
+      "id": "grudge",
+      "when": "memory",
+      "entry": "wronged",
+      "weight": 70,
+      "choices": [
+        {
+          "id": "amends",
+          "effect": "coin",
+          "line": "You make amends.",
+          "coin": -10,
+          "remember": "greeted",
+          "weight": 40
+        },
+        {
+          "id": "threaten",
+          "effect": "standing",
+          "line": "You threaten them.",
+          "standing": -3,
+          "remember": "wronged",
+          "weight": 60
+        },
+        {
+          "id": "walk-away",
+          "effect": "none",
+          "line": "You walk away.",
+          "remember": "slighted",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} has not forgotten what you did."
+    },
+    {
+      "id": "traded",
+      "when": "memory",
+      "entry": "traded",
+      "weight": 40,
+      "choices": [
+        {
+          "id": "ask-price",
+          "effect": "none",
+          "line": "You ask what it fetches now.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "ask-discount",
+          "effect": "discount",
+          "line": "You ask for a standing discount.",
+          "remember": "traded",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} remembers the {thing} you sold at this market."
+    },
+    {
+      "id": "fought-beside",
+      "when": "memory",
+      "entry": "fought",
+      "weight": 55,
+      "choices": [
+        {
+          "id": "recall",
+          "effect": "standing",
+          "line": "You recall it together.",
+          "standing": 2,
+          "remember": "greeted",
+          "weight": 40
+        },
+        {
+          "id": "ask-hunt",
+          "effect": "none",
+          "line": "You ask them to come next time.",
+          "remember": "fought",
+          "weight": 40
+        }
+      ],
+      "line": "{npc} was there when you beat the {thing}."
+    },
+    {
+      "id": "thanks-for-a-sale",
+      "when": "resold",
+      "atLeast": 200,
+      "unit": "coin",
+      "weight": 60,
+      "choices": [
+        {
+          "id": "take-gift",
+          "effect": "coin",
+          "line": "You take a share.",
+          "coin": 5,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "ask-discount",
+          "effect": "discount",
+          "line": "You ask for a standing discount.",
+          "remember": "traded",
+          "weight": 30
+        },
+        {
+          "id": "ask-news",
+          "effect": "rumour",
+          "line": "You ask for news instead.",
+          "remember": "asked",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} sold on what you brought them, for {n} {unit} over what they paid."
+    },
+    {
+      "id": "sold-on",
+      "when": "sold-on",
+      "weight": 40,
+      "choices": [
+        {
+          "id": "ask-who",
+          "effect": "none",
+          "line": "You ask who.",
+          "remember": "asked",
+          "weight": 20
+        },
+        {
+          "id": "shrug",
+          "effect": "none",
+          "line": "You shrug."
+        }
+      ],
+      "line": "{npc} says what you sold them is in someone else's hands now: {thing}."
+    },
+    {
+      "id": "crowding",
+      "when": "crowding",
+      "atLeast": 10,
+      "unit": "count",
+      "weight": 35,
+      "choices": [
+        {
+          "id": "sympathise",
+          "effect": "standing",
+          "line": "You sympathise.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "ask-work",
+          "effect": "none",
+          "line": "You ask for work.",
+          "remember": "asked",
+          "weight": 20
+        }
+      ],
+      "line": "{npc} says the region is filling up: {n} {unit} built in two weeks."
+    },
+    {
+      "id": "a-longer-road",
+      "when": "longer-road",
+      "atLeast": 25,
+      "unit": "percent",
+      "weight": 35,
+      "choices": [
+        {
+          "id": "clear-path",
+          "effect": "goal",
+          "line": "You say you will clear it.",
+          "remember": "helped",
+          "weight": 40
+        },
+        {
+          "id": "shrug",
+          "effect": "none",
+          "line": "You shrug."
+        }
+      ],
+      "line": "{npc}'s road takes {n} {unit} longer than when they first walked it."
+    },
+    {
+      "id": "news",
+      "when": "news",
+      "atLeast": 60,
+      "unit": "weight",
+      "weight": 45,
+      "choices": [
+        {
+          "id": "ask-more",
+          "effect": "rumour",
+          "line": "You ask for more.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "pass-on",
+          "effect": "none",
+          "line": "You let it pass."
+        }
+      ],
+      "line": "{npc} heard about {thing} near {place}."
+    },
+    {
+      "id": "its-own-trouble",
+      "when": "trouble",
+      "atLeast": 600,
+      "unit": "gauge",
+      "weight": 50,
+      "choices": [
+        {
+          "id": "help",
+          "effect": "standing",
+          "line": "You promise to help.",
+          "standing": 2,
+          "remember": "helped",
+          "weight": 60
+        },
+        {
+          "id": "offer-coin",
+          "effect": "coin",
+          "line": "You offer coin.",
+          "coin": -5,
+          "remember": "helped",
+          "weight": 50
+        },
+        {
+          "id": "leave",
+          "effect": "none",
+          "line": "You leave them to it.",
+          "remember": "slighted",
+          "weight": 20
+        }
+      ],
+      "line": "{npc}'s home has had it hard: {thing}."
+    },
+    {
+      "id": "promise-kept",
+      "when": "promise-kept",
+      "weight": 60,
+      "choices": [
+        {
+          "id": "accept",
+          "effect": "standing",
+          "line": "You accept their thanks.",
+          "standing": 2,
+          "remember": "greeted",
+          "weight": 40
+        },
+        {
+          "id": "ask-favour",
+          "effect": "rumour",
+          "line": "You ask a favour.",
+          "remember": "asked",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} saw you do what you said."
+    },
+    {
+      "id": "promise-broken",
+      "when": "promise-broken",
+      "weight": 60,
+      "choices": [
+        {
+          "id": "apologise",
+          "effect": "coin",
+          "line": "You apologise.",
+          "coin": -5,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "ignore",
+          "effect": "standing",
+          "line": "You ignore it.",
+          "standing": -2,
+          "remember": "wronged",
+          "weight": 50
+        }
+      ],
+      "line": "{npc} waited for you, and you did not come."
+    },
+    {
+      "id": "rival-trader",
+      "when": "rival",
+      "atLeast": 3,
+      "unit": "count",
+      "weight": 40,
+      "choices": [
+        {
+          "id": "commiserate",
+          "effect": "standing",
+          "line": "You commiserate.",
+          "standing": 1,
+          "remember": "greeted",
+          "weight": 30
+        },
+        {
+          "id": "shrug",
+          "effect": "none",
+          "line": "You shrug."
+        }
+      ],
+      "line": "{npc} was undersold {n} {unit} this week."
+    },
+    {
+      "id": "weather-talk",
+      "when": "weather",
+      "atLeast": 60,
+      "unit": "gauge",
+      "weight": 30,
+      "choices": [
+        {
+          "id": "ask-forecast",
+          "effect": "rumour",
+          "line": "You ask when it passes.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "offer-escort",
+          "effect": "standing",
+          "line": "You offer to walk with them.",
+          "standing": 1,
+          "remember": "helped",
+          "weight": 50
+        }
+      ],
+      "line": "{npc} watches the sky: {thing} is over the road."
+    },
+    {
+      "id": "pattern-rumour",
+      "when": "pattern",
+      "weight": 40,
+      "choices": [
+        {
+          "id": "ask-clue",
+          "effect": "rumour",
+          "line": "You ask for the clue.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "leave",
+          "effect": "none",
+          "line": "You leave it."
+        }
+      ],
+      "line": "{npc} has heard of a strange shape near {place}."
+    },
+    {
+      "id": "moved-away",
+      "when": "moved-away",
+      "weight": 30,
+      "choices": [
+        {
+          "id": "ask-where",
+          "effect": "rumour",
+          "line": "You ask where they went.",
+          "remember": "asked",
+          "weight": 20
+        },
+        {
+          "id": "leave",
+          "effect": "none",
+          "line": "You let it be."
+        }
+      ],
+      "line": "{npc}'s neighbour moved away: {thing}."
+    },
+    {
+      "id": "corruption-creep",
+      "when": "corruption",
+      "atLeast": 500,
+      "unit": "gauge",
+      "weight": 45,
+      "choices": [
+        {
+          "id": "ask-where",
+          "effect": "rumour",
+          "line": "You ask where it started.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "offer-cull",
+          "effect": "standing",
+          "line": "You offer to cull it.",
+          "standing": 2,
+          "remember": "helped",
+          "weight": 50
+        }
+      ],
+      "line": "{npc} says the rot is spreading: {n} {unit} here now."
+    }
+  ]
+}

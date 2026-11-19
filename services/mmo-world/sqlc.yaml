@@ -6,6 +6,7 @@ sql:
   - engine: postgresql
     schema:
       - ../../drizzle/20261118220241_mmo-world/migration.sql
+      - ../../drizzle/20261119123214_mmo-npc/migration.sql
     queries: store/queries.sql
     gen:
       go:

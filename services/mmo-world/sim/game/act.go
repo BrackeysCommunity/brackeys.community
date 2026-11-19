@@ -49,6 +49,26 @@ type Command struct {
 	Asset    string   `json:"asset,omitempty"`
 	Units    int64    `json:"units,omitempty"`
 	Note     string   `json:"note,omitempty"`
+	// Item and Slot name a carried item and where it goes.
+	Item string `json:"item,omitempty"`
+	Slot string `json:"slot,omitempty"`
+	// Recipe is a craft's recipe.
+	Recipe *item.Recipe `json:"recipe,omitempty"`
+	// Stop holds a route's stop conditions (GDD 6.1).
+	Stop *Stop `json:"stop,omitempty"`
+	// NPC names who a conversation is with.
+	NPC string `json:"npc,omitempty"`
+	// Server is a new character's Discord server, for naming consent.
+	Server string `json:"server,omitempty"`
+}
+
+// Stop is when a journey halts on its own: before a region at or above a
+// threat, when provisions would run out, or at the first tile nobody has
+// entered.
+type Stop struct {
+	Threat     int64 `json:"threat,omitempty"`
+	Provisions bool  `json:"provisions,omitempty"`
+	Unknown    bool  `json:"unknown,omitempty"`
 }
 
 // Operator reports whether a command kind is for operators only.
@@ -77,6 +97,7 @@ const (
 	BannedCode = "banned"
 	NoFight    = "no-encounter"
 	InActivity = "needs-activity"
+	DownCode   = "down"
 )
 
 // Result is what a command did.
@@ -99,6 +120,12 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	var pressed []fight.Pressed
 	if cmd.Kind == Create {
 		c, err = g.create()
+		if err == nil {
+			c.Server = cmd.Server
+		}
+		if err == nil && cmd.Option != "" {
+			err = g.start(c, cmd.Key, cmd.Option)
+		}
 	} else {
 		if c = g.Char(cmd.Char); c == nil {
 			return Result{}, refuse(NoSuchChar, "no character %q", cmd.Char)
@@ -138,6 +165,36 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.grant(c, cmd)
 	case Ban, Unban:
 		return nil, g.ban(c, cmd.Kind == Ban, cmd.Note)
+	case Sell:
+		return nil, g.sell(c, cmd)
+	case Buy:
+		return nil, g.buy(c, cmd)
+	case Feed:
+		return nil, g.feed(c, cmd)
+	case Equip:
+		return nil, g.equip(c, cmd)
+	case Craft:
+		return nil, g.craftCmd(c, cmd)
+	case Repair:
+		return nil, g.repair(c, cmd)
+	case Pick:
+		return nil, g.pick(c, cmd)
+	case Forage:
+		return nil, g.forage(c, cmd)
+	case Crawl:
+		return nil, g.crawl(c, cmd)
+	case Search:
+		return nil, g.search(c, cmd)
+	case Stash:
+		return nil, g.stash(c, cmd)
+	case Talk:
+		return nil, g.talk(c, cmd)
+	case Choose:
+		return nil, g.choose(c, cmd)
+	case Consent:
+		return nil, g.consent(c, cmd)
+	case Look:
+		return nil, g.look(c)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
@@ -170,8 +227,11 @@ const (
 )
 
 // free reports why a character cannot start something new: a long action
-// running or an encounter open.
+// running, an encounter open, or down.
 func free(c *Char) error {
+	if slices.ContainsFunc(c.C.Conditions, func(x char.Condition) bool { return x.Tag == char.Down }) {
+		return refuse(DownCode, "%s is down", c.C.ID)
+	}
 	if c.Long != nil {
 		return refuse(Busy, "%s is already %s", c.C.ID, c.Long.Kind)
 	}
@@ -189,6 +249,11 @@ func (g *Game) explore(c *Char) error {
 	if !g.CanExplore(c.C.At) {
 		return refuse(NotHere, "nothing to explore on this tile")
 	}
+	if g.thin(c, c.C.At) {
+		c.Encounters++
+		_, err := g.fact(c, "trigger.fired", g.Tick(), fact.S("trigger", TrigThin))
+		return err
+	}
 	return g.begin(c, false, 0)
 }
 
@@ -203,11 +268,20 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	c.Encounters++
 	id := "e-" + c.C.ID + "-" + strconv.FormatInt(c.Encounters, decimal)
 	arch := kinds[g.r.draw.Below(uint64(len(kinds)), "game.creature", draw.Str(id))]
-	place := g.World.Place(h).Tags()
+	extra, high := g.encounterTags(c, h, arch)
+	place := append(g.World.Place(h).Tags(), high...)
 	ms := g.measures(h)
-	cr := g.r.Fight.Spawn(arch, nil, place, ms)
-	e := g.r.Fight.Assemble(fight.Site{ID: id, Place: "tile:" + h.Ref(), Tags: place, Measures: ms, Party: 1}, cr)
+	cr := g.r.Fight.Spawn(arch, extra, place, ms)
+	site := fight.Site{ID: id, Place: "tile:" + h.Ref(), Tags: place, Measures: ms, Party: 1}
+	if !ambush && g.IsDungeon(h) {
+		site.Floor, site.Place = firstFloor, "floor:"+h.Ref()+"/"+strconv.Itoa(firstFloor)
+	}
+	e := g.r.Fight.Assemble(site, cr)
 	c.Fight = &Fight{E: e, Measures: ms, Ambush: ambush, Due: due}
+	if site.Floor > 0 {
+		_, err := g.fact(c, "dungeon.entered", g.Tick(), fact.N("floor", site.Floor), fact.N("q", h.Q), fact.N("r", h.R))
+		return err
+	}
 	return nil
 }
 
@@ -271,9 +345,22 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 			}
 		}
 	}
+	if err := g.drop(c, key, e.Lost, tick); err != nil {
+		return err
+	}
 	switch e.Result {
 	case fight.Won:
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActSlay, Hex: c.C.At, By: char.Ref(c.C.ID), Species: e.Creature.Archetype})
+		if e.Floor > 0 {
+			g.Pending = append(g.Pending, world.Action{Kind: world.ActClearFloor, Hex: c.C.At, By: char.Ref(c.C.ID), Units: e.Floor})
+			c.C.Deepest.Bump(c.C.At.Ref(), max(0, e.Floor-c.C.Deepest.Get(c.C.At.Ref())))
+			if _, err := g.fact(c, "dungeon.floor-cleared", tick, fact.N("floor", e.Floor), fact.N("q", c.C.At.Q), fact.N("r", c.C.At.R)); err != nil {
+				return err
+			}
+		}
+		if err := g.fought(c, c.C.At, e.Creature.Archetype, tick); err != nil {
+			return err
+		}
 	case fight.Lost:
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActFall, Hex: c.C.At, By: char.Ref(c.C.ID)})
 	}

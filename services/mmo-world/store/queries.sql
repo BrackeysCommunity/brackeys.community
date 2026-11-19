@@ -61,6 +61,28 @@ INSERT INTO mmo.character (world_id, id, discord_id, version, q, r, banned, body
 UPDATE mmo.character SET version = @version, q = @q, r = @r, banned = @banned, body = @body
 WHERE world_id = @world_id AND id = @id AND version = @was;
 
+-- name: ListNPCs :many
+SELECT * FROM mmo.npc WHERE world_id = $1 ORDER BY seq;
+
+-- name: UpsertNPC :exec
+INSERT INTO mmo.npc (world_id, seq, id, body) VALUES ($1, $2, $3, $4)
+ON CONFLICT (world_id, seq) DO UPDATE SET body = excluded.body;
+
+-- name: DeleteWorldNPCs :exec
+DELETE FROM mmo.npc WHERE world_id = $1;
+
+-- name: FactsAbout :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND tick > @since AND subjects @> @subject::jsonb
+ORDER BY id DESC LIMIT @lim;
+
+-- name: HeavyFactsSince :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND tick > @since AND weight >= @weight
+ORDER BY id DESC LIMIT @lim;
+
+-- name: RecentFactsIn :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region
+ORDER BY id DESC LIMIT @lim;
+
 -- name: InsertFacts :copyfrom
 INSERT INTO mmo.fact (world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);

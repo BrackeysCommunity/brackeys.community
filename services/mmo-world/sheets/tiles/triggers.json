@@ -1,0 +1,97 @@
+{
+  "$schema": "../schema/tiles.triggers.schema.json",
+  "sheet": "tiles.triggers",
+  "rows": [
+    {
+      "id": "spoils-of-war",
+      "on": "arrive",
+      "chance": 0.25,
+      "magnitude": 6,
+      "unit": "goods",
+      "doc": "A find from the tile's spoils pool where battles were fought in the window; magnitude is the most it takes.",
+      "window": 1008
+    },
+    {
+      "id": "what-fell-here",
+      "on": "arrive",
+      "chance": 1,
+      "magnitude": 30,
+      "unit": "goods",
+      "doc": "Your own lost haul, found where you went down, if it is still in the pool.",
+      "window": 1008
+    },
+    {
+      "id": "recognised",
+      "on": "meet",
+      "chance": 1,
+      "magnitude": 5,
+      "unit": "standing",
+      "doc": "Someone who knows what you carry greets you differently: standing on a first meeting while you hold an item of their trade.",
+      "tag": "marked"
+    },
+    {
+      "id": "nemesis",
+      "on": "explore",
+      "chance": 1,
+      "magnitude": 2,
+      "unit": "pts",
+      "doc": "The species that has downed you most gets a line, and you a slightly better opening against it.",
+      "tag": "nemesis"
+    },
+    {
+      "id": "thin-herds",
+      "on": "explore",
+      "chance": 0.5,
+      "magnitude": 25,
+      "unit": "percent",
+      "doc": "Under this share of the tile's capacity, an encounter is this likely not to happen.",
+      "tag": "thin-herd"
+    },
+    {
+      "id": "high-ground",
+      "on": "explore",
+      "chance": 1,
+      "magnitude": 15,
+      "unit": "count",
+      "doc": "Elevation this far above the tile you came from: ranged and reach options one band better.",
+      "tag": "high-ground"
+    },
+    {
+      "id": "low-water",
+      "on": "arrive",
+      "chance": 1,
+      "magnitude": 1,
+      "unit": "ticks",
+      "doc": "A river or stream under drought is crossed at this cost.",
+      "tag": "drought"
+    },
+    {
+      "id": "follow-the-trail",
+      "on": "arrive",
+      "chance": 1,
+      "magnitude": 6,
+      "unit": "ticks",
+      "doc": "Tracks this recent on the tile give an option to follow whoever passed.",
+      "window": 6,
+      "tag": "trail"
+    },
+    {
+      "id": "the-cache",
+      "on": "arrive",
+      "chance": 1,
+      "magnitude": 1,
+      "unit": "count",
+      "doc": "Someone who heard a cache's rumour may search for it.",
+      "tag": "hidden"
+    },
+    {
+      "id": "worked-out",
+      "on": "gather",
+      "chance": 1,
+      "magnitude": 100,
+      "unit": "percent",
+      "doc": "A node gathered past its stock tags worked-out until it recovers.",
+      "tag": "worked-out"
+    }
+  ]
+}

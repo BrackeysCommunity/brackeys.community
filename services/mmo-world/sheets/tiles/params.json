@@ -19,6 +19,12 @@
       "value": 40,
       "unit": "weight",
       "doc": "A fact this heavy or heavier joins its tile's event ring."
+    },
+    {
+      "id": "node-stock",
+      "value": 24,
+      "unit": "goods",
+      "doc": "Units of each material a tile's node holds before it is worked out; what is gathered decays back by the gathered counter."
     }
   ]
 }

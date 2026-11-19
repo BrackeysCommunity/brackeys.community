@@ -90,7 +90,7 @@ func (s *Store) wipe(ctx context.Context, q *db.Queries) error {
 	}
 	for _, del := range []func(context.Context, string) error{
 		q.DeleteWorldFacts, q.DeleteWorldLedgerEntries, q.DeleteWorldLedgerTxns, q.DeleteWorldActions, q.DeleteWorldTicks,
-		q.DeleteWorldSnapshots, q.DeleteWorldCharacters, q.DeleteWorldTiles, q.DeleteWorldNotables, q.DeleteWorldFactions,
+		q.DeleteWorldSnapshots, q.DeleteWorldCharacters, q.DeleteWorldNPCs, q.DeleteWorldTiles, q.DeleteWorldNotables, q.DeleteWorldFactions,
 		q.DeleteWorldRegions, q.DeleteWorld,
 	} {
 		if err := del(ctx, s.World); err != nil {

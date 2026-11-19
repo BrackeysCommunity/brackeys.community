@@ -1,0 +1,90 @@
+{
+  "$schema": "../schema/npcs.params.schema.json",
+  "sheet": "npcs.params",
+  "rows": [
+    {
+      "id": "memory-cap",
+      "value": 40,
+      "unit": "count",
+      "doc": "Entries an NPC keeps; the rest fold into its summary (GDD 4.18)."
+    },
+    {
+      "id": "salience-decay",
+      "value": 2,
+      "unit": "weight",
+      "doc": "Salience lost per world day."
+    },
+    {
+      "id": "personal-decay-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "What a player did to the NPC decays at this share of the rate."
+    },
+    {
+      "id": "gossip-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "Gossip is heard at this share of its salience."
+    },
+    {
+      "id": "route-max",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "A daily route's longest loop."
+    },
+    {
+      "id": "route-reach",
+      "value": 3,
+      "unit": "tiles",
+      "doc": "How far from home a route wanders."
+    },
+    {
+      "id": "topics-shown",
+      "value": 3,
+      "unit": "count",
+      "doc": "Topics a meeting shows at most."
+    },
+    {
+      "id": "visit-salience",
+      "value": 60,
+      "unit": "weight",
+      "doc": "A topic this salient about a player queues a visit."
+    },
+    {
+      "id": "wanderer-chance",
+      "value": 0.2,
+      "unit": "chance",
+      "doc": "Entering a road or a populated tile meets a wanderer this often."
+    },
+    {
+      "id": "dormant-days",
+      "value": 42,
+      "unit": "days",
+      "doc": "An NPC nobody meets for this long goes dormant."
+    },
+    {
+      "id": "news-range",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "News reaches an NPC from facts this close to home."
+    },
+    {
+      "id": "dossier-entries",
+      "value": 8,
+      "unit": "count",
+      "doc": "Memory entries a dossier carries."
+    },
+    {
+      "id": "fought-weight",
+      "value": 50,
+      "unit": "weight",
+      "doc": "Salience of a fight won beside an NPC."
+    },
+    {
+      "id": "traded-weight",
+      "value": 40,
+      "unit": "weight",
+      "doc": "Salience of a sale at an NPC's market."
+    }
+  ]
+}

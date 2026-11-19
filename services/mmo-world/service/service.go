@@ -67,6 +67,7 @@ type Server struct {
 	tick    atomic.Int64 // the world's tick, for readers that must not wait on a running tick
 	ready   atomic.Bool
 	audit   time.Time
+	media   media
 }
 
 // Open takes the world's lock (waiting while another service holds it),

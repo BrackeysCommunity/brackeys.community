@@ -12,13 +12,16 @@ import (
 
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
@@ -31,10 +34,16 @@ type Rules struct {
 	Fight   *fight.Rules
 	Mounts  *item.Mounts
 	Growth  *item.Growth
-	draw    *draw.Drawer
-	roll    draw.Key
-	weights fact.Weights
-	limits  char.Limits
+	Crafter *craft.Crafter
+	NPC     *npc.Rules
+	Values  *econ.Values
+	names   map[string]string // pack names by sheet:id
+	// processStations lists the stations each process is done at.
+	processStations map[string][]string
+	draw            *draw.Drawer
+	roll            draw.Key
+	weights         fact.Weights
+	limits          char.Limits
 }
 
 // NewRules wires the systems under a world's keys.
@@ -47,8 +56,16 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, draw: draw.NewDrawer(k.Roll),
-		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params())}, nil
+	r := &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
+		Values: econ.New(b), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
+		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params())}
+	for _, n := range b.Names {
+		r.names[n.Ref] = n.Name
+	}
+	for _, p := range b.Processes {
+		r.processStations[p.ID] = p.Stations
+	}
+	return r, nil
 }
 
 func (r *Rules) wp(id string) int64 { return sheets.IntParam(r.Book.WorldParams, id) }
@@ -66,6 +83,23 @@ type Char struct {
 	Fight *Fight `json:"fight,omitempty"`
 	// Encounters counts encounters begun, naming each one.
 	Encounters int64 `json:"encounters"`
+	// Start is the thing it chose to have carried (GDD 3.1).
+	Start string `json:"start,omitempty"`
+	// Rode is ticks ridden this world day; Owed the upkeep its mount was
+	// not fed (GDD 6.2).
+	Rode int64 `json:"rode,omitempty"`
+	Owed int64 `json:"owed,omitempty"`
+	// Seen is the tick its owner last opened the hub, for the recap.
+	Seen int64 `json:"seen,omitempty"`
+	// Server is the Discord server it plays from; HideSame and NameOther
+	// are its naming consent (GDD 4.18).
+	Server    string `json:"server,omitempty"`
+	HideSame  bool   `json:"hideSame,omitempty"`
+	NameOther bool   `json:"nameOther,omitempty"`
+	// Dropped is haul it lost and may find again; Finds what triggers
+	// turned up for it, newest last.
+	Dropped []Dropped `json:"dropped,omitempty"`
+	Finds   []Find    `json:"finds,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -86,6 +120,10 @@ type Game struct {
 	Ledger   ledger.Book    `json:"ledger"`
 	Pending  []world.Action `json:"pending"` // world effects of commands, for the next tick
 	NextChar int64          `json:"nextChar"`
+	Kinds    Kinds          `json:"kinds"`
+	Left     []*Left        `json:"left,omitempty"` // items lying on tiles
+	NPCs     npc.Book       `json:"npcs"`
+	News     []News         `json:"news"`
 	Log      *fact.Tail     `json:"log"`
 	r        *Rules
 }
@@ -96,12 +134,17 @@ func New(r *Rules) (*Game, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Game{World: s, Chars: []*Char{}, Pending: []world.Action{}, Log: &fact.Tail{}, r: r}, nil
+	g := &Game{World: s, Chars: []*Char{}, Pending: []world.Action{}, Log: &fact.Tail{}, Kinds: Kinds{List: []*item.Kind{}, Made: []KindCount{}},
+		NPCs: npc.Book{List: []*npc.NPC{}}, News: []News{}, r: r}
+	r.Fight.D.Reg = &g.Kinds
+	return g, nil
 }
 
 // Attach binds a decoded game to its rules.
 func (g *Game) Attach(r *Rules) {
 	g.r = r
+	r.Fight.D.Reg = &g.Kinds
+	g.NPCs.Rebuild()
 	g.World.Attach(r.Book, r.Gen, r.roll)
 	if g.Log == nil {
 		g.Log = &fact.Tail{}
@@ -134,7 +177,13 @@ func byID(c *Char, id string) int { return cmp.Compare(c.C.ID, id) }
 
 // Digest is the game's identity: its state, the ledger and the chain over
 // every fact, as replays compare it.
-func (g *Game) Digest() (canon.Sum, error) { return canon.Digest(g) }
+// Saved NPCs count through the book's chain alone, so the digest of a
+// world day does not grow with them.
+func (g *Game) Digest() (canon.Sum, error) {
+	view := *g
+	view.NPCs = npc.Book{Chain: g.NPCs.Chain}
+	return canon.Digest(&view)
+}
 
 // Flush hands over the facts and ledger transactions written since the
 // last flush, for a store.
@@ -161,6 +210,9 @@ func HoldingsOf(chars []*Char) []ledger.Balance {
 		}
 		for _, in := range c.C.Pack {
 			add(ledger.Item(in.ID), 1)
+			if in.Exploit != nil {
+				add(ledger.Item(in.Exploit.ID), 1)
+			}
 		}
 	}
 	return out

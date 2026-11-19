@@ -5,6 +5,7 @@ import (
 
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/tile"
 )
 
 // Action is something a player (or the harness acting as one) does to the
@@ -25,11 +26,12 @@ type Action struct {
 const (
 	ActOpenSettlement = "open-settlement"
 	ActDiscover       = "discover"
-	ActVisit          = "visit"    // arrive on Hex, having left the tile behind in direction Dir
-	ActGather         = "gather"   // Units of Material taken on Hex
-	ActWinBeat        = "win-beat" // a beat won on Hex against a creature carrying Tag
-	ActSlay           = "slay"     // one of Species slain on Hex
-	ActFall           = "fall"     // a character went down on Hex
+	ActVisit          = "visit"       // arrive on Hex, having left the tile behind in direction Dir
+	ActGather         = "gather"      // Units of Material taken on Hex
+	ActWinBeat        = "win-beat"    // a beat won on Hex against a creature carrying Tag
+	ActSlay           = "slay"        // one of Species slain on Hex
+	ActFall           = "fall"        // a character went down on Hex
+	ActClearFloor     = "clear-floor" // floor Units of the dungeon on Hex cleared
 )
 
 // actions is every action kind: what it needs to be applied, checked
@@ -82,6 +84,20 @@ var actions = map[string]struct {
 	}},
 	ActFall: {nil, func(s *State, _ fact.Log, a Action) error {
 		s.touch(a.Hex).BattlesLost++
+		return nil
+	}},
+	ActClearFloor: {func(_ *State, a Action) error {
+		if a.Units <= 0 {
+			return fmt.Errorf("world: clear of floor %d", a.Units)
+		}
+		return nil
+	}, func(s *State, _ fact.Log, a Action) error {
+		t := s.touch(a.Hex)
+		if t.Dungeon == nil {
+			t.Dungeon = &tile.Dungeon{}
+		}
+		t.Dungeon.FloorsCleared = max(t.Dungeon.FloorsCleared, a.Units)
+		t.Dungeon.ClearedAt = s.Tick
 		return nil
 	}},
 }

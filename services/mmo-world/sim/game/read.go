@@ -4,6 +4,7 @@ import (
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/sheets"
 )
 
 // Move is one of the six steps from where a character stands.
@@ -77,11 +78,27 @@ func (g *Game) Choose(c *Char) Choices {
 func (g *Game) CanRest(h hex.Hex) bool { return g.r.Gen.Baseline(h).Site == gen.PlaceSettlement }
 
 // CanExplore reports whether a tile has a site to explore and something
-// living there to meet.
+// living there to meet; a dungeon's first floor, once cleared, waits for
+// its refill.
 func (g *Game) CanExplore(h hex.Hex) bool {
 	site := g.r.Gen.Baseline(h).Site
-	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Creatures(h)) > 0
+	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Creatures(h)) > 0 && !g.FloorCleared(h)
 }
+
+// FloorCleared reports whether a dungeon's first floor is cleared and not
+// yet refilled (GDD 4.9).
+func (g *Game) FloorCleared(h hex.Hex) bool {
+	t := g.World.Tile(h)
+	return t != nil && t.Dungeon != nil && t.Dungeon.FloorsCleared >= firstFloor &&
+		g.Tick()-t.Dungeon.ClearedAt < g.r.wp("dungeon-refill-days")*sheets.TicksPerDay
+}
+
+// IsDungeon reports whether a tile is a dungeon's entrance.
+func (g *Game) IsDungeon(h hex.Hex) bool { return g.r.Gen.Baseline(h).Site == gen.PlaceDungeon }
+
+// structural: the one floor the solo loop reaches; deeper floors are
+// party play.
+const firstFloor = 1
 
 // BandName is the odds band an option's band rank names.
 func (g *Game) BandName(rank int64) string { return g.r.Fight.BandName(rank) }

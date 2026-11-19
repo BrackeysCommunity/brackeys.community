@@ -641,6 +641,22 @@
     {
       "id": "toll",
       "kind": "property"
+    },
+    {
+      "id": "high-ground",
+      "kind": "property"
+    },
+    {
+      "id": "nemesis",
+      "kind": "disposition"
+    },
+    {
+      "id": "thin-herd",
+      "kind": "state"
+    },
+    {
+      "id": "trail",
+      "kind": "state"
     }
   ]
 }

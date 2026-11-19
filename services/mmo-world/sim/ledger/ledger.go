@@ -13,10 +13,12 @@ import (
 	"jams.team/mmo-world/sim/fact"
 )
 
-// Account kinds, by prefix. A holder never goes below zero; a source only
-// gives and a sink only takes.
+// Account kinds, by prefix. A holder or a pool never goes below zero; a
+// source only gives and a sink only takes. A pool holds what lies in the
+// world rather than with a character: a tile's spoils, an NPC's purse.
 const (
 	Holder = "char:"
+	Pool   = "pool:"
 	Source = "src:"
 	Sink   = "sink:"
 )
@@ -36,9 +38,18 @@ const (
 	FromSalvage  = Source + "salvage"
 	FromFaction  = Source + "faction"
 	FromOperator = Source + "operator"
+	FromMarket   = Source + "market"
+	FromCraft    = Source + "craft"
+	FromForage   = Source + "forage"
+	FromStart    = Source + "start"
 	ToProvisions = Sink + "provisions"
 	ToLost       = Sink + "lost"
 	ToOperator   = Sink + "operator"
+	ToFaction    = Sink + "faction"
+	ToFees       = Sink + "fees"
+	ToMarket     = Sink + "market"
+	ToCraft      = Sink + "craft"
+	ToUpkeep     = Sink + "upkeep"
 )
 
 // Material, Item and Char name a material asset, an item asset and a
@@ -46,6 +57,10 @@ const (
 func Material(id string) string { return matPrefix + id }
 func Item(id string) string     { return itemPrefix + id }
 func Char(id string) string     { return Holder + id }
+
+// TilePool is the spoils pool of a tile, by its ref; NPCPool an NPC's purse.
+func TilePool(ref string) string { return Pool + "tile:" + ref }
+func NPCPool(id string) string   { return Pool + "npc:" + id }
 
 // MaterialOf reads a material asset back.
 func MaterialOf(asset string) (string, bool) { return strings.CutPrefix(asset, matPrefix) }
@@ -143,7 +158,7 @@ func (b *Book) Check(t Txn) error {
 		}
 		after := b.Of(l.Account, l.Asset) + moved[pair{l.Account, l.Asset}]
 		switch {
-		case strings.HasPrefix(l.Account, Holder):
+		case strings.HasPrefix(l.Account, Holder), strings.HasPrefix(l.Account, Pool):
 			if after < 0 {
 				return fmt.Errorf("ledger %s: %s would hold %d %s", t.Key, l.Account, after, l.Asset)
 			}

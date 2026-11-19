@@ -92,6 +92,7 @@ type Rumour struct {
 
 type Dungeon struct {
 	FloorsCleared  int64      `json:"floorsCleared"`
+	ClearedAt      int64      `json:"clearedAt,omitempty"` // tick the deepest cleared floor was cleared
 	Fell           []fact.Ref `json:"fell,omitempty"`
 	GuardianHealth int64      `json:"guardianHealth"`
 }

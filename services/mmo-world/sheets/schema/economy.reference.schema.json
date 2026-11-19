@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "economy.reference",
+  "title": "economy.reference",
+  "description": "Each tier's base value and median vector total (GDD 10.10).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "economy.reference"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tier",
+          "base",
+          "median"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tier"
+          },
+          "base": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "coin"
+          },
+          "median": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "pts"
+          }
+        }
+      }
+    }
+  }
+}

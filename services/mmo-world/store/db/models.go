@@ -90,6 +90,13 @@ type MmoNotable struct {
 	Body    []byte
 }
 
+type MmoNpc struct {
+	WorldID string
+	Seq     int64
+	ID      string
+	Body    []byte
+}
+
 type MmoRegionState struct {
 	WorldID  string
 	Region   int32

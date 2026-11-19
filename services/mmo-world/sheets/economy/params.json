@@ -1,5 +1,48 @@
 {
   "$schema": "../schema/economy.params.schema.json",
   "sheet": "economy.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "fill-fee",
+      "value": 3,
+      "unit": "percent",
+      "doc": "A faction order's fee on each fill, rounded down (GDD 6)."
+    },
+    {
+      "id": "station-fee",
+      "value": 4,
+      "unit": "coin",
+      "doc": "A craft or a milestone pick costs this per station tier (GDD 6)."
+    },
+    {
+      "id": "step-markup",
+      "value": 20,
+      "unit": "percent",
+      "doc": "A made kind is worth its inputs plus this a step (GDD 10.10)."
+    },
+    {
+      "id": "provisions-value",
+      "value": 2,
+      "unit": "coin",
+      "doc": "What a faction order pays for one provision."
+    },
+    {
+      "id": "provisions-price",
+      "value": 3,
+      "unit": "coin",
+      "doc": "What a settlement's market asks for one provision."
+    },
+    {
+      "id": "repair-coin",
+      "value": 1,
+      "unit": "coin",
+      "doc": "Repair costs this per durability point restored (GDD 6)."
+    },
+    {
+      "id": "mount-price",
+      "value": 60,
+      "unit": "coin",
+      "doc": "What a stable asks for a mount, per tier."
+    }
+  ]
 }

@@ -175,6 +175,19 @@ export interface ActionRequest {
   material?: string;
   ticks?: number /* int64 */;
   option?: string;
+  /**
+   * The solo loop's fields (GDD 3.1, 6): an amount and an asset, an
+   * item and where it goes, a recipe, a route's stops, an NPC, and a new
+   * character's Discord server.
+   */
+  units?: number /* int64 */;
+  asset?: string;
+  item?: string;
+  slot?: string;
+  recipe?: Recipe;
+  stop?: Stop;
+  npc?: string;
+  server?: string;
 }
 /**
  * OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -260,6 +273,10 @@ export const CodeNoEncounter = "no-encounter";
  * Refusal codes the rules give.
  */
 export const CodeNeedsActivity = "needs-activity";
+/**
+ * Refusal codes the rules give.
+ */
+export const CodeDown = "down";
 /**
  * Goods are units of a material a character carries.
  */
@@ -511,4 +528,415 @@ export interface ResetReply {
  */
 export interface ClockRequest {
   due: number /* int64 */;
+}
+
+//////////
+// source: solo.go
+
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathSheet = "/v1/sheet";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathHere = "/v1/here";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathAppraise = "/v1/appraise";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathRecipes = "/v1/recipes";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathRecap = "/v1/recap";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathNPC = "/v1/npc";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathMap = "/v1/map";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathLexicon = "/v1/lexicon";
+/**
+ * Paths of the solo loop's reads.
+ */
+export const PathMedia = "/v1/media/";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActSell = "sell";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActBuy = "buy";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActFeed = "feed";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActEquip = "equip";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActCraft = "craft";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActRepair = "repair";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActPick = "pick";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActForage = "forage";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActCrawl = "crawl";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActSearch = "search";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActCache = "cache";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActTalk = "talk";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActChoose = "choose";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActConsent = "consent";
+/**
+ * Action kinds of the solo loop.
+ */
+export const ActLook = "look";
+/**
+ * Starts a new character can choose to have carried (GDD 3.1).
+ */
+export const StartHook = "hook";
+/**
+ * Starts a new character can choose to have carried (GDD 3.1).
+ */
+export const StartKnife = "knife";
+/**
+ * Starts a new character can choose to have carried (GDD 3.1).
+ */
+export const StartDeck = "deck";
+/**
+ * Recipe is a craft's recipe as the card builds it from selects.
+ */
+export interface Recipe {
+  process: string;
+  method: string;
+  slot?: string;
+  inputs: Goods[];
+}
+/**
+ * Stop holds a route's stop conditions (GDD 6.1).
+ */
+export interface Stop {
+  threat?: number /* int64 */;
+  provisions?: boolean;
+  unknown?: boolean;
+}
+/**
+ * Load is what a character carries against what it can.
+ */
+export interface Load {
+  carried: number /* int64 */;
+  capacity: number /* int64 */;
+}
+/**
+ * Item is one item as its owner sees it: the item's card.
+ */
+export interface Item {
+  id: string;
+  kind: string;
+  name: string;
+  slot?: string;
+  worn?: string; // the kit slot it is in
+  tier: number /* int64 */;
+  level: number /* int64 */;
+  xp: number /* int64 */;
+  toNext: number /* int64 */;
+  durability: number /* int64 */;
+  max: number /* int64 */;
+  dormant?: boolean;
+  axes: Part[];
+  traits: string[];
+  picks: string[];
+  offers?: string[];
+  maker?: string;
+  mount?: string;
+  exploit?: Item;
+  sigil: string; // a media key
+  value: number /* int64 */; // coin, at reference
+}
+/**
+ * Standing is standing with a faction or a place.
+ */
+export interface Standing {
+  with: string;
+  value: number /* int64 */;
+}
+/**
+ * Count is a named count, in its unit.
+ */
+export interface Count {
+  key: string;
+  n: number /* int64 */;
+  unit: string;
+}
+/**
+ * Find is a trigger's find, with its rarity and chance in per cent.
+ */
+export interface Find {
+  trigger: string;
+  rarity: string;
+  chance: number /* int64 */;
+  goods?: Goods[];
+  item?: string;
+}
+/**
+ * Sheet is a character as /character shows it: kit, pack, practice,
+ * standing and record.
+ */
+export interface Sheet {
+  character: Character;
+  start?: string;
+  kit: Item[];
+  pack: Item[];
+  load: Load;
+  standing: Standing[];
+  record: Count[];
+  finds: Find[];
+  owed?: number /* int64 */; // provisions an unfed mount waits on
+  consent: Consent;
+}
+/**
+ * Consent is who NPCs may name the character to (GDD 4.18).
+ */
+export interface Consent {
+  sameServer: boolean;
+  otherServers: boolean;
+}
+/**
+ * Consent settings an ActConsent names in Option, with Units 1 for on.
+ */
+export const ConsentSame = "same-server";
+/**
+ * Consent settings an ActConsent names in Option, with Units 1 for on.
+ */
+export const ConsentOther = "other-servers";
+/**
+ * Station is a station on a tile.
+ */
+export interface Station {
+  kind: string;
+  tier: number /* int64 */;
+  fee: number /* int64 */; // coin
+}
+/**
+ * Order is a standing faction buy order.
+ */
+export interface Order {
+  faction: string;
+  material: string;
+  price: number /* int64 */; // coin each
+  fee: number /* int64 */; // per cent of each fill
+}
+/**
+ * Offer is something the market or the stable sells.
+ */
+export interface Offer {
+  asset: string;
+  price: number /* int64 */; // coin each
+}
+/**
+ * Person is someone to talk to here.
+ */
+export interface Person {
+  id: string;
+  name: string;
+  role: string;
+  kind: string;
+  traits: string[];
+  saved: boolean;
+  visit: boolean;
+}
+/**
+ * Trail is someone who passed recently, and where they stand now.
+ */
+export interface Trail {
+  who: string;
+  ticks: number /* int64 */; // ago
+  now: Hex;
+}
+/**
+ * Here is what a tile offers the character standing on it: its name,
+ * banner, stations, orders, people, trails and what has happened there.
+ */
+export interface Here {
+  place: Place;
+  name: string;
+  banner: string; // a media key
+  stations: Station[];
+  orders: Order[];
+  offers: Offer[];
+  people: Person[];
+  trails: Trail[];
+  search: boolean;
+  dungeon?: string; // open, cleared
+  materials: Stock[];
+  forage: number /* int64 */; // provisions a tick
+  recent: Fact[];
+}
+/**
+ * Stock is a node's material and what it still holds.
+ */
+export interface Stock {
+  material: string;
+  left: number /* int64 */;
+  workedOut: boolean;
+}
+/**
+ * AppraiseRequest asks what a recipe would make here.
+ */
+export interface AppraiseRequest {
+  characterId: string;
+  recipe: Recipe;
+}
+/**
+ * Appraisal is a recipe's ranges before committing (GDD 9.10): the quirk
+ * is never shown.
+ */
+export interface Appraisal {
+  kind: string;
+  name: string;
+  tier: number /* int64 */;
+  slot?: string;
+  known: boolean;
+  axes: Range[];
+  station: Station;
+  inputs: Goods[];
+}
+/**
+ * Range is an axis's appraised low and high, in pts.
+ */
+export interface Range {
+  axis: string;
+  lo: number /* int64 */;
+  hi: number /* int64 */;
+}
+/**
+ * Recipes is what the craft card builds recipes from, and the kinds the
+ * character knows.
+ */
+export interface Recipes {
+  processes: Process[];
+  slots: string[];
+  known: Known[];
+}
+/**
+ * Process is a process, its methods and its stations.
+ */
+export interface Process {
+  id: string;
+  methods: string[];
+  stations: string[];
+}
+/**
+ * Known is a kind the character made, discovered or carries.
+ */
+export interface Known {
+  kind: string;
+  name: string;
+  recipe: Recipe;
+  first: boolean; // they discovered it
+}
+/**
+ * RecapLine is one line of what happened while away (GDD 3.3).
+ */
+export interface RecapLine {
+  rule: number /* int */;
+  fact?: Fact;
+  npc?: string;
+}
+/**
+ * Recap is since you left.
+ */
+export interface Recap {
+  since: number /* int64 */;
+  tick: number /* int64 */;
+  lines: RecapLine[];
+  more: number /* int */;
+}
+/**
+ * Conversation is an NPC's topics for a character, voiced from
+ * templates, and its card.
+ */
+export interface Conversation {
+  npc: Person;
+  topics: Topic[];
+  last?: string;
+  met: number /* int64 */;
+  digest: string;
+  banner: string;
+}
+/**
+ * Topic is one thing an NPC brings up.
+ */
+export interface Topic {
+  id: string;
+  line: string;
+  own: boolean;
+  choices: Choice[];
+}
+/**
+ * Choice is one answer and what it does.
+ */
+export interface Choice {
+  id: string;
+  line: string;
+  effect: string;
+  standing?: number /* int64 */;
+  coin?: number /* int64 */;
+}
+/**
+ * MapView is a crop of the hex map around a character (GDD 4.11, 16.4):
+ * the discovered tiles, and the picture of them with fog and weather.
+ */
+export interface MapView {
+  tick: number /* int64 */;
+  centre: Hex;
+  radius: number /* int64 */;
+  tiles: Tile[];
+  image: string; // a media key
+}
+/**
+ * Lexicon is what the setting calls things, by "sheet:id", and the odds
+ * bands best first.
+ */
+export interface Lexicon {
+  names: { [key: string]: string};
+  bands: string[];
 }

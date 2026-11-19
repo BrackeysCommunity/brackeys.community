@@ -36,10 +36,17 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 		return game.Command{}, &api.Refusal{Code: api.CodeForbidden, Message: "operator actions take the operator path"}, http.StatusForbidden
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
-		Ticks: req.Ticks, Option: req.Option}
+		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server}
 	if req.To != nil {
 		h := simHex(*req.To)
 		cmd.To = &h
+	}
+	if req.Recipe != nil {
+		r := simRecipe(*req.Recipe)
+		cmd.Recipe = &r
+	}
+	if req.Stop != nil {
+		cmd.Stop = &game.Stop{Threat: req.Stop.Threat, Provisions: req.Stop.Provisions, Unknown: req.Stop.Unknown}
 	}
 	return cmd, nil, 0
 }

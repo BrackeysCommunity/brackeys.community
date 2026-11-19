@@ -1,0 +1,79 @@
+package game
+
+import (
+	"cmp"
+	"slices"
+
+	"jams.team/mmo-world/sim/item"
+)
+
+// Kinds is every kind made in the world, frozen at its first craft, with
+// how often each has been made and its plain name. It is the deriver's
+// registry while the game is attached, so it is saved and replayed with
+// the game (GDD 9.9).
+type Kinds struct {
+	List []*item.Kind `json:"list"` // sorted by id
+	Made []KindCount  `json:"made"` // sorted by id
+}
+
+// KindCount is how many times a kind has been made, and what it is called.
+type KindCount struct {
+	ID    string `json:"id"`
+	N     int64  `json:"n"`
+	Name  string `json:"name,omitempty"`
+	Named string `json:"named,omitempty"` // the character who named it
+}
+
+func (k *Kinds) Kind(id string) (*item.Kind, bool) {
+	i, ok := slices.BinarySearchFunc(k.List, id, func(x *item.Kind, id string) int { return cmp.Compare(x.ID, id) })
+	if !ok {
+		return nil, false
+	}
+	return k.List[i], true
+}
+
+func (k *Kinds) Freeze(x *item.Kind) *item.Kind {
+	i, ok := slices.BinarySearchFunc(k.List, x.ID, func(y *item.Kind, id string) int { return cmp.Compare(y.ID, id) })
+	if ok {
+		return k.List[i]
+	}
+	k.List = slices.Insert(k.List, i, x)
+	return x
+}
+
+func (k *Kinds) count(id string) *KindCount {
+	i, ok := slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+	if !ok {
+		k.Made = slices.Insert(k.Made, i, KindCount{ID: id})
+	}
+	return &k.Made[i]
+}
+
+func (k *Kinds) Crafts(id string) int64 {
+	i, ok := slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+	if !ok {
+		return 0
+	}
+	return k.Made[i].N
+}
+
+func (k *Kinds) AddCraft(id string) { k.count(id).N++ }
+
+// Name is a kind's name, or "" before anyone names it.
+func (k *Kinds) Name(id string) string {
+	i, ok := slices.BinarySearchFunc(k.Made, id, func(c KindCount, id string) int { return cmp.Compare(c.ID, id) })
+	if !ok {
+		return ""
+	}
+	return k.Made[i].Name
+}
+
+// SetName names a kind once.
+func (k *Kinds) SetName(id, name, by string) bool {
+	c := k.count(id)
+	if c.Name != "" {
+		return false
+	}
+	c.Name, c.Named = name, by
+	return true
+}

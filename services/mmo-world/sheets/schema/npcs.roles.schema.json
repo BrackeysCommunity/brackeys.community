@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "npcs.roles",
+  "title": "npcs.roles",
+  "description": "Role slots each place fills with residents, and the roles wanderers take.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "npcs.roles"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "place",
+          "role",
+          "count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "starting-settlement",
+              "player-settlement",
+              "city",
+              "faction-holding",
+              "structure",
+              "caravan",
+              "road"
+            ],
+            "x-unit": "enum"
+          },
+          "role": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "works": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Where its route takes it: market, forge, wall, road."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "What a wanderer of this role favours, by biome or site."
+          }
+        }
+      }
+    }
+  }
+}

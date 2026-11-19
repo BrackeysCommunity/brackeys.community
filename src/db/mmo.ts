@@ -117,6 +117,24 @@ export const mmoCharacter = mmoSchema.table(
 );
 
 /**
+ * A saved NPC (GDD 4.18): an NPC exists as a keyed draw until its first
+ * conversation, when it gets a row. Rows change only when someone meets it.
+ */
+export const mmoNpc = mmoSchema.table(
+  "npc",
+  {
+    worldId: worldId(),
+    seq: big("seq").notNull(),
+    id: text("id").notNull(),
+    body: jsonb("body").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.worldId, t.seq] }),
+    unique("npc_world_id_uq").on(t.worldId, t.id),
+  ],
+);
+
+/**
  * The fact log (GDD 12.1), append-only. The migration partitions it by month
  * of `at`; the world service creates each month's partition ahead of time.
  */
@@ -138,6 +156,7 @@ export const mmoFact = mmoSchema.table(
   (t) => [
     primaryKey({ columns: [t.worldId, t.id, t.at] }),
     index("fact_world_tick_idx").on(t.worldId, t.tick),
+    index("fact_world_weight_idx").on(t.worldId, t.weight, t.tick),
   ],
 );
 
