@@ -5,6 +5,7 @@ import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, plural, ticks } from "../units.ts";
 import { back, btn, conditionsField, DIRECTIONS, PRIVATE, timeLeft } from "./common.ts";
+import { riskField } from "./market.ts";
 
 /** The map view and travel: a crop with fog and weather, six directions, go-to (GDD 6.1, 16.4). */
 export function travelCard(
@@ -13,6 +14,7 @@ export function travelCard(
   here: api.Here,
   lex: Lexicon,
   threatLine: number,
+  risk?: api.RouteRisk,
 ): Card {
   const v = o.version;
   const moves = DIRECTIONS.map((d, i) => {
@@ -67,6 +69,7 @@ export function travelCard(
       value: `${amount(o.long.route?.length ?? 0, "tiles")} left, arriving in ${ticks(timeLeft(o))}`,
     });
   }
+  if (risk) fields.push(riskField(risk, o.long?.kind === "travel" ? "this road" : "the road home"));
   return {
     context: PRIVATE,
     author: o.long?.kind === "travel" ? "Travel · on the road" : "Travel · the map",

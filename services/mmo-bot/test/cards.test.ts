@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type * as api from "../src/api.ts";
 import { bareNumbers, type Card, problems, render } from "../src/card.ts";
+import { forumCard } from "../src/forum.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "../src/screens/fight.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
@@ -11,9 +12,20 @@ import {
   craftCard,
   itemCard,
   madeCard,
-  marketCard,
   recipesCard,
 } from "../src/screens/make.ts";
+import {
+  bookCard,
+  elsewhereCard,
+  exchangeCard,
+  gearCard,
+  historyCard,
+  mineCard,
+  moversCard,
+  orderForm,
+  ordersCard,
+  reportCard,
+} from "../src/screens/market.ts";
 import { talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
 import samples from "./fixtures/world.json";
@@ -44,12 +56,24 @@ const sheet = w.sheet as api.Sheet;
 const recipes = w.recipes as api.Recipes;
 const press = (w["act:press"] as { reply: api.ActionReply }).reply;
 const craft = (w["act:craft"] as { reply: api.ActionReply }).reply;
+const market = w.market as api.Market;
 
 const cards: [string, () => Card][] = [
   ["start", () => startCard(lex)],
   ["hub", () => hubCard(o, here, sheet, lex)],
   ["where", () => whereCard(o, here, lex)],
-  ["travel", () => travelCard(o, w.map as api.MapView, here, lex, NUMBERS.ambushLine)],
+  [
+    "travel",
+    () =>
+      travelCard(
+        o,
+        w.map as api.MapView,
+        here,
+        lex,
+        NUMBERS.ambushLine,
+        w.routeRisk as api.RouteRisk,
+      ),
+  ],
   [
     "travel on the road",
     () =>
@@ -97,7 +121,76 @@ const cards: [string, () => Card][] = [
       }),
   ],
   ["made", () => madeCard(o, here, craft.facts, lex)],
-  ["market", () => marketCard(o, here, sheet, lex)],
+  ["the book", () => bookCard(o, market, lex)],
+  ["exchange", () => exchangeCard(o, market, lex)],
+  ["movers", () => moversCard(o, market, lex)],
+  ["price history", () => historyCard(o, market, w.history as api.History, lex)],
+  ["elsewhere", () => elsewhereCard(o, market, lex)],
+  ["gear listings", () => gearCard(o, market, lex)],
+  ["faction orders", () => ordersCard(o, market, lex)],
+  ["mine", () => mineCard(o, market, lex)],
+  ["ledger report", () => reportCard(o, market, lex)],
+  [
+    "ledger report with figures",
+    () =>
+      reportCard(
+        o,
+        {
+          ...market,
+          report: {
+            day: 14,
+            supply: 40210,
+            active: 102,
+            perActive: 394,
+            low: 350,
+            high: 450,
+            rate: 60,
+            velocity: 12,
+            faucet: 41000,
+            fees: 1203,
+            top: [{ material: market.material, units: 310 }],
+            staged: 0,
+            audit: 0,
+            chart: market.banner,
+          },
+        },
+        lex,
+      ),
+  ],
+  [
+    "gear listings with a piece",
+    () =>
+      gearCard(
+        o,
+        {
+          ...market,
+          gear: [
+            {
+              id: "l-9",
+              kind: "k",
+              name: "Hide scraps tool",
+              slot: "tool",
+              level: 3,
+              picks: 0,
+              durability: 40,
+              max: 60,
+              maker: "c-2",
+              seller: "c-2",
+              price: 30,
+              value: 25,
+              mine: false,
+              sigil: "",
+            },
+          ],
+          wants: [{ id: "w-1", what: "tool", price: 20, floor: { level: 2 }, mine: false }],
+        },
+        lex,
+      ),
+  ],
+  [
+    "order form",
+    () => orderForm(o, market, { material: market.material, side: "bid", price: 9, units: 5 }, lex),
+  ],
   ["character", () => characterCard(o, here, sheet, lex)],
   ["item", () => itemCard(o, here, [...sheet.kit, ...sheet.pack][0]!, lex)],
   [
@@ -123,6 +216,10 @@ const cards: [string, () => Card][] = [
       ),
   ],
   ["conversation", () => talkCard(o, w.npc as api.Conversation)],
+  [
+    "market forum",
+    () => forumCard((w.forum as api.Forum).posts[0]!, (w.forum as api.Forum).day, lex),
+  ],
 ];
 
 describe("every card keeps the card standard", () => {

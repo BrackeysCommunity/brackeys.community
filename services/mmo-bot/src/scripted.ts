@@ -232,7 +232,8 @@ export async function scripted(
   if (keep && run.sold === 0) {
     const g = sheet.character.goods.find((x) => x.material === keep)!;
     if (g.units > 2 && here.orders.some((x) => x.material === keep)) {
-      await press("sell", `${keep}:${g.units - 2}`);
+      const version = (await world.options(id)).version;
+      await send({ id: { action: "sell", target: `${keep}:${g.units - 2}`, version } });
       run.sold += g.units - 2;
     }
   }
@@ -255,9 +256,37 @@ export async function scripted(
     }
   }
 
+  // The market's lists once each; an order posted and withdrawn; the tool
+  // listed from its item card.
+  await command("market");
+  for (const list of [
+    "exchange",
+    "movers",
+    "history",
+    "elsewhere",
+    "gear",
+    "orders",
+    "mine",
+    "report",
+    "book",
+  ])
+    await press("mkt-l", undefined, list);
+  if (has("mkt-o")) {
+    await press("mkt-o");
+    await press(
+      "mkt-os",
+      undefined,
+      card.rows.flatMap((r) => ("select" in r ? r.select.options : []))[0]!.value,
+    );
+    await press("mkt-post");
+    if (has("withdraw")) await press("withdraw");
+  }
+  await world.forum();
+
   // Every other card once.
   await command("character");
   if (has("item")) await press("item");
+  if (has("list")) await press("list");
   await command("recipes");
   await command("map");
   await press("why", "moves");

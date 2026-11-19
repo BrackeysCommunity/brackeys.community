@@ -70,7 +70,7 @@ export function hubCard(
     btn("Craft", "craft", "", v),
   ];
   const second: Button[] = [
-    btn("Market", "market", "", v),
+    btn("Market", "market", "orders", v),
     btn("Goals", "goals", "", v, { disabled: true }),
     btn("Character", "character", "", v),
     btn("Chronicle", "recap", "", v),

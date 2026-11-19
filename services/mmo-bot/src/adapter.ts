@@ -1,6 +1,8 @@
 import {
   type ButtonInteraction,
+  ChannelType,
   type ChatInputCommandInteraction,
+  type Client,
   type Interaction,
   type InteractionEditReplyOptions,
   MessageFlags,
@@ -9,9 +11,10 @@ import {
 } from "discord.js";
 
 import { describe, toMessage } from "../../../packages/discord-kit/src/index.ts";
-import { render } from "./card.ts";
+import { type Card, render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
 import { answer, type Answer, type Ctx, type Press } from "./flow.ts";
+import type { ForumSink } from "./forum.ts";
 import { decodeId } from "./ids.ts";
 import { WorldUnavailableError } from "./world.ts";
 
@@ -46,35 +49,7 @@ export interface AdapterOptions {
 export function createHandler(opts: AdapterOptions) {
   const { ctx, budget, media, onLong, log = console.log, now = Date.now } = opts;
 
-  /** The card as a message. A picture the world no longer holds drops out rather than failing the card. */
-  async function messageOf(a: Answer): Promise<InteractionEditReplyOptions> {
-    const r = render(a.card);
-    const files = await Promise.all(
-      r.media.map(async (m) => {
-        try {
-          return { name: m.name, data: await media(m.key), description: m.alt };
-        } catch (e) {
-          if (e instanceof WorldUnavailableError) throw e;
-          log(`[media] ${m.key}: ${describe(e)}`);
-          return null;
-        }
-      }),
-    );
-    const got = files.filter((f) => f !== null);
-    const missing = new Set(
-      r.media.filter((_, i) => !files[i]).map((m) => `attachment://${m.name}`),
-    );
-    const embeds = r.message.embeds.map((e) => ({
-      ...e,
-      image: e.image && missing.has(e.image) ? undefined : e.image,
-      thumbnail: e.thumbnail && missing.has(e.thumbnail) ? undefined : e.thumbnail,
-    }));
-    return toMessage({
-      ...r.message,
-      embeds,
-      files: got,
-    }) as unknown as InteractionEditReplyOptions;
-  }
+  const messageOf = (a: Answer) => cardMessage(a.card, media, log);
 
   /** A short ephemeral reply; a failed reply is logged, never left unhandled. */
   async function say(
@@ -159,5 +134,59 @@ export function createHandler(opts: AdapterOptions) {
       return void (await i.launchActivity().catch((e: unknown) => log(`[launch] ${describe(e)}`)));
     if (i.isChatInputCommand()) return onCommand(i);
     if (i.isButton() || i.isStringSelectMenu()) return onComponent(i);
+  };
+}
+
+/** A card as a message. A picture the world no longer holds drops out rather than failing the card. */
+async function cardMessage(
+  card: Card,
+  media: (key: string) => Promise<Uint8Array>,
+  log: (line: string) => void,
+): Promise<InteractionEditReplyOptions> {
+  const r = render(card);
+  const files = await Promise.all(
+    r.media.map(async (m) => {
+      try {
+        return { name: m.name, data: await media(m.key), description: m.alt };
+      } catch (e) {
+        if (e instanceof WorldUnavailableError) throw e;
+        log(`[media] ${m.key}: ${describe(e)}`);
+        return null;
+      }
+    }),
+  );
+  const got = files.filter((f) => f !== null);
+  const missing = new Set(r.media.filter((_, i) => !files[i]).map((m) => `attachment://${m.name}`));
+  const embeds = r.message.embeds.map((e) => ({
+    ...e,
+    image: e.image && missing.has(e.image) ? undefined : e.image,
+    thumbnail: e.thumbnail && missing.has(e.thumbnail) ? undefined : e.thumbnail,
+  }));
+  return toMessage({ ...r.message, embeds, files: got }) as unknown as InteractionEditReplyOptions;
+}
+
+/** The market forum's posts (GDD 17.2): one forum post per settlement, a reply per world day. */
+export function forumSink(
+  client: Client,
+  channelId: string,
+  media: (key: string) => Promise<Uint8Array>,
+  log: (line: string) => void = console.log,
+): ForumSink {
+  return {
+    async open(title, card) {
+      const ch = await client.channels.fetch(channelId);
+      if (ch?.type !== ChannelType.GuildForum)
+        throw new Error(`${channelId} is not a forum channel`);
+      const thread = await ch.threads.create({
+        name: title,
+        message: (await cardMessage(card, media, log)) as never,
+      });
+      return thread.id;
+    },
+    async reply(post, card) {
+      const th = await client.channels.fetch(post);
+      if (!th?.isThread()) throw new Error(`${post} is not a forum post`);
+      await th.send((await cardMessage(card, media, log)) as never);
+    },
   };
 }

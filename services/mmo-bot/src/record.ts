@@ -42,5 +42,21 @@ export function recording(world: World, samples: Record<string, unknown>): World
       return result;
     },
     lexicon: async () => keep("lexicon", await world.lexicon()),
+    market: async (id, m) => {
+      const result = await world.market(id, m);
+      if (result.ok) keep("market", result.reply);
+      return result;
+    },
+    history: async (id, m) => {
+      const result = await world.history(id, m);
+      if (result.ok) keep("history", result.reply);
+      return result;
+    },
+    routeRisk: async (id, to) => {
+      const result = await world.routeRisk(id, to);
+      if (result.ok) keep("routeRisk", result.reply);
+      return result;
+    },
+    forum: async () => keep("forum", await world.forum()),
   };
 }

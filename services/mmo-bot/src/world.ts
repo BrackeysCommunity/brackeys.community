@@ -18,6 +18,10 @@ export interface World {
   npc(characterId: string, npc: string): Promise<WorldReply<api.Conversation>>;
   lexicon(): Promise<api.Lexicon>;
   media(key: string): Promise<Uint8Array>;
+  market(characterId: string, material?: string): Promise<WorldReply<api.Market>>;
+  history(characterId: string, material: string): Promise<WorldReply<api.History>>;
+  routeRisk(characterId: string, to: api.Hex): Promise<WorldReply<api.RouteRisk>>;
+  forum(): Promise<api.Forum>;
 }
 
 export type WorldReply<T> = { ok: true; reply: T } | { ok: false; refusal: api.Refusal };
@@ -83,6 +87,10 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     recap: (id) => get(api.PathRecap + q({ characterId: id })),
     npc: (id, npc) => read("GET", api.PathNPC + q({ characterId: id, npc })),
     lexicon: () => get(api.PathLexicon),
+    market: (id, material) => read("GET", api.PathMarket + q({ characterId: id, material })),
+    history: (id, material) => read("GET", api.PathHistory + q({ characterId: id, material })),
+    routeRisk: (id, to) => read("GET", api.PathRisk + q({ characterId: id, q: to.q, r: to.r })),
+    forum: () => get(api.PathForum),
     async media(key) {
       const res = await send("GET", `${api.PathMedia}${encodeURIComponent(key)}.png`);
       if (!res.ok) throw new WorldRequestError(res.status, (await res.json()) as api.Refusal);

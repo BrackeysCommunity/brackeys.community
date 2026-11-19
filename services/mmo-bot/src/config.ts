@@ -13,6 +13,8 @@ export interface Config {
   redisUrl?: string;
   /** The threat line routes stop before; the world's ambush line when unset. */
   threatLine?: number;
+  /** The market forum channel (GDD 17.2); no posts when unset. */
+  marketForum?: string;
 }
 
 function integer(name: string): number | undefined {
@@ -33,5 +35,6 @@ export function loadConfig(): Config {
     worldToken: process.env.MMO_API_TOKEN?.trim() ?? "",
     redisUrl: process.env.REDIS_URL?.trim() || undefined,
     threatLine: integer("MMO_THREAT_LINE"),
+    marketForum: process.env.MMO_MARKET_FORUM?.trim() || undefined,
   };
 }

@@ -1,4 +1,4 @@
-import { type Button, buttonRows } from "../../../../packages/discord-kit/src/index.ts";
+import { type Button, buttonRows, type Row } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
@@ -224,83 +224,6 @@ export function madeCard(o: api.Options, here: api.Here, facts: api.Fact[], lex:
   };
 }
 
-/** Market: the faction orders here and what you can sell to them; provisions and mounts (GDD 10). */
-export function marketCard(
-  o: api.Options,
-  here: api.Here,
-  sheet: api.Sheet,
-  lex: Lexicon,
-  notice?: string,
-): Card {
-  const v = o.version;
-  const c = sheet.character;
-  const sell: Button[] = [];
-  for (const g of c.goods) {
-    const ord = here.orders.find((x) => x.material === g.material);
-    if (ord && g.units > 0 && sell.length < 10)
-      sell.push(
-        btn(
-          `Sell ${amount(g.units, lex.material(g.material))}`,
-          "sell",
-          target(":", g.material, g.units),
-          v,
-          { style: "success" },
-        ),
-      );
-  }
-  const buy: Button[] = [];
-  const prov = here.offers.find((x) => x.asset === "provisions");
-  if (prov)
-    buy.push(
-      btn(
-        `Buy ${amount(5, "provisions")} · ${amount(5 * prov.price, "coin")}`,
-        "buy",
-        "provisions:5",
-        v,
-      ),
-    );
-  for (const m of here.offers.filter((x) => x.asset !== "provisions").slice(0, 2)) {
-    buy.push(
-      btn(
-        `Buy a ${lex.name("mounts.kinds", m.asset)} · ${amount(m.price, "coin")}`,
-        "buy",
-        target(":", m.asset, 1),
-        v,
-        { disabled: !!sheet.character.mount },
-      ),
-    );
-  }
-  if (sheet.owed)
-    buy.push(btn(`Feed your mount · ${amount(sheet.owed, "provisions")}`, "feed", "", v));
-  buy.push(back(v));
-  const fee = here.orders[0]?.fee ?? 0;
-  return {
-    context: PRIVATE,
-    author: `Faction orders · ${here.name}`,
-    title: notice ?? (here.orders.length ? "Who is buying here" : "No market here"),
-    description: here.orders.length
-      ? `Factions buy at reference prices; each fill pays a ${fee}% fee.`
-      : "Faction orders stand in settlements.",
-    picture: banner(here),
-    table: here.orders.length
-      ? {
-          header: ["Good", "Price (coin each)", "Buyer"],
-          rows: here.orders
-            .slice(0, 15)
-            .map((x) => [lex.material(x.material), String(x.price), x.faction]),
-        }
-      : undefined,
-    fields: [
-      { name: "Your coin", value: amount(c.coin, "coin"), inline: true },
-      { name: "Your provisions", value: amount(c.provisions, "provisions"), inline: true },
-    ],
-    footer:
-      "Prices follow needs and the stabiliser in a later build; for now they hold at reference.",
-    rows: [...buttonRows(sell), { buttons: buy }],
-    colour: COLOUR.hazard,
-  };
-}
-
 /** /character: kit, pack, practice, standing and record (GDD 5.7). */
 export function characterCard(
   o: api.Options,
@@ -406,6 +329,29 @@ export function itemCard(
       disabled: !atStation,
     }),
   );
+  const market = here.offers.some((x) => x.asset === "provisions");
+  const trade: Row[] = [];
+  if (market && !it.worn && !it.mount) {
+    trade.push({
+      select: {
+        customId: encodeId("list", it.id, v),
+        placeholder: "List it for sale at…",
+        options: [80, 100, 120, 150, 200]
+          .map((p) => {
+            const price = Math.max(1, Math.round((it.value * p) / 100));
+            return {
+              label: amount(price, "coin"),
+              value: String(price),
+              description: `${p}% of its worth`,
+            };
+          })
+          .filter((x, i, all) => all.findIndex((y) => y.value === x.value) === i),
+      },
+    });
+    buttons.push(
+      btn(`Sell to the trader · ${amount(it.traderPays, "coin")}`, "sell-item", it.id, v),
+    );
+  }
   return {
     context: PRIVATE,
     author: `Item card · ${it.worn ? `worn in ${it.worn}` : "in the pack"}`,
@@ -446,6 +392,7 @@ export function itemCard(
       : "Repairs and picks are made at a station.",
     rows: [
       ...(picks.length ? [{ buttons: picks }] : []),
+      ...trade,
       { buttons: [...buttons.slice(0, 3), btn("Character", "character", "", v), back(v)] },
     ],
   };

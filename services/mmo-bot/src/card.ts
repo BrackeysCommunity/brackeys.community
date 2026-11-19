@@ -144,10 +144,24 @@ export const UNITS = new Set([
   "more",
   "people",
   "kinds",
+  "ambushes",
+  "orders",
+  "item",
+  "items",
   "%",
 ]);
 const CONNECTORS = new Set(["to", "of", "and", "or", "–", "-", "×", "+"]);
-const UNIT_FIRST = new Set(["level", "tier", "floor", "fact", "case", "beat", "practice"]);
+const UNIT_FIRST = new Set([
+  "level",
+  "tier",
+  "floor",
+  "fact",
+  "case",
+  "beat",
+  "practice",
+  "day",
+  "tick",
+]);
 
 /**
  * The numbers in a text that stand without a unit. A number is fine when

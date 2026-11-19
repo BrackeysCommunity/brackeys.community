@@ -14,10 +14,25 @@ import {
   draftRecipe,
   itemCard,
   madeCard,
-  marketCard,
   parseDraft,
   recipesCard,
 } from "./screens/make.ts";
+import {
+  bookCard,
+  draftOf,
+  elsewhereCard,
+  exchangeCard,
+  gearCard,
+  historyCard,
+  isList,
+  type List,
+  mineCard,
+  moversCard,
+  orderForm,
+  type OrderDraft,
+  ordersCard,
+  reportCard,
+} from "./screens/market.ts";
 import { talkCard } from "./screens/talk.ts";
 import { travelCard } from "./screens/travel.ts";
 import { amount } from "./units.ts";
@@ -145,6 +160,8 @@ class Session {
         return this.recipes();
       case "map":
         return this.travel();
+      case "market":
+        return this.market();
       case "play":
       default:
         return this.open();
@@ -172,8 +189,12 @@ class Session {
   async travel(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     const map = await this.world.map(this.character);
+    const to = o.long?.route?.at(-1) ?? (o.purse.market ? undefined : o.purse.markets[0]);
+    const risk = to ? await this.world.routeRisk(this.character, to) : undefined;
     return this.retitled(
-      this.done(travelCard(o, map, here, this.lex, this.ctx.threatLine)),
+      this.done(
+        travelCard(o, map, here, this.lex, this.ctx.threatLine, risk?.ok ? risk.reply : undefined),
+      ),
       notice,
     );
   }
@@ -207,9 +228,43 @@ class Session {
     return this.done(craftCard(o, here, sheet, recipes, this.lex, d));
   }
 
-  async market(notice?: string): Promise<Answer> {
-    const { o, here } = await this.load();
-    return this.done(marketCard(o, here, await this.world.sheet(this.character), this.lex, notice));
+  /** /market: one of its lists, about one material (GDD 10.6). */
+  async market(list: List = "book", material?: string, notice?: string): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    const res = await this.world.market(this.character, material);
+    if (!res.ok) return this.where(capitalise(res.refusal.message));
+    const m = res.reply;
+    const lex = this.lex;
+    switch (list) {
+      case "exchange":
+        return this.done(exchangeCard(o, m, lex));
+      case "movers":
+        return this.done(moversCard(o, m, lex));
+      case "history": {
+        const h = await this.world.history(this.character, m.material);
+        if (!h.ok) return this.done(bookCard(o, m, lex, capitalise(h.refusal.message)));
+        return this.done(historyCard(o, m, h.reply, lex));
+      }
+      case "elsewhere":
+        return this.done(elsewhereCard(o, m, lex));
+      case "gear":
+        return this.done(gearCard(o, m, lex, notice));
+      case "orders":
+        return this.done(ordersCard(o, m, lex, notice));
+      case "mine":
+        return this.done(mineCard(o, m, lex, notice));
+      case "report":
+        return this.done(reportCard(o, m, lex));
+      default:
+        return this.done(bookCard(o, m, lex, notice));
+    }
+  }
+
+  async orderForm(d: OrderDraft): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    const res = await this.world.market(this.character, d.material);
+    if (!res.ok) return this.where(capitalise(res.refusal.message));
+    return this.done(orderForm(o, res.reply, d, this.lex));
   }
 
   async item(itemId: string): Promise<Answer> {
@@ -256,6 +311,8 @@ class Session {
     const value = values[0] ?? "";
     const isPair =
       id.action === "sell" ||
+      id.action === "mkt-sell" ||
+      id.action === "mkt-take" ||
       id.action === "buy" ||
       id.action === "equip" ||
       id.action === "pick" ||
@@ -268,6 +325,8 @@ class Session {
     if (
       (id.action === "buy" ||
         id.action === "sell" ||
+        id.action === "mkt-sell" ||
+        id.action === "mkt-take" ||
         id.action === "gather" ||
         id.action === "consent") &&
       quantity === undefined
@@ -315,18 +374,87 @@ class Session {
             return this.done(madeCard(o, here, r.facts, this.lex));
           },
         );
-      case "market":
-        return this.market();
+      case "market": {
+        const [list, material] = id.target.split(":");
+        return this.market(list && isList(list) ? list : "book", material || undefined);
+      }
+      case "mkt-l":
+        return this.market(isList(value) ? value : "book", id.target || undefined);
+      case "mkt-m":
+        return this.market(isList(id.target) ? id.target : "book", value || undefined);
       case "sell":
+      case "mkt-sell":
         return this.write(api.ActSell, v, { material: a, units: quantity }, (r, why) =>
-          this.market(why ?? (r ? `Sold: ${amount(r.character.coin, "coin")} in hand` : undefined)),
+          this.market(
+            id.action === "sell" ? "orders" : "book",
+            a,
+            why ?? (r ? `Sold: ${amount(r.character.coin, "coin")} in hand` : undefined),
+          ),
+        );
+      case "mkt-take":
+        return this.write(api.ActTake, v, { material: a, units: quantity }, (r, why) =>
+          this.market(
+            "book",
+            a,
+            why ?? (r ? `Bought: ${amount(r.character.coin, "coin")} left` : undefined),
+          ),
+        );
+      case "mkt-o":
+      case "mkt-os":
+      case "mkt-op":
+      case "mkt-ou": {
+        const d = draftOf(id.action === "mkt-o" ? id.target : value);
+        if (!d) return backCards.unknown(this.character);
+        return this.orderForm(d);
+      }
+      case "mkt-post": {
+        const d = draftOf(id.target);
+        if (!d) return backCards.unknown(this.character);
+        const kind = d.side === "bid" ? api.ActBid : api.ActAsk;
+        return this.write(
+          kind,
+          v,
+          { material: d.material, units: d.units, price: d.price },
+          async (_, why) =>
+            why
+              ? this.retitled(await this.orderForm(d), why)
+              : this.market("mine", d.material, "Your order stands"),
+        );
+      }
+      case "withdraw":
+        return this.write(api.ActWithdraw, v, { item: value }, (_, why) =>
+          this.market("mine", undefined, why ?? "Withdrawn: the escrow is yours again"),
+        );
+      case "gear-buy":
+        return this.write(api.ActPurchase, v, { item: value }, (_, why) =>
+          this.market("gear", undefined, why ?? "Bought: it is in your pack"),
+        );
+      case "list":
+        return this.write(
+          api.ActList,
+          v,
+          { item: id.target, price: Number(value) },
+          async (_, why) =>
+            why
+              ? this.retitled(await this.item(id.target), why)
+              : this.market("gear", undefined, "Listed"),
+        );
+      case "sell-item":
+        return this.write(api.ActSellItem, v, { item: id.target }, async (r, why) =>
+          why
+            ? this.retitled(await this.item(id.target), why)
+            : this.market(
+                "gear",
+                undefined,
+                `Sold to the trader: ${amount(r!.character.coin, "coin")} in hand`,
+              ),
         );
       case "buy":
         return this.write(api.ActBuy, v, { asset: a, units: quantity }, (_, why) =>
-          this.market(why),
+          this.market("orders", undefined, why),
         );
       case "feed":
-        return this.write(api.ActFeed, v, {}, (_, why) => this.market(why));
+        return this.write(api.ActFeed, v, {}, (_, why) => this.market("orders", undefined, why));
       case "character":
         return this.character_();
       case "item":

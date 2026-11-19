@@ -186,6 +186,13 @@ export interface ActionRequest {
   stop?: Stop;
   npc?: string;
   server?: string;
+  /**
+   * The market's fields (GDD 10.3): an order's price each, the character
+   * given to, and a gear order's floor.
+   */
+  price?: number /* int64 */;
+  target?: string;
+  floor?: Floor;
 }
 /**
  * OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -398,6 +405,53 @@ export interface Options {
   cancel: boolean;
   long?: Long;
   fight?: Fight;
+  purse: Purse;
+}
+/**
+ * Purse is what a character holds and, in a market, the prices there:
+ * what a policy weighs before it trades.
+ */
+export interface Purse {
+  coin: number /* int64 */;
+  provisions: number /* int64 */;
+  goods: Goods[];
+  load: Load;
+  hand?: Worn; // what the main hand holds
+  market: boolean; // standing in a market
+  provision: number /* int64 */; // coin a provision costs here, 0 where none are sold
+  quotes?: Quote[];
+  open: number /* int64 */; // open orders held
+  markets: Hex[];
+  items: Worn[]; // carried, not worn
+  mounted: boolean;
+  owed: number /* int64 */; // provisions a mount is owed
+  /**
+   * Mounts are the mounts a stable here sells, and Listings the
+   * cheapest gear listed here.
+   */
+  mounts?: Offer[];
+  listings?: Listing[];
+}
+/**
+ * Worn is an item's wear, its value, and what repairing it takes.
+ */
+export interface Worn {
+  id: string;
+  kind: string;
+  value: number /* int64 */; // coin
+  repair: Goods;
+  durability: number /* int64 */;
+  max: number /* int64 */;
+}
+/**
+ * Quote is one material's best prices here and its reference value.
+ */
+export interface Quote {
+  material: string;
+  bid: number /* int64 */;
+  bidUnits: number /* int64 */;
+  ask: number /* int64 */;
+  value: number /* int64 */;
 }
 /**
  * PreviewRequest asks for one option's band before pressing it.
@@ -539,6 +593,306 @@ export interface ResetReply {
  */
 export interface ClockRequest {
   due: number /* int64 */;
+}
+
+//////////
+// source: market.go
+
+/**
+ * Paths of the market's reads (GDD 10.6).
+ */
+export const PathMarket = "/v1/market";
+/**
+ * Paths of the market's reads (GDD 10.6).
+ */
+export const PathHistory = "/v1/market/history";
+/**
+ * Paths of the market's reads (GDD 10.6).
+ */
+export const PathForum = "/v1/market/forum";
+/**
+ * Paths of the market's reads (GDD 10.6).
+ */
+export const PathRisk = "/v1/route-risk";
+/**
+ * PathOperatorEconomy lists characters flagged for review and the
+ * faucet.
+ */
+export const PathOperatorEconomy = "/v1/operator/economy";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActBid = "bid";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActAsk = "ask";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActTake = "take";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActWithdraw = "withdraw";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActList = "list";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActWant = "want";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActPurchase = "purchase";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActGive = "give";
+/**
+ * Action kinds of the market (GDD 10.3).
+ */
+export const ActSellItem = "sell-item";
+/**
+ * Floor is what a gear buy order requires of an item.
+ */
+export interface Floor {
+  durability?: number /* int64 */;
+  trait?: string;
+  level?: number /* int64 */;
+}
+/**
+ * Market is everything /market shows a character in a settlement: the
+ * eight lists of GDD 10.6. Material picks the book and its history.
+ */
+export interface Market {
+  settlement: number /* int */;
+  name: string;
+  material: string;
+  book: BookView;
+  exchange: Exchange[];
+  movers: Mover[];
+  elsewhere: Far[];
+  gear: Listing[];
+  wants: GearWant[];
+  orders: Order[]; // faction orders
+  mine: Mine;
+  report?: Report;
+  fee: number /* int64 */; // per cent of each fill, from the seller
+  limit: number /* int64 */; // open orders a character may hold
+  days: number /* int64 */; // world days an order lasts
+  perPoint: number /* int64 */; // coin sold to a faction for each standing point
+  banner: string;
+}
+/**
+ * BookView is one book: the best five each side.
+ */
+export interface BookView {
+  material: string;
+  bids: Level[];
+  asks: Level[];
+  last: number /* int64 */;
+  value: number /* int64 */; // reference value, coin each
+}
+/**
+ * Level is one price on a side of a book: units at a price, and whose.
+ */
+export interface Level {
+  price: number /* int64 */;
+  units: number /* int64 */;
+  who: string;
+}
+/**
+ * Exchange is one material's line on the exchange.
+ */
+export interface Exchange {
+  material: string;
+  last: number /* int64 */; // coin
+  change: number /* int64 */; // per cent over the week
+  bid: number /* int64 */;
+  ask: number /* int64 */;
+  units: number /* int64 */; // traded this week
+}
+/**
+ * Mover is a rise or fall and the fact behind it.
+ */
+export interface Mover {
+  material: string;
+  change: number /* int64 */; // per cent
+  last: number /* int64 */;
+  cause?: string;
+}
+/**
+ * Far is a price in another settlement and how old the news is.
+ */
+export interface Far {
+  name: string;
+  price: number /* int64 */;
+  age: number /* int64 */; // ticks
+  own: boolean;
+  known: boolean;
+}
+/**
+ * Listing is a piece of gear listed here.
+ */
+export interface Listing {
+  id: string;
+  kind: string;
+  name: string;
+  slot: string;
+  level: number /* int64 */;
+  picks: number /* int64 */;
+  durability: number /* int64 */;
+  max: number /* int64 */;
+  maker: string;
+  seller: string;
+  price: number /* int64 */;
+  value: number /* int64 */;
+  mine: boolean;
+  sigil: string; // a media key
+}
+/**
+ * GearWant is a buy order for gear standing here.
+ */
+export interface GearWant {
+  id: string;
+  what: string;
+  price: number /* int64 */;
+  floor: Floor;
+  mine: boolean;
+}
+/**
+ * Mine is a character's open orders, escrow and last ledger entries.
+ */
+export interface Mine {
+  open: Open[];
+  escrow: number /* int64 */; // coin in escrow
+  entries: Entry[];
+  young: boolean;
+  gave: number /* int64 */; // coin given away today, while young
+  cap: number /* int64 */;
+}
+/**
+ * Open is one of a character's open orders or listings.
+ */
+export interface Open {
+  id: string;
+  where: string;
+  what: string;
+  side: string; // bid, ask, listing, want
+  price: number /* int64 */;
+  units: number /* int64 */;
+  expires: number /* int64 */; // ticks left
+}
+/**
+ * Entry is a ledger line of a character's: what moved, and why.
+ */
+export interface Entry {
+  tick: number /* int64 */;
+  kind: string;
+  asset: string;
+  units: number /* int64 */;
+}
+/**
+ * Report is the weekly ledger report (GDD 10.5).
+ */
+export interface Report {
+  day: number /* int64 */;
+  supply: number /* int64 */;
+  active: number /* int64 */;
+  perActive: number /* int64 */;
+  low: number /* int64 */;
+  high: number /* int64 */;
+  rate: number /* int64 */; // coin per active character per day
+  velocity: number /* int64 */; // hundredths of a coin changing hands per coin per day
+  faucet: number /* int64 */;
+  fees: number /* int64 */;
+  top: Goods[];
+  staged: number /* int64 */;
+  audit: number /* int */;
+  chart?: string;
+}
+/**
+ * History is one material's price over time at a settlement, as a chart.
+ */
+export interface History {
+  material: string;
+  name: string;
+  days: PricePt[];
+  chart: string; // a media key
+}
+/**
+ * PricePt is a world day's close and what traded.
+ */
+export interface PricePt {
+  day: number /* int64 */;
+  close: number /* int64 */;
+  units: number /* int64 */;
+  cause?: string;
+}
+/**
+ * Forum is each settlement's notable trades of a world day, for the
+ * market forum (GDD 17.2).
+ */
+export interface Forum {
+  day: number /* int64 */;
+  posts: ForumPost[];
+}
+/**
+ * ForumPost is one settlement's day.
+ */
+export interface ForumPost {
+  settlement: number /* int */;
+  name: string;
+  banner: string; // a media key
+  trades: Trade[];
+  movers: Mover[];
+}
+/**
+ * Trade is a notable fill.
+ */
+export interface Trade {
+  what: string;
+  units: number /* int64 */;
+  price: number /* int64 */;
+  coin: number /* int64 */;
+}
+/**
+ * RouteRisk is a route's danger and the haul it puts at risk (GDD 10.7).
+ */
+export interface RouteRisk {
+  tiles: TileRisk[];
+  expected: number /* int64 */; // hundredths of an ambush
+  worst: string;
+  haul: number /* int64 */; // coin at reference value
+}
+/**
+ * TileRisk is one tile's band.
+ */
+export interface TileRisk {
+  at: Hex;
+  band: string;
+  chance: number /* int64 */; // per cent
+}
+/**
+ * Economy is the faucet and the flags an operator reviews (GDD 10.9).
+ */
+export interface Economy {
+  active: number /* int64 */;
+  supply: number /* int64 */;
+  perActive: number /* int64 */;
+  rate: number /* int64 */;
+  flagged: Flagged[];
+}
+/**
+ * Flagged is a character an operator should look at, and why.
+ */
+export interface Flagged {
+  characterId: string;
+  flags: string[];
+  streak: number /* int64 */;
 }
 
 //////////
@@ -714,6 +1068,7 @@ export interface Item {
   loads?: boolean; // an exploit, loaded into a deck
   sigil: string; // a media key
   value: number /* int64 */; // coin, at reference
+  traderPays: number /* int64 */; // coin a settlement's trader pays for it, as worn
 }
 /**
  * Standing is standing with a faction or a place.
@@ -786,6 +1141,9 @@ export interface Order {
   faction: string;
   material: string;
   price: number /* int64 */; // coin each
+  yours: number /* int64 */; // coin each to this character, after standing
+  wanted: number /* int64 */; // units still wanted today
+  refuses?: boolean;
   fee: number /* int64 */; // per cent of each fill
 }
 /**
@@ -972,7 +1330,7 @@ export interface MapView {
  * bands best first, and the rules' numbers the cards state.
  */
 export interface Lexicon {
-  names: { [key: string]: string};
+  names: { [key: string]: string };
   bands: string[];
   starts: string[];
   numbers: Numbers;

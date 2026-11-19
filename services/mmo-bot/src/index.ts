@@ -2,9 +2,10 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import IORedis from "ioredis";
 
 import { describe } from "../../../packages/discord-kit/src/index.ts";
-import { createHandler } from "./adapter.ts";
+import { createHandler, forumSink } from "./adapter.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
+import { ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
 import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
 import { Notifier } from "./notify.ts";
@@ -44,5 +45,16 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`[ready] ${c.user.tag}`);
   await registerCommands(config).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
   notifier.start();
+  if (config.marketForum) {
+    const store: ForumStore = redis
+      ? { get: (k) => redis.get(k), set: async (k, v) => void (await redis.set(k, v)) }
+      : memoryStore();
+    new ForumPoster(
+      world,
+      lex,
+      store,
+      forumSink(client, config.marketForum, (k) => media.get(k)),
+    ).start();
+  }
 });
 await client.login(config.token);
