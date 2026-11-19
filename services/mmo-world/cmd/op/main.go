@@ -1,4 +1,4 @@
-// Command op is the operator CLI: inspect, correct, grant, ban, audit,
+// Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
 // reset and replay a world.
 //
 // Writes go through the running service's operator API, so the service
@@ -35,6 +35,7 @@ const usage = `op [-id <interaction id>] <command>
   grant <id> <mount-kind> <note...>
   ban <id> <note...>  |  unban <id> <note...>
   audit                           the conservation check
+  economy                         the faucet, and characters flagged for review
   digest                          the world's tick and digest
   reset <world> [-direct]         wipe a disposable test world and found it again
   replay [-from N] [-to N]        re-run ticks against their recorded digests`
@@ -152,6 +153,8 @@ func run(args []string) error {
 			Note: strings.Join(rest[1:], " ")})
 	case "audit":
 		return shown(cli().Audit(context.Background()))
+	case "economy":
+		return shown(cli().Economy(context.Background()))
 	case "digest":
 		return shown(cli().Digest(context.Background()))
 	case "reset":

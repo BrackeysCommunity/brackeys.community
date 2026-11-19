@@ -13,6 +13,26 @@ type RefValue struct {
 	Median int64  `json:"median" unit:"pts" min:"1"`
 }
 
+// StandingBand is what standing with a faction does to its orders' price
+// (GDD 5.4): from this standing up to the next band's.
+type StandingBand struct {
+	ID      string `json:"id" unit:"id"`
+	From    int64  `json:"from" unit:"standing" min:"-100" max:"100"`
+	Price   int64  `json:"price" unit:"percent" doc:"Added to the order's price, against it."`
+	Refuses bool   `json:"refuses,omitempty" unit:"flag" doc:"The faction will not buy from the character."`
+}
+
+// RouteRisk is the chance an ambush springs on entering a tile, by the
+// threat of its region or a gauge line it is past (GDD 10.7). Bands are in
+// order, safest first; cover raises a tile one band.
+type RouteRisk struct {
+	ID     string  `json:"id" unit:"id"`
+	Name   string  `json:"name" unit:"text" doc:"The odds as a card names them."`
+	Threat int64   `json:"threat" unit:"gauge" min:"0" doc:"The band holds from this threat up."`
+	Line   string  `json:"line,omitempty" unit:"text" doc:"A gauge line effect that puts a region in this band whatever its threat."`
+	Chance fixed.F `json:"chance" unit:"chance" min:"0" max:"1"`
+}
+
 // ---- Items ----
 
 // Start is one of the three things a new character can choose to have

@@ -529,6 +529,66 @@
       "kind": "item.cached",
       "weight": 1,
       "note": "provisional"
+    },
+    {
+      "id": "faucet-moved",
+      "kind": "faucet.moved",
+      "weight": 1
+    },
+    {
+      "id": "order-placed",
+      "kind": "order.placed",
+      "weight": 2
+    },
+    {
+      "id": "market-filled",
+      "kind": "market.filled",
+      "weight": 3
+    },
+    {
+      "id": "gear-listed",
+      "kind": "gear.listed",
+      "weight": 3
+    },
+    {
+      "id": "gear-wanted",
+      "kind": "gear.wanted",
+      "weight": 2
+    },
+    {
+      "id": "gear-sold",
+      "kind": "gear.sold",
+      "weight": 10
+    },
+    {
+      "id": "npc-bought",
+      "kind": "npc.bought",
+      "weight": 8
+    },
+    {
+      "id": "npc-resold",
+      "kind": "npc.resold",
+      "weight": 30
+    },
+    {
+      "id": "npc-fortune",
+      "kind": "npc.fortune",
+      "weight": 40
+    },
+    {
+      "id": "ledger-report",
+      "kind": "ledger.report",
+      "weight": 50
+    },
+    {
+      "id": "character-gave",
+      "kind": "character.gave",
+      "weight": 5
+    },
+    {
+      "id": "character-flagged",
+      "kind": "character.flagged",
+      "weight": 20
     }
   ]
 }

@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
 )
@@ -58,6 +59,11 @@ type Command struct {
 	NPC string `json:"npc,omitempty"`
 	// Server is a new character's Discord server, for naming consent.
 	Server string `json:"server,omitempty"`
+	// Price is an order's or a listing's coin each; Target the character
+	// given to; Floor a gear order's floor.
+	Price  int64         `json:"price,omitempty"`
+	Target string        `json:"target,omitempty"`
+	Floor  *market.Floor `json:"floor,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -144,6 +150,10 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	c.Version++
 	if !Operator(cmd.Kind) {
 		c.Acted = g.Tick()
+		g.visited(c, c.C.At, g.Tick())
+		if err := g.cadence(c, g.Tick()); err != nil {
+			return Result{}, err
+		}
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
@@ -172,6 +182,24 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.ban(c, cmd.Kind == Ban, cmd.Note)
 	case Sell:
 		return nil, g.sell(c, cmd)
+	case Bid:
+		return nil, g.order(c, cmd, market.Bid, true)
+	case Ask:
+		return nil, g.order(c, cmd, market.Ask, true)
+	case Take:
+		return nil, g.take(c, cmd)
+	case Withdraw:
+		return nil, g.withdraw(c, cmd)
+	case List:
+		return nil, g.list(c, cmd)
+	case Want:
+		return nil, g.want(c, cmd)
+	case Purchase:
+		return nil, g.purchase(c, cmd)
+	case Give:
+		return nil, g.give(c, cmd)
+	case SellItem:
+		return nil, g.sellItem(c, cmd)
 	case Buy:
 		return nil, g.buy(c, cmd)
 	case Feed:

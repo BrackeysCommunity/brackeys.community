@@ -19,7 +19,7 @@ func readSolo[T any](t *testing.T, r *running, path string, status int) T {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var out T
 	if resp.StatusCode != status {
 		t.Fatalf("%s: HTTP %d, want %d", path, resp.StatusCode, status)
@@ -68,7 +68,7 @@ func TestSoloCardsOverHTTP(t *testing.T) {
 			t.Fatal(err)
 		}
 		img, err := png.Decode(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil || img.Bounds().Empty() || resp.Header.Get("Content-Type") != "image/png" {
 			t.Fatalf("media %q: %v, %s", key, err, resp.Header.Get("Content-Type"))
 		}
@@ -109,7 +109,7 @@ func TestSoloCardsOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var bad api.Refusal
 	if err := json.NewDecoder(resp.Body).Decode(&bad); err != nil || resp.StatusCode != http.StatusBadRequest || bad.Code != api.CodeBadJSON {
 		t.Fatal(resp.StatusCode, bad, err)

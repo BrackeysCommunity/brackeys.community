@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "economy.route-risk",
+  "title": "economy.route-risk",
+  "description": "Ambush chance per tile entered, by threat (GDD 10.7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "economy.route-risk"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "threat",
+          "chance"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "name": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The odds as a card names them."
+          },
+          "threat": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "gauge",
+            "description": "The band holds from this threat up."
+          },
+          "line": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "A gauge line effect that puts a region in this band whatever its threat."
+          },
+          "chance": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "minimum": 0,
+            "maximum": 1,
+            "x-unit": "chance"
+          }
+        }
+      }
+    }
+  }
+}

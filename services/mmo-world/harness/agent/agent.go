@@ -52,6 +52,7 @@ func (d *Dice) Percent(share int64, purpose string) bool {
 // the character it has made.
 type Player struct {
 	Discord   string
+	Start     string // what a new character chooses to have carried
 	Policy    Policy
 	Character string
 	Actions   int
@@ -83,11 +84,16 @@ func NewScript(c Client, players []*Player, label string) *Script {
 // creates one, the others act on their options. Interaction ids are
 // fixed by player and tick, so two runs send the same presses.
 func (s *Script) Turn(ctx context.Context, tick int64) error {
-	for _, p := range s.Players {
+	return s.TurnFor(ctx, tick, s.Players)
+}
+
+// TurnFor gives some of the players their choice at tick.
+func (s *Script) TurnFor(ctx context.Context, tick int64, players []*Player) error {
+	for _, p := range players {
 		id := fmt.Sprintf("%s-t%d", p.Discord, tick)
 		var req api.ActionRequest
 		if p.Character == "" {
-			req = api.ActionRequest{Kind: api.ActCreate, DiscordID: p.Discord}
+			req = api.ActionRequest{Kind: api.ActCreate, DiscordID: p.Discord, Option: p.Start}
 		} else {
 			o, err := s.Client.Options(ctx, p.Character)
 			if err != nil {

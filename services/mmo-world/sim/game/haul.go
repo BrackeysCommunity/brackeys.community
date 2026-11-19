@@ -1,0 +1,82 @@
+package game
+
+import (
+	"slices"
+
+	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/sheets"
+)
+
+// riskBand is the route-risk band of entering a tile (GDD 10.7): by its
+// region's threat or a gauge line it is past, raised one band by cover.
+// Where nothing lives there is no band.
+func (g *Game) riskBand(h hex.Hex) (sheets.RouteRisk, bool) {
+	bands := g.r.Book.RouteRisks
+	if len(bands) == 0 || len(g.r.Gen.Creatures(h)) == 0 {
+		return sheets.RouteRisk{}, false
+	}
+	threat, ok := g.World.GaugeAt(h, gaugeThreat)
+	if !ok {
+		return sheets.RouteRisk{}, false
+	}
+	i := 0
+	for j, b := range bands {
+		if threat >= b.Threat || (b.Line != "" && g.World.Past(h, b.Line)) {
+			i = j
+		}
+	}
+	if i > 0 && g.r.Gen.Baseline(h).Cover >= g.mp("cover-raise") {
+		i = min(i+1, len(bands)-1)
+	}
+	return bands[i], true
+}
+
+// structural: route risk reads the threat gauge.
+const gaugeThreat = "threat"
+
+// Risk is a route's danger: each tile's band, the ambushes to expect,
+// and what the haul carried is worth.
+type Risk struct {
+	Tiles    []TileRisk `json:"tiles"`
+	Expected fixed.F    `json:"expected"` // ambushes, summed over the tiles
+	Worst    string     `json:"worst"`
+	Haul     int64      `json:"haul"` // coin, at reference value
+}
+
+// TileRisk is one tile of a route and its band.
+type TileRisk struct {
+	Hex    hex.Hex `json:"hex"`
+	Band   string  `json:"band"`
+	Chance fixed.F `json:"chance"`
+}
+
+// RouteRisk is the danger of walking a route with what a character
+// carries.
+func (g *Game) RouteRisk(c *Char, route []hex.Hex) Risk {
+	var r Risk
+	worst := -1
+	for _, h := range route {
+		b, ok := g.riskBand(h)
+		if !ok || b.Chance == 0 {
+			continue
+		}
+		r.Tiles = append(r.Tiles, TileRisk{Hex: h, Band: b.Name, Chance: b.Chance})
+		r.Expected = r.Expected.Add(b.Chance)
+		if i := slices.IndexFunc(g.r.Book.RouteRisks, func(x sheets.RouteRisk) bool { return x.ID == b.ID }); i > worst {
+			worst, r.Worst = i, b.Name
+		}
+	}
+	r.Haul = g.HaulValue(c)
+	return r
+}
+
+// HaulValue is what a character's carried goods are worth at reference
+// value: what an ambush lost may cost.
+func (g *Game) HaulValue(c *Char) int64 {
+	var v int64
+	for _, s := range c.C.Goods {
+		v += s.Qty * g.r.Values.Material(s.Material)
+	}
+	return v
+}

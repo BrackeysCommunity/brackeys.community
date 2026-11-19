@@ -203,7 +203,7 @@ func meetings(b *sheets.Book, n int) (meetResult, error) {
 			return meetResult{}, err
 		}
 		pl.npc, pl.history = who.ID, pick.ID
-		if orders := g.Orders(home); i%3 == 0 && c.C.At == home && len(orders) > 0 {
+		if orders := g.FactionOrders(home); i%3 == 0 && c.C.At == home && len(orders) > 0 {
 			sold := orders[0].Material
 			if err := s.act(game.Command{Char: c.C.ID, Kind: game.Correct, Asset: ledger.Material(sold), Units: 3, Note: "social run stock"}); err != nil {
 				return meetResult{}, err

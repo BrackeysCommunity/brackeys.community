@@ -1,13 +1,18 @@
 package service
 
 import (
+	"cmp"
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/item"
+	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/world"
+	"slices"
 )
 
 // structural: what a score part and a region gauge count in.
@@ -61,17 +66,55 @@ func apiLong(l *game.Long) *api.Long {
 func apiCharacter(g *game.Game, c *game.Char) api.Character {
 	ch := c.C
 	out := api.Character{ID: ch.ID, Version: c.Version, At: apiHex(ch.At), Coin: ch.Coin, Provisions: ch.Provisions,
-		Goods: []api.Goods{}, Practice: []api.Skill{}, Long: apiLong(c.Long), InFight: c.Fight != nil,
+		Goods: apiGoods(ch.Goods), Practice: []api.Skill{}, Long: apiLong(c.Long), InFight: c.Fight != nil,
 		Walked: ch.Walked, Banned: c.Banned}
-	for _, s := range ch.Goods {
-		out.Goods = append(out.Goods, api.Goods{Material: s.Material, Units: s.Qty})
-	}
 	out.Conditions = conditions(g, c)
 	for _, s := range ch.Practice {
 		out.Practice = append(out.Practice, api.Skill{ID: s.ID, Level: s.Level})
 	}
 	if m := ch.In(char.Mount, 0); m != nil {
 		out.Mount = &api.Mount{ID: m.ID, Kind: m.Mount, Level: m.Level}
+	}
+	return out
+}
+
+// structural: the listings a purse shows.
+const purseListings = 5
+
+// cheapest are a settlement's cheapest gear listings, as a character
+// sees them.
+func cheapest(g *game.Game, c *game.Char, n, most int) []api.Listing {
+	if g.Market == nil {
+		return nil
+	}
+	var ls []market.Listing
+	for _, l := range g.Market.Listings {
+		if l.Settlement == n {
+			ls = append(ls, l)
+		}
+	}
+	slices.SortStableFunc(ls, func(a, b market.Listing) int { return cmp.Compare(a.Price, b.Price) })
+	out := []api.Listing{}
+	for _, l := range ls[:min(len(ls), most)] {
+		out = append(out, apiListing(g, c, l))
+	}
+	return out
+}
+
+func apiListing(g *game.Game, c *game.Char, l market.Listing) api.Listing {
+	in := l.Item
+	out := api.Listing{ID: l.ID, Kind: in.Kind, Name: g.KindName(in.Kind), Level: in.Level, Picks: int64(len(in.Picks)), Durability: in.Durability,
+		Max: in.MaxDurability, Maker: in.Maker, Seller: g.OwnerName(l.Seller), Price: l.Price, Value: g.ItemValue(in), Mine: l.Seller == ledger.Char(c.C.ID)}
+	if k, ok := g.Kinds.Kind(in.Kind); ok {
+		out.Slot = k.Slot
+	}
+	return out
+}
+
+func apiGoods(goods []item.Spoil) []api.Goods {
+	out := make([]api.Goods, 0, len(goods))
+	for _, s := range goods {
+		out = append(out, api.Goods{Material: s.Material, Units: s.Qty})
 	}
 	return out
 }
@@ -103,7 +146,58 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 		}
 		out.Fight = v
 	}
+	out.Purse = apiPurse(g, c)
 	return out
+}
+
+func apiPurse(g *game.Game, c *game.Char) api.Purse {
+	p := api.Purse{Coin: c.C.Coin, Provisions: c.C.Provisions, Goods: apiGoods(c.C.Goods), Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
+		Open: g.OpenOrders(c), Markets: []api.Hex{}}
+	worn := func(in *item.Instance) api.Worn {
+		w := api.Worn{ID: in.ID, Kind: in.Kind, Durability: in.Durability, Max: in.MaxDurability, Value: g.ItemValue(in)}
+		if k, ok := g.Kinds.Kind(in.Kind); ok {
+			cost := g.RepairCost(in, k)
+			w.Repair = api.Goods{Material: cost.Material, Units: cost.Units}
+		}
+		return w
+	}
+	if in := c.C.In(char.Hand, 0); in != nil {
+		w := worn(in)
+		p.Hand = &w
+	}
+	p.Items = []api.Worn{}
+	for _, in := range c.C.Pack {
+		if !c.C.Worn(in.ID) {
+			p.Items = append(p.Items, worn(in))
+		}
+	}
+	p.Mounted, p.Owed = c.C.In(char.Mount, 0) != nil, c.Owed
+	for _, h := range g.Settlements() {
+		p.Markets = append(p.Markets, apiHex(h))
+	}
+	if !g.HasMarket(c.C.At) {
+		return p
+	}
+	n, _ := g.SettlementAt(c.C.At)
+	p.Market = true
+	rv := g.Rules().Values
+	for _, o := range g.Offers(c.C.At) {
+		if o.Asset == ledger.Provisions {
+			p.Provision = o.Price
+		} else {
+			p.Mounts = append(p.Mounts, api.Offer{Asset: o.Asset, Price: o.Price})
+		}
+	}
+	p.Listings = cheapest(g, c, n, purseListings)
+	for _, b := range g.BooksAt(n) {
+		bid, ask := b.Best()
+		q := api.Quote{Material: b.Material, Bid: bid, Ask: ask, Value: rv.Material(b.Material)}
+		if len(b.Bids) > 0 {
+			q.BidUnits = b.Bids[0].Qty
+		}
+		p.Quotes = append(p.Quotes, q)
+	}
+	return p
 }
 
 func apiFacts(fs []fact.Fact) []api.Fact {

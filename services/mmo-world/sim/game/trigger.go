@@ -286,9 +286,9 @@ func (g *Game) stash(c *Char, cmd Command) error {
 	if err := free(c); err != nil {
 		return err
 	}
-	in := c.C.Item(cmd.Item)
-	if in == nil || slices.ContainsFunc(c.C.Equipped, func(e char.Equipped) bool { return e.Item == in.ID }) {
-		return refuse(BadArgs, "%s carries no unworn %s", c.C.ID, cmd.Item)
+	in, err := unworn(c, cmd.Item)
+	if err != nil {
+		return err
 	}
 	h := c.C.At
 	if err := g.post(ledger.Txn{Key: cmd.Key, Kind: "cache", Tick: g.Tick(), Legs: itemLegs(in, ledger.Char(c.C.ID), poolOf(h))}); err != nil {
@@ -296,7 +296,7 @@ func (g *Game) stash(c *Char, cmd Command) error {
 	}
 	c.C.Drop(in.ID)
 	g.Left = append(g.Left, &Left{Hex: h, By: c.C.ID, Hidden: true, Item: in})
-	_, err := g.fact(c, "item.cached", g.Tick(), append([]fact.Datum{fact.S("item", in.ID)}, fact.At(h)...)...)
+	_, err = g.fact(c, "item.cached", g.Tick(), append([]fact.Datum{fact.S("item", in.ID)}, fact.At(h)...)...)
 	return err
 }
 

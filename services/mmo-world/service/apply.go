@@ -9,6 +9,7 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/market"
 )
 
 // records is what applying a command needs of where it is kept: the
@@ -36,7 +37,11 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 		return game.Command{}, &api.Refusal{Code: api.CodeForbidden, Message: "operator actions take the operator path"}, http.StatusForbidden
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
-		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server}
+		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server,
+		Price: req.Price, Target: req.Target}
+	if req.Floor != nil {
+		cmd.Floor = &market.Floor{Durability: req.Floor.Durability, Trait: req.Floor.Trait, Level: req.Floor.Level}
+	}
 	if req.To != nil {
 		h := simHex(*req.To)
 		cmd.To = &h

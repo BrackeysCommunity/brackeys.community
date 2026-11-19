@@ -68,7 +68,11 @@ func (g *Game) Choose(c *Char) Choices {
 		ticks, why, ok := g.EnterCost(c, c.C.At, to, t)
 		out.Moves = append(out.Moves, Move{Dir: d, To: to, Open: ok, Ticks: ticks, Why: why})
 	}
-	out.Materials = g.Materials(c.C.At)
+	for _, m := range g.Materials(c.C.At) {
+		if !g.WorkedOut(c.C.At, m) {
+			out.Materials = append(out.Materials, m)
+		}
+	}
 	out.GatherMin, out.GatherMax = g.r.wp("gather-ticks-min"), g.r.wp("gather-ticks-max")
 	out.Rest = g.CanRest(c.C.At)
 	out.Explore = g.CanExplore(c.C.At)

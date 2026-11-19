@@ -24,6 +24,10 @@ func NewLocal(g *game.Game) *Local {
 	return &Local{G: g, mem: memory{replies: map[string][]byte{}, players: map[string]string{}, kept: &[]ledger.Txn{}}}
 }
 
+// Forget drops the replies kept for duplicate presses, for a long run
+// whose players never repeat one.
+func (l *Local) Forget() { clear(l.mem.replies) }
+
 // Txns hands over the ledger transactions the actions applied since the
 // last call, for a run that audits them.
 func (l *Local) Txns() []ledger.Txn {

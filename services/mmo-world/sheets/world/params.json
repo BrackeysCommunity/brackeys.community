@@ -125,7 +125,7 @@
       "id": "weather-pace-base",
       "value": 14,
       "unit": "ticks",
-      "doc": "A system moves a tile every (this \u2212 strength \u00f7 weather-pace-per) ticks."
+      "doc": "A system moves a tile every (this − strength ÷ weather-pace-per) ticks."
     },
     {
       "id": "weather-pace-per",
@@ -255,12 +255,6 @@
       "value": 2,
       "unit": "goods",
       "doc": "provisional: not in the GDD yet; units of a node's material a gathering tick yields before traits (Hooked adds 1)."
-    },
-    {
-      "id": "ambush-chance",
-      "value": 15,
-      "unit": "percent",
-      "doc": "provisional: not in the GDD yet; chance a tile entered in a region at the ambush line or above springs an ambush."
     },
     {
       "id": "forage-min",

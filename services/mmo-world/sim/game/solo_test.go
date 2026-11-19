@@ -152,7 +152,7 @@ func TestSoloLoop(t *testing.T) {
 	s.wait()
 	s.walk(s.home)
 	sold := int64(0)
-	for _, o := range g.Orders(s.home) {
+	for _, o := range g.FactionOrders(s.home) {
 		if n := g.Ledger.Of(ledger.Char(s.c.C.ID), ledger.Material(o.Material)); n > 0 && o.Material != gathered {
 			if s.act(game.Command{Kind: game.Sell, Material: o.Material, Units: n}) == nil {
 				sold += n

@@ -339,14 +339,21 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		}
 		pct := (now - n.RouteTicks) * fixedHundred / n.RouteTicks
 		fields = append(fields, npc.Field{Key: "n", Value: strconv.FormatInt(pct, decimal)}, npc.Field{Key: "unit", Value: "per cent"})
+	case entryResold, entrySoldOn:
+		e, ok := g.r.NPC.About(n, c.C.ID, row.When, t)
+		if !ok || e.N < row.AtLeast {
+			return TopicView{}, false
+		}
+		own = true
+		sal += g.r.NPC.Salience(e, t)
+		fields = append(fields, npc.Field{Key: "thing", Value: e.Thing}, npc.Field{Key: "n", Value: strconv.FormatInt(e.N, decimal)}, npc.Field{Key: "unit", Value: row.Unit})
 	case "pattern":
 		if len(g.r.Gen.Chunk(g.r.Gen.ChunkOf(n.Stub.Home)).Points) == 0 {
 			return TopicView{}, false
 		}
 	default:
-		// resold, sold-on, crowding, rival, promise-kept, promise-broken and
-		// moved-away need NPC trade, building and goals, which the sim does
-		// not model yet.
+		// crowding, rival, promise-kept, promise-broken and moved-away need
+		// building and goals, which the sim does not model yet.
 		return TopicView{}, false
 	}
 	v := TopicView{ID: row.ID, Line: npc.Line(row.Line, fields...), Own: own, Salience: sal}

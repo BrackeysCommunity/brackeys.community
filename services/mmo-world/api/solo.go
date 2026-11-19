@@ -92,6 +92,7 @@ type Item struct {
 	Loads      bool     `json:"loads,omitempty"` // an exploit, loaded into a deck
 	Sigil      string   `json:"sigil"`           // a media key
 	Value      int64    `json:"value"`           // coin, at reference
+	TraderPays int64    `json:"traderPays"`      // coin a settlement's trader pays for it, as worn
 }
 
 // Standing is standing with a faction or a place.
@@ -154,8 +155,11 @@ type Station struct {
 type Order struct {
 	Faction  string `json:"faction"`
 	Material string `json:"material"`
-	Price    int64  `json:"price"` // coin each
-	Fee      int64  `json:"fee"`   // per cent of each fill
+	Price    int64  `json:"price"`  // coin each
+	Yours    int64  `json:"yours"`  // coin each to this character, after standing
+	Wanted   int64  `json:"wanted"` // units still wanted today
+	Refuses  bool   `json:"refuses,omitempty"`
+	Fee      int64  `json:"fee"` // per cent of each fill
 }
 
 // Offer is something the market or the stable sells.

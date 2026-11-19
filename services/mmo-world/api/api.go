@@ -96,6 +96,11 @@ type ActionRequest struct {
 	Stop   *Stop   `json:"stop,omitempty"`
 	NPC    string  `json:"npc,omitempty"`
 	Server string  `json:"server,omitempty"`
+	// The market's fields (GDD 10.3): an order's price each, the character
+	// given to, and a gear order's floor.
+	Price  int64  `json:"price,omitempty"`
+	Target string `json:"target,omitempty"`
+	Floor  *Floor `json:"floor,omitempty"`
 }
 
 // OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -257,6 +262,48 @@ type Options struct {
 	Cancel      bool     `json:"cancel"`
 	Long        *Long    `json:"long,omitempty"`
 	Fight       *Fight   `json:"fight,omitempty"`
+	Purse       Purse    `json:"purse"`
+}
+
+// Purse is what a character holds and, in a market, the prices there:
+// what a policy weighs before it trades.
+type Purse struct {
+	Coin       int64   `json:"coin"`
+	Provisions int64   `json:"provisions"`
+	Goods      []Goods `json:"goods"`
+	Load       Load    `json:"load"`
+	Hand       *Worn   `json:"hand,omitempty"` // what the main hand holds
+	Market     bool    `json:"market"`         // standing in a market
+	Provision  int64   `json:"provision"`      // coin a provision costs here, 0 where none are sold
+	Quotes     []Quote `json:"quotes,omitempty"`
+	Open       int64   `json:"open"` // open orders held
+	Markets    []Hex   `json:"markets"`
+	Items      []Worn  `json:"items"` // carried, not worn
+	Mounted    bool    `json:"mounted"`
+	Owed       int64   `json:"owed"` // provisions a mount is owed
+	// Mounts are the mounts a stable here sells, and Listings the
+	// cheapest gear listed here.
+	Mounts   []Offer   `json:"mounts,omitempty"`
+	Listings []Listing `json:"listings,omitempty"`
+}
+
+// Worn is an item's wear, its value, and what repairing it takes.
+type Worn struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	Value      int64  `json:"value"` // coin
+	Repair     Goods  `json:"repair"`
+	Durability int64  `json:"durability"`
+	Max        int64  `json:"max"`
+}
+
+// Quote is one material's best prices here and its reference value.
+type Quote struct {
+	Material string `json:"material"`
+	Bid      int64  `json:"bid"`
+	BidUnits int64  `json:"bidUnits"`
+	Ask      int64  `json:"ask"`
+	Value    int64  `json:"value"`
 }
 
 // PreviewRequest asks for one option's band before pressing it.

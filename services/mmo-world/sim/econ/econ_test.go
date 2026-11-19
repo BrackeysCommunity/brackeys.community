@@ -1,11 +1,13 @@
 package econ
 
 import (
+	"slices"
 	"testing"
 
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/item"
+	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -78,5 +80,59 @@ func TestKindValueCompounds(t *testing.T) {
 	}
 	if got, want := v.Kind(reg, outer), fixed.PercentPlus(wantInner+v.Material(m), markup); got != want {
 		t.Fatalf("outer: %d, want %d", got, want)
+	}
+}
+
+// TestGoalFee is a share of the reward rounded up, never under the least.
+func TestGoalFee(t *testing.T) {
+	v, _ := values(t)
+	least := v.Param("goal-fee-min")
+	if got := v.GoalFee(0); got != least {
+		t.Fatalf("a goal of nothing pays %d, want %d", got, least)
+	}
+	if got, want := v.GoalFee(1000), fixed.PercentOf(1000, v.Param("goal-fee")); got != max(least, want) {
+		t.Fatalf("a 1000-coin goal pays %d, want %d", got, want)
+	}
+}
+
+// TestWantsByUrgency: a faction short of what a material is tagged with
+// buys it above reference; with no need it pays reference; what no
+// faction buys, the keepers do.
+func TestWantsByUrgency(t *testing.T) {
+	v, b := values(t)
+	calm := v.Wants(nil)
+	for _, w := range calm {
+		if w.Material != ledger.Provisions && (w.Buyer != Keepers || w.Price != v.Material(w.Material)) {
+			t.Fatalf("with no factions: %+v", w)
+		}
+	}
+	mats := sheets.Lookup(b.Materials)
+	for i, w := range calm {
+		for _, a := range b.Archetypes {
+			for _, tag := range mats[w.Material].Tags {
+				if !slices.Contains(a.Buys, tag) {
+					continue
+				}
+				needy := v.Wants([]Buyer{{Archetype: a.ID, Needs: map[string]int64{tag: 10}, Full: 10}})[i]
+				if needy.Buyer != 0 || needy.Urgency != v.Param("urgency-max") || needy.Price <= v.Material(w.Material) {
+					t.Fatalf("%s at full need for %s: %+v", a.ID, tag, needy)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("no archetype buys any material")
+}
+
+// TestStanding follows GDD 5.4's bands.
+func TestStanding(t *testing.T) {
+	v, _ := values(t)
+	for _, c := range []struct {
+		standing, price int64
+		buys            bool
+	}{{-100, 0, false}, {-50, 0, false}, {-49, -3, true}, {0, 0, true}, {10, 6, true}, {49, 6, true}, {50, 10, true}, {100, 10, true}} {
+		if p, ok := v.Standing(c.standing); p != c.price || ok != c.buys {
+			t.Fatalf("at %d standing: %d%%, buys %v", c.standing, p, ok)
+		}
 	}
 }

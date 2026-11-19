@@ -1,0 +1,32 @@
+{
+  "$schema": "../schema/economy.standing.schema.json",
+  "sheet": "economy.standing",
+  "rows": [
+    {
+      "id": "shunned",
+      "from": -100,
+      "price": 0,
+      "refuses": true
+    },
+    {
+      "id": "disliked",
+      "from": -49,
+      "price": -3
+    },
+    {
+      "id": "neutral",
+      "from": -9,
+      "price": 0
+    },
+    {
+      "id": "liked",
+      "from": 10,
+      "price": 6
+    },
+    {
+      "id": "trusted",
+      "from": 50,
+      "price": 10
+    }
+  ]
+}

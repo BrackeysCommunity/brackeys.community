@@ -7,12 +7,13 @@ import (
 
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/craft"
-	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -136,16 +137,31 @@ func (g *Game) HasStructure(h hex.Hex, kind string) bool {
 	return slices.ContainsFunc(g.r.Book.Starting, func(s sheets.StartingStructure) bool { return s.Structure == kind })
 }
 
-// Orders are the faction buy orders on a tile: a starting settlement's.
-func (g *Game) Orders(h hex.Hex) []econ.Order {
-	if !g.HasStructure(h, structureMarket) {
+// FactionOrder is a faction's or the keepers' buy order standing on a
+// tile today.
+type FactionOrder struct {
+	Faction  int // econ.Keepers for the keepers
+	Material string
+	Price    int64 // coin each, before standing
+	Qty      int64 // units still wanted
+}
+
+// FactionOrders are the buy orders the factions hold on a tile: an open
+// starting settlement's, today's.
+func (g *Game) FactionOrders(h hex.Hex) []FactionOrder {
+	n, ok := g.SettlementAt(h)
+	if !ok {
 		return nil
 	}
-	archs := make([]string, len(g.World.Factions))
-	for i, f := range g.World.Factions {
-		archs[i] = f.Archetype
+	var out []FactionOrder
+	for _, b := range g.BooksAt(n) {
+		for _, o := range b.Bids {
+			if o.Faction != nil {
+				out = append(out, FactionOrder{Faction: *o.Faction, Material: b.Material, Price: o.Price, Qty: o.Qty})
+			}
+		}
 	}
-	return g.r.Values.Orders(archs)
+	return out
 }
 
 // structural: the starting structures the loop looks for by kind.
@@ -154,44 +170,47 @@ const (
 	structureStable = "stable"
 )
 
+// PriceFor is what a faction order pays a character, after standing, or
+// false where the faction will not buy from it.
+func (g *Game) PriceFor(c *Char, h hex.Hex, o FactionOrder) (int64, bool) {
+	owner := ownerKeepers + ":" + h.Ref()
+	pct, buys := g.r.Values.Standing(c.C.Standing.Get(g.factionKey(o.Faction, owner)))
+	return fixed.PercentPlus(o.Price, pct), buys
+}
+
+// sell sells carried goods now to the best bids here, at no less than
+// the price named (any, for none); what finds no buyer stays carried.
 func (g *Game) sell(c *Char, cmd Command) error {
-	if err := canTrade(c); err != nil {
+	if err := g.wanted(c, cmd.Material, market.Bid); err != nil {
 		return err
 	}
-	orders := g.Orders(c.C.At)
-	i := slices.IndexFunc(orders, func(o econ.Order) bool { return o.Material == cmd.Material })
-	if i < 0 {
-		return refuse(NotHere, "no faction here buys %s", cmd.Material)
+	return g.order(c, cmd, market.Ask, false)
+}
+
+// take buys goods now from the best asks here, at no more than the price
+// named (any, for none).
+func (g *Game) take(c *Char, cmd Command) error {
+	if err := g.wanted(c, cmd.Material, market.Ask); err != nil {
+		return err
 	}
-	o := orders[i]
-	asset := ledger.Material(o.Material)
-	if o.Material == ledger.Provisions {
-		asset = ledger.Provisions
-	}
-	if cmd.Units <= 0 || g.Ledger.Of(ledger.Char(c.C.ID), asset) < cmd.Units {
-		return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, cmd.Units, o.Material)
-	}
-	coin, ok := times(cmd.Units, o.Price)
-	if !ok {
-		return refuse(BadArgs, "no order fills %d %s", cmd.Units, o.Material)
-	}
-	fee := g.r.Values.Fee(coin)
-	f, err := g.fact(c, "order.filled", g.Tick(), fact.S("material", o.Material), fact.N("units", cmd.Units),
-		fact.N("price", o.Price), fact.N("coin", coin), fact.N("fee", fee), fact.N("faction", int64(o.Faction)))
+	return g.order(c, cmd, market.Bid, false)
+}
+
+// wanted refuses an order to fill now when the book here has nobody on
+// the other side.
+func (g *Game) wanted(c *Char, material string, side market.Side) error {
+	n, err := g.marketHere(c)
 	if err != nil {
 		return err
 	}
-	acc := ledger.Char(c.C.ID)
-	t := ledger.Txn{Key: cmd.Key, Kind: "faction-order", Tick: g.Tick(), Fact: f.ID,
-		Legs: append(ledger.Pair(acc, ledger.ToFaction, asset, cmd.Units), ledger.Pair(ledger.FromFaction, acc, ledger.Coin, coin)...)}
-	if fee > 0 {
-		t.Legs = append(t.Legs, ledger.Pair(acc, ledger.ToFees, ledger.Coin, fee)...)
+	b := g.BookOf(n, material)
+	if b == nil || (side == market.Bid && len(b.Bids) == 0) || (side == market.Ask && len(b.Asks) == 0) {
+		if side == market.Bid {
+			return refuse(NotHere, "nobody here buys %s", material)
+		}
+		return refuse(NotHere, "nobody here sells %s", material)
 	}
-	if err := g.receive(c, t); err != nil {
-		return err
-	}
-	c.C.Earned.Bump("faction-order", coin-fee)
-	return g.traded(c, o.Material, g.Tick())
+	return nil
 }
 
 // buy is what the tile offers: the market's provisions, or the stable's

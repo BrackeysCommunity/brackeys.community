@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/economy.route-risk.schema.json",
+  "sheet": "economy.route-risk",
+  "rows": [
+    {
+      "id": "none",
+      "name": "none",
+      "threat": 0,
+      "chance": 0
+    },
+    {
+      "id": "long-shot",
+      "name": "a long shot",
+      "threat": 600,
+      "chance": 0.25
+    },
+    {
+      "id": "even",
+      "name": "even",
+      "threat": 800,
+      "chance": 0.5
+    },
+    {
+      "id": "likely",
+      "name": "likely",
+      "threat": 900,
+      "line": "overrun",
+      "chance": 0.75
+    }
+  ]
+}

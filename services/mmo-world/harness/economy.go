@@ -1,0 +1,270 @@
+package harness
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"jams.team/mmo-world/harness/agent"
+	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/keys"
+	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/sheets"
+)
+
+// structural: the Economy run's shape (plan 04's soak). The band is read
+// over the last measured days, after the warm-up in which characters
+// arrive with nothing and earn their first coin.
+const (
+	economyDays   = 120
+	economyWarmup = 78
+	joinDays      = 7   // players arrive over the first week
+	workPeriod    = 3   // ticks between a playing player's choices
+	awake         = 96  // ticks of a world day a player is about: sixteen hours
+	wakeSpread    = 13  // ticks between one player's waking and the next's
+	casualEvery   = 432 // ticks between a casual player's sessions
+	casualSession = 72  // ticks a casual session lasts
+	casualSpread  = 37  // ticks between one casual player's sessions and the next's
+)
+
+// economySizes are the populations the target names.
+var economySizes = []int{10, 1000, 10000}
+
+// role is one share of the soak population and the coin it keeps.
+type role struct {
+	name    string
+	share   int // per cent
+	comfort int64
+}
+
+var economyRoles = []role{
+	{agent.Gatherer, 30, 400},
+	{agent.Crafter, 10, 400},
+	{agent.Hauler, 10, 400},
+	{agent.Speculator, 5, 600},
+	{agent.Hoarder, 15, 1000},
+	{agent.Casual, 30, 100},
+}
+
+// economyDay is one world day of a soak.
+type economyDay struct {
+	day       int64
+	active    int64
+	supply    int64
+	perActive int64 // the stabiliser's 7-day mean
+	rate      int64
+	traded    int64 // coin that changed hands in the markets that day
+}
+
+type economyResult struct {
+	size    int
+	days    []economyDay
+	audit   []string
+	elapsed time.Duration
+	refused int
+	actions int
+	second  int64 // units traded at the unplayed settlement
+	reports []game.Report
+}
+
+// EconomyRun soaks the economy (GDD 10, plan 04): scripted players in six
+// roles, joining over the first week at the first starting settlement
+// while a second stands open with nobody from it, for 70 simulated days at
+// 10, 1,000 and 10,000 players (or n alone). It reads coin per active
+// character against the band over the last 42 days, and runs the
+// conservation check at the end.
+func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
+	sizes := economySizes
+	if n > 0 {
+		sizes = []int{n}
+	}
+	days := int64(economyDays)
+	if v, err := strconv.Atoi(os.Getenv("ECONOMY_DAYS")); err == nil && v > economyWarmup {
+		days = int64(v)
+	}
+	var results []economyResult
+	for _, size := range sizes {
+		r, err := soak(b, size, days)
+		if err != nil {
+			return nil, fmt.Errorf("economy run at %d: %w", size, err)
+		}
+		results = append(results, r)
+		fmt.Fprintf(os.Stderr, "economy %d: %s, %d actions, %d refused\n", size, r.elapsed.Round(time.Second), r.actions, r.refused)
+	}
+	lo, hi := sheets.IntParam(b.EconomyParams, "band-low"), sheets.IntParam(b.EconomyParams, "band-high")
+	allHold, clean := true, true
+	var doc lineDoc
+	p := doc.p
+	p("# Economy run")
+	p("")
+	p("Scripted players (`harness/agent.Earner`) in six roles: %s. They join over the first %d world days at the first starting settlement; a second settlement is open from day 1 and nobody starts there. %d simulated world days; the band is read over days %d to %d.", roleList(), joinDays, days, economyWarmup, days)
+	p("")
+	p("| Players | Coin per active character, days %d–%d | In the band (%d–%d coin) | Faucet rate at the end | Units traded at the unplayed settlement | Conservation | Time |", economyWarmup, days, lo, hi)
+	p("| --- | --- | --- | --- | --- | --- | --- |")
+	for _, r := range results {
+		mn, mx, ok := bandOver(r.days, lo, hi)
+		allHold = allHold && ok
+		clean = clean && len(r.audit) == 0
+		end := r.days[len(r.days)-1]
+		p("| %s | %d to %d coin | %s | %d coin per active character per day | %d | %s | %s |", comma(int64(r.size)), mn, mx, holds(ok), end.rate, r.second, either(len(r.audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(r.audit))), r.elapsed.Round(time.Second))
+	}
+	p("")
+	for _, r := range results {
+		p("## %s players", comma(int64(r.size)))
+		p("")
+		p("| Day | Active | Supply (coin) | Coin per active character (7-day mean) | Faucet (coin per active character) | Coin traded that day |")
+		p("| --- | --- | --- | --- | --- | --- |")
+		for _, d := range r.days {
+			p("| %d | %d | %d | %d | %d | %d |", d.day, d.active, d.supply, d.perActive, d.rate, d.traded)
+		}
+		p("")
+		if len(r.reports) > 0 {
+			last := r.reports[len(r.reports)-1]
+			var top []string
+			for _, t := range last.Top {
+				top = append(top, fmt.Sprintf("%s (%d units)", t.Material, t.Units))
+			}
+			p("Last weekly ledger report (day %d): velocity %s coin changing hands per coin per day; most traded %s.", last.Day, last.Velocity, strings.Join(top, ", "))
+			p("")
+		}
+		for _, a := range r.audit {
+			p("- %s", a)
+		}
+	}
+	if err := doc.save(out, "economy.md"); err != nil {
+		return nil, err
+	}
+	return []Measured{
+		{Target: "coin-band", Value: fmt.Sprintf("%d sizes, days %d–%d", len(results), economyWarmup, days), Holds: allHold && clean},
+	}, nil
+}
+
+func roleList() string {
+	var s []string
+	for _, r := range economyRoles {
+		s = append(s, fmt.Sprintf("%s %d%%", r.name, r.share))
+	}
+	return strings.Join(s, ", ")
+}
+
+// bandOver is the least and most coin per active character after the
+// warm-up, and whether every day was inside the band.
+func bandOver(days []economyDay, lo, hi int64) (mn, mx int64, ok bool) {
+	ok, first := true, true
+	for _, d := range days {
+		if d.day < economyWarmup {
+			continue
+		}
+		if first || d.perActive < mn {
+			mn = d.perActive
+		}
+		if first || d.perActive > mx {
+			mx = d.perActive
+		}
+		first = false
+		ok = ok && d.perActive >= lo && d.perActive <= hi
+	}
+	return mn, mx, ok && !first
+}
+
+func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
+	start := time.Now()
+	k := keys.Throwaway("economy")
+	r, err := game.NewRules(b, k)
+	if err != nil {
+		return economyResult{}, err
+	}
+	g, err := game.New(r)
+	if err != nil {
+		return economyResult{}, err
+	}
+	g.World.OpenSettlement()
+	local := service.NewLocal(g)
+	bands := agent.Bands(b)
+	var players []*agent.Player
+	for _, ro := range economyRoles {
+		e := &agent.Earner{Role: ro.name, BandOrder: bands, Comfort: ro.comfort}
+		for range max(1, size*ro.share/100) {
+			players = append(players, &agent.Player{Discord: fmt.Sprintf("%s-%d", ro.name, len(players)), Start: "hook", Policy: e})
+		}
+	}
+	players = players[:min(len(players), max(size, len(economyRoles)))]
+	script := agent.NewScript(local, players, "economy")
+	ctx := context.Background()
+	res := economyResult{size: size}
+	join := int64(joinDays) * sheets.TicksPerDay
+	end := days * sheets.TicksPerDay
+	var due []*agent.Player
+	for t := int64(0); t < end; t++ {
+		due = due[:0]
+		for i, p := range players {
+			arrive := int64(i) * join / int64(len(players))
+			if t < arrive {
+				continue
+			}
+			if (t+int64(i))%workPeriod != 0 || (t+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
+				continue
+			}
+			if p.Policy.Name() == "earner-"+agent.Casual && (t+int64(i)*casualSpread)%casualEvery >= casualSession {
+				continue
+			}
+			if p.Character != "" {
+				if c := g.Char(p.Character); c != nil && c.Long != nil && c.Fight == nil {
+					continue
+				}
+			}
+			due = append(due, p)
+		}
+		if err := script.TurnFor(ctx, t, due); err != nil {
+			return res, err
+		}
+		if _, err := g.Advance(); err != nil {
+			return res, err
+		}
+		g.Flush()
+		local.Txns()
+		if g.Tick()%sheets.TicksPerDay == 0 {
+			local.Forget()
+			res.days = append(res.days, dayOf(g))
+		}
+	}
+	for _, p := range players {
+		res.actions += p.Actions
+		res.refused += p.Refused
+	}
+	res.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+	if g.Market != nil {
+		res.reports = g.Market.Reports
+		for _, bk := range g.BooksAt(1) {
+			for _, d := range bk.Days {
+				res.second += d.Units
+			}
+		}
+	}
+	res.elapsed = time.Since(start)
+	return res, nil
+}
+
+func dayOf(g *game.Game) economyDay {
+	d := economyDay{day: g.World.Day, active: g.Active(), supply: g.Supply()}
+	if m := g.Market; m != nil {
+		if n := len(m.Faucet.Samples); n > 0 {
+			var sum int64
+			for _, x := range m.Faucet.Samples {
+				sum += x
+			}
+			d.perActive = sum / int64(n)
+		}
+		d.rate = m.Faucet.Rate.Floor()
+		for _, bk := range m.Books {
+			if n := len(bk.Days); n > 0 {
+				d.traded += bk.Days[n-1].Coin
+			}
+		}
+	}
+	return d
+}

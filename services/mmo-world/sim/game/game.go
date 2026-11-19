@@ -16,6 +16,7 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/item"
@@ -24,6 +25,7 @@ import (
 	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
+	"jams.team/mmo-world/sim/tally"
 	"jams.team/mmo-world/sim/world"
 )
 
@@ -37,6 +39,7 @@ type Rules struct {
 	Crafter *craft.Crafter
 	NPC     *npc.Rules
 	Values  *econ.Values
+	Faucet  faucet.Params
 	names   map[string]string // pack names by sheet:id
 	// processStations lists the stations each process is done at.
 	processStations map[string][]string
@@ -57,7 +60,7 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 		return nil, err
 	}
 	r := &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
-		Values: econ.New(b), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
+		Values: econ.New(b), Faucet: faucet.ParamsOf(b.EconomyParams), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
 		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params())}
 	for _, n := range b.Names {
 		r.names[n.Ref] = n.Name
@@ -100,6 +103,21 @@ type Char struct {
 	// turned up for it, newest last.
 	Dropped []Dropped `json:"dropped,omitempty"`
 	Finds   []Find    `json:"finds,omitempty"`
+	// Sold is coin sold to each faction, by standing key, for the standing
+	// it earns (GDD 5.4).
+	Sold tally.Tally `json:"sold,omitempty"`
+	// Visits are when it last stood in each settlement (GDD 10.6).
+	Visits []Visit `json:"visits,omitempty"`
+	// Gave is what it gave away on world day GaveDay, while young.
+	Gave    int64 `json:"gave,omitempty"`
+	GaveDay int64 `json:"gaveDay,omitempty"`
+	// Hours are the world hours of HoursDay it acted in; Streak the days
+	// running it acted in nearly all of them; Review its flags for an
+	// operator (GDD 10.9).
+	Hours    uint32   `json:"hours,omitempty"`
+	HoursDay int64    `json:"hoursDay,omitempty"`
+	Streak   int64    `json:"streak,omitempty"`
+	Review   []string `json:"review,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -124,6 +142,7 @@ type Game struct {
 	Left     []*Left        `json:"left,omitempty"` // items lying on tiles
 	NPCs     npc.Book       `json:"npcs"`
 	News     []News         `json:"news"`
+	Market   *Market        `json:"market,omitempty"`
 	Log      *fact.Tail     `json:"log"`
 	r        *Rules
 }
@@ -137,7 +156,7 @@ func New(r *Rules) (*Game, error) {
 	g := &Game{World: s, Chars: []*Char{}, Pending: []world.Action{}, Log: &fact.Tail{}, Kinds: Kinds{List: []*item.Kind{}, Made: []KindCount{}},
 		NPCs: npc.Book{List: []*npc.NPC{}}, News: []News{}, r: r}
 	r.Fight.D.Reg = &g.Kinds
-	return g, nil
+	return g, g.ensureMarket()
 }
 
 // Attach binds a decoded game to its rules.

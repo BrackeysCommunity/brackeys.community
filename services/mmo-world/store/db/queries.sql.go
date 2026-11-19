@@ -552,6 +552,50 @@ func (q *Queries) LedgerBalances(ctx context.Context, worldID string) ([]LedgerB
 	return items, nil
 }
 
+const ledgerOf = `-- name: LedgerOf :many
+SELECT t.tick, t.kind, e.asset, e.units FROM mmo.ledger_entry e
+JOIN mmo.ledger_txn t ON t.world_id = e.world_id AND t.txn = e.txn
+WHERE e.world_id = $1 AND e.account = $2 ORDER BY e.txn DESC, e.leg LIMIT $3
+`
+
+type LedgerOfParams struct {
+	WorldID string
+	Account string
+	Limit   int32
+}
+
+type LedgerOfRow struct {
+	Tick  int64
+	Kind  string
+	Asset string
+	Units int64
+}
+
+func (q *Queries) LedgerOf(ctx context.Context, arg LedgerOfParams) ([]LedgerOfRow, error) {
+	rows, err := q.db.Query(ctx, ledgerOf, arg.WorldID, arg.Account, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LedgerOfRow
+	for rows.Next() {
+		var i LedgerOfRow
+		if err := rows.Scan(
+			&i.Tick,
+			&i.Kind,
+			&i.Asset,
+			&i.Units,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActionsAfter = `-- name: ListActionsAfter :many
 SELECT world_id, seq, interaction_id, after_tick, character_id, kind, command, reply, at FROM mmo.action WHERE world_id = $1 AND seq > $2 AND after_tick < $3 ORDER BY seq
 `

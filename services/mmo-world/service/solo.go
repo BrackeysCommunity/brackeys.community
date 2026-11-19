@@ -214,6 +214,7 @@ func (s *Server) apiItem(in *item.Instance, worn string, pictures *[]func() erro
 	k, ok := g.Kinds.Kind(in.Kind)
 	if ok {
 		out.Name, out.Slot, out.Tier, out.Value = g.Kinds.Name(k.ID), k.Slot, k.Tier, r.Values.Kind(&g.Kinds, k)
+		out.TraderPays = g.TraderPays(in)
 		out.WearIn, out.Loads, out.Deck = append(out.WearIn, game.WearIn(k.Slot)...), game.Loads(k), game.IsDeck(k)
 		out.ToNext = r.Growth.ToNext(in.Level)
 		axes := r.Fight.D.Axes()
@@ -292,8 +293,10 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 	for _, st := range g.Stations(h) {
 		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: g.StationFee(st)})
 	}
-	for _, o := range g.Orders(h) {
-		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Fee: rv.FeePercent()})
+	for _, o := range g.FactionOrders(h) {
+		yours, buys := g.PriceFor(c, h, o)
+		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Yours: yours, Wanted: o.Qty,
+			Refuses: !buys, Fee: rv.FeePercent()})
 	}
 	for _, o := range g.Offers(h) {
 		out.Offers = append(out.Offers, api.Offer{Asset: o.Asset, Price: o.Price})

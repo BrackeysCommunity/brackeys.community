@@ -77,8 +77,10 @@ type Book struct {
 	FactWeights []FactWeight `sheet:"story.fact-weights" doc:"Weight of each fact kind, 0 to 100."`
 	StoryParams []Param      `sheet:"story.params" doc:"Pacing, deadlines, the chronicle's cut-off."`
 
-	EconomyParams []Param    `sheet:"economy.params" doc:"Fees, the faucet, the stabiliser, limits."`
-	RefValues     []RefValue `sheet:"economy.reference" doc:"Each tier's base value and median vector total (GDD 10.10)."`
+	EconomyParams []Param        `sheet:"economy.params" doc:"Fees, the faucet, the stabiliser, limits."`
+	RefValues     []RefValue     `sheet:"economy.reference" doc:"Each tier's base value and median vector total (GDD 10.10)."`
+	Standing      []StandingBand `sheet:"economy.standing" doc:"What standing does to a faction order's price (GDD 5.4)."`
+	RouteRisks    []RouteRisk    `sheet:"economy.route-risk" doc:"Ambush chance per tile entered, by threat (GDD 10.7)."`
 
 	GoalParams []Param `sheet:"goals.params" doc:"Listing fees, limits, thresholds."`
 

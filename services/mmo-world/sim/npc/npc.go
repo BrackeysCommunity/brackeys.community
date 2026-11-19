@@ -63,6 +63,7 @@ type Entry struct {
 	Tick   int64  `json:"tick"`
 	Fact   int64  `json:"fact,omitempty"`
 	Thing  string `json:"thing,omitempty"`
+	N      int64  `json:"n,omitempty"` // a quantity the entry is about, as coin made on a resale
 }
 
 // Meeting is the last time a player met the NPC and what it said.

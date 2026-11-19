@@ -6,7 +6,7 @@
       "id": "fill-fee",
       "value": 3,
       "unit": "percent",
-      "doc": "A faction order's fee on each fill, rounded down (GDD 6)."
+      "doc": "The market fee: this share of each fill, from the seller, rounded up (GDD 10.2)."
     },
     {
       "id": "station-fee",
@@ -43,6 +43,174 @@
       "value": 60,
       "unit": "coin",
       "doc": "What a stable asks for a mount, per tier."
+    },
+    {
+      "id": "faucet-rate",
+      "value": 60,
+      "unit": "coin",
+      "doc": "Faction buying per active character per world day, world-wide, at rest (GDD 10.2). The Economy run retuned it from 110: at 60 the faucet matches what the soak population sinks, and the band holds."
+    },
+    {
+      "id": "faucet-floor",
+      "value": 10,
+      "unit": "count",
+      "doc": "Active characters each open settlement's faction orders assume besides those trading there, so a new world, and a settlement nobody plays from, still has buyers."
+    },
+    {
+      "id": "band-low",
+      "value": 350,
+      "unit": "coin",
+      "doc": "The stabiliser's band: coin per active character below this raises the faucet (GDD 10.5)."
+    },
+    {
+      "id": "band-high",
+      "value": 450,
+      "unit": "coin",
+      "doc": "Above this lowers it."
+    },
+    {
+      "id": "stabiliser-step",
+      "value": 4,
+      "unit": "percent",
+      "doc": "How far the faucet moves a world day outside the band."
+    },
+    {
+      "id": "stabiliser-return",
+      "value": 1,
+      "unit": "percent",
+      "doc": "Inside the band, the faucet moves this share of itself back toward faucet-rate each world day."
+    },
+    {
+      "id": "stabiliser-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "The window coin per active character is averaged over."
+    },
+    {
+      "id": "faucet-most",
+      "value": 100,
+      "unit": "percent",
+      "doc": "The stabiliser never raises the faucet past this share of faucet-rate (the Economy run: a faucet that climbs while a new world's purses fill overshoots the band)."
+    },
+    {
+      "id": "active-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A character is active if it acted within this many world days (GDD 10.2)."
+    },
+    {
+      "id": "order-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A market order or listing lasts this long (GDD 10.3)."
+    },
+    {
+      "id": "open-orders",
+      "value": 20,
+      "unit": "count",
+      "doc": "Open orders, listings and gear buy orders a character may hold at once."
+    },
+    {
+      "id": "urgency-max",
+      "value": 200,
+      "unit": "percent",
+      "doc": "A faction order's price at the most urgent need, against reference (GDD 10.4); no need is 100."
+    },
+    {
+      "id": "war-urgency",
+      "value": 25,
+      "unit": "percent",
+      "doc": "Added to the urgency of blade orders from a faction at war."
+    },
+    {
+      "id": "standing-coin",
+      "value": 50,
+      "unit": "coin",
+      "doc": "Coin sold to a faction for each standing gained with it (GDD 5.4)."
+    },
+    {
+      "id": "young-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A character younger than this is capped on what it gives away (GDD 10.9)."
+    },
+    {
+      "id": "young-cap",
+      "value": 200,
+      "unit": "coin",
+      "doc": "What a young character may give away a world day, coin and goods at reference value."
+    },
+    {
+      "id": "history-days",
+      "value": 60,
+      "unit": "days",
+      "doc": "World days of price history a book keeps."
+    },
+    {
+      "id": "report-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A ledger report is posted every this many world days (GDD 10.5)."
+    },
+    {
+      "id": "goal-fee",
+      "value": 5,
+      "unit": "percent",
+      "doc": "The goal listing fee, a share of the reward (GDD 10.2); goals arrive in MM6."
+    },
+    {
+      "id": "goal-fee-min",
+      "value": 1,
+      "unit": "coin",
+      "doc": "The least a goal listing pays."
+    },
+    {
+      "id": "trader-buys",
+      "value": 60,
+      "unit": "percent",
+      "doc": "What a settlement's trader pays for an item, against its value (GDD 4.18)."
+    },
+    {
+      "id": "trader-sells",
+      "value": 130,
+      "unit": "percent",
+      "doc": "What the trader lists an item it bought at, against its value."
+    },
+    {
+      "id": "fortune-step",
+      "value": 200,
+      "unit": "coin",
+      "doc": "A trader's fortune rises or falls in steps of this much coin in its purse, each a fact."
+    },
+    {
+      "id": "cadence-hours",
+      "value": 22,
+      "unit": "count",
+      "doc": "World hours of a world day a character acting in at least this many is flagged for review (GDD 10.9)."
+    },
+    {
+      "id": "cadence-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "World days in a row the cadence must hold before the flag."
+    },
+    {
+      "id": "notable-trades",
+      "value": 5,
+      "unit": "count",
+      "doc": "Trades a settlement's market forum post names a world day (GDD 17.2)."
+    },
+    {
+      "id": "cover-raise",
+      "value": 70,
+      "unit": "count",
+      "doc": "Cover at or above this raises a tile's ambush chance one band (GDD 10.7)."
+    },
+    {
+      "id": "trader-share",
+      "value": 10,
+      "unit": "percent",
+      "doc": "Share of each settlement's faucet budget its trader may spend buying items a world day."
     }
   ]
 }

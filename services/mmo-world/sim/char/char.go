@@ -239,6 +239,11 @@ func (c *Character) equip(slot string, index int, id string) {
 	})
 }
 
+// Worn reports whether an instance is in a slot.
+func (c *Character) Worn(id string) bool {
+	return slices.ContainsFunc(c.Equipped, func(e Equipped) bool { return e.Item == id })
+}
+
 // Drop takes an instance out of the pack and every slot.
 func (c *Character) Drop(id string) {
 	c.Pack = slices.DeleteFunc(c.Pack, func(in *item.Instance) bool { return in.ID == id })

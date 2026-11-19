@@ -50,6 +50,7 @@ const (
 	ToMarket     = Sink + "market"
 	ToCraft      = Sink + "craft"
 	ToUpkeep     = Sink + "upkeep"
+	ToGoalFees   = Sink + "goal-fees"
 )
 
 // Material, Item and Char name a material asset, an item asset and a

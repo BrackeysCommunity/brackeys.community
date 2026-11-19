@@ -126,6 +126,13 @@ func (h *HTTP) Audit(ctx context.Context) (api.Audit, error) {
 	return out, Refused("audit", ref, err)
 }
 
+// Economy is the faucet and the characters flagged for review.
+func (h *HTTP) Economy(ctx context.Context) (api.Economy, error) {
+	var out api.Economy
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorEconomy, nil, &out)
+	return out, Refused("economy", ref, err)
+}
+
 func (h *HTTP) Digest(ctx context.Context) (api.Digest, error) {
 	var out api.Digest
 	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorDigest, nil, &out)

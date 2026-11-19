@@ -95,6 +95,7 @@ type sim struct {
 	Left     []*game.Left    `json:"left,omitempty"`
 	News     []game.News     `json:"news"`
 	NPCChain canon.Sum       `json:"npcChain"`
+	Market   *game.Market    `json:"market,omitempty"`
 }
 
 func simOf(g *game.Game) ([]byte, error) {
@@ -105,7 +106,7 @@ func simOf(g *game.Game) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted, Kinds: g.Kinds, Left: g.Left,
-		News: g.News, NPCChain: g.NPCs.Chain})
+		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market})
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
@@ -222,7 +223,7 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 		return nil, err
 	}
 	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log, Kinds: sm.Kinds, Left: sm.Left,
-		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}}
+		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market}
 	if g.News == nil {
 		g.News = []game.News{}
 	}
@@ -782,4 +783,9 @@ func (s *Store) RecapFacts(ctx context.Context, character string, since, weight 
 // RecentIn are a region's latest facts, newest first.
 func (s *Store) RecentIn(ctx context.Context, region string, n int32) ([]fact.Fact, error) {
 	return factsOf(s.q.RecentFactsIn(ctx, db.RecentFactsInParams{WorldID: s.World, Region: pgtype.Text{String: region, Valid: true}, Lim: n}))
+}
+
+// LedgerOf is an account's last n ledger lines, newest first.
+func (s *Store) LedgerOf(ctx context.Context, account string, n int32) ([]db.LedgerOfRow, error) {
+	return s.q.LedgerOf(ctx, db.LedgerOfParams{WorldID: s.World, Account: account, Limit: n})
 }

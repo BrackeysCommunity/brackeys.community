@@ -104,6 +104,11 @@ WHERE world_id = $1 GROUP BY account, asset HAVING sum(units) <> 0 ORDER BY acco
 SELECT txn, asset, sum(units)::bigint AS units FROM mmo.ledger_entry
 WHERE world_id = $1 GROUP BY txn, asset HAVING sum(units) <> 0 ORDER BY txn, asset;
 
+-- name: LedgerOf :many
+SELECT t.tick, t.kind, e.asset, e.units FROM mmo.ledger_entry e
+JOIN mmo.ledger_txn t ON t.world_id = e.world_id AND t.txn = e.txn
+WHERE e.world_id = $1 AND e.account = $2 ORDER BY e.txn DESC, e.leg LIMIT $3;
+
 -- name: LastLedgerTxn :one
 SELECT coalesce(max(txn), 0)::bigint FROM mmo.ledger_txn WHERE world_id = $1;
 

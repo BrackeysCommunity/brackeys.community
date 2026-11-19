@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "economy.standing",
+  "title": "economy.standing",
+  "description": "What standing does to a faction order's price (GDD 5.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "economy.standing"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "price"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "from": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "standing"
+          },
+          "price": {
+            "type": "integer",
+            "x-unit": "percent",
+            "description": "Added to the order's price, against it."
+          },
+          "refuses": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "The faction will not buy from the character."
+          }
+        }
+      }
+    }
+  }
+}

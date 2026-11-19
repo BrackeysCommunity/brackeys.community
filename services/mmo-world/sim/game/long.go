@@ -8,6 +8,7 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -279,6 +280,9 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 				c.Version++
 			}
 		}
+		if err := g.dayTurn(t); err != nil {
+			return nil, err
+		}
 	}
 	acts = append(acts, g.Pending...)
 	g.Pending = []world.Action{}
@@ -317,6 +321,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	dir := from.DirectionTo(to)
 	c.C.Walk(to, g.r.limits)
 	c.C.Facing = dir
+	g.visited(c, to, t)
 	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir})
 	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
 		g.r.Mounts.Ridden(m, g.ground(to), g.Laden(c))
@@ -393,13 +398,14 @@ func (g *Game) provision(c *Char, t int64) error {
 	return nil
 }
 
-// ambushed draws whether entering a tile springs an ambush: only where
-// something lives, in a region at the ambush line or above (GDD 4.3, 6).
+// ambushed draws whether entering a tile springs an ambush, at its
+// route-risk band's chance (GDD 10.7).
 func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
-	if !g.World.Past(h, "ambush") || len(g.r.Gen.Creatures(h)) == 0 {
+	b, ok := g.riskBand(h)
+	if !ok || b.Chance == 0 {
 		return false
 	}
-	return g.r.draw.Percent(g.r.wp("ambush-chance"), "game.ambush", draw.Str(c.C.ID), draw.Int(t))
+	return g.r.draw.Percent(b.Chance.Of(fixed.Hundredths), "game.ambush", draw.Str(c.C.ID), draw.Int(t))
 }
 
 type gatherNode struct {
