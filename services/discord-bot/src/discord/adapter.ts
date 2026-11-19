@@ -1,11 +1,7 @@
 import {
-  ActionRowBuilder,
-  type APIEmbed,
   ApplicationCommandOptionType,
   type AutocompleteInteraction,
   type ButtonInteraction,
-  ButtonBuilder,
-  ButtonStyle,
   type ChatInputCommandInteraction,
   type CommandInteractionOption,
   type Interaction,
@@ -15,6 +11,10 @@ import {
   type UserContextMenuCommandInteraction,
 } from "discord.js";
 
+import {
+  buttonRows,
+  toMessage as kitMessage,
+} from "../../../../packages/discord-kit/src/message.ts";
 import { EVENTS } from "../../../../src/lib/event-taxonomy.ts";
 import type { ServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import { ApiUnavailableError, type PublicApi } from "../api.ts";
@@ -35,7 +35,7 @@ import { type Summarize, SummaryUnavailableError } from "../commands/summarize.t
 import type { Cooldown } from "../cooldown.ts";
 import { classifyFailure, type Failure, failureReply } from "../failure.ts";
 import type { Choice, Memo } from "../memo.ts";
-import { type Button, type Embed, httpUrl, type Reply, withNotice } from "../reply.ts";
+import { type Reply, withNotice } from "../reply.ts";
 import type { SummaryPages } from "../summarize/pages.ts";
 
 /**
@@ -372,59 +372,11 @@ export function toInvocation(interaction: ChatInputCommandInteraction): Invocati
 }
 
 export function toMessage(reply: Reply): InteractionEditReplyOptions & InteractionReplyOptions {
-  return {
-    content: reply.content ?? "",
-    embeds: reply.embeds.map(toApiEmbed),
-    components: toRows(reply.buttons),
-    // Never ping anyone from a bot answer, whatever a title contains.
-    allowedMentions: { parse: [] },
-  };
-}
-
-function toApiEmbed(embed: Embed): APIEmbed {
-  return {
-    title: embed.title,
-    url: embed.url,
-    description: embed.description,
-    color: embed.color,
-    fields: embed.fields,
-    image: embed.image ? { url: embed.image } : undefined,
-    thumbnail: embed.thumbnail ? { url: embed.thumbnail } : undefined,
-    footer: embed.footer ? { text: embed.footer } : undefined,
-    author: embed.author
-      ? { name: embed.author.name, url: embed.author.url, icon_url: embed.author.iconUrl }
-      : undefined,
-  };
-}
-
-/** Five buttons to a row, five rows to a message. A link button whose URL
- *  is malformed is dropped for the same reason `clampEmbed` drops one: it
- *  would fail the whole message. */
-function toRows(buttons: Button[]): ActionRowBuilder<ButtonBuilder>[] {
-  const seen = new Set<string>();
-  const usable = buttons.filter((b) => {
-    if (b.kind === "link") return Boolean(httpUrl(b.url));
-    // Discord rejects a message carrying the same custom_id twice; dropping
-    // the duplicate costs one button instead of the whole reply.
-    if (seen.has(b.customId)) return false;
-    seen.add(b.customId);
-    return true;
-  });
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  for (let i = 0; i < usable.length && rows.length < 5; i += 5) {
-    const row = new ActionRowBuilder<ButtonBuilder>();
-    for (const button of usable.slice(i, i + 5)) {
-      const b = new ButtonBuilder().setLabel(button.label.slice(0, 80));
-      if (button.kind === "link") b.setStyle(ButtonStyle.Link).setURL(button.url);
-      else
-        b.setStyle(ButtonStyle.Secondary)
-          .setCustomId(button.customId)
-          .setDisabled(button.disabled ?? false);
-      row.addComponents(b);
-    }
-    rows.push(row);
-  }
-  return rows;
+  return kitMessage({
+    content: reply.content,
+    embeds: reply.embeds,
+    rows: buttonRows(reply.buttons),
+  }) as unknown as InteractionEditReplyOptions & InteractionReplyOptions;
 }
 
 function describe(error: unknown): string {

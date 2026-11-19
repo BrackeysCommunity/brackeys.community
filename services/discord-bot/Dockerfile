@@ -18,6 +18,9 @@ COPY --from=deps /app/services/discord-bot/node_modules ./services/discord-bot/n
 COPY services/discord-bot/package.json ./services/discord-bot/package.json
 COPY services/discord-bot/tsconfig.json ./services/discord-bot/tsconfig.json
 COPY services/discord-bot/src ./services/discord-bot/src
+# The Discord transport both bots share (embeds, messages, cooldowns,
+# command registration); it imports only src/lib/discord-emoji.ts below.
+COPY packages/discord-kit/src ./packages/discord-kit/src
 
 # The bot renders with the app's own presentation helpers so a jam phase,
 # a rate string or a profile link reads the same in Discord as on the site.

@@ -1,0 +1,2133 @@
+{
+  "lexicon": {
+    "names": {
+      "creatures.archetypes:barrow-warden": "Tower guardian",
+      "creatures.archetypes:cinder-hound": "Rad-hound",
+      "creatures.archetypes:flat-runner": "Dust runner",
+      "creatures.archetypes:glass-heron": "Turret nest",
+      "creatures.archetypes:mire-stalker": "Wire-eel",
+      "creatures.archetypes:old-growth": "Walking factory",
+      "creatures.archetypes:reed-rat": "Scav drone",
+      "creatures.archetypes:seam-crawler": "Rust crawler",
+      "factions.archetypes:clans": "Scav Clans",
+      "factions.archetypes:compact": "Raider Compact",
+      "factions.archetypes:guild": "Cartel",
+      "factions.archetypes:order": "Signal Cult",
+      "factions.archetypes:wardens": "Militia",
+      "fights.beats:chase": "Chase",
+      "fights.beats:clash": "Clash",
+      "fights.beats:guardian": "Guardian",
+      "fights.beats:harvest": "Harvest",
+      "fights.beats:hazard": "Hazard",
+      "fights.beats:lock": "Lock",
+      "fights.beats:parley": "Parley",
+      "fights.beats:puzzle": "Machine",
+      "fights.beats:standoff": "Standoff",
+      "fights.options:back-out": "Back out",
+      "fights.options:brace-through": "Brace through",
+      "fights.options:cast": "Run the exploit",
+      "fights.options:feint": "Feint",
+      "fights.options:gather": "Take it",
+      "fights.options:guard": "Guard",
+      "fights.options:hack": "Hack it",
+      "fights.options:hold": "Hold",
+      "fights.options:pay-toll": "Pay the toll",
+      "fights.options:pick": "Pick the lock",
+      "fights.options:pursue": "Pursue",
+      "fights.options:scramble": "Scramble",
+      "fights.options:smash": "Smash",
+      "fights.options:strike": "Strike",
+      "fights.options:talk": "Talk",
+      "fights.states:bleeding": "Bleeding",
+      "fights.states:braced": "Braced",
+      "fights.states:brittle": "Brittle",
+      "fights.states:burning": "Burning",
+      "fights.states:charged": "Charged",
+      "fights.states:hidden": "Hidden",
+      "fights.states:marked": "Tagged",
+      "fights.states:off-guard": "Off guard",
+      "fights.states:shaken": "Shaken",
+      "fights.states:slow": "Slowed",
+      "fights.states:wet": "Wet",
+      "growth.exploit-offers:cheap": "Cheap",
+      "growth.exploit-offers:deep": "Deep-stack",
+      "growth.exploit-offers:echo": "Echo",
+      "growth.exploit-offers:lingering": "Lingering",
+      "growth.exploit-offers:wide": "Broadcast",
+      "items.materials:bog-iron": "Scrap iron",
+      "items.materials:chips": "Chips",
+      "items.materials:cinder-ore": "Scrap alloy",
+      "items.materials:copper-ore": "Copper wire",
+      "items.materials:deep-core": "Reactor core",
+      "items.materials:ember-salt": "Charge salt",
+      "items.materials:feathers": "Servo parts",
+      "items.materials:fieldstone": "Rubble",
+      "items.materials:heartwood": "Factory beams",
+      "items.materials:hide-scraps": "Hide scraps",
+      "items.materials:marsh-amber": "Resin stock",
+      "items.materials:old-silk": "Optic thread",
+      "items.materials:reed-ash": "Flux",
+      "items.materials:reedflax": "Cable fibre",
+      "items.materials:river-clay": "Sealant",
+      "items.materials:saltglass": "Glass fibre",
+      "items.materials:stalker-hide": "Treated hide",
+      "items.materials:stormglass": "Arc glass",
+      "items.materials:thick-hide": "Plated hide",
+      "items.materials:timber": "Salvage timber",
+      "items.materials:vault-plate": "Vault plate",
+      "items.pairings:bulwark": "Bulwark",
+      "items.pairings:edge-and-ember": "Edge-and-ember",
+      "items.pairings:shatter": "Shatter",
+      "items.pairings:smoke-and-knife": "Smoke and knife",
+      "items.pairings:storm-blade": "Storm blade",
+      "items.pairings:wildfire": "Wildfire",
+      "items.processes:alloy": "Smelt",
+      "items.processes:bind": "Splice",
+      "items.processes:compose": "Compile",
+      "items.processes:infuse": "Flash",
+      "items.processes:inscribe": "Patch",
+      "items.processes:shape": "Fabricate",
+      "items.slots:blade": "Blade",
+      "items.slots:charm": "Charm",
+      "items.slots:focus": "Deck",
+      "items.slots:hook": "Hook",
+      "items.slots:plate": "Plate",
+      "items.slots:tack": "Rig",
+      "items.slots:tool": "Tool",
+      "items.traits:arcing": "Arcing",
+      "items.traits:balanced": "Balanced",
+      "items.traits:braced": "Braced",
+      "items.traits:cold": "Cold",
+      "items.traits:deep": "Deep-stack",
+      "items.traits:dense": "Dense",
+      "items.traits:hooked": "Hooked",
+      "items.traits:keen": "Keen",
+      "items.traits:lingering": "Lingering",
+      "items.traits:marked": "Tagged",
+      "items.traits:quick-drawn": "Quick-draw",
+      "items.traits:quiet": "Silent",
+      "items.traits:springy": "Springy",
+      "items.traits:sure-gripped": "Sure-grip",
+      "items.traits:tempered": "Tempered",
+      "items.traits:true": "Calibrated",
+      "items.traits:warded": "Shielded",
+      "items.traits:warm": "Warm",
+      "items.traits:wide": "Broadcast",
+      "map.landmarks:crater": "Impact crater",
+      "map.landmarks:dish": "Dead dish",
+      "map.landmarks:mast": "Fallen mast",
+      "map.landmarks:overgrown-tower": "Overgrown tower",
+      "map.landmarks:statue": "Faceless statue",
+      "map.landmarks:wreck": "Grounded hulk",
+      "map.terrain:coast": "Shoreline",
+      "map.terrain:deep-water": "Black water",
+      "map.terrain:flats": "Salt pan",
+      "map.terrain:forest": "Deadwood",
+      "map.terrain:hills": "Slag hills",
+      "map.terrain:marsh": "Sump",
+      "map.terrain:mountain": "Ridge",
+      "map.terrain:peak": "Spire",
+      "map.terrain:plain": "Scrubland",
+      "mounts.kinds:pack-mule": "Pack mule",
+      "mounts.kinds:rad-goat": "Rad goat",
+      "mounts.kinds:road-trike": "Road trike",
+      "mounts.kinds:stilt-rig": "Stilt rig",
+      "mounts.offers:bonded": "Bonded",
+      "mounts.offers:pack": "Pack",
+      "mounts.offers:steady": "Steady",
+      "mounts.offers:sure-footed": "Sure-footed",
+      "mounts.offers:swift": "Swift",
+      "npcs.traits:bold": "Bold",
+      "npcs.traits:cunning": "Cunning",
+      "npcs.traits:devout": "Devout",
+      "npcs.traits:generous": "Generous",
+      "npcs.traits:greedy": "Greedy",
+      "npcs.traits:humble": "Humble",
+      "npcs.traits:open": "Open",
+      "npcs.traits:patient": "Patient",
+      "npcs.traits:proud": "Proud",
+      "npcs.traits:rash": "Rash",
+      "npcs.traits:secretive": "Secretive",
+      "npcs.traits:wary": "Wary",
+      "npcs.traits:weary": "Weary",
+      "puzzles.families:circuit": "Circuit",
+      "puzzles.families:fuse": "Fuse",
+      "puzzles.families:lock-dial": "Dial lock",
+      "puzzles.families:lock-maze": "Tumbler maze",
+      "puzzles.families:lock-pins": "Pin lock",
+      "puzzles.families:override": "Override",
+      "puzzles.families:rewire": "Rewire",
+      "puzzles.families:signal": "Signal",
+      "world.gauges:corruption": "Corruption",
+      "world.gauges:prosperity": "Prosperity",
+      "world.gauges:scarcity": "Scarcity",
+      "world.gauges:threat": "Threat",
+      "world.gauges:unrest": "Unrest",
+      "world.seasons:cold": "Long cold",
+      "world.seasons:dry": "Dry season",
+      "world.seasons:thaw": "Thaw",
+      "world.seasons:wet": "Storm season",
+      "world.weather:clear": "Clear",
+      "world.weather:drought": "Ash front",
+      "world.weather:fog": "Dead zone",
+      "world.weather:frost": "Cold snap",
+      "world.weather:storm": "EM storm"
+    },
+    "bands": ["certain", "near-certain", "likely", "even", "long-shot", "desperate"]
+  },
+  "act:create": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 0,
+      "character": {
+        "id": "c-1",
+        "version": 1,
+        "at": {
+          "q": -2,
+          "r": -28
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [],
+        "conditions": [],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          }
+        ],
+        "inFight": false,
+        "walked": 0
+      },
+      "facts": [
+        {
+          "id": 1,
+          "tick": 0,
+          "kind": "character.arrived",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            }
+          ],
+          "data": [],
+          "weight": 10
+        },
+        {
+          "id": 2,
+          "tick": 0,
+          "kind": "character.started",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            }
+          ],
+          "data": [
+            {
+              "k": "kind",
+              "s": "3eb569e84b5d37db323837af5ccd35d3"
+            },
+            {
+              "k": "start",
+              "s": "knife"
+            }
+          ],
+          "weight": 5
+        }
+      ]
+    }
+  },
+  "options": {
+    "characterId": "c-1",
+    "version": 47,
+    "tick": 24,
+    "at": {
+      "q": -2,
+      "r": -28
+    },
+    "conditions": ["wounded"],
+    "moves": [
+      {
+        "dir": 0,
+        "to": {
+          "q": -1,
+          "r": -28
+        },
+        "open": true,
+        "ticks": 1,
+        "why": {
+          "parts": [
+            {
+              "label": "terrain",
+              "value": 1,
+              "unit": "ticks"
+            }
+          ]
+        }
+      },
+      {
+        "dir": 1,
+        "to": {
+          "q": -1,
+          "r": -29
+        },
+        "open": true,
+        "ticks": 2,
+        "why": {
+          "parts": [
+            {
+              "label": "terrain",
+              "value": 2,
+              "unit": "ticks"
+            }
+          ]
+        }
+      },
+      {
+        "dir": 2,
+        "to": {
+          "q": -2,
+          "r": -29
+        },
+        "open": true,
+        "ticks": 2,
+        "why": {
+          "parts": [
+            {
+              "label": "terrain",
+              "value": 2,
+              "unit": "ticks"
+            }
+          ]
+        }
+      },
+      {
+        "dir": 3,
+        "to": {
+          "q": -3,
+          "r": -28
+        },
+        "open": true,
+        "ticks": 1,
+        "why": {
+          "parts": [
+            {
+              "label": "terrain",
+              "value": 1,
+              "unit": "ticks"
+            }
+          ]
+        }
+      },
+      {
+        "dir": 4,
+        "to": {
+          "q": -3,
+          "r": -27
+        },
+        "open": true,
+        "ticks": 1,
+        "why": {
+          "parts": [
+            {
+              "label": "terrain",
+              "value": 1,
+              "unit": "ticks"
+            }
+          ]
+        }
+      },
+      {
+        "dir": 5,
+        "to": {
+          "q": -2,
+          "r": -27
+        },
+        "open": true,
+        "ticks": 1,
+        "why": {
+          "parts": [
+            {
+              "label": "terrain",
+              "value": 1,
+              "unit": "ticks"
+            }
+          ]
+        }
+      }
+    ],
+    "materials": ["feathers", "old-silk", "chips", "fieldstone", "river-clay"],
+    "gatherMin": 1,
+    "gatherMax": 3,
+    "rest": true,
+    "explore": false,
+    "cancel": false
+  },
+  "here": {
+    "place": {
+      "tick": 24,
+      "tile": {
+        "hex": {
+          "q": -2,
+          "r": -28
+        },
+        "terrain": "plain",
+        "water": "none",
+        "site": "starting-settlement",
+        "region": "r-0",
+        "road": 0,
+        "structures": [
+          "forge",
+          "bench",
+          "still",
+          "loom",
+          "market",
+          "notice-board",
+          "tinker-bench",
+          "stable",
+          "treasury"
+        ],
+        "found": 1
+      },
+      "gauges": [
+        {
+          "id": "threat",
+          "value": 109,
+          "unit": "gauge"
+        },
+        {
+          "id": "scarcity",
+          "value": 419,
+          "unit": "gauge"
+        },
+        {
+          "id": "unrest",
+          "value": 290,
+          "unit": "gauge"
+        },
+        {
+          "id": "corruption",
+          "value": 139,
+          "unit": "gauge"
+        },
+        {
+          "id": "prosperity",
+          "value": 324,
+          "unit": "gauge"
+        }
+      ],
+      "here": ["c-1"],
+      "explore": false,
+      "rest": true
+    },
+    "name": "Rivet Hold",
+    "banner": "banner-b0b8a0bd08c0cd87acbf0b29",
+    "stations": [
+      {
+        "kind": "forge",
+        "tier": 1,
+        "fee": 4
+      },
+      {
+        "kind": "bench",
+        "tier": 1,
+        "fee": 4
+      },
+      {
+        "kind": "still",
+        "tier": 1,
+        "fee": 4
+      },
+      {
+        "kind": "loom",
+        "tier": 1,
+        "fee": 4
+      },
+      {
+        "kind": "stable",
+        "tier": 1,
+        "fee": 4
+      }
+    ],
+    "orders": [
+      {
+        "faction": "the keepers",
+        "material": "bog-iron",
+        "price": 8,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "chips",
+        "price": 23,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "cinder-ore",
+        "price": 22,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "copper-ore",
+        "price": 7,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "deep-core",
+        "price": 68,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "ember-salt",
+        "price": 7,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "feathers",
+        "price": 7,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "fieldstone",
+        "price": 8,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "heartwood",
+        "price": 23,
+        "fee": 3
+      },
+      {
+        "faction": "Long Scav Clans",
+        "material": "hide-scraps",
+        "price": 6,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "marsh-amber",
+        "price": 20,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "old-silk",
+        "price": 69,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "reed-ash",
+        "price": 5,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "reedflax",
+        "price": 7,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "river-clay",
+        "price": 8,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "saltglass",
+        "price": 21,
+        "fee": 3
+      },
+      {
+        "faction": "Long Scav Clans",
+        "material": "stalker-hide",
+        "price": 6,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "stormglass",
+        "price": 68,
+        "fee": 3
+      },
+      {
+        "faction": "Long Scav Clans",
+        "material": "thick-hide",
+        "price": 21,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "timber",
+        "price": 7,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
+        "material": "vault-plate",
+        "price": 69,
+        "fee": 3
+      }
+    ],
+    "offers": [
+      {
+        "asset": "provisions",
+        "price": 3
+      },
+      {
+        "asset": "pack-mule",
+        "price": 60
+      }
+    ],
+    "people": [
+      {
+        "id": "r--2,-28-settlement-keeper-0",
+        "name": "Gage Bolt",
+        "role": "keeper",
+        "kind": "resident",
+        "traits": ["proud", "bold"],
+        "saved": false,
+        "visit": false
+      },
+      {
+        "id": "r--2,-28-settlement-smith-0",
+        "name": "Jun Rask",
+        "role": "smith",
+        "kind": "resident",
+        "traits": ["generous", "rash"],
+        "saved": false,
+        "visit": false
+      },
+      {
+        "id": "r--2,-28-settlement-tinker-0",
+        "name": "Cass Kessler",
+        "role": "tinker",
+        "kind": "resident",
+        "traits": ["wary", "rash"],
+        "saved": false,
+        "visit": false
+      },
+      {
+        "id": "r--2,-28-settlement-trader-0",
+        "name": "Fenn Vance",
+        "role": "trader",
+        "kind": "resident",
+        "traits": ["humble", "secretive"],
+        "saved": false,
+        "visit": false
+      },
+      {
+        "id": "r--2,-28-settlement-stablehand-0",
+        "name": "Fenn Dray",
+        "role": "stablehand",
+        "kind": "resident",
+        "traits": ["humble", "cunning"],
+        "saved": false,
+        "visit": false
+      },
+      {
+        "id": "r--2,-28-settlement-watch-0",
+        "name": "Bix Bolt",
+        "role": "watch captain",
+        "kind": "resident",
+        "traits": ["patient", "wary"],
+        "saved": false,
+        "visit": false
+      }
+    ],
+    "trails": [],
+    "search": false,
+    "materials": [
+      {
+        "material": "feathers",
+        "left": 24,
+        "workedOut": false
+      },
+      {
+        "material": "old-silk",
+        "left": 24,
+        "workedOut": false
+      },
+      {
+        "material": "chips",
+        "left": 24,
+        "workedOut": false
+      },
+      {
+        "material": "fieldstone",
+        "left": 24,
+        "workedOut": false
+      },
+      {
+        "material": "river-clay",
+        "left": 24,
+        "workedOut": false
+      }
+    ],
+    "forage": 1,
+    "recent": [
+      {
+        "id": 30,
+        "tick": 24,
+        "kind": "order.filled",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          }
+        ],
+        "data": [
+          {
+            "k": "coin",
+            "n": 18
+          },
+          {
+            "k": "faction",
+            "n": 1
+          },
+          {
+            "k": "fee"
+          },
+          {
+            "k": "material",
+            "s": "hide-scraps"
+          },
+          {
+            "k": "price",
+            "n": 6
+          },
+          {
+            "k": "units",
+            "n": 3
+          }
+        ],
+        "weight": 3
+      },
+      {
+        "id": 29,
+        "tick": 24,
+        "kind": "travel.arrived",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          }
+        ],
+        "data": [
+          {
+            "k": "ticks",
+            "n": 5
+          }
+        ],
+        "weight": 2
+      },
+      {
+        "id": 28,
+        "tick": 24,
+        "kind": "travel.entered",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          }
+        ],
+        "data": [
+          {
+            "k": "q",
+            "n": -2
+          },
+          {
+            "k": "r",
+            "n": -28
+          },
+          {
+            "k": "ticks",
+            "n": 2
+          }
+        ],
+        "weight": 1
+      },
+      {
+        "id": 2,
+        "tick": 0,
+        "kind": "character.started",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          }
+        ],
+        "data": [
+          {
+            "k": "kind",
+            "s": "3eb569e84b5d37db323837af5ccd35d3"
+          },
+          {
+            "k": "start",
+            "s": "knife"
+          }
+        ],
+        "weight": 5
+      },
+      {
+        "id": 1,
+        "tick": 0,
+        "kind": "character.arrived",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          }
+        ],
+        "data": [],
+        "weight": 10
+      }
+    ],
+    "suggest": {
+      "at": {
+        "q": -5,
+        "r": -25
+      },
+      "tiles": 3,
+      "dir": 4
+    }
+  },
+  "sheet": {
+    "character": {
+      "id": "c-1",
+      "version": 45,
+      "at": {
+        "q": -2,
+        "r": -28
+      },
+      "coin": 14,
+      "provisions": 0,
+      "goods": [
+        {
+          "material": "cinder-ore",
+          "units": 3
+        }
+      ],
+      "conditions": ["wounded"],
+      "practice": [
+        {
+          "id": "craft",
+          "level": 0
+        },
+        {
+          "id": "fight",
+          "level": 6
+        },
+        {
+          "id": "gather",
+          "level": 0
+        },
+        {
+          "id": "travel",
+          "level": 0
+        }
+      ],
+      "inFight": false,
+      "walked": 6
+    },
+    "start": "knife",
+    "kit": [
+      {
+        "id": "start-c-1",
+        "kind": "3eb569e84b5d37db323837af5ccd35d3",
+        "name": "Scrap iron blade",
+        "slot": "blade",
+        "worn": "hand",
+        "tier": 1,
+        "level": 5,
+        "xp": 52,
+        "toNext": 115,
+        "durability": 29,
+        "max": 60,
+        "axes": [
+          {
+            "label": "edge",
+            "value": 31,
+            "unit": "pts"
+          },
+          {
+            "label": "weight",
+            "value": 31,
+            "unit": "pts"
+          },
+          {
+            "label": "conduct",
+            "value": 11,
+            "unit": "pts"
+          }
+        ],
+        "traits": [],
+        "picks": [],
+        "offers": ["balanced", "keen"],
+        "sigil": "sigil-f2db1e06c2dfa540104bb84f",
+        "value": 19
+      }
+    ],
+    "pack": [
+      {
+        "id": "scripted-scripted-1795107698081-54",
+        "kind": "acd2964d8af19557a9929df69ad12cd9",
+        "name": "Scrap alloy tool",
+        "slot": "tool",
+        "tier": 2,
+        "level": 1,
+        "xp": 0,
+        "toNext": 5,
+        "durability": 108,
+        "max": 108,
+        "axes": [
+          {
+            "label": "edge",
+            "value": 24,
+            "unit": "pts"
+          },
+          {
+            "label": "weight",
+            "value": 36,
+            "unit": "pts"
+          },
+          {
+            "label": "heat",
+            "value": 15,
+            "unit": "pts"
+          }
+        ],
+        "traits": [],
+        "picks": [],
+        "maker": "c-1",
+        "sigil": "sigil-7b0a408f8d46175773b0eaf5",
+        "value": 26
+      }
+    ],
+    "load": {
+      "carried": 3,
+      "capacity": 30
+    },
+    "standing": [],
+    "record": [
+      {
+        "key": "walked",
+        "n": 6,
+        "unit": "tiles"
+      },
+      {
+        "key": "downs",
+        "n": 2,
+        "unit": "times"
+      },
+      {
+        "key": "discoveries",
+        "n": 1,
+        "unit": "kinds"
+      },
+      {
+        "key": "encounters",
+        "n": 3,
+        "unit": "encounters"
+      },
+      {
+        "key": "won:beat:any",
+        "n": 4,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:creature",
+        "n": 4,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:fast",
+        "n": 4,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:herd",
+        "n": 4,
+        "unit": "beats"
+      },
+      {
+        "key": "earned:faction-order",
+        "n": 18,
+        "unit": "coin"
+      },
+      {
+        "key": "nemesis:flat-runner",
+        "n": 1,
+        "unit": "downs"
+      }
+    ],
+    "finds": [],
+    "consent": {
+      "sameServer": true,
+      "otherServers": false
+    }
+  },
+  "map": {
+    "tick": 24,
+    "centre": {
+      "q": -2,
+      "r": -28
+    },
+    "radius": 4,
+    "tiles": [
+      {
+        "hex": {
+          "q": -2,
+          "r": -28
+        },
+        "terrain": "plain",
+        "water": "none",
+        "site": "starting-settlement",
+        "region": "r-0",
+        "road": 0,
+        "structures": [
+          "forge",
+          "bench",
+          "still",
+          "loom",
+          "market",
+          "notice-board",
+          "tinker-bench",
+          "stable",
+          "treasury"
+        ],
+        "found": 1
+      },
+      {
+        "hex": {
+          "q": -3,
+          "r": -27
+        },
+        "terrain": "plain",
+        "water": "none",
+        "region": "r-4",
+        "road": 0,
+        "found": 1
+      },
+      {
+        "hex": {
+          "q": -4,
+          "r": -26
+        },
+        "terrain": "plain",
+        "water": "none",
+        "region": "r-4",
+        "road": 0,
+        "found": 2
+      },
+      {
+        "hex": {
+          "q": -5,
+          "r": -25
+        },
+        "terrain": "plain",
+        "water": "none",
+        "site": "landmark",
+        "landmark": "home-landmark",
+        "region": "r-4",
+        "road": 0,
+        "found": 3
+      }
+    ],
+    "image": "map-77a4bebb8a898a564e930b81"
+  },
+  "act:step": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 2,
+      "character": {
+        "id": "c-1",
+        "version": 6,
+        "at": {
+          "q": -4,
+          "r": -26
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [],
+        "conditions": [],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "long": {
+          "kind": "travel",
+          "due": 3,
+          "ends": 3,
+          "route": [
+            {
+              "q": -5,
+              "r": -25
+            }
+          ]
+        },
+        "inFight": false,
+        "walked": 2
+      },
+      "facts": []
+    }
+  },
+  "options:travel": {
+    "characterId": "c-1",
+    "version": 38,
+    "tick": 23,
+    "at": {
+      "q": -3,
+      "r": -27
+    },
+    "conditions": ["hungry", "wounded"],
+    "moves": [],
+    "materials": [],
+    "gatherMin": 0,
+    "gatherMax": 0,
+    "rest": false,
+    "explore": false,
+    "cancel": true,
+    "long": {
+      "kind": "travel",
+      "due": 24,
+      "ends": 24,
+      "route": [
+        {
+          "q": -2,
+          "r": -28
+        }
+      ]
+    }
+  },
+  "recap": {
+    "since": 19,
+    "tick": 24,
+    "lines": [
+      {
+        "rule": 2,
+        "fact": {
+          "id": 29,
+          "tick": 24,
+          "kind": "travel.arrived",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            }
+          ],
+          "data": [
+            {
+              "k": "ticks",
+              "n": 5
+            }
+          ],
+          "weight": 2
+        }
+      }
+    ],
+    "more": 0
+  },
+  "act:look": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 24,
+      "character": {
+        "id": "c-1",
+        "version": 45,
+        "at": {
+          "q": -2,
+          "r": -28
+        },
+        "coin": 14,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "cinder-ore",
+            "units": 3
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 6
+      },
+      "facts": []
+    }
+  },
+  "act:explore": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 9,
+      "character": {
+        "id": "c-1",
+        "version": 22,
+        "at": {
+          "q": -5,
+          "r": -25
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "hide-scraps",
+            "units": 3
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": true,
+        "walked": 3
+      },
+      "facts": []
+    }
+  },
+  "options:fight": {
+    "characterId": "c-1",
+    "version": 24,
+    "tick": 9,
+    "at": {
+      "q": -5,
+      "r": -25
+    },
+    "conditions": ["wounded"],
+    "moves": [],
+    "materials": [],
+    "gatherMin": 0,
+    "gatherMax": 0,
+    "rest": false,
+    "explore": false,
+    "cancel": false,
+    "fight": {
+      "id": "e-c-1-3",
+      "beat": 2,
+      "beats": 4,
+      "kind": "chase",
+      "creature": "flat-runner",
+      "ambush": false,
+      "options": [
+        {
+          "id": "strike",
+          "verb": "strike",
+          "kind": "win",
+          "band": "long-shot",
+          "risk": "durability",
+          "riskSize": 4,
+          "why": {
+            "parts": [
+              {
+                "label": "edge pts",
+                "value": 29,
+                "unit": "pts"
+              },
+              {
+                "label": "edge at level",
+                "value": 31,
+                "unit": "pts"
+              },
+              {
+                "label": "practice",
+                "value": 6,
+                "unit": "pts"
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "even",
+            "bandTo": "long-shot"
+          }
+        },
+        {
+          "id": "hold",
+          "verb": "hold",
+          "kind": "cautious",
+          "band": "long-shot",
+          "risk": "durability",
+          "riskSize": 2,
+          "why": {
+            "parts": [
+              {
+                "label": "weight pts",
+                "value": 29,
+                "unit": "pts"
+              },
+              {
+                "label": "weight at level",
+                "value": 31,
+                "unit": "pts"
+              },
+              {
+                "label": "practice",
+                "value": 6,
+                "unit": "pts"
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "even",
+            "bandTo": "long-shot"
+          }
+        },
+        {
+          "id": "back-out",
+          "verb": "back-out",
+          "kind": "way-out",
+          "band": "certain",
+          "risk": "none",
+          "riskSize": 0,
+          "why": {
+            "parts": [
+              {
+                "label": "practice",
+                "value": 0,
+                "unit": "pts"
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "desperate",
+            "bandTo": "certain"
+          }
+        }
+      ]
+    }
+  },
+  "act:press": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 9,
+      "character": {
+        "id": "c-1",
+        "version": 25,
+        "at": {
+          "q": -5,
+          "r": -25
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "hide-scraps",
+            "units": 3
+          }
+        ],
+        "conditions": ["down", "wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 3
+      },
+      "facts": [
+        {
+          "id": 21,
+          "tick": 9,
+          "kind": "character.down",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "archetype",
+              "id": "flat-runner"
+            }
+          ],
+          "data": [],
+          "weight": 45
+        },
+        {
+          "id": 22,
+          "tick": 9,
+          "kind": "encounter.lost",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "archetype",
+              "id": "flat-runner"
+            }
+          ],
+          "data": [
+            {
+              "k": "beats",
+              "n": 4
+            },
+            {
+              "k": "haul"
+            }
+          ],
+          "weight": 30
+        }
+      ],
+      "pressed": [
+        {
+          "option": "strike",
+          "band": "long-shot",
+          "success": false,
+          "why": {
+            "parts": [
+              {
+                "label": "edge pts",
+                "value": 29,
+                "unit": "pts"
+              },
+              {
+                "label": "edge at level",
+                "value": 31,
+                "unit": "pts"
+              },
+              {
+                "label": "practice",
+                "value": 6,
+                "unit": "pts"
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "even",
+            "bandTo": "long-shot"
+          }
+        }
+      ]
+    }
+  },
+  "options:down": {
+    "characterId": "c-1",
+    "version": 27,
+    "tick": 14,
+    "at": {
+      "q": -5,
+      "r": -25
+    },
+    "conditions": ["down", "wounded"],
+    "moves": [],
+    "materials": [],
+    "gatherMin": 0,
+    "gatherMax": 0,
+    "rest": false,
+    "explore": false,
+    "cancel": true,
+    "long": {
+      "kind": "crawl",
+      "due": 15,
+      "ends": 15
+    }
+  },
+  "act:crawl": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 9,
+      "character": {
+        "id": "c-1",
+        "version": 27,
+        "at": {
+          "q": -5,
+          "r": -25
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "hide-scraps",
+            "units": 3
+          }
+        ],
+        "conditions": ["down", "wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "long": {
+          "kind": "crawl",
+          "due": 15,
+          "ends": 15
+        },
+        "inFight": false,
+        "walked": 3
+      },
+      "facts": []
+    }
+  },
+  "act:gather": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 17,
+      "character": {
+        "id": "c-1",
+        "version": 33,
+        "at": {
+          "q": -5,
+          "r": -25
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "hide-scraps",
+            "units": 3
+          },
+          {
+            "material": "cinder-ore",
+            "units": 2
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "long": {
+          "kind": "gather",
+          "due": 19,
+          "ends": 19,
+          "material": "cinder-ore",
+          "left": 1
+        },
+        "inFight": false,
+        "walked": 3
+      },
+      "facts": []
+    }
+  },
+  "act:travel": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 19,
+      "character": {
+        "id": "c-1",
+        "version": 36,
+        "at": {
+          "q": -5,
+          "r": -25
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "hide-scraps",
+            "units": 3
+          },
+          {
+            "material": "cinder-ore",
+            "units": 4
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "long": {
+          "kind": "travel",
+          "due": 21,
+          "ends": 23,
+          "route": [
+            {
+              "q": -4,
+              "r": -26
+            },
+            {
+              "q": -3,
+              "r": -27
+            },
+            {
+              "q": -2,
+              "r": -28
+            }
+          ]
+        },
+        "inFight": false,
+        "walked": 3
+      },
+      "facts": []
+    }
+  },
+  "act:sell": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 24,
+      "character": {
+        "id": "c-1",
+        "version": 41,
+        "at": {
+          "q": -2,
+          "r": -28
+        },
+        "coin": 18,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "cinder-ore",
+            "units": 4
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 6
+      },
+      "facts": [
+        {
+          "id": 30,
+          "tick": 24,
+          "kind": "order.filled",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            }
+          ],
+          "data": [
+            {
+              "k": "coin",
+              "n": 18
+            },
+            {
+              "k": "faction",
+              "n": 1
+            },
+            {
+              "k": "fee"
+            },
+            {
+              "k": "material",
+              "s": "hide-scraps"
+            },
+            {
+              "k": "price",
+              "n": 6
+            },
+            {
+              "k": "units",
+              "n": 3
+            }
+          ],
+          "weight": 3
+        }
+      ]
+    }
+  },
+  "recipes": {
+    "processes": [
+      {
+        "id": "alloy",
+        "methods": ["slow-cool", "quench", "fold"],
+        "stations": ["forge"]
+      },
+      {
+        "id": "shape",
+        "methods": ["narrow-grind", "broad-grind"],
+        "stations": ["forge", "bench"]
+      },
+      {
+        "id": "infuse",
+        "methods": ["steep", "boil"],
+        "stations": ["still"]
+      },
+      {
+        "id": "bind",
+        "methods": ["lash", "rivet"],
+        "stations": ["bench"]
+      },
+      {
+        "id": "inscribe",
+        "methods": ["shallow", "deep-cut"],
+        "stations": ["bench"]
+      },
+      {
+        "id": "compose",
+        "methods": ["ordered"],
+        "stations": ["still"]
+      }
+    ],
+    "slots": ["blade", "plate", "tool", "hook", "focus", "charm", "tack"],
+    "known": [
+      {
+        "kind": "acd2964d8af19557a9929df69ad12cd9",
+        "name": "Scrap alloy tool",
+        "recipe": {
+          "process": "shape",
+          "method": "narrow-grind",
+          "slot": "tool",
+          "inputs": [
+            {
+              "material": "cinder-ore",
+              "units": 1
+            }
+          ]
+        },
+        "first": true
+      },
+      {
+        "kind": "3eb569e84b5d37db323837af5ccd35d3",
+        "name": "Scrap iron blade",
+        "recipe": {
+          "process": "shape",
+          "method": "narrow-grind",
+          "slot": "blade",
+          "inputs": [
+            {
+              "material": "bog-iron",
+              "units": 2
+            }
+          ]
+        },
+        "first": false
+      }
+    ]
+  },
+  "appraise": {
+    "kind": "acd2964d8af19557a9929df69ad12cd9",
+    "name": "Scrap alloy tool",
+    "tier": 2,
+    "slot": "tool",
+    "known": false,
+    "axes": [
+      {
+        "axis": "edge",
+        "lo": 22,
+        "hi": 28
+      },
+      {
+        "axis": "weight",
+        "lo": 31,
+        "hi": 39
+      },
+      {
+        "axis": "heat",
+        "lo": 13,
+        "hi": 17
+      }
+    ],
+    "station": {
+      "kind": "forge",
+      "tier": 1,
+      "fee": 4
+    },
+    "inputs": [
+      {
+        "material": "cinder-ore",
+        "units": 1
+      }
+    ]
+  },
+  "act:craft": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 24,
+      "character": {
+        "id": "c-1",
+        "version": 43,
+        "at": {
+          "q": -2,
+          "r": -28
+        },
+        "coin": 14,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "cinder-ore",
+            "units": 3
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 6
+      },
+      "facts": [
+        {
+          "id": 31,
+          "tick": 24,
+          "kind": "kind.discovered",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "kind",
+              "id": "acd2964d8af19557a9929df69ad12cd9"
+            }
+          ],
+          "data": [
+            {
+              "k": "process",
+              "s": "shape"
+            },
+            {
+              "k": "tier",
+              "n": 2
+            }
+          ],
+          "weight": 60
+        },
+        {
+          "id": 32,
+          "tick": 24,
+          "kind": "craft.made",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "kind",
+              "id": "acd2964d8af19557a9929df69ad12cd9"
+            }
+          ],
+          "data": [
+            {
+              "k": "process",
+              "s": "shape"
+            },
+            {
+              "k": "tier",
+              "n": 2
+            }
+          ],
+          "weight": 3
+        }
+      ]
+    }
+  },
+  "act:talk": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 24,
+      "character": {
+        "id": "c-1",
+        "version": 46,
+        "at": {
+          "q": -2,
+          "r": -28
+        },
+        "coin": 14,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "cinder-ore",
+            "units": 3
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 6
+      },
+      "facts": [
+        {
+          "id": 33,
+          "tick": 24,
+          "kind": "npc.met",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "npc",
+              "id": "r--2,-28-settlement-keeper-0"
+            }
+          ],
+          "data": [
+            {
+              "k": "first",
+              "n": 1
+            }
+          ],
+          "weight": 5
+        }
+      ]
+    }
+  },
+  "npc": {
+    "npc": {
+      "id": "r--2,-28-settlement-keeper-0",
+      "name": "Gage Bolt",
+      "role": "keeper",
+      "kind": "resident",
+      "traits": ["proud", "bold"],
+      "saved": true,
+      "visit": false
+    },
+    "topics": [
+      {
+        "id": "first-meeting",
+        "line": "Gage Bolt, keeper here. I have not seen you before.",
+        "own": false,
+        "choices": [
+          {
+            "id": "introduce",
+            "line": "You give your name.",
+            "effect": "standing",
+            "standing": 1
+          },
+          {
+            "id": "ask-news",
+            "line": "You ask what is new.",
+            "effect": "rumour"
+          },
+          {
+            "id": "walk-on",
+            "line": "You nod and move on.",
+            "effect": "none"
+          }
+        ]
+      },
+      {
+        "id": "remembers-name",
+        "line": "Gage Bolt knows your name: \"Back again, and still walking.\"",
+        "own": true,
+        "choices": [
+          {
+            "id": "greet",
+            "line": "You greet them by name.",
+            "effect": "standing",
+            "standing": 1
+          },
+          {
+            "id": "ask-news",
+            "line": "You ask what has changed.",
+            "effect": "rumour"
+          }
+        ]
+      },
+      {
+        "id": "pattern-rumour",
+        "line": "Gage Bolt has heard of a strange shape near Rivet Hold.",
+        "own": false,
+        "choices": [
+          {
+            "id": "ask-clue",
+            "line": "You ask for the clue.",
+            "effect": "rumour"
+          },
+          {
+            "id": "leave",
+            "line": "You leave it.",
+            "effect": "none"
+          }
+        ]
+      }
+    ],
+    "last": "Gage Bolt, keeper here. I have not seen you before.",
+    "met": 1,
+    "digest": "6303ab09c7dd9e9ebcb64d74dbef861dae94a4fbe9d72f6322e88648b2b10190",
+    "banner": "banner-b0b8a0bd08c0cd87acbf0b29"
+  },
+  "act:choose": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 24,
+      "character": {
+        "id": "c-1",
+        "version": 47,
+        "at": {
+          "q": -2,
+          "r": -28
+        },
+        "coin": 14,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "cinder-ore",
+            "units": 3
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 6
+      },
+      "facts": [
+        {
+          "id": 34,
+          "tick": 24,
+          "kind": "npc.chose",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "npc",
+              "id": "r--2,-28-settlement-keeper-0"
+            }
+          ],
+          "data": [
+            {
+              "k": "choice",
+              "s": "introduce"
+            },
+            {
+              "k": "topic",
+              "s": "first-meeting"
+            }
+          ],
+          "weight": 10
+        }
+      ]
+    }
+  }
+}

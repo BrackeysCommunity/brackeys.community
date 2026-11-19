@@ -1,0 +1,11 @@
+{
+  "name": "@jams/discord-kit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Discord transport both bots share: embeds and their limits, messages as raw component JSON, cooldowns and guild command registration. No dependencies; services import it by path.",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

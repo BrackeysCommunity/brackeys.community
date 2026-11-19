@@ -1,0 +1,26 @@
+{
+  "name": "@jams/mmo-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Discord MMO's bot: the hub and every chat card of the solo loop, a client of the world service (services/mmo-world) and nothing more. Commands are pure; src/adapter.ts is the only file that touches discord.js.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "local": "bun --env-file=.env.local run src/index.ts",
+    "register": "bun --env-file=.env.local run src/register.ts",
+    "scripted": "bun run src/scripted.ts",
+    "test": "bun test test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "ioredis": "^5.10.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^22.10.2",
+    "typescript": "^6.0.2"
+  },
+  "packageManager": "bun@1.3.14"
+}

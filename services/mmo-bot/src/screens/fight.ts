@@ -1,0 +1,261 @@
+import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
+import type * as api from "../api.ts";
+import { type Card, COLOUR } from "../card.ts";
+import type { Lexicon } from "../lexicon.ts";
+import { amount, band, bandShort, num, ticks } from "../units.ts";
+import { back, btn, DIRECTIONS, PRIVATE } from "./common.ts";
+
+const RISK_UNIT: Record<string, string> = {
+  durability: "durability",
+  haul: "goods",
+  wound: "wound",
+  coin: "coin",
+};
+
+function riskText(o: api.Option): string {
+  if (!o.risk || o.risk === "none" || o.riskSize === 0) return "risks nothing";
+  const unit = RISK_UNIT[o.risk] ?? o.risk;
+  return unit === "wound" ? "risks a wound" : `risks ${amount(o.riskSize, unit)}`;
+}
+
+/** A beat: the situation, every option with its band and risk, edited in place from beat to beat (GDD 7.1). */
+export function beatCard(
+  o: api.Options,
+  here: api.Here,
+  lex: Lexicon,
+  last?: { pressed: api.Pressed[]; facts: api.Fact[] },
+): Card {
+  const f = o.fight!;
+  const v = o.version;
+  const creature = lex.name("creatures.archetypes", f.creature);
+  const beat = lex.name("fights.beats", f.kind);
+  const opts = f.options.filter((x) => !x.puzzle);
+  const machines = f.options.filter((x) => x.puzzle);
+  const buttons: Button[] = opts.map((x) =>
+    btn(`${lex.name("fights.options", x.id)} · ${bandShort(x.band)}`, "press", x.id, v, {
+      style: x.kind === "win" ? "primary" : x.kind === "way-out" ? "secondary" : "success",
+    }),
+  );
+  const lines = opts.map(
+    (x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskText(x)}`,
+  );
+  for (const m of machines)
+    lines.push(
+      `**${lex.name("fights.options", m.id)}**: a machine, worked in the Activity (${band(m.band)})`,
+    );
+  let opening = "";
+  if (last?.pressed.length) {
+    const p = last.pressed[0]!;
+    opening = `${lex.name("fights.options", p.option)} at ${band(p.band).toLowerCase()}: **${p.success ? "it worked" : "it failed"}**.\n\n`;
+  }
+  const fields: EmbedField[] = [
+    { name: "Beat", value: `beat ${f.beat + 1} of ${amount(f.beats, "beats")}`, inline: true },
+    { name: "Against", value: creature, inline: true },
+    { name: "Where", value: here.name, inline: true },
+  ];
+  if (f.ambush) {
+    fields.push({
+      name: "If you stay away",
+      value: `it takes ${lex.name("fights.options", f.default ?? "back-out").toLowerCase()} at tick ${num(f.due ?? 0)}`,
+    });
+  }
+  return {
+    context: PRIVATE,
+    author: f.ambush
+      ? "Ambush on the road"
+      : here.dungeon
+        ? "Down in the den · floor 1"
+        : `Encounter · ${beat}`,
+    title: `${beat}: ${creature}`,
+    description: `${opening}${lines.join("\n")}`,
+    picture: {
+      media: here.banner,
+      alt: `Banner of ${here.name}; ${creature} in a ${beat.toLowerCase()}`,
+    },
+    fields,
+    footer: "The last beat is the hardest and must be won. Two failures and you go down.",
+    rows: [
+      { buttons: buttons.slice(0, 5) },
+      ...(buttons.length > 5 ? [{ buttons: buttons.slice(5, 10) }] : []),
+      { buttons: [btn("Why these odds", "why", "options", v), back(v)] },
+    ],
+    colour: f.ambush ? COLOUR.hazard : COLOUR.rust,
+    modifiers: true,
+    failable: opts.filter((x) => x.band !== "certain").map((x) => lex.name("fights.options", x.id)),
+  };
+}
+
+/** The beat resolved: the encounter's end, from the press's facts. */
+export function resolvedCard(
+  o: api.Options,
+  here: api.Here,
+  lex: Lexicon,
+  pressed: api.Pressed[],
+  facts: api.Fact[],
+): Card {
+  const v = o.version;
+  const end = facts.find((f) => f.kind.startsWith("encounter."));
+  const result = end?.kind.slice("encounter.".length) ?? "over";
+  const haul = end?.data.find((d) => d.k === "haul")?.n ?? 0;
+  const p = pressed[0];
+  const titles: Record<string, string> = {
+    won: "You won",
+    lost: "You went down",
+    left: "You backed out",
+    held: "You held",
+    escaped: "It got away",
+  };
+  const fields = [
+    {
+      name: "Haul carried out",
+      value: amount(result === "lost" ? 0 : haul, "goods"),
+      inline: true,
+    },
+  ];
+  const levelled = facts.filter((f) => f.kind === "item.levelled");
+  if (levelled.length)
+    fields.push({
+      name: "Levels",
+      value: levelled.map((f) => `level ${f.data.find((d) => d.k === "to")?.n ?? 0}`).join(", "),
+      inline: true,
+    });
+  const buttons: Button[] = [];
+  if (o.conditions.includes("down"))
+    buttons.push(btn("Crawl out", "crawl", "", v, { style: "danger" }));
+  else if (o.explore) buttons.push(btn("Explore again", "explore", "", v, { style: "primary" }));
+  buttons.push(btn("Where I am", "where", "", v), back(v));
+  return {
+    context: PRIVATE,
+    author: "Encounter · the beat resolved",
+    title: titles[result] ?? "It is over",
+    description: p
+      ? `${lex.name("fights.options", p.option)} at ${band(p.band).toLowerCase()}: ${p.success ? "it worked" : "it failed"}.`
+      : undefined,
+    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    fields,
+    footer:
+      result === "lost"
+        ? `Danger never takes what you wear. Crawling out takes ${ticks(6)} and leaves you wounded.`
+        : "The tile remembers who fought here.",
+    rows: [{ buttons }],
+    colour: result === "won" ? COLOUR.signal : COLOUR.rust,
+  };
+}
+
+/** Down: what it costs and the way out (GDD 5.5). */
+export function downCard(o: api.Options, here: api.Here): Card {
+  const v = o.version;
+  return {
+    context: PRIVATE,
+    author: "Down",
+    title: `Down at ${here.name}`,
+    description: `You cannot act. Crawling out takes ${ticks(6)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${amount(1, "tick")} longer, for a day or until you rest.`,
+    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    footer: "Calling for help arrives with goals.",
+    rows: [{ buttons: [btn("Crawl out", "crawl", "", v, { style: "danger" }), back(v)] }],
+    colour: COLOUR.rust,
+  };
+}
+
+/** The why view: the parts and rules behind a modifier, each in its unit (GDD 8.4). */
+export function whyCard(
+  o: api.Options,
+  here: api.Here,
+  lex: Lexicon,
+  what: "options" | "moves",
+): Card {
+  const v = o.version;
+  const lines: string[] = [];
+  if (what === "options" && o.fight) {
+    for (const x of o.fight.options) {
+      const parts = x.why.parts
+        .map((p) => `${p.label} ${p.value >= 0 ? "+" : "−"}${amount(Math.abs(p.value), p.unit)}`)
+        .join(", ");
+      const rules = x.why.rules?.length
+        ? `; rules: ${x.why.rules.map((r) => r.replace(/-/g, " ")).join(", ")}`
+        : "";
+      const moved =
+        x.why.bandFrom && x.why.bandTo && x.why.bandFrom !== x.why.bandTo
+          ? `; ${bandShort(x.why.bandFrom)} to ${bandShort(x.why.bandTo)}`
+          : "";
+      lines.push(
+        `**${lex.name("fights.options", x.id)}** (${band(x.band)}): ${parts || "no parts"}${rules}${moved}`,
+      );
+    }
+  } else {
+    for (const m of o.moves) {
+      const d = DIRECTIONS[m.dir]!;
+      if (!m.open) {
+        lines.push(`**${d.arrow} ${d.name}**: impassable`);
+        continue;
+      }
+      lines.push(
+        `**${d.arrow} ${d.name}**: ${m.why.parts.map((p) => `${p.label} ${amount(p.value, p.unit)}`).join(", ")}`,
+      );
+    }
+  }
+  return {
+    context: PRIVATE,
+    author: "Why · the tags and rules behind it",
+    title:
+      what === "options" ? "Why the odds are what they are" : "Why each way costs what it does",
+    description: lines.join("\n") || "Nothing is modifying this.",
+    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    footer: "Every modifier is a rule over tags you can read in the sheets.",
+    rows: [{ buttons: [btn("Back", what === "options" ? "fight" : "travel", "", v), back(v)] }],
+  };
+}
+
+/** Explore / Gather: the site here, the nodes and what they hold, foraging (GDD 6, 6.4). */
+export function fieldCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
+  const v = o.version;
+  const busy = !!o.long || !!o.fight || o.conditions.includes("down");
+  const buttons: Button[] = [];
+  if (o.explore)
+    buttons.push(
+      btn(here.dungeon ? "Enter floor 1" : "Explore the site", "explore", "", v, {
+        style: "primary",
+        disabled: busy,
+      }),
+    );
+  const nodes = here.materials.map(
+    (m) =>
+      `${lex.material(m.material)}: ${m.workedOut ? "worked out" : `${amount(m.left, lex.material(m.material))} left`}`,
+  );
+  const gather: Button[] = here.materials
+    .filter((m) => !m.workedOut)
+    .slice(0, 4)
+    .map((m) =>
+      btn(
+        `Gather ${lex.material(m.material)} · ${amount(1, "tick")}`,
+        "gather",
+        `${m.material}:1`,
+        v,
+        { disabled: busy },
+      ),
+    );
+  const forage = btn(`Forage · ${amount(1, "tick")}`, "forage", "1", v, { disabled: busy });
+  return {
+    context: PRIVATE,
+    author: `Explore / Gather · ${here.name}`,
+    title: o.explore ? "There is something to explore here" : "Nothing to explore here",
+    description: o.explore
+      ? `A site, and something living there. An encounter is ${amount(3, "beats")} to ${amount(6, "beats")}, with the odds on every option.`
+      : "No site with anything living on this tile.",
+    picture: { media: here.banner, alt: `Banner of ${here.name}` },
+    fields: [
+      { name: "Nodes", value: nodes.join("\n") || "none" },
+      { name: "Foraging", value: `${amount(here.forage, "provisions")} a tick here`, inline: true },
+      {
+        name: "Gathering",
+        value: "goods from the node each tick, wearing your tool",
+        inline: true,
+      },
+    ],
+    footer: "A gathering tick at the node's tier levels the tool in your hand.",
+    rows: [
+      { buttons: [...buttons, forage, back(v)] },
+      ...(gather.length ? [{ buttons: gather }] : []),
+    ],
+  };
+}
