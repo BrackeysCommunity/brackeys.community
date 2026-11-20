@@ -40,7 +40,13 @@
     },
     {
       "id": "coin-band",
-      "text": "Coin per active character stays between 350 and 450 coin for 42 simulated days",
+      "text": "From 100 players up, coin per active character stays between 350 and 450 coin for 42 simulated days",
+      "runs": "economy",
+      "holdsFrom": "MM5"
+    },
+    {
+      "id": "coin-drift",
+      "text": "At 10 players over a 120-day soak, coin per active character stays between a quarter of the band's floor and twice its ceiling over the last two thirds, and its distance to the band over the last third is no worse than over the middle third by more than a quarter of the band's width",
       "runs": "economy",
       "holdsFrom": "MM5"
     },

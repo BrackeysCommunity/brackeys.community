@@ -56,8 +56,11 @@ const (
 
 // Step adds the day's coin per active character to the window and moves
 // the rate by the window's mean: down Step per cent above the band, up
-// Step per cent below it (never past Most), else back toward rest by
-// Return per cent of itself. It returns the mean and the move.
+// Step per cent below it, else back toward rest by Return per cent of
+// itself. Below the band the rate passes rest (up to Most) only while
+// coin is not already climbing: purses filling in a new world reach the
+// band at rest, and a faucet raised under them overshoots it. It returns
+// the mean and the move.
 func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 	s.Samples = append(s.Samples, perActive)
 	if over := int64(len(s.Samples)) - p.Days; over > 0 {
@@ -72,7 +75,11 @@ func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 	case mean < p.Low:
 		// At least one raw unit, or rounding pins a rate cut very low.
 		up := fixed.Max(s.Rate.Mul(fixed.Percent(fixed.Hundredths+p.Step)), s.Rate.Add(ulp))
-		s.Rate = fixed.Min(up, rest.Mul(fixed.Percent(p.Most)))
+		most := rest.Mul(fixed.Percent(p.Most))
+		if s.climbing() {
+			most = fixed.Max(rest, s.Rate)
+		}
+		s.Rate = fixed.Min(up, most)
 		return mean, Rose
 	}
 	gap := rest.Sub(s.Rate)
@@ -86,6 +93,13 @@ func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 		s.Rate = s.Rate.Sub(fixed.Min(gap.Neg(), step))
 	}
 	return mean, Eased
+}
+
+// climbing reports whether coin per active character ended the window
+// above where it began; a window of one sample counts as climbing.
+func (s State) climbing() bool {
+	n := len(s.Samples)
+	return n <= 1 || s.Samples[n-1] > s.Samples[0]
 }
 
 // Mean is coin per active character over the window, rounded; 0 before

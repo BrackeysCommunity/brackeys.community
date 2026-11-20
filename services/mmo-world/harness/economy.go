@@ -32,6 +32,19 @@ const (
 	casualSpread  = 37  // ticks between one casual player's sessions and the next's
 )
 
+// structural: the band is required from bandFrom players up. Below it
+// the mean is a handful of purses, so the run asks for drift instead: no
+// runaway over the last two thirds of the soak (never under a quarter of
+// the band's floor, never over twice its ceiling), and a mean distance to
+// the band over the last third no worse than over the middle third by
+// more than driftSlack.
+const (
+	bandFrom      = 100
+	runawayFloor  = 25  // percent of band-low
+	runawayCeil   = 200 // percent of band-high
+	driftSlackPct = 25  // percent of the band's width
+)
+
 // economySizes are the populations a run measures when no n is given.
 var economySizes = []int{10, 1000, 10000}
 
@@ -96,21 +109,34 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	fp := faucet.ParamsOf(b.EconomyParams)
 	lo, hi := fp.Low, fp.High
-	allHold, clean := true, true
+	allHold, allDrift, clean := true, true, true
+	var held, drifted []string
 	var doc lineDoc
 	p := doc.p
 	p("# Economy run")
 	p("")
 	p("Scripted players (`harness/agent.Earner`) in six roles: %s. They join over the first %d world days at the first starting settlement; a second settlement is open from day 1 and nobody starts there. %d simulated world days; the band is read over days %d to %d.", roleList(), joinDays, days, economyWarmup, days)
 	p("")
-	p("| Players | Coin per active character, days %d–%d | In the band (%d–%d coin) | Faucet rate at the end | Units traded at the unplayed settlement | Conservation | Time |", economyWarmup, days, lo, hi)
-	p("| --- | --- | --- | --- | --- | --- | --- |")
+	p("From %s players up the band must hold. Below that the run asks for drift: over the last two thirds coin per active character stays between %d%% of the band's floor and %d%% of its ceiling, and its mean distance to the band over the last third is no worse than over the middle third by more than %d%% of the band's width.", comma(bandFrom), runawayFloor, runawayCeil, driftSlackPct)
+	p("")
+	p("| Players | Coin per active character, days %d–%d | Rule | Holds | Faucet rate at the end | Units traded at the unplayed settlement | Conservation | Time |", economyWarmup, days)
+	p("| --- | --- | --- | --- | --- | --- | --- | --- |")
 	for _, r := range results {
 		mn, mx, ok := bandOver(r.days, lo, hi)
-		allHold = allHold && ok
+		rule := fmt.Sprintf("band %d–%d", lo, hi)
+		if r.size < bandFrom {
+			d := driftOver(r.days, lo, hi)
+			ok = d.ok
+			rule = fmt.Sprintf("drift: %d–%d coin over the last two thirds, distance %d → %d coin", d.lo, d.hi, d.middle, d.last)
+			allDrift = allDrift && ok
+			drifted = append(drifted, comma(int64(r.size)))
+		} else {
+			allHold = allHold && ok
+			held = append(held, comma(int64(r.size)))
+		}
 		clean = clean && len(r.audit) == 0
 		end := r.days[len(r.days)-1]
-		p("| %s | %d to %d coin | %s | %d coin per active character per day | %d | %s | %s |", comma(int64(r.size)), mn, mx, holds(ok), end.rate, r.second, either(len(r.audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(r.audit))), r.elapsed.Round(time.Second))
+		p("| %s | %d to %d coin | %s | %s | %d coin per active character per day | %d | %s | %s |", comma(int64(r.size)), mn, mx, rule, holds(ok), end.rate, r.second, either(len(r.audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(r.audit))), r.elapsed.Round(time.Second))
 	}
 	p("")
 	for _, r := range results {
@@ -138,9 +164,53 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if err := doc.save(out, "economy.md"); err != nil {
 		return nil, err
 	}
-	return []Measured{
-		{Target: "coin-band", Value: fmt.Sprintf("%d sizes, days %d–%d", len(results), economyWarmup, days), Holds: allHold && clean},
-	}, nil
+	var readings []Measured
+	if len(held) > 0 {
+		readings = append(readings, Measured{Target: "coin-band", Value: fmt.Sprintf("%s players, days %d–%d", strings.Join(held, ", "), economyWarmup, days), Holds: allHold && clean})
+	}
+	if len(drifted) > 0 {
+		readings = append(readings, Measured{Target: "coin-drift", Value: fmt.Sprintf("%s players, %d days", strings.Join(drifted, ", "), days), Holds: allDrift && clean})
+	}
+	return readings, nil
+}
+
+// drift is a small server's coin read against the band: the least and
+// most over the last two thirds of the soak, the mean distance to the
+// band over the middle and last thirds, and whether the drift rule holds.
+type drift struct {
+	lo, hi, middle, last int64
+	ok                   bool
+}
+
+// driftOver reads days by thirds (see bandFrom).
+func driftOver(days []economyDay, lo, hi int64) drift {
+	n := len(days)
+	third := n / 3
+	var d drift
+	if third == 0 {
+		return d
+	}
+	dist := func(x int64) int64 { return max(0, lo-x, x-hi) }
+	var mid, last int64
+	for i, day := range days[third:] {
+		x := day.perActive
+		if i == 0 || x < d.lo {
+			d.lo = x
+		}
+		if i == 0 || x > d.hi {
+			d.hi = x
+		}
+		if third+i < 2*third {
+			mid += dist(x)
+		} else {
+			last += dist(x)
+		}
+	}
+	d.middle = mid / int64(third)
+	d.last = last / int64(n-2*third)
+	bounded := d.lo*100 >= lo*runawayFloor && d.hi*100 <= hi*runawayCeil
+	d.ok = bounded && (d.last-d.middle)*100 <= (hi-lo)*driftSlackPct
+	return d
 }
 
 func roleList() string {

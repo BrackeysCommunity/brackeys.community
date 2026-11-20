@@ -88,9 +88,9 @@
     },
     {
       "id": "faucet-most",
-      "value": 100,
+      "value": 150,
       "unit": "percent",
-      "doc": "The stabiliser never raises the faucet past this share of faucet-rate (the Economy run: a faucet that climbs while a new world's purses fill overshoots the band)."
+      "doc": "The stabiliser never raises the faucet past this share of faucet-rate, and passes faucet-rate itself only while coin per active character is not already climbing: a small server short of coin drifts up to the band, a large one filling new purses does not overshoot it."
     },
     {
       "id": "active-days",

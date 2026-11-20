@@ -72,3 +72,30 @@ func TestPlanStaysInBudget(t *testing.T) {
 		}
 	}
 }
+
+// Below the band the rate passes rest only while coin is not climbing.
+func TestPassesRestOnlyWhenNotClimbing(t *testing.T) {
+	q := Params{Rate: 60, Floor: 5, Low: 350, High: 450, Step: 12, Return: 4, Days: 7, Most: 150}
+	rest, most := fixed.FromInt(q.Rate), fixed.FromInt(q.Rate).Mul(fixed.Percent(q.Most))
+	filling := New(q)
+	for coin := int64(0); coin < q.Low; coin += 20 {
+		filling.Step(coin, q)
+	}
+	if filling.Rate != rest {
+		t.Fatalf("purses filling toward the band: the rate left rest for %s", filling.Rate)
+	}
+	stuck := New(q)
+	for range 30 {
+		stuck.Step(150, q)
+	}
+	if stuck.Rate != most {
+		t.Fatalf("coin stuck below the band: the rate is %s, want %s", stuck.Rate, most)
+	}
+	// Once it climbs again a raised rate holds rather than rising or dropping to rest.
+	for coin := int64(160); coin < 300; coin += 20 {
+		stuck.Step(coin, q)
+	}
+	if stuck.Rate != most {
+		t.Fatalf("climbing with a raised rate: %s, want it held at %s", stuck.Rate, most)
+	}
+}
