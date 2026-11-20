@@ -46,14 +46,35 @@ func TestSocietyOverHTTP(t *testing.T) {
 	if !gd.Members[0].Admin || gd.Charter.Coin == 0 {
 		t.Fatalf("a server admin is not an officer of its guild, or the charter has no cost: %+v", gd)
 	}
+	// The bank is in reach at the guild's own settlement, and a structure
+	// whose system waits is marked and not offered.
+	waits, raisable := 0, 0
+	for _, st := range gd.Settlements[0].Structures {
+		switch {
+		case st.Waits != "" && st.CanRaise:
+			t.Fatalf("the %s waits for %s and is offered to raise", st.Kind, st.Waits)
+		case st.Waits != "":
+			waits++
+		case st.CanRaise:
+			raisable++
+		}
+	}
+	if !gd.BankHere || waits == 0 || raisable == 0 {
+		t.Fatalf("bank here %v; %d structures wait, %d can be raised", gd.BankHere, waits, raisable)
+	}
 	cl, err := r.cli.Classes(ctx, a.ID)
-	if err != nil || len(cl.Classes) == 0 || cl.Most == 0 || len(cl.Classes[0].Needs) == 0 || len(cl.Classes[0].Tiers) == 0 {
+	if err != nil || len(cl.Classes) == 0 || cl.Most == 0 || len(cl.Classes[0].Needs) == 0 || len(cl.Classes[0].Tiers) == 0 || cl.Prey != nil {
 		t.Fatalf("classes %+v: %v", cl, err)
 	}
 
 	gs := readSolo[api.Goals](t, r, api.PathGoals+qa, 200)
 	if gs.Banner == "" || len(gs.Targets) == 0 || gs.Fee == 0 || gs.FeeLeast == 0 || gs.Limit == 0 || gs.Ephemeral == 0 || len(gs.Board) != 0 {
 		t.Fatalf("goals %+v", gs)
+	}
+	if len(gs.Traits) == 0 || len(gs.Fields) == 0 || len(gs.Vows) == 0 || gs.Places == nil || gs.Waiting == nil || gs.PartyMost == 0 || gs.Even ||
+		len(gs.Party) != 1 || gs.Party[0].Value != b.ID {
+		t.Fatalf("what the form narrows by: traits %v, fields %v, vows %v, places %v, waiting %v, party %v of %d, even %v",
+			gs.Traits, gs.Fields, gs.Vows, gs.Places, gs.Waiting, gs.Party, gs.PartyMost, gs.Even)
 	}
 	vow := api.GoalSpec{Title: "Reach the gate", Issuer: "character", Mode: "first", Lifetime: "standing", Turnover: "carry",
 		Cond: api.Condition{Verb: "reach", Count: 1, At: "settlement:0"}}
@@ -81,6 +102,14 @@ func TestSocietyOverHTTP(t *testing.T) {
 	}
 	if board = readSolo[api.Board](t, r, api.PathBoard, 200); len(board.Posts) != 0 {
 		t.Fatalf("a hidden goal is still in the forum feed: %+v", board)
+	}
+
+	// A vow to hold off a thing, as the form posts it.
+	off := api.GoalSpec{Title: "No blade", Issuer: "character", Mode: "first", Lifetime: "season", Turnover: "expire",
+		Cond: api.Condition{Verb: "hold", Tag: gs.Vows[0].Value}}
+	act(api.ActionRequest{InteractionID: "vow", CharacterID: a.ID, Kind: api.ActPostGoal, Goal: &off})
+	if gs = readSolo[api.Goals](t, r, api.PathGoals+qa, 200); len(gs.Mine) != 1 || gs.Mine[0].Verb != "hold" || gs.Mine[0].Count != 0 || !gs.Mine[0].Vow {
+		t.Fatalf("a vow to hold off a thing: %+v", gs.Mine)
 	}
 
 	// The second player's view of the same guild, and a deposit that ranks it.

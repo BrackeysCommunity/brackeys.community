@@ -110,11 +110,11 @@ export async function scripted(
       `no "${action}${target ? `:${target}` : ""}" on the card "${card.author} / ${card.title}"`,
     );
   };
-  /** The first select option on the card whose value ends in suffix. */
-  const optionEndingIn = (suffix: string) =>
+  /** The first select option on the card whose value holds part. */
+  const optionWith = (part: string) =>
     card.rows
       .flatMap((r) => ("select" in r ? r.select.options : []))
-      .find((x) => x.value.endsWith(suffix))?.value;
+      .find((x) => x.value.includes(part))?.value;
   const has = (action: string) =>
     card.rows.some((r) =>
       "buttons" in r
@@ -306,7 +306,8 @@ export async function scripted(
   await command("goals");
   await press("g-form");
   await press("g-target");
-  await press("g-reward", undefined, optionEndingIn(".0.f.e.x.c"));
+  await press("g-page");
+  await press("g-reward", undefined, optionWith(".0.fexc"));
   const title = "A scripted vow";
   await submit("g-name", { title, note: "Posted by the scripted client." });
   if (card.title.startsWith("Posted")) run.posted = title;

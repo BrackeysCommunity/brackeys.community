@@ -77,6 +77,10 @@ func NPCOf(acc string) (string, bool) { return strings.CutPrefix(acc, Pool+npcPr
 // EscrowPool is the pool an order, listing or gear order holds its escrow in.
 func EscrowPool(id string) string { return Pool + escrowPrefix + id }
 
+// WaitPool is the goods on a tile, by its ref, that wait for one character
+// to come for them.
+func WaitPool(ref, char string) string { return Pool + "wait:" + ref + ":" + char }
+
 // IsEscrow reports whether an account is an escrow pool.
 func IsEscrow(acc string) bool { return strings.HasPrefix(acc, Pool+escrowPrefix) }
 

@@ -42,9 +42,6 @@ type Long struct {
 // woundedTicks is what being wounded adds to a long action (GDD 5.5).
 func (g *Game) woundedTicks(c *Char, t int64) int64 {
 	if c.C.Has(char.Wounded, t) {
-		if _, w := g.workHere(c, guild.GivesRest, false); w != nil {
-			return g.r.wp("wounded-ticks") / halved
-		}
 		return g.r.wp("wounded-ticks")
 	}
 	return 0

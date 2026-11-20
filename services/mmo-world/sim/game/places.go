@@ -502,6 +502,19 @@ func (g *Game) CharterAt(c *Char) CharterView {
 	return out
 }
 
+// RaiseWaits is the milestone a raise of a structure at a settlement waits
+// for, or "": nobody pays to raise what no rule reads yet, the whole
+// structure or a tier past the one that stands.
+func RaiseWaits(p *Place, row *sheets.Structure) string {
+	switch {
+	case row.Waits != "":
+		return row.Waits
+	case row.TiersWait != "" && p.Get(row.ID) != nil:
+		return row.TiersWait
+	}
+	return ""
+}
+
 // Raising reports whether a structure has a raise open at a settlement.
 func (g *Game) Raising(settlement int, structure string) bool {
 	return g.raising(settlement, structure)

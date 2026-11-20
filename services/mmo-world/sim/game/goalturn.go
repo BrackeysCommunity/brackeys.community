@@ -158,6 +158,9 @@ func (g *Game) raise(c *Char, cmd Command) error {
 	case !ok:
 		return refuse(BadArgs, "the %s is not raised by goals", row.ID)
 	}
+	if waits := RaiseWaits(p, row); waits != "" {
+		return refuse(BadArgs, "raising the %s does nothing yet: it waits for %s", row.ID, waits)
+	}
 	name := g.r.Name("settlements.structures:" + row.ID)
 	if name == "" {
 		name = row.ID

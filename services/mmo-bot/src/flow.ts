@@ -351,14 +351,14 @@ class Session {
     const x =
       goal && [...res.reply.board, ...res.reply.mine, ...res.reply.met].find((g) => g.id === goal);
     if (x) return this.done(goalCard(o, res.reply, x, this.lex, notice));
-    return this.done(boardCard(o, res.reply, notice));
+    return this.done(boardCard(o, res.reply, this.lex, notice));
   }
 
   async goalForm(d: GoalDraft, notice?: string): Promise<Answer> {
     const o = await this.world.options(this.character);
     const res = await this.world.goals(this.character);
     if (!res.ok) return this.where(capitalise(res.refusal.message));
-    if (res.reply.settlement < 0) return this.done(boardCard(o, res.reply, notice));
+    if (res.reply.settlement < 0) return this.done(boardCard(o, res.reply, this.lex, notice));
     return this.retitled(this.done(goalForm(o, res.reply, d)), notice);
   }
 
@@ -740,11 +740,17 @@ class Session {
           "Drawn at cost",
         );
       case "g-form":
+      case "g-page":
       case "g-verb":
       case "g-target":
       case "g-amount":
-      case "g-reward": {
-        const d = goalDraftOf(id.action === "g-form" ? id.target : value);
+      case "g-narrow":
+      case "g-least":
+      case "g-reward":
+      case "g-cap":
+      case "g-party": {
+        const button = id.action === "g-form" || id.action === "g-page";
+        const d = goalDraftOf(button ? id.target : value);
         if (!d) return backCards.unknown(this.character);
         return this.goalForm(d);
       }
@@ -857,6 +863,10 @@ class Session {
       case "cls-take":
         return this.write(api.ActTakeAbility, v, { option: b }, (_, why) =>
           this.classes(a, why ?? "Taken"),
+        );
+      case "cls-mark":
+        return this.write(api.ActMarkPrey, v, { option: value }, (_, why) =>
+          this.classes(id.target || undefined, why ?? `Marked for today: ${value}`),
         );
       case "start":
         return this.hub();

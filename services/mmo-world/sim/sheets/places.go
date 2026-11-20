@@ -10,16 +10,17 @@ type CostLine struct {
 
 // Structure is one of the structures a settlement is made of (GDD 4.16).
 type Structure struct {
-	ID       string     `json:"id" unit:"id"`
-	Does     string     `json:"does" unit:"text"`
-	Station  bool       `json:"station,omitempty" unit:"flag" doc:"A crafting station: its tier caps what is made there."`
-	MaxTier  int64      `json:"maxTier" unit:"tier" min:"1" doc:"1 for a structure that is not tiered."`
-	Charter  bool       `json:"charter,omitempty" unit:"flag" doc:"Built at tier 1 by the charter."`
-	First    []CostLine `json:"first,omitempty" unit:"parts" doc:"What tier 1 costs, when the charter does not build it."`
-	Each     []CostLine `json:"each,omitempty" unit:"parts" doc:"What each tier up costs."`
-	Per      int64      `json:"per,omitempty" unit:"count" min:"0" doc:"What a tier adds: kinds a book lists, load stored, provisions held, mounts housed."`
-	Standing bool       `json:"standing,omitempty" unit:"flag" doc:"Nobody operates it: it counts as used whenever anything in its settlement is."`
-	Waits    string     `json:"waits,omitempty" unit:"text" doc:"The milestone whose system reads what it does, if not yet built."`
+	ID        string     `json:"id" unit:"id"`
+	Does      string     `json:"does" unit:"text"`
+	Station   bool       `json:"station,omitempty" unit:"flag" doc:"A crafting station: its tier caps what is made there."`
+	MaxTier   int64      `json:"maxTier" unit:"tier" min:"1" doc:"1 for a structure that is not tiered."`
+	Charter   bool       `json:"charter,omitempty" unit:"flag" doc:"Built at tier 1 by the charter."`
+	First     []CostLine `json:"first,omitempty" unit:"parts" doc:"What tier 1 costs, when the charter does not build it."`
+	Each      []CostLine `json:"each,omitempty" unit:"parts" doc:"What each tier up costs."`
+	Per       int64      `json:"per,omitempty" unit:"count" min:"0" doc:"What a tier adds: kinds a book lists, load stored, provisions held, mounts housed."`
+	Standing  bool       `json:"standing,omitempty" unit:"flag" doc:"Nobody operates it: it counts as used whenever anything in its settlement is."`
+	Waits     string     `json:"waits,omitempty" unit:"text" doc:"The milestone whose system reads what it does, if not yet built: goals do not raise it."`
+	TiersWait string     `json:"tiersWait,omitempty" unit:"text" doc:"The milestone whose system reads what a tier up adds, if not yet built: it is raised once and no further."`
 }
 
 // GuildWork is a standing bonus a guild switches on at its settlement

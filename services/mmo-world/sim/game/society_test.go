@@ -55,7 +55,7 @@ func TestRaiseGoalsAreTheSettlements(t *testing.T) {
 	g, ts := society(t, 1)
 	officer := ts[0]
 	limit := sheets.IntParam(g.Rules().Book.GoalParams, "live-goals")
-	for _, slot := range []string{"wall", "granary", "stable", "storehouse", "waypost", "shrine"} {
+	for _, slot := range []string{"wall", "granary", "forge", "bench", "still", "loom"} {
 		officer.must(game.Command{Kind: game.Raise, Slot: slot})
 	}
 	if n := g.LiveGoals(officer.c); n != 0 {
@@ -684,4 +684,270 @@ func TestAGuildNobodyIsInIsOver(t *testing.T) {
 	}
 	stranger.must(game.Command{Kind: game.Mend, Slot: "forge", Units: 40})
 	audit(t, g)
+}
+
+// Nobody pays to raise what no rule reads yet: a structure whose system
+// waits, or a tier up of one whose tiers do.
+func TestWaitingStructuresAreNotRaised(t *testing.T) {
+	g, ts := society(t, 2)
+	officer, member := ts[0], ts[1]
+	p := g.Places[0]
+	var whole, tiers int
+	for i := range g.Rules().Book.Structures {
+		row := &g.Rules().Book.Structures[i]
+		_, _, ok := p.Next(row, g.Rules().Settle)
+		switch {
+		case !ok:
+		case row.Waits != "":
+			whole++
+			unchanged(t, officer, "raising the "+row.ID+", which waits", game.Command{Kind: game.Raise, Slot: row.ID})
+		case row.TiersWait != "" && p.Get(row.ID) != nil:
+			tiers++
+			unchanged(t, officer, "a tier up of the "+row.ID+", which waits", game.Command{Kind: game.Raise, Slot: row.ID})
+		}
+	}
+	if whole == 0 || tiers == 0 {
+		t.Fatalf("%d structures and %d tiers wait: drop the half of this test nothing waits for", whole, tiers)
+	}
+	// The wall stands for Hold fast at its first tier; only its next waits.
+	timber := materialWith(t, g, "timber")
+	officer.must(game.Command{Kind: game.Raise, Slot: "wall"})
+	x := lastGoal(g)
+	member.grant(ledger.Material(timber), x.Cond.Count)
+	member.must(game.Command{Kind: game.DeliverGoal, Target: x.ID, Material: timber, Units: x.Cond.Count})
+	if !p.Open("wall") {
+		t.Fatal("the wall's first tier did not rise")
+	}
+	unchanged(t, officer, "a second tier of the wall", game.Command{Kind: game.Raise, Slot: "wall"})
+	for i := range g.Rules().Book.Structures {
+		row := &g.Rules().Book.Structures[i]
+		if waits := game.RaiseWaits(p, row); (row.ID == "wall" && waits == "") || (row.ID == "forge" && waits != "") {
+			t.Fatalf("the %s's next tier waits for %q", row.ID, waits)
+		}
+	}
+	audit(t, g)
+}
+
+// Goods go into and out of the bank only at a settlement the guild runs,
+// and are paid only to someone standing there; coin moves from anywhere.
+func TestTheBankIsAPlace(t *testing.T) {
+	g, ts := society(t, 10)
+	leader, second, member := ts[0], ts[1], ts[2]
+	gd := g.Guilds[0]
+	home := leader.c.C.At
+	away := home.Neighbour(0)
+	spend := sheets.IntParam(g.Rules().Book.SettlementParams, "officer-spend")
+	value := g.Rules().Values.Asset(ledger.Provisions)
+	leader.must(game.Command{Kind: game.Promote, Target: second.c.C.ID})
+	over := spend/value + 1
+	member.grant(ledger.Provisions, over+40)
+	member.grant(ledger.Coin, 100)
+
+	member.c.C.At = away
+	unchanged(t, member, "goods given to the bank from the road", game.Command{Kind: game.Deposit, Asset: ledger.Provisions, Units: 40})
+	member.must(game.Command{Kind: game.Deposit, Asset: ledger.Coin, Units: 50})
+	if g.BankHere(member.c) {
+		t.Fatal("the bank is in reach away from the guild's settlement")
+	}
+	member.c.C.At = home
+	member.must(game.Command{Kind: game.Deposit, Asset: ledger.Provisions, Units: over + 40})
+	if !g.BankHere(member.c) || g.Ledger.Of(gd.Pool(), ledger.Provisions) != over+40 {
+		t.Fatalf("at home the bank holds %d provisions", g.Ledger.Of(gd.Pool(), ledger.Provisions))
+	}
+
+	member.c.C.At = away
+	unchanged(t, member, "a draw from the road", game.Command{Kind: game.Draw, Asset: ledger.Provisions, Units: 1})
+	unchanged(t, leader, "goods paid to someone on the road", game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Provisions, Units: 5})
+	leader.must(game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Coin, Units: 10})
+	member.c.C.At, leader.c.C.At = home, away
+	unchanged(t, leader, "goods paid by an officer on the road", game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Provisions, Units: 5})
+	leader.c.C.At = home
+	member.must(game.Command{Kind: game.Draw, Asset: ledger.Provisions, Units: 1})
+	leader.must(game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Provisions, Units: 5})
+	if member.c.C.Provisions != 6 {
+		t.Fatalf("at the bank a draw and a payment left the member %d provisions", member.c.C.Provisions)
+	}
+
+	// A payment over the officer's day is approved at the bank too.
+	leader.must(game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Provisions, Units: over})
+	if len(gd.G.Approvals) != 1 {
+		t.Fatalf("a payment past the day's limit left %d approvals", len(gd.G.Approvals))
+	}
+	ask := game.Command{Kind: game.Approve, Option: gd.G.Approvals[0].ID}
+	second.c.C.At = away
+	unchanged(t, second, "goods approved from the road", ask)
+	second.c.C.At, member.c.C.At = home, away
+	unchanged(t, second, "goods approved for someone on the road", ask)
+	member.c.C.At = home
+	second.must(ask)
+	if member.c.C.Provisions != 6+over {
+		t.Fatalf("the approved goods did not arrive: %d provisions", member.c.C.Provisions)
+	}
+	audit(t, g)
+}
+
+// Goods a goal hands its poster wait where they were handed over until
+// the poster acts there: delivered, hauled, or a haul's stock given back.
+func TestDeliveredGoodsWaitForThePoster(t *testing.T) {
+	g, ts := society(t, 2)
+	poster, runner := ts[0], ts[1]
+	home := poster.c.C.At
+	far := home.Neighbour(0)
+	fibre, timber := materialWith(t, g, "fibre"), materialWith(t, g, "timber")
+	held := func(asset string) int64 { return g.Ledger.Of(ledger.Char(poster.c.C.ID), asset) }
+	poster.grant(ledger.Coin, 500)
+	runner.grant(ledger.Coin, 500)
+	runner.grant(ledger.Material(fibre), 40)
+	x := post(poster, game.GoalSpec{Title: "Forty fibre", Issuer: goal.ByCharacter, Reward: 50, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: "fibre", Count: 40, At: here(g, poster)}})
+
+	poster.c.C.At = far
+	runner.must(game.Command{Kind: game.DeliverGoal, Target: x.ID, Material: fibre, Units: 40})
+	met(t, x)
+	waits := g.WaitingFor(poster.c)
+	if held(ledger.Material(fibre)) != 0 || len(waits) != 1 || waits[0].At != home || waits[0].Goods[0].Units != 40 {
+		t.Fatalf("delivered while away: the poster carries %d fibre and %+v waits", held(ledger.Material(fibre)), waits)
+	}
+	audit(t, g)
+
+	// Acting anywhere else collects nothing, and nothing is lost by waiting.
+	poster.must(game.Command{Kind: game.Look})
+	advanceDays(t, g, 3)
+	if waits := g.WaitingFor(poster.c); held(ledger.Material(fibre)) != 0 || len(waits) != 1 || waits[0].Goods[0].Units != 40 {
+		t.Fatalf("after three days away the poster carries %d fibre and %+v waits", held(ledger.Material(fibre)), waits)
+	}
+	poster.c.C.At = home
+	poster.must(game.Command{Kind: game.Look})
+	if held(ledger.Material(fibre)) != 40 || len(g.WaitingFor(poster.c)) != 0 || len(poster.c.Waits) != 0 {
+		t.Fatalf("back home the poster carries %d fibre and %+v still waits", held(ledger.Material(fibre)), g.WaitingFor(poster.c))
+	}
+
+	// A haul's stock waits at its end, and one withdrawn from the road
+	// waits at the board it was posted on.
+	poster.grant(ledger.Material(timber), 40)
+	haul := game.GoalSpec{Title: "Timber out", Issuer: goal.ByCharacter, Reward: 10, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
+		Material: timber, Units: 20, Cond: goal.Condition{Verb: goal.Haul, From: here(g, poster), At: goal.TileRef(far), Count: 20}}
+	y := post(poster, haul)
+	runner.must(game.Command{Kind: game.TakeHaul, Target: y.ID})
+	runner.c.C.At = far
+	runner.must(game.Command{Kind: game.DeliverGoal, Target: y.ID})
+	met(t, y)
+	z := post(poster, haul)
+	poster.c.C.At = home.Neighbour(1)
+	poster.must(game.Command{Kind: game.WithdrawGoal, Target: z.ID})
+	if held(ledger.Material(timber)) != 0 || len(g.WaitingFor(poster.c)) != 2 {
+		t.Fatalf("a haul delivered and one withdrawn from the road: the poster carries %d timber and %+v waits", held(ledger.Material(timber)), g.WaitingFor(poster.c))
+	}
+	audit(t, g)
+	for _, at := range []hex.Hex{far, home} {
+		poster.c.C.At = at
+		poster.must(game.Command{Kind: game.Look})
+	}
+	if held(ledger.Material(timber)) != 40 || len(poster.c.Waits) != 0 {
+		t.Fatalf("after calling at both the poster carries %d timber", held(ledger.Material(timber)))
+	}
+
+	// Standing where it is handed over, the poster takes it at once.
+	runner.grant(ledger.Material(fibre), 5)
+	w := post(poster, game.GoalSpec{Title: "Five more", Issuer: goal.ByCharacter, Reward: 10, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: "fibre", Count: 5, At: here(g, poster)}})
+	runner.c.C.At = home
+	runner.must(game.Command{Kind: game.DeliverGoal, Target: w.ID, Material: fibre, Units: 5})
+	if held(ledger.Material(fibre)) != 45 {
+		t.Fatalf("delivered to a poster standing there: %d fibre", held(ledger.Material(fibre)))
+	}
+	audit(t, g)
+}
+
+// A server guild is led by whoever acted on the most of the last days,
+// not by who has done the most in a lifetime; a tie keeps the leader.
+func TestAServerGuildFollowsItsMostActiveDays(t *testing.T) {
+	g, ts := society(t, 3)
+	gd := g.Guilds[0]
+	first, daily, veteran := ts[0], ts[1], ts[2]
+	every := sheets.IntParam(g.Rules().Book.SettlementParams, "server-leader-every")
+	if gd.G.Leader != first.c.C.ID {
+		t.Fatalf("the guild's first member does not lead it: %q", gd.G.Leader)
+	}
+	veteran.c.C.Walked = 100000
+	for range every {
+		daily.must(game.Command{Kind: game.Look})
+		advanceDays(t, g, 1)
+	}
+	if gd.G.Leader != daily.c.C.ID {
+		t.Fatalf("after %d days only one member acted every day, and the leader is %q", every, gd.G.Leader)
+	}
+	// Once the others have acted as often as the leader, the tie keeps it.
+	for range 3 * every {
+		for _, tr := range ts {
+			tr.must(game.Command{Kind: game.Look})
+		}
+		advanceDays(t, g, 1)
+	}
+	if gd.G.Leader != daily.c.C.ID {
+		t.Fatalf("a tie moved the leadership to %q", gd.G.Leader)
+	}
+}
+
+// A founded guild that never ran a settlement leaves nothing behind when
+// its last member goes: what it held is sunk as fees.
+func TestAGuildWithNoSettlementSinksWhatItHeld(t *testing.T) {
+	g, ts := newTraders(t, 1)
+	founder := ts[0]
+	founder.must(game.Command{Kind: game.FoundGuild, Note: "The Free Company"})
+	gd := g.GuildOf(founder.c.C.Guild)
+	founder.grant(ledger.Coin, 70)
+	founder.must(game.Command{Kind: game.Deposit, Asset: ledger.Coin, Units: 70})
+	sunk := g.Ledger.Of(ledger.ToFees, ledger.Coin)
+	founder.must(game.Command{Kind: game.Leave})
+	if left := g.Ledger.Held(gd.Pool()); len(left) != 0 || g.Ledger.Of(ledger.ToFees, ledger.Coin) != sunk+70 {
+		t.Fatalf("a guild nobody is in still holds %+v; the fees sink took %d coin", left, g.Ledger.Of(ledger.ToFees, ledger.Coin)-sunk)
+	}
+	audit(t, g)
+}
+
+// A full granary shortens the rest that clears a wound; the wound itself
+// slows a long action there as much as anywhere (GDD 4.14).
+func TestAFullGranaryShortensRestNotTheWound(t *testing.T) {
+	g, ts := society(t, 2)
+	officer, member := ts[0], ts[1]
+	r := g.Rules()
+	wp := func(id string) int64 { return sheets.IntParam(r.Book.WorldParams, id) }
+	var work *sheets.GuildWork
+	for i := range r.Book.GuildWorks {
+		if r.Book.GuildWorks[i].Gives == "rest" {
+			work = &r.Book.GuildWorks[i]
+		}
+	}
+	for i := range r.Book.Structures {
+		if st := &r.Book.Structures[i]; st.ID == work.Needs {
+			g.Places[0].Raise(st, g.Tick(), r.Settle)
+		}
+	}
+	member.grant(ledger.Provisions, work.Uses[0].Quantity*3)
+	member.must(game.Command{Kind: game.Deposit, Asset: ledger.Provisions, Units: work.Uses[0].Quantity * 3})
+	officer.must(game.Command{Kind: game.Work, Option: work.ID, Units: 1})
+	advanceDays(t, g, 1)
+	if _, w := g.WorkRunning(0, work.ID); w == nil {
+		t.Fatal("the granary's work is not running")
+	}
+
+	member.c.C.Set(char.Wounded, g.Tick()+sheets.TicksPerDay)
+	member.must(game.Command{Kind: game.Forage, Ticks: wp("gather-ticks-min")})
+	if got, want := member.c.Long.Ends-member.c.Long.Started, wp("gather-ticks-min")+wp("wounded-ticks"); got != want {
+		t.Fatalf("a wounded forage at a full granary takes %d ticks, want %d", got, want)
+	}
+	member.must(game.Command{Kind: game.Cancel})
+	member.must(game.Command{Kind: game.Rest})
+	if got := member.c.Long.Ends - member.c.Long.Started; got != work.By || got >= wp("rest-ticks") {
+		t.Fatalf("rest at a full granary takes %d ticks, want %d", got, work.By)
+	}
+	for member.c.Long != nil {
+		if _, err := g.Advance(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if member.c.C.Has(char.Wounded, g.Tick()) {
+		t.Fatal("the rest did not clear the wound")
+	}
 }

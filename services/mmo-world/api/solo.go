@@ -249,6 +249,9 @@ type Appraisal struct {
 	Axes    []Range `json:"axes"`
 	Station Station `json:"station"`
 	Inputs  []Goods `json:"inputs"`
+	// Registered is a Master's eye's view (GDD 5.9): whether making the
+	// recipe would discover nothing. Absent without the ability.
+	Registered *bool `json:"registered,omitempty"`
 }
 
 // Range is an axis's appraised low and high, in pts.

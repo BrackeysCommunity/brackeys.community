@@ -19,6 +19,17 @@ import { BLANK, goalDraftId, specOf } from "../src/screens/goals.ts";
 import { httpWorld } from "../src/world.ts";
 import samples from "./fixtures/world.json";
 
+const GOALS_SINCE = {
+  traits: [],
+  places: [],
+  fields: [],
+  vows: [{ value: "blade", label: "no blade" }],
+  party: [],
+  partyMost: 6,
+  even: false,
+  waiting: [],
+};
+
 function setup({ player = "c-1", stale = false, offline = false } = {}) {
   const writes: api.ActionRequest[] = [];
   const reads: string[] = [];
@@ -31,8 +42,9 @@ function setup({ player = "c-1", stale = false, offline = false } = {}) {
     [api.PathMap, samples.map],
     [api.PathRecap, samples.recap],
     [api.PathRecipes, samples.recipes],
-    [api.PathGoals, samples.goals],
-    [api.PathGuild, samples.guild],
+    // The recorded pages predate a few served fields.
+    [api.PathGoals, { ...samples.goals, ...GOALS_SINCE }],
+    [api.PathGuild, { ...samples.guild, bankHere: true }],
     [api.PathClasses, samples.classes],
   ]);
   const fetcher = Object.assign(
@@ -45,8 +57,9 @@ function setup({ player = "c-1", stale = false, offline = false } = {}) {
         writes.push(body);
         if (stale)
           return Response.json({ code: api.CodeStale, message: "stale version" }, { status: 409 });
-        const key = `act:${body.kind}` as keyof typeof samples;
-        const action = samples[key];
+        // A mark was never recorded: it answers as any plain write does.
+        const kind = body.kind === api.ActMarkPrey ? api.ActLook : body.kind;
+        const action = samples[`act:${kind}` as keyof typeof samples];
         if (!action || !("reply" in action)) throw new Error("unexpected action " + body.kind);
         return Response.json(action.reply);
       }
@@ -231,6 +244,46 @@ test("naming a goal opens a modal at once, and its submit posts the drafted goal
     mode: "first",
     cond: { verb: "deliver", kind: "cinder-ore", count: 10 },
   });
+});
+
+test("the form turns its pages and narrows without a write, and a vow posts as a Hold with no gauge", async () => {
+  const { press, writes } = setup();
+  const vow = { ...BLANK, verb: "vow", target: "blade", count: 0 };
+  const runs = await press({
+    action: "g-page",
+    target: goalDraftId({ ...vow, page: "t" }),
+    version: 2,
+  });
+  expect(runs.card.title).toBe("A vow: no blade");
+  const blade = { ...BLANK, verb: "make", target: "blade", count: 1, narrow: "keen" };
+  const narrowed = await press({ action: "g-narrow", target: "", version: 2 }, [
+    goalDraftId(blade),
+  ]);
+  expect(narrowed.card.title).toEndWith("with keen");
+  expect(writes).toEqual([]);
+  await press({ action: "g-post", target: goalDraftId(vow), version: 5 });
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).toMatchObject({
+    kind: api.ActPostGoal,
+    version: 5,
+    goal: { issuer: "character", reward: 0, cond: { verb: "hold", count: 0, tag: "blade" } },
+  });
+});
+
+test("naming prey sends the mark with the creature tag picked", async () => {
+  const { press, writes } = setup();
+  const marked = await press({ action: "cls-mark", target: "stalker", version: 3 }, ["pack"]);
+  expect(marked.card.author).toStartWith("Classes");
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 3,
+      kind: api.ActMarkPrey,
+      server: "guild",
+      option: "pack",
+    },
+  ]);
 });
 
 test("only a well-formed draft or a founding press opens a modal", () => {

@@ -338,6 +338,12 @@ func TestOldPale(t *testing.T) {
 	ts[0].grant(ledger.Coin, 50)
 	x := post(ts[0], game.GoalSpec{Title: "Old Pale", Issuer: goal.ByCharacter, Reward: 20, Mode: goal.First, Lifetime: goal.Standing,
 		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1}})
+	// The same creature asked for in its own region, and in another.
+	there := goal.RegionRef(world.RegionRef(g.World.RegionAt(site)))
+	local := post(ts[0], game.GoalSpec{Title: "Old Pale, at home", Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1, At: there}})
+	elsewhere := post(ts[0], game.GoalSpec{Title: "Old Pale, abroad", Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1, At: there + "0"}})
 	hunter.walk(site)
 	for range 40 {
 		if x.State == goal.Done {
@@ -370,6 +376,10 @@ func TestOldPale(t *testing.T) {
 		}
 	}
 	met(t, x)
+	met(t, local)
+	if elsewhere.State != goal.Live {
+		t.Fatalf("a Defeat asked for in another region is %s", elsewhere.State)
+	}
 	audit(t, g)
 }
 

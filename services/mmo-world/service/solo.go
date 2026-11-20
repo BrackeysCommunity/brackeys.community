@@ -408,6 +408,9 @@ func (s *Server) appraise(w http.ResponseWriter, r *http.Request) {
 			out.Axes = append(out.Axes, api.Range{Axis: axes[i], Lo: ap.Ranges.Lo[i], Hi: ap.Ranges.Hi[i]})
 		}
 	}
+	if ap.Eye {
+		out.Registered = &ap.Registered
+	}
 	reply(w, http.StatusOK, out)
 }
 

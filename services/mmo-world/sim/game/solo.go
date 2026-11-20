@@ -430,8 +430,9 @@ type Appraisal struct {
 	Station Station      `json:"station"`
 	Fee     int64        `json:"fee"`
 	Name    string       `json:"name"`
-	// Registered is shown to a Master's eye: the kind is already in the
-	// registry, so making it discovers nothing.
+	// Eye marks an appraiser with a Master's eye, who is shown Registered:
+	// the kind is already in the registry, so making it discovers nothing.
+	Eye        bool `json:"eye,omitempty"`
 	Registered bool `json:"registered,omitempty"`
 }
 
@@ -453,8 +454,8 @@ func (g *Game) Appraise(c *Char, r item.Recipe) (Appraisal, error) {
 	if name == "" {
 		name = g.plainName(r)
 	}
-	return Appraisal{Ranges: g.narrowed(c, rg), Station: st, Fee: g.feeFor(c, st, rg.Kind), Name: name,
-		Registered: g.charScale(c, "sees-registered", 0) > 0 && rg.Known}, nil
+	eye := g.charScale(c, "sees-registered", 0) > 0
+	return Appraisal{Ranges: g.narrowed(c, rg), Station: st, Fee: g.feeFor(c, st, rg.Kind), Name: name, Eye: eye, Registered: eye && rg.Known}, nil
 }
 
 // structural: the practice a craft trains.

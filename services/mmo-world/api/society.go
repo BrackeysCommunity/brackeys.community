@@ -111,6 +111,8 @@ type Goal struct {
 	Top    []Contribution `json:"top"`
 	Hauler string         `json:"hauler,omitempty"`
 	Vow    bool           `json:"vow,omitempty"`
+	// Even: a pooled goal pays everyone the same, not by contribution.
+	Even bool `json:"even,omitempty"`
 	// Evolved marks the world day its target evolved, when its issuer may
 	// withdraw it whatever has been claimed.
 	Evolved bool `json:"evolved,omitempty"`
@@ -176,6 +178,29 @@ type Goals struct {
 	Within    int64     `json:"within"`
 	Ephemeral int64     `json:"ephemeral"`
 	At        Hex       `json:"at"`
+	// What the form may narrow a goal by: a trait a made item must carry,
+	// a region the creature must be defeated in, a generated field a
+	// discovered tile must reach, and the things a vow may hold off.
+	Traits []Pick `json:"traits"`
+	Places []Pick `json:"places"`
+	Fields []Pick `json:"fields"`
+	Vows   []Pick `json:"vows"`
+	// Party are the characters standing here a party goal may name, and
+	// PartyMost how many it may.
+	Party     []Pick `json:"party"`
+	PartyMost int64  `json:"partyMost"`
+	// Even: the character may post a pooled goal that pays everyone the
+	// same (GDD 5.9).
+	Even bool `json:"even"`
+	// Waiting are goods goals handed the character that wait where they
+	// were handed over; it takes them by acting there.
+	Waiting []Waiting `json:"waiting"`
+}
+
+// Waiting is goods that wait for a character at a place.
+type Waiting struct {
+	Place string  `json:"place"`
+	Goods []Goods `json:"goods"`
 }
 
 // Targets are the choices a verb offers on the posting form.
@@ -223,8 +248,12 @@ type Structure struct {
 	Closed    bool       `json:"closed"`
 	Raising   bool       `json:"raising"`
 	Next      []CostLine `json:"next,omitempty"`
-	// CanRaise: goals raise it a tier and no raise of it is open.
+	// CanRaise: goals raise it a tier, no raise of it is open and the
+	// system that reads that tier is built.
 	CanRaise bool `json:"canRaise"`
+	// Waits is the milestone its next raise waits for, if its system is not
+	// built yet.
+	Waits string `json:"waits,omitempty"`
 }
 
 // Settlement is a settlement a guild runs.
@@ -271,6 +300,8 @@ type Approval struct {
 	To    string `json:"to"`
 	What  string `json:"what"`
 	Value int64  `json:"value"`
+	// Goods marks a payment out of the bank, approved where the bank is.
+	Goods bool `json:"goods"`
 }
 
 // GuildVote is an open motion.
@@ -302,13 +333,16 @@ type Guild struct {
 	Members []GuildMember `json:"members"`
 	// Officers are those who may spend and approve: the leader, a server's
 	// admins and the officers named. Named of OfficersMax are named.
-	Officers    int64        `json:"officers"`
-	Named       int64        `json:"named"`
-	OfficersMax int64        `json:"officersMax"`
-	Full        bool         `json:"full"`
-	Least       int64        `json:"least"`
-	Treasury    int64        `json:"treasury"`
-	Bank        []Goods      `json:"bank"`
+	Officers    int64   `json:"officers"`
+	Named       int64   `json:"named"`
+	OfficersMax int64   `json:"officersMax"`
+	Full        bool    `json:"full"`
+	Least       int64   `json:"least"`
+	Treasury    int64   `json:"treasury"`
+	Bank        []Goods `json:"bank"`
+	// BankHere: the character stands in a settlement the guild runs, where
+	// goods go into and out of the bank; coin moves from anywhere.
+	BankHere    bool         `json:"bankHere"`
 	Works       []GuildWork  `json:"works"`
 	Settlements []Settlement `json:"settlements"`
 	Approvals   []Approval   `json:"approvals"`
@@ -370,4 +404,13 @@ type Classes struct {
 	// Here is whether the character stands in a settlement, where classes
 	// are chosen.
 	Here bool `json:"here"`
+	// Prey is set for a character with Mark prey.
+	Prey *Prey `json:"prey,omitempty"`
+}
+
+// Prey is a Stalker's mark (GDD 5.9): the creature tags it may name and
+// the one it named today.
+type Prey struct {
+	Tags  []string `json:"tags"`
+	Today string   `json:"today,omitempty"`
 }

@@ -12,9 +12,11 @@ import {
   boardCard,
   fromSpec,
   goalCard,
+  type GoalDraft,
   goalDraftId,
   goalDraftOf,
   goalForm,
+  specOf,
 } from "../src/screens/goals.ts";
 import { guildCard, memberCard } from "../src/screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
@@ -71,13 +73,37 @@ const craft = (w["act:craft"] as { reply: api.ActionReply }).reply;
 const market = w.market as api.Market;
 // The recorded pages predate a few served fields; they are filled in
 // here until the fixture is recorded again.
-const goals: api.Goals = { ...(w.goals as api.Goals), eachCap: 10 };
+const goals: api.Goals = {
+  ...(w.goals as api.Goals),
+  eachCap: 10,
+  traits: [
+    { value: "keen", label: "Keen" },
+    { value: "tempered", label: "Tempered" },
+  ],
+  places: [{ value: "region:r-3", label: "Greywater" }],
+  fields: ["cover", "elevation", "fertility", "moisture", "ore"].map((f) => ({
+    value: f,
+    label: f,
+  })),
+  vows: [
+    { value: "blade", label: "no blade" },
+    { value: "plate", label: "no plate" },
+  ],
+  party: [
+    { value: "c-2", label: "c-2" },
+    { value: "c-3", label: "c-3" },
+  ],
+  partyMost: 6,
+  even: false,
+  waiting: [],
+};
 const posted = (w.board as api.Board).posts[0]!;
 const recordedGuild = w.guild as api.Guild;
 const guild: api.Guild = {
   ...recordedGuild,
   named: 0,
   drawShare: 50,
+  bankHere: true,
   invites: [],
   settlements: recordedGuild.settlements.map((s) => ({
     ...s,
@@ -278,18 +304,64 @@ const cards: [string, () => Card][] = [
     "market forum",
     () => forumCard((w.forum as api.Forum).posts[0]!, (w.forum as api.Forum).day, lex),
   ],
-  ["notice board, empty", () => boardCard(o, { ...goals, board: [] })],
+  ["notice board, empty", () => boardCard(o, { ...goals, board: [] }, lex)],
   [
     "notice board",
     () =>
-      boardCard(o, {
-        ...goals,
-        board: [
-          posted.goal,
-          goalAs({ id: "q-8", state: "proposed", need: 100, pledged: 40, left: 0 }),
-          goalAs({ id: "q-9", vow: false, reward: 250, progress: 3, count: 10, left: 13 }),
-        ],
-      }),
+      boardCard(
+        o,
+        {
+          ...goals,
+          board: [
+            posted.goal,
+            goalAs({ id: "q-8", state: "proposed", need: 100, pledged: 40, left: 0 }),
+            goalAs({ id: "q-9", vow: false, reward: 250, progress: 3, count: 10, left: 13 }),
+          ],
+        },
+        lex,
+      ),
+  ],
+  [
+    "notice board, with delivered goods waiting",
+    () =>
+      boardCard(
+        o,
+        {
+          ...goals,
+          waiting: [
+            { place: "Copper Camp", goods: [{ material: "cinder-ore", units: 40 }] },
+            {
+              place: "the tile at 3,-2",
+              goods: [
+                { material: "cinder-ore", units: 20 },
+                { material: "provisions", units: 5 },
+              ],
+            },
+          ],
+        },
+        lex,
+      ),
+  ],
+  [
+    "goal, a vow to hold off a thing",
+    () =>
+      goalCard(
+        o,
+        goals,
+        goalAs({
+          verb: "hold",
+          what: "hold off blade",
+          count: 0,
+          progress: 0,
+          vow: true,
+          reward: 0,
+        }),
+        lex,
+      ),
+  ],
+  [
+    "goal, pooled and paid evenly",
+    () => goalCard(o, goals, goalAs({ mode: "pooled", even: true, reward: 90, vow: false }), lex),
   ],
   ["goal", () => goalCard(o, goals, posted.goal, lex)],
   [
@@ -369,7 +441,7 @@ const cards: [string, () => Card][] = [
   ],
   [
     "notice board with goals met lately",
-    () => boardCard(o, { ...goals, met: [goalAs({ id: "q-4", state: "done" })] }),
+    () => boardCard(o, { ...goals, met: [goalAs({ id: "q-4", state: "done" })] }, lex),
   ],
   ["goal form, blank", () => goalForm(o, goals, BLANK)],
   ...goals.targets.map((t): [string, () => Card] => [
@@ -388,6 +460,67 @@ const cards: [string, () => Card][] = [
         },
       ),
   ]),
+  ...goals.targets.map((t): [string, () => Card] => [
+    `goal form, how a ${t.verb} runs`,
+    () =>
+      goalForm(
+        o,
+        { ...goals, officer: true, even: true },
+        {
+          ...BLANK,
+          verb: t.verb,
+          target: t.options[0]?.value ?? "-",
+          mode: t.verb === "deliver" ? "p" : "e",
+          cap: 3,
+          even: true,
+          reward: 50,
+          page: "t",
+        },
+      ),
+  ]),
+  [
+    "goal form, a blade with a trait",
+    () => goalForm(o, goals, { ...BLANK, verb: "make", target: "blade", count: 1, narrow: "keen" }),
+  ],
+  [
+    "goal form, a creature defeated in one region",
+    () =>
+      goalForm(o, goals, {
+        ...BLANK,
+        verb: "defeat",
+        target: "reed-rat",
+        count: 3,
+        narrow: "region:r-3",
+      }),
+  ],
+  [
+    "goal form, a tile rich in ore",
+    () => goalForm(o, goals, { ...BLANK, verb: "discover", count: 1, narrow: "ore", least: 70 }),
+  ],
+  ["goal form, a vow", () => goalForm(o, goals, { ...BLANK, verb: "vow", count: 0 })],
+  [
+    "goal form, how a vow runs",
+    () =>
+      goalForm(o, goals, {
+        ...BLANK,
+        verb: "vow",
+        target: "blade",
+        count: 0,
+        life: "s",
+        page: "t",
+      }),
+  ],
+  [
+    "goal form, a party's",
+    () =>
+      goalForm(o, goals, {
+        ...BLANK,
+        target: "cinder-ore",
+        issuer: "p",
+        members: ["c-2"],
+        page: "t",
+      }),
+  ],
   ...goals.drafts.map((d, i): [string, () => Card] => [
     `goal form, suggested draft ${i}`,
     () => goalForm(o, goals, fromSpec(d.spec)),
@@ -407,7 +540,7 @@ const cards: [string, () => Card][] = [
           bank: [{ material: "cinder-ore", units: 30 }],
           treasury: 900,
           near: [{ value: "c-9", label: "c-9" }],
-          approvals: [{ id: "a-1", by: "c-2", to: "c-3", what: "coin", value: 400 }],
+          approvals: [{ id: "a-1", by: "c-2", to: "c-3", what: "coin", value: 400, goods: false }],
           votes: [{ target: "c-2", role: "officer", for: 2, need: 3 }],
           charter: { ...guild.charter, can: true, take: true },
         },
@@ -433,6 +566,35 @@ const cards: [string, () => Card][] = [
         },
         lex,
         "places",
+      ),
+  ],
+  [
+    "guild settlements, with structures that wait",
+    () =>
+      guildCard(
+        o,
+        {
+          ...guild,
+          officer: true,
+          settlements: guild.settlements.map((s, i) => ({
+            ...s,
+            here: i === 0,
+            structures: s.structures.map((x, j) =>
+              j % 2 ? { ...x, canRaise: false, waits: "a later milestone" } : x,
+            ),
+          })),
+        },
+        lex,
+        "places",
+      ),
+  ],
+  [
+    "guild members, away from the bank",
+    () =>
+      guildCard(
+        { ...o, purse: { ...o.purse, coin: 50, goods: [{ material: "cinder-ore", units: 4 }] } },
+        { ...guild, bankHere: false, bank: [{ material: "cinder-ore", units: 30 }] },
+        lex,
       ),
   ],
   ["guild works", () => guildCard(o, guild, lex, "works")],
@@ -465,13 +627,29 @@ const cards: [string, () => Card][] = [
   [
     "goals, away from any board",
     () =>
-      boardCard(o, {
-        ...goals,
-        settlement: -1,
-        board: [],
-        drafts: [],
-        met: [],
-        mine: [posted.goal],
+      boardCard(
+        o,
+        {
+          ...goals,
+          settlement: -1,
+          board: [],
+          drafts: [],
+          met: [],
+          mine: [posted.goal],
+          waiting: [{ place: "Copper Camp", goods: [{ material: "cinder-ore", units: 40 }] }],
+        },
+        lex,
+      ),
+  ],
+  [
+    "classes, a Stalker marking prey",
+    () => classesCard(o, { ...classes, prey: { tags: ["pack", "wired", "small"], today: "pack" } }),
+  ],
+  [
+    "appraisal, to a Master's eye",
+    () =>
+      appraisalCard(o, here, { ...(w.appraise as api.Appraisal), registered: false }, lex, {
+        process: "shape",
       }),
   ],
   ["classes", () => classesCard(o, classes)],
@@ -539,8 +717,204 @@ test("a goal draft survives its custom id, and a bad one is refused", () => {
     mode: "p" as const,
   };
   expect(goalDraftOf(goalDraftId(d))).toEqual(d);
-  for (const bad of ["", "9.x.1.1.f.e.x.c", "0.x.1.1.z.e.x.c", "0.x.one.1.f.e.x.c"])
+  const full = {
+    ...d,
+    verb: "discover",
+    target: "ore",
+    issuer: "p" as const,
+    narrow: "ore",
+    least: 70,
+    cap: 3,
+    even: true,
+    members: ["c-2", "c-3"],
+    page: "t" as const,
+  };
+  expect(goalDraftOf(goalDraftId(full))).toEqual(full);
+  for (const bad of [
+    "",
+    "0.x.1.1.f.e.x.c",
+    "9.x.1.1.fexcnw.-.0.0.-",
+    "0.x.1.1.zexcnw.-.0.0.-",
+    "0.x.one.1.fexcnw.-.0.0.-",
+    "0.x.1.1.fexc?w.-.0.0.-",
+    "0.x.1.1.fexcnw.-.some.0.-",
+  ])
     expect(goalDraftOf(bad)).toBeNull();
+});
+
+/** Every draft a form's buttons and select options lead to. */
+const leads = (card: Card): GoalDraft[] =>
+  card.rows
+    .flatMap((r) =>
+      "buttons" in r
+        ? r.buttons.map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
+        : r.select.options.map((x) => ({ action: "g-form", target: x.value })),
+    )
+    .map((x) => (x && x.action.startsWith("g-") ? goalDraftOf(x.target) : null))
+    .filter((x): x is GoalDraft => !!x);
+
+test("the form posts a vow, a narrowed goal, a capped Each and a party's goal as the sim takes them", () => {
+  const spec = (d: Partial<GoalDraft>) => specOf({ ...BLANK, ...d }, goals, "T", "");
+  expect(
+    spec({ verb: "vow", target: "blade", count: 0, reward: 50, issuer: "s", life: "s" }),
+  ).toEqual({
+    title: "T",
+    note: undefined,
+    issuer: "character",
+    cond: { verb: "hold", count: 0, tag: "blade" },
+    reward: 0,
+    mode: "first",
+    lifetime: "season",
+    turnover: "expire",
+    ticks: undefined,
+  });
+  expect(spec({ verb: "make", target: "blade", count: 1, narrow: "keen" }).cond).toEqual({
+    verb: "make",
+    count: 1,
+    tag: "blade",
+    trait: "keen",
+  });
+  expect(
+    spec({ verb: "defeat", target: "reed-rat", count: 3, narrow: "region:r-3" }).cond,
+  ).toMatchObject({ kind: "reed-rat", at: "region:r-3" });
+  expect(spec({ verb: "discover", count: 1, narrow: "ore", least: 80 }).cond).toMatchObject({
+    field: "ore",
+    atLeast: 80,
+    within: goals.within,
+  });
+  expect(spec({ verb: "discover", count: 1, narrow: "ore", least: 80 }).cond.tag).toBeUndefined();
+  expect(spec({ target: "cinder-ore", mode: "e", cap: 3 }).cap).toBe(3);
+  expect(spec({ target: "cinder-ore", mode: "e", cap: 500 }).cap).toBe(goals.eachCap);
+  expect(spec({ target: "cinder-ore", mode: "e" }).cap).toBe(goals.eachCap);
+  expect(spec({ target: "cinder-ore", mode: "p", even: true }).even).toBe(true);
+  expect(spec({ target: "cinder-ore", mode: "f", even: true }).even).toBeUndefined();
+  const party = spec({ target: "cinder-ore", issuer: "p", members: ["c-2", "c-3"] });
+  expect([party.issuer, party.members]).toEqual(["party", ["c-2", "c-3"]]);
+  expect(spec({ target: "cinder-ore", issuer: "c", members: ["c-2"] }).members).toBeUndefined();
+});
+
+test("the form offers the party, the cap and even shares only where they apply, and nothing too long to press", () => {
+  const terms = (g: api.Goals, d: Partial<GoalDraft>) =>
+    goalForm(o, g, { ...BLANK, target: "cinder-ore", page: "t", ...d });
+  const actions = (card: Card) =>
+    card.rows.flatMap((r) =>
+      "select" in r
+        ? [decodeId(r.select.customId)!.action]
+        : r.buttons.map((b) => b.label.split(":")[0]!),
+    );
+  expect(actions(terms(goals, {}))).not.toContain("g-cap");
+  expect(actions(terms(goals, { mode: "e" }))).toContain("g-cap");
+  expect(actions(terms(goals, { mode: "p" }))).not.toContain("Split");
+  expect(actions(terms({ ...goals, even: true }, { mode: "p" }))).toContain("Split");
+  expect(actions(terms({ ...goals, even: true }, { mode: "f" }))).not.toContain("Split");
+  expect(actions(terms(goals, { issuer: "c" }))).not.toContain("g-party");
+  expect(actions(terms(goals, { issuer: "p" }))).toContain("g-party");
+  // Nobody stands here to name: the issuer never cycles to a party.
+  const alone = leads(terms({ ...goals, party: [] }, {})).map((x) => x.issuer);
+  expect(alone).not.toContain("p");
+  expect(leads(terms(goals, {})).map((x) => x.issuer)).toContain("p");
+  // A party goal waits for a member before it can be named.
+  const canPost = (card: Card) =>
+    card.rows
+      .flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .some((b) => b.kind === "page" && b.label.startsWith("Name") && !b.disabled);
+  expect(canPost(terms(goals, { issuer: "p" }))).toBe(false);
+  expect(canPost(terms(goals, { issuer: "p", members: ["c-2"] }))).toBe(true);
+  // Long ids: members are offered only while the draft still fits a custom id.
+  const crowd = Array.from({ length: 20 }, (_, i) => ({
+    value: `c-10000000${i}`,
+    label: `c-10000000${i}`,
+  }));
+  let d: GoalDraft = { ...BLANK, target: "cinder-ore", issuer: "p", page: "t" };
+  for (let i = 0; i < 20; i++) {
+    const card = goalForm({ ...o, version: 123456 }, { ...goals, party: crowd, partyMost: 20 }, d);
+    expect(problems(card, names)).toEqual([]);
+    const more = leads(card).find((x) => x.members.length > d.members.length);
+    if (!more) break;
+    d = more;
+  }
+  expect(d.members.length).toBeGreaterThan(1);
+  expect(d.members.length).toBeLessThan(20);
+});
+
+test("goods go into and out of the bank only where it stands; coin from anywhere", () => {
+  const purse = { ...o.purse, coin: 50, goods: [{ material: "cinder-ore", units: 4 }] };
+  const base = {
+    ...guild,
+    officer: true,
+    bank: [{ material: "cinder-ore", units: 30 }],
+    approvals: [
+      { id: "a-1", by: "c-2", to: "c-3", what: "30 mat:cinder-ore", value: 600, goods: true },
+    ],
+  };
+  const pressed = (g: api.Guild) =>
+    guildCard({ ...o, purse }, g, lex)
+      .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
+      .map((x) => `${x?.action}:${x?.target}`);
+  expect(pressed({ ...base, bankHere: true })).toEqual(
+    expect.arrayContaining([
+      "gld-dep:coin:10",
+      "gld-dep:cinder-ore:4",
+      "gld-draw:cinder-ore:1",
+      "gld-appr:a-1",
+    ]),
+  );
+  const away = pressed({ ...base, bankHere: false });
+  expect(away).toContain("gld-dep:coin:10");
+  for (const gone of ["gld-dep:cinder-ore:4", "gld-draw:cinder-ore:1", "gld-appr:a-1"])
+    expect(away).not.toContain(gone);
+});
+
+test("a structure that waits is shown as later and not offered to raise", () => {
+  const g: api.Guild = {
+    ...guild,
+    officer: true,
+    settlements: guild.settlements.map((s, i) => ({
+      ...s,
+      here: i === 0,
+      structures: s.structures.map((x, j) =>
+        j === 0
+          ? { ...x, canRaise: false, waits: "a later milestone" }
+          : { ...x, canRaise: true, next: [{ tag: "timber", quantity: 200 }] },
+      ),
+    })),
+  };
+  const card = guildCard(o, g, lex, "places");
+  const first = g.settlements[0]!.structures[0]!;
+  const offered = card.rows.flatMap((r) =>
+    "select" in r && decodeId(r.select.customId)?.action === "gld-raise"
+      ? r.select.options.map((x) => x.value)
+      : [],
+  );
+  expect(offered.length).toBeGreaterThan(0);
+  expect(offered).not.toContain(first.kind);
+  expect(card.fields?.find((f) => f.name.startsWith("Later"))?.value).toContain(
+    lex.name("settlements.structures", first.kind),
+  );
+});
+
+test("a Stalker with Mark prey is offered the creature tags, and nobody else is", () => {
+  const select = (c: api.Classes) =>
+    classesCard(o, c).rows.flatMap((r) =>
+      "select" in r && decodeId(r.select.customId)?.action === "cls-mark"
+        ? [r.select.options.map((x) => x.value)]
+        : [],
+    );
+  expect(select(classes)).toEqual([]);
+  expect(select({ ...classes, prey: { tags: ["pack", "wired"], today: "pack" } })).toEqual([
+    ["wired"],
+  ]);
+});
+
+test("the appraisal tells a Master's eye whether the kind is registered, and nobody else", () => {
+  const eye = (registered?: boolean) =>
+    appraisalCard(o, here, { ...(w.appraise as api.Appraisal), registered }, lex, {
+      process: "shape",
+    }).fields?.find((f) => f.name === "Master's eye")?.value;
+  expect(eye()).toBeUndefined();
+  expect(eye(true)).toStartWith("Registered");
+  expect(eye(false)).toStartWith("Not registered");
 });
 
 test("the one in need who called is the one offered to carry", () => {

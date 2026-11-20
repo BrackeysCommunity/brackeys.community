@@ -21,6 +21,7 @@ import (
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/guild"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
@@ -150,6 +151,13 @@ type Char struct {
 	HoursDay int64    `json:"hoursDay,omitempty"`
 	Streak   int64    `json:"streak,omitempty"`
 	Review   []string `json:"review,omitempty"`
+	// Waits are the tiles where goods a goal handed it wait for it to come
+	// (GDD 10.1: goods are where they are).
+	Waits []hex.Hex `json:"waits,omitempty"`
+	// Days are the world days it acted in: bit 0 is DaysDay, each higher
+	// bit the day before (GDD 4.8).
+	Days    uint64 `json:"days,omitempty"`
+	DaysDay int64  `json:"daysDay,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An

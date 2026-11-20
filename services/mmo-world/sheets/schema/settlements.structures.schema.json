@@ -118,7 +118,12 @@
           "waits": {
             "type": "string",
             "x-unit": "text",
-            "description": "The milestone whose system reads what it does, if not yet built."
+            "description": "The milestone whose system reads what it does, if not yet built: goals do not raise it."
+          },
+          "tiersWait": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The milestone whose system reads what a tier up adds, if not yet built: it is raised once and no further."
           }
         }
       }

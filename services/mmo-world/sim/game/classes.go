@@ -136,7 +136,7 @@ func (g *Game) classAct(c *Char, cmd Command) error {
 		_, err := g.fact(c, "ability.taken", g.Tick(), fact.S("ability", a.ID), fact.S("class", a.Class))
 		return err
 	case MarkPrey:
-		if !slices.Contains(g.charTags(c), tags.Tag(abilityMarkPrey)) {
+		if !g.marksPrey(c) {
 			return refuse(BadArgs, "only a Stalker with Mark prey names prey")
 		}
 		if !g.isCreatureTag(cmd.Option) {
@@ -160,6 +160,39 @@ func (g *Game) isCreatureTag(t string) bool {
 	lacks := func(c sheets.Creature) bool { return !has(c) }
 	return slices.ContainsFunc(g.r.Book.Creatures, has) && slices.ContainsFunc(g.r.Book.Creatures, lacks)
 }
+
+func (g *Game) marksPrey(c *Char) bool {
+	return slices.Contains(g.charTags(c), tags.Tag(abilityMarkPrey))
+}
+
+// PreyTags are the creature tags a character may mark as prey, in sheet
+// order; none without Mark prey.
+func (g *Game) PreyTags(c *Char) []string {
+	if !g.marksPrey(c) {
+		return nil
+	}
+	var out []string
+	for _, a := range g.r.Book.Creatures {
+		for _, t := range a.Tags {
+			if !slices.Contains(out, t) && g.isCreatureTag(t) {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
+}
+
+// PreyToday is the creature tag a character marked today, or "".
+func (g *Game) PreyToday(c *Char) string {
+	if c.C.Prey.Day != g.World.Day {
+		return ""
+	}
+	return c.C.Prey.Tag
+}
+
+// EvenShares reports whether a character may post a pooled goal that pays
+// everyone the same.
+func (g *Game) EvenShares(c *Char) bool { return g.charScale(c, "even-shares", 0) > 0 }
 
 // fightTags are what a character's kit carries into a beat besides its
 // gear, in the situation the game finds it in.

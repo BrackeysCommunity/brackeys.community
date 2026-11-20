@@ -96,7 +96,7 @@ func SocialRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("")
 	p("## What NPCs know of the world")
 	p("")
-	p("%d players of one guild at the first starting settlement of a world under throwaway key `social-aware` meet every resident and take a keyed choice, come back the next day, raise %d structures there through pooled goals over %d world days, and meet everyone again a week after the routes were laid. Topics are counted in the dossier (every topic whose predicate holds) and among the %d a meeting shows.", awarePlayers, awareRaises, raiseDays, aw.shown)
+	p("%d players of one guild at the first starting settlement of a world under throwaway key `social-aware` meet every resident and take a keyed choice, come back the next day, raise %d structures there through pooled goals over %d world days (in a book where no structure waits on a later system, so one settlement holds that many raises), and meet everyone again a week after the routes were laid. Topics are counted in the dossier (every topic whose predicate holds) and among the %d a meeting shows.", awarePlayers, awareRaises, raiseDays, aw.shown)
 	p("")
 	p("| Measure | Value | Expected | Holds |")
 	p("| --- | --- | --- | --- |")
@@ -318,7 +318,7 @@ func hasTopic(ts []game.TopicView, id string) bool {
 // and routes relaid at the first meeting after a week.
 func awareRun(b *sheets.Book) (awareResult, error) {
 	k := keys.Throwaway("social-aware")
-	r, err := game.NewRules(b, k)
+	r, err := game.NewRules(allBuilt(b), k)
 	if err != nil {
 		return awareResult{}, err
 	}
@@ -541,6 +541,19 @@ func awareRun(b *sheets.Book) (awareResult, error) {
 		}
 	}
 	return out, nil
+}
+
+// allBuilt is the book with no structure waiting on a later system. The
+// run measures what NPCs make of building, not what a structure does, and
+// one starting settlement holds too few raises that do something yet to
+// crowd its region.
+func allBuilt(b *sheets.Book) *sheets.Book {
+	out := *b
+	out.Structures = slices.Clone(b.Structures)
+	for i := range out.Structures {
+		out.Structures[i].Waits, out.Structures[i].TiersWait = "", ""
+	}
+	return &out
 }
 
 // raisable lists the raises the first settlement can take in turn, a tier

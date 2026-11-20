@@ -16,6 +16,7 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/market"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
 )
@@ -161,6 +162,11 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if !Operator(cmd.Kind) {
+		if err := g.collect(c, cmd.Key); err != nil {
+			return Result{}, err
+		}
+	}
 	g.admit(c, cmd)
 	if kinds := uses[cmd.Kind]; kinds != nil {
 		g.used(c.C.At, kinds...)
@@ -177,6 +183,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	c.Version++
 	if !Operator(cmd.Kind) {
 		c.Acted = g.Tick()
+		c.markDay(g.Tick() / sheets.TicksPerDay)
 		g.visited(c, c.C.At, g.Tick())
 		if err := g.cadence(c, g.Tick()); err != nil {
 			return Result{}, err

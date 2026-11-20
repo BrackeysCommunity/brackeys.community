@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math/bits"
 	"slices"
 	"strconv"
 
@@ -184,8 +185,10 @@ func (g *Game) leaveGuild(c *Char, key string) error {
 
 // disband ends a guild nobody is in: nobody could be invited to it again,
 // so its settlements go back to their keepers, its works stop, and what
-// it holds goes to the treasury of the first settlement it ran. A server's
-// own guild is never disbanded: its next arrival joins it.
+// it holds goes to the treasury of the first settlement it ran, or is
+// sunk as fees if it ran none: a pool nobody can reach is not left
+// holding coin. A server's own guild is never disbanded: its next arrival
+// joins it.
 func (g *Game) disband(gd *Guild, key string) error {
 	gd.G.Works, gd.G.Approvals, gd.G.Votes, gd.Invited = nil, nil, nil, nil
 	to := ""
@@ -198,9 +201,12 @@ func (g *Game) disband(gd *Guild, key string) error {
 			to = TreasuryPool(p.N)
 		}
 	}
+	if to == "" {
+		to = ledger.ToFees
+	}
 	var legs []ledger.Leg
 	for _, h := range g.Ledger.Held(gd.Pool()) {
-		if to != "" && h.Units > 0 {
+		if h.Units > 0 {
 			legs = append(legs, ledger.Pair(gd.Pool(), to, h.Asset, h.Units)...)
 		}
 	}
@@ -386,8 +392,45 @@ func (g *Game) actedWithin(c *Char, days int64) bool {
 	return g.Tick()-c.Acted < days*sheets.TicksPerDay
 }
 
+// bankAt is the settlement a character stands in if its guild runs it,
+// which is where the bank's goods are (GDD 10.1): goods go in and out
+// nowhere else. Coin is the treasury's and moves from anywhere.
+func (g *Game) bankAt(gd *Guild, c *Char) (*Place, error) {
+	if p := g.PlaceAt(c.C.At); p != nil && p.Guild == gd.G.ID {
+		return p, nil
+	}
+	return nil, refuse(NotHere, "%s's bank is at a settlement it runs: goods go in and out there", gd.G.Name)
+}
+
+// handOver refuses a payment of goods unless the officer and whoever is
+// paid both stand at the bank it comes out of; coin needs neither.
+func (g *Game) handOver(gd *Guild, officer *Char, asset, to string) error {
+	if asset == ledger.Coin {
+		return nil
+	}
+	bank, err := g.bankAt(gd, officer)
+	if err != nil {
+		return err
+	}
+	if d := g.Char(to); d == nil || g.PlaceAt(d.C.At) != bank {
+		return refuse(NotHere, "%s is paid goods standing at the bank they come from", to)
+	}
+	return nil
+}
+
+// BankHere reports whether a character stands where its guild's bank
+// takes and gives goods.
+func (g *Game) BankHere(c *Char) bool {
+	gd := g.GuildOf(c.C.Guild)
+	if gd == nil {
+		return false
+	}
+	_, err := g.bankAt(gd, c)
+	return err == nil
+}
+
 // deposit gives coin or goods to the guild: coin to the treasury, goods to
-// the bank, recorded for the member at reference value.
+// the bank where it stands, recorded for the member at reference value.
 func (g *Game) deposit(c *Char, cmd Command) error {
 	gd, err := g.guildOf(c)
 	if err != nil {
@@ -396,6 +439,11 @@ func (g *Game) deposit(c *Char, cmd Command) error {
 	asset, err := g.fungible(cmd.Asset)
 	if err != nil || cmd.Units <= 0 {
 		return refuse(BadArgs, "a deposit is coin, provisions or a material, and an amount")
+	}
+	if asset != ledger.Coin {
+		if _, err := g.bankAt(gd, c); err != nil {
+			return err
+		}
 	}
 	if err := g.afford(c, asset, cmd.Asset, cmd.Units); err != nil {
 		return err
@@ -432,7 +480,8 @@ func (g *Game) worth(asset string, units int64) int64 {
 }
 
 // pay moves coin or goods out of the guild to a character; past the
-// officer's day it waits for a second officer.
+// officer's day it waits for a second officer. Goods are handed over at
+// the bank: the officer and the payee both stand there.
 func (g *Game) pay(c *Char, cmd Command) error {
 	gd, err := g.officerOf(c)
 	if err != nil {
@@ -441,6 +490,9 @@ func (g *Game) pay(c *Char, cmd Command) error {
 	asset, err := g.fungible(cmd.Asset)
 	if err != nil || cmd.Units <= 0 || g.Char(cmd.Target) == nil {
 		return refuse(BadArgs, "a payment names a character, an asset and an amount")
+	}
+	if err := g.handOver(gd, c, asset, cmd.Target); err != nil {
+		return err
 	}
 	if g.Ledger.Of(gd.Pool(), asset) < cmd.Units {
 		return refuse(BadArgs, "%s holds less than %d %s", gd.G.Name, cmd.Units, cmd.Asset)
@@ -473,6 +525,9 @@ func (g *Game) approve(c *Char, cmd Command) error {
 	if !ok {
 		return refuse(BadArgs, "no payment %q waits for %s's approval", cmd.Option, c.C.ID)
 	}
+	if err := g.handOver(gd, c, a.Asset, a.To); err != nil {
+		return err
+	}
 	if g.Ledger.Of(gd.Pool(), a.Asset) < a.Units || g.Char(a.To) == nil {
 		return refuse(BadArgs, "%s no longer holds what it would pay", gd.G.Name)
 	}
@@ -480,8 +535,8 @@ func (g *Game) approve(c *Char, cmd Command) error {
 	return g.payOut(gd, c, cmd.Key, a.Asset, a.Units, a.Value, a.To)
 }
 
-// draw lets a member take goods from the bank at cost, paid into the
-// treasury, up to the share its deposits allow (GDD 4.14).
+// draw lets a member standing at the bank take goods from it at cost,
+// paid into the treasury, up to the share its deposits allow (GDD 4.14).
 func (g *Game) draw(c *Char, cmd Command) error {
 	gd, err := g.guildOf(c)
 	if err != nil {
@@ -490,6 +545,9 @@ func (g *Game) draw(c *Char, cmd Command) error {
 	asset, err := g.fungible(cmd.Asset)
 	if err != nil || asset == ledger.Coin || cmd.Units <= 0 {
 		return refuse(BadArgs, "a draw names goods and an amount")
+	}
+	if _, err := g.bankAt(gd, c); err != nil {
+		return err
 	}
 	if g.Ledger.Of(gd.Pool(), asset) < cmd.Units {
 		return refuse(BadArgs, "the bank holds less than %d %s", cmd.Units, cmd.Asset)
@@ -629,7 +687,7 @@ func (g *Game) guildsTurn(t int64) error {
 			return err
 		}
 		if gd.G.Server != "" && day-gd.G.Picked >= g.r.Guild.ServerLeaderEvery {
-			if err := g.leaderFact(gd, gd.G.PickLeader(g.acted(gd), day)); err != nil {
+			if err := g.leaderFact(gd, gd.G.PickLeader(g.acted(gd, day), day)); err != nil {
 				return err
 			}
 			continue
@@ -659,16 +717,47 @@ func (g *Game) leaderFact(gd *Guild, leader string) error {
 	return err
 }
 
-// acted weighs each member who acted inside the server leader's window by
-// what it has walked, crafted and won.
-func (g *Game) acted(gd *Guild) tally.Tally {
+// acted weighs each member by the world days it acted in inside the
+// server leader's window, which ends with the day before.
+func (g *Game) acted(gd *Guild, day int64) tally.Tally {
 	var t tally.Tally
 	for _, m := range gd.G.Members {
-		if c := g.Char(m.Char); c != nil && g.actedWithin(c, g.r.Guild.ServerLeaderDays) {
-			t.Bump(m.Char, max(1, c.C.Walked+c.C.Crafts.Sum()+c.C.Fights.Won.Sum()))
+		if c := g.Char(m.Char); c != nil {
+			if n := c.daysActed(day, g.r.Guild.ServerLeaderDays); n > 0 {
+				t.Bump(m.Char, n)
+			}
 		}
 	}
 	return t
+}
+
+// structural: a character's days are the bits of one word.
+const daysKept = 64
+
+// markDay records that a character acted on a world day.
+func (c *Char) markDay(day int64) {
+	switch age := day - c.DaysDay; {
+	case age >= daysKept:
+		c.Days = 0
+	case age > 0:
+		c.Days <<= uint(age)
+	}
+	c.Days, c.DaysDay = c.Days|1, day
+}
+
+// daysActed counts the world days a character acted in among the n
+// before day.
+func (c *Char) daysActed(day, n int64) int64 {
+	age := day - c.DaysDay
+	lo, hi := max(0, 1-age), min(n-age, daysKept-1)
+	if hi < lo {
+		return 0
+	}
+	days := c.Days >> uint(lo)
+	if width := hi - lo + 1; width < daysKept {
+		days &= 1<<uint(width) - 1
+	}
+	return int64(bits.OnesCount64(days))
 }
 
 // guildHex is where a guild's world facts are placed: its first

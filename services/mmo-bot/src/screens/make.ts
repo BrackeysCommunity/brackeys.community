@@ -174,6 +174,17 @@ export function appraisalCard(
         value: ap.inputs.map((i) => amount(i.units, lex.material(i.material))).join(", "),
         inline: true,
       },
+      ...(ap.registered === undefined
+        ? []
+        : [
+            {
+              name: "Master's eye",
+              value: ap.registered
+                ? "Registered: making it discovers nothing."
+                : "Not registered: nobody has made this kind yet.",
+              inline: false,
+            },
+          ]),
     ],
     footer:
       "Committing spends the inputs and the fee; a craft at the station's tier gives your tool xp.",

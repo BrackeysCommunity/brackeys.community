@@ -2,6 +2,7 @@ import { type Button, type Row } from "../../../../packages/discord-kit/src/inde
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
+import { capitalise } from "../lexicon.ts";
 import { num, plural } from "../units.ts";
 import { back, btn, PRIVATE } from "./common.ts";
 
@@ -44,6 +45,20 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
               style: "success",
             }),
           );
+  // Mark prey is an act, not a rule: its holder names today's creature tag.
+  if (c.prey)
+    rows.push({
+      select: {
+        customId: encodeId("cls-mark", shown?.id ?? "", v),
+        placeholder: c.prey.today
+          ? `Marked today: ${c.prey.today}`
+          : "Mark prey: one kind of creature, for today",
+        options: c.prey.tags
+          .filter((t) => t !== c.prey?.today)
+          .slice(0, 25)
+          .map((t) => ({ label: capitalise(t), value: t })),
+      },
+    });
   const nav = [btn("Character", "character", "", v), back(v)];
   rows.push({ buttons: [...acts.slice(0, 5 - nav.length), ...nav] });
   const tree =

@@ -1137,6 +1137,10 @@ export interface Goal {
   hauler?: string;
   vow?: boolean;
   /**
+   * Even: a pooled goal pays everyone the same, not by contribution.
+   */
+  even?: boolean;
+  /**
    * Evolved marks the world day its target evolved, when its issuer may
    * withdraw it whatever has been claimed.
    */
@@ -1213,6 +1217,38 @@ export interface Goals {
   within: number /* int64 */;
   ephemeral: number /* int64 */;
   at: Hex;
+  /**
+   * What the form may narrow a goal by: a trait a made item must carry,
+   * a region the creature must be defeated in, a generated field a
+   * discovered tile must reach, and the things a vow may hold off.
+   */
+  traits: Pick[];
+  places: Pick[];
+  fields: Pick[];
+  vows: Pick[];
+  /**
+   * Party are the characters standing here a party goal may name, and
+   * PartyMost how many it may.
+   */
+  party: Pick[];
+  partyMost: number /* int64 */;
+  /**
+   * Even: the character may post a pooled goal that pays everyone the
+   * same (GDD 5.9).
+   */
+  even: boolean;
+  /**
+   * Waiting are goods goals handed the character that wait where they
+   * were handed over; it takes them by acting there.
+   */
+  waiting: Waiting[];
+}
+/**
+ * Waiting is goods that wait for a character at a place.
+ */
+export interface Waiting {
+  place: string;
+  goods: Goods[];
 }
 /**
  * Targets are the choices a verb offers on the posting form.
@@ -1269,9 +1305,15 @@ export interface Structure {
   raising: boolean;
   next?: CostLine[];
   /**
-   * CanRaise: goals raise it a tier and no raise of it is open.
+   * CanRaise: goals raise it a tier, no raise of it is open and the
+   * system that reads that tier is built.
    */
   canRaise: boolean;
+  /**
+   * Waits is the milestone its next raise waits for, if its system is not
+   * built yet.
+   */
+  waits?: string;
 }
 /**
  * Settlement is a settlement a guild runs.
@@ -1324,6 +1366,10 @@ export interface Approval {
   to: string;
   what: string;
   value: number /* int64 */;
+  /**
+   * Goods marks a payment out of the bank, approved where the bank is.
+   */
+  goods: boolean;
 }
 /**
  * GuildVote is an open motion.
@@ -1367,6 +1413,11 @@ export interface Guild {
   least: number /* int64 */;
   treasury: number /* int64 */;
   bank: Goods[];
+  /**
+   * BankHere: the character stands in a settlement the guild runs, where
+   * goods go into and out of the bank; coin moves from anywhere.
+   */
+  bankHere: boolean;
   works: GuildWork[];
   settlements: Settlement[];
   approvals: Approval[];
@@ -1439,6 +1490,18 @@ export interface Classes {
    * are chosen.
    */
   here: boolean;
+  /**
+   * Prey is set for a character with Mark prey.
+   */
+  prey?: Prey;
+}
+/**
+ * Prey is a Stalker's mark (GDD 5.9): the creature tags it may name and
+ * the one it named today.
+ */
+export interface Prey {
+  tags: string[];
+  today?: string;
 }
 
 //////////
@@ -1793,6 +1856,11 @@ export interface Appraisal {
   axes: Range[];
   station: Station;
   inputs: Goods[];
+  /**
+   * Registered is a Master's eye's view (GDD 5.9): whether making the
+   * recipe would discover nothing. Absent without the ability.
+   */
+  registered?: boolean;
 }
 /**
  * Range is an axis's appraised low and high, in pts.

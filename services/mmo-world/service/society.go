@@ -3,6 +3,7 @@ package service
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -43,9 +44,19 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 		out = api.Goals{Settlement: -1, Name: g.PlaceName(c.C.At), Board: []api.Goal{}, Drafts: []api.Draft{}, Mine: []api.Goal{}, Met: []api.Goal{},
 			Live: g.LiveGoals(c), Limit: gp("live-goals"), Fee: g.Rules().Values.Param("goal-fee"), FeeLeast: g.Rules().Values.Param("goal-fee-min"),
 			RewardLeast: gp("reward-least"), PledgeNeed: gp("pledge-need"), EachCap: gp("each-cap"), Verbs: slices.Clone(goal.Verbs), Coin: c.C.Coin,
-			Targets: []api.Targets{}, At: apiHex(c.C.At)}
+			Targets: []api.Targets{}, At: apiHex(c.C.At), Traits: []api.Pick{}, Places: []api.Pick{}, Fields: []api.Pick{}, Vows: []api.Pick{},
+			Party: []api.Pick{}, PartyMost: gp("party-most"), Even: g.EvenShares(c), Waiting: []api.Waiting{}}
 		for _, x := range g.PostedBy(c) {
 			out.Mine = append(out.Mine, apiGoal(g, x, c))
+		}
+		for _, w := range g.WaitingFor(c) {
+			held := api.Waiting{Place: g.PlaceName(w.At), Goods: []api.Goods{}}
+			for _, h := range w.Goods {
+				if m, ok := ledger.GoodsOf(h.Asset); ok {
+					held.Goods = append(held.Goods, api.Goods{Material: m, Units: h.Units})
+				}
+			}
+			out.Waiting = append(out.Waiting, held)
 		}
 		banner = s.bannerInput(c.C.At)
 		n, ok := g.SettlementAt(c.C.At)
@@ -68,6 +79,7 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 			out.Drafts = append(out.Drafts, api.Draft{Why: d.Why, Spec: apiSpec(d.Spec)})
 		}
 		out.Targets = goalTargets(g, c, n)
+		narrowings(g, c, &out)
 		out.Line, out.Within, out.Ephemeral = gp("bounty-threat"), g.Rules().NPC.Param("news-range"), sheets.TicksPerDay
 		return nil
 	}) {
@@ -115,7 +127,7 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 	out := api.Goal{ID: x.ID, Title: x.Title, Note: x.Note, Issuer: x.Issuer.Kind, By: issuerName(g, x), Verb: x.Cond.Verb, What: condText(g, x.Cond),
 		Where: placeRef(g, x.Cond.At), Reward: x.Reward, Mode: x.Mode, Cap: x.Cap, Lifetime: x.Lifetime, Turnover: x.Turnover, State: x.State,
 		Progress: x.Total(), Count: x.Cond.Count, Claims: int64(len(x.Claims)), Need: x.Need, Pledged: x.Pledges.Sum(), Vow: x.Vow(), Top: []api.Contribution{},
-		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day}
+		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day, Even: x.Even}
 	if x.State == goal.Proposed {
 		out.Reward, out.Vow = out.Pledged, false
 	}
@@ -311,6 +323,7 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 	gg := gd.G
 	out.ID, out.Name, out.Server, out.Leader = gg.ID, gg.Name, gg.Server != "", g.OwnerName(ledger.Char(gg.Leader))
 	out.Named, out.OfficersMax, out.Full, out.Officer = gg.Named(), gg.Officers(r.Guild), gg.Full(r.Guild), gg.IsOfficer(c.C.ID)
+	out.BankHere = g.BankHere(c)
 	if out.Officer {
 		out.Spend = max(0, r.Guild.OfficerSpend-gg.SpentToday(c.C.ID, g.World.Day))
 		for _, o := range g.Chars {
@@ -355,7 +368,7 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 	}
 	for _, a := range gg.Approvals {
 		out.Approvals = append(out.Approvals, api.Approval{ID: a.ID, By: g.OwnerName(ledger.Char(a.By)), To: g.OwnerName(ledger.Char(a.To)),
-			What: fmt.Sprintf("%d %s", a.Units, a.Asset), Value: a.Value})
+			What: fmt.Sprintf("%d %s", a.Units, a.Asset), Value: a.Value, Goods: a.Asset != ledger.Coin})
 	}
 	for _, v := range gg.Votes {
 		out.Votes = append(out.Votes, api.GuildVote{Target: g.OwnerName(ledger.Char(v.Target)), Role: v.Role, For: int64(len(v.For)),
@@ -375,7 +388,10 @@ func apiSettlement(g *game.Game, p *game.Place, here bool) api.Settlement {
 			v.Tier, v.Condition, v.Closed = st.Tier, st.Condition, st.Closed()
 		}
 		tier, lines, ok := p.Next(&row, r.Settle)
-		v.CanRaise = ok && !v.Raising
+		if ok {
+			v.Waits = game.RaiseWaits(p, &row)
+		}
+		v.CanRaise = ok && !v.Raising && v.Waits == ""
 		if tier <= v.MaxTier {
 			for _, l := range lines {
 				v.Next = append(v.Next, api.CostLine{Tag: l.Tag, Quantity: l.Quantity})
@@ -424,6 +440,9 @@ func apiClasses(g *game.Game, c *game.Char) api.Classes {
 		}
 		out.Classes = append(out.Classes, v)
 	}
+	if tags := g.PreyTags(c); len(tags) > 0 {
+		out.Prey = &api.Prey{Tags: tags, Today: g.PreyToday(c)}
+	}
 	return out
 }
 
@@ -450,6 +469,33 @@ func apiCharter(c game.CharterView) api.Charter {
 
 // structural: a select holds at most this many options.
 const selectMost = 25
+
+// narrowings fills what the posting form may narrow a goal by, and whom a
+// party goal may name: the traits an item can carry, the regions a hold
+// could be posted on, a tile's generated fields, the slots a vow holds off
+// and the characters standing with the poster.
+func narrowings(g *game.Game, c *game.Char, out *api.Goals) {
+	r := g.Rules()
+	for _, t := range r.Book.Traits[:min(len(r.Book.Traits), selectMost)] {
+		out.Traits = append(out.Traits, api.Pick{Value: t.ID, Label: cmp.Or(r.Name("items.traits:"+t.ID), t.ID)})
+	}
+	for _, t := range out.Targets {
+		if t.Verb == goal.Hold {
+			out.Places = slices.Clone(t.Options)
+		}
+	}
+	for _, f := range slices.Sorted(maps.Keys(r.Gen.Baseline(c.C.At).Fields())) {
+		out.Fields = append(out.Fields, api.Pick{Value: f, Label: f})
+	}
+	for _, s := range r.Book.Slots {
+		out.Vows = append(out.Vows, api.Pick{Value: s.ID, Label: "no " + s.ID})
+	}
+	for _, o := range g.Chars {
+		if o != c && o.C.At == c.C.At && len(out.Party) < selectMost {
+			out.Party = append(out.Party, api.Pick{Value: o.C.ID, Label: g.OwnerName(ledger.Char(o.C.ID))})
+		}
+	}
+}
 
 // goalTargets are what each verb can be posted against from a settlement:
 // goods to deliver, goods carried to haul to each other settlement, slots

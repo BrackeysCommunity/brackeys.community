@@ -94,7 +94,8 @@ export function guildCard(
   const acts: Button[] = [];
   if (o.purse.coin >= 10)
     acts.push(btn(`Give ${amount(10, "coin")}`, "gld-dep", target(":", "coin", 10), v));
-  const give = o.purse.goods[0];
+  // Goods go into and out of the bank where it stands; coin from anywhere.
+  const give = g.bankHere ? o.purse.goods[0] : undefined;
   if (give)
     acts.push(
       btn(
@@ -114,7 +115,7 @@ export function guildCard(
         { style: "success" },
       ),
     );
-  const stock = g.bank[0];
+  const stock = g.bankHere ? g.bank[0] : undefined;
   if (stock)
     acts.push(
       btn(
@@ -126,7 +127,7 @@ export function guildCard(
     );
   acts.push(btn("Leave", "gld-leave", "", v, { style: "danger" }));
   rows.push(...buttonRows(acts.slice(0, 5)));
-  for (const a of g.approvals.slice(0, 1))
+  for (const a of g.approvals.filter((x) => !x.goods || g.bankHere).slice(0, 1))
     if (g.officer)
       rows.push({
         buttons: [btn(`Approve: ${a.what} to ${a.to}`.slice(0, 80), "gld-appr", a.id, v)],
@@ -170,6 +171,20 @@ export function guildCard(
           : "empty",
         inline: true,
       },
+      ...(g.bankHere
+        ? []
+        : [
+            {
+              name: "The bank's goods",
+              value: g.settlements.length
+                ? `Given, drawn and paid out at ${g.settlements
+                    .slice(0, 3)
+                    .map((x) => x.name)
+                    .join(" or ")}; coin from anywhere.`
+                : "The guild runs no settlement to keep goods in; it takes coin from anywhere.",
+              inline: false,
+            },
+          ]),
       {
         name: "Officers named",
         value: `${num(g.named)} of ${amount(g.officersMax, "officers")}`,
@@ -324,6 +339,8 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
       });
   }
   rows.push({ buttons: [...tabs(g, "places", v), back(v)] });
+  // What cannot be raised yet because nothing reads it: shown, not offered.
+  const later = (here ?? g.settlements[0])?.structures.filter((x) => x.waits) ?? [];
   const lines = g.settlements.flatMap((s) =>
     s.structures
       .filter((x) => x.tier > 0)
@@ -352,6 +369,20 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
         value: `Treasury ${amount(s.treasury, "coin")}`,
         inline: true,
       })),
+      ...(later.length
+        ? [
+            {
+              name: "Later: raised once what they do is built",
+              value: later
+                .map(
+                  (x) =>
+                    `${lex.name("settlements.structures", x.kind)}${x.tier > 0 || x.condition > 0 || x.closed ? ", a tier up" : ""}`,
+                )
+                .join("; "),
+              inline: false,
+            },
+          ]
+        : []),
       {
         name: "A charter where you stand",
         value: [
