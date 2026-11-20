@@ -5,7 +5,8 @@
 //	harness schema           regenerate sheets/schema from the row types
 //	harness world -out DIR   the World run: 90 unattended days, and what a day costs
 //	harness craft -out DIR   the Craft run: sampled kinds against budgets and a search
-//	harness battle -out DIR  the Battle run: the matchup matrix, growth and puzzles
+//	harness battle -out DIR  the Battle run: the matchup matrix, classes, growth and puzzles
+//	harness economy -out DIR the Economy run: scripted players, their guild and its works, a founding (-n for one size)
 //	harness spike-a|b|e -out DIR
 package main
 

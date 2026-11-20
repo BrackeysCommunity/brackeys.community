@@ -49,6 +49,8 @@ type battle struct {
 	exploits  map[string]*item.Kind
 	creatures map[string]*sheets.Creature
 	n         int
+	// mates are battles like this one, for running cells side by side.
+	mates []*battle
 }
 
 func chanceOf(b *battle, o fight.Option, e *fight.Encounter) fixed.F {
@@ -274,16 +276,16 @@ func (b *battle) site(id string, arch string, troubledPct int64) fight.Site {
 
 // fightOne runs one encounter to its end with a policy and reports its
 // result and presses.
-func (b *battle) fightOne(c *char.Character, site fight.Site, arch string, pol Policy) (*fight.Encounter, int, error) {
+func (b *battle) fightOne(c *char.Character, site fight.Site, arch string, pol Policy, sit situation) (*fight.Encounter, int, error) {
 	f := b.p.Fight
 	cr := f.Spawn(arch, nil, site.Tags, site.Measures)
 	e := f.Assemble(site, cr)
 	cast := false
 	presses := 0
 	for !e.Over && presses < pressCap {
-		s, kit, opts := f.Choices(e, c, f.KitOf(c), 0)
+		s, kit, opts := f.Choices(e, c, b.kitOf(c, e, sit), 0)
 		pick := pol.Pick(b, opts, e, cast, c.ID)
-		m := &fight.Member{Ch: c, Kit: f.KitOf(c), Pick: pick}
+		m := &fight.Member{Ch: c, Kit: b.kitOf(c, e, sit), Pick: pick}
 		o, _ := fight.OptionByID(opts, pick)
 		if o.Puzzle {
 			res := f.ModelPuzzle(s, kit, 1, fight.Roll{Who: c.ID, Encounter: e.ID, Beat: int64(e.At)})
@@ -319,14 +321,16 @@ func (t *tally) add(e *fight.Encounter, presses int) {
 
 func (t tally) rate() float64 { return float64(t.won) / float64(max(t.n, 1)) }
 
-// cell runs n encounters of one archetype with one loadout and policy.
-func (b *battle) cell(name, arch string, l Loadout, level, practice int64, pol Policy, n int) (tally, error) {
+// cell runs n encounters of one archetype with one loadout and policy,
+// as a class build in a situation if one is given.
+func (b *battle) cell(name, arch string, l Loadout, level, practice int64, pol Policy, n int, as *classBuild, sit situation) (tally, error) {
 	tier := b.creatures[arch].Tier
 	var t tally
 	for i := range n {
 		id := fmt.Sprintf("%s-%s-%d", name, arch, i)
 		c := b.character("c-"+id, l, tier, level, practice, "blade")
-		e, presses, err := b.fightOne(c, b.site(id, arch, 0), arch, pol)
+		b.classed(c, as)
+		e, presses, err := b.fightOne(c, b.site(id, arch, 0), arch, pol, sit)
 		if err != nil {
 			return t, err
 		}
@@ -337,11 +341,11 @@ func (b *battle) cell(name, arch string, l Loadout, level, practice int64, pol P
 
 // spreadCell is a cell over players within the sheet's spread of an
 // expected practice, n encounters in all.
-func (b *battle) spreadCell(name, arch string, l Loadout, level, expected int64, pol Policy, n int) (tally, error) {
+func (b *battle) spreadCell(name, arch string, l Loadout, level, expected int64, pol Policy, n int, as *classBuild, sit situation) (tally, error) {
 	spread := sheets.IntParam(b.p.Book.FightParams, "even-spread")
 	var all tally
 	for pr := max(0, expected-spread); pr <= expected+spread; pr++ {
-		t, err := b.cell(fmt.Sprintf("%s-%d", name, pr), arch, l, level, pr, pol, max(1, n/int(2*spread+1)))
+		t, err := b.cell(fmt.Sprintf("%s-%d", name, pr), arch, l, level, pr, pol, max(1, n/int(2*spread+1)), as, sit)
 		if err != nil {
 			return all, err
 		}
@@ -417,7 +421,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 				spread := sheets.IntParam(b.FightParams, "even-spread")
 				for _, arch := range byTier[ft.Tier] {
 					for pr := max(0, ft.ExpectedPractice-spread); pr <= ft.ExpectedPractice+spread; pr++ {
-						t, err := bt.cell(fmt.Sprintf("even-%s-%d", pol.Name, pr), arch, loadouts[0], ft.ExpectedLevel, pr, pol, max(1, n/int(2*spread+1)))
+						t, err := bt.cell(fmt.Sprintf("even-%s-%d", pol.Name, pr), arch, loadouts[0], ft.ExpectedLevel, pr, pol, max(1, n/int(2*spread+1)), nil, situation{})
 						if err != nil {
 							return nil, err
 						}
@@ -451,10 +455,15 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		}
 
 	}
-	// The matchup matrix: which loadout wins each archetype and level.
+	// The matchup matrix: which loadout wins each archetype and level,
+	// and which class does on the plain kit.
+	cells, err := bt.matrix(b, n)
+	if err != nil {
+		return nil, err
+	}
 	pr("## Matchup matrix")
 	pr("")
-	pr("Win rate with the best policy, by loadout, for every archetype at three gear levels, over players within `even-spread` of the tier's expected practice. The cell's winner is the loadout with the highest rate; the plain kit wins ties.")
+	pr("Win rate with the best policy, by loadout, for every archetype at three gear levels, over players within `even-spread` of the tier's expected practice. The cell's winner is the loadout with the highest rate; the plain kit wins ties. The class columns are the plain kit carried by each class on its own (see Classes below), and the last column is the winner with those counted.")
 	pr("")
 	header := "| Archetype | Level |"
 	sep := "| --- | --- |"
@@ -462,29 +471,27 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		header += " " + l.Name + " |"
 		sep += " --- |"
 	}
-	pr("%s Winner |", header)
+	header += " Winner |"
+	sep += " --- |"
+	for _, c := range b.Classes {
+		header += " " + c.ID + " |"
+		sep += " --- |"
+	}
+	pr("%s With classes |", header)
 	pr("%s --- |", sep)
 	wins := map[string]int{}
-	cells := 0
-	for _, a := range b.Creatures {
-		ft := bt.p.Fight.Tier(a.Tier)
-		for _, lvl := range []int64{max(1, ft.ExpectedLevel/2), ft.ExpectedLevel, ft.ExpectedLevel * 3 / 2} {
-			row := fmt.Sprintf("| %s | %d |", a.ID, lvl)
-			best, bestRate := "plain", -1.0
-			for _, l := range loadouts {
-				t, err := bt.spreadCell(fmt.Sprintf("m%d", lvl), a.ID, l, lvl, ft.ExpectedPractice, policies[0], n/2)
-				if err != nil {
-					return nil, err
-				}
-				row += fmt.Sprintf(" %.1f%% |", 100*t.rate())
-				if t.rate() > bestRate {
-					best, bestRate = l.Name, t.rate()
-				}
-			}
-			cells++
-			wins[best]++
-			pr("%s %s |", row, best)
+	for _, c := range cells {
+		row := fmt.Sprintf("| %s | %d |", c.arch, c.level)
+		for _, r := range c.loadout {
+			row += fmt.Sprintf(" %.1f%% |", 100*r)
 		}
+		best := c.winner()
+		wins[best]++
+		row += " " + best + " |"
+		for _, r := range c.class {
+			row += fmt.Sprintf(" %.1f%% |", 100*r)
+		}
+		pr("%s %s |", row, c.classWinner(b))
 	}
 	pr("")
 	limit := sheets.IntParam(b.FightParams, "pairing-share-max")
@@ -492,14 +499,19 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	pr("| Loadout | Cells won | Share |")
 	pr("| --- | --- | --- |")
 	for _, l := range loadouts {
-		share := pct(wins[l.Name], cells)
+		share := pct(wins[l.Name], len(cells))
 		pr("| %s | %d | %.1f%% |", l.Name, wins[l.Name], share)
 		if l.Name != "plain" && share > worstShare {
 			worst, worstShare = l.Name, share
 		}
 	}
 	pr("")
-	readings = append(readings, Measured{Target: "tag-pairing-share", Value: fmt.Sprintf("top pairing %s wins %.1f%% of %d cells", worst, worstShare, cells), Holds: worstShare <= float64(limit)})
+	readings = append(readings, Measured{Target: "tag-pairing-share", Value: fmt.Sprintf("top pairing %s wins %.1f%% of %d cells", worst, worstShare, len(cells)), Holds: worstShare <= float64(limit)})
+	share, err := bt.classSections(pr, b, cells, n)
+	if err != nil {
+		return nil, err
+	}
+	readings = append(readings, share)
 	if only == "matrix" {
 		return readings, doc.save(out, "battle.md")
 	}
@@ -570,7 +582,7 @@ func (b *battle) firstTool() ([]float64, error) {
 			id := fmt.Sprintf("first-%d-%d", trial, i)
 			c.Conditions = nil
 			hand.Repair()
-			_, n, err := b.fightOne(c, b.site(id, arch, 0), arch, policies[0])
+			_, n, err := b.fightOne(c, b.site(id, arch, 0), arch, policies[0], situation{})
 			if err != nil {
 				return nil, err
 			}
@@ -605,7 +617,7 @@ func (b *battle) tierTwoDays() ([]int64, error) {
 				c.Conditions = nil
 				hand.Repair()
 				c.In(char.Body, 0).Repair()
-				if _, _, err := b.fightOne(c, b.site(id, arch, g.Param("daily-troubled")), arch, policies[0]); err != nil {
+				if _, _, err := b.fightOne(c, b.site(id, arch, g.Param("daily-troubled")), arch, policies[0], situation{}); err != nil {
 					return nil, err
 				}
 			}

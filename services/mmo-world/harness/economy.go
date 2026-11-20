@@ -83,12 +83,16 @@ type economyResult struct {
 	actions int
 	second  int64 // units traded at the unplayed settlement
 	reports []game.Report
+	guild   guildResult
+	classes classResult
 }
 
 // EconomyRun soaks the economy (GDD 10) at each of economySizes, or n
 // alone, for economyDays (ECONOMY_DAYS overrides), and reports coin per
 // active character against the band after the warm-up and the
-// conservation check.
+// conservation check; then what the players' guild, its works and their
+// classes did, and a founding world of the smallest guild
+// (ECONOMY_ONLY=founding runs that alone).
 func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	sizes := economySizes
 	if n > 0 {
@@ -98,15 +102,23 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if v, err := strconv.Atoi(os.Getenv("ECONOMY_DAYS")); err == nil && v > economyWarmup {
 		days = int64(v)
 	}
+	if os.Getenv("ECONOMY_ONLY") == "founding" {
+		sizes = nil
+	}
 	var results []economyResult
 	for _, size := range sizes {
-		r, err := soak(b, size, days)
+		r, err := soak(b, soakers(b, size), days)
 		if err != nil {
 			return nil, fmt.Errorf("economy run at %d: %w", size, err)
 		}
 		results = append(results, r)
 		fmt.Fprintf(os.Stderr, "economy %d: %s, %d actions, %d refused\n", size, r.elapsed.Round(time.Second), r.actions, r.refused)
 	}
+	fr, err := soak(b, founders(b), foundersDays)
+	if err != nil {
+		return nil, fmt.Errorf("economy run, the founding world: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "economy founding: %s, %d actions, %d refused\n", fr.elapsed.Round(time.Second), fr.actions, fr.refused)
 	fp := faucet.ParamsOf(b.EconomyParams)
 	lo, hi := fp.Low, fp.High
 	allHold, allDrift, clean := true, true, true
@@ -115,7 +127,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p := doc.p
 	p("# Economy run")
 	p("")
-	p("Scripted players (`harness/agent.Earner`) in six roles: %s. They join over the first %d world days at the first starting settlement; a second settlement is open from day 1 and nobody starts there. %d simulated world days; the band is read over days %d to %d.", roleList(), joinDays, days, economyWarmup, days)
+	p("Scripted players (`harness/agent.Earner`) in six roles: %s. They join over the first %d world days at the first starting settlement, which their server's guild runs; a second settlement is open from day 1 and nobody starts there. %d simulated world days; the band is read over days %d to %d.", roleList(), joinDays, days, economyWarmup, days)
 	p("")
 	p("From %s players up the band must hold. Below that the run asks for drift: over the last two thirds coin per active character stays between %d%% of the band's floor and %d%% of its ceiling, and its mean distance to the band over the last third is no worse than over the middle third by more than %d%% of the band's width.", comma(bandFrom), runawayFloor, runawayCeil, driftSlackPct)
 	p("")
@@ -161,6 +173,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 			p("- %s", a)
 		}
 	}
+	society := guildSections(p, b, results, fr, days)
 	if err := doc.save(out, "economy.md"); err != nil {
 		return nil, err
 	}
@@ -171,7 +184,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if len(drifted) > 0 {
 		readings = append(readings, Measured{Target: "coin-drift", Value: fmt.Sprintf("%s players, %d days", strings.Join(drifted, ", "), days), Holds: allDrift && clean})
 	}
-	return readings, nil
+	return append(readings, society...), nil
 }
 
 // drift is a small server's coin read against the band: the least and
@@ -241,9 +254,35 @@ func bandOver(days []economyDay, lo, hi int64) (mn, mx int64, ok bool) {
 	return mn, mx, ok && !first
 }
 
-func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
+// population is who a soak simulates: how many players in which roles,
+// under which key and guild plan, and when it may stop early.
+type population struct {
+	label  string
+	server string // the Discord server every player comes from, "" for none
+	size   int
+	roles  []role
+	plan   *agent.GuildPlan
+	admins int
+	join   int64 // world days over which the players arrive
+	until  func(g *game.Game) bool
+}
+
+// soakers is the Economy run's population at a size: one server, whose
+// guild takes the first starting settlement. ECONOMY_GUILDS=off leaves
+// the players without a server, a guild or a class page, to read what
+// guilds and abilities move.
+func soakers(b *sheets.Book, size int) population {
+	pop := population{label: "economy", size: size, roles: economyRoles, join: joinDays}
+	if os.Getenv("ECONOMY_GUILDS") != "off" {
+		pop.server, pop.plan, pop.admins = economyServer, guildPlan(b, guildGoods, guildTithe, false), economyAdmins
+	}
+	return pop
+}
+
+func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	start := time.Now()
-	k := keys.Throwaway("economy" + os.Getenv("ECONOMY_SEED"))
+	size := pop.size
+	k := keys.Throwaway(pop.label + os.Getenv("ECONOMY_SEED"))
 	r, err := game.NewRules(b, k)
 	if err != nil {
 		return economyResult{}, err
@@ -256,19 +295,26 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 	local := service.NewLocal(g)
 	bands := agent.Bands(b)
 	var players []*agent.Player
-	for _, ro := range economyRoles {
-		e := &agent.Earner{Role: ro.name, BandOrder: bands, Comfort: ro.comfort}
+	for _, ro := range pop.roles {
+		e := &agent.Earner{Role: ro.name, BandOrder: bands, Comfort: ro.comfort, Guild: pop.plan}
 		for range max(1, size*ro.share/100) {
-			players = append(players, &agent.Player{Discord: fmt.Sprintf("%s-%d", ro.name, len(players)), Start: "hook", Policy: e})
+			players = append(players, &agent.Player{Discord: fmt.Sprintf("%s-%d", ro.name, len(players)), Start: "hook", Policy: e,
+				Server: pop.server, Admin: len(players) < pop.admins})
 		}
 	}
-	players = players[:min(len(players), max(size, len(economyRoles)))]
-	script := agent.NewScript(local, players, "economy")
+	players = players[:min(len(players), max(size, len(pop.roles)))]
+	var client agent.Client = local
+	if pop.plan == nil {
+		// Hiding the pages leaves the players to the market alone.
+		client = struct{ agent.Client }{local}
+	}
+	script := agent.NewScript(client, players, pop.label)
 	ctx := context.Background()
 	res := economyResult{size: size}
-	join := int64(joinDays) * sheets.TicksPerDay
+	join := pop.join * sheets.TicksPerDay
 	end := days * sheets.TicksPerDay
 	var due []*agent.Player
+	stocked := map[string]int64{}
 	for t := int64(0); t < end; t++ {
 		due = due[:0]
 		for i, p := range players {
@@ -304,6 +350,10 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 				units, _ := bk.Traded(1, false)
 				res.second += units
 			}
+			res.guild.day(g, pop.plan, stocked)
+			if pop.until != nil && pop.until(g) {
+				break
+			}
 		}
 	}
 	for _, p := range players {
@@ -314,6 +364,8 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 	if g.Market != nil {
 		res.reports = g.Market.Reports
 	}
+	res.guild.close(g, stocked)
+	res.classes = classesOf(g, players)
 	res.elapsed = time.Since(start)
 	return res, nil
 }

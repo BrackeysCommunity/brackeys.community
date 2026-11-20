@@ -27,8 +27,11 @@ type Earner struct {
 	// Comfort is the coin a player of this role keeps before spending, on
 	// average; each player's is drawn from half to one and a half times it.
 	Comfort int64
-	mu      sync.Mutex
-	trips   map[string]*trip
+	// Guild is how it serves its server's guild; nil for a player who
+	// leaves the guild alone.
+	Guild *GuildPlan
+	mu    sync.Mutex
+	trips map[string]*trip
 }
 
 // trip is where an earner is headed and how far out it has gone.
@@ -43,6 +46,18 @@ type trip struct {
 	// sent is set when it asked to go out by a known route; still in the
 	// market a turn later, the route was refused and it walks instead.
 	sent, walk bool
+	// errand is set on a trip for what its guild is short of, seek while
+	// it is still looking for it, and target is the tile it makes for.
+	errand, seek bool
+	target       *api.Hex
+	// barren counts gathers in a row that gave nothing: the ground near
+	// home is worked out, and it goes a tile farther for each.
+	barren int
+	// asked and had are the material its last errand gather asked for and
+	// what it carried of it then, to tell a node that gave nothing.
+	asked string
+	had   int64
+	civic civic
 }
 
 // structural: the shape of an earner's day.
@@ -94,8 +109,26 @@ func (e *Earner) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 			return req, true
 		}
 		t.walk = t.sent
-		t.out, t.worked, t.forages, t.far, t.sent = 0, 0, 0, false, false
+		refused := t.target
+		t.out, t.worked, t.forages, t.far, t.sent, t.seek, t.errand, t.target = 0, 0, 0, false, false, false, false, nil
 		t.dir = d.Below(len(o.Moves), "earn.dir")
+		if e.Guild != nil {
+			// A route to an errand's tile that was refused is walked.
+			if t.walk && refused != nil {
+				t.target, t.errand = refused, true
+				return e.away(o, t, d)
+			}
+			to, known, seek := e.Guild.errandFor(t.civic.server, d)
+			if known && to != o.At {
+				t.errand, t.target = true, &to
+				if t.walk {
+					return e.away(o, t, d)
+				}
+				t.sent = true
+				return api.ActionRequest{Kind: api.ActTravel, To: &to}, true
+			}
+			t.seek, t.walk, t.errand = seek, t.walk || seek, seek
+		}
 		if !t.walk {
 			if to, ok := ahead(o, t.dir, e.reach(o.Purse, t)); ok {
 				t.sent, t.out = true, e.reach(o.Purse, t)
@@ -206,6 +239,29 @@ const (
 func (e *Earner) away(o api.Options, t *trip, d *Dice) (api.ActionRequest, bool) {
 	p := o.Purse
 	full := p.Load.Capacity > 0 && p.Load.Carried*hundred >= p.Load.Capacity*80
+	if e.Guild != nil && e.Guild.Seek {
+		if t.asked != "" {
+			if t.barren++; goodsOf(p, t.asked) > t.had {
+				t.barren = 0
+			} else {
+				e.Guild.workedOut(t.civic.server, o.At, t.asked)
+			}
+			t.asked = ""
+		}
+		e.Guild.seen(t.civic.server, o.At, t.home, o.Materials)
+		if m := e.Guild.prefer(t.civic.server, o.Materials, ""); m != "" && t.seek {
+			t.out = farthest
+		}
+	}
+	if t.target != nil && t.worked < tripGathers && !full {
+		if o.At == *t.target {
+			t.target, t.out = nil, farthest
+		} else if req, ok := toward(o, *t.target); ok {
+			return req, true
+		} else {
+			t.target = nil
+		}
+	}
 	if !p.Market && p.Provisions < tripTiles && t.forages < tripGathers {
 		t.forages++
 		return api.ActionRequest{Kind: api.ActForage, Ticks: o.GatherMax}, true
@@ -229,7 +285,14 @@ func (e *Earner) away(o api.Options, t *trip, d *Dice) (api.ActionRequest, bool)
 	}
 	if t.out >= e.reach(p, t) && len(o.Materials) > 0 {
 		t.worked++
-		return api.ActionRequest{Kind: api.ActGather, Material: o.Materials[d.Below(len(o.Materials), "earn.material")], Ticks: o.GatherMax}, true
+		material := o.Materials[d.Below(len(o.Materials), "earn.material")]
+		if e.Guild != nil {
+			material = e.Guild.prefer(t.civic.server, o.Materials, material)
+		}
+		if e.Guild != nil && e.Guild.Seek {
+			t.asked, t.had = material, goodsOf(p, material)
+		}
+		return api.ActionRequest{Kind: api.ActGather, Material: material, Ticks: o.GatherMax}, true
 	}
 	for _, m := range o.Moves {
 		if m.Dir == t.dir && m.Open {
@@ -248,14 +311,18 @@ const (
 	haulShare   = 50
 	coinPerTile = 40 // spare coin that takes an earner one tile farther
 	farthest    = 15 // most tiles out an earner goes
+	seekTiles   = 8  // tiles out it goes looking for what its guild is short of
 )
 
 // reach is how far out an earner goes before it works: farther the more
 // it has to spend on the provisions home.
 func (e *Earner) reach(p api.Purse, t *trip) int {
+	if t.seek {
+		return seekTiles
+	}
 	spare := p.Coin - t.comfort
 	if spare <= 0 {
-		return tripTiles
+		return min(farthest, tripTiles+t.barren)
 	}
 	return int(min(farthest, tripTiles+spare/coinPerTile))
 }
