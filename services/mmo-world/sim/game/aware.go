@@ -56,7 +56,7 @@ func (g *Game) countBuilt(f fact.Fact) {
 		return
 	}
 	day := f.Tick / sheets.TicksPerDay
-	since := day - g.r.NPC.Param("crowding-days")
+	since := day - g.crowdDays()
 	g.Built = slices.DeleteFunc(g.Built, func(b Built) bool { return b.Day <= since })
 	at := Built{Region: region, Day: day}
 	i, found := slices.BinarySearchFunc(g.Built, at, cmpBuilt)
@@ -64,7 +64,7 @@ func (g *Game) countBuilt(f fact.Fact) {
 		g.Built = slices.Insert(g.Built, i, at)
 	}
 	g.Built[i].N += n
-	if line := g.CrowdLine(); line > 0 && g.BuiltIn(region, day) >= line {
+	if g.crowded(g.Places[place].Hex, day) {
 		if j, marked := slices.BinarySearch(g.Crowded, place); !marked {
 			g.Crowded = slices.Insert(g.Crowded, j, place)
 		}
@@ -74,7 +74,7 @@ func (g *Game) countBuilt(f fact.Fact) {
 // BuiltIn is how many structures went up in a region within crowding-days
 // of a world day.
 func (g *Game) BuiltIn(region int, day int64) int64 {
-	since := day - g.r.NPC.Param("crowding-days")
+	since := day - g.crowdDays()
 	i, _ := slices.BinarySearchFunc(g.Built, Built{Region: region, Day: since + 1}, cmpBuilt)
 	var n int64
 	for ; i < len(g.Built) && g.Built[i].Region == region && g.Built[i].Day <= day; i++ {
@@ -82,6 +82,9 @@ func (g *Game) BuiltIn(region int, day int64) int64 {
 	}
 	return n
 }
+
+// crowdDays is the window building crowds a region over, in world days.
+func (g *Game) crowdDays() int64 { return g.r.NPC.Param("crowding-days") }
 
 // CrowdLine is the crowding topic's line: a region with that many
 // structures built in the window is crowded.

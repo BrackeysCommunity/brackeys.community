@@ -78,14 +78,20 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 		if in == nil {
 			return e, false
 		}
-		e.Verb = goal.Equip
-		if k, ok := g.Kinds.Kind(in.Kind); ok {
-			e.Kind, e.Tags = k.ID, tagStrings(k.Tags)
-		}
+		e = g.equipped(e, in)
 	default:
 		return e, false
 	}
 	return e, e.Verb != ""
+}
+
+// equipped is an event read as a character having an item equipped.
+func (g *Game) equipped(e goal.Event, in *item.Instance) goal.Event {
+	e.Verb = goal.Equip
+	if k, ok := g.Kinds.Kind(in.Kind); ok {
+		e.Kind, e.Tags = k.ID, tagStrings(k.Tags)
+	}
+	return e
 }
 
 // discovered is a first entry read as a Discover: the tile's site, the
@@ -118,9 +124,6 @@ func subjectID(f fact.Fact, kind string) string {
 }
 
 func (g *Game) materialTags(material string) []string {
-	if material == ledger.Provisions {
-		return []string{ledger.Provisions}
-	}
 	return slices.Clone(g.r.matTags[material])
 }
 
@@ -141,10 +144,10 @@ func (g *Game) raise(c *Char, cmd Command) error {
 	if err != nil {
 		return err
 	}
-	p := g.PlaceAt(c.C.At)
+	runs, p := g.RunsHere(c)
 	row := g.r.structures[cmd.Slot]
 	switch {
-	case p == nil || p.Guild != gd.G.ID:
+	case runs != gd:
 		return refuse(NotHere, "%s raises structures at a settlement it runs", gd.G.Name)
 	case row == nil:
 		return refuse(BadArgs, "no structure %q", cmd.Slot)
@@ -174,7 +177,7 @@ func (g *Game) raise(c *Char, cmd Command) error {
 			return err
 		}
 		drafts = append(drafts, x)
-		need += x.Escrow() + x.Fee
+		need += x.Cost()
 	}
 	// Each line was quoted alone; together they must still be covered.
 	if g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) < need {
@@ -220,9 +223,8 @@ func (g *Game) built(b *goal.Build) error {
 }
 
 // goalsTurn is the goals' world day: each live Hold reads its gauge as a
-// fact, ephemeral goals past their time end (a vow to hold off a thing is
-// kept if unbroken), a season's close turns every season goal over, and
-// each faction posts the day's bounty.
+// fact, goals past their time end, a season's close turns every season
+// goal over, and each faction posts the day's bounty.
 func (g *Game) goalsTurn(t int64) error {
 	day := t / sheets.TicksPerDay
 	key := ledger.SubKey("goals", strconv.FormatInt(day, decimal))
@@ -232,8 +234,10 @@ func (g *Game) goalsTurn(t int64) error {
 			continue
 		}
 		// The reading is a fact of the region held, wherever its board is.
-		if r, ok := g.regionOf(x.Cond.At); ok {
-			v := g.World.Regions[r].Gauge[g.World.GaugeIndex(x.Cond.Gauge)]
+		r, ok := g.regionOf(x.Cond.At)
+		gi, known := g.World.GaugeOf(x.Cond.Gauge)
+		if ok && known {
+			v := g.World.Regions[r].Gauge[gi]
 			if _, err := g.regionFact(world.RegionRef(r), "goal.held", []fact.Ref{goalRef(x.ID)}, nil,
 				fact.S("goal", x.ID), fact.S("gauge", x.Cond.Gauge), fact.N("value", v), fact.N("day", day)); err != nil {
 				return err
@@ -253,6 +257,12 @@ func (g *Game) goalsTurn(t int64) error {
 			due = true
 		}
 		if !due {
+			// A reset counts from nothing again: what was handed over goes back.
+			if x.Total() == 0 {
+				if err := g.handBack(x, key); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		if err := g.closeGoal(x, key); err != nil {
@@ -357,7 +367,7 @@ func (g *Game) bounties(t int64, key string) error {
 		if fi < 0 {
 			issuer.ID = strconv.Itoa(econ.Keepers)
 		}
-		x := &Goal{Title: "Thin the beasts of " + g.r.NPC.PlaceName("region", world.RegionRef(r)),
+		x := &Goal{Title: "Thin the beasts of " + g.RegionName(r),
 			Issuer: issuer, Scope: goal.World, Board: n, Reward: reward, Mode: goal.Pooled, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
 			Posted: t, Expires: t + g.gp("bounty-days")*sheets.TicksPerDay, State: goal.Live,
 			Cond: goal.Condition{Verb: goal.Defeat, Count: g.gp("bounty-kills"), At: goal.RegionRef(world.RegionRef(r))}}
@@ -399,20 +409,34 @@ func (g *Game) bountyHeld(n int) int64 {
 // threatened is the region near a settlement with the most threat over
 // the ambush line, if any.
 func (g *Game) threatened(h hex.Hex) (int, bool) {
-	near := g.r.NPC.Param("news-range")
 	line := g.gp("bounty-threat")
 	best, bestV := -1, int64(0)
 	ti := g.World.GaugeIndex("threat")
-	for i, r := range g.World.Regions {
-		if !r.Discovered || r.Gauge[ti] < line || hex.Distance(g.r.Gen.Region(r.Lattice).Centre, h) > near {
-			continue
-		}
-		if r.Gauge[ti] > bestV {
-			best, bestV = i, r.Gauge[ti]
+	for _, i := range g.RegionsNear(h) {
+		if v := g.World.Regions[i].Gauge[ti]; v >= line && v > bestV {
+			best, bestV = i, v
 		}
 	}
 	return best, best >= 0
 }
+
+// Near is how far from a settlement the goals look: as far as its news
+// travels.
+func (g *Game) Near() int64 { return g.r.NPC.Param("news-range") }
+
+// RegionsNear are the discovered regions whose centre is near a tile.
+func (g *Game) RegionsNear(h hex.Hex) []int {
+	var out []int
+	for i, r := range g.World.Regions {
+		if r.Discovered && hex.Distance(g.r.Gen.Region(r.Lattice).Centre, h) <= g.Near() {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// RegionName is a region's name.
+func (g *Game) RegionName(r int) string { return g.r.NPC.PlaceName("region", world.RegionRef(r)) }
 
 // Draft is a goal the board suggests from the state of the world (GDD
 // 11.3); a player decides whether to post it.
@@ -437,11 +461,11 @@ func (g *Game) Drafts(c *Char) []Draft {
 		tag := firstOr(g.materialTags(m), m)
 		out = append(out, Draft{Why: "a source of " + g.MaterialName(m) + " near here is worked out",
 			Spec: GoalSpec{Title: "Find the next " + g.MaterialName(m), Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
-				Reward: g.gp("reward-least"), Cond: goal.Condition{Verb: goal.Discover, Tag: tag, Count: 1, Hex: &h, Within: g.r.NPC.Param("news-range")}}})
+				Reward: g.gp("reward-least"), Cond: goal.Condition{Verb: goal.Discover, Tag: tag, Count: 1, Hex: &h, Within: g.Near()}}})
 	}
 	if r, ok := g.threatened(h); ok {
-		out = append(out, Draft{Why: g.r.NPC.PlaceName("region", world.RegionRef(r)) + " is the most threatened region near here",
-			Spec: GoalSpec{Title: "Keep " + g.r.NPC.PlaceName("region", world.RegionRef(r)) + " quiet", Issuer: goal.BySettlement, Mode: goal.Pooled,
+		out = append(out, Draft{Why: g.RegionName(r) + " is the most threatened region near here",
+			Spec: GoalSpec{Title: "Keep " + g.RegionName(r) + " quiet", Issuer: goal.BySettlement, Mode: goal.Pooled,
 				Lifetime: goal.Season, Turnover: goal.Evolve, Cond: goal.Condition{Verb: goal.Hold, Gauge: "threat", Line: g.gp("bounty-threat"), Below: true,
 					Count: g.gp("hold-days"), At: goal.RegionRef(world.RegionRef(r))}}})
 	}
@@ -464,7 +488,7 @@ func firstOr(list []string, or string) string {
 // workedOutNear is a material whose node near a tile is worked out, if any.
 func (g *Game) workedOutNear(h hex.Hex) (string, bool) {
 	for _, n := range g.News {
-		if n.Kind != "node.worked-out" || hex.Distance(n.At, h) > g.r.NPC.Param("news-range") {
+		if n.Kind != "node.worked-out" || hex.Distance(n.At, h) > g.Near() {
 			continue
 		}
 		if f, ok := g.Log.Get(n.ID); ok {

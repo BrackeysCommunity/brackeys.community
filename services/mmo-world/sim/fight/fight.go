@@ -328,13 +328,10 @@ func set(src string, ts ...[]tags.Tag) tags.TagSet {
 	return s
 }
 
-// structural: what the rules see a character as.
-const subjectCharacter tags.Tag = "character"
-
 // self is a measure for a member after the rules its own tags fire: a
 // class ability's change to its armour's wear or its exploits' states.
 func (r *Rules) self(k Kit, measure string, base int64) int64 {
-	return tags.Adjust(r.rules, set("self", []tags.Tag{subjectCharacter}, k.Self), tags.Context{}, measure, base)
+	return tags.Adjust(r.rules, set("self", []tags.Tag{tags.Character}, k.Self), tags.Context{}, measure, base)
 }
 
 func without(ts []tags.Tag, drop []tags.Tag) []tags.Tag {

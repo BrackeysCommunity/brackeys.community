@@ -17,7 +17,6 @@ import (
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
-	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
@@ -166,10 +165,11 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	g := s.g
 	out := api.Sheet{Character: apiCharacter(g, c), Start: c.Start, Kit: []api.Item{}, Pack: []api.Item{}, Standing: []api.Standing{},
 		Record: []api.Count{}, Finds: []api.Find{}, Owed: c.Owed, Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
-		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}, Vows: []string{}}
+		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}, Vows: []api.Vow{}}
+	// A raise or a muster it posted is its guild's word, not its own.
 	for _, x := range g.PostedBy(c) {
-		if x.State == goal.Live && x.Vow() && !x.Hidden {
-			out.Vows = append(out.Vows, x.Title)
+		if x.State == goal.Live && x.Vow() && !x.Hidden && x.Issuer.Kind == goal.ByCharacter {
+			out.Vows = append(out.Vows, api.Vow{Title: x.Title, Broken: x.Broken})
 		}
 	}
 	worn := map[string]string{}
@@ -194,6 +194,9 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	out.Record = append(out.Record,
 		api.Count{Key: "walked", N: c.C.Walked, Unit: "tiles"}, api.Count{Key: "downs", N: f.Downs, Unit: "times"},
 		api.Count{Key: "discoveries", N: c.C.Discoveries, Unit: "kinds"}, api.Count{Key: "encounters", N: c.Encounters, Unit: "encounters"})
+	if n := c.C.Deeds.Get(game.DeedGiven); n > 0 {
+		out.Record = append(out.Record, api.Count{Key: "given to guilds", N: n, Unit: "coin"})
+	}
 	for _, x := range f.Won {
 		out.Record = append(out.Record, api.Count{Key: "won:" + x.Key, N: x.N, Unit: "beats"})
 	}
@@ -313,7 +316,7 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{},
 		Downed: []api.Downed{}}
 	for _, d := range g.DownedAt(c) {
-		out.Downed = append(out.Downed, api.Downed{ID: d.C.ID, Name: g.OwnerName(ledger.Char(d.C.ID)), Called: g.Called(d)})
+		out.Downed = append(out.Downed, api.Downed{ID: d.C.ID, Name: charName(g, d.C.ID), Called: g.Called(d)})
 	}
 	for _, st := range g.Stations(h) {
 		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: g.StationFee(st)})

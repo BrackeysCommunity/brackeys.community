@@ -17,7 +17,7 @@ func testPlan() *GuildPlan {
 	}
 }
 
-// home is a guild's page as a member standing in its settlement reads it.
+// homePage is a guild's page as a member standing in its settlement reads it.
 func homePage() api.Guild {
 	return api.Guild{
 		ID: "g-1", Treasury: 120,

@@ -341,6 +341,23 @@ test("goal and guild presses send what their targets say, and malformed ones not
   ]);
 });
 
+test("a repair pick that names no structure and points writes nothing", async () => {
+  const { press, writes } = setup();
+  for (const picked of ["forge", "forge:all", ""])
+    expect(
+      (await press({ action: "gld-mend", target: "", version: 1 }, [picked])).card.author,
+    ).toBe("An old button");
+  expect(writes).toEqual([]);
+});
+
+test("Leave asks first: its press opens the confirming card and writes nothing", async () => {
+  const { press, writes, reads } = setup();
+  const asked = await press({ action: "gld-leave", target: "", version: 1 });
+  expect(asked.card.title).toStartWith("Leave ");
+  expect(reads).toContain(api.PathGuild);
+  expect(writes).toEqual([]);
+});
+
 test("an expired hub is retired and its accepted gather opens a fresh private card", async () => {
   const { ctx, writes } = setup();
   const { interaction, now } = button(encodeId("gather", "ore:2", 7), HUB_TTL_MS + 500);

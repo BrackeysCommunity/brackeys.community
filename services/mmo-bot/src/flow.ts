@@ -17,7 +17,7 @@ import {
   goalModal,
   specOf,
 } from "./screens/goals.ts";
-import { guildCard, type GuildView, memberCard, nameModal } from "./screens/guild.ts";
+import { guildCard, type GuildView, leaveCard, memberCard, nameModal } from "./screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "./screens/hub.ts";
 import {
   appraisalCard,
@@ -827,8 +827,13 @@ class Session {
         );
       case "gld-join":
         return this.guildWrite(api.ActJoin, v, { target: id.target }, "members", "Joined");
-      case "gld-leave":
-        return this.guildWrite(api.ActLeave, v, {}, "members", "You left the guild");
+      case "gld-leave": {
+        if (id.target === "yes")
+          return this.guildWrite(api.ActLeave, v, {}, "members", "You left the guild");
+        const g = await this.world.guild(this.character);
+        if (!g.id) return this.guild();
+        return this.done(leaveCard(await this.world.options(this.character), g));
+      }
       case "gld-dep":
         return this.guildWrite(
           api.ActDeposit,
@@ -845,15 +850,18 @@ class Session {
         return this.write(api.ActRaise, v, { slot: value }, (_, why) =>
           why ? this.guild("places", why) : this.goals(undefined, "Its goals are on the board"),
         );
-      case "gld-mend":
-        // The target carries full repair's points; the world mends only what is worn.
+      case "gld-mend": {
+        const step = fields(value, ":", 2);
+        const points = integerTarget(step?.[1] ?? "");
+        if (!step || points === undefined) return backCards.unknown(this.character);
         return this.guildWrite(
           api.ActMend,
           v,
-          { slot: value, units: integerTarget(id.target) },
+          { slot: step[0], units: points },
           "places",
           "Repaired",
         );
+      }
       case "classes":
         return this.classes(value || id.target || undefined);
       case "cls-choose":

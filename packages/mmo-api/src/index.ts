@@ -1152,6 +1152,12 @@ export interface Goal {
    */
   takes: Goods[];
   haul?: string; // take, deliver
+  /**
+   * CanPledge: the goal takes pledges. CanWithdraw: the viewer may take
+   * it down now.
+   */
+  canPledge: boolean;
+  canWithdraw: boolean;
   building?: string; // the structure a raise goal builds
   /**
    * Paid are a met goal's claims, each with the facts it cites.
@@ -1275,6 +1281,11 @@ export interface Board {
    */
   every: number /* int64 */;
   posts: BoardPost[];
+  /**
+   * Hidden are the public goals an operator has hidden: a post of one
+   * loses its words.
+   */
+  hidden?: string[];
 }
 /**
  * BoardPost is one goal's forum post.
@@ -1302,6 +1313,10 @@ export interface Structure {
   maxTier: number /* int64 */;
   condition: number /* int64 */;
   closed: boolean;
+  /**
+   * Stands: it has been built here, whatever its tier.
+   */
+  stands: boolean;
   raising: boolean;
   next?: CostLine[];
   /**
@@ -1314,6 +1329,19 @@ export interface Structure {
    * built yet.
    */
   waits?: string;
+  /**
+   * Repairs are the steps a worn structure can be mended by, smallest
+   * first; a closed one's first reopens it.
+   */
+  repairs?: Repair[];
+}
+/**
+ * Repair is points of a structure's condition and what restoring them
+ * takes.
+ */
+export interface Repair {
+  points: number /* int64 */;
+  cost: CostLine[];
 }
 /**
  * Settlement is a settlement a guild runs.
@@ -1341,6 +1369,12 @@ export interface GuildMember {
   draw: boolean; // may withdraw past what its deposits earn
   put: number /* int64 */; // contribution, all time
   season: number /* int64 */; // this season
+  /**
+   * CanPromote: the viewer may name it an officer. Removable is the role
+   * a vote may stand against it in, if any.
+   */
+  canPromote: boolean;
+  removable?: string;
 }
 /**
  * GuildWork is a work and its stock (GDD 4.14).
@@ -1355,7 +1389,7 @@ export interface GuildWork {
   by: number /* int64 */;
   needs?: string;
   waits?: string;
-  can: boolean; // may be switched on here
+  can: boolean; // the viewer may switch it on, or off, here
   /**
    * Spares says the work gives coin its members keep; Ran, Used and Gave
    * are then the world days it has been stocked here since it was
@@ -1379,6 +1413,10 @@ export interface Approval {
    * Goods marks a payment out of the bank, approved where the bank is.
    */
   goods: boolean;
+  /**
+   * Can: the viewer may approve it where it stands.
+   */
+  can: boolean;
 }
 /**
  * GuildVote is an open motion.
@@ -1729,9 +1767,19 @@ export interface Sheet {
   owed?: number /* int64 */; // provisions an unfed mount waits on
   consent: Consent;
   /**
-   * Vows are the titles of the vows the character is keeping (GDD 11.7).
+   * Vows are the character's own unpaid goals still up (GDD 11.7).
    */
-  vows: string[];
+  vows: Vow[];
+}
+/**
+ * Vow is a goal a character posted for no reward: its own word.
+ */
+export interface Vow {
+  title: string;
+  /**
+   * Broken: it vowed to hold off a thing and has not.
+   */
+  broken?: boolean;
 }
 /**
  * Consent is who NPCs may name the character to (GDD 4.18).

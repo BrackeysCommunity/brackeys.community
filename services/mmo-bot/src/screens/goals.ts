@@ -10,17 +10,15 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { type Action, encodeId, fields, integerTarget, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, hours, num, plural } from "../units.ts";
-import { back, banner, btn, factLine, PRIVATE } from "./common.ts";
+import { back, banner, btn, factLine, PRIVATE, SELECT_MOST } from "./common.ts";
 
 /**
  * /goals (GDD 11, 17): the notice board of the settlement you stand in,
- * one goal at a time, and the posting form. The form is two pages of
- * selects and buttons: what the goal asks (verb, target, amount and what
- * narrows it), and how it runs (reward, cap, party, mode, lifetime,
- * turnover and issuer); a modal takes the title and note.
+ * one goal at a time, and the posting form; a modal takes the title and
+ * note.
  */
 
-/** The verbs the form posts; "vow" is its word for a Hold with no gauge: a vow to hold off a thing (GDD 11.7). */
+/** The verbs the form posts; "vow" is a Hold with no gauge (GDD 11.7). */
 const VERBS = ["deliver", "make", "discover", "defeat", "reach", "haul", "hold", "vow"] as const;
 const MODES = { f: "first", e: "each", p: "pooled" } as const;
 const LIVES = { e: "ephemeral", s: "season", n: "standing" } as const;
@@ -171,7 +169,7 @@ export function fromSpec(s: api.GoalSpec): GoalDraft {
   };
 }
 
-/** A Haul has one stock and one hauler, and a vow is its poster's own: both run as first; any other verb runs in the mode picked. */
+/** A Haul and a vow always run as first; any other verb runs in the mode picked. */
 function modeOf(d: GoalDraft): Mode {
   return d.verb === "haul" || d.verb === "vow" ? "f" : d.mode;
 }
@@ -246,13 +244,35 @@ export function specOf(d: GoalDraft, g: api.Goals, title: string, note: string):
   return spec;
 }
 
-function base(g: api.Goals, suffix: string, title: string): Omit<Card, "rows" | "footer"> {
+/** A notice board's name and picture at the head of a card. */
+export function boardHead(
+  at: { name: string; banner: string },
+  ...suffix: string[]
+): Pick<Card, "author" | "picture"> {
   return {
-    context: PRIVATE,
-    author: authorLine("Notice board", g.name, suffix),
-    title,
-    picture: banner(g, ", over its notice board"),
-    colour: COLOUR.signal,
+    author: authorLine("Notice board", at.name, ...suffix),
+    picture: banner(at, ", over its notice board"),
+  };
+}
+
+function base(g: api.Goals, suffix: string, title: string): Omit<Card, "rows" | "footer"> {
+  return { context: PRIVATE, ...boardHead(g, suffix), title, colour: COLOUR.signal };
+}
+
+/** Goals as a select's options: the title, and what each asks. */
+function goalOptions(list: readonly api.Goal[]) {
+  return list.slice(0, SELECT_MOST).map((x) => ({
+    label: x.title.slice(0, 90),
+    value: x.id,
+    description: capitalise(x.what).slice(0, 90),
+  }));
+}
+
+function liveField(g: api.Goals): EmbedField {
+  return {
+    name: "Your live goals",
+    value: `${num(g.live)} of ${plural(g.limit, "goal")}`,
+    inline: true,
   };
 }
 
@@ -281,20 +301,15 @@ function outOfDays(n: number, of: number): string {
 
 const boardButton = (v: number) => btn("Board", "goals", "", v, { emoji: "↩" });
 
-/** Your own goals wherever they hang: the way to one posted on another board. */
+/** Your own goals wherever they hang, so a busy board never hides one of them. */
 function mineRow(g: api.Goals, v: number): Row[] {
-  const away = g.mine.filter((x) => !g.board.some((b) => b.id === x.id));
-  if (!away.length) return [];
+  if (!g.mine.length) return [];
   return [
     {
       select: {
         customId: encodeId("goal", "mine", v),
-        placeholder: "Your goals on other boards",
-        options: away.slice(0, 25).map((x) => ({
-          label: x.title.slice(0, 90),
-          value: x.id,
-          description: capitalise(x.what).slice(0, 90),
-        })),
+        placeholder: "Your goals, on any board",
+        options: goalOptions(g.mine),
       },
     },
   ];
@@ -328,14 +343,7 @@ function awayCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: string): 
     description: g.mine.length
       ? "Your goals hang on the boards you posted them at. Open one to watch it or take it down."
       : "You have no goal up. Goals are read and posted at a settlement's notice board.",
-    fields: [
-      {
-        name: "Your live goals",
-        value: `${num(g.live)} of ${plural(g.limit, "goal")}`,
-        inline: true,
-      },
-      ...waitingField(g, lex),
-    ],
+    fields: [liveField(g), ...waitingField(g, lex)],
     footer:
       "A goal is met by recorded facts wherever its poster stands; its goods wait where they are handed over.",
     rows: [...mineRow(g, o.version), { buttons: [back(o.version)] }],
@@ -352,11 +360,7 @@ export function boardCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: s
       select: {
         customId: encodeId("goal", "", v),
         placeholder: "Open a goal",
-        options: g.board.slice(0, 25).map((x) => ({
-          label: x.title.slice(0, 90),
-          value: x.id,
-          description: `${capitalise(x.what)}`.slice(0, 90),
-        })),
+        options: goalOptions(g.board),
       },
     });
   if (g.drafts.length)
@@ -376,11 +380,7 @@ export function boardCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: s
       select: {
         customId: encodeId("goal", "met", v),
         placeholder: "Met here lately: who met it, and by what",
-        options: g.met.map((x) => ({
-          label: x.title.slice(0, 90),
-          value: x.id,
-          description: capitalise(x.what).slice(0, 90),
-        })),
+        options: goalOptions(g.met),
       },
     });
   rows.push(...mineRow(g, v));
@@ -408,11 +408,7 @@ export function boardCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: s
         }
       : undefined,
     fields: [
-      {
-        name: "Your live goals",
-        value: `${num(g.live)} of ${plural(g.limit, "goal")}`,
-        inline: true,
-      },
+      liveField(g),
       {
         name: "Listing fee",
         value: `${num(g.fee)}% of the reward, at least ${amount(g.feeLeast, "coin")}`,
@@ -481,20 +477,19 @@ export function goalCard(
     acts.push(
       btn("Deliver the haul", "g-deliver", target(":", x.id, "haul", 1), v, { style: "success" }),
     );
-  if (x.state === "proposed" || (x.mode !== "each" && !x.vow))
+  if (x.canPledge)
     for (const c of [10, 100])
       if (o.purse.coin >= c)
         acts.push(btn(`Pledge ${amount(c, "coin")}`, "g-pledge", target(":", x.id, c), v));
   // The ways out keep their places; what the goal offers fills the rest of the row.
   const out: Button[] = [boardButton(v)];
-  if (x.mine && (!x.claims || x.evolved))
-    out.unshift(btn("Withdraw", "g-wd", x.id, v, { style: "danger" }));
+  if (x.canWithdraw) out.unshift(btn("Withdraw", "g-wd", x.id, v, { style: "danger" }));
   const rows: Row[] = buttonRows([...acts.slice(0, 5 - out.length), ...out]);
   return {
     ...base(g, x.id, notice ?? x.title),
     description: [
       goalSummary(x),
-      x.evolved && x.mine
+      x.evolved && x.canWithdraw
         ? "Its target evolved with the new season: today you may withdraw it whatever has been claimed."
         : "",
     ]
@@ -592,7 +587,7 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
     const options = choices
       .map(([label, over]) => ({ label: label.slice(0, 90), value: set(over) }))
       .filter((x): x is { label: string; value: string } => x.value !== null)
-      .slice(0, 25);
+      .slice(0, SELECT_MOST);
     return options.length
       ? [{ select: { customId: encodeId(action, id, v), placeholder, options } }]
       : [];

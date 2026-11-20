@@ -227,9 +227,17 @@ func (s *State) refAt(h hex.Hex) string {
 // at the start of the next world day.
 func (s *State) OpenSettlement() { s.Opening++ }
 
-// GaugeIndex is a world.gauges row's index in every region's Gauge.
-func (s *State) GaugeIndex(id string) int {
+// GaugeOf is a world.gauges row's index in every region's Gauge, if the
+// sheets hold the gauge.
+func (s *State) GaugeOf(id string) (int, bool) {
 	i, ok := s.gauge[id]
+	return i, ok
+}
+
+// GaugeIndex is a gauge's index for a caller that names one the sheets
+// must hold.
+func (s *State) GaugeIndex(id string) int {
+	i, ok := s.GaugeOf(id)
 	if !ok {
 		panic("world: no gauge " + id)
 	}

@@ -44,6 +44,22 @@ func TestRefusedPostsChangeNothing(t *testing.T) {
 	unchanged(t, member, "a haul whose reward is past the purse", game.Command{Kind: game.PostGoal, Goal: spec(500, goal.Haul)})
 	unchanged(t, officer, "a raise the treasury cannot pay for", game.Command{Kind: game.Raise, Slot: "wall", Price: 5000})
 	unchanged(t, member, "backing a side before arcs", game.Command{Kind: game.PostGoal, Goal: spec(0, goal.Back)})
+	byTrait := spec(0, goal.Deliver)
+	byTrait.Cond.Trait = "keen"
+	unchanged(t, member, "a Deliver narrowed by a trait no delivery carries", game.Command{Kind: game.PostGoal, Goal: byTrait})
+	carry := spec(0, goal.Deliver)
+	carry.Cond = goal.Condition{Verb: goal.Carry, Who: officer.c.C.ID, Count: 1, At: here(g, member)}
+	unchanged(t, member, "a call for help for someone else", game.Command{Kind: game.PostGoal, Goal: carry})
+	hold := func(gauge, at string) *game.GoalSpec {
+		return &game.GoalSpec{Title: "Keep it quiet", Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
+			Cond: goal.Condition{Verb: goal.Hold, Gauge: gauge, Line: 500, Below: true, Count: 1, At: at}}
+	}
+	region := "region:" + world.RegionRef(g.World.RegionAt(member.c.C.At))
+	unchanged(t, member, "a Hold of a gauge the world lacks", game.Command{Kind: game.PostGoal, Goal: hold("no-such-gauge", region)})
+	unchanged(t, member, "a Hold on a settlement", game.Command{Kind: game.PostGoal, Goal: hold("threat", here(g, member))})
+	unchanged(t, member, "a Hold on a region the world lacks", game.Command{Kind: game.PostGoal, Goal: hold("threat", "region:nowhere")})
+	post(member, *hold("threat", region))
+	advanceDays(t, g, 1)
 	if g.Ledger.Of(ledger.Char(member.c.C.ID), ledger.Material(timber)) != 60 {
 		t.Fatal("the haul's stock left the purse")
 	}
@@ -224,6 +240,9 @@ func TestGuildBankPaymentsAndRanks(t *testing.T) {
 	if coinOf(other) != before-10*value+spend+100 {
 		t.Fatalf("the approved payment did not arrive: %d coin", coinOf(other))
 	}
+	if got := gd.G.SpentToday(second.c.C.ID, g.World.Day); got != 0 {
+		t.Fatalf("approving another officer's payment counted %d coin against the approver's day", got)
+	}
 
 	toSeasonEnd(t, g)
 	if m := gd.G.Member(member.c.C.ID); m.Season != 0 || m.Put == 0 {
@@ -350,6 +369,9 @@ func TestFoundASettlement(t *testing.T) {
 	if got := g.Ledger.Of(game.TreasuryPool(p.N), ledger.Coin); got != sp("charter-coin") {
 		t.Fatalf("the charter's coin: %d in the new treasury", got)
 	}
+	if !gd.G.MaySpend(officer.c.C.ID, g.World.Day, sp("officer-spend"), g.Rules().Guild) {
+		t.Fatal("the charter's coin counted against its officer's day")
+	}
 	unchanged(t, officer, "a second settlement beside the first", game.Command{Kind: game.Found, Note: "Too close"})
 
 	// Repair costs a share of what a tier of the structure is worth.
@@ -434,6 +456,12 @@ func TestAdminsFollowTheirOwnServer(t *testing.T) {
 	if !gd.G.Member(member.c.C.ID).Admin {
 		t.Fatal("a press from another server cleared an admin")
 	}
+	// The mark governs the command that carries it.
+	member.must(game.Command{Kind: game.Look, Server: "s1"})
+	allow := game.Command{Kind: game.Allow, Target: ts[0].c.C.ID, Units: 1, Server: "s1", Admin: true}
+	member.must(allow)
+	allow.Admin = false
+	unchanged(t, member, "an officer's command from an admin whose permission is gone", allow)
 	member.must(game.Command{Kind: game.Look, Server: "s1"})
 	if gd.G.IsOfficer(member.c.C.ID) {
 		t.Fatal("an admin whose permission is gone is still an officer")
@@ -580,8 +608,8 @@ func TestAHaulIsForOneOfItsOwn(t *testing.T) {
 	audit(t, g)
 }
 
-// A goal ends at the tick its time runs out, not at the next world day,
-// and a call for help ends when its caller has crawled out.
+// A goal ends at the tick its time runs out, and a call for help when its
+// caller has crawled out.
 func TestGoalsEndWhenTheirTimeRunsOut(t *testing.T) {
 	g, ts := society(t, 2)
 	poster, downed := ts[0], ts[1]
@@ -601,7 +629,7 @@ func TestGoalsEndWhenTheirTimeRunsOut(t *testing.T) {
 	unchanged(t, downed, "a pledge to a goal past its time", game.Command{Kind: game.Pledge, Target: x.ID, Units: 1})
 
 	// A purse of exactly the rescue reward offers what it covers after the
-	// listing fee, not nothing.
+	// listing fee.
 	rescue := sheets.IntParam(g.Rules().Book.GoalParams, "rescue-reward")
 	downed.grant(ledger.Coin, rescue-downed.c.C.Coin)
 	downed.c.C.Set(char.Down, 0)
@@ -859,8 +887,8 @@ func TestDeliveredGoodsWaitForThePoster(t *testing.T) {
 	audit(t, g)
 }
 
-// A server guild is led by whoever acted on the most of the last days,
-// not by who has done the most in a lifetime; a tie keeps the leader.
+// A server guild is led by whoever acted on the most of the last days; a
+// tie keeps the leader.
 func TestAServerGuildFollowsItsMostActiveDays(t *testing.T) {
 	g, ts := society(t, 3)
 	gd := g.Guilds[0]
@@ -950,4 +978,201 @@ func TestAFullGranaryShortensRestNotTheWound(t *testing.T) {
 	if member.c.C.Has(char.Wounded, g.Tick()) {
 		t.Fatal("the rest did not clear the wound")
 	}
+}
+
+// Deliveries stay in a goal's escrow until they are paid for: a goal
+// withdrawn, run out or reset short gives them back, and a First goal's
+// losers get theirs when it is won.
+func TestAGoalEndingShortGivesItsDeliveriesBack(t *testing.T) {
+	g, ts := society(t, 3)
+	poster, a, b := ts[0], ts[1], ts[2]
+	fibre := materialWith(t, g, "fibre")
+	asset := ledger.Material(fibre)
+	held := func(tr *trader) int64 { return g.Ledger.Of(ledger.Char(tr.c.C.ID), asset) }
+	poster.grant(ledger.Coin, 1000)
+	a.grant(asset, 100)
+	b.grant(asset, 100)
+	spec := game.GoalSpec{Title: "Forty fibre", Issuer: goal.ByCharacter, Reward: 50, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: "fibre", Count: 40, At: here(g, poster)}}
+	deliver := func(tr *trader, x *game.Goal, n int64) {
+		t.Helper()
+		tr.must(game.Command{Kind: game.DeliverGoal, Target: x.ID, Material: fibre, Units: n})
+	}
+
+	x := post(poster, spec)
+	deliver(a, x, 30)
+	if held(a) != 70 || held(poster) != 0 {
+		t.Fatalf("30 of 40 delivered: the runner carries %d fibre and the poster %d", held(a), held(poster))
+	}
+	coin := coinOf(poster)
+	poster.must(game.Command{Kind: game.WithdrawGoal, Target: x.ID})
+	if held(a) != 100 || held(poster) != 0 || coinOf(poster) != coin+50 {
+		t.Fatalf("withdrawn at 30 of 40: the runner carries %d fibre, the poster %d and %d coin more", held(a), held(poster), coinOf(poster)-coin)
+	}
+
+	timed := spec
+	timed.Lifetime, timed.Turnover, timed.Ticks = goal.Ephemeral, goal.Expire, sheets.TicksPerDay
+	y := post(poster, timed)
+	deliver(a, y, 30)
+	advanceDays(t, g, 2)
+	if y.State != goal.Ended || held(a) != 100 || held(poster) != 0 {
+		t.Fatalf("run out at 30 of 40 (%s): the runner carries %d fibre and the poster %d", y.State, held(a), held(poster))
+	}
+
+	z := post(poster, spec)
+	deliver(a, z, 30)
+	deliver(b, z, 40)
+	met(t, z)
+	if held(a) != 100 || held(b) != 60 || held(poster) != 40 {
+		t.Fatalf("won by the second runner: the loser carries %d fibre, the winner %d and the poster %d", held(a), held(b), held(poster))
+	}
+
+	season := spec
+	season.Lifetime, season.Turnover, season.Mode = goal.Season, goal.Reset, goal.Pooled
+	w := post(poster, season)
+	deliver(a, w, 30)
+	toSeasonEnd(t, g)
+	if w.State != goal.Live || w.Total() != 0 || held(a) != 100 || len(w.Held) != 0 {
+		t.Fatalf("reset at 30 of 40 (%s, %d counted): the runner carries %d fibre", w.State, w.Total(), held(a))
+	}
+	audit(t, g)
+}
+
+// What is delivered to a settlement's own goal, or hauled for a muster,
+// goes to the bank of the guild behind it; a muster's stock nobody hauled
+// goes back to the officer who put it up.
+func TestASettlementsGoodsGoToItsGuildsBank(t *testing.T) {
+	g, ts := society(t, 3)
+	officer, a, b := ts[0], ts[1], ts[2]
+	gd := g.Guilds[0]
+	timber := materialWith(t, g, "timber")
+	asset := ledger.Material(timber)
+	far := officer.c.C.At.Neighbour(0)
+	x := proposal(t, g, ts, game.GoalSpec{Title: "Timber for the palisade", Issuer: goal.BySettlement, Mode: goal.Pooled, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: "timber", Count: 20, At: here(g, officer)}})
+	a.grant(asset, 20)
+	a.must(game.Command{Kind: game.DeliverGoal, Target: x.ID, Material: timber, Units: 20})
+	met(t, x)
+	if bank := g.Ledger.Of(gd.Pool(), asset); bank != 20 || g.Ledger.Of(game.TreasuryPool(0), asset) != 0 {
+		t.Fatalf("a settlement's delivery left the bank %d timber and the treasury %d", bank, g.Ledger.Of(game.TreasuryPool(0), asset))
+	}
+
+	officer.grant(asset, 40)
+	haul := game.GoalSpec{Title: "Timber out", Issuer: goal.ByAdmin, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
+		Material: timber, Units: 20, Cond: goal.Condition{Verb: goal.Haul, From: here(g, officer), At: goal.TileRef(far), Count: 20}}
+	y := post(officer, haul)
+	b.grant(ledger.Coin, 500)
+	b.must(game.Command{Kind: game.TakeHaul, Target: y.ID})
+	b.c.C.At = far
+	b.must(game.Command{Kind: game.DeliverGoal, Target: y.ID})
+	met(t, y)
+	if bank := g.Ledger.Of(gd.Pool(), asset); bank != 40 {
+		t.Fatalf("a muster's haul left the bank %d timber", bank)
+	}
+	z := post(officer, haul)
+	officer.must(game.Command{Kind: game.WithdrawGoal, Target: z.ID})
+	if got := g.Ledger.Of(ledger.Char(officer.c.C.ID), asset); got != 20 || g.Ledger.Of(game.TreasuryPool(0), asset) != 0 {
+		t.Fatalf("a muster's haul withdrawn: its officer carries %d timber and the treasury %d", got, g.Ledger.Of(game.TreasuryPool(0), asset))
+	}
+	audit(t, g)
+}
+
+// A pledge to a live goal pays the listing fee its coin adds, and is a
+// deed only once it has been paid out.
+func TestAPledgePaysItsFeeAndCountsWhenPaid(t *testing.T) {
+	g, ts := society(t, 3)
+	poster, pledger, runner := ts[0], ts[1], ts[2]
+	fibre := materialWith(t, g, "fibre")
+	poster.grant(ledger.Coin, 2000)
+	pledger.grant(ledger.Coin, 2000)
+	spec := func(reward int64) game.GoalSpec {
+		return game.GoalSpec{Title: "Five fibre", Issuer: goal.ByCharacter, Reward: reward, Mode: goal.First, Lifetime: goal.Standing,
+			Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: "fibre", Count: 5, At: here(g, poster)}}
+	}
+	deeds := func() int64 { return pledger.c.C.Deeds.Get(game.DeedPledged) }
+	whole, small := post(poster, spec(1000)), post(poster, spec(10))
+	coin := coinOf(pledger)
+	pledger.must(game.Command{Kind: game.Pledge, Target: small.ID, Units: 990})
+	if small.Reward != 1000 || small.Fee != whole.Fee || coinOf(pledger) != coin-990-(whole.Fee-g.Rules().Values.GoalFee(10)) {
+		t.Fatalf("pledged up to %d coin the goal has paid a %d coin fee; posted at that reward, %d", small.Reward, small.Fee, whole.Fee)
+	}
+	coin = coinOf(pledger)
+	poster.must(game.Command{Kind: game.WithdrawGoal, Target: small.ID})
+	if coinOf(pledger) != coin+990 || deeds() != 0 {
+		t.Fatalf("a pledge given back returned %d coin and counts as %d coin pledged", coinOf(pledger)-coin, deeds())
+	}
+	pledger.must(game.Command{Kind: game.Pledge, Target: whole.ID, Units: 100})
+	runner.grant(ledger.Material(fibre), 5)
+	runner.must(game.Command{Kind: game.DeliverGoal, Target: whole.ID, Material: fibre, Units: 5})
+	met(t, whole)
+	if deeds() != 100 || coinOf(runner) != 1100 {
+		t.Fatalf("a pledge paid out counts as %d coin pledged; the runner was paid %d", deeds(), coinOf(runner))
+	}
+	audit(t, g)
+}
+
+// A guild's raise is its officers' to withdraw, whoever posted it.
+func TestARaiseIsItsOfficersToWithdraw(t *testing.T) {
+	g, ts := society(t, 10)
+	leader, second, member := ts[0], ts[1], ts[2]
+	gd := g.Guilds[0]
+	leader.must(game.Command{Kind: game.Promote, Target: second.c.C.ID})
+	second.must(game.Command{Kind: game.Raise, Slot: "wall"})
+	x := lastGoal(g)
+	unchanged(t, member, "a member withdrawing the guild's raise", game.Command{Kind: game.WithdrawGoal, Target: x.ID})
+	gd.G.Member(second.c.C.ID).Officer = false
+	unchanged(t, second, "a former officer withdrawing the raise it posted", game.Command{Kind: game.WithdrawGoal, Target: x.ID})
+	if g.CanWithdraw(x, second.c) || !g.CanWithdraw(x, leader.c) {
+		t.Fatal("the raise is offered to the wrong hands to withdraw")
+	}
+	leader.must(game.Command{Kind: game.WithdrawGoal, Target: x.ID})
+	if x.State != goal.Ended {
+		t.Fatalf("withdrawn by another officer, the raise is %s", x.State)
+	}
+}
+
+// A work gives nothing while its structure is shut and lapses at the next
+// world day with its stock untouched; one whose structure is shut can
+// still be switched off.
+func TestAWorkStopsWithItsStructure(t *testing.T) {
+	g, ts := society(t, 2)
+	officer, member := ts[0], ts[1]
+	gd, p, r := g.Guilds[0], g.Places[0], g.Rules()
+	var work *sheets.GuildWork
+	for i := range r.Book.GuildWorks {
+		if r.Book.GuildWorks[i].Gives == "rest" {
+			work = &r.Book.GuildWorks[i]
+		}
+	}
+	for i := range r.Book.Structures {
+		if st := &r.Book.Structures[i]; st.ID == work.Needs {
+			p.Raise(st, g.Tick(), r.Settle)
+		}
+	}
+	uses := work.Uses[0].Quantity
+	member.grant(ledger.Provisions, uses*5)
+	member.must(game.Command{Kind: game.Deposit, Asset: ledger.Provisions, Units: uses * 5})
+	on := game.Command{Kind: game.Work, Option: work.ID, Units: 1}
+	officer.must(on)
+	advanceDays(t, g, 1)
+	open := p.Get(work.Needs).Condition
+	p.Get(work.Needs).Condition = 0
+	if _, w := g.WorkRunning(0, work.ID); w != nil {
+		t.Fatal("a work runs with its structure shut")
+	}
+	bank := g.Ledger.Of(gd.Pool(), ledger.Provisions)
+	advanceDays(t, g, 1)
+	if len(gd.G.Works) != 0 || g.Ledger.Of(gd.Pool(), ledger.Provisions) != bank {
+		t.Fatalf("a day with its structure shut: %d works run, the bank fed them %d provisions", len(gd.G.Works), bank-g.Ledger.Of(gd.Pool(), ledger.Provisions))
+	}
+	unchanged(t, officer, "a work switched on with its structure shut", on)
+
+	p.Get(work.Needs).Condition = open
+	officer.must(on)
+	p.Get(work.Needs).Condition = 0
+	officer.must(game.Command{Kind: game.Work, Option: work.ID})
+	if len(gd.G.Works) != 0 {
+		t.Fatal("a work whose structure is shut could not be switched off")
+	}
+	audit(t, g)
 }

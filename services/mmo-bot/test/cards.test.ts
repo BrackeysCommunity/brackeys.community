@@ -18,7 +18,7 @@ import {
   goalForm,
   specOf,
 } from "../src/screens/goals.ts";
-import { guildCard, memberCard } from "../src/screens/guild.ts";
+import { guildCard, leaveCard, memberCard } from "../src/screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
 import {
   appraisalCard,
@@ -105,11 +105,17 @@ const guild: api.Guild = {
   drawShare: 50,
   bankHere: true,
   invites: [],
+  members: recordedGuild.members.map((m) => ({
+    ...m,
+    canPromote: false,
+    removable: m.admin ? undefined : m.leader ? "leader" : m.officer ? "officer" : undefined,
+  })),
   settlements: recordedGuild.settlements.map((s) => ({
     ...s,
     conditionMax: 100,
     structures: s.structures.map((x) => ({
       ...x,
+      stands: x.tier > 0 || x.condition > 0 || x.closed,
       canRaise: x.tier < x.maxTier && !x.raising && (x.next?.length ?? 0) > 0,
     })),
   })),
@@ -540,7 +546,9 @@ const cards: [string, () => Card][] = [
           bank: [{ material: "cinder-ore", units: 30 }],
           treasury: 900,
           near: [{ value: "c-9", label: "c-9" }],
-          approvals: [{ id: "a-1", by: "c-2", to: "c-3", what: "coin", value: 400, goods: false }],
+          approvals: [
+            { id: "a-1", by: "c-2", to: "c-3", what: "coin", value: 400, goods: false, can: true },
+          ],
           votes: [{ target: "c-2", role: "officer", for: 2, need: 3 }],
           charter: { ...guild.charter, can: true, take: true },
         },
@@ -560,7 +568,18 @@ const cards: [string, () => Card][] = [
             ...s,
             here: i === 0,
             structures: s.structures.map((x, j) =>
-              j === 0 ? { ...x, tier: Math.max(1, x.tier), condition: 60 } : x,
+              j === 0
+                ? {
+                    ...x,
+                    tier: Math.max(1, x.tier),
+                    stands: true,
+                    condition: 60,
+                    repairs: [
+                      { points: 25, cost: [{ tag: "timber", quantity: 5 }] },
+                      { points: 40, cost: [{ tag: "timber", quantity: 8 }] },
+                    ],
+                  }
+                : x,
             ),
           })),
         },
@@ -636,6 +655,11 @@ const cards: [string, () => Card][] = [
       ),
   ],
   ["a guild member, to an officer", () => memberCard(o, { ...guild, officer: true }, "c-1")],
+  ["leaving a guild", () => leaveCard(o, guild)],
+  [
+    "leaving a guild as its last member",
+    () => leaveCard(o, { ...guild, server: false, members: guild.members.slice(0, 1) }),
+  ],
   [
     "goals, away from any board",
     () =>
@@ -851,20 +875,30 @@ test("the form offers the party, the cap and even shares only where they apply, 
 
 test("goods go into and out of the bank only where it stands; coin from anywhere", () => {
   const purse = { ...o.purse, coin: 50, goods: [{ material: "cinder-ore", units: 4 }] };
-  const base = {
+  const base = (bankHere: boolean): api.Guild => ({
     ...guild,
     officer: true,
+    bankHere,
     bank: [{ material: "cinder-ore", units: 30 }],
+    // The world offers the approval of goods only at the bank.
     approvals: [
-      { id: "a-1", by: "c-2", to: "c-3", what: "30 mat:cinder-ore", value: 600, goods: true },
+      {
+        id: "a-1",
+        by: "c-2",
+        to: "c-3",
+        what: "30 mat:cinder-ore",
+        value: 600,
+        goods: true,
+        can: bankHere,
+      },
     ],
-  };
+  });
   const pressed = (g: api.Guild) =>
     guildCard({ ...o, purse }, g, lex)
       .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
       .map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
       .map((x) => `${x?.action}:${x?.target}`);
-  expect(pressed({ ...base, bankHere: true })).toEqual(
+  expect(pressed(base(true))).toEqual(
     expect.arrayContaining([
       "gld-dep:coin:10",
       "gld-dep:cinder-ore:4",
@@ -872,7 +906,7 @@ test("goods go into and out of the bank only where it stands; coin from anywhere
       "gld-appr:a-1",
     ]),
   );
-  const away = pressed({ ...base, bankHere: false });
+  const away = pressed(base(false));
   expect(away).toContain("gld-dep:coin:10");
   for (const gone of ["gld-dep:cinder-ore:4", "gld-draw:cinder-ore:1", "gld-appr:a-1"])
     expect(away).not.toContain(gone);
@@ -1083,6 +1117,8 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
       draw: false,
       put: 0,
       season: 0,
+      canPromote: false,
+      removable: "leader",
     },
     {
       id: "c-2",
@@ -1093,6 +1129,7 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
       draw: false,
       put: 0,
       season: 0,
+      canPromote: true,
     },
   ];
   const g = { ...guild, members, treasury: 500, named: 1, officersMax: 2, near: [] };
@@ -1105,7 +1142,12 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
     "promote:c-2:-",
     "pay:c-2:100",
   ]);
-  expect(options({ ...g, officer: true, named: 2 }, "c-2")).toEqual(["allow:c-2:1", "pay:c-2:100"]);
+  // Naming an officer is offered when the world says the viewer may.
+  const full = members.map((m) => ({ ...m, canPromote: false }));
+  expect(options({ ...g, officer: true, members: full }, "c-2")).toEqual([
+    "allow:c-2:1",
+    "pay:c-2:100",
+  ]);
 
   // Every member can be reached, and whoever a vote can stand against is
   // on the first page however little they gave.
@@ -1118,4 +1160,73 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
   expect(picks(big).at(-1)).toBe("page:1");
   expect(picks(big, 1).at(-1)).toBe("page:0");
   expect(new Set([...picks(big), ...picks(big, 1)]).size).toBe(many.length + 2);
+});
+
+test("leaving is asked twice, and the last member of a founded guild is told it ends", () => {
+  const pressed = (c: Card) =>
+    c.rows
+      .flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
+      .map((x) => `${x?.action}:${x?.target}`);
+  expect(pressed(guildCard(o, guild, lex))).toContain("gld-leave:");
+  const one = leaveCard(o, guild);
+  expect(pressed(one)).toEqual(["gld-leave:yes", "guild:members"]);
+  expect(one.description).not.toContain("ends when you go");
+  const last = leaveCard(o, { ...guild, server: false, members: guild.members.slice(0, 1) });
+  expect(pressed(last)).toEqual(["gld-leave:yes", "guild:members"]);
+  expect(last.description).toContain("ends when you go");
+  // A server's own guild outlives its last member.
+  const server = leaveCard(o, { ...guild, server: true, members: guild.members.slice(0, 1) });
+  expect(server.description).not.toContain("ends when you go");
+});
+
+test("a goal offers a pledge and a withdrawal only when the world does", () => {
+  const offered = (x: api.Goal) =>
+    goalCard({ ...o, purse: { ...o.purse, coin: 500 } }, goals, x, lex)
+      .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .map((b) => (b.kind === "page" ? decodeId(b.customId)?.action : null));
+  const open = goalAs({ state: "live", mine: true, claims: 0, canPledge: true, canWithdraw: true });
+  expect(offered(open)).toEqual(expect.arrayContaining(["g-pledge", "g-wd"]));
+  const taken = offered({ ...open, canPledge: false, canWithdraw: false });
+  expect(taken).not.toContain("g-pledge");
+  expect(taken).not.toContain("g-wd");
+});
+
+test("a worn structure of a starting settlement is mended by the steps the world serves, whatever its tier", () => {
+  const repairs = [
+    { points: 25, cost: [{ tag: "timber", quantity: 5 }] },
+    { points: 60, cost: [{ tag: "timber", quantity: 12 }] },
+  ];
+  const g: api.Guild = {
+    ...guild,
+    settlements: guild.settlements.map((s, i) => ({
+      ...s,
+      here: i === 0,
+      structures: s.structures.map((x, j) => ({
+        ...x,
+        tier: 0,
+        stands: j === 0,
+        condition: j === 0 ? 40 : 0,
+        repairs: j === 0 ? repairs : undefined,
+      })),
+    })),
+  };
+  const first = g.settlements[0]!.structures[0]!;
+  const card = guildCard(o, g, lex, "places");
+  const mend = card.rows.flatMap((r) =>
+    "select" in r && decodeId(r.select.customId)?.action === "gld-mend" ? r.select.options : [],
+  );
+  expect(mend.map((x) => x.value)).toEqual([`${first.kind}:25`, `${first.kind}:60`]);
+  expect(mend[0]?.label).toContain("up to 65 pts");
+  expect(mend[0]?.description).toBe("Takes 5 goods of timber");
+  expect(card.table?.rows.length).toBe(g.settlements.length);
+});
+
+test("the character card says which vows are kept and which are broken", () => {
+  const vows = [{ title: "No blade this season", broken: true }, { title: "No plate this season" }];
+  const field = characterCard(o, here, { ...sheet, vows }, lex).fields?.find(
+    (f) => f.name === "Vows",
+  );
+  expect(field?.value).toContain("No blade this season: broken");
+  expect(field?.value).toContain("No plate this season: kept so far");
 });

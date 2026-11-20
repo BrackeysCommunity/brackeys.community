@@ -51,6 +51,9 @@ export const DIRECTIONS = [
   { arrow: "↘", name: "SE" },
 ];
 
+/** A select holds this many options. */
+export const SELECT_MOST = 25;
+
 /** The default picture: the banner of a place; extra goes on the alt text. */
 export function banner(place: { banner: string; name: string }, extra = ""): Picture {
   return { media: place.banner, alt: `Banner of ${place.name}${extra}` };

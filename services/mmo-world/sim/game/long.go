@@ -253,10 +253,7 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 				return nil, err
 			}
 			c.Version++
-			// A rescuer the ambush felled carries nobody further.
-			if c.Carrying != "" && notDown(c) != nil {
-				g.setDown(c, g.Char(c.Carrying))
-			}
+			g.dropIfDown(c)
 		}
 		if c.Long == nil || c.Long.Due > t {
 			continue

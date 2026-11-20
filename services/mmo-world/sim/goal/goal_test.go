@@ -108,8 +108,25 @@ func TestHoldCountsDaysRunning(t *testing.T) {
 	if day(5, 600) != nil {
 		t.Fatal("one day read twice")
 	}
-	if c := day(6, 600); len(c) != 1 || c[0].Who != "c-9" || g.State != Done {
-		t.Fatalf("held three days: %+v %s", c, g.State)
+	// Nobody fought for it: it is met and pays nobody, pledges included.
+	if c := day(6, 600); len(c) != 0 || len(g.Claims) != 0 || g.State != Done {
+		t.Fatalf("held three days with nobody fighting: %+v %s", c, g.State)
+	}
+}
+
+// A party's Hold counts its days, which no character does, and pays the
+// members who fought there.
+func TestAPartyHoldCountsItsDays(t *testing.T) {
+	g := live(Condition{Verb: Hold, Gauge: "threat", Line: 700, Below: true, Count: 2, At: "region:r1"}, Pooled, 40)
+	g.Issuer.Kind, g.Scope, g.Members = ByParty, Party, []string{"c-9", "a"}
+	g.Credit(defeat("a", 1))
+	g.Credit(defeat("stranger", 2))
+	day := func(d int64) []Claim {
+		return g.Credit(Event{Fact: fact.ID(10 + d), Verb: Hold, Gauge: "threat", Value: 100, Units: d, Places: []string{"region:r1"}, Goal: "q-1"})
+	}
+	day(1)
+	if c := day(2); len(c) != 1 || c[0].Who != "a" || c[0].Coin != 40 || g.State != Done {
+		t.Fatalf("a party's Hold after its two days: %+v %s, streak %d", c, g.State, g.Streak)
 	}
 }
 
@@ -185,7 +202,18 @@ func TestValidHoldsTheLimits(t *testing.T) {
 			g.Lifetime, g.Expires = Ephemeral, 1000
 		},
 		"deliver nowhere": func(g *Goal) { g.Cond.Verb = Deliver },
-		"no title":        func(g *Goal) { g.Title = "" },
+		"a deliver by trait": func(g *Goal) {
+			g.Cond = Condition{Verb: Deliver, Count: 1, At: "settlement:0", Trait: "keen"}
+		},
+		"a deliver within a distance": func(g *Goal) {
+			g.Cond = Condition{Verb: Deliver, Count: 1, At: "settlement:0", Hex: &hex.Hex{}, Within: 3}
+		},
+		"a reach of a kind": func(g *Goal) { g.Cond = Condition{Verb: Reach, Count: 1, At: "settlement:0", Kind: "eel"} },
+		"a gauge hold by tag": func(g *Goal) {
+			g.Cond = Condition{Verb: Hold, Gauge: "threat", Count: 1, At: "region:r1", Tag: "blade"}
+		},
+		"a defeat of someone": func(g *Goal) { g.Cond.Who = "c-1" },
+		"no title":            func(g *Goal) { g.Title = "" },
 	} {
 		g := *ok
 		change(&g)

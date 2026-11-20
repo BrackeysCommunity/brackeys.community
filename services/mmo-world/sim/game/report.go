@@ -76,7 +76,9 @@ func (g *Game) Supply() int64 {
 // coinHeld is the coin characters hold, in hand and in escrow; the part
 // of it active characters hold; and how many they are. The stabiliser
 // steers by the active part: coin a character who stopped playing holds
-// is out of circulation until it comes back.
+// is out of circulation until it comes back, as is coin in a guild's or a
+// settlement's treasury until it is paid out. A reward a character put up
+// is still that character's until it is claimed.
 func (g *Game) coinHeld() (supply, active, n int64) {
 	live := map[string]bool{}
 	for c := range g.activeChars() {
@@ -86,6 +88,11 @@ func (g *Game) coinHeld() (supply, active, n int64) {
 	owner := map[string]string{}
 	for o := range g.opens("", false) {
 		owner[ledger.EscrowPool(o.ID)] = o.Owner
+	}
+	for _, x := range g.Goals {
+		if _, ok := ledger.CharOf(backer(x)); ok && x.Open() {
+			owner[goalPool(x.ID)] = backer(x)
+		}
 	}
 	for _, b := range g.Ledger.Balances {
 		if b.Asset != ledger.Coin {
@@ -106,13 +113,17 @@ func (g *Game) coinHeld() (supply, active, n int64) {
 	return supply, active, n
 }
 
-// activeChars are the characters that acted within active-days and are
-// not banned.
+// active reports whether a character acted within active-days and is not
+// banned.
+func (g *Game) active(c *Char) bool {
+	return c.Acted >= g.Tick()-g.mp("active-days")*sheets.TicksPerDay && !c.Banned
+}
+
+// activeChars are the active characters.
 func (g *Game) activeChars() iter.Seq[*Char] {
-	since := g.Tick() - g.mp("active-days")*sheets.TicksPerDay
 	return func(yield func(*Char) bool) {
 		for _, c := range g.Chars {
-			if c.Acted >= since && !c.Banned && !yield(c) {
+			if g.active(c) && !yield(c) {
 				return
 			}
 		}

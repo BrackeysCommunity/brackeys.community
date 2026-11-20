@@ -32,7 +32,7 @@ type Member struct {
 	// Admin is a server admin in its server's own guild: an officer no
 	// vote removes.
 	Admin bool `json:"admin,omitempty"`
-	// Draw lets it withdraw from the bank beyond its contributors' right.
+	// Draw lets it withdraw from the bank past what its deposits earn.
 	Draw bool `json:"draw,omitempty"`
 	// Put is the reference value of everything it has deposited, all time
 	// and this season; Taken what it has drawn at cost.
@@ -48,6 +48,9 @@ type Gift struct {
 	Day   int64 `json:"day"`
 	Value int64 `json:"value"`
 }
+
+// old reports whether a gift is past the days a work's goods are split by.
+func (x Gift) old(day int64, p Params) bool { return day-x.Day >= p.SpoilsDays }
 
 // Spend is coin or goods an officer moved out on a world day.
 type Spend struct {
@@ -178,8 +181,8 @@ func (g *Guild) Join(char string, tick int64) bool {
 // leaving leader hands over to the longest-serving officer, else the
 // longest-standing member.
 func (g *Guild) Leave(char string) bool {
-	i := slices.IndexFunc(g.Members, func(m Member) bool { return m.Char == char })
-	if i < 0 {
+	i, ok := g.find(char)
+	if !ok {
 		return false
 	}
 	g.Members = slices.Delete(g.Members, i, i+1)
@@ -196,20 +199,30 @@ func (g *Guild) Leave(char string) bool {
 // the leader, or a server admin.
 func (g *Guild) IsOfficer(char string) bool {
 	m := g.Member(char)
-	return m != nil && (m.Officer || m.Admin || g.Leader == char)
+	return m != nil && (m.holds() || g.Leader == char)
 }
+
+// holds reports whether a member holds office without leading: an officer
+// the leader named, or a server admin.
+func (m Member) holds() bool { return m.Officer || m.Admin }
 
 // Officers is how many officers the leader may name: one per OfficerPer
 // members, at least one.
 func (g *Guild) Officers(p Params) int64 { return max(1, int64(len(g.Members))/p.OfficerPer) }
 
-// Promote makes a member an officer if the guild has room for one; the
-// leader and a server's admins are officers already.
+// MayPromote reports whether a member could be named an officer: the guild
+// has room for one, and the leader and a server's admins are officers
+// already.
+func (g *Guild) MayPromote(char string, p Params) bool {
+	return g.Member(char) != nil && !g.IsOfficer(char) && g.Named() < g.Officers(p)
+}
+
+// Promote makes a member an officer if it may be one.
 func (g *Guild) Promote(char string, tick int64, p Params) bool {
-	m := g.Member(char)
-	if m == nil || m.Officer || m.Admin || g.Leader == char || g.Named() >= g.Officers(p) {
+	if !g.MayPromote(char, p) {
 		return false
 	}
+	m := g.Member(char)
 	m.Officer, m.Since = true, tick
 	return true
 }
@@ -287,6 +300,13 @@ func (g *Guild) Pending(id, officer string) (Approval, bool) {
 		return Approval{}, false
 	}
 	return g.Approvals[i], true
+}
+
+// Ask records a spend that waits for a second officer, under a new id.
+func (g *Guild) Ask(a Approval) Approval {
+	a.ID = g.Next("a")
+	g.Approvals = append(g.Approvals, a)
+	return a
 }
 
 // Approve takes a pending approval for a second officer.
@@ -374,7 +394,7 @@ func (g *Guild) senior(active func(string) bool) string {
 		if !active(m.Char) || m.Char == g.Leader {
 			continue
 		}
-		o := m.Officer || m.Admin
+		o := m.holds()
 		switch {
 		case best < 0, o && !bestOfficer:
 		case o == bestOfficer && since(m) < since(g.Members[best]):
@@ -390,7 +410,7 @@ func (g *Guild) senior(active func(string) bool) string {
 }
 
 func since(m Member) int64 {
-	if m.Officer || m.Admin {
+	if m.holds() {
 		return m.Since
 	}
 	return m.Joined
@@ -427,7 +447,7 @@ func (g *Guild) Deposit(char string, day, value int64, p Params) {
 	}
 	m.Put += value
 	m.Season += value
-	m.Gifts = slices.DeleteFunc(m.Gifts, func(x Gift) bool { return day-x.Day >= p.SpoilsDays })
+	m.Gifts = slices.DeleteFunc(m.Gifts, func(x Gift) bool { return x.old(day, p) })
 	if n := len(m.Gifts); n > 0 && m.Gifts[n-1].Day == day {
 		m.Gifts[n-1].Value += value
 		return
@@ -471,11 +491,11 @@ func (g *Guild) Drew(char string, value int64) {
 // the weights a work's goods are split by.
 func (g *Guild) Shares(day int64, p Params) tally.Tally {
 	var t tally.Tally
-	for i := range g.Members {
-		m := &g.Members[i]
-		m.Gifts = slices.DeleteFunc(m.Gifts, func(x Gift) bool { return day-x.Day >= p.SpoilsDays })
+	for _, m := range g.Members {
 		for _, x := range m.Gifts {
-			t.Bump(m.Char, x.Value)
+			if !x.old(day, p) {
+				t.Bump(m.Char, x.Value)
+			}
 		}
 	}
 	return t
@@ -510,6 +530,19 @@ func (g *Guild) Work(id string, settlement int) *Work {
 	}
 	return nil
 }
+
+// Start switches a work on at a settlement for an officer; false if it
+// already runs there.
+func (g *Guild) Start(id string, settlement int, by string, tick int64) bool {
+	if g.Work(id, settlement) != nil {
+		return false
+	}
+	g.Works = append(g.Works, Work{ID: id, Settlement: settlement, Since: tick, By: by})
+	return true
+}
+
+// Disband clears what a guild nobody is in was doing.
+func (g *Guild) Disband() { g.Works, g.Approvals, g.Votes = nil, nil, nil }
 
 // Stop switches a work off.
 func (g *Guild) Stop(id string, settlement int) bool {

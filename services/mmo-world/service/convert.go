@@ -11,6 +11,7 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/market"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 	"slices"
 )
@@ -20,6 +21,28 @@ const (
 	unitPts   = "pts"
 	unitGauge = "gauge"
 )
+
+// charName is a character's name as others see it.
+func charName(g *game.Game, id string) string { return g.OwnerName(ledger.Char(id)) }
+
+// heldGoods are the goods among an account's balances; coin is not one.
+func heldGoods(held []ledger.Balance) []api.Goods {
+	out := []api.Goods{}
+	for _, h := range held {
+		if m, ok := ledger.GoodsOf(h.Asset); ok {
+			out = append(out, api.Goods{Material: m, Units: h.Units})
+		}
+	}
+	return out
+}
+
+func apiLines(lines []sheets.CostLine) []api.CostLine {
+	var out []api.CostLine
+	for _, l := range lines {
+		out = append(out, api.CostLine{Tag: l.Tag, Quantity: l.Quantity})
+	}
+	return out
+}
 
 func apiHex(h hex.Hex) api.Hex { return api.Hex{Q: h.Q, R: h.R} }
 func simHex(h api.Hex) hex.Hex { return hex.Hex{Q: h.Q, R: h.R} }

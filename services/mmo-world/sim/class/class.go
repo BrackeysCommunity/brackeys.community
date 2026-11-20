@@ -123,6 +123,9 @@ func Tiers(level int64, p Params) []int64 {
 	return out
 }
 
+// AllTiers are every tier a class tree has.
+func AllTiers(p Params) []int64 { return Tiers(p.TierLevels*levelSteps, p) }
+
 // Choose makes a class active, keeping at most Active; the oldest active
 // gives way.
 func (s *State) Choose(id string, p Params) error {
@@ -167,8 +170,6 @@ func find(all []sheets.Ability, id string) *sheets.Ability {
 	return nil
 }
 
-// Tags are what the rules see of a character's classes: each active
-// class's tag and the abilities taken from it.
 // Situation is what a fight's circumstances add to what the abilities'
 // rules read of a character: the opening beat, an ambush, marked prey
 // and a wall to stand on.
@@ -197,6 +198,8 @@ func (s *State) FightTags(classes []sheets.Class, all []sheets.Ability, sit Situ
 	return out
 }
 
+// Tags are what the rules see of a character's classes: each active
+// class's tag and the abilities taken from it.
 func (s *State) Tags(classes []sheets.Class, all []sheets.Ability) []tags.Tag {
 	var out []tags.Tag
 	for _, c := range classes {

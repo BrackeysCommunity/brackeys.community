@@ -119,9 +119,13 @@ type Goal struct {
 	// Takes are the goods the viewer carries that a Deliver still takes
 	// from it; Haul is whether the viewer may take its stock here, or
 	// deliver it here.
-	Takes    []Goods `json:"takes"`
-	Haul     string  `json:"haul,omitempty"`     // take, deliver
-	Building string  `json:"building,omitempty"` // the structure a raise goal builds
+	Takes []Goods `json:"takes"`
+	Haul  string  `json:"haul,omitempty"` // take, deliver
+	// CanPledge: the goal takes pledges. CanWithdraw: the viewer may take
+	// it down now.
+	CanPledge   bool   `json:"canPledge"`
+	CanWithdraw bool   `json:"canWithdraw"`
+	Building    string `json:"building,omitempty"` // the structure a raise goal builds
 	// Paid are a met goal's claims, each with the facts it cites.
 	Paid []GoalClaim `json:"paid,omitempty"`
 }
@@ -222,6 +226,9 @@ type Board struct {
 	// Every is the least ticks between two edits of one post.
 	Every int64       `json:"every"`
 	Posts []BoardPost `json:"posts"`
+	// Hidden are the public goals an operator has hidden: a post of one
+	// loses its words.
+	Hidden []string `json:"hidden,omitempty"`
 }
 
 // BoardPost is one goal's forum post.
@@ -240,20 +247,32 @@ type CostLine struct {
 
 // Structure is one of a settlement's structures (GDD 4.16).
 type Structure struct {
-	Kind      string     `json:"kind"`
-	Name      string     `json:"name"`
-	Tier      int64      `json:"tier"`
-	MaxTier   int64      `json:"maxTier"`
-	Condition int64      `json:"condition"`
-	Closed    bool       `json:"closed"`
-	Raising   bool       `json:"raising"`
-	Next      []CostLine `json:"next,omitempty"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Tier      int64  `json:"tier"`
+	MaxTier   int64  `json:"maxTier"`
+	Condition int64  `json:"condition"`
+	Closed    bool   `json:"closed"`
+	// Stands: it has been built here, whatever its tier.
+	Stands  bool       `json:"stands"`
+	Raising bool       `json:"raising"`
+	Next    []CostLine `json:"next,omitempty"`
 	// CanRaise: goals raise it a tier, no raise of it is open and the
 	// system that reads that tier is built.
 	CanRaise bool `json:"canRaise"`
 	// Waits is the milestone its next raise waits for, if its system is not
 	// built yet.
 	Waits string `json:"waits,omitempty"`
+	// Repairs are the steps a worn structure can be mended by, smallest
+	// first; a closed one's first reopens it.
+	Repairs []Repair `json:"repairs,omitempty"`
+}
+
+// Repair is points of a structure's condition and what restoring them
+// takes.
+type Repair struct {
+	Points int64      `json:"points"`
+	Cost   []CostLine `json:"cost"`
 }
 
 // Settlement is a settlement a guild runs.
@@ -277,6 +296,10 @@ type GuildMember struct {
 	Draw    bool   `json:"draw"`   // may withdraw past what its deposits earn
 	Put     int64  `json:"put"`    // contribution, all time
 	Season  int64  `json:"season"` // this season
+	// CanPromote: the viewer may name it an officer. Removable is the role
+	// a vote may stand against it in, if any.
+	CanPromote bool   `json:"canPromote"`
+	Removable  string `json:"removable,omitempty"`
 }
 
 // GuildWork is a work and its stock (GDD 4.14).
@@ -290,7 +313,7 @@ type GuildWork struct {
 	By    int64      `json:"by"`
 	Needs string     `json:"needs,omitempty"`
 	Waits string     `json:"waits,omitempty"`
-	Can   bool       `json:"can"` // may be switched on here
+	Can   bool       `json:"can"` // the viewer may switch it on, or off, here
 	// Spares says the work gives coin its members keep; Ran, Used and Gave
 	// are then the world days it has been stocked here since it was
 	// switched on, and the coin value it has consumed and spared in them.
@@ -309,6 +332,8 @@ type Approval struct {
 	Value int64  `json:"value"`
 	// Goods marks a payment out of the bank, approved where the bank is.
 	Goods bool `json:"goods"`
+	// Can: the viewer may approve it where it stands.
+	Can bool `json:"can"`
 }
 
 // GuildVote is an open motion.

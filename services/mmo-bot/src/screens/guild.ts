@@ -9,7 +9,7 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, plural } from "../units.ts";
-import { back, banner, btn, PRIVATE } from "./common.ts";
+import { back, banner, btn, PRIVATE, SELECT_MOST } from "./common.ts";
 
 /**
  * /guild (GDD 4.8, 4.14, 4.16): your guild's members and ranks, its
@@ -127,11 +127,10 @@ export function guildCard(
     );
   acts.push(btn("Leave", "gld-leave", "", v, { style: "danger" }));
   rows.push(...buttonRows(acts.slice(0, 5)));
-  for (const a of g.approvals.filter((x) => !x.goods || g.bankHere).slice(0, 1))
-    if (g.officer)
-      rows.push({
-        buttons: [btn(`Approve: ${a.what} to ${a.to}`.slice(0, 80), "gld-appr", a.id, v)],
-      });
+  for (const a of g.approvals.filter((x) => x.can).slice(0, 1))
+    rows.push({
+      buttons: [btn(`Approve: ${a.what} to ${a.to}`.slice(0, 80), "gld-appr", a.id, v)],
+    });
   rows.push({
     select: {
       customId: encodeId("gld-member", "", v),
@@ -144,7 +143,9 @@ export function guildCard(
       select: {
         customId: encodeId("gld-invite", "", v),
         placeholder: "Invite someone standing here",
-        options: g.near.slice(0, 25).map((p) => ({ label: p.label.slice(0, 90), value: p.value })),
+        options: g.near
+          .slice(0, SELECT_MOST)
+          .map((p) => ({ label: p.label.slice(0, 90), value: p.value })),
       },
     });
   rows.push({ buttons: [...tabs(g, "members", v), back(v)] });
@@ -213,14 +214,11 @@ export function guildCard(
 /** What an officer pays a member from the treasury in one press. */
 const PAYMENT = 100;
 
-/** A select holds this many options; the last of a page turns to the next. */
-const SELECT_MOST = 25;
-
 function role(m: api.GuildMember): string {
   return m.leader ? "leader" : m.admin ? "admin" : m.officer ? "officer" : "member";
 }
 
-/** The members a page of the select offers: those a vote can stand against first, then by rank. */
+/** The members a page of the select offers, its last option turning the page: those a vote can stand against first, then by rank. */
 function memberOptions(g: api.Guild, page: number): { label: string; value: string }[] {
   const held = (m: api.GuildMember) => (m.leader || m.officer || m.admin ? 0 : 1);
   const all = [...g.members].sort((a, b) => held(a) - held(b));
@@ -246,24 +244,17 @@ export function memberCard(o: api.Options, g: api.Guild, id: string, notice?: st
   const act = (label: string, ...parts: (string | number)[]) =>
     acts.push(btn(label.slice(0, 80), "gld-act", target(":", ...parts), v));
   if (m && g.officer) {
-    if (!m.officer && !m.leader && !m.admin) {
+    if (!m.officer && !m.leader && !m.admin)
       act(
         m.draw ? "Back to the bank's usual share" : "May draw freely",
         "allow",
         m.id,
         m.draw ? 0 : 1,
       );
-      if (g.named < g.officersMax) act("Name an officer", "promote", m.id, "-");
-    }
+    if (m.canPromote) act("Name an officer", "promote", m.id, "-");
     if (g.treasury >= PAYMENT) act(`Pay ${amount(PAYMENT, "coin")}`, "pay", m.id, PAYMENT);
   }
-  if (m && !m.admin && (m.officer || m.leader))
-    act(
-      `Vote to remove as ${m.leader ? "leader" : "officer"}`,
-      "vote",
-      m.id,
-      m.leader ? "leader" : "officer",
-    );
+  if (m?.removable) act(`Vote to remove as ${m.removable}`, "vote", m.id, m.removable);
   return {
     ...base(g, "A member", notice ?? m?.name ?? "No such member"),
     description: m
@@ -278,6 +269,37 @@ export function memberCard(o: api.Options, g: api.Guild, id: string, notice?: st
     footer:
       "A vote carries once enough of the active members have cast it; no vote stands against a server's admin.",
     rows: buttonRows([...acts, btn("Guild", "guild", "members", v, { emoji: "↩" })]),
+  };
+}
+
+/**
+ * Leaving, asked twice: the last member of a founded guild ends it, and what
+ * it holds is gone.
+ */
+export function leaveCard(o: api.Options, g: api.Guild): Card {
+  const v = o.version;
+  const last = g.members.length === 1 && !g.server;
+  return {
+    ...base(g, "Leaving", `Leave ${g.name}?`),
+    description: last
+      ? `You are its last member: ${g.name} ends when you go. Its treasury and bank are lost to you${g.settlements.length ? ", and its settlements go back to their keepers" : ""}.`
+      : "You keep what you carry; what you gave stays with the guild. Coming back takes an officer's invitation.",
+    fields: [
+      { name: "Treasury", value: amount(g.treasury, "coin"), inline: true },
+      {
+        name: "Bank",
+        value: amount(
+          g.bank.reduce((n, b) => n + b.units, 0),
+          "goods",
+        ),
+        inline: true,
+      },
+    ],
+    footer: "Leaving cannot be taken back.",
+    rows: buttonRows([
+      btn(last ? "Leave and end the guild" : "Leave", "gld-leave", "yes", v, { style: "danger" }),
+      btn("Stay", "guild", "members", v, { emoji: "↩" }),
+    ]),
   };
 }
 
@@ -309,7 +331,7 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
         select: {
           customId: encodeId("gld-raise", "", v),
           placeholder: "Raise a structure: post its goals",
-          options: raisable.slice(0, 25).map((s) => ({
+          options: raisable.slice(0, SELECT_MOST).map((s) => ({
             label: `${lex.name("settlements.structures", s.kind)} to tier ${s.tier + 1}`.slice(
               0,
               90,
@@ -321,19 +343,21 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
       });
   }
   if (here) {
-    const worn = here.structures.filter((s) => s.tier > 0 && s.condition < here.conditionMax);
-    if (worn.length)
+    // A worn structure is mended a part at a time or whole; a closed one's part reopens it.
+    const steps = here.structures.flatMap((s) => (s.repairs ?? []).map((r) => ({ s, r })));
+    if (steps.length)
       rows.push({
         select: {
-          customId: encodeId("gld-mend", String(here.conditionMax), v),
+          customId: encodeId("gld-mend", "", v),
           placeholder: "Repair a structure with what you carry",
-          options: worn.slice(0, 25).map((s) => ({
+          options: steps.slice(0, SELECT_MOST).map(({ s, r }) => ({
             label:
-              `${lex.name("settlements.structures", s.kind)}: condition ${num(s.condition)} pts`.slice(
+              `${lex.name("settlements.structures", s.kind)}: ${s.closed ? "reopen at" : "up to"} ${num(Math.min(here.conditionMax, s.condition + r.points))} pts`.slice(
                 0,
                 90,
               ),
-            value: s.kind,
+            value: target(":", s.kind, r.points),
+            description: `Takes ${cost(r.cost)}`.slice(0, 90),
           })),
         },
       });
@@ -343,7 +367,7 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
   const later = (here ?? g.settlements[0])?.structures.filter((x) => x.waits) ?? [];
   const lines = g.settlements.flatMap((s) =>
     s.structures
-      .filter((x) => x.tier > 0)
+      .filter((x) => x.stands)
       .map((x) => [
         s.name.slice(0, 16),
         lex.name("settlements.structures", x.kind).slice(0, 14),
@@ -376,7 +400,7 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
               value: later
                 .map(
                   (x) =>
-                    `${lex.name("settlements.structures", x.kind)}${x.tier > 0 || x.condition > 0 || x.closed ? ", a tier up" : ""}`,
+                    `${lex.name("settlements.structures", x.kind)}${x.stands ? ", a tier up" : ""}`,
                 )
                 .join("; "),
               inline: false,

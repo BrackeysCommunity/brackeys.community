@@ -2,7 +2,7 @@ import type * as api from "./api.ts";
 import { authorLine, type Card, COLOUR } from "./card.ts";
 import type { Lexicon } from "./lexicon.ts";
 import { banner } from "./screens/common.ts";
-import { goalFields, goalSummary } from "./screens/goals.ts";
+import { boardHead, goalFields, goalSummary } from "./screens/goals.ts";
 import { moverLine } from "./screens/market.ts";
 import { hours, num } from "./units.ts";
 
@@ -15,21 +15,21 @@ import { hours, num } from "./units.ts";
 
 export const FORUM_POLL_MS = 60_000;
 
-/** Where the poster keeps a settlement's post and the last day it posted. */
+/** Where a poster keeps what it has posted, by key. */
 export interface ForumStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
   del(key: string): Promise<void>;
 }
 
-/** Posting a card: into a settlement's post, opening it on the first day. */
+/** A forum channel as a sink for cards: posts opened, replied to and edited. */
 export interface ForumSink {
-  /** Opens a settlement's post with its first card; returns the post's id. */
+  /** Opens a post with its first card; returns the post's id. */
   open(title: string, card: Card): Promise<string>;
   /** Replies in a post; false when the post is gone. */
   reply(post: string, card: Card): Promise<boolean>;
-  /** Replaces a post's first card; false when the post is gone. */
-  edit(post: string, card: Card): Promise<boolean>;
+  /** Replaces a post's first card, and its title when one is given; false when the post is gone. */
+  edit(post: string, card: Card, title?: string): Promise<boolean>;
 }
 
 export function forumCard(p: api.ForumPost, day: number, lex: Lexicon): Card {
@@ -135,10 +135,9 @@ const BOARD_CONTEXT = "Notice-board forum · everyone in the server can see this
 export function boardPostCard(p: api.BoardPost, lex: Lexicon): Card {
   return {
     context: BOARD_CONTEXT,
-    author: authorLine("Notice board", p.name),
+    ...boardHead(p),
     title: p.goal.title,
     description: goalSummary(p.goal),
-    picture: banner(p, ", over its notice board"),
     fields: goalFields(p.goal, lex),
     footer: "Open /goals in the settlement to take it up; plan it in this thread.",
     rows: [],
@@ -159,13 +158,15 @@ interface Posted {
   banner: string;
 }
 
-function closedCard(p: Posted): Card {
+/** A goal's post once it has left the board; a hidden goal's says none of its words. */
+function closedCard(p: Posted, hidden = false): Card {
   return {
     context: BOARD_CONTEXT,
-    author: authorLine("Notice board", p.name),
-    title: `Off the board: ${p.title}`,
-    description: "Met, expired or withdrawn. /goals shows what is posted now.",
-    picture: banner(p, ", over its notice board"),
+    ...boardHead(p),
+    title: hidden ? "Off the board" : `Off the board: ${p.title}`,
+    description: hidden
+      ? "This goal was taken down. /goals shows what is posted now."
+      : "Met, expired or withdrawn. /goals shows what is posted now.",
     footer: "A goal is met by recorded facts; nobody judges.",
     rows: [],
     colour: COLOUR.ash,
@@ -189,6 +190,7 @@ export class BoardPoster {
     const openKey = `${this.prefix}open`;
     const before: string[] = JSON.parse((await this.store.get(openKey)) ?? "[]");
     const live = new Set(b.posts.map((p) => p.goal.id));
+    const hidden = new Set(b.hidden ?? []);
     const still = new Set<string>();
     let changed = 0;
     for (const p of b.posts) {
@@ -203,7 +205,7 @@ export class BoardPoster {
     for (const id of before) {
       if (live.has(id)) continue;
       try {
-        await this.close(id);
+        await this.close(id, hidden.has(id));
         changed++;
       } catch (e) {
         this.log(`[board] ${id}: ${String(e)}`);
@@ -264,9 +266,14 @@ export class BoardPoster {
     return true;
   }
 
-  private async close(id: string): Promise<void> {
+  private async close(id: string, hidden: boolean): Promise<void> {
     const was = await this.posted(id);
-    if (was?.post) await this.sink.reply(was.post, closedCard(was));
+    const card = was && closedCard(was, hidden);
+    // A hidden goal's words come off its post and its thread's name before
+    // anything is said under them.
+    if (was?.post && card && hidden)
+      await this.sink.edit(was.post, card, `${was.name} · off the board`.slice(0, 100));
+    if (was?.post && card) await this.sink.reply(was.post, card);
     await this.store.del(`${this.prefix}goal:${id}`);
   }
 

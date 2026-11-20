@@ -353,7 +353,7 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 			return TopicView{}, false
 		}
 		fields = append(fields, npc.Field{Key: "n", Value: strconv.FormatInt(built, decimal)}, npc.Field{Key: "unit", Value: "structures"},
-			npc.Field{Key: "thing", Value: strconv.FormatInt(g.r.NPC.Param("crowding-days"), decimal) + " days"})
+			npc.Field{Key: "thing", Value: strconv.FormatInt(g.crowdDays(), decimal) + " days"})
 	case "longer-road":
 		// Measured when the route was last relaid.
 		if n.Longer <= 0 || n.Longer < row.AtLeast {

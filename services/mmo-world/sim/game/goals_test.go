@@ -404,6 +404,7 @@ func TestAVowKeptAndBroken(t *testing.T) {
 	if keeper.Why != "kept" || breaker.Why != "broken" || ts[0].c.C.Goals.Get("vows-kept") != 1 {
 		t.Fatalf("keeper %s, breaker %s", keeper.Why, breaker.Why)
 	}
+	unchanged(t, ts[1], "a vow to hold off what is already in hand", game.Command{Kind: game.PostGoal, Goal: &vow})
 }
 
 // TestScreenedWordsAndHide: a title from the word list is refused, and an

@@ -204,3 +204,16 @@ func TestMastersEyeSeesTheRegistry(t *testing.T) {
 		t.Fatalf("without the ability: %+v", ap)
 	}
 }
+
+// Fair hand lowers the listing fee of a proposal its holder posts as it
+// does a goal's it pays for itself.
+func TestFairHandLowersAProposalsFee(t *testing.T) {
+	g, ts := society(t, 2)
+	holding(ts[0], "reeve", "fair-hand")
+	x := proposal(t, g, ts, game.GoalSpec{Title: "To the far side", Issuer: goal.BySettlement, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: "settlement:1"}})
+	if plain := g.Rules().Values.GoalFee(x.Reward + x.Fee); x.Fee >= plain {
+		t.Fatalf("a Reeve's proposal paid a %d coin fee, anyone's pays %d", x.Fee, plain)
+	}
+	audit(t, g)
+}

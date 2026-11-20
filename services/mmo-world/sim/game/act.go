@@ -157,7 +157,10 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		if c.Banned && !Operator(cmd.Kind) {
 			return Result{}, refuse(BannedCode, "character %s is banned", c.C.ID)
 		}
-		pressed, err = g.act(c, cmd)
+		undo := g.admit(c, cmd)
+		if pressed, err = g.act(c, cmd); err != nil {
+			undo()
+		}
 	}
 	if err != nil {
 		return Result{}, err
@@ -171,9 +174,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if kinds := uses[cmd.Kind]; kinds != nil {
 		g.used(c.C.At, kinds...)
 	}
-	if c.Carrying != "" && notDown(c) != nil {
-		g.setDown(c, g.Char(c.Carrying))
-	}
+	g.dropIfDown(c)
 	if err := g.creditGoals(first, cmd.Key); err != nil {
 		return Result{}, err
 	}
@@ -421,8 +422,10 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Press
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: char.Ref(c.C.ID), Tag: e.Creature.Archetype})
-		if more := g.charScale(c, "beat-threat", fixed.Hundredths) - fixed.Hundredths; more > 0 {
-			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: -g.r.wp("beat-won-threat") * more / fixed.Hundredths})
+		// The world refuses an ease of nothing, which a small scale floors to.
+		more := g.charScale(c, "beat-threat", fixed.Hundredths) - fixed.Hundredths
+		if ease := -g.r.wp("beat-won-threat") * more / fixed.Hundredths; more > 0 && ease > 0 {
+			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: ease})
 		}
 	}
 	if e.Over {

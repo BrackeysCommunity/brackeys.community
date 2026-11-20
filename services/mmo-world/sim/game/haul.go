@@ -6,10 +6,11 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// riskBand is the route-risk band of entering a tile (GDD 10.7): by its
-// region's threat or a gauge line it is past, raised one band by cover.
-// Where nothing lives there is no band. It returns the band's index too,
-// the sheet's order being safest first.
+// riskBand is the route-risk band of entering a tile for a character (GDD
+// 10.7): by its region's threat or a gauge line it is past, raised one
+// band by cover, or lowered one for a character its abilities hide there,
+// and moved on a road by its road-risk. Where nothing lives there is no
+// band. It returns the band's index too, safest first.
 func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 	bands := g.r.Book.RouteRisks
 	if len(bands) == 0 || len(g.r.Gen.Creatures(h)) == 0 {

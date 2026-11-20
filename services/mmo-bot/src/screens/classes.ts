@@ -4,7 +4,7 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import { capitalise } from "../lexicon.ts";
 import { num, plural } from "../units.ts";
-import { back, btn, PRIVATE } from "./common.ts";
+import { back, btn, PRIVATE, SELECT_MOST } from "./common.ts";
 
 /**
  * Classes (GDD 5.8, 5.9): nobody picks one; each unlocks by what was
@@ -55,7 +55,7 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
           : "Mark prey: one kind of creature, for today",
         options: c.prey.tags
           .filter((t) => t !== c.prey?.today)
-          .slice(0, 25)
+          .slice(0, SELECT_MOST)
           .map((t) => ({ label: capitalise(t), value: t })),
       },
     });
@@ -95,7 +95,7 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
         ]
       : undefined,
     table: tree.length ? { header: ["Tier", "One or the other", "Opens"], rows: tree } : undefined,
-    footer: "Two classes at most are active, chosen at a settlement; abilities taken are kept.",
+    footer: `At most ${plural(c.most, "class", "classes")} are active, chosen at a settlement; abilities taken are kept.`,
     rows,
     colour: COLOUR.signal,
   };

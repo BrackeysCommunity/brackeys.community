@@ -135,7 +135,7 @@ type Condition struct {
 	// Count is units, kills, places or days.
 	Count int64 `json:"count"`
 	// At is a place an event must be in: a settlement, region or tile
-	// ref; Within widens a tile to the tiles that far from it.
+	// ref. Hex and Within ask instead for anywhere that many tiles from Hex.
 	At     string   `json:"at,omitempty"`
 	Hex    *hex.Hex `json:"hex,omitempty"`
 	Within int64    `json:"within,omitempty"`
@@ -190,8 +190,8 @@ type Event struct {
 	Goal string `json:"goal,omitempty"`
 }
 
-// Matches reports whether an event counts toward a condition. A Hold is
-// read day by day by Credit, not here.
+// Matches reports whether an event counts toward a condition. A Hold's
+// reading is matched by gauge and place here; Held judges its line.
 func (c Condition) Matches(e Event) bool {
 	verb := c.Verb
 	if c.Abstains() {
@@ -236,9 +236,9 @@ func (c Condition) Held(value int64) bool {
 	return value > c.Line
 }
 
-// Met reports whether facts, read as events by see, meet a condition
-// alone: the first-mode reading, with every matching unit counted for
-// whoever did it.
+// Met reports whether facts, read as events by see, meet a condition on
+// their own: every matching unit counts, whoever did it, and a vow is met
+// while unbroken.
 func Met(c Condition, facts []fact.Fact, see func(fact.Fact) (Event, bool)) bool {
 	g := Goal{Cond: c, Mode: Pooled, State: Live, Progress: tally.Tally{}}
 	for _, f := range facts {
@@ -271,9 +271,26 @@ type Build struct {
 type Cargo struct {
 	Material   string `json:"material"`
 	Units      int64  `json:"units"`
-	Collateral int64  `json:"collateral"` // coin each hauler puts up
+	Collateral int64  `json:"collateral"` // coin the hauler puts up
 	Hauler     string `json:"hauler,omitempty"`
 	Taken      int64  `json:"taken,omitempty"`
+}
+
+// Out reports whether a hauler has taken the stock.
+func (c *Cargo) Out() bool { return c.Hauler != "" }
+
+// Take hands the stock to a hauler against the collateral it put up.
+func (c *Cargo) Take(who string, tick, collateral int64) {
+	c.Hauler, c.Taken, c.Collateral = who, tick, collateral
+}
+
+// Held is goods a contributor handed to a Deliver goal on a tile, kept in
+// the goal's escrow until the claim that counts them is paid.
+type Held struct {
+	Who   string  `json:"who"`
+	Asset string  `json:"asset"`
+	Units int64   `json:"units"`
+	At    hex.Hex `json:"at"`
 }
 
 // Goal is a posted goal and everything counted toward it.
@@ -301,7 +318,9 @@ type Goal struct {
 	State    string `json:"state"`
 	Why      string `json:"why,omitempty"` // how it ended
 	Hidden   bool   `json:"hidden,omitempty"`
-	Fee      int64  `json:"fee,omitempty"`
+	// Paid marks a met goal whose claims are paid and escrow emptied.
+	Paid bool  `json:"paid,omitempty"`
+	Fee  int64 `json:"fee,omitempty"`
 	// Need and Pledges: a settlement proposal goes live at Need pledged.
 	Need    int64       `json:"need,omitempty"`
 	Pledges tally.Tally `json:"pledges,omitempty"`
@@ -309,6 +328,8 @@ type Goal struct {
 	// each contributor's units, for the claim to cite.
 	Progress tally.Tally `json:"progress"`
 	Facts    []Cite      `json:"facts,omitempty"`
+	// Held are the deliveries its escrow still holds.
+	Held []Held `json:"held,omitempty"`
 	// Streak and Day: days running a Hold has kept its line, and the
 	// last day read. Broken: a vow to hold off a thing was broken.
 	Streak int64 `json:"streak,omitempty"`
@@ -359,6 +380,28 @@ func (g *Goal) Escrow() int64 {
 	return g.Reward
 }
 
+// Cost is what posting the goal takes from its backer: the escrow and the
+// listing fee.
+func (g *Goal) Cost() int64 { return g.Escrow() + g.Fee }
+
+// Pledge adds coin to a proposal's pledges, or to a live goal's reward.
+func (g *Goal) Pledge(who string, coin int64) {
+	g.Pledges.Bump(who, coin)
+	if g.State == Live {
+		g.Reward += coin
+	}
+}
+
+// GoLive turns a proposal live on the coin pledged to it: the fee out of
+// the pool, the rest the reward, so that Escrow is what the pool is left
+// holding.
+func (g *Goal) GoLive(pool, fee int64) {
+	g.Fee, g.Reward, g.State = fee, pool-fee, Live
+	if g.Mode == Each {
+		g.Reward = (pool - fee) / max(g.Cap, 1)
+	}
+}
+
 // Total is every unit counted so far.
 func (g *Goal) Total() int64 { return g.Progress.Sum() }
 
@@ -378,11 +421,20 @@ func (g *Goal) May(who string) bool {
 // earns: the first to the count, each capped claimant, or the pool's
 // split once the counter fills. A fact is fed once.
 func (g *Goal) Credit(e Event) []Claim {
-	if g.State == Live && g.Cond.Hold() && e.Verb == Defeat && g.Cond.in(e) && g.May(e.Who) {
-		g.Progress.Bump(e.Who, max(e.Units, 1))
+	if g.State != Live {
 		return nil
 	}
-	if g.State != Live || (e.Goal != "" && e.Goal != g.ID) || !g.Cond.Matches(e) || !g.May(e.Who) {
+	if g.Cond.Hold() {
+		switch {
+		// A day's reading is the world's, whoever the goal is for.
+		case (e.Goal == "" || e.Goal == g.ID) && g.Cond.Matches(e):
+			return g.hold(e)
+		case e.Verb == Defeat && g.Cond.in(e) && g.May(e.Who):
+			g.Progress.Bump(e.Who, max(e.Units, 1))
+		}
+		return nil
+	}
+	if (e.Goal != "" && e.Goal != g.ID) || !g.Cond.Matches(e) || !g.May(e.Who) {
 		return nil
 	}
 	if g.Cond.Abstains() {
@@ -390,9 +442,6 @@ func (g *Goal) Credit(e Event) []Claim {
 			g.Broken = true
 		}
 		return nil
-	}
-	if g.Cond.Hold() {
-		return g.hold(e)
 	}
 	units := min(max(e.Units, 1), g.Left(e.Who))
 	if units <= 0 {
@@ -425,7 +474,8 @@ func (g *Goal) Credit(e Event) []Claim {
 // hold reads one day of a Hold: a day on the right side of the line adds
 // to the streak, a day on the wrong side clears it, and the streak at the
 // count meets the goal. Those who won fights in the region while it held
-// share the reward by kills (a pooled Hold); else it is the poster's.
+// share the reward by kills; with none it pays nobody, and the escrow goes
+// back.
 func (g *Goal) hold(e Event) []Claim {
 	if e.Units <= g.Day {
 		return nil
@@ -440,13 +490,7 @@ func (g *Goal) hold(e Event) []Claim {
 	if g.Streak < g.Cond.Count {
 		return nil
 	}
-	if len(g.Progress) > 0 {
-		return g.close(g.split())
-	}
-	if g.Issuer.Kind != ByCharacter && g.Issuer.Kind != ByParty {
-		return g.close(nil)
-	}
-	return g.close([]Claim{g.claim(g.Poster, g.Reward)})
+	return g.close(g.split())
 }
 
 func (g *Goal) claim(who string, coin int64) Claim {
@@ -508,12 +552,10 @@ func (g *Goal) End(why string) {
 // decides what stands in for one that no longer exists.
 type Rebind func(at string) string
 
-// Turn is a goal at a season's close (GDD 11.4), on the new season's
-// first day: an expiring one ends, a resetting one starts again from
-// zero with the claimants its escrow still covers, a carrying one keeps
-// its progress, an evolving one re-binds its place and, where its amount
-// grows with the world, rescales its count by ratio (the new season's
-// measure over the old, in hundredths). It reports whether the goal ends.
+// Turn applies a season's close to a season goal by its turnover (GDD
+// 11.4) and reports whether it ends. A resetting Each goal keeps only the
+// claimants its escrow still covers; ratio is the new season's measure
+// over the old, in hundredths, for an evolving count.
 func (g *Goal) Turn(season, day, ratio int64, rebind Rebind) bool {
 	if !g.Open() || g.Lifetime != Season {
 		return false
@@ -569,6 +611,34 @@ type Limits struct {
 	EphemeralLeast, EphemeralMost                      int64 // ticks
 }
 
+// unread names a field the condition sets that its verb's events are never
+// matched on, or "": narrowed by one, a goal could not be met.
+func (c Condition) unread() string {
+	things := []string{Deliver, Make, Discover, Defeat, Haul}
+	if c.Abstains() {
+		things = append(things, Hold)
+	}
+	for _, f := range []struct {
+		set   bool
+		name  string
+		verbs []string
+	}{
+		{c.Kind != "" || c.Tag != "", "kind or tag", things},
+		{c.Trait != "", "trait", []string{Make}},
+		{c.Hex != nil || c.Within != 0, "distance", []string{Make, Discover, Defeat, Reach}},
+		{c.From != "", "start", []string{Haul}},
+		{c.Field != "" || c.AtLeast != 0, "field", []string{Discover}},
+		{c.Gauge != "" || c.Line != 0 || c.Below, "gauge", []string{Hold}},
+		{c.Who != "", "character", []string{Carry}},
+		{c.Side != "", "side", []string{Back}},
+	} {
+		if f.set && !slices.Contains(f.verbs, c.Verb) {
+			return f.name
+		}
+	}
+	return ""
+}
+
 // Valid reports why a goal cannot be posted as it stands.
 func Valid(g *Goal, now int64, l Limits) error {
 	c := g.Cond
@@ -577,6 +647,8 @@ func Valid(g *Goal, now int64, l Limits) error {
 		return fmt.Errorf("no verb %q", c.Verb)
 	case c.Verb == Back:
 		return fmt.Errorf("backing a side opens with the first arc")
+	case c.unread() != "":
+		return fmt.Errorf("a %s is not narrowed by a %s", c.Verb, c.unread())
 	case c.Count <= 0 && !c.Abstains():
 		return fmt.Errorf("a goal needs an amount")
 	case c.Count > amountMost || g.Reward > amountMost:

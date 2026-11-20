@@ -84,7 +84,8 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	for i := range b.Structures {
 		r.structures[b.Structures[i].ID] = &b.Structures[i]
 	}
-	r.matTags = map[string][]string{}
+	// Provisions are their own tag, beside the materials'.
+	r.matTags = map[string][]string{ledger.Provisions: {ledger.Provisions}}
 	for _, m := range b.Materials {
 		r.matTags[m.ID] = m.Tags
 	}
@@ -201,8 +202,7 @@ type Society struct {
 	// SeasonActive is the active characters at the last season's close,
 	// which an evolving goal rescales by.
 	SeasonActive int64 `json:"seasonActive"`
-	// WorkLedger is what guild works have consumed and given back, by
-	// work, at reference value, for the Economy run (GDD 4.14).
+	// WorkLedger is read by the Economy run (GDD 4.14).
 	WorkLedger WorkLedger `json:"workLedger"`
 	// Built are the crowding counters and Crowded the settlements a build
 	// has just left crowded, until crowdTurn settles them (GDD 4.18).

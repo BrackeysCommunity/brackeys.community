@@ -246,7 +246,7 @@ export function forumSink(
       }
       return true;
     },
-    async edit(post, card) {
+    async edit(post, card, title) {
       const th = await client.channels.fetch(post).catch((e: unknown) => {
         if (postGone(e)) return null;
         throw e;
@@ -265,6 +265,7 @@ export function forumSink(
           await th.setArchived(false);
           await first.edit(message);
         }
+        if (title) await th.setName(title);
       } catch (e) {
         if (postGone(e)) return false;
         throw e;

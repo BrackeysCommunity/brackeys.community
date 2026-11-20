@@ -130,8 +130,15 @@ type Sheet struct {
 	Finds     []Find     `json:"finds"`
 	Owed      int64      `json:"owed,omitempty"` // provisions an unfed mount waits on
 	Consent   Consent    `json:"consent"`
-	// Vows are the titles of the vows the character is keeping (GDD 11.7).
-	Vows []string `json:"vows"`
+	// Vows are the character's own unpaid goals still up (GDD 11.7).
+	Vows []Vow `json:"vows"`
+}
+
+// Vow is a goal a character posted for no reward: its own word.
+type Vow struct {
+	Title string `json:"title"`
+	// Broken: it vowed to hold off a thing and has not.
+	Broken bool `json:"broken,omitempty"`
 }
 
 // Consent is who NPCs may name the character to (GDD 4.18).

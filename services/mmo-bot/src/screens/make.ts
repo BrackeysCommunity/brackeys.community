@@ -276,7 +276,12 @@ export function characterCard(
     },
   ];
   if (sheet.vows.length)
-    fields.push({ name: "Vows kept so far", value: sheet.vows.map((v) => `• ${v}`).join("\n") });
+    fields.push({
+      name: "Vows",
+      value: sheet.vows
+        .map((v) => `• ${v.title}: ${v.broken ? "broken" : "kept so far"}`)
+        .join("\n"),
+    });
   if (sheet.finds.length)
     fields.push({
       name: "Finds",

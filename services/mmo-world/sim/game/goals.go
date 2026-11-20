@@ -126,9 +126,7 @@ func (g *Game) goalAct(c *Char, cmd Command) error {
 	return refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
 
-// postGoal checks a spec and posts it: the fee and escrow from whoever
-// pays (the poster, the treasury, or for a proposal its pledges once it
-// goes live), a fact, and the goal on its settlement's board.
+// postGoal drafts a spec and opens it on its settlement's board.
 func (g *Game) postGoal(c *Char, key string, s GoalSpec) (*Goal, error) {
 	x, err := g.draft(c, s)
 	if err != nil {
@@ -161,6 +159,9 @@ func (g *Game) draft(c *Char, s GoalSpec) (*Goal, error) {
 	}
 	if err := goal.Valid(x, g.Tick(), g.limits()); err != nil {
 		return nil, refuse(BadArgs, "%v", err)
+	}
+	if err := g.target(c, x.Cond); err != nil {
+		return nil, err
 	}
 	if x.Cond.Verb == goal.Haul {
 		if err := g.cargo(c, x, s); err != nil {
@@ -200,8 +201,30 @@ func (g *Game) openGoal(x *Goal) {
 // Screened is a goal's words refused by the word list.
 const Screened = "screened"
 
-// paid marks a met goal whose claims are paid and escrow emptied.
-const paid = "paid"
+// target refuses a condition aimed at what the world does not hold, or at
+// what its poster already fails: a Hold's gauge and region, a Discover's
+// field, a vow to hold off a thing the poster has equipped.
+func (g *Game) target(c *Char, cond goal.Condition) error {
+	if cond.Hold() {
+		if _, ok := g.World.GaugeOf(cond.Gauge); !ok {
+			return refuse(BadArgs, "no gauge %q", cond.Gauge)
+		}
+		if _, ok := g.regionOf(cond.At); !ok {
+			return refuse(BadArgs, "a Hold names a region the world holds")
+		}
+	}
+	if _, ok := g.r.Gen.Baseline(c.C.At).Fields()[cond.Field]; cond.Field != "" && !ok {
+		return refuse(BadArgs, "no field %q", cond.Field)
+	}
+	if cond.Abstains() {
+		for _, e := range c.C.Equipped {
+			if in := c.C.Item(e.Item); in != nil && cond.Matches(g.equipped(goal.Event{Who: c.C.ID, Hex: c.C.At, Places: g.placesOf(c.C.At)}, in)) {
+				return refuse(BadArgs, "%s has that equipped: take it off before vowing to hold it off", c.C.ID)
+			}
+		}
+	}
+	return nil
+}
 
 // issue sets who issues a goal and its scope from the spec: a character
 // alone, a party it names, a settlement proposal waiting for pledges, or
@@ -211,6 +234,9 @@ func (g *Game) issue(c *Char, x *Goal, s GoalSpec) error {
 	x.Scope = goal.World
 	if s.Cond.Abstains() && s.Issuer != goal.ByCharacter {
 		return refuse(BadArgs, "a vow to hold off a thing is a character's own")
+	}
+	if s.Cond.Verb == goal.Carry && s.Cond.Who != c.C.ID {
+		return refuse(BadArgs, "only %s calls for help for itself", s.Cond.Who)
 	}
 	switch s.Issuer {
 	case goal.ByCharacter:
@@ -231,8 +257,7 @@ func (g *Game) issue(c *Char, x *Goal, s GoalSpec) error {
 		x.Issuer.ID = goal.SettlementRef(x.Board)
 		x.Need = g.charScale(c, "pledge-need", g.gp("pledge-need"))
 	case goal.ByAdmin:
-		p := g.Places[x.Board]
-		gd := g.GuildOf(p.Guild)
+		gd, _ := g.RunsHere(c)
 		if gd == nil || !gd.G.IsOfficer(c.C.ID) {
 			return refuse(BadArgs, "a muster is posted by an officer of the guild that runs this settlement")
 		}
@@ -274,22 +299,31 @@ func backer(x *Goal) string {
 }
 
 // quote sets a live goal's listing fee and refuses a payer who cannot
-// cover it and the escrow, or an officer whose muster is over what it may
-// spend today; a proposal pays when it goes live. It runs before anything
-// moves, so a refused post changes nothing.
+// cover it and the escrow, or a muster over its officer's day; a proposal
+// pays when it goes live.
 func (g *Game) quote(c *Char, x *Goal) error {
 	if x.State == goal.Proposed {
 		return nil
 	}
 	x.Fee = 0
 	if !x.Vow() {
-		x.Fee = g.charScale(c, "listing-fee", g.r.Values.GoalFee(x.Escrow()))
+		x.Fee = g.listingFee(x, x.Escrow())
 	}
-	need := x.Escrow() + x.Fee
+	need := x.Cost()
 	if g.Ledger.Of(backer(x), ledger.Coin) < need {
 		return refuse(BadArgs, "posting takes %d coin, the reward and a %d coin listing fee", need, x.Fee)
 	}
 	return g.mayMuster(c, x, need)
+}
+
+// listingFee is the fee on a goal's escrow, which its poster's abilities
+// may lower.
+func (g *Game) listingFee(x *Goal, escrow int64) int64 {
+	fee := g.r.Values.GoalFee(escrow)
+	if c := g.Char(x.Poster); c != nil {
+		return g.charScale(c, "listing-fee", fee)
+	}
+	return fee
 }
 
 // mayMuster refuses a muster whose coin is over what its officer may
@@ -328,31 +362,46 @@ func (g *Game) fund(c *Char, x *Goal, key string) error {
 		return nil
 	}
 	if gd := g.GuildOf(x.Issuer.ID); gd != nil && x.Issuer.Kind == goal.ByAdmin {
-		gd.G.Spent(c.C.ID, g.World.Day, x.Escrow()+x.Fee)
+		gd.G.Spent(c.C.ID, g.World.Day, x.Cost())
 	}
 	return g.postAll(ledger.Txn{Key: ledger.SubKey(key, "fund"), Kind: "goal-fund", Tick: g.Tick(), Legs: ledger.Merge(legs)})
 }
 
+// TakesPledges reports whether a goal takes pledges: a proposal, or a
+// live first or pooled goal with a reward.
+func TakesPledges(x *Goal) bool {
+	return !x.Hidden && x.Open() && (x.State == goal.Proposed || x.Mode != goal.Each && !x.Vow())
+}
+
 // pledge adds coin to a proposal (live at its need) or to a first or
-// pooled goal's reward.
+// pooled goal's reward. A live goal's pledger pays the listing fee its
+// coin adds, as the poster did on the rest.
 func (g *Game) pledge(c *Char, cmd Command) error {
 	x := g.GoalOf(cmd.Target)
 	switch {
 	case x == nil || x.Hidden || !x.Open():
 		return refuse(BadArgs, "no open goal %q", cmd.Target)
-	case x.State == goal.Live && (x.Mode == goal.Each || x.Vow()):
+	case !TakesPledges(x):
 		return refuse(BadArgs, "only a proposal or a first or pooled goal with a reward takes pledges")
-	case cmd.Units <= 0 || c.C.Coin < cmd.Units:
+	case cmd.Units <= 0:
 		return refuse(BadArgs, "a pledge is coin %s holds", c.C.ID)
 	}
-	if err := g.postAll(ledger.Move(cmd.Key, "pledge", g.Tick(), ledger.Char(c.C.ID), goalPool(x.ID), ledger.Coin, cmd.Units)); err != nil {
+	var fee int64
+	if x.State == goal.Live {
+		fee = max(0, g.listingFee(x, x.Escrow()+cmd.Units)-x.Fee)
+	}
+	if err := g.afford(c, ledger.Coin, ledger.Coin, cmd.Units+fee); err != nil {
 		return err
 	}
-	x.Pledges.Bump(c.C.ID, cmd.Units)
-	c.C.Deeds.Bump(DeedPledged, cmd.Units)
-	if x.State == goal.Live {
-		x.Reward += cmd.Units
+	legs := ledger.Pair(ledger.Char(c.C.ID), goalPool(x.ID), ledger.Coin, cmd.Units)
+	if fee > 0 {
+		legs = append(legs, ledger.Pair(ledger.Char(c.C.ID), ledger.ToGoalFees, ledger.Coin, fee)...)
 	}
+	if err := g.postAll(ledger.Txn{Key: cmd.Key, Kind: "pledge", Tick: g.Tick(), Legs: ledger.Merge(legs)}); err != nil {
+		return err
+	}
+	x.Pledge(c.C.ID, cmd.Units)
+	x.Fee += fee
 	if _, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.pledged", g.Tick(), fact.N("coin", cmd.Units)); err != nil {
 		return err
 	}
@@ -366,29 +415,23 @@ func (g *Game) pledge(c *Char, cmd Command) error {
 // the fee from the pool, the rest the reward.
 func (g *Game) goLive(x *Goal, key string) error {
 	pool := g.Ledger.Of(goalPool(x.ID), ledger.Coin)
-	x.Fee = g.r.Values.GoalFee(pool)
-	if x.Mode == goal.Each {
-		x.Reward = (pool - x.Fee) / max(x.Cap, 1)
-	} else {
-		x.Reward = pool - x.Fee
-	}
+	x.GoLive(pool, g.listingFee(x, pool))
 	if err := g.post(ledger.Move(ledger.SubKey(key, "live"), "goal-fee", g.Tick(), goalPool(x.ID), ledger.ToGoalFees, ledger.Coin, x.Fee)); err != nil {
 		return err
 	}
-	x.State = goal.Live
 	_, err := g.worldFact(g.SettlementHex(x.Board), "goal.live", []fact.Ref{goalRef(x.ID)}, nil, fact.N("reward", x.Reward))
 	return err
 }
 
 // deliver hands goods to a Deliver goal at its place, or a haul's stock at
-// its end: to the issuer, into a structure being raised, or into the
-// settlement's treasury.
+// its end. A delivery stays in the goal's escrow until the claim that
+// counts it is paid, so a goal that ends short gives it back.
 func (g *Game) deliver(c *Char, cmd Command) error {
 	x := g.GoalOf(cmd.Target)
 	if x == nil || x.State != goal.Live || x.Hidden || !x.May(c.C.ID) {
 		return refuse(BadArgs, "no live goal %q for %s", cmd.Target, c.C.ID)
 	}
-	if !slices.Contains(g.placesOf(c.C.At), x.Cond.At) {
+	if !g.standsIn(c, x.Cond.At) {
 		return refuse(NotHere, "it is delivered at %s", x.Cond.At)
 	}
 	if x.Cond.Verb == goal.Haul {
@@ -398,7 +441,7 @@ func (g *Game) deliver(c *Char, cmd Command) error {
 		return refuse(BadArgs, "%s is not met by a delivery", x.ID)
 	}
 	material := cmd.Material
-	if !g.matches(x.Cond, material) {
+	if !g.Takes(x, c, material) {
 		return refuse(BadArgs, "%s does not take %s", x.ID, material)
 	}
 	units := min(cmd.Units, x.Left(c.C.ID))
@@ -409,57 +452,126 @@ func (g *Game) deliver(c *Char, cmd Command) error {
 	if err := g.afford(c, asset, material, units); err != nil {
 		return err
 	}
-	if err := g.postAll(ledger.Move(cmd.Key, "goal-delivery", g.Tick(), ledger.Char(c.C.ID), g.deliveredTo(x, c.C.At), asset, units)); err != nil {
+	if err := g.postAll(ledger.Move(cmd.Key, "goal-delivery", g.Tick(), ledger.Char(c.C.ID), goalPool(x.ID), asset, units)); err != nil {
 		return err
 	}
+	x.Held = append(x.Held, goal.Held{Who: c.C.ID, Asset: asset, Units: units, At: c.C.At})
 	_, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.delivered", g.Tick(), append([]fact.Datum{fact.S("goal", x.ID), fact.S("material", material),
 		fact.N("units", units)}, fact.At(c.C.At)...)...)
 	return err
 }
 
-// matches reports whether a material is what a Deliver condition asks.
-func (g *Game) matches(c goal.Condition, material string) bool {
-	if c.Kind != "" && c.Kind != material {
-		return false
-	}
-	return c.Tag == "" || g.materialHas(material, c.Tag)
+// delivery is a character handing a material to a goal where it stands,
+// as the goal will read the fact of it.
+func (g *Game) delivery(x *Goal, c *Char, material string) goal.Event {
+	return goal.Event{Verb: goal.Deliver, Who: c.C.ID, Goal: x.ID, Kind: material, Tags: g.materialTags(material), Hex: c.C.At, Places: g.placesOf(c.C.At)}
 }
 
-// deliveredTo is where a delivery made on a tile goes: a structure's
-// goods are sunk into it, a settlement's into its treasury, a muster's
-// into its guild's bank (where its works draw them, though its coin is the
-// treasury's), anyone else's to the issuer, there.
+// Takes reports whether a Deliver goal would count a material from a
+// character where it stands.
+func (g *Game) Takes(x *Goal, c *Char, material string) bool {
+	return x.Cond.Verb == goal.Deliver && x.May(c.C.ID) && x.Cond.Matches(g.delivery(x, c, material))
+}
+
+// deliveredTo is where a goal's deliveries made on a tile go once they
+// count: a structure's are sunk into it; a settlement's and a muster's go
+// to the bank of the guild behind them, where its works draw them, or are
+// built into a settlement its keepers run; anyone else's to the poster,
+// there.
 func (g *Game) deliveredTo(x *Goal, at hex.Hex) string {
 	switch {
 	case x.Build != nil:
 		return ledger.ToBuild
-	case x.Issuer.Kind == goal.BySettlement:
-		return TreasuryPool(x.Board)
-	case x.Issuer.Kind == goal.ByAdmin:
-		if gd := g.GuildOf(x.Issuer.ID); gd != nil {
+	case x.Issuer.Kind == goal.BySettlement, x.Issuer.Kind == goal.ByAdmin:
+		gd := g.GuildOf(g.Places[x.Board].Guild)
+		if x.Issuer.Kind == goal.ByAdmin {
+			gd = g.GuildOf(x.Issuer.ID)
+		}
+		if gd != nil {
 			return gd.Pool()
 		}
-		return TreasuryPool(x.Board)
+		return ledger.ToBuild
 	case x.Issuer.Kind == goal.ByFaction:
 		return ledger.ToFaction
 	}
-	return g.leftFor(x.Poster, at)
+	return g.handTo(x.Poster, at)
 }
 
-// leftFor is where goods handed over on a tile for a character go: its
-// pack if it stands there, else a pool on the tile, noted on the
-// character, that waits for it to come (GDD 10.1: goods are where they
-// are).
-func (g *Game) leftFor(who string, at hex.Hex) string {
-	c := g.Char(who)
-	if c == nil || c.C.At == at {
+// release hands a claimant's deliveries on from the goal's escrow.
+func (g *Game) release(x *Goal, who, key string) error {
+	var legs []ledger.Leg
+	var kept, gone []goal.Held
+	for _, h := range x.Held {
+		if h.Who != who {
+			kept = append(kept, h)
+			continue
+		}
+		gone = append(gone, h)
+		legs = append(legs, ledger.Pair(goalPool(x.ID), g.deliveredTo(x, h.At), h.Asset, h.Units)...)
+	}
+	if len(legs) == 0 {
+		return nil
+	}
+	x.Held = kept
+	if err := g.postAll(ledger.Txn{Key: ledger.SubKey(key, "handed", x.ID, who), Kind: "goal-handed", Tick: g.Tick(), Legs: ledger.Merge(legs)}); err != nil {
+		return err
+	}
+	for _, h := range gone {
+		g.awaits(x.Poster, h.At)
+	}
+	return nil
+}
+
+// handBack returns every delivery the goal's escrow still holds to whoever
+// made it, where it was made.
+func (g *Game) handBack(x *Goal, key string) error {
+	held := x.Held
+	if len(held) == 0 {
+		return nil
+	}
+	var legs []ledger.Leg
+	for _, h := range held {
+		legs = append(legs, ledger.Pair(goalPool(x.ID), g.handTo(h.Who, h.At), h.Asset, h.Units)...)
+	}
+	x.Held = nil
+	if err := g.postAll(ledger.Txn{Key: ledger.SubKey(key, "back", x.ID), Kind: "goal-back", Tick: g.Tick(), Legs: ledger.Merge(legs)}); err != nil {
+		return err
+	}
+	for _, h := range held {
+		g.awaits(h.Who, h.At)
+	}
+	return nil
+}
+
+// handTo is the account goods handed over on a tile for a character go to:
+// its pack if it stands there, else a pool on the tile that waits for it
+// to come (GDD 10.1: goods are where they are).
+func (g *Game) handTo(who string, at hex.Hex) string {
+	if c := g.Char(who); c == nil || c.C.At == at {
 		return ledger.Char(who)
 	}
-	if !slices.Contains(c.Waits, at) {
-		c.Waits = append(c.Waits, at)
-		c.Version++
-	}
 	return ledger.WaitPool(at.Ref(), who)
+}
+
+// awaits notes on a character that goods now wait for it on a tile.
+func (g *Game) awaits(who string, at hex.Hex) {
+	c := g.Char(who)
+	if c == nil || slices.Contains(c.Waits, at) || len(g.Ledger.Held(ledger.WaitPool(at.Ref(), who))) == 0 {
+		return
+	}
+	c.Waits = append(c.Waits, at)
+	c.Version++
+}
+
+// sweep are the legs moving everything an account holds to another.
+func (g *Game) sweep(from, to string) []ledger.Leg {
+	var legs []ledger.Leg
+	for _, h := range g.Ledger.Held(from) {
+		if h.Units > 0 {
+			legs = append(legs, ledger.Pair(from, to, h.Asset, h.Units)...)
+		}
+	}
+	return legs
 }
 
 // collect hands a character the goods that wait for it where it stands.
@@ -469,13 +581,7 @@ func (g *Game) collect(c *Char, key string) error {
 		return nil
 	}
 	c.Waits = slices.Delete(c.Waits, i, i+1)
-	pool, to := ledger.WaitPool(c.C.At.Ref(), c.C.ID), ledger.Char(c.C.ID)
-	var legs []ledger.Leg
-	for _, h := range g.Ledger.Held(pool) {
-		if h.Units > 0 {
-			legs = append(legs, ledger.Pair(pool, to, h.Asset, h.Units)...)
-		}
-	}
+	legs := g.sweep(ledger.WaitPool(c.C.At.Ref(), c.C.ID), ledger.Char(c.C.ID))
 	if len(legs) == 0 {
 		return nil
 	}
@@ -499,6 +605,9 @@ func (g *Game) WaitingFor(c *Char) []Waiting {
 	return out
 }
 
+// standsIn reports whether a character stands in the place a ref names.
+func (g *Game) standsIn(c *Char, ref string) bool { return slices.Contains(g.placesOf(c.C.At), ref) }
+
 // placesOf are the refs a tile is in: its tile, region and settlement.
 func (g *Game) placesOf(h hex.Hex) []string {
 	out := []string{goal.TileRef(h)}
@@ -518,11 +627,11 @@ func (g *Game) takeHaul(c *Char, cmd Command) error {
 	switch {
 	case x == nil || x.State != goal.Live || x.Cargo == nil || x.Hidden || !x.May(c.C.ID):
 		return refuse(BadArgs, "no live Haul %q for %s", cmd.Target, c.C.ID)
-	case x.Cargo.Hauler != "":
+	case x.Cargo.Out():
 		return refuse(BadArgs, "%s is already being hauled", x.ID)
 	case x.Poster == c.C.ID:
 		return refuse(BadArgs, "a poster does not haul its own stock")
-	case !slices.Contains(g.placesOf(c.C.At), x.Cond.From):
+	case !g.standsIn(c, x.Cond.From):
 		return refuse(NotHere, "the stock waits at %s", x.Cond.From)
 	}
 	collateral := g.charScale(c, "haul-collateral", x.Cargo.Collateral)
@@ -537,13 +646,13 @@ func (g *Game) takeHaul(c *Char, cmd Command) error {
 	if err := g.postAll(ledger.Txn{Key: cmd.Key, Kind: "haul-taken", Tick: g.Tick(), Legs: legs}); err != nil {
 		return err
 	}
-	x.Cargo.Hauler, x.Cargo.Taken, x.Cargo.Collateral = c.C.ID, g.Tick(), collateral
+	x.Cargo.Take(c.C.ID, g.Tick(), collateral)
 	_, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.haul-taken", g.Tick(), fact.N("collateral", collateral))
 	return err
 }
 
-// haulIn delivers a haul at its end: the stock, intact, to the poster
-// there, the collateral back, and the fact the goal counts.
+// haulIn delivers a haul at its end: the stock, intact, to where the
+// goal's deliveries go, the collateral back, and the fact the goal counts.
 func (g *Game) haulIn(c *Char, x *Goal, key string) error {
 	if x.Cargo.Hauler != c.C.ID {
 		return refuse(BadArgs, "%s is %s's to deliver", x.ID, x.Cargo.Hauler)
@@ -552,7 +661,7 @@ func (g *Game) haulIn(c *Char, x *Goal, key string) error {
 	if err := g.afford(c, asset, x.Cargo.Material, x.Cargo.Units); err != nil {
 		return refuse(BadArgs, "the haul is no longer intact")
 	}
-	legs := ledger.Pair(ledger.Char(c.C.ID), g.leftFor(x.Poster, c.C.At), asset, x.Cargo.Units)
+	legs := ledger.Pair(ledger.Char(c.C.ID), g.deliveredTo(x, c.C.At), asset, x.Cargo.Units)
 	if x.Cargo.Collateral > 0 {
 		legs = append(legs, ledger.Pair(goalPool(x.ID), ledger.Char(c.C.ID), ledger.Coin, x.Cargo.Collateral)...)
 	}
@@ -560,32 +669,51 @@ func (g *Game) haulIn(c *Char, x *Goal, key string) error {
 		return err
 	}
 	x.Cargo.Collateral = 0
+	g.awaits(x.Poster, c.C.At)
 	_, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.hauled", g.Tick(), append([]fact.Datum{fact.S("goal", x.ID), fact.S("material", x.Cargo.Material),
 		fact.N("units", x.Cargo.Units), fact.S("from", x.Cond.From)}, fact.At(c.C.At)...)...)
 	return err
 }
 
 // withdrawGoal takes down a goal nobody has claimed from or hauled, or
-// one whose target evolved today: escrow and pledges back, the fee kept.
+// one whose target evolved today: escrow, pledges and deliveries back, the
+// fee kept.
 func (g *Game) withdrawGoal(c *Char, cmd Command) error {
 	x := g.GoalOf(cmd.Target)
-	switch {
-	case x == nil || !x.Open():
+	if x == nil || !x.Open() {
 		return refuse(BadArgs, "no open goal %q", cmd.Target)
-	case x.Poster != c.C.ID:
-		return refuse(BadArgs, "only %s may withdraw %s", x.Poster, x.ID)
-	case x.Cargo != nil && x.Cargo.Hauler != "":
-		return refuse(BadArgs, "%s has been taken", x.ID)
-	case len(x.Claims) > 0 && (x.Evolved == 0 || g.World.Day != x.Evolved):
-		return refuse(BadArgs, "%s has been claimed from", x.ID)
+	}
+	if err := g.withdrawal(x, c); err != nil {
+		return err
 	}
 	return g.endGoal(x, "withdrawn", cmd.Key)
 }
 
-// endGoal closes a goal unmet and returns what its escrow holds: pledges to
-// their pledgers, a haul's stock and collateral to the poster (the
-// collateral forfeit if the hauler never delivered), the rest to whoever
-// paid it.
+// withdrawal refuses a character who may not take an open goal down now.
+// A guild's muster or raise is its officers' to withdraw, whoever posted
+// it; any other goal is its poster's.
+func (g *Game) withdrawal(x *Goal, c *Char) error {
+	mine := x.Poster == c.C.ID
+	if gd := g.GuildOf(x.Issuer.ID); gd != nil && x.Issuer.Kind == goal.ByAdmin {
+		mine = gd.G.IsOfficer(c.C.ID)
+	}
+	switch {
+	case !mine:
+		return refuse(BadArgs, "%s is not %s's to withdraw", x.ID, c.C.ID)
+	case x.Cargo != nil && x.Cargo.Out():
+		return refuse(BadArgs, "%s has been taken", x.ID)
+	case len(x.Claims) > 0 && (x.Evolved == 0 || g.World.Day != x.Evolved):
+		return refuse(BadArgs, "%s has been claimed from", x.ID)
+	}
+	return nil
+}
+
+// CanWithdraw reports whether a character may take an open goal down now.
+func (g *Game) CanWithdraw(x *Goal, c *Char) bool { return x.Open() && g.withdrawal(x, c) == nil }
+
+// endGoal closes a goal unmet and refunds its escrow; a hauler who never
+// delivered forfeits its collateral to the poster. One line of a raise
+// ending ends the others.
 func (g *Game) endGoal(x *Goal, why, key string) error {
 	if err := g.refund(x, key); err != nil {
 		return err
@@ -597,8 +725,6 @@ func (g *Game) endGoal(x *Goal, why, key string) error {
 	if x.Build == nil {
 		return nil
 	}
-	// A structure rises only when every line of its raise is met, so one
-	// line down takes the rest of that raise with it.
 	for _, y := range g.Goals {
 		if y.Build != nil && y.Build.Project == x.Build.Project && y.Open() {
 			if err := g.endGoal(y, why, key); err != nil {
@@ -609,33 +735,50 @@ func (g *Game) endGoal(x *Goal, why, key string) error {
 	return nil
 }
 
-// refund empties a goal's escrow: pledges first, the rest to whoever paid,
-// goods where they are.
+// refund empties a goal's escrow: pledges to their pledgers, deliveries to
+// whoever made them, a haul's stock to its poster at the board it was
+// posted on, and the rest to whoever paid. A pledge counts as a deed for
+// what of it was paid out.
 func (g *Game) refund(x *Goal, key string) error {
 	pool := goalPool(x.ID)
 	var legs []ledger.Leg
 	for _, p := range x.Pledges {
-		if n := min(p.N, g.Ledger.Of(pool, ledger.Coin)-sumLegs(legs, ledger.Coin)); n > 0 {
+		n := max(0, min(p.N, g.Ledger.Of(pool, ledger.Coin)-sumLegs(legs, ledger.Coin)))
+		if n > 0 {
 			legs = append(legs, ledger.Pair(pool, ledger.Char(p.Key), ledger.Coin, n)...)
 		}
+		if c := g.Char(p.Key); c != nil && p.N > n {
+			c.C.Deeds.Bump(DeedPledged, p.N-n)
+			c.Version++
+		}
 	}
-	back := backer(x)
+	held, board := x.Held, g.SettlementHex(x.Board)
+	for _, h := range held {
+		legs = append(legs, ledger.Pair(pool, g.handTo(h.Who, h.At), h.Asset, h.Units)...)
+	}
+	x.Held = nil
 	for _, h := range g.Ledger.Held(pool) {
 		n := h.Units - sumLegs(legs, h.Asset)
 		if n <= 0 {
 			continue
 		}
-		to := back
-		// A haul's stock nobody took is still at the board it was posted on.
-		if id, ok := ledger.CharOf(back); ok && h.Asset != ledger.Coin {
-			to = g.leftFor(id, g.SettlementHex(x.Board))
+		to := backer(x)
+		if h.Asset != ledger.Coin && g.Char(x.Poster) != nil {
+			to = g.handTo(x.Poster, board)
 		}
 		legs = append(legs, ledger.Pair(pool, to, h.Asset, n)...)
 	}
 	if len(legs) == 0 {
 		return nil
 	}
-	return g.postAll(ledger.Txn{Key: ledger.SubKey(key, "end", x.ID), Kind: "goal-end", Tick: g.Tick(), Legs: ledger.Merge(legs)})
+	if err := g.postAll(ledger.Txn{Key: ledger.SubKey(key, "end", x.ID), Kind: "goal-end", Tick: g.Tick(), Legs: ledger.Merge(legs)}); err != nil {
+		return err
+	}
+	for _, h := range held {
+		g.awaits(h.Who, h.At)
+	}
+	g.awaits(x.Poster, board)
+	return nil
 }
 
 // sumLegs is what legs already take from their pools of an asset.
@@ -678,9 +821,9 @@ func (g *Game) callHelp(c *Char, cmd Command) error {
 			return err
 		}
 	}
-	x.Expires = c.Long.Due
 	g.rescueOffer(c, x)
 	g.openGoal(x)
+	g.syncCall(c)
 	if err := g.fund(c, x, cmd.Key); err != nil {
 		return err
 	}
@@ -713,8 +856,7 @@ func (g *Game) HomeOf(c *Char) int {
 }
 
 // carry picks up a downed character on the rescuer's tile; the rescuer's
-// journeys take it along until a settlement, where it is set down (GDD
-// 11.6).
+// journeys take it along to its home settlement (GDD 11.6).
 func (g *Game) carry(c *Char, cmd Command) error {
 	if err := free(c); err != nil {
 		return err
@@ -732,11 +874,7 @@ func (g *Game) carry(c *Char, cmd Command) error {
 	if d.Long != nil && d.Long.Kind == Crawl {
 		d.Long = nil
 	}
-	// Its call ran until it would have crawled out; lifted, it crawls
-	// nowhere, and the call stands until it is home or crawls again.
-	if x := g.callOf(d); x != nil {
-		x.Expires = 0
-	}
+	g.syncCall(d)
 	d.Version++
 	c.C.Meet(char.Met{Who: d.C.ID, How: "rescued", Tick: g.Tick()}, g.r.limits)
 	d.C.Meet(char.Met{Who: c.C.ID, How: "rescued-by", Tick: g.Tick()}, g.r.limits)
@@ -792,6 +930,27 @@ func (g *Game) setDown(rescuer, carried *Char) {
 	}
 }
 
+// dropIfDown has a rescuer who is down carry nobody further.
+func (g *Game) dropIfDown(c *Char) {
+	if c.Carrying != "" && notDown(c) != nil {
+		g.setDown(c, g.Char(c.Carrying))
+	}
+}
+
+// syncCall runs a downed character's call for help as long as the crawl it
+// would spare: to the crawl's end, and with no end while it is carried and
+// crawls nowhere.
+func (g *Game) syncCall(d *Char) {
+	x := g.callOf(d)
+	if x == nil {
+		return
+	}
+	x.Expires = 0
+	if d.Long != nil && d.Long.Kind == Crawl {
+		x.Expires = d.Long.Due
+	}
+}
+
 // blocked is the first word of the goals word list a text holds, or "".
 func (g *Game) blocked(text string) string {
 	words := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
@@ -826,8 +985,8 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 	return nil
 }
 
-// payClaims moves claims out of a goal's escrow, records them, and raises a
-// structure a met project finishes.
+// payClaims moves claims out of a goal's escrow with the deliveries they
+// count, records them, and raises a structure a met project finishes.
 func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 	for i, cl := range claims {
 		if cl.Coin > 0 && x.Issuer.Kind == goal.ByFaction {
@@ -840,6 +999,9 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 			if err := g.postAll(t); err != nil {
 				return err
 			}
+		}
+		if err := g.release(x, cl.Who, key); err != nil {
+			return err
 		}
 		if c := g.Char(cl.Who); c != nil {
 			c.C.Goals.Bump("met", 1)
@@ -856,10 +1018,10 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 			}
 		}
 	}
-	if x.State != goal.Done || x.Why != goal.Done {
+	if x.State != goal.Done || x.Paid {
 		return nil
 	}
-	x.Why = paid
+	x.Paid = true
 	if err := g.goalFact(x, "goal.met", fact.N("claims", int64(len(x.Claims)))); err != nil {
 		return err
 	}
@@ -872,31 +1034,38 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 	return nil
 }
 
-// Takes reports whether a Deliver goal takes a material.
-func (g *Game) Takes(x *Goal, material string) bool { return g.matches(x.Cond, material) }
-
 // HaulHere is what a character may do with a Haul goal where it stands:
 // "take" its stock at the start, "deliver" it at the end, or "".
 func (g *Game) HaulHere(x *Goal, c *Char) string {
 	if x.Cargo == nil || x.State != goal.Live || !x.May(c.C.ID) {
 		return ""
 	}
-	here := g.placesOf(c.C.At)
 	switch {
-	case x.Cargo.Hauler == "" && x.Poster != c.C.ID && slices.Contains(here, x.Cond.From):
+	case !x.Cargo.Out() && x.Poster != c.C.ID && g.standsIn(c, x.Cond.From):
 		return "take"
-	case x.Cargo.Hauler == c.C.ID && slices.Contains(here, x.Cond.At):
+	case x.Cargo.Hauler == c.C.ID && g.standsIn(c, x.Cond.At):
 		return "deliver"
 	}
 	return ""
+}
+
+// CharsAt are the characters on a tile.
+func (g *Game) CharsAt(h hex.Hex) []*Char {
+	var out []*Char
+	for _, c := range g.Chars {
+		if c.C.At == h {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // DownedAt are the characters down on a character's tile that it could
 // carry home.
 func (g *Game) DownedAt(c *Char) []*Char {
 	var out []*Char
-	for _, d := range g.Chars {
-		if d != c && d.C.At == c.C.At && notDown(d) != nil && d.CarriedBy == "" {
+	for _, d := range g.CharsAt(c.C.At) {
+		if d != c && notDown(d) != nil && d.CarriedBy == "" {
 			out = append(out, d)
 		}
 	}

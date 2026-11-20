@@ -50,6 +50,9 @@ func TestSocietyOverHTTP(t *testing.T) {
 	// whose system waits is marked and not offered.
 	waits, raisable := 0, 0
 	for _, st := range gd.Settlements[0].Structures {
+		if st.Kind == "market" && (!st.Stands || len(st.Repairs) != 0) {
+			t.Fatalf("a starting settlement's market in full repair: %+v", st)
+		}
 		switch {
 		case st.Waits != "" && st.CanRaise:
 			t.Fatalf("the %s waits for %s and is offered to raise", st.Kind, st.Waits)
@@ -83,6 +86,15 @@ func TestSocietyOverHTTP(t *testing.T) {
 	if len(gs.Board) != 1 || len(gs.Mine) != 1 || !gs.Board[0].Vow || gs.Live != 1 || gs.Board[0].What == "" {
 		t.Fatalf("after posting: %+v", gs)
 	}
+	if x := gs.Board[0]; !x.CanWithdraw || x.CanPledge {
+		t.Fatalf("its poster may withdraw an unpaid goal, and nobody pledges to one: withdraw %v, pledge %v", x.CanWithdraw, x.CanPledge)
+	}
+	if theirs := readSolo[api.Goals](t, r, api.PathGoals+"?characterId="+b.ID, 200); len(theirs.Board) != 1 || theirs.Board[0].CanWithdraw {
+		t.Fatalf("another character's view of it: %+v", theirs.Board)
+	}
+	if sh := readSolo[api.Sheet](t, r, api.PathSheet+qa, 200); len(sh.Vows) != 1 || sh.Vows[0].Title != vow.Title || sh.Vows[0].Broken {
+		t.Fatalf("the poster's vows: %+v", sh.Vows)
+	}
 	board := readSolo[api.Board](t, r, api.PathBoard, 200)
 	if len(board.Posts) != 1 || board.Posts[0].Banner == "" || board.Posts[0].Goal.ID != gs.Board[0].ID {
 		t.Fatalf("forum feed %+v", board)
@@ -96,12 +108,13 @@ func TestSocietyOverHTTP(t *testing.T) {
 	if _, ref, _ := r.cli.Act(ctx, api.ActionRequest{InteractionID: "hide-as-player", CharacterID: a.ID, Version: o.Version, Kind: api.ActHideGoal, Target: gs.Board[0].ID}); ref == nil || ref.Code != api.CodeForbidden {
 		t.Fatalf("a player hid a goal: %+v", ref)
 	}
-	op(t, r, api.OperatorRequest{InteractionID: "hide", Kind: api.ActHideGoal, Target: gs.Board[0].ID, Note: "test hide"})
+	hid := gs.Board[0].ID
+	op(t, r, api.OperatorRequest{InteractionID: "hide", Kind: api.ActHideGoal, Target: hid, Note: "test hide"})
 	if gs = readSolo[api.Goals](t, r, api.PathGoals+qa, 200); len(gs.Board) != 0 {
 		t.Fatalf("a hidden goal is still on the board: %+v", gs.Board)
 	}
-	if board = readSolo[api.Board](t, r, api.PathBoard, 200); len(board.Posts) != 0 {
-		t.Fatalf("a hidden goal is still in the forum feed: %+v", board)
+	if board = readSolo[api.Board](t, r, api.PathBoard, 200); len(board.Posts) != 0 || len(board.Hidden) != 1 || board.Hidden[0] != hid {
+		t.Fatalf("a hidden goal is still in the forum feed, or not named as hidden: %+v", board)
 	}
 
 	// A vow to hold off a thing, as the form posts it.

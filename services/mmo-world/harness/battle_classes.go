@@ -75,9 +75,8 @@ func (b *battle) abilities(as *classBuild, level int64) []string {
 // variants is how many builds a class has: two for each tier with two
 // abilities fights read.
 func variants(b *sheets.Book, row *sheets.Class) int {
-	p := class.ParamsOf(b.ClassParams)
 	n := 1
-	for _, tier := range class.Tiers(p.TierLevels*int64(len(p.Practice)), p) {
+	for _, tier := range class.AllTiers(class.ParamsOf(b.ClassParams)) {
 		if len(tierChoices(b, row.ID, tier)) > 1 {
 			n *= 2
 		}
@@ -271,10 +270,10 @@ func (b *battle) classSections(pr func(string, ...any), book *sheets.Book, cells
 	pr("| --- | --- | --- | --- | --- | --- |")
 	limit := sheets.IntParam(book.ClassParams, "class-share-max")
 	top, topShare := "none", 0.0
-	p := class.ParamsOf(book.ClassParams)
+	tiers := class.AllTiers(class.ParamsOf(book.ClassParams))
 	for i, row := range book.Classes {
 		var names []string
-		for _, tier := range class.Tiers(p.TierLevels*int64(len(p.Practice)), p) {
+		for _, tier := range tiers {
 			if c := tierChoices(book, row.ID, tier); len(c) > 0 {
 				names = append(names, fmt.Sprintf("%d: %s", tier, strings.Join(c, " or ")))
 			}

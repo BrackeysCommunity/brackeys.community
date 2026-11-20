@@ -32,8 +32,9 @@ const (
 	DeedPledged   = "pledged"
 )
 
-// structural: what the rules see a character as.
-const subjectCharacter tags.Tag = "character"
+// DeedGiven is the reference value of all a character has given to guilds,
+// which stays on its record when it leaves one.
+const DeedGiven = "given"
 
 // structural: the skill meeting others' goals practises, which a Reeve's
 // level follows.
@@ -81,7 +82,7 @@ func (g *Game) charScale(c *Char, measure string, base int64) int64 {
 	if len(c.C.Classes.Abilities) == 0 {
 		return base
 	}
-	subject := tags.Plain(tags.Source{Note: "character:" + c.C.ID}, append([]tags.Tag{subjectCharacter}, g.charTags(c)...)...)
+	subject := tags.Plain(tags.Source{Note: "character:" + c.C.ID}, append([]tags.Tag{tags.Character}, g.charTags(c)...)...)
 	return tags.Adjust(g.r.rules, subject, tags.Context{}, measure, base)
 }
 

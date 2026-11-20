@@ -260,3 +260,30 @@ test("a store that fails after a post opened does not open it twice", async () =
   await poster.poll();
   expect(calls).toEqual(["open Ashford · Iron for the wall"]);
 });
+
+test("a goal an operator hid loses its words on its post and its thread", async () => {
+  let board: api.Board = {
+    tick: 0,
+    every: 0,
+    posts: [{ settlement: 0, name: "Ashford", banner: "b", goal: goal() }],
+  };
+  const said: string[] = [];
+  const poster = new BoardPoster({ board: async () => board }, lex, memoryStore(), {
+    open: async () => "post-1",
+    reply: async (post, card) => {
+      said.push(`reply ${post}: ${card.title} / ${card.description}`);
+      return true;
+    },
+    edit: async (post, card, title) => {
+      said.push(`edit ${post} as ${title}: ${card.title} / ${card.description}`);
+      return true;
+    },
+  });
+  await poster.poll();
+  board = { tick: 1, every: 0, posts: [], hidden: ["q-1"] };
+  expect(await poster.poll()).toBe(1);
+  expect(said.length).toBe(2);
+  expect(said[0]).toStartWith("edit post-1 as Ashford · off the board");
+  expect(said[1]).toStartWith("reply post-1");
+  for (const line of said) expect(line).not.toContain("Iron for the wall");
+});

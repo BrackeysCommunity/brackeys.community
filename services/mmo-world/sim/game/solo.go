@@ -740,10 +740,7 @@ func (g *Game) crawl(c *Char, cmd Command) error {
 	}
 	n := g.r.wp("crawl-ticks")
 	g.startLong(c, Crawl, cmd.Key, n, n)
-	// A call for help lasts as long as the crawl it would have spared.
-	if x := g.callOf(c); x != nil {
-		x.Expires = c.Long.Due
-	}
+	g.syncCall(c)
 	return nil
 }
 

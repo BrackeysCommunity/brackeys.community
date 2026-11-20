@@ -16,6 +16,10 @@ import (
 // Tag is an id in the tags.vocabulary sheet.
 type Tag string
 
+// structural: Character is what the rules see a character as, the subject
+// its own abilities' rules address.
+const Character Tag = "character"
+
 // Source says where a held tag came from: a fact, an earlier step of the
 // same Apply, or a note naming its origin ("material:bog-iron").
 type Source struct {

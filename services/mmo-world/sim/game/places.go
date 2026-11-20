@@ -148,11 +148,8 @@ type charterPlan struct {
 }
 
 // charterOf plans a charter on the character's tile for its guild, or
-// refuses (GDD 4.8): a guild of enough members, whose officer stands on a
-// starting settlement nobody runs in a region prosperous enough, or on a
-// free passable tile far enough from every settlement and outside an
-// overrun region; the coin in the guild's treasury and the goods carried.
-// A Reeve's Founder lowers the cost.
+// refuses (GDD 4.8). The plan carries the cost even when it refuses, for
+// CharterAt to show; a Reeve's Founder lowers it.
 func (g *Game) charterOf(c *Char) (charterPlan, error) {
 	pct := g.charScale(c, "charter-cost", fixed.Hundredths)
 	plan := charterPlan{coin: fixed.PercentFloor(g.sp("charter-coin"), pct), goods: []sheets.CostLine{
@@ -254,17 +251,14 @@ func (g *Game) charter(c *Char, cmd Command) error {
 
 // payCharter moves a planned charter's goods from the character, sunk
 // into the tile, and its coin from the guild's treasury into the
-// settlement's.
+// settlement's. Founding is the whole guild's act: the coin is outside its
+// officer's day.
 func (g *Game) payCharter(c *Char, plan charterPlan, key, treasury string) error {
 	if err := g.payLines(c, key, "charter", plan.goods, ledger.ToBuild); err != nil {
 		return err
 	}
 	t := ledger.Move(ledger.SubKey(key, "charter-coin"), "charter", g.Tick(), plan.guild.Pool(), treasury, ledger.Coin, plan.coin)
-	if err := g.post(t); err != nil {
-		return err
-	}
-	plan.guild.G.Spent(c.C.ID, g.World.Day, plan.coin)
-	return nil
+	return g.post(t)
 }
 
 // holdings is what a character has to pay with: its coin, then its
@@ -354,9 +348,6 @@ func (g *Game) payLines(c *Char, key, kind string, lines []sheets.CostLine, sink
 
 // materialHas reports whether a material, or provisions, holds a tag.
 func (g *Game) materialHas(material, tag string) bool {
-	if material == ledger.Provisions {
-		return tag == ledger.Provisions
-	}
 	return slices.Contains(g.r.matTags[material], tag)
 }
 
