@@ -57,7 +57,10 @@ func (s *Server) market(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, x := range rows {
-		goods, _ := ledger.GoodsOf(x.Asset)
+		goods, ok := ledger.GoodsOf(x.Asset)
+		if !ok {
+			goods = ""
+		}
 		out.Mine.Entries = append(out.Mine.Entries, api.Entry{Tick: x.Tick, Kind: x.Kind, Asset: x.Asset, Goods: goods, Units: x.Units})
 	}
 	if out.Report != nil {

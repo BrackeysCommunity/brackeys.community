@@ -173,7 +173,7 @@ func bandOver(days []economyDay, lo, hi int64) (mn, mx int64, ok bool) {
 
 func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 	start := time.Now()
-	k := keys.Throwaway("economy")
+	k := keys.Throwaway("economy" + os.Getenv("ECONOMY_SEED"))
 	r, err := game.NewRules(b, k)
 	if err != nil {
 		return economyResult{}, err
