@@ -264,6 +264,8 @@ export function characterCard(
       inline: true,
     },
   ];
+  if (sheet.vows.length)
+    fields.push({ name: "Vows kept so far", value: sheet.vows.map((v) => `• ${v}`).join("\n") });
   if (sheet.finds.length)
     fields.push({
       name: "Finds",
@@ -296,7 +298,7 @@ export function characterCard(
             },
           ]
         : []),
-      { buttons: [btn("Recipes", "recipes", "", v), back(v)] },
+      { buttons: [btn("Recipes", "recipes", "", v), btn("Classes", "classes", "", v), back(v)] },
     ],
   };
 }

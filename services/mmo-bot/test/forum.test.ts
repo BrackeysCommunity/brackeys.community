@@ -2,10 +2,14 @@ import { expect, test } from "bun:test";
 
 import type * as api from "../src/api.ts";
 import type { Card } from "../src/card.ts";
-import { ForumPoster, memoryStore } from "../src/forum.ts";
+import { BoardPoster, ForumPoster, memoryStore } from "../src/forum.ts";
 import { Lexicon } from "../src/lexicon.ts";
 
 const lex = new Lexicon({ names: {}, bands: [], starts: [] } as unknown as api.Lexicon);
+
+const noEdit = async (): Promise<boolean> => {
+  throw new Error("unexpected edit");
+};
 
 test("the forum posts each closed day once, opening a post per settlement first", async () => {
   let day = 3;
@@ -32,6 +36,7 @@ test("the forum posts each closed day once, opening a post per settlement first"
       replies.push([post, card]);
       return true;
     },
+    edit: noEdit,
   });
   expect(await poster.poll()).toBe(1);
   expect(await poster.poll()).toBe(0);
@@ -69,6 +74,7 @@ test("a failure partway through a day does not duplicate settlements already pos
       reply: async () => {
         throw new Error("unexpected reply");
       },
+      edit: noEdit,
     },
     undefined,
     (line) => logged.push(line),
@@ -93,9 +99,116 @@ test("a post that is gone is opened again", async () => {
       return `post-${opened.length}`;
     },
     reply: async () => false,
+    edit: noEdit,
   });
   expect(await poster.poll()).toBe(1);
   day = 2;
   expect(await poster.poll()).toBe(1);
   expect(opened).toHaveLength(2);
+});
+
+function goal(over: Partial<api.Goal> = {}): api.Goal {
+  return {
+    id: "q-1",
+    title: "Iron for the wall",
+    issuer: "character",
+    by: "c-1",
+    what: "deliver 40 goods of scrap iron",
+    verb: "deliver",
+    count: 40,
+    progress: 0,
+    claims: 0,
+    reward: 100,
+    mode: "pooled",
+    lifetime: "ephemeral",
+    turnover: "expire",
+    state: "live",
+    left: 48,
+    top: [],
+    takes: [],
+    ...over,
+  } as api.Goal;
+}
+
+function boardSink() {
+  const calls: string[] = [];
+  let posts = 0;
+  let gone = false;
+  return {
+    calls,
+    lose: () => void (gone = true),
+    sink: {
+      open: async (title: string) => {
+        calls.push(`open ${title}`);
+        return `post-${++posts}`;
+      },
+      reply: async (post: string, card: Card) => {
+        calls.push(`reply ${post} ${card.title}`);
+        return true;
+      },
+      edit: async (post: string, card: Card) => {
+        if (gone) return false;
+        calls.push(`edit ${post} ${card.fields?.find((f) => f.name === "Progress")?.value}`);
+        return true;
+      },
+    },
+  };
+}
+
+test("the notice-board forum opens a post per goal, edits it as it moves and closes it once", async () => {
+  let posts: api.BoardPost[] = [{ settlement: 0, name: "Ashford", banner: "b", goal: goal() }];
+  const { calls, sink } = boardSink();
+  let tick = 100;
+  const poster = new BoardPoster(
+    { board: async () => ({ tick, every: 6, posts }) },
+    lex,
+    memoryStore(),
+    sink,
+  );
+  expect(await poster.poll()).toBe(1);
+  expect(await poster.poll()).toBe(0);
+  posts = [{ ...posts[0]!, goal: goal({ progress: 15, claims: 2 }) }];
+  tick = 103;
+  expect(await poster.poll()).toBe(0);
+  tick = 106;
+  expect(await poster.poll()).toBe(1);
+  posts = [];
+  expect(await poster.poll()).toBe(1);
+  expect(await poster.poll()).toBe(0);
+  expect(calls).toEqual([
+    "open Ashford · Iron for the wall",
+    "edit post-1 15 of 40 done, 2 claims",
+    "reply post-1 Off the board: Iron for the wall",
+  ]);
+});
+
+test("a goal whose post is gone is posted again, and a failed post is retried", async () => {
+  let posts: api.BoardPost[] = [{ settlement: 0, name: "Ashford", banner: "b", goal: goal() }];
+  const { calls, sink, lose } = boardSink();
+  let fail = true;
+  const logged: string[] = [];
+  const poster = new BoardPoster(
+    { board: async () => ({ tick: 0, every: 0, posts }) },
+    lex,
+    memoryStore(),
+    {
+      ...sink,
+      open: async (title) => {
+        if (fail) {
+          fail = false;
+          throw new Error("503");
+        }
+        return sink.open(title);
+      },
+    },
+    undefined,
+    (line) => logged.push(line),
+  );
+  expect(await poster.poll()).toBe(0);
+  expect(logged.join()).toContain("503");
+  expect(await poster.poll()).toBe(1);
+  lose();
+  posts = [{ ...posts[0]!, goal: goal({ progress: 40 }) }];
+  expect(await poster.poll()).toBe(1);
+  expect(calls).toEqual(["open Ashford · Iron for the wall", "open Ashford · Iron for the wall"]);
 });

@@ -22,6 +22,10 @@ export interface World {
   history(characterId: string, material: string): Promise<WorldReply<api.History>>;
   routeRisk(characterId: string, to: api.Hex): Promise<WorldReply<api.RouteRisk>>;
   forum(): Promise<api.Forum>;
+  goals(characterId: string): Promise<WorldReply<api.Goals>>;
+  board(): Promise<api.Board>;
+  guild(characterId: string): Promise<api.Guild>;
+  classes(characterId: string): Promise<api.Classes>;
 }
 
 export type WorldReply<T> = { ok: true; reply: T } | { ok: false; refusal: api.Refusal };
@@ -91,6 +95,10 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     history: (id, material) => read("GET", api.PathHistory + q({ characterId: id, material })),
     routeRisk: (id, to) => read("GET", api.PathRisk + q({ characterId: id, q: to.q, r: to.r })),
     forum: () => get(api.PathForum),
+    goals: (id) => read("GET", api.PathGoals + q({ characterId: id })),
+    board: () => get(api.PathBoard),
+    guild: (id) => get(api.PathGuild + q({ characterId: id })),
+    classes: (id) => get(api.PathClasses + q({ characterId: id })),
     async media(key) {
       const res = await send("GET", `${api.PathMedia}${encodeURIComponent(key)}.png`);
       if (!res.ok) throw new WorldRequestError(res.status, (await res.json()) as api.Refusal);

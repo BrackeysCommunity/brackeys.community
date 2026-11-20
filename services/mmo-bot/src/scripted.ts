@@ -1,6 +1,6 @@
 import type * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
-import { answer, type Ctx, type Press } from "./flow.ts";
+import { answer, type Ctx, modalFor, type Press } from "./flow.ts";
 import { decodeId } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
 import { recording } from "./record.ts";
@@ -24,6 +24,10 @@ export interface Run {
   coin: number;
   sold: number;
   crafted: string;
+  /** The goal posted on the notice board, and whether it was withdrawn again. */
+  posted: string;
+  withdrawn: boolean;
+  guild: string;
   audit: string[];
   log: string[];
 }
@@ -45,6 +49,9 @@ export async function scripted(
     coin: 0,
     sold: 0,
     crafted: "",
+    posted: "",
+    withdrawn: false,
+    guild: "",
     audit: [],
     log: [],
   };
@@ -69,6 +76,21 @@ export async function scripted(
     return card;
   };
   const command = (name: string) => send({ command: name });
+  /** Submits the modal a button opens: the modal's own id, with its text. */
+  const submit = async (action: string, fields: Record<string, string>) => {
+    for (const row of card.rows) {
+      if (!("buttons" in row)) continue;
+      for (const b of row.buttons) {
+        if (b.kind !== "page" || b.disabled) continue;
+        const id = decodeId(b.customId);
+        const modal = id?.action === action ? modalFor(id) : null;
+        if (modal) return send({ id: decodeId(modal.customId)!, fields });
+      }
+    }
+    throw new Error(
+      `no "${action}" that opens a modal on the card "${card.author} / ${card.title}"`,
+    );
+  };
   /** Presses the first button or select whose action (and target, if given) matches. */
   const press = async (action: string, target?: string, value?: string) => {
     for (const row of card.rows) {
@@ -88,6 +110,11 @@ export async function scripted(
       `no "${action}${target ? `:${target}` : ""}" on the card "${card.author} / ${card.title}"`,
     );
   };
+  /** The first select option on the card whose value ends in suffix. */
+  const optionEndingIn = (suffix: string) =>
+    card.rows
+      .flatMap((r) => ("select" in r ? r.select.options : []))
+      .find((x) => x.value.endsWith(suffix))?.value;
   const has = (action: string) =>
     card.rows.some((r) =>
       "buttons" in r
@@ -273,7 +300,40 @@ export async function scripted(
   }
   await world.forum();
 
+  // The notice board: a vow posted through the form, opened, and withdrawn.
+  await command("goals");
+  if (has("g-drafts")) await press("g-drafts");
+  await command("goals");
+  await press("g-form");
+  await press("g-target");
+  await press("g-reward", undefined, optionEndingIn(".0.f.e.x.c"));
+  const title = "A scripted vow";
+  await submit("g-name", { title, note: "Posted by the scripted client." });
+  if (card.title.startsWith("Posted")) run.posted = title;
+  else note(`the goal was refused: ${card.title}`);
+  await world.board();
+  if (has("goal")) {
+    const mine = card.rows
+      .flatMap((r) => ("select" in r ? r.select.options : []))
+      .find((x) => x.label === title);
+    await press("goal", undefined, mine?.value);
+    if (has("g-wd")) {
+      await press("g-wd");
+      run.withdrawn = card.title.startsWith("Withdrawn");
+    }
+  }
+
+  // The guild: the server's own takes a new character in; each page once.
+  await command("guild");
+  if (has("gld-name")) await submit("gld-name", { name: `Scripted ${seq}` });
+  run.guild = card.author;
+  for (const page of ["places", "works", "members"]) if (has("guild")) await press("guild", page);
+  if (has("gld-dep")) await press("gld-dep");
+
   // Every other card once.
+  await command("character");
+  await press("classes");
+  if (has("classes")) await press("classes");
   await command("character");
   if (has("item")) await press("item");
   if (has("list")) await press("list");
@@ -319,6 +379,15 @@ if (import.meta.main) {
   if (process.env.RECORD)
     await Bun.write(process.env.RECORD, `${JSON.stringify(samples, null, 2)}\n`);
   process.exit(
-    r.problems.length || r.audit.length || r.toolLevel < 5 || !r.crafted || r.sold === 0 ? 1 : 0,
+    r.problems.length ||
+      r.audit.length ||
+      r.toolLevel < 5 ||
+      !r.crafted ||
+      r.sold === 0 ||
+      !r.posted ||
+      !r.withdrawn ||
+      !r.guild
+      ? 1
+      : 0,
   );
 }

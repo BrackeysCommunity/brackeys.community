@@ -15,6 +15,8 @@ export interface Config {
   threatLine?: number;
   /** The market forum channel (GDD 17.2); no posts when unset. */
   marketForum?: string;
+  /** The notice-board forum channel (GDD 17.2); no posts when unset. */
+  goalsForum?: string;
 }
 
 function integer(name: string): number | undefined {
@@ -36,5 +38,6 @@ export function loadConfig(): Config {
     redisUrl: process.env.REDIS_URL?.trim() || undefined,
     threatLine: integer("MMO_THREAT_LINE"),
     marketForum: process.env.MMO_MARKET_FORUM?.trim() || undefined,
+    goalsForum: process.env.MMO_GOALS_FORUM?.trim() || undefined,
   };
 }

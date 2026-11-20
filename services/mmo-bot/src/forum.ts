@@ -2,12 +2,15 @@ import type * as api from "./api.ts";
 import { authorLine, type Card, COLOUR } from "./card.ts";
 import type { Lexicon } from "./lexicon.ts";
 import { banner } from "./screens/common.ts";
+import { goalFields, goalSummary } from "./screens/goals.ts";
 import { moverLine } from "./screens/market.ts";
 import { num } from "./units.ts";
 
 /**
- * The market forum (GDD 17.2): a post per settlement, and each world day
- * a reply with that day's notable trades and movers.
+ * The forums (GDD 17.2). The market forum: a post per settlement, and
+ * each world day a reply with that day's notable trades and movers. The
+ * notice-board forum: a post per public goal, edited as it progresses;
+ * its thread is where people coordinate.
  */
 
 export const FORUM_POLL_MS = 60_000;
@@ -24,6 +27,8 @@ export interface ForumSink {
   open(title: string, card: Card): Promise<string>;
   /** Replies in a post; false when the post is gone. */
   reply(post: string, card: Card): Promise<boolean>;
+  /** Replaces a post's first card; false when the post is gone. */
+  edit(post: string, card: Card): Promise<boolean>;
 }
 
 export function forumCard(p: api.ForumPost, day: number, lex: Lexicon): Card {
@@ -102,19 +107,142 @@ export class ForumPoster {
   }
 
   start(): () => void {
-    let stopped = false;
-    let t: ReturnType<typeof setTimeout>;
-    const next = () => {
-      t = setTimeout(async () => {
-        await this.poll().catch((e: unknown) => this.log(`[forum] ${String(e)}`));
-        if (!stopped) next();
-      }, FORUM_POLL_MS);
-    };
-    next();
-    return () => {
-      stopped = true;
-      clearTimeout(t);
-    };
+    return every(FORUM_POLL_MS, () => this.poll(), this.log);
+  }
+}
+
+/** Runs poll again a fixed wait after each run ends, until stopped. */
+function every(ms: number, poll: () => Promise<unknown>, log: (line: string) => void): () => void {
+  let stopped = false;
+  let t: ReturnType<typeof setTimeout>;
+  const next = () => {
+    t = setTimeout(async () => {
+      await poll().catch((e: unknown) => log(`[forum] ${String(e)}`));
+      if (!stopped) next();
+    }, ms);
+  };
+  next();
+  return () => {
+    stopped = true;
+    clearTimeout(t);
+  };
+}
+
+const BOARD_CONTEXT = "Notice-board forum · everyone in the server can see this";
+
+/** A public goal as its forum post. */
+export function boardPostCard(p: api.BoardPost, lex: Lexicon): Card {
+  return {
+    context: BOARD_CONTEXT,
+    author: authorLine("Notice board", p.name),
+    title: p.goal.title,
+    description: goalSummary(p.goal),
+    picture: banner(p, ", over its notice board"),
+    fields: goalFields(p.goal, lex),
+    footer: "Open /goals in the settlement to take it up; plan it in this thread.",
+    rows: [],
+    colour: COLOUR.signal,
+  };
+}
+
+/** What the poster remembers of a goal's post, to edit it and to close it. */
+interface Posted {
+  post: string;
+  /** The goal's state as last shown: an unchanged goal is not edited again. */
+  shown: string;
+  /** The world tick it was last opened or edited at. */
+  at: number;
+  title: string;
+  name: string;
+  banner: string;
+}
+
+function closedCard(p: Posted): Card {
+  return {
+    context: BOARD_CONTEXT,
+    author: authorLine("Notice board", p.name),
+    title: `Off the board: ${p.title}`,
+    description: "Met, expired or withdrawn. /goals shows what is posted now.",
+    picture: banner(p, ", over its notice board"),
+    footer: "A goal is met by recorded facts; nobody judges.",
+    rows: [],
+    colour: COLOUR.ash,
+  };
+}
+
+/** Keeps one forum post per public goal: opened when posted, edited as it moves, closed when it leaves the board. */
+export class BoardPoster {
+  constructor(
+    private readonly world: { board(): Promise<api.Board> },
+    private readonly lex: Lexicon,
+    private readonly store: ForumStore,
+    private readonly sink: ForumSink,
+    private readonly prefix = "mmo-bot:board:",
+    private readonly log: (line: string) => void = console.log,
+  ) {}
+
+  /** Brings the forum level with the board; returns how many posts it opened, edited or closed. */
+  async poll(): Promise<number> {
+    const b = await this.world.board();
+    const openKey = `${this.prefix}open`;
+    const before: string[] = JSON.parse((await this.store.get(openKey)) ?? "[]");
+    const live = new Set(b.posts.map((p) => p.goal.id));
+    const still = new Set<string>();
+    let changed = 0;
+    for (const p of b.posts) {
+      try {
+        if (await this.show(p, b)) changed++;
+        still.add(p.goal.id);
+      } catch (e) {
+        this.log(`[board] ${p.goal.id}: ${String(e)}`);
+        if (before.includes(p.goal.id)) still.add(p.goal.id);
+      }
+    }
+    for (const id of before) {
+      if (live.has(id)) continue;
+      try {
+        await this.close(id);
+        changed++;
+      } catch (e) {
+        this.log(`[board] ${id}: ${String(e)}`);
+        still.add(id);
+      }
+    }
+    await this.store.set(openKey, JSON.stringify([...still].sort()));
+    return changed;
+  }
+
+  private async posted(id: string): Promise<Posted | null> {
+    const raw = await this.store.get(`${this.prefix}goal:${id}`);
+    return raw ? (JSON.parse(raw) as Posted) : null;
+  }
+
+  private async show(p: api.BoardPost, b: api.Board): Promise<boolean> {
+    const g = p.goal;
+    const shown = [g.state, g.progress, g.claims, g.pledged ?? 0, g.left ?? 0, g.hauler ?? ""].join(
+      "|",
+    );
+    const was = await this.posted(g.id);
+    if (was?.shown === shown) return false;
+    // A post is edited no more often than the board allows; the next poll catches up.
+    if (was && b.tick - was.at < b.every) return false;
+    const card = boardPostCard(p, this.lex);
+    const post =
+      was && (await this.sink.edit(was.post, card))
+        ? was.post
+        : await this.sink.open(`${p.name} · ${g.title}`.slice(0, 100), card);
+    const now: Posted = { post, shown, at: b.tick, title: g.title, name: p.name, banner: p.banner };
+    await this.store.set(`${this.prefix}goal:${g.id}`, JSON.stringify(now));
+    return true;
+  }
+
+  private async close(id: string): Promise<void> {
+    const was = await this.posted(id);
+    if (was) await this.sink.reply(was.post, closedCard(was));
+  }
+
+  start(): () => void {
+    return every(FORUM_POLL_MS, () => this.poll(), this.log);
   }
 }
 

@@ -1,5 +1,6 @@
 /**
- * The guild commands (GDD 17.1): the solo loop's four and the market. The Activity's
+ * The guild commands (GDD 17.1): the solo loop's four, the market, goals
+ * and the guild. The Activity's
  * launch entry point is the application's own global command; registering
  * guild commands leaves it in place, and the adapter answers it with the
  * launch-activity response.
@@ -14,6 +15,8 @@ export const MANIFEST = [
     name: "market",
     description: "The market here: the book, prices, gear and your orders",
   },
+  { type: 1, name: "goals", description: "The notice board here: goals to meet, and posting one" },
+  { type: 1, name: "guild", description: "Your guild: members, treasury, settlements and works" },
 ] as const;
 
 export type CommandName = (typeof MANIFEST)[number]["name"];

@@ -147,14 +147,36 @@ export function resolvedCard(
 export function downCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const v = o.version;
   const n = lex.numbers;
+  const r = o.rescue;
+  const crawling = o.long?.kind === "crawl";
   return {
     context: PRIVATE,
     author: "Down",
     title: `Down at ${here.name}`,
-    description: `You cannot act. Crawling out takes ${ticks(n.crawlTicks)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${ticks(n.woundedTicks)} longer, for a day or until you rest.`,
+    description: r?.carriedBy
+      ? `${r.carriedBy} is carrying you to a settlement. You are set down there, no longer down.`
+      : `You cannot act. Crawling out takes ${ticks(n.crawlTicks)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${ticks(n.woundedTicks)} longer, for a day or until you rest.`,
     picture: banner(here),
-    footer: "Calling for help arrives with goals.",
-    rows: [{ buttons: [btn("Crawl out", "crawl", "", v, { style: "danger" }), back(v)] }],
+    fields: r?.called
+      ? [{ name: "Help", value: `Called: a Carry goal is on the board at ${r.home}` }]
+      : undefined,
+    footer:
+      "Calling for help posts a Carry goal at your home settlement and starts the crawl; whoever reaches you first carries you in.",
+    rows: [
+      {
+        buttons: [
+          btn("Crawl out", "crawl", "", v, {
+            style: "danger",
+            disabled: crawling || !!r?.carriedBy,
+          }),
+          btn("Call for help", "help", "", v, {
+            style: "primary",
+            disabled: !!r?.called || !!r?.carriedBy,
+          }),
+          back(v),
+        ],
+      },
+    ],
     colour: COLOUR.rust,
   };
 }

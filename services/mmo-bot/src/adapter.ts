@@ -7,15 +7,17 @@ import {
   type Interaction,
   type InteractionEditReplyOptions,
   MessageFlags,
+  type ModalSubmitInteraction,
+  PermissionFlagsBits,
   RESTJSONErrorCodes,
   type StringSelectMenuInteraction,
   SnowflakeUtil,
 } from "discord.js";
 
-import { describe, toMessage } from "../../../packages/discord-kit/src/index.ts";
+import { describe, toMessage, toModal } from "../../../packages/discord-kit/src/index.ts";
 import { type Card, render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
-import { answer, type Answer, type Ctx, type Press } from "./flow.ts";
+import { answer, type Answer, type Ctx, modalFor, type Press } from "./flow.ts";
 import type { ForumSink } from "./forum.ts";
 import { decodeId } from "./ids.ts";
 import { WorldUnavailableError } from "./world.ts";
@@ -25,7 +27,9 @@ import { WorldUnavailableError } from "./world.ts";
  * answered through its own interaction: a defer inside three seconds,
  * then an edit of the same ephemeral card. A hub older than
  * 14 minutes is past what its token can edit, so the next press retires it
- * and answers with a fresh hub (GDD 17.3).
+ * and answers with a fresh hub (GDD 17.3). A press that asks for text
+ * opens a modal instead, which cannot follow a defer; its submit is
+ * answered like a press.
  */
 
 export const STALE_LINE =
@@ -54,10 +58,7 @@ export function createHandler(opts: AdapterOptions) {
   const messageOf = (a: Answer) => cardMessage(a.card, media, log);
 
   /** A short ephemeral reply; a failed reply is logged, never left unhandled. */
-  async function say(
-    i: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction,
-    content: string,
-  ) {
+  async function say(i: ChatInputCommandInteraction | Pressed, content: string) {
     await i
       .reply({ content, flags: MessageFlags.Ephemeral })
       .catch((e: unknown) => log(`[reply] ${describe(e)}`));
@@ -79,9 +80,7 @@ export function createHandler(opts: AdapterOptions) {
       await i.deferReply({ flags: MessageFlags.Ephemeral });
       await i.editReply(
         await run({
-          user: i.user.id,
-          guild: i.guildId ?? undefined,
-          interaction: i.id,
+          ...who(i),
           command: i.commandName,
         }),
       );
@@ -97,18 +96,24 @@ export function createHandler(opts: AdapterOptions) {
     }
   }
 
-  async function onComponent(i: ButtonInteraction | StringSelectMenuInteraction) {
+  async function onComponent(i: Pressed) {
     const id = decodeId(i.customId);
     if (!id) return say(i, STALE_LINE);
     const gate = await budget.take(i.user.id);
     if (!gate.allowed) return say(i, SLOW_LINE);
+    const modal = i.isButton() ? modalFor(id) : null;
+    if (modal && !i.isModalSubmit())
+      return void (await i
+        .showModal(toModal(modal) as never)
+        .catch((e: unknown) => log(`[modal] ${i.customId} failed: ${describe(e)}`)));
     const press: Press = {
-      user: i.user.id,
-      guild: i.guildId ?? undefined,
-      interaction: i.id,
+      ...who(i),
       id,
       values: i.isStringSelectMenu() ? i.values : [],
+      fields: i.isModalSubmit() ? textOf(i) : undefined,
     };
+    // A modal opened from a card answers by editing that card.
+    if (i.isModalSubmit() && !i.isFromMessage()) return say(i, STALE_LINE);
     const age = now() - Number(SnowflakeUtil.timestampFrom(i.message.id));
     try {
       if (age > HUB_TTL_MS) {
@@ -135,8 +140,31 @@ export function createHandler(opts: AdapterOptions) {
     if (i.isPrimaryEntryPointCommand())
       return void (await i.launchActivity().catch((e: unknown) => log(`[launch] ${describe(e)}`)));
     if (i.isChatInputCommand()) return onCommand(i);
-    if (i.isButton() || i.isStringSelectMenu()) return onComponent(i);
+    if (i.isButton() || i.isStringSelectMenu() || i.isModalSubmit()) return onComponent(i);
   };
+}
+
+type Pressed = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+
+/** Who an interaction is from: the player, the server, and whether they administer it. */
+function who(
+  i: ChatInputCommandInteraction | Pressed,
+): Pick<Press, "user" | "guild" | "guildName" | "interaction" | "admin"> {
+  return {
+    user: i.user.id,
+    guild: i.guildId ?? undefined,
+    guildName: i.guild?.name,
+    interaction: i.id,
+    admin: i.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false,
+  };
+}
+
+/** A submitted modal's text, by input id. */
+function textOf(i: ModalSubmitInteraction): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [id, f] of i.fields.fields)
+    if ("value" in f && typeof f.value === "string") out[id] = f.value;
+  return out;
 }
 
 /** A card as a message. A picture the world no longer holds drops out rather than failing the card. */
@@ -179,7 +207,7 @@ function postGone(e: unknown): boolean {
   return e instanceof DiscordAPIError && POST_GONE.has(e.code);
 }
 
-/** The market forum's posts (GDD 17.2): one forum post per settlement, a reply per world day. */
+/** A forum channel as a sink for cards (GDD 17.2): posts opened, replied to and edited. */
 export function forumSink(
   client: Client,
   channelId: string,
@@ -207,6 +235,26 @@ export function forumSink(
         await th.send((await cardMessage(card, media, log)) as never);
       } catch (e) {
         if (postGone(e)) return false;
+        throw e;
+      }
+      return true;
+    },
+    async edit(post, card) {
+      const th = await client.channels.fetch(post).catch((e: unknown) => {
+        if (postGone(e)) return null;
+        throw e;
+      });
+      if (!th?.isThread()) return false;
+      try {
+        const first = await th.fetchStarterMessage();
+        if (!first) return false;
+        await first.edit((await cardMessage(card, media, log)) as never);
+      } catch (e) {
+        if (
+          postGone(e) ||
+          (e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.UnknownMessage)
+        )
+          return false;
         throw e;
       }
       return true;

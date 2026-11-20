@@ -71,14 +71,21 @@ export function hubCard(
   ];
   const second: Button[] = [
     btn("Market", "market", "orders", v),
-    btn("Goals", "goals", "", v, { disabled: true }),
+    btn("Goals", "goals", "", v),
+    btn("Guild", "guild", "", v),
     btn("Character", "character", "", v),
     btn("Chronicle", "recap", "", v),
   ];
   const urgent: Button[] = [];
   if (o.fight) urgent.push(btn("Back to the fight", "fight", "", v, { style: "danger" }));
   if (o.conditions.includes(api.CondDown))
-    urgent.push(btn("Crawl out", "crawl", "", v, { style: "danger" }));
+    urgent.push(
+      btn("Crawl out", "crawl", "", v, { style: "danger", disabled: !!o.rescue?.carriedBy }),
+      btn("Call for help", "help", "", v, {
+        style: "primary",
+        disabled: !!o.rescue?.called || !!o.rescue?.carriedBy,
+      }),
+    );
   if (o.long) urgent.push(btn("Stop", "cancel", "", v));
   return {
     context: PRIVATE,
@@ -87,7 +94,7 @@ export function hubCard(
     description: `${lex.name("map.terrain", here.place.tile.terrain)}${here.place.tile.weather ? `, under ${lex.name("world.weather", here.place.tile.weather).toLowerCase()}` : ""}.`,
     picture: banner(here, `: ${gauges(here.place, lex)}`),
     fields,
-    footer: "Goals open in a later build. The hub refreshes on your next press after 14 minutes.",
+    footer: "The hub refreshes on your next press after 14 minutes.",
     rows: [...(urgent.length ? [{ buttons: urgent }] : []), { buttons: top }, { buttons: second }],
     colour: o.fight || o.conditions.includes(api.CondDown) ? COLOUR.rust : COLOUR.ash,
   };
@@ -122,6 +129,11 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const buttons: Button[] = people.map((p) =>
     btn(`Talk: ${p.name}${p.visit ? " (wants a word)" : ""}`, "talk", p.id, v),
   );
+  const downed = here.downed.slice(0, 3);
+  // One carry at a time: the first who called, else the first down.
+  const lift = downed.find((d) => d.called) ?? downed[0];
+  if (lift && !o.rescue?.carrying)
+    buttons.push(btn(`Carry ${lift.name} home`, "carry", lift.id, v, { style: "success" }));
   const more: Button[] = [];
   for (const t of here.trails.slice(0, 1))
     more.push(btn(`Follow the trail`, "follow", target(",", t.now.q, t.now.r), v));
@@ -148,6 +160,11 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     fields.push({
       name: "People here",
       value: people.map((p) => `${p.name}, ${p.role}`).join("\n"),
+    });
+  if (downed.length)
+    fields.push({
+      name: "Down here",
+      value: downed.map((d) => `${d.name}${d.called ? ", calling for help" : ""}`).join("\n"),
     });
   if (here.trails.length)
     fields.push({

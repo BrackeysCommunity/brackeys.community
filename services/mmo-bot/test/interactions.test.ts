@@ -12,9 +12,10 @@ import {
 } from "../src/adapter.ts";
 import * as api from "../src/api.ts";
 import { localBudget } from "../src/cooldown.ts";
-import { answer } from "../src/flow.ts";
+import { answer, modalFor } from "../src/flow.ts";
 import { decodeId, encodeId, type Id } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
+import { BLANK, goalDraftId, specOf } from "../src/screens/goals.ts";
 import { httpWorld } from "../src/world.ts";
 import samples from "./fixtures/world.json";
 
@@ -30,6 +31,9 @@ function setup({ player = "c-1", stale = false, offline = false } = {}) {
     [api.PathMap, samples.map],
     [api.PathRecap, samples.recap],
     [api.PathRecipes, samples.recipes],
+    [api.PathGoals, samples.goals],
+    [api.PathGuild, samples.guild],
+    [api.PathClasses, samples.classes],
   ]);
   const fetcher = Object.assign(
     async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -149,26 +153,135 @@ test("malformed component targets leave world state untouched", async () => {
   expect(writes).toEqual([]);
 });
 
-function button(customId: string, age = 0) {
+function button(customId: string, age = 0, over: Record<string, unknown> = {}) {
   const now = Date.now();
   const interaction = {
     user: { id: "someone" },
     id: "event",
     guildId: "guild",
     customId,
+    showModal: mock(async (_value: unknown) => {}),
     message: { id: SnowflakeUtil.generate({ timestamp: now - age }).toString() },
     isPrimaryEntryPointCommand: () => false,
     isChatInputCommand: () => false,
     isButton: () => true,
     isStringSelectMenu: () => false,
+    isModalSubmit: () => false,
     deferUpdate: mock(async () => {}),
     editReply: mock(async (_value: unknown) => {}),
     reply: mock(async (_value: unknown) => {}),
     update: mock(async (_value: unknown) => {}),
     followUp: mock(async (_value: unknown) => {}),
+    ...over,
   };
   return { interaction, now };
 }
+
+const draft = { ...BLANK, target: "cinder-ore", reward: 0 };
+
+test("naming a goal opens a modal at once, and its submit posts the drafted goal", async () => {
+  const { ctx, writes } = setup();
+  const handle = createHandler({
+    ctx,
+    budget: localBudget(),
+    media: async () => new Uint8Array([1]),
+  });
+  const open = button(encodeId("g-name", goalDraftId(draft), 4));
+  await handle(open.interaction as unknown as Interaction);
+  expect(open.interaction.deferUpdate).not.toHaveBeenCalled();
+  expect(open.interaction.showModal).toHaveBeenCalledWith(
+    expect.objectContaining({
+      custom_id: encodeId("g-post", goalDraftId(draft), 4),
+      title: "Name your goal",
+    }),
+  );
+  expect(writes).toEqual([]);
+
+  const submit = button(encodeId("g-post", goalDraftId(draft), 4), 0, {
+    isButton: () => false,
+    isModalSubmit: () => true,
+    isFromMessage: () => true,
+    memberPermissions: { has: () => true },
+    fields: {
+      fields: new Map([
+        ["title", { value: " Ore for the smelter " }],
+        ["note", { value: "" }],
+      ]),
+    },
+  });
+  await handle(submit.interaction as unknown as Interaction);
+  expect(submit.interaction.deferUpdate).toHaveBeenCalledTimes(1);
+  expect(submit.interaction.editReply).toHaveBeenCalledTimes(1);
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 4,
+      kind: api.ActPostGoal,
+      admin: true,
+      goal: specOf(draft, samples.goals as unknown as api.Goals, "Ore for the smelter", ""),
+    },
+  ]);
+  expect(writes[0]!.goal).toMatchObject({
+    title: "Ore for the smelter",
+    reward: 0,
+    mode: "first",
+    cond: { verb: "deliver", kind: "cinder-ore", count: 10 },
+  });
+});
+
+test("only a well-formed draft or a founding press opens a modal", () => {
+  expect(modalFor({ action: "g-name", target: "nonsense", version: 1 })).toBeNull();
+  expect(modalFor({ action: "gld-found", target: "take", version: 1 })).toBeNull();
+  expect(modalFor({ action: "gld-found", target: "new", version: 1 })?.customId).toBe(
+    encodeId("gld-chart", "", 1),
+  );
+  expect(modalFor({ action: "gld-name", target: "", version: 1 })?.customId).toBe(
+    encodeId("gld-new", "", 1),
+  );
+  expect(modalFor({ action: "hub", target: "", version: 1 })).toBeNull();
+});
+
+test.each([
+  ["goals", "Notice board", api.PathGoals],
+  ["guild", "Guild", api.PathGuild],
+])("/%s opens its card without a write", async (command, author, path) => {
+  const { ctx, writes, reads } = setup();
+  const result = await answer(ctx, { user: "someone", interaction: "command", command });
+  expect(result.card.author).toStartWith(author);
+  expect(reads).toContain(path);
+  expect(writes).toEqual([]);
+});
+
+test("goal and guild presses send what their targets say, and malformed ones nothing", async () => {
+  const { press, writes } = setup();
+  await press({ action: "g-wd", target: "q-3", version: 2 });
+  await press({ action: "gld-dep", target: "coin:10", version: 3 });
+  for (const id of [
+    { action: "g-deliver", target: "q-3:ore" },
+    { action: "g-pledge", target: "q-3:ten" },
+    { action: "gld-dep", target: "coin" },
+    { action: "g-post", target: "nonsense" },
+  ] as const)
+    expect((await press({ ...id, version: 1 })).card.author).toBe("An old button");
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 2,
+      kind: api.ActWithdrawGoal,
+      target: "q-3",
+    },
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 3,
+      kind: api.ActDeposit,
+      asset: "coin",
+      units: 10,
+    },
+  ]);
+});
 
 test("an expired hub is retired and its accepted gather opens a fresh private card", async () => {
   const { ctx, writes } = setup();

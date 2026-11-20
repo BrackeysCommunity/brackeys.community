@@ -1,10 +1,23 @@
+import type { Modal } from "../../../packages/discord-kit/src/index.ts";
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import { type Action, fields, type Id, integerTarget } from "./ids.ts";
 import { capitalise, type Lexicon } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
 import { backCards } from "./screens/back.ts";
+import { classesCard } from "./screens/classes.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
+import {
+  boardCard,
+  fromSpec,
+  goalCard,
+  type GoalDraft,
+  goalDraftOf,
+  goalForm,
+  goalModal,
+  specOf,
+} from "./screens/goals.ts";
+import { guildCard, type GuildView, nameModal } from "./screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "./screens/hub.ts";
 import {
   appraisalCard,
@@ -67,6 +80,8 @@ const QUANTITY_ACTIONS = new Set<Action>([
  */
 
 export interface Press {
+  /** The Discord server's name, which names its own guild on install. */
+  guildName?: string;
   user: string;
   guild?: string;
   /** Discord's interaction id: the idempotency key of any write. */
@@ -74,6 +89,26 @@ export interface Press {
   command?: string;
   id?: Id;
   values?: string[];
+  /** A modal's submitted text, by input id. */
+  fields?: Record<string, string>;
+  /** The player holds the server's admin permission (GDD 4.8). */
+  admin?: boolean;
+}
+
+/** The modal a press opens instead of a card, decided from its id alone so the adapter can show it at once. */
+export function modalFor(id: Id): Modal | null {
+  switch (id.action) {
+    case "g-name":
+      return goalDraftOf(id.target) ? goalModal(id.target, id.version) : null;
+    case "gld-name":
+      return nameModal("gld-new", id.version, "Name your guild");
+    case "gld-found":
+      return id.target === "take"
+        ? null
+        : nameModal("gld-chart", id.version, "Name your settlement");
+    default:
+      return null;
+  }
 }
 
 export interface Ctx {
@@ -112,6 +147,8 @@ async function start(ctx: Ctx, press: Press, choice: string): Promise<Answer> {
     version: 0,
     option: choice,
     server: press.guild,
+    note: press.guildName,
+    admin: press.admin,
   });
   if (!res.ok) {
     if (res.refusal.code === api.CodeSecondPC) {
@@ -155,6 +192,7 @@ class Session {
       characterId: this.character,
       version,
       kind,
+      admin: this.press.admin,
       ...fields,
     });
   }
@@ -184,6 +222,10 @@ class Session {
         return this.travel();
       case "market":
         return this.market();
+      case "goals":
+        return this.goals();
+      case "guild":
+        return this.guild();
       case "play":
       default:
         return this.open();
@@ -289,6 +331,46 @@ class Session {
       default:
         return this.done(bookCard(o, m, lex, notice));
     }
+  }
+
+  /** /goals: the notice board here, or one goal on it. */
+  async goals(goal?: string, notice?: string): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    const res = await this.world.goals(this.character);
+    if (!res.ok) return this.where(capitalise(res.refusal.message));
+    const x =
+      goal && [...res.reply.board, ...res.reply.mine, ...res.reply.met].find((g) => g.id === goal);
+    if (x) return this.done(goalCard(o, res.reply, x, this.lex, notice));
+    return this.done(boardCard(o, res.reply, notice));
+  }
+
+  async goalForm(d: GoalDraft, notice?: string): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    const res = await this.world.goals(this.character);
+    if (!res.ok) return this.where(capitalise(res.refusal.message));
+    return this.retitled(this.done(goalForm(o, res.reply, d)), notice);
+  }
+
+  async postGoal(d: GoalDraft, v: number): Promise<Answer> {
+    const res = await this.world.goals(this.character);
+    if (!res.ok) return this.where(capitalise(res.refusal.message));
+    const title = (this.press.fields?.title ?? "").trim();
+    const spec = specOf(d, res.reply, title, (this.press.fields?.note ?? "").trim());
+    return this.write(api.ActPostGoal, v, { goal: spec }, async (r, why) =>
+      why ? this.goalForm(d, why) : this.goals(undefined, `Posted: ${title}`),
+    );
+  }
+
+  /** /guild: one of its pages. */
+  async guild(view: GuildView = "members", notice?: string): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    const g = await this.world.guild(this.character);
+    return this.done(guildCard(o, g, this.lex, view, notice));
+  }
+
+  async classes(focus?: string, notice?: string): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    return this.done(classesCard(o, await this.world.classes(this.character), focus, notice));
   }
 
   async orderForm(d: OrderDraft): Promise<Answer> {
@@ -576,6 +658,175 @@ class Session {
         return this.write(api.ActConsent, v, { option: a, units: quantity }, async (_, why) =>
           this.retitled(await this.character_(), why),
         );
+      case "goals":
+        return this.goals();
+      case "goal":
+        return this.goals(value || id.target);
+      case "gld-member": {
+        const f = fields(value, ":", 3);
+        if (!f) return this.guild();
+        const [what, who, arg] = f as [string, string, string];
+        const done = (said: string) => (_: unknown, why?: string) =>
+          this.guild("members", why ?? said);
+        switch (what) {
+          case "allow":
+            return this.write(api.ActAllow, v, { target: who, units: Number(arg) }, done("Set"));
+          case "promote":
+            return this.write(api.ActPromote, v, { target: who }, done("Named an officer"));
+          case "vote":
+            return this.write(
+              api.ActVote,
+              v,
+              { target: who, option: arg },
+              done("Your vote is cast"),
+            );
+          case "pay": {
+            const n = integerTarget(arg);
+            if (n === undefined) return backCards.unknown(this.character);
+            return this.write(
+              api.ActPay,
+              v,
+              { target: who, asset: "coin", units: n },
+              done("Paid, or waiting on a second officer"),
+            );
+          }
+          default:
+            return backCards.unknown(this.character);
+        }
+      }
+      case "gld-invite":
+        return this.write(api.ActInvite, v, { target: value }, (_, why) =>
+          this.guild("members", why ?? "Invited"),
+        );
+      case "gld-draw": {
+        const f = fields(id.target, ":", 2);
+        const n = integerTarget(f?.[1] ?? "");
+        if (!f || n === undefined) return backCards.unknown(this.character);
+        return this.write(api.ActDraw, v, { asset: f[0], units: n }, (_, why) =>
+          this.guild("members", why ?? "Drawn at cost"),
+        );
+      }
+      case "g-form":
+      case "g-verb":
+      case "g-target":
+      case "g-amount":
+      case "g-reward": {
+        const d = goalDraftOf(id.action === "g-form" ? id.target : value);
+        if (!d) return backCards.unknown(this.character);
+        return this.goalForm(d);
+      }
+      case "g-drafts": {
+        const res = await this.world.goals(this.character);
+        const draft = res.ok ? res.reply.drafts[Number(value)] : undefined;
+        if (!draft) return this.goals();
+        return this.goalForm(fromSpec(draft.spec));
+      }
+      case "g-name": {
+        const d = goalDraftOf(id.target);
+        return d ? this.goalForm(d) : this.goals();
+      }
+      case "g-post": {
+        const d = goalDraftOf(id.target);
+        if (!d) return backCards.unknown(this.character);
+        return this.postGoal(d, v);
+      }
+      case "g-deliver": {
+        const f = fields(id.target, ":", 3);
+        const n = integerTarget(f?.[2] ?? "");
+        if (!f || n === undefined) return backCards.unknown(this.character);
+        return this.write(
+          api.ActDeliverGoal,
+          v,
+          { target: f[0], material: f[1] === "haul" ? undefined : f[1], units: n },
+          (_, why) => this.goals(f[0], why ?? "Delivered"),
+        );
+      }
+      case "g-pledge": {
+        const f = fields(id.target, ":", 2);
+        const n = integerTarget(f?.[1] ?? "");
+        if (!f || n === undefined) return backCards.unknown(this.character);
+        return this.write(api.ActPledge, v, { target: f[0], units: n }, (_, why) =>
+          this.goals(f[0], why ?? `Pledged ${amount(n, "coin")}`),
+        );
+      }
+      case "g-haul":
+        return this.write(api.ActTakeHaul, v, { target: id.target }, (_, why) =>
+          this.goals(id.target, why ?? "The haul is yours to carry"),
+        );
+      case "g-wd":
+        return this.write(api.ActWithdrawGoal, v, { target: id.target }, (_, why) =>
+          this.goals(undefined, why ?? "Withdrawn: the escrow is yours again"),
+        );
+      case "help":
+        return this.write(api.ActCallHelp, v, {}, (_, why) =>
+          this.longAnswer("You call for help, and start to crawl", why),
+        );
+      case "carry":
+        return this.write(api.ActCarry, v, { target: id.target }, (_, why) =>
+          this.travel(why ?? "You lift them: take them to a settlement"),
+        );
+      case "guild":
+        return this.guild(isGuildView(id.target) ? id.target : "members");
+      case "gld-name":
+      case "gld-found":
+        if (id.target === "take")
+          return this.write(api.ActCharter, v, {}, (_, why) =>
+            this.guild("places", why ?? "Chartered"),
+          );
+        return this.guild();
+      case "gld-new":
+        return this.write(api.ActFoundGuild, v, { note: this.press.fields?.name ?? "" }, (_, why) =>
+          this.guild("members", why ?? "Founded"),
+        );
+      case "gld-chart":
+        return this.write(api.ActFound, v, { note: this.press.fields?.name ?? "" }, (_, why) =>
+          this.guild("places", why ?? "Founded: the settlement stands"),
+        );
+      case "gld-join":
+        return this.write(api.ActJoin, v, { target: id.target }, (_, why) =>
+          this.guild("members", why ?? "Joined"),
+        );
+      case "gld-leave":
+        return this.write(api.ActLeave, v, {}, (_, why) =>
+          this.guild("members", why ?? "You left the guild"),
+        );
+      case "gld-dep": {
+        const f = fields(id.target, ":", 2);
+        const n = integerTarget(f?.[1] ?? "");
+        if (!f || n === undefined) return backCards.unknown(this.character);
+        return this.write(api.ActDeposit, v, { asset: f[0], units: n }, (_, why) =>
+          this.guild("members", why ?? "Given to the guild"),
+        );
+      }
+      case "gld-appr":
+        return this.write(api.ActApprove, v, { option: id.target }, (_, why) =>
+          this.guild("members", why ?? "Approved"),
+        );
+      case "gld-work": {
+        const f = fields(id.target, ":", 2);
+        if (!f) return backCards.unknown(this.character);
+        return this.write(api.ActWork, v, { option: f[0], units: Number(f[1]) }, (_, why) =>
+          this.guild("works", why),
+        );
+      }
+      case "gld-raise":
+        return this.write(api.ActRaise, v, { slot: value }, (_, why) =>
+          why ? this.guild("places", why) : this.goals(undefined, "Its goals are on the board"),
+        );
+      case "gld-mend":
+        return this.write(api.ActMend, v, { slot: value, units: 100 }, (_, why) =>
+          this.guild("places", why ?? "Repaired"),
+        );
+      case "classes":
+        return this.classes(value || id.target || undefined);
+      case "cls-choose":
+        return this.write(api.ActChooseClass, v, { option: id.target }, (_, why) =>
+          this.classes(id.target, why ?? "Active"),
+        );
+      case "cls-take":
+        return this.write(api.ActTakeAbility, v, { option: id.target }, (_, why) =>
+          this.classes(undefined, why ?? "Taken"),
+        );
       case "start":
         return this.hub();
       default:
@@ -618,4 +869,8 @@ function nearest(at: api.Hex, markets: readonly api.Hex[]): api.Hex | undefined 
 
 function peopleOf(here: api.Here): Map<string, string> {
   return new Map(here.people.map((p) => [p.id, p.name]));
+}
+
+function isGuildView(s: string): s is GuildView {
+  return s === "members" || s === "places" || s === "works";
 }

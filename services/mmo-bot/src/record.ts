@@ -45,5 +45,16 @@ export function recording(world: World, samples: Record<string, unknown>): World
     history: keepOk("history", world.history),
     routeRisk: keepOk("routeRisk", world.routeRisk),
     forum: async () => keep("forum", await world.forum()),
+    goals: keepOk("goals", world.goals),
+    board: async () => {
+      const b = await world.board();
+      if (b.posts.length) samples.board = b;
+      return b;
+    },
+    guild: async (id) => {
+      const g = await world.guild(id);
+      return keep(g.id ? "guild" : "guild:none", g);
+    },
+    classes: async (id) => keep("classes", await world.classes(id)),
   };
 }

@@ -5,7 +5,7 @@ import { describe } from "../../../packages/discord-kit/src/index.ts";
 import { createHandler, forumSink } from "./adapter.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
-import { ForumPoster, type ForumStore } from "./forum.ts";
+import { BoardPoster, ForumPoster, type ForumStore } from "./forum.ts";
 import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
 import { Notifier } from "./notify.ts";
@@ -15,7 +15,8 @@ import { httpWorld } from "./world.ts";
 /**
  * The MMO bot: one gateway connection with the Guilds intent only (no
  * privileged intents; the game reads no messages), answering interactions
- * and posting the market forum from the world service's API.
+ * and posting the market and notice-board forums from the world service's
+ * API.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
@@ -45,20 +46,18 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`[ready] ${c.user.tag}`);
   await registerCommands(config).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
   notifier.start();
-  if (config.marketForum && !redis) {
+  if (!config.marketForum && !config.goalsForum) return;
+  if (!redis) {
     // Without a durable store every restart would open the posts again.
-    console.warn("[forum] MMO_MARKET_FORUM is set but REDIS_URL is not; the forum is not posted");
-  } else if (config.marketForum && redis) {
-    const store: ForumStore = {
-      get: (k) => redis.get(k),
-      set: async (k, v) => void (await redis.set(k, v)),
-    };
-    new ForumPoster(
-      world,
-      lex,
-      store,
-      forumSink(client, config.marketForum, (k) => media.get(k)),
-    ).start();
+    console.warn("[forum] a forum channel is set but REDIS_URL is not; the forums are not posted");
+    return;
   }
+  const store: ForumStore = {
+    get: (k) => redis.get(k),
+    set: async (k, v) => void (await redis.set(k, v)),
+  };
+  const sink = (channel: string) => forumSink(client, channel, (k) => media.get(k));
+  if (config.marketForum) new ForumPoster(world, lex, store, sink(config.marketForum)).start();
+  if (config.goalsForum) new BoardPoster(world, lex, store, sink(config.goalsForum)).start();
 });
 await client.login(config.token);
