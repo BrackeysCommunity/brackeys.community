@@ -102,20 +102,6 @@ func (r *Rules) firstTier() int64 { return r.Book.Tiers[0].Tier }
 // Station is a station on a tile: its kind and tier.
 type Station = craft.Station
 
-// Stations are the stations a tile holds: a starting settlement's.
-func (g *Game) Stations(h hex.Hex) []Station {
-	if g.r.Gen.Baseline(h).Site != gen.PlaceSettlement {
-		return nil
-	}
-	var out []Station
-	for _, s := range g.r.Book.Starting {
-		if s.Tier > 0 {
-			out = append(out, Station{Kind: s.Structure, Tier: s.Tier})
-		}
-	}
-	return out
-}
-
 // StationFor is the highest-tier station on a tile a process is done at.
 func (g *Game) StationFor(h hex.Hex, process string) (Station, bool) {
 	var best Station
@@ -126,14 +112,6 @@ func (g *Game) StationFor(h hex.Hex, process string) (Station, bool) {
 		}
 	}
 	return best, ok
-}
-
-// HasStructure reports whether a tile holds a starting structure of a kind.
-func (g *Game) HasStructure(h hex.Hex, kind string) bool {
-	if g.r.Gen.Baseline(h).Site != gen.PlaceSettlement {
-		return false
-	}
-	return slices.ContainsFunc(g.r.Book.Starting, func(s sheets.StartingStructure) bool { return s.Structure == kind })
 }
 
 // FactionOrder is a faction's or the keepers' buy order standing on a
@@ -356,7 +334,13 @@ func (g *Game) upkeep(c *Char, t int64) (bool, error) {
 	if m == nil {
 		return false, nil
 	}
-	owe := g.r.Mounts.Upkeep(1, c.Rode)
+	owe := g.charScale(c, "mount-upkeep", g.r.Mounts.Upkeep(1, c.Rode))
+	if row, w := g.workHere(c, "mount-upkeep", true); w != nil && owe > 0 {
+		each := g.r.Values.Param("provisions-value")
+		saved := spared(row, w, owe*each) / each
+		g.workGave(w, saved*each)
+		owe -= saved
+	}
 	changed := c.Rode != 0 || owe > 0
 	c.Rode = 0
 	pay := min(owe, c.C.Provisions)
@@ -444,6 +428,9 @@ type Appraisal struct {
 	Station Station      `json:"station"`
 	Fee     int64        `json:"fee"`
 	Name    string       `json:"name"`
+	// Registered is shown to a Master's eye: the kind is already in the
+	// registry, so making it discovers nothing.
+	Registered bool `json:"registered,omitempty"`
 }
 
 // Appraise shows a recipe's ranges to its crafter at the station the tile
@@ -464,7 +451,8 @@ func (g *Game) Appraise(c *Char, r item.Recipe) (Appraisal, error) {
 	if name == "" {
 		name = g.plainName(r)
 	}
-	return Appraisal{Ranges: rg, Station: st, Fee: g.StationFee(st), Name: name}, nil
+	return Appraisal{Ranges: g.narrowed(c, rg), Station: st, Fee: g.feeFor(c, st, rg.Kind), Name: name,
+		Registered: g.charScale(c, "sees-registered", 0) > 0 && rg.Known}, nil
 }
 
 // structural: the practice a craft trains.
@@ -523,15 +511,32 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if err != nil {
 		return refuse(BadArgs, "%s", err.Error())
 	}
+	if _, w, saved := g.feeSaved(c, ap.Station, ap.Ranges.Kind); saved > 0 {
+		g.workGave(w, saved)
+	}
+	g.used(c.C.At, ap.Station.Kind)
 	for _, f := range facts {
+		f.Data = append(f.Data, fact.At(c.C.At)...)
 		if _, err := g.Log.Append(f); err != nil {
 			return err
 		}
+	}
+	if add := g.charScale(c, "craft-salvage", 0); add > 0 {
+		base := sheets.IntParam(g.r.Book.ItemParams, "failed-salvage")
+		for i := range res.Salvage {
+			res.Salvage[i].Qty += res.Salvage[i].Qty * add / max(base, 1)
+		}
+	}
+	if res.Instance != nil {
+		res.Instance.Stamp = g.charScale(c, "item-xp", hundred) - hundred
 	}
 	if res.Discovered {
 		g.nameKind(res.Kind, c.C.ID)
 		c.C.Discovered = append(c.C.Discovered, res.Kind.ID)
 		c.C.Discoveries++
+	}
+	if r.Process == item.Compose {
+		g.spare(c, &res, int64(len(r.Inputs)))
 	}
 	legs := []ledger.Leg{}
 	if ap.Fee > 0 {
@@ -558,6 +563,19 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		return g.levelled(c, tool, res.ToolXP, t)
 	}
 	return nil
+}
+
+// spare keeps back the components a Kindler's Tinder saves of a Compose,
+// last first, never under the least a Compose orders.
+func (g *Game) spare(c *Char, res *craft.Result, components int64) {
+	least := sheets.IntParam(g.r.Book.ItemParams, "compose-min-inputs")
+	keep := min(components-g.charScale(c, "compile-components", components), components-least)
+	for i := len(res.Consumed) - 1; i >= 0 && keep > 0; i-- {
+		if res.Consumed[i].Qty > 0 {
+			res.Consumed[i].Qty--
+			keep--
+		}
+	}
 }
 
 // levelled adds xp to an item and records its levels and milestones.
@@ -714,6 +732,9 @@ func (g *Game) crawl(c *Char, cmd Command) error {
 	if c.Long != nil || c.Fight != nil {
 		return refuse(Busy, "%s is busy", c.C.ID)
 	}
+	if c.CarriedBy != "" {
+		g.setDown(g.Char(c.CarriedBy), c)
+	}
 	n := g.r.wp("crawl-ticks")
 	g.startLong(c, Crawl, cmd.Key, n, n)
 	return nil
@@ -733,7 +754,7 @@ func (c *Char) Carried() int64 { return item.Total(c.C.Goods) }
 // Capacity is what a character can carry before it is laden: an unfed
 // mount carries nothing.
 func (g *Game) Capacity(c *Char) int64 {
-	load := c.C.Load(&g.Kinds, g.r.Mounts, g.r.Book.TraitEffects)
+	load := g.charScale(c, "load", c.C.Load(&g.Kinds, g.r.Mounts, g.r.Book.TraitEffects))
 	if !c.Fed() {
 		load -= g.r.Mounts.Load(c.C.In(char.Mount, 0))
 	}

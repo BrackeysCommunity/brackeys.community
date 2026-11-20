@@ -278,7 +278,7 @@ type Trace struct {
 
 type Vocab struct {
 	ID   string `json:"id" unit:"id"`
-	Kind string `json:"kind" unit:"enum" enum:"class|form|substance|property|state|origin|behaviour|disposition|weather|action|beat|condition|pairing"`
+	Kind string `json:"kind" unit:"enum" enum:"class|form|substance|property|state|origin|behaviour|disposition|weather|action|beat|condition|pairing|calling|ability"`
 }
 
 // Measure is a number a rule can test or scale: a gauge, a party size, a price.
@@ -300,13 +300,13 @@ type RuleRow struct {
 }
 
 type EffectRow struct {
-	Kind    string `json:"kind" unit:"enum" enum:"add-tag|remove-tag|band|scale|join|end|score"`
+	Kind    string `json:"kind" unit:"enum" enum:"add-tag|remove-tag|band|scale|add|join|end|score"`
 	Target  string `json:"target,omitempty" unit:"enum" enum:"subject|other|place|yield"`
 	Tag     string `json:"tag,omitempty" unit:"tag" ref:"tags.vocabulary"`
 	Steps   int64  `json:"steps,omitempty" unit:"band-steps"`
 	Measure string `json:"measure,omitempty" unit:"ref" ref:"tags.measures"`
 	Percent int64  `json:"percent,omitempty" unit:"percent"`
-	Count   int64  `json:"count,omitempty" unit:"count" min:"0"`
+	Count   int64  `json:"count,omitempty" unit:"count" doc:"join: creatures that join; add: what is added to the measure."`
 	Beat    int64  `json:"beat,omitempty" unit:"beat" min:"0"`
 	Score   int64  `json:"score,omitempty" unit:"pts" doc:"score: points added to an option's score."`
 }
@@ -496,20 +496,6 @@ type StartingStructure struct {
 	Note      string `json:"note,omitempty" unit:"text"`
 }
 
-type StructureCost struct {
-	ID        string `json:"id" unit:"id"`
-	Structure string `json:"structure" unit:"text"`
-	Tier      int64  `json:"tier" unit:"tier" min:"1"`
-	Material  string `json:"material" unit:"ref" ref:"items.materials"`
-	Quantity  int64  `json:"quantity" unit:"goods" min:"1"`
-}
-
-type GuildWork struct {
-	ID       string `json:"id" unit:"id"`
-	Material string `json:"material" unit:"ref" ref:"items.materials"`
-	PerDay   int64  `json:"perDay" unit:"goods" min:"0"`
-}
-
 // ---- Mounts ----
 
 // MountKind is a mount the world can hold: its tier, the terrains it
@@ -521,14 +507,6 @@ type MountKind struct {
 	RoadOnly bool     `json:"roadOnly,omitempty" unit:"flag" doc:"Suits road tiles only, where it buys load, not speed."`
 	River    bool     `json:"river,omitempty" unit:"flag" doc:"Also suits river tiles, whatever their terrain (GDD 6.2)."`
 	Load     int64    `json:"load" unit:"load" min:"0"`
-}
-
-// ---- Classes ----
-
-type Class struct {
-	ID         string `json:"id" unit:"id"`
-	UnlockDeed string `json:"unlockDeed" unit:"ref" ref:"growth.xp-by-deed"`
-	UnlockAt   int64  `json:"unlockAt" unit:"count" min:"1"`
 }
 
 // ---- Puzzles ----

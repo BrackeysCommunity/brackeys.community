@@ -80,7 +80,7 @@ func (g *Game) Choose(c *Char) Choices {
 }
 
 // CanRest reports whether a tile is somewhere to rest: a settlement.
-func (g *Game) CanRest(h hex.Hex) bool { return g.r.Gen.Baseline(h).Site == gen.PlaceSettlement }
+func (g *Game) CanRest(h hex.Hex) bool { return g.IsSettlement(h) }
 
 // CanExplore reports whether a tile has a site to explore and something
 // living there to meet; a dungeon's first floor, once cleared, waits for
@@ -110,7 +110,9 @@ func (g *Game) BandName(rank int64) string { return g.r.Fight.BandName(rank) }
 
 // beat is c's kit and options on its encounter's current beat.
 func (g *Game) beat(c *Char, tick int64) (fight.Kit, []fight.Option) {
-	_, kit, opts := g.r.Fight.Choices(c.Fight.E, c.C, g.r.Fight.KitOf(c.C), tick)
+	k := g.r.Fight.KitOf(c.C)
+	k.Self = append(k.Self, g.fightTags(c, c.Fight.E)...)
+	_, kit, opts := g.r.Fight.Choices(c.Fight.E, c.C, k, tick)
 	return kit, opts
 }
 

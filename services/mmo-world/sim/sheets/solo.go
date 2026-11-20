@@ -83,6 +83,8 @@ type NPCRole struct {
 	Count int64    `json:"count" unit:"count" min:"1"`
 	Works string   `json:"works,omitempty" unit:"text" doc:"Where its route takes it: market, forge, wall, road."`
 	Tags  []string `json:"tags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"What a wanderer of this role favours, by biome or site."`
+	// Rooted roles never move home: their place cannot run without them.
+	Rooted bool `json:"rooted,omitempty" unit:"flag" doc:"Its place cannot spare it: it never moves home when the place grows crowded."`
 }
 
 // Topic is what an NPC can bring up (GDD 4.18): a predicate over its
@@ -91,7 +93,7 @@ type NPCRole struct {
 // read what the NPC knows of the world.
 type Topic struct {
 	ID      string        `json:"id" unit:"id"`
-	When    string        `json:"when" unit:"enum" enum:"first-meeting|memory|resold|sold-on|crowding|longer-road|news|trouble|promise-kept|promise-broken|rival|weather|pattern|moved-away|corruption"`
+	When    string        `json:"when" unit:"enum" enum:"first-meeting|memory|resold|sold-on|crowding|longer-road|gossip|news|trouble|promise-kept|promise-broken|rival|weather|pattern|moved-away|corruption"`
 	Entry   string        `json:"entry,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought" doc:"The memory entry a memory topic reads."`
 	Also    string        `json:"also,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought" doc:"A second entry the topic needs as well; both add their salience."`
 	AtLeast int64         `json:"atLeast,omitempty" unit:"row" doc:"The predicate's threshold, in its unit column."`
@@ -99,6 +101,13 @@ type Topic struct {
 	Weight  int64         `json:"weight" unit:"weight" min:"0" max:"100" doc:"Salience before memory adds to it."`
 	Choices []TopicChoice `json:"choices" unit:"parts"`
 	Line    string        `json:"line" unit:"text" doc:"The templated line: {npc}, {role}, {thing}, {place}, {n} and {unit} come from fields."`
+}
+
+// Gossip is how an NPC passes on one kind of a neighbour's memory (GDD
+// 4.18). A kind with no row is never passed on.
+type Gossip struct {
+	ID   string `json:"id" unit:"id" doc:"The kind of memory entry it voices."`
+	Line string `json:"line" unit:"text" doc:"The templated line: {neighbour}, {who}, {thing} and {n} come from the entry."`
 }
 
 // TopicChoice is one choice on a topic, what taking it does, and what the

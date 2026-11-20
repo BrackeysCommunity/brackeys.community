@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "settlements.structures",
+  "title": "settlements.structures",
+  "description": "The structures a settlement is made of: what each does and costs per tier (GDD 4.16).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "settlements.structures"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "does",
+          "maxTier"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "does": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "station": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "A crafting station: its tier caps what is made there."
+          },
+          "maxTier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tier",
+            "description": "1 for a structure that is not tiered."
+          },
+          "charter": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Built at tier 1 by the charter."
+          },
+          "first": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "quantity"
+              ],
+              "properties": {
+                "tag": {
+                  "type": "string",
+                  "x-unit": "tag",
+                  "x-ref": "tags.vocabulary",
+                  "description": "Any material with this tag counts; empty for coin."
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "goods",
+                  "description": "Goods, or coin when the tag is empty."
+                }
+              }
+            },
+            "x-unit": "parts",
+            "description": "What tier 1 costs, when the charter does not build it."
+          },
+          "each": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "quantity"
+              ],
+              "properties": {
+                "tag": {
+                  "type": "string",
+                  "x-unit": "tag",
+                  "x-ref": "tags.vocabulary",
+                  "description": "Any material with this tag counts; empty for coin."
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "goods",
+                  "description": "Goods, or coin when the tag is empty."
+                }
+              }
+            },
+            "x-unit": "parts",
+            "description": "What each tier up costs."
+          },
+          "per": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "What a tier adds: kinds a book lists, load stored, provisions held, mounts housed."
+          },
+          "standing": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Nobody operates it: it counts as used whenever anything in its settlement is."
+          },
+          "waits": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The milestone whose system reads what it does, if not yet built."
+          }
+        }
+      }
+    }
+  }
+}

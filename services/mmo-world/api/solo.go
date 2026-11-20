@@ -130,6 +130,8 @@ type Sheet struct {
 	Finds     []Find     `json:"finds"`
 	Owed      int64      `json:"owed,omitempty"` // provisions an unfed mount waits on
 	Consent   Consent    `json:"consent"`
+	// Vows are the titles of the vows the character is keeping (GDD 11.7).
+	Vows []string `json:"vows"`
 }
 
 // Consent is who NPCs may name the character to (GDD 4.18).
@@ -203,6 +205,16 @@ type Here struct {
 	Forage    int64     `json:"forage"` // provisions a tick
 	Recent    []Fact    `json:"recent"`
 	Suggest   *Suggest  `json:"suggest,omitempty"`
+	// Downed are characters down on this tile whom the viewer could carry
+	// home (GDD 11.6).
+	Downed []Downed `json:"downed"`
+}
+
+// Downed is a downed character: who, and whether it has called for help.
+type Downed struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Called bool   `json:"called"`
 }
 
 // Suggest is the nearest site to explore: where, how far, and the first

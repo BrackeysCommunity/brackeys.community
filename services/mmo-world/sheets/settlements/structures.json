@@ -1,0 +1,249 @@
+{
+  "$schema": "../schema/settlements.structures.schema.json",
+  "sheet": "settlements.structures",
+  "rows": [
+    {
+      "id": "forge",
+      "does": "Smelt, Fabricate",
+      "station": true,
+      "maxTier": 3,
+      "charter": true,
+      "each": [
+        {
+          "tag": "stone",
+          "quantity": 300
+        },
+        {
+          "tag": "timber",
+          "quantity": 200
+        },
+        {
+          "tag": "metal",
+          "quantity": 100
+        }
+      ]
+    },
+    {
+      "id": "bench",
+      "does": "Splice, Patch",
+      "station": true,
+      "maxTier": 3,
+      "charter": true,
+      "each": [
+        {
+          "tag": "timber",
+          "quantity": 200
+        },
+        {
+          "tag": "hide",
+          "quantity": 100
+        }
+      ]
+    },
+    {
+      "id": "still",
+      "does": "Flash, Compile",
+      "station": true,
+      "maxTier": 3,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 150
+        },
+        {
+          "tag": "glass",
+          "quantity": 50
+        }
+      ],
+      "each": [
+        {
+          "tag": "glass",
+          "quantity": 100
+        },
+        {
+          "tag": "amber",
+          "quantity": 50
+        }
+      ]
+    },
+    {
+      "id": "loom",
+      "does": "Fabricate for cloth and rope",
+      "station": true,
+      "maxTier": 3,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 150
+        },
+        {
+          "tag": "fibre",
+          "quantity": 100
+        }
+      ],
+      "each": [
+        {
+          "tag": "fibre",
+          "quantity": 200
+        }
+      ]
+    },
+    {
+      "id": "market",
+      "does": "Order books; listings. Each tier doubles how many kinds the book lists",
+      "maxTier": 3,
+      "charter": true,
+      "each": [
+        {
+          "tag": "timber",
+          "quantity": 200
+        },
+        {
+          "tag": "stone",
+          "quantity": 200
+        }
+      ],
+      "per": 2
+    },
+    {
+      "id": "notice-board",
+      "does": "The goals posted here",
+      "maxTier": 1,
+      "charter": true
+    },
+    {
+      "id": "treasury",
+      "does": "Takes half of every market fee paid here",
+      "maxTier": 1,
+      "charter": true,
+      "standing": true
+    },
+    {
+      "id": "tinker-bench",
+      "does": "Where machine puzzles are practised (GDD 7.11)",
+      "maxTier": 1,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 100
+        },
+        {
+          "tag": "metal",
+          "quantity": 50
+        }
+      ],
+      "waits": "MM7 (puzzles)"
+    },
+    {
+      "id": "storehouse",
+      "does": "Holds members' goods safely; the guild bank. Each tier adds 2,000 load of space",
+      "maxTier": 3,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 200
+        }
+      ],
+      "each": [
+        {
+          "tag": "timber",
+          "quantity": 200
+        },
+        {
+          "tag": "stone",
+          "quantity": 100
+        }
+      ],
+      "per": 2000
+    },
+    {
+      "id": "wall",
+      "does": "Lowers raid defence marks by 20% a tier",
+      "maxTier": 3,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 400
+        }
+      ],
+      "each": [
+        {
+          "tag": "stone",
+          "quantity": 600
+        }
+      ],
+      "per": 20,
+      "waits": "MM9 (raids)",
+      "standing": true
+    },
+    {
+      "id": "granary",
+      "does": "Stores provisions; needed for Full granary. Each tier holds 1,000 more",
+      "maxTier": 3,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 200
+        }
+      ],
+      "each": [
+        {
+          "tag": "timber",
+          "quantity": 200
+        }
+      ],
+      "per": 1000
+    },
+    {
+      "id": "stable",
+      "does": "Houses mounts; each tier houses 10 more",
+      "maxTier": 3,
+      "first": [
+        {
+          "tag": "timber",
+          "quantity": 150
+        },
+        {
+          "tag": "hide",
+          "quantity": 50
+        }
+      ],
+      "each": [
+        {
+          "tag": "timber",
+          "quantity": 150
+        },
+        {
+          "tag": "hide",
+          "quantity": 50
+        }
+      ],
+      "per": 10
+    },
+    {
+      "id": "waypost",
+      "does": "Extends reach to 2 tiles around the settlement",
+      "maxTier": 1,
+      "first": [
+        {
+          "tag": "stone",
+          "quantity": 100
+        }
+      ],
+      "per": 2,
+      "standing": true
+    },
+    {
+      "id": "shrine",
+      "does": "A place for vows; where season records are kept",
+      "maxTier": 1,
+      "first": [
+        {
+          "tag": "stone",
+          "quantity": 100
+        }
+      ],
+      "standing": true
+    }
+  ]
+}

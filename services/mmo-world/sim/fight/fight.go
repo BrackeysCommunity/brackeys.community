@@ -328,6 +328,15 @@ func set(src string, ts ...[]tags.Tag) tags.TagSet {
 	return s
 }
 
+// structural: what the rules see a character as.
+const subjectCharacter tags.Tag = "character"
+
+// self is a measure for a member after the rules its own tags fire: a
+// class ability's change to its armour's wear or its exploits' states.
+func (r *Rules) self(k Kit, measure string, base int64) int64 {
+	return tags.Adjust(r.rules, set("self", []tags.Tag{subjectCharacter}, k.Self), tags.Context{}, measure, base)
+}
+
 func without(ts []tags.Tag, drop []tags.Tag) []tags.Tag {
 	return slices.DeleteFunc(slices.Clone(ts), func(t tags.Tag) bool { return slices.Contains(drop, t) })
 }
@@ -424,7 +433,7 @@ func (r *Rules) option(s Situation, k Kit, row sheets.OptionRow, g *Gear, axis s
 			why.Parts = append(why.Parts, Part{Label: rw.Steps[e.Step()-1].Rule, Value: e.Points})
 		case tags.Band:
 			steps += e.Steps
-		case tags.AddTag, tags.RemoveTag, tags.Scale, tags.Join, tags.End:
+		case tags.AddTag, tags.RemoveTag, tags.Scale, tags.Add, tags.Join, tags.End:
 		}
 	}
 	o.Tags = subject.Tags()

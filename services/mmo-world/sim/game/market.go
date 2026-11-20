@@ -124,28 +124,6 @@ func (g *Game) newMarket() *Market {
 		Reports: []Report{}, Notable: []Trade{}, Yesterday: []Trade{}, Held: []Held{}, Week: newWeek(g.World.Day)}
 }
 
-// Settlements are the open starting settlements, in opening order.
-func (g *Game) Settlements() []hex.Hex {
-	out := make([]hex.Hex, g.World.Opened)
-	for i := range out {
-		out[i] = g.SettlementHex(i)
-	}
-	return out
-}
-
-// SettlementHex is the tile of a starting settlement by its index.
-func (g *Game) SettlementHex(n int) hex.Hex { return g.r.Gen.Settlement(n).Hex }
-
-// SettlementAt is the open settlement on a tile, or false.
-func (g *Game) SettlementAt(h hex.Hex) (int, bool) {
-	for i, s := range g.Settlements() {
-		if s == h {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
 // MarketAt is the open settlement with a market on a tile, or false.
 func (g *Game) MarketAt(h hex.Hex) (int, bool) {
 	n, ok := g.SettlementAt(h)
@@ -286,7 +264,7 @@ func count[T any](seq iter.Seq[T]) int64 {
 }
 
 func (g *Game) roomForOrder(c *Char) error {
-	if most := g.mp("open-orders"); g.OpenOrders(c) >= most {
+	if most := g.charScale(c, "order-limit", g.mp("open-orders")); g.OpenOrders(c) >= most {
 		return refuse(Busy, "%s already holds %d open orders", c.C.ID, most)
 	}
 	return nil
@@ -482,6 +460,9 @@ func (g *Game) factionPays(seller string, fi, settlement int, coin int64) (int64
 		standing = c.C.Standing.Get(standingKey(fi, g.SettlementHex(settlement)))
 	}
 	pct, buys := g.r.Values.Standing(standing)
+	if c := g.charOf(seller); c != nil {
+		pct = g.charScale(c, "faction-pay", hundred+pct) - hundred
+	}
 	return fixed.PercentPlus(coin, pct), buys
 }
 
@@ -553,11 +534,18 @@ type sale struct {
 // books it.
 func (g *Game) settleSale(s sale, key string) (fact.ID, int64, error) {
 	fee := g.r.Values.Fee(s.coin)
+	if c := g.charOf(s.seller); c != nil && s.settlement >= 0 && s.settlement < len(g.Places) {
+		if gd, w := g.WorkRunning(s.settlement, workOpenLedger); w != nil && gd.G.Member(c.C.ID) != nil {
+			saved := min(fee, spared(g.r.works[workOpenLedger], w, s.coin))
+			fee -= saved
+			g.workGave(w, saved)
+		}
+	}
 	legs := append(slices.Clone(s.goods), ledger.Pair(s.payer, s.seller, ledger.Coin, s.coin)...)
 	if s.back > 0 {
 		legs = append(legs, ledger.Pair(s.payer, s.buyer, ledger.Coin, s.back)...)
 	}
-	legs = append(legs, feeLegs(s.seller, fee)...)
+	legs = append(legs, g.feeLegs(s.settlement, s.seller, fee)...)
 	fid, err := g.worldFact(g.SettlementHex(s.settlement), s.kind, g.traders(s.seller, s.buyer), nil, s.data(fee)...)
 	if err != nil {
 		return 0, 0, err
@@ -584,14 +572,6 @@ func (g *Game) traders(accs ...string) []fact.Ref {
 		}
 	}
 	return out
-}
-
-// feeLegs take a fill's fee from its seller.
-func feeLegs(seller string, fee int64) []ledger.Leg {
-	if fee <= 0 {
-		return nil
-	}
-	return ledger.Pair(seller, ledger.ToFees, ledger.Coin, fee)
 }
 
 // booked counts a settled trade into the week, coin being what the buyer
@@ -691,7 +671,7 @@ func (m *Market) takeWant(id string) (market.Want, bool) {
 // the settlement it last stood in, so coin enters where people trade and
 // a settlement nobody plays from still has buyers for a hauler.
 func (g *Game) Budgets() []int64 {
-	weight := make([]int64, g.World.Opened)
+	weight := make([]int64, len(g.Places))
 	for i := range weight {
 		weight[i] = g.r.Faucet.Floor
 	}
@@ -741,12 +721,12 @@ func (g *Game) postFactionOrders(t int64) error {
 	for i, w := range wants {
 		shares[i] = faucet.Share{Urgency: w.Urgency, Price: w.Price}
 	}
-	m.Trader = make([]int64, g.World.Opened)
+	m.Trader = make([]int64, len(g.Places))
 	for n, h := range g.Settlements() {
 		if !g.HasStructure(h, structureMarket) {
 			continue
 		}
-		budget := budgets[n]
+		budget := budgets[n] - g.bountyHeld(n)
 		trader := fixed.PercentFloor(budget, g.mp("trader-share"))
 		m.Trader[n] = trader
 		qty := faucet.Plan(budget-trader, shares)

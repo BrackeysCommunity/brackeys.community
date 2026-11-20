@@ -1,5 +1,54 @@
 {
   "$schema": "../schema/classes.params.schema.json",
   "sheet": "classes.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "active-classes",
+      "value": 2,
+      "unit": "count",
+      "doc": "Classes a character may have active at once (GDD 5.8)."
+    },
+    {
+      "id": "tier-levels",
+      "value": 5,
+      "unit": "level",
+      "doc": "Tiers open at class level 1 and every this many levels after: 1, 5, 10, 15."
+    },
+    {
+      "id": "level-5-practice",
+      "value": 12,
+      "unit": "level",
+      "doc": "The class skill's practice that brings class level 5."
+    },
+    {
+      "id": "level-10-practice",
+      "value": 16,
+      "unit": "level",
+      "doc": "Brings class level 10."
+    },
+    {
+      "id": "level-15-practice",
+      "value": 20,
+      "unit": "level",
+      "doc": "Brings class level 15."
+    },
+    {
+      "id": "first-class-days-min",
+      "value": 5,
+      "unit": "days",
+      "doc": "The Economy run's target: a daily player's first class comes no sooner than this."
+    },
+    {
+      "id": "first-class-days-max",
+      "value": 9,
+      "unit": "days",
+      "doc": "And no later than this."
+    },
+    {
+      "id": "class-share-max",
+      "value": 30,
+      "unit": "percent",
+      "doc": "The Battle run's target: the most of the matchup matrix one class's abilities may win on their own."
+    }
+  ]
 }

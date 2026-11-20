@@ -20,6 +20,8 @@ type Action struct {
 	Tag      string   `json:"tag,omitempty"`
 	Units    int64    `json:"units,omitempty"`
 	Dir      *int     `json:"dir,omitempty"` // nil: no direction
+	// Quiet is a visit that lays no track.
+	Quiet bool `json:"quiet,omitempty"`
 }
 
 // Action kinds.
@@ -32,6 +34,7 @@ const (
 	ActSlay           = "slay"        // one of Species slain on Hex
 	ActFall           = "fall"        // a character went down on Hex
 	ActClearFloor     = "clear-floor" // floor Units of the dungeon on Hex cleared
+	ActEase           = "ease"        // Units of threat taken off the region holding Hex
 )
 
 // actions is every action kind: what it needs to be applied, checked
@@ -47,7 +50,7 @@ var actions = map[string]struct {
 	ActDiscover: {needsBy, func(s *State, log fact.Log, a Action) error { return s.Discover(log, a.Hex, a.By) }},
 	ActVisit: {needsBy, func(s *State, log fact.Log, a Action) error {
 		t := s.touch(a.Hex)
-		t.Visit(s.tp, a.By, s.Tick)
+		t.Visit(s.tp, a.By, s.Tick, a.Quiet)
 		if a.Dir != nil && *a.Dir >= 0 && *a.Dir < hex.Directions {
 			back := (*a.Dir + hex.Directions/halves) % hex.Directions
 			s.touch(a.Hex.Neighbour(back)).Leave(*a.Dir)
@@ -80,6 +83,17 @@ var actions = map[string]struct {
 		return nil
 	}, func(s *State, _ fact.Log, a Action) error {
 		s.slay(a.Hex, a.Species)
+		return nil
+	}},
+	ActEase: {func(_ *State, a Action) error {
+		if a.Units <= 0 {
+			return fmt.Errorf("world: ease of %d threat", a.Units)
+		}
+		return nil
+	}, func(s *State, _ fact.Log, a Action) error {
+		if r := s.RegionAt(a.Hex); r >= 0 {
+			s.addGauge(r, s.GaugeIndex("threat"), -a.Units)
+		}
 		return nil
 	}},
 	ActFall: {nil, func(s *State, _ fact.Log, a Action) error {

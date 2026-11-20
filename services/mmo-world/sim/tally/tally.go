@@ -65,3 +65,12 @@ func (t Tally) Score(keys []string) int64 {
 	}
 	return s
 }
+
+// Sum is every count added up.
+func (t Tally) Sum() int64 {
+	var n int64
+	for _, c := range t {
+		n += c.N
+	}
+	return n
+}

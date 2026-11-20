@@ -101,6 +101,11 @@ type ActionRequest struct {
 	Price  int64  `json:"price,omitempty"`
 	Target string `json:"target,omitempty"`
 	Floor  *Floor `json:"floor,omitempty"`
+	// Goals, guilds and classes (GDD 4.8, 11): a name or note, a goal
+	// posted, and whether the player is one of its server's admins.
+	Note  string    `json:"note,omitempty"`
+	Goal  *GoalSpec `json:"goal,omitempty"`
+	Admin bool      `json:"admin,omitempty"`
 }
 
 // OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -112,6 +117,8 @@ type OperatorRequest struct {
 	Asset         string `json:"asset,omitempty"`
 	Units         int64  `json:"units,omitempty"`
 	Note          string `json:"note"`
+	// Target is the goal an operator hides.
+	Target string `json:"target,omitempty"`
 }
 
 // ActionReply is what an accepted press did. Duplicate is true when the
@@ -263,6 +270,17 @@ type Options struct {
 	Long        *Long    `json:"long,omitempty"`
 	Fight       *Fight   `json:"fight,omitempty"`
 	Purse       Purse    `json:"purse"`
+	Rescue      *Rescue  `json:"rescue,omitempty"`
+}
+
+// Rescue is a character's part in a rescue (GDD 11.6): whether it has
+// called for help and at which settlement its Carry goal hangs, and whom
+// it carries or is carried by.
+type Rescue struct {
+	Called    bool   `json:"called"`
+	Home      string `json:"home"`
+	Carrying  string `json:"carrying,omitempty"`
+	CarriedBy string `json:"carriedBy,omitempty"`
 }
 
 // Purse is what a character holds and, in a market, the prices there:

@@ -148,10 +148,13 @@ func (s *State) Decay(p Params, tick int64) {
 	s.Rumours = slices.DeleteFunc(s.Rumours, func(r Rumour) bool { return r.Expires <= tick })
 }
 
-// Visit records an arrival by someone.
-func (s *State) Visit(p Params, who fact.Ref, tick int64) {
+// Visit records an arrival by someone; a quiet one lays no track.
+func (s *State) Visit(p Params, who fact.Ref, tick int64, quiet bool) {
 	s.Visits++
 	s.bump(CounterVisits, 1)
+	if quiet {
+		return
+	}
 	s.Tracks = append(s.Tracks, Track{Who: who, Tick: tick})
 	if over := int64(len(s.Tracks)) - p.TracksKept; over > 0 {
 		s.Tracks = s.Tracks[over:]

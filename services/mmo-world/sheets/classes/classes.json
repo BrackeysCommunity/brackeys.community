@@ -1,5 +1,137 @@
 {
   "$schema": "../schema/classes.classes.schema.json",
   "sheet": "classes.classes",
-  "rows": []
+  "rows": [
+    {
+      "id": "warden",
+      "unlock": [
+        {
+          "kind": "practice",
+          "id": "fight",
+          "at": 8
+        },
+        {
+          "kind": "deed",
+          "id": "hold-won",
+          "at": 40
+        }
+      ],
+      "skill": "fight",
+      "tag": "warden",
+      "leans": "Protecting a party; holding a wall"
+    },
+    {
+      "id": "stalker",
+      "unlock": [
+        {
+          "kind": "practice",
+          "id": "fight",
+          "at": 8
+        },
+        {
+          "kind": "practice",
+          "id": "travel",
+          "at": 5
+        }
+      ],
+      "skill": "fight",
+      "tag": "stalker",
+      "leans": "First strikes; following tracks; ambushing the ambushers"
+    },
+    {
+      "id": "smith",
+      "unlock": [
+        {
+          "kind": "practice",
+          "id": "craft",
+          "at": 8
+        },
+        {
+          "kind": "crafts",
+          "id": "alloy",
+          "at": 8
+        },
+        {
+          "kind": "crafts",
+          "id": "shape",
+          "at": 8
+        }
+      ],
+      "skill": "craft",
+      "tag": "smith",
+      "leans": "Narrower appraisal; a second method per process"
+    },
+    {
+      "id": "chandler",
+      "unlock": [
+        {
+          "kind": "deed",
+          "id": "hauled",
+          "at": 2000
+        },
+        {
+          "kind": "practice",
+          "id": "travel",
+          "at": 5
+        }
+      ],
+      "skill": "travel",
+      "tag": "chandler",
+      "leans": "Load, route risk, fresher prices"
+    },
+    {
+      "id": "delver",
+      "unlock": [
+        {
+          "kind": "deed",
+          "id": "floors",
+          "at": 10
+        },
+        {
+          "kind": "practice",
+          "id": "lockpick",
+          "at": 6
+        }
+      ],
+      "skill": "lockpick",
+      "tag": "delver",
+      "leans": "Forks, locks, leaving with the haul"
+    },
+    {
+      "id": "kindler",
+      "unlock": [
+        {
+          "kind": "crafts",
+          "id": "compose",
+          "at": 8
+        },
+        {
+          "kind": "deed",
+          "id": "runs-landed",
+          "at": 60
+        }
+      ],
+      "skill": "fight",
+      "tag": "kindler",
+      "leans": "Exploit states lasting longer; a second exploit slot"
+    },
+    {
+      "id": "reeve",
+      "unlock": [
+        {
+          "kind": "deed",
+          "id": "goals-for-others",
+          "at": 10
+        },
+        {
+          "kind": "deed",
+          "id": "pledged",
+          "at": 500
+        }
+      ],
+      "skill": "goals",
+      "tag": "reeve",
+      "leans": "Cheaper listings; larger musters; guild works costing less"
+    }
+  ]
 }

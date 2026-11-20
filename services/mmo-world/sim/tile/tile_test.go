@@ -39,7 +39,7 @@ func TestTileRetainsRecentTracksAndHeavyEvents(t *testing.T) {
 	var tile State
 	who := fact.Ref{Kind: "character", ID: "traveller"}
 	for i := int64(1); i <= 3; i++ {
-		tile.Visit(p, who, i)
+		tile.Visit(p, who, i, false)
 		tile.Remember(p, fact.Fact{ID: fact.ID(i), Weight: 60})
 	}
 	tile.Remember(p, fact.Fact{ID: 4, Weight: 59})

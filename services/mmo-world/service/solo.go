@@ -14,9 +14,10 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
+	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
@@ -165,7 +166,12 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	g := s.g
 	out := api.Sheet{Character: apiCharacter(g, c), Start: c.Start, Kit: []api.Item{}, Pack: []api.Item{}, Standing: []api.Standing{},
 		Record: []api.Count{}, Finds: []api.Find{}, Owed: c.Owed, Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
-		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}}
+		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}, Vows: []string{}}
+	for _, x := range g.Goals {
+		if x.Poster == c.C.ID && x.State == goal.Live && x.Vow() && !x.Hidden {
+			out.Vows = append(out.Vows, x.Title)
+		}
+	}
 	worn := map[string]string{}
 	for _, e := range c.C.Equipped {
 		worn[e.Item] = e.Slot
@@ -193,6 +199,9 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	}
 	for _, x := range c.C.Earned {
 		out.Record = append(out.Record, api.Count{Key: "earned:" + x.Key, N: x.N, Unit: "coin"})
+	}
+	for _, x := range c.C.Goals {
+		out.Record = append(out.Record, api.Count{Key: "goals:" + x.Key, N: x.N, Unit: "goals"})
 	}
 	if n := f.Nemesis(); n != "" {
 		out.Record = append(out.Record, api.Count{Key: "nemesis:" + n, N: f.DownedBy.Get(n), Unit: "downs"})
@@ -301,7 +310,11 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 	h := c.C.At
 	place := placeView(g, h)
 	out := api.Here{Place: place, Name: g.PlaceName(h), Stations: []api.Station{}, Orders: []api.Order{}, Offers: []api.Offer{},
-		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{}}
+		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{},
+		Downed: []api.Downed{}}
+	for _, d := range g.DownedAt(c) {
+		out.Downed = append(out.Downed, api.Downed{ID: d.C.ID, Name: g.OwnerName(ledger.Char(d.C.ID)), Called: g.Called(d)})
+	}
 	for _, st := range g.Stations(h) {
 		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: g.StationFee(st)})
 	}
@@ -342,7 +355,7 @@ func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
 	g := s.g
 	r := g.Rules()
 	b := r.Gen.Baseline(h)
-	in := render.BannerInput{Terrain: b.Terrain, Hour: (g.Tick() % sheets.TicksPerDay) / sheets.TicksPerHour, Settlement: b.Site == gen.PlaceSettlement}
+	in := render.BannerInput{Terrain: b.Terrain, Hour: (g.Tick() % sheets.TicksPerDay) / sheets.TicksPerHour, Settlement: g.IsSettlement(h)}
 	if ri := g.World.RegionAt(h); ri >= 0 {
 		reg := g.World.Regions[ri]
 		in.Seed = world.RegionRef(ri)

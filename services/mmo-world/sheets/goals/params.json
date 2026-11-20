@@ -1,5 +1,120 @@
 {
   "$schema": "../schema/goals.params.schema.json",
   "sheet": "goals.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "live-goals",
+      "value": 5,
+      "unit": "count",
+      "doc": "Live goals one character may have posted (GDD 11.5)."
+    },
+    {
+      "id": "reward-least",
+      "value": 10,
+      "unit": "coin",
+      "doc": "A reward of at least this, or none at all."
+    },
+    {
+      "id": "pledge-need",
+      "value": 2000,
+      "unit": "coin",
+      "doc": "A settlement goal goes live at this much pledged (GDD 11.3)."
+    },
+    {
+      "id": "ephemeral-least",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "An ephemeral goal lasts at least an hour."
+    },
+    {
+      "id": "ephemeral-most",
+      "value": 3,
+      "unit": "days",
+      "doc": "And at most three world days."
+    },
+    {
+      "id": "each-cap",
+      "value": 50,
+      "unit": "count",
+      "doc": "The most claimants an Each goal may pay."
+    },
+    {
+      "id": "party-most",
+      "value": 6,
+      "unit": "count",
+      "doc": "Members a party goal may name besides its poster."
+    },
+    {
+      "id": "rescue-reward",
+      "value": 30,
+      "unit": "coin",
+      "doc": "Calling for help posts a Carry goal for this, from the downed character's purse (GDD 11.6)."
+    },
+    {
+      "id": "title-length",
+      "value": 60,
+      "unit": "count",
+      "doc": "The longest goal title."
+    },
+    {
+      "id": "note-length",
+      "value": 300,
+      "unit": "count",
+      "doc": "The longest note."
+    },
+    {
+      "id": "drafts",
+      "value": 3,
+      "unit": "count",
+      "doc": "Drafts the board suggests at once (GDD 11.3)."
+    },
+    {
+      "id": "bounty-share",
+      "value": 10,
+      "unit": "percent",
+      "doc": "Of each open settlement's daily faucet budget, the share its faction may hold out as a bounty goal."
+    },
+    {
+      "id": "bounty-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "A faction bounty lasts this long."
+    },
+    {
+      "id": "collateral",
+      "value": 100,
+      "unit": "percent",
+      "doc": "Collateral a hauler puts up, as a share of the haul's reference value."
+    },
+    {
+      "id": "progress-ticks",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "A notice-board post is edited at most this often."
+    },
+    {
+      "id": "bounty-threat",
+      "value": 700,
+      "unit": "gauge",
+      "doc": "A faction bounty is posted on the most threatened region near a settlement at or over this; the ambush line."
+    },
+    {
+      "id": "bounty-kills",
+      "value": 5,
+      "unit": "count",
+      "doc": "Creatures a faction bounty asks to be defeated there."
+    },
+    {
+      "id": "hold-days",
+      "value": 5,
+      "unit": "days",
+      "doc": "How long a drafted Hold asks the line kept."
+    },
+    {
+      "id": "draft-units",
+      "value": 20,
+      "unit": "goods",
+      "doc": "Goods a drafted Deliver asks for."
+    }
+  ]
 }

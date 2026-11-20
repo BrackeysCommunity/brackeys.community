@@ -67,7 +67,8 @@ type Book struct {
 	NPCTraits []NPCTrait `sheet:"npcs.traits" doc:"Traits notables and other NPCs draw from."`
 	NPCRoles  []NPCRole  `sheet:"npcs.roles" doc:"Role slots each place fills with residents, and the roles wanderers take."`
 	Topics    []Topic    `sheet:"npcs.topics" doc:"What an NPC can bring up, when, and the choices it offers (GDD 4.18)."`
-	NPCParams []Param    `sheet:"npcs.params" doc:"Memory, salience, routes and visits."`
+	Gossip    []Gossip   `sheet:"npcs.gossip" doc:"How a neighbour's memory is passed on, by its kind (GDD 4.18)."`
+	NPCParams []Param    `sheet:"npcs.params" doc:"Memory, salience, routes, crowding and moving home."`
 
 	Archetypes    []Archetype  `sheet:"factions.archetypes" doc:"Faction archetypes, what they buy and tend to do."`
 	Moves         []Move       `sheet:"factions.moves" doc:"The daily moves a faction can score."`
@@ -83,6 +84,7 @@ type Book struct {
 	RouteRisks    []RouteRisk    `sheet:"economy.route-risk" doc:"Ambush chance per tile entered, by threat (GDD 10.7)."`
 
 	GoalParams []Param `sheet:"goals.params" doc:"Listing fees, limits, thresholds."`
+	Words      []Word  `sheet:"goals.words" doc:"Words a goal's title or note may not hold (MM6.7); operators hide what gets past them."`
 
 	Traces []Trace `sheet:"emergence.traces" doc:"Trace decay and promotion lines."`
 
@@ -112,17 +114,18 @@ type Book struct {
 	CreatureVariants []CreatureVariant `sheet:"creatures.variants" doc:"Keyed tags that make a creature variant, by distance."`
 	CreatureParams   []Param           `sheet:"creatures.params" doc:"Breeding, pressure, migration."`
 
-	StructureCosts   []StructureCost     `sheet:"settlements.structure-costs" doc:"What each structure costs per tier."`
+	Structures       []Structure         `sheet:"settlements.structures" doc:"The structures a settlement is made of: what each does and costs per tier (GDD 4.16)."`
 	Starting         []StartingStructure `sheet:"settlements.starting" doc:"What a starting settlement opens with."`
-	GuildWorks       []GuildWork         `sheet:"settlements.guild-works" doc:"What each guild work consumes."`
+	GuildWorks       []GuildWork         `sheet:"settlements.guild-works" doc:"What each guild work consumes and gives (GDD 4.14)."`
 	SettlementParams []Param             `sheet:"settlements.params" doc:"Charter and city requirements."`
 
 	MountKinds  []MountKind `sheet:"mounts.kinds" doc:"Mounts: tier, the terrains each suits, load."`
 	MountOffers []Offer     `sheet:"mounts.offers" doc:"What a mount's milestones offer."`
 	MountParams []Param     `sheet:"mounts.params" doc:"Load and upkeep."`
 
-	Classes     []Class `sheet:"classes.classes" doc:"Classes and what unlocks them."`
-	ClassParams []Param `sheet:"classes.params" doc:"Class levels and ability magnitudes."`
+	Classes     []Class   `sheet:"classes.classes" doc:"Classes and what unlocks them (GDD 5.8)."`
+	Abilities   []Ability `sheet:"classes.abilities" doc:"The seven trees: each ability, its tier and the rule it is (GDD 5.9)."`
+	ClassParams []Param   `sheet:"classes.params" doc:"Class levels and how many may be active."`
 
 	PuzzleFamilies []PuzzleFamily `sheet:"puzzles.families" doc:"Machine puzzle families and where each appears."`
 	Haywires       []Haywire      `sheet:"puzzles.haywire" doc:"What a machine does when its countdown runs out."`

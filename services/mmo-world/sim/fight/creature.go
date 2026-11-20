@@ -36,7 +36,7 @@ func (r *Rules) Spawn(archetype string, extra []tags.Tag, place []tags.Tag, meas
 			if e.Target == tags.Subject {
 				ts = slices.DeleteFunc(ts, func(t tags.Tag) bool { return t == e.Tag })
 			}
-		case tags.Band, tags.Scale, tags.Join, tags.End, tags.Score:
+		case tags.Band, tags.Scale, tags.Add, tags.Join, tags.End, tags.Score:
 		}
 	}
 	slices.Sort(ts)
@@ -68,7 +68,7 @@ func (r *Rules) Behave(c Creature, place []tags.Tag, measures []tags.Measure) Be
 		case tags.End:
 			b.EndsAt = e.Beat
 			b.Because = append(b.Because, why.Steps[e.Step()-1].Rule)
-		case tags.AddTag, tags.RemoveTag, tags.Band, tags.Scale, tags.Score:
+		case tags.AddTag, tags.RemoveTag, tags.Band, tags.Scale, tags.Add, tags.Score:
 		}
 	}
 	return b

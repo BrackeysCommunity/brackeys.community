@@ -17,8 +17,10 @@ import (
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store"
 	"jams.team/mmo-world/store/pgtest"
 )
@@ -95,6 +97,55 @@ func TestSaveLoad(t *testing.T) {
 	}
 	if err := st.SaveAction(ctx, g, cmds[1], c, "", []byte(`{}`), now); err == nil {
 		t.Fatal("a second write of one interaction id went through")
+	}
+}
+
+// TestSocietySurvivesAReload plays goals, a guild and a raise project
+// through saves, and loads them back to the same digest, then to the same
+// digest again after the days that turn them.
+func TestSocietySurvivesAReload(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.Pool(t)
+	r := rules(t)
+	st, g, _ := testkit.Founded(t, ctx, pool, r, store.Meta{ID: "w-test", KeyVersion: 1, KeyCheck: "x", SheetsDigest: "s", TickSeconds: 600})
+	act := func(cmd game.Command) *game.Char {
+		t.Helper()
+		discord := ""
+		if cmd.Kind == game.Create {
+			discord = "user-" + cmd.Key
+		}
+		return testkit.Act(t, ctx, st, g, cmd, discord).Char
+	}
+	officer := act(game.Command{Key: "s-1", Kind: game.Create, Option: "hook", Server: "srv", Note: "The Reedwardens"})
+	member := act(game.Command{Key: "s-2", Kind: game.Create, Option: "hook", Server: "srv"})
+	act(game.Command{Key: "s-3", Char: member.C.ID, Kind: game.Correct, Asset: ledger.Coin, Units: 200, Note: "test purse"})
+	act(game.Command{Key: "s-4", Char: member.C.ID, Kind: game.Deposit, Asset: ledger.Coin, Units: 50})
+	act(game.Command{Key: "s-5", Char: officer.C.ID, Kind: game.Raise, Slot: "wall"})
+	act(game.Command{Key: "s-6", Char: member.C.ID, Kind: game.PostGoal, Goal: &game.GoalSpec{Title: "Timber for the wall", Issuer: goal.ByCharacter,
+		Reward: 40, Mode: goal.Pooled, Lifetime: goal.Season, Turnover: goal.Evolve,
+		Cond: goal.Condition{Verb: goal.Deliver, Tag: "timber", Count: 10, At: "settlement:0"}}})
+	if len(g.Goals) < 2 || len(g.Guilds) != 1 || g.Ledger.Of(g.Guilds[0].Pool(), ledger.Coin) != 50 {
+		t.Fatalf("%d goals, %d guilds", len(g.Goals), len(g.Guilds))
+	}
+	same := func(when string) {
+		t.Helper()
+		want, _ := g.Digest()
+		back, err := store.New(pool, "w-test").Load(ctx, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := back.Digest(); got != want {
+			t.Fatalf("%s: loaded digest %s, want %s", when, got, want)
+		}
+		if len(back.Goals) != len(g.Goals) || len(back.Guilds) != len(g.Guilds) || len(back.Places) != len(g.Places) {
+			t.Fatalf("%s: loaded %d goals, %d guilds, %d places", when, len(back.Goals), len(back.Guilds), len(back.Places))
+		}
+	}
+	same("at once")
+	testkit.Ticks(t, ctx, st, g, 2*sheets.TicksPerDay)
+	same("after two days")
+	if bad, err := st.Audit(ctx); err != nil || len(bad) > 0 {
+		t.Fatal(bad, err)
 	}
 }
 

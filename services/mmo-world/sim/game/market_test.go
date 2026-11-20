@@ -235,9 +235,10 @@ func TestWeeklyReportAndStabiliser(t *testing.T) {
 		t.Fatalf("report %+v", r)
 	}
 	// Nobody holds coin: the stabiliser has raised the faucet each day, and
-	// never past its rest.
-	if g.Market.Faucet.Rate.Cmp(rate) <= 0 || g.Market.Faucet.Rate.Cmp(rest) > 0 {
-		t.Fatalf("the faucet went from %s to %s, rest %s", rate, g.Market.Faucet.Rate, rest)
+	// never past its ceiling.
+	most := rest.Mul(fixed.Percent(g.Rules().Faucet.Most))
+	if g.Market.Faucet.Rate.Cmp(rate) <= 0 || g.Market.Faucet.Rate.Cmp(most) > 0 {
+		t.Fatalf("the faucet went from %s to %s, ceiling %s", rate, g.Market.Faucet.Rate, most)
 	}
 }
 

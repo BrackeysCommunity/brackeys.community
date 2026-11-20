@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 
+	"jams.team/mmo-world/sim/class"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
@@ -162,6 +163,12 @@ type Character struct {
 	// Goals
 	Goals tally.Tally `json:"goals"` // posted, met, lapsed, vows-kept, vows-broken
 
+	// Classes: earned, active and abilities taken; Deeds the counts their
+	// thresholds read; Prey the creature tag a Stalker marked, and the day.
+	Classes class.State `json:"classes"`
+	Deeds   tally.Tally `json:"deeds,omitempty"`
+	Prey    Prey        `json:"prey"`
+
 	// Travel
 	Discoveries  int64       `json:"discoveries"`
 	Walked       int64       `json:"walked"`
@@ -175,6 +182,12 @@ type Character struct {
 	// Flags
 	Flags    []string `json:"flags"`
 	StagedXP int64    `json:"stagedXP"` // used today
+}
+
+// Prey is a creature tag marked on a world day.
+type Prey struct {
+	Tag string `json:"tag,omitempty"`
+	Day int64  `json:"day,omitempty"`
 }
 
 // Limits are the ring and list sizes, from the sheets.

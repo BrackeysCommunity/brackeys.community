@@ -1,0 +1,18 @@
+{
+  "$schema": "../schema/goals.words.schema.json",
+  "sheet": "goals.words",
+  "rows": [
+    { "id": "fuck", "stem": true },
+    { "id": "shit", "stem": true },
+    { "id": "cunt", "stem": true },
+    { "id": "nigg", "stem": true },
+    { "id": "fagg", "stem": true },
+    { "id": "retard", "stem": true },
+    { "id": "kike" },
+    { "id": "spic" },
+    { "id": "tranny", "stem": true },
+    { "id": "rape", "stem": true },
+    { "id": "kys" },
+    { "id": "nazi", "stem": true }
+  ]
+}

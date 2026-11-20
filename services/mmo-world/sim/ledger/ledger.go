@@ -51,6 +51,8 @@ const (
 	ToCraft      = Sink + "craft"
 	ToUpkeep     = Sink + "upkeep"
 	ToGoalFees   = Sink + "goal-fees"
+	ToBuild      = Sink + "build" // charters, structures and their repairs
+	ToWorks      = Sink + "works" // what guild works consume
 )
 
 // Material, Item and Char name a material asset, an item asset and a

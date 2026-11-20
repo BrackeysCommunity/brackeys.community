@@ -41,10 +41,12 @@ type News struct {
 	Placeless bool `json:"placeless,omitempty"`
 }
 
-// keepNews adds the heavy facts among fs to the news ring.
+// keepNews adds the heavy facts among fs to the news ring, and counts
+// what they built towards crowding.
 func (g *Game) keepNews(fs []fact.Fact) {
 	line, kept := g.NewsWeight(), g.r.wp("news-kept")
 	for _, f := range fs {
+		g.countBuilt(f)
 		if f.Weight < line {
 			continue
 		}
@@ -76,7 +78,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 			out = append(out, Person{Stub: n.Stub, Saved: true, Visit: slices.Contains(n.Visits, c.C.ID)})
 		}
 	}
-	if g.r.Gen.Baseline(h).Site == gen.PlaceSettlement {
+	if g.IsSettlement(h) {
 		for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h) {
 			if n := g.NPCs.Get(s.ID); n != nil {
 				if g.r.NPC.At(n, t) == h {
@@ -100,7 +102,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 
 func (g *Game) wanderer(h hex.Hex, t int64) (npc.Stub, bool) {
 	b := g.r.Gen.Baseline(h)
-	if b.Site == gen.PlaceSettlement || !g.r.Gen.Passable(b.Terrain) {
+	if g.IsSettlement(h) || !g.r.Gen.Passable(b.Terrain) {
 		return npc.Stub{}, false
 	}
 	var tileTags []string
@@ -132,8 +134,11 @@ func (g *Game) talk(c *Char, cmd Command) error {
 		old := n.Route
 		g.r.NPC.LayRoute(n, t, g.routeCost)
 		g.NPCs.Routed(n, old)
-	} else if g.r.NPC.Dormant(n, t) {
-		g.r.NPC.Wake(n)
+	} else {
+		if g.r.NPC.Dormant(n, t) {
+			g.r.NPC.Wake(n)
+		}
+		g.relay(n, t)
 	}
 	first := n.Meeting(c.C.ID) == nil
 	n.Meet(c.C.ID, t)
@@ -246,17 +251,8 @@ func (g *Game) Converse(c *Char, id string) (Conversation, error) {
 	if n == nil {
 		return Conversation{}, refuse(NotHere, "%s has not been spoken to", id)
 	}
-	t := g.Tick()
-	var cands []TopicView
-	for _, row := range g.r.NPC.Topics() {
-		if v, ok := g.topic(c, n, row, t); ok {
-			cands = append(cands, v)
-		}
-	}
-	day := t / sheets.TicksPerDay
-	slices.SortStableFunc(cands, func(a, b TopicView) int {
-		return cmp.Or(cmp.Compare(b.Salience, a.Salience), cmp.Compare(g.tieBreak(n, c, day, a.ID), g.tieBreak(n, c, day, b.ID)))
-	})
+	day := g.Tick() / sheets.TicksPerDay
+	cands := g.Candidates(c, n)
 	cands = cands[:min(len(cands), int(g.r.NPC.Param("topics-shown")))]
 	out := Conversation{NPC: n.Stub, Topics: cands}
 	if m := n.Meeting(c.C.ID); m != nil {
@@ -270,6 +266,24 @@ func (g *Game) Converse(c *Char, id string) (Conversation, error) {
 	}{n.Stub.ID, c.C.ID, day, cands})
 	out.Digest = sum.String()
 	return out, err
+}
+
+// Candidates are every topic whose predicate holds for a character and a
+// saved NPC now, most salient first: the dossier's topics before any is
+// picked.
+func (g *Game) Candidates(c *Char, n *npc.NPC) []TopicView {
+	t := g.Tick()
+	var cands []TopicView
+	for _, row := range g.r.NPC.Topics() {
+		if v, ok := g.topic(c, n, row, t); ok {
+			cands = append(cands, v)
+		}
+	}
+	day := t / sheets.TicksPerDay
+	slices.SortStableFunc(cands, func(a, b TopicView) int {
+		return cmp.Or(cmp.Compare(b.Salience, a.Salience), cmp.Compare(g.tieBreak(n, c, day, a.ID), g.tieBreak(n, c, day, b.ID)))
+	})
+	return cands
 }
 
 func (g *Game) tieBreak(n *npc.NPC, c *Char, day int64, topic string) uint64 {
@@ -329,13 +343,37 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 			return TopicView{}, false
 		}
 		fields = append(fields, npc.Field{Key: "thing", Value: g.r.Name("world.weather:" + kind)})
-	case "longer-road":
-		now := g.routeTicks(n)
-		if n.RouteTicks == 0 || (now-n.RouteTicks)*fixedHundred < row.AtLeast*n.RouteTicks {
+	case whenCrowding:
+		r := g.World.RegionAt(n.Stub.Home)
+		if r < 0 {
 			return TopicView{}, false
 		}
-		pct := (now - n.RouteTicks) * fixedHundred / n.RouteTicks
-		fields = append(fields, npc.Field{Key: "n", Value: strconv.FormatInt(pct, decimal)}, npc.Field{Key: "unit", Value: "per cent"})
+		built := g.BuiltIn(r, t/sheets.TicksPerDay)
+		if built < row.AtLeast {
+			return TopicView{}, false
+		}
+		fields = append(fields, npc.Field{Key: "n", Value: strconv.FormatInt(built, decimal)}, npc.Field{Key: "unit", Value: "structures"},
+			npc.Field{Key: "thing", Value: strconv.FormatInt(g.r.NPC.Param("crowding-days"), decimal) + " days"})
+	case "longer-road":
+		// Measured when the route was last relaid, not at every meeting.
+		if n.Longer <= 0 || n.Longer < row.AtLeast {
+			return TopicView{}, false
+		}
+		fields = append(fields, npc.Field{Key: "n", Value: strconv.FormatInt(n.Longer, decimal)}, npc.Field{Key: "unit", Value: "per cent"})
+	case "gossip":
+		line, heard, ok := g.gossip(c, n, t)
+		if !ok {
+			return TopicView{}, false
+		}
+		sal += heard
+		fields = append(fields, npc.Field{Key: "thing", Value: line})
+	case entryMoved:
+		e, ok := g.r.NPC.About(n, "", entryMoved, t)
+		if !ok {
+			return TopicView{}, false
+		}
+		sal += g.r.NPC.Salience(e, t)
+		fields = append(fields, npc.Field{Key: "thing", Value: e.Thing})
 	case entryResold, entrySoldOn:
 		e, ok := g.r.NPC.About(n, c.C.ID, row.When, t)
 		if !ok || e.N < row.AtLeast {
@@ -349,8 +387,7 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 			return TopicView{}, false
 		}
 	default:
-		// crowding, rival, promise-kept, promise-broken and moved-away need
-		// building and goals, which the sim does not model yet.
+		// rival, promise-kept and promise-broken read what no NPC keeps yet.
 		return TopicView{}, false
 	}
 	v := TopicView{ID: row.ID, Line: npc.Line(row.Line, fields...), Own: own, Salience: sal}
@@ -360,8 +397,9 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 	return v, true
 }
 
-// structural: percentages are out of a hundred.
-const fixedHundred = 100
+// structural: the predicate crowding reads, here and where building is
+// counted.
+const whenCrowding = "crowding"
 
 func (g *Game) newsNear(home hex.Hex, since, weight int64) (News, bool) {
 	rng := g.r.NPC.Param("news-range")
@@ -383,18 +421,12 @@ func (g *Game) weatherOnRoute(n *npc.NPC, strength int64) (string, bool) {
 	return "", false
 }
 
-func (g *Game) routeTicks(n *npc.NPC) int64 {
-	var total int64
-	for i := 1; i < len(n.Route); i++ {
-		c, _ := g.routeCost(n.Route[i-1], n.Route[i])
-		total += c
-	}
-	return total
-}
-
 // placeName is a tile's settlement or region name.
 func (g *Game) placeName(h hex.Hex) string {
-	if g.r.Gen.Baseline(h).Site == gen.PlaceSettlement {
+	if p := g.PlaceAt(h); p != nil && p.Name != "" {
+		return p.Name
+	}
+	if g.IsSettlement(h) {
 		return g.r.NPC.PlaceName(npc.ListSettlement, h.Ref())
 	}
 	if r := g.World.RegionAt(h); r >= 0 {

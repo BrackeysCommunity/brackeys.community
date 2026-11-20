@@ -12,6 +12,7 @@ import (
 
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/class"
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/econ"
@@ -19,10 +20,12 @@ import (
 	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/npc"
+	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/tally"
@@ -40,7 +43,16 @@ type Rules struct {
 	NPC     *npc.Rules
 	Values  *econ.Values
 	Faucet  faucet.Params
+	Settle  settle.Params
+	Guild   guild.Params
+	Class   class.Params
 	names   map[string]string // pack names by sheet:id
+	// rules are the tags rules, which abilities' measures are read by;
+	// structures and works the settlements sheets by id.
+	rules      []tags.Rule
+	structures map[string]*sheets.Structure
+	works      map[string]*sheets.GuildWork
+	matTags    map[string][]string
 	// processStations lists the stations each process is done at.
 	processStations map[string][]string
 	draw            *draw.Drawer
@@ -59,9 +71,25 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	if err != nil {
 		return nil, err
 	}
+	rules, err := tags.Compile(b.Rules)
+	if err != nil {
+		return nil, err
+	}
 	r := &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
 		Values: econ.New(b), Faucet: faucet.ParamsOf(b.EconomyParams), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
-		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params())}
+		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params()),
+		Settle: settle.ParamsOf(b.SettlementParams), Guild: guildParams(b.SettlementParams), Class: class.ParamsOf(b.ClassParams),
+		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}}
+	for i := range b.Structures {
+		r.structures[b.Structures[i].ID] = &b.Structures[i]
+	}
+	r.matTags = map[string][]string{}
+	for _, m := range b.Materials {
+		r.matTags[m.ID] = m.Tags
+	}
+	for i := range b.GuildWorks {
+		r.works[b.GuildWorks[i].ID] = &b.GuildWorks[i]
+	}
 	for _, n := range b.Names {
 		r.names[n.Ref] = n.Name
 	}
@@ -72,6 +100,14 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 }
 
 func (r *Rules) wp(id string) int64 { return sheets.IntParam(r.Book.WorldParams, id) }
+
+// guildParams reads the settlements sheet's guild cells.
+func guildParams(p []sheets.Param) guild.Params {
+	i := func(id string) int64 { return sheets.IntParam(p, id) }
+	return guild.Params{Least: i("guild-least"), OfficerPer: i("officer-per"), OfficerSpend: i("officer-spend"), ApprovalDays: i("approval-days"),
+		LeaderIdleDays: i("leader-idle-days"), VoteShare: i("vote-share"), VoteDays: i("vote-days"), ServerLeaderDays: i("server-leader-days"),
+		ServerLeaderEvery: i("server-leader-every"), DrawShare: i("draw-share"), SpoilsDays: i("spoils-days")}
+}
 
 // Char is a character as the game holds it: the sim's character, the row
 // version a command must name, and what it is doing.
@@ -114,10 +150,14 @@ type Char struct {
 	// Hours are the world hours of HoursDay it acted in; Streak the days
 	// running it acted in nearly all of them; Review its flags for an
 	// operator (GDD 10.9).
-	Hours    uint32   `json:"hours,omitempty"`
-	HoursDay int64    `json:"hoursDay,omitempty"`
-	Streak   int64    `json:"streak,omitempty"`
-	Review   []string `json:"review,omitempty"`
+	// Carrying is a downed character it carries home; CarriedBy who
+	// carries it (GDD 11.6).
+	Carrying  string   `json:"carrying,omitempty"`
+	CarriedBy string   `json:"carriedBy,omitempty"`
+	Hours     uint32   `json:"hours,omitempty"`
+	HoursDay  int64    `json:"hoursDay,omitempty"`
+	Streak    int64    `json:"streak,omitempty"`
+	Review    []string `json:"review,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -143,8 +183,33 @@ type Game struct {
 	NPCs     npc.Book       `json:"npcs"`
 	News     []News         `json:"news"`
 	Market   *Market        `json:"market,omitempty"`
-	Log      *fact.Tail     `json:"log"`
-	r        *Rules
+	Society
+	Log *fact.Tail `json:"log"`
+	r   *Rules
+}
+
+// Society is what players have made of the world: the open settlements in
+// opening order, guilds, goals and the classes first earned (GDD 4.8, 11,
+// 5.8).
+type Society struct {
+	Places       []*Place `json:"places"`
+	Guilds       []*Guild `json:"guilds"`
+	Goals        []*Goal  `json:"goals"`
+	NextGuild    int64    `json:"nextGuild"`
+	NextGoal     int64    `json:"nextGoal"`
+	FirstClasses []string `json:"firstClasses"`
+	// SeasonActive is the active characters at the last season's close,
+	// which an evolving goal rescales by.
+	SeasonActive int64 `json:"seasonActive"`
+	// WorkLedger is what guild works have consumed and given back, by
+	// work, at reference value, for the Economy run (GDD 4.14).
+	WorkLedger WorkLedger `json:"workLedger"`
+	// Built counts structures raised by region and world day inside the
+	// crowding window; Crowded are the settlements building has just left
+	// crowded, whose residents decide at the next tick whether to move
+	// (GDD 4.18).
+	Built   []Built `json:"built,omitempty"`
+	Crowded []int   `json:"crowded,omitempty"`
 }
 
 // New founds a world with nobody in it.
@@ -154,8 +219,9 @@ func New(r *Rules) (*Game, error) {
 		return nil, err
 	}
 	g := &Game{World: s, Chars: []*Char{}, Pending: []world.Action{}, Log: &fact.Tail{}, Kinds: Kinds{List: []*item.Kind{}, Made: []KindCount{}},
-		NPCs: npc.Book{List: []*npc.NPC{}}, News: []News{}, r: r}
+		NPCs: npc.Book{List: []*npc.NPC{}}, News: []News{}, Society: Society{Places: []*Place{}, Guilds: []*Guild{}, Goals: []*Goal{}, FirstClasses: []string{}}, r: r}
 	r.Fight.D.Reg = &g.Kinds
+	g.syncPlaces()
 	g.Market = g.newMarket()
 	return g, g.postFactionOrders(g.Tick())
 }
@@ -166,6 +232,7 @@ func (g *Game) Attach(r *Rules) {
 	r.Fight.D.Reg = &g.Kinds
 	g.NPCs.Rebuild()
 	g.World.Attach(r.Book, r.Gen, r.roll)
+	g.syncPlaces()
 	if g.Log == nil {
 		g.Log = &fact.Tail{}
 	}

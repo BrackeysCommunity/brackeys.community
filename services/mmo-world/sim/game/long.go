@@ -41,6 +41,9 @@ type Long struct {
 // woundedTicks is what being wounded adds to a long action (GDD 5.5).
 func (g *Game) woundedTicks(c *Char, t int64) int64 {
 	if c.C.Has(char.Wounded, t) {
+		if _, w := g.workHere(c, "rest", false); w != nil {
+			return g.r.wp("wounded-ticks") / halved
+		}
 		return g.r.wp("wounded-ticks")
 	}
 	return 0
@@ -189,6 +192,9 @@ func (g *Game) rest(c *Char, cmd Command) error {
 		return refuse(NotHere, "rest is taken in a settlement")
 	}
 	n := g.r.wp("rest-ticks")
+	if row, w := g.workHere(c, "rest", false); w != nil {
+		n = min(n, row.By)
+	}
 	g.startLong(c, Rest, cmd.Key, n, n)
 	return nil
 }
@@ -272,6 +278,9 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 			return nil, err
 		}
 	}
+	if err := g.crowdTurn(t); err != nil {
+		return nil, err
+	}
 	if t%sheets.TicksPerDay == 0 {
 		for _, c := range g.Chars {
 			if changed, err := g.upkeep(c, t); err != nil {
@@ -287,6 +296,10 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	acts = append(acts, g.Pending...)
 	g.Pending = []world.Action{}
 	if _, _, err := world.Advance(g.World, g.Log, acts, t); err != nil {
+		return nil, err
+	}
+	g.syncPlaces()
+	if err := g.creditGoals(first, ledger.SubKey("tick", strconv.FormatInt(t, decimal))); err != nil {
 		return nil, err
 	}
 	out := g.Log.Since(first)
@@ -322,7 +335,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	c.C.Walk(to, g.r.limits)
 	c.C.Facing = dir
 	g.visited(c, to, t)
-	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir})
+	first := g.World.Tile(to) == nil || g.World.Tile(to).Discovered == nil
+	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir, Quiet: g.charScale(c, "tracks-left", hundred) <= 0})
+	c.C.Deeds.Bump(DeedHauled, c.Carried())
 	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
 		g.r.Mounts.Ridden(m, g.ground(to), g.Laden(c))
 		c.Rode += l.StepTicks
@@ -333,8 +348,17 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if err := g.provision(c, t); err != nil {
 		return acts, err
 	}
-	if _, err := g.fact(c, "travel.entered", t, append(fact.At(to), fact.N("ticks", l.StepTicks))...); err != nil {
+	data := append(fact.At(to), fact.N("ticks", l.StepTicks))
+	if first {
+		data = append(data, fact.N("first", 1))
+	}
+	if _, err := g.fact(c, "travel.entered", t, data...); err != nil {
 		return acts, err
+	}
+	if c.Carrying != "" {
+		if err := g.carried(c, to, t); err != nil {
+			return acts, err
+		}
 	}
 	if err := g.arrived(c, to, ledger.SubKey(l.Key, "arrive", strconv.FormatInt(l.Steps, decimal)), t); err != nil {
 		return acts, err
@@ -401,7 +425,7 @@ func (g *Game) provision(c *Char, t int64) error {
 // ambushed draws whether entering a tile springs an ambush, at its
 // route-risk band's chance (GDD 10.7).
 func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
-	b, _, ok := g.riskBand(h)
+	b, _, ok := g.riskBand(c, h)
 	if !ok || b.Chance == 0 {
 		return false
 	}

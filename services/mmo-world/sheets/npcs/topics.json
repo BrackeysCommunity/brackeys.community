@@ -339,7 +339,7 @@
       "when": "crowding",
       "atLeast": 10,
       "unit": "count",
-      "weight": 35,
+      "weight": 50,
       "choices": [
         {
           "id": "sympathise",
@@ -357,14 +357,14 @@
           "weight": 20
         }
       ],
-      "line": "{npc} says the region is filling up: {n} {unit} built in two weeks."
+      "line": "{npc} says the region is filling up: {n} {unit} built in {thing}."
     },
     {
       "id": "a-longer-road",
       "when": "longer-road",
       "atLeast": 25,
       "unit": "percent",
-      "weight": 35,
+      "weight": 48,
       "choices": [
         {
           "id": "clear-path",
@@ -380,6 +380,26 @@
         }
       ],
       "line": "{npc}'s road takes {n} {unit} longer than when they first walked it."
+    },
+    {
+      "id": "gossip",
+      "when": "gossip",
+      "weight": 30,
+      "choices": [
+        {
+          "id": "ask-more",
+          "effect": "rumour",
+          "line": "You ask what else is said.",
+          "remember": "asked",
+          "weight": 30
+        },
+        {
+          "id": "let-it-lie",
+          "effect": "none",
+          "line": "You let it lie."
+        }
+      ],
+      "line": "{npc} passes on the talk of {place}: {thing}"
     },
     {
       "id": "news",

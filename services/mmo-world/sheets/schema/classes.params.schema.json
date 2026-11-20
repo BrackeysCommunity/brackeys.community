@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "classes.params",
   "title": "classes.params",
-  "description": "Class levels and ability magnitudes.",
+  "description": "Class levels and how many may be active.",
   "type": "object",
   "additionalProperties": false,
   "required": [

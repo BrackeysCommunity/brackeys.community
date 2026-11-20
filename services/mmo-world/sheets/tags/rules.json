@@ -584,6 +584,792 @@
           "score": 2
         }
       ]
+    },
+    {
+      "id": "ability-shield-the-line",
+      "subject": [
+        "character",
+        "shield-the-line"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "party-failures-taken",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-hold-fast",
+      "subject": [
+        "option",
+        "hold",
+        "walled",
+        "hold-fast"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-stand-over",
+      "subject": [
+        "character",
+        "stand-over"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "party-haul-kept",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-braced-kit",
+      "subject": [
+        "character",
+        "braced-kit"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "armour-wear",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-rally",
+      "subject": [
+        "character",
+        "rally"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "party-rally",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-wall-captain",
+      "subject": [
+        "character",
+        "wall-captain"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "raid-defence-beats",
+          "percent": 100
+        }
+      ]
+    },
+    {
+      "id": "ability-unmoved",
+      "subject": [
+        "character",
+        "unmoved"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "party-second-failure",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-bulwark-wall",
+      "subject": [
+        "character",
+        "bulwark-wall"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "wall-tier",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-first-strike",
+      "subject": [
+        "option",
+        "opening",
+        "first-strike"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-read-the-ground",
+      "subject": [
+        "character",
+        "read-the-ground"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "track-ticks",
+          "percent": 100
+        }
+      ]
+    },
+    {
+      "id": "ability-turn-the-ambush",
+      "subject": [
+        "option",
+        "opening",
+        "ambushed",
+        "turn-the-ambush"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-quiet-feet",
+      "subject": [
+        "character",
+        "quiet-feet"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "cover",
+          "count": 20
+        }
+      ]
+    },
+    {
+      "id": "ability-mark-prey",
+      "subject": [
+        "option",
+        "preyed",
+        "mark-prey"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-ghost-trail",
+      "subject": [
+        "character",
+        "ghost-trail"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "tracks-left",
+          "percent": -100
+        }
+      ]
+    },
+    {
+      "id": "ability-the-long-hunt",
+      "subject": [
+        "character",
+        "the-long-hunt"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "follow-fled",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-cull",
+      "subject": [
+        "character",
+        "cull"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "beat-threat",
+          "percent": 100
+        }
+      ]
+    },
+    {
+      "id": "ability-steady-hand",
+      "subject": [
+        "character",
+        "steady-hand"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "appraisal-width",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-thrift",
+      "subject": [
+        "character",
+        "thrift"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "station-fee",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-third-method",
+      "subject": [
+        "character",
+        "third-method"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "methods",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-salvager",
+      "subject": [
+        "character",
+        "salvager"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "craft-salvage",
+          "count": 20
+        }
+      ]
+    },
+    {
+      "id": "ability-makers-stamp",
+      "subject": [
+        "character",
+        "makers-stamp"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "item-xp",
+          "percent": 10
+        }
+      ]
+    },
+    {
+      "id": "ability-reforge",
+      "subject": [
+        "character",
+        "reforge"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "reforge-points",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": "ability-masters-eye",
+      "subject": [
+        "character",
+        "masters-eye"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "sees-registered",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-signature",
+      "subject": [
+        "character",
+        "signature"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "signature-fee",
+          "percent": -100
+        }
+      ]
+    },
+    {
+      "id": "ability-packer",
+      "subject": [
+        "character",
+        "packer"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "load",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": "ability-road-sense",
+      "subject": [
+        "character",
+        "road-sense"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "road-risk",
+          "count": -1
+        }
+      ]
+    },
+    {
+      "id": "ability-fresh-news",
+      "subject": [
+        "character",
+        "fresh-news"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "news-age",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-haggler",
+      "subject": [
+        "character",
+        "haggler"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "faction-pay",
+          "percent": 3
+        }
+      ]
+    },
+    {
+      "id": "ability-convoy",
+      "subject": [
+        "character",
+        "convoy"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "party-ambush-band",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-bonded",
+      "subject": [
+        "character",
+        "bonded"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "haul-collateral",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-factor",
+      "subject": [
+        "character",
+        "factor"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "order-limit",
+          "percent": 100
+        }
+      ]
+    },
+    {
+      "id": "ability-caravan-master",
+      "subject": [
+        "character",
+        "caravan-master"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "mount-upkeep",
+          "percent": -100
+        }
+      ]
+    },
+    {
+      "id": "ability-light-fingers",
+      "subject": [
+        "option",
+        "pick",
+        "light-fingers"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-sure-footing",
+      "subject": [
+        "option",
+        "hazard",
+        "sure-footing"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-mapper",
+      "subject": [
+        "character",
+        "mapper"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "fork-sight",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-pack-light",
+      "subject": [
+        "character",
+        "pack-light"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "free-exit",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-deep-breath",
+      "subject": [
+        "character",
+        "deep-breath"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "deep-breath",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-key-maker",
+      "subject": [
+        "character",
+        "key-maker"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "keys",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-the-way-back",
+      "subject": [
+        "character",
+        "the-way-back"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "carry-floors",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-hoard-sense",
+      "subject": [
+        "character",
+        "hoard-sense"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "floor-sight",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-lingering-exploits",
+      "subject": [
+        "character",
+        "lingering-exploits"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "state-beats",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-tinder",
+      "subject": [
+        "character",
+        "tinder"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "compile-components",
+          "count": -1
+        }
+      ]
+    },
+    {
+      "id": "ability-second-slot",
+      "subject": [
+        "character",
+        "second-slot"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "decks",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-wide-cast",
+      "subject": [
+        "character",
+        "wide-cast"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "exploit-reach",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-counter",
+      "subject": [
+        "character",
+        "counter"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "counters",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-storm-reader",
+      "subject": [
+        "character",
+        "storm-reader"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "forecast-days",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-bind-the-weather",
+      "subject": [
+        "character",
+        "bind-the-weather"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "weather-binds",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-chain",
+      "subject": [
+        "character",
+        "chain"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "state-repeats",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-fair-hand",
+      "subject": [
+        "character",
+        "fair-hand"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "listing-fee",
+          "percent": -40
+        }
+      ]
+    },
+    {
+      "id": "ability-crier",
+      "subject": [
+        "character",
+        "crier"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "board-first-days",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-quartermaster",
+      "subject": [
+        "character",
+        "quartermaster"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "works-stock",
+          "percent": -10
+        }
+      ]
+    },
+    {
+      "id": "ability-surveyor",
+      "subject": [
+        "character",
+        "surveyor"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "sees-fields",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-muster",
+      "subject": [
+        "character",
+        "muster"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "pledge-need",
+          "percent": -25
+        }
+      ]
+    },
+    {
+      "id": "ability-even-shares",
+      "subject": [
+        "character",
+        "even-shares"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "even-shares",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-founder",
+      "subject": [
+        "character",
+        "founder"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "charter-cost",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-steward",
+      "subject": [
+        "character",
+        "steward"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "trouble-structures",
+          "count": -1
+        }
+      ]
     }
   ]
 }

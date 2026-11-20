@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "classes.abilities",
+  "title": "classes.abilities",
+  "description": "The seven trees: each ability, its tier and the rule it is (GDD 5.9).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "classes.abilities"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "class",
+          "tier",
+          "name",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "class": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "classes.classes"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "level",
+            "description": "The class level that opens its tier: 1, 5, 10 or 15."
+          },
+          "name": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "text": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "tags.rules",
+            "description": "The rules whose subject holds the ability's tag."
+          },
+          "reads": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The game measure or command that reads the tag, when a rule cannot."
+          },
+          "waits": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The milestone whose system it changes, when that is not built yet."
+          }
+        }
+      }
+    }
+  }
+}

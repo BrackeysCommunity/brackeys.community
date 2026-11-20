@@ -46,7 +46,9 @@
               "action",
               "beat",
               "condition",
-              "pairing"
+              "pairing",
+              "calling",
+              "ability"
             ],
             "x-unit": "enum"
           }

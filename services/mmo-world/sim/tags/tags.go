@@ -203,6 +203,13 @@ type Scale struct {
 	Percent int64
 }
 
+// Add changes a measure by a count.
+type Add struct {
+	base
+	Measure string
+	Count   int64
+}
+
 // Score adds points to an option's score.
 type Score struct {
 	base
@@ -226,6 +233,7 @@ func (AddTag) effect()    {}
 func (RemoveTag) effect() {}
 func (Band) effect()      {}
 func (Scale) effect()     {}
+func (Add) effect()       {}
 func (Join) effect()      {}
 func (Score) effect()     {}
 func (End) effect()       {}
@@ -330,7 +338,7 @@ func Apply(rules []Rule, subject TagSet, ctx Context) ([]Effect, Why) {
 					if e.Target != Yield {
 						sets[e.Target].Remove(e.Tag)
 					}
-				case Band, Scale, Join, End, Score:
+				case Band, Scale, Add, Join, End, Score:
 				}
 			}
 		}
@@ -351,6 +359,9 @@ func stamp(e Effect, step int) Effect {
 		e.base = b
 		return e
 	case Scale:
+		e.base = b
+		return e
+	case Add:
 		e.base = b
 		return e
 	case Join:
@@ -466,8 +477,13 @@ func compileEffect(e sheets.EffectRow) (Effect, error) {
 			return nil, fmt.Errorf("scale needs a measure and a percent")
 		}
 		return Scale{Measure: e.Measure, Percent: e.Percent}, nil
+	case "add":
+		if e.Measure == "" || e.Count == 0 {
+			return nil, fmt.Errorf("add needs a measure and a count")
+		}
+		return Add{Measure: e.Measure, Count: e.Count}, nil
 	case "join":
-		if e.Count == 0 || e.Beat == 0 {
+		if e.Count <= 0 || e.Beat == 0 {
 			return nil, fmt.Errorf("join needs a count and a beat")
 		}
 		return Join{Count: e.Count, Beat: e.Beat}, nil
@@ -506,4 +522,28 @@ func Of(ss []string) []Tag {
 		out[i] = Tag(s)
 	}
 	return out
+}
+
+// structural: Scale's percent is of the base.
+const percent = 100
+
+// Adjust is a measure after every rule the subject fires: base scaled by
+// the sum of the Scale percents on it, plus the Adds to it.
+func Adjust(rules []Rule, subject TagSet, ctx Context, measure string, base int64) int64 {
+	effects, _ := Apply(rules, subject, ctx)
+	var pct, add int64
+	for _, e := range effects {
+		switch e := e.(type) {
+		case Scale:
+			if e.Measure == measure {
+				pct += e.Percent
+			}
+		case Add:
+			if e.Measure == measure {
+				add += e.Count
+			}
+		case AddTag, RemoveTag, Band, Join, End, Score:
+		}
+	}
+	return base + base*pct/percent + add
 }

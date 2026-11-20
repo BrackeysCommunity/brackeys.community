@@ -48,6 +48,10 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathHistory, s.history)
 	player("GET "+api.PathForum, s.forum)
 	player("GET "+api.PathRisk, s.routeRisk)
+	player("GET "+api.PathGoals, s.goals)
+	player("GET "+api.PathBoard, s.board)
+	player("GET "+api.PathGuild, s.guild)
+	player("GET "+api.PathClasses, s.classes)
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))

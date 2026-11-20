@@ -37,7 +37,11 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
 		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server,
-		Price: req.Price, Target: req.Target}
+		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin}
+	if req.Goal != nil {
+		s := simGoal(*req.Goal)
+		cmd.Goal = &s
+	}
 	if req.Floor != nil {
 		f := simFloor(*req.Floor)
 		cmd.Floor = &f
@@ -62,7 +66,7 @@ func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) 
 	if !game.Operator(req.Kind) {
 		return game.Command{}, &api.Refusal{Code: api.CodeBadJSON, Message: "not an operator action"}, http.StatusBadRequest
 	}
-	return game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset, Units: req.Units, Note: req.Note}, nil, 0
+	return game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset, Units: req.Units, Note: req.Note, Target: req.Target}, nil, 0
 }
 
 func apiRefusal(r *game.Refused) *api.Refusal { return &api.Refusal{Code: r.Code, Message: r.Msg} }

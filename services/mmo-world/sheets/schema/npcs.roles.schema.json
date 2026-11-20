@@ -69,6 +69,11 @@
             "x-unit": "tags",
             "x-ref": "tags.vocabulary",
             "description": "What a wanderer of this role favours, by biome or site."
+          },
+          "rooted": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Its place cannot spare it: it never moves home when the place grows crowded."
           }
         }
       }

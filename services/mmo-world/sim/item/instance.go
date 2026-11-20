@@ -24,10 +24,13 @@ type Instance struct {
 	Offers []string `json:"offers,omitempty"`
 	// Waiting are milestones reached while another's offers stood, in
 	// order; each is offered once the one before is picked.
-	Waiting []int64     `json:"waiting,omitempty"`
-	Dormant bool        `json:"dormant,omitempty"`
-	Maker   string      `json:"maker,omitempty"`
-	Record  tally.Tally `json:"record"`
+	Waiting []int64 `json:"waiting,omitempty"`
+	Dormant bool    `json:"dormant,omitempty"`
+	Maker   string  `json:"maker,omitempty"`
+	// Stamp is the per cent more xp it gains for anyone, from its maker's
+	// stamp (GDD 5.9).
+	Stamp  int64       `json:"stamp,omitempty"`
+	Record tally.Tally `json:"record"`
 	// Mount names a mounts.kinds row when the instance is a mount.
 	Mount string `json:"mount,omitempty"`
 	// Exploit is the exploit instance a deck holds.

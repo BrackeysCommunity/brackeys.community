@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "classes.classes",
   "title": "classes.classes",
-  "description": "Classes and what unlocks them.",
+  "description": "Classes and what unlocks them (GDD 5.8).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,8 +23,10 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "unlockDeed",
-          "unlockAt"
+          "unlock",
+          "skill",
+          "tag",
+          "leans"
         ],
         "properties": {
           "id": {
@@ -32,15 +34,54 @@
             "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
             "x-unit": "id"
           },
-          "unlockDeed": {
-            "type": "string",
-            "x-unit": "ref",
-            "x-ref": "growth.xp-by-deed"
+          "unlock": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "id",
+                "at"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "practice",
+                    "deed",
+                    "crafts"
+                  ],
+                  "x-unit": "enum"
+                },
+                "id": {
+                  "type": "string",
+                  "x-unit": "text",
+                  "description": "The practice skill, deed or process."
+                },
+                "at": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "count"
+                }
+              }
+            },
+            "x-unit": "parts"
           },
-          "unlockAt": {
-            "type": "integer",
-            "minimum": 1,
-            "x-unit": "count"
+          "skill": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The practice whose level raises the class level."
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "The tag the class gives the character."
+          },
+          "leans": {
+            "type": "string",
+            "x-unit": "text"
           }
         }
       }

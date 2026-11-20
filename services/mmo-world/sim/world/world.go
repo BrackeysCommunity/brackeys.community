@@ -236,6 +236,9 @@ func (s *State) GaugeIndex(id string) int {
 	return i
 }
 
+// Overrun reports whether a region's overrun line is active.
+func (s *State) Overrun(r int) bool { return s.Regions[r].Active[lineIndex(s.b, "overrun")] }
+
 // GaugeAt is a gauge of the region holding a tile, if a region holds it.
 func (s *State) GaugeAt(h hex.Hex, id string) (int64, bool) {
 	r := s.RegionAt(h)

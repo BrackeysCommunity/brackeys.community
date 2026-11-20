@@ -513,6 +513,12 @@
       "note": "provisional"
     },
     {
+      "id": "npc-moved",
+      "kind": "npc.moved",
+      "weight": 35,
+      "note": "GDD 4.18: an NPC moving home is a fact."
+    },
+    {
       "id": "kind-named",
       "kind": "kind.named",
       "weight": 50,
@@ -589,6 +595,216 @@
       "id": "character-flagged",
       "kind": "character.flagged",
       "weight": 20
+    },
+    {
+      "id": "goal-posted",
+      "kind": "goal.posted",
+      "weight": 10
+    },
+    {
+      "id": "goal-live",
+      "kind": "goal.live",
+      "weight": 25
+    },
+    {
+      "id": "goal-met",
+      "kind": "goal.met",
+      "weight": 40
+    },
+    {
+      "id": "goal-claimed",
+      "kind": "goal.claimed",
+      "weight": 15
+    },
+    {
+      "id": "goal-delivered",
+      "kind": "goal.delivered",
+      "weight": 5
+    },
+    {
+      "id": "goal-hauled",
+      "kind": "goal.hauled",
+      "weight": 15
+    },
+    {
+      "id": "goal-held",
+      "kind": "goal.held",
+      "weight": 2
+    },
+    {
+      "id": "goal-pledged",
+      "kind": "goal.pledged",
+      "weight": 5
+    },
+    {
+      "id": "goal-ended",
+      "kind": "goal.ended",
+      "weight": 5
+    },
+    {
+      "id": "goal-hidden",
+      "kind": "goal.hidden",
+      "weight": 5
+    },
+    {
+      "id": "goal-haul-taken",
+      "kind": "goal.haul-taken",
+      "weight": 5
+    },
+    {
+      "id": "goal-vow-kept",
+      "kind": "goal.vow-kept",
+      "weight": 40
+    },
+    {
+      "id": "goal-vow-broken",
+      "kind": "goal.vow-broken",
+      "weight": 30
+    },
+    {
+      "id": "guild-installed",
+      "kind": "guild.installed",
+      "weight": 30
+    },
+    {
+      "id": "guild-founded",
+      "kind": "guild.founded",
+      "weight": 50
+    },
+    {
+      "id": "guild-joined",
+      "kind": "guild.joined",
+      "weight": 10
+    },
+    {
+      "id": "guild-left",
+      "kind": "guild.left",
+      "weight": 10
+    },
+    {
+      "id": "guild-invited",
+      "kind": "guild.invited",
+      "weight": 3
+    },
+    {
+      "id": "guild-officer",
+      "kind": "guild.officer",
+      "weight": 15
+    },
+    {
+      "id": "guild-draw-set",
+      "kind": "guild.draw-set",
+      "weight": 3
+    },
+    {
+      "id": "guild-leader",
+      "kind": "guild.leader",
+      "weight": 30
+    },
+    {
+      "id": "guild-removed",
+      "kind": "guild.removed",
+      "weight": 30
+    },
+    {
+      "id": "guild-voted",
+      "kind": "guild.voted",
+      "weight": 3
+    },
+    {
+      "id": "guild-deposited",
+      "kind": "guild.deposited",
+      "weight": 3
+    },
+    {
+      "id": "guild-paid",
+      "kind": "guild.paid",
+      "weight": 5
+    },
+    {
+      "id": "guild-drew",
+      "kind": "guild.drew",
+      "weight": 3
+    },
+    {
+      "id": "guild-approval-asked",
+      "kind": "guild.approval-asked",
+      "weight": 3
+    },
+    {
+      "id": "guild-work-on",
+      "kind": "guild.work-on",
+      "weight": 20
+    },
+    {
+      "id": "guild-work-off",
+      "kind": "guild.work-off",
+      "weight": 10
+    },
+    {
+      "id": "guild-work-lapsed",
+      "kind": "guild.work-lapsed",
+      "weight": 15
+    },
+    {
+      "id": "settlement-founded",
+      "kind": "settlement.founded",
+      "weight": 80
+    },
+    {
+      "id": "settlement-chartered",
+      "kind": "settlement.chartered",
+      "weight": 60
+    },
+    {
+      "id": "structure-raised",
+      "kind": "structure.raised",
+      "weight": 50
+    },
+    {
+      "id": "structure-closed",
+      "kind": "structure.closed",
+      "weight": 25
+    },
+    {
+      "id": "structure-repaired",
+      "kind": "structure.repaired",
+      "weight": 5
+    },
+    {
+      "id": "class-unlocked",
+      "kind": "class.unlocked",
+      "weight": 40
+    },
+    {
+      "id": "class-chosen",
+      "kind": "class.chosen",
+      "weight": 5
+    },
+    {
+      "id": "ability-taken",
+      "kind": "ability.taken",
+      "weight": 15
+    },
+    {
+      "id": "prey-marked",
+      "kind": "prey.marked",
+      "weight": 2
+    },
+    {
+      "id": "rescue-called",
+      "kind": "rescue.called",
+      "weight": 30
+    },
+    {
+      "id": "rescue-lifted",
+      "kind": "rescue.lifted",
+      "weight": 20
+    },
+    {
+      "id": "rescue-carried",
+      "kind": "rescue.carried",
+      "weight": 40
     }
   ]
 }

@@ -657,6 +657,278 @@
     {
       "id": "trail",
       "kind": "state"
+    },
+    {
+      "id": "warden",
+      "kind": "calling"
+    },
+    {
+      "id": "stalker",
+      "kind": "calling"
+    },
+    {
+      "id": "smith",
+      "kind": "calling"
+    },
+    {
+      "id": "chandler",
+      "kind": "calling"
+    },
+    {
+      "id": "delver",
+      "kind": "calling"
+    },
+    {
+      "id": "kindler",
+      "kind": "calling"
+    },
+    {
+      "id": "reeve",
+      "kind": "calling"
+    },
+    {
+      "id": "shield-the-line",
+      "kind": "ability"
+    },
+    {
+      "id": "hold-fast",
+      "kind": "ability"
+    },
+    {
+      "id": "stand-over",
+      "kind": "ability"
+    },
+    {
+      "id": "braced-kit",
+      "kind": "ability"
+    },
+    {
+      "id": "rally",
+      "kind": "ability"
+    },
+    {
+      "id": "wall-captain",
+      "kind": "ability"
+    },
+    {
+      "id": "unmoved",
+      "kind": "ability"
+    },
+    {
+      "id": "bulwark-wall",
+      "kind": "ability"
+    },
+    {
+      "id": "first-strike",
+      "kind": "ability"
+    },
+    {
+      "id": "read-the-ground",
+      "kind": "ability"
+    },
+    {
+      "id": "turn-the-ambush",
+      "kind": "ability"
+    },
+    {
+      "id": "quiet-feet",
+      "kind": "ability"
+    },
+    {
+      "id": "mark-prey",
+      "kind": "ability"
+    },
+    {
+      "id": "ghost-trail",
+      "kind": "ability"
+    },
+    {
+      "id": "the-long-hunt",
+      "kind": "ability"
+    },
+    {
+      "id": "cull",
+      "kind": "ability"
+    },
+    {
+      "id": "steady-hand",
+      "kind": "ability"
+    },
+    {
+      "id": "thrift",
+      "kind": "ability"
+    },
+    {
+      "id": "third-method",
+      "kind": "ability"
+    },
+    {
+      "id": "salvager",
+      "kind": "ability"
+    },
+    {
+      "id": "makers-stamp",
+      "kind": "ability"
+    },
+    {
+      "id": "reforge",
+      "kind": "ability"
+    },
+    {
+      "id": "masters-eye",
+      "kind": "ability"
+    },
+    {
+      "id": "signature",
+      "kind": "ability"
+    },
+    {
+      "id": "packer",
+      "kind": "ability"
+    },
+    {
+      "id": "road-sense",
+      "kind": "ability"
+    },
+    {
+      "id": "fresh-news",
+      "kind": "ability"
+    },
+    {
+      "id": "haggler",
+      "kind": "ability"
+    },
+    {
+      "id": "convoy",
+      "kind": "ability"
+    },
+    {
+      "id": "bonded",
+      "kind": "ability"
+    },
+    {
+      "id": "factor",
+      "kind": "ability"
+    },
+    {
+      "id": "caravan-master",
+      "kind": "ability"
+    },
+    {
+      "id": "light-fingers",
+      "kind": "ability"
+    },
+    {
+      "id": "sure-footing",
+      "kind": "ability"
+    },
+    {
+      "id": "mapper",
+      "kind": "ability"
+    },
+    {
+      "id": "pack-light",
+      "kind": "ability"
+    },
+    {
+      "id": "deep-breath",
+      "kind": "ability"
+    },
+    {
+      "id": "key-maker",
+      "kind": "ability"
+    },
+    {
+      "id": "the-way-back",
+      "kind": "ability"
+    },
+    {
+      "id": "hoard-sense",
+      "kind": "ability"
+    },
+    {
+      "id": "lingering-exploits",
+      "kind": "ability"
+    },
+    {
+      "id": "tinder",
+      "kind": "ability"
+    },
+    {
+      "id": "second-slot",
+      "kind": "ability"
+    },
+    {
+      "id": "wide-cast",
+      "kind": "ability"
+    },
+    {
+      "id": "counter",
+      "kind": "ability"
+    },
+    {
+      "id": "storm-reader",
+      "kind": "ability"
+    },
+    {
+      "id": "bind-the-weather",
+      "kind": "ability"
+    },
+    {
+      "id": "chain",
+      "kind": "ability"
+    },
+    {
+      "id": "fair-hand",
+      "kind": "ability"
+    },
+    {
+      "id": "crier",
+      "kind": "ability"
+    },
+    {
+      "id": "quartermaster",
+      "kind": "ability"
+    },
+    {
+      "id": "surveyor",
+      "kind": "ability"
+    },
+    {
+      "id": "muster",
+      "kind": "ability"
+    },
+    {
+      "id": "even-shares",
+      "kind": "ability"
+    },
+    {
+      "id": "founder",
+      "kind": "ability"
+    },
+    {
+      "id": "steward",
+      "kind": "ability"
+    },
+    {
+      "id": "character",
+      "kind": "class"
+    },
+    {
+      "id": "opening",
+      "kind": "state"
+    },
+    {
+      "id": "ambushed",
+      "kind": "state"
+    },
+    {
+      "id": "preyed",
+      "kind": "state"
+    },
+    {
+      "id": "walled",
+      "kind": "state"
     }
   ]
 }

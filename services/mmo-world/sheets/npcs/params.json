@@ -39,6 +39,12 @@
       "doc": "How far from home a route wanders."
     },
     {
+      "id": "relay-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A route stands this long; the NPC's next meeting after it measures the road and lays the route afresh (GDD 4.18)."
+    },
+    {
       "id": "topics-shown",
       "value": 3,
       "unit": "count",
@@ -85,6 +91,36 @@
       "value": 40,
       "unit": "weight",
       "doc": "Salience of a sale at an NPC's market."
+    },
+    {
+      "id": "crowding-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "Structures built in a region count towards crowding for this long (GDD 4.18)."
+    },
+    {
+      "id": "move-chance",
+      "value": 0.25,
+      "unit": "chance",
+      "doc": "A resident free to go moves home this often each time building leaves its settlement's region crowded."
+    },
+    {
+      "id": "move-range",
+      "value": 24,
+      "unit": "tiles",
+      "doc": "How far a moving NPC looks for a quieter settlement, or failing one a quieter tile."
+    },
+    {
+      "id": "move-reach",
+      "value": 6,
+      "unit": "tiles",
+      "doc": "The nearest a moving NPC settles on open ground when no quieter settlement is in range."
+    },
+    {
+      "id": "moved-weight",
+      "value": 25,
+      "unit": "weight",
+      "doc": "Salience of a neighbour moving away."
     }
   ]
 }

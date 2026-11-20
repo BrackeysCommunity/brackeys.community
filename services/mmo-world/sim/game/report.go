@@ -190,6 +190,15 @@ func (g *Game) dayTurn(t int64) error {
 			return err
 		}
 	}
+	if err := g.placesTurn(t); err != nil {
+		return err
+	}
+	if err := g.guildsTurn(t); err != nil {
+		return err
+	}
+	if err := g.goalsTurn(t); err != nil {
+		return err
+	}
 	return g.postFactionOrders(t)
 }
 

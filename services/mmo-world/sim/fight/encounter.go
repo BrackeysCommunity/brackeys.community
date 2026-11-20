@@ -415,6 +415,9 @@ func (r *Rules) apply(e *Encounter, m *Member, s Situation, o Option, oc Outcome
 			if te := r.gearEffect(g, "wear-on-fail"); te != nil {
 				size = fixed.PercentPlus(size, -te.Magnitude)
 			}
+			if g == m.Kit.Body {
+				size = r.self(m.Kit, "armour-wear", size)
+			}
 			facts = append(facts, r.wear(e, m, g, size, tick)...)
 		}
 	case "wound":
@@ -624,6 +627,7 @@ func (r *Rules) cast(e *Encounter, m *Member, tick int64) {
 				beats++
 			}
 		}
+		beats = r.self(m.Kit, "state-beats", beats)
 	}
 	creature := append(slices.Clone(e.Creature.Tags), r.Situation(e, m.Ch.ID).Other...)
 	if x.OnlyTag != "" && x.Target != "caster" && !slices.Contains(creature, tags.Tag(x.OnlyTag)) {

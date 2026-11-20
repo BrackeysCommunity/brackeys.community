@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "goals.words",
+  "title": "goals.words",
+  "description": "Words a goal's title or note may not hold (MM6.7); operators hide what gets past them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "goals.words"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "stem": {
+            "type": "boolean",
+            "x-unit": "flag"
+          }
+        }
+      }
+    }
+  }
+}

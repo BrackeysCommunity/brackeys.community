@@ -1,5 +1,168 @@
 {
   "$schema": "../schema/settlements.params.schema.json",
   "sheet": "settlements.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "guild-least",
+      "value": 5,
+      "unit": "count",
+      "doc": "A guild is this many characters or more; fewer may form one but not found a settlement (GDD 4.8)."
+    },
+    {
+      "id": "officer-per",
+      "value": 5,
+      "unit": "count",
+      "doc": "One officer per this many members, at least one."
+    },
+    {
+      "id": "officer-spend",
+      "value": 500,
+      "unit": "coin",
+      "doc": "What one officer may spend a world day from the treasury or the bank, by reference value."
+    },
+    {
+      "id": "approval-days",
+      "value": 1,
+      "unit": "days",
+      "doc": "A larger spend lapses unless a second officer approves it within this."
+    },
+    {
+      "id": "leader-idle-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "A leader inactive this long is replaced by the longest-serving active officer."
+    },
+    {
+      "id": "vote-share",
+      "value": 66,
+      "unit": "percent",
+      "doc": "A vote carries when more than this share of active members are for it: two thirds."
+    },
+    {
+      "id": "vote-days",
+      "value": 2,
+      "unit": "days",
+      "doc": "How long a vote stays open."
+    },
+    {
+      "id": "server-leader-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "A server's own guild is led by its most active member over this many days."
+    },
+    {
+      "id": "server-leader-every",
+      "value": 7,
+      "unit": "days",
+      "doc": "Re-picked this often."
+    },
+    {
+      "id": "charter-coin",
+      "value": 500,
+      "unit": "coin",
+      "doc": "From the guild's treasury, paid into the tile."
+    },
+    {
+      "id": "charter-timber",
+      "value": 200,
+      "unit": "goods",
+      "doc": "Timber the charter takes."
+    },
+    {
+      "id": "charter-stone",
+      "value": 50,
+      "unit": "goods",
+      "doc": "Stone the charter takes."
+    },
+    {
+      "id": "found-distance",
+      "value": 6,
+      "unit": "tiles",
+      "doc": "A new settlement stands at least this far from any other."
+    },
+    {
+      "id": "charter-prosperity",
+      "value": 600,
+      "unit": "gauge",
+      "doc": "Taking over a starting settlement by charter needs this much prosperity in its region."
+    },
+    {
+      "id": "fee-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "Of every market fee paid at a guild's settlement, the share its treasury keeps; the rest is sunk."
+    },
+    {
+      "id": "station-tier",
+      "value": 2,
+      "unit": "tier",
+      "doc": "Stations rise to this outside a city."
+    },
+    {
+      "id": "condition-max",
+      "value": 100,
+      "unit": "pts",
+      "doc": "A structure's condition at building."
+    },
+    {
+      "id": "trouble-damage",
+      "value": 25,
+      "unit": "pts",
+      "doc": "A trouble lost there takes this."
+    },
+    {
+      "id": "raid-damage",
+      "value": 10,
+      "unit": "pts",
+      "doc": "A raid that reaches the settlement takes this a world day."
+    },
+    {
+      "id": "neglect",
+      "value": 1,
+      "unit": "pts",
+      "doc": "Neglect takes this a world day."
+    },
+    {
+      "id": "neglect-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "Once nobody has used a structure for this long."
+    },
+    {
+      "id": "repair-share",
+      "value": 1,
+      "unit": "percent",
+      "doc": "Repair costs materials worth this share of the structure's cost per point of condition."
+    },
+    {
+      "id": "reopen-share",
+      "value": 25,
+      "unit": "percent",
+      "doc": "A structure at 0 condition is closed until repaired with this share of its cost."
+    },
+    {
+      "id": "draw-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "A member may take crafting stock from the bank up to this share of what they have put in."
+    },
+    {
+      "id": "spoils-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "A work's goods are split by contribution over this many days."
+    },
+    {
+      "id": "guild-name-length",
+      "value": 32,
+      "unit": "count",
+      "doc": "The longest guild name."
+    },
+    {
+      "id": "found-days-max",
+      "value": 10,
+      "unit": "days",
+      "doc": "The Economy run's target: a guild of guild-least founds a settlement within this many world days."
+    }
+  ]
 }

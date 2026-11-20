@@ -1,0 +1,622 @@
+{
+  "$schema": "../schema/classes.abilities.schema.json",
+  "sheet": "classes.abilities",
+  "rows": [
+    {
+      "id": "shield-the-line",
+      "class": "warden",
+      "tier": 1,
+      "name": "Shield the line",
+      "text": "A party member's failed beat lands on you instead",
+      "rules": [
+        "ability-shield-the-line"
+      ],
+      "waits": "MM8 (parties in the Activity)"
+    },
+    {
+      "id": "hold-fast",
+      "class": "warden",
+      "tier": 1,
+      "name": "Hold fast",
+      "text": "Hold options one band better on a wall or in a doorway",
+      "rules": [
+        "ability-hold-fast"
+      ],
+      "reads": "fight: the walled place tag at a settlement with a wall"
+    },
+    {
+      "id": "stand-over",
+      "class": "warden",
+      "tier": 5,
+      "name": "Stand over",
+      "text": "A downed party member cannot lose their haul while you stand",
+      "rules": [
+        "ability-stand-over"
+      ],
+      "waits": "MM8 (parties in the Activity)"
+    },
+    {
+      "id": "braced-kit",
+      "class": "warden",
+      "tier": 5,
+      "name": "Braced kit",
+      "text": "Armour loses half the durability from failed beats",
+      "rules": [
+        "ability-braced-kit"
+      ],
+      "reads": "fight: body armour wear on a failed beat"
+    },
+    {
+      "id": "rally",
+      "class": "warden",
+      "tier": 10,
+      "name": "Rally",
+      "text": "Once per encounter, the whole party's next option is one band better",
+      "rules": [
+        "ability-rally"
+      ],
+      "waits": "MM8 (parties in the Activity)"
+    },
+    {
+      "id": "wall-captain",
+      "class": "warden",
+      "tier": 10,
+      "name": "Wall-captain",
+      "text": "Your won beats count double toward raid defence",
+      "rules": [
+        "ability-wall-captain"
+      ],
+      "waits": "MM9 (raids)"
+    },
+    {
+      "id": "unmoved",
+      "class": "warden",
+      "tier": 15,
+      "name": "Unmoved",
+      "text": "You cannot be the second failure that downs a party",
+      "rules": [
+        "ability-unmoved"
+      ],
+      "waits": "MM8 (parties in the Activity)"
+    },
+    {
+      "id": "bulwark-wall",
+      "class": "warden",
+      "tier": 15,
+      "name": "Bulwark",
+      "text": "A settlement you are in treats its wall as one tier higher",
+      "rules": [
+        "ability-bulwark-wall"
+      ],
+      "waits": "MM9 (raids)"
+    },
+    {
+      "id": "first-strike",
+      "class": "stalker",
+      "tier": 1,
+      "name": "First strike",
+      "text": "Your first option in an encounter is one band better",
+      "rules": [
+        "ability-first-strike"
+      ],
+      "reads": "fight: the opening tag on an encounter's first beat"
+    },
+    {
+      "id": "read-the-ground",
+      "class": "stalker",
+      "tier": 1,
+      "name": "Read the ground",
+      "text": "Tracks stay readable for 12 ticks, not 6",
+      "rules": [
+        "ability-read-the-ground"
+      ],
+      "waits": "MM8 (following tracks)"
+    },
+    {
+      "id": "turn-the-ambush",
+      "class": "stalker",
+      "tier": 5,
+      "name": "Turn the ambush",
+      "text": "An ambush on you gives you the first beat",
+      "rules": [
+        "ability-turn-the-ambush"
+      ],
+      "reads": "fight: an ambush's opening beat is yours, one band better"
+    },
+    {
+      "id": "quiet-feet",
+      "class": "stalker",
+      "tier": 5,
+      "name": "Quiet feet",
+      "text": "Cover counts 20 higher for you",
+      "rules": [
+        "ability-quiet-feet"
+      ],
+      "reads": "travel: route risk and ambushes"
+    },
+    {
+      "id": "mark-prey",
+      "class": "stalker",
+      "tier": 10,
+      "name": "Mark prey",
+      "text": "Name one creature tag per day; one band better against it",
+      "rules": [
+        "ability-mark-prey"
+      ],
+      "reads": "the mark command; fight: the preyed tag against a creature holding it"
+    },
+    {
+      "id": "ghost-trail",
+      "class": "stalker",
+      "tier": 10,
+      "name": "Ghost trail",
+      "text": "You leave no tracks",
+      "rules": [
+        "ability-ghost-trail"
+      ],
+      "reads": "travel: entering a tile lays no track"
+    },
+    {
+      "id": "the-long-hunt",
+      "class": "stalker",
+      "tier": 15,
+      "name": "The long hunt",
+      "text": "A creature that fled can be followed to its tile",
+      "rules": [
+        "ability-the-long-hunt"
+      ],
+      "waits": "MM8 (following tracks)"
+    },
+    {
+      "id": "cull",
+      "class": "stalker",
+      "tier": 15,
+      "name": "Cull",
+      "text": "Your won beats remove 4 threat, not 2",
+      "rules": [
+        "ability-cull"
+      ],
+      "reads": "world: threat a won beat removes"
+    },
+    {
+      "id": "steady-hand",
+      "class": "smith",
+      "tier": 1,
+      "name": "Steady hand",
+      "text": "Appraisal ranges are half as wide",
+      "rules": [
+        "ability-steady-hand"
+      ],
+      "reads": "make: the appraisal"
+    },
+    {
+      "id": "thrift",
+      "class": "smith",
+      "tier": 1,
+      "name": "Thrift",
+      "text": "Station fees are halved",
+      "rules": [
+        "ability-thrift"
+      ],
+      "reads": "make: station fees"
+    },
+    {
+      "id": "third-method",
+      "class": "smith",
+      "tier": 5,
+      "name": "Third method",
+      "text": "Each process you practise gains one more method",
+      "rules": [
+        "ability-third-method"
+      ],
+      "waits": "MM10 (methods learnt per process)"
+    },
+    {
+      "id": "salvager",
+      "class": "smith",
+      "tier": 5,
+      "name": "Salvager",
+      "text": "Failed combinations return 50%, not 30%",
+      "rules": [
+        "ability-salvager"
+      ],
+      "reads": "make: what a failed combination returns"
+    },
+    {
+      "id": "makers-stamp",
+      "class": "smith",
+      "tier": 10,
+      "name": "Maker's stamp",
+      "text": "Items you make gain xp 10% faster for anyone",
+      "rules": [
+        "ability-makers-stamp"
+      ],
+      "reads": "make: stamps the item; growth reads the stamp"
+    },
+    {
+      "id": "reforge",
+      "class": "smith",
+      "tier": 10,
+      "name": "Reforge",
+      "text": "Move up to 10 pts between two axes of an item, once",
+      "rules": [
+        "ability-reforge"
+      ],
+      "waits": "MM10 (reworking an instance)"
+    },
+    {
+      "id": "masters-eye",
+      "class": "smith",
+      "tier": 15,
+      "name": "Master's eye",
+      "text": "You see whether a recipe is registered before committing",
+      "rules": [
+        "ability-masters-eye"
+      ],
+      "reads": "make: the appraisal"
+    },
+    {
+      "id": "signature",
+      "class": "smith",
+      "tier": 15,
+      "name": "Signature",
+      "text": "One kind you discovered costs you no station fee, ever",
+      "rules": [
+        "ability-signature"
+      ],
+      "reads": "make: station fees for the first kind you discovered"
+    },
+    {
+      "id": "packer",
+      "class": "chandler",
+      "tier": 1,
+      "name": "Packer",
+      "text": "+10 load",
+      "rules": [
+        "ability-packer"
+      ],
+      "reads": "carry: load"
+    },
+    {
+      "id": "road-sense",
+      "class": "chandler",
+      "tier": 1,
+      "name": "Road sense",
+      "text": "Ambush chance one band lower on road tiles",
+      "rules": [
+        "ability-road-sense"
+      ],
+      "reads": "travel: route risk on road tiles"
+    },
+    {
+      "id": "fresh-news",
+      "class": "chandler",
+      "tier": 5,
+      "name": "Fresh news",
+      "text": "Prices from elsewhere are half as old for you",
+      "rules": [
+        "ability-fresh-news"
+      ],
+      "reads": "market: prices elsewhere"
+    },
+    {
+      "id": "haggler",
+      "class": "chandler",
+      "tier": 5,
+      "name": "Haggler",
+      "text": "Faction orders pay you 3% more",
+      "rules": [
+        "ability-haggler"
+      ],
+      "reads": "market: faction fills"
+    },
+    {
+      "id": "convoy",
+      "class": "chandler",
+      "tier": 10,
+      "name": "Convoy",
+      "text": "A party following your route shares your ambush band",
+      "rules": [
+        "ability-convoy"
+      ],
+      "waits": "MM8 (parties in the Activity)"
+    },
+    {
+      "id": "bonded",
+      "class": "chandler",
+      "tier": 10,
+      "name": "Bonded",
+      "text": "Haul goals you take need half the collateral",
+      "rules": [
+        "ability-bonded"
+      ],
+      "reads": "goals: taking a Haul goal"
+    },
+    {
+      "id": "factor",
+      "class": "chandler",
+      "tier": 15,
+      "name": "Factor",
+      "text": "Hold 40 open orders, not 20",
+      "rules": [
+        "ability-factor"
+      ],
+      "reads": "market: open orders"
+    },
+    {
+      "id": "caravan-master",
+      "class": "chandler",
+      "tier": 15,
+      "name": "Caravan-master",
+      "text": "Mounts in your party need no upkeep on the road",
+      "rules": [
+        "ability-caravan-master"
+      ],
+      "reads": "mounts: your own mount's upkeep (a party's waits for MM8)"
+    },
+    {
+      "id": "light-fingers",
+      "class": "delver",
+      "tier": 1,
+      "name": "Light fingers",
+      "text": "Lockpick options one band better",
+      "rules": [
+        "ability-light-fingers"
+      ],
+      "reads": "fight: Lockpick options"
+    },
+    {
+      "id": "sure-footing",
+      "class": "delver",
+      "tier": 1,
+      "name": "Sure footing",
+      "text": "Hazard beats one band better",
+      "rules": [
+        "ability-sure-footing"
+      ],
+      "reads": "fight: hazard beats"
+    },
+    {
+      "id": "mapper",
+      "class": "delver",
+      "tier": 5,
+      "name": "Mapper",
+      "text": "Both ways down at a fork show their next beat's tags",
+      "rules": [
+        "ability-mapper"
+      ],
+      "waits": "MM8 (dungeon forks)"
+    },
+    {
+      "id": "pack-light",
+      "class": "delver",
+      "tier": 5,
+      "name": "Pack light",
+      "text": "Leaving a dungeon never costs a turn",
+      "rules": [
+        "ability-pack-light"
+      ],
+      "waits": "MM8 (dungeon floors)"
+    },
+    {
+      "id": "deep-breath",
+      "class": "delver",
+      "tier": 10,
+      "name": "Deep breath",
+      "text": "A second failure below floor 3 leaves you wounded, not down",
+      "rules": [
+        "ability-deep-breath"
+      ],
+      "waits": "MM8 (dungeon floors)"
+    },
+    {
+      "id": "key-maker",
+      "class": "delver",
+      "tier": 10,
+      "name": "Key-maker",
+      "text": "Make a key for a dungeon you have reached the bottom of",
+      "rules": [
+        "ability-key-maker"
+      ],
+      "waits": "MM8 (dungeon floors)"
+    },
+    {
+      "id": "the-way-back",
+      "class": "delver",
+      "tier": 15,
+      "name": "The way back",
+      "text": "Carry a downed character up without a beat per floor",
+      "rules": [
+        "ability-the-way-back"
+      ],
+      "waits": "MM8 (dungeon floors)"
+    },
+    {
+      "id": "hoard-sense",
+      "class": "delver",
+      "tier": 15,
+      "name": "Hoard-sense",
+      "text": "The spoils pool of a floor is shown before you enter it",
+      "rules": [
+        "ability-hoard-sense"
+      ],
+      "waits": "MM8 (dungeon floors)"
+    },
+    {
+      "id": "lingering-exploits",
+      "class": "kindler",
+      "tier": 1,
+      "name": "Lingering",
+      "text": "States your exploits add last one beat longer",
+      "rules": [
+        "ability-lingering-exploits"
+      ],
+      "reads": "fight: states an exploit adds"
+    },
+    {
+      "id": "tinder",
+      "class": "kindler",
+      "tier": 1,
+      "name": "Tinder",
+      "text": "Compile costs one component fewer, at least 2",
+      "rules": [
+        "ability-tinder"
+      ],
+      "reads": "make: Compile recipes"
+    },
+    {
+      "id": "second-slot",
+      "class": "kindler",
+      "tier": 5,
+      "name": "Second slot",
+      "text": "Carry a second deck",
+      "rules": [
+        "ability-second-slot"
+      ],
+      "waits": "MM8 (decks in the Activity)"
+    },
+    {
+      "id": "wide-cast",
+      "class": "kindler",
+      "tier": 5,
+      "name": "Wide cast",
+      "text": "An exploit's state reaches one more creature",
+      "rules": [
+        "ability-wide-cast"
+      ],
+      "waits": "MM8 (more than one creature an encounter)"
+    },
+    {
+      "id": "counter",
+      "class": "kindler",
+      "tier": 10,
+      "name": "Counter",
+      "text": "Remove one state tag from a creature or ally per encounter",
+      "rules": [
+        "ability-counter"
+      ],
+      "waits": "MM8 (parties in the Activity)"
+    },
+    {
+      "id": "storm-reader",
+      "class": "kindler",
+      "tier": 10,
+      "name": "Storm-reader",
+      "text": "You see every system's path a full world day ahead",
+      "rules": [
+        "ability-storm-reader"
+      ],
+      "waits": "MM9 (the live map)"
+    },
+    {
+      "id": "bind-the-weather",
+      "class": "kindler",
+      "tier": 15,
+      "name": "Bind the weather",
+      "text": "Once a season, hold a weather tag on a tile for 3 world days",
+      "rules": [
+        "ability-bind-the-weather"
+      ],
+      "waits": "MM9 (staged weather)"
+    },
+    {
+      "id": "chain",
+      "class": "kindler",
+      "tier": 15,
+      "name": "Chain",
+      "text": "A state you add triggers its rule twice",
+      "rules": [
+        "ability-chain"
+      ],
+      "waits": "MM8 (more than one creature an encounter)"
+    },
+    {
+      "id": "fair-hand",
+      "class": "reeve",
+      "tier": 1,
+      "name": "Fair hand",
+      "text": "Listing fees are 3% of the reward, not 5%",
+      "rules": [
+        "ability-fair-hand"
+      ],
+      "reads": "goals: the listing fee"
+    },
+    {
+      "id": "crier",
+      "class": "reeve",
+      "tier": 1,
+      "name": "Crier",
+      "text": "Goals you post are shown first on the board for a day",
+      "rules": [
+        "ability-crier"
+      ],
+      "reads": "goals: the board's order"
+    },
+    {
+      "id": "quartermaster",
+      "class": "reeve",
+      "tier": 5,
+      "name": "Quartermaster",
+      "text": "Guild works you fund use 10% less stock",
+      "rules": [
+        "ability-quartermaster"
+      ],
+      "reads": "guilds: works switched on by you"
+    },
+    {
+      "id": "surveyor",
+      "class": "reeve",
+      "tier": 5,
+      "name": "Surveyor",
+      "text": "You see a tile's generated fields before founding there",
+      "rules": [
+        "ability-surveyor"
+      ],
+      "reads": "guilds: the charter card"
+    },
+    {
+      "id": "muster",
+      "class": "reeve",
+      "tier": 10,
+      "name": "Muster",
+      "text": "A pooled goal you post needs 1,500 coin pledged, not 2,000",
+      "rules": [
+        "ability-muster"
+      ],
+      "reads": "goals: settlement proposals"
+    },
+    {
+      "id": "even-shares",
+      "class": "reeve",
+      "tier": 10,
+      "name": "Even shares",
+      "text": "A pooled goal you post may pay everyone equally instead of by contribution",
+      "rules": [
+        "ability-even-shares"
+      ],
+      "reads": "goals: posting a pooled goal"
+    },
+    {
+      "id": "founder",
+      "class": "reeve",
+      "tier": 15,
+      "name": "Founder",
+      "text": "Charters cost your guild half",
+      "rules": [
+        "ability-founder"
+      ],
+      "reads": "guilds: founding, by the officer who charters"
+    },
+    {
+      "id": "steward",
+      "class": "reeve",
+      "tier": 15,
+      "name": "Steward",
+      "text": "A settlement you serve loses one fewer structure to a lost trouble",
+      "rules": [
+        "ability-steward"
+      ],
+      "waits": "MM9 (troubles)"
+    }
+  ]
+}

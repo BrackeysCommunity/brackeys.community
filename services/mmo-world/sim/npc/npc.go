@@ -43,12 +43,13 @@ type NPC struct {
 	Seq        int64       `json:"seq"`
 	Saved      int64       `json:"saved"` // tick
 	Route      []hex.Hex   `json:"route"` // a loop through home, at most route-max tiles
-	Laid       int64       `json:"laid"`  // tick the route was laid
+	Laid       int64       `json:"laid"`  // tick the route is walked from
 	RouteTicks int64       `json:"routeTicks"`
-	Memory     []Entry     `json:"memory"`  // the most salient entries, at most memory-cap
-	Summary    tally.Tally `json:"summary"` // entries folded out of memory, by kind
-	Met        []Meeting   `json:"met"`     // by player, sorted
-	Visits     []string    `json:"visits"`  // players it wants a word with, sorted
+	Longer     int64       `json:"longer,omitempty"` // per cent longer the last route took when relaid than when laid
+	Memory     []Entry     `json:"memory"`           // the most salient entries, at most memory-cap
+	Summary    tally.Tally `json:"summary"`          // entries folded out of memory, by kind
+	Met        []Meeting   `json:"met"`              // by player, sorted
+	Visits     []string    `json:"visits"`           // players it wants a word with, sorted
 }
 
 // Ref is the fact ref of an NPC.
@@ -101,6 +102,7 @@ type Rules struct {
 	topics  []sheets.Topic
 	params  []sheets.Param
 	traits  []sheets.NPCTrait
+	gossip  []sheets.Gossip
 	given   []string
 	family  []string
 	lists   map[string][]string
@@ -114,7 +116,7 @@ type Rules struct {
 const traitsPer = 2
 
 func New(b *sheets.Book, gen, roll draw.Key) *Rules {
-	r := &Rules{roles: b.NPCRoles, topics: b.Topics, params: b.NPCParams, traits: b.NPCTraits,
+	r := &Rules{roles: b.NPCRoles, topics: b.Topics, params: b.NPCParams, traits: b.NPCTraits, gossip: b.Gossip,
 		gen: draw.NewDrawer(gen), roll: draw.NewDrawer(roll), perDay: sheets.TicksPerDay, traitsN: traitsPer}
 	r.lists = map[string][]string{}
 	for _, p := range b.NameParts {
@@ -266,10 +268,45 @@ func (r *Rules) LayRoute(n *NPC, tick int64, cost func(from, to hex.Hex) (int64,
 	n.Route, n.Laid, n.RouteTicks = route, tick, ticks
 }
 
+// Due reports whether a route has stood its week and waits to be relaid
+// at the NPC's next meeting.
+func (r *Rules) Due(n *NPC, tick int64) bool {
+	return tick-n.Laid >= r.Param("relay-days")*r.perDay
+}
+
+// Relay measures how much longer a due route takes now than when it was
+// laid, and lays it afresh to be walked from the next morning. Nothing
+// relays a route but a meeting, so a week costs the same however many
+// NPCs are saved. It reports whether the route was due.
+func (r *Rules) Relay(n *NPC, tick int64, cost func(from, to hex.Hex) (int64, bool)) bool {
+	if !r.Due(n, tick) {
+		return false
+	}
+	var now int64
+	for i := 1; i < len(n.Route); i++ {
+		c, _ := cost(n.Route[i-1], n.Route[i])
+		now += c
+	}
+	n.Longer = 0
+	if n.RouteTicks > 0 && now > n.RouteTicks {
+		n.Longer = (now - n.RouteTicks) * fixed.Hundredths / n.RouteTicks
+	}
+	r.LayRoute(n, (tick/r.perDay+1)*r.perDay, cost)
+	return true
+}
+
+// Move gives an NPC a new home and a route from it.
+func (r *Rules) Move(n *NPC, to hex.Hex, tick int64, cost func(from, to hex.Hex) (int64, bool)) {
+	n.Stub.Home, n.Longer = to, 0
+	r.LayRoute(n, tick, cost)
+}
+
 // At is where a saved NPC is at a tick: a pure function of its route and
-// the hour. It walks out along the route and back over the day.
+// the hour. It walks out along the route and back over the day, and keeps
+// to its home before a relaid route's first morning and once the route is
+// due, so relaying one never moves an NPC out of a meeting.
 func (r *Rules) At(n *NPC, tick int64) hex.Hex {
-	if len(n.Route) <= 1 {
+	if len(n.Route) <= 1 || tick < n.Laid || r.Due(n, tick) {
 		return n.Stub.Home
 	}
 	loop := int64(len(n.Route))*halves - halves
@@ -344,6 +381,35 @@ func (r *Rules) About(n *NPC, player, kind string, now int64) (Entry, bool) {
 		}
 	}
 	return best, found
+}
+
+// Heard is the most salient thing an NPC hears of its neighbours: an entry
+// of a kind npcs.gossip voices from another NPC's memory, at gossip-share
+// of its salience. Gossip is read and never remembered, so it travels one
+// hop.
+func (r *Rules) Heard(neighbours []*NPC, now int64) (who *NPC, e Entry, salience int64, ok bool) {
+	share := r.Param("gossip-share")
+	for _, o := range neighbours {
+		for _, x := range o.Memory {
+			if _, voiced := r.GossipLine(x.Kind); !voiced {
+				continue
+			}
+			if s := fixed.PercentOf(r.Salience(x, now), share); s > salience {
+				who, e, salience, ok = o, x, s, true
+			}
+		}
+	}
+	return who, e, salience, ok
+}
+
+// GossipLine is the line a kind of memory is passed on with, if any.
+func (r *Rules) GossipLine(kind string) (string, bool) {
+	for _, row := range r.gossip {
+		if row.ID == kind {
+			return row.Line, true
+		}
+	}
+	return "", false
 }
 
 // Dormant reports whether nobody has met the NPC for dormant-days.
@@ -525,6 +591,11 @@ func (b *Book) Through(h hex.Hex) []*NPC {
 		out = append(out, b.BySeq(b.index[i].Seq))
 	}
 	return out
+}
+
+// Homed are the saved NPCs whose home a tile is, by the route index.
+func (b *Book) Homed(h hex.Hex) []*NPC {
+	return slices.DeleteFunc(b.Through(h), func(n *NPC) bool { return n.Stub.Home != h })
 }
 
 // Touched chains an NPC's new state into the book's chain.

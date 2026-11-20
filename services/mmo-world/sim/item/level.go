@@ -84,6 +84,7 @@ func (g *Growth) AddXP(in *Instance, k *Kind, xp int64) Levelled {
 	if xp <= 0 || in.Level >= limit {
 		return out
 	}
+	xp += xp * in.Stamp / fixed.Hundredths
 	in.XP += xp
 	for in.Level < limit && in.XP >= g.ToNext(in.Level) {
 		in.XP -= g.ToNext(in.Level)

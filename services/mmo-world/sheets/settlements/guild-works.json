@@ -1,5 +1,80 @@
 {
   "$schema": "../schema/settlements.guild-works.schema.json",
   "sheet": "settlements.guild-works",
-  "rows": []
+  "rows": [
+    {
+      "id": "stoked-forge",
+      "uses": [
+        {
+          "tag": "timber",
+          "quantity": 20
+        }
+      ],
+      "gives": "station-fee",
+      "by": 100,
+      "needs": "forge"
+    },
+    {
+      "id": "road-patrol",
+      "uses": [
+        {
+          "tag": "provisions",
+          "quantity": 15
+        }
+      ],
+      "gives": "threat",
+      "by": 30
+    },
+    {
+      "id": "full-granary",
+      "uses": [
+        {
+          "tag": "provisions",
+          "quantity": 30
+        }
+      ],
+      "gives": "rest",
+      "by": 3,
+      "needs": "granary"
+    },
+    {
+      "id": "stocked-wall",
+      "uses": [
+        {
+          "tag": "stone",
+          "quantity": 10
+        },
+        {
+          "tag": "metal",
+          "quantity": 5
+        }
+      ],
+      "gives": "raid-defence",
+      "by": 20,
+      "needs": "wall",
+      "waits": "MM9 (raids)"
+    },
+    {
+      "id": "open-ledger",
+      "uses": [
+        {
+          "quantity": 50
+        }
+      ],
+      "gives": "market-fee",
+      "by": 1
+    },
+    {
+      "id": "stable",
+      "uses": [
+        {
+          "tag": "provisions",
+          "quantity": 20
+        }
+      ],
+      "gives": "mount-upkeep",
+      "by": 100,
+      "needs": "stable"
+    }
+  ]
 }

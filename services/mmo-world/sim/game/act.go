@@ -64,6 +64,11 @@ type Command struct {
 	Price  int64         `json:"price,omitempty"`
 	Target string        `json:"target,omitempty"`
 	Floor  *market.Floor `json:"floor,omitempty"`
+	// Goal is a goal being posted.
+	Goal *GoalSpec `json:"goal,omitempty"`
+	// Admin marks a command from one of its server's admins, who are
+	// officers of the server's own guild (GDD 4.8).
+	Admin bool `json:"admin,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -77,7 +82,7 @@ type Stop struct {
 
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
-	return kind == Correct || kind == Grant || kind == Ban || kind == Unban
+	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal
 }
 
 // Refused is a command the rules turn down. Nothing changed.
@@ -118,6 +123,15 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err := ValidKey(cmd.Key); err != nil {
 		return Result{}, err
 	}
+	if cmd.Kind == HideGoal && cmd.Char == "" {
+		x := g.GoalOf(cmd.Target)
+		if x != nil && x.Poster == "" {
+			return Result{}, refuse(BadArgs, "%s is the world's own goal: it carries no player's words", x.ID)
+		}
+		if x != nil {
+			cmd.Char = x.Poster
+		}
+	}
 	first := fact.ID(g.Log.Len())
 	var c *Char
 	var err error
@@ -128,10 +142,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 				return Result{}, err
 			}
 		}
-		c, err = g.create()
-		if err == nil {
-			c.Server = cmd.Server
-		}
+		c, err = g.create(cmd.Server, cmd.Note)
 		if err == nil && cmd.Option != "" {
 			err = g.start(c, cmd.Key, cmd.Option)
 		}
@@ -145,6 +156,21 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		pressed, err = g.act(c, cmd)
 	}
 	if err != nil {
+		return Result{}, err
+	}
+	if cmd.Admin {
+		g.admit(c)
+	}
+	if kinds := uses[cmd.Kind]; kinds != nil {
+		g.used(c.C.At, kinds...)
+	}
+	if c.Carrying != "" && notDown(c) != nil {
+		g.setDown(c, g.Char(c.Carrying))
+	}
+	if err := g.creditGoals(first, cmd.Key); err != nil {
+		return Result{}, err
+	}
+	if err := g.classesFor(c, g.Tick()); err != nil {
 		return Result{}, err
 	}
 	c.Version++
@@ -228,6 +254,20 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.consent(c, cmd)
 	case Look:
 		return nil, g.look(c)
+	case FoundGuild, Invite, Join, Leave, Promote, Vote, Deposit, Pay, Approve, Draw, Allow, Work:
+		return nil, g.guildAct(c, cmd)
+	case PostGoal, Pledge, DeliverGoal, TakeHaul, WithdrawGoal, CallHelp, CarryHome, Raise:
+		return nil, g.goalAct(c, cmd)
+	case HideGoal:
+		return nil, g.hideGoal(cmd)
+	case Found:
+		return nil, g.foundSettlement(c, cmd)
+	case Charter:
+		return nil, g.charter(c, cmd)
+	case Mend:
+		return nil, g.mend(c, cmd)
+	case ChooseClass, TakeAbility, MarkPrey:
+		return nil, g.classAct(c, cmd)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
@@ -241,15 +281,23 @@ func ValidKey(key string) error {
 	return nil
 }
 
-// create makes a character at the first starting settlement. Nothing is
-// granted: no purse, no kit (GDD 10.1 rule 6).
-func (g *Game) create() (*Char, error) {
+// create makes a character at its server's settlement, or the first
+// starting settlement, in its server's own guild. Nothing is granted: no
+// purse, no kit (GDD 10.1 rule 6). guildName names the server's guild if
+// this is the server's first player.
+func (g *Game) create(server, guildName string) (*Char, error) {
 	g.NextChar++
 	id := "c-" + strconv.FormatInt(g.NextChar, decimal)
-	home := g.r.Gen.Settlement(0).Hex
-	c := &Char{C: char.New(id, home), Born: g.Tick()}
+	c := &Char{C: char.New(id, g.r.Gen.Settlement(0).Hex), Born: g.Tick(), Server: server}
 	g.insert(c)
-	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: home, By: char.Ref(id)})
+	if err := g.joinServer(c, server, guildName); err != nil {
+		return nil, err
+	}
+	if n, ok := g.home(server); ok {
+		c.C.At = g.SettlementHex(n)
+		c.C.Home = "settlement:" + strconv.Itoa(n)
+	}
+	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: c.C.At, By: char.Ref(id)})
 	_, err := g.fact(c, "character.arrived", g.Tick())
 	return c, err
 }
@@ -352,15 +400,22 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Press
 		return nil, err
 	}
 	for _, x := range facts {
+		if strings.HasPrefix(x.Kind, "encounter.") {
+			x.Data = append(x.Data, append(fact.At(c.C.At), fact.S("archetype", e.Creature.Archetype), fact.S("tags", joinTags(e.Creature.Tags)))...)
+		}
 		if _, err := g.Log.Append(x); err != nil {
 			return nil, err
 		}
 	}
+	g.deeds(c, pressed)
 	if err := g.lost(c, key, pack, tick); err != nil {
 		return nil, err
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: char.Ref(c.C.ID), Tag: e.Creature.Archetype})
+		if more := g.charScale(c, "beat-threat", hundred) - hundred; more > 0 {
+			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: -g.r.wp("beat-won-threat") * more / hundred})
+		}
 	}
 	if e.Over {
 		return pressed, g.close(c, key, tick)
@@ -395,6 +450,7 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 		if e.Floor > 0 {
 			g.Pending = append(g.Pending, world.Action{Kind: world.ActClearFloor, Hex: c.C.At, By: char.Ref(c.C.ID), Units: e.Floor})
 			c.C.Deepest.Bump(c.C.At.Ref(), max(0, e.Floor-c.C.Deepest.Get(c.C.At.Ref())))
+			c.C.Deeds.Bump(DeedFloors, 1)
 			if _, err := g.fact(c, "dungeon.floor-cleared", tick, append([]fact.Datum{fact.N("floor", e.Floor)}, fact.At(c.C.At)...)...); err != nil {
 				return err
 			}

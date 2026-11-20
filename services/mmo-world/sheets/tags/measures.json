@@ -33,6 +33,206 @@
     {
       "id": "yield-value",
       "unit": "coin"
+    },
+    {
+      "id": "appraisal-width",
+      "unit": "count"
+    },
+    {
+      "id": "armour-wear",
+      "unit": "count"
+    },
+    {
+      "id": "beat-threat",
+      "unit": "count"
+    },
+    {
+      "id": "board-first-days",
+      "unit": "count"
+    },
+    {
+      "id": "carry-floors",
+      "unit": "count"
+    },
+    {
+      "id": "charter-cost",
+      "unit": "count"
+    },
+    {
+      "id": "compile-components",
+      "unit": "count"
+    },
+    {
+      "id": "counters",
+      "unit": "count"
+    },
+    {
+      "id": "cover",
+      "unit": "count"
+    },
+    {
+      "id": "craft-salvage",
+      "unit": "count"
+    },
+    {
+      "id": "decks",
+      "unit": "count"
+    },
+    {
+      "id": "deep-breath",
+      "unit": "count"
+    },
+    {
+      "id": "even-shares",
+      "unit": "count"
+    },
+    {
+      "id": "exploit-reach",
+      "unit": "count"
+    },
+    {
+      "id": "faction-pay",
+      "unit": "count"
+    },
+    {
+      "id": "floor-sight",
+      "unit": "count"
+    },
+    {
+      "id": "follow-fled",
+      "unit": "count"
+    },
+    {
+      "id": "forecast-days",
+      "unit": "count"
+    },
+    {
+      "id": "fork-sight",
+      "unit": "count"
+    },
+    {
+      "id": "free-exit",
+      "unit": "count"
+    },
+    {
+      "id": "haul-collateral",
+      "unit": "count"
+    },
+    {
+      "id": "item-xp",
+      "unit": "count"
+    },
+    {
+      "id": "keys",
+      "unit": "count"
+    },
+    {
+      "id": "listing-fee",
+      "unit": "count"
+    },
+    {
+      "id": "load",
+      "unit": "count"
+    },
+    {
+      "id": "methods",
+      "unit": "count"
+    },
+    {
+      "id": "mount-upkeep",
+      "unit": "count"
+    },
+    {
+      "id": "news-age",
+      "unit": "count"
+    },
+    {
+      "id": "order-limit",
+      "unit": "count"
+    },
+    {
+      "id": "party-ambush-band",
+      "unit": "count"
+    },
+    {
+      "id": "party-failures-taken",
+      "unit": "count"
+    },
+    {
+      "id": "party-haul-kept",
+      "unit": "count"
+    },
+    {
+      "id": "party-rally",
+      "unit": "count"
+    },
+    {
+      "id": "party-second-failure",
+      "unit": "count"
+    },
+    {
+      "id": "pledge-need",
+      "unit": "count"
+    },
+    {
+      "id": "raid-defence-beats",
+      "unit": "count"
+    },
+    {
+      "id": "reforge-points",
+      "unit": "count"
+    },
+    {
+      "id": "road-risk",
+      "unit": "count"
+    },
+    {
+      "id": "sees-fields",
+      "unit": "count"
+    },
+    {
+      "id": "sees-registered",
+      "unit": "count"
+    },
+    {
+      "id": "signature-fee",
+      "unit": "count"
+    },
+    {
+      "id": "state-beats",
+      "unit": "count"
+    },
+    {
+      "id": "state-repeats",
+      "unit": "count"
+    },
+    {
+      "id": "station-fee",
+      "unit": "count"
+    },
+    {
+      "id": "track-ticks",
+      "unit": "count"
+    },
+    {
+      "id": "tracks-left",
+      "unit": "count"
+    },
+    {
+      "id": "trouble-structures",
+      "unit": "count"
+    },
+    {
+      "id": "wall-tier",
+      "unit": "count"
+    },
+    {
+      "id": "weather-binds",
+      "unit": "count"
+    },
+    {
+      "id": "works-stock",
+      "unit": "count"
     }
   ]
 }

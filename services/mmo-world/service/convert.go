@@ -135,6 +135,9 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 	if out.Materials == nil {
 		out.Materials = []string{}
 	}
+	if called := g.Called(c); called || c.Carrying != "" || c.CarriedBy != "" {
+		out.Rescue = &api.Rescue{Called: called, Home: g.PlaceName(g.SettlementHex(g.HomeOf(c))), Carrying: c.Carrying, CarriedBy: c.CarriedBy}
+	}
 	for _, m := range ch.Moves {
 		out.Moves = append(out.Moves, api.Move{Dir: m.Dir, To: apiHex(m.To), Open: m.Open, Ticks: m.Ticks, Why: apiParts(m.Why)})
 	}
@@ -238,7 +241,7 @@ func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
 // the asking character stands on.
 func tileView(g *game.Game, h hex.Hex) api.Tile {
 	b := g.Rules().Gen.Baseline(h)
-	out := api.Tile{Hex: apiHex(h), Terrain: b.Terrain, Water: b.Water, Site: b.Site, Landmark: b.Landmark}
+	out := api.Tile{Hex: apiHex(h), Terrain: b.Terrain, Water: b.Water, Site: g.SiteAt(h), Landmark: b.Landmark}
 	if st := g.World.Tile(h); st != nil {
 		out.Road = st.Road
 		if st.Discovered != nil {

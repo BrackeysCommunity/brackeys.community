@@ -193,6 +193,13 @@ export interface ActionRequest {
   price?: number /* int64 */;
   target?: string;
   floor?: Floor;
+  /**
+   * Goals, guilds and classes (GDD 4.8, 11): a name or note, a goal
+   * posted, and whether the player is one of its server's admins.
+   */
+  note?: string;
+  goal?: GoalSpec;
+  admin?: boolean;
 }
 /**
  * OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -205,6 +212,10 @@ export interface OperatorRequest {
   asset?: string;
   units?: number /* int64 */;
   note: string;
+  /**
+   * Target is the goal an operator hides.
+   */
+  target?: string;
 }
 /**
  * ActionReply is what an accepted press did. Duplicate is true when the
@@ -406,6 +417,18 @@ export interface Options {
   long?: Long;
   fight?: Fight;
   purse: Purse;
+  rescue?: Rescue;
+}
+/**
+ * Rescue is a character's part in a rescue (GDD 11.6): whether it has
+ * called for help and at which settlement its Carry goal hangs, and whom
+ * it carries or is carried by.
+ */
+export interface Rescue {
+  called: boolean;
+  home: string;
+  carrying?: string;
+  carriedBy?: string;
 }
 /**
  * Purse is what a character holds and, in a market, the prices there:
@@ -898,6 +921,489 @@ export interface Flagged {
 }
 
 //////////
+// source: society.go
+
+/**
+ * Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
+ */
+export const PathGoals = "/v1/goals";
+/**
+ * Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
+ */
+export const PathBoard = "/v1/goals/forum";
+/**
+ * Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
+ */
+export const PathGuild = "/v1/guild";
+/**
+ * Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
+ */
+export const PathClasses = "/v1/classes";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActPostGoal = "goal-post";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActPledge = "goal-pledge";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActDeliverGoal = "goal-deliver";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActTakeHaul = "goal-haul";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActWithdrawGoal = "goal-withdraw";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActCallHelp = "help";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActCarry = "carry";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActHideGoal = "goal-hide";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActFoundGuild = "guild-found";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActInvite = "guild-invite";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActJoin = "guild-join";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActLeave = "guild-leave";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActPromote = "guild-promote";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActVote = "guild-vote";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActDeposit = "guild-deposit";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActPay = "guild-pay";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActApprove = "guild-approve";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActDraw = "guild-draw";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActAllow = "guild-allow";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActWork = "guild-work";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActFound = "found";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActCharter = "charter";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActRaise = "raise";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActMend = "mend";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActChooseClass = "class-choose";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActTakeAbility = "class-take";
+/**
+ * Action kinds of goals, guilds, settlements and classes.
+ */
+export const ActMarkPrey = "mark";
+/**
+ * Condition is a goal's verb, target and amount (GDD 11.2); empty fields
+ * match anything.
+ */
+export interface Condition {
+  verb: string;
+  kind?: string;
+  tag?: string;
+  trait?: string;
+  count: number /* int64 */;
+  at?: string;
+  hex?: Hex;
+  within?: number /* int64 */;
+  from?: string;
+  field?: string;
+  atLeast?: number /* int64 */;
+  gauge?: string;
+  line?: number /* int64 */;
+  below?: boolean;
+  who?: string;
+  side?: string;
+}
+/**
+ * GoalSpec is a goal as posted: picked by selects, the title and note
+ * from a modal.
+ */
+export interface GoalSpec {
+  title: string;
+  note?: string;
+  issuer: string; // character, party, settlement, admin
+  members?: string[];
+  cond: Condition;
+  reward: number /* int64 */;
+  mode: string;
+  cap?: number /* int64 */;
+  lifetime: string;
+  turnover: string;
+  ticks?: number /* int64 */;
+  even?: boolean;
+  material?: string;
+  units?: number /* int64 */;
+}
+/**
+ * Goal is a posted goal as the board shows it.
+ */
+export interface Goal {
+  id: string;
+  title: string;
+  note?: string;
+  issuer: string; // its kind
+  by: string; // who issued it, by name
+  verb: string;
+  what: string; // the condition in words
+  where?: string;
+  reward: number /* int64 */;
+  mode: string;
+  cap?: number /* int64 */;
+  lifetime: string;
+  turnover: string;
+  state: string;
+  progress: number /* int64 */;
+  count: number /* int64 */;
+  claims: number /* int64 */;
+  need?: number /* int64 */;
+  pledged?: number /* int64 */;
+  /**
+   * Left is ticks until it expires; 0 for none.
+   */
+  left?: number /* int64 */;
+  mine: boolean;
+  /**
+   * Yours is the character's own progress toward it.
+   */
+  yours: number /* int64 */;
+  top: Contribution[];
+  hauler?: string;
+  vow?: boolean;
+  /**
+   * Takes are the goods the viewer carries that a Deliver takes; Haul is
+   * whether the viewer may take its stock here, or deliver it here.
+   */
+  takes: Goods[];
+  haul?: string; // take, deliver
+  building?: string; // the structure a raise goal builds
+  /**
+   * Paid are a met goal's claims, each with the facts it cites.
+   */
+  paid?: GoalClaim[];
+}
+/**
+ * GoalClaim is one claim on a met goal: who, for how much, and the facts
+ * that met it. Cited counts every fact; Facts are those still at hand.
+ */
+export interface GoalClaim {
+  who: string;
+  units: number /* int64 */;
+  coin: number /* int64 */;
+  cited: number /* int64 */;
+  facts: Fact[];
+}
+/**
+ * Contribution is a contributor's units toward a goal.
+ */
+export interface Contribution {
+  who: string;
+  units: number /* int64 */;
+}
+/**
+ * Draft is a goal the board suggests from the state of the world.
+ */
+export interface Draft {
+  why: string;
+  spec: GoalSpec;
+}
+/**
+ * Goals is /goals for a character in a settlement: the board, drafts,
+ * its own goals and the rules a post is checked against.
+ */
+export interface Goals {
+  settlement: number /* int */;
+  name: string;
+  board: Goal[];
+  drafts: Draft[];
+  mine: Goal[];
+  met: Goal[]; // the latest goals met on this board
+  live: number /* int64 */;
+  limit: number /* int64 */;
+  fee: number /* int64 */; // per cent of the reward
+  feeLeast: number /* int64 */;
+  rewardLeast: number /* int64 */;
+  pledgeNeed: number /* int64 */;
+  verbs: string[];
+  officer: boolean;
+  coin: number /* int64 */;
+  banner: string;
+  /**
+   * Targets are what each verb may be posted against from here; Line,
+   * Within and Ephemeral are the defaults the form fills in: a Hold's
+   * threat line, a Discover's reach in tiles, an ephemeral goal's ticks.
+   */
+  targets: Targets[];
+  line: number /* int64 */;
+  within: number /* int64 */;
+  ephemeral: number /* int64 */;
+  at: Hex;
+}
+/**
+ * Targets are the choices a verb offers on the posting form.
+ */
+export interface Targets {
+  verb: string;
+  options: Pick[];
+}
+/**
+ * Pick is one option of a select: the value sent and what it shows.
+ */
+export interface Pick {
+  value: string;
+  label: string;
+}
+/**
+ * Board is every settlement's notice-board goals, for the forum: a post
+ * per goal, its progress edited on a timer.
+ */
+export interface Board {
+  tick: number /* int64 */;
+  /**
+   * Every is the least ticks between two edits of one post.
+   */
+  every: number /* int64 */;
+  posts: BoardPost[];
+}
+/**
+ * BoardPost is one goal's forum post.
+ */
+export interface BoardPost {
+  settlement: number /* int */;
+  name: string;
+  banner: string; // a media key
+  goal: Goal;
+}
+/**
+ * CostLine is goods of a tag, or coin when the tag is empty.
+ */
+export interface CostLine {
+  tag?: string;
+  quantity: number /* int64 */;
+}
+/**
+ * Structure is one of a settlement's structures (GDD 4.16).
+ */
+export interface Structure {
+  kind: string;
+  name: string;
+  tier: number /* int64 */;
+  maxTier: number /* int64 */;
+  condition: number /* int64 */;
+  closed: boolean;
+  raising: boolean;
+  next?: CostLine[];
+}
+/**
+ * Settlement is a settlement a guild runs.
+ */
+export interface Settlement {
+  n: number /* int */;
+  name: string;
+  treasury: number /* int64 */;
+  structures: Structure[];
+  here: boolean;
+}
+/**
+ * GuildMember is one member on the guild's page.
+ */
+export interface GuildMember {
+  id: string;
+  name: string;
+  leader: boolean;
+  officer: boolean;
+  admin: boolean;
+  draw: boolean; // may withdraw past what its deposits earn
+  put: number /* int64 */; // contribution, all time
+  season: number /* int64 */; // this season
+}
+/**
+ * GuildWork is a work and its stock (GDD 4.14).
+ */
+export interface GuildWork {
+  id: string;
+  name: string;
+  on: boolean;
+  days: number /* int64 */; // days of stock left in the bank
+  uses: CostLine[];
+  gives: string;
+  by: number /* int64 */;
+  needs?: string;
+  waits?: string;
+  can: boolean; // may be switched on here
+}
+/**
+ * Approval is a payment waiting for a second officer.
+ */
+export interface Approval {
+  id: string;
+  by: string;
+  to: string;
+  what: string;
+  value: number /* int64 */;
+}
+/**
+ * GuildVote is an open motion.
+ */
+export interface GuildVote {
+  target: string;
+  role: string;
+  for: number /* int64 */;
+  need: number /* int64 */;
+}
+/**
+ * Charter is whether the character's tile can be chartered, and what it
+ * costs (GDD 4.8).
+ */
+export interface Charter {
+  can: boolean;
+  why?: string;
+  take: boolean; // a starting settlement taken over
+  coin: number /* int64 */;
+  timber: number /* int64 */;
+  stone: number /* int64 */;
+  fields?: { [key: string]: number /* int64 */ }; // a Surveyor's view
+}
+/**
+ * Guild is /guild: a character's guild, or what founding one takes.
+ */
+export interface Guild {
+  id?: string;
+  name?: string;
+  server: boolean;
+  leader?: string;
+  members: GuildMember[];
+  officers: number /* int64 */;
+  officersMax: number /* int64 */;
+  full: boolean;
+  least: number /* int64 */;
+  treasury: number /* int64 */;
+  bank: Goods[];
+  works: GuildWork[];
+  settlements: Settlement[];
+  approvals: Approval[];
+  votes: GuildVote[];
+  invites: string[]; // guilds that invited the character
+  /**
+   * Near are characters standing with an officer whom it could invite.
+   */
+  near: Pick[];
+  officer: boolean;
+  spend: number /* int64 */; // what an officer may still pay today
+  charter: Charter;
+  banner: string;
+}
+/**
+ * Need is one threshold of a class's unlock and how far along it is.
+ */
+export interface Need {
+  what: string;
+  have: number /* int64 */;
+  at: number /* int64 */;
+}
+/**
+ * Ability is one entry of a tree.
+ */
+export interface Ability {
+  id: string;
+  name: string;
+  text: string;
+  taken: boolean;
+  waits?: string;
+}
+/**
+ * Tier is one tier of a tree: the level it opens at and its two
+ * abilities.
+ */
+export interface Tier {
+  level: number /* int64 */;
+  open: boolean;
+  options: Ability[];
+}
+/**
+ * Class is one class as /classes shows it.
+ */
+export interface Class {
+  id: string;
+  name: string;
+  leans: string;
+  earned: boolean;
+  active: boolean;
+  first: boolean;
+  level: number /* int64 */;
+  needs: Need[];
+  tiers: Tier[];
+}
+/**
+ * Classes is /classes: every class found so far, earned or not, and how
+ * many may be active.
+ */
+export interface Classes {
+  classes: Class[];
+  active: number /* int64 */;
+  most: number /* int64 */;
+  /**
+   * Here is whether the character stands in a settlement, where classes
+   * are chosen.
+   */
+  here: boolean;
+}
+
+//////////
 // source: solo.go
 
 /**
@@ -1112,6 +1618,10 @@ export interface Sheet {
   finds: Find[];
   owed?: number /* int64 */; // provisions an unfed mount waits on
   consent: Consent;
+  /**
+   * Vows are the titles of the vows the character is keeping (GDD 11.7).
+   */
+  vows: string[];
 }
 /**
  * Consent is who NPCs may name the character to (GDD 4.18).
@@ -1194,6 +1704,19 @@ export interface Here {
   forage: number /* int64 */; // provisions a tick
   recent: Fact[];
   suggest?: Suggest;
+  /**
+   * Downed are characters down on this tile whom the viewer could carry
+   * home (GDD 11.6).
+   */
+  downed: Downed[];
+}
+/**
+ * Downed is a downed character: who, and whether it has called for help.
+ */
+export interface Downed {
+  id: string;
+  name: string;
+  called: boolean;
 }
 /**
  * Suggest is the nearest site to explore: where, how far, and the first

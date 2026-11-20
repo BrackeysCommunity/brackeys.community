@@ -76,7 +76,7 @@ func (g *Game) Elsewhere(c *Char, material string) []Far {
 		}
 		f := Far{Settlement: n, Name: g.placeName(h)}
 		if _, ticks, ok := g.Route(c, h); ok {
-			f.AsOf, f.Known = max(0, t-ticks), true
+			f.AsOf, f.Known = max(0, t-g.charScale(c, "news-age", ticks)), true
 		}
 		if v, ok := c.visit(n); ok && (!f.Known || v.Tick > f.AsOf) {
 			f.AsOf, f.Own, f.Known = v.Tick, true, true

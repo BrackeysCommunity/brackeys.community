@@ -181,6 +181,12 @@
       "text": "A world day costs the same whether the world holds 10 saved NPCs or 1,000,000",
       "runs": "social",
       "holdsFrom": "MM4"
+    },
+    {
+      "id": "npc-world-aware",
+      "text": "NPCs pass on a neighbour's news one hop deep, bring up crowding at 10 structures built in their region within 14 world days, some move home, and every route is relaid at the first meeting after a week",
+      "runs": "social",
+      "holdsFrom": "MM6"
     }
   ]
 }

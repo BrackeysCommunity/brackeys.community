@@ -83,6 +83,20 @@ func (h *HTTP) Options(ctx context.Context, id string) (api.Options, error) {
 	return out, Refused("options for "+id, ref, err)
 }
 
+// Guild is a character's /guild page.
+func (h *HTTP) Guild(ctx context.Context, id string) (api.Guild, error) {
+	var out api.Guild
+	ref, err := h.Do(ctx, http.MethodGet, api.PathGuild+"?characterId="+url.QueryEscape(id), nil, &out)
+	return out, Refused("guild of "+id, ref, err)
+}
+
+// Classes is a character's /classes page.
+func (h *HTTP) Classes(ctx context.Context, id string) (api.Classes, error) {
+	var out api.Classes
+	ref, err := h.Do(ctx, http.MethodGet, api.PathClasses+"?characterId="+url.QueryEscape(id), nil, &out)
+	return out, Refused("classes of "+id, ref, err)
+}
+
 // Health is the service's health.
 func (h *HTTP) Health(ctx context.Context) (api.Health, error) {
 	var out api.Health

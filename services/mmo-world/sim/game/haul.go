@@ -10,7 +10,7 @@ import (
 // region's threat or a gauge line it is past, raised one band by cover.
 // Where nothing lives there is no band. It returns the band's index too,
 // the sheet's order being safest first.
-func (g *Game) riskBand(h hex.Hex) (sheets.RouteRisk, int, bool) {
+func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 	bands := g.r.Book.RouteRisks
 	if len(bands) == 0 || len(g.r.Gen.Creatures(h)) == 0 {
 		return sheets.RouteRisk{}, 0, false
@@ -25,8 +25,16 @@ func (g *Game) riskBand(h hex.Hex) (sheets.RouteRisk, int, bool) {
 			i = j
 		}
 	}
-	if i > 0 && g.r.Gen.Baseline(h).Cover >= g.mp("cover-raise") {
+	cover := g.r.Gen.Baseline(h).Cover
+	quiet := g.charScale(c, "cover", 0)
+	switch {
+	case i > 0 && quiet > 0 && cover+quiet >= g.mp("cover-raise"):
+		i--
+	case i > 0 && cover >= g.mp("cover-raise"):
 		i = min(i+1, len(bands)-1)
+	}
+	if t := g.World.Tile(h); t != nil && t.Road > 0 {
+		i = max(0, i+int(g.charScale(c, "road-risk", 0)))
 	}
 	return bands[i], i, true
 }
@@ -56,7 +64,7 @@ func (g *Game) RouteRisk(c *Char, route []hex.Hex) Risk {
 	var r Risk
 	worst := -1
 	for _, h := range route {
-		b, i, ok := g.riskBand(h)
+		b, i, ok := g.riskBand(c, h)
 		if !ok || b.Chance == 0 {
 			continue
 		}

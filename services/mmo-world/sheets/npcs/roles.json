@@ -7,7 +7,8 @@
       "place": "starting-settlement",
       "role": "keeper",
       "count": 1,
-      "works": "market"
+      "works": "market",
+      "rooted": true
     },
     {
       "id": "settlement-smith",
@@ -28,7 +29,8 @@
       "place": "starting-settlement",
       "role": "trader",
       "count": 1,
-      "works": "market"
+      "works": "market",
+      "rooted": true
     },
     {
       "id": "settlement-stablehand",
@@ -42,35 +44,40 @@
       "place": "starting-settlement",
       "role": "watch captain",
       "count": 1,
-      "works": "wall"
+      "works": "wall",
+      "rooted": true
     },
     {
       "id": "holding-captain",
       "place": "faction-holding",
       "role": "captain",
       "count": 1,
-      "works": "wall"
+      "works": "wall",
+      "rooted": true
     },
     {
       "id": "holding-quartermaster",
       "place": "faction-holding",
       "role": "quartermaster",
       "count": 1,
-      "works": "market"
+      "works": "market",
+      "rooted": true
     },
     {
       "id": "structure-keeper",
       "place": "structure",
       "role": "keeper",
       "count": 1,
-      "works": "structure"
+      "works": "structure",
+      "rooted": true
     },
     {
       "id": "dungeon-guard",
       "place": "structure",
       "role": "guard",
       "count": 1,
-      "works": "structure"
+      "works": "structure",
+      "rooted": true
     },
     {
       "id": "road-scrapper",

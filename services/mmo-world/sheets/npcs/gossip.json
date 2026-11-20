@@ -1,0 +1,42 @@
+{
+  "$schema": "../schema/npcs.gossip.schema.json",
+  "sheet": "npcs.gossip",
+  "rows": [
+    {
+      "id": "greeted",
+      "line": "{neighbour} speaks well of {who}."
+    },
+    {
+      "id": "asked",
+      "line": "{neighbour} says {who} came asking questions."
+    },
+    {
+      "id": "slighted",
+      "line": "{neighbour} says {who} walked past without a word."
+    },
+    {
+      "id": "helped",
+      "line": "{neighbour} says {who} did them a good turn."
+    },
+    {
+      "id": "wronged",
+      "line": "{neighbour} holds a grudge against {who}."
+    },
+    {
+      "id": "traded",
+      "line": "{neighbour} says {who} sold {thing} at the market."
+    },
+    {
+      "id": "fought",
+      "line": "{neighbour} saw {who} beat the {thing}."
+    },
+    {
+      "id": "resold",
+      "line": "{neighbour} made {n} coin selling on what {who} brought in."
+    },
+    {
+      "id": "sold-on",
+      "line": "{neighbour} sold on the {thing} {who} brought in."
+    }
+  ]
+}

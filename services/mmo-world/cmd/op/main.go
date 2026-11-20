@@ -34,6 +34,7 @@ const usage = `op [-id <interaction id>] <command>
   correct <id> <asset> <units> <note...>   coin, provisions or mat:<id>; negative takes
   grant <id> <mount-kind> <note...>
   ban <id> <note...>  |  unban <id> <note...>
+  hide <goal> <note...>           take a goal off the notice board, its escrow back
   audit                           the conservation check
   economy                         the faucet, and characters flagged for review
   digest                          the world's tick and digest
@@ -151,6 +152,11 @@ func run(args []string) error {
 		}
 		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: rest[0], Kind: cmd,
 			Note: strings.Join(rest[1:], " ")})
+	case "hide":
+		if err := need(rest, 2); err != nil {
+			return err
+		}
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: api.ActHideGoal, Target: rest[0], Note: strings.Join(rest[1:], " ")})
 	case "audit":
 		return shown(cli().Audit(context.Background()))
 	case "economy":

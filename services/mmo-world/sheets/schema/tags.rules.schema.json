@@ -108,6 +108,7 @@
                     "remove-tag",
                     "band",
                     "scale",
+                    "add",
                     "join",
                     "end",
                     "score"
@@ -144,8 +145,8 @@
                 },
                 "count": {
                   "type": "integer",
-                  "minimum": 0,
-                  "x-unit": "count"
+                  "x-unit": "count",
+                  "description": "join: creatures that join; add: what is added to the measure."
                 },
                 "beat": {
                   "type": "integer",
