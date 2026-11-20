@@ -668,6 +668,7 @@ func spared(row *sheets.GuildWork, w *guild.Work, cost int64) int64 {
 // workGave books what a work spared against its day.
 func (g *Game) workGave(w *guild.Work, saved int64) {
 	w.Left -= saved
+	w.Gave += saved
 	g.WorkLedger.Gave.Bump(w.ID, saved)
 }
 
@@ -794,6 +795,7 @@ func (g *Game) stock(gd *Guild, t int64) error {
 			return err
 		}
 		w.Left = g.linesWorth(lines)
+		w.Used += w.Left
 		g.WorkLedger.Used.Bump(row.ID, w.Left)
 		w.Days++
 		kept = append(kept, w)

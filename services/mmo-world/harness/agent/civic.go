@@ -25,6 +25,10 @@ type GuildPlan struct {
 	// Works is whether its admins switch works on and its members stock
 	// them; a guild saving for a charter may leave them dark.
 	Works bool
+	// ReviewDays and KeepShare are when an admin gives a work up: stocked
+	// that many world days, it has spared under that per cent of what it
+	// consumed. The guild leaves it dark from then on. 0 never reviews.
+	ReviewDays, KeepShare int64
 	// Seek sends members out to where a material the guild is short of
 	// was last seen, and farther afield while none has been.
 	Seek bool
@@ -60,11 +64,38 @@ type board struct {
 	page    api.Guild
 	short   map[string]int64
 	charter bool
+	// dark are the works its admins gave up; past and lit are what each
+	// work consumed and spared in earlier lightings and in this one, so a
+	// work that lapses and is relit is still judged on all of it.
+	dark      map[string]bool
+	past, lit map[string]workSum
 	// sources are the tiles nearest home where each tag's goods were
 	// seen, nearest first.
 	sources map[string][]source
 	// spent are the nodes a member found worked out.
 	spent map[node]bool
+}
+
+// workSum is a work's stocked days and the coin value it consumed and
+// spared in them.
+type workSum struct{ ran, used, gave int64 }
+
+func (a workSum) plus(b workSum) workSum {
+	return workSum{a.ran + b.ran, a.used + b.used, a.gave + b.gave}
+}
+
+// tally keeps each work's sums across lightings as the page shows them.
+func (b *board) tally(page api.Guild) {
+	if b.lit == nil {
+		b.past, b.lit = map[string]workSum{}, map[string]workSum{}
+	}
+	for _, w := range page.Works {
+		now := workSum{w.Ran, w.Used, w.Gave}
+		if was := b.lit[w.ID]; now.ran < was.ran {
+			b.past[w.ID] = b.past[w.ID].plus(was)
+		}
+		b.lit[w.ID] = now
+	}
 }
 
 type source struct {
@@ -118,7 +149,8 @@ func (g *GuildPlan) read(b *board, tick int64, desk *Desk) error {
 		return err
 	}
 	b.page, b.tick, b.fresh = page, tick, true
-	b.short = g.short(page, b.charter)
+	b.tally(page)
+	b.short = g.short(page, b.charter, b.dark)
 	return nil
 }
 
@@ -155,12 +187,19 @@ func (g *GuildPlan) held(page api.Guild) map[string]int64 {
 	return have
 }
 
-// short is what the guild's runnable works take in StockDays, and its
-// next charter unless that is already out, less what it holds, by tag.
-func (g *GuildPlan) short(page api.Guild, charterOut bool) map[string]int64 {
+// wasteful reports whether a work has been stocked long enough to judge
+// and spared too little of what it consumed to keep.
+func (g *GuildPlan) wasteful(w api.GuildWork, s workSum) bool {
+	return g.ReviewDays > 0 && w.Spares && s.ran >= g.ReviewDays && s.gave*hundred < s.used*g.KeepShare
+}
+
+// short is what the guild's runnable works take in StockDays, leaving
+// out the ones it gave up, and its next charter unless that is already
+// out, less what it holds, by tag.
+func (g *GuildPlan) short(page api.Guild, charterOut bool, dark map[string]bool) map[string]int64 {
 	want := map[string]int64{}
 	for _, w := range page.Works {
-		if !g.Works || !runnable(w, page) {
+		if !g.Works || dark[w.ID] || !runnable(w, page) {
 			continue
 		}
 		for _, u := range w.Uses {
@@ -465,7 +504,19 @@ func (e *Earner) officer(o api.Options, t *trip, b *board, page api.Guild) (api.
 		}
 	}
 	for _, w := range page.Works {
-		if g.Works && runnable(w, page) && w.Can && !w.On && w.Days >= g.StartDays {
+		if b.dark[w.ID] || !g.wasteful(w, b.past[w.ID].plus(b.lit[w.ID])) {
+			continue
+		}
+		if b.dark == nil {
+			b.dark = map[string]bool{}
+		}
+		b.dark[w.ID] = true
+		if w.On && w.Can {
+			return api.ActionRequest{Kind: api.ActWork, Option: w.ID}, true
+		}
+	}
+	for _, w := range page.Works {
+		if g.Works && !b.dark[w.ID] && runnable(w, page) && w.Can && !w.On && w.Days >= g.StartDays {
 			return api.ActionRequest{Kind: api.ActWork, Option: w.ID, Units: 1}, true
 		}
 	}

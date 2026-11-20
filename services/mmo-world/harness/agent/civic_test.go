@@ -36,7 +36,7 @@ func homePage() api.Guild {
 
 func TestShortCountsRunnableWorksAndTheCharter(t *testing.T) {
 	g := testPlan()
-	got := g.short(homePage(), false)
+	got := g.short(homePage(), false, nil)
 	// forge 100 and charter 200 timber less 40 held; patrol 75 provisions
 	// less 20; ledger 250 and charter 1,000 coin less 120; charter stone.
 	want := map[string]int64{"timber": 260, provisions: 55, tagCoin: 1130, "stone": 100}
@@ -44,17 +44,17 @@ func TestShortCountsRunnableWorksAndTheCharter(t *testing.T) {
 		t.Fatalf("short = %v, want %v", got, want)
 	}
 	// With the charter out, only the works are wanted.
-	if got := g.short(homePage(), true); !reflect.DeepEqual(got, map[string]int64{"timber": 60, provisions: 55, tagCoin: 130}) {
+	if got := g.short(homePage(), true, nil); !reflect.DeepEqual(got, map[string]int64{"timber": 60, provisions: 55, tagCoin: 130}) {
 		t.Fatalf("short with the charter out = %v", got)
 	}
 	// A guild that leaves its works dark wants the charter alone.
 	g.Works = false
-	if got := g.short(homePage(), false); !reflect.DeepEqual(got, map[string]int64{"timber": 160, tagCoin: 880, "stone": 100}) {
+	if got := g.short(homePage(), false, nil); !reflect.DeepEqual(got, map[string]int64{"timber": 160, tagCoin: 880, "stone": 100}) {
 		t.Fatalf("short with works dark = %v", got)
 	}
 	// And one that has founded wants nothing more for it.
 	g.Settlements = 1
-	if got := g.short(homePage(), false); len(got) != 0 {
+	if got := g.short(homePage(), false, nil); len(got) != 0 {
 		t.Fatalf("short once founded = %v", got)
 	}
 }
@@ -147,6 +147,50 @@ func TestOfficerApprovesLightsAndSetsOut(t *testing.T) {
 	page.Officer = false
 	if req, ok := e.officer(o, &trip{}, &board{}, page); ok {
 		t.Fatalf("not an officer: %+v", req)
+	}
+}
+
+func TestAdminsGiveUpAWorkThatSparesTooLittle(t *testing.T) {
+	g := testPlan()
+	g.ReviewDays, g.KeepShare = 7, 25
+	e := &Earner{Guild: g}
+	b, o := &board{}, api.Options{CharacterID: "c-1"}
+	page := homePage()
+	page.Officer = true
+	page.Members = []api.GuildMember{{ID: "c-1", Name: "Ash", Admin: true}}
+	forge, ledger := &page.Works[0], &page.Works[4]
+	forge.Spares, ledger.Spares = true, true
+	off := func() (api.ActionRequest, bool) {
+		b.tally(page)
+		req, ok := e.officer(o, &trip{}, b, page)
+		return req, ok && req.Kind == api.ActWork && req.Units == 0
+	}
+	// Four stocked days is too soon to judge, however little it spared.
+	forge.On, forge.Ran, forge.Used = true, 4, 80
+	ledger.Ran, ledger.Used, ledger.Gave = 9, 450, 200
+	if req, ok := off(); ok {
+		t.Fatalf("judged after 4 days: %+v", req)
+	}
+	// It lapses and is relit: the days before still count.
+	forge.On, forge.Ran, forge.Used = false, 0, 0
+	if req, ok := off(); ok {
+		t.Fatalf("a lapsed work switched off: %+v", req)
+	}
+	forge.On, forge.Ran, forge.Used, forge.Gave = true, 3, 60, 30
+	if req, ok := off(); !ok || req.Option != "stoked-forge" {
+		t.Fatalf("7 stocked days, 30 spared of 140: %+v %v, want the forge off", req, ok)
+	}
+	// Dark for good: not stocked for, and not lit again.
+	forge.On, forge.Ran, forge.Used, forge.Gave = false, 0, 0, 0
+	if req, ok := e.officer(o, &trip{}, b, page); ok {
+		t.Fatalf("a work given up was lit again: %+v", req)
+	}
+	if got := g.short(page, true, b.dark); got["timber"] != 0 {
+		t.Fatalf("the guild still stocks a work it gave up: %v", got)
+	}
+	// The ledger spared 200 of 450 and stays; a patrol is never judged.
+	if b.dark["open-ledger"] || b.dark["road-patrol"] {
+		t.Fatalf("gave up %v", b.dark)
 	}
 }
 

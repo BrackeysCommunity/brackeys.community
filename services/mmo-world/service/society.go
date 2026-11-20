@@ -15,6 +15,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/goal"
+	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/settle"
@@ -356,12 +357,14 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 		out.Settlements = append(out.Settlements, apiSettlement(g, p, p.N == here && p.Hex == c.C.At))
 	}
 	for _, row := range r.Book.GuildWorks {
-		w := api.GuildWork{ID: row.ID, Name: row.ID, Gives: row.Gives, By: row.By, Needs: row.Needs, Waits: row.Waits, Days: g.StockDays(gd, &row)}
+		w := api.GuildWork{ID: row.ID, Name: row.ID, Gives: row.Gives, By: row.By, Needs: row.Needs, Waits: row.Waits, Days: g.StockDays(gd, &row), Spares: guild.SparesCoin(row.Gives)}
 		for _, l := range row.Uses {
 			w.Uses = append(w.Uses, api.CostLine{Tag: l.Tag, Quantity: l.Quantity})
 		}
 		if p := g.PlaceAt(c.C.At); p != nil && p.Guild == gg.ID {
-			w.On = gg.Work(row.ID, p.N) != nil
+			if on := gg.Work(row.ID, p.N); on != nil {
+				w.On, w.Ran, w.Used, w.Gave = true, on.Days, on.Used, on.Gave
+			}
 			w.Can = out.Officer && game.CanWork(p, &row)
 		}
 		out.Works = append(out.Works, w)

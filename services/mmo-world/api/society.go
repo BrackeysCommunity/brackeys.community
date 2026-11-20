@@ -291,6 +291,13 @@ type GuildWork struct {
 	Needs string     `json:"needs,omitempty"`
 	Waits string     `json:"waits,omitempty"`
 	Can   bool       `json:"can"` // may be switched on here
+	// Spares says the work gives coin its members keep; Ran, Used and Gave
+	// are then the world days it has been stocked here since it was
+	// switched on, and the coin value it has consumed and spared in them.
+	Spares bool  `json:"spares,omitempty"`
+	Ran    int64 `json:"ran,omitempty"`
+	Used   int64 `json:"used,omitempty"`
+	Gave   int64 `json:"gave,omitempty"`
 }
 
 // Approval is a payment waiting for a second officer.

@@ -99,6 +99,16 @@ type Work struct {
 	// Left is the coin value it may still give back today: what the day's
 	// stock was worth, less what it has spared since.
 	Left int64 `json:"left,omitempty"`
+	// Used is the coin value of all it has consumed since it was switched
+	// on, and Gave of all it has spared.
+	Used int64 `json:"used,omitempty"`
+	Gave int64 `json:"gave,omitempty"`
+}
+
+// SparesCoin reports whether what a work gives is coin its members keep,
+// so what it spared can be weighed against what it consumed.
+func SparesCoin(gives string) bool {
+	return gives == GivesStationFee || gives == GivesMarketFee || gives == GivesMountUpkeep
 }
 
 // Guild is a guild's membership and governance.

@@ -603,7 +603,19 @@ const cards: [string, () => Card][] = [
     () =>
       guildCard(
         o,
-        { ...guild, works: guild.works.map((x) => ({ ...x, can: true, on: true, days: 4 })) },
+        {
+          ...guild,
+          works: guild.works.map((x) => ({
+            ...x,
+            can: true,
+            on: true,
+            days: 4,
+            spares: x.gives !== "threat" && x.gives !== "rest",
+            ran: 9,
+            used: 1260,
+            gave: 310,
+          })),
+        },
         lex,
         "works",
       ),
@@ -892,6 +904,22 @@ test("a structure that waits is shown as later and not offered to raise", () => 
   expect(card.fields?.find((f) => f.name.startsWith("Later"))?.value).toContain(
     lex.name("settlements.structures", first.kind),
   );
+});
+
+test("the works card says what a lit work has spared of what it consumed", () => {
+  const works = guild.works.map((x, i) =>
+    i === 0 ? { ...x, on: true, spares: true, ran: 9, used: 1260, gave: 310 } : { ...x, on: false },
+  );
+  const lit = guildCard(o, { ...guild, works }, lex, "works");
+  expect(lit.fields?.[0]?.value).toContain("spared 310 coin of the 1,260 coin");
+  expect(lit.fields?.[0]?.value).toContain("9 days");
+  const dark = guildCard(
+    o,
+    { ...guild, works: works.map((x) => ({ ...x, on: false })) },
+    lex,
+    "works",
+  );
+  expect(dark.fields).toBeUndefined();
 });
 
 test("a Stalker with Mark prey is offered the creature tags, and nobody else is", () => {

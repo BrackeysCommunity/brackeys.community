@@ -258,8 +258,8 @@ func TestGuildWorkStocksAndLapses(t *testing.T) {
 		t.Fatalf("after two stocked days the bank holds %d provisions and %d works run", left, len(gd.G.Works))
 	}
 	worth := uses * g.Rules().Values.Param("provisions-value")
-	if _, w := g.WorkRunning(home, "road-patrol"); w == nil || w.Left != worth {
-		t.Fatalf("a stocked work may give back %+v, want the %d coin its day's stock was worth", w, worth)
+	if _, w := g.WorkRunning(home, "road-patrol"); w == nil || w.Left != worth || w.Used != 2*worth {
+		t.Fatalf("a stocked work may give back %+v, want the %d coin its day's stock was worth and two days consumed", w, worth)
 	}
 	advanceDays(t, g, 1)
 	if len(gd.G.Works) != 0 {

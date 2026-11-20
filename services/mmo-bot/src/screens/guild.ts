@@ -409,10 +409,25 @@ function worksCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string):
         v,
       ),
     );
+  const lit = g.works.filter((w) => w.on && w.spares);
   return {
     ...base(g, "Works", notice ?? "Guild works"),
     description:
       "A work consumes stock from the bank each world day, starting the day after it is switched on, and lapses the day it runs out; what it eats is gone. It spares fees and upkeep only up to what that day's stock was worth.",
+    fields: lit.length
+      ? [
+          {
+            name: "Since it was switched on here",
+            value: lit
+              .map(
+                (w) =>
+                  `${lex.name("settlements.guild-works", w.id)}: spared ${amount(w.gave ?? 0, "coin")} of the ${amount(w.used ?? 0, "coin")} its stock was worth, over ${plural(w.ran ?? 0, "day")}`,
+              )
+              .join("\n")
+              .slice(0, 1024),
+          },
+        ]
+      : undefined,
     table: {
       header: ["Work", "Uses a day (goods or coin)", "Gives (while stocked)", "Stock (days)"],
       rows: g.works.map((w) => [

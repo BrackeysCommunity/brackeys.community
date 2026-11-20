@@ -72,8 +72,8 @@ func TestAWorkGivesBackNoMoreThanItBurned(t *testing.T) {
 		}
 		g.workGave(w, got)
 	}
-	if gave := g.WorkLedger.Gave.Get(row.ID); gave != 30 {
-		t.Fatalf("the work gave back %d against 30 burned", gave)
+	if gave := g.WorkLedger.Gave.Get(row.ID); gave != 30 || w.Gave != 30 {
+		t.Fatalf("the work gave back %d (its own count %d) against 30 burned", gave, w.Gave)
 	}
 }
 

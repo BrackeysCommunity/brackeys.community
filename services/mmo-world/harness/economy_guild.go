@@ -21,6 +21,8 @@ const (
 	guildTithe       = 10 // per cent of the coin over its comfort
 	guildStock       = 5  // world days of stock members keep a work in
 	guildStart       = 2  // world days of stock before an admin switches a work on
+	guildReview      = 7  // world days a work is stocked before its admins judge it
+	guildKeep        = 25 // per cent of what it consumed a work must have spared to stay lit
 	guildSettlements = 2
 )
 
@@ -35,6 +37,7 @@ const (
 func guildPlan(b *sheets.Book, goods, tithe int64, rush bool) *agent.GuildPlan {
 	p := agent.NewGuildPlan(b)
 	p.GoodsShare, p.Tithe, p.StockDays, p.StartDays, p.Settlements = goods, tithe, guildStock, guildStart, guildSettlements
+	p.ReviewDays, p.KeepShare = guildReview, guildKeep
 	p.Works, p.Seek, p.Every = !rush, rush, rush
 	return p
 }
@@ -185,7 +188,7 @@ func guildSections(p func(string, ...any), b *sheets.Book, results []economyResu
 
 	p("## Guilds")
 	p("")
-	p("Every player comes from one Discord server, so its guild takes the first starting settlement and half of each market fee paid there. Each world day at home a member gives %d%% of any stack it carries that the guild is short of, %d%% of its provisions over its floor and %d%% of its coin over its comfort; the guild is short of whatever keeps each work it can run stocked for %d world days, and of a charter until it has founded. Its %d admins switch a work on once the bank holds %d days of its stock, approve each other's payments, and one of them carries the charter out and founds.", guildGoods, guildGoods, guildTithe, guildStock, economyAdmins, guildStart)
+	p("Every player comes from one Discord server, so its guild takes the first starting settlement and half of each market fee paid there. Each world day at home a member gives %d%% of any stack it carries that the guild is short of, %d%% of its provisions over its floor and %d%% of its coin over its comfort; the guild is short of whatever keeps each work it can run stocked for %d world days, and of a charter until it has founded. Its %d admins switch a work on once the bank holds %d days of its stock, switch off for good one that after %d stocked days has spared under %d%% of what it consumed (a patrol's eased threat has no coin value and is never judged), approve each other's payments, and one of them carries the charter out and founds.", guildGoods, guildGoods, guildTithe, guildStock, economyAdmins, guildStart, guildReview, guildKeep)
 	p("")
 	p("| Players | Members | Given (coin value) | Treasury at the end | Founded a settlement |")
 	p("| --- | --- | --- | --- | --- |")

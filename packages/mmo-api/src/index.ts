@@ -1356,6 +1356,15 @@ export interface GuildWork {
   needs?: string;
   waits?: string;
   can: boolean; // may be switched on here
+  /**
+   * Spares says the work gives coin its members keep; Ran, Used and Gave
+   * are then the world days it has been stocked here since it was
+   * switched on, and the coin value it has consumed and spared in them.
+   */
+  spares?: boolean;
+  ran?: number /* int64 */;
+  used?: number /* int64 */;
+  gave?: number /* int64 */;
 }
 /**
  * Approval is a payment waiting for a second officer.
