@@ -424,7 +424,7 @@ func (g *Game) plainName(r item.Recipe) string {
 	if r.Slot == "" {
 		what = g.r.names["items.processes:"+r.Process]
 	}
-	m := g.r.names["items.materials:"+lead]
+	m := g.MaterialName(lead)
 	if m == "" {
 		m = g.Kinds.Name(lead)
 	}

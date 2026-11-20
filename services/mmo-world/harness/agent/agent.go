@@ -87,7 +87,7 @@ func (s *Script) Turn(ctx context.Context, tick int64) error {
 	return s.TurnFor(ctx, tick, s.Players)
 }
 
-// TurnFor gives some of the players their choice at tick.
+// TurnFor gives the players named their choice at tick.
 func (s *Script) TurnFor(ctx context.Context, tick int64, players []*Player) error {
 	for _, p := range players {
 		id := fmt.Sprintf("%s-t%d", p.Discord, tick)

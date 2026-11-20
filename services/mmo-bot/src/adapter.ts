@@ -3,9 +3,11 @@ import {
   ChannelType,
   type ChatInputCommandInteraction,
   type Client,
+  DiscordAPIError,
   type Interaction,
   type InteractionEditReplyOptions,
   MessageFlags,
+  RESTJSONErrorCodes,
   type StringSelectMenuInteraction,
   SnowflakeUtil,
 } from "discord.js";
@@ -165,6 +167,18 @@ async function cardMessage(
   return toMessage({ ...r.message, embeds, files: got }) as unknown as InteractionEditReplyOptions;
 }
 
+/** Errors that mean a forum post can no longer take replies, so a new one is opened. */
+const POST_GONE: ReadonlySet<unknown> = new Set([
+  RESTJSONErrorCodes.UnknownChannel,
+  RESTJSONErrorCodes.InvalidActionOnArchivedThread,
+  RESTJSONErrorCodes.ThreadLocked,
+  RESTJSONErrorCodes.MissingAccess,
+]);
+
+function postGone(e: unknown): boolean {
+  return e instanceof DiscordAPIError && POST_GONE.has(e.code);
+}
+
 /** The market forum's posts (GDD 17.2): one forum post per settlement, a reply per world day. */
 export function forumSink(
   client: Client,
@@ -184,9 +198,18 @@ export function forumSink(
       return thread.id;
     },
     async reply(post, card) {
-      const th = await client.channels.fetch(post);
-      if (!th?.isThread()) throw new Error(`${post} is not a forum post`);
-      await th.send((await cardMessage(card, media, log)) as never);
+      const th = await client.channels.fetch(post).catch((e: unknown) => {
+        if (postGone(e)) return null;
+        throw e;
+      });
+      if (!th?.isThread()) return false;
+      try {
+        await th.send((await cardMessage(card, media, log)) as never);
+      } catch (e) {
+        if (postGone(e)) return false;
+        throw e;
+      }
+      return true;
     },
   };
 }

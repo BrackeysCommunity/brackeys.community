@@ -112,6 +112,19 @@ func (s *Server) mediaHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
+// withCharErr is withChar for a read that may refuse; it writes the
+// refusal, or the internal error.
+func (s *Server) withCharErr(w http.ResponseWriter, r *http.Request, f func(c *game.Char) error) bool {
+	var err error
+	if !s.withChar(w, r, func(c *game.Char) { err = f(c) }) {
+		return false
+	}
+	if err != nil {
+		s.refused(w, err)
+	}
+	return err == nil
+}
+
 // withChar runs a read for the character a query names, under the lock,
 // and reports whether it ran; when it did not, the reply is written.
 func (s *Server) withChar(w http.ResponseWriter, r *http.Request, f func(c *game.Char)) bool {
@@ -289,15 +302,10 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 	place := placeView(g, h)
 	out := api.Here{Place: place, Name: g.PlaceName(h), Stations: []api.Station{}, Orders: []api.Order{}, Offers: []api.Offer{},
 		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{}}
-	rv := g.Rules().Values
 	for _, st := range g.Stations(h) {
 		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: g.StationFee(st)})
 	}
-	for _, o := range g.FactionOrders(h) {
-		yours, buys := g.PriceFor(c, h, o)
-		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Yours: yours, Wanted: o.Qty,
-			Refuses: !buys, Fee: rv.FeePercent()})
-	}
+	out.Orders = apiOrders(g, c, h)
 	for _, o := range g.Offers(h) {
 		out.Offers = append(out.Offers, api.Offer{Asset: o.Asset, Price: o.Price})
 	}

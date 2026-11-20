@@ -47,13 +47,13 @@ type Market struct {
 	Mine       Mine       `json:"mine"`
 	Report     *Report    `json:"report,omitempty"`
 	Fee        int64      `json:"fee"`      // per cent of each fill, from the seller
-	Limit      int64      `json:"limit"`    // open orders a character may hold
+	Limit      int64      `json:"limit"`    // open orders, listings and gear orders a character may hold
 	Days       int64      `json:"days"`     // world days an order lasts
 	PerPoint   int64      `json:"perPoint"` // coin sold to a faction for each standing point
 	Banner     string     `json:"banner"`
 }
 
-// BookView is one book: the best five each side.
+// BookView is one book: its best levels each side.
 type BookView struct {
 	Material string  `json:"material"`
 	Bids     []Level `json:"bids"`
@@ -133,7 +133,7 @@ type Mine struct {
 	Cap     int64   `json:"cap"`
 }
 
-// Open is one of a character's open orders or listings.
+// Open is one of a character's open orders, listings or gear orders.
 type Open struct {
 	ID      string `json:"id"`
 	Where   string `json:"where"`
@@ -149,6 +149,7 @@ type Entry struct {
 	Tick  int64  `json:"tick"`
 	Kind  string `json:"kind"`
 	Asset string `json:"asset"`
+	Goods string `json:"goods,omitempty"` // the material or provisions moved; empty for coin or an item
 	Units int64  `json:"units"`
 }
 
@@ -165,7 +166,7 @@ type Report struct {
 	Faucet    int64   `json:"faucet"`
 	Fees      int64   `json:"fees"`
 	Top       []Goods `json:"top"`
-	Staged    int64   `json:"staged"`
+	Every     int64   `json:"every"` // world days between reports
 	Audit     int     `json:"audit"`
 	Chart     string  `json:"chart,omitempty"`
 }
@@ -186,8 +187,8 @@ type PricePt struct {
 	Cause string `json:"cause,omitempty"`
 }
 
-// Forum is each settlement's notable trades of a world day, for the
-// market forum (GDD 17.2).
+// Forum is each settlement's notable trades and movers of a world day,
+// for the market forum (GDD 17.2).
 type Forum struct {
 	Day   int64       `json:"day"`
 	Posts []ForumPost `json:"posts"`
@@ -212,6 +213,7 @@ type Trade struct {
 
 // RouteRisk is a route's danger and the haul it puts at risk (GDD 10.7).
 type RouteRisk struct {
+	To       string     `json:"to,omitempty"`
 	Tiles    []TileRisk `json:"tiles"`
 	Expected int64      `json:"expected"` // hundredths of an ambush
 	Worst    string     `json:"worst"`

@@ -1,16 +1,14 @@
 import { type Button, buttonRows, type Row } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
-import { type Card, COLOUR, type Picture } from "../card.ts";
-import { encodeId, target } from "../ids.ts";
+import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
+import { encodeId, fields, integerTarget, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
-import { amount, num, plural, signed } from "../units.ts";
-import { back, btn, PRIVATE } from "./common.ts";
+import { amount, hours, num, percent, plural, signed, signedPercent } from "../units.ts";
+import { back, banner, btn, heldOf, priceLadder, PRIVATE } from "./common.ts";
 
 /**
- * /market and its eight lists (GDD 10.6): the book for one material, the
- * exchange, movers, price history, prices elsewhere, gear listings,
- * faction orders, your own orders and ledger, and the weekly report. A
- * select switches list; another switches material.
+ * /market (GDD 10.6): the book for one material and the eight lists beside
+ * it. One select switches list, another switches material.
  */
 
 export const LISTS = [
@@ -30,7 +28,11 @@ export function isList(s: string): s is List {
   return LISTS.some((l) => l.id === s);
 }
 
-/** An order being drafted on the form: material.side.price.units. */
+function listLabel(list: List): string {
+  return LISTS.find((l) => l.id === list)!.label;
+}
+
+/** An order being drafted on the form. */
 export interface OrderDraft {
   material: string;
   side: "bid" | "ask";
@@ -38,26 +40,19 @@ export interface OrderDraft {
   units: number;
 }
 
+/** A draft as a custom-id target: material.side.price.units. */
 export function draftOf(s: string): OrderDraft | null {
-  const [material, side, price, units] = s.split(".");
-  const p = Number(price);
-  const u = Number(units);
-  if (
-    !material ||
-    (side !== "bid" && side !== "ask") ||
-    !Number.isSafeInteger(p) ||
-    !Number.isSafeInteger(u)
-  )
-    return null;
-  return { material, side, price: p, units: u };
+  const f = fields(s, ".", 4);
+  if (!f) return null;
+  const [material, side, price, units] = f;
+  const p = integerTarget(price!);
+  const u = integerTarget(units!);
+  if ((side !== "bid" && side !== "ask") || p === undefined || u === undefined) return null;
+  return { material: material!, side, price: p, units: u };
 }
 
 export function draftId(d: OrderDraft): string {
   return target(".", d.material, d.side, d.price, d.units);
-}
-
-function picture(m: api.Market): Picture {
-  return { media: m.banner, alt: `Banner of ${m.name}, over its market` };
 }
 
 /** The list switcher and, where a list is about one material, the material switcher. */
@@ -66,7 +61,7 @@ function switchers(m: api.Market, list: List, v: number, lex: Lexicon): Row[] {
     {
       select: {
         customId: encodeId("mkt-l", m.material, v),
-        placeholder: `Showing: ${LISTS.find((l) => l.id === list)!.label}`,
+        placeholder: `Showing: ${listLabel(list)}`,
         options: LISTS.filter((l) => l.id !== list).map((l) => ({ label: l.label, value: l.id })),
       },
     },
@@ -87,23 +82,20 @@ function switchers(m: api.Market, list: List, v: number, lex: Lexicon): Row[] {
 
 function base(
   m: api.Market,
-  list: List,
+  suffix: string,
   title: string,
-  lex: Lexicon,
+  picture: Picture | "form" = banner(m, ", over its market"),
 ): Omit<Card, "rows" | "footer"> {
   return {
     context: PRIVATE,
-    author: `Market · ${m.name} · ${LISTS.find((l) => l.id === list)!.label}`.slice(0, 59),
+    author: authorLine("Market", m.name, suffix),
     title,
-    picture: picture(m),
+    picture,
     colour: COLOUR.hazard,
   };
 }
 
-const held = (o: api.Options, material: string) =>
-  o.purse.goods.find((g) => g.material === material)?.units ?? 0;
-
-/** The book: best five each side for one material, and what you can do at once. */
+/** The book: the best prices each side for one material, and what you can do at once. */
 export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: string): Card {
   const v = o.version;
   const b = m.book;
@@ -116,7 +108,7 @@ export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
       .map((r) => ["ask", ...r]),
     ...side(b.bids).map((r) => ["bid", ...r]),
   ];
-  const have = held(o, b.material);
+  const have = heldOf(o.purse, b.material);
   const actions: Button[] = [];
   if (have > 0 && b.bids.length)
     actions.push(
@@ -141,9 +133,9 @@ export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
   );
   actions.push(back(v));
   return {
-    ...base(m, "book", notice ?? `${name} at ${m.name}`, lex),
+    ...base(m, listLabel("book"), notice ?? `${name} at ${m.name}`),
     description: rows.length
-      ? `Matched by price, then time; what you post waits in escrow. Each fill pays a ${m.fee}% fee from the seller.`
+      ? `Matched by price, then time; what you post waits in escrow. Each fill pays a ${percent(m.fee)} fee from the seller.`
       : "Nobody is buying or selling this here yet. Post the first order.",
     table: rows.length
       ? { header: ["Side", "Price (coin each)", "Units (goods)", "Whose"], rows }
@@ -161,7 +153,7 @@ export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
 export function exchangeCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
   const v = o.version;
   return {
-    ...base(m, "exchange", `Everything traded at ${m.name}`, lex),
+    ...base(m, listLabel("exchange"), `Everything traded at ${m.name}`),
     description: m.exchange.length ? undefined : "Nothing has traded here yet.",
     table: m.exchange.length
       ? {
@@ -171,7 +163,7 @@ export function exchangeCard(o: api.Options, m: api.Market, lex: Lexicon): Card 
             .map((x) => [
               lex.material(x.material),
               x.last ? num(x.last) : "–",
-              x.last ? signedPct(x.change) : "–",
+              x.last ? signedPercent(x.change) : "–",
               x.bid ? num(x.bid) : "–",
               x.ask ? num(x.ask) : "–",
               num(x.units),
@@ -183,21 +175,22 @@ export function exchangeCard(o: api.Options, m: api.Market, lex: Lexicon): Card 
   };
 }
 
-function signedPct(n: number): string {
-  return `${n >= 0 ? "+" : "−"}${num(Math.abs(n))}%`;
+/** A mover as one line: the good, its change and last price, and why. */
+export function moverLine(m: api.Mover, lex: Lexicon): string {
+  return `${lex.material(m.material)}: ${signedPercent(m.change)} to ${amount(m.last, "coin")}${m.cause ? `, after ${m.cause}` : ""}`;
 }
 
 export function moversCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
   const v = o.version;
   return {
-    ...base(m, "movers", "What rose and fell this week", lex),
+    ...base(m, listLabel("movers"), "What rose and fell this week"),
     description: m.movers.length ? undefined : "Nothing has moved yet.",
     table: m.movers.length
       ? {
           header: ["Good", "Change (%)", "Last (coin)", "Because"],
           rows: m.movers.map((x) => [
             lex.material(x.material),
-            signedPct(x.change),
+            signedPercent(x.change),
             num(x.last),
             (x.cause || "trade alone").slice(0, 36),
           ]),
@@ -212,22 +205,18 @@ export function historyCard(o: api.Options, m: api.Market, h: api.History, lex: 
   const v = o.version;
   const marked = h.days.filter((d) => d.cause);
   return {
-    context: PRIVATE,
-    author: `Market · ${m.name} · Price history`,
-    title: `${h.name}: closing price by day`,
+    ...base(m, listLabel("history"), `${h.name}: closing price by day`, {
+      media: h.chart,
+      alt: `Chart of ${h.name}'s closing price in coin over ${plural(h.days.length, "day")}`,
+    }),
     description: h.days.length
       ? `Coin each on the left, world days along the bottom; red lines mark a cause.`
       : "No day has closed with a trade yet.",
-    picture: {
-      media: h.chart,
-      alt: `Chart of ${h.name}'s closing price in coin over ${plural(h.days.length, "day")}`,
-    },
     fields: marked
       .slice(-3)
       .map((d) => ({ name: `Day ${num(d.day)}`, value: `${amount(d.close, "coin")}: ${d.cause}` })),
     footer: `${plural(h.days.length, "day")} shown; a day with no trade closes at the last price.`,
     rows: [...switchers(m, "history", v, lex), { buttons: [back(v)] }],
-    colour: COLOUR.hazard,
   };
 }
 
@@ -235,7 +224,7 @@ export function elsewhereCard(o: api.Options, m: api.Market, lex: Lexicon): Card
   const v = o.version;
   const name = lex.material(m.material);
   return {
-    ...base(m, "elsewhere", `${name} in other settlements`, lex),
+    ...base(m, listLabel("elsewhere"), `${name} in other settlements`),
     description:
       "News walks: a price is as old as the journey from there, or as your own last visit if that is newer.",
     table: m.elsewhere.length
@@ -244,7 +233,7 @@ export function elsewhereCard(o: api.Options, m: api.Market, lex: Lexicon): Card
           rows: m.elsewhere.map((f) => [
             f.name,
             f.known && f.price ? num(f.price) : "–",
-            f.known ? num(f.age / 6) : "no news",
+            f.known ? hours(f.age) : "no news",
             f.own ? "your visit" : f.known ? "the road" : "–",
           ]),
         }
@@ -272,7 +261,7 @@ export function gearCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
     });
   rows.push({ buttons: [back(v)] });
   return {
-    ...base(m, "gear", notice ?? "Gear for sale here", lex),
+    ...base(m, listLabel("gear"), notice ?? "Gear for sale here"),
     description: m.gear.length
       ? "Each piece is itself: its maker, level, picks and wear. List yours from its item card."
       : "Nothing is listed here. List a piece from its item card.",
@@ -303,7 +292,7 @@ export function gearCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
           },
         ]
       : undefined,
-    footer: `A sale pays a ${m.fee}% fee from the seller.`,
+    footer: `A sale pays a ${percent(m.fee)} fee from the seller.`,
     rows,
   };
 }
@@ -312,7 +301,8 @@ export function gearCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
 export function ordersCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: string): Card {
   const v = o.version;
   const sells: Button[] = [];
-  for (const g of o.purse.goods) {
+  const carried = [...o.purse.goods, { material: "provisions", units: o.purse.provisions }];
+  for (const g of carried) {
     const ord = m.orders.find((x) => x.material === g.material && !x.refuses);
     if (ord && g.units > 0 && sells.length < 10)
       sells.push(
@@ -353,7 +343,7 @@ export function ordersCard(o: api.Options, m: api.Market, lex: Lexicon, notice?:
   if (p.owed) store.push(btn(`Feed your mount · ${amount(p.owed, "provisions")}`, "feed", "", v));
   store.push(back(v));
   return {
-    ...base(m, "orders", notice ?? "Who is buying here today", lex),
+    ...base(m, listLabel("orders"), notice ?? "Who is buying here today"),
     description: m.orders.length
       ? "Factions post what they need each world day, priced by urgency; your standing moves what they pay you."
       : "Today's faction orders are filled. New ones stand at the next day's turn.",
@@ -371,7 +361,7 @@ export function ordersCard(o: api.Options, m: api.Market, lex: Lexicon, notice?:
             ]),
         }
       : undefined,
-    footer: `Each fill pays a ${m.fee}% fee; a standing point for every ${amount(m.perPoint, "coin")} sold.`,
+    footer: `Each fill pays a ${percent(m.fee)} fee; a standing point for every ${amount(m.perPoint, "coin")} sold.`,
     fields: [
       { name: "Your coin", value: amount(p.coin, "coin"), inline: true },
       { name: "Your provisions", value: amount(p.provisions, "provisions"), inline: true },
@@ -397,7 +387,7 @@ export function mineCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
     });
   rows.push({ buttons: [back(v)] });
   return {
-    ...base(m, "mine", notice ?? "Your orders and ledger", lex),
+    ...base(m, listLabel("mine"), notice ?? "Your orders and ledger"),
     table: m.mine.open.length
       ? {
           header: ["Side", "What", "Price (coin)", "Units (goods)", "Where", "Ends in (hours)"],
@@ -407,7 +397,7 @@ export function mineCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
             num(x.price),
             num(x.units),
             x.where.slice(0, 16),
-            num(x.expires / 6),
+            hours(x.expires),
           ]),
         }
       : undefined,
@@ -432,9 +422,7 @@ export function mineCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
         name: "Ledger",
         value:
           m.mine.entries
-            .map(
-              (e) => `tick ${num(e.tick)}: ${e.kind}, ${signed(e.units, assetName(e.asset, lex))}`,
-            )
+            .map((e) => `tick ${num(e.tick)}: ${e.kind}, ${signed(e.units, assetName(e, lex))}`)
             .join("\n") || "no entries",
       },
     ],
@@ -443,18 +431,23 @@ export function mineCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
   };
 }
 
-function assetName(asset: string, lex: Lexicon): string {
-  if (asset === "coin" || asset === "provisions") return asset;
-  if (asset.startsWith("mat:")) return lex.material(asset.slice(4));
-  return "item";
+function assetName(e: api.Entry, lex: Lexicon): string {
+  if (e.goods) return lex.material(e.goods);
+  return e.asset === "coin" ? "coin" : "item";
 }
 
 export function reportCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
   const v = o.version;
   const r = m.report;
   const card: Card = {
-    ...base(m, "report", r ? `The ledger, week to day ${num(r.day)}` : "No ledger report yet", lex),
-    footer: "Posted every seven world days; fees never move.",
+    ...base(
+      m,
+      listLabel("report"),
+      r ? `The ledger, week to day ${num(r.day)}` : "No ledger report yet",
+    ),
+    footer: r?.every
+      ? `Posted every ${plural(r.every, "day")}; fees never move.`
+      : "Posted each week; fees never move.",
     rows: [...switchers(m, "report", v, lex), { buttons: [back(v)] }],
   };
   if (!r) {
@@ -477,14 +470,13 @@ export function reportCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
     { name: "Fees", value: amount(r.fees, "coin"), inline: true },
     {
       name: "Velocity",
-      value: `${num(r.velocity)}% of each coin changes hands a day`,
+      value: `${percent(r.velocity)} of each coin changes hands a day`,
       inline: true,
     },
     {
       name: "Most traded",
       value: r.top.map((t) => amount(t.units, lex.material(t.material))).join(", ") || "nothing",
     },
-    { name: "Staged events", value: amount(r.staged, "goods"), inline: true },
     {
       name: "Conservation",
       value: r.audit ? `${num(r.audit)} discrepancies` : "clean",
@@ -499,24 +491,22 @@ export function orderForm(o: api.Options, m: api.Market, d: OrderDraft, lex: Lex
   const v = o.version;
   const name = lex.material(d.material);
   const ref = Math.max(1, m.book.value);
-  const prices = [
-    ...new Set(
-      [50, 70, 85, 100, 115, 130, 150, 200].map((p) => Math.max(1, Math.round((ref * p) / 100))),
-    ),
-  ];
-  const have = held(o, d.material);
+  const prices = priceLadder(ref, [50, 70, 85, 100, 115, 130, 150, 200]).map((x) => x.price);
+  const have = heldOf(o.purse, d.material);
   const units = [...new Set([1, 5, 10, 20, have].filter((n) => n > 0))];
   const coin = d.price * d.units;
   const set = (patch: Partial<OrderDraft>) => draftId({ ...d, ...patch });
   return {
-    context: PRIVATE,
-    author: `Market · ${m.name} · Post an order`,
-    title: `${d.side === "bid" ? "Buy" : "Sell"} ${amount(d.units, name)} at ${amount(d.price, "coin")} each`,
+    ...base(
+      m,
+      "Post an order",
+      `${d.side === "bid" ? "Buy" : "Sell"} ${amount(d.units, name)} at ${amount(d.price, "coin")} each`,
+      "form",
+    ),
     description:
       d.side === "bid"
         ? `${amount(coin, "coin")} goes into escrow until it fills, you withdraw it, or ${plural(m.days, "day")} pass.`
-        : `${amount(d.units, name)} goes into escrow; a fill pays you less a ${m.fee}% fee.`,
-    picture: "form",
+        : `${amount(d.units, name)} goes into escrow; a fill pays you less a ${percent(m.fee)} fee.`,
     fields: [
       { name: "Reference value", value: amount(m.book.value, "coin"), inline: true },
       {
@@ -566,16 +556,5 @@ export function orderForm(o: api.Options, m: api.Market, d: OrderDraft, lex: Lex
         ],
       },
     ],
-    colour: COLOUR.hazard,
-  };
-}
-
-/** A route's danger and the haul it puts at risk (GDD 10.7), as a field for the travel card. */
-export function riskField(r: api.RouteRisk, road: string): { name: string; value: string } {
-  return {
-    name: `Route risk on ${road}`,
-    value: r.tiles.length
-      ? `Worst odds of an ambush: ${r.worst}, over ${plural(r.tiles.length, "tile")}; expect ${amount(r.expected / 100, "ambushes")}. Lost, your haul costs ${amount(r.haul, "coin")}.`
-      : `No ambush ground on the way; your haul is worth ${amount(r.haul, "coin")}.`,
   };
 }

@@ -33,9 +33,22 @@ export const DIRECTIONS = [
   { arrow: "↘", name: "SE" },
 ];
 
-/** The default picture: the banner of the region here; extra goes on the alt text. */
-export function banner(here: api.Here, extra = ""): Picture {
-  return { media: here.banner, alt: `Banner of ${here.name}${extra}` };
+/** The default picture: the banner of a place; extra goes on the alt text. */
+export function banner(place: { banner: string; name: string }, extra = ""): Picture {
+  return { media: place.banner, alt: `Banner of ${place.name}${extra}` };
+}
+
+/** Distinct prices at given percentages of ref (each at least 1 coin). */
+export function priceLadder(ref: number, percents: number[]): { pct: number; price: number }[] {
+  const seen = new Set<number>();
+  const out: { pct: number; price: number }[] = [];
+  for (const pct of percents) {
+    const price = Math.max(1, Math.round((ref * pct) / 100));
+    if (seen.has(price)) continue;
+    seen.add(price);
+    out.push({ pct, price });
+  }
+  return out;
 }
 
 function datum(f: api.Fact, k: string): api.Datum | undefined {
@@ -138,4 +151,14 @@ export function gauges(
     .filter((g): g is api.Gauge => !!g)
     .map((g) => `${lex.name("world.gauges", g.id)}: ${amount(g.value, g.id)}`)
     .join(" · ");
+}
+
+/** Units of a material among goods held, 0 for none. */
+export function held(goods: readonly api.Goods[], material: string): number {
+  return goods.find((g) => g.material === material)?.units ?? 0;
+}
+
+/** Units of a material or of provisions a purse holds: provisions are kept apart from goods. */
+export function heldOf(purse: api.Purse, material: string): number {
+  return material === "provisions" ? purse.provisions : held(purse.goods, material);
 }

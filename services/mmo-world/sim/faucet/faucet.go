@@ -33,7 +33,7 @@ func ParamsOf(p []sheets.Param) Params {
 
 // State is the faucet's rate and the samples it is steered by.
 type State struct {
-	// Rate is coin per active character per world day, in hundredths.
+	// Rate is coin per active character per world day.
 	Rate fixed.F `json:"rate"`
 	// Samples are coin per active character at each of the last world
 	// days, oldest first.
@@ -43,6 +43,9 @@ type State struct {
 // New is a faucet at its resting rate.
 func New(p Params) State { return State{Rate: fixed.FromInt(p.Rate), Samples: []int64{}} }
 
+// structural: the smallest move the rate can make.
+const ulp = fixed.F(1)
+
 // Moves the stabiliser makes.
 const (
 	Rose  = "rose"
@@ -51,31 +54,29 @@ const (
 	Held  = "held"
 )
 
-// Step takes the day's coin per active character, and moves the rate:
-// down a step above the band, up a step below it, and inside it back
-// toward rest by a share of itself. It returns the window's mean and the
-// move.
+// Step adds the day's coin per active character to the window and moves
+// the rate by the window's mean: down Step per cent above the band, up
+// Step per cent below it (never past Most), else back toward rest by
+// Return per cent of itself. It returns the mean and the move.
 func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 	s.Samples = append(s.Samples, perActive)
 	if over := int64(len(s.Samples)) - p.Days; over > 0 {
 		s.Samples = s.Samples[over:]
 	}
-	var sum int64
-	for _, x := range s.Samples {
-		sum += x
-	}
-	mean = fixed.Ratio(sum, int64(len(s.Samples))).Int()
+	mean = s.Mean()
 	rest := fixed.FromInt(p.Rate)
 	switch {
 	case mean > p.High:
-		s.Rate = s.Rate.Mul(fixed.Ratio(hundred-p.Step, hundred))
+		s.Rate = s.Rate.Mul(fixed.Percent(fixed.Hundredths - p.Step))
 		return mean, Fell
 	case mean < p.Low:
-		s.Rate = fixed.Min(s.Rate.Mul(fixed.Ratio(hundred+p.Step, hundred)), rest.Mul(fixed.Ratio(p.Most, hundred)))
+		// At least one raw unit, or rounding pins a rate cut very low.
+		up := fixed.Max(s.Rate.Mul(fixed.Percent(fixed.Hundredths+p.Step)), s.Rate.Add(ulp))
+		s.Rate = fixed.Min(up, rest.Mul(fixed.Percent(p.Most)))
 		return mean, Rose
 	}
 	gap := rest.Sub(s.Rate)
-	step := s.Rate.Mul(fixed.Ratio(p.Return, hundred))
+	step := fixed.Max(s.Rate.Mul(fixed.Percent(p.Return)), ulp)
 	switch gap.Cmp(0) {
 	case 0:
 		return mean, Held
@@ -87,26 +88,34 @@ func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 	return mean, Eased
 }
 
+// Mean is coin per active character over the window, rounded; 0 before
+// the first sample.
+func (s State) Mean() int64 {
+	if len(s.Samples) == 0 {
+		return 0
+	}
+	var sum int64
+	for _, x := range s.Samples {
+		sum += x
+	}
+	return fixed.Ratio(sum, int64(len(s.Samples))).Int()
+}
+
 // Budget is a world day's coin for active characters, at the rate.
 func (s *State) Budget(active int64) int64 { return s.Rate.MulInt(active).Floor() }
 
-// structural: percentages are out of a hundred.
-const hundred = 100
-
-// Want is one material a buyer at a settlement wants, at a price each,
-// with the urgency that weighs its share of the budget.
-type Want struct {
-	Material string
-	Buyer    int   // a faction index, or a negative for the keepers
-	Urgency  int64 // percent, 100 for no special need
-	Price    int64
+// Share is one thing a settlement's budget buys: the urgency that weighs
+// its share, and its price each.
+type Share struct {
+	Urgency int64 // percent, 100 for no special need
+	Price   int64
 }
 
 // Plan shares a settlement's budget over its wants by urgency, as whole
 // units at each want's price; what the shares leave is spent a unit at a
 // time on the most urgent wants it still covers, so a small budget buys a
 // few goods rather than none.
-func Plan(budget int64, wants []Want) []int64 {
+func Plan(budget int64, wants []Share) []int64 {
 	var total int64
 	for _, w := range wants {
 		total += w.Urgency

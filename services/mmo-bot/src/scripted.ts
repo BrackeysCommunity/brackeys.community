@@ -4,6 +4,7 @@ import { answer, type Ctx, type Press } from "./flow.ts";
 import { decodeId } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
 import { recording } from "./record.ts";
+import { LISTS } from "./screens/market.ts";
 import { httpWorld, type World } from "./world.ts";
 
 /**
@@ -256,21 +257,10 @@ export async function scripted(
     }
   }
 
-  // The market's lists once each; an order posted and withdrawn; the tool
-  // listed from its item card.
+  // The market's lists once each, an order posted and withdrawn, and the forum.
   await command("market");
-  for (const list of [
-    "exchange",
-    "movers",
-    "history",
-    "elsewhere",
-    "gear",
-    "orders",
-    "mine",
-    "report",
-    "book",
-  ])
-    await press("mkt-l", undefined, list);
+  for (const { id } of [...LISTS.filter((l) => l.id !== "book"), LISTS[0]!])
+    await press("mkt-l", undefined, id);
   if (has("mkt-o")) {
     await press("mkt-o");
     await press(

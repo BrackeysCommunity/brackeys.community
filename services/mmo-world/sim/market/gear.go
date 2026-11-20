@@ -1,6 +1,7 @@
 package market
 
 import (
+	"cmp"
 	"slices"
 
 	"jams.team/mmo-world/sim/item"
@@ -62,28 +63,28 @@ func (w Want) Takes(l Listing, kinds Kinds) bool {
 	return w.Floor.Meets(l.Item, k)
 }
 
-// Pair is the want that takes a listing, best price then time, or -1.
-func Pair(wants []Want, l Listing, kinds Kinds) int {
-	best := -1
-	for i, w := range wants {
-		if !w.Takes(l, kinds) {
-			continue
-		}
-		if best < 0 || w.Price > wants[best].Price || (w.Price == wants[best].Price && w.Seq < wants[best].Seq) {
-			best = i
-		}
-	}
-	return best
+// Pair is the want that takes a listing, best price then time, among
+// those ok lets through, or -1.
+func Pair(wants []Want, l Listing, kinds Kinds, ok func(Want) bool) int {
+	return bestBy(wants, func(w Want) bool { return w.Takes(l, kinds) && ok(w) }, func(a, b Want) int {
+		return cmp.Or(cmp.Compare(b.Price, a.Price), cmp.Compare(a.Seq, b.Seq))
+	})
 }
 
-// Cheapest is the cheapest listing a want takes, then the oldest, or -1.
-func Cheapest(listings []Listing, w Want, kinds Kinds) int {
+// Cheapest is the cheapest listing a want takes, then the oldest, among
+// those ok lets through, or -1.
+func Cheapest(listings []Listing, w Want, kinds Kinds, ok func(Listing) bool) int {
+	return bestBy(listings, func(l Listing) bool { return w.Takes(l, kinds) && ok(l) }, func(a, b Listing) int {
+		return cmp.Or(cmp.Compare(a.Price, b.Price), cmp.Compare(a.Seq, b.Seq))
+	})
+}
+
+// bestBy is the index of the first of xs that ok lets through and no other
+// beats by order, or -1.
+func bestBy[T any](xs []T, ok func(T) bool, order func(a, b T) int) int {
 	best := -1
-	for i, l := range listings {
-		if !w.Takes(l, kinds) {
-			continue
-		}
-		if best < 0 || l.Price < listings[best].Price || (l.Price == listings[best].Price && l.Seq < listings[best].Seq) {
+	for i, x := range xs {
+		if ok(x) && (best < 0 || order(x, xs[best]) < 0) {
 			best = i
 		}
 	}

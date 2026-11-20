@@ -48,7 +48,7 @@
       "id": "faucet-rate",
       "value": 60,
       "unit": "coin",
-      "doc": "Faction buying per active character per world day, world-wide, at rest (GDD 10.2). The Economy run retuned it from 110: at 60 the faucet matches what the soak population sinks, and the band holds."
+      "doc": "Faction buying per active character per world day, world-wide, at rest (GDD 10.2). Tuned by the Economy run so the band holds across population sizes."
     },
     {
       "id": "faucet-floor",
@@ -70,13 +70,13 @@
     },
     {
       "id": "stabiliser-step",
-      "value": 4,
+      "value": 12,
       "unit": "percent",
       "doc": "How far the faucet moves a world day outside the band."
     },
     {
       "id": "stabiliser-return",
-      "value": 1,
+      "value": 4,
       "unit": "percent",
       "doc": "Inside the band, the faucet moves this share of itself back toward faucet-rate each world day."
     },
@@ -156,7 +156,7 @@
       "id": "goal-fee",
       "value": 5,
       "unit": "percent",
-      "doc": "The goal listing fee, a share of the reward (GDD 10.2); goals arrive in MM6."
+      "doc": "The goal listing fee, a share of the reward (GDD 10.2)."
     },
     {
       "id": "goal-fee-min",

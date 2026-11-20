@@ -1,6 +1,7 @@
 package game_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -305,6 +306,280 @@ func TestTraderResaleNamesTheFirstSale(t *testing.T) {
 	}
 	if !soldOn {
 		t.Fatalf("the trader does not bring up that it sold the tool on: %+v", conv.Topics)
+	}
+	audit(t, g)
+}
+
+// tool crafts an unworn tool for a character.
+func (tr *trader) tool() *item.Instance {
+	tr.t.Helper()
+	tr.grant(ledger.Coin, 50)
+	tr.grant(ledger.Material(mat), 2)
+	rec := item.Recipe{Process: "shape", Method: "narrow-grind", Slot: "tool", Inputs: []item.Input{{Kind: mat, Qty: 2}}}
+	tr.must(game.Command{Kind: game.Craft, Recipe: &rec})
+	for _, in := range tr.c.C.Pack {
+		if !tr.c.C.Worn(in.ID) {
+			return in
+		}
+	}
+	tr.t.Fatal("the craft left nothing unworn")
+	return nil
+}
+
+func marketJSON(t *testing.T, g *game.Game) string {
+	t.Helper()
+	b, err := json.Marshal(g.Market)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestTakeEscrowsOnlyWhatItNeeds(t *testing.T) {
+	g, ts := newTraders(t, 3)
+	cheap, dear, buyer := ts[0], ts[1], ts[2]
+	cheap.grant(ledger.Material(mat), 4)
+	dear.grant(ledger.Material(mat), 1)
+	cheap.must(game.Command{Kind: game.Ask, Material: mat, Units: 2, Price: 10})
+	cheap.must(game.Command{Kind: game.Ask, Material: mat, Units: 2, Price: 12})
+	dear.must(game.Command{Kind: game.Ask, Material: mat, Units: 1, Price: 1_000_000})
+	buyer.grant(ledger.Coin, 100)
+	// A far-out ask behind cheap ones does not set the take's escrow, and
+	// the price improvement on the cheaper fills comes back.
+	buyer.must(game.Command{Kind: game.Take, Material: mat, Units: 3})
+	if want := int64(100 - 2*10 - 12); buyer.c.C.Coin != want {
+		t.Fatalf("buyer has %d coin, want %d", buyer.c.C.Coin, want)
+	}
+	if n := g.Ledger.Of(ledger.Char(buyer.c.C.ID), ledger.Material(mat)); n != 3 {
+		t.Fatalf("buyer holds %d %s, want 3", n, mat)
+	}
+	audit(t, g)
+}
+
+func TestRefusedOrderChangesNothing(t *testing.T) {
+	g, ts := newTraders(t, 1)
+	tr := ts[0]
+	other := g.Rules().Book.Materials[len(g.Rules().Book.Materials)-1].ID
+	before := marketJSON(t, g)
+	for _, cmd := range []game.Command{
+		{Kind: game.Bid, Material: mat, Units: 1, Price: 5},
+		{Kind: game.Ask, Material: other, Units: 1, Price: 5},
+		{Kind: game.Take, Material: other, Units: 1},
+		{Kind: game.Want, Material: "anything", Price: 5},
+	} {
+		if err := tr.do(cmd); err == nil {
+			t.Fatalf("%s with nothing to pay or sell was taken", cmd.Kind)
+		}
+		if after := marketJSON(t, g); after != before {
+			t.Fatalf("a refused %s changed the market", cmd.Kind)
+		}
+	}
+}
+
+func TestWithdrawAndExpiryGiveEscrowBack(t *testing.T) {
+	g, ts := newTraders(t, 1)
+	tr := ts[0]
+	in := tr.tool()
+	acc := ledger.Char(tr.c.C.ID)
+	coin := tr.c.C.Coin
+	tr.grant(ledger.Coin, 100)
+	tr.must(game.Command{Kind: game.Bid, Material: mat, Units: 2, Price: 5})
+	tr.must(game.Command{Kind: game.List, Item: in.ID, Price: 1_000})
+	tr.must(game.Command{Kind: game.Want, Material: in.Kind, Price: 20, Floor: &market.Floor{Level: in.Level + 1}})
+	var ids []string
+	for o := range g.Open(acc) {
+		ids = append(ids, o.ID)
+	}
+	if len(ids) != 3 {
+		t.Fatalf("%d open orders, want 3", len(ids))
+	}
+	for _, id := range ids {
+		tr.must(game.Command{Kind: game.Withdraw, Item: id})
+	}
+	if tr.c.C.Coin != coin+100 || tr.c.C.Item(in.ID) == nil || g.OpenOrders(tr.c) != 0 {
+		t.Fatalf("withdrawn: %d coin, want %d; tool back %v", tr.c.C.Coin, coin+100, tr.c.C.Item(in.ID) != nil)
+	}
+	audit(t, g)
+	tr.must(game.Command{Kind: game.List, Item: in.ID, Price: 1_000})
+	tr.must(game.Command{Kind: game.Want, Material: in.Kind, Price: 20, Floor: &market.Floor{Level: in.Level + 1}})
+	advanceDays(t, g, g.Rules().Values.Param("order-days")+1)
+	if tr.c.C.Coin < coin+100 || tr.c.C.Item(in.ID) == nil || g.OpenOrders(tr.c) != 0 {
+		t.Fatalf("expired: %d coin, want at least %d; tool back %v", tr.c.C.Coin, coin+100, tr.c.C.Item(in.ID) != nil)
+	}
+	audit(t, g)
+}
+
+func TestWithdrawOnlyWhereTheOrderStands(t *testing.T) {
+	g, ts := newTraders(t, 1)
+	tr := ts[0]
+	g.World.OpenSettlement()
+	advanceDays(t, g, 1)
+	tr.grant(ledger.Material(mat), 5)
+	tr.must(game.Command{Kind: game.Ask, Material: mat, Units: 5, Price: 1_000})
+	var id string
+	for o := range g.Open(ledger.Char(tr.c.C.ID)) {
+		id = o.ID
+	}
+	home := tr.c.C.At
+	tr.c.C.At = g.SettlementHex(1)
+	if _, ok := g.MarketAt(tr.c.C.At); !ok {
+		t.Skip("the second settlement has no market")
+	}
+	var r *game.Refused
+	if err := tr.do(game.Command{Kind: game.Withdraw, Item: id}); !errors.As(err, &r) || r.Code != game.NotHere {
+		t.Fatalf("withdraw from another settlement: %v", err)
+	}
+	if n := g.Ledger.Of(ledger.Char(tr.c.C.ID), ledger.Material(mat)); n != 0 {
+		t.Fatalf("%d %s came back away from the market", n, mat)
+	}
+	tr.c.C.At = home
+	tr.must(game.Command{Kind: game.Withdraw, Item: id})
+	audit(t, g)
+}
+
+func TestTraderListingExpires(t *testing.T) {
+	g, ts := newTraders(t, 1)
+	tr := ts[0]
+	in := tr.tool()
+	tr.must(game.Command{Kind: game.SellItem, Item: in.ID})
+	if len(g.Market.Held) != 1 {
+		t.Fatalf("the trader holds %d items", len(g.Market.Held))
+	}
+	advanceDays(t, g, g.Rules().Values.Param("order-days")+1)
+	if len(g.Market.Listings) != 0 || len(g.Market.Held) != 0 {
+		t.Fatalf("an unsold trader's listing stays: %d listings, %d held", len(g.Market.Listings), len(g.Market.Held))
+	}
+	audit(t, g)
+}
+
+func TestSellItemOnTheDayASettlementOpens(t *testing.T) {
+	g, ts := newTraders(t, 1)
+	tr := ts[0]
+	in := tr.tool()
+	g.World.OpenSettlement()
+	advanceDays(t, g, 1)
+	at := g.Settlements()
+	if _, ok := g.MarketAt(at[len(at)-1]); len(at) != 2 || !ok {
+		t.Fatal("the second settlement did not open with a market")
+	}
+	tr.c.C.At = at[1]
+	before := marketJSON(t, g)
+	if err := tr.do(game.Command{Kind: game.SellItem, Item: in.ID}); err == nil {
+		t.Fatal("a trader with no coin today bought an item")
+	}
+	if marketJSON(t, g) != before {
+		t.Fatal("a refused sale changed the market")
+	}
+}
+
+func TestYoungGearCap(t *testing.T) {
+	g, ts := newTraders(t, 3)
+	seller, buyer, other := ts[0], ts[1], ts[2]
+	limit := g.Rules().Values.Param("young-cap")
+	in := seller.tool()
+	value := g.ItemValue(in)
+	// A young seller past its cap may not sell under value.
+	seller.grant(ledger.Coin, limit)
+	seller.must(game.Command{Kind: game.Give, Target: other.c.C.ID, Asset: ledger.Coin, Units: limit})
+	seller.must(game.Command{Kind: game.List, Item: in.ID, Price: 1})
+	l := g.Market.Listings[0]
+	buyer.grant(ledger.Coin, 2*value+limit)
+	if err := buyer.do(game.Command{Kind: game.Purchase, Item: l.ID}); err == nil {
+		t.Fatal("a young seller past its cap sold under value")
+	}
+	seller.must(game.Command{Kind: game.Withdraw, Item: l.ID})
+	// A young buyer past its cap may not pay over value.
+	advanceDays(t, g, 1)
+	buyer.must(game.Command{Kind: game.Give, Target: other.c.C.ID, Asset: ledger.Coin, Units: limit})
+	seller.must(game.Command{Kind: game.List, Item: in.ID, Price: 2 * value})
+	if err := buyer.do(game.Command{Kind: game.Purchase, Item: g.Market.Listings[0].ID}); err == nil {
+		t.Fatal("a young buyer past its cap paid over value")
+	}
+	audit(t, g)
+}
+
+func TestGearOrderPaysFromEscrow(t *testing.T) {
+	for _, wantFirst := range []bool{true, false} {
+		g, ts := newTraders(t, 2)
+		seller, buyer := ts[0], ts[1]
+		in := seller.tool()
+		sellerHad := seller.c.C.Coin
+		buyer.grant(ledger.Coin, 100)
+		var escrow string
+		want := func() {
+			buyer.must(game.Command{Kind: game.Want, Material: in.Kind, Price: 40})
+			for o := range g.Open(ledger.Char(buyer.c.C.ID)) {
+				escrow = ledger.EscrowPool(o.ID)
+			}
+		}
+		if wantFirst {
+			want()
+			if escrow == "" {
+				t.Fatal("the gear order did not rest")
+			}
+			seller.must(game.Command{Kind: game.List, Item: in.ID, Price: 30})
+		} else {
+			seller.must(game.Command{Kind: game.List, Item: in.ID, Price: 30})
+			buyer.must(game.Command{Kind: game.Want, Material: in.Kind, Price: 40})
+		}
+		fee := g.Rules().Values.Fee(30)
+		if buyer.c.C.Coin != 100-30 || seller.c.C.Coin != sellerHad+30-fee {
+			t.Fatalf("want first %v: buyer %d coin, seller %d coin", wantFirst, buyer.c.C.Coin, seller.c.C.Coin)
+		}
+		if escrow != "" && g.Ledger.Of(escrow, ledger.Coin) != 0 {
+			t.Fatalf("the gear order's escrow kept %d coin", g.Ledger.Of(escrow, ledger.Coin))
+		}
+		if buyer.c.C.Item(in.ID) == nil || seller.c.C.Item(in.ID) != nil {
+			t.Fatalf("want first %v: the tool did not change hands", wantFirst)
+		}
+		if len(g.Market.Listings) != 0 || len(g.Market.Wants) != 0 {
+			t.Fatalf("want first %v: listings %d, wants %d left", wantFirst, len(g.Market.Listings), len(g.Market.Wants))
+		}
+		audit(t, g)
+	}
+}
+
+func TestYoungBookFillCap(t *testing.T) {
+	g, ts := newTraders(t, 2)
+	young, buyer := ts[0], ts[1]
+	ref := g.Rules().Values.Asset(mat)
+	limit := g.Rules().Values.Param("young-cap")
+	if ref <= 1 || limit < ref-1 {
+		t.Skip("the material is too cheap to sell under value")
+	}
+	under := ref - 1
+	qty := limit / under
+	// The faction's orders take their share of the ask first.
+	var faction int64
+	for _, o := range g.FactionOrders(young.c.C.At) {
+		if o.Material == mat {
+			faction += o.Qty
+		}
+	}
+	young.grant(ledger.Material(mat), faction+qty+1)
+	buyer.grant(ledger.Coin, 2*(qty+1))
+	young.must(game.Command{Kind: game.Ask, Material: mat, Units: faction + qty, Price: 1})
+	buyer.must(game.Command{Kind: game.Bid, Material: mat, Units: qty, Price: 1})
+	if got := g.Ledger.Of(ledger.Char(buyer.c.C.ID), ledger.Material(mat)); got != qty {
+		t.Fatalf("buyer holds %d %s, want %d", got, mat, qty)
+	}
+	if gave := g.GaveToday(young.c); gave != under*qty {
+		t.Fatalf("young seller gave %d today, want %d", gave, under*qty)
+	}
+	// One more unit under value would pass the cap: it stays in the book.
+	young.must(game.Command{Kind: game.Ask, Material: mat, Units: 1, Price: 1})
+	buyer.must(game.Command{Kind: game.Bid, Material: mat, Units: 1, Price: 1})
+	if got := g.Ledger.Of(ledger.Char(buyer.c.C.ID), ledger.Material(mat)); got != qty {
+		t.Fatalf("a fill past the cap went through: buyer holds %d %s", got, mat)
+	}
+	asks := 0
+	for o := range g.Open(ledger.Char(young.c.C.ID)) {
+		if o.Kind == string(market.Ask) {
+			asks++
+		}
+	}
+	if asks != 1 || g.GaveToday(young.c) != under*qty {
+		t.Fatalf("%d asks rest, %d given", asks, g.GaveToday(young.c))
 	}
 	audit(t, g)
 }

@@ -156,7 +156,8 @@ func New(r *Rules) (*Game, error) {
 	g := &Game{World: s, Chars: []*Char{}, Pending: []world.Action{}, Log: &fact.Tail{}, Kinds: Kinds{List: []*item.Kind{}, Made: []KindCount{}},
 		NPCs: npc.Book{List: []*npc.NPC{}}, News: []News{}, r: r}
 	r.Fight.D.Reg = &g.Kinds
-	return g, g.ensureMarket()
+	g.Market = g.newMarket()
+	return g, g.postFactionOrders(g.Tick())
 }
 
 // Attach binds a decoded game to its rules.

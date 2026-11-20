@@ -10,15 +10,16 @@ import (
 
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: the Economy run's shape (plan 04's soak). The band is read
-// over the last measured days, after the warm-up in which characters
-// arrive with nothing and earn their first coin.
+// structural: the Economy run's shape. The band is read after the
+// warm-up, in which characters arrive with nothing and earn their first
+// coin.
 const (
 	economyDays   = 120
 	economyWarmup = 78
@@ -31,7 +32,7 @@ const (
 	casualSpread  = 37  // ticks between one casual player's sessions and the next's
 )
 
-// economySizes are the populations the target names.
+// economySizes are the populations a run measures when no n is given.
 var economySizes = []int{10, 1000, 10000}
 
 // role is one share of the soak population and the coin it keeps.
@@ -55,7 +56,7 @@ type economyDay struct {
 	day       int64
 	active    int64
 	supply    int64
-	perActive int64 // the stabiliser's 7-day mean
+	perActive int64 // the stabiliser's windowed mean
 	rate      int64
 	traded    int64 // coin that changed hands in the markets that day
 }
@@ -71,12 +72,10 @@ type economyResult struct {
 	reports []game.Report
 }
 
-// EconomyRun soaks the economy (GDD 10, plan 04): scripted players in six
-// roles, joining over the first week at the first starting settlement
-// while a second stands open with nobody from it, for 70 simulated days at
-// 10, 1,000 and 10,000 players (or n alone). It reads coin per active
-// character against the band over the last 42 days, and runs the
-// conservation check at the end.
+// EconomyRun soaks the economy (GDD 10) at each of economySizes, or n
+// alone, for economyDays (ECONOMY_DAYS overrides), and reports coin per
+// active character against the band after the warm-up and the
+// conservation check.
 func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	sizes := economySizes
 	if n > 0 {
@@ -95,7 +94,8 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		results = append(results, r)
 		fmt.Fprintf(os.Stderr, "economy %d: %s, %d actions, %d refused\n", size, r.elapsed.Round(time.Second), r.actions, r.refused)
 	}
-	lo, hi := sheets.IntParam(b.EconomyParams, "band-low"), sheets.IntParam(b.EconomyParams, "band-high")
+	fp := faucet.ParamsOf(b.EconomyParams)
+	lo, hi := fp.Low, fp.High
 	allHold, clean := true, true
 	var doc lineDoc
 	p := doc.p
@@ -209,7 +209,7 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 			if (t+int64(i))%workPeriod != 0 || (t+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
 				continue
 			}
-			if p.Policy.Name() == "earner-"+agent.Casual && (t+int64(i)*casualSpread)%casualEvery >= casualSession {
+			if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual && (t+int64(i)*casualSpread)%casualEvery >= casualSession {
 				continue
 			}
 			if p.Character != "" {
@@ -230,6 +230,10 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 		if g.Tick()%sheets.TicksPerDay == 0 {
 			local.Forget()
 			res.days = append(res.days, dayOf(g))
+			for _, bk := range g.BooksAt(1) {
+				units, _ := bk.Traded(1, false)
+				res.second += units
+			}
 		}
 	}
 	for _, p := range players {
@@ -239,11 +243,6 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 	res.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
 	if g.Market != nil {
 		res.reports = g.Market.Reports
-		for _, bk := range g.BooksAt(1) {
-			for _, d := range bk.Days {
-				res.second += d.Units
-			}
-		}
 	}
 	res.elapsed = time.Since(start)
 	return res, nil
@@ -252,18 +251,11 @@ func soak(b *sheets.Book, size int, days int64) (economyResult, error) {
 func dayOf(g *game.Game) economyDay {
 	d := economyDay{day: g.World.Day, active: g.Active(), supply: g.Supply()}
 	if m := g.Market; m != nil {
-		if n := len(m.Faucet.Samples); n > 0 {
-			var sum int64
-			for _, x := range m.Faucet.Samples {
-				sum += x
-			}
-			d.perActive = sum / int64(n)
-		}
+		d.perActive = m.Faucet.Mean()
 		d.rate = m.Faucet.Rate.Floor()
 		for _, bk := range m.Books {
-			if n := len(bk.Days); n > 0 {
-				d.traded += bk.Days[n-1].Coin
-			}
+			_, coin := bk.Traded(1, false)
+			d.traded += coin
 		}
 	}
 	return d

@@ -67,6 +67,12 @@ func PercentFloor(n, pct int64) int64 {
 	return floorDivMul(n, pct, Hundredths)
 }
 
+// PercentCeil is pct percent of n, rounded toward positive infinity.
+func PercentCeil(n, pct int64) int64 { return -PercentFloor(-n, pct) }
+
+// Percent is pct per cent as a fraction.
+func Percent(pct int64) F { return Ratio(pct, Hundredths) }
+
 // Int rounds to the nearest whole number.
 func (a F) Int() int64 { return divRound(int64(a), 1, Scale) }
 

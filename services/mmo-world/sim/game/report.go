@@ -2,9 +2,9 @@ package game
 
 import (
 	"cmp"
+	"iter"
 	"slices"
 	"strconv"
-	"strings"
 
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
@@ -27,18 +27,21 @@ type Week struct {
 
 func newWeek(day int64) Week { return Week{From: day, Traded: tally.Tally{}} }
 
-func (w *Week) fill(material string, units, coin int64, faction bool) {
-	w.Traded.Bump(material, units)
-	if faction {
-		w.Faucet += coin
-	} else {
-		w.Between += coin
-	}
-}
+// faucet counts coin the factions and traders paid characters.
+func (w *Week) faucet(coin int64) { w.Faucet += coin }
+
+// between counts coin that changed hands between characters.
+func (w *Week) between(coin int64) { w.Between += coin }
+
+// fee counts a fee taken.
+func (w *Week) fee(coin int64) { w.Fees += coin }
+
+// traded counts units of a material traded.
+func (w *Week) traded(material string, units int64) { w.Traded.Bump(material, units) }
 
 // Report is the weekly ledger report (GDD 10.5): supply in coin, coin per
 // active character against the band, how often a coin changes hands a
-// day, the most traded goods and what staged events put in.
+// day, and the most traded goods.
 type Report struct {
 	Day       int64    `json:"day"`
 	Fact      fact.ID  `json:"fact"`
@@ -52,7 +55,6 @@ type Report struct {
 	Faucet    int64    `json:"faucet"`   // coin faction orders paid this week
 	Fees      int64    `json:"fees"`
 	Top       []Traded `json:"top"`
-	Staged    int64    `json:"staged"`
 	Audit     int      `json:"audit"` // discrepancies the conservation check found
 }
 
@@ -67,43 +69,54 @@ const topTraded = 3
 
 // Supply is the coin characters hold, in hand and in escrow.
 func (g *Game) Supply() int64 {
-	var n int64
-	for _, b := range g.Ledger.Balances {
-		if b.Asset == ledger.Coin && (strings.HasPrefix(b.Account, ledger.Holder) || strings.HasPrefix(b.Account, escrowPrefix)) {
-			n += b.Units
-		}
-	}
-	return n
+	supply, _, _ := g.coinHeld()
+	return supply
 }
 
-// ActiveCoin is the coin active characters hold, in hand and in escrow,
-// and how many they are: what the stabiliser steers by. Coin a character
-// who stopped playing holds is out of circulation until it comes back.
-func (g *Game) ActiveCoin() (coin, active int64) {
-	since := g.Tick() - g.mp("active-days")*sheets.TicksPerDay
+// coinHeld is the coin characters hold, in hand and in escrow; the part
+// of it active characters hold; and how many they are. The stabiliser
+// steers by the active part: coin a character who stopped playing holds
+// is out of circulation until it comes back.
+func (g *Game) coinHeld() (supply, active, n int64) {
 	live := map[string]bool{}
-	for _, c := range g.Chars {
-		if c.Acted >= since && !c.Banned {
-			live[ledger.Char(c.C.ID)] = true
-			coin += c.C.Coin
-			active++
+	for c := range g.activeChars() {
+		live[ledger.Char(c.C.ID)] = true
+		n++
+	}
+	owner := map[string]string{}
+	for o := range g.opens("", false) {
+		owner[ledger.EscrowPool(o.ID)] = o.Owner
+	}
+	for _, b := range g.Ledger.Balances {
+		if b.Asset != ledger.Coin {
+			continue
+		}
+		acc := b.Account
+		if _, isChar := ledger.CharOf(acc); !isChar {
+			if !ledger.IsEscrow(acc) {
+				continue
+			}
+			acc = owner[acc]
+		}
+		supply += b.Units
+		if live[acc] {
+			active += b.Units
 		}
 	}
-	if m := g.Market; m != nil {
-		for _, b := range m.Books {
-			for _, o := range b.Bids {
-				if live[o.Owner] {
-					coin += g.Ledger.Of(EscrowOf(o.ID), ledger.Coin)
-				}
-			}
-		}
-		for _, w := range m.Wants {
-			if live[w.Buyer] {
-				coin += w.Price
+	return supply, active, n
+}
+
+// activeChars are the characters that acted within active-days and are
+// not banned.
+func (g *Game) activeChars() iter.Seq[*Char] {
+	since := g.Tick() - g.mp("active-days")*sheets.TicksPerDay
+	return func(yield func(*Char) bool) {
+		for _, c := range g.Chars {
+			if c.Acted >= since && !c.Banned && !yield(c) {
+				return
 			}
 		}
 	}
-	return coin, active
 }
 
 // worldFact writes a fact of a sheet-weighed kind at a tile, about the
@@ -143,8 +156,15 @@ func (g *Game) notable(t Trade) {
 // the day, the stabiliser moves the faucet, the week's report is posted
 // when due, and the new day's faction orders stand.
 func (g *Game) dayTurn(t int64) error {
-	if err := g.ensureMarket(); err != nil {
-		return err
+	// Advance sets the clock to t only after this turn; date what the turn
+	// writes, fills included, at t.
+	was := g.World.Tick
+	g.World.Tick = t
+	defer func() { g.World.Tick = was }()
+	// A game saved before markets existed gets one here, so loading it
+	// keeps its digest.
+	if g.Market == nil {
+		g.Market = g.newMarket()
 	}
 	m := g.Market
 	day := t / sheets.TicksPerDay
@@ -155,14 +175,13 @@ func (g *Game) dayTurn(t int64) error {
 		b.CloseDay(day-1, t, g.mp("history-days"), int64(g.cause(b.Settlement, t)))
 	}
 	m.Yesterday, m.Notable = m.Notable, []Trade{}
-	held, active := g.ActiveCoin()
-	supply := g.Supply()
+	supply, held, active := g.coinHeld()
 	per := int64(0)
 	if active > 0 {
 		per = held / active
 	}
 	mean, move := m.Faucet.Step(per, g.r.Faucet)
-	if _, err := g.worldFact(g.r.Gen.Settlement(0).Hex, "faucet.moved", nil, nil, fact.S("move", move), fact.N("perActive", mean),
+	if _, err := g.worldFact(g.SettlementHex(0), "faucet.moved", nil, nil, fact.S("move", move), fact.N("perActive", mean),
 		fact.N("rate", m.Faucet.Rate.Floor())); err != nil {
 		return err
 	}
@@ -177,7 +196,7 @@ func (g *Game) dayTurn(t int64) error {
 // cause is the heaviest news near a settlement in the day before t, which
 // a mover names.
 func (g *Game) cause(settlement int, t int64) fact.ID {
-	h := g.r.Gen.Settlement(settlement).Hex
+	h := g.SettlementHex(settlement)
 	near := g.r.NPC.Param("news-range")
 	var best News
 	for _, n := range g.News {
@@ -212,7 +231,7 @@ func (g *Game) report(day, supply, active, mean int64) error {
 	for i, x := range r.Top {
 		data = append(data, fact.S("top"+strconv.Itoa(i), x.Material), fact.N("units"+strconv.Itoa(i), x.Units))
 	}
-	id, err := g.worldFact(g.r.Gen.Settlement(0).Hex, "ledger.report", nil, nil, data...)
+	id, err := g.worldFact(g.SettlementHex(0), "ledger.report", nil, nil, data...)
 	if err != nil {
 		return err
 	}
@@ -229,44 +248,25 @@ func (g *Game) report(day, supply, active, mean int64) error {
 const reportsKept = 8
 
 // expire gives back the escrow of every order, listing and gear order
-// whose time is up.
+// whose time is up, wherever its owner is: an order expires only after
+// order-days, too slow to carry goods past the road.
 func (g *Game) expire(t int64) error {
-	m := g.Market
-	key := func(id string) string { return ledger.SubKey("tick", strconv.FormatInt(t, decimal), "expire", id) }
-	for _, b := range m.Books {
-		for _, o := range b.Expire(t) {
-			if o.Faction == nil {
-				if err := g.unescrow(o.ID, o.Owner, key(o.ID)); err != nil {
-					return err
-				}
-			}
+	var due []Open
+	for o := range g.opens("", false) {
+		if o.Expires <= t {
+			due = append(due, o)
 		}
 	}
-	for i := 0; i < len(m.Listings); {
-		if m.Listings[i].Expires > t {
-			i++
-			continue
-		}
-		if err := g.unlist(i, key(m.Listings[i].ID)); err != nil {
+	for _, o := range due {
+		if err := g.closeOrder(o, ledger.SubKey("tick", strconv.FormatInt(t, decimal), "expire", o.ID)); err != nil {
 			return err
 		}
 	}
-	keep := m.Wants[:0]
-	for _, w := range m.Wants {
-		if w.Expires > t {
-			keep = append(keep, w)
-			continue
-		}
-		if err := g.unescrow(w.ID, w.Buyer, key(w.ID)); err != nil {
-			return err
-		}
-	}
-	m.Wants = keep
 	return nil
 }
 
-// Movers are the books whose price moved most over the window, with the
-// fact behind each.
+// Mover is a book whose price moved over the window, and the fact behind
+// it.
 type Mover struct {
 	Settlement int     `json:"settlement"`
 	Material   string  `json:"material"`
@@ -278,29 +278,68 @@ type Mover struct {
 // Movers lists a settlement's biggest rises and falls over days, largest
 // change first.
 func (g *Game) Movers(settlement int, days int) []Mover {
-	if g.Market == nil {
-		return nil
-	}
-	var out []Mover
-	for _, b := range g.Market.Books {
-		if b.Settlement != settlement {
-			continue
-		}
+	return g.movers(settlement, days, func(b *market.Book) (int64, int64, bool) {
 		ch, ok := b.Change(days)
+		return ch, b.Last, ok
+	})
+}
+
+// ClosedMovers lists a settlement's rises and falls over the world day
+// just closed, largest change first.
+func (g *Game) ClosedMovers(settlement int) []Mover {
+	return g.movers(settlement, 1, func(b *market.Book) (int64, int64, bool) {
+		ch, ok := b.ClosedChange()
+		if !ok {
+			return 0, 0, false
+		}
+		return ch, b.Days[len(b.Days)-1].Close, true
+	})
+}
+
+// movers lists a settlement's books by a change in price, largest first,
+// naming the cause over causeDays.
+func (g *Game) movers(settlement int, causeDays int, change func(*market.Book) (ch, last int64, ok bool)) []Mover {
+	var out []Mover
+	for _, b := range g.BooksAt(settlement) {
+		ch, last, ok := change(b)
 		if !ok || ch == 0 {
 			continue
 		}
-		mv := Mover{Settlement: settlement, Material: b.Material, Change: ch, Last: b.Last}
-		for i := len(b.Days) - 1; i >= max(0, len(b.Days)-days) && mv.Cause == 0; i-- {
-			mv.Cause = fact.ID(b.Days[i].Cause)
-		}
-		out = append(out, mv)
+		out = append(out, Mover{Settlement: settlement, Material: b.Material, Change: ch, Last: last, Cause: fact.ID(b.Cause(causeDays))})
 	}
 	slices.SortStableFunc(out, func(a, b Mover) int { return cmp.Compare(abs(b.Change), abs(a.Change)) })
 	return out
 }
 
 func abs(n int64) int64 { return max(n, -n) }
+
+// ListingsAt are a settlement's listings.
+func (g *Game) ListingsAt(settlement int) []market.Listing {
+	if g.Market == nil {
+		return nil
+	}
+	var out []market.Listing
+	for _, l := range g.Market.Listings {
+		if l.Settlement == settlement {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// WantsAt are a settlement's gear orders.
+func (g *Game) WantsAt(settlement int) []market.Want {
+	if g.Market == nil {
+		return nil
+	}
+	var out []market.Want
+	for _, w := range g.Market.Wants {
+		if w.Settlement == settlement {
+			out = append(out, w)
+		}
+	}
+	return out
+}
 
 // BooksAt are a settlement's books.
 func (g *Game) BooksAt(settlement int) []*market.Book {

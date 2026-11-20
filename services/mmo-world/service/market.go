@@ -32,23 +32,18 @@ func (s *Server) market(w http.ResponseWriter, r *http.Request) {
 	var banner render.BannerInput
 	var supply render.Series
 	var acc string
-	var refused error
-	if !s.withChar(w, r, func(c *game.Char) {
+	if !s.withCharErr(w, r, func(c *game.Char) error {
 		g := s.g
-		if !g.HasMarket(c.C.At) {
-			refused = notHere("there is no market here")
-			return
+		n, ok := g.MarketAt(c.C.At)
+		if !ok {
+			return notHere("there is no market here")
 		}
-		n, _ := g.SettlementAt(c.C.At)
 		out = apiMarket(g, c, n, material)
 		banner = s.bannerInput(c.C.At)
 		supply = s.supplySeries()
 		acc = ledger.Char(c.C.ID)
+		return nil
 	}) {
-		return
-	}
-	if refused != nil {
-		s.refused(w, refused)
 		return
 	}
 	var err error
@@ -62,7 +57,8 @@ func (s *Server) market(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, x := range rows {
-		out.Mine.Entries = append(out.Mine.Entries, api.Entry{Tick: x.Tick, Kind: x.Kind, Asset: x.Asset, Units: x.Units})
+		goods, _ := ledger.GoodsOf(x.Asset)
+		out.Mine.Entries = append(out.Mine.Entries, api.Entry{Tick: x.Tick, Kind: x.Kind, Asset: x.Asset, Goods: goods, Units: x.Units})
 	}
 	if out.Report != nil {
 		if out.Report.Chart, err = s.picture("supply", supply, func() (*render.Canvas, error) { return render.Chart(supply), nil }); err != nil {
@@ -87,7 +83,7 @@ func apiMarket(g *game.Game, c *game.Char, n int, material string) api.Market {
 		material = busiest(books, c)
 	}
 	out.Material = material
-	out.Book = api.BookView{Material: material, Bids: []api.Level{}, Asks: []api.Level{}, Value: rv.Material(material)}
+	out.Book = api.BookView{Material: material, Bids: []api.Level{}, Asks: []api.Level{}, Value: rv.Asset(material)}
 	if b := g.BookOf(n, material); b != nil {
 		out.Book.Bids = levels(g, b.Bids)
 		out.Book.Asks = levels(g, b.Asks)
@@ -98,31 +94,23 @@ func apiMarket(g *game.Game, c *game.Char, n int, material string) api.Market {
 		ch, _ := b.Change(moverWindow)
 		out.Exchange = append(out.Exchange, api.Exchange{Material: b.Material, Last: b.Last, Change: ch, Bid: bid, Ask: ask, Units: weekUnits(b)})
 	}
-	for _, mv := range g.Movers(n, moverWindow)[:min(moversShown, len(g.Movers(n, moverWindow)))] {
-		out.Movers = append(out.Movers, apiMover(g, mv))
-	}
+	out.Movers = apiMovers(g, g.Movers(n, moverWindow))
 	for _, f := range g.Elsewhere(c, material) {
 		out.Elsewhere = append(out.Elsewhere, api.Far{Name: f.Name, Price: f.Price, Age: f.Age, Own: f.Own, Known: f.Known})
 	}
 	out.Gear = cheapest(g, c, n, gearShown)
+	for _, wt := range g.WantsAt(n) {
+		out.Wants = append(out.Wants, apiWant(g, c, wt))
+	}
 	if g.Market != nil {
-		for _, wt := range g.Market.Wants {
-			if wt.Settlement == n {
-				out.Wants = append(out.Wants, apiWant(g, c, wt))
-			}
+		if reports := g.Market.Reports; len(reports) > 0 {
+			r := apiReport(reports[len(reports)-1], rv.Param("report-days"))
+			out.Report = &r
 		}
 	}
-	for _, o := range g.FactionOrders(h) {
-		yours, buys := g.PriceFor(c, h, o)
-		out.Orders = append(out.Orders, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Yours: yours, Wanted: o.Qty,
-			Refuses: !buys, Fee: rv.FeePercent()})
-	}
+	out.Orders = apiOrders(g, c, h)
 	out.Mine.Open, out.Mine.Escrow = mine(g, c)
 	out.Mine.Gave = g.GaveToday(c)
-	if g.Market != nil && len(g.Market.Reports) > 0 {
-		r := apiReport(g.Market.Reports[len(g.Market.Reports)-1])
-		out.Report = &r
-	}
 	return out
 }
 
@@ -144,11 +132,8 @@ func busiest(books []*market.Book, c *game.Char) string {
 }
 
 func weekUnits(b *market.Book) int64 {
-	n := b.Today.Units
-	for _, d := range b.Days[max(0, len(b.Days)-moverWindow):] {
-		n += d.Units
-	}
-	return n
+	units, _ := b.Traded(moverWindow, true)
+	return units
 }
 
 // levels are a side's best prices, units at each summed, and whose the
@@ -168,63 +153,50 @@ func levels(g *game.Game, orders []market.Order) []api.Level {
 	return out
 }
 
-func apiMover(g *game.Game, mv game.Mover) api.Mover {
-	out := api.Mover{Material: mv.Material, Change: mv.Change, Last: mv.Last}
-	if mv.Cause != 0 {
-		if i := slices.IndexFunc(g.News, func(n game.News) bool { return n.ID == mv.Cause }); i >= 0 {
-			out.Cause = strings.ReplaceAll(g.News[i].Kind, ".", " ") + " near " + g.PlaceName(g.News[i].At)
-		}
+// apiMovers are the biggest of a settlement's movers, as many as the
+// lists show.
+func apiMovers(g *game.Game, movers []game.Mover) []api.Mover {
+	out := []api.Mover{}
+	for _, mv := range movers[:min(moversShown, len(movers))] {
+		out = append(out, api.Mover{Material: mv.Material, Change: mv.Change, Last: mv.Last, Cause: causeText(g, mv.Cause)})
 	}
 	return out
 }
 
-func apiWant(g *game.Game, c *game.Char, w market.Want) api.GearWant {
-	what := w.Slot
-	if w.Kind != "" {
-		what = g.KindName(w.Kind)
+// causeText is the news a price move is put down to, or "" when it is
+// no longer kept.
+func causeText(g *game.Game, id fact.ID) string {
+	if id == 0 {
+		return ""
 	}
-	return api.GearWant{ID: w.ID, What: what, Price: w.Price, Floor: api.Floor{Durability: w.Floor.Durability, Trait: w.Floor.Trait, Level: w.Floor.Level},
-		Mine: w.Buyer == ledger.Char(c.C.ID)}
+	i := slices.IndexFunc(g.News, func(n game.News) bool { return n.ID == id })
+	if i < 0 {
+		return ""
+	}
+	return strings.ReplaceAll(g.News[i].Kind, ".", " ") + " near " + g.PlaceName(g.News[i].At)
+}
+
+func apiWant(g *game.Game, c *game.Char, w market.Want) api.GearWant {
+	return api.GearWant{ID: w.ID, What: g.TradeName("", w.Kind, w.Slot), Price: w.Price, Floor: apiFloor(w.Floor), Mine: w.Buyer == ledger.Char(c.C.ID)}
 }
 
 // mine is a character's open orders, listings and gear orders, and the
 // coin they hold in escrow.
 func mine(g *game.Game, c *game.Char) ([]api.Open, int64) {
 	out := []api.Open{}
-	if g.Market == nil {
-		return out, 0
-	}
-	acc := ledger.Char(c.C.ID)
 	t := g.Tick()
 	var escrow int64
-	where := func(n int) string { return g.PlaceName(g.Rules().Gen.Settlement(n).Hex) }
-	for _, b := range g.Market.Books {
-		for _, o := range slices.Concat(b.Bids, b.Asks) {
-			if o.Owner == acc {
-				out = append(out, api.Open{ID: o.ID, Where: where(b.Settlement), What: b.Material, Side: string(o.Side), Price: o.Price, Units: o.Qty, Expires: o.Expires - t})
-				if o.Side == market.Bid {
-					escrow += g.Ledger.Of(game.EscrowOf(o.ID), ledger.Coin)
-				}
-			}
-		}
-	}
-	for _, l := range g.Market.Listings {
-		if l.Seller == acc {
-			out = append(out, api.Open{ID: l.ID, Where: where(l.Settlement), What: g.KindName(l.Item.Kind), Side: "listing", Price: l.Price, Units: 1, Expires: l.Expires - t})
-		}
-	}
-	for _, w := range g.Market.Wants {
-		if w.Buyer == acc {
-			out = append(out, api.Open{ID: w.ID, Where: where(w.Settlement), What: apiWant(g, c, w).What, Side: "want", Price: w.Price, Units: 1, Expires: w.Expires - t})
-			escrow += w.Price
-		}
+	for o := range g.Open(ledger.Char(c.C.ID)) {
+		out = append(out, api.Open{ID: o.ID, Where: g.PlaceName(g.SettlementHex(o.Settlement)), What: g.TradeName(o.Material, o.ItemKind, o.Slot), Side: o.Kind, Price: o.Price,
+			Units: o.Units, Expires: o.Expires - t})
+		escrow += o.Escrow
 	}
 	return out, escrow
 }
 
-func apiReport(r game.Report) api.Report {
+func apiReport(r game.Report, every int64) api.Report {
 	out := api.Report{Day: r.Day, Supply: r.Supply, Active: r.Active, PerActive: r.PerActive, Low: r.Low, High: r.High, Rate: r.Rate.Floor(),
-		Velocity: r.Velocity.Of(fixed.Hundredths), Faucet: r.Faucet, Fees: r.Fees, Top: []api.Goods{}, Staged: r.Staged, Audit: r.Audit}
+		Velocity: r.Velocity.Of(fixed.Hundredths), Faucet: r.Faucet, Fees: r.Fees, Top: []api.Goods{}, Every: every, Audit: r.Audit}
 	for _, t := range r.Top {
 		out.Top = append(out.Top, api.Goods{Material: t.Material, Units: t.Units})
 	}
@@ -250,33 +222,28 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 	material := r.URL.Query().Get("material")
 	var out api.History
 	var series render.Series
-	var refused error
-	if !s.withChar(w, r, func(c *game.Char) {
+	if !s.withCharErr(w, r, func(c *game.Char) error {
 		g := s.g
-		n, ok := g.SettlementAt(c.C.At)
+		n, ok := g.MarketAt(c.C.At)
 		b := g.BookOf(n, material)
 		if !ok || b == nil {
-			refused = notHere("nothing called " + material + " trades here")
-			return
+			return notHere("nothing called " + material + " trades here")
 		}
-		name := g.Rules().Name("items.materials:" + material)
+		name := g.MaterialName(material)
 		out = api.History{Material: material, Name: name, Days: []api.PricePt{}}
 		series = render.Series{Title: name + ", coin each", Unit: "coin"}
 		for _, d := range b.Days[max(0, len(b.Days)-historyShown):] {
 			pt := api.PricePt{Day: d.Day, Close: d.Close, Units: d.Units}
 			if d.Cause != 0 {
-				pt.Cause = apiMover(g, game.Mover{Cause: fact.ID(d.Cause)}).Cause
+				pt.Cause = causeText(g, fact.ID(d.Cause))
 				series.Marks = append(series.Marks, d.Day)
 			}
 			out.Days = append(out.Days, pt)
 			series.Days = append(series.Days, d.Day)
 			series.Values = append(series.Values, d.Close)
 		}
+		return nil
 	}) {
-		return
-	}
-	if refused != nil {
-		s.refused(w, refused)
 		return
 	}
 	var err error
@@ -288,8 +255,7 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 }
 
 // forum is each open settlement's notable trades and movers of the world
-// day before the one asked for (the current day's, for none), for the
-// market forum.
+// day just closed, for the market forum.
 func (s *Server) forum(w http.ResponseWriter, r *http.Request) {
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
@@ -317,7 +283,7 @@ func (s *Server) forumPosts() (api.Forum, []render.BannerInput) {
 		trades = g.Market.Yesterday
 	}
 	for n, h := range g.Settlements() {
-		if !g.HasMarket(h) {
+		if _, ok := g.MarketAt(h); !ok {
 			continue
 		}
 		p := api.ForumPost{Settlement: n, Name: g.PlaceName(h), Trades: []api.Trade{}, Movers: []api.Mover{}}
@@ -326,16 +292,9 @@ func (s *Server) forumPosts() (api.Forum, []render.BannerInput) {
 			if t.Settlement != n {
 				continue
 			}
-			what := g.Rules().Name("items.materials:" + t.Material)
-			if t.Kind != "" {
-				what = g.KindName(t.Kind)
-			}
-			p.Trades = append(p.Trades, api.Trade{What: what, Units: t.Units, Price: t.Price, Coin: t.Coin()})
+			p.Trades = append(p.Trades, api.Trade{What: g.TradeName(t.Material, t.Kind, ""), Units: t.Units, Price: t.Price, Coin: t.Coin()})
 		}
-		movers := g.Movers(n, 1)
-		for _, mv := range movers[:min(moversShown, len(movers))] {
-			p.Movers = append(p.Movers, apiMover(g, mv))
-		}
+		p.Movers = apiMovers(g, g.ClosedMovers(n))
 		out.Posts = append(out.Posts, p)
 	}
 	return out, banners
@@ -349,26 +308,21 @@ func (s *Server) routeRisk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var out api.RouteRisk
-	var refused error
-	if !s.withChar(w, r, func(c *game.Char) {
+	if !s.withCharErr(w, r, func(c *game.Char) error {
 		route, _, ok := s.g.Route(c, to)
 		if !ok {
-			refused = notHere("no known way to " + to.Ref())
-			return
+			return notHere("no known way to " + to.Ref())
 		}
-		out = apiRisk(s.g.RouteRisk(c, route))
+		out = apiRisk(s.g.RouteRisk(c, route), s.g.PlaceName(to))
+		return nil
 	}) {
-		return
-	}
-	if refused != nil {
-		s.refused(w, refused)
 		return
 	}
 	reply(w, http.StatusOK, out)
 }
 
-func apiRisk(rk game.Risk) api.RouteRisk {
-	out := api.RouteRisk{Tiles: []api.TileRisk{}, Expected: rk.Expected.Of(fixed.Hundredths), Worst: rk.Worst, Haul: rk.Haul}
+func apiRisk(rk game.Risk, to string) api.RouteRisk {
+	out := api.RouteRisk{To: to, Tiles: []api.TileRisk{}, Expected: rk.Expected.Of(fixed.Hundredths), Worst: rk.Worst, Haul: rk.Haul}
 	for _, t := range rk.Tiles {
 		out.Tiles = append(out.Tiles, api.TileRisk{At: apiHex(t.Hex), Band: t.Band, Chance: t.Chance.Of(fixed.Hundredths)})
 	}
@@ -387,9 +341,7 @@ func (s *Server) flags(w http.ResponseWriter, r *http.Request) {
 	out := api.Economy{Flagged: []api.Flagged{}, Active: g.Active(), Supply: g.Supply()}
 	if m := g.Market; m != nil {
 		out.Rate = m.Faucet.Rate.Floor()
-		if n := len(m.Faucet.Samples); n > 0 {
-			out.PerActive = m.Faucet.Samples[n-1]
-		}
+		out.PerActive = m.Faucet.Mean()
 	}
 	for _, c := range g.Chars {
 		if len(c.Review) > 0 {

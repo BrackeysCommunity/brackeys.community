@@ -4,7 +4,7 @@ import { type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, outOf, signed } from "../units.ts";
-import { back, banner, btn, factNum, PRIVATE, stationLine } from "./common.ts";
+import { back, banner, btn, factNum, held, priceLadder, PRIVATE, stationLine } from "./common.ts";
 
 /** A recipe as the craft card carries it between selects: process.method.slot.material.qty. */
 export interface Draft {
@@ -109,7 +109,7 @@ export function craftCard(
         },
       });
   } else if (!d.qty) {
-    const have = sheet.character.goods.find((g) => g.material === d.material)?.units ?? 0;
+    const have = held(sheet.character.goods, d.material);
     rows.push({
       buttons: [1, 2, 3]
         .filter((q) => q <= have)
@@ -329,28 +329,24 @@ export function itemCard(
       disabled: !atStation,
     }),
   );
-  const market = here.offers.some((x) => x.asset === "provisions");
   const trade: Row[] = [];
-  if (market && !it.worn && !it.mount) {
+  if (o.purse.market && !it.worn && !it.mount) {
     trade.push({
       select: {
         customId: encodeId("list", it.id, v),
         placeholder: "List it for sale at…",
-        options: [80, 100, 120, 150, 200]
-          .map((p) => {
-            const price = Math.max(1, Math.round((it.value * p) / 100));
-            return {
-              label: amount(price, "coin"),
-              value: String(price),
-              description: `${p}% of its worth`,
-            };
-          })
-          .filter((x, i, all) => all.findIndex((y) => y.value === x.value) === i),
+        options: priceLadder(it.value, [80, 100, 120, 150, 200]).map(({ pct, price }) => ({
+          label: amount(price, "coin"),
+          value: String(price),
+          description: `${pct}% of its worth`,
+        })),
       },
     });
-    buttons.push(
-      btn(`Sell to the trader · ${amount(it.traderPays, "coin")}`, "sell-item", it.id, v),
-    );
+    trade.push({
+      buttons: [
+        btn(`Sell to the trader · ${amount(it.traderPays, "coin")}`, "sell-item", it.id, v),
+      ],
+    });
   }
   return {
     context: PRIVATE,

@@ -2,6 +2,8 @@ package game
 
 import (
 	"cmp"
+	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/sheets"
@@ -43,7 +46,8 @@ type Market struct {
 	Trader  []int64  `json:"trader"`
 	Week    Week     `json:"week"`
 	Reports []Report `json:"reports"`
-	// Notable are the trades of today and yesterday a forum post names.
+	// Notable are today's most valuable trades by settlement; Yesterday,
+	// the day just closed, is what the forum posts.
 	Notable   []Trade `json:"notable"`
 	Yesterday []Trade `json:"yesterday"`
 	Held      []Held  `json:"held"`
@@ -65,37 +69,72 @@ type Trade struct {
 // Coin is what a trade moved.
 func (t Trade) Coin() int64 { return t.Units * t.Price }
 
-// structural: owners of orders that are not characters.
+// structural: owners of orders that are not characters, and the standing
+// a keepers' order moves.
 const (
-	ownerFaction = "faction:"
-	ownerKeepers = "keepers"
-	escrowPrefix = ledger.Pool + "escrow:"
+	ownerFaction  = "faction:"
+	ownerKeepers  = "keepers"
+	standingPlace = "place:"
 )
 
-// EscrowOf is the pool an order, listing or gear order holds its escrow in.
-func EscrowOf(id string) string { return escrowPrefix + id }
+func factionOwner(fi int) string    { return ownerFaction + strconv.Itoa(fi) }
+func keepersOwner(h hex.Hex) string { return ownerKeepers + ":" + h.Ref() }
+
+// ownerOf reads a factionOwner or keepersOwner back: the faction, or
+// econ.Keepers.
+func ownerOf(acc string) (fi int, ok bool) {
+	if ref, found := strings.CutPrefix(acc, ownerFaction); found {
+		fi, err := strconv.Atoi(ref)
+		return fi, err == nil && fi >= 0
+	}
+	if strings.HasPrefix(acc, ownerKeepers+":") {
+		return econ.Keepers, true
+	}
+	return 0, false
+}
+
+// standingKey is the standing a faction's order, or an NPC's choice,
+// moves: the faction's, or for the keepers the settlement's.
+func standingKey(fi int, h hex.Hex) string {
+	if fi >= 0 {
+		return factionOwner(fi)
+	}
+	return standingPlace + h.Ref()
+}
+
+// parseStandingKey reads a standingKey back: a faction, or the keepers
+// (econ.Keepers) of a place.
+func parseStandingKey(key string) (fi int, place hex.Hex, ok bool) {
+	if ref, found := strings.CutPrefix(key, ownerFaction); found {
+		fi, err := strconv.Atoi(ref)
+		return fi, hex.Hex{}, err == nil && fi >= 0
+	}
+	if ref, found := strings.CutPrefix(key, standingPlace); found {
+		_, err := fmt.Sscanf(ref, "%d,%d", &place.Q, &place.R)
+		return econ.Keepers, place, err == nil
+	}
+	return 0, hex.Hex{}, false
+}
 
 func (g *Game) mp(id string) int64 { return g.r.Values.Param(id) }
 
-// ensureMarket makes the market the first time a game that has none acts,
-// with the faction orders of the current world day.
-func (g *Game) ensureMarket() error {
-	if g.Market != nil {
-		return nil
-	}
-	g.Market = &Market{Books: []*market.Book{}, Listings: []market.Listing{}, Wants: []market.Want{}, Faucet: faucet.New(g.r.Faucet),
+// newMarket is an empty market.
+func (g *Game) newMarket() *Market {
+	return &Market{Books: []*market.Book{}, Listings: []market.Listing{}, Wants: []market.Want{}, Faucet: faucet.New(g.r.Faucet),
 		Reports: []Report{}, Notable: []Trade{}, Yesterday: []Trade{}, Held: []Held{}, Week: newWeek(g.World.Day)}
-	return g.postFactionOrders(g.Tick())
 }
 
 // Settlements are the open starting settlements, in opening order.
 func (g *Game) Settlements() []hex.Hex {
 	out := make([]hex.Hex, g.World.Opened)
 	for i := range out {
-		out[i] = g.r.Gen.Settlement(i).Hex
+		out[i] = g.SettlementHex(i)
 	}
 	return out
 }
+
+// SettlementHex is the tile of a starting settlement by its index.
+func (g *Game) SettlementHex(n int) hex.Hex { return g.r.Gen.Settlement(n).Hex }
 
 // SettlementAt is the open settlement on a tile, or false.
 func (g *Game) SettlementAt(h hex.Hex) (int, bool) {
@@ -107,10 +146,10 @@ func (g *Game) SettlementAt(h hex.Hex) (int, bool) {
 	return 0, false
 }
 
-// HasMarket reports whether a tile is an open settlement with a market.
-func (g *Game) HasMarket(h hex.Hex) bool {
-	_, ok := g.SettlementAt(h)
-	return ok && g.HasStructure(h, structureMarket)
+// MarketAt is the open settlement with a market on a tile, or false.
+func (g *Game) MarketAt(h hex.Hex) (int, bool) {
+	n, ok := g.SettlementAt(h)
+	return n, ok && g.HasStructure(h, structureMarket)
 }
 
 // marketHere is the settlement whose market a character stands in.
@@ -118,11 +157,14 @@ func (g *Game) marketHere(c *Char) (int, error) {
 	if err := canTrade(c); err != nil {
 		return 0, err
 	}
-	if !g.HasMarket(c.C.At) {
+	n, ok := g.MarketAt(c.C.At)
+	if !ok {
 		return 0, refuse(NotHere, "there is no market here")
 	}
-	n, _ := g.SettlementAt(c.C.At)
-	return n, g.ensureMarket()
+	if g.Market == nil {
+		return 0, refuse(NotHere, "the market opens with the next world day")
+	}
+	return n, nil
 }
 
 // Book is a settlement's book for a material, made empty if need be.
@@ -161,41 +203,84 @@ func (g *Game) nextID(prefix string) (string, int64) {
 	return prefix + strconv.FormatInt(g.Market.Seq, decimal), g.Market.Seq
 }
 
-// assetOf is the ledger asset a book trades.
-func assetOf(material string) string {
-	if material == ledger.Provisions {
-		return ledger.Provisions
-	}
-	return ledger.Material(material)
-}
+// expiry is when an order, listing or gear order placed now runs out.
+func (g *Game) expiry() int64 { return g.Tick() + g.mp("order-days")*sheets.TicksPerDay }
 
+// tradable reports whether a material has books: provisions or a known
+// material.
 func (g *Game) tradable(material string) bool {
-	return material == ledger.Provisions || g.isMaterial(ledger.Material(material))
+	a := ledger.Goods(material)
+	return a == ledger.Provisions || g.isMaterial(a)
 }
 
-// OpenOrders counts a character's open orders, listings and gear orders.
-func (g *Game) OpenOrders(c *Char) int64 {
-	if g.Market == nil {
-		return 0
+// Kinds of open order besides a book's bids and asks.
+const (
+	OpenListing = "listing"
+	OpenWant    = "want"
+)
+
+// Open is one of an account's open orders, listings or gear orders.
+type Open struct {
+	ID         string
+	Owner      string
+	Kind       string // a book side, OpenListing or OpenWant
+	Settlement int
+	Material   string // a book's
+	ItemKind   string // a listing's item's, or a gear order's
+	Slot       string // a gear order's
+	Price      int64
+	Units      int64
+	Expires    int64
+	Escrow     int64 // coin held in escrow
+}
+
+// Open are an account's open orders, listings and gear orders, in that
+// order; an empty acc yields every open order.
+func (g *Game) Open(acc string) iter.Seq[Open] { return g.opens(acc, true) }
+
+// opens is Open, leaving Escrow 0 unless escrow is set.
+func (g *Game) opens(acc string, escrow bool) iter.Seq[Open] {
+	m := g.Market
+	coin := func(id string) int64 {
+		if !escrow {
+			return 0
+		}
+		return g.Ledger.Of(ledger.EscrowPool(id), ledger.Coin)
 	}
-	acc := ledger.Char(c.C.ID)
-	var n int64
-	for _, b := range g.Market.Books {
-		for _, o := range append(slices.Clone(b.Bids), b.Asks...) {
-			if o.Owner == acc {
-				n++
+	return func(yield func(Open) bool) {
+		if m == nil {
+			return
+		}
+		for _, b := range m.Books {
+			for o := range b.Orders() {
+				if (acc == "" || o.Owner == acc) && !yield(Open{ID: o.ID, Owner: o.Owner, Kind: string(o.Side), Settlement: b.Settlement, Material: b.Material, Price: o.Price, Units: o.Qty,
+					Expires: o.Expires, Escrow: coin(o.ID)}) {
+					return
+				}
+			}
+		}
+		for _, l := range m.Listings {
+			if (acc == "" || l.Seller == acc) && !yield(Open{ID: l.ID, Owner: l.Seller, Kind: OpenListing, Settlement: l.Settlement, ItemKind: l.Item.Kind, Price: l.Price, Units: 1,
+				Expires: l.Expires, Escrow: coin(l.ID)}) {
+				return
+			}
+		}
+		for _, w := range m.Wants {
+			if (acc == "" || w.Buyer == acc) && !yield(Open{ID: w.ID, Owner: w.Buyer, Kind: OpenWant, Settlement: w.Settlement, ItemKind: w.Kind, Slot: w.Slot, Price: w.Price, Units: 1,
+				Expires: w.Expires, Escrow: coin(w.ID)}) {
+				return
 			}
 		}
 	}
-	for _, l := range g.Market.Listings {
-		if l.Seller == acc {
-			n++
-		}
-	}
-	for _, w := range g.Market.Wants {
-		if w.Buyer == acc {
-			n++
-		}
+}
+
+// OpenOrders counts a character's open orders, listings and gear orders.
+func (g *Game) OpenOrders(c *Char) int64 { return count(g.opens(ledger.Char(c.C.ID), false)) }
+
+func count[T any](seq iter.Seq[T]) int64 {
+	var n int64
+	for range seq {
+		n++
 	}
 	return n
 }
@@ -226,37 +311,29 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 		}
 	}
 	acc := ledger.Char(c.C.ID)
-	asset := assetOf(cmd.Material)
-	b := g.Book(n, cmd.Material)
 	price := cmd.Price
 	if side == market.Bid && price == 0 {
-		if _, ask := b.Best(); ask > 0 {
-			price = b.Asks[len(b.Asks)-1].Price
-		}
+		price = sweep(g.BookOf(n, cmd.Material), acc, cmd.Units)
 	}
 	if side == market.Ask && price == 0 {
 		price = 1
 	}
-	id, seq := g.nextID("o-")
-	o := market.Order{ID: id, Owner: acc, Side: side, Price: price, Qty: cmd.Units, Placed: g.Tick(), Expires: g.Tick() + g.mp("order-days")*sheets.TicksPerDay, Seq: seq}
+	asset, units := ledger.Goods(cmd.Material), cmd.Units
 	if side == market.Bid {
-		coin, ok := times(o.Qty, o.Price)
+		coin, ok := times(units, price)
 		if !ok || coin == 0 {
 			return refuse(BadArgs, "nothing to buy at that price")
 		}
-		if have := g.balance(c, ledger.Coin); have < coin {
-			return refuse(BadArgs, "that takes %d coin in escrow; %s has %d coin", coin, c.C.ID, have)
-		}
-		if err := g.receive(c, ledger.Move(ledger.SubKey(cmd.Key, "escrow"), "escrow", g.Tick(), acc, EscrowOf(id), ledger.Coin, coin)); err != nil {
-			return err
-		}
-	} else {
-		if have := g.Ledger.Of(acc, asset); have < o.Qty {
-			return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, o.Qty, cmd.Material)
-		}
-		if err := g.receive(c, ledger.Move(ledger.SubKey(cmd.Key, "escrow"), "escrow", g.Tick(), acc, EscrowOf(id), asset, o.Qty)); err != nil {
-			return err
-		}
+		asset, units = ledger.Coin, coin
+	}
+	if err := g.afford(c, asset, cmd.Material, units); err != nil {
+		return err
+	}
+	b := g.Book(n, cmd.Material)
+	id, seq := g.nextID("o-")
+	o := market.Order{ID: id, Owner: acc, Side: side, Price: price, Qty: cmd.Units, Placed: g.Tick(), Expires: g.expiry(), Seq: seq}
+	if err := g.escrow(c, cmd.Key, id, asset, units); err != nil {
+		return err
 	}
 	b.Add(o)
 	if _, err := g.fact(c, "order.placed", g.Tick(), fact.S("material", cmd.Material), fact.S("side", string(side)), fact.N("units", o.Qty), fact.N("price", o.Price)); err != nil {
@@ -273,9 +350,54 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 	return nil
 }
 
-// unescrow gives everything an order's escrow holds back to its owner.
-func (g *Game) unescrow(id, owner, key string) error {
-	pool := EscrowOf(id)
+// sweep is the highest ask a take must reach to buy units from others'
+// asks, best first, or the farthest ask when they hold fewer; 0 for none.
+func sweep(b *market.Book, buyer string, units int64) int64 {
+	if b == nil {
+		return 0
+	}
+	var price int64
+	for _, o := range b.Asks {
+		if o.Owner == buyer {
+			continue
+		}
+		price = o.Price
+		if units -= o.Qty; units <= 0 {
+			break
+		}
+	}
+	return price
+}
+
+// afford refuses unless a character holds units of an asset to put in
+// escrow; what names a material for the refusal.
+func (g *Game) afford(c *Char, asset, what string, units int64) error {
+	have := g.balance(c, asset)
+	switch {
+	case have >= units:
+		return nil
+	case asset == ledger.Coin:
+		return refuse(BadArgs, "that takes %d coin in escrow; %s has %d coin", units, c.C.ID, have)
+	default:
+		return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, units, what)
+	}
+}
+
+// escrow moves units of an asset a character holds into an order's escrow.
+func (g *Game) escrow(c *Char, key, id, asset string, units int64) error {
+	return g.postAll(ledger.Move(ledger.SubKey(key, "escrow"), "escrow", g.Tick(), ledger.Char(c.C.ID), ledger.EscrowPool(id), asset, units))
+}
+
+// escrowItem moves an item from an account into a listing's escrow,
+// taking it from the character's pack when the account is one.
+func (g *Game) escrowItem(from, key, id string, in *item.Instance) error {
+	return g.postAll(ledger.Txn{Key: key, Kind: "escrow", Tick: g.Tick(), Legs: itemLegs(in, from, ledger.EscrowPool(id))}, in)
+}
+
+// unescrow gives everything an order's escrow holds back to its owner;
+// the item a listing escrows goes back into the owner's pack.
+func (g *Game) unescrow(id, owner, key string, moved ...*item.Instance) error {
+	pool := ledger.EscrowPool(id)
 	var legs []ledger.Leg
 	for _, x := range g.Ledger.Held(pool) {
 		legs = append(legs, ledger.Pair(pool, owner, x.Asset, x.Units)...)
@@ -283,12 +405,12 @@ func (g *Game) unescrow(id, owner, key string) error {
 	if len(legs) == 0 {
 		return nil
 	}
-	return g.postAll(ledger.Txn{Key: key, Kind: "escrow-back", Tick: g.Tick(), Legs: legs})
+	return g.postAll(ledger.Txn{Key: key, Kind: "escrow-back", Tick: g.Tick(), Legs: legs}, moved...)
 }
 
-// postAll posts a transaction and keeps every character it moves in step,
-// giving each a new version.
-func (g *Game) postAll(t ledger.Txn) error {
+// postAll posts a transaction and syncs each character it touches,
+// bumping its version; moved items follow their legs between packs.
+func (g *Game) postAll(t ledger.Txn, moved ...*item.Instance) error {
 	if err := g.post(t); err != nil {
 		return err
 	}
@@ -302,12 +424,24 @@ func (g *Game) postAll(t ledger.Txn) error {
 			}
 		}
 	}
+	for _, in := range moved {
+		for _, l := range t.Legs {
+			c := g.charOf(l.Account)
+			switch {
+			case c == nil || l.Asset != ledger.Item(in.ID):
+			case l.Units < 0:
+				c.C.Drop(in.ID)
+			default:
+				c.C.Pack = append(c.C.Pack, in)
+			}
+		}
+	}
 	return nil
 }
 
 // charOf is the character an account belongs to, or nil.
 func (g *Game) charOf(acc string) *Char {
-	id, ok := strings.CutPrefix(acc, ledger.Holder)
+	id, ok := ledger.CharOf(acc)
 	if !ok {
 		return nil
 	}
@@ -316,7 +450,7 @@ func (g *Game) charOf(acc string) *Char {
 
 // match fills a book and settles each fill.
 func (g *Game) match(b *market.Book, key string) error {
-	fills := market.Match(b, g.Tick(), func(bid, ask market.Order) bool { return g.mayNotTrade(b.Material, bid, ask) })
+	fills := market.Match(b, g.Tick(), func(bid, ask market.Order) bool { return g.mayNotTrade(b, bid, ask) })
 	for i, f := range fills {
 		if err := g.settle(b, f, ledger.SubKey(key, "fill", strconv.Itoa(i))); err != nil {
 			return err
@@ -325,76 +459,74 @@ func (g *Game) match(b *market.Book, key string) error {
 	return nil
 }
 
-// mayNotTrade passes over pairs that may not trade: an owner with itself,
-// a seller a faction will not buy from, and a young character past its
-// cap. A pair it lets through is the next fill.
-func (g *Game) mayNotTrade(material string, bid, ask market.Order) bool {
+// mayNotTrade reports a pair that may not trade: an owner with itself, a
+// seller the faction will not buy from, or a young character past its
+// cap (see capped, which counts what it lets through).
+func (g *Game) mayNotTrade(b *market.Book, bid, ask market.Order) bool {
 	if bid.Owner == ask.Owner {
 		return true
 	}
 	if bid.Faction != nil {
-		_, buys := g.r.Values.Standing(g.standingOf(ask.Owner, *bid.Faction, bid.Owner))
+		_, buys := g.factionPays(ask.Owner, *bid.Faction, b.Settlement, 0)
 		return !buys
 	}
-	return g.capped(material, bid, ask, market.Price(bid, ask), min(bid.Qty, ask.Qty))
+	return g.capped(b.Material, bid, ask, market.Price(bid, ask), min(bid.Qty, ask.Qty))
 }
 
-// factionKey is the standing a faction's order is priced by: the
-// faction's, or the keepers' settlement's.
-func (g *Game) factionKey(fi int, owner string) string {
-	if fi >= 0 {
-		return "faction:" + strconv.Itoa(fi)
+// factionPays is what a faction's bid of coin pays a seller at a
+// settlement after the seller's standing, or false where the faction will
+// not buy from it.
+func (g *Game) factionPays(seller string, fi, settlement int, coin int64) (int64, bool) {
+	var standing int64
+	if c := g.charOf(seller); c != nil {
+		standing = c.C.Standing.Get(standingKey(fi, g.SettlementHex(settlement)))
 	}
-	return "place:" + owner[len(ownerKeepers)+1:]
+	pct, buys := g.r.Values.Standing(standing)
+	return fixed.PercentPlus(coin, pct), buys
 }
 
 // settle moves one fill through the ledger: goods from the ask's escrow
 // to the buyer, coin from the bid's escrow (or the faucet) to the seller
 // less the fee, and any price improvement back to the buyer.
 func (g *Game) settle(b *market.Book, f market.Fill, key string) error {
-	t := g.Tick()
-	asset := assetOf(b.Material)
+	asset := ledger.Goods(b.Material)
 	seller, buyer := f.Ask.Owner, f.Bid.Owner
 	coin, ok := times(f.Qty, f.Price)
 	if !ok {
-		return refuse(BadArgs, "a fill overflows")
+		return fmt.Errorf("game: fill %s/%s overflows", f.Bid.ID, f.Ask.ID)
 	}
-	var legs []ledger.Leg
-	var standing int64
-	if f.Bid.Faction != nil {
-		pct, _ := g.r.Values.Standing(g.standingOf(seller, *f.Bid.Faction, f.Bid.Owner))
-		coin = fixed.PercentPlus(coin, pct)
-		legs = append(legs, ledger.Pair(EscrowOf(f.Ask.ID), ledger.ToFaction, asset, f.Qty)...)
-		legs = append(legs, ledger.Pair(ledger.FromFaction, seller, ledger.Coin, coin)...)
-		standing = coin
+	faction := f.Bid.Faction != nil
+	s := sale{payer: ledger.EscrowPool(f.Bid.ID), seller: seller, buyer: buyer, txn: "fill", kind: "market.filled", settlement: b.Settlement,
+		row: Trade{Material: b.Material, Units: f.Qty, Price: f.Price}, faction: faction}
+	standing := coin
+	if faction {
+		coin, _ = g.factionPays(seller, *f.Bid.Faction, b.Settlement, coin)
+		s.goods = ledger.Pair(ledger.EscrowPool(f.Ask.ID), ledger.ToFaction, asset, f.Qty)
+		s.payer, s.kind = ledger.FromFaction, "order.filled"
 	} else {
-		legs = append(legs, ledger.Pair(EscrowOf(f.Ask.ID), buyer, asset, f.Qty)...)
-		legs = append(legs, ledger.Pair(EscrowOf(f.Bid.ID), seller, ledger.Coin, coin)...)
-		if back := (f.Bid.Price - f.Price) * f.Qty; back > 0 {
-			legs = append(legs, ledger.Pair(EscrowOf(f.Bid.ID), buyer, ledger.Coin, back)...)
+		s.goods = ledger.Pair(ledger.EscrowPool(f.Ask.ID), buyer, asset, f.Qty)
+		s.back = max(0, (f.Bid.Price-f.Price)*f.Qty)
+	}
+	s.coin = coin
+	s.data = func(fee int64) []fact.Datum {
+		data := []fact.Datum{fact.S("material", b.Material), fact.N("units", f.Qty), fact.N("price", f.Price), fact.N("coin", coin), fact.N("fee", fee),
+			fact.N("settlement", int64(b.Settlement))}
+		if faction {
+			data = append(data, fact.N("faction", int64(*f.Bid.Faction)))
 		}
+		return data
 	}
-	fee := g.r.Values.Fee(coin)
-	if fee > 0 {
-		legs = append(legs, ledger.Pair(seller, ledger.ToFees, ledger.Coin, fee)...)
-	}
-	fid, err := g.tradeFact(b, f, coin, fee, seller, buyer)
+	_, fee, err := g.settleSale(s, key)
 	if err != nil {
 		return err
 	}
-	if err := g.postAll(ledger.Txn{Key: key, Kind: "fill", Tick: t, Fact: fid, Legs: ledger.Merge(legs)}); err != nil {
-		return err
-	}
 	b.Record(f)
-	g.Market.Week.fill(b.Material, f.Qty, coin, f.Bid.Faction != nil)
-	g.Market.Week.Fees += fee
-	g.notable(Trade{Settlement: b.Settlement, Tick: t, Material: b.Material, Units: f.Qty, Price: f.Price, Buyer: buyer, Seller: seller, Fact: int64(fid)})
 	if c := g.charOf(seller); c != nil {
 		c.C.Earned.Bump("market", coin-fee)
-		if f.Bid.Faction != nil {
-			g.soldTo(c, g.factionKey(*f.Bid.Faction, f.Bid.Owner), standing)
+		if faction {
+			g.soldTo(c, standingKey(*f.Bid.Faction, g.SettlementHex(b.Settlement)), standing)
 			c.C.Earned.Bump("faction-order", coin-fee)
-			if err := g.traded(c, b.Material, t); err != nil {
+			if err := g.traded(c, g.SettlementHex(b.Settlement), b.Material, g.Tick()); err != nil {
 				return err
 			}
 		}
@@ -402,33 +534,81 @@ func (g *Game) settle(b *market.Book, f market.Fill, key string) error {
 	return nil
 }
 
-// tradeFact writes the fill as a fact about the characters in it.
-func (g *Game) tradeFact(b *market.Book, f market.Fill, coin, fee int64, seller, buyer string) (fact.ID, error) {
-	data := []fact.Datum{fact.S("material", b.Material), fact.N("units", f.Qty), fact.N("price", f.Price), fact.N("coin", coin), fact.N("fee", fee),
-		fact.N("settlement", int64(b.Settlement))}
-	if f.Bid.Faction != nil {
-		data = append(data, fact.N("faction", int64(*f.Bid.Faction)))
-	}
-	var subjects []fact.Ref
-	for _, acc := range []string{seller, buyer} {
-		if c := g.charOf(acc); c != nil {
-			subjects = append(subjects, char.Ref(c.C.ID))
-		}
-	}
-	kind := "market.filled"
-	if f.Bid.Faction != nil {
-		kind = "order.filled"
-	}
-	return g.worldFact(g.r.Gen.Settlement(b.Settlement).Hex, kind, subjects, nil, data...)
+// sale is one sale to settle: its goods legs, coin from payer to seller,
+// any price improvement (back) from payer to buyer, and the fact and
+// trade row it writes.
+type sale struct {
+	goods                []ledger.Leg
+	payer, seller, buyer string
+	coin, back           int64
+	txn, kind            string // the transaction's kind and the fact's
+	settlement           int
+	data                 func(fee int64) []fact.Datum
+	row                  Trade
+	faction              bool
+	item                 *item.Instance // an item the goods' legs move
 }
 
-// standingOf is a seller's standing with the faction behind a bid.
-func (g *Game) standingOf(seller string, fi int, owner string) int64 {
-	c := g.charOf(seller)
-	if c == nil {
-		return 0
+// settleSale posts a sale less the seller's fee, writes its fact and
+// books it.
+func (g *Game) settleSale(s sale, key string) (fact.ID, int64, error) {
+	fee := g.r.Values.Fee(s.coin)
+	legs := append(slices.Clone(s.goods), ledger.Pair(s.payer, s.seller, ledger.Coin, s.coin)...)
+	if s.back > 0 {
+		legs = append(legs, ledger.Pair(s.payer, s.buyer, ledger.Coin, s.back)...)
 	}
-	return c.C.Standing.Get(g.factionKey(fi, owner))
+	legs = append(legs, feeLegs(s.seller, fee)...)
+	fid, err := g.worldFact(g.SettlementHex(s.settlement), s.kind, g.traders(s.seller, s.buyer), nil, s.data(fee)...)
+	if err != nil {
+		return 0, 0, err
+	}
+	var moved []*item.Instance
+	if s.item != nil {
+		moved = append(moved, s.item)
+	}
+	if err := g.postAll(ledger.Txn{Key: key, Kind: s.txn, Tick: g.Tick(), Fact: fid, Legs: ledger.Merge(legs)}, moved...); err != nil {
+		return 0, 0, err
+	}
+	row := s.row
+	row.Settlement, row.Tick, row.Buyer, row.Seller, row.Fact = s.settlement, g.Tick(), s.buyer, s.seller, int64(fid)
+	g.booked(row, s.coin, fee, s.faction)
+	return fid, fee, nil
+}
+
+// traders are the characters among accounts, as fact subjects.
+func (g *Game) traders(accs ...string) []fact.Ref {
+	var out []fact.Ref
+	for _, acc := range accs {
+		if c := g.charOf(acc); c != nil {
+			out = append(out, char.Ref(c.C.ID))
+		}
+	}
+	return out
+}
+
+// feeLegs take a fill's fee from its seller.
+func feeLegs(seller string, fee int64) []ledger.Leg {
+	if fee <= 0 {
+		return nil
+	}
+	return ledger.Pair(seller, ledger.ToFees, ledger.Coin, fee)
+}
+
+// booked counts a settled trade into the week, coin being what the buyer
+// paid, and keeps it if notable.
+func (g *Game) booked(t Trade, coin, fee int64, faction bool) {
+	w := &g.Market.Week
+	if t.Material != "" {
+		w.traded(t.Material, t.Units)
+	}
+	switch {
+	case faction:
+		w.faucet(coin)
+	case g.charOf(t.Buyer) != nil && g.charOf(t.Seller) != nil:
+		w.between(coin)
+	}
+	w.fee(fee)
+	g.notable(t)
 }
 
 // soldTo raises standing by one for each standing-coin of coin sold to a
@@ -443,58 +623,81 @@ func (g *Game) soldTo(c *Char, key string, coin int64) {
 	}
 }
 
-// withdraw takes back an open order, listing or gear order of a
-// character's, by id.
+// withdraw takes back one of a character's open orders, listings or gear
+// orders by id. The character must stand in that order's settlement, so
+// withdrawing never moves escrow across the map.
 func (g *Game) withdraw(c *Char, cmd Command) error {
-	if err := canTrade(c); err != nil {
+	n, err := g.marketHere(c)
+	if err != nil {
 		return err
 	}
-	if g.Market == nil {
-		return refuse(BadArgs, "no open order %q", cmd.Item)
-	}
-	acc := ledger.Char(c.C.ID)
-	for _, b := range g.Market.Books {
-		for _, o := range append(slices.Clone(b.Bids), b.Asks...) {
-			if o.ID == cmd.Item && o.Owner == acc {
-				b.Remove(o.ID)
-				return g.unescrow(o.ID, acc, cmd.Key)
-			}
+	for o := range g.opens(ledger.Char(c.C.ID), false) {
+		if o.ID != cmd.Item {
+			continue
 		}
-	}
-	if i := slices.IndexFunc(g.Market.Listings, func(l market.Listing) bool { return l.ID == cmd.Item && l.Seller == acc }); i >= 0 {
-		return g.unlist(i, cmd.Key)
-	}
-	if i := slices.IndexFunc(g.Market.Wants, func(w market.Want) bool { return w.ID == cmd.Item && w.Buyer == acc }); i >= 0 {
-		w := g.Market.Wants[i]
-		g.Market.Wants = slices.Delete(g.Market.Wants, i, i+1)
-		return g.unescrow(w.ID, acc, cmd.Key)
+		if o.Settlement != n {
+			return refuse(NotHere, "that order stands in %s; withdraw it there", g.PlaceName(g.SettlementHex(o.Settlement)))
+		}
+		return g.closeOrder(o, cmd.Key)
 	}
 	return refuse(BadArgs, "no open order %q", cmd.Item)
 }
 
-// Budget is what the faucet spends at each open settlement today.
+// closeOrder takes an open order down and gives its escrow back to its owner;
+// a trader's listing leaves the market instead.
+func (g *Game) closeOrder(o Open, key string) error {
+	m := g.Market
+	switch o.Kind {
+	case OpenListing:
+		l, _ := m.takeListing(o.ID)
+		if _, ok := ledger.NPCOf(l.Seller); ok {
+			return g.retire(l, key)
+		}
+		return g.unescrow(o.ID, o.Owner, key, l.Item)
+	case OpenWant:
+		m.takeWant(o.ID)
+	default:
+		if b := g.BookOf(o.Settlement, o.Material); b != nil {
+			b.Remove(o.ID)
+		}
+	}
+	return g.unescrow(o.ID, o.Owner, key)
+}
+
+// takeListing removes a listing by id.
+func (m *Market) takeListing(id string) (market.Listing, bool) {
+	i := slices.IndexFunc(m.Listings, func(l market.Listing) bool { return l.ID == id })
+	if i < 0 {
+		return market.Listing{}, false
+	}
+	l := m.Listings[i]
+	m.Listings = slices.Delete(m.Listings, i, i+1)
+	return l, true
+}
+
+// takeWant removes a gear order by id.
+func (m *Market) takeWant(id string) (market.Want, bool) {
+	i := slices.IndexFunc(m.Wants, func(w market.Want) bool { return w.ID == id })
+	if i < 0 {
+		return market.Want{}, false
+	}
+	w := m.Wants[i]
+	m.Wants = slices.Delete(m.Wants, i, i+1)
+	return w, true
+}
+
 // Budgets are what the faucet spends at each open settlement today: the
 // floor's worth of characters each, plus each active character's share at
 // the settlement it last stood in, so coin enters where people trade and
 // a settlement nobody plays from still has buyers for a hauler.
 func (g *Game) Budgets() []int64 {
-	since := g.Tick() - g.mp("active-days")*sheets.TicksPerDay
 	weight := make([]int64, g.World.Opened)
 	for i := range weight {
 		weight[i] = g.r.Faucet.Floor
 	}
-	for _, c := range g.Chars {
-		if c.Acted < since || c.Banned {
-			continue
-		}
-		last := Visit{Settlement: -1, Tick: -1}
-		for _, v := range c.Visits {
-			if v.Tick > last.Tick && v.Settlement < len(weight) {
-				last = v
-			}
-		}
-		if last.Settlement >= 0 {
-			weight[last.Settlement]++
+	for c := range g.activeChars() {
+		if v, ok := c.lastVisit(); ok && v.Settlement < len(weight) {
+			weight[v.Settlement]++
 		}
 	}
 	out := make([]int64, len(weight))
@@ -505,10 +708,7 @@ func (g *Game) Budgets() []int64 {
 }
 
 // Active counts characters that acted within active-days.
-func (g *Game) Active() int64 {
-	_, n := g.ActiveCoin()
-	return n
-}
+func (g *Game) Active() int64 { return count(g.activeChars()) }
 
 // buyers are the world's factions as their orders see them.
 func (g *Game) buyers() []econ.Buyer {
@@ -537,6 +737,10 @@ func (g *Game) postFactionOrders(t int64) error {
 	}
 	budgets := g.Budgets()
 	wants := g.r.Values.Wants(g.buyers())
+	shares := make([]faucet.Share, len(wants))
+	for i, w := range wants {
+		shares[i] = faucet.Share{Urgency: w.Urgency, Price: w.Price}
+	}
 	m.Trader = make([]int64, g.World.Opened)
 	for n, h := range g.Settlements() {
 		if !g.HasStructure(h, structureMarket) {
@@ -545,15 +749,15 @@ func (g *Game) postFactionOrders(t int64) error {
 		budget := budgets[n]
 		trader := fixed.PercentFloor(budget, g.mp("trader-share"))
 		m.Trader[n] = trader
-		qty := faucet.Plan(budget-trader, wants)
+		qty := faucet.Plan(budget-trader, shares)
 		for i, w := range wants {
 			if qty[i] == 0 {
 				continue
 			}
 			fi := w.Buyer
-			owner := ownerFaction + strconv.Itoa(fi)
+			owner := factionOwner(fi)
 			if fi == econ.Keepers {
-				owner = ownerKeepers + ":" + h.Ref()
+				owner = keepersOwner(h)
 			}
 			id, seq := g.nextID("f-")
 			b := g.Book(n, w.Material)

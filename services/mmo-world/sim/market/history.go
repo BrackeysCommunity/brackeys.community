@@ -70,12 +70,46 @@ func (b *Book) Change(days int) (int64, bool) {
 		return 0, false
 	}
 	i := max(0, len(b.Days)-days)
-	was := b.Days[i].Close
-	if was == 0 {
-		return 0, false
-	}
-	return fixed.Ratio((b.Last-was)*percent, was).Int(), true
+	return pctChange(b.Last, b.Days[i].Close)
 }
 
-// structural: a change is in per cent.
-const percent = 100
+// ClosedChange is the change in per cent of the last day's close against
+// the day before's, and false without both.
+func (b *Book) ClosedChange() (int64, bool) {
+	n := len(b.Days)
+	if n <= 1 {
+		return 0, false
+	}
+	return pctChange(b.Days[n-1].Close, b.Days[n-1-1].Close)
+}
+
+// pctChange is now against was in per cent, and false without both.
+func pctChange(now, was int64) (int64, bool) {
+	if was == 0 || now == 0 {
+		return 0, false
+	}
+	return fixed.Ratio((now-was)*fixed.Hundredths, was).Int(), true
+}
+
+// Cause is the newest cause among the last days, or 0.
+func (b *Book) Cause(days int) int64 {
+	for i := len(b.Days) - 1; i >= max(0, len(b.Days)-days); i-- {
+		if c := b.Days[i].Cause; c != 0 {
+			return c
+		}
+	}
+	return 0
+}
+
+// Traded is the units and coin traded over the last days closed, and
+// today with today set.
+func (b *Book) Traded(days int, today bool) (units, coin int64) {
+	if today {
+		units, coin = b.Today.Units, b.Today.Coin
+	}
+	for _, d := range b.Days[max(0, len(b.Days)-days):] {
+		units += d.Units
+		coin += d.Coin
+	}
+	return units, coin
+}

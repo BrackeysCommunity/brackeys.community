@@ -1,5 +1,5 @@
 import { CondDown } from "./api.ts";
-import type { World } from "./world.ts";
+import type { World, WorldReply } from "./world.ts";
 
 /**
  * A World that keeps a sample of every read it passes on, for the card
@@ -11,6 +11,13 @@ export function recording(world: World, samples: Record<string, unknown>): World
     samples[name] = v;
     return v;
   };
+  const keepOk =
+    <A extends unknown[], T>(name: string, f: (...a: A) => Promise<WorldReply<T>>) =>
+    async (...a: A): Promise<WorldReply<T>> => {
+      const result = await f(...a);
+      if (result.ok) keep(name, result.reply);
+      return result;
+    };
   return {
     ...world,
     act: async (req) => keep(`act:${req.kind}`, await world.act(req)),
@@ -25,38 +32,18 @@ export function recording(world: World, samples: Record<string, unknown>): World
     sheet: async (id) => keep("sheet", await world.sheet(id)),
     here: async (id) => keep("here", await world.here(id)),
     map: async (id, r) => keep("map", await world.map(id, r)),
-    appraise: async (req) => {
-      const result = await world.appraise(req);
-      if (result.ok) keep("appraise", result.reply);
-      return result;
-    },
+    appraise: keepOk("appraise", world.appraise),
     recipes: async (id) => keep("recipes", await world.recipes(id)),
     recap: async (id) => {
       const r = await world.recap(id);
       if (r.lines.length) samples.recap = r;
       return r;
     },
-    npc: async (id, n) => {
-      const result = await world.npc(id, n);
-      if (result.ok) keep("npc", result.reply);
-      return result;
-    },
+    npc: keepOk("npc", world.npc),
     lexicon: async () => keep("lexicon", await world.lexicon()),
-    market: async (id, m) => {
-      const result = await world.market(id, m);
-      if (result.ok) keep("market", result.reply);
-      return result;
-    },
-    history: async (id, m) => {
-      const result = await world.history(id, m);
-      if (result.ok) keep("history", result.reply);
-      return result;
-    },
-    routeRisk: async (id, to) => {
-      const result = await world.routeRisk(id, to);
-      if (result.ok) keep("routeRisk", result.reply);
-      return result;
-    },
+    market: keepOk("market", world.market),
+    history: keepOk("history", world.history),
+    routeRisk: keepOk("routeRisk", world.routeRisk),
     forum: async () => keep("forum", await world.forum()),
   };
 }

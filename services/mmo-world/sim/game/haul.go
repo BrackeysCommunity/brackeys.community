@@ -1,8 +1,6 @@
 package game
 
 import (
-	"slices"
-
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
@@ -10,15 +8,16 @@ import (
 
 // riskBand is the route-risk band of entering a tile (GDD 10.7): by its
 // region's threat or a gauge line it is past, raised one band by cover.
-// Where nothing lives there is no band.
-func (g *Game) riskBand(h hex.Hex) (sheets.RouteRisk, bool) {
+// Where nothing lives there is no band. It returns the band's index too,
+// the sheet's order being safest first.
+func (g *Game) riskBand(h hex.Hex) (sheets.RouteRisk, int, bool) {
 	bands := g.r.Book.RouteRisks
 	if len(bands) == 0 || len(g.r.Gen.Creatures(h)) == 0 {
-		return sheets.RouteRisk{}, false
+		return sheets.RouteRisk{}, 0, false
 	}
 	threat, ok := g.World.GaugeAt(h, gaugeThreat)
 	if !ok {
-		return sheets.RouteRisk{}, false
+		return sheets.RouteRisk{}, 0, false
 	}
 	i := 0
 	for j, b := range bands {
@@ -29,7 +28,7 @@ func (g *Game) riskBand(h hex.Hex) (sheets.RouteRisk, bool) {
 	if i > 0 && g.r.Gen.Baseline(h).Cover >= g.mp("cover-raise") {
 		i = min(i+1, len(bands)-1)
 	}
-	return bands[i], true
+	return bands[i], i, true
 }
 
 // structural: route risk reads the threat gauge.
@@ -57,13 +56,13 @@ func (g *Game) RouteRisk(c *Char, route []hex.Hex) Risk {
 	var r Risk
 	worst := -1
 	for _, h := range route {
-		b, ok := g.riskBand(h)
+		b, i, ok := g.riskBand(h)
 		if !ok || b.Chance == 0 {
 			continue
 		}
 		r.Tiles = append(r.Tiles, TileRisk{Hex: h, Band: b.Name, Chance: b.Chance})
 		r.Expected = r.Expected.Add(b.Chance)
-		if i := slices.IndexFunc(g.r.Book.RouteRisks, func(x sheets.RouteRisk) bool { return x.ID == b.ID }); i > worst {
+		if i > worst {
 			worst, r.Worst = i, b.Name
 		}
 	}

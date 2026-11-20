@@ -401,7 +401,7 @@ func (g *Game) provision(c *Char, t int64) error {
 // ambushed draws whether entering a tile springs an ambush, at its
 // route-risk band's chance (GDD 10.7).
 func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
-	b, ok := g.riskBand(h)
+	b, _, ok := g.riskBand(h)
 	if !ok || b.Chance == 0 {
 		return false
 	}

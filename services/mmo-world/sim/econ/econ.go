@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"slices"
 
-	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -78,8 +77,8 @@ func (v *Values) Kind(reg item.Registry, k *item.Kind) int64 {
 // keepers, so a new character can always sell a haul.
 const Keepers = -1
 
-// Buyer is a faction as its orders see it: its archetype, what it needs by
-// tag, the need at which a tag is most urgent, and whether it is at war.
+// Buyer is a faction as its orders see it. Full is the need at which a
+// tag is most urgent; a Gone faction buys nothing.
 type Buyer struct {
 	Archetype string
 	Needs     map[string]int64
@@ -88,15 +87,23 @@ type Buyer struct {
 	Gone      bool
 }
 
-// Wants are what a settlement's buyers order each world day (GDD 10.4):
-// every material, from the faction that wants it most urgently (the first
-// in world order on a tie), else the keepers, and provisions from the
-// first faction that buys them; each at its reference value times its
-// urgency.
-func (v *Values) Wants(buyers []Buyer) []faucet.Want {
-	var out []faucet.Want
+// Want is one material a buyer at a settlement wants, at a price each,
+// with the urgency that weighs its share of the budget.
+type Want struct {
+	Material string
+	Buyer    int   // a faction index, or Keepers
+	Urgency  int64 // percent, 100 for no special need
+	Price    int64
+}
+
+// Wants are a settlement's buy orders for the world day (GDD 10.4): each
+// material from the faction that wants it most (first on a tie) or else
+// the keepers, provisions from the first faction that buys them, each
+// priced at reference value times urgency.
+func (v *Values) Wants(buyers []Buyer) []Want {
+	var out []Want
 	for _, m := range v.sorted {
-		w := faucet.Want{Material: m.ID, Buyer: Keepers, Urgency: hundred}
+		w := Want{Material: m.ID, Buyer: Keepers, Urgency: fixed.Hundredths}
 		for fi, b := range buyers {
 			if u, ok := v.urgency(b, m.Tags); ok && (w.Buyer == Keepers || u > w.Urgency) {
 				w.Buyer, w.Urgency = fi, u
@@ -107,7 +114,7 @@ func (v *Values) Wants(buyers []Buyer) []faucet.Want {
 	}
 	for fi, b := range buyers {
 		if u, ok := v.urgency(b, []string{ledger.Provisions}); ok {
-			out = append(out, faucet.Want{Material: ledger.Provisions, Buyer: fi, Urgency: u, Price: fixed.PercentOf(v.Param("provisions-value"), u)})
+			out = append(out, Want{Material: ledger.Provisions, Buyer: fi, Urgency: u, Price: fixed.PercentOf(v.Asset(ledger.Provisions), u)})
 			break
 		}
 	}
@@ -127,9 +134,9 @@ func (v *Values) urgency(b Buyer, tagList []string) (int64, bool) {
 			continue
 		}
 		buys = true
-		u := int64(hundred)
+		u := int64(fixed.Hundredths)
 		if b.Full > 0 {
-			u += (v.Param("urgency-max") - hundred) * min(b.Needs[t], b.Full) / b.Full
+			u += (v.Param("urgency-max") - fixed.Hundredths) * min(b.Needs[t], b.Full) / b.Full
 		}
 		if b.AtWar && t == tagBlade {
 			u += v.Param("war-urgency")
@@ -139,12 +146,8 @@ func (v *Values) urgency(b Buyer, tagList []string) (int64, bool) {
 	return best, buys
 }
 
-// structural: urgency is in percent of reference; a faction at war wants
-// blades (GDD 10.4).
-const (
-	hundred  = 100
-	tagBlade = "blade"
-)
+// structural: a faction at war wants blades (GDD 10.4).
+const tagBlade = "blade"
 
 // Standing is what a character's standing with a faction does to its
 // orders: the per cent added to the price, or false where it will not buy.
@@ -158,15 +161,24 @@ func (v *Values) Standing(standing int64) (price int64, buys bool) {
 	return price, buys
 }
 
-// Fee is a faction order's fee on a fill, rounded up so splitting a sale
-// never pays less than making it whole.
-func (v *Values) Fee(coin int64) int64 { return -fixed.PercentFloor(-coin, v.FeePercent()) }
+// Fee is the fee on a fill, from the seller, rounded up so splitting a
+// sale never pays less than making it whole.
+func (v *Values) Fee(coin int64) int64 { return fixed.PercentCeil(coin, v.FeePercent()) }
 
-// FeePercent is a faction order's fee, as a percent of the fill.
+// FeePercent is the fee as a percent of the fill.
 func (v *Values) FeePercent() int64 { return v.Param("fill-fee") }
 
 // GoalFee is a goal's listing fee (GDD 10.2): a share of its reward,
-// rounded up, and never under the least fee. Goals post it from MM6.
+// rounded up, and never under the least fee.
 func (v *Values) GoalFee(reward int64) int64 {
-	return max(v.Param("goal-fee-min"), -fixed.PercentFloor(-reward, v.Param("goal-fee")))
+	return max(v.Param("goal-fee-min"), fixed.PercentCeil(reward, v.Param("goal-fee")))
+}
+
+// Asset is a tradable asset's reference value each: provisions', or a
+// material's.
+func (v *Values) Asset(material string) int64 {
+	if material == ledger.Provisions {
+		return v.Param("provisions-value")
+	}
+	return v.Material(material)
 }

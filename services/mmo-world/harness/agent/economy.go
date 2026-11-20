@@ -5,9 +5,10 @@ import (
 	"sync"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/hex"
 )
 
-// Roles an Earner plays in the Economy run (plan 04's soak population).
+// Roles an Earner plays in the Economy run.
 const (
 	Gatherer   = "gatherer"   // works nodes near home and sells to the best bids
 	Crafter    = "crafter"    // gathers, makes tools and lists them
@@ -17,11 +18,9 @@ const (
 	Casual     = "casual"     // plays a short session every few days
 )
 
-// Earner is a player of the economy: it walks out from a market to work
-// the nodes, comes back to sell, keeps itself provisioned and its tool
-// whole, and spends what it holds over its comfort: on a mount, on
-// provisions for a longer trip, on repairs, and on making things. Its role
-// decides the rest.
+// Earner is a scripted player of the economy: it works nodes out from a
+// market, sells, keeps provisioned and repaired, and spends over its
+// comfort as its role decides.
 type Earner struct {
 	Role      string
 	BandOrder []string
@@ -48,14 +47,14 @@ type trip struct {
 
 // structural: the shape of an earner's day.
 const (
-	tripTiles       = 3  // tiles out before it works
-	tripGathers     = 3  // gathers before it heads back
-	provisionsFloor = 12 // provisions it keeps
-	repairShare     = 40 // per cent of durability under which it repairs
-	listMarkup      = 120
-	bidUnder        = 85
-	askOver         = 115
-	speculatorOpen  = 4
+	tripTiles       = 3   // tiles out before it works, and provisions under which it forages
+	tripGathers     = 3   // gathers, and forages, a trip makes before it heads back
+	provisionsFloor = 12  // provisions it keeps
+	repairShare     = 40  // per cent of durability under which it repairs
+	listMarkup      = 120 // per cent of value a crafter lists at
+	bidUnder        = 85  // per cent of value a speculator bids
+	askOver         = 115 // per cent of value it asks
+	speculatorOpen  = 4   // orders a speculator keeps open
 	hundred         = 100
 )
 
@@ -194,13 +193,12 @@ func (e *Earner) role(o api.Options, d *Dice) (api.ActionRequest, bool) {
 	return api.ActionRequest{}, false
 }
 
-// structural: what a crafter keeps back and pays to make a tool, and the
-// most a speculator bids for.
+// structural: what crafters and speculators trade.
 const (
 	craftQty        = 2
 	craftFee        = 8
-	speculatorUnits = 5
-	crafterOpen     = 6
+	speculatorUnits = 5 // units per speculator bid
+	crafterOpen     = 6 // listings a crafter keeps open
 )
 
 // away walks out, works the nodes, and turns back when laden, short of
@@ -244,12 +242,12 @@ func (e *Earner) away(o api.Options, t *trip, d *Dice) (api.ActionRequest, bool)
 	return step(o, d)
 }
 
-// structural: how often a hauler takes its haul to the farthest market,
-// and the spare coin that takes an earner one tile farther out.
+// structural: how far an earner goes and how often a hauler takes its
+// haul to the farthest market.
 const (
 	haulShare   = 50
-	coinPerTile = 40
-	farthest    = 15
+	coinPerTile = 40 // spare coin that takes an earner one tile farther
+	farthest    = 15 // most tiles out an earner goes
 )
 
 // reach is how far out an earner goes before it works: farther the more
@@ -289,11 +287,8 @@ func toward(o api.Options, to api.Hex) (api.ActionRequest, bool) {
 }
 
 func hexDistance(a, b api.Hex) int64 {
-	dq, dr := a.Q-b.Q, a.R-b.R
-	return (abs64(dq) + abs64(dr) + abs64(dq+dr)) / 2
+	return hex.Distance(hex.Hex{Q: a.Q, R: a.R}, hex.Hex{Q: b.Q, R: b.R})
 }
-
-func abs64(n int64) int64 { return max(n, -n) }
 
 // unsold rests an ask at reference value for the largest good nobody here
 // is buying today, or just looks in: a player with a full pack and no

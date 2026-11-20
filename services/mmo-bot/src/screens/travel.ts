@@ -5,7 +5,6 @@ import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, plural, ticks } from "../units.ts";
 import { back, btn, conditionsField, DIRECTIONS, PRIVATE, timeLeft } from "./common.ts";
-import { riskField } from "./market.ts";
 
 /** The map view and travel: a crop with fog and weather, six directions, go-to (GDD 6.1, 16.4). */
 export function travelCard(
@@ -69,7 +68,17 @@ export function travelCard(
       value: `${amount(o.long.route?.length ?? 0, "tiles")} left, arriving in ${ticks(timeLeft(o))}`,
     });
   }
-  if (risk) fields.push(riskField(risk, o.long?.kind === "travel" ? "this road" : "the road home"));
+  if (risk)
+    fields.push(
+      riskField(
+        risk,
+        o.long?.kind === "travel"
+          ? "this road"
+          : risk.to
+            ? `the road to ${risk.to}`
+            : "the road to market",
+      ),
+    );
   return {
     context: PRIVATE,
     author: o.long?.kind === "travel" ? "Travel · on the road" : "Travel · the map",
@@ -83,5 +92,15 @@ export function travelCard(
     footer: "Each tile entered is a fact: the recap tells where the journey went.",
     rows,
     modifiers: true,
+  };
+}
+
+/** A route's danger and the haul it puts at risk (GDD 10.7), as a field for the travel card. */
+export function riskField(r: api.RouteRisk, road: string): { name: string; value: string } {
+  return {
+    name: `Route risk on ${road}`,
+    value: r.tiles.length
+      ? `Worst odds of an ambush: ${r.worst}, over ${plural(r.tiles.length, "tile")}; expect ${(r.expected / 100).toFixed(1)} ambushes. Lost, your haul costs ${amount(r.haul, "coin")}.`
+      : `No ambush ground on the way; your haul is worth ${amount(r.haul, "coin")}.`,
   };
 }

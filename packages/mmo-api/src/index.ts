@@ -420,7 +420,7 @@ export interface Purse {
   market: boolean; // standing in a market
   provision: number /* int64 */; // coin a provision costs here, 0 where none are sold
   quotes?: Quote[];
-  open: number /* int64 */; // open orders held
+  open: number /* int64 */; // open orders, listings and gear orders held
   markets: Hex[];
   items: Worn[]; // carried, not worn
   mounted: boolean;
@@ -681,13 +681,13 @@ export interface Market {
   mine: Mine;
   report?: Report;
   fee: number /* int64 */; // per cent of each fill, from the seller
-  limit: number /* int64 */; // open orders a character may hold
+  limit: number /* int64 */; // open orders, listings and gear orders a character may hold
   days: number /* int64 */; // world days an order lasts
   perPoint: number /* int64 */; // coin sold to a faction for each standing point
   banner: string;
 }
 /**
- * BookView is one book: the best five each side.
+ * BookView is one book: its best levels each side.
  */
 export interface BookView {
   material: string;
@@ -775,7 +775,7 @@ export interface Mine {
   cap: number /* int64 */;
 }
 /**
- * Open is one of a character's open orders or listings.
+ * Open is one of a character's open orders, listings or gear orders.
  */
 export interface Open {
   id: string;
@@ -793,6 +793,7 @@ export interface Entry {
   tick: number /* int64 */;
   kind: string;
   asset: string;
+  goods?: string; // the material or provisions moved; empty for coin or an item
   units: number /* int64 */;
 }
 /**
@@ -810,7 +811,7 @@ export interface Report {
   faucet: number /* int64 */;
   fees: number /* int64 */;
   top: Goods[];
-  staged: number /* int64 */;
+  every: number /* int64 */; // world days between reports
   audit: number /* int */;
   chart?: string;
 }
@@ -833,8 +834,8 @@ export interface PricePt {
   cause?: string;
 }
 /**
- * Forum is each settlement's notable trades of a world day, for the
- * market forum (GDD 17.2).
+ * Forum is each settlement's notable trades and movers of a world day,
+ * for the market forum (GDD 17.2).
  */
 export interface Forum {
   day: number /* int64 */;
@@ -863,6 +864,7 @@ export interface Trade {
  * RouteRisk is a route's danger and the haul it puts at risk (GDD 10.7).
  */
 export interface RouteRisk {
+  to?: string;
   tiles: TileRisk[];
   expected: number /* int64 */; // hundredths of an ambush
   worst: string;

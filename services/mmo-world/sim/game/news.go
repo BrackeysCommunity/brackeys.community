@@ -13,13 +13,38 @@ type Visit struct {
 	Tick       int64 `json:"tick"`
 }
 
+// visitIndex is where a character's visit to a settlement is kept, or -1.
+func (c *Char) visitIndex(n int) int {
+	return slices.IndexFunc(c.Visits, func(v Visit) bool { return v.Settlement == n })
+}
+
+// visit is a character's last visit to a settlement, or false.
+func (c *Char) visit(n int) (Visit, bool) {
+	i := c.visitIndex(n)
+	if i < 0 {
+		return Visit{}, false
+	}
+	return c.Visits[i], true
+}
+
+// lastVisit is the settlement a character last stood in, or false.
+func (c *Char) lastVisit() (Visit, bool) {
+	last, ok := Visit{}, false
+	for _, v := range c.Visits {
+		if !ok || v.Tick > last.Tick {
+			last, ok = v, true
+		}
+	}
+	return last, ok
+}
+
 // visited notes a character standing in a settlement now.
 func (g *Game) visited(c *Char, h hex.Hex, t int64) {
 	n, ok := g.SettlementAt(h)
 	if !ok {
 		return
 	}
-	i := slices.IndexFunc(c.Visits, func(v Visit) bool { return v.Settlement == n })
+	i := c.visitIndex(n)
 	if i < 0 {
 		c.Visits = append(c.Visits, Visit{Settlement: n})
 		i = len(c.Visits) - 1
@@ -53,8 +78,8 @@ func (g *Game) Elsewhere(c *Char, material string) []Far {
 		if _, ticks, ok := g.Route(c, h); ok {
 			f.AsOf, f.Known = max(0, t-ticks), true
 		}
-		if i := slices.IndexFunc(c.Visits, func(v Visit) bool { return v.Settlement == n }); i >= 0 && (!f.Known || c.Visits[i].Tick > f.AsOf) {
-			f.AsOf, f.Own, f.Known = c.Visits[i].Tick, true, true
+		if v, ok := c.visit(n); ok && (!f.Known || v.Tick > f.AsOf) {
+			f.AsOf, f.Own, f.Known = v.Tick, true, true
 		}
 		if f.Known {
 			if b := g.BookOf(n, material); b != nil {

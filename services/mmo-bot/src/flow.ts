@@ -1,6 +1,6 @@
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
-import { fields, type Id, integerTarget } from "./ids.ts";
+import { type Action, fields, type Id, integerTarget } from "./ids.ts";
 import { capitalise, type Lexicon } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
 import { backCards } from "./screens/back.ts";
@@ -37,6 +37,28 @@ import { talkCard } from "./screens/talk.ts";
 import { travelCard } from "./screens/travel.ts";
 import { amount } from "./units.ts";
 import type { World } from "./world.ts";
+
+/** Actions whose target is two colon-separated fields. */
+const PAIR_ACTIONS = new Set<Action>([
+  "sell",
+  "mkt-sell",
+  "mkt-take",
+  "buy",
+  "equip",
+  "pick",
+  "gather",
+  "consent",
+]);
+
+/** Pair actions whose second field must parse as an integer quantity. */
+const QUANTITY_ACTIONS = new Set<Action>([
+  "buy",
+  "sell",
+  "mkt-sell",
+  "mkt-take",
+  "gather",
+  "consent",
+]);
 
 /**
  * The bot's whole behaviour as a pure function of a press: what to write
@@ -189,7 +211,8 @@ class Session {
   async travel(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     const map = await this.world.map(this.character);
-    const to = o.long?.route?.at(-1) ?? (o.purse.market ? undefined : o.purse.markets[0]);
+    const to =
+      o.long?.route?.at(-1) ?? (o.purse.market ? undefined : nearest(o.at, o.purse.markets));
     const risk = to ? await this.world.routeRisk(this.character, to) : undefined;
     return this.retitled(
       this.done(
@@ -228,12 +251,20 @@ class Session {
     return this.done(craftCard(o, here, sheet, recipes, this.lex, d));
   }
 
-  /** /market: one of its lists, about one material (GDD 10.6). */
-  async market(list: List = "book", material?: string, notice?: string): Promise<Answer> {
+  private async loadMarket(
+    material?: string,
+  ): Promise<{ ok: true; o: api.Options; m: api.Market } | { ok: false; answer: Answer }> {
     const o = await this.world.options(this.character);
     const res = await this.world.market(this.character, material);
-    if (!res.ok) return this.where(capitalise(res.refusal.message));
-    const m = res.reply;
+    if (!res.ok) return { ok: false, answer: await this.where(capitalise(res.refusal.message)) };
+    return { ok: true, o, m: res.reply };
+  }
+
+  /** /market: one of its lists, about one material (GDD 10.6). */
+  async market(list: List = "book", material?: string, notice?: string): Promise<Answer> {
+    const loaded = await this.loadMarket(material);
+    if (!loaded.ok) return loaded.answer;
+    const { o, m } = loaded;
     const lex = this.lex;
     switch (list) {
       case "exchange":
@@ -261,10 +292,9 @@ class Session {
   }
 
   async orderForm(d: OrderDraft): Promise<Answer> {
-    const o = await this.world.options(this.character);
-    const res = await this.world.market(this.character, d.material);
-    if (!res.ok) return this.where(capitalise(res.refusal.message));
-    return this.done(orderForm(o, res.reply, d, this.lex));
+    const loaded = await this.loadMarket(d.material);
+    if (!loaded.ok) return loaded.answer;
+    return this.done(orderForm(loaded.o, loaded.m, d, this.lex));
   }
 
   async item(itemId: string): Promise<Answer> {
@@ -309,28 +339,12 @@ class Session {
   async button(id: Id, values: string[]): Promise<Answer> {
     const v = id.version;
     const value = values[0] ?? "";
-    const isPair =
-      id.action === "sell" ||
-      id.action === "mkt-sell" ||
-      id.action === "mkt-take" ||
-      id.action === "buy" ||
-      id.action === "equip" ||
-      id.action === "pick" ||
-      id.action === "gather" ||
-      id.action === "consent";
+    const isPair = PAIR_ACTIONS.has(id.action);
     const pair = isPair ? fields(id.target, ":", 2) : null;
     if (isPair && !pair) return backCards.unknown(this.character);
     const [a, b] = pair ?? ["", ""];
     const quantity = integerTarget(b!);
-    if (
-      (id.action === "buy" ||
-        id.action === "sell" ||
-        id.action === "mkt-sell" ||
-        id.action === "mkt-take" ||
-        id.action === "gather" ||
-        id.action === "consent") &&
-      quantity === undefined
-    )
+    if (QUANTITY_ACTIONS.has(id.action) && quantity === undefined)
       return backCards.unknown(this.character);
     switch (id.action) {
       case "hub":
@@ -388,7 +402,10 @@ class Session {
           this.market(
             id.action === "sell" ? "orders" : "book",
             a,
-            why ?? (r ? `Sold: ${amount(r.character.coin, "coin")} in hand` : undefined),
+            why ??
+              (r
+                ? fillNotice(r, "Sold", "in hand", "No buyer took it; your goods are still yours")
+                : undefined),
           ),
         );
       case "mkt-take":
@@ -396,7 +413,10 @@ class Session {
           this.market(
             "book",
             a,
-            why ?? (r ? `Bought: ${amount(r.character.coin, "coin")} left` : undefined),
+            why ??
+              (r
+                ? fillNotice(r, "Bought", "left", "Nobody sold to you; your coin is still yours")
+                : undefined),
           ),
         );
       case "mkt-o":
@@ -415,10 +435,10 @@ class Session {
           kind,
           v,
           { material: d.material, units: d.units, price: d.price },
-          async (_, why) =>
+          async (r, why) =>
             why
               ? this.retitled(await this.orderForm(d), why)
-              : this.market("mine", d.material, "Your order stands"),
+              : this.market("mine", d.material, postNotice(r ? filled(r) : 0, d.units)),
         );
       }
       case "withdraw":
@@ -562,6 +582,38 @@ class Session {
         return backCards.unknown(this.character);
     }
   }
+}
+
+/** Units a write filled on the market, by its fill facts. */
+function filled(r: api.ActionReply): number {
+  return r.facts
+    .filter((f) => f.kind === "market.filled" || f.kind === "order.filled")
+    .reduce((n, f) => n + (f.data.find((d) => d.k === "units")?.n ?? 0), 0);
+}
+
+/** What a sell or take at once filled: the goods and the coin after, or none. */
+function fillNotice(r: api.ActionReply, verb: string, coinTail: string, none: string): string {
+  const done = filled(r);
+  return done
+    ? `${verb} ${amount(done, "goods")}: ${amount(r.character.coin, "coin")} ${coinTail}`
+    : none;
+}
+
+function postNotice(done: number, units: number): string {
+  if (!done) return "Your order stands";
+  return done >= units
+    ? "Filled at once"
+    : `Part filled: ${amount(done, "goods")}; the rest stands`;
+}
+
+/** The market nearest a tile. */
+function nearest(at: api.Hex, markets: readonly api.Hex[]): api.Hex | undefined {
+  const dist = (h: api.Hex) =>
+    Math.max(Math.abs(h.q - at.q), Math.abs(h.r - at.r), Math.abs(h.q + h.r - at.q - at.r));
+  return markets.reduce<api.Hex | undefined>(
+    (best, h) => (!best || dist(h) < dist(best) ? h : best),
+    undefined,
+  );
 }
 
 function peopleOf(here: api.Here): Map<string, string> {

@@ -52,31 +52,38 @@ func (g *Game) canGive(c *Char, value int64) error {
 	return nil
 }
 
-// offValue is what a fill between characters hands from one to the other
-// against reference value: a young seller selling under it, or a young
-// buyer paying over it, gives the difference away.
-func (g *Game) offValue(material string, price, qty int64) (sellerGives, buyerGives int64) {
-	ref := g.r.Values.Material(material)
-	if material == ledger.Provisions {
-		ref = g.r.Values.Param("provisions-value")
-	}
+// offValue is how far a fill's price sits from reference value, as value
+// the seller (under it) or the buyer (over it) gives away.
+func offValue(ref, price, qty int64) (sellerGives, buyerGives int64) {
 	return max(0, ref-price) * qty, max(0, price-ref) * qty
 }
 
-// capped reports whether a fill between two characters would take a
-// young one past its cap, counting it when it would not.
-func (g *Game) capped(material string, bid, ask market.Order, price, qty int64) bool {
-	seller, buyer := g.charOf(ask.Owner), g.charOf(bid.Owner)
+// checkGive refuses a sale between two characters that would take a
+// young one past its cap (GDD 10.9), counting what each gives when count
+// is set and it may.
+func (g *Game) checkGive(sellerAcc, buyerAcc string, ref, price, qty int64, count bool) error {
+	seller, buyer := g.charOf(sellerAcc), g.charOf(buyerAcc)
 	if seller == nil || buyer == nil {
-		return false
+		return nil
 	}
-	sg, bg := g.offValue(material, price, qty)
-	if g.mayGive(seller, sg) != nil || g.mayGive(buyer, bg) != nil {
-		return true
+	sg, bg := offValue(ref, price, qty)
+	if err := g.mayGive(seller, sg); err != nil {
+		return err
 	}
-	g.gave(seller, sg)
-	g.gave(buyer, bg)
-	return false
+	if err := g.mayGive(buyer, bg); err != nil {
+		return err
+	}
+	if count {
+		g.gave(seller, sg)
+		g.gave(buyer, bg)
+	}
+	return nil
+}
+
+// capped reports whether a fill would take a young character past its
+// cap; a fill it lets through counts toward the cap.
+func (g *Game) capped(material string, bid, ask market.Order, price, qty int64) bool {
+	return g.checkGive(ask.Owner, bid.Owner, g.r.Values.Asset(material), price, qty, true) != nil
 }
 
 // give hands coin, goods or an item to another character on the same
@@ -98,20 +105,18 @@ func (g *Game) give(c *Char, cmd Command) error {
 		if err := g.canGive(c, g.ItemValue(in)); err != nil {
 			return err
 		}
-		if err := g.postAll(ledger.Txn{Key: cmd.Key, Kind: "give", Tick: g.Tick(), Legs: itemLegs(in, from, dest)}); err != nil {
+		if err := g.postAll(ledger.Txn{Key: cmd.Key, Kind: "give", Tick: g.Tick(), Legs: itemLegs(in, from, dest)}, in); err != nil {
 			return err
 		}
-		c.C.Drop(in.ID)
-		to.C.Pack = append(to.C.Pack, in)
 	} else {
-		if cmd.Units <= 0 || g.Ledger.Of(from, cmd.Asset) < cmd.Units || (cmd.Asset != ledger.Coin && cmd.Asset != ledger.Provisions && !g.isMaterial(cmd.Asset)) {
+		material, isGoods := ledger.GoodsOf(cmd.Asset)
+		isGoods = isGoods && g.tradable(material)
+		if cmd.Units <= 0 || g.Ledger.Of(from, cmd.Asset) < cmd.Units || (cmd.Asset != ledger.Coin && !isGoods) {
 			return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, cmd.Units, cmd.Asset)
 		}
 		value := cmd.Units
-		if m, ok := ledger.MaterialOf(cmd.Asset); ok {
-			value *= g.r.Values.Material(m)
-		} else if cmd.Asset == ledger.Provisions {
-			value *= g.r.Values.Param("provisions-value")
+		if isGoods {
+			value *= g.r.Values.Asset(material)
 		}
 		if err := g.canGive(c, value); err != nil {
 			return err
@@ -121,7 +126,7 @@ func (g *Game) give(c *Char, cmd Command) error {
 		}
 	}
 	if g.Market != nil && cmd.Asset == ledger.Coin {
-		g.Market.Week.Between += cmd.Units
+		g.Market.Week.between(cmd.Units)
 	}
 	_, err := g.factWith(c, []fact.Ref{char.Ref(to.C.ID)}, "character.gave", g.Tick(), fact.S("asset", cmd.Asset), fact.N("units", cmd.Units), fact.S("item", cmd.Item))
 	return err

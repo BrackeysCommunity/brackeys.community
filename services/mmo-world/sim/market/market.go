@@ -1,11 +1,13 @@
-// Package market is one settlement's order book for one material (GDD
-// 10.3): limit buys and sells matched by price and then by time, filled in
-// part if need be. It moves no coin or goods itself; the game escrows them
-// while an order is open and settles each Fill through the ledger.
+// Package market is the settlements' order books and gear listings (GDD
+// 10.3): limit buys and sells matched by price then time, filled in part
+// if need be, and gear listed at a fixed price against gear buy orders.
+// It moves no coin or goods itself; the game escrows them while an order
+// is open and settles each fill through the ledger.
 package market
 
 import (
 	"cmp"
+	"iter"
 	"slices"
 )
 
@@ -64,6 +66,19 @@ func better(side Side) func(a, b Order) int {
 			p = -p
 		}
 		return cmp.Or(p, cmp.Compare(a.Seq, b.Seq))
+	}
+}
+
+// Orders are a book's open orders, bids then asks, each best first.
+func (b *Book) Orders() iter.Seq[Order] {
+	return func(yield func(Order) bool) {
+		for _, list := range [][]Order{b.Bids, b.Asks} {
+			for _, o := range list {
+				if !yield(o) {
+					return
+				}
+			}
+		}
 	}
 }
 
@@ -130,10 +145,9 @@ func (b *Book) Depth(s Side) int64 {
 	return n
 }
 
-// Match fills while the best bid meets the best ask, at the price of
-// whichever order came first, and takes out what is filled. skip reports a
-// pair that may not trade (an owner meeting itself, a seller a faction
-// will not buy from); the bid it names is passed over for that ask.
+// Match walks the asks best first, filling each from the best bid that
+// meets its price and that skip does not reject, at Price, and takes out
+// what is filled.
 func Match(b *Book, tick int64, skip func(bid, ask Order) bool) []Fill {
 	var out []Fill
 	for ai := 0; ai < len(b.Asks); {

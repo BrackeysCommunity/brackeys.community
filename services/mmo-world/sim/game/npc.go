@@ -2,7 +2,6 @@ package game
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
@@ -182,25 +182,22 @@ func (g *Game) recognised(c *Char, n *npc.NPC) bool {
 // standingKey is whose standing an NPC's choices move: the faction
 // holding its home region, else its settlement.
 func (g *Game) standingKey(n *npc.NPC) string {
+	fi := econ.Keepers
 	if r := g.World.RegionAt(n.Stub.Home); r >= 0 && g.World.Regions[r].Holder >= 0 {
-		return "faction:" + strconv.Itoa(g.World.Regions[r].Holder)
+		fi = g.World.Regions[r].Holder
 	}
-	return "place:" + n.Stub.Home.Ref()
+	return standingKey(fi, n.Stub.Home)
 }
 
 // StandingName resolves persisted standings for display.
 func (g *Game) StandingName(key string) string {
-	kind, ref, _ := strings.Cut(key, ":")
-	switch kind {
-	case "faction":
-		if id, err := strconv.Atoi(ref); err == nil && id >= 0 && id < len(g.World.Factions) {
-			return g.FactionName(id)
-		}
-	case "place":
-		var h hex.Hex
-		if _, err := fmt.Sscanf(ref, "%d,%d", &h.Q, &h.R); err == nil {
-			return g.PlaceName(h)
-		}
+	fi, place, ok := parseStandingKey(key)
+	switch {
+	case !ok:
+	case fi == econ.Keepers:
+		return g.PlaceName(place)
+	case fi < len(g.World.Factions):
+		return g.FactionName(fi)
 	}
 	return key
 }
@@ -588,17 +585,16 @@ func (g *Game) fought(c *Char, h hex.Hex, creature string, t int64) error {
 	return nil
 }
 
-// traded records a sale with the settlement's trader, if it is saved.
-func (g *Game) traded(c *Char, material string, t int64) error {
-	h := c.C.At
-	for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h) {
-		if s.Role != "settlement-trader" {
-			continue
-		}
-		if n := g.NPCs.Get(s.ID); n != nil {
-			g.note(n, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.r.Name("items.materials:" + material)}, t)
-			return g.NPCs.Touched(n)
-		}
+// traded records a sale in the settlement at h with its trader, if it is
+// saved.
+func (g *Game) traded(c *Char, h hex.Hex, material string, t int64) error {
+	s, ok := g.traderStub(h)
+	if !ok {
+		return nil
+	}
+	if n := g.NPCs.Get(s.ID); n != nil {
+		g.note(n, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.MaterialName(material)}, t)
+		return g.NPCs.Touched(n)
 	}
 	return nil
 }

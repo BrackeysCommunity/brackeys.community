@@ -55,6 +55,11 @@ export interface Card {
 }
 
 export const AUTHOR_MAX = 60;
+
+/** An author line: parts joined with " · ", cut to fit AUTHOR_MAX. */
+export function authorLine(...parts: string[]): string {
+  return parts.join(" · ").slice(0, AUTHOR_MAX - 1);
+}
 export const COLOUR = {
   ash: 0xc9c4b8,
   rust: 0xa4482a,

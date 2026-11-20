@@ -149,7 +149,7 @@ const cards: [string, () => Card][] = [
             faucet: 41000,
             fees: 1203,
             top: [{ material: market.material, units: 310 }],
-            staged: 0,
+            every: 7,
             audit: 0,
             chart: market.banner,
           },
@@ -202,6 +202,29 @@ const cards: [string, () => Card][] = [
         { ...[...sheet.kit, ...sheet.pack][0]!, worn: "", wearIn: ["hand", "off-hand"] },
         lex,
       ),
+  ],
+  [
+    "damaged two-slot item at a market",
+    () => {
+      const it = [...sheet.kit, ...sheet.pack][0]!;
+      const card = itemCard(
+        { ...o, purse: { ...o.purse, market: true } },
+        here,
+        {
+          ...it,
+          worn: "",
+          mount: undefined,
+          wearIn: ["hand", "off-hand"],
+          durability: Math.max(1, it.max - 5),
+        },
+        lex,
+      );
+      const ids = card.rows.flatMap((r) =>
+        "buttons" in r ? r.buttons.map((b) => ("customId" in b ? b.customId : "")) : [],
+      );
+      expect(ids.some((id) => id.startsWith("mm|sell-item|"))).toBe(true);
+      return card;
+    },
   ],
   ["recipes", () => recipesCard(o, here, recipes, lex)],
   [

@@ -27,6 +27,25 @@ func TestStepsByTheBand(t *testing.T) {
 	}
 }
 
+func TestRecoversFromALongCut(t *testing.T) {
+	q := Params{Rate: 60, Floor: 5, Low: 350, High: 450, Step: 12, Return: 4, Days: 1, Most: 100}
+	s := New(q)
+	for range 120 {
+		s.Step(1000, q)
+	}
+	low := s.Rate
+	for range 150 {
+		s.Step(0, q)
+	}
+	if s.Rate.Cmp(low) <= 0 || s.Rate != fixed.FromInt(q.Rate) {
+		t.Fatalf("below the band after a long cut: %s from %s", s.Rate, low)
+	}
+	s = State{Rate: low}
+	if s.Step(400, q); s.Rate.Cmp(low) <= 0 {
+		t.Fatalf("inside the band after a long cut: %s from %s", s.Rate, low)
+	}
+}
+
 func TestMeanOverTheWindow(t *testing.T) {
 	s := New(p)
 	for range 10 {
@@ -41,7 +60,7 @@ func TestMeanOverTheWindow(t *testing.T) {
 }
 
 func TestPlanStaysInBudget(t *testing.T) {
-	wants := []Want{{Material: "a", Urgency: 100, Price: 7}, {Material: "b", Urgency: 200, Price: 8}, {Material: "c", Urgency: 100, Price: 70}}
+	wants := []Share{{Urgency: 100, Price: 7}, {Urgency: 200, Price: 8}, {Urgency: 100, Price: 70}}
 	for _, budget := range []int64{0, 5, 9, 60, 1000} {
 		var spent int64
 		qty := Plan(budget, wants)

@@ -5,6 +5,7 @@
  */
 
 export const MINUTES_PER_TICK = 10;
+export const TICKS_PER_HOUR = 60 / MINUTES_PER_TICK;
 
 export function num(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -35,8 +36,18 @@ export function ticks(n: number): string {
   return `${plural(n, "tick")} (${num(n * MINUTES_PER_TICK)} min)`;
 }
 
+/** Ticks as whole hours, for a table column whose header names the unit. */
+export function hours(n: number): string {
+  return num(n / TICKS_PER_HOUR);
+}
+
 export function percent(n: number): string {
   return `${num(n)}%`;
+}
+
+/** A signed percentage, "+12%" or "−8%". */
+export function signedPercent(n: number): string {
+  return `${n >= 0 ? "+" : "−"}${num(Math.abs(n))}%`;
 }
 
 /** A signed change, "+38 xp". */

@@ -8,7 +8,6 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/fact"
-	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -146,8 +145,8 @@ type FactionOrder struct {
 	Qty      int64 // units still wanted
 }
 
-// FactionOrders are the buy orders the factions hold on a tile: an open
-// starting settlement's, today's.
+// FactionOrders are today's faction and keepers' buy orders on a tile;
+// none off an open settlement.
 func (g *Game) FactionOrders(h hex.Hex) []FactionOrder {
 	n, ok := g.SettlementAt(h)
 	if !ok {
@@ -173,9 +172,11 @@ const (
 // PriceFor is what a faction order pays a character, after standing, or
 // false where the faction will not buy from it.
 func (g *Game) PriceFor(c *Char, h hex.Hex, o FactionOrder) (int64, bool) {
-	owner := ownerKeepers + ":" + h.Ref()
-	pct, buys := g.r.Values.Standing(c.C.Standing.Get(g.factionKey(o.Faction, owner)))
-	return fixed.PercentPlus(o.Price, pct), buys
+	n, ok := g.SettlementAt(h)
+	if !ok {
+		return 0, false
+	}
+	return g.factionPays(ledger.Char(c.C.ID), o.Faction, n, o.Price)
 }
 
 // sell sells carried goods now to the best bids here, at no less than
@@ -204,7 +205,7 @@ func (g *Game) wanted(c *Char, material string, side market.Side) error {
 		return err
 	}
 	b := g.BookOf(n, material)
-	if b == nil || (side == market.Bid && len(b.Bids) == 0) || (side == market.Ask && len(b.Asks) == 0) {
+	if b == nil || b.Depth(side) == 0 {
 		if side == market.Bid {
 			return refuse(NotHere, "nobody here buys %s", material)
 		}

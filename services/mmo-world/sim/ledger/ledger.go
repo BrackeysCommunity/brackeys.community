@@ -61,7 +61,41 @@ func Char(id string) string     { return Holder + id }
 
 // TilePool is the spoils pool of a tile, by its ref; NPCPool an NPC's purse.
 func TilePool(ref string) string { return Pool + "tile:" + ref }
-func NPCPool(id string) string   { return Pool + "npc:" + id }
+func NPCPool(id string) string   { return Pool + npcPrefix + id }
+
+// NPCOf is the NPC whose pool an account is, or false.
+func NPCOf(acc string) (string, bool) { return strings.CutPrefix(acc, Pool+npcPrefix) }
+
+// EscrowPool is the pool an order, listing or gear order holds its escrow in.
+func EscrowPool(id string) string { return Pool + escrowPrefix + id }
+
+// IsEscrow reports whether an account is an escrow pool.
+func IsEscrow(acc string) bool { return strings.HasPrefix(acc, Pool+escrowPrefix) }
+
+// CharOf is the character whose account acc is, or false.
+func CharOf(acc string) (string, bool) { return strings.CutPrefix(acc, Holder) }
+
+// structural: the prefixes of an NPC's pool account and an escrow pool.
+const (
+	npcPrefix    = "npc:"
+	escrowPrefix = "escrow:"
+)
+
+// Goods is the asset a material trades as; provisions are their own.
+func Goods(material string) string {
+	if material == Provisions {
+		return Provisions
+	}
+	return Material(material)
+}
+
+// GoodsOf reads goods back: a material, or provisions.
+func GoodsOf(asset string) (string, bool) {
+	if asset == Provisions {
+		return Provisions, true
+	}
+	return MaterialOf(asset)
+}
 
 // MaterialOf reads a material asset back.
 func MaterialOf(asset string) (string, bool) { return strings.CutPrefix(asset, matPrefix) }

@@ -24,6 +24,14 @@ const (
 func apiHex(h hex.Hex) api.Hex { return api.Hex{Q: h.Q, R: h.R} }
 func simHex(h api.Hex) hex.Hex { return hex.Hex{Q: h.Q, R: h.R} }
 
+func apiFloor(f market.Floor) api.Floor {
+	return api.Floor{Durability: f.Durability, Trait: f.Trait, Level: f.Level}
+}
+
+func simFloor(f api.Floor) market.Floor {
+	return market.Floor{Durability: f.Durability, Trait: f.Trait, Level: f.Level}
+}
+
 func apiParts(ps []game.Part) api.Why {
 	out := api.Why{Parts: make([]api.Part, len(ps))}
 	for i, p := range ps {
@@ -84,15 +92,7 @@ const purseListings = 5
 // cheapest are a settlement's cheapest gear listings, as a character
 // sees them.
 func cheapest(g *game.Game, c *game.Char, n, most int) []api.Listing {
-	if g.Market == nil {
-		return nil
-	}
-	var ls []market.Listing
-	for _, l := range g.Market.Listings {
-		if l.Settlement == n {
-			ls = append(ls, l)
-		}
-	}
+	ls := g.ListingsAt(n)
 	slices.SortStableFunc(ls, func(a, b market.Listing) int { return cmp.Compare(a.Price, b.Price) })
 	out := []api.Listing{}
 	for _, l := range ls[:min(len(ls), most)] {
@@ -175,10 +175,10 @@ func apiPurse(g *game.Game, c *game.Char) api.Purse {
 	for _, h := range g.Settlements() {
 		p.Markets = append(p.Markets, apiHex(h))
 	}
-	if !g.HasMarket(c.C.At) {
+	n, ok := g.MarketAt(c.C.At)
+	if !ok {
 		return p
 	}
-	n, _ := g.SettlementAt(c.C.At)
 	p.Market = true
 	rv := g.Rules().Values
 	for _, o := range g.Offers(c.C.At) {
@@ -191,7 +191,7 @@ func apiPurse(g *game.Game, c *game.Char) api.Purse {
 	p.Listings = cheapest(g, c, n, purseListings)
 	for _, b := range g.BooksAt(n) {
 		bid, ask := b.Best()
-		q := api.Quote{Material: b.Material, Bid: bid, Ask: ask, Value: rv.Material(b.Material)}
+		q := api.Quote{Material: b.Material, Bid: bid, Ask: ask, Value: rv.Asset(b.Material)}
 		if len(b.Bids) > 0 {
 			q.BidUnits = b.Bids[0].Qty
 		}
@@ -283,6 +283,19 @@ func placeView(g *game.Game, h hex.Hex) api.Place {
 		if c.C.At == h {
 			out.Here = append(out.Here, c.C.ID)
 		}
+	}
+	return out
+}
+
+// apiOrders are the faction orders standing on a tile, priced for a
+// character.
+func apiOrders(g *game.Game, c *game.Char, h hex.Hex) []api.Order {
+	fee := g.Rules().Values.FeePercent()
+	out := []api.Order{}
+	for _, o := range g.FactionOrders(h) {
+		yours, buys := g.PriceFor(c, h, o)
+		out = append(out, api.Order{Faction: g.FactionName(o.Faction), Material: o.Material, Price: o.Price, Yours: yours, Wanted: o.Qty, Refuses: !buys,
+			Fee: fee})
 	}
 	return out
 }

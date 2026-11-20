@@ -67,3 +67,23 @@ func TestExpireAndHistory(t *testing.T) {
 		t.Fatalf("expired %+v", out)
 	}
 }
+
+func TestClosedChangeAndTraded(t *testing.T) {
+	b := &Book{}
+	b.Record(Fill{Price: 10, Qty: 2, Tick: 1})
+	b.CloseDay(0, 10, 5, 0)
+	b.Record(Fill{Price: 12, Qty: 3, Tick: 11})
+	b.CloseDay(1, 20, 5, 7)
+	if ch, ok := b.ClosedChange(); !ok || ch != 20 {
+		t.Fatalf("closed change %d %v, want 20", ch, ok)
+	}
+	if ch, _ := b.Change(1); ch != 0 {
+		t.Fatalf("change since the close is %d, want 0", ch)
+	}
+	if u, c := b.Traded(2, false); u != 5 || c != 56 {
+		t.Fatalf("traded %d units %d coin", u, c)
+	}
+	if b.Cause(2) != 7 {
+		t.Fatalf("cause %d", b.Cause(2))
+	}
+}

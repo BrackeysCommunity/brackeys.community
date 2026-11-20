@@ -276,7 +276,7 @@ type Purse struct {
 	Market     bool    `json:"market"`         // standing in a market
 	Provision  int64   `json:"provision"`      // coin a provision costs here, 0 where none are sold
 	Quotes     []Quote `json:"quotes,omitempty"`
-	Open       int64   `json:"open"` // open orders held
+	Open       int64   `json:"open"` // open orders, listings and gear orders held
 	Markets    []Hex   `json:"markets"`
 	Items      []Worn  `json:"items"` // carried, not worn
 	Mounted    bool    `json:"mounted"`

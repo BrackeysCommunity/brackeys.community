@@ -5,7 +5,7 @@ import { describe } from "../../../packages/discord-kit/src/index.ts";
 import { createHandler, forumSink } from "./adapter.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
-import { ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
+import { ForumPoster, type ForumStore } from "./forum.ts";
 import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
 import { Notifier } from "./notify.ts";
@@ -15,7 +15,7 @@ import { httpWorld } from "./world.ts";
 /**
  * The MMO bot: one gateway connection with the Guilds intent only (no
  * privileged intents; the game reads no messages), answering interactions
- * from the world service's API.
+ * and posting the market forum from the world service's API.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
@@ -45,10 +45,14 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`[ready] ${c.user.tag}`);
   await registerCommands(config).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
   notifier.start();
-  if (config.marketForum) {
-    const store: ForumStore = redis
-      ? { get: (k) => redis.get(k), set: async (k, v) => void (await redis.set(k, v)) }
-      : memoryStore();
+  if (config.marketForum && !redis) {
+    // Without a durable store every restart would open the posts again.
+    console.warn("[forum] MMO_MARKET_FORUM is set but REDIS_URL is not; the forum is not posted");
+  } else if (config.marketForum && redis) {
+    const store: ForumStore = {
+      get: (k) => redis.get(k),
+      set: async (k, v) => void (await redis.set(k, v)),
+    };
     new ForumPoster(
       world,
       lex,
