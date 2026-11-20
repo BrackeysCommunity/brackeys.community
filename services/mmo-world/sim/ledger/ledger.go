@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"jams.team/mmo-world/sim/fact"
@@ -64,6 +65,11 @@ func Char(id string) string     { return Holder + id }
 // TilePool is the spoils pool of a tile, by its ref; NPCPool an NPC's purse.
 func TilePool(ref string) string { return Pool + "tile:" + ref }
 func NPCPool(id string) string   { return Pool + npcPrefix + id }
+
+// GuildPool is a guild's treasury and bank; TreasuryPool the treasury of
+// an open settlement, by its index.
+func GuildPool(id string) string { return Pool + "guild:" + id }
+func TreasuryPool(n int) string  { return Pool + "treasury:" + strconv.Itoa(n) }
 
 // NPCOf is the NPC whose pool an account is, or false.
 func NPCOf(acc string) (string, bool) { return strings.CutPrefix(acc, Pool+npcPrefix) }

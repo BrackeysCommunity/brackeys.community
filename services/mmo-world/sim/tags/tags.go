@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -524,9 +525,6 @@ func Of(ss []string) []Tag {
 	return out
 }
 
-// structural: Scale's percent is of the base.
-const percent = 100
-
 // Adjust is a measure after every rule the subject fires: base scaled by
 // the sum of the Scale percents on it, plus the Adds to it.
 func Adjust(rules []Rule, subject TagSet, ctx Context, measure string, base int64) int64 {
@@ -545,5 +543,5 @@ func Adjust(rules []Rule, subject TagSet, ctx Context, measure string, base int6
 		case AddTag, RemoveTag, Band, Join, End, Score:
 		}
 	}
-	return base + base*pct/percent + add
+	return base + base*pct/fixed.Hundredths + add
 }

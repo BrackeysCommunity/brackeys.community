@@ -33,11 +33,8 @@ const (
 )
 
 // structural: the band is required from bandFrom players up. Below it
-// the mean is a handful of purses, so the run asks for drift instead: no
-// runaway over the last two thirds of the soak (never under a quarter of
-// the band's floor, never over twice its ceiling), and a mean distance to
-// the band over the last third no worse than over the middle third by
-// more than driftSlack.
+// the mean is a handful of purses, so the run asks only that coin neither
+// runs away nor drifts off the band (driftOver).
 const (
 	bandFrom      = 100
 	runawayFloor  = 25  // percent of band-low

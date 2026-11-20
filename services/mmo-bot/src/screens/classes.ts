@@ -1,7 +1,7 @@
 import { type Button, type Row } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
-import { encodeId } from "../ids.ts";
+import { encodeId, target } from "../ids.ts";
 import { num, plural } from "../units.ts";
 import { back, btn, PRIVATE } from "./common.ts";
 
@@ -33,13 +33,19 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
   const acts: Button[] = [];
   if (shown?.earned && !shown.active && c.here)
     acts.push(btn(`Make ${shown.name} active`, "cls-choose", shown.id, v, { style: "primary" }));
+  // An ability whose system is not built yet is shown and not offered: a
+  // tier's one pick is not spent on a rule that does nothing.
   if (shown?.active)
     for (const t of shown.tiers)
       if (t.open && !t.options.some((a) => a.taken))
-        for (const a of t.options)
-          acts.push(btn(`Take: ${a.name}`.slice(0, 80), "cls-take", a.id, v, { style: "success" }));
-  acts.push(btn("Character", "character", "", v), back(v));
-  rows.push({ buttons: acts.slice(0, 5) });
+        for (const a of t.options.filter((a) => !a.waits))
+          acts.push(
+            btn(`Take: ${a.name}`.slice(0, 80), "cls-take", target(":", shown.id, a.id), v, {
+              style: "success",
+            }),
+          );
+  const nav = [btn("Character", "character", "", v), back(v)];
+  rows.push({ buttons: [...acts.slice(0, 5 - nav.length), ...nav] });
   const tree =
     shown?.tiers.map((t) => [
       `level ${t.level}`,

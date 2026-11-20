@@ -167,8 +167,8 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	out := api.Sheet{Character: apiCharacter(g, c), Start: c.Start, Kit: []api.Item{}, Pack: []api.Item{}, Standing: []api.Standing{},
 		Record: []api.Count{}, Finds: []api.Find{}, Owed: c.Owed, Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
 		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}, Vows: []string{}}
-	for _, x := range g.Goals {
-		if x.Poster == c.C.ID && x.State == goal.Live && x.Vow() && !x.Hidden {
+	for _, x := range g.PostedBy(c) {
+		if x.State == goal.Live && x.Vow() && !x.Hidden {
 			out.Vows = append(out.Vows, x.Title)
 		}
 	}

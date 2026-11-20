@@ -60,8 +60,7 @@ type Condition struct {
 	Side    string `json:"side,omitempty"`
 }
 
-// GoalSpec is a goal as posted: picked by selects, the title and note
-// from a modal.
+// GoalSpec is a goal as its poster specifies it.
 type GoalSpec struct {
 	Title    string    `json:"title"`
 	Note     string    `json:"note,omitempty"`
@@ -81,14 +80,18 @@ type GoalSpec struct {
 
 // Goal is a posted goal as the board shows it.
 type Goal struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Note     string `json:"note,omitempty"`
-	Issuer   string `json:"issuer"` // its kind
-	By       string `json:"by"`     // who issued it, by name
-	Verb     string `json:"verb"`
-	What     string `json:"what"` // the condition in words
-	Where    string `json:"where,omitempty"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Note   string `json:"note,omitempty"`
+	Issuer string `json:"issuer"` // its kind
+	By     string `json:"by"`     // who issued it, by name
+	Verb   string `json:"verb"`
+	What   string `json:"what"` // the condition in words
+	Where  string `json:"where,omitempty"`
+	// From is where a Haul's stock starts, or where a Carry's downed
+	// character lies now.
+	From string `json:"from,omitempty"`
+	// Reward is the coin on offer; a proposal's is what is pledged so far.
 	Reward   int64  `json:"reward"`
 	Mode     string `json:"mode"`
 	Cap      int64  `json:"cap,omitempty"`
@@ -108,8 +111,12 @@ type Goal struct {
 	Top    []Contribution `json:"top"`
 	Hauler string         `json:"hauler,omitempty"`
 	Vow    bool           `json:"vow,omitempty"`
-	// Takes are the goods the viewer carries that a Deliver takes; Haul is
-	// whether the viewer may take its stock here, or deliver it here.
+	// Evolved marks the world day its target evolved, when its issuer may
+	// withdraw it whatever has been claimed.
+	Evolved bool `json:"evolved,omitempty"`
+	// Takes are the goods the viewer carries that a Deliver still takes
+	// from it; Haul is whether the viewer may take its stock here, or
+	// deliver it here.
 	Takes    []Goods `json:"takes"`
 	Haul     string  `json:"haul,omitempty"`     // take, deliver
 	Building string  `json:"building,omitempty"` // the structure a raise goal builds
@@ -139,8 +146,10 @@ type Draft struct {
 	Spec GoalSpec `json:"spec"`
 }
 
-// Goals is /goals for a character in a settlement: the board, drafts,
-// its own goals and the rules a post is checked against.
+// Goals is /goals for a character: the board of the settlement it stands
+// in, drafts, its own goals wherever they hang and the rules a post is
+// checked against. Away from a settlement Settlement is -1 and only Mine
+// is filled.
 type Goals struct {
 	Settlement  int      `json:"settlement"`
 	Name        string   `json:"name"`
@@ -154,6 +163,7 @@ type Goals struct {
 	FeeLeast    int64    `json:"feeLeast"`
 	RewardLeast int64    `json:"rewardLeast"`
 	PledgeNeed  int64    `json:"pledgeNeed"`
+	EachCap     int64    `json:"eachCap"` // the most claimants an Each goal pays
 	Verbs       []string `json:"verbs"`
 	Officer     bool     `json:"officer"`
 	Coin        int64    `json:"coin"`
@@ -213,6 +223,8 @@ type Structure struct {
 	Closed    bool       `json:"closed"`
 	Raising   bool       `json:"raising"`
 	Next      []CostLine `json:"next,omitempty"`
+	// CanRaise: goals raise it a tier and no raise of it is open.
+	CanRaise bool `json:"canRaise"`
 }
 
 // Settlement is a settlement a guild runs.
@@ -222,6 +234,8 @@ type Settlement struct {
 	Treasury   int64       `json:"treasury"`
 	Structures []Structure `json:"structures"`
 	Here       bool        `json:"here"`
+	// ConditionMax is a structure's condition in full repair.
+	ConditionMax int64 `json:"conditionMax"`
 }
 
 // GuildMember is one member on the guild's page.
@@ -281,28 +295,33 @@ type Charter struct {
 
 // Guild is /guild: a character's guild, or what founding one takes.
 type Guild struct {
-	ID          string        `json:"id,omitempty"`
-	Name        string        `json:"name,omitempty"`
-	Server      bool          `json:"server"`
-	Leader      string        `json:"leader,omitempty"`
-	Members     []GuildMember `json:"members"`
-	Officers    int64         `json:"officers"`
-	OfficersMax int64         `json:"officersMax"`
-	Full        bool          `json:"full"`
-	Least       int64         `json:"least"`
-	Treasury    int64         `json:"treasury"`
-	Bank        []Goods       `json:"bank"`
-	Works       []GuildWork   `json:"works"`
-	Settlements []Settlement  `json:"settlements"`
-	Approvals   []Approval    `json:"approvals"`
-	Votes       []GuildVote   `json:"votes"`
-	Invites     []string      `json:"invites"` // guilds that invited the character
+	ID      string        `json:"id,omitempty"`
+	Name    string        `json:"name,omitempty"`
+	Server  bool          `json:"server"`
+	Leader  string        `json:"leader,omitempty"`
+	Members []GuildMember `json:"members"`
+	// Officers are those who may spend and approve: the leader, a server's
+	// admins and the officers named. Named of OfficersMax are named.
+	Officers    int64        `json:"officers"`
+	Named       int64        `json:"named"`
+	OfficersMax int64        `json:"officersMax"`
+	Full        bool         `json:"full"`
+	Least       int64        `json:"least"`
+	Treasury    int64        `json:"treasury"`
+	Bank        []Goods      `json:"bank"`
+	Works       []GuildWork  `json:"works"`
+	Settlements []Settlement `json:"settlements"`
+	Approvals   []Approval   `json:"approvals"`
+	Votes       []GuildVote  `json:"votes"`
+	Invites     []Pick       `json:"invites"` // guilds that invited the character
 	// Near are characters standing with an officer whom it could invite.
-	Near    []Pick  `json:"near"`
-	Officer bool    `json:"officer"`
-	Spend   int64   `json:"spend"` // what an officer may still pay today
-	Charter Charter `json:"charter"`
-	Banner  string  `json:"banner"`
+	Near    []Pick `json:"near"`
+	Officer bool   `json:"officer"`
+	Spend   int64  `json:"spend"` // what an officer may still pay today
+	// DrawShare is the per cent of its gifts a member may draw at cost.
+	DrawShare int64   `json:"drawShare"`
+	Charter   Charter `json:"charter"`
+	Banner    string  `json:"banner"`
 }
 
 // Need is one threshold of a class's unlock and how far along it is.

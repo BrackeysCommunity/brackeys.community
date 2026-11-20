@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "goals.words",
   "title": "goals.words",
-  "description": "Words a goal's title or note may not hold (MM6.7); operators hide what gets past them.",
+  "description": "Words a goal's title or note may not hold; operators hide what gets past them.",
   "type": "object",
   "additionalProperties": false,
   "required": [

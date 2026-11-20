@@ -167,7 +167,7 @@ func (s *Script) TurnFor(ctx context.Context, tick int64, players []*Player) err
 			}
 			req.CharacterID, req.Version = p.Character, o.Version
 		}
-		req.InteractionID, req.Admin = id, p.Admin
+		req.InteractionID, req.Server, req.Admin = id, p.Server, p.Admin
 		rep, ref, err := s.Client.Act(ctx, req)
 		if err != nil {
 			return fmt.Errorf("%s at tick %d: %w", p.Discord, tick, err)

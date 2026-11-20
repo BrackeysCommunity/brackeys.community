@@ -137,6 +137,9 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 	}
 	if called := g.Called(c); called || c.Carrying != "" || c.CarriedBy != "" {
 		out.Rescue = &api.Rescue{Called: called, Home: g.PlaceName(g.SettlementHex(g.HomeOf(c))), Carrying: c.Carrying, CarriedBy: c.CarriedBy}
+		if d := g.Char(c.Carrying); d != nil {
+			out.Rescue.CarryingHome = g.PlaceName(g.SettlementHex(g.HomeOf(d)))
+		}
 	}
 	for _, m := range ch.Moves {
 		out.Moves = append(out.Moves, api.Move{Dir: m.Dir, To: apiHex(m.To), Open: m.Open, Ticks: m.Ticks, Why: apiParts(m.Why)})

@@ -84,7 +84,7 @@ type Book struct {
 	RouteRisks    []RouteRisk    `sheet:"economy.route-risk" doc:"Ambush chance per tile entered, by threat (GDD 10.7)."`
 
 	GoalParams []Param `sheet:"goals.params" doc:"Listing fees, limits, thresholds."`
-	Words      []Word  `sheet:"goals.words" doc:"Words a goal's title or note may not hold (MM6.7); operators hide what gets past them."`
+	Words      []Word  `sheet:"goals.words" doc:"Words a goal's title or note may not hold; operators hide what gets past them."`
 
 	Traces []Trace `sheet:"emergence.traces" doc:"Trace decay and promotion lines."`
 

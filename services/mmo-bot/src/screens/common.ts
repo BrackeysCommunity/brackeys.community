@@ -23,6 +23,24 @@ export function back(version: number): Button {
   return btn("Hub", "hub", "", version, { emoji: "↩" });
 }
 
+/**
+ * A downed character's two ways out. Crawling stays open while carried:
+ * it is how the carried leave a rescuer who has walked off.
+ */
+export function downButtons(o: api.Options, v: number): Button[] {
+  const r = o.rescue;
+  return [
+    btn(r?.carriedBy ? "Leave them and crawl" : "Crawl out", "crawl", "", v, {
+      style: "danger",
+      disabled: o.long?.kind === "crawl",
+    }),
+    btn("Call for help", "help", "", v, {
+      style: "primary",
+      disabled: !!r?.called || !!r?.carriedBy,
+    }),
+  ];
+}
+
 /** The six directions, as arrows and compass points, by direction index. */
 export const DIRECTIONS = [
   { arrow: "→", name: "E" },

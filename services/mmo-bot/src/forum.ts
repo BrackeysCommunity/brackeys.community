@@ -4,7 +4,7 @@ import type { Lexicon } from "./lexicon.ts";
 import { banner } from "./screens/common.ts";
 import { goalFields, goalSummary } from "./screens/goals.ts";
 import { moverLine } from "./screens/market.ts";
-import { num } from "./units.ts";
+import { hours, num } from "./units.ts";
 
 /**
  * The forums (GDD 17.2). The market forum: a post per settlement, and
@@ -19,6 +19,7 @@ export const FORUM_POLL_MS = 60_000;
 export interface ForumStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
+  del(key: string): Promise<void>;
 }
 
 /** Posting a card: into a settlement's post, opening it on the first day. */
@@ -147,6 +148,7 @@ export function boardPostCard(p: api.BoardPost, lex: Lexicon): Card {
 
 /** What the poster remembers of a goal's post, to edit it and to close it. */
 interface Posted {
+  /** The post's id; empty while it is being opened. */
   post: string;
   /** The goal's state as last shown: an unchanged goal is not edited again. */
   shown: string;
@@ -219,26 +221,53 @@ export class BoardPoster {
 
   private async show(p: api.BoardPost, b: api.Board): Promise<boolean> {
     const g = p.goal;
-    const shown = [g.state, g.progress, g.claims, g.pledged ?? 0, g.left ?? 0, g.hauler ?? ""].join(
-      "|",
-    );
+    // Time left is read as the card shows it, so a goal nothing happened
+    // to is edited when its hour turns, not every tick.
+    const shown = [
+      g.state,
+      g.progress,
+      g.claims,
+      g.pledged ?? 0,
+      g.left ? hours(g.left) : "",
+      g.hauler ?? "",
+    ].join("|");
+    const key = `${this.prefix}goal:${g.id}`;
     const was = await this.posted(g.id);
+    // A post whose id never reached the store is left as it was opened.
+    if (was && !was.post) return false;
     if (was?.shown === shown) return false;
     // A post is edited no more often than the board allows; the next poll catches up.
     if (was && b.tick - was.at < b.every) return false;
     const card = boardPostCard(p, this.lex);
-    const post =
-      was && (await this.sink.edit(was.post, card))
-        ? was.post
-        : await this.sink.open(`${p.name} · ${g.title}`.slice(0, 100), card);
-    const now: Posted = { post, shown, at: b.tick, title: g.title, name: p.name, banner: p.banner };
-    await this.store.set(`${this.prefix}goal:${g.id}`, JSON.stringify(now));
+    const now: Posted = {
+      post: was?.post ?? "",
+      shown,
+      at: b.tick,
+      title: g.title,
+      name: p.name,
+      banner: p.banner,
+    };
+    if (now.post && (await this.sink.edit(now.post, card))) {
+      await this.store.set(key, JSON.stringify(now));
+      return true;
+    }
+    // The goal is marked as opening before its post opens: a crash or a
+    // failed write after the post must not open it twice in a public channel.
+    await this.store.set(key, JSON.stringify({ ...now, post: "" }));
+    try {
+      now.post = await this.sink.open(`${p.name} · ${g.title}`.slice(0, 100), card);
+    } catch (e) {
+      await (was ? this.store.set(key, JSON.stringify(was)) : this.store.del(key));
+      throw e;
+    }
+    await this.store.set(key, JSON.stringify(now));
     return true;
   }
 
   private async close(id: string): Promise<void> {
     const was = await this.posted(id);
-    if (was) await this.sink.reply(was.post, closedCard(was));
+    if (was?.post) await this.sink.reply(was.post, closedCard(was));
+    await this.store.del(`${this.prefix}goal:${id}`);
   }
 
   start(): () => void {
@@ -252,5 +281,6 @@ export function memoryStore(): ForumStore {
   return {
     get: async (k) => m.get(k) ?? null,
     set: async (k, v) => void m.set(k, v),
+    del: async (k) => void m.delete(k),
   };
 }

@@ -5,6 +5,7 @@ import (
 
 	"jams.team/mmo-world/sim/class"
 	"jams.team/mmo-world/sim/craft"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/sheets"
@@ -53,7 +54,7 @@ func TestHoldFastNeedsAWall(t *testing.T) {
 		return len(effects)
 	}
 	open := bands("option", "hold", "warden", "hold-fast")
-	walled := bands("option", "hold", "warden", "hold-fast", tagWalled)
+	walled := bands("option", "hold", "warden", "hold-fast", class.TagWalled)
 	if walled != open+1 {
 		t.Fatalf("a Hold with Hold fast fires %d effects in the open and %d on a wall", open, walled)
 	}
@@ -62,7 +63,7 @@ func TestHoldFastNeedsAWall(t *testing.T) {
 // A work spares its share of a cost until the day's stock is spent.
 func TestAWorkGivesBackNoMoreThanItBurned(t *testing.T) {
 	g := &Game{}
-	row := &sheets.GuildWork{ID: "stoked-forge", By: hundred}
+	row := &sheets.GuildWork{ID: "stoked-forge", By: fixed.Hundredths}
 	w := &guild.Work{ID: row.ID, Left: 30}
 	for _, want := range []int64{20, 10, 0} {
 		got := spared(row, w, 20)

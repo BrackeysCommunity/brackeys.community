@@ -44,6 +44,12 @@ type TileBaseline struct {
 	Landmark  string // a map.landmarks row, a pattern's landmark rule, or ""
 }
 
+// Fields are the tile's generated fields by name, as a goal's Discover
+// and a Surveyor read them.
+func (b TileBaseline) Fields() map[string]int64 {
+	return map[string]int64{"ore": b.Ore, "fertility": b.Fertility, "cover": b.Cover, "moisture": b.Moisture, "elevation": b.Elevation}
+}
+
 // What water a tile holds (GDD 4.10).
 const (
 	WaterNone   = "none"

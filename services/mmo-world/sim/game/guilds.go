@@ -4,10 +4,13 @@ import (
 	"slices"
 	"strconv"
 
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tally"
 	"jams.team/mmo-world/sim/world"
@@ -29,14 +32,11 @@ const (
 	Work       = "guild-work"    // an officer switches a work on (Units 1) or off
 )
 
-// structural: the work the market's fee reads by name.
-const workOpenLedger = "open-ledger"
-
 // Guild is a guild as the game holds it.
 type Guild struct {
 	G *guild.Guild `json:"g"`
 	// Waiting marks a server's guild that has no settlement yet; it takes
-	// the next starting settlement the world opens (D24).
+	// the next starting settlement the world opens.
 	Waiting bool `json:"waiting,omitempty"`
 	// Invited are characters an officer has invited.
 	Invited []string `json:"invited,omitempty"`
@@ -44,7 +44,7 @@ type Guild struct {
 
 // Pool is the ledger pool holding the guild's treasury (coin) and bank
 // (goods).
-func (gd *Guild) Pool() string { return ledger.Pool + "guild:" + gd.G.ID }
+func (gd *Guild) Pool() string { return ledger.GuildPool(gd.G.ID) }
 
 func guildRef(id string) fact.Ref { return fact.Ref{Kind: "guild", ID: id} }
 
@@ -66,23 +66,34 @@ func (g *Game) ServerGuild(server string) *Guild {
 	return g.Guilds[i]
 }
 
+// newGuild founds a guild under the next id; an empty name stands for
+// one named after that id.
+func (g *Game) newGuild(name string, founder *Char) *Guild {
+	g.NextGuild++
+	id := "g-" + strconv.FormatInt(g.NextGuild, decimal)
+	if name == "" {
+		name = "Guild " + id
+	}
+	gd := &Guild{G: guild.New(id, name, founder.C.ID, g.Tick())}
+	g.Guilds = append(g.Guilds, gd)
+	return gd
+}
+
 // install gives a server its own guild the first time one of its players
-// arrives, with the nearest starting settlement nobody runs, or the next
-// the world opens (D22, D24).
+// arrives, with the first starting settlement nobody runs, or the next
+// the world opens.
 func (g *Game) install(c *Char, server, name string) (*Guild, error) {
 	if gd := g.ServerGuild(server); gd != nil {
 		return gd, nil
 	}
-	g.NextGuild++
-	id := "g-" + strconv.FormatInt(g.NextGuild, decimal)
 	// A server's name is its admins' words, not a player's: one the board
 	// would refuse, or another guild holds, gives way to the guild's id.
 	if g.named("guild", name) != nil || g.nameTaken(name) {
-		name = "Guild " + id
+		name = ""
 	}
-	gd := &Guild{G: guild.New(id, name, c.C.ID, g.Tick())}
+	gd := g.newGuild(name, c)
+	name = gd.G.Name
 	gd.G.Server = server
-	g.Guilds = append(g.Guilds, gd)
 	if i := slices.IndexFunc(g.Places, func(p *Place) bool { return p.Lattice >= 0 && p.Guild == "" }); i >= 0 {
 		g.Places[i].Guild = gd.G.ID
 	} else {
@@ -119,16 +130,16 @@ func (g *Game) joinServer(c *Char, server, name string) error {
 	return nil
 }
 
-// admit marks a server's admin as an officer no vote removes, in its
-// server's own guild (GDD 4.8).
-func (g *Game) admit(c *Char) {
+// admit keeps a server guild's admins in step with Discord (GDD 4.8): a
+// command sent from the guild's own server marks its character an admin
+// there, an officer no vote removes, or unmarks one whose permission is
+// gone. A command from anywhere else says nothing about that server.
+func (g *Game) admit(c *Char, cmd Command) {
 	gd := g.GuildOf(c.C.Guild)
-	if gd == nil || gd.G.Server == "" || gd.G.Server != c.Server {
+	if gd == nil || gd.G.Server == "" || gd.G.Server != c.Server || cmd.Server != gd.G.Server {
 		return
 	}
-	if m := gd.G.Member(c.C.ID); m != nil && !m.Admin {
-		m.Admin, m.Officer, m.Since = true, true, g.Tick()
-	}
+	gd.G.SetAdmin(c.C.ID, cmd.Admin, g.Tick())
 }
 
 // guildOf is the character's guild, or a refusal.
@@ -153,16 +164,50 @@ func (g *Game) officerOf(c *Char) (*Guild, error) {
 }
 
 // leaveGuild takes a character out of its guild; a server guild's members
-// leave too when they join another.
-func (g *Game) leaveGuild(c *Char) error {
+// leave too when they join another. A founded guild its last member
+// leaves is over.
+func (g *Game) leaveGuild(c *Char, key string) error {
 	gd := g.GuildOf(c.C.Guild)
 	if gd == nil {
 		return nil
 	}
 	gd.G.Leave(c.C.ID)
 	c.C.Guild = ""
-	_, err := g.factWith(c, []fact.Ref{guildRef(gd.G.ID)}, "guild.left", g.Tick())
-	return err
+	if _, err := g.factWith(c, []fact.Ref{guildRef(gd.G.ID)}, "guild.left", g.Tick()); err != nil {
+		return err
+	}
+	if len(gd.G.Members) > 0 || gd.G.Server != "" {
+		return nil
+	}
+	return g.disband(gd, key)
+}
+
+// disband ends a guild nobody is in: nobody could be invited to it again,
+// so its settlements go back to their keepers, its works stop, and what
+// it holds goes to the treasury of the first settlement it ran. A server's
+// own guild is never disbanded: its next arrival joins it.
+func (g *Game) disband(gd *Guild, key string) error {
+	gd.G.Works, gd.G.Approvals, gd.G.Votes, gd.Invited = nil, nil, nil, nil
+	to := ""
+	for _, p := range g.Places {
+		if p.Guild != gd.G.ID {
+			continue
+		}
+		p.Guild = ""
+		if to == "" {
+			to = TreasuryPool(p.N)
+		}
+	}
+	var legs []ledger.Leg
+	for _, h := range g.Ledger.Held(gd.Pool()) {
+		if to != "" && h.Units > 0 {
+			legs = append(legs, ledger.Pair(gd.Pool(), to, h.Asset, h.Units)...)
+		}
+	}
+	if len(legs) == 0 {
+		return nil
+	}
+	return g.postAll(ledger.Txn{Key: ledger.SubKey(key, "disband"), Kind: "guild-disband", Tick: g.Tick(), Legs: legs})
 }
 
 func (g *Game) guildAct(c *Char, cmd Command) error {
@@ -177,7 +222,7 @@ func (g *Game) guildAct(c *Char, cmd Command) error {
 		if c.C.Guild == "" {
 			return refuse(BadArgs, "%s is in no guild", c.C.ID)
 		}
-		return g.leaveGuild(c)
+		return g.leaveGuild(c, cmd.Key)
 	case Promote:
 		return g.promote(c, cmd)
 	case Vote:
@@ -209,7 +254,7 @@ func (g *Game) allow(c *Char, cmd Command) error {
 		return refuse(BadArgs, "%s is not a member of %s", cmd.Target, gd.G.Name)
 	}
 	data := []fact.Datum{fact.N("allowed", cmd.Units)}
-	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: cmd.Target}}, "guild.draw-set", g.Tick(), data...)
+	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID), char.Ref(cmd.Target)}, "guild.draw-set", g.Tick(), data...)
 	return err
 }
 
@@ -236,12 +281,10 @@ func (g *Game) foundGuild(c *Char, cmd Command) error {
 	if gd := g.GuildOf(c.C.Guild); gd != nil && gd.G.Server == "" {
 		return refuse(BadArgs, "%s must leave %s first", c.C.ID, gd.G.Name)
 	}
-	if err := g.leaveGuild(c); err != nil {
+	if err := g.leaveGuild(c, cmd.Key); err != nil {
 		return err
 	}
-	g.NextGuild++
-	gd := &Guild{G: guild.New("g-"+strconv.FormatInt(g.NextGuild, decimal), name, c.C.ID, g.Tick())}
-	g.Guilds = append(g.Guilds, gd)
+	gd := g.newGuild(name, c)
 	c.C.Guild = gd.G.ID
 	_, err := g.factWith(c, []fact.Ref{guildRef(gd.G.ID)}, "guild.founded", g.Tick(), fact.S("name", name))
 	return err
@@ -262,7 +305,7 @@ func (g *Game) invite(c *Char, cmd Command) error {
 	if !slices.Contains(gd.Invited, cmd.Target) {
 		gd.Invited = append(gd.Invited, cmd.Target)
 	}
-	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: cmd.Target}}, "guild.invited", g.Tick())
+	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID), char.Ref(cmd.Target)}, "guild.invited", g.Tick())
 	return err
 }
 
@@ -274,7 +317,7 @@ func (g *Game) join(c *Char, cmd Command) error {
 	if cur := g.GuildOf(c.C.Guild); cur != nil && cur.G.Server == "" {
 		return refuse(BadArgs, "%s must leave %s first", c.C.ID, cur.G.Name)
 	}
-	if err := g.leaveGuild(c); err != nil {
+	if err := g.leaveGuild(c, cmd.Key); err != nil {
 		return err
 	}
 	gd.Invited = slices.DeleteFunc(gd.Invited, func(s string) bool { return s == c.C.ID })
@@ -293,9 +336,9 @@ func (g *Game) promote(c *Char, cmd Command) error {
 		return refuse(BadArgs, "only the leader names officers")
 	}
 	if !gd.G.Promote(cmd.Target, g.Tick(), g.r.Guild) {
-		return refuse(BadArgs, "%s cannot be made an officer: one per %d members", cmd.Target, g.r.Guild.OfficerPer)
+		return refuse(BadArgs, "%s cannot be named an officer: the leader names one per %d members", cmd.Target, g.r.Guild.OfficerPer)
 	}
-	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: cmd.Target}}, "guild.officer", g.Tick())
+	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID), char.Ref(cmd.Target)}, "guild.officer", g.Tick())
 	return err
 }
 
@@ -314,10 +357,11 @@ func (g *Game) vote(c *Char, cmd Command) error {
 		_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID)}, "guild.voted", g.Tick(), data...)
 		return err
 	}
-	if _, err := g.factWith(c, []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: cmd.Target}}, "guild.removed", g.Tick(), data...); err != nil {
+	if _, err := g.factWith(c, []fact.Ref{guildRef(gd.G.ID), char.Ref(cmd.Target)}, "guild.removed", g.Tick(), data...); err != nil {
 		return err
 	}
-	return g.succeed(gd)
+	// Whoever a vote just removed does not succeed itself.
+	return g.succeed(gd, cmd.Target)
 }
 
 // activeMembers counts members who acted within active-days.
@@ -333,7 +377,13 @@ func (g *Game) activeMembers(gd *Guild) int64 {
 
 func (g *Game) isActive(id string) bool {
 	c := g.Char(id)
-	return c != nil && g.Tick()-c.Acted < g.mp("active-days")*sheets.TicksPerDay && c.Acted > 0
+	return c != nil && c.Acted > 0 && g.actedWithin(c, g.mp("active-days"))
+}
+
+// actedWithin reports whether a character's last command was inside the
+// last days world days.
+func (g *Game) actedWithin(c *Char, days int64) bool {
+	return g.Tick()-c.Acted < days*sheets.TicksPerDay
 }
 
 // deposit gives coin or goods to the guild: coin to the treasury, goods to
@@ -354,7 +404,7 @@ func (g *Game) deposit(c *Char, cmd Command) error {
 		return err
 	}
 	value := g.worth(asset, cmd.Units)
-	gd.G.Deposit(c.C.ID, g.World.Day, value)
+	gd.G.Deposit(c.C.ID, g.World.Day, value, g.r.Guild)
 	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID)}, "guild.deposited", g.Tick(), fact.S("asset", asset), fact.N("units", cmd.Units), fact.N("value", value))
 	return err
 }
@@ -410,7 +460,7 @@ func (g *Game) payOut(gd *Guild, officer *Char, key, asset string, units, value 
 		return err
 	}
 	gd.G.Spent(officer.C.ID, g.World.Day, value)
-	_, err := g.factWith(officer, []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: to}}, "guild.paid", g.Tick(), fact.S("asset", asset), fact.N("units", units), fact.N("value", value))
+	_, err := g.factWith(officer, []fact.Ref{guildRef(gd.G.ID), char.Ref(to)}, "guild.paid", g.Tick(), fact.S("asset", asset), fact.N("units", units), fact.N("value", value))
 	return err
 }
 
@@ -419,13 +469,14 @@ func (g *Game) approve(c *Char, cmd Command) error {
 	if err != nil {
 		return err
 	}
-	a, ok := gd.G.Approve(cmd.Option, c.C.ID)
+	a, ok := gd.G.Pending(cmd.Option, c.C.ID)
 	if !ok {
 		return refuse(BadArgs, "no payment %q waits for %s's approval", cmd.Option, c.C.ID)
 	}
 	if g.Ledger.Of(gd.Pool(), a.Asset) < a.Units || g.Char(a.To) == nil {
 		return refuse(BadArgs, "%s no longer holds what it would pay", gd.G.Name)
 	}
+	gd.G.Approve(a.ID, c.C.ID)
 	return g.payOut(gd, c, cmd.Key, a.Asset, a.Units, a.Value, a.To)
 }
 
@@ -445,7 +496,7 @@ func (g *Game) draw(c *Char, cmd Command) error {
 	}
 	value := g.worth(asset, cmd.Units)
 	if !gd.G.MayDraw(c.C.ID, value, g.r.Guild) {
-		return refuse(BadArgs, "%s may draw up to half of what it has put in", c.C.ID)
+		return refuse(BadArgs, "%s may draw up to %d%% of what it has put in", c.C.ID, g.r.Guild.DrawShare)
 	}
 	if c.C.Coin < value {
 		return refuse(BadArgs, "drawing at cost takes %d coin", value)
@@ -480,6 +531,9 @@ func (g *Game) work(c *Char, cmd Command) error {
 	on := cmd.Units > 0
 	kind := "guild.work-on"
 	if on {
+		if row.Waits != "" {
+			return refuse(BadArgs, "%s does nothing yet: it waits for %s", row.ID, row.Waits)
+		}
 		if gd.G.Work(row.ID, p.N) != nil {
 			return refuse(BadArgs, "%s already runs here", row.ID)
 		}
@@ -511,6 +565,13 @@ func (g *Game) WorkRunning(settlement int, id string) (*Guild, *guild.Work) {
 	return nil, nil
 }
 
+// CanWork reports whether an officer of the guild running a settlement
+// could switch a work on there: its structure stands and its system is
+// built.
+func CanWork(p *Place, row *sheets.GuildWork) bool {
+	return row.Waits == "" && (row.Needs == "" || p.Open(row.Needs))
+}
+
 // workHere is the work giving something where a character stands, or nil;
 // member limits it to the guild's own members.
 func (g *Game) workHere(c *Char, gives string, member bool) (*sheets.GuildWork, *guild.Work) {
@@ -518,12 +579,22 @@ func (g *Game) workHere(c *Char, gives string, member bool) (*sheets.GuildWork, 
 	if !ok {
 		return nil, nil
 	}
-	for _, row := range g.r.Book.GuildWorks {
+	if member {
+		return g.workAt(n, gives, c)
+	}
+	return g.workAt(n, gives, nil)
+}
+
+// workAt is the work giving something at a settlement, or nil; a member
+// named limits it to that character's own guild.
+func (g *Game) workAt(n int, gives string, member *Char) (*sheets.GuildWork, *guild.Work) {
+	for i := range g.r.Book.GuildWorks {
+		row := &g.r.Book.GuildWorks[i]
 		if row.Gives != gives {
 			continue
 		}
-		if gd, w := g.WorkRunning(n, row.ID); w != nil && (!member || gd.G.Member(c.C.ID) != nil) {
-			return &row, w
+		if gd, w := g.WorkRunning(n, row.ID); w != nil && (member == nil || gd.G.Member(member.C.ID) != nil) {
+			return row, w
 		}
 	}
 	return nil, nil
@@ -533,7 +604,7 @@ func (g *Game) workHere(c *Char, gives string, member bool) (*sheets.GuildWork, 
 // is left of the day's stock at reference value, so no work gives back
 // more than it burned (GDD 4.14).
 func spared(row *sheets.GuildWork, w *guild.Work, cost int64) int64 {
-	return max(0, min(cost*row.By/hundred, w.Left))
+	return max(0, min(fixed.PercentFloor(cost, row.By), w.Left))
 }
 
 // workGave books what a work spared against its day.
@@ -542,9 +613,10 @@ func (g *Game) workGave(w *guild.Work, saved int64) {
 	g.WorkLedger.Gave.Bump(w.ID, saved)
 }
 
-// guildsTurn is the guilds' world day: works consume their stock or lapse
-// (a road patrol's threat is a world effect), approvals and votes lapse,
-// idle leaders are succeeded, and a server guild re-picks its leader.
+// guildsTurn is the guilds' world day: a season's close clears the
+// season's ranks, approvals and votes lapse, works consume their stock or
+// lapse, idle leaders are succeeded, and a server guild re-picks its
+// leader.
 func (g *Game) guildsTurn(t int64) error {
 	day := t / sheets.TicksPerDay
 	closing := day%g.r.wp("season-days") == 0
@@ -557,41 +629,42 @@ func (g *Game) guildsTurn(t int64) error {
 			return err
 		}
 		if gd.G.Server != "" && day-gd.G.Picked >= g.r.Guild.ServerLeaderEvery {
-			if l := gd.G.PickLeader(g.acted(gd), day); l != "" {
-				if _, err := g.worldFact(g.guildHex(gd), "guild.leader", []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: l}}, nil); err != nil {
-					return err
-				}
+			if err := g.leaderFact(gd, gd.G.PickLeader(g.acted(gd), day)); err != nil {
+				return err
 			}
 			continue
 		}
-		if err := g.succeed(gd); err != nil {
+		if err := g.succeed(gd, ""); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// succeed replaces a leader idle past leader-idle-days, which is a fact.
-func (g *Game) succeed(gd *Guild) error {
-	idle := g.r.Guild.LeaderIdleDays * sheets.TicksPerDay
-	l := gd.G.Succeed(func(id string) bool {
+// succeed replaces a leader idle past leader-idle-days, or fills an empty
+// leadership, passing over skip; a new leader is a fact.
+func (g *Game) succeed(gd *Guild, skip string) error {
+	return g.leaderFact(gd, gd.G.Succeed(func(id string) bool {
 		c := g.Char(id)
-		return c != nil && g.Tick()-c.Acted < idle
-	})
-	if l == "" {
+		return c != nil && id != skip && g.actedWithin(c, g.r.Guild.LeaderIdleDays)
+	}))
+}
+
+// leaderFact records a guild's new leader, if it has one.
+func (g *Game) leaderFact(gd *Guild, leader string) error {
+	if leader == "" {
 		return nil
 	}
-	_, err := g.worldFact(g.guildHex(gd), "guild.leader", []fact.Ref{guildRef(gd.G.ID), {Kind: "character", ID: l}}, nil)
+	_, err := g.worldFact(g.guildHex(gd), "guild.leader", []fact.Ref{guildRef(gd.G.ID), char.Ref(leader)}, nil)
 	return err
 }
 
-// acted is how many ticks each member acted in over the server leader's
-// window, read as the ticks since its last act counted back.
+// acted weighs each member who acted inside the server leader's window by
+// what it has walked, crafted and won.
 func (g *Game) acted(gd *Guild) tally.Tally {
 	var t tally.Tally
-	window := g.r.Guild.ServerLeaderDays * sheets.TicksPerDay
 	for _, m := range gd.G.Members {
-		if c := g.Char(m.Char); c != nil && g.Tick()-c.Acted < window {
+		if c := g.Char(m.Char); c != nil && g.actedWithin(c, g.r.Guild.ServerLeaderDays) {
 			t.Bump(m.Char, max(1, c.C.Walked+c.C.Crafts.Sum()+c.C.Fights.Won.Sum()))
 		}
 	}
@@ -615,14 +688,14 @@ func (g *Game) stock(gd *Guild, t int64) error {
 	var kept []guild.Work
 	for _, w := range gd.G.Works {
 		row := g.r.works[w.ID]
-		pct := int64(hundred)
+		pct := int64(fixed.Hundredths)
 		if by := g.Char(w.By); by != nil {
-			pct = g.charScale(by, "works-stock", hundred)
+			pct = g.charScale(by, "works-stock", fixed.Hundredths)
 		}
-		lines := linesOf(row.Uses, pct)
-		legs, ok := g.takeLines(gd.Pool(), lines)
+		lines := settle.Scaled(row.Uses, pct)
+		legs, short, _ := g.takeLines(g.Ledger.Held(gd.Pool()), lines)
 		key := ledger.SubKey("work", gd.G.ID, w.ID, strconv.Itoa(w.Settlement), strconv.FormatInt(t/sheets.TicksPerDay, decimal))
-		if !ok {
+		if short != nil {
 			if _, err := g.worldFact(g.SettlementHex(w.Settlement), "guild.work-lapsed", []fact.Ref{guildRef(gd.G.ID)}, nil, fact.S("work", w.ID), fact.N("settlement", int64(w.Settlement))); err != nil {
 				return err
 			}
@@ -635,43 +708,13 @@ func (g *Game) stock(gd *Guild, t int64) error {
 		g.WorkLedger.Used.Bump(row.ID, w.Left)
 		w.Days++
 		kept = append(kept, w)
-		if row.Gives == "threat" {
+		// A patrol's threat is eased by the world, at the next tick.
+		if row.Gives == guild.GivesThreat {
 			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: g.SettlementHex(w.Settlement), By: guildRef(gd.G.ID), Units: row.By})
 		}
 	}
 	gd.G.Works = kept
 	return nil
-}
-
-// takeLines are the legs taking each line from a pool's holdings by tag,
-// or false if it holds too little.
-func (g *Game) takeLines(pool string, lines []costLine) ([]ledger.Leg, bool) {
-	held := g.Ledger.Held(pool)
-	var legs []ledger.Leg
-	for _, l := range lines {
-		need := l.Units
-		for _, h := range held {
-			if need == 0 {
-				break
-			}
-			ok := l.Tag == "" && h.Asset == ledger.Coin
-			if l.Tag != "" {
-				if m, isMat := ledger.GoodsOf(h.Asset); isMat {
-					ok = g.materialHas(m, l.Tag)
-				}
-			}
-			if !ok {
-				continue
-			}
-			n := min(need, h.Units)
-			legs = append(legs, ledger.Leg{Account: pool, Asset: h.Asset, Units: -n})
-			need -= n
-		}
-		if need > 0 {
-			return nil, false
-		}
-	}
-	return legs, true
 }
 
 // sinkLegs balance taking legs into a sink.
@@ -691,16 +734,26 @@ type WorkLedger struct {
 
 // linesWorth is cost lines at reference value: coin as itself, goods at
 // the cheapest material holding the tag.
-func (g *Game) linesWorth(lines []costLine) int64 {
+func (g *Game) linesWorth(lines []sheets.CostLine) int64 {
 	var n int64
 	for _, l := range lines {
 		if l.Tag == "" {
-			n += l.Units
+			n += l.Quantity
 			continue
 		}
-		n += l.Units * g.tagValue(l.Tag)
+		n += l.Quantity * g.tagValue(l.Tag)
 	}
 	return n
+}
+
+// MaterialOfTag is the first material of the sheet holding a tag.
+func (g *Game) MaterialOfTag(tag string) (string, bool) {
+	for _, m := range g.r.Book.Materials {
+		if slices.Contains(m.Tags, tag) {
+			return m.ID, true
+		}
+	}
+	return "", false
 }
 
 // tagValue is the least reference value of a material holding a tag.
@@ -724,7 +777,7 @@ func (g *Game) tagValue(tag string) int64 {
 func (g *Game) StockDays(gd *Guild, row *sheets.GuildWork) int64 {
 	days := int64(-1)
 	for _, l := range row.Uses {
-		have := g.heldOfTag(gd.Pool(), l.Tag)
+		have := g.heldOfTag(g.Ledger.Held(gd.Pool()), l.Tag)
 		n := have / max(l.Quantity, 1)
 		if days < 0 || n < days {
 			days = n
@@ -733,21 +786,7 @@ func (g *Game) StockDays(gd *Guild, row *sheets.GuildWork) int64 {
 	return max(days, 0)
 }
 
-// heldOfTag is what a pool holds of a tag's goods, or coin for none.
-func (g *Game) heldOfTag(pool, tag string) int64 {
-	var n int64
-	for _, h := range g.Ledger.Held(pool) {
-		if tag == "" && h.Asset == ledger.Coin {
-			n += h.Units
-		}
-		if m, ok := ledger.GoodsOf(h.Asset); ok && tag != "" && g.materialHas(m, tag) {
-			n += h.Units
-		}
-	}
-	return n
-}
-
 // VotesNeeded is how many votes carry a motion in a guild now.
 func (g *Game) VotesNeeded(gd *Guild) int64 {
-	return g.activeMembers(gd)*g.r.Guild.VoteShare/hundred + 1
+	return guild.Needed(g.activeMembers(gd), g.r.Guild)
 }

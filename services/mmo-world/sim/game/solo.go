@@ -8,7 +8,9 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -335,7 +337,7 @@ func (g *Game) upkeep(c *Char, t int64) (bool, error) {
 		return false, nil
 	}
 	owe := g.charScale(c, "mount-upkeep", g.r.Mounts.Upkeep(1, c.Rode))
-	if row, w := g.workHere(c, "mount-upkeep", true); w != nil && owe > 0 {
+	if row, w := g.workHere(c, guild.GivesMountUpkeep, true); w != nil && owe > 0 {
 		each := g.r.Values.Param("provisions-value")
 		saved := spared(row, w, owe*each) / each
 		g.workGave(w, saved*each)
@@ -528,7 +530,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		}
 	}
 	if res.Instance != nil {
-		res.Instance.Stamp = g.charScale(c, "item-xp", hundred) - hundred
+		res.Instance.Stamp = g.charScale(c, "item-xp", fixed.Hundredths) - fixed.Hundredths
 	}
 	if res.Discovered {
 		g.nameKind(res.Kind, c.C.ID)
@@ -737,6 +739,10 @@ func (g *Game) crawl(c *Char, cmd Command) error {
 	}
 	n := g.r.wp("crawl-ticks")
 	g.startLong(c, Crawl, cmd.Key, n, n)
+	// A call for help lasts as long as the crawl it would have spared.
+	if x := g.callOf(c); x != nil {
+		x.Expires = c.Long.Due
+	}
 	return nil
 }
 

@@ -7,7 +7,7 @@ import {
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
-import type { Lexicon } from "../lexicon.ts";
+import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, plural } from "../units.ts";
 import { back, banner, btn, PRIVATE } from "./common.ts";
 
@@ -29,20 +29,22 @@ function base(g: api.Guild, suffix: string, title: string): Omit<Card, "rows" | 
   };
 }
 
-/** A cost in words: goods of a tag, or coin. */
-function cost(lines: readonly api.CostLine[] | undefined): string {
-  return (
-    (lines ?? [])
-      .map((l) =>
-        l.tag ? `${amount(l.quantity, "goods")} of ${l.tag}` : amount(l.quantity, "coin"),
-      )
-      .join(", ") || "none"
-  );
+/** A cost: goods of a tag, or coin; bare numbers for a table cell whose header names the units. */
+function cost(lines: readonly api.CostLine[] | undefined, cell = false): string {
+  const line = (l: api.CostLine) => {
+    if (cell) return `${num(l.quantity)} ${l.tag ?? "coin"}`;
+    return l.tag ? `${amount(l.quantity, "goods")} of ${l.tag}` : amount(l.quantity, "coin");
+  };
+  return (lines ?? []).map(line).join(", ") || "none";
 }
 
-/** A cost for a table cell, whose header names the units. */
-function costCell(lines: readonly api.CostLine[]): string {
-  return lines.map((l) => `${num(l.quantity)} ${l.tag ?? "coin"}`).join(", ");
+/** A charter's cost as cost lines. */
+function charterCost(c: api.Charter): api.CostLine[] {
+  return [
+    { tag: "timber", quantity: c.timber },
+    { tag: "stone", quantity: c.stone },
+    { quantity: c.coin },
+  ];
 }
 
 /** What a work gives while stocked, by the rule it changes. */
@@ -82,6 +84,7 @@ export function guildCard(
   lex: Lexicon,
   view: GuildView = "members",
   notice?: string,
+  page = 0,
 ): Card {
   const v = o.version;
   if (!g.id) return noGuildCard(o, g, notice);
@@ -128,15 +131,13 @@ export function guildCard(
       rows.push({
         buttons: [btn(`Approve: ${a.what} to ${a.to}`.slice(0, 80), "gld-appr", a.id, v)],
       });
-  const manage = memberOptions(g);
-  if (manage.length)
-    rows.push({
-      select: {
-        customId: encodeId("gld-member", "", v),
-        placeholder: "A member: ranks, votes, the bank",
-        options: manage,
-      },
-    });
+  rows.push({
+    select: {
+      customId: encodeId("gld-member", "", v),
+      placeholder: "A member: ranks, votes, the bank",
+      options: memberOptions(g, page),
+    },
+  });
   if (g.officer && g.near.length)
     rows.push({
       select: {
@@ -155,12 +156,7 @@ export function guildCard(
       header: ["Member", "Role", "Given, season (coin)", "Given, all time (coin)"],
       rows: g.members
         .slice(0, 15)
-        .map((m) => [
-          m.name.slice(0, 20),
-          m.leader ? "leader" : m.admin ? "admin" : m.officer ? "officer" : "member",
-          num(m.season),
-          num(m.put),
-        ]),
+        .map((m) => [m.name.slice(0, 20), role(m), num(m.season), num(m.put)]),
     },
     fields: [
       { name: "Treasury", value: amount(g.treasury, "coin"), inline: true },
@@ -175,8 +171,8 @@ export function guildCard(
         inline: true,
       },
       {
-        name: "Officers",
-        value: `${num(g.officers)} of ${amount(g.officersMax, "officers")}`,
+        name: "Officers named",
+        value: `${num(g.named)} of ${amount(g.officersMax, "officers")}`,
         inline: true,
       },
       ...(g.officer
@@ -194,8 +190,7 @@ export function guildCard(
           ]
         : []),
     ],
-    footer:
-      "Gifts are ranked by season and all time; a member may draw stock at cost up to half of what it gave.",
+    footer: `Gifts are ranked by season and all time; a member may draw stock at cost up to ${num(g.drawShare)}% of what it gave.`,
     rows,
   };
 }
@@ -203,43 +198,79 @@ export function guildCard(
 /** What an officer pays a member from the treasury in one press. */
 const PAYMENT = 100;
 
-/** What the viewer may do about each member: an officer sets the bank's rule and pays, anyone votes. */
-function memberOptions(g: api.Guild): { label: string; value: string }[] {
-  const out: { label: string; value: string }[] = [];
-  const add = (label: string, ...parts: (string | number)[]) =>
-    out.push({ label: label.slice(0, 90), value: target(":", ...parts) });
-  for (const m of g.members.slice(0, 8)) {
-    if (g.officer) {
-      if (!m.officer)
-        add(
-          m.draw
-            ? `${m.name}: back to the bank's usual share`
-            : `${m.name}: may draw freely from the bank`,
-          "allow",
-          m.id,
-          m.draw ? 0 : 1,
-        );
-      if (!m.officer && g.officers < g.officersMax)
-        add(`${m.name}: name an officer`, "promote", m.id, "-");
-      if (g.treasury >= PAYMENT)
-        add(`${m.name}: pay ${amount(PAYMENT, "coin")}`, "pay", m.id, PAYMENT);
-    }
-    if (!m.admin && (m.officer || m.leader))
-      add(
-        `${m.name}: vote to remove as ${m.leader ? "leader" : "officer"}`,
-        "vote",
+/** A select holds this many options; the last of a page turns to the next. */
+const SELECT_MOST = 25;
+
+function role(m: api.GuildMember): string {
+  return m.leader ? "leader" : m.admin ? "admin" : m.officer ? "officer" : "member";
+}
+
+/** The members a page of the select offers: those a vote can stand against first, then by rank. */
+function memberOptions(g: api.Guild, page: number): { label: string; value: string }[] {
+  const held = (m: api.GuildMember) => (m.leader || m.officer || m.admin ? 0 : 1);
+  const all = [...g.members].sort((a, b) => held(a) - held(b));
+  const per = SELECT_MOST - 1;
+  const from = page * per < all.length ? page * per : 0;
+  const out = all.slice(from, from + per).map((m) => ({
+    label: `${m.name} (${role(m)})`.slice(0, 90),
+    value: m.id,
+  }));
+  if (all.length > per)
+    out.push({
+      label: from + per < all.length ? "More members" : "Back to the first members",
+      value: target(":", "page", from + per < all.length ? from / per + 1 : 0),
+    });
+  return out;
+}
+
+/** One member: what the viewer may do about them. An officer sets the bank's rule, names and pays; anyone votes. */
+export function memberCard(o: api.Options, g: api.Guild, id: string, notice?: string): Card {
+  const v = o.version;
+  const m = g.members.find((x) => x.id === id);
+  const acts: Button[] = [];
+  const act = (label: string, ...parts: (string | number)[]) =>
+    acts.push(btn(label.slice(0, 80), "gld-act", target(":", ...parts), v));
+  if (m && g.officer) {
+    if (!m.officer && !m.leader && !m.admin) {
+      act(
+        m.draw ? "Back to the bank's usual share" : "May draw freely",
+        "allow",
         m.id,
-        m.leader ? "leader" : "officer",
+        m.draw ? 0 : 1,
       );
+      if (g.named < g.officersMax) act("Name an officer", "promote", m.id, "-");
+    }
+    if (g.treasury >= PAYMENT) act(`Pay ${amount(PAYMENT, "coin")}`, "pay", m.id, PAYMENT);
   }
-  return out.slice(0, 25);
+  if (m && !m.admin && (m.officer || m.leader))
+    act(
+      `Vote to remove as ${m.leader ? "leader" : "officer"}`,
+      "vote",
+      m.id,
+      m.leader ? "leader" : "officer",
+    );
+  return {
+    ...base(g, "A member", notice ?? m?.name ?? "No such member"),
+    description: m
+      ? `${capitalise(role(m))} of ${g.name}${m.draw ? ", allowed to draw freely from the bank" : ""}.`
+      : "They are no longer in the guild.",
+    fields: m
+      ? [
+          { name: "Given this season", value: amount(m.season, "coin"), inline: true },
+          { name: "Given, all time", value: amount(m.put, "coin"), inline: true },
+        ]
+      : undefined,
+    footer:
+      "A vote carries once enough of the active members have cast it; no vote stands against a server's admin.",
+    rows: buttonRows([...acts, btn("Guild", "guild", "members", v, { emoji: "↩" })]),
+  };
 }
 
 function noGuildCard(o: api.Options, g: api.Guild, notice?: string): Card {
   const v = o.version;
   const buttons: Button[] = [btn("Found a guild", "gld-name", "", v, { style: "primary" })];
-  for (const id of g.invites.slice(0, 3))
-    buttons.push(btn(`Join ${id}`, "gld-join", id, v, { style: "success" }));
+  for (const p of g.invites.slice(0, 3))
+    buttons.push(btn(`Join ${p.label}`.slice(0, 80), "gld-join", p.value, v, { style: "success" }));
   buttons.push(back(v));
   return {
     context: PRIVATE,
@@ -257,9 +288,7 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
   const here = g.settlements.find((s) => s.here);
   const rows: Row[] = [];
   if (here && g.officer) {
-    const raisable = here.structures.filter(
-      (s) => s.tier < s.maxTier && !s.raising && (s.next?.length ?? 0) > 0,
-    );
+    const raisable = here.structures.filter((s) => s.canRaise);
     if (raisable.length)
       rows.push({
         select: {
@@ -277,11 +306,11 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
       });
   }
   if (here) {
-    const worn = here.structures.filter((s) => s.tier > 0 && s.condition < 100);
+    const worn = here.structures.filter((s) => s.tier > 0 && s.condition < here.conditionMax);
     if (worn.length)
       rows.push({
         select: {
-          customId: encodeId("gld-mend", "", v),
+          customId: encodeId("gld-mend", String(here.conditionMax), v),
           placeholder: "Repair a structure with what you carry",
           options: worn.slice(0, 25).map((s) => ({
             label:
@@ -312,17 +341,27 @@ function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string)
       notice ?? `${plural(g.settlements.length, "settlement")} run by ${g.name}`,
     ),
     description: g.settlements.length
-      ? "Structures rise by pooled goals and wear by troubles, raids and neglect; any member may repair them."
+      ? "Structures rise by pooled goals and wear when nobody uses them; any member may repair them."
       : "The guild runs no settlement yet.",
     table: lines.length
       ? { header: ["Settlement", "Structure", "Tier", "Condition (pts)"], rows: lines.slice(0, 15) }
       : undefined,
-    fields: g.settlements.slice(0, 3).map((s) => ({
-      name: s.name,
-      value: `Treasury ${amount(s.treasury, "coin")}`,
-      inline: true,
-    })),
-    footer: `A charter takes ${amount(g.charter.timber, "goods")} of timber, ${amount(g.charter.stone, "goods")} of stone and ${amount(g.charter.coin, "coin")}.`,
+    fields: [
+      ...g.settlements.slice(0, 3).map((s) => ({
+        name: s.name,
+        value: `Treasury ${amount(s.treasury, "coin")}`,
+        inline: true,
+      })),
+      {
+        name: "A charter where you stand",
+        value: [
+          g.charter.can ? "The guild can charter here." : capitalise(g.charter.why ?? "Not here."),
+          ...Object.entries(g.charter.fields ?? {}).map(([k, n]) => `${k} ${num(n)} pts`),
+        ].join("\n"),
+        inline: false,
+      },
+    ],
+    footer: `A charter takes ${cost(charterCost(g.charter))}.`,
     rows,
   };
 }
@@ -347,9 +386,9 @@ function worksCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string):
       header: ["Work", "Uses a day (goods or coin)", "Gives (while stocked)", "Stock (days)"],
       rows: g.works.map((w) => [
         lex.name("settlements.guild-works", w.id).slice(0, 16),
-        costCell(w.uses).slice(0, 26),
+        cost(w.uses, true).slice(0, 26),
         gives(w),
-        w.on ? num(w.days) : "off",
+        w.waits ? "later" : w.on ? num(w.days) : "off",
       ]),
     },
     footer: "Officers switch works on at a settlement the guild runs.",

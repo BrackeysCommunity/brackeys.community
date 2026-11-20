@@ -114,6 +114,7 @@ test("the destination select submits signed coordinates and the card version", a
       characterId: "c-1",
       version: 17,
       kind: "travel",
+      server: "guild",
       to: { q: -2, r: 4 },
       stop: { threat: 600 },
     },
@@ -131,6 +132,7 @@ test("a stale gather refreshes the hub without scheduling a completion notice", 
       characterId: "c-1",
       version: 8,
       kind: "gather",
+      server: "guild",
       material: "scrap",
       ticks: 2,
     },
@@ -218,6 +220,7 @@ test("naming a goal opens a modal at once, and its submit posts the drafted goal
       characterId: "c-1",
       version: 4,
       kind: api.ActPostGoal,
+      server: "guild",
       admin: true,
       goal: specOf(draft, samples.goals as unknown as api.Goals, "Ore for the smelter", ""),
     },
@@ -270,6 +273,7 @@ test("goal and guild presses send what their targets say, and malformed ones not
       characterId: "c-1",
       version: 2,
       kind: api.ActWithdrawGoal,
+      server: "guild",
       target: "q-3",
     },
     {
@@ -277,6 +281,7 @@ test("goal and guild presses send what their targets say, and malformed ones not
       characterId: "c-1",
       version: 3,
       kind: api.ActDeposit,
+      server: "guild",
       asset: "coin",
       units: 10,
     },
@@ -383,7 +388,14 @@ test("pressing a combat option shows the outcome when no encounter remains", asy
   const { writes, press } = setup();
   const result = await press({ action: "press", target: "strike", version: 12 });
   expect(writes).toEqual([
-    { characterId: "c-1", kind: "press", version: 12, interactionId: "event", option: "strike" },
+    {
+      characterId: "c-1",
+      kind: "press",
+      version: 12,
+      interactionId: "event",
+      option: "strike",
+      server: "guild",
+    },
   ]);
   expect(result.card.author).toBe("Encounter · the beat resolved");
 });

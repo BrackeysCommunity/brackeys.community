@@ -7,6 +7,7 @@ package settle
 import (
 	"slices"
 
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -105,13 +106,30 @@ func Cap(row *sheets.Structure, p Params) int64 {
 	return row.MaxTier
 }
 
-// Cost is what the next tier of a structure costs: its first tier's lines
-// if it is not built, else a tier up's.
-func (s *Settlement) Cost(row *sheets.Structure) []sheets.CostLine {
-	if s.Get(row.ID) == nil {
-		return row.First
+// Next is the tier a raise lifts a structure to and what that costs: the
+// first tier's lines where none stands (st nil), else a tier up's. ok is
+// false past the cap, and for a structure with no lines, which goals do
+// not raise.
+func Next(row *sheets.Structure, st *Structure, p Params) (tier int64, lines []sheets.CostLine, ok bool) {
+	tier, lines = 1, row.First
+	if st != nil {
+		tier, lines = st.Tier+1, row.Each
 	}
-	return row.Each
+	return tier, lines, tier <= Cap(row, p) && len(lines) > 0
+}
+
+// Next is Next for the settlement's own structure of the row.
+func (s *Settlement) Next(row *sheets.Structure, p Params) (tier int64, lines []sheets.CostLine, ok bool) {
+	return Next(row, s.Get(row.ID), p)
+}
+
+// Scaled is a cost at pct per cent, each line at least one unit.
+func Scaled(lines []sheets.CostLine, pct int64) []sheets.CostLine {
+	out := make([]sheets.CostLine, len(lines))
+	for i, l := range lines {
+		out[i] = sheets.CostLine{Tag: l.Tag, Quantity: max(1, fixed.PercentFloor(l.Quantity, pct))}
+	}
+	return out
 }
 
 // Worth is a structure's whole cost so far, line by line: its first tier
@@ -149,15 +167,8 @@ func Repair(row *sheets.Structure, st Structure, points int64, p Params) []sheet
 	if st.Closed() {
 		share = max(share, p.ReopenShare)
 	}
-	var out []sheets.CostLine
-	for _, l := range Worth(row, st.Tier) {
-		out = append(out, sheets.CostLine{Tag: l.Tag, Quantity: max(1, l.Quantity*share/hundred)})
-	}
-	return out
+	return Scaled(Worth(row, st.Tier), share)
 }
-
-// structural: shares are in per cent.
-const hundred = 100
 
 // Mend restores a structure's condition by points, to its maximum.
 func (s *Settlement) Mend(kind string, points int64, p Params) {

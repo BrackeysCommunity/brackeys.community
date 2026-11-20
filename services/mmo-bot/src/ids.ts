@@ -47,6 +47,7 @@ const ACTIONS = [
   "g-wd",
   "gather",
   "gear-buy",
+  "gld-act",
   "gld-appr",
   "gld-chart",
   "gld-dep",

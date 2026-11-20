@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strconv"
 
+	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tally"
 )
 
@@ -20,10 +22,12 @@ const (
 
 // Member is one character in a guild.
 type Member struct {
-	Char    string `json:"char"`
-	Joined  int64  `json:"joined"`
-	Officer bool   `json:"officer,omitempty"`
-	// Since is the tick it became an officer, for succession.
+	Char   string `json:"char"`
+	Joined int64  `json:"joined"`
+	// Officer is an officer the leader named; the leader and a server's
+	// admins are officers without it.
+	Officer bool `json:"officer,omitempty"`
+	// Since is the tick it became an officer or an admin, for succession.
 	Since int64 `json:"since,omitempty"`
 	// Admin is a server admin in its server's own guild: an officer no
 	// vote removes.
@@ -74,6 +78,15 @@ type Vote struct {
 	For    []string `json:"for"`
 }
 
+// What a work gives while stocked, as the settlements sheet names it.
+const (
+	GivesStationFee  = "station-fee"
+	GivesThreat      = "threat"
+	GivesRest        = "rest"
+	GivesMarketFee   = "market-fee"
+	GivesMountUpkeep = "mount-upkeep"
+)
+
 // Work is a guild work switched on at a settlement (GDD 4.14).
 type Work struct {
 	ID         string `json:"id"`
@@ -113,15 +126,28 @@ type Params struct {
 	DrawShare, SpoilsDays                                         int64
 }
 
-// New is a guild with its founder as leader and only officer.
+// ParamsOf reads them.
+func ParamsOf(p []sheets.Param) Params {
+	i := func(id string) int64 { return sheets.IntParam(p, id) }
+	return Params{Least: i("guild-least"), OfficerPer: i("officer-per"), OfficerSpend: i("officer-spend"), ApprovalDays: i("approval-days"),
+		LeaderIdleDays: i("leader-idle-days"), VoteShare: i("vote-share"), VoteDays: i("vote-days"), ServerLeaderDays: i("server-leader-days"),
+		ServerLeaderEvery: i("server-leader-every"), DrawShare: i("draw-share"), SpoilsDays: i("spoils-days")}
+}
+
+// New is a guild with its founder as leader.
 func New(id, name, founder string, tick int64) *Guild {
-	return &Guild{ID: id, Name: name, Founded: tick, Leader: founder,
-		Members: []Member{{Char: founder, Joined: tick, Officer: true, Since: tick}}}
+	return &Guild{ID: id, Name: name, Founded: tick, Leader: founder, Members: []Member{{Char: founder, Joined: tick}}}
+}
+
+// find is where a member sits among the sorted members, and whether it
+// is one.
+func (g *Guild) find(char string) (int, bool) {
+	return slices.BinarySearchFunc(g.Members, char, func(m Member, c string) int { return cmp.Compare(m.Char, c) })
 }
 
 // Member finds a member, or nil.
 func (g *Guild) Member(char string) *Member {
-	i, ok := slices.BinarySearchFunc(g.Members, char, func(m Member, c string) int { return cmp.Compare(m.Char, c) })
+	i, ok := g.find(char)
 	if !ok {
 		return nil
 	}
@@ -130,7 +156,7 @@ func (g *Guild) Member(char string) *Member {
 
 // Join adds a member; false if it already is one.
 func (g *Guild) Join(char string, tick int64) bool {
-	i, ok := slices.BinarySearchFunc(g.Members, char, func(m Member, c string) int { return cmp.Compare(m.Char, c) })
+	i, ok := g.find(char)
 	if ok {
 		return false
 	}
@@ -163,21 +189,37 @@ func (g *Guild) IsOfficer(char string) bool {
 	return m != nil && (m.Officer || m.Admin || g.Leader == char)
 }
 
-// Officers is how many officers the guild may have: one per OfficerPer
+// Officers is how many officers the leader may name: one per OfficerPer
 // members, at least one.
 func (g *Guild) Officers(p Params) int64 { return max(1, int64(len(g.Members))/p.OfficerPer) }
 
-// Promote makes a member an officer if the guild has room for one.
+// Promote makes a member an officer if the guild has room for one; the
+// leader and a server's admins are officers already.
 func (g *Guild) Promote(char string, tick int64, p Params) bool {
 	m := g.Member(char)
-	if m == nil || m.Officer || g.officerCount() >= g.Officers(p) {
+	if m == nil || m.Officer || m.Admin || g.Leader == char || g.Named() >= g.Officers(p) {
 		return false
 	}
 	m.Officer, m.Since = true, tick
 	return true
 }
 
-func (g *Guild) officerCount() int64 {
+// SetAdmin marks or unmarks a member as its server's admin, and reports
+// whether that changed anything.
+func (g *Guild) SetAdmin(char string, on bool, tick int64) bool {
+	m := g.Member(char)
+	if m == nil || m.Admin == on {
+		return false
+	}
+	m.Admin = on
+	if on && !m.Officer {
+		m.Since = tick
+	}
+	return true
+}
+
+// Named is how many officers the leader has named.
+func (g *Guild) Named() int64 {
 	var n int64
 	for _, m := range g.Members {
 		if m.Officer {
@@ -227,16 +269,23 @@ func (g *Guild) Lapse(day int64, p Params) []Approval {
 	return gone
 }
 
-// Approve takes a pending approval for a second officer; false if there
-// is none or the officer is the one who asked.
-func (g *Guild) Approve(id, officer string) (Approval, bool) {
+// Pending is an approval a second officer may give; false if there is
+// none or the officer is the one who asked.
+func (g *Guild) Pending(id, officer string) (Approval, bool) {
 	i := slices.IndexFunc(g.Approvals, func(a Approval) bool { return a.ID == id })
 	if i < 0 || g.Approvals[i].By == officer || !g.IsOfficer(officer) {
 		return Approval{}, false
 	}
-	a := g.Approvals[i]
-	g.Approvals = slices.Delete(g.Approvals, i, i+1)
-	return a, true
+	return g.Approvals[i], true
+}
+
+// Approve takes a pending approval for a second officer.
+func (g *Guild) Approve(id, officer string) (Approval, bool) {
+	a, ok := g.Pending(id, officer)
+	if ok {
+		g.Approvals = slices.DeleteFunc(g.Approvals, func(x Approval) bool { return x.ID == id })
+	}
+	return a, ok
 }
 
 // Next is a new id under the guild.
@@ -260,9 +309,12 @@ func (g *Guild) Removable(target, role string) bool {
 	return false
 }
 
+// Needed is how many votes carry a motion: more than VoteShare per cent
+// of the active members.
+func Needed(active int64, p Params) int64 { return fixed.PercentFloor(active, p.VoteShare) + 1 }
+
 // Cast adds a member's vote to a motion, opening it if need be, and
-// reports whether it now carries: more than VoteShare per cent of the
-// active members are for it. A carried motion is applied and closed.
+// reports whether it now carries. A carried motion is applied and closed.
 func (g *Guild) Cast(voter, target, role string, day, active int64, p Params, id string) (carried bool) {
 	i := slices.IndexFunc(g.Votes, func(v Vote) bool { return v.Target == target && v.Role == role })
 	if i < 0 {
@@ -273,7 +325,7 @@ func (g *Guild) Cast(voter, target, role string, day, active int64, p Params, id
 	if !slices.Contains(v.For, voter) {
 		v.For = append(v.For, voter)
 	}
-	if int64(len(v.For))*hundred <= active*p.VoteShare {
+	if int64(len(v.For)) < Needed(active, p) {
 		return false
 	}
 	g.Votes = slices.Delete(g.Votes, i, i+1)
@@ -286,11 +338,8 @@ func (g *Guild) Cast(voter, target, role string, day, active int64, p Params, id
 	return true
 }
 
-// structural: shares are in per cent; ids are written in decimal.
-const (
-	hundred = 100
-	decimal = 10
-)
+// structural: ids are written in decimal.
+const decimal = 10
 
 // Succeed fills an empty or idle leadership: the longest-serving active
 // officer, else the longest-standing active member. It returns the new
@@ -331,23 +380,27 @@ func (g *Guild) senior(active func(string) bool) string {
 }
 
 func since(m Member) int64 {
-	if m.Officer {
+	if m.Officer || m.Admin {
 		return m.Since
 	}
 	return m.Joined
 }
 
 // PickLeader re-picks a server guild's leader as its most active member
-// by acted (per character); it returns the leader if it changed.
+// by acted (per character), the leader it has keeping a tie; it returns
+// the leader if it changed, which it does not when nobody acted.
 func (g *Guild) PickLeader(acted tally.Tally, day int64) string {
 	g.Picked = day
-	best, n := "", int64(-1)
+	best, n := "", int64(0)
+	if g.Member(g.Leader) != nil {
+		best, n = g.Leader, acted.Get(g.Leader)
+	}
 	for _, m := range g.Members {
 		if a := acted.Get(m.Char); a > n {
 			best, n = m.Char, a
 		}
 	}
-	if best == "" || best == g.Leader {
+	if n == 0 || best == g.Leader {
 		return ""
 	}
 	g.Leader = best
@@ -355,14 +408,16 @@ func (g *Guild) PickLeader(acted tally.Tally, day int64) string {
 }
 
 // Deposit records a member's gift to the bank or the treasury at its
-// reference value.
-func (g *Guild) Deposit(char string, day, value int64) {
+// reference value, keeping its gifts by day only as far back as Shares
+// reads.
+func (g *Guild) Deposit(char string, day, value int64, p Params) {
 	m := g.Member(char)
 	if m == nil || value <= 0 {
 		return
 	}
 	m.Put += value
 	m.Season += value
+	m.Gifts = slices.DeleteFunc(m.Gifts, func(x Gift) bool { return day-x.Day >= p.SpoilsDays })
 	if n := len(m.Gifts); n > 0 && m.Gifts[n-1].Day == day {
 		m.Gifts[n-1].Value += value
 		return
@@ -381,7 +436,7 @@ func (g *Guild) MayDraw(char string, value int64, p Params) bool {
 	case m.Draw || g.IsOfficer(char):
 		return true
 	}
-	return (m.Taken+value)*hundred <= m.Put*p.DrawShare
+	return (m.Taken+value)*fixed.Hundredths <= m.Put*p.DrawShare
 }
 
 // Allow sets whether a member may withdraw from the bank past what its

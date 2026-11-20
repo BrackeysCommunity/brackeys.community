@@ -281,6 +281,9 @@ type Rescue struct {
 	Home      string `json:"home"`
 	Carrying  string `json:"carrying,omitempty"`
 	CarriedBy string `json:"carriedBy,omitempty"`
+	// CarryingHome is the settlement the character it carries is set down
+	// at, rescued.
+	CarryingHome string `json:"carryingHome,omitempty"`
 }
 
 // Purse is what a character holds and, in a market, the prices there:

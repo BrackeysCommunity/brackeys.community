@@ -198,6 +198,7 @@ async function cardMessage(
 /** Errors that mean a forum post can no longer take replies, so a new one is opened. */
 const POST_GONE: ReadonlySet<unknown> = new Set([
   RESTJSONErrorCodes.UnknownChannel,
+  RESTJSONErrorCodes.UnknownMessage,
   RESTJSONErrorCodes.InvalidActionOnArchivedThread,
   RESTJSONErrorCodes.ThreadLocked,
   RESTJSONErrorCodes.MissingAccess,
@@ -205,6 +206,12 @@ const POST_GONE: ReadonlySet<unknown> = new Set([
 
 function postGone(e: unknown): boolean {
   return e instanceof DiscordAPIError && POST_GONE.has(e.code);
+}
+
+function archived(e: unknown): boolean {
+  return (
+    e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.InvalidActionOnArchivedThread
+  );
 }
 
 /** A forum channel as a sink for cards (GDD 17.2): posts opened, replied to and edited. */
@@ -245,16 +252,21 @@ export function forumSink(
         throw e;
       });
       if (!th?.isThread()) return false;
+      const message = (await cardMessage(card, media, log)) as never;
       try {
         const first = await th.fetchStarterMessage();
         if (!first) return false;
-        await first.edit((await cardMessage(card, media, log)) as never);
+        try {
+          await first.edit(message);
+        } catch (e) {
+          // An archived thread is still the goal's post: it is opened
+          // again and edited, where a reply would have reopened it.
+          if (!archived(e)) throw e;
+          await th.setArchived(false);
+          await first.edit(message);
+        }
       } catch (e) {
-        if (
-          postGone(e) ||
-          (e instanceof DiscordAPIError && e.code === RESTJSONErrorCodes.UnknownMessage)
-        )
-          return false;
+        if (postGone(e)) return false;
         throw e;
       }
       return true;

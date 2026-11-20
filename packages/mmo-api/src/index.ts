@@ -429,6 +429,11 @@ export interface Rescue {
   home: string;
   carrying?: string;
   carriedBy?: string;
+  /**
+   * CarryingHome is the settlement the character it carries is set down
+   * at, rescued.
+   */
+  carryingHome?: string;
 }
 /**
  * Purse is what a character holds and, in a market, the prices there:
@@ -1070,8 +1075,7 @@ export interface Condition {
   side?: string;
 }
 /**
- * GoalSpec is a goal as posted: picked by selects, the title and note
- * from a modal.
+ * GoalSpec is a goal as its poster specifies it.
  */
 export interface GoalSpec {
   title: string;
@@ -1101,6 +1105,14 @@ export interface Goal {
   verb: string;
   what: string; // the condition in words
   where?: string;
+  /**
+   * From is where a Haul's stock starts, or where a Carry's downed
+   * character lies now.
+   */
+  from?: string;
+  /**
+   * Reward is the coin on offer; a proposal's is what is pledged so far.
+   */
   reward: number /* int64 */;
   mode: string;
   cap?: number /* int64 */;
@@ -1125,8 +1137,14 @@ export interface Goal {
   hauler?: string;
   vow?: boolean;
   /**
-   * Takes are the goods the viewer carries that a Deliver takes; Haul is
-   * whether the viewer may take its stock here, or deliver it here.
+   * Evolved marks the world day its target evolved, when its issuer may
+   * withdraw it whatever has been claimed.
+   */
+  evolved?: boolean;
+  /**
+   * Takes are the goods the viewer carries that a Deliver still takes
+   * from it; Haul is whether the viewer may take its stock here, or
+   * deliver it here.
    */
   takes: Goods[];
   haul?: string; // take, deliver
@@ -1162,8 +1180,10 @@ export interface Draft {
   spec: GoalSpec;
 }
 /**
- * Goals is /goals for a character in a settlement: the board, drafts,
- * its own goals and the rules a post is checked against.
+ * Goals is /goals for a character: the board of the settlement it stands
+ * in, drafts, its own goals wherever they hang and the rules a post is
+ * checked against. Away from a settlement Settlement is -1 and only Mine
+ * is filled.
  */
 export interface Goals {
   settlement: number /* int */;
@@ -1178,6 +1198,7 @@ export interface Goals {
   feeLeast: number /* int64 */;
   rewardLeast: number /* int64 */;
   pledgeNeed: number /* int64 */;
+  eachCap: number /* int64 */; // the most claimants an Each goal pays
   verbs: string[];
   officer: boolean;
   coin: number /* int64 */;
@@ -1247,6 +1268,10 @@ export interface Structure {
   closed: boolean;
   raising: boolean;
   next?: CostLine[];
+  /**
+   * CanRaise: goals raise it a tier and no raise of it is open.
+   */
+  canRaise: boolean;
 }
 /**
  * Settlement is a settlement a guild runs.
@@ -1257,6 +1282,10 @@ export interface Settlement {
   treasury: number /* int64 */;
   structures: Structure[];
   here: boolean;
+  /**
+   * ConditionMax is a structure's condition in full repair.
+   */
+  conditionMax: number /* int64 */;
 }
 /**
  * GuildMember is one member on the guild's page.
@@ -1327,7 +1356,12 @@ export interface Guild {
   server: boolean;
   leader?: string;
   members: GuildMember[];
+  /**
+   * Officers are those who may spend and approve: the leader, a server's
+   * admins and the officers named. Named of OfficersMax are named.
+   */
   officers: number /* int64 */;
+  named: number /* int64 */;
   officersMax: number /* int64 */;
   full: boolean;
   least: number /* int64 */;
@@ -1337,13 +1371,17 @@ export interface Guild {
   settlements: Settlement[];
   approvals: Approval[];
   votes: GuildVote[];
-  invites: string[]; // guilds that invited the character
+  invites: Pick[]; // guilds that invited the character
   /**
    * Near are characters standing with an officer whom it could invite.
    */
   near: Pick[];
   officer: boolean;
   spend: number /* int64 */; // what an officer may still pay today
+  /**
+   * DrawShare is the per cent of its gifts a member may draw at cost.
+   */
+  drawShare: number /* int64 */;
   charter: Charter;
   banner: string;
 }

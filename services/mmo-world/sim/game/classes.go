@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
@@ -161,32 +162,16 @@ func (g *Game) isCreatureTag(t string) bool {
 }
 
 // fightTags are what a character's kit carries into a beat besides its
-// gear: its classes and abilities, and the situation's opening, ambush,
-// marked prey and wall.
+// gear, in the situation the game finds it in.
 func (g *Game) fightTags(c *Char, e *fight.Encounter) []tags.Tag {
-	out := g.charTags(c)
-	if e.At == 0 {
-		out = append(out, tagOpening)
-	}
-	if c.Fight != nil && c.Fight.Ambush {
-		out = append(out, tagAmbushed)
-	}
-	if p := c.C.Prey; p.Tag != "" && p.Day == g.World.Day && slices.Contains(e.Creature.Tags, tags.Tag(p.Tag)) {
-		out = append(out, tagPreyed)
-	}
-	if g.walled(c.C.At) {
-		out = append(out, tagWalled)
-	}
-	return out
+	p := c.C.Prey
+	return c.C.Classes.FightTags(g.r.Book.Classes, g.r.Book.Abilities, class.Situation{
+		Opening:  e.At == 0,
+		Ambushed: c.Fight != nil && c.Fight.Ambush,
+		Preyed:   p.Tag != "" && p.Day == g.World.Day && slices.Contains(e.Creature.Tags, tags.Tag(p.Tag)),
+		Walled:   g.walled(c.C.At),
+	})
 }
-
-// structural: situation tags the abilities' rules read.
-const (
-	tagOpening  tags.Tag = "opening"
-	tagAmbushed tags.Tag = "ambushed"
-	tagPreyed   tags.Tag = "preyed"
-	tagWalled   tags.Tag = "walled"
-)
 
 // deeds counts what a pressed beat adds to a character's thresholds: a
 // won Hold, a landed cast.
@@ -210,9 +195,9 @@ func joinTags(ts []tags.Tag) string { return strings.Join(tagStrings(ts), ",") }
 // structural: halving.
 const halved = 2
 
-// feeFor is the station fee a character pays for a kind: a Smith's Thrift
-// halves it, Signature waives it on the first kind it discovered, and a
-// stoked forge's work waives it at its settlement (GDD 4.14, 5.9).
+// feeFor is the station fee a character pays for a kind, after a Smith's
+// Thrift and Signature (on the first kind it discovered) and a stoked
+// forge's work at its settlement (GDD 4.14, 5.9).
 func (g *Game) feeFor(c *Char, st Station, kind string) int64 {
 	fee, _, _ := g.feeSaved(c, st, kind)
 	return fee
@@ -225,7 +210,7 @@ func (g *Game) feeSaved(c *Char, st Station, kind string) (fee int64, w *guild.W
 	if len(c.C.Discovered) > 0 && c.C.Discovered[0] == kind {
 		fee = g.charScale(c, "signature-fee", fee)
 	}
-	row, w := g.workHere(c, "station-fee", false)
+	row, w := g.workHere(c, guild.GivesStationFee, false)
 	if w != nil {
 		saved = spared(row, w, fee)
 		fee -= saved
@@ -236,13 +221,13 @@ func (g *Game) feeSaved(c *Char, st Station, kind string) (fee int64, w *guild.W
 // narrowed is an appraisal as a Steady hand sees it: each range shrunk
 // toward its middle by the ability's share.
 func (g *Game) narrowed(c *Char, rg craft.Ranges) craft.Ranges {
-	pct := g.charScale(c, "appraisal-width", hundred)
-	if pct >= hundred || rg.Known {
+	pct := g.charScale(c, "appraisal-width", fixed.Hundredths)
+	if pct >= fixed.Hundredths || rg.Known {
 		return rg
 	}
 	for i := range rg.Lo {
 		mid := (rg.Lo[i] + rg.Hi[i]) / halved
-		half := (rg.Hi[i] - rg.Lo[i]) * pct / hundred / halved
+		half := fixed.PercentFloor(rg.Hi[i]-rg.Lo[i], pct) / halved
 		rg.Lo[i], rg.Hi[i] = mid-half, mid+half
 	}
 	return rg

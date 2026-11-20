@@ -78,7 +78,6 @@ func TestPooledSplitsByContribution(t *testing.T) {
 	}
 }
 
-// TestEvenSharesSplitsEqually.
 func TestEvenSharesSplitsEqually(t *testing.T) {
 	g := live(Condition{Verb: Deliver, Count: 4}, Pooled, 10)
 	g.Even = true
@@ -207,5 +206,65 @@ func TestPooledHoldPaysWhoFoughtThere(t *testing.T) {
 	c := g.Credit(Event{Fact: 4, Verb: Hold, Gauge: "threat", Value: 100, Units: 1, Places: []string{"region:r1"}, Goal: "q-1"})
 	if len(c) != 2 || c[0].Coin+c[1].Coin != 30 {
 		t.Fatalf("claims %+v", c)
+	}
+}
+
+// An evolved amount never falls to or below what is already counted, so
+// the goal can still be met and pays no more than its reward.
+func TestEvolveKeepsTheCountAboveWhatIsCounted(t *testing.T) {
+	g := live(Condition{Verb: Deliver, Count: 100}, Pooled, 90)
+	g.Lifetime, g.Turnover = Season, Evolve
+	put := func(who string, n int64, id fact.ID) []Claim {
+		return g.Credit(Event{Fact: id, Verb: Deliver, Who: who, Units: n})
+	}
+	put("a", 40, 1)
+	put("b", 20, 2)
+	g.Turn(1, 12, 50, nil)
+	if g.Cond.Count != 61 {
+		t.Fatalf("halved under 60 counted, the count is %d, want 61", g.Cond.Count)
+	}
+	c := put("c", 5, 3)
+	var paid int64
+	for _, cl := range c {
+		paid += cl.Coin
+		if cl.Coin < 0 || cl.Units < 0 {
+			t.Fatalf("a negative share: %+v", c)
+		}
+	}
+	if g.State != Done || paid != 90 || g.Progress.Get("c") != 1 {
+		t.Fatalf("state %s, paid %d of 90, progress %v", g.State, paid, g.Progress)
+	}
+
+	f := live(Condition{Verb: Defeat, Count: 10}, First, 50)
+	f.Lifetime, f.Turnover = Season, Evolve
+	for i := range 6 {
+		f.Credit(Event{Fact: fact.ID(i + 1), Verb: Defeat, Who: "a", Units: 1})
+	}
+	f.Turn(1, 12, 30, nil)
+	if f.Cond.Count != 7 || len(f.Credit(Event{Fact: 9, Verb: Defeat, Who: "a", Units: 1})) != 1 {
+		t.Fatalf("a first-mode goal evolved to %d with 6 counted, state %s", f.Cond.Count, f.State)
+	}
+}
+
+// A Haul has one stock, so it is never an Each goal, and a vow to hold
+// off a thing holds no coin.
+func TestValidRefusesAnEachHaulAndAPaidVow(t *testing.T) {
+	l := Limits{RewardLeast: 10, EachCap: 50, PartyMost: 4, TitleLen: 60, NoteLen: 300, EphemeralLeast: 6, EphemeralMost: 432}
+	haul := &Goal{Title: "Timber east", Cond: Condition{Verb: Haul, Count: 5, At: "settlement:1", From: "settlement:0"}, Reward: 10, Mode: Each, Cap: 3,
+		Lifetime: Standing, Turnover: Keep}
+	if Valid(haul, 0, l) == nil {
+		t.Fatal("an Each Haul is valid")
+	}
+	haul.Mode = First
+	if err := Valid(haul, 0, l); err != nil {
+		t.Fatalf("a first Haul: %v", err)
+	}
+	vow := &Goal{Title: "No blade", Cond: Condition{Verb: Hold, Tag: "blade"}, Reward: 10, Mode: First, Lifetime: Season, Turnover: Expire}
+	if Valid(vow, 0, l) == nil {
+		t.Fatal("a vow to hold off a thing took a reward")
+	}
+	huge := &Goal{Title: "Too much", Cond: Condition{Verb: Defeat, Count: 1}, Reward: 1 << 62, Mode: Each, Cap: 4, Lifetime: Standing, Turnover: Keep}
+	if Valid(huge, 0, l) == nil {
+		t.Fatal("a reward that wraps its escrow is valid")
 	}
 }

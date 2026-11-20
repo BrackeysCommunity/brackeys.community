@@ -410,7 +410,7 @@ func awareRun(b *sheets.Book) (awareResult, error) {
 
 	// Days 1 to 4: the guild raises structures; each build is settled at
 	// the next tick, where residents of a crowded place decide to move.
-	out.line = crowdLine(b)
+	out.line = g.CrowdLine()
 	raises := raisable(g, b)
 	if len(raises) < awareRaises {
 		return out, fmt.Errorf("social: only %d structures to raise, want %d", len(raises), awareRaises)
@@ -543,16 +543,6 @@ func awareRun(b *sheets.Book) (awareResult, error) {
 	return out, nil
 }
 
-// crowdLine is the crowding topic's line.
-func crowdLine(b *sheets.Book) int64 {
-	for _, t := range b.Topics {
-		if t.When == "crowding" {
-			return t.AtLeast
-		}
-	}
-	return 0
-}
-
 // raisable lists the raises the first settlement can take in turn, a tier
 // each in sheet order: every structure goals raise, up to its cap.
 func raisable(g *game.Game, b *sheets.Book) []string {
@@ -565,15 +555,15 @@ func raisable(g *game.Game, b *sheets.Book) []string {
 		added = false
 		for i := range b.Structures {
 			row := &b.Structures[i]
-			tier, built := tiers[row.ID]
-			lines := row.Each
-			if !built {
-				lines = row.First
+			var st *settle.Structure
+			if tier, built := tiers[row.ID]; built {
+				st = &settle.Structure{Tier: tier}
 			}
-			if tier+1 > settle.Cap(row, g.Rules().Settle) || len(lines) == 0 {
+			tier, _, ok := settle.Next(row, st, g.Rules().Settle)
+			if !ok {
 				continue
 			}
-			tiers[row.ID] = tier + 1
+			tiers[row.ID] = tier
 			out, added = append(out, row.ID), true
 		}
 	}
@@ -593,13 +583,7 @@ func (s *social) raise(team []*game.Char, home hex.Hex, kind string) error {
 	for i, x := range g.Goals[before:] {
 		c := team[1+i%(len(team)-1)]
 		c.C.At = home
-		var material string
-		for _, m := range g.Rules().Book.Materials {
-			if slices.Contains(m.Tags, x.Cond.Tag) {
-				material = m.ID
-				break
-			}
-		}
+		material, _ := g.MaterialOfTag(x.Cond.Tag)
 		if err := s.act(game.Command{Char: c.C.ID, Kind: game.Correct, Asset: ledger.Goods(material), Units: x.Cond.Count, Note: "social run stock"}); err != nil {
 			return err
 		}

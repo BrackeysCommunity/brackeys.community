@@ -10,6 +10,8 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
+	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -57,7 +59,8 @@ type Command struct {
 	Stop *Stop `json:"stop,omitempty"`
 	// NPC names who a conversation is with.
 	NPC string `json:"npc,omitempty"`
-	// Server is a new character's Discord server, for naming consent.
+	// Server is the Discord server the command came from: a new
+	// character's own, and the one Admin speaks for.
 	Server string `json:"server,omitempty"`
 	// Price is an order's or a listing's coin each; Target the character
 	// given to; Floor a gear order's floor.
@@ -66,8 +69,8 @@ type Command struct {
 	Floor  *market.Floor `json:"floor,omitempty"`
 	// Goal is a goal being posted.
 	Goal *GoalSpec `json:"goal,omitempty"`
-	// Admin marks a command from one of its server's admins, who are
-	// officers of the server's own guild (GDD 4.8).
+	// Admin marks a command from one of Server's admins, who are officers
+	// of the server's own guild (GDD 4.8).
 	Admin bool `json:"admin,omitempty"`
 }
 
@@ -158,9 +161,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if cmd.Admin {
-		g.admit(c)
-	}
+	g.admit(c, cmd)
 	if kinds := uses[cmd.Kind]; kinds != nil {
 		g.used(c.C.At, kinds...)
 	}
@@ -295,7 +296,7 @@ func (g *Game) create(server, guildName string) (*Char, error) {
 	}
 	if n, ok := g.home(server); ok {
 		c.C.At = g.SettlementHex(n)
-		c.C.Home = "settlement:" + strconv.Itoa(n)
+		c.C.Home = goal.SettlementRef(n)
 	}
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: c.C.At, By: char.Ref(id)})
 	_, err := g.fact(c, "character.arrived", g.Tick())
@@ -413,8 +414,8 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Press
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: char.Ref(c.C.ID), Tag: e.Creature.Archetype})
-		if more := g.charScale(c, "beat-threat", hundred) - hundred; more > 0 {
-			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: -g.r.wp("beat-won-threat") * more / hundred})
+		if more := g.charScale(c, "beat-threat", fixed.Hundredths) - fixed.Hundredths; more > 0 {
+			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: -g.r.wp("beat-won-threat") * more / fixed.Hundredths})
 		}
 	}
 	if e.Over {

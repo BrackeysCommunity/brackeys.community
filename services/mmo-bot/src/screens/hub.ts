@@ -10,6 +10,7 @@ import {
   banner,
   btn,
   conditionsField,
+  downButtons,
   factLine,
   gauges,
   PRIVATE,
@@ -78,14 +79,7 @@ export function hubCard(
   ];
   const urgent: Button[] = [];
   if (o.fight) urgent.push(btn("Back to the fight", "fight", "", v, { style: "danger" }));
-  if (o.conditions.includes(api.CondDown))
-    urgent.push(
-      btn("Crawl out", "crawl", "", v, { style: "danger", disabled: !!o.rescue?.carriedBy }),
-      btn("Call for help", "help", "", v, {
-        style: "primary",
-        disabled: !!o.rescue?.called || !!o.rescue?.carriedBy,
-      }),
-    );
+  if (o.conditions.includes(api.CondDown)) urgent.push(...downButtons(o, v));
   if (o.long) urgent.push(btn("Stop", "cancel", "", v));
   return {
     context: PRIVATE,

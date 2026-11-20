@@ -55,6 +55,7 @@ client.once(Events.ClientReady, async (c) => {
   const store: ForumStore = {
     get: (k) => redis.get(k),
     set: async (k, v) => void (await redis.set(k, v)),
+    del: async (k) => void (await redis.del(k)),
   };
   const sink = (channel: string) => forumSink(client, channel, (k) => media.get(k));
   if (config.marketForum) new ForumPoster(world, lex, store, sink(config.marketForum)).start();

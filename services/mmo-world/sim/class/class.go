@@ -1,8 +1,8 @@
 // Package class is classes that emerge (GDD 5.8, 5.9): a class unlocks
 // when what a character has practised crosses its thresholds, its level
-// follows the practice that unlocked it, its tree opens a tier at levels
-// 1, 5, 10 and 15, and each ability is a tag the tags rules read. At most
-// two classes are active; abilities taken are kept.
+// follows that practice and opens the tiers of its tree, and each ability
+// is a tag the tags rules read. Abilities taken are kept when a class
+// goes inactive.
 package class
 
 import (
@@ -169,6 +169,34 @@ func find(all []sheets.Ability, id string) *sheets.Ability {
 
 // Tags are what the rules see of a character's classes: each active
 // class's tag and the abilities taken from it.
+// Situation is what a fight's circumstances add to what the abilities'
+// rules read of a character: the opening beat, an ambush, marked prey
+// and a wall to stand on.
+type Situation struct{ Opening, Ambushed, Preyed, Walled bool }
+
+// structural: the situation's tags, as tags.rules names them.
+const (
+	TagOpening  tags.Tag = "opening"
+	TagAmbushed tags.Tag = "ambushed"
+	TagPreyed   tags.Tag = "preyed"
+	TagWalled   tags.Tag = "walled"
+)
+
+// FightTags are what a character's kit carries into a beat besides its
+// gear: its classes and abilities, and the situation.
+func (s *State) FightTags(classes []sheets.Class, all []sheets.Ability, sit Situation) []tags.Tag {
+	out := s.Tags(classes, all)
+	for _, t := range []struct {
+		on  bool
+		tag tags.Tag
+	}{{sit.Opening, TagOpening}, {sit.Ambushed, TagAmbushed}, {sit.Preyed, TagPreyed}, {sit.Walled, TagWalled}} {
+		if t.on {
+			out = append(out, t.tag)
+		}
+	}
+	return out
+}
+
 func (s *State) Tags(classes []sheets.Class, all []sheets.Ability) []tags.Tag {
 	var out []tags.Tag
 	for _, c := range classes {

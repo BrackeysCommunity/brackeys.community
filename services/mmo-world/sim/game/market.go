@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -461,7 +462,7 @@ func (g *Game) factionPays(seller string, fi, settlement int, coin int64) (int64
 	}
 	pct, buys := g.r.Values.Standing(standing)
 	if c := g.charOf(seller); c != nil {
-		pct = g.charScale(c, "faction-pay", hundred+pct) - hundred
+		pct = g.charScale(c, "faction-pay", fixed.Hundredths+pct) - fixed.Hundredths
 	}
 	return fixed.PercentPlus(coin, pct), buys
 }
@@ -535,8 +536,8 @@ type sale struct {
 func (g *Game) settleSale(s sale, key string) (fact.ID, int64, error) {
 	fee := g.r.Values.Fee(s.coin)
 	if c := g.charOf(s.seller); c != nil && s.settlement >= 0 && s.settlement < len(g.Places) {
-		if gd, w := g.WorkRunning(s.settlement, workOpenLedger); w != nil && gd.G.Member(c.C.ID) != nil {
-			saved := min(fee, spared(g.r.works[workOpenLedger], w, s.coin))
+		if row, w := g.workAt(s.settlement, guild.GivesMarketFee, c); w != nil {
+			saved := min(fee, spared(row, w, s.coin))
 			fee -= saved
 			g.workGave(w, saved)
 		}

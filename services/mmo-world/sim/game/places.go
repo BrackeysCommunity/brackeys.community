@@ -1,11 +1,13 @@
 package game
 
 import (
+	"errors"
 	"slices"
-	"strconv"
 
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/settle"
@@ -24,7 +26,7 @@ const (
 type Place = settle.Settlement
 
 // syncPlaces adds the starting settlements the world has opened since the
-// last call, each to the guild waiting longest for one (D24).
+// last call, each to the guild waiting longest for one.
 func (g *Game) syncPlaces() {
 	have := 0
 	for _, p := range g.Places {
@@ -45,7 +47,7 @@ func (g *Game) syncPlaces() {
 			// Those who arrived while it waited call the new settlement home.
 			for _, m := range gd.G.Members {
 				if c := g.Char(m.Char); c != nil {
-					c.C.Home = "settlement:" + strconv.Itoa(p.N)
+					c.C.Home = goal.SettlementRef(p.N)
 				}
 			}
 		}
@@ -116,7 +118,7 @@ func (g *Game) HasStructure(h hex.Hex, kind string) bool {
 }
 
 // TreasuryPool is the ledger pool a settlement's treasury is.
-func TreasuryPool(n int) string { return ledger.Pool + "treasury:" + strconv.Itoa(n) }
+func TreasuryPool(n int) string { return ledger.TreasuryPool(n) }
 
 // feeLegs sinks a seller's market fee; a guild's settlement keeps its
 // share in the treasury (GDD 4.8).
@@ -127,7 +129,7 @@ func (g *Game) feeLegs(settlement int, seller string, fee int64) []ledger.Leg {
 	if settlement < 0 || settlement >= len(g.Places) || g.Places[settlement].Guild == "" {
 		return ledger.Pair(seller, ledger.ToFees, ledger.Coin, fee)
 	}
-	kept := fee * sheets.IntParam(g.r.Book.SettlementParams, "fee-share") / hundred
+	kept := fixed.PercentFloor(fee, g.sp("fee-share"))
 	legs := ledger.Pair(seller, TreasuryPool(settlement), ledger.Coin, kept)
 	if fee > kept {
 		legs = append(legs, ledger.Pair(seller, ledger.ToFees, ledger.Coin, fee-kept)...)
@@ -135,37 +137,90 @@ func (g *Game) feeLegs(settlement int, seller string, fee int64) []ledger.Leg {
 	return ledger.Merge(legs)
 }
 
-// structural: shares are in per cent.
-const hundred = 100
+// charterPlan is a charter on a character's tile as the rules decide it:
+// the guild that would hold it, the starting settlement it would take
+// (nil to found a new one), and what it costs.
+type charterPlan struct {
+	guild *Guild
+	take  *Place
+	coin  int64
+	goods []sheets.CostLine
+}
 
-// foundSettlement charters a settlement on the character's tile for its guild
-// (GDD 4.8): a free passable tile far enough from every settlement and
-// outside an overrun region; the charter's goods from the character, its
-// coin from the treasury.
-func (g *Game) foundSettlement(c *Char, cmd Command) error {
+// charterOf plans a charter on the character's tile for its guild, or
+// refuses (GDD 4.8): a guild of enough members, whose officer stands on a
+// starting settlement nobody runs in a region prosperous enough, or on a
+// free passable tile far enough from every settlement and outside an
+// overrun region; the coin in the guild's treasury and the goods carried.
+// A Reeve's Founder lowers the cost.
+func (g *Game) charterOf(c *Char) (charterPlan, error) {
+	pct := g.charScale(c, "charter-cost", fixed.Hundredths)
+	plan := charterPlan{coin: fixed.PercentFloor(g.sp("charter-coin"), pct), goods: []sheets.CostLine{
+		{Tag: tagTimber, Quantity: fixed.PercentFloor(g.sp("charter-timber"), pct)}, {Tag: tagStone, Quantity: fixed.PercentFloor(g.sp("charter-stone"), pct)}}}
 	gd, err := g.officerOf(c)
 	if err != nil {
-		return err
+		return plan, err
 	}
+	plan.guild = gd
 	if !gd.G.Full(g.r.Guild) {
-		return refuse(BadArgs, "a guild needs %d members to found a settlement", g.r.Guild.Least)
+		return plan, refuse(BadArgs, "a guild needs %d members to charter a settlement", g.r.Guild.Least)
 	}
 	h := c.C.At
-	base := g.r.Gen.Baseline(h)
+	if p := g.PlaceAt(h); p != nil {
+		if p.Lattice < 0 || p.Guild != "" {
+			return plan, refuse(NotHere, "a guild already runs this settlement")
+		}
+		plan.take = p
+		if v, ok := g.World.GaugeAt(h, "prosperity"); !ok || v < g.sp("charter-prosperity") {
+			return plan, refuse(NotHere, "a charter here needs %d prosperity in the region", g.sp("charter-prosperity"))
+		}
+	} else {
+		switch {
+		case !g.freeGround(h):
+			return plan, refuse(NotHere, "a settlement needs a free, passable tile")
+		case !settle.FarEnough(h, g.allSettlements(h), g.r.Settle):
+			return plan, refuse(NotHere, "a settlement stands at least %d tiles from any other", g.r.Settle.FoundDistance)
+		case g.overrun(h):
+			return plan, refuse(NotHere, "nobody charters in an overrun region")
+		}
+	}
+	if g.Ledger.Of(gd.Pool(), ledger.Coin) < plan.coin {
+		return plan, refuse(BadArgs, "the charter takes %d coin from the treasury", plan.coin)
+	}
+	if _, short, missing := g.takeLines(g.holdings(c), plan.goods); short != nil {
+		return plan, tooFew(c, *short, missing)
+	}
+	return plan, nil
+}
+
+// structural: the goods a charter is paid in.
+const (
+	tagTimber = "timber"
+	tagStone  = "stone"
+)
+
+// freeGround reports whether a tile is passable and holds no site.
+func (g *Game) freeGround(h hex.Hex) bool {
+	b := g.r.Gen.Baseline(h)
+	return b.Site == "" && g.r.Gen.Passable(b.Terrain)
+}
+
+// foundSettlement charters a settlement on the character's tile for its
+// guild (GDD 4.8).
+func (g *Game) foundSettlement(c *Char, cmd Command) error {
+	plan, err := g.charterOf(c)
 	switch {
-	case base.Site != "" || !g.r.Gen.Passable(base.Terrain):
-		return refuse(NotHere, "a settlement needs a free, passable tile")
-	case !settle.FarEnough(h, g.allSettlements(h), g.r.Settle):
-		return refuse(NotHere, "a settlement stands at least %d tiles from any other", g.r.Settle.FoundDistance)
-	case g.overrun(h):
-		return refuse(NotHere, "nobody charters in an overrun region")
+	case err != nil:
+		return err
+	case plan.take != nil:
+		return refuse(NotHere, "a settlement already stands here")
 	}
 	name := cmd.Note
 	if err := g.named("settlement", name); err != nil {
 		return err
 	}
-	n := len(g.Places)
-	if err := g.payCharter(c, gd, cmd.Key, TreasuryPool(n)); err != nil {
+	gd, h, n := plan.guild, c.C.At, len(g.Places)
+	if err := g.payCharter(c, plan, cmd.Key, TreasuryPool(n)); err != nil {
 		return err
 	}
 	p := &Place{N: n, Hex: h, Lattice: -1, Name: name, Guild: gd.G.ID, Founded: g.Tick()}
@@ -178,24 +233,18 @@ func (g *Game) foundSettlement(c *Char, cmd Command) error {
 	return err
 }
 
-// charter charters a starting settlement nobody runs for the character's
-// guild, which needs prosperity in its region (GDD 4.8).
+// charter takes a starting settlement nobody runs for the character's
+// guild (GDD 4.8).
 func (g *Game) charter(c *Char, cmd Command) error {
-	gd, err := g.officerOf(c)
-	if err != nil {
-		return err
-	}
-	p := g.PlaceAt(c.C.At)
+	plan, err := g.charterOf(c)
 	switch {
-	case p == nil || p.Lattice < 0:
+	case err != nil:
+		return err
+	case plan.take == nil:
 		return refuse(NotHere, "only a starting settlement is taken by charter")
-	case p.Guild != "":
-		return refuse(NotHere, "a guild already runs this settlement")
 	}
-	if v, ok := g.World.GaugeAt(p.Hex, "prosperity"); !ok || v < g.sp("charter-prosperity") {
-		return refuse(NotHere, "a charter here needs %d prosperity in the region", g.sp("charter-prosperity"))
-	}
-	if err := g.payCharter(c, gd, cmd.Key, TreasuryPool(p.N)); err != nil {
+	gd, p := plan.guild, plan.take
+	if err := g.payCharter(c, plan, cmd.Key, TreasuryPool(p.N)); err != nil {
 		return err
 	}
 	p.Guild = gd.G.ID
@@ -203,69 +252,99 @@ func (g *Game) charter(c *Char, cmd Command) error {
 	return err
 }
 
-// payCharter moves a charter's goods from the character and its coin from
-// the guild's treasury into the settlement's treasury, the goods sunk
-// into the tile; a Reeve's Founder halves it.
-func (g *Game) payCharter(c *Char, gd *Guild, key, treasury string) error {
-	pct := g.charScale(c, "charter-cost", hundred)
-	coin := g.sp("charter-coin") * pct / hundred
-	lines := []costLine{{Tag: "timber", Units: g.sp("charter-timber") * pct / hundred}, {Tag: "stone", Units: g.sp("charter-stone") * pct / hundred}}
-	if g.Ledger.Of(gd.Pool(), ledger.Coin) < coin {
-		return refuse(BadArgs, "the charter takes %d coin from the treasury", coin)
-	}
-	if err := g.payLines(c, key, "charter", lines, ledger.ToBuild); err != nil {
+// payCharter moves a planned charter's goods from the character, sunk
+// into the tile, and its coin from the guild's treasury into the
+// settlement's.
+func (g *Game) payCharter(c *Char, plan charterPlan, key, treasury string) error {
+	if err := g.payLines(c, key, "charter", plan.goods, ledger.ToBuild); err != nil {
 		return err
 	}
-	t := ledger.Move(ledger.SubKey(key, "charter-coin"), "charter", g.Tick(), gd.Pool(), treasury, ledger.Coin, coin)
+	t := ledger.Move(ledger.SubKey(key, "charter-coin"), "charter", g.Tick(), plan.guild.Pool(), treasury, ledger.Coin, plan.coin)
 	if err := g.post(t); err != nil {
 		return err
 	}
-	gd.G.Spent(c.C.ID, g.World.Day, coin)
+	plan.guild.G.Spent(c.C.ID, g.World.Day, plan.coin)
 	return nil
 }
 
-// costLine is units of goods of a tag a character pays.
-type costLine struct {
-	Tag   string
-	Units int64
-}
-
-func linesOf(ls []sheets.CostLine, pct int64) []costLine {
-	out := make([]costLine, len(ls))
-	for i, l := range ls {
-		out[i] = costLine{Tag: l.Tag, Units: max(1, l.Quantity*pct/hundred)}
+// holdings is what a character has to pay with: its coin, then its
+// materials in the order it carries them.
+func (g *Game) holdings(c *Char) []ledger.Balance {
+	acc := ledger.Char(c.C.ID)
+	out := []ledger.Balance{{Account: acc, Asset: ledger.Coin, Units: c.C.Coin}}
+	for _, s := range c.C.Goods {
+		out = append(out, ledger.Balance{Account: acc, Asset: ledger.Material(s.Material), Units: s.Qty})
 	}
 	return out
 }
 
-// payLines takes goods of each line's tag from what a character carries,
-// materials in the order they are carried, into a sink; it refuses with
-// nothing moved if the character carries too little.
-func (g *Game) payLines(c *Char, key, kind string, lines []costLine, sink string) error {
-	var legs []ledger.Leg
-	for _, l := range lines {
-		need := l.Units
-		if l.Tag == "" {
-			if c.C.Coin < need {
-				return refuse(BadArgs, "that takes %d coin", need)
-			}
-			legs = append(legs, ledger.Pair(ledger.Char(c.C.ID), sink, ledger.Coin, need)...)
-			continue
-		}
-		for _, s := range c.C.Goods {
+// pays reports whether a holding pays toward a cost line: coin for a line
+// with no tag, else goods holding the tag.
+func (g *Game) pays(asset, tag string) bool {
+	if tag == "" {
+		return asset == ledger.Coin
+	}
+	m, ok := ledger.GoodsOf(asset)
+	return ok && g.materialHas(m, tag)
+}
+
+// takeLines are the legs taking each cost line from holdings, in the
+// order they are held, no holding spent twice. short is the first line
+// they cannot cover and missing how much of it they lack.
+func (g *Game) takeLines(held []ledger.Balance, lines []sheets.CostLine) (legs []ledger.Leg, short *sheets.CostLine, missing int64) {
+	held = slices.Clone(held)
+	for i, l := range lines {
+		need := l.Quantity
+		for j := range held {
+			h := &held[j]
 			if need == 0 {
 				break
 			}
-			if !g.materialHas(s.Material, l.Tag) {
+			if h.Units <= 0 || !g.pays(h.Asset, l.Tag) {
 				continue
 			}
-			n := min(need, s.Qty)
-			legs = append(legs, ledger.Pair(ledger.Char(c.C.ID), sink, ledger.Material(s.Material), n)...)
+			n := min(need, h.Units)
+			legs = append(legs, ledger.Leg{Account: h.Account, Asset: h.Asset, Units: -n})
+			h.Units -= n
 			need -= n
 		}
 		if need > 0 {
-			return refuse(BadArgs, "that takes %d %s; %s carries %d too few", l.Units, l.Tag, c.C.ID, need)
+			return nil, &lines[i], need
 		}
+	}
+	return legs, nil, 0
+}
+
+// heldOfTag is what holdings hold toward a cost line of a tag.
+func (g *Game) heldOfTag(held []ledger.Balance, tag string) int64 {
+	var n int64
+	for _, h := range held {
+		if g.pays(h.Asset, tag) {
+			n += h.Units
+		}
+	}
+	return n
+}
+
+// tooFew refuses a cost a character cannot cover.
+func tooFew(c *Char, l sheets.CostLine, missing int64) error {
+	if l.Tag == "" {
+		return refuse(BadArgs, "that takes %d coin", l.Quantity)
+	}
+	return refuse(BadArgs, "that takes %d goods of %s; %s carries %d goods too few", l.Quantity, l.Tag, c.C.ID, missing)
+}
+
+// payLines takes each cost line from what a character carries into a
+// sink; it refuses with nothing moved if the character carries too
+// little.
+func (g *Game) payLines(c *Char, key, kind string, lines []sheets.CostLine, sink string) error {
+	takes, short, missing := g.takeLines(g.holdings(c), lines)
+	if short != nil {
+		return tooFew(c, *short, missing)
+	}
+	var legs []ledger.Leg
+	for _, l := range takes {
+		legs = append(legs, ledger.Pair(l.Account, sink, l.Asset, -l.Units)...)
 	}
 	if len(legs) == 0 {
 		return nil
@@ -311,8 +390,8 @@ func (g *Game) mend(c *Char, cmd Command) error {
 	if p == nil {
 		return refuse(NotHere, "there is no settlement here")
 	}
-	if p.Guild != "" && c.C.Guild != p.Guild {
-		return refuse(NotHere, "only %s's members repair here", p.Guild)
+	if gd := g.GuildOf(p.Guild); gd != nil && c.C.Guild != p.Guild && len(gd.G.Members) > 0 {
+		return refuse(NotHere, "only %s's members repair here", gd.G.Name)
 	}
 	st, row := p.Get(cmd.Slot), g.r.structures[cmd.Slot]
 	if st == nil || row == nil {
@@ -322,7 +401,7 @@ func (g *Game) mend(c *Char, cmd Command) error {
 	if points <= 0 {
 		return refuse(BadArgs, "the %s needs no repair", cmd.Slot)
 	}
-	if err := g.payLines(c, cmd.Key, "repair", linesOf(settle.Repair(row, *st, points, g.r.Settle), hundred), ledger.ToBuild); err != nil {
+	if err := g.payLines(c, cmd.Key, "repair", settle.Repair(row, *st, points, g.r.Settle), ledger.ToBuild); err != nil {
 		return err
 	}
 	p.Mend(cmd.Slot, points, g.r.Settle)
@@ -400,65 +479,27 @@ const (
 // CharterView is whether a character's tile can be chartered for its guild
 // and what it costs (GDD 4.8); Fields is a Surveyor's view of the tile.
 type CharterView struct {
-	Can                 bool
-	Why                 string
-	Take                bool
-	Coin, Timber, Stone int64
-	Fields              map[string]int64
+	Can    bool
+	Why    string
+	Take   bool
+	Coin   int64
+	Goods  []sheets.CostLine
+	Fields map[string]int64
 }
 
 // CharterAt reads what founding or taking a settlement on the
 // character's tile would take, and why not if it cannot.
 func (g *Game) CharterAt(c *Char) CharterView {
-	pct := g.charScale(c, "charter-cost", hundred)
-	out := CharterView{Coin: g.sp("charter-coin") * pct / hundred, Timber: g.sp("charter-timber") * pct / hundred, Stone: g.sp("charter-stone") * pct / hundred}
-	h := c.C.At
+	plan, err := g.charterOf(c)
+	out := CharterView{Can: err == nil, Take: plan.take != nil, Coin: plan.coin, Goods: plan.goods}
+	var ref *Refused
+	if errors.As(err, &ref) {
+		out.Why = ref.Msg
+	}
 	if g.charScale(c, "sees-fields", 0) > 0 {
-		b := g.r.Gen.Baseline(h)
-		out.Fields = map[string]int64{"ore": b.Ore, "fertility": b.Fertility, "cover": b.Cover, "moisture": b.Moisture}
+		out.Fields = g.r.Gen.Baseline(c.C.At).Fields()
 	}
-	gd := g.GuildOf(c.C.Guild)
-	p := g.PlaceAt(h)
-	base := g.r.Gen.Baseline(h)
-	switch {
-	case gd == nil || !gd.G.IsOfficer(c.C.ID):
-		out.Why = "an officer of a guild charters"
-	case !gd.G.Full(g.r.Guild):
-		out.Why = "a guild needs " + strconv.FormatInt(g.r.Guild.Least, decimal) + " members"
-	case p != nil && (p.Lattice < 0 || p.Guild != ""):
-		out.Why = "a guild already runs this settlement"
-	case p != nil:
-		out.Take = true
-		if v, ok := g.World.GaugeAt(h, "prosperity"); !ok || v < g.sp("charter-prosperity") {
-			out.Why = "taking a starting settlement needs " + strconv.FormatInt(g.sp("charter-prosperity"), decimal) + " prosperity in its region"
-		}
-	case base.Site != "" || !g.r.Gen.Passable(base.Terrain):
-		out.Why = "a settlement needs a free, passable tile"
-	case !settle.FarEnough(h, g.allSettlements(h), g.r.Settle):
-		out.Why = "too near another settlement"
-	case g.overrun(h):
-		out.Why = "the region is overrun"
-	}
-	switch {
-	case out.Why != "":
-	case g.Ledger.Of(gd.Pool(), ledger.Coin) < out.Coin:
-		out.Why = "the treasury holds too little"
-	case g.carriedOfTag(c, "timber") < out.Timber || g.carriedOfTag(c, "stone") < out.Stone:
-		out.Why = "the charter's timber and stone are carried to the tile"
-	}
-	out.Can = out.Why == ""
 	return out
-}
-
-// carriedOfTag is how much a character carries of a tag's goods.
-func (g *Game) carriedOfTag(c *Char, tag string) int64 {
-	var n int64
-	for _, s := range c.C.Goods {
-		if g.materialHas(s.Material, tag) {
-			n += s.Qty
-		}
-	}
-	return n
 }
 
 // Raising reports whether a structure has a raise open at a settlement.

@@ -64,7 +64,7 @@ func (g *Game) countBuilt(f fact.Fact) {
 		g.Built = slices.Insert(g.Built, i, at)
 	}
 	g.Built[i].N += n
-	if line := g.crowdLine(); line > 0 && g.BuiltIn(region, day) >= line {
+	if line := g.CrowdLine(); line > 0 && g.BuiltIn(region, day) >= line {
 		if j, marked := slices.BinarySearch(g.Crowded, place); !marked {
 			g.Crowded = slices.Insert(g.Crowded, j, place)
 		}
@@ -83,9 +83,9 @@ func (g *Game) BuiltIn(region int, day int64) int64 {
 	return n
 }
 
-// crowdLine is the crowding topic's line: a region with that many
+// CrowdLine is the crowding topic's line: a region with that many
 // structures built in the window is crowded.
-func (g *Game) crowdLine() int64 {
+func (g *Game) CrowdLine() int64 {
 	for _, row := range g.r.NPC.Topics() {
 		if row.When == whenCrowding {
 			return row.AtLeast
@@ -97,7 +97,7 @@ func (g *Game) crowdLine() int64 {
 // crowded reports whether a tile's region is crowded on a world day.
 func (g *Game) crowded(h hex.Hex, day int64) bool {
 	r := g.World.RegionAt(h)
-	line := g.crowdLine()
+	line := g.CrowdLine()
 	return r >= 0 && line > 0 && g.BuiltIn(r, day) >= line
 }
 
@@ -181,8 +181,7 @@ func (g *Game) quieter(n *npc.NPC, t int64) (hex.Hex, bool) {
 	for r := reach; r <= most; r++ {
 		var open []hex.Hex
 		for _, h := range hex.Ring(home, r) {
-			b := g.r.Gen.Baseline(h)
-			if b.Site == "" && g.r.Gen.Passable(b.Terrain) && g.World.RegionAt(h) >= 0 && !g.crowded(h, day) {
+			if g.freeGround(h) && g.World.RegionAt(h) >= 0 && !g.crowded(h, day) {
 				open = append(open, h)
 			}
 		}

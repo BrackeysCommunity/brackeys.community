@@ -9,8 +9,11 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/tally"
 )
@@ -87,6 +90,36 @@ const (
 type Ref struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
+}
+
+// Kinds of place a condition's At and From, and an event's Places, name.
+const (
+	PlaceSettlement = "settlement"
+	PlaceRegion     = "region"
+	PlaceTile       = "tile"
+)
+
+// SettlementRef names an open settlement by its index.
+func SettlementRef(n int) string { return PlaceSettlement + ":" + strconv.Itoa(n) }
+
+// RegionRef names a region by the world's ref for it.
+func RegionRef(ref string) string { return PlaceRegion + ":" + ref }
+
+// TileRef names a tile.
+func TileRef(h hex.Hex) string { return PlaceTile + ":" + h.Ref() }
+
+// ParseRef splits a place ref into its kind and id; ok is false for text
+// that is not one.
+func ParseRef(ref string) (kind, id string, ok bool) { return strings.Cut(ref, ":") }
+
+// SettlementOf is the index a settlement ref names.
+func SettlementOf(ref string) (int, bool) {
+	kind, id, ok := ParseRef(ref)
+	if !ok || kind != PlaceSettlement {
+		return 0, false
+	}
+	n, err := strconv.Atoi(id)
+	return n, err == nil && n >= 0
 }
 
 // Condition is one verb, a target and an amount. Every field but Verb and
@@ -302,6 +335,21 @@ type Cite struct {
 // Vow reports whether the goal pays nothing.
 func (g *Goal) Vow() bool { return g.Reward == 0 }
 
+// Open reports whether the goal is still up: live, or a proposal.
+func (g *Goal) Open() bool { return g.State == Live || g.State == Proposed }
+
+// Due reports whether the goal's time has run out.
+func (g *Goal) Due(now int64) bool { return g.Expires > 0 && g.Expires <= now }
+
+// Left is how many more units the goal counts from a contributor: what
+// the pool still lacks, or what that contributor does.
+func (g *Goal) Left(who string) int64 {
+	if g.Mode == Pooled {
+		return max(0, g.Cond.Count-g.Total())
+	}
+	return max(0, g.Cond.Count-g.Progress.Get(who))
+}
+
 // Escrow is what the goal holds to pay out: the reward once, once per
 // capped claimant, or the pool.
 func (g *Goal) Escrow() int64 {
@@ -346,14 +394,9 @@ func (g *Goal) Credit(e Event) []Claim {
 	if g.Cond.Hold() {
 		return g.hold(e)
 	}
-	units := max(e.Units, 1)
-	if g.Mode != Pooled {
-		units = min(units, g.Cond.Count-g.Progress.Get(e.Who))
-		if units <= 0 {
-			return nil
-		}
-	} else {
-		units = min(units, g.Cond.Count-g.Total())
+	units := min(max(e.Units, 1), g.Left(e.Who))
+	if units <= 0 {
+		return nil
 	}
 	g.Progress.Bump(e.Who, units)
 	g.Facts = append(g.Facts, Cite{Who: e.Who, Fact: e.Fact})
@@ -389,7 +432,7 @@ func (g *Goal) hold(e Event) []Claim {
 	}
 	g.Day = e.Units
 	if !g.Cond.Held(e.Value) {
-		g.Streak = 0
+		g.Streak, g.Facts = 0, nil
 		return nil
 	}
 	g.Streak++
@@ -461,9 +504,8 @@ func (g *Goal) End(why string) {
 	g.State, g.Why = Ended, why
 }
 
-// Rebind re-casts an evolving goal's target for a new season: a place
-// that no longer exists becomes the nearest of its kind, as the game
-// decides.
+// Rebind re-casts an evolving goal's place for a new season; the game
+// decides what stands in for one that no longer exists.
 type Rebind func(at string) string
 
 // Turn is a goal at a season's close (GDD 11.4), on the new season's
@@ -473,10 +515,7 @@ type Rebind func(at string) string
 // grows with the world, rescales its count by ratio (the new season's
 // measure over the old, in hundredths). It reports whether the goal ends.
 func (g *Goal) Turn(season, day, ratio int64, rebind Rebind) bool {
-	if g.State != Live && g.State != Proposed {
-		return false
-	}
-	if g.Lifetime != Season {
+	if !g.Open() || g.Lifetime != Season {
 		return false
 	}
 	switch g.Turnover {
@@ -495,7 +534,7 @@ func (g *Goal) Turn(season, day, ratio int64, rebind Rebind) bool {
 			g.Cond.At = rebind(g.Cond.At)
 		}
 		if g.Cond.Scales() {
-			g.Cond.Count = max(1, g.Cond.Count*ratio/hundredths)
+			g.Cond.Count = max(1, g.counted()+1, fixed.PercentFloor(g.Cond.Count, ratio))
 		}
 		g.Evolved = day
 	}
@@ -503,8 +542,26 @@ func (g *Goal) Turn(season, day, ratio int64, rebind Rebind) bool {
 	return false
 }
 
-// structural: a ratio in hundredths.
-const hundredths = 100
+// counted is the most the goal has counted toward one claim still open:
+// the pool's total, or the furthest contributor yet to claim. An evolved
+// amount stays above it, so the goal can still be met by a counted event.
+func (g *Goal) counted() int64 {
+	if g.Mode == Pooled {
+		return g.Total()
+	}
+	var most int64
+	for _, p := range g.Progress {
+		claimed := slices.ContainsFunc(g.Claims, func(c Claim) bool { return c.Who == p.Key })
+		if !claimed && p.N > most {
+			most = p.N
+		}
+	}
+	return most
+}
+
+// structural: amounts stay far inside int64, so a reward times its cap
+// and a count times a season's ratio cannot wrap.
+const amountMost = 1 << 40
 
 // Limits are the goals sheet's cells a posting is checked against.
 type Limits struct {
@@ -522,18 +579,24 @@ func Valid(g *Goal, now int64, l Limits) error {
 		return fmt.Errorf("backing a side opens with the first arc")
 	case c.Count <= 0 && !c.Abstains():
 		return fmt.Errorf("a goal needs an amount")
+	case c.Count > amountMost || g.Reward > amountMost:
+		return fmt.Errorf("an amount is at most %d", int64(amountMost))
 	case c.Verb == Hold && !c.Abstains() && c.At == "":
 		return fmt.Errorf("a Hold needs a region")
 	case (c.Verb == Deliver || c.Verb == Haul) && c.At == "":
 		return fmt.Errorf("a %s needs a place to bring it to", c.Verb)
 	case c.Verb == Carry && c.Who == "":
 		return fmt.Errorf("a Carry names who is carried")
+	case c.Abstains() && g.Reward != 0:
+		return fmt.Errorf("a vow to hold off a thing pays nothing")
 	case g.Reward != 0 && g.Reward < l.RewardLeast:
 		return fmt.Errorf("a reward is at least %d coin, or none", l.RewardLeast)
 	case g.Mode != First && g.Mode != Each && g.Mode != Pooled:
 		return fmt.Errorf("no mode %q", g.Mode)
 	case g.Mode == Each && (g.Cap < 1 || g.Cap > l.EachCap):
 		return fmt.Errorf("an Each goal pays 1 to %d claimants", l.EachCap)
+	case g.Mode == Each && c.Verb == Haul:
+		return fmt.Errorf("a Haul has one stock and one hauler: it pays the first")
 	case g.Turnover != Expire && g.Turnover != Reset && g.Turnover != Keep && g.Turnover != Evolve:
 		return fmt.Errorf("no turnover %q", g.Turnover)
 	case int64(len(g.Members)) > l.PartyMost+1:

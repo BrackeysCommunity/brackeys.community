@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/guild"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -41,7 +42,7 @@ type Long struct {
 // woundedTicks is what being wounded adds to a long action (GDD 5.5).
 func (g *Game) woundedTicks(c *Char, t int64) int64 {
 	if c.C.Has(char.Wounded, t) {
-		if _, w := g.workHere(c, "rest", false); w != nil {
+		if _, w := g.workHere(c, guild.GivesRest, false); w != nil {
 			return g.r.wp("wounded-ticks") / halved
 		}
 		return g.r.wp("wounded-ticks")
@@ -192,7 +193,7 @@ func (g *Game) rest(c *Char, cmd Command) error {
 		return refuse(NotHere, "rest is taken in a settlement")
 	}
 	n := g.r.wp("rest-ticks")
-	if row, w := g.workHere(c, "rest", false); w != nil {
+	if row, w := g.workHere(c, guild.GivesRest, false); w != nil {
 		n = min(n, row.By)
 	}
 	g.startLong(c, Rest, cmd.Key, n, n)
@@ -255,6 +256,10 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 				return nil, err
 			}
 			c.Version++
+			// A rescuer the ambush felled carries nobody further.
+			if c.Carrying != "" && notDown(c) != nil {
+				g.setDown(c, g.Char(c.Carrying))
+			}
 		}
 		if c.Long == nil || c.Long.Due > t {
 			continue
@@ -302,6 +307,9 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	if err := g.creditGoals(first, ledger.SubKey("tick", strconv.FormatInt(t, decimal))); err != nil {
 		return nil, err
 	}
+	if err := g.goalsDue(t); err != nil {
+		return nil, err
+	}
 	out := g.Log.Since(first)
 	g.keepNews(out)
 	return out, nil
@@ -336,7 +344,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	c.C.Facing = dir
 	g.visited(c, to, t)
 	first := g.World.Tile(to) == nil || g.World.Tile(to).Discovered == nil
-	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir, Quiet: g.charScale(c, "tracks-left", hundred) <= 0})
+	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir, Quiet: g.charScale(c, "tracks-left", fixed.Hundredths) <= 0})
 	c.C.Deeds.Bump(DeedHauled, c.Carried())
 	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
 		g.r.Mounts.Ridden(m, g.ground(to), g.Laden(c))

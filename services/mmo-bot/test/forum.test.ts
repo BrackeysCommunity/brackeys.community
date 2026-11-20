@@ -212,3 +212,51 @@ test("a goal whose post is gone is posted again, and a failed post is retried", 
   expect(await poster.poll()).toBe(1);
   expect(calls).toEqual(["open Ashford · Iron for the wall", "open Ashford · Iron for the wall"]);
 });
+
+test("a goal's post is not edited as its time merely ticks down, and its record goes when it closes", async () => {
+  let posts: api.BoardPost[] = [
+    { settlement: 0, name: "Ashford", banner: "b", goal: goal({ left: 100 }) },
+  ];
+  const { calls, sink } = boardSink();
+  const store = memoryStore();
+  let tick = 0;
+  const poster = new BoardPoster(
+    { board: async () => ({ tick, every: 0, posts }) },
+    lex,
+    store,
+    sink,
+  );
+  expect(await poster.poll()).toBe(1);
+  tick = 1;
+  posts = [{ ...posts[0]!, goal: goal({ left: 99 }) }];
+  expect(await poster.poll()).toBe(0);
+  expect(await store.get("mmo-bot:board:goal:q-1")).not.toBeNull();
+  posts = [];
+  expect(await poster.poll()).toBe(1);
+  expect(await store.get("mmo-bot:board:goal:q-1")).toBeNull();
+  expect(calls.filter((c) => c.startsWith("edit"))).toEqual([]);
+});
+
+test("a store that fails after a post opened does not open it twice", async () => {
+  const posts: api.BoardPost[] = [{ settlement: 0, name: "Ashford", banner: "b", goal: goal() }];
+  const { calls, sink } = boardSink();
+  const store = memoryStore();
+  let sets = 0;
+  const poster = new BoardPoster(
+    { board: async () => ({ tick: 0, every: 0, posts }) },
+    lex,
+    {
+      ...store,
+      set: async (k, v) => {
+        if (k.includes("goal:") && ++sets === 2) throw new Error("store down");
+        return store.set(k, v);
+      },
+    },
+    sink,
+    undefined,
+    () => {},
+  );
+  await poster.poll();
+  await poster.poll();
+  expect(calls).toEqual(["open Ashford · Iron for the wall"]);
+});

@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type * as api from "../src/api.ts";
 import { bareNumbers, type Card, problems, render } from "../src/card.ts";
 import { boardPostCard, forumCard } from "../src/forum.ts";
+import { decodeId } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { classesCard } from "../src/screens/classes.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "../src/screens/fight.ts";
@@ -15,7 +16,7 @@ import {
   goalDraftOf,
   goalForm,
 } from "../src/screens/goals.ts";
-import { guildCard } from "../src/screens/guild.ts";
+import { guildCard, memberCard } from "../src/screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
 import {
   appraisalCard,
@@ -68,9 +69,25 @@ const recipes = w.recipes as api.Recipes;
 const press = (w["act:press"] as { reply: api.ActionReply }).reply;
 const craft = (w["act:craft"] as { reply: api.ActionReply }).reply;
 const market = w.market as api.Market;
-const goals = w.goals as api.Goals;
+// The recorded pages predate a few served fields; they are filled in
+// here until the fixture is recorded again.
+const goals: api.Goals = { ...(w.goals as api.Goals), eachCap: 10 };
 const posted = (w.board as api.Board).posts[0]!;
-const guild = w.guild as api.Guild;
+const recordedGuild = w.guild as api.Guild;
+const guild: api.Guild = {
+  ...recordedGuild,
+  named: 0,
+  drawShare: 50,
+  invites: [],
+  settlements: recordedGuild.settlements.map((s) => ({
+    ...s,
+    conditionMax: 100,
+    structures: s.structures.map((x) => ({
+      ...x,
+      canRaise: x.tier < x.maxTier && !x.raising && (x.next?.length ?? 0) > 0,
+    })),
+  })),
+};
 const classes = w.classes as api.Classes;
 /** The recorded goal as each kind of goal the card words differently. */
 const goalAs = (over: Partial<api.Goal>): api.Goal => ({ ...posted.goal, ...over });
@@ -431,7 +448,31 @@ const cards: [string, () => Card][] = [
   ],
   [
     "no guild",
-    () => guildCard(o, { ...guild, id: "", name: "", members: [], invites: ["g-2"] }, lex),
+    () =>
+      guildCard(
+        o,
+        {
+          ...guild,
+          id: "",
+          name: "",
+          members: [],
+          invites: [{ value: "g-2", label: "The Saltbinders" }],
+        },
+        lex,
+      ),
+  ],
+  ["a guild member, to an officer", () => memberCard(o, { ...guild, officer: true }, "c-1")],
+  [
+    "goals, away from any board",
+    () =>
+      boardCard(o, {
+        ...goals,
+        settlement: -1,
+        board: [],
+        drafts: [],
+        met: [],
+        mine: [posted.goal],
+      }),
   ],
   ["classes", () => classesCard(o, classes)],
   ...classes.classes.map((c): [string, () => Card] => [
@@ -617,11 +658,19 @@ test("a met goal shows who claimed and the facts cited, and offers nothing to pr
   ]);
 });
 
-test("only an officer is offered to manage members; anyone may vote on an officer", () => {
-  const options = (g: api.Guild) =>
-    guildCard(o, g, lex)
+test("only an officer is offered to manage a member; anyone may vote on an officer", () => {
+  const picks = (g: api.Guild, page = 0) =>
+    guildCard(o, g, lex, "members", undefined, page)
       .rows.flatMap((r) => ("select" in r ? r.select.options : []))
       .map((x) => x.value);
+  const options = (g: api.Guild, id = "") =>
+    (id ? [id] : g.members.map((m) => m.id)).flatMap((m) =>
+      memberCard(o, g, m)
+        .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
+        .map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
+        .filter((x) => x?.action === "gld-act")
+        .map((x) => x!.target),
+    );
   const members: api.GuildMember[] = [
     {
       id: "c-1",
@@ -644,7 +693,8 @@ test("only an officer is offered to manage members; anyone may vote on an office
       season: 0,
     },
   ];
-  const g = { ...guild, members, treasury: 500, officers: 1, officersMax: 2, near: [] };
+  const g = { ...guild, members, treasury: 500, named: 1, officersMax: 2, near: [] };
+  expect(picks(g)).toEqual(["c-1", "c-2"]);
   expect(options({ ...g, officer: false })).toEqual(["vote:c-1:leader"]);
   expect(options({ ...g, officer: true })).toEqual([
     "pay:c-1:100",
@@ -653,4 +703,17 @@ test("only an officer is offered to manage members; anyone may vote on an office
     "promote:c-2:-",
     "pay:c-2:100",
   ]);
+  expect(options({ ...g, officer: true, named: 2 }, "c-2")).toEqual(["allow:c-2:1", "pay:c-2:100"]);
+
+  // Every member can be reached, and whoever a vote can stand against is
+  // on the first page however little they gave.
+  const many: api.GuildMember[] = [
+    ...Array.from({ length: 30 }, (_, i) => ({ ...members[1]!, id: `m-${i}`, name: `m-${i}` })),
+    members[0]!,
+  ];
+  const big = { ...g, members: many };
+  expect(picks(big)[0]).toBe("c-1");
+  expect(picks(big).at(-1)).toBe("page:1");
+  expect(picks(big, 1).at(-1)).toBe("page:0");
+  expect(new Set([...picks(big), ...picks(big, 1)]).size).toBe(many.length + 2);
 });

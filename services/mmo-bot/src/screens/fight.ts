@@ -8,7 +8,7 @@ import { type Card, COLOUR } from "../card.ts";
 import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
-import { back, banner, btn, DIRECTIONS, factNum, PRIVATE } from "./common.ts";
+import { back, banner, btn, DIRECTIONS, downButtons, factNum, PRIVATE } from "./common.ts";
 
 const RISK_UNIT: Record<string, string> = {
   durability: "durability",
@@ -121,8 +121,7 @@ export function resolvedCard(
       inline: true,
     });
   const buttons: Button[] = [];
-  if (o.conditions.includes(api.CondDown))
-    buttons.push(btn("Crawl out", "crawl", "", v, { style: "danger" }));
+  if (o.conditions.includes(api.CondDown)) buttons.push(...downButtons(o, v));
   else if (o.explore) buttons.push(btn("Explore again", "explore", "", v, { style: "primary" }));
   buttons.push(btn("Where I am", "where", "", v), back(v));
   return {
@@ -148,13 +147,12 @@ export function downCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const v = o.version;
   const n = lex.numbers;
   const r = o.rescue;
-  const crawling = o.long?.kind === "crawl";
   return {
     context: PRIVATE,
     author: "Down",
     title: `Down at ${here.name}`,
     description: r?.carriedBy
-      ? `${r.carriedBy} is carrying you to a settlement. You are set down there, no longer down.`
+      ? `${r.carriedBy} is carrying you home to ${r.home}. You are set down there, no longer down; crawling out leaves them.`
       : `You cannot act. Crawling out takes ${ticks(n.crawlTicks)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${ticks(n.woundedTicks)} longer, for a day or until you rest.`,
     picture: banner(here),
     fields: r?.called
@@ -164,17 +162,7 @@ export function downCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
       "Calling for help posts a Carry goal at your home settlement and starts the crawl; whoever reaches you first carries you in.",
     rows: [
       {
-        buttons: [
-          btn("Crawl out", "crawl", "", v, {
-            style: "danger",
-            disabled: crawling || !!r?.carriedBy,
-          }),
-          btn("Call for help", "help", "", v, {
-            style: "primary",
-            disabled: !!r?.called || !!r?.carriedBy,
-          }),
-          back(v),
-        ],
+        buttons: [...downButtons(o, v), back(v)],
       },
     ],
     colour: COLOUR.rust,

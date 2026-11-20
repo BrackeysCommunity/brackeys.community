@@ -11,7 +11,6 @@ import (
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/sheets"
-	"jams.team/mmo-world/sim/tags"
 )
 
 // situation is what a fight's place and start add to a classed fighter's
@@ -19,15 +18,6 @@ import (
 type situation struct {
 	ambush, walled, prey bool
 }
-
-// structural: the situation tags the abilities' rules read (tags.rules),
-// as the game adds them to a kit.
-const (
-	tagOpening  tags.Tag = "opening"
-	tagAmbushed tags.Tag = "ambushed"
-	tagPreyed   tags.Tag = "preyed"
-	tagWalled   tags.Tag = "walled"
-)
 
 // classBuild is a class as a fighter carries it: active, with the
 // abilities fights read from each tier its level opens.
@@ -112,18 +102,8 @@ func (b *battle) kitOf(c *char.Character, e *fight.Encounter, sit situation) fig
 	if len(c.Classes.Active) == 0 {
 		return k
 	}
-	k.Self = append(k.Self, c.Classes.Tags(b.p.Book.Classes, b.p.Book.Abilities)...)
-	if e.At == 0 {
-		k.Self = append(k.Self, tagOpening)
-	}
-	for _, s := range []struct {
-		on  bool
-		tag tags.Tag
-	}{{sit.ambush, tagAmbushed}, {sit.prey, tagPreyed}, {sit.walled, tagWalled}} {
-		if s.on {
-			k.Self = append(k.Self, s.tag)
-		}
-	}
+	k.Self = append(k.Self, c.Classes.FightTags(b.p.Book.Classes, b.p.Book.Abilities,
+		class.Situation{Opening: e.At == 0, Ambushed: sit.ambush, Preyed: sit.prey, Walled: sit.walled})...)
 	return k
 }
 
@@ -345,7 +325,7 @@ func (b *battle) classSections(pr func(string, ...any), book *sheets.Book, cells
 		if !slices.ContainsFunc(kits, func(l Loadout) bool { return l.Name == kit.Name }) {
 			kits = append(kits, kit)
 		}
-		sit := situation{ambush: slices.Contains(subject, string(tagAmbushed)), walled: slices.Contains(subject, string(tagWalled)), prey: slices.Contains(subject, string(tagPreyed))}
+		sit := situation{ambush: slices.Contains(subject, string(class.TagAmbushed)), walled: slices.Contains(subject, string(class.TagWalled)), prey: slices.Contains(subject, string(class.TagPreyed))}
 		for _, arch := range book.Creatures {
 			trials = append(trials, &trial{ability: a, kit: kit, sit: sit, arch: arch.ID})
 		}

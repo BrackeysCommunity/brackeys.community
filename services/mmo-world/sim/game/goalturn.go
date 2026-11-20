@@ -8,11 +8,11 @@ import (
 
 	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
-	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
@@ -44,7 +44,7 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 	if at {
 		e.Hex, e.Places = h, g.placesOf(h)
 	} else if f.Region != "" {
-		e.Places = []string{"region:" + f.Region}
+		e.Places = []string{goal.RegionRef(f.Region)}
 	}
 	str := func(k string) string { d, _ := f.Get(k); return d.S }
 	num := func(k string) int64 { d, _ := f.Get(k); return d.N }
@@ -93,11 +93,10 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 func (g *Game) discovered(e goal.Event, h hex.Hex) goal.Event {
 	e.Verb, e.Tags = goal.Discover, nil
 	b := g.r.Gen.Baseline(h)
-	e.Kind = b.Site
+	e.Kind, e.Fields = b.Site, b.Fields()
 	for _, m := range g.Materials(h) {
 		e.Tags = append(e.Tags, g.materialTags(m)...)
 	}
-	e.Fields = map[string]int64{"ore": b.Ore, "fertility": b.Fertility, "cover": b.Cover, "moisture": b.Moisture, "elevation": b.Elevation}
 	return e
 }
 
@@ -135,7 +134,8 @@ func (g *Game) itemOf(who, id string) *item.Instance {
 // raise posts a structure's next tier as a project: one pooled settlement
 // goal per line of its cost, the structure rising when all are met (GDD
 // 4.16). An officer of the running guild posts it, with an optional
-// reward per goal from the treasury.
+// reward per goal from the treasury. Every line is drafted before any is
+// posted, so a refusal posts none.
 func (g *Game) raise(c *Char, cmd Command) error {
 	gd, err := g.officerOf(c)
 	if err != nil {
@@ -151,34 +151,43 @@ func (g *Game) raise(c *Char, cmd Command) error {
 	case g.raising(p.N, row.ID):
 		return refuse(BadArgs, "the %s is already being raised", row.ID)
 	}
-	tier := int64(1)
-	if st := p.Get(row.ID); st != nil {
-		tier = st.Tier + 1
-	}
-	if tier > settle.Cap(row, g.r.Settle) {
+	tier, lines, ok := p.Next(row, g.r.Settle)
+	switch {
+	case !ok && len(lines) > 0:
 		return refuse(BadArgs, "the %s is at its highest tier", row.ID)
-	}
-	lines := p.Cost(row)
-	if len(lines) == 0 {
+	case !ok:
 		return refuse(BadArgs, "the %s is not raised by goals", row.ID)
 	}
-	if cmd.Price != 0 && cmd.Price < g.gp("reward-least") {
-		return refuse(BadArgs, "a reward is at least %d coin, or none", g.gp("reward-least"))
+	name := g.r.Name("settlements.structures:" + row.ID)
+	if name == "" {
+		name = row.ID
 	}
-	// Every line's escrow and fee, before any is posted.
-	if need := (cmd.Price + g.r.Values.GoalFee(cmd.Price)) * int64(len(lines)); cmd.Price > 0 && g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) < need {
-		return refuse(BadArgs, "raising the %s takes %d coin from the treasury", row.ID, need)
-	}
-	project := "raise-" + strconv.Itoa(p.N) + "-" + row.ID + "-" + strconv.FormatInt(tier, decimal)
-	for i, l := range lines {
-		s := GoalSpec{Title: g.r.Name("settlements.structures:"+row.ID) + ": " + l.Tag, Issuer: goal.ByAdmin, Reward: cmd.Price, Mode: goal.Pooled,
-			Lifetime: goal.Season, Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: l.Tag, Count: l.Quantity, At: "settlement:" + strconv.Itoa(p.N)}}
-		if s.Title == ": "+l.Tag {
-			s.Title = row.ID + ": " + l.Tag
-		}
-		x, err := g.postGoal(c, ledger.SubKey(cmd.Key, strconv.Itoa(i)), s)
+	var drafts []*Goal
+	var need int64
+	for _, l := range lines {
+		x, err := g.draft(c, GoalSpec{Title: name + ": " + l.Tag, Issuer: goal.ByAdmin, Reward: cmd.Price, Mode: goal.Pooled,
+			Lifetime: goal.Season, Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: l.Tag, Count: l.Quantity, At: goal.SettlementRef(p.N)}})
 		if err != nil {
 			return err
+		}
+		drafts = append(drafts, x)
+		need += x.Escrow() + x.Fee
+	}
+	// Each line was quoted alone; together they must still be covered.
+	if g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) < need {
+		return refuse(BadArgs, "raising the %s takes %d coin from the treasury", row.ID, need)
+	}
+	if err := g.mayMuster(c, drafts[0], need); err != nil {
+		return err
+	}
+	// The project is named for its first goal, so no two raises share one.
+	project := ""
+	for i, x := range drafts {
+		if err := g.open(c, x, ledger.SubKey(cmd.Key, strconv.Itoa(i))); err != nil {
+			return err
+		}
+		if project == "" {
+			project = "raise-" + x.ID
 		}
 		x.Build = &goal.Build{Settlement: p.N, Structure: row.ID, Tier: tier, Project: project}
 	}
@@ -188,7 +197,7 @@ func (g *Game) raise(c *Char, cmd Command) error {
 // raising reports whether a structure has a project open.
 func (g *Game) raising(settlement int, structure string) bool {
 	return slices.ContainsFunc(g.Goals, func(x *Goal) bool {
-		return x.Build != nil && x.Build.Settlement == settlement && x.Build.Structure == structure && x.State == goal.Live
+		return x.Build != nil && x.Build.Settlement == settlement && x.Build.Structure == structure && x.Open()
 	})
 }
 
@@ -219,8 +228,10 @@ func (g *Game) goalsTurn(t int64) error {
 		if x.State != goal.Live || !x.Cond.Hold() || x.Hidden {
 			continue
 		}
-		if v, ok := g.regionGauge(x.Cond.At, x.Cond.Gauge); ok {
-			if _, err := g.worldFact(g.SettlementHex(x.Board), "goal.held", []fact.Ref{goalRef(x.ID)}, nil,
+		// The reading is a fact of the region held, wherever its board is.
+		if r, ok := g.regionOf(x.Cond.At); ok {
+			v := g.World.Regions[r].Gauge[g.World.GaugeIndex(x.Cond.Gauge)]
+			if _, err := g.regionFact(world.RegionRef(r), "goal.held", []fact.Ref{goalRef(x.ID)}, nil,
 				fact.S("goal", x.ID), fact.S("gauge", x.Cond.Gauge), fact.N("value", v), fact.N("day", day)); err != nil {
 				return err
 			}
@@ -231,10 +242,10 @@ func (g *Game) goalsTurn(t int64) error {
 	}
 	closing := day%g.r.wp("season-days") == 0
 	for _, x := range g.Goals {
-		if x.State != goal.Live && x.State != goal.Proposed {
+		if !x.Open() {
 			continue
 		}
-		due := x.Expires > 0 && x.Expires <= t
+		due := x.Due(t)
 		if closing && x.Turn(day/g.r.wp("season-days"), day, g.seasonRatio(), g.rebind) {
 			due = true
 		}
@@ -249,6 +260,20 @@ func (g *Game) goalsTurn(t int64) error {
 		g.SeasonActive = g.Active()
 	}
 	return g.bounties(t, key)
+}
+
+// goalsDue ends the goals whose time ran out this tick, so none is met,
+// pledged to or hauled past its end.
+func (g *Game) goalsDue(t int64) error {
+	key := ledger.SubKey("tick", strconv.FormatInt(t, decimal), "due")
+	for _, x := range g.Goals {
+		if x.Open() && x.Due(t) {
+			if err := g.closeGoal(x, key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // closeGoal ends a goal at its time: a kept vow is recorded as kept, a broken
@@ -266,7 +291,7 @@ func (g *Game) closeGoal(x *Goal, key string) error {
 			return err
 		}
 		x.End(why)
-		return nil
+		return g.refund(x, key)
 	}
 	if c := g.Char(x.Poster); c != nil {
 		c.C.Goals.Bump("lapsed", 1)
@@ -274,36 +299,34 @@ func (g *Game) closeGoal(x *Goal, key string) error {
 	return g.endGoal(x, "expired", key)
 }
 
-// regionGauge reads a gauge of the region a "region:" ref names.
-func (g *Game) regionGauge(ref, gauge string) (int64, bool) {
-	r, ok := strings.CutPrefix(ref, "region:")
-	if !ok {
+// regionOf is the region a place ref names, if it names one the world
+// holds.
+func (g *Game) regionOf(ref string) (int, bool) {
+	kind, id, ok := goal.ParseRef(ref)
+	if !ok || kind != goal.PlaceRegion {
 		return 0, false
 	}
-	for i := range g.World.Regions {
-		if world.RegionRef(i) == r {
-			return g.World.Regions[i].Gauge[g.World.GaugeIndex(gauge)], true
-		}
-	}
-	return 0, false
+	r, ok := world.ParseRegionRef(id)
+	return r, ok && r >= 0 && r < len(g.World.Regions)
 }
 
 // seasonRatio is the new season's active characters over the old's, in
 // hundredths, for goals that evolve.
 func (g *Game) seasonRatio() int64 {
 	if g.SeasonActive <= 0 {
-		return hundred
+		return fixed.Hundredths
 	}
-	return max(1, g.Active()*hundred/g.SeasonActive)
+	return max(1, g.Active()*fixed.Hundredths/g.SeasonActive)
 }
 
 // rebind re-casts a place that no longer exists: a settlement past the
 // open ones becomes the first.
 func (g *Game) rebind(at string) string {
-	if n, ok := strings.CutPrefix(at, "settlement:"); ok {
-		if i, err := strconv.Atoi(n); err != nil || i >= len(g.Places) {
-			return "settlement:0"
-		}
+	if kind, _, _ := goal.ParseRef(at); kind != goal.PlaceSettlement {
+		return at
+	}
+	if n, ok := goal.SettlementOf(at); !ok || n >= len(g.Places) {
+		return goal.SettlementRef(0)
 	}
 	return at
 }
@@ -321,7 +344,7 @@ func (g *Game) bounties(t int64, key string) error {
 		if g.bountyOpen(n) || !p.Open(structureMarket) {
 			continue
 		}
-		reward := budgets[n] * g.gp("bounty-share") / hundred
+		reward := fixed.PercentFloor(budgets[n], g.gp("bounty-share"))
 		r, ok := g.threatened(p.Hex)
 		if !ok || reward < g.gp("reward-least") {
 			continue
@@ -331,15 +354,14 @@ func (g *Game) bounties(t int64, key string) error {
 		if fi < 0 {
 			issuer.ID = strconv.Itoa(econ.Keepers)
 		}
-		g.NextGoal++
-		x := &Goal{ID: "q-" + strconv.FormatInt(g.NextGoal, decimal), Title: "Thin the beasts of " + g.r.NPC.PlaceName("region", world.RegionRef(r)),
+		x := &Goal{Title: "Thin the beasts of " + g.r.NPC.PlaceName("region", world.RegionRef(r)),
 			Issuer: issuer, Scope: goal.World, Board: n, Reward: reward, Mode: goal.Pooled, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
-			Posted: t, Expires: t + g.gp("bounty-days")*sheets.TicksPerDay, Season: g.season(), State: goal.Live,
-			Cond: goal.Condition{Verb: goal.Defeat, Count: g.gp("bounty-kills"), At: "region:" + world.RegionRef(r)}}
+			Posted: t, Expires: t + g.gp("bounty-days")*sheets.TicksPerDay, State: goal.Live,
+			Cond: goal.Condition{Verb: goal.Defeat, Count: g.gp("bounty-kills"), At: goal.RegionRef(world.RegionRef(r))}}
+		g.openGoal(x)
 		if err := g.post(ledger.Move(ledger.SubKey(key, "bounty", strconv.Itoa(n)), "bounty", t, ledger.FromFaction, goalPool(x.ID), ledger.Coin, reward)); err != nil {
 			return err
 		}
-		g.insertGoal(x)
 		if _, err := g.worldFact(p.Hex, "goal.posted", []fact.Ref{goalRef(x.ID)}, nil, fact.S("verb", goal.Defeat), fact.S("issuer", goal.ByFaction), fact.N("reward", reward)); err != nil {
 			return err
 		}
@@ -347,18 +369,24 @@ func (g *Game) bounties(t int64, key string) error {
 	return nil
 }
 
+// bounty reports whether a goal is a live faction bounty on a
+// settlement's board.
+func bounty(x *Goal, n int) bool {
+	return x.Board == n && x.Issuer.Kind == goal.ByFaction && x.State == goal.Live
+}
+
 // bountyOpen reports whether a settlement's board still shows a live
 // faction bounty.
 func (g *Game) bountyOpen(n int) bool {
-	return slices.ContainsFunc(g.Goals, func(x *Goal) bool { return x.Board == n && x.Issuer.Kind == goal.ByFaction && x.State == goal.Live })
+	return slices.ContainsFunc(g.Goals, func(x *Goal) bool { return bounty(x, n) })
 }
 
-// BountyBudget is what a settlement's faction holds out in bounties
+// bountyHeld is what a settlement's faction holds out in bounties posted
 // today, taken from its faction orders' budget.
 func (g *Game) bountyHeld(n int) int64 {
 	var out int64
 	for _, x := range g.Goals {
-		if x.Board == n && x.Issuer.Kind == goal.ByFaction && x.State == goal.Live && x.Posted == g.Tick() {
+		if bounty(x, n) && x.Posted == g.Tick() {
 			out += x.Reward
 		}
 	}
@@ -400,7 +428,7 @@ func (g *Game) Drafts(c *Char) []Draft {
 		return nil
 	}
 	h := g.SettlementHex(n)
-	here := "settlement:" + strconv.Itoa(n)
+	here := goal.SettlementRef(n)
 	var out []Draft
 	if m, ok := g.workedOutNear(h); ok {
 		tag := firstOr(g.materialTags(m), m)
@@ -412,12 +440,12 @@ func (g *Game) Drafts(c *Char) []Draft {
 		out = append(out, Draft{Why: g.r.NPC.PlaceName("region", world.RegionRef(r)) + " is the most threatened region near here",
 			Spec: GoalSpec{Title: "Keep " + g.r.NPC.PlaceName("region", world.RegionRef(r)) + " quiet", Issuer: goal.BySettlement, Mode: goal.Pooled,
 				Lifetime: goal.Season, Turnover: goal.Evolve, Cond: goal.Condition{Verb: goal.Hold, Gauge: "threat", Line: g.gp("bounty-threat"), Below: true,
-					Count: g.gp("hold-days"), At: "region:" + world.RegionRef(r)}}})
+					Count: g.gp("hold-days"), At: goal.RegionRef(world.RegionRef(r))}}})
 	}
 	if m, ok := g.lacking(n); ok {
 		out = append(out, Draft{Why: "nobody is selling " + g.MaterialName(m) + " here and a faction wants it",
 			Spec: GoalSpec{Title: "Bring " + g.MaterialName(m), Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
-				Ticks: sheets.TicksPerDay, Reward: g.gp("reward-least") * hundred / hundred * g.gp("draft-units"),
+				Ticks: sheets.TicksPerDay, Reward: g.gp("reward-least") * g.gp("draft-units"),
 				Cond: goal.Condition{Verb: goal.Deliver, Kind: m, Count: g.gp("draft-units"), At: here}}})
 	}
 	return out[:min(len(out), int(g.gp("drafts")))]
@@ -465,7 +493,7 @@ func (g *Game) lacking(n int) (string, bool) {
 func (g *Game) Board(n int) []*Goal {
 	var out []*Goal
 	for _, x := range g.Goals {
-		if x.Board == n && !x.Hidden && (x.State == goal.Live || x.State == goal.Proposed) {
+		if x.Board == n && !x.Hidden && x.Open() {
 			out = append(out, x)
 		}
 	}

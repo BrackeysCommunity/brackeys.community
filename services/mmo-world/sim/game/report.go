@@ -126,6 +126,12 @@ func (g *Game) worldFact(h hex.Hex, kind string, subjects []fact.Ref, causes []f
 	if r := g.World.RegionAt(h); r >= 0 {
 		region = world.RegionRef(r)
 	}
+	return g.regionFact(region, kind, subjects, causes, data...)
+}
+
+// regionFact writes a fact of a sheet-weighed kind in a region, by the
+// world's ref for it.
+func (g *Game) regionFact(region, kind string, subjects []fact.Ref, causes []fact.ID, data ...fact.Datum) (fact.ID, error) {
 	f, err := g.r.weights.New(g.Tick(), kind, region, subjects, causes, data...)
 	if err != nil {
 		return 0, err

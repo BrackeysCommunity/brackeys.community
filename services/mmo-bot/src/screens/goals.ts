@@ -29,9 +29,6 @@ type Life = keyof typeof LIVES;
 type Turn = keyof typeof TURNS;
 type Issuer = keyof typeof ISSUERS;
 
-/** How many claimants an Each goal posted from the form pays. */
-export const EACH_CAP = 10;
-
 const AMOUNTS: Record<string, number[]> = {
   deliver: [5, 10, 20, 40, 100, 200, 400],
   haul: [5, 10, 20, 40, 100],
@@ -123,18 +120,24 @@ export function fromSpec(s: api.GoalSpec): GoalDraft {
   };
 }
 
+/** A Haul has one stock and one hauler, so it pays the first; any other verb runs in the mode picked. */
+function modeOf(d: GoalDraft): Mode {
+  return d.verb === "haul" ? "f" : d.mode;
+}
+
 /** The spec a draft posts, at the board it is posted on. */
 export function specOf(d: GoalDraft, g: api.Goals, title: string, note: string): api.GoalSpec {
   const here = `settlement:${g.settlement}`;
   const cond: api.Condition = { verb: d.verb, count: d.count };
+  const mode = modeOf(d);
   const spec: api.GoalSpec = {
     title,
     note: note || undefined,
     issuer: ISSUERS[d.issuer],
     cond,
     reward: d.reward,
-    mode: MODES[d.mode],
-    cap: d.mode === "e" ? EACH_CAP : undefined,
+    mode: MODES[mode],
+    cap: mode === "e" ? g.eachCap : undefined,
     lifetime: LIVES[d.life],
     turnover: TURNS[d.turn],
     ticks: d.life === "e" ? g.ephemeral : undefined,
@@ -178,8 +181,9 @@ function base(g: api.Goals, suffix: string, title: string): Omit<Card, "rows" | 
   };
 }
 
-/** A goal's reward in words: coin each, the pool, or a vow. */
+/** A goal's reward in words: coin each, the pool, a vow, or for a proposal what is pledged so far. */
 function rewardLine(x: api.Goal): string {
+  if (x.state === "proposed") return `${amount(x.reward, "coin")} pledged so far`;
   if (x.vow) return "a vow: nothing is paid";
   if (x.mode === "each")
     return `${amount(x.reward, "coin")} each, up to ${amount(x.cap ?? 0, "people")}`;
@@ -198,9 +202,53 @@ function outOfDays(n: number, of: number): string {
   return `${num(n)} of ${plural(of, "day")}`;
 }
 
+const boardButton = (v: number) => btn("Board", "goals", "", v, { emoji: "↩" });
+
+/** Your own goals wherever they hang: the way to one posted on another board. */
+function mineRow(g: api.Goals, v: number): Row[] {
+  const away = g.mine.filter((x) => !g.board.some((b) => b.id === x.id));
+  if (!away.length) return [];
+  return [
+    {
+      select: {
+        customId: encodeId("goal", "mine", v),
+        placeholder: "Your goals on other boards",
+        options: away.slice(0, 25).map((x) => ({
+          label: x.title.slice(0, 90),
+          value: x.id,
+          description: capitalise(x.what).slice(0, 90),
+        })),
+      },
+    },
+  ];
+}
+
+/** Away from a settlement there is no board to read: only your own goals. */
+function awayCard(o: api.Options, g: api.Goals, notice?: string): Card {
+  return {
+    context: PRIVATE,
+    author: authorLine("Notice board", "Away from any board", "Your goals"),
+    title: notice ?? "The notice board stands in a settlement",
+    picture: "form",
+    description: g.mine.length
+      ? "Your goals hang on the boards you posted them at. Open one to watch it or take it down."
+      : "You have no goal up. Goals are read and posted at a settlement's notice board.",
+    fields: [
+      {
+        name: "Your live goals",
+        value: `${num(g.live)} of ${plural(g.limit, "goal")}`,
+        inline: true,
+      },
+    ],
+    footer: "A goal is met by recorded facts wherever its poster stands.",
+    rows: [...mineRow(g, o.version), { buttons: [back(o.version)] }],
+  };
+}
+
 /** The board: every live goal and proposal here, a select to open one, the drafts. */
 export function boardCard(o: api.Options, g: api.Goals, notice?: string): Card {
   const v = o.version;
+  if (g.settlement < 0) return awayCard(o, g, notice);
   const rows: Row[] = [];
   if (g.board.length)
     rows.push({
@@ -238,6 +286,7 @@ export function boardCard(o: api.Options, g: api.Goals, notice?: string): Card {
         })),
       },
     });
+  rows.push(...mineRow(g, v));
   const buttons: Button[] = [
     btn("Post a goal", "g-form", goalDraftId(BLANK), v, { style: "primary" }),
     back(v),
@@ -256,7 +305,7 @@ export function boardCard(o: api.Options, g: api.Goals, notice?: string): Card {
             .map((x) => [
               x.title.slice(0, 28),
               x.vow ? "vow" : num(x.reward),
-              x.state === "proposed" ? "proposed" : `${num(x.progress)}/${num(x.count)}`,
+              x.state === "proposed" ? "pledging" : `${num(x.progress)}/${num(x.count)}`,
               x.left ? hours(x.left) : "–",
             ]),
         }
@@ -292,8 +341,7 @@ function metCard(o: api.Options, g: api.Goals, x: api.Goal, lex: Lexicon, notice
       cited.length ? cited.slice(0, 6).join("\n") : "The facts that met it are in the record.",
     ].join("\n"),
     fields: [
-      { name: "Issued by", value: `${x.by} (${x.issuer})`, inline: true },
-      { name: "Reward", value: rewardLine(x), inline: true },
+      ...goalFields(x, lex).slice(0, 2),
       {
         name: "Claimed by",
         value:
@@ -305,7 +353,7 @@ function metCard(o: api.Options, g: api.Goals, x: api.Goal, lex: Lexicon, notice
       },
     ],
     footer: "Met by recorded facts; each claim cites them, and nobody judged.",
-    rows: [{ buttons: [btn("Board", "goals", "", o.version, { emoji: "↩" })] }],
+    rows: [{ buttons: [boardButton(o.version)] }],
   };
 }
 
@@ -320,22 +368,16 @@ export function goalCard(
   if (x.state === "done") return metCard(o, g, x, lex, notice);
   const v = o.version;
   const acts: Button[] = [];
-  for (const t of x.takes.slice(0, 3)) {
-    const left = x.mode === "pooled" ? x.count - x.progress : x.count - x.yours;
-    const n = Math.min(t.units, left);
-    if (n > 0)
-      acts.push(
-        btn(
-          `Deliver ${amount(n, lex.material(t.material))}`,
-          "g-deliver",
-          target(":", x.id, t.material, n),
-          v,
-          {
-            style: "success",
-          },
-        ),
-      );
-  }
+  for (const t of x.takes.slice(0, 3))
+    acts.push(
+      btn(
+        `Deliver ${amount(t.units, lex.material(t.material))}`,
+        "g-deliver",
+        target(":", x.id, t.material, t.units),
+        v,
+        { style: "success" },
+      ),
+    );
   if (x.haul === "take") acts.push(btn("Take the haul", "g-haul", x.id, v, { style: "success" }));
   if (x.haul === "deliver")
     acts.push(
@@ -345,25 +387,36 @@ export function goalCard(
     for (const c of [10, 100])
       if (o.purse.coin >= c)
         acts.push(btn(`Pledge ${amount(c, "coin")}`, "g-pledge", target(":", x.id, c), v));
-  if (x.mine && !x.claims) acts.push(btn("Withdraw", "g-wd", x.id, v, { style: "danger" }));
-  const rows: Row[] = buttonRows([
-    ...acts.slice(0, 4),
-    btn("Board", "goals", "", v, { emoji: "↩" }),
-  ]);
+  // The ways out keep their places; what the goal offers fills the rest of the row.
+  const out: Button[] = [boardButton(v)];
+  if (x.mine && (!x.claims || x.evolved))
+    out.unshift(btn("Withdraw", "g-wd", x.id, v, { style: "danger" }));
+  const rows: Row[] = buttonRows([...acts.slice(0, 5 - out.length), ...out]);
   return {
     ...base(g, x.id, notice ?? x.title),
-    description: goalSummary(x),
+    description: [
+      goalSummary(x),
+      x.evolved && x.mine
+        ? "Its target evolved with the new season: today you may withdraw it whatever has been claimed."
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
     fields: goalFields(x, lex),
     footer: "Met by recorded facts; the claim cites them, and nobody judges.",
     rows,
   };
 }
 
+/** Where a goal happens: at its place, or for a haul or a carry from one place to another. */
+function whereLine(x: api.Goal): string {
+  if (x.from && x.where) return ` from ${x.from} to ${x.where}`;
+  return x.where ? ` at ${x.where}` : "";
+}
+
 /** A goal's note and what it asks, as a card's description. */
 export function goalSummary(x: api.Goal): string {
-  return [x.note, `${capitalise(x.what)}${x.where ? ` at ${x.where}` : ""}.`]
-    .filter(Boolean)
-    .join("\n");
+  return [x.note, `${capitalise(x.what)}${whereLine(x)}.`].filter(Boolean).join("\n");
 }
 
 /** A goal's issuer, reward, progress and terms, for its card and its forum post. */
@@ -450,7 +503,9 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
     },
     {
       buttons: [
-        btn(`Mode: ${MODES[d.mode]}`, "g-form", set("mode", cycle(MODES, d.mode)), v),
+        btn(`Mode: ${MODES[modeOf(d)]}`, "g-form", set("mode", cycle(MODES, d.mode)), v, {
+          disabled: d.verb === "haul",
+        }),
         btn(`Lasts: ${LIVES[d.life]}`, "g-form", set("life", cycle(LIVES, d.life)), v),
         btn(`Then: ${TURNS[d.turn]}`, "g-form", set("turn", cycle(TURNS, d.turn)), v),
         btn(
@@ -464,8 +519,9 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
     },
   ];
   const rows = all.filter((r) => !("select" in r) || r.select.options.length > 0);
-  if (rows.length < 5) rows.push({ buttons: [btn("Board", "goals", "", v, { emoji: "↩" })] });
-  const fee = d.reward ? Math.max(g.feeLeast, Math.ceil((escrowOf(d) * g.fee) / 100)) : 0;
+  if (rows.length < 5) rows.push({ buttons: [boardButton(v)] });
+  const escrow = escrowOf(d, g);
+  const fee = d.reward ? Math.max(g.feeLeast, Math.ceil((escrow * g.fee) / 100)) : 0;
   return {
     context: PRIVATE,
     author: authorLine("Notice board", g.name, "Post a goal"),
@@ -474,21 +530,21 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
     description:
       "Pick the verb, what it asks for, the amount and the reward; the buttons cycle how it runs. The title and a note come last.",
     fields: [
-      { name: "Escrow", value: amount(escrowOf(d), "coin"), inline: true },
+      { name: "Escrow", value: amount(escrow, "coin"), inline: true },
       { name: "Listing fee", value: amount(fee, "coin"), inline: true },
       { name: "You hold", value: amount(g.coin, "coin"), inline: true },
     ],
     footer:
       d.issuer === "s"
         ? `A settlement goal waits for ${amount(g.pledgeNeed, "coin")} pledged before it goes live.`
-        : `An Each goal pays up to ${amount(EACH_CAP, "people")}; Season goals turn over when the season closes.`,
+        : `An Each goal pays up to ${amount(g.eachCap, "people")}; Season goals turn over when the season closes.`,
     rows,
   };
 }
 
-function escrowOf(d: GoalDraft): number {
+function escrowOf(d: GoalDraft, g: api.Goals): number {
   if (d.issuer === "s") return 0;
-  return d.mode === "e" ? d.reward * EACH_CAP : d.reward;
+  return modeOf(d) === "e" ? d.reward * g.eachCap : d.reward;
 }
 
 function amountWord(d: GoalDraft): string {

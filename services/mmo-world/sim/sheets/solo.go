@@ -77,14 +77,13 @@ type Trigger struct {
 
 // NPCRole is one role slot a place fills with a resident (GDD 4.18).
 type NPCRole struct {
-	ID    string   `json:"id" unit:"id"`
-	Place string   `json:"place" unit:"enum" enum:"starting-settlement|player-settlement|city|faction-holding|structure|caravan|road"`
-	Role  string   `json:"role" unit:"text"`
-	Count int64    `json:"count" unit:"count" min:"1"`
-	Works string   `json:"works,omitempty" unit:"text" doc:"Where its route takes it: market, forge, wall, road."`
-	Tags  []string `json:"tags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"What a wanderer of this role favours, by biome or site."`
-	// Rooted roles never move home: their place cannot run without them.
-	Rooted bool `json:"rooted,omitempty" unit:"flag" doc:"Its place cannot spare it: it never moves home when the place grows crowded."`
+	ID     string   `json:"id" unit:"id"`
+	Place  string   `json:"place" unit:"enum" enum:"starting-settlement|player-settlement|city|faction-holding|structure|caravan|road"`
+	Role   string   `json:"role" unit:"text"`
+	Count  int64    `json:"count" unit:"count" min:"1"`
+	Works  string   `json:"works,omitempty" unit:"text" doc:"Where its route takes it: market, forge, wall, road."`
+	Tags   []string `json:"tags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"What a wanderer of this role favours, by biome or site."`
+	Rooted bool     `json:"rooted,omitempty" unit:"flag" doc:"Its place cannot spare it: it never moves home when the place grows crowded."`
 }
 
 // Topic is what an NPC can bring up (GDD 4.18): a predicate over its

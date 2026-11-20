@@ -21,7 +21,6 @@ var warden = sheets.Class{ID: "warden", Skill: "fight", Tag: "warden",
 
 var tree = []sheets.Ability{{ID: "hold-fast", Class: "warden", Tier: 1}, {ID: "shield", Class: "warden", Tier: 1}, {ID: "braced", Class: "warden", Tier: 5}}
 
-// TestUnlockNeedsEveryThreshold.
 func TestUnlockNeedsEveryThreshold(t *testing.T) {
 	c := char{levels: map[string]int64{"fight": 8}, deeds: map[string]int64{"hold-won": 39}}
 	if Unlocked(&warden, c) {

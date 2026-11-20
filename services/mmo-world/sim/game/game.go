@@ -78,7 +78,7 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	r := &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
 		Values: econ.New(b), Faucet: faucet.ParamsOf(b.EconomyParams), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
 		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params()),
-		Settle: settle.ParamsOf(b.SettlementParams), Guild: guildParams(b.SettlementParams), Class: class.ParamsOf(b.ClassParams),
+		Settle: settle.ParamsOf(b.SettlementParams), Guild: guild.ParamsOf(b.SettlementParams), Class: class.ParamsOf(b.ClassParams),
 		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}}
 	for i := range b.Structures {
 		r.structures[b.Structures[i].ID] = &b.Structures[i]
@@ -100,14 +100,6 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 }
 
 func (r *Rules) wp(id string) int64 { return sheets.IntParam(r.Book.WorldParams, id) }
-
-// guildParams reads the settlements sheet's guild cells.
-func guildParams(p []sheets.Param) guild.Params {
-	i := func(id string) int64 { return sheets.IntParam(p, id) }
-	return guild.Params{Least: i("guild-least"), OfficerPer: i("officer-per"), OfficerSpend: i("officer-spend"), ApprovalDays: i("approval-days"),
-		LeaderIdleDays: i("leader-idle-days"), VoteShare: i("vote-share"), VoteDays: i("vote-days"), ServerLeaderDays: i("server-leader-days"),
-		ServerLeaderEvery: i("server-leader-every"), DrawShare: i("draw-share"), SpoilsDays: i("spoils-days")}
-}
 
 // Char is a character as the game holds it: the sim's character, the row
 // version a command must name, and what it is doing.
@@ -147,17 +139,17 @@ type Char struct {
 	// Gave is what it gave away on world day GaveDay, while young.
 	Gave    int64 `json:"gave,omitempty"`
 	GaveDay int64 `json:"gaveDay,omitempty"`
+	// Carrying is a downed character it carries home; CarriedBy who
+	// carries it (GDD 11.6).
+	Carrying  string `json:"carrying,omitempty"`
+	CarriedBy string `json:"carriedBy,omitempty"`
 	// Hours are the world hours of HoursDay it acted in; Streak the days
 	// running it acted in nearly all of them; Review its flags for an
 	// operator (GDD 10.9).
-	// Carrying is a downed character it carries home; CarriedBy who
-	// carries it (GDD 11.6).
-	Carrying  string   `json:"carrying,omitempty"`
-	CarriedBy string   `json:"carriedBy,omitempty"`
-	Hours     uint32   `json:"hours,omitempty"`
-	HoursDay  int64    `json:"hoursDay,omitempty"`
-	Streak    int64    `json:"streak,omitempty"`
-	Review    []string `json:"review,omitempty"`
+	Hours    uint32   `json:"hours,omitempty"`
+	HoursDay int64    `json:"hoursDay,omitempty"`
+	Streak   int64    `json:"streak,omitempty"`
+	Review   []string `json:"review,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -204,10 +196,8 @@ type Society struct {
 	// WorkLedger is what guild works have consumed and given back, by
 	// work, at reference value, for the Economy run (GDD 4.14).
 	WorkLedger WorkLedger `json:"workLedger"`
-	// Built counts structures raised by region and world day inside the
-	// crowding window; Crowded are the settlements building has just left
-	// crowded, whose residents decide at the next tick whether to move
-	// (GDD 4.18).
+	// Built are the crowding counters and Crowded the settlements a build
+	// has just left crowded, until crowdTurn settles them (GDD 4.18).
 	Built   []Built `json:"built,omitempty"`
 	Crowded []int   `json:"crowded,omitempty"`
 }

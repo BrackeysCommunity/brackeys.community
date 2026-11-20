@@ -162,7 +162,7 @@ func bladeWithTrait(t *testing.T, r *game.Rules) (item.Recipe, string) {
 			}
 		}
 	}
-	t.Skip("no tier-1 blade with a trait in these sheets")
+	t.Fatal("no tier-1 blade with a trait in these sheets: the goals' example proofs need one")
 	return item.Recipe{}, ""
 }
 
@@ -326,7 +326,7 @@ func TestOldPale(t *testing.T) {
 	hunter := &solo{t: t, g: g, c: ts[1].c, home: ts[1].c.C.At}
 	site, ok := nearestSite(g, hunter.home)
 	if !ok {
-		t.Skip("no site near the first settlement")
+		t.Fatal("no site near the first settlement: the Old Pale proof needs one")
 	}
 	kinds := g.Rules().Gen.Creatures(site)
 	recipe, _ := bladeWithTrait(t, g.Rules())
@@ -397,7 +397,7 @@ func TestAVowKeptAndBroken(t *testing.T) {
 }
 
 // TestScreenedWordsAndHide: a title from the word list is refused, and an
-// operator's hide takes a goal down with its escrow back (MM6.7).
+// operator's hide takes a goal down with its escrow back.
 func TestScreenedWordsAndHide(t *testing.T) {
 	g, ts := society(t, 1)
 	ts[0].grant(ledger.Coin, 50)

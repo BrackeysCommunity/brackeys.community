@@ -12,10 +12,8 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// structural: how a soak's one server plays its guild (GDD 4.8, 4.14).
-// Members give a share of what they carry that the guild is short of;
-// two admins switch works on and approve each other; the guild founds
-// one settlement beside the starting one it took.
+// structural: how a soak's one server plays its guild (agent.GuildPlan):
+// two admins, and one settlement founded beside the starting one it took.
 const (
 	economyServer    = "soak"
 	economyAdmins    = 2

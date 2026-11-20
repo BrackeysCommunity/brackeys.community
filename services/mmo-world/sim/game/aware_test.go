@@ -180,7 +180,7 @@ func TestCrowdedResidentsMoveHome(t *testing.T) {
 	c := mustCreate(t, g, "a", "knife")
 	home := c.C.At
 	people := meetResidents(t, g, c)
-	for range g.crowdLine() - 1 {
+	for range g.CrowdLine() - 1 {
 		raised(g, 0)
 	}
 	if _, err := g.Advance(); err != nil {
@@ -242,7 +242,7 @@ func TestAwarenessSurvivesASnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range g.crowdLine() {
+	for range g.CrowdLine() {
 		raised(g, 0)
 	}
 	want, err := g.Digest()
