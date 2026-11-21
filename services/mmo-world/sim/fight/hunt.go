@@ -32,6 +32,8 @@ type Hunt struct {
 	States   []State        `json:"states"`
 	Salvage  []Salvaged     `json:"salvage,omitempty"` // left by gear that broke
 	Measures []tags.Measure `json:"-"`
+	// Closed is the tick it closed, slain or left.
+	Closed int64 `json:"closed,omitempty"`
 }
 
 // StartHunt opens a hunt from its sheet row at a tick.
@@ -43,7 +45,16 @@ func (r *Rules) StartHunt(id, row string, site Site, tick int64) (*Hunt, error) 
 	c := r.Spawn(h.Creature, nil, site.Tags, site.Measures)
 	pool := h.HealthRatio.Of(r.tiers[c.Tier].HuntHealth)
 	return &Hunt{ID: id, Row: row, Creature: c, Site: slices.Clone(site.Tags), Health: pool, Max: pool,
-		Ends: tick + h.WindowDays*r.Param("hunt-day-ticks"), Measures: site.Measures}, nil
+		Ends: tick + r.Window(row), Measures: site.Measures}, nil
+}
+
+// Window is how long a hunts row stays open once it opens, in ticks.
+func (r *Rules) Window(row string) int64 {
+	h, ok := r.hunts[row]
+	if !ok {
+		return 0
+	}
+	return h.WindowDays * r.Param("hunt-day-ticks")
 }
 
 // Close ends a hunt whose window has run out by tick, and reports
@@ -53,6 +64,14 @@ func (h *Hunt) Close(tick int64) bool {
 		h.Over = true
 	}
 	return h.Over
+}
+
+// Beat is the one-beat encounter a press is fought as: a Clash against
+// the hunt's creature, carrying the hunt's failures, downs and states.
+func (h *Hunt) Beat() *Encounter {
+	return &Encounter{ID: h.ID, Creature: h.Creature, Site: h.Site, Measures: h.Measures, Beats: []string{"clash"},
+		Machines: []string{""}, Levels: []int64{0}, Party: 1, Guardian: -1,
+		Failures: h.Failures, Down: h.Down, States: h.States}
 }
 
 // HuntBeat is one character's press against a hunt: a Clash with the
@@ -66,9 +85,7 @@ func (r *Rules) HuntBeat(h *Hunt, m *Member, tick int64) (Pressed, []fact.Fact, 
 	if slices.Contains(h.Down, m.Ch.ID) {
 		return Pressed{}, nil, fmt.Errorf("fight: %s is down in hunt %s", m.Ch.ID, h.ID)
 	}
-	e := &Encounter{ID: h.ID, Creature: h.Creature, Site: h.Site, Measures: h.Measures, Beats: []string{"clash"},
-		Machines: []string{""}, Levels: []int64{0}, Party: 1, Guardian: -1,
-		Failures: h.Failures, Down: h.Down, States: h.States}
+	e := h.Beat()
 	s, k, opts := r.Choices(e, m.Ch, m.Kit, tick)
 	o, ok := OptionByID(opts, m.Pick)
 	if !ok {
@@ -89,25 +106,38 @@ func (r *Rules) HuntBeat(h *Hunt, m *Member, tick int64) (Pressed, []fact.Fact, 
 		h.Removed.Bump(m.Ch.ID, took)
 		facts = append(facts, r.fact(tick, "hunt.wounded", []fact.Ref{{Kind: "character", ID: m.Ch.ID}, {Kind: "hunt", ID: h.ID}}, fact.N("health", took)))
 	}
+	// The kill's fact carries the roll, which the game makes.
 	if h.Health == 0 {
 		h.Over, h.Slain = true, true
-		facts = append(facts, r.fact(tick, "hunt.slain", []fact.Ref{{Kind: "hunt", ID: h.ID}, {Kind: "archetype", ID: h.Creature.Archetype}}, fact.N("hunters", int64(len(h.Removed)))))
 	}
 	return Pressed{Who: m.Ch.ID, Option: o, Outcome: oc, Why: why}, facts, nil
 }
 
-// Spoils rolls the hunt's sheet row and splits it by health removed,
-// ties drawn for the hunt. Each spoil line's quantity is drawn from half
-// to all of the row's.
+// Roll is what a slain hunt yields, drawn once.
+func (r *Rules) Roll(h *Hunt) []item.Spoil {
+	if !h.Slain {
+		return nil
+	}
+	return r.RollRow(h.Row, draw.Str(h.ID))
+}
+
+// RollRow draws a hunts row's spoils for a kill the parts name: each line
+// from half to all of the row's quantity.
+func (r *Rules) RollRow(row string, kill ...draw.Part) []item.Spoil {
+	var haul []item.Spoil
+	for i, s := range r.hunts[row].Spoils {
+		lo := fixed.Ratio(s.Quantity, halved).Int()
+		n := r.roll.Between(lo, s.Quantity, "hunt.spoils", append(slices.Clone(kill), draw.Int(int64(i)))...)
+		haul = append(haul, item.Spoil{Material: s.Material, Qty: n})
+	}
+	return haul
+}
+
+// Spoils rolls a slain hunt and splits it by health removed, ties drawn
+// for the hunt.
 func (r *Rules) Spoils(h *Hunt) map[string][]item.Spoil {
 	if !h.Slain {
 		return map[string][]item.Spoil{}
 	}
-	var haul []item.Spoil
-	for i, s := range r.hunts[h.Row].Spoils {
-		lo := fixed.Ratio(s.Quantity, halved).Int()
-		n := r.roll.Between(lo, s.Quantity, "hunt.spoils", draw.Str(h.ID), draw.Int(int64(i)))
-		haul = append(haul, item.Spoil{Material: s.Material, Qty: n})
-	}
-	return Split(haul, h.Removed, r.SplitTie(h.ID))
+	return Split(r.Roll(h), h.Removed, r.SplitTie(h.ID))
 }

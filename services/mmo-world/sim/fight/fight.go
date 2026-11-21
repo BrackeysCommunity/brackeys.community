@@ -204,6 +204,10 @@ type Situation struct {
 	Half   bool
 	Beyond int64
 	Joined *Creature // a second creature, for the beats it stays
+	// Rally is band steps a Warden's rally gives this press; Repeats is
+	// how many more times a chained state's rules fire, by its tag.
+	Rally   int64
+	Repeats map[tags.Tag]int64
 }
 
 // Part is one line of a score's why.
@@ -437,6 +441,7 @@ func (r *Rules) option(s Situation, k Kit, row sheets.OptionRow, g *Gear, axis s
 		Measures: s.Measures,
 	}
 	effects, rw := tags.Apply(r.rules, subject, ctx)
+	effects = repeated(effects, rw, s)
 	var steps int64
 	for _, e := range effects {
 		switch e := e.(type) {
@@ -448,6 +453,7 @@ func (r *Rules) option(s Situation, k Kit, row sheets.OptionRow, g *Gear, axis s
 		case tags.AddTag, tags.RemoveTag, tags.Scale, tags.Add, tags.Join, tags.End:
 		}
 	}
+	steps += rallied(s, row, &why)
 	o.Tags = subject.Tags()
 	var lines []Part
 	o.Difficulty, lines = r.difficulty(s)
