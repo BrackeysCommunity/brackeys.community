@@ -326,7 +326,13 @@ export async function scripted(
 
   // The guild: the server's own takes a new character in; each page once.
   await command("guild");
-  if (has("gld-name")) await submit("gld-name", { name: `Scripted ${seq}` });
+  // Founding is also offered to a server guild's member: only one with no
+  // guild founds, under a lettered name (the card check reads any number
+  // as an amount).
+  if (has("gld-name") && !(await world.guild(id)).name) {
+    const tag = [...String(seq)].map((d) => "abcdefghij"[Number(d)]).join("");
+    await submit("gld-name", { name: `Scripted ${tag}` });
+  }
   run.guild = card.author;
   for (const page of ["places", "works", "bank"]) if (has("guild")) await press("guild", page);
   if (has("gld-give")) {

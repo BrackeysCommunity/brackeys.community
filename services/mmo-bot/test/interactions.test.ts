@@ -466,7 +466,7 @@ const offered = (card: Card, action: string) =>
   );
 
 test("the bank takes two picks: what, which writes nothing, then how much, which gives or draws it", async () => {
-  const { press, writes } = setup({ purse: { coin: 60, provisions: 8 } });
+  const { press, writes } = setup({ purse: { coin: 60, provisions: 8, goods: [] } });
   const write = (kind: string, fields: Partial<api.ActionRequest>) => ({
     interactionId: "event",
     characterId: "c-1",
