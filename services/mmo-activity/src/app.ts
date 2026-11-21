@@ -1,31 +1,45 @@
 import {
   ActBenchLesson,
+  ActDeckSwap,
+  ActDungeonLeave,
+  ActDungeonPush,
+  ActHuntPress,
+  ActPartyPick,
   ActPress,
   MachineBench,
+  MachineFork,
   MachinePouch,
   type ActivityState,
   type Fact,
+  type HuntView,
   type MachineView,
   type Pressed,
   type Viewer,
 } from "./api.ts";
 import { button, el, lines, panel } from "./dom.ts";
-import type { IntentBody, Session } from "./session.ts";
+import { streamed, type IntentBody, type Session } from "./session.ts";
 import { MachinePanel } from "./shell/panel.ts";
+import { versionOf } from "./shell/party-registry.ts";
 import { familyOf } from "./shell/registry.ts";
 import { plural, seconds } from "./units.ts";
 import { beatView, pressedLines } from "./views/beat.ts";
 import { benchView } from "./views/bench.ts";
+import { floorView } from "./views/floor.ts";
+import { huntView } from "./views/hunt.ts";
 import { idleView } from "./views/idle.ts";
+import { partyResult, partyResultLines, partyView, windowLine } from "./views/party.ts";
 import { pouchesView } from "./views/pouches.ts";
 import { machineWhy, optionWhy } from "./views/why.ts";
 import { name, refusalLine } from "./words.ts";
 
-export type Screen = "machine" | "beat" | "pouches" | "bench" | "idle";
+export type Screen = "machine" | "beat" | "floor" | "hunt" | "party" | "pouches" | "bench" | "idle";
 
 const TITLES: Record<Screen, string> = {
   machine: "Machine",
   beat: "The beat",
+  floor: "The floor",
+  hunt: "The hunt",
+  party: "Party",
   pouches: "Pouches",
   bench: "Bench",
   idle: "Idle",
@@ -36,6 +50,9 @@ export function screens(st: ActivityState, machine: boolean): Screen[] {
   const out: Screen[] = [];
   if (st.machine || machine) out.push("machine");
   if (st.fight) out.push("beat");
+  if (st.floor) out.push("floor");
+  if (st.hunt) out.push("hunt");
+  if (st.party) out.push("party");
   if (st.pouches?.length) out.push("pouches");
   if (st.bench) out.push("bench");
   return out.length ? out : ["idle"];
@@ -51,12 +68,26 @@ export function pick(st: ActivityState, held: boolean, want: Screen | undefined)
   const open = screens(st, held);
   if (st.machine?.armed || held) return "machine";
   if (want && open.includes(want)) return want;
+  // At a fork the vote leads; the machine behind a way is a tab beside it.
+  if (st.floor?.ways?.length && st.machine?.source === MachineFork) return "floor";
   return open[0]!;
 }
 
 // A machine is the same one while it is drawn the same in the same place.
+// A party machine is also the one armed when it was, since a second
+// arming can deal the same part again.
 function key(m: MachineView): string {
-  return JSON.stringify([m.source, m.pouch ?? "", m.family, Boolean(m.compact), m.layout]);
+  const armed = streamed(m) ? (m.armedAt ?? 0) : 0;
+  return JSON.stringify([m.source, m.pouch ?? "", m.family, Boolean(m.compact), m.layout, armed]);
+}
+
+// structural: how often a pick window's line is read again, ms.
+const WINDOW_EVERY = 500;
+
+// The beat a party is on, to tell when it resolves for everyone.
+function beatKey(st: ActivityState): string {
+  const f = st.fight;
+  return f?.shared ? `${f.id}/${f.beat}` : "";
 }
 
 /**
@@ -77,6 +108,10 @@ export class App {
   private notice = "";
   private last: { pressed: Pressed[]; facts: Fact[] } | undefined;
   private rendering = false;
+  private beat = "";
+  private resolved: string[] = [];
+  private hunt: { before: HuntView | undefined; now: HuntView } | undefined;
+  private ticking: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     root: HTMLElement,
@@ -86,6 +121,10 @@ export class App {
     root.replaceChildren(this.bar, this.nav, this.main);
     session.subscribe(() => this.render());
     session.onHint((m) => this.machine?.showHint(m));
+    session.onMoves((ev) => {
+      if (ev.kind === "move") this.machine?.relayed(ev.move);
+      else this.machine?.resync(ev.moves);
+    });
     this.render();
   }
 
@@ -101,6 +140,39 @@ export class App {
     } finally {
       this.rendering = false;
     }
+    this.tickWindows();
+  }
+
+  // A pick window's line counts down on the server's clock while one shows.
+  private tickWindows(): void {
+    if (this.ticking !== undefined) return;
+    if (!this.main.isConnected || !this.main.querySelector("[data-due]")) return;
+    this.ticking = setTimeout(() => {
+      this.ticking = undefined;
+      const now = this.session.serverNow();
+      for (const node of this.main.querySelectorAll<HTMLElement>("[data-due]")) {
+        const text = windowLine(Number(node.dataset.due), now, node.dataset.what ?? "");
+        if (node.textContent !== text) node.textContent = text;
+      }
+      this.tickWindows();
+    }, WINDOW_EVERY);
+  }
+
+  // What the state says has happened since it was last drawn: the party's
+  // beat resolving for everyone, and the presses landing on a hunt.
+  private noticeChanges(state: ActivityState): void {
+    const beat = beatKey(state);
+    if (this.beat && beat !== this.beat) {
+      const r = partyResult(state.party);
+      this.resolved = [
+        "The beat resolved for everyone at once.",
+        ...(r ? partyResultLines(r) : []),
+      ];
+    }
+    this.beat = beat;
+    const h = state.hunt;
+    if (!h) this.hunt = undefined;
+    else if (this.hunt?.now !== h) this.hunt = { before: this.hunt?.now, now: h };
   }
 
   // Replaces what main shows, leaving a node that is already there in
@@ -138,6 +210,7 @@ export class App {
       this.show(panel("Opening", ...lines("Signing you in and finding your character.")));
       return;
     }
+    this.noticeChanges(state);
     this.syncMachine(state);
     const held = Boolean(this.machine && this.machine.shell.phase !== "rest");
     const open = screens(state, Boolean(this.machine));
@@ -156,7 +229,9 @@ export class App {
         this.why = undefined;
         this.render();
       };
-      const option = state.fight?.options.find((o) => o.id === this.why?.option);
+      const option = [...(state.fight?.options ?? []), ...(state.hunt?.options ?? [])].find(
+        (o) => o.id === this.why?.option,
+      );
       const machine = this.machine?.shell.machine ?? state.machine;
       const view = option
         ? optionWhy(option, back)
@@ -177,12 +252,44 @@ export class App {
         this.show(
           this.recent(),
           beatView(state, {
-            press: (option) => void this.act(ActPress, { option }),
+            press: (option) =>
+              void this.act(state.fight?.shared ? ActPartyPick : ActPress, { option }),
             why: (option) => this.openWhy({ option }),
             openMachine: () => this.go("machine"),
+            swap: (item) => void this.act(ActDeckSwap, { item }),
             busy: this.busy,
+            now: this.session.serverNow(),
           }),
         );
+        return;
+      case "floor":
+        this.show(
+          this.recent(),
+          floorView(state, {
+            push: (way) => void this.act(ActDungeonPush, { option: way }),
+            leave: () => void this.act(ActDungeonLeave),
+            openMachine: () => this.go("machine"),
+            busy: this.busy,
+            now: this.session.serverNow(),
+          }),
+        );
+        return;
+      case "hunt":
+        this.show(
+          this.recent(),
+          huntView(
+            state,
+            {
+              press: (target, option) => void this.act(ActHuntPress, { target, option }),
+              why: (option) => this.openWhy({ option }),
+              busy: this.busy,
+            },
+            this.hunt?.before,
+          ),
+        );
+        return;
+      case "party":
+        this.show(this.recent(), partyView(state));
         return;
       case "pouches":
         this.show(
@@ -236,7 +343,11 @@ export class App {
 
   // What the last press or lesson did, or why the world turned it down.
   private recent(): HTMLElement | undefined {
-    const told = [this.notice, ...(this.last ? pressedLines(this.last) : [])].filter(Boolean);
+    const told = [
+      this.notice,
+      ...(this.last ? pressedLines(this.last) : []),
+      ...this.resolved,
+    ].filter(Boolean);
     return told.length ? panel("Just now", ...lines(...told)) : undefined;
   }
 
@@ -248,11 +359,15 @@ export class App {
     if (this.machine?.take(m, k === this.machineKey, state.last?.result) === "kept") return;
     this.dropMachine();
     const family = m && familyOf(m.family);
-    if (!m || !family) return;
+    const version = m?.party ? versionOf(m.party) : undefined;
+    if (!m || !family || (m.party && !version)) return;
     this.machineKey = k;
     this.machine = new MachinePanel(
       {
         family,
+        version,
+        stream: (move) => this.session.move(move),
+        known: () => this.session.partyLog(),
         serverNow: () => this.session.serverNow(),
         online: () => this.session.open,
         intent: (kind, body) => this.session.intent(kind, body),
@@ -309,11 +424,12 @@ export class App {
     this.render();
   }
 
-  private async act(kind: string, body: IntentBody): Promise<void> {
+  private async act(kind: string, body: IntentBody = {}): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.notice = "";
     this.last = undefined;
+    this.resolved = [];
     this.render();
     const reply = await this.session.intent(kind, body);
     this.busy = false;

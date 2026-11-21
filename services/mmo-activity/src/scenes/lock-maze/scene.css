@@ -20,6 +20,10 @@
   transform: perspective(700px) rotateX(7deg);
 }
 
+.lock-maze[data-tilt="hex"] {
+  transform: perspective(700px) rotate3d(var(--tilt-x), var(--tilt-y), 0, 7deg);
+}
+
 .lock-maze .floor {
   fill: var(--panel);
 }

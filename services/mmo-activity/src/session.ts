@@ -11,14 +11,20 @@ import {
   FrameHint,
   FrameIntent,
   FrameLook,
+  FrameMove,
+  FrameMoves,
   FramePassHint,
   FramePing,
   FrameReply,
   FrameState,
+  MachineFork,
+  MachineGuardian,
+  MachineParty,
   type ActivityState,
   type ClientMessage,
   type IntentReply,
   type MachineIntent,
+  type MachineView,
   type PuzzleMove,
   type ServerMessage,
   type TokenReply,
@@ -62,6 +68,30 @@ export type Link =
 export interface IntentBody {
   option?: string;
   machine?: MachineIntent;
+  /** A hunt-press's hunt. */
+  target?: string;
+  /** A deck-swap's deck. */
+  item?: string;
+}
+
+/** Whether a machine is one several seats work, whose moves are streamed. */
+export function streamed(m: MachineView | undefined): boolean {
+  return m?.source === MachineParty || m?.source === MachineFork || m?.source === MachineGuardian;
+}
+
+/**
+ * What a party machine's merged log did on this screen: a move relayed
+ * from another seat, or the whole log as this screen now holds it, when
+ * the gateway sent it on a return or a move of this seat's was turned away.
+ */
+export type MovesEvent =
+  | { kind: "move"; move: PuzzleMove }
+  | { kind: "moves"; moves: PuzzleMove[] };
+
+// One move of the merged log as this screen knows it; seq marks this seat's own.
+interface Known {
+  move: PuzzleMove;
+  seq?: number;
 }
 
 interface Pending {
@@ -118,6 +148,10 @@ export class Session {
   private stopRetry: (() => void) | undefined;
   private listeners = new Set<() => void>();
   private hintListeners = new Set<(m: PuzzleMove) => void>();
+  private moveListeners = new Set<(ev: MovesEvent) => void>();
+  // The armed party machine's merged log so far, as relayed and as this
+  // seat sent it: which machine by its armedAt.
+  private merged: { armedAt: number; moves: Known[] } | undefined;
 
   constructor(private readonly deps: SessionDeps) {
     this.viewer = { ...deps.viewer };
@@ -132,6 +166,35 @@ export class Session {
   onHint(f: (m: PuzzleMove) => void): () => void {
     this.hintListeners.add(f);
     return () => this.hintListeners.delete(f);
+  }
+
+  /** A party machine's moves: relayed ones, and the whole log when it is sent again. */
+  onMoves(f: (ev: MovesEvent) => void): () => void {
+    this.moveListeners.add(f);
+    return () => this.moveListeners.delete(f);
+  }
+
+  /**
+   * The armed party machine's merged log as this screen holds it: every
+   * move relayed and every one this seat sent, in the order they came.
+   */
+  partyLog(): PuzzleMove[] {
+    return this.merged?.moves.map((k) => k.move) ?? [];
+  }
+
+  /**
+   * Streams one move of the armed party machine, stamped in ms since its
+   * arming; the gateway stamps the seat and keeps it in the merged log. It
+   * is false when there was no line to send it on.
+   */
+  move(m: PuzzleMove): boolean {
+    const machine = this.state?.machine;
+    if (!this.greeted || !machine?.armed || !streamed(machine)) return false;
+    const seq = ++this.seq;
+    const { seat: _seat, ...bare } = m;
+    if (!this.send({ t: FrameMove, seq, move: bare })) return false;
+    this.known(machine).moves.push({ move: { ...bare, seat: machine.seat ?? 0 }, seq });
+    return true;
   }
 
   /** The server's clock now, unix ms. */
@@ -256,10 +319,18 @@ export class Session {
         if (msg.state) this.took(msg.state);
         return;
       case FrameReply:
-        if (msg.reply) this.answered(msg.reply);
+        // A reply with no intent id answers a streamed move, by its seq.
+        if (msg.reply && !msg.reply.id) this.unmoved(msg.reply, msg.seq);
+        else if (msg.reply) this.answered(msg.reply);
         return;
       case FrameHint:
         if (msg.hint) for (const f of this.hintListeners) f(msg.hint);
+        return;
+      case FrameMove:
+        if (msg.move) this.relayed(msg.move);
+        return;
+      case FrameMoves:
+        this.resynced(msg.moves ?? []);
         return;
       case FrameBye:
         this.bye(msg.bye ?? "");
@@ -269,6 +340,9 @@ export class Session {
 
   private took(state: ActivityState): void {
     this.state = state;
+    const m = state.machine;
+    if (!m?.armed || !streamed(m)) this.merged = undefined;
+    else this.known(m);
     if (state.now) {
       const sample = state.now - this.deps.now();
       this.offset = this.greeted ? Math.max(this.offset, sample) : sample;
@@ -310,6 +384,44 @@ export class Session {
     }
     p.resolve(reply);
     this.pump();
+  }
+
+  // The merged log of the machine in view, begun anew when it is another.
+  private known(m: MachineView): { armedAt: number; moves: Known[] } {
+    const armedAt = m.armedAt ?? 0;
+    if (this.merged?.armedAt !== armedAt) this.merged = { armedAt, moves: [] };
+    return this.merged;
+  }
+
+  private emitMoves(ev: MovesEvent): void {
+    for (const f of this.moveListeners) f(ev);
+  }
+
+  private relayed(move: PuzzleMove): void {
+    const m = this.state?.machine;
+    if (!m?.armed || !streamed(m)) return;
+    this.known(m).moves.push({ move });
+    this.emitMoves({ kind: "move", move });
+  }
+
+  // The gateway's own log replaces this screen's: it holds this seat's
+  // moves as they were kept, seat and stamp.
+  private resynced(moves: PuzzleMove[]): void {
+    const m = this.state?.machine;
+    if (!m?.armed || !streamed(m)) return;
+    this.known(m).moves = moves.map((move) => ({ move }));
+    this.emitMoves({ kind: "moves", moves: this.partyLog() });
+  }
+
+  // A move the gateway turned away is not in the merged log, so this
+  // screen's copy drops it too.
+  private unmoved(reply: IntentReply, seq: number | undefined): void {
+    const merged = this.merged;
+    if (reply.ok || !merged || seq === undefined) return;
+    const i = merged.moves.findIndex((k) => k.seq === seq);
+    if (i < 0) return;
+    merged.moves.splice(i, 1);
+    this.emitMoves({ kind: "moves", moves: this.partyLog() });
   }
 
   private bye(why: string): void {

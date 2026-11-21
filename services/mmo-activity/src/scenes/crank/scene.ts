@@ -25,10 +25,19 @@ export const DEAD = 14;
 const COAST = 0.0007;
 const PAST_BLOW = 1.1;
 
+/** The shape whose crank is a pump lever: each full push down is one quarter turn. */
+export const PUMP_SHAPE = 1;
+
+// The lever's swing either side of level, in degrees, and the share of a
+// stroke a hand must lift back before the next push counts.
+const SWING = 28;
+const REARM = 0.6;
+
 /** Where everything sits, in CSS px of the surface. */
 export interface Geometry {
+  /** The wheel's hub; on the pump, the lever's pivot. */
   hub: Point;
-  /** The wheel's radius, and the handle's. */
+  /** The wheel's radius, and the handle's; on the pump, the lever's length. */
   r: number;
   knob: number;
   /** The speed gauge: its left edge, width, top and height. */
@@ -36,12 +45,28 @@ export interface Geometry {
   width: number;
   top: number;
   bar: number;
+  /** The px of one push down the pump's handle; none on the crank. */
+  stroke?: number;
 }
 
-export function geometry(size: Size): Geometry {
+export function geometry(size: Size, shape = 0): Geometry {
   const pad = 8;
   const head = 138;
   const room = Math.max(1, size.height - head);
+  if (shape === PUMP_SHAPE) {
+    // The pump stands at the left, its lever reaching right to the handle.
+    const r = Math.max(HIT * 3, Math.min(size.width * 0.62, room * 0.9));
+    return {
+      hub: { x: Math.max(pad + 40, (size.width - r) / 2), y: head + room / 2 },
+      r,
+      knob: Math.max(HIT, r * 0.14),
+      x: pad,
+      width: size.width - pad * 2,
+      top: 32,
+      bar: 24,
+      stroke: Math.max(HIT * 2, Math.min(room * 0.4, r * Math.sin((SWING * Math.PI) / 180) * 2)),
+    };
+  }
   const r = Math.max(HIT * 2, Math.min(size.width * 0.36, room * 0.42));
   return {
     hub: { x: size.width / 2, y: head + room / 2 },
@@ -60,6 +85,48 @@ interface Drag {
 }
 
 /**
+ * A hand on the pump's handle: a push down by a whole stroke is one pulse,
+ * and the handle must come back up most of a stroke before the next.
+ */
+export class Pump {
+  private top: number;
+  private low: number;
+  private armed = true;
+
+  constructor(
+    private readonly stroke: number,
+    y: number,
+  ) {
+    this.top = y;
+    this.low = y;
+  }
+
+  /** The pulses a hand moved to y sends: 1 on a full push, else 0. */
+  to(y: number): number {
+    if (this.armed) {
+      this.top = Math.min(this.top, y);
+      if (y - this.top < this.stroke) return 0;
+      this.armed = false;
+      this.low = y;
+      return 1;
+    }
+    this.low = Math.max(this.low, y);
+    if (this.low - y >= this.stroke * REARM) {
+      this.armed = true;
+      this.top = y;
+    }
+    return 0;
+  }
+
+  /** How far down the stroke the handle stands, from 0 (up) to 1 (down). */
+  depth(y: number): number {
+    return this.armed
+      ? Math.max(0, Math.min(1, (y - this.top) / this.stroke))
+      : Math.max(0, Math.min(1, 1 - (this.low - y) / this.stroke));
+  }
+}
+
+/**
  * The dynamo: a crank wound in circles. Every quarter turn clockwise
  * kicks the speed up; the gauge above shows the band it must be held in
  * and the mark it blows at.
@@ -67,15 +134,21 @@ interface Drag {
 export function mount(host: SceneHost): Scene {
   const model = () => host.model as CrankModel;
   const step = Math.max(host.layout.step ?? 0, 1);
+  const shape = host.layout.shape ?? 0;
+  const pump = shape === PUMP_SHAPE;
 
   const view = board(
     host,
-    `A dynamo with a crank and ${plural(host.layout.size, "load spike")} to come. Drag in circles, clockwise, to wind it into the band and hold it there until it has charged.`,
+    pump
+      ? `A dynamo with a pump lever and ${plural(host.layout.size, "load spike")} to come. Push the handle down and let it up again to pump it into the band, and hold it there until it has charged.`
+      : `A dynamo with a crank and ${plural(host.layout.size, "load spike")} to come. Drag in circles, clockwise, to wind it into the band and hold it there until it has charged.`,
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry({ width: 1, height: 1 });
+  let geo = geometry({ width: 1, height: 1 }, shape);
+  let lever: SVGGElement | undefined;
+  let hand: { pump: Pump; y: number } | undefined;
   let status: SVGTextElement | undefined;
   let needle: SVGPathElement | undefined;
   let fill: SVGRectElement | undefined;
@@ -120,17 +193,33 @@ export function mount(host: SceneHost): Scene {
     fill = svg("rect", { class: "charge", x: geo.x, y: top + 54, width: 0, height: 10 });
     left = text("left", size.width / 2, top + 82);
     warn = text("warn", size.width / 2, top + 100);
-    guide = svg("path", { class: "guide", d: way(r + 12) });
-    lit = svg("path", { class: "hint", d: way(r + 12) });
+    guide = svg("path", { class: "guide", d: pump ? push() : way(r + 12) });
+    lit = svg("path", { class: "hint", d: pump ? push() : way(r + 12) });
+    // The pump's flywheel is small and turns with the speed; its lever is the handle.
+    const fly = pump ? r * 0.2 : r;
     wheel = svg(
       "g",
       { class: "wheel" },
-      svg("circle", { class: "rim", r }),
-      svg("path", { class: "spokes", d: `M${-r},0H${r}M0,${-r}V${r}` }),
-      svg("circle", { class: "hub", r: DEAD }),
-      svg("circle", { class: "knob", cx: r, r: geo.knob }),
-      svg("circle", { class: "grip", cx: r, r: geo.knob * 0.35 }),
+      svg("circle", { class: "rim", r: fly }),
+      svg("path", { class: "spokes", d: `M${-fly},0H${fly}M0,${-fly}V${fly}` }),
+      svg("circle", { class: "hub", r: pump ? fly * 0.3 : DEAD }),
+      ...(pump
+        ? []
+        : [
+            svg("circle", { class: "knob", cx: r, r: geo.knob }),
+            svg("circle", { class: "grip", cx: r, r: geo.knob * 0.35 }),
+          ]),
     );
+    lever = pump
+      ? svg(
+          "g",
+          { class: "lever" },
+          svg("path", { class: "arm", d: `M0,0H${r}` }),
+          svg("circle", { class: "knob", cx: r, r: geo.knob }),
+          svg("circle", { class: "grip", cx: r, r: geo.knob * 0.35 }),
+          svg("circle", { class: "pivot", r: Math.max(6, r * 0.04) }),
+        )
+      : undefined;
     root.append(
       status,
       svg("rect", { class: "track", x: geo.x, y: top, width: geo.width, height: bar }),
@@ -149,11 +238,43 @@ export function mount(host: SceneHost): Scene {
       warn,
       guide,
       lit,
-      wheel,
-      // Over the wheel, and still while it turns: the way to wind.
-      svg("path", { class: "way", d: way(r * 0.5) }),
+      ...(pump
+        ? [
+            // The pump's barrel stands under the pivot, the flywheel at its foot.
+            svg("rect", {
+              class: "barrel",
+              x: hub.x - r * 0.09,
+              y: hub.y,
+              width: r * 0.18,
+              height: r * 0.34,
+              rx: 4,
+            }),
+            wheel,
+            lever!,
+            svg("path", { class: "way", d: push(0.45) }),
+          ]
+        : [
+            wheel,
+            // Over the wheel, and still while it turns: the way to wind.
+            svg("path", { class: "way", d: way(r * 0.5) }),
+          ]),
     );
-    set(wheel, { transform: `translate(${hub.x} ${hub.y})` });
+    set(wheel, {
+      transform: `translate(${hub.x} ${pump ? hub.y + r * 0.34 : hub.y})`,
+    });
+  }
+
+  // A double arrow down and up beside the handle: the way to pump.
+  function push(scale = 1): string {
+    const { hub, r } = geo;
+    const half = (geo.stroke ?? 0) * 0.5 * scale + 6;
+    const x = hub.x + r + geo.knob + 16;
+    const head = 8;
+    return (
+      `M${x},${hub.y - half}V${hub.y + half}` +
+      `M${x - head},${hub.y + half - head}L${x},${hub.y + half}L${x + head},${hub.y + half - head}` +
+      `M${x - head},${hub.y - half + head}L${x},${hub.y - half}L${x + head},${hub.y - half + head}`
+    );
   }
 
   function frame(at: number): void {
@@ -164,10 +285,11 @@ export function mount(host: SceneHost): Scene {
       turned = 0;
       lastAt = at;
       drag = undefined;
+      hand = undefined;
     }
     if (now) {
       size = now;
-      geo = geometry(size);
+      geo = geometry(size, shape);
       build();
     }
     // The handle follows a finger; let go, the wheel coasts at its speed.
@@ -176,10 +298,21 @@ export function mount(host: SceneHost): Scene {
     else spin += Math.max(0, Math.min(100, at - lastAt)) * m.speed * COAST;
     lastAt = at;
     const spiking = m.spiking(Math.trunc(at / step));
+    const flyY = pump ? geo.hub.y + geo.r * 0.34 : geo.hub.y;
     set(wheel!, {
-      class: `wheel${drag ? " held" : ""}${spiking ? " loaded" : ""}`,
-      transform: `translate(${geo.hub.x} ${geo.hub.y}) rotate(${spin})`,
+      class: `wheel${drag || hand ? " held" : ""}${spiking ? " loaded" : ""}`,
+      transform: `translate(${geo.hub.x} ${flyY}) rotate(${spin})`,
     });
+    if (lever) {
+      // The handle stands where the hand is along its stroke, level at half way.
+      const depth = hand ? hand.pump.depth(hand.y) : 0;
+      const lift = ((depth - 0.5) * (geo.stroke ?? 0)) / geo.r;
+      const deg = (Math.asin(Math.max(-1, Math.min(1, lift))) * 180) / Math.PI;
+      set(lever, {
+        class: `lever${hand ? " held" : ""}`,
+        transform: `translate(${geo.hub.x} ${geo.hub.y}) rotate(${deg})`,
+      });
+    }
     const x = speedX(m, m.speed);
     const { top, bar } = geo;
     set(needle!, { d: `M${x - 7},${top - 12}h14l-7,10ZM${x},${top - 2}v${bar + 4}` });
@@ -207,11 +340,23 @@ export function mount(host: SceneHost): Scene {
 
   const unbind = pointers(host.surface, {
     down(p) {
+      if (pump) {
+        hand = { pump: new Pump(geo.stroke ?? 1, p.y), y: p.y };
+        return true;
+      }
       finger.start(geo.hub, p);
       drag = { wound: 0 };
       return true;
     },
     move(p) {
+      if (hand) {
+        hand.y = p.y;
+        if (hand.pump.to(p.y) > 0) {
+          turned++;
+          if (host.move(TURN) !== GOING) hand = undefined;
+        }
+        return;
+      }
       if (!drag) return;
       // Winding back only unwinds what has not been spent, so a wiggle
       // sends nothing.
@@ -224,9 +369,11 @@ export function mount(host: SceneHost): Scene {
     },
     up() {
       drag = undefined;
+      hand = undefined;
     },
     cancel() {
       drag = undefined;
+      hand = undefined;
     },
   });
 

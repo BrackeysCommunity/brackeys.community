@@ -7,7 +7,11 @@ the world service's Activity listener and nothing more.
 **It holds no rule that decides an outcome, no seed and no key.** It draws
 the state the gateway sends and sends intents back. Each family's integer
 model is mirrored here so a machine moves smoothly under a finger; the
-server replays the move log, and its reply is the only result shown.
+server replays the move log, and its reply is the only result shown. A
+party machine's moves stream to the gateway one by one; the gateway keeps
+the merged log, relays it to the other seats and writes its solve. The
+Activity never sends one, and a seat of a split kind cannot tell on its
+own that the machine is solved.
 
 ## Run it
 
@@ -19,8 +23,15 @@ vp dev --port 18787
 - **No world at all:** `http://localhost:18787/?mock=bench`. The mock
   gateway answers from `test/fixtures/state-<name>.json` and the golden
   layouts. Fixtures: `armed`, `beat`, `bench`, `idle`, `intro`, `master`,
-  `pouch`. Any family on a beat:
-  `?mock=beat&family=crank&level=6&practice=8`.
+  `pouch`, and the party's `party`, `party-machine`, `floor` and `hunt`.
+  Any family on a beat: `?mock=beat&family=crank&level=6&practice=8`.
+- **A party with no world:** `?mock=party&seats=4` seats a party of four;
+  this screen is the first seat, and the other three are scripted
+  teammates who pick, vote, press and play their seats of the rule's own
+  solve on the mock's timers. `party-machine` puts a party machine on the
+  beat (the party vectors are its layouts, through `virtual:party-rigs`),
+  `floor` a fork with its vote, `hunt` a live hunt. Two tabs on one mock
+  are not one party: each page runs its own mock.
 - **A local world** with `MMO_ACTIVITY_DEV=1`: build (`vp build`), point
   `MMO_ACTIVITY_DIR` at `dist`, and open
   `http://localhost:<MMO_ACTIVITY_PORT>/?as=<discord id>`.
@@ -34,13 +45,14 @@ vp dev --port 18787
 vp check                        # format, lint, types
 vp exec tsc --noEmit            # what `typecheck` runs
 vp test run                     # golden vectors, gestures, shell, session
-MMO_ALL_FAMILIES=1 vp test run  # also: every family with vectors has a scene
+MMO_ALL_FAMILIES=1 vp test run  # also: every family and party version with vectors has a scene
 vp build                        # the static build, into dist/
 ```
 
 The build reads the wasteland pack (`palette.json`, `names.json`) and the
 golden vectors from `../mmo-world`, so the colours and names are the
-pack's and never typed here.
+pack's and never typed here. The party vectors (`testdata/party`) and the
+shape vectors (`testdata/shapes`) are read from there too.
 
 ## Prove it on a local world
 
@@ -72,21 +84,23 @@ services/mmo-bot/scripts/local-world.sh wipe
 
 ## What is where
 
-| Path               | What                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| `src/main.ts`      | Boot: the theme, the launch, the session, the page           |
-| `src/discord.ts`   | Inside or outside Discord, the routes, sign-in               |
-| `src/session.ts`   | The socket: hello, reconnects, the whole state, intents      |
-| `src/app.ts`       | Which screen is open, and the machine in hand                |
-| `src/views/`       | The beat, the why view, pouches, the bench, idle             |
-| `src/units.ts`     | Every number with its unit (GDD 2); nothing else formats one |
-| `src/words.ts`     | Pack names and the lines made from facts and refusals        |
-| `src/shell/`       | The puzzle shell every family shares                         |
-| `src/scenes/<id>/` | One family: its model and its scene                          |
-| `src/mock.ts`      | The stand-in gateway behind `?mock=`                         |
-| `test/golden.ts`   | `goldenSuite`, which holds a model to the Go replay          |
-| `test/stage.ts`    | A scene on a surface of a known size, for gesture tests      |
-| `scripts/`         | The touch proof against a live local world                   |
+| Path                   | What                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `src/main.ts`          | Boot: the theme, the launch, the session, the page                                                           |
+| `src/discord.ts`       | Inside or outside Discord, the routes, sign-in                                                               |
+| `src/session.ts`       | The socket: hello, reconnects, the whole state, intents, a party machine's streamed moves                    |
+| `src/app.ts`           | Which screen is open, and the machine in hand                                                                |
+| `src/views/`           | The beat (a party's too), the floor's hex rooms, the hunt, the party, the why view, pouches, the bench, idle |
+| `src/units.ts`         | Every number with its unit (GDD 2); nothing else formats one                                                 |
+| `src/words.ts`         | Pack names and the lines made from facts and refusals                                                        |
+| `src/shell/`           | The puzzle shell every family shares                                                                         |
+| `src/scenes/<id>/`     | One family: its model and its scene                                                                          |
+| `src/party/<id>/`      | One party version: its merged model and each seat's gesture                                                  |
+| `src/mock.ts`          | The stand-in gateway behind `?mock=`, a party's seats too                                                    |
+| `test/golden.ts`       | `goldenSuite`, which holds a model to the Go replay                                                          |
+| `test/party-golden.ts` | `partySuite`, which holds a version's model to the Go party replay                                           |
+| `test/stage.ts`        | A scene on a surface of a known size, for gesture tests; a party seat too                                    |
+| `scripts/`             | The touch proof against a live local world                                                                   |
 
 ## Adding a family
 
@@ -198,3 +212,26 @@ radius at the phone's cap (360 by 420) and at full size.
 Then `vp check`, `vp test run`, and try it by hand at a phone's size:
 `?mock=bench` for the rig with no countdown,
 `?mock=beat&family=<id>&level=3` for the countdown.
+
+## Adding a party version
+
+A party version is one folder, `src/party/<id>/`, named with its
+`puzzles.party` row. `src/shell/party-registry.ts` finds it. It holds
+`index.ts` (a `PartyVersion`: `{ id, family, start, mount }`), `model.ts`
+(the merged model: `sim/puzzle`'s party rule for it, mirrored), `scene.ts`
+and `golden.test.ts` (`partySuite(version)`).
+
+- Every move of the merged log names its seat; a missing `seat` is seat 0,
+  since the wire drops a zero. A malformed move is broke before the holder
+  is checked, and a move by a seat that does not hold the piece is ignored.
+- `start(layout)` is given this seat's dealt part on screen, with `Unseen`
+  where it is not shown, and the whole layout in the vectors: it must not
+  throw on either.
+- `mount(host: PartySceneHost)` is a family scene's `mount` with `seat`,
+  `seats` and `glimpse` (the next seat's part, when practice gives it).
+  `host.model` also holds the other seats' moves as they are relayed:
+  draw them as the seat's own. `host.move` streams the move; nothing a
+  scene does ends the play.
+- `stage(version, layout, { seat, model })` in `test/stage.ts` is one
+  seat's scene; give the second stage the first one's `model` to press one
+  machine from two seats.

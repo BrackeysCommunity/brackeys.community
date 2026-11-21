@@ -123,7 +123,7 @@ async function solve(root: Element, session: Session): Promise<void> {
   const s = surface(root);
   await wait(40);
   const layout = session.state!.machine!.layout;
-  const geo = geometry(layout.size, SIZE);
+  const geo = geometry(layout.size, SIZE, layout.shape);
   const at = Array.from({ length: layout.size }, (_, i) => i);
   for (const [w, port] of layout.target!.entries()) {
     if (at[w] === port) continue;
@@ -260,7 +260,8 @@ test("walking away is a haywire: the world's own timer ends the machine and the 
   const { root, session } = await boot("beat", clock);
   const s = surface(root);
   await wait(40);
-  const geo = geometry(session.state!.machine!.layout.size, SIZE);
+  const { size, shape } = session.state!.machine!.layout;
+  const geo = geometry(size, SIZE, shape);
   drag(s, geo.seats[0]!, geo.seats[1]!);
   await wait();
   expect(session.state?.machine?.armed).toBe(true);

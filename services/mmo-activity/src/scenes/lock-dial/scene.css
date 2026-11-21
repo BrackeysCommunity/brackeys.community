@@ -143,3 +143,20 @@
     translate: -4px 0;
   }
 }
+
+/* On the rings a band is the rim and its collar the knob. */
+.lock-dial .ring .rim {
+  fill-rule: evenodd;
+}
+
+.lock-dial .collar {
+  fill: var(--tar);
+  fill-rule: evenodd;
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.lock-dial .ring.held .collar {
+  fill: var(--panel);
+  stroke: var(--ash);
+}

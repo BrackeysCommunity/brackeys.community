@@ -21,16 +21,22 @@ import type { FuseModel } from "./model.ts";
 // The line over the cards that says how to read one.
 const KEY = 22;
 
+/** The shape whose clues are a wiring diagram: an arrow from each fuse to one that comes out after it. */
+export const DIAGRAM_SHAPE = 1;
+
 /** Where the cards and the fuses sit, in CSS px of the surface. */
 export interface Geometry {
   r: number;
   fuses: Point[];
-  /** Each clue card's top left corner, and the size they share. */
+  /** Each clue card's top left corner, and the size they share; none on the diagram. */
   cards: Point[];
   card: Size;
+  /** The diagram's centre, the fuses round it; none over a board of cards. */
+  hub?: Point;
 }
 
-export function geometry(n: number, clues: number, size: Size): Geometry {
+export function geometry(n: number, clues: number, size: Size, shape = 0): Geometry {
+  if (shape === DIAGRAM_SHAPE) return diagram(n, size);
   const pad = 8;
   const inner = size.width - pad * 2;
   const perRow = inner / n >= HIT * 2 + 8 ? n : Math.ceil(n / 2);
@@ -64,6 +70,34 @@ export function geometry(n: number, clues: number, size: Size): Geometry {
   return { r, fuses, cards, card };
 }
 
+// The diagram: the fuses stand round a circle in their own order, from
+// twelve o'clock, so where a fuse stands says nothing of when it comes out.
+function diagram(n: number, size: Size): Geometry {
+  const pad = 8;
+  const hub = { x: size.width / 2, y: (size.height + KEY) / 2 };
+  const room = Math.min(size.width, size.height - KEY) / 2 - pad;
+  const r = Math.max(HIT, Math.min(34, room * 0.16, (Math.PI * room * 0.7) / n / 1.6));
+  const ring = room - r * 1.45 - 12;
+  const fuses = Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    return { x: hub.x + ring * Math.cos(a), y: hub.y + ring * Math.sin(a) };
+  });
+  return { r, fuses, cards: [], card: { width: 0, height: 0 }, hub };
+}
+
+/** The clues as the diagram draws them: one arrow a pair, however often the pair is told. */
+export function arrows(
+  clues: { before: number; after: number }[],
+): { before: number; after: number }[] {
+  const seen = new Set<string>();
+  return clues.filter((c) => {
+    const key = `${c.before}>${c.after}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /** The fuse a pointer is on, among those still in the box. */
 export function pick(geo: Geometry, out: (fuse: number) => boolean, p: Point): number | undefined {
   const { index } = reach(geo.fuses, p, geo.r);
@@ -86,15 +120,18 @@ export function mount(host: SceneHost): Scene {
   const model = () => host.model as FuseModel;
   const n = host.layout.size;
   const clues = host.layout.clues ?? [];
+  const shape = host.layout.shape ?? 0;
 
   const view = board(
     host,
-    "A fuse box under a board of clue cards. On each card the left fuse comes out before the right one. Tap the fuses in an order that fits every card.",
+    shape === DIAGRAM_SHAPE
+      ? "A fuse box drawn as a wiring diagram. Each arrow runs from a fuse to one that comes out after it. Tap the fuses in an order that fits every arrow."
+      : "A fuse box under a board of clue cards. On each card the left fuse comes out before the right one. Tap the fuses in an order that fits every card.",
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry(n, clues.length, { width: 1, height: 1 });
+  let geo = geometry(n, clues.length, { width: 1, height: 1 }, shape);
   let fuses: SVGGElement[] = [];
   let cards: Card[] = [];
   let pressed: number | undefined;
@@ -113,37 +150,82 @@ export function mount(host: SceneHost): Scene {
     );
   }
 
-  function build(): void {
-    const { r, card } = geo;
-    const key = svg("text", { class: "key", x: size.width / 2, y: 8 + KEY * 0.6 });
-    key.textContent = "On each card, left comes out before right";
-    root.append(key);
-    cards = clues.map((clue, i) => {
-      const at = geo.cards[i]!;
-      const mid = at.y + card.height / 2;
-      const g = Math.max(8, Math.min(13, card.height * 0.34));
-      // A badge is its ring and, after it, its letter.
-      const wide = g * 3;
-      const left = { x: at.x + 6 + g, y: mid };
-      const right = { x: at.x + card.width - 6 - wide + g, y: mid };
-      const from = left.x - g + wide + 5;
-      const to = right.x - g - 5;
+  // The diagram's wires: each arrow leaves one fuse's ring and ends on the
+  // next's, bowed a little so two wires between neighbours read apart.
+  function wires(): Card[] {
+    const { r } = geo;
+    return arrows(clues).map((clue) => {
+      const a = geo.fuses[clue.before]!;
+      const b = geo.fuses[clue.after]!;
+      const len = distance(a, b) || 1;
+      const ux = (b.x - a.x) / len;
+      const uy = (b.y - a.y) / len;
+      const gap = r * 1.5;
+      const from = { x: a.x + ux * gap, y: a.y + uy * gap };
+      const to = { x: b.x - ux * gap, y: b.y - uy * gap };
+      const bow = len * 0.12;
+      const c = { x: (from.x + to.x) / 2 - uy * bow, y: (from.y + to.y) / 2 + ux * bow };
+      // The head lies along the curve's last stretch, from the bend to the tip.
+      const hl = distance(c, to) || 1;
+      const hx = (to.x - c.x) / hl;
+      const hy = (to.y - c.y) / hl;
+      const head = 9;
+      const left = { x: to.x - hx * head - hy * head * 0.6, y: to.y - hy * head + hx * head * 0.6 };
+      const right = {
+        x: to.x - hx * head + hy * head * 0.6,
+        y: to.y - hy * head - hx * head * 0.6,
+      };
       const group = svg(
         "g",
         {
           class: "card",
           "aria-label": `Fuse ${letter(clue.before)} before fuse ${letter(clue.after)}`,
         },
-        svg("rect", { x: at.x, y: at.y, width: card.width, height: card.height }),
-        badge(clue.before, left, g),
         svg("path", {
-          class: "then",
-          d: `M${from},${mid}H${to}M${to - 6},${mid - 5}L${to},${mid}L${to - 6},${mid + 5}`,
+          class: "wire",
+          d: `M${from.x},${from.y}Q${c.x},${c.y} ${to.x},${to.y}M${left.x},${left.y}L${to.x},${to.y}L${right.x},${right.y}`,
+          stroke: pieceColour(clue.before),
         }),
-        badge(clue.after, right, g),
       );
       return { group, before: clue.before, after: clue.after };
     });
+  }
+
+  function build(): void {
+    const { r, card } = geo;
+    const key = svg("text", { class: "key", x: size.width / 2, y: 8 + KEY * 0.6 });
+    key.textContent = geo.hub
+      ? "Each arrow runs to a fuse that comes out after"
+      : "On each card, left comes out before right";
+    root.append(key);
+    cards = geo.hub
+      ? wires()
+      : clues.map((clue, i) => {
+          const at = geo.cards[i]!;
+          const mid = at.y + card.height / 2;
+          const g = Math.max(8, Math.min(13, card.height * 0.34));
+          // A badge is its ring and, after it, its letter.
+          const wide = g * 3;
+          const left = { x: at.x + 6 + g, y: mid };
+          const right = { x: at.x + card.width - 6 - wide + g, y: mid };
+          const from = left.x - g + wide + 5;
+          const to = right.x - g - 5;
+          const group = svg(
+            "g",
+            {
+              class: "card",
+              "aria-label": `Fuse ${letter(clue.before)} before fuse ${letter(clue.after)}`,
+            },
+            svg("rect", { x: at.x, y: at.y, width: card.width, height: card.height }),
+            badge(clue.before, left, g),
+            svg("path", {
+              class: "then",
+              d: `M${from},${mid}H${to}M${to - 6},${mid - 5}L${to},${mid}L${to - 6},${mid + 5}`,
+            }),
+            badge(clue.after, right, g),
+          );
+          return { group, before: clue.before, after: clue.after };
+        });
     root.append(...cards.map((c) => c.group));
     fuses = geo.fuses.map((at, f) => {
       const colour = pieceColour(f);
@@ -190,7 +272,7 @@ export function mount(host: SceneHost): Scene {
     const now = view.fit();
     if (now) {
       size = now;
-      geo = geometry(n, clues.length, size);
+      geo = geometry(n, clues.length, size, shape);
       build();
     }
     const hint = host.hinted();

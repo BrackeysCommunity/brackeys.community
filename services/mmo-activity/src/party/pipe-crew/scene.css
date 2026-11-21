@@ -1,0 +1,42 @@
+/* The pipe crew: a gauge for each run in place of the family's one. */
+.board.leak.party-family > .label:not(.small),
+.board.leak.party-family > .track,
+.board.leak.party-family > .fill {
+  display: none;
+}
+
+.party-bar.pipe-crew .run-label {
+  fill: var(--ash);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.party-bar.pipe-crew .run-label.low {
+  fill: var(--hazard);
+  font-weight: 800;
+}
+
+.party-bar.pipe-crew .run-track {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.party-bar.pipe-crew .run-track.yours {
+  stroke: var(--hazard);
+}
+
+.party-bar.pipe-crew .run-fill {
+  fill: var(--signal);
+}
+
+.party-bar.pipe-crew .run-fill.low {
+  fill: var(--hazard);
+}
+
+.party-bar.pipe-crew .run-ring {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+}

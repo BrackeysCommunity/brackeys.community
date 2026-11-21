@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT, PICKUP } from "../../shell/board.ts";
 import { BROKE, DONE } from "../../shell/kit.ts";
 import pressure from "./index.ts";
-import type { PressureModel } from "./model.ts";
+import { neighbours, type PressureModel } from "./model.ts";
 import { NOTCH, geometry, needleY, pick } from "./scene.ts";
 
 const cases = goldenCases("pressure");
@@ -132,4 +132,54 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.children.length).toBe(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const rings = goldenCases("pressure", SHAPES_DIR);
+
+test("on the ring manifold, the solve played by pointer holds every needle", () => {
+  for (const c of rings) {
+    expect(c.layout.shape).toBe(1);
+    const s = stage(pressure, c.layout, sizeOf(c.name));
+    const geo = geometry(c.layout.size, sizeOf(c.name), c.layout.shape);
+    expect(geo.loop).toBeDefined();
+    const solve = c.logs.find((l) => l.name === "solve")!;
+    for (const m of solve.log.moves) {
+      s.at = m.at;
+      const w = geo.wheels[m.a]!;
+      s.drag(w, { x: w.x, y: w.y + by(m.b!) });
+    }
+    expect(s.moves, c.name).toEqual(solve.log.moves);
+    expect(s.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
+  }
+});
+
+test("on the ring manifold the first valve drops the last needle, and a pair of valves drops each other once", () => {
+  const c = rings[0]!;
+  const n = c.layout.size;
+  const s = stage(pressure, c.layout, phone);
+  const model = s.model as PressureModel;
+  const before = [...model.v];
+  const w = geometry(n, phone, 1).wheels[0]!;
+  s.drag(w, { x: w.x, y: w.y + by(1) });
+  const couple = c.layout.par![3]!;
+  expect(model.v[n - 1]).toBe(Math.max(0, before[n - 1]! - couple));
+  expect(model.v[1]).toBe(Math.max(0, before[1]! - couple));
+  expect(neighbours(0, n, true)).toEqual([n - 1, 1]);
+  expect(neighbours(0, 2, true)).toEqual([1]);
+  expect(neighbours(0, 1, true)).toEqual([]);
+  expect(neighbours(0, n, false)).toEqual([1]);
+  // While the first wheel is held, the last gauge shows it falling too.
+  s.down(w);
+  s.frame();
+  expect(s.surface.querySelectorAll(".pull")[n - 1]!.getAttribute("d")).not.toBe("");
+  s.up(w);
+});
+
+test("the ring manifold leaves every wheel a thumb's reach on a phone and a desk", () => {
+  for (const c of rings) {
+    const geo = geometry(c.layout.size, sizeOf(c.name), c.layout.shape);
+    expect(geo.r).toBeGreaterThanOrEqual(HIT);
+    expect(geo.loop! + 8).toBeLessThan(geo.foot - 12);
+    for (const [i, w] of geo.wheels.entries()) expect(pick(geo, w).valve).toBe(i);
+  }
 });

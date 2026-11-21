@@ -1,0 +1,36 @@
+/* The panel array: the family's plate cut into one band of rows a seat. */
+.party-bar.panel-array .band.yours {
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 3;
+}
+
+.party-bar.panel-array .band-tag {
+  fill: var(--concrete);
+  font-size: 13px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.party-bar.panel-array .band-tag.yours {
+  fill: var(--hazard);
+}
+
+.party-bar.panel-array .arrived {
+  display: none;
+  fill: none;
+  stroke: var(--rust);
+  stroke-width: 4;
+  stroke-dasharray: 6 4;
+}
+
+.party-bar.panel-array .arrived.on {
+  display: inline;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .party-bar.panel-array .arrived.on {
+    animation: board-march 0.6s linear infinite;
+  }
+}

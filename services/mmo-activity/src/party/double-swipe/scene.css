@@ -1,0 +1,15 @@
+/* The double swipe: two of the family's readers, one above the other. */
+.keycard.double-swipe .label.yours {
+  fill: var(--hazard);
+  font-weight: 700;
+}
+
+.keycard.double-swipe .theirs {
+  fill: var(--tar);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.keycard.double-swipe .theirs.off {
+  display: none;
+}

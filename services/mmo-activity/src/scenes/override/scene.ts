@@ -1,6 +1,8 @@
 import "./scene.css";
 import {
+  angleOf,
   board,
+  distance,
   glyph,
   glyphName,
   letter,
@@ -38,13 +40,30 @@ export function showing(order: number[], round: number, since: number): number |
   return i <= round && since - i * slot < slot * LIT ? order[i] : undefined;
 }
 
-/** Where the screen and the pads sit, in CSS px of the surface. */
-export interface Geometry {
-  screen: { x: number; y: number; width: number; height: number };
-  pads: { x: number; y: number; width: number; height: number }[];
+/** The shape whose pads stand in a ring round a round screen. */
+export const RING_SHAPE = 1;
+
+type Box = { x: number; y: number; width: number; height: number };
+
+/** The ring pad: a round screen at the hub, the pads as arcs of the ring round it. */
+export interface Ring {
+  hub: Point;
+  /** The screen's radius, where the pads begin. */
+  inner: number;
+  outer: number;
 }
 
-export function geometry(symbols: number, size: Size): Geometry {
+/** Where the screen and the pads sit, in CSS px of the surface. */
+export interface Geometry {
+  /** The screen; on the ring pad, the box round its circle. */
+  screen: Box;
+  /** Each pad's box; on the ring pad, a square on the middle of its arc. */
+  pads: Box[];
+  ring?: Ring;
+}
+
+export function geometry(symbols: number, size: Size, shape = 0): Geometry {
+  if (shape === RING_SHAPE) return ringPad(symbols, size);
   const pad = 8;
   const gap = 8;
   const screen = {
@@ -69,12 +88,59 @@ export function geometry(symbols: number, size: Size): Geometry {
   };
 }
 
-function inside(box: { x: number; y: number; width: number; height: number }, p: Point): boolean {
+// The ring pad: pad 0's arc is centred at twelve o'clock and the rest
+// follow clockwise.
+function ringPad(symbols: number, size: Size): Geometry {
+  const pad = 8;
+  const hub = { x: size.width / 2, y: size.height / 2 };
+  const outer = Math.min(size.width, size.height) / 2 - pad;
+  const inner = Math.max(48, outer * 0.44);
+  const mid = (inner + outer) / 2;
+  const side = Math.min(outer - inner, (Math.PI * mid * 2) / symbols) * 0.62;
+  return {
+    screen: { x: hub.x - inner, y: hub.y - inner, width: inner * 2, height: inner * 2 },
+    pads: Array.from({ length: symbols }, (_, i) => {
+      const a = (i / symbols) * Math.PI * 2 - Math.PI / 2;
+      const c = { x: hub.x + mid * Math.cos(a), y: hub.y + mid * Math.sin(a) };
+      return { x: c.x - side / 2, y: c.y - side / 2, width: side, height: side };
+    }),
+    ring: { hub, inner, outer },
+  };
+}
+
+/** The outline of pad i's arc on the ring pad, inset by some px. */
+export function arc(ring: Ring, symbols: number, i: number, inset = 0): string {
+  const gap = 4 + inset;
+  const r0 = ring.inner + gap;
+  const r1 = ring.outer - inset;
+  const half = Math.PI / symbols;
+  const centre = (i / symbols) * Math.PI * 2 - Math.PI / 2;
+  // Each edge keeps a straight gap of px from the next pad's, at either radius.
+  const at = (r: number, side: number) => {
+    const a = centre + side * (half - gap / 2 / r);
+    return `${(ring.hub.x + r * Math.cos(a)).toFixed(2)},${(ring.hub.y + r * Math.sin(a)).toFixed(2)}`;
+  };
+  return `M${at(r0, -1)}L${at(r1, -1)}A${r1},${r1} 0 0 1 ${at(r1, 1)}L${at(r0, 1)}A${r0},${r0} 0 0 0 ${at(r0, -1)}Z`;
+}
+
+function inside(box: Box, p: Point): boolean {
   return p.x >= box.x && p.x < box.x + box.width && p.y >= box.y && p.y < box.y + box.height;
+}
+
+/** Whether a pointer is on the screen. */
+export function onScreen(geo: Geometry, p: Point): boolean {
+  return geo.ring ? distance(p, geo.ring.hub) < geo.ring.inner : inside(geo.screen, p);
 }
 
 /** The pad under a pointer. */
 export function pick(geo: Geometry, p: Point): number | undefined {
+  const ring = geo.ring;
+  if (ring) {
+    const d = distance(p, ring.hub);
+    if (d < ring.inner || d > ring.outer) return undefined;
+    const n = geo.pads.length;
+    return Math.round(((angleOf(ring.hub, p) + 0.25 + 1) % 1) * n) % n;
+  }
   const i = geo.pads.findIndex((box) => inside(box, p));
   return i < 0 ? undefined : i;
 }
@@ -90,15 +156,18 @@ export function mount(host: SceneHost): Scene {
   const order = host.layout.order ?? [];
   const rounds = host.layout.size;
   const symbols = Math.max(1, host.layout.range ?? 1);
+  const shape = host.layout.shape ?? 0;
 
   const view = board(
     host,
-    "A terminal with a screen over a set of pads. Watch the symbols the screen shows, then press the same pads in the same order. Each round adds one.",
+    shape === RING_SHAPE
+      ? "A terminal with a round screen in a ring of pads. Watch the symbols the screen shows, then press the same pads in the same order. Each round adds one."
+      : "A terminal with a screen over a set of pads. Watch the symbols the screen shows, then press the same pads in the same order. Each round adds one.",
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry(symbols, { width: 1, height: 1 });
+  let geo = geometry(symbols, { width: 1, height: 1 }, shape);
   let pads: SVGGElement[] = [];
   let lamps: SVGGElement[] = [];
   let pips: SVGCircleElement[] = [];
@@ -110,19 +179,30 @@ export function mount(host: SceneHost): Scene {
   let press: { pad: number; until: number } | undefined;
 
   function build(): void {
-    const { screen } = geo;
+    const { screen, ring } = geo;
     const mid = { x: screen.x + screen.width / 2, y: screen.y + screen.height / 2 - 4 };
     const big = Math.min(screen.height * 0.3, 34);
-    said = svg("text", { class: "said", x: screen.x + 12, y: screen.y + 20 });
+    // In the round screen the word stands centred over the symbol.
+    said = ring
+      ? svg("text", {
+          class: "said",
+          x: mid.x,
+          y: screen.y + screen.height * 0.22,
+          "text-anchor": "middle",
+        })
+      : svg("text", { class: "said", x: screen.x + 12, y: screen.y + 20 });
     lamps = Array.from({ length: symbols }, (_, s) =>
       svg("g", { class: "lamp" }, glyph(s, mid, big, pieceColour(s))),
     );
-    const step = Math.min(16, (screen.width - 24) / Math.max(1, rounds));
+    // The round pips sit along the screen's foot; a round screen's foot is its chord.
+    const room = ring ? screen.width * 0.72 : screen.width - 24;
+    const step = Math.min(16, room / Math.max(1, rounds));
+    const foot = ring ? screen.y + screen.height * 0.82 : screen.y + screen.height - 12;
     pips = Array.from({ length: rounds }, (_, r) =>
       svg("circle", {
         class: "pip",
         cx: mid.x + (r - (rounds - 1) / 2) * step,
-        cy: screen.y + screen.height - 12,
+        cy: foot,
         r: Math.min(5, step * 0.32),
       }),
     );
@@ -130,7 +210,7 @@ export function mount(host: SceneHost): Scene {
       svg("rect", {
         class: "entered",
         x: mid.x + (r - (rounds - 1) / 2) * step - step * 0.3,
-        y: screen.y + screen.height - 27,
+        y: foot - 15,
         width: step * 0.6,
         height: 5,
       }),
@@ -138,6 +218,33 @@ export function mount(host: SceneHost): Scene {
     pads = geo.pads.map((box, s) => {
       const colour = pieceColour(s);
       const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      if (ring) {
+        // The letter stands toward the hub, under the mark.
+        const toward = {
+          x: (ring.hub.x - at.x) / (distance(ring.hub, at) || 1),
+          y: (ring.hub.y - at.y) / (distance(ring.hub, at) || 1),
+        };
+        const reachIn = (ring.outer - ring.inner) * 0.3;
+        const tag = svg("text", {
+          class: "tag",
+          x: at.x + toward.x * reachIn,
+          y: at.y + toward.y * reachIn,
+        });
+        tag.textContent = letter(s);
+        return svg(
+          "g",
+          { class: "pad", "aria-label": `Pad ${letter(s)}, ${glyphName(s)}` },
+          svg("path", { class: "face", d: arc(ring, symbols, s), stroke: colour }),
+          glyph(
+            s,
+            { x: at.x - toward.x * reachIn * 0.3, y: at.y - toward.y * reachIn * 0.3 },
+            box.width * 0.3,
+            colour,
+          ),
+          tag,
+          svg("path", { class: "ring", d: arc(ring, symbols, s, 7) }),
+        );
+      }
       const tag = svg("text", { class: "tag", x: box.x + 14, y: box.y + 20 });
       tag.textContent = letter(s);
       return svg(
@@ -157,7 +264,9 @@ export function mount(host: SceneHost): Scene {
       );
     });
     root.append(
-      svg("rect", { class: "screen", ...screen }),
+      ring
+        ? svg("circle", { class: "screen", cx: ring.hub.x, cy: ring.hub.y, r: ring.inner - 2 })
+        : svg("rect", { class: "screen", ...screen }),
       said,
       ...lamps,
       ...ticks,
@@ -170,7 +279,7 @@ export function mount(host: SceneHost): Scene {
     const now = view.fit();
     if (now) {
       size = now;
-      geo = geometry(symbols, size);
+      geo = geometry(symbols, size, shape);
       build();
     }
     const clock = performance.now();
@@ -211,8 +320,7 @@ export function mount(host: SceneHost): Scene {
       const pad = pick(geo, p);
       if (pad === undefined) {
         // The screen shows the round again for a hand that lost its place.
-        if (inside(geo.screen, p))
-          show = { round: model().progress().round, from: performance.now() };
+        if (onScreen(geo, p)) show = { round: model().progress().round, from: performance.now() };
         return false;
       }
       show = undefined;

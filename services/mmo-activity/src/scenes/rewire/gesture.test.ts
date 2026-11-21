@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
-import { HIT, PICKUP } from "../../shell/board.ts";
+import { HIT, PICKUP, distance } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import rewire from "./index.ts";
 import type { RewireModel } from "./model.ts";
@@ -94,4 +94,38 @@ test("the scene cleans up after itself", () => {
   s.frame();
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const rings = goldenCases("rewire", SHAPES_DIR);
+const ring = rings.find((c) => c.name === "level-3-full")!;
+
+test("on the ring panel, dragging each plug round the rim to its port solves it", () => {
+  expect(ring.layout.shape).toBe(1);
+  const s = stage(rewire, ring.layout, phone);
+  const geo = geometry(ring.layout.size, phone, ring.layout.shape);
+  expect(geo.hub).toBeDefined();
+  const model = s.model as RewireModel;
+  for (const [w, port] of ring.layout.target!.entries()) {
+    if (model.at[w] === port) continue;
+    s.drag(geo.seats[model.at[w]!]!, geo.seats[port]!);
+  }
+  expect(model.at).toEqual(ring.layout.target);
+  expect(s.surface.querySelector(".rim")).not.toBeNull();
+});
+
+test("on the ring panel a thumb can hit every port on a phone and at full size", () => {
+  for (const c of rings) {
+    const size = c.name.endsWith("compact") ? phone : { width: 900, height: 560 };
+    const n = c.layout.size;
+    const geo = geometry(n, size, c.layout.shape);
+    expect(geo.r).toBeGreaterThanOrEqual(HIT);
+    for (let p = 0; p < n; p++)
+      expect(distance(geo.seats[p]!, geo.seats[(p + 1) % n]!)).toBeGreaterThanOrEqual(geo.r * 2);
+    const at = Array.from({ length: n }, (_, i) => i);
+    for (let p = 0; p < n; p++) {
+      expect(pick(geo, at, geo.seats[p]!)).toBe(p);
+      expect(land(geo, geo.seats[p]!).port).toBe(p);
+    }
+    expect(pick(geo, at, geo.hub!)).toBeUndefined();
+  }
 });

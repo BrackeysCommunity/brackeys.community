@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
-import { HIT } from "../../shell/board.ts";
+import { HIT, distance } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import pins from "./index.ts";
 import type { PinsModel } from "./model.ts";
-import { HEIGHTS, cuts, geometry, heightOf, pick, slots } from "./scene.ts";
+import { HEIGHTS, cuts, geometry, gripAt, heightOf, local, pick, slots } from "./scene.ts";
 
 const cases = goldenCases("lock-pins");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -147,4 +147,55 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelectorAll(".pin.hinted")).toHaveLength(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const wheels = goldenCases("lock-pins", SHAPES_DIR);
+
+test("on the pin wheel, pushing each pin toward the hub, in the order they bind, opens the lock", () => {
+  for (const c of [
+    wheels.find((x) => x.name === "level-3-full")!,
+    wheels.find((x) => x.name === "level-7-compact")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    const s = stage(pins, c.layout, phone);
+    const geo = geometry(count(c), phone, c.layout.shape);
+    expect(geo.hub).toBeDefined();
+    for (const pin of c.layout.order!) {
+      const slot = slots(c.layout)[pin]!;
+      s.drag(gripAt(geo, slot), gripAt(geo, slot, c.layout.target![pin]! * geo.notch));
+    }
+    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+    expect(s.moves).toEqual(solve.map(({ a, b }) => ({ at: 0, a, b })));
+    expect(play(pins, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+  }
+});
+
+test("on the pin wheel a thumb picks each pin by its spoke, and the hub picks none", () => {
+  for (const c of wheels) {
+    const size = c.name.endsWith("compact") ? phone : wide;
+    const geo = geometry(count(c), size, c.layout.shape);
+    for (let slot = 0; slot < count(c); slot++) {
+      expect(pick(geo, gripAt(geo, slot))).toBe(slot);
+      expect(local(geo, slot, gripAt(geo, slot)).x).toBeCloseTo(geo.cols[slot]!.x);
+    }
+    expect(pick(geo, geo.hub!)).toBeUndefined();
+    // Every grip stays on the surface.
+    for (let slot = 0; slot < count(c); slot++) {
+      const g = gripAt(geo, slot);
+      expect(g.x - geo.grip).toBeGreaterThanOrEqual(0);
+      expect(g.y - geo.grip).toBeGreaterThanOrEqual(0);
+      expect(g.x + geo.grip).toBeLessThanOrEqual(size.width);
+      expect(g.y + geo.grip).toBeLessThanOrEqual(size.height);
+    }
+    // Neighbouring grips do not share a thumb.
+    expect(distance(gripAt(geo, 0), gripAt(geo, 1))).toBeGreaterThanOrEqual(HIT * 2);
+  }
+});
+
+test("on the pin wheel a pin pushed back out is no move", () => {
+  const c = wheels[0]!;
+  const s = stage(pins, c.layout, phone);
+  const geo = geometry(count(c), phone, c.layout.shape);
+  s.drag(gripAt(geo, 0), gripAt(geo, 0, -40));
+  expect(s.moves).toEqual([]);
 });

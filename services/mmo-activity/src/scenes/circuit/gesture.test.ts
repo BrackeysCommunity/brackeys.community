@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import circuit from "./index.ts";
-import { EMPTY, lit, sidesOf, type CircuitModel } from "./model.ts";
+import { EMPTY, HEX_STRAIGHT, lit, sidesOf, type CircuitModel } from "./model.ts";
 import { centre, geometry, pick } from "./scene.ts";
 
 const cases = goldenCases("circuit");
@@ -119,4 +119,63 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelector(".hint")!.getAttribute("opacity")).toBe("1");
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const hexes = goldenCases("circuit", SHAPES_DIR);
+
+test("on a hex board, tapping the tiles round a sixth at a time lights the load", () => {
+  for (const c of [
+    hexes.find((x) => x.name === "level-3-full")!,
+    hexes.find((x) => x.name === "level-7-compact")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    const n = c.layout.size;
+    const s = stage(circuit, c.layout, phone);
+    const geo = geometry(n, phone, c.layout.shape);
+    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+    for (const m of solve) s.tap(centre(geo, n, m.a));
+    expect(s.moves).toEqual(solve.map(({ a }) => ({ at: 0, a })));
+    const on = (s.model as CircuitModel).lit();
+    expect(on[c.layout.goal]).toBe(true);
+    for (const trap of c.layout.false ?? []) expect(on[trap]).toBe(false);
+    expect(play(circuit, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+  }
+});
+
+test("on a hex board six taps bring a tile back round, and each tile is a thumb's reach", () => {
+  const c = hexes[0]!;
+  const n = c.layout.size;
+  const s = stage(circuit, c.layout, phone);
+  const geo = geometry(n, phone, c.layout.shape);
+  const model = s.model as CircuitModel;
+  const tile = c.layout.tiles!.findIndex((k) => k !== EMPTY);
+  for (let i = 0; i < 6; i++) s.tap(centre(geo, n, tile));
+  expect(model.at[tile]).toBe(c.layout.turn![tile]);
+  expect(s.moves).toHaveLength(6);
+  for (const x of hexes) {
+    const size = x.name.endsWith("compact") ? phone : wide;
+    const g = geometry(x.layout.size, size, x.layout.shape);
+    expect(g.cell / 2).toBeGreaterThanOrEqual(HIT * 0.8);
+    for (let t = 0; t < x.layout.size ** 2; t++)
+      expect(pick(g, x.layout.size, centre(g, x.layout.size, t))).toBe(t);
+  }
+});
+
+test("a hex straight joins the two sides it opens, and a turn moves them a sixth", () => {
+  const layout = {
+    family: "circuit",
+    level: 1,
+    size: 3,
+    decoys: 0,
+    start: 3,
+    goal: 5,
+    shape: 1,
+    tiles: [0, 0, 0, HEX_STRAIGHT, HEX_STRAIGHT, HEX_STRAIGHT, 0, 0, 0],
+    turn: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  };
+  expect(sidesOf(layout, layout.turn, 4)).toBe(1 | 8);
+  expect(lit(layout, layout.turn)[5]).toBe(true);
+  const turned = [0, 0, 0, 0, 1, 0, 0, 0, 0];
+  expect(sidesOf(layout, turned, 4)).toBe(2 | 16);
+  expect(lit(layout, turned)[5]).toBe(false);
 });

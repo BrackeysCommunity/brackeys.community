@@ -1,14 +1,33 @@
-import type { ActivityState, Fact, Option, Pressed } from "../api.ts";
+import type { ActivityState, Fact, Fight, Option, Pressed } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { band, outOf, ticks } from "../units.ts";
 import { factLine, name, riskLine } from "../words.ts";
+import { memberLine, windowNode } from "./party.ts";
 
 export interface BeatActions {
   press(option: string): void;
   why(option: string): void;
   openMachine(): void;
+  /** Swaps the off-hand deck for one carried in the pack. */
+  swap?(deck: string): void;
   /** A press is on its way; nothing else may be pressed. */
   busy: boolean;
+  /** The server's clock, unix ms, for a pick window. */
+  now?: number;
+}
+
+/**
+ * A deck the viewer may swap into the off hand before picking on this
+ * beat (Second slot). The state lists them once the service sets them.
+ */
+export interface DeckChoice {
+  id: string;
+  name: string;
+}
+
+/** The decks a beat offers to swap in, when the state lists any. */
+export function decksOf(f: Fight): DeckChoice[] {
+  return (f as Fight & { decks?: DeckChoice[] }).decks ?? [];
 }
 
 function optionName(o: Option): string {
@@ -26,31 +45,89 @@ export function pressedLines(last: { pressed: Pressed[]; facts: Fact[] }): strin
   ];
 }
 
+// The party's side of a shared beat: who has chosen, never what, the
+// viewer's own pick, and the window the server's clock closes.
+function sharedLines(st: ActivityState, f: Fight, act: BeatActions): HTMLElement[] {
+  const b = st.party?.beat;
+  const out: HTMLElement[] = [];
+  if (b) {
+    out.push(
+      ...lines(
+        `${b.picked} of ${b.present} members have chosen.`,
+        b.mine
+          ? `Your pick: ${name("fights.options", b.mine)}. It stands until the beat resolves for everyone at once.`
+          : `${name("fights.options", b.cautious)} is what you take if the window closes before you choose.`,
+        b.waiting ? "The window waits while the party works its machine." : "",
+      ),
+    );
+    if (b.due && !b.waiting) out.push(windowNode(b.due, act.now ?? b.due, "to pick"));
+  }
+  const members = f.party ?? [];
+  if (members.length) {
+    const list = el("ul", { class: "why seats" });
+    for (const m of members) {
+      const li = el("li", { text: memberLine(m) });
+      if (m.picked) li.dataset.picked = "true";
+      list.append(li);
+    }
+    out.push(list);
+  }
+  return out;
+}
+
+// The second slot: a deck carried in the pack, swapped in before the pick.
+function deckRow(f: Fight, act: BeatActions, picked: boolean): HTMLElement | undefined {
+  const decks = decksOf(f);
+  if (!decks.length || !act.swap) return undefined;
+  const row = el("div", { class: "actions" });
+  for (const d of decks)
+    row.append(
+      button(`Swap in ${d.name}`, () => act.swap?.(d.id), { disabled: act.busy || picked }),
+    );
+  return el(
+    "div",
+    { class: "option" },
+    el("h3", { text: "Your second deck" }),
+    ...lines("Swap the deck in your off hand once a beat, before you choose."),
+    row,
+  );
+}
+
 /**
  * The beat a character faces: every option with its band and what it
- * risks, and the machine where the beat is one (GDD 7.3).
+ * risks, and the machine where the beat is one (GDD 7.3). On a party's
+ * shared beat it says who has chosen and how long the window has, and a
+ * choice waits there until the beat resolves for everyone at once.
  */
 export function beatView(st: ActivityState, act: BeatActions): HTMLElement {
   const f = st.fight!;
+  const mine = f.shared ? st.party?.beat?.mine : undefined;
   const root = panel(
     `${name("fights.beats", f.kind)}: ${name("creatures.archetypes", f.creature)}`,
   );
   root.append(
     ...lines(
-      `Beat ${outOf(f.beat + 1, f.beats, f.beats === 1 ? "beat" : "beats")}.`,
+      `Beat ${outOf(f.beat + 1, f.beats, f.beats === 1 ? "beat" : "beats")}${f.floor ? `, on floor ${f.floor}` : ""}${f.shared ? ", with your party" : ""}.`,
+      f.hidden ? "You are hidden from it for now." : "",
       f.ambush && f.default && f.due
         ? `An ambush. Unanswered, it resolves with ${name("fights.options", f.default)} in ${ticks(Math.max(0, f.due - st.tick))}.`
         : "",
     ),
   );
+  if (f.shared) root.append(...sharedLines(st, f, act));
+  const deck = deckRow(f, act, Boolean(mine));
+  if (deck) root.append(deck);
   const list = el("ul", { class: "options" });
   for (const o of f.options) {
     const row = el("li", { class: "option" });
+    if (mine === o.id) row.dataset.mine = "true";
     if (o.puzzle) {
       row.append(
         el("h3", { text: optionName(o) }),
         ...lines(
-          `A machine, worked with your hands. ${band(o.band)} is how the world expects you to fare.`,
+          f.shared
+            ? `A machine the party works together, each with your own hands. ${band(o.band)} is how the world expects you to fare.`
+            : `A machine, worked with your hands. ${band(o.band)} is how the world expects you to fare.`,
         ),
         el(
           "div",
@@ -64,14 +141,14 @@ export function beatView(st: ActivityState, act: BeatActions): HTMLElement {
       );
     } else {
       row.append(
-        el("h3", { text: optionName(o) }),
+        el("h3", { text: mine === o.id ? `${optionName(o)}: your pick` : optionName(o) }),
         ...lines(`${band(o.band)}, ${riskLine(o)}.`),
         el(
           "div",
           { class: "actions" },
           button(optionName(o), () => act.press(o.id), {
             main: o.kind === "win",
-            disabled: act.busy,
+            disabled: act.busy || Boolean(mine),
           }),
           button("Why", () => act.why(o.id)),
         ),

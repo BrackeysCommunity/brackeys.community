@@ -70,7 +70,8 @@
   stroke-width: 2;
 }
 
-.signal .needle circle {
+.signal .needle circle,
+.signal .needle rect {
   fill: var(--tar);
   stroke-width: 4;
 }
@@ -82,7 +83,8 @@
   stroke-linecap: round;
 }
 
-.signal .knob.held .needle circle {
+.signal .knob.held .needle circle,
+.signal .knob.held .needle rect {
   fill: var(--panel);
   stroke-dasharray: 6 4;
 }

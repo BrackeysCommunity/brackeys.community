@@ -355,3 +355,138 @@ test("a hint passed by another seat reaches its listeners", async () => {
   expect(got).toEqual([{ at: 0, a: 1, b: 2 }]);
   expect(s.of("pass-hint")).toEqual([{ t: "pass-hint", hint: { at: 0, a: 3 } }]);
 });
+
+// A party machine armed at a seat: the state that says so.
+function partyArmed(version: number, armedAt = 4_990_000, seat = 1) {
+  return stateAt(version, {
+    context: { kind: "party", id: "pt-1" },
+    machine: {
+      source: "party",
+      family: "lock-dial",
+      name: "Dial lock",
+      layout: {
+        family: "lock-dial",
+        size: 2,
+        decoys: 0,
+        start: 0,
+        goal: 0,
+        party: "two-hand-lock",
+        seats: 2,
+      },
+      preview: true,
+      armed: true,
+      armedAt,
+      deadline: armedAt + 40_000,
+      party: "two-hand-lock",
+      seat,
+      practice: { level: 0, uses: 0, need: 20 },
+    },
+  });
+}
+
+test("a party machine's moves stream one by one, the seat left to the gateway", async () => {
+  const r = rig();
+  r.session.start();
+  await settle();
+  const s = r.greet(1, partyArmed(1));
+  expect(r.session.move({ at: 120, a: 1, b: 3 })).toBe(true);
+  expect(r.session.move({ at: 380, a: 0, seat: 4 })).toBe(true);
+  expect(s.of("move").map((m) => m.move)).toEqual([
+    { at: 120, a: 1, b: 3 },
+    { at: 380, a: 0 },
+  ]);
+  // This screen's copy of the merged log holds them with its own seat.
+  expect(r.session.partyLog()).toEqual([
+    { at: 120, a: 1, b: 3, seat: 1 },
+    { at: 380, a: 0, seat: 1 },
+  ]);
+  expect(s.of("intent")).toEqual([]);
+});
+
+test("no move goes out without an armed party machine", async () => {
+  const r = rig();
+  r.session.start();
+  await settle();
+  const s = r.greet(1);
+  expect(r.session.move({ at: 0, a: 1 })).toBe(false);
+  expect(s.of("move")).toEqual([]);
+});
+
+test("moves relayed from other seats are heard, and the gateway's log replaces this screen's", async () => {
+  const r = rig();
+  r.session.start();
+  await settle();
+  const s = r.greet(1, partyArmed(1));
+  const heard: unknown[] = [];
+  r.session.onMoves((ev) => heard.push(ev));
+  r.session.move({ at: 100, a: 0 });
+  s.serve({ t: "move", move: { at: 140, a: 1 } });
+  expect(heard).toEqual([{ kind: "move", move: { at: 140, a: 1 } }]);
+  expect(r.session.partyLog()).toEqual([
+    { at: 100, a: 0, seat: 1 },
+    { at: 140, a: 1 },
+  ]);
+  // A return: the state again, then the merged log as the gateway kept it.
+  s.drop();
+  r.clock.advance(500);
+  await settle();
+  const again = r.greet(2, partyArmed(2));
+  again.serve({
+    t: "moves",
+    moves: [
+      { at: 90, a: 0, seat: 1 },
+      { at: 140, a: 1 },
+    ],
+  });
+  expect(heard.at(-1)).toEqual({
+    kind: "moves",
+    moves: [
+      { at: 90, a: 0, seat: 1 },
+      { at: 140, a: 1 },
+    ],
+  });
+  expect(r.session.partyLog()).toHaveLength(2);
+});
+
+test("a move the gateway turned away leaves this screen's log, and another machine starts afresh", async () => {
+  const r = rig();
+  r.session.start();
+  await settle();
+  const s = r.greet(1, partyArmed(1));
+  const heard: unknown[] = [];
+  r.session.onMoves((ev) => heard.push(ev));
+  r.session.move({ at: 100, a: 0 });
+  r.session.move({ at: 120, a: 1 });
+  const seq = s.of("move")[1]!.seq;
+  s.serve({
+    t: "reply",
+    seq,
+    reply: { id: "", ok: false, refusal: { code: "busy", message: "too many" } },
+  });
+  expect(r.session.partyLog()).toEqual([{ at: 100, a: 0, seat: 1 }]);
+  expect(heard).toEqual([{ kind: "moves", moves: [{ at: 100, a: 0, seat: 1 }] }]);
+  s.serve({ t: "state", state: partyArmed(2, 4_995_000) });
+  expect(r.session.partyLog()).toEqual([]);
+  s.serve({ t: "state", state: stateAt(3) });
+  s.serve({ t: "move", move: { at: 10, a: 0 } });
+  expect(r.session.partyLog()).toEqual([]);
+});
+
+test("a party intent carries its hunt and its deck", async () => {
+  const r = rig();
+  r.session.start();
+  await settle();
+  const s = r.greet(4);
+  void r.session.intent("hunt-press", { target: "hn-2", option: "strike" });
+  expect(s.of("intent")[0]!.intent).toMatchObject({
+    kind: "hunt-press",
+    version: 4,
+    target: "hn-2",
+    option: "strike",
+  });
+  r.reply({ id: s.of("intent")[0]!.intent!.id });
+  await settle();
+  r.clock.advance(1500);
+  void r.session.intent("deck-swap", { item: "it-12" });
+  expect(s.of("intent")[1]!.intent).toMatchObject({ kind: "deck-swap", item: "it-12" });
+});

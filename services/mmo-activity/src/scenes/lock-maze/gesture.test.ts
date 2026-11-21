@@ -1,15 +1,15 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage, type Stage } from "../../../test/stage.ts";
 import { HIT, type Point } from "../../shell/board.ts";
-import { step } from "../../shell/grid.ts";
+import { HEX, step } from "../../shell/grid.ts";
 import { DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import maze from "./index.ts";
 import type { MazeModel } from "./model.ts";
-import { centre, geometry, tilts } from "./scene.ts";
+import { centre, geometry, heading, tilts } from "./scene.ts";
 
 const cases = goldenCases("lock-maze");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -139,4 +139,61 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const hexes = goldenCases("lock-maze", SHAPES_DIR);
+
+test("on a hex maze, swiping each of six ways rolls the bit home", () => {
+  for (const c of [
+    hexes.find((x) => x.name === "level-3-full")!,
+    hexes.find((x) => x.name === "level-7-compact")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    const s = stage(maze, c.layout, phone);
+    const geo = geometry(c.layout.size, phone, c.layout.shape);
+    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+    for (const m of solve) {
+      const u = heading(geo, m.a);
+      const far = geo.swipe * 1.3;
+      s.drag(mid, { x: mid.x + u.x * far, y: mid.y + u.y * far });
+    }
+    expect(s.moves).toEqual(solve.map(({ a }) => ({ at: 0, a })));
+    expect((s.model as MazeModel).cell).toBe(c.layout.goal);
+    expect(play(maze, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+  }
+});
+
+test("on a hex maze a swipe a little off a way still tilts that way, and the drift is forgiven", () => {
+  const geo = geometry(5, phone, 1);
+  const ways = [0, 1, 2, 3, 4, 5].map((d) => heading(geo, d));
+  for (const [d, u] of ways.entries()) {
+    // Twenty degrees off the way, one and a half swipes long.
+    const a = Math.atan2(u.y, u.x) + (20 * Math.PI) / 180;
+    const to = {
+      x: mid.x + Math.cos(a) * geo.swipe * 1.5,
+      y: mid.y + Math.sin(a) * geo.swipe * 1.5,
+    };
+    expect(tilts(mid, to, geo.swipe, ways).dirs).toEqual([d]);
+  }
+  // Neighbouring cells sit one heading apart, so the way a tilt rolls is the way it is drawn.
+  for (let d = 0; d < 6; d++) {
+    const a = centre(geo, 5, 12);
+    const b = centre(geo, 5, HEX.step(12, d, 5)!);
+    expect((b.x - a.x) / geo.cell).toBeCloseTo(heading(geo, d).x);
+    expect((b.y - a.y) / geo.cell).toBeCloseTo(heading(geo, d).y);
+  }
+});
+
+test("a hex maze fits the phone and a wide screen", () => {
+  for (const c of hexes) {
+    const size = c.name.endsWith("compact") ? phone : wide;
+    const geo = geometry(c.layout.size, size, c.layout.shape);
+    for (let cell = 0; cell < c.layout.size ** 2; cell++) {
+      const p = centre(geo, c.layout.size, cell);
+      expect(p.x).toBeGreaterThan(0);
+      expect(p.y).toBeGreaterThan(0);
+      expect(p.x).toBeLessThan(size.width);
+      expect(p.y).toBeLessThan(size.height);
+    }
+  }
 });

@@ -1,0 +1,50 @@
+/* Call and answer: the family's screen goes dark; calls show on it instead. */
+.board.override.party-family .said,
+.board.override.party-family .lamp {
+  display: none;
+}
+
+.party-bar.call-and-answer .cs-said {
+  fill: var(--concrete);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.party-bar.call-and-answer .cs-said.yours {
+  fill: var(--hazard);
+  font-weight: 800;
+}
+
+.party-bar.call-and-answer .cs-call {
+  opacity: 0.45;
+}
+
+.party-bar.call-and-answer .cs-call.last {
+  opacity: 1;
+}
+
+.party-bar.call-and-answer .cs-who {
+  fill: var(--concrete);
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.party-bar.call-and-answer .cs-next {
+  display: none;
+}
+
+.party-bar.call-and-answer .cs-next.on {
+  display: inline;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .party-bar.call-and-answer .cs-next.on {
+    animation: board-pulse 0.6s ease-in-out infinite alternate;
+  }
+}
+
+/* A glimpsed symbol is the next seat's, so it is drawn faint. */
+.party-bar.call-and-answer .cs-next.glimpse {
+  opacity: 0.5;
+}

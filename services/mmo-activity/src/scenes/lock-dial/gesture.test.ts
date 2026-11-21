@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage, type Stage } from "../../../test/stage.ts";
 import { HIT, type Point } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import dial from "./index.ts";
 import type { DialModel } from "./model.ts";
-import { geometry, pick, settle } from "./scene.ts";
+import { geometry, holdAt, pick, settle } from "./scene.ts";
 
 const cases = goldenCases("lock-dial");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -159,4 +159,42 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const rings = goldenCases("lock-dial", SHAPES_DIR);
+
+test("on the rings, sweeping each ring onto its number, the way its arrow points, opens the safe", () => {
+  for (const c of [
+    rings.find((x) => x.name === "level-7-full")!,
+    rings.find((x) => x.name === "level-7-compact")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    const s = stage(dial, c.layout, phone);
+    const geo = geometry(c.layout.size, phone, c.layout.shape);
+    expect(geo.bands).toHaveLength(c.layout.size);
+    // A finger at the middle of each ring's own band, as rim() reaches 0.8 of r.
+    for (const [d, target] of c.layout.target!.entries())
+      dialTo(s, geo.dials[d]!, holdAt(geo, d) / 0.8, 0, target, c.layout.turn![d]!);
+    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+    expect(s.moves).toEqual(
+      solve.map(({ a, b, c: way }) => ({ at: 0, a, ...(b ? { b } : {}), c: way })),
+    );
+    expect(play(dial, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+  }
+});
+
+test("on the rings a finger takes the ring it is on, the outermost first, and the hub takes none", () => {
+  for (const c of rings) {
+    const size = c.name.endsWith("compact") ? phone : wide;
+    const geo = geometry(c.layout.size, size, c.layout.shape);
+    const hub = geo.dials[0]!;
+    for (let d = 0; d < c.layout.size; d++) {
+      expect(pick(geo, { x: hub.x, y: hub.y - holdAt(geo, d) })).toBe(d);
+      const band = geo.bands![d]!;
+      // Each band is a thumb across.
+      expect(band.outer - band.inner).toBeGreaterThanOrEqual(HIT * 1.4);
+    }
+    expect(pick(geo, hub)).toBeUndefined();
+    expect(pick(geo, { x: hub.x + geo.r + 20, y: hub.y })).toBeUndefined();
+  }
 });

@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT, PICKUP } from "../../shell/board.ts";
 import { BROKE, DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import fuse from "./index.ts";
 import type { FuseModel } from "./model.ts";
-import { geometry, pick } from "./scene.ts";
+import { arrows, geometry, pick } from "./scene.ts";
 
 const cases = goldenCases("fuse");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -130,4 +130,44 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelectorAll(".plug.hinted")).toHaveLength(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const diagrams = goldenCases("fuse", SHAPES_DIR);
+
+test("on the wiring diagram, tapping the fuses in the order the arrows allow clears the box", () => {
+  for (const c of [
+    diagrams.find((x) => x.name === "level-3-full")!,
+    diagrams.find((x) => x.name === "level-7-compact")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    const s = stage(fuse, c.layout, phone);
+    const geo = geometry(c.layout.size, c.layout.clues!.length, phone, c.layout.shape);
+    expect(geo.hub).toBeDefined();
+    // One arrow a pair however often the pair is told.
+    expect(s.surface.querySelectorAll(".wire")).toHaveLength(arrows(c.layout.clues!).length);
+    for (const f of c.layout.order!) s.tap(geo.fuses[f]!);
+    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+    expect(s.moves).toEqual(solve.map(({ a }) => ({ at: 0, a })));
+    expect(play(fuse, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+    expect(s.surface.querySelectorAll(".card.spent")).toHaveLength(arrows(c.layout.clues!).length);
+  }
+});
+
+test("on the wiring diagram each fuse is a thumb's reach from the next, and stands on the surface", () => {
+  for (const c of diagrams) {
+    const size = c.name.endsWith("compact") ? phone : wide;
+    const n = c.layout.size;
+    const geo = geometry(n, c.layout.clues!.length, size, c.layout.shape);
+    expect(geo.r).toBeGreaterThanOrEqual(HIT);
+    for (let f = 0; f < n; f++) {
+      expect(pick(geo, none, geo.fuses[f]!)).toBe(f);
+      const next = geo.fuses[(f + 1) % n]!;
+      expect(Math.hypot(next.x - geo.fuses[f]!.x, next.y - geo.fuses[f]!.y)).toBeGreaterThanOrEqual(
+        geo.r * 2,
+      );
+      expect(geo.fuses[f]!.y - geo.r * 1.25).toBeGreaterThanOrEqual(0);
+      expect(geo.fuses[f]!.y + geo.r * 1.25).toBeLessThanOrEqual(size.height);
+    }
+    expect(pick(geo, none, geo.hub!)).toBeUndefined();
+  }
 });

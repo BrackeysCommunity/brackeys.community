@@ -76,3 +76,10 @@
     animation: board-march 0.6s linear infinite;
   }
 }
+
+.rewire .rim {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  opacity: 0.5;
+}

@@ -1,10 +1,14 @@
 import {
   MachineBeat,
+  MachineFork,
+  MachineGuardian,
+  MachineParty,
   MachinePouch,
   type IntentReply,
   type MachineView,
   type PuzzleMove,
   type PuzzleResult,
+  type SeatView,
 } from "../api.ts";
 import { beacon } from "../beacon.ts";
 import { button, el, lines } from "../dom.ts";
@@ -18,11 +22,46 @@ import {
   refusalLine,
   resultLine,
 } from "../words.ts";
-import type { Family } from "./kit.ts";
+import { BROKE, DONE, type Family } from "./kit.ts";
+import type { PartyVersion } from "./party-registry.ts";
 import { Shell } from "./shell.ts";
+
+/**
+ * Another crew working the same fork machine from its own context. The
+ * first solve to land takes the machine, and the other side's haywires.
+ */
+export interface RivalView {
+  name: string;
+  armedAt: number; // unix ms
+  moves?: number;
+}
+
+/** A machine's rival, when the state names one. */
+export function rivalOf(m: MachineView): RivalView | undefined {
+  return (m as MachineView & { rival?: RivalView }).rival;
+}
+
+/** Who sits at a party machine, by name, and who of them has it open here. */
+export function seatsLine(seats: SeatView[]): string {
+  const names = seats.map((s) => {
+    const who = s.you ? `${s.name} (you)` : s.name;
+    return s.moved ? `${who}, moved` : who;
+  });
+  return `At the machine: ${names.join("; ")}.`;
+}
+
+/** Whether everyone who must sit at a party machine has it open in this Activity. */
+export function allSeated(seats: SeatView[] | undefined): boolean {
+  return Boolean(seats?.length) && seats!.every((s) => s.here);
+}
 
 export interface PanelDeps {
   family: Family;
+  version?: PartyVersion;
+  /** Streams one move of a party machine. */
+  stream?(m: PuzzleMove): boolean;
+  /** The party machine's merged log so far. */
+  known?(): PuzzleMove[];
   serverNow(): number;
   online(): boolean;
   intent(kind: string, body: IntentBody): Promise<IntentReply>;
@@ -52,11 +91,16 @@ export class MachinePanel {
   private readonly clock = el("div", { class: "countdown" });
   private readonly clockText = el("span", { class: "countdown-text" });
   private readonly clockFill = el("div", { class: "countdown-fill" });
+  private readonly seats = el("div", { class: "machine-seats", attrs: { "aria-live": "polite" } });
+  private readonly rival = el("div", { class: "countdown rival" });
+  private readonly rivalText = el("span", { class: "countdown-text" });
+  private readonly rivalFill = el("div", { class: "countdown-fill" });
   private readonly surface = el("div", { class: "surface" });
   private readonly actions = el("div", { class: "actions" });
   private readonly result = el("div", { class: "result", attrs: { "aria-live": "assertive" } });
   private frame = 0;
   private shown = "";
+  private rivalShown = "";
   private phase = "";
 
   constructor(
@@ -64,12 +108,16 @@ export class MachinePanel {
     machine: MachineView,
   ) {
     this.clock.append(this.clockText, el("div", { class: "countdown-bar" }, this.clockFill));
+    this.rival.append(this.rivalText, el("div", { class: "countdown-bar" }, this.rivalFill));
+    this.rival.hidden = true;
     this.root = el(
       "section",
       { class: "machine" },
       this.head,
       this.status,
+      this.seats,
       this.clock,
+      this.rival,
       this.surface,
       this.actions,
       this.result,
@@ -77,6 +125,9 @@ export class MachinePanel {
     this.shell = new Shell(
       {
         family: deps.family,
+        version: deps.version,
+        stream: (m) => deps.stream?.(m) ?? false,
+        known: () => deps.known?.() ?? [],
         surface: this.surface,
         wall: () => performance.now(),
         serverNow: () => deps.serverNow(),
@@ -113,6 +164,16 @@ export class MachinePanel {
     this.shell.showHint(m);
   }
 
+  /** A move another seat made on this party machine. */
+  relayed(m: PuzzleMove): void {
+    this.shell.relayed(m);
+  }
+
+  /** The merged log as the gateway holds it. */
+  resync(moves: PuzzleMove[]): void {
+    this.shell.resync(moves);
+  }
+
   destroy(): void {
     cancelAnimationFrame(this.frame);
     this.shell.destroy();
@@ -126,9 +187,15 @@ export class MachinePanel {
     const where =
       m.source === MachineBeat
         ? "On this beat"
-        : m.source === MachinePouch
-          ? "A locked pouch"
-          : "At the tinker's bench";
+        : m.source === MachineParty
+          ? "On this beat, with your party"
+          : m.source === MachineFork
+            ? "Behind a way down"
+            : m.source === MachineGuardian
+              ? "On the guardian"
+              : m.source === MachinePouch
+                ? "A locked pouch"
+                : "At the tinker's bench";
     const known = m.level ? `${m.name}, ${level(m.level)}` : m.name;
     this.head.replaceChildren(
       el("h2", { text: s.panel === 1 ? `${known}: the hidden panel` : known }),
@@ -138,13 +205,25 @@ export class MachinePanel {
       }),
     );
     this.status.replaceChildren(...lines(s.note, this.statusLine()));
+    this.seats.replaceChildren(
+      ...lines(
+        m.seats?.length ? seatsLine(m.seats) : "",
+        m.glimpse ? "Your practice gives you a glimpse of the next seat's part." : "",
+      ),
+    );
     this.root.dataset.phase = s.phase;
     this.root.dataset.panel = String(s.panel);
 
     // What can be pressed is laid out the same at rest and in play, so
     // arming a machine never moves the pieces under the finger.
     this.actions.replaceChildren();
-    if (s.phase === "rest" || s.phase === "play") {
+    if (s.launchable) {
+      const ready = allSeated(m.seats);
+      this.actions.append(
+        button("Start it for everyone", () => s.launch(), { main: true, disabled: !ready }),
+        button("Why", () => this.deps.why()),
+      );
+    } else if (s.phase === "rest" || s.phase === "play") {
       if (m.hints?.length && s.panel === 0) {
         const left = s.hintsLeft();
         this.actions.append(
@@ -188,6 +267,7 @@ export class MachinePanel {
   private statusLine(): string {
     const s = this.shell;
     const m = s.machine;
+    if (s.party) return this.partyLine();
     switch (s.phase) {
       case "rest":
         if (m.locked) return `This machine has locked you out for ${ticks(m.locked)}.`;
@@ -206,6 +286,27 @@ export class MachinePanel {
         return s.bench ? "Working. Take the time you need." : "Armed. Walking away is a haywire.";
       case "sending":
         return "Sending what you did to the world.";
+      case "done":
+        return "";
+    }
+  }
+
+  private partyLine(): string {
+    const s = this.shell;
+    const m = s.machine;
+    switch (s.phase) {
+      case "rest":
+        return allSeated(m.seats)
+          ? "Everyone at it has it open. The first touch starts it for all of you at once, and its size and countdown are set then."
+          : "It starts only when everyone at it has it open here. Waiting for the others.";
+      case "play":
+        if (s.looks === DONE)
+          return "Your screen reads it solved. The world is checking every hand's moves.";
+        if (s.looks === BROKE)
+          return "Your screen reads it broken. The world is checking every hand's moves.";
+        return "Armed for everyone. Every hand's moves count as one machine.";
+      case "sending":
+        return "The countdown is up. The world is reading every hand's moves.";
       case "done":
         return "";
     }
@@ -258,7 +359,25 @@ export class MachinePanel {
   // The countdown is read from the server's deadline every frame; the DOM
   // is touched only when the reading changes. Its row is there from the
   // start, so the play surface keeps its size when the clock begins.
+  // A rival crew's time on the same machine, from when it armed.
+  private drawRival(): void {
+    const m = this.shell.machine;
+    const r = rivalOf(m);
+    this.rival.hidden = !r;
+    if (!r) return;
+    const elapsed = Math.max(0, this.deps.serverNow() - r.armedAt);
+    const of = m.countdown ?? 0;
+    const text = `A rival crew, ${r.name}'s, is on this machine: ${seconds(elapsed)} in${
+      r.moves !== undefined ? `, and it has moved ${plural(r.moves, "time")}` : ""
+    }.`;
+    if (text === this.rivalShown) return;
+    this.rivalShown = text;
+    this.rivalText.textContent = text;
+    this.rivalFill.style.width = `${of ? Math.min(1, elapsed / of) * 100 : 0}%`;
+  }
+
   private drawClock(): void {
+    this.drawRival();
     const s = this.shell;
     if (s.bench) {
       this.clock.hidden = true;

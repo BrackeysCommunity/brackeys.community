@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT, PICKUP, distance } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import leak from "./index.ts";
 import type { LeakModel } from "./model.ts";
-import { geometry, land } from "./scene.ts";
+import { BRANCH_SHAPE, geometry, land } from "./scene.ts";
 
 const cases = goldenCases("leak");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -155,4 +155,41 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.children.length).toBe(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const branches = goldenCases("leak", SHAPES_DIR);
+
+test("on the branching pipe, the solve played by pointer: a tap on its joint for every leak", () => {
+  for (const c of branches) {
+    expect(c.layout.shape).toBe(1);
+    const size = sizeOf(c.name);
+    const s = stage(leak, c.layout, size);
+    const geo = geometry(c.layout.size, size, c.layout.shape);
+    const solve = c.logs.find((l) => l.name === "solve")!;
+    for (const m of solve.log.moves) {
+      s.at = m.at;
+      s.tap(geo.slots[m.a]!);
+    }
+    expect(s.moves, c.name).toEqual(solve.log.moves);
+    expect(s.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
+  }
+});
+
+test("the branching pipe has a trunk and two arms, every joint on one, and a thumb between any two", () => {
+  for (const n of [4, 5, 6, 7]) {
+    for (const size of [phone, desk]) {
+      const geo = geometry(n, size, BRANCH_SHAPE);
+      expect(geo.runs).toHaveLength(3);
+      expect(geo.r).toBeGreaterThanOrEqual(HIT);
+      const onRuns = geo.runs.flat();
+      for (const [i, p] of geo.slots.entries()) {
+        expect(onRuns).toContainEqual(p);
+        expect(land(geo, p).slot).toBe(i);
+        for (const q of geo.slots.slice(i + 1))
+          expect(distance(p, q)).toBeGreaterThanOrEqual(geo.r * 2);
+      }
+    }
+  }
+  const s = stage(leak, branches[0]!.layout, phone);
+  expect(s.surface.querySelector(".pipe")!.getAttribute("d")!.match(/M/g)).toHaveLength(3);
 });

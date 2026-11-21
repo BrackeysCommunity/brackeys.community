@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import signal from "./index.ts";
 import type { SignalModel } from "./model.ts";
-import { closeness, geometry, pick, slide, wave } from "./scene.ts";
+import { along, closeness, geometry, knobAt, pick, slide, wave } from "./scene.ts";
 
 const cases = goldenCases("signal");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -157,4 +157,45 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const scopes = goldenCases("signal", SHAPES_DIR);
+
+test("on the sliders, sliding each one up or down until the traces meet locks the signal", () => {
+  for (const c of [
+    scopes.find((x) => x.name === "level-7-full")!,
+    scopes.find((x) => x.name === "level-7-compact")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    const n = c.layout.size;
+    const range = c.layout.range!;
+    const s = stage(signal, c.layout, phone);
+    const geo = geometry(n, range, phone, c.layout.shape);
+    expect(geo.upright).toBe(true);
+    const model = s.model as SignalModel;
+    for (const [k, target] of c.layout.target!.entries()) {
+      const from = knobAt(geo, range, k, model.knobs[k]!);
+      s.drag(from, { x: from.x, y: from.y - (target - model.knobs[k]!) * geo.detent });
+    }
+    expect(model.knobs).toEqual(c.layout.target);
+    expect(play(signal, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+  }
+});
+
+test("on the sliders a finger takes the slider whose column it is in, never the scope", () => {
+  for (const c of scopes) {
+    const size = c.name.endsWith("compact") ? phone : wide;
+    const n = c.layout.size;
+    const range = c.layout.range!;
+    const geo = geometry(n, range, size, c.layout.shape);
+    for (let k = 0; k < n; k++) {
+      expect(pick(geo, knobAt(geo, range, k, 0))).toBe(k);
+      expect(pick(geo, knobAt(geo, range, k, range - 1))).toBe(k);
+      expect(geo.half).toBeGreaterThanOrEqual(HIT);
+    }
+    expect(pick(geo, { x: geo.rows[0]!, y: geo.scope.y + 10 })).toBeUndefined();
+    // Up the slider is up the scale.
+    expect(knobAt(geo, range, 0, 1).y).toBeLessThan(knobAt(geo, range, 0, 0).y);
+    expect(along(geo, { x: 0, y: 10 })).toBeGreaterThan(along(geo, { x: 0, y: 20 }));
+  }
 });

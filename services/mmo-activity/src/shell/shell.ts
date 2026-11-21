@@ -5,6 +5,7 @@ import {
   CodeBusy,
   CodeInternal,
   CodeNoMachine,
+  CodePartyNotSeated,
   MachineBench,
   type Fact,
   type IntentReply,
@@ -15,14 +16,24 @@ import {
   type PuzzleResult,
   type Refusal,
 } from "../api.ts";
-import type { IntentBody } from "../session.ts";
+import { streamed, type IntentBody } from "../session.ts";
 import { refusalLine } from "../words.ts";
 import { Drops } from "./drops.ts";
-import { GOING, type Family, type Scene, type SceneHost, type Status } from "./kit.ts";
+import { GOING, type Family, type Scene, type Status } from "./kit.ts";
+import type { PartySceneHost, PartyVersion } from "./party-registry.ts";
 import { Run, movedBack } from "./play.ts";
 
 export interface ShellDeps {
   family: Family;
+  /** The party version an armed party machine is, when it is one. */
+  version?: PartyVersion;
+  /**
+   * Streams one move of a party machine to the gateway; false when there
+   * was no line. The gateway keeps the merged log and writes its solve.
+   */
+  stream?(m: PuzzleMove): boolean;
+  /** The merged log so far, as the session holds it, for a machine armed before this shell. */
+  known?(): PuzzleMove[];
   surface: HTMLElement;
   /** This device's clock, ms. */
   wall(): number;
@@ -88,7 +99,10 @@ export class Shell {
   private attempt = 0;
   private sent: PuzzleLog | undefined; // the log on its way
   private resends = 0;
+  private ran = 0; // the newest ms the model ran to, so a relayed move is never fed behind it
   private readonly drops: Drops;
+  /** The status the merged model on this screen reads; only the server's word ends the play. */
+  looks: Status = GOING;
 
   constructor(
     private readonly deps: ShellDeps,
@@ -102,12 +116,24 @@ export class Shell {
     this.run = this.fresh();
     if (machine.armed && machine.armedAt) {
       // Armed before this page knew it: the log is gone, so the model runs
-      // from rest to the server's elapsed time with no inputs.
+      // from rest to the server's elapsed time with no inputs. A party
+      // machine's merged log is the gateway's, and plays in as it is known.
       this.phase = "play";
       this.armedAt = machine.armedAt;
       this.synced = true;
+      if (this.party) this.replay(deps.known?.() ?? []);
     }
     this.mount();
+  }
+
+  /** Whether this machine is several seats' and its moves are streamed, not sent as a log. */
+  get party(): boolean {
+    return streamed(this.machine);
+  }
+
+  /** A party machine at rest has no layout: its version and size are set by the first touch. */
+  get launchable(): boolean {
+    return this.party && this.phase === "rest" && !this.machine.armed;
   }
 
   get bench(): boolean {
@@ -141,6 +167,7 @@ export class Shell {
     if (live && machine?.armed && !same) return "replace";
     if (live && this.acked && !(same && machine?.armed)) {
       if (last) this.conclude(last);
+      else if (this.party) this.untold();
       return "kept";
     }
     // At rest, an arming made in another window is taken only by building
@@ -174,6 +201,50 @@ export class Shell {
     this.deps.changed();
   }
 
+  /** A party machine the state no longer shows, with no result for this seat. */
+  private untold(): void {
+    this.freeze();
+    this.phase = "done";
+    this.ending = { facts: [] };
+    this.deps.changed();
+  }
+
+  /**
+   * A move another seat made, as the gateway relayed it. It is fed to the
+   * model on screen but is not this seat's to send.
+   */
+  relayed(m: PuzzleMove): void {
+    if (!this.party || this.phase !== "play") return;
+    this.feedParty(m);
+  }
+
+  /** The merged log the gateway holds, on a return: the model is played again from rest on it. */
+  resync(moves: PuzzleMove[]): void {
+    if (!this.party || this.phase === "rest") return;
+    this.replay(moves);
+    this.mount();
+    this.deps.changed();
+  }
+
+  /** Arms a party machine for every seat at once: the first touch, from the launch control. */
+  launch(): void {
+    if (!this.launchable) return;
+    if (!this.deps.online()) {
+      this.say("Reconnecting. The machine is still at rest.");
+      return;
+    }
+    const attempt = this.attempt;
+    this.say("Starting it for everyone.");
+    void this.deps
+      .intent(ActMachineArm, { machine: { source: this.machine.source } })
+      .then((reply) => {
+        if (attempt !== this.attempt || reply.ok) return;
+        if (reply.refusal?.code === CodePartyNotSeated)
+          this.say("Everyone at the machine must have it open here before it starts.");
+        else this.say(reply.refusal ? refusalLine(reply.refusal) : "The machine would not arm.");
+      });
+  }
+
   /** The server ended the machine itself: the countdown ran out. */
   conclude(result: PuzzleResult): void {
     if (this.phase === "done" && this.ending?.result) return;
@@ -204,7 +275,16 @@ export class Shell {
 
   /** One animation frame: the model runs to now and the scene draws it. */
   tick(): void {
-    if (this.phase === "play") {
+    if (this.phase === "play" && this.party) {
+      const at = this.now();
+      this.runParty(at);
+      // The gateway ends it at the countdown and writes the merged log.
+      if (this.left() === 0) {
+        this.stopped = at;
+        this.phase = "sending";
+        this.deps.changed();
+      }
+    } else if (this.phase === "play") {
       const at = this.now();
       const panel = this.run.panel;
       const [st, when] = this.run.run(at);
@@ -250,7 +330,7 @@ export class Shell {
 
   /** Whether the log can be sent as it stands: a hidden panel left, or a bench rig given up. */
   leavable(): boolean {
-    return this.phase === "play" && (this.panel === 1 || this.bench);
+    return this.phase === "play" && !this.party && (this.panel === 1 || this.bench);
   }
 
   leave(): void {
@@ -267,12 +347,29 @@ export class Shell {
   // A run from rest. The bench never opens a hidden panel: its replay has no master.
   private fresh(): Run {
     const m = this.machine;
-    return new Run(this.deps.family, m.layout, this.bench ? undefined : m.inner);
+    return new Run(this.kind(), m.layout, this.bench ? undefined : m.inner);
   }
 
-  private host(layout: PuzzleLayout, outer: boolean): SceneHost {
-    const model = () => this.run.model;
+  // What the model is started from: a party version's merged model, or the family's.
+  private kind(): Family {
+    const v = this.deps.version;
+    if (!v || !this.machine.party) return this.deps.family;
     return {
+      id: v.id,
+      start: (layout) => v.start(layout),
+      mount: () => {
+        throw new Error(`${v.id} is mounted with its seat`);
+      },
+    };
+  }
+
+  private host(layout: PuzzleLayout, outer: boolean): PartySceneHost {
+    const model = () => this.run.model;
+    const m = this.machine;
+    return {
+      seat: m.seat ?? 0,
+      seats: m.seats?.length ?? layout.seats ?? 1,
+      glimpse: m.glimpse,
       surface: this.deps.surface,
       layout,
       compact: Boolean(this.machine.compact),
@@ -296,13 +393,18 @@ export class Shell {
 
   private mount(): void {
     this.scene?.destroy();
+    this.scene = undefined;
+    if (this.launchable) return;
     const inner = this.panel === 1 ? this.machine.inner : undefined;
-    this.scene = this.deps.family.mount(this.host(inner ?? this.machine.layout, !inner));
+    const host = this.host(inner ?? this.machine.layout, !inner);
+    const v = this.deps.version;
+    this.scene = v && this.machine.party && !inner ? v.mount(host) : this.deps.family.mount(host);
     this.scene.frame(this.phase === "rest" ? 0 : this.now() - this.run.base);
   }
 
   // The first touch: the clock starts here, before the server has answered.
   private begin(): boolean {
+    if (this.party) return false;
     if (this.machine.locked) {
       this.say("This machine has locked you out for now.");
       return false;
@@ -330,12 +432,75 @@ export class Shell {
   }
 
   private move(a: number, b = 0, c = 0): Status {
+    if (this.party) return this.moveParty(a, b, c);
     if (this.phase === "rest" && !this.begin()) return GOING;
     if (this.phase !== "play") return GOING;
     const panel = this.run.panel;
     const [st, at] = this.feed({ at: this.now(), a, ...(b ? { b } : {}), ...(c ? { c } : {}) });
     this.settle(st, at, panel);
     return st;
+  }
+
+  // One move of this seat on a party machine: on the model at once, and to
+  // the gateway, which keeps the merged log. Nothing here ends the play.
+  private moveParty(a: number, b: number, c: number): Status {
+    if (this.phase !== "play") return this.looks;
+    const m: PuzzleMove = { at: this.now(), a, ...(b ? { b } : {}), ...(c ? { c } : {}) };
+    if (!this.deps.stream?.(m)) {
+      this.say("Reconnecting. That move did not reach the others.");
+      return this.looks;
+    }
+    if (this.note) this.say("");
+    return this.feedParty({ ...m, seat: this.machine.seat ?? 0 });
+  }
+
+  // A move of the merged log, fed no earlier than the model has run. Once
+  // the model reads it done or broken the gateway's replay stops there too.
+  private feedParty(m: PuzzleMove): Status {
+    if (this.looks !== GOING) return this.looks;
+    const at = Math.max(this.ran, m.at);
+    this.ran = at;
+    const panel = this.run.panel;
+    const [st] = this.run.feed({ ...m, at });
+    if (this.run.panel !== panel) {
+      this.mount();
+      this.deps.changed();
+    }
+    this.read(st);
+    return st;
+  }
+
+  private runParty(at: number): void {
+    if (this.looks !== GOING) return;
+    this.ran = Math.max(this.ran, at);
+    const panel = this.run.panel;
+    const [st] = this.run.run(this.ran);
+    if (this.run.panel !== panel) {
+      this.mount();
+      this.deps.changed();
+    }
+    this.read(st);
+  }
+
+  // What the model on screen says; the chrome shows it as a reading, not a result.
+  private read(st: Status): void {
+    if (st === this.looks) return;
+    this.looks = st;
+    this.deps.changed();
+  }
+
+  // The model from rest, with a merged log played in, in order.
+  private replay(moves: PuzzleMove[]): void {
+    this.run = this.fresh();
+    this.ran = 0;
+    this.looks = GOING;
+    for (const m of moves) {
+      if (this.looks !== GOING) break;
+      const at = Math.max(this.ran, m.at);
+      this.ran = at;
+      const [st] = this.run.feed({ ...m, at });
+      this.looks = st;
+    }
   }
 
   // feed plays one stamped move into the run, as the server's replay will.

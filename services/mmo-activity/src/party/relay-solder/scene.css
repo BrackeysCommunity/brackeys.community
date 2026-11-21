@@ -1,0 +1,35 @@
+/* Relay solder: the joints where the iron passes from seat to seat. */
+.party-bar.relay-solder .joint {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.party-bar.relay-solder .joint.yours {
+  stroke: var(--hazard);
+}
+
+.party-bar.relay-solder .joint.now {
+  stroke-width: 4;
+  stroke-dasharray: none;
+}
+
+.party-bar.relay-solder .joint.past {
+  opacity: 0.3;
+}
+
+.party-bar.relay-solder .joint-tag {
+  fill: var(--concrete);
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.party-bar.relay-solder .joint-tag.yours {
+  fill: var(--hazard);
+}
+
+.party-bar.relay-solder .joint-tag.past {
+  opacity: 0.3;
+}

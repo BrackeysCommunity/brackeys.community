@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage, type Stage } from "../../../test/stage.ts";
 import { HIT } from "../../shell/board.ts";
 import keycard from "./index.ts";
 import type { KeycardModel } from "./model.ts";
-import { crossings, geometry, grabs } from "./scene.ts";
+import { cardAt, crossings, geometry, grabs } from "./scene.ts";
 
 const cases = goldenCases("keycard");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -200,4 +200,67 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.children.length).toBe(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const inserts = goldenCases("keycard", SHAPES_DIR);
+
+// One pass of the insert reader: pushed in past both gates, then pulled
+// out through them, taking ms from the inner gate to the outer.
+function pull(s: Stage, geo: ReturnType<typeof geometry>, ms: number): void {
+  const x = geo.rail;
+  s.move({ x, y: geo.gates[1] + 20 });
+  s.move({ x, y: geo.gates[1] });
+  s.at += ms;
+  s.move({ x, y: geo.gates[0] });
+}
+
+test("on the insert reader, the solve played by pointer: a pull of its own length for every pass", () => {
+  for (const [i, c] of inserts.entries()) {
+    expect(c.layout.shape).toBe(1);
+    const size = i % 2 ? phone : desk;
+    const geo = geometry(size, c.layout.shape);
+    expect(geo.upright).toBe(true);
+    const s = stage(keycard, c.layout, size);
+    const solve = c.logs.find((l) => l.name === "solve")!;
+    s.down(cardAt(geo, geo.min));
+    for (const m of solve.log.moves) {
+      s.at = m.at - m.a;
+      pull(s, geo, m.a);
+    }
+    expect(s.moves, c.name).toEqual(solve.log.moves);
+    expect((s.model as KeycardModel).k, c.name).toBe(c.layout.size);
+  }
+});
+
+test("the insert reader reads only a card on its way out", () => {
+  const c = inserts[0]!;
+  const geo = geometry(phone, 1);
+  const s = stage(keycard, c.layout, phone);
+  s.down(cardAt(geo, geo.min));
+  // In through both gates: nothing is read and the clock is not started.
+  s.move({ x: geo.rail, y: geo.gates[0] - 5 });
+  s.move({ x: geo.rail, y: geo.gates[1] + 5 });
+  expect(s.moves).toEqual([]);
+  expect(s.arms).toBe(0);
+  // Out again through both: one pass is read.
+  s.move({ x: geo.rail, y: geo.gates[1] });
+  expect(s.arms).toBe(1);
+  s.at += c.layout.target![0]!;
+  s.move({ x: geo.rail, y: geo.gates[0] });
+  expect(s.moves).toEqual([{ at: s.at, a: c.layout.target![0]! }]);
+  expect((s.model as KeycardModel).k).toBe(1);
+});
+
+test("the insert reader's card is taken by its face, and its travel fits the surface", () => {
+  for (const size of [phone, desk]) {
+    const geo = geometry(size, 1);
+    const at = cardAt(geo, geo.min);
+    expect(grabs(geo, geo.min, at).held).toBe(true);
+    expect(grabs(geo, geo.min, { x: at.x + geo.card.width / 2 - 2, y: at.y }).held).toBe(true);
+    expect(grabs(geo, geo.min, { x: at.x, y: at.y + geo.card.height * 2 }).held).toBe(false);
+    expect(geo.card.height).toBeGreaterThanOrEqual(HIT * 2);
+    expect(geo.max + geo.card.height / 2).toBeLessThanOrEqual(size.height);
+    expect(geo.gates[0]).toBeGreaterThan(geo.min);
+    expect(geo.gates[1]).toBeLessThan(geo.max);
+  }
 });

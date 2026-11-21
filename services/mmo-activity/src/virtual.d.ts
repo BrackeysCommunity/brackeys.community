@@ -33,3 +33,24 @@ declare module "virtual:rigs" {
   const rigs: Record<string, GoldenRig[]>;
   export default rigs;
 }
+
+declare module "virtual:party-rigs" {
+  import type { PuzzleLayout, PuzzleMove } from "./api.ts";
+
+  export interface PartyRig {
+    family: string;
+    seats: number;
+    shape: number;
+    level: number;
+    tier: number;
+    countdown: number;
+    /** The whole layout. */
+    layout: PuzzleLayout;
+    /** Each seat's dealt part, seat 0 first. */
+    parts: PuzzleLayout[];
+    /** The rule's own merged solve, every move seated. */
+    solve: PuzzleMove[];
+  }
+  const rigs: Record<string, PartyRig[]>;
+  export default rigs;
+}

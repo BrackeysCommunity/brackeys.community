@@ -1,6 +1,7 @@
 import type { PuzzleLayout, PuzzleMove } from "../src/api.ts";
 import type { Point } from "../src/shell/board.ts";
 import type { Family, Model, Scene, SceneHost } from "../src/shell/kit.ts";
+import type { PartySceneHost, PartyVersion } from "../src/shell/party-registry.ts";
 
 /**
  * A scene on a surface of a known size, for gesture tests: pointer paths
@@ -37,9 +38,63 @@ export interface StageOptions {
   compact?: boolean;
   guide?: PuzzleMove;
   pointerType?: string;
+  /** A party seat: the scene is given a PartySceneHost and its moves carry the seat. */
+  seat?: number;
+  /** Seats at the machine; the layout's own count when left out. */
+  seats?: number;
+  /** Another stage's model, so two seats press one machine. */
+  model?: Model;
+  glimpse?: PuzzleLayout;
 }
 
-export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions = {}): Stage {
+export interface PartyStageOptions extends StageOptions {
+  seat: number;
+}
+
+function isVersion(kind: Family | PartyVersion): kind is PartyVersion {
+  return "family" in kind;
+}
+
+/**
+ * A family's scene, or a party version's for one seat. A party stage's
+ * moves carry the seat; pass one stage's model to the next so both seats
+ * press the same machine, each drawing the other's moves as relayed ones.
+ */
+export function stage(
+  kind: Family | PartyVersion,
+  layout: PuzzleLayout,
+  opts: StageOptions = {},
+): Stage {
+  const model = opts.model ?? kind.start(layout);
+  if (!isVersion(kind) && opts.seat === undefined)
+    return build(layout, opts, model, undefined, (host) => kind.mount(host));
+  const seat = opts.seat ?? 0;
+  return build(layout, opts, model, seat, (host) => {
+    const seated: PartySceneHost = {
+      ...host,
+      seat,
+      seats: opts.seats ?? layout.seats ?? 1,
+      glimpse: opts.glimpse,
+    };
+    return (kind as PartyVersion).mount(seated);
+  });
+}
+
+export function partyStage(
+  version: PartyVersion,
+  layout: PuzzleLayout,
+  opts: PartyStageOptions,
+): Stage {
+  return stage(version, layout, opts);
+}
+
+function build(
+  layout: PuzzleLayout,
+  opts: StageOptions,
+  model: Model,
+  seat: number | undefined,
+  mount: (host: SceneHost) => Scene,
+): Stage {
   const { width = 360, height = 420 } = opts;
   const surface = document.createElement("div");
   surface.getBoundingClientRect = () =>
@@ -56,7 +111,6 @@ export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions =
     }) as DOMRect;
   document.body.append(surface);
 
-  const model = family.start(layout);
   const st: { at: number; arms: number; hint: PuzzleMove | undefined } = {
     at: 0,
     arms: 0,
@@ -71,7 +125,13 @@ export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions =
     compact: Boolean(opts.compact),
     guide: opts.guide,
     move(a, b = 0, c = 0) {
-      const m = { at: st.at, a, ...(b ? { b } : {}), ...(c ? { c } : {}) };
+      const m: PuzzleMove = {
+        at: st.at,
+        a,
+        ...(b ? { b } : {}),
+        ...(c ? { c } : {}),
+        ...(seat !== undefined ? { seat } : {}),
+      };
       moves.push(m);
       model.run(st.at);
       return model.apply(m);
@@ -83,7 +143,7 @@ export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions =
     hinted: () => st.hint,
     dropped: (missPx, hitPx, landed) => drops.push({ missPx, hitPx, landed }),
   };
-  const scene = family.mount(host);
+  const scene = mount(host);
   scene.frame(0);
 
   const fire = (type: string, p: Point) =>

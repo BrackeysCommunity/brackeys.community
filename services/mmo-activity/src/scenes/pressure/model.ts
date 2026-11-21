@@ -13,16 +13,34 @@ const LEAK = 5;
 // The leak is counted in hundredths of a unit a step.
 const HUNDREDTHS = 100;
 
+/** The shape whose valves stand in a ring: the first and last are neighbours too. */
+export const RING_SHAPE = 1;
+
+/** The valves whose needles a turn of valve a drops: each once, none twice when there are two. */
+export function neighbours(a: number, n: number, ring: boolean): number[] {
+  if (!ring) return [a - 1, a + 1].filter((b) => b >= 0 && b < n);
+  const left = (a - 1 + n) % n;
+  const right = (a + 1) % n;
+  return [left, right].filter((b, i) => b !== a && (i === 0 || b !== left));
+}
+
 // One valve turned dir: its needle rises by nudge, its neighbours' fall by couple.
-function turnValve(v: number[], a: number, dir: number, nudge: number, couple: number): void {
+function turnValve(
+  v: number[],
+  a: number,
+  dir: number,
+  nudge: number,
+  couple: number,
+  ring: boolean,
+): void {
   v[a]! += dir * nudge;
-  if (a > 0) v[a - 1]! -= dir * couple;
-  if (a + 1 < v.length) v[a + 1]! -= dir * couple;
+  for (const b of neighbours(a, v.length, ring)) v[b]! -= dir * couple;
 }
 
 // Pressure, as sim/puzzle/pressure.go plays it: a valve lifts its own
 // needle and drops its neighbours', one needle leaks, and the machine is
-// solved once every needle has sat in the band for the hold.
+// solved once every needle has sat in the band for the hold. Shape 1 is a
+// ring manifold.
 export class PressureModel implements Model {
   /** Each needle, out of the layout's range. */
   readonly v: number[];
@@ -33,6 +51,7 @@ export class PressureModel implements Model {
   private readonly goal: number;
   private readonly range: number;
   private readonly clock: Clock;
+  readonly ring: boolean;
 
   constructor(layout: PuzzleLayout) {
     this.v = [...(layout.init ?? [])];
@@ -40,6 +59,7 @@ export class PressureModel implements Model {
     this.goal = layout.goal;
     this.range = layout.range ?? 0;
     this.clock = new Clock(layout.step);
+    this.ring = layout.shape === RING_SHAPE;
   }
 
   get lo(): number {
@@ -92,7 +112,7 @@ export class PressureModel implements Model {
     const b = m.b ?? 0;
     const n = this.v.length;
     if (!within(a, n) || (b !== 1 && b !== -1)) return BROKE;
-    turnValve(this.v, a, b, this.nudge, this.par[COUPLE] ?? 0);
+    turnValve(this.v, a, b, this.nudge, this.par[COUPLE] ?? 0, this.ring);
     // The needles are floored in order and the burst ends the pass, as the
     // replay does, so the two leave the same numbers behind.
     for (const [i, x] of this.v.entries()) {

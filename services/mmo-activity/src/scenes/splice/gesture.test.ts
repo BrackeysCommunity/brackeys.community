@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import type { PuzzleLayout } from "../../api.ts";
-import { HIT } from "../../shell/board.ts";
+import { HIT, distance } from "../../shell/board.ts";
 import { BROKE } from "../../shell/kit.ts";
 import splice from "./index.ts";
 import { DOWN, DRAG, type SpliceModel } from "./model.ts";
-import { cellAt, centre, geometry, outside, setDown } from "./scene.ts";
+import { ROUND_SHAPE, cellAt, centre, geometry, outside, setDown } from "./scene.ts";
 
 const cases = goldenCases("splice");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -243,4 +243,68 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.children.length).toBe(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const rounds = goldenCases("splice", SHAPES_DIR);
+
+test("on the round board, the solve played by pointer: set down, drag and lift where the log does", () => {
+  for (const c of rounds) {
+    expect(c.layout.shape).toBe(1);
+    const size = sizeOf(c.name);
+    const s = stage(splice, c.layout, size);
+    const geo = geometry(c.layout.size, c.layout.range!, size, c.layout.shape);
+    expect(geo.round).toBeDefined();
+    const solve = c.logs.find((l) => l.name === "solve")!;
+    for (const m of solve.log.moves) {
+      s.at = m.at;
+      s.model.run(s.at);
+      const p = centre(geo, m.a);
+      if (m.c === DOWN) s.down(p);
+      else if (m.c === DRAG) s.move(p);
+      else s.up(p);
+    }
+    expect(s.moves, c.name).toEqual(solve.log.moves);
+    const model = s.model as SpliceModel;
+    expect(model.k, c.name).toBe(model.length);
+  }
+});
+
+test("on the round board columns run round and rows run inward, and every cell is its own", () => {
+  for (const size of [phone, desk]) {
+    const cols = 12;
+    const rows = 8;
+    const geo = geometry(cols, rows, size, ROUND_SHAPE);
+    const hub = geo.round!.hub;
+    for (let cell = 0; cell < cols * rows; cell++) {
+      const p = centre(geo, cell);
+      expect(cellAt(geo, p)).toBe(cell);
+      expect(outside(geo, cell, p)).toBe(0);
+    }
+    // Row 0 is the outer ring; the next row in is nearer the hub.
+    expect(distance(hub, centre(geo, 0))).toBeGreaterThan(distance(hub, centre(geo, cols)));
+    // The first column stands left of the last, and the gap between them at the foot.
+    expect(centre(geo, 0).x).toBeLessThan(hub.x);
+    expect(centre(geo, cols - 1).x).toBeGreaterThan(hub.x);
+    expect(centre(geo, 0).y).toBeGreaterThan(hub.y);
+    // A point in the gap is on the nearer edge column.
+    const below = { x: hub.x - 2, y: hub.y + geo.round!.inner + geo.round!.ring * 3 };
+    expect(cellAt(geo, below) % cols).toBe(0);
+    const right = { x: hub.x + 2, y: below.y };
+    expect(cellAt(geo, right) % cols).toBe(cols - 1);
+    // A finger just past a cell's side along its ring is within the slack.
+    const c = centre(geo, cols * 3 + 5);
+    const along = { x: c.x - hub.x, y: c.y - hub.y };
+    const len = Math.hypot(along.x, along.y);
+    const side = { x: -along.y / len, y: along.x / len };
+    const edge = geo.w / 2;
+    expect(
+      outside(geo, cols * 3 + 5, { x: c.x + side.x * edge * 0.9, y: c.y + side.y * edge * 0.9 }),
+    ).toBe(0);
+    expect(
+      setDown(geo, [cols * 3 + 5], {
+        x: c.x + side.x * (edge + geo.slack * 0.5),
+        y: c.y + side.y * (edge + geo.slack * 0.5),
+      }),
+    ).toBe(cols * 3 + 5);
+  }
 });

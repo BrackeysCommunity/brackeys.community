@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT, type Point } from "../../shell/board.ts";
 import { BROKE, DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import override from "./index.ts";
 import type { OverrideModel } from "./model.ts";
-import { geometry, pace, pick, showing } from "./scene.ts";
+import { geometry, onScreen, pace, pick, showing } from "./scene.ts";
 
 const cases = goldenCases("override");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -105,4 +105,46 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.querySelectorAll(".pad.hinted")).toHaveLength(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const pads = goldenCases("override", SHAPES_DIR);
+
+test("on the ring pad, pressing every round back round the ring overrides the terminal", () => {
+  for (const c of [
+    pads.find((x) => x.name === "level-3-full")!,
+    pads.find((x) => x.name === "level-7-full")!,
+  ]) {
+    expect(c.layout.shape).toBe(1);
+    expect(c.layout.range).toBe(6);
+    const s = stage(override, c.layout, phone);
+    const geo = geometry(c.layout.range!, phone, c.layout.shape);
+    expect(geo.ring).toBeDefined();
+    for (let round = 0; round < c.layout.size; round++)
+      for (const symbol of c.layout.order!.slice(0, round + 1)) s.tap(middle(geo.pads[symbol]!));
+    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+    expect(s.moves).toEqual(solve.map(({ a }) => ({ at: 0, a })));
+    expect(play(override, c.layout, undefined, { moves: s.moves }, c.horizon).status).toBe(DONE);
+  }
+});
+
+test("on the ring pad each arc is its own pad out to the rim, and the round screen shows the round again", () => {
+  for (const size of [phone, wide]) {
+    const geo = geometry(6, size, 1);
+    const ring = geo.ring!;
+    for (let p = 0; p < 6; p++) {
+      const a = (p / 6) * Math.PI * 2 - Math.PI / 2;
+      for (const radius of [ring.inner + 2, (ring.inner + ring.outer) / 2, ring.outer - 2])
+        expect(
+          pick(geo, { x: ring.hub.x + radius * Math.cos(a), y: ring.hub.y + radius * Math.sin(a) }),
+        ).toBe(p);
+      expect(Math.min(geo.pads[p]!.width, ring.outer - ring.inner)).toBeGreaterThanOrEqual(HIT);
+    }
+    expect(pick(geo, ring.hub)).toBeUndefined();
+    expect(onScreen(geo, ring.hub)).toBe(true);
+    expect(onScreen(geo, middle(geo.pads[0]!))).toBe(false);
+  }
+  const s = stage(override, pads[0]!.layout, phone);
+  const geo = geometry(6, phone, 1);
+  s.tap(geo.ring!.hub);
+  expect(s.moves).toEqual([]);
 });

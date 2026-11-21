@@ -3,14 +3,28 @@ import {
   board,
   distance,
   glyph,
+  nearest,
   pointers,
   set,
   svg,
   type Point,
   type Size,
 } from "../../shell/board.ts";
+import { HEX_SHAPE, gridOf, hexFit, type HexFit } from "../../shell/grid.ts";
 import type { Scene, SceneHost } from "../../shell/kit.ts";
-import { CORNER, EMPTY, END, STRAIGHT, TEE, type CircuitModel } from "./model.ts";
+import {
+  CORNER,
+  EMPTY,
+  END,
+  HEX_END,
+  HEX_SHARP,
+  HEX_STRAIGHT,
+  HEX_WIDE,
+  HEX_Y,
+  STRAIGHT,
+  TEE,
+  type CircuitModel,
+} from "./model.ts";
 
 // The marks of the board, from the shared glyphs: the source is a bolt,
 // the load a ring that fills, a trap a cross.
@@ -21,17 +35,25 @@ const CROSS = 4;
 
 /** Where the grid sits, in CSS px of the surface. */
 export interface Geometry {
+  /** A tile's side; on a hex board, its width across two sides. */
   cell: number;
   origin: Point;
+  /** The hex board's tiles on their rhombus; none on a square board. */
+  hex?: HexFit;
 }
 
-export function geometry(n: number, size: Size): Geometry {
+export function geometry(n: number, size: Size, shape = 0): Geometry {
   const pad = 8;
+  if (shape === HEX_SHAPE) {
+    const hex = hexFit(n, size, pad);
+    return { cell: hex.r * 2, origin: { x: 0, y: 0 }, hex };
+  }
   const cell = Math.min((size.width - pad * 2) / n, (size.height - pad * 2) / n);
   return { cell, origin: { x: (size.width - cell * n) / 2, y: (size.height - cell * n) / 2 } };
 }
 
 export function centre(geo: Geometry, n: number, cell: number): Point {
+  if (geo.hex) return { ...geo.hex.centres[cell]! };
   return {
     x: geo.origin.x + ((cell % n) + 0.5) * geo.cell,
     y: geo.origin.y + (Math.trunc(cell / n) + 0.5) * geo.cell,
@@ -40,6 +62,11 @@ export function centre(geo: Geometry, n: number, cell: number): Point {
 
 /** The tile under a pointer. */
 export function pick(geo: Geometry, n: number, p: Point): number | undefined {
+  if (geo.hex) {
+    // A hex tile holds every point nearer its middle than any other's.
+    const { index, distance: d } = nearest(geo.hex.centres, p);
+    return d <= geo.hex.r * 1.05 ? index : undefined;
+  }
   const x = Math.floor((p.x - geo.origin.x) / geo.cell);
   const y = Math.floor((p.y - geo.origin.y) / geo.cell);
   return x < 0 || y < 0 || x >= n || y >= n ? undefined : y * n + x;
@@ -61,9 +88,30 @@ function conduit(kind: number, h: number): string {
   }
 }
 
+// The sides each hex kind opens before it is turned, as side numbers.
+const HEX_ARMS: Record<number, number[]> = {
+  [HEX_STRAIGHT]: [0, 3],
+  [HEX_WIDE]: [0, 2],
+  [HEX_SHARP]: [0, 1],
+  [HEX_Y]: [0, 2, 4],
+  [HEX_END]: [0],
+};
+
+// A hex tile's conduit before it is turned: an arm from its middle to
+// each side it opens, a bend drawn as a curve through the middle.
+function hexConduit(hex: HexFit, kind: number): string {
+  const arms = HEX_ARMS[kind] ?? [];
+  const mid = (side: number) => {
+    const a = hex.angle(side);
+    return `${(hex.r * Math.cos(a)).toFixed(2)},${(hex.r * Math.sin(a)).toFixed(2)}`;
+  };
+  if (arms.length === 2 && kind !== HEX_STRAIGHT) return `M${mid(arms[0]!)}Q0,0 ${mid(arms[1]!)}`;
+  return arms.map((side) => `M0,0L${mid(side)}`).join("");
+}
+
 interface Tile {
   group: SVGGElement;
-  box: SVGRectElement;
+  box: SVGElement;
   /** Quarter turns drawn, counted up and never back, so a tile always turns one way. */
   spun: number;
 }
@@ -79,15 +127,20 @@ export function mount(host: SceneHost): Scene {
   const n = layout.size;
   const kinds = layout.tiles ?? [];
   const traps = new Set(layout.false ?? []);
+  const shape = layout.shape ?? 0;
+  const sides = gridOf(shape).sides;
+  const degrees = 360 / sides;
 
   const view = board(
     host,
-    "A board of conduit tiles. Tap a tile to turn it. Join the bolt to the ring, and keep the power off every cross.",
+    shape === HEX_SHAPE
+      ? "A board of hex conduit tiles. Tap a tile to turn it a sixth. Join the bolt to the ring, and keep the power off every cross."
+      : "A board of conduit tiles. Tap a tile to turn it. Join the bolt to the ring, and keep the power off every cross.",
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry(n, { width: 1, height: 1 });
+  let geo = geometry(n, { width: 1, height: 1 }, shape);
   let tiles: Tile[] = [];
   let load: SVGPathElement | undefined;
   let fed: SVGPathElement | undefined;
@@ -104,21 +157,24 @@ export function mount(host: SceneHost): Scene {
     for (let c = 0; c < n * n; c++) {
       const at = centre(geo, n, c);
       const kind = kinds[c] ?? EMPTY;
-      const box = svg("rect", {
-        x: origin.x + (c % n) * cell + 2,
-        y: origin.y + Math.trunc(c / n) * cell + 2,
-        width: cell - 4,
-        height: cell - 4,
-      });
+      const box: SVGElement = geo.hex
+        ? svg("path", { d: geo.hex.outline(c, 0.95) })
+        : svg("rect", {
+            x: origin.x + (c % n) * cell + 2,
+            y: origin.y + Math.trunc(c / n) * cell + 2,
+            width: cell - 4,
+            height: cell - 4,
+          });
       const group = svg("g", { class: "tile" });
-      const d = conduit(kind, h);
+      const d = geo.hex ? hexConduit(geo.hex, kind) : conduit(kind, h);
       group.append(
         svg("path", { class: "wire", d, "stroke-width": Math.max(6, cell * 0.16) }),
         svg("path", { class: "flow", d, "stroke-width": Math.max(2, cell * 0.05) }),
       );
-      if (kind === END) group.append(svg("circle", { class: "node", r: cell * 0.24 }));
+      if (kind === (geo.hex ? HEX_END : END))
+        group.append(svg("circle", { class: "node", r: cell * 0.24 }));
       const spun = m.at[c] ?? 0;
-      group.style.transform = `translate(${at.x}px, ${at.y}px) rotate(${spun * 90}deg)`;
+      group.style.transform = `translate(${at.x}px, ${at.y}px) rotate(${spun * degrees}deg)`;
       tiles.push({ group, box, spun });
       if (traps.has(c))
         marks.push(
@@ -157,7 +213,7 @@ export function mount(host: SceneHost): Scene {
     const now = view.fit();
     if (now) {
       size = now;
-      geo = geometry(n, size);
+      geo = geometry(n, size, shape);
       build();
     }
     const hint = host.hinted();
@@ -165,8 +221,8 @@ export function mount(host: SceneHost): Scene {
     const on = m.lit();
     for (const [c, tile] of tiles.entries()) {
       const at = centre(geo, n, c);
-      tile.spun += ((((m.at[c] ?? 0) - tile.spun) % 4) + 4) % 4;
-      const transform = `translate(${at.x}px, ${at.y}px) rotate(${tile.spun * 90}deg)`;
+      tile.spun += ((((m.at[c] ?? 0) - tile.spun) % sides) + sides) % sides;
+      const transform = `translate(${at.x}px, ${at.y}px) rotate(${tile.spun * degrees}deg)`;
       if (tile.group.style.transform !== transform) tile.group.style.transform = transform;
       const trap = traps.has(c);
       set(tile.group, { class: `tile${on[c] ? " lit" : ""}${trap && on[c] ? " tripped" : ""}` });

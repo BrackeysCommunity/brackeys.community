@@ -1,0 +1,182 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "party",
+    "id": "pt-3"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "rewire",
+        "level": 4
+      },
+      {
+        "id": "lock-dial",
+        "level": 2
+      }
+    ],
+    "inFight": false,
+    "walked": 14,
+    "floor": 2
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "",
+    "busy": 4
+  },
+  "machine": {
+    "source": "fork",
+    "family": "rewire",
+    "name": "Rewire",
+    "layout": {
+      "family": "rewire",
+      "size": 0,
+      "decoys": 0,
+      "start": 0,
+      "goal": 0
+    },
+    "preview": false,
+    "armed": false,
+    "practice": {
+      "level": 4,
+      "uses": 12,
+      "need": 100
+    },
+    "seat": 0,
+    "seats": [
+      {
+        "seat": 0,
+        "name": "Ash",
+        "here": true,
+        "you": true
+      },
+      {
+        "seat": 1,
+        "name": "Bryn",
+        "here": true
+      },
+      {
+        "seat": 2,
+        "name": "Cole",
+        "here": true
+      },
+      {
+        "seat": 3,
+        "name": "Dara",
+        "here": true
+      }
+    ]
+  },
+  "party": {
+    "id": "pt-3",
+    "leader": true,
+    "members": [
+      {
+        "name": "Ash",
+        "here": true,
+        "seat": 0,
+        "floor": 2,
+        "you": true
+      },
+      {
+        "name": "Bryn",
+        "here": true,
+        "seat": 1,
+        "floor": 2,
+        "picked": true
+      },
+      {
+        "name": "Cole",
+        "here": true,
+        "seat": 2,
+        "floor": 2,
+        "follows": true
+      },
+      {
+        "name": "Dara",
+        "here": true,
+        "seat": 3,
+        "floor": 2
+      }
+    ]
+  },
+  "floor": {
+    "dungeon": "3,-2",
+    "kind": "bunker",
+    "floor": 2,
+    "deepest": 3,
+    "haunted": true,
+    "ways": [
+      {
+        "id": "way-0",
+        "name": "Flooded stair",
+        "tags": ["flooded", "dark"],
+        "open": true,
+        "next": ["cramped"],
+        "votes": 1
+      },
+      {
+        "id": "way-1",
+        "name": "Blast door",
+        "tags": ["armoured"],
+        "open": false,
+        "machine": "rewire",
+        "next": ["dark"],
+        "votes": 0
+      },
+      {
+        "id": "way-2",
+        "name": "Service ladder",
+        "tags": ["cramped", "hidden"],
+        "open": false,
+        "votes": 0
+      }
+    ],
+    "choices": [
+      {
+        "name": "Bryn",
+        "push": true,
+        "way": "way-0"
+      }
+    ],
+    "opened": 1794999980000,
+    "due": 1795000100000,
+    "pool": [
+      {
+        "material": "copper-ore",
+        "units": 3
+      },
+      {
+        "material": "bog-iron",
+        "units": 1
+      }
+    ],
+    "downed": ["Edda"]
+  }
+}

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage } from "../../../test/stage.ts";
 import { HIT } from "../../shell/board.ts";
 import { BROKE } from "../../shell/kit.ts";
@@ -152,4 +152,46 @@ test("the scene cleans up after itself", () => {
   expect(s.surface.children.length).toBe(1);
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const hexes = goldenCases("scrub", SHAPES_DIR);
+
+test("on hex cells, the solve played by pointer: a rub on its cell for every move", () => {
+  for (const c of hexes) {
+    expect(c.layout.shape).toBe(1);
+    const size = sizeOf(c.name);
+    const s = stage(scrub, c.layout, size);
+    const geo = geometry(c.layout.size, size, c.layout.shape);
+    expect(geo.hex).toBeDefined();
+    const solve = c.logs.find((l) => l.name === "solve")!;
+    for (const m of solve.log.moves) {
+      s.at = m.at;
+      s.model.run(s.at);
+      s.tap(centre(geo, m.a));
+    }
+    expect(s.moves, c.name).toEqual(solve.log.moves);
+    const model = s.model as ScrubModel;
+    expect(model.cells.every((cell) => model.grit[cell] === 0)).toBe(true);
+  }
+});
+
+test("on hex cells a finger rubbed from a cell to its neighbour takes a layer off each, and a wobble between them does not", () => {
+  const c = hexes[0]!;
+  const n = c.layout.size;
+  const geo = geometry(n, phone, 1);
+  for (let cell = 0; cell < n * n; cell++) expect(cellAt(geo, centre(geo, cell))).toBe(cell);
+  expect(cellAt(geo, { x: 1, y: 1 })).toBeUndefined();
+  const s = stage(scrub, c.layout, phone);
+  const a = centre(geo, 0);
+  const b = centre(geo, 1);
+  s.down(a);
+  s.move(b);
+  expect(s.moves.map((m) => m.a)).toEqual([0, 1]);
+  // Just over the edge back toward the first cell is still the second.
+  const edge = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  expect(
+    settle(geo, 1, { x: edge.x + (a.x - edge.x) * 0.1, y: edge.y + (a.y - edge.y) * 0.1 }),
+  ).toBe(1);
+  s.up(b);
+  expect(geo.cell / 2).toBeGreaterThanOrEqual(HIT * 0.8);
 });

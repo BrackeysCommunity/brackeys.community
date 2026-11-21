@@ -16,7 +16,7 @@ import {
 } from "../../shell/board.ts";
 import { GOING, type Model, type Scene, type SceneHost } from "../../shell/kit.ts";
 import { plural, seconds } from "../../units.ts";
-import type { PressureModel } from "./model.ts";
+import { RING_SHAPE, neighbours, type PressureModel } from "./model.ts";
 
 /** The px a wheel is dragged for one turn of its valve. */
 export const NOTCH = 24;
@@ -37,15 +37,20 @@ export interface Geometry {
   /** The baselines of the line above the gauges and the two under the wheels. */
   head: number;
   foot: number;
+  /** The ring manifold's return pipe, under the wheels; none on a line of valves. */
+  loop?: number;
 }
 
-export function geometry(n: number, size: Size): Geometry {
+export function geometry(n: number, size: Size, shape = 0): Geometry {
   const pad = 8;
   const col = (size.width - pad * 2) / n;
   const r = Math.max(HIT, Math.min(40, col * 0.38, size.height * 0.11));
   const foot = size.height - 24;
-  const y = foot - 32 - r;
+  const ring = shape === RING_SHAPE;
+  // The ring's return pipe runs under the wheels, so they stand higher.
+  const y = foot - (ring ? 48 : 32) - r;
   return {
+    ...(ring ? { loop: y + r + 22 } : {}),
     r,
     wheels: Array.from({ length: n }, (_, i) => ({ x: pad + col * (i + 0.5), y })),
     top: 44,
@@ -92,15 +97,19 @@ export function mount(host: SceneHost): Scene {
   const n = host.layout.size;
   const range = host.layout.range ?? 0;
   const goal = host.layout.goal;
+  const shape = host.layout.shape ?? 0;
+  const ring = shape === RING_SHAPE;
 
   const view = board(
     host,
-    `A boiler with ${plural(n, "valve")}. Drag a wheel up to open its valve: its needle rises and the needles beside it fall. Hold every needle in its band.`,
+    ring
+      ? `A boiler with ${plural(n, "valve")} on a ring manifold. Drag a wheel up to open its valve: its needle rises and the needles beside it on the ring fall, the first and last valves side by side. Hold every needle in its band.`
+      : `A boiler with ${plural(n, "valve")}. Drag a wheel up to open its valve: its needle rises and the needles beside it fall. Hold every needle in its band.`,
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry(n, { width: 1, height: 1 });
+  let geo = geometry(n, { width: 1, height: 1 }, shape);
   let columns: Column[] = [];
   let status: SVGTextElement | undefined;
   let holdBar: SVGRectElement | undefined;
@@ -136,8 +145,28 @@ export function mount(host: SceneHost): Scene {
       }),
       holdBar,
       text("legend", size.width / 2, geo.foot, "Drag a wheel up to open its valve."),
-      text("legend", size.width / 2, geo.foot + 16, "Its needle rises; the ones beside it fall."),
+      text(
+        "legend",
+        size.width / 2,
+        geo.foot + 16,
+        ring
+          ? "Its needle rises; the ones beside it on the ring fall."
+          : "Its needle rises; the ones beside it fall.",
+      ),
     );
+    if (geo.loop !== undefined) {
+      // The manifold runs behind the wheels and back round under them, so
+      // the first and last valves are joined like any other two.
+      const first = geo.wheels[0]!;
+      const last = geo.wheels.at(-1)!;
+      const out = Math.min(r + 10, size.width - last.x - 4);
+      root.append(
+        svg("path", {
+          class: "manifold",
+          d: `M${first.x},${first.y}H${last.x}C${last.x + out},${first.y} ${last.x + out},${geo.loop} ${last.x},${geo.loop}H${first.x}C${first.x - out},${geo.loop} ${first.x - out},${first.y} ${first.x},${first.y}Z`,
+        }),
+      );
+    }
     columns = geo.wheels.map((w, i) => {
       const x = w.x - tube / 2;
       const hi = needleY(geo, m.hi, range);
@@ -215,7 +244,7 @@ export function mount(host: SceneHost): Scene {
     }
     if (now) {
       size = now;
-      geo = geometry(n, size);
+      geo = geometry(n, size, shape);
       build();
     }
     const tube = geo.tube;
@@ -237,7 +266,7 @@ export function mount(host: SceneHost): Scene {
         transform: `translate(${w.x} ${w.y}) rotate(${turned[i]! + part})`,
       });
       // While a wheel is held, each gauge shows which way opening it pushes.
-      const pulls = drag ? (held ? 1 : Math.abs(drag.valve - i) === 1 ? -1 : 0) : 0;
+      const pulls = drag ? (held ? 1 : neighbours(drag.valve, n, ring).includes(i) ? -1 : 0) : 0;
       set(c.pull, {
         d: pulls
           ? chevron({ x: w.x + tube / 2 + 12, y: (geo.top + geo.bottom) / 2 }, pulls, 6)

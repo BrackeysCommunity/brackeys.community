@@ -1,0 +1,123 @@
+/* The party bar under a family's board, and what party scenes lay over it. */
+.board.party-bar {
+  pointer-events: none;
+}
+
+.party-bar .pb-strip {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.party-bar .pb-say {
+  fill: var(--ash);
+  font-size: 14px;
+  font-weight: 600;
+  dominant-baseline: central;
+  /* Beats a family scene's centred text, which also reaches the bar. */
+  text-anchor: start;
+}
+
+.party-bar .pb-lamp {
+  fill: var(--tar);
+  stroke: var(--line);
+  stroke-width: 3;
+}
+
+.party-bar .pb-tag {
+  fill: var(--concrete);
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* This screen's own seat is ringed in the hazard colour, lit or not. */
+.party-bar .pb-seat.you .pb-lamp {
+  stroke: var(--hazard);
+}
+
+.party-bar .pb-seat.on .pb-lamp {
+  fill: var(--signal);
+  stroke: var(--signal);
+}
+
+.party-bar .pb-seat.on .pb-tag {
+  fill: var(--tar);
+}
+
+/* A seat that holds the role of the moment: dashed, so it reads without colour. */
+.party-bar .pb-seat.holds .pb-lamp {
+  stroke: var(--signal);
+  stroke-dasharray: 4 3;
+}
+
+.party-bar .pb-seat.you.holds .pb-lamp {
+  stroke: var(--hazard);
+}
+
+/* A piece another seat has, laid over the family's drawing. */
+.party-bar .theirs {
+  fill: var(--tar);
+  opacity: 0.55;
+}
+
+.party-bar .seam {
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 3;
+  stroke-dasharray: 8 5;
+}
+
+.party-bar .held {
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 3;
+  stroke-dasharray: 5 4;
+}
+
+.party-bar .held-tag {
+  fill: var(--hazard);
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* A party control in the bar: it takes touches, unlike the rest of it. */
+.party-bar .pb-control {
+  pointer-events: auto;
+}
+
+.party-bar .pb-control rect {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 3;
+}
+
+.party-bar .pb-control text {
+  fill: var(--ash);
+  font-size: 14px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.party-bar .pb-control.live rect {
+  stroke: var(--hazard);
+}
+
+.party-bar .pb-control.pressed rect {
+  stroke: var(--hazard);
+  stroke-width: 4;
+}
+
+.party-bar .pb-control.idle {
+  opacity: 0.4;
+}
+
+.party-bar .pb-fill {
+  fill: var(--hazard);
+  opacity: 0.35;
+  pointer-events: none;
+}

@@ -138,3 +138,36 @@
     animation: board-march 0.6s linear infinite;
   }
 }
+
+/* The pump: a barrel under the pivot, a lever reaching to its handle. */
+.crank .barrel {
+  fill: var(--panel);
+  stroke: var(--concrete);
+  stroke-width: 3;
+}
+
+.crank .lever .arm {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.crank .lever .pivot {
+  fill: var(--ash);
+}
+
+.crank .lever .knob {
+  fill: var(--panel);
+  stroke: var(--ash);
+  stroke-width: 4;
+}
+
+.crank .lever.held .knob {
+  stroke: var(--hazard);
+  stroke-dasharray: 6 4;
+}
+
+.crank .lever .grip {
+  fill: var(--ash);
+}

@@ -46,7 +46,8 @@
   fill: var(--ash);
 }
 
-.override .pad > rect:first-child {
+.override .pad > rect:first-child,
+.override .pad > .face {
   fill: var(--panel);
   stroke-width: 3;
 }
@@ -66,7 +67,8 @@
 }
 
 /* A pad on show swells its border and inverts; a pressed one sinks. */
-.override .pad.shown > rect:first-child {
+.override .pad.shown > rect:first-child,
+.override .pad.shown > .face {
   fill: var(--ash);
   stroke-width: 8;
 }
@@ -75,7 +77,8 @@
   fill: var(--tar);
 }
 
-.override .pad.pressed > rect:first-child {
+.override .pad.pressed > rect:first-child,
+.override .pad.pressed > .face {
   fill: var(--tar);
   stroke-dasharray: 8 5;
 }

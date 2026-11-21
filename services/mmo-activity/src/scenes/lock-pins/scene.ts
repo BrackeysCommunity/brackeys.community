@@ -2,7 +2,9 @@ import "./scene.css";
 import type { PuzzleLayout } from "../../api.ts";
 import {
   HIT,
+  angleOf,
   board,
+  distance,
   letter,
   pointers,
   set,
@@ -25,6 +27,9 @@ const ABOVE = 4.4;
 const BELOW = 4.2;
 const TELL = 18;
 
+/** The shape whose pins stand on the spokes of a wheel, lifted toward its hub. */
+export const WHEEL_SHAPE = 1;
+
 /** Where everything sits, in CSS px of the surface. */
 export interface Geometry {
   /** Half a column: how far to the side a pin is still picked up. */
@@ -32,8 +37,12 @@ export interface Geometry {
   /** The travel of one height. */
   notch: number;
   grip: number;
-  /** One column per slot, left to right, row by row. */
+  /** One column per slot, left to right, row by row. On the wheel every column hangs under the hub. */
   cols: Column[];
+  /** The wheel's hub; none on a row of pins. */
+  hub?: Point;
+  /** How far each slot's column is turned about the hub, in degrees clockwise. */
+  turns: number[];
 }
 
 export interface Column {
@@ -46,7 +55,8 @@ export interface Column {
   bottom: number;
 }
 
-export function geometry(pins: number, size: Size): Geometry {
+export function geometry(pins: number, size: Size, shape = 0): Geometry {
+  if (shape === WHEEL_SHAPE) return wheel(pins, size);
   const pad = 8;
   const fit = Math.max(1, Math.floor((size.width - pad * 2) / (HIT * 2)));
   const rows = Math.max(1, Math.ceil(pins / fit));
@@ -69,7 +79,67 @@ export function geometry(pins: number, size: Size): Geometry {
       bottom: (row + 1) * rowH,
     });
   }
-  return { r: w / 2, notch, grip, cols };
+  return { r: w / 2, notch, grip, cols, turns: cols.map(() => 0) };
+}
+
+// The pin wheel: each slot's column is drawn hanging under the hub with
+// its springs inward, then turned onto its spoke; slot 0 stands at twelve
+// o'clock and the rest follow clockwise.
+function wheel(pins: number, size: Size): Geometry {
+  const pad = 8;
+  const hub = { x: size.width / 2, y: size.height / 2 };
+  const room = Math.min(size.width, size.height) / 2 - pad;
+  // The chambers keep one width and stand clear of each other at the hub;
+  // on a cramped surface they and the grips are narrower, so the travel fits.
+  const column = (r: number, grip: number) => {
+    const inner = Math.max(room * 0.16, (pins * (r * 2 - 4)) / (Math.PI * 2));
+    return { r, grip, inner, notch: (room - grip * 2 - 6 - inner) / (ABOVE + BELOW + 0.3) };
+  };
+  const roomy = column(15, Math.max(10, Math.min(20, (Math.PI * room * 0.8) / pins - 3)));
+  const fit =
+    roomy.notch >= 8 ? roomy : column(11, Math.max(10, Math.min(roomy.grip, room * 0.09)));
+  const { r, grip, inner } = fit;
+  const notch = Math.max(4, Math.min(34, fit.notch));
+  const top = hub.y + inner;
+  const line = top + ABOVE * notch;
+  const col: Column = {
+    x: hub.x,
+    top,
+    line,
+    rest: line + (BELOW + 0.3) * notch + grip + 4,
+    bottom: hub.y + room,
+  };
+  return {
+    r,
+    notch,
+    grip,
+    cols: Array.from({ length: pins }, () => ({ ...col })),
+    hub,
+    turns: Array.from({ length: pins }, (_, s) => 180 + (360 * s) / pins),
+  };
+}
+
+/** A point on the surface in a slot's own column, as if it stood upright with no turn. */
+export function local(geo: Geometry, slot: number, p: Point): Point {
+  const hub = geo.hub;
+  if (!hub) return p;
+  const a = (-(geo.turns[slot] ?? 0) * Math.PI) / 180;
+  const dx = p.x - hub.x;
+  const dy = p.y - hub.y;
+  return {
+    x: hub.x + dx * Math.cos(a) - dy * Math.sin(a),
+    y: hub.y + dx * Math.sin(a) + dy * Math.cos(a),
+  };
+}
+
+/** Where on the surface a slot's grip stands, lifted by some px. */
+export function gripAt(geo: Geometry, slot: number, up = 0): Point {
+  const c = geo.cols[slot]!;
+  const hub = geo.hub;
+  if (!hub) return { x: c.x, y: c.rest - up };
+  const a = ((geo.turns[slot] ?? 0) * Math.PI) / 180;
+  const dy = c.rest - up - hub.y;
+  return { x: hub.x - dy * Math.sin(a), y: hub.y + dy * Math.cos(a) };
 }
 
 function seed(layout: PuzzleLayout): number {
@@ -107,8 +177,18 @@ export function cuts(layout: PuzzleLayout): number[] {
   );
 }
 
-/** The slot a pointer picks up: the column it is in. */
+/** The slot a pointer picks up: the column it is in, or on the wheel the spoke it is nearest. */
 export function pick(geo: Geometry, p: Point): number | undefined {
+  const hub = geo.hub;
+  if (hub) {
+    const d = distance(hub, p);
+    const c = geo.cols[0];
+    if (!c || d < c.top - hub.y - TELL || d > c.bottom - hub.y) return undefined;
+    const n = geo.cols.length;
+    // Turns from twelve o'clock, clockwise, to the nearest spoke.
+    const at = (angleOf(hub, p) + 0.25 + 1) % 1;
+    return Math.round(at * n) % n;
+  }
   const s = geo.cols.findIndex(
     (c) => Math.abs(p.x - c.x) <= geo.r && p.y >= c.top - TELL && p.y < c.bottom,
   );
@@ -149,15 +229,18 @@ export function mount(host: SceneHost): Scene {
   const slotOf = slots(layout);
   const pinAt = slotOf.reduce<number[]>((at, slot, pin) => ((at[slot] = pin), at), []);
   const cut = cuts(layout);
+  const shape = layout.shape ?? 0;
 
   const view = board(
     host,
-    "A pin lock, seen from the side. Hold a pin to feel whether it binds, lift the binding pin until its cut meets the line, and let go.",
+    shape === WHEEL_SHAPE
+      ? "A pin wheel, its pins on spokes round a hub. Hold a pin to feel whether it binds, push the binding pin toward the hub until its cut meets the ring, and let go."
+      : "A pin lock, seen from the side. Hold a pin to feel whether it binds, lift the binding pin until its cut meets the line, and let go.",
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry(total, { width: 1, height: 1 });
+  let geo = geometry(total, { width: 1, height: 1 }, shape);
   let pins: Pin[] = [];
   let tell: SVGTextElement | undefined;
   let lift: Lift | undefined;
@@ -186,6 +269,8 @@ export function mount(host: SceneHost): Scene {
         }),
         group: svg("g", { class: "pin", "aria-label": `Pin ${letter(slot)}` }),
       };
+      if (geo.hub)
+        set(pin.group, { transform: `rotate(${geo.turns[slot]} ${geo.hub.x} ${geo.hub.y})` });
       const tag = svg("text", { class: "tag", "font-size": grip * 0.9 });
       tag.textContent = letter(slot);
       pin.grip.append(
@@ -218,8 +303,20 @@ export function mount(host: SceneHost): Scene {
       return pin;
     });
     root.append(...pins.map((p) => p.group));
-    for (const [y, row] of lines)
-      root.append(svg("line", { class: "line", x1: row.from, x2: row.to, y1: y, y2: y }));
+    const hub = geo.hub;
+    if (hub)
+      root.append(
+        svg("circle", {
+          class: "line",
+          cx: hub.x,
+          cy: hub.y,
+          r: geo.cols[0]!.line - hub.y,
+          fill: "none",
+        }),
+      );
+    else
+      for (const [y, row] of lines)
+        root.append(svg("line", { class: "line", x1: row.from, x2: row.to, y1: y, y2: y }));
     tell = svg("text", { class: "tell" });
     root.append(tell);
   }
@@ -234,7 +331,7 @@ export function mount(host: SceneHost): Scene {
     const now = view.fit();
     if (now) {
       size = now;
-      geo = geometry(total, size);
+      geo = geometry(total, size, shape);
       build();
     }
     const clock = performance.now();
@@ -262,7 +359,9 @@ export function mount(host: SceneHost): Scene {
       });
       set(pin.spring, { d: coil(c.x, c.top + 2, driver, w * 0.3) });
       set(pin.stem, { y: foot, height: Math.max(0, c.rest - up - grip - foot) });
-      set(pin.grip, { transform: `translate(${c.x} ${c.rest - up})` });
+      // On the wheel the grip turns back, so its letter stands upright.
+      const upright = geo.hub ? ` rotate(${-(geo.turns[slot] ?? 0)})` : "";
+      set(pin.grip, { transform: `translate(${c.x} ${c.rest - up})${upright}` });
       const level = Math.abs(top - c.line) < notch / 2;
       const state = [
         "pin",
@@ -276,7 +375,7 @@ export function mount(host: SceneHost): Scene {
     }
     const held = lift && geo.cols[lift.slot];
     tell!.textContent = held ? (m.binding() === pinAt[lift!.slot] ? "Binds" : "Loose") : "";
-    if (held) set(tell!, { x: held.x, y: held.top - 5 });
+    if (held) set(tell!, geo.hub ? { x: geo.hub.x, y: geo.hub.y } : { x: held.x, y: held.top - 5 });
     set(root, { class: `board lock-pins${clock < slipUntil ? " slip" : ""}` });
   }
 
@@ -292,11 +391,13 @@ export function mount(host: SceneHost): Scene {
     down(p) {
       const slot = pick(geo, p);
       if (slot === undefined || model().set(pinAt[slot]!)) return false;
-      lift = { slot, from: p.y, px: 0 };
+      lift = { slot, from: local(geo, slot, p).y, px: 0 };
       return true;
     },
     move(p) {
-      if (lift) lift.px = Math.max(0, Math.min(HEIGHTS * geo.notch, lift.from - p.y));
+      if (!lift) return;
+      const y = local(geo, lift.slot, p).y;
+      lift.px = Math.max(0, Math.min(HEIGHTS * geo.notch, lift.from - y));
     },
     up(_p, ev) {
       if (!lift) return;

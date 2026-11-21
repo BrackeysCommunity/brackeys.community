@@ -1,0 +1,26 @@
+/* The split panel: lit ports, the seats that lit them, and a ports seat's reading. */
+.rewire .port.lit {
+  stroke: var(--hazard);
+  stroke-width: 5;
+}
+
+.rewire .light-tag {
+  fill: var(--hazard);
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.rewire .plug.theirs {
+  opacity: 0.45;
+}
+
+.rewire .swatch circle {
+  stroke: var(--tar);
+  stroke-width: 2;
+}
+
+.rewire .swatch .tag {
+  fill: var(--tar);
+}

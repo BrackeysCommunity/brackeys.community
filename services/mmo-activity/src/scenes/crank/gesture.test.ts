@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { expect, test } from "vite-plus/test";
 
-import { goldenCases } from "../../../test/golden.ts";
+import { SHAPES_DIR, goldenCases } from "../../../test/golden.ts";
 import { stage, type Stage } from "../../../test/stage.ts";
 import { HIT, type Point } from "../../shell/board.ts";
 import { angleOf, sweep } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import crank from "./index.ts";
 import type { CrankModel } from "./model.ts";
-import { DEAD, QUARTER, geometry } from "./scene.ts";
+import { DEAD, Pump, QUARTER, geometry } from "./scene.ts";
 
 const cases = goldenCases("crank");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -170,4 +170,69 @@ test("the scene cleans up after itself", () => {
   s.frame();
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);
+});
+
+const pumps = goldenCases("crank", SHAPES_DIR);
+
+// Pushes the handle down a whole stroke and lets it up again, without lifting the finger.
+function stroke(s: Stage, geo: ReturnType<typeof geometry>, at: Point): void {
+  const len = geo.stroke!;
+  for (const t of [0.5, 1.05]) s.move({ x: at.x, y: at.y + len * t });
+  for (const t of [0.5, 0]) s.move({ x: at.x, y: at.y + len * t });
+}
+
+test("on the pump, the solve played by pointer: a push down for every pulse", () => {
+  for (const [i, c] of pumps.entries()) {
+    expect(c.layout.shape).toBe(1);
+    const size = i % 2 ? phone : desk;
+    const geo = geometry(size, c.layout.shape);
+    const s = stage(crank, c.layout, size);
+    const solve = c.logs.find((l) => l.name === "solve")!;
+    const handle = { x: geo.hub.x + geo.r, y: geo.hub.y - geo.stroke! / 2 };
+    s.down(handle);
+    for (const m of solve.log.moves) {
+      s.at = m.at;
+      stroke(s, geo, handle);
+    }
+    s.up(handle);
+    expect(s.moves, c.name).toEqual(solve.log.moves);
+    expect(s.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
+  }
+});
+
+test("a pump stroke counts once: a wiggle at the bottom, or lifting short, sends no more", () => {
+  const c = pumps[0]!;
+  const geo = geometry(phone, 1);
+  const s = stage(crank, c.layout, phone);
+  const top = { x: geo.hub.x + geo.r, y: geo.hub.y - geo.stroke! / 2 };
+  s.down(top);
+  s.move({ x: top.x, y: top.y + geo.stroke! * 0.9 });
+  expect(s.moves).toEqual([]);
+  s.move({ x: top.x, y: top.y + geo.stroke! * 1.02 });
+  expect(s.moves).toHaveLength(1);
+  // Up a little and down again: not lifted far enough to pump again.
+  s.move({ x: top.x, y: top.y + geo.stroke! * 0.6 });
+  s.move({ x: top.x, y: top.y + geo.stroke! * 1.2 });
+  expect(s.moves).toHaveLength(1);
+  s.move({ x: top.x, y: top.y + geo.stroke! * 0.3 });
+  s.move({ x: top.x, y: top.y + geo.stroke! * 1.3 });
+  expect(s.moves).toHaveLength(2);
+  s.up(top);
+  // Pushing up sends nothing.
+  s.down(top);
+  s.move({ x: top.x, y: top.y - geo.stroke! * 2 });
+  s.up(top);
+  expect(s.moves).toHaveLength(2);
+});
+
+test("the pump's handle and its stroke fit the surface", () => {
+  for (const size of [phone, desk]) {
+    const geo = geometry(size, 1);
+    expect(geo.stroke!).toBeGreaterThanOrEqual(HIT * 2);
+    expect(geo.knob).toBeGreaterThanOrEqual(HIT);
+    expect(geo.hub.x + geo.r + geo.knob).toBeLessThanOrEqual(size.width);
+    expect(geo.hub.y + geo.stroke! / 2 + geo.knob).toBeLessThanOrEqual(size.height);
+    const p = new Pump(geo.stroke!, 0);
+    expect(p.depth(geo.stroke! / 2)).toBeCloseTo(0.5);
+  }
 });

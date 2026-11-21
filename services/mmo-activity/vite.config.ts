@@ -7,17 +7,22 @@ import { defineConfig } from "vite-plus";
 const world = fileURLToPath(new URL("../mmo-world/", import.meta.url));
 const packDir = `${world}packs/wasteland/`;
 const goldenDir = `${world}sim/puzzle/testdata/golden/`;
+const partyDir = `${world}sim/puzzle/testdata/party/`;
 const sheetsDir = `${world}sheets/`;
 
 // The sheets of the pack's names the Activity shows.
 const NAMED = [
   "creatures.archetypes",
   "fights.beats",
+  "fights.hunts",
   "fights.options",
   "fights.states",
   "items.materials",
+  "map.dungeons",
+  "map.forks",
   "map.terrain",
   "puzzles.families",
+  "puzzles.party",
   "puzzles.titles",
 ];
 
@@ -29,8 +34,11 @@ function json(path: string): any {
  * The setting is a pack, so its colours and names are read from it when the
  * Activity is built, never typed here. `virtual:rigs` is the golden layouts
  * with their traces dropped, for the mock gateway; it is empty where the
- * vectors are not checked out beside the build. `virtual:puzzle-sheet` is
- * the few cells the mock plays by, read from the world's sheets.
+ * vectors are not checked out beside the build. `virtual:party-rigs` is the
+ * party vectors the same way: each case's whole layout, every seat's part
+ * and the solve, which the mock's scripted teammates play their seats of.
+ * `virtual:puzzle-sheet` is the few cells the mock plays by, read from the
+ * world's sheets.
  */
 function pack(): Plugin {
   const modules: Record<string, () => string> = {
@@ -65,6 +73,26 @@ function pack(): Plugin {
             hints: solve.log.moves.slice(0, 3),
           };
         });
+      }
+      return `export default ${JSON.stringify(rigs)};\n`;
+    },
+    "virtual:party-rigs": () => {
+      const rigs: Record<string, unknown[]> = {};
+      const files = existsSync(partyDir) ? readdirSync(partyDir) : [];
+      const strip = ({ level: _l, tier: _t, ...layout }: any) => layout;
+      for (const file of files.filter((f) => f.endsWith(".json")).sort()) {
+        const golden = json(partyDir + file);
+        rigs[golden.version] = golden.cases.map((c: any) => ({
+          family: golden.family,
+          seats: c.spec.seats,
+          shape: c.spec.shape ?? 0,
+          level: c.layout.level,
+          tier: c.layout.tier,
+          countdown: c.countdown,
+          layout: strip(c.layout),
+          parts: c.parts.map(strip),
+          solve: c.logs.find((l: any) => l.name === "solve").log.moves,
+        }));
       }
       return `export default ${JSON.stringify(rigs)};\n`;
     },
@@ -165,7 +193,7 @@ export default defineConfig({
   },
 
   test: {
-    include: ["test/**/*.test.ts", "src/scenes/**/*.test.ts"],
+    include: ["test/**/*.test.ts", "src/scenes/**/*.test.ts", "src/party/**/*.test.ts"],
     environment: "node",
   },
 });

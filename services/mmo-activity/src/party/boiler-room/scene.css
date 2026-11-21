@@ -1,0 +1,21 @@
+/* The boiler room: the family's gauges, with every needle coupled. */
+.board.pressure.party-family .legend,
+.board.pressure.party-family .pull {
+  display: none;
+}
+
+.party-bar.boiler-room .valve.yours .theirs {
+  display: none;
+}
+
+.party-bar.boiler-room .valve.yours .held-tag {
+  fill: var(--signal);
+}
+
+.party-bar.boiler-room .every {
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

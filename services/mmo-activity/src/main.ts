@@ -47,6 +47,8 @@ async function token(url: string, req: TokenRequest): Promise<TokenReply> {
 
 // The mock ships in the build and is loaded only when the address asks.
 // ?mock=beat&family=crank&level=6&practice=8 puts any family on the beat.
+// ?mock=party&seats=4 seats a party of four, three of them played by
+// script; party-machine, floor and hunt work the same way.
 async function mocked(
   fixture: string,
   compact: boolean,
@@ -60,9 +62,10 @@ async function mocked(
     const known = Object.keys(states).map((p) => p.replace(/^.*state-(.*)\.json$/, "$1"));
     throw new SignInError(`There is no mock called ${fixture}. Try one of: ${known.join(", ")}.`);
   }
-  const [{ MockGateway }, rigs, state] = await Promise.all([
+  const [{ MockGateway }, rigs, partyRigs, state] = await Promise.all([
     import("./mock.ts"),
     import("virtual:rigs"),
+    import("virtual:party-rigs"),
     load(),
   ]);
   const st = structuredClone(state.default);
@@ -78,6 +81,9 @@ async function mocked(
     level: Number(query.get("level") ?? 1),
     now: Date.now,
     after,
+    partyRigs: partyRigs.default,
+    seats: query.has("seats") ? Number(query.get("seats")) : undefined,
+    teammates: true,
   });
   return {
     signIn: async () => ({ dev: "mock" }),

@@ -1,0 +1,20 @@
+/* The tandem winch: two of the family's dynamos and one charge between them. */
+.crank.tandem-winch .who {
+  fill: var(--concrete);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.crank.tandem-winch .who.yours {
+  fill: var(--hazard);
+}
+
+.crank.tandem-winch .theirs {
+  fill: var(--tar);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.crank.tandem-winch .theirs.off {
+  display: none;
+}

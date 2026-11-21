@@ -23,10 +23,15 @@ import type { LeakModel } from "./model.ts";
 const KNOCK_MS = 260;
 const LOW = 0.3;
 
+/** The shape whose pipe branches: a trunk from the inlet, then two arms. */
+export const BRANCH_SHAPE = 1;
+
 /** Where everything sits, in CSS px of the surface. */
 export interface Geometry {
   r: number;
   slots: Point[];
+  /** The pipe's runs, each from the inlet side outward; one run for a straight pipe. */
+  runs: Point[][];
   /** The gauge: its left edge, top, width and height. */
   x: number;
   top: number;
@@ -34,10 +39,11 @@ export interface Geometry {
   bar: number;
 }
 
-export function geometry(n: number, size: Size): Geometry {
+export function geometry(n: number, size: Size, shape = 0): Geometry {
   const pad = 8;
   const head = 62;
   const room = Math.max(1, size.height - head - 22);
+  if (shape === BRANCH_SHAPE) return branching(n, size, head, room);
   const pitch = (size.width - pad * 2) / n;
   // A narrow pipe zigzags, so each joint keeps a thumb's width.
   const zig = pitch < 84;
@@ -46,12 +52,57 @@ export function geometry(n: number, size: Size): Geometry {
     HIT,
     Math.min(40, zig ? pitch / 2 - 10 + pad : pitch * 0.4, room * (zig ? 0.14 : 0.2)),
   );
+  const slots = Array.from({ length: n }, (_, i) => ({
+    x: pad + pitch * (i + 0.5),
+    y: head + room * (zig ? (i % 2 ? 0.74 : 0.3) : 0.5),
+  }));
   return {
     r,
-    slots: Array.from({ length: n }, (_, i) => ({
-      x: pad + pitch * (i + 0.5),
-      y: head + room * (zig ? (i % 2 ? 0.74 : 0.3) : 0.5),
-    })),
+    slots,
+    runs: [[{ x: 0, y: slots[0]!.y }, ...slots, { x: size.width, y: slots.at(-1)!.y }]],
+    x: pad,
+    top: 26,
+    width: size.width - pad * 2,
+    bar: 14,
+  };
+}
+
+// The branching pipe: the first third of the joints on the trunk, then
+// the rest along an upper and a lower arm, in turn, so neighbours in the
+// layout's order stand on different arms.
+function branching(n: number, size: Size, head: number, room: number): Geometry {
+  const pad = 8;
+  const trunk = Math.max(1, Math.floor(n / 3));
+  const rest = n - trunk;
+  const upper = Math.ceil(rest / 2);
+  const cols = trunk + Math.max(1, upper);
+  const pitch = (size.width - pad * 2) / cols;
+  const mid = head + room * 0.5;
+  const dy = room * 0.25;
+  const r = Math.max(HIT, Math.min(40, pitch * 0.4, dy * 0.7));
+  const split = { x: pad + pitch * trunk, y: mid };
+  const slots: Point[] = [];
+  const arms: Point[][] = [[split], [split]];
+  for (let i = 0; i < n; i++) {
+    if (i < trunk) {
+      slots.push({ x: pad + pitch * (i + 0.5), y: mid });
+      continue;
+    }
+    const k = i - trunk;
+    const arm = k % 2;
+    const at = { x: pad + pitch * (trunk + Math.trunc(k / 2) + 0.5), y: mid + (arm ? dy : -dy) };
+    slots.push(at);
+    arms[arm]!.push(at);
+  }
+  const outlet = (arm: Point[]) => [...arm, { x: size.width, y: arm.at(-1)!.y }];
+  return {
+    r,
+    slots,
+    runs: [
+      [{ x: 0, y: mid }, ...slots.slice(0, trunk), split],
+      outlet(arms[0]!),
+      ...(rest > 1 ? [outlet(arms[1]!)] : []),
+    ],
     x: pad,
     top: 26,
     width: size.width - pad * 2,
@@ -82,15 +133,18 @@ interface Joint {
 export function mount(host: SceneHost): Scene {
   const model = () => host.model as LeakModel;
   const n = host.layout.size;
+  const shape = host.layout.shape ?? 0;
 
   const view = board(
     host,
-    `A pipe with ${plural(n, "joint")}. Tap each leak shut as it springs, before the pressure runs out. A tap on a dry joint knocks pressure out.`,
+    shape === BRANCH_SHAPE
+      ? `A branching pipe with ${plural(n, "joint")} on its trunk and arms. Tap each leak shut as it springs, before the pressure runs out. A tap on a dry joint knocks pressure out.`
+      : `A pipe with ${plural(n, "joint")}. Tap each leak shut as it springs, before the pressure runs out. A tap on a dry joint knocks pressure out.`,
   );
   const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
-  let geo = geometry(n, { width: 1, height: 1 });
+  let geo = geometry(n, { width: 1, height: 1 }, shape);
   let joints: Joint[] = [];
   let sprung: SVGCircleElement[] = [];
   let label: SVGTextElement | undefined;
@@ -106,7 +160,9 @@ export function mount(host: SceneHost): Scene {
     sprung = Array.from({ length: leaks }, (_, i) =>
       svg("circle", { class: "count", cx: geo.x + 64 + i * 14, cy: geo.top + geo.bar + 14, r: 4 }),
     );
-    const run = slots.map((s) => `L${s.x},${s.y}`).join("");
+    const runs = geo.runs
+      .map((run) => run.map((s, i) => `${i ? "L" : "M"}${s.x},${s.y}`).join(""))
+      .join("");
     root.append(
       label,
       svg("rect", { class: "track", x: geo.x, y: geo.top, width: geo.width, height: geo.bar }),
@@ -115,7 +171,7 @@ export function mount(host: SceneHost): Scene {
       ...sprung,
       svg("path", {
         class: "pipe",
-        d: `M0,${slots[0]!.y}${run}L${size.width},${slots.at(-1)!.y}`,
+        d: runs,
         "stroke-width": r * 0.7,
       }),
       text(
@@ -170,7 +226,7 @@ export function mount(host: SceneHost): Scene {
     const now = view.fit();
     if (now) {
       size = now;
-      geo = geometry(n, size);
+      geo = geometry(n, size, shape);
       build();
     }
     const m = model();
