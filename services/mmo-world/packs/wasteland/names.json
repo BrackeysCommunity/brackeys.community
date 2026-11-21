@@ -481,6 +481,106 @@
       "name": "Override"
     },
     {
+      "id": "families-pressure",
+      "ref": "puzzles.families:pressure",
+      "name": "Pressure"
+    },
+    {
+      "id": "families-crank",
+      "ref": "puzzles.families:crank",
+      "name": "Crank"
+    },
+    {
+      "id": "families-leak",
+      "ref": "puzzles.families:leak",
+      "name": "Leak"
+    },
+    {
+      "id": "families-keycard",
+      "ref": "puzzles.families:keycard",
+      "name": "Keycard"
+    },
+    {
+      "id": "families-scrub",
+      "ref": "puzzles.families:scrub",
+      "name": "Scrub"
+    },
+    {
+      "id": "families-splice",
+      "ref": "puzzles.families:splice",
+      "name": "Splice"
+    },
+    {
+      "id": "titles-rewire",
+      "ref": "puzzles.titles:rewire",
+      "name": "Router"
+    },
+    {
+      "id": "titles-lock-pins",
+      "ref": "puzzles.titles:lock-pins",
+      "name": "Picker"
+    },
+    {
+      "id": "titles-lock-dial",
+      "ref": "puzzles.titles:lock-dial",
+      "name": "Cracksman"
+    },
+    {
+      "id": "titles-lock-maze",
+      "ref": "puzzles.titles:lock-maze",
+      "name": "Tumbler"
+    },
+    {
+      "id": "titles-circuit",
+      "ref": "puzzles.titles:circuit",
+      "name": "Sparker"
+    },
+    {
+      "id": "titles-signal",
+      "ref": "puzzles.titles:signal",
+      "name": "Cryptographer"
+    },
+    {
+      "id": "titles-fuse",
+      "ref": "puzzles.titles:fuse",
+      "name": "Breaker"
+    },
+    {
+      "id": "titles-override",
+      "ref": "puzzles.titles:override",
+      "name": "Overrider"
+    },
+    {
+      "id": "titles-pressure",
+      "ref": "puzzles.titles:pressure",
+      "name": "Stoker"
+    },
+    {
+      "id": "titles-crank",
+      "ref": "puzzles.titles:crank",
+      "name": "Dynamo"
+    },
+    {
+      "id": "titles-leak",
+      "ref": "puzzles.titles:leak",
+      "name": "Patcher"
+    },
+    {
+      "id": "titles-keycard",
+      "ref": "puzzles.titles:keycard",
+      "name": "Ghost"
+    },
+    {
+      "id": "titles-scrub",
+      "ref": "puzzles.titles:scrub",
+      "name": "Glazier"
+    },
+    {
+      "id": "titles-splice",
+      "ref": "puzzles.titles:splice",
+      "name": "Splicer"
+    },
+    {
       "id": "npc-trait-bold",
       "ref": "npcs.traits:bold",
       "name": "Bold"

@@ -18,13 +18,11 @@ func puzzles(t *testing.T) *puzzle.Puzzles {
 	return puzzle.New(b, keys.Throwaway("puzzle-test").Generation)
 }
 
-var families = []string{puzzle.Rewire, puzzle.Pins, puzzle.Dial, puzzle.Maze, puzzle.Circuit, puzzle.Signal, puzzle.Fuse, puzzle.Override}
-
 // Every family's layouts are solvable, the solving log replays into a
 // solve, and an empty or late log haywires.
 func TestReplay(t *testing.T) {
 	p := puzzles(t)
-	for _, fam := range families {
+	for _, fam := range firstEight {
 		for level := int64(1); level <= 9; level++ {
 			for tier := int64(1); tier <= 4; tier++ {
 				w := puzzle.Where{Place: "tile:3,-2", Beat: level*10 + tier}
@@ -58,7 +56,7 @@ func TestReplay(t *testing.T) {
 // A move out of range breaks the machine instead of the process.
 func TestReplayRejectsWildMoves(t *testing.T) {
 	p := puzzles(t)
-	for _, fam := range families {
+	for _, fam := range firstEight {
 		w := puzzle.Where{Place: "tile:0,0", Beat: 1}
 		l := p.Generate(fam, 3, 2, w)
 		cd := p.Countdown(fam, 3, 2, 0)

@@ -132,6 +132,8 @@ type Book struct {
 	PuzzlePractice []PracticeGift `sheet:"puzzles.practice" doc:"What each level of a family's practice buys."`
 	PuzzleLayouts  []PuzzleLayout `sheet:"puzzles.layouts" doc:"How each family's layout grows with level."`
 	PuzzleParams   []Param        `sheet:"puzzles.params" doc:"Countdown scaling, practice gains, mastery, rewards, the solve model."`
+	PuzzleTuning   []PuzzleTuning `sheet:"puzzles.tuning" doc:"The numbers each family's generator and model read, by level."`
+	PuzzleTitles   []PuzzleTitle  `sheet:"puzzles.titles" doc:"The title each family's masters hold."`
 
 	Names        []Name        `sheet:"pack.names" doc:"What the setting calls each thing."`
 	NameParts    []NamePart    `sheet:"pack.name-parts" doc:"Pieces generated names are built from."`

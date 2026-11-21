@@ -26,6 +26,14 @@
       "effect": "lockdown",
       "magnitude": 1,
       "unit": "days"
+    },
+    {
+      "id": "jolt",
+      "effect": "short",
+      "magnitude": 1,
+      "unit": "count",
+      "tag": "shaken",
+      "intro": true
     }
   ]
 }

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.tuning",
+  "title": "puzzles.tuning",
+  "description": "The numbers each family's generator and model read, by level.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.tuning"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "key",
+          "base",
+          "unit",
+          "doc"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "The family, a dash, the key."
+          },
+          "family": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "puzzles.families"
+          },
+          "key": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "What the family calls the cell."
+          },
+          "base": {
+            "type": "integer",
+            "x-unit": "row",
+            "description": "At level 1, in the unit named by the unit column."
+          },
+          "perLevel": {
+            "type": "number",
+            "multipleOf": 0.0001,
+            "x-unit": "row",
+            "description": "Added per level above 1, rounded down."
+          },
+          "min": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "row",
+            "description": "A value never goes below this, or below 0."
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "row",
+            "description": "A value never goes above this; 0 is no upper bound."
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "coin",
+              "goods",
+              "pts",
+              "durability",
+              "xp",
+              "level",
+              "tier",
+              "load",
+              "health",
+              "defence",
+              "gauge",
+              "standing",
+              "event-points",
+              "ticks",
+              "days",
+              "percent",
+              "ratio",
+              "count",
+              "tiles",
+              "weight",
+              "chance",
+              "band-steps",
+              "beat",
+              "seconds",
+              "degrees"
+            ],
+            "x-unit": "enum"
+          },
+          "doc": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

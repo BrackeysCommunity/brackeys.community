@@ -178,6 +178,54 @@
       "id": "solve-target-max",
       "value": 80,
       "unit": "percent"
+    },
+    {
+      "id": "max-moves",
+      "value": 1200,
+      "unit": "count",
+      "doc": "Moves a log may hold; a longer one is a haywire."
+    },
+    {
+      "id": "max-play-seconds",
+      "value": 600,
+      "unit": "seconds",
+      "doc": "The longest a machine with no countdown can be played."
+    },
+    {
+      "id": "master-solve-uses",
+      "value": 2,
+      "unit": "count",
+      "doc": "Extra practice uses from a master's inner panel."
+    },
+    {
+      "id": "bench-base-levels",
+      "value": 3,
+      "unit": "level",
+      "doc": "Levels the bench offers a family at no practice."
+    },
+    {
+      "id": "bench-practice-per-level",
+      "value": 2,
+      "unit": "level",
+      "doc": "Practice levels per further level the bench offers."
+    },
+    {
+      "id": "lesson-give-per-day",
+      "value": 5,
+      "unit": "count",
+      "doc": "Lessons a master may leave in a world day."
+    },
+    {
+      "id": "lesson-take-per-day",
+      "value": 3,
+      "unit": "count",
+      "doc": "Lessons a learner may take in a world day."
+    },
+    {
+      "id": "lessons-kept",
+      "value": 5,
+      "unit": "count",
+      "doc": "Lessons a bench keeps per family; the oldest goes first."
     }
   ]
 }

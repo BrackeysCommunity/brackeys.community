@@ -75,6 +75,12 @@
             "x-unit": "count",
             "description": "Values a dial, knob or symbol can take."
           },
+          "phoneMax": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "The size a phone is held to; 0 is no cap."
+          },
           "note": {
             "type": "string",
             "x-unit": "text"

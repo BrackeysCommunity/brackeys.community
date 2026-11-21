@@ -531,6 +531,28 @@ type Haywire struct {
 	Magnitude int64  `json:"magnitude" unit:"row" doc:"In the unit named by the unit column."`
 	Unit      string `json:"unit" unit:"enum" enum:"quantity"`
 	Tag       string `json:"tag,omitempty" unit:"tag" ref:"tags.vocabulary"`
+	Intro     bool   `json:"intro,omitempty" unit:"flag" doc:"What a character's first machine does, whatever its family lists."`
+}
+
+// PuzzleTuning is one number a family's generator or model reads, and how
+// it moves with the machine's level: Base plus PerLevel a level above 1,
+// rounded down, held between Min and Max.
+type PuzzleTuning struct {
+	ID       string  `json:"id" unit:"id" doc:"The family, a dash, the key."`
+	Family   string  `json:"family" unit:"ref" ref:"puzzles.families"`
+	Key      string  `json:"key" unit:"text" doc:"What the family calls the cell."`
+	Base     int64   `json:"base" unit:"row" doc:"At level 1, in the unit named by the unit column."`
+	PerLevel fixed.F `json:"perLevel,omitempty" unit:"row" doc:"Added per level above 1, rounded down."`
+	Min      int64   `json:"min,omitempty" unit:"row" min:"0" doc:"A value never goes below this, or below 0."`
+	Max      int64   `json:"max,omitempty" unit:"row" min:"0" doc:"A value never goes above this; 0 is no upper bound."`
+	Unit     string  `json:"unit" unit:"enum" enum:"quantity"`
+	Doc      string  `json:"doc" unit:"text"`
+}
+
+// PuzzleTitle is the title a family's masters hold; the pack names it.
+type PuzzleTitle struct {
+	ID     string `json:"id" unit:"id" doc:"The family's id."`
+	Family string `json:"family" unit:"ref" ref:"puzzles.families"`
 }
 
 // PracticeGift is what a level of puzzle practice buys: information and

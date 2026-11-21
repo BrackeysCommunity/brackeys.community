@@ -145,5 +145,6 @@ type PuzzleLayout struct {
 	DecoyBase     int64   `json:"decoyBase,omitempty" unit:"count" min:"0" doc:"Look-alike ports, false pins, reversals, decoy tiles, noise or redundant clues at level 1."`
 	DecoyPerLevel fixed.F `json:"decoyPerLevel,omitempty" unit:"count" min:"0"`
 	Range         int64   `json:"range,omitempty" unit:"count" min:"0" doc:"Values a dial, knob or symbol can take."`
+	PhoneMax      int64   `json:"phoneMax,omitempty" unit:"count" min:"0" doc:"The size a phone is held to; 0 is no cap."`
 	Note          string  `json:"note,omitempty" unit:"text"`
 }

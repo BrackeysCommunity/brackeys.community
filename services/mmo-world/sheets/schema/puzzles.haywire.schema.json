@@ -83,6 +83,11 @@
             "type": "string",
             "x-unit": "tag",
             "x-ref": "tags.vocabulary"
+          },
+          "intro": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "What a character's first machine does, whatever its family lists."
           }
         }
       }
