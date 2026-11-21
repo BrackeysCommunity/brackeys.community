@@ -12,7 +12,8 @@ import (
 // band's low and high marks, what a turn adds to its needle and takes
 // from the neighbours, the steps to hold, and the hundredths of a unit
 // the Goal needle leaks a step. Order and Turn are the valve and
-// direction of each turn the generator gave the machine.
+// direction of each turn the generator gave the machine. Shape 1 is a
+// ring manifold: the first and last valves are neighbours too.
 const Pressure = "pressure"
 
 func init() { register(Pressure, pressure{}) }
@@ -50,9 +51,10 @@ func (pressure) Lay(l *Layout, k Kit) {
 		x[l.Goal] = hi - 1
 	}
 	// A turn that would pin a needle at either end could not be undone.
+	ring := l.Shape == ringShape
 	turn := func(a, dir int64) bool {
 		y := slices.Clone(x)
-		turnValve(y, a, dir, nudge, couple)
+		turnValve(y, a, dir, nudge, couple, ring)
 		if slices.Min(y) < 1 || slices.Max(y) > l.Range-1 {
 			return false
 		}
@@ -85,12 +87,27 @@ func (pressure) Lay(l *Layout, k Kit) {
 	l.Init = x
 }
 
-func turnValve(v []int64, a, dir, nudge, couple int64) {
+// structural: the shape whose valves stand in a ring.
+const ringShape = 1
+
+func turnValve(v []int64, a, dir, nudge, couple int64, ring bool) {
 	v[a] += dir * nudge
+	n := int64(len(v))
+	if ring {
+		// With two valves both neighbours are the one other valve.
+		left, right := (a-1+n)%n, (a+1)%n
+		if left != a {
+			v[left] -= dir * couple
+		}
+		if right != a && right != left {
+			v[right] -= dir * couple
+		}
+		return
+	}
 	if a > 0 {
 		v[a-1] -= dir * couple
 	}
-	if a+1 < int64(len(v)) {
+	if a+1 < n {
 		v[a+1] -= dir * couple
 	}
 }
@@ -147,7 +164,7 @@ func (p *pressurePlay) Apply(m Move) Status {
 	if !in(m.A, p.l.Size) || (m.B != 1 && m.B != -1) {
 		return Broke
 	}
-	turnValve(p.v, m.A, m.B, p.l.Par[prNudge], p.l.Par[prCouple])
+	turnValve(p.v, m.A, m.B, p.l.Par[prNudge], p.l.Par[prCouple], p.l.Shape == ringShape)
 	for i, x := range p.v {
 		p.v[i] = max(0, x)
 		if x >= p.l.Range {

@@ -9,6 +9,7 @@
 package puzzle
 
 import (
+	"cmp"
 	"maps"
 	"math"
 	"slices"
@@ -33,6 +34,8 @@ type Puzzles struct {
 	layouts  map[string]*sheets.PuzzleLayout
 	haywires map[string]*sheets.Haywire
 	tuning   map[tuneKey]*sheets.PuzzleTuning
+	shapes   map[string][]sheets.PuzzleShape // by family, in shape order
+	party    map[string]*sheets.PartyVersion
 	gifts    []sheets.PracticeGift
 	params   []sheets.Param
 	intro    string
@@ -45,7 +48,13 @@ type tuneKey struct{ family, key string }
 func New(b *sheets.Book, genKey draw.Key) *Puzzles {
 	p := &Puzzles{families: sheets.Lookup(b.PuzzleFamilies), haywires: sheets.Lookup(b.Haywires),
 		gifts: b.PuzzlePractice, params: b.PuzzleParams, layouts: map[string]*sheets.PuzzleLayout{},
-		tuning: map[tuneKey]*sheets.PuzzleTuning{}, gen: draw.NewDrawer(genKey)}
+		tuning: map[tuneKey]*sheets.PuzzleTuning{}, shapes: map[string][]sheets.PuzzleShape{},
+		party: sheets.Lookup(b.PartyVersions), gen: draw.NewDrawer(genKey)}
+	rows := slices.Clone(b.PuzzleShapes)
+	slices.SortStableFunc(rows, func(a, c sheets.PuzzleShape) int { return cmp.Compare(a.Shape, c.Shape) })
+	for _, s := range rows {
+		p.shapes[s.Family] = append(p.shapes[s.Family], s)
+	}
 	for i := range b.PuzzleLayouts {
 		p.layouts[b.PuzzleLayouts[i].Family] = &b.PuzzleLayouts[i]
 	}
@@ -245,13 +254,54 @@ type Clue struct {
 	After  int64 `json:"after"`
 }
 
+// Shape draws the look of a new machine among the family's shapes open at
+// its level, by weight. With one shape open there is nothing to draw.
+func (p *Puzzles) Shape(family string, level int64, w Where) int64 {
+	var open []int64
+	var weights []int64
+	for _, r := range p.shapes[family] {
+		if r.MinLevel <= level && r.Weight > 0 {
+			open, weights = append(open, r.Shape), append(weights, r.Weight)
+		}
+	}
+	switch len(open) {
+	case 0:
+		return 0
+	case 1:
+		return open[0]
+	}
+	return open[p.gen.Pick(weights, "puzzle.shape", draw.Str(w.Place), draw.Int(w.Beat), draw.Str(family), draw.Int(level))]
+}
+
+// Shapes are the shape numbers a family has rows for, in order.
+func (p *Puzzles) Shapes(family string) []int64 {
+	var out []int64
+	for _, r := range p.shapes[family] {
+		out = append(out, r.Shape)
+	}
+	return out
+}
+
+func (p *Puzzles) shapeRow(family string, shape int64) *sheets.PuzzleShape {
+	for i, r := range p.shapes[family] {
+		if r.Shape == shape {
+			return &p.shapes[family][i]
+		}
+	}
+	return nil
+}
+
 // size is a family's size and decoys at a level; a phone's cap holds the
-// size where the family has one.
-func (p *Puzzles) size(family string, level int64, compact bool) (int64, int64) {
+// size where the shape or the family has one.
+func (p *Puzzles) size(family string, level, shape int64, compact bool) (int64, int64) {
 	l := p.layouts[family]
 	n := min(l.Max, l.Base+l.PerLevel.MulInt(level-1).Floor())
-	if compact && l.PhoneMax > 0 {
-		n = min(l.PhoneMax, n)
+	phoneMax := l.PhoneMax
+	if r := p.shapeRow(family, shape); r != nil && r.PhoneMax > 0 {
+		phoneMax = r.PhoneMax
+	}
+	if compact && phoneMax > 0 {
+		n = min(phoneMax, n)
 	}
 	dec := l.DecoyBase + l.DecoyPerLevel.MulInt(level-1).Floor()
 	return n, dec
@@ -271,36 +321,75 @@ func (p *Puzzles) tune(family, key string, level int64) int64 {
 	return v
 }
 
+// layParty lays out a party version's machine; make_party.go sets it.
+var layParty func(p *Puzzles, s Spec) Layout
+
 // Make lays out the machine a spec names. A second try at the same
-// machine is drawn afresh, so it is not the first one over again.
+// machine is drawn afresh, so it is not the first one over again. A shape
+// past the first is drawn on a stream of its own, so shape 0's layouts
+// never move.
 func (p *Puzzles) Make(s Spec) Layout {
-	if s.Attempt > 0 {
+	switch {
+	case s.Party != "":
+		return layParty(p, s)
+	case s.Shape > 0 && s.Attempt > 0:
+		return p.lay(s, "puzzle.shaped", draw.Int(s.Shape), draw.Int(s.Attempt))
+	case s.Shape > 0:
+		return p.lay(s, "puzzle.shaped", draw.Int(s.Shape))
+	case s.Attempt > 0:
 		return p.lay(s, "puzzle.again", draw.Int(s.Attempt))
 	}
 	return p.lay(s, "puzzle.layout")
 }
 
 // Inner is the panel a master finds behind a solved machine: the same
-// family, one level up.
+// family and shape, levels up and with more decoys. It is one player's.
 func (p *Puzzles) Inner(s Spec) Layout {
-	s.Level++
-	return p.lay(s, "puzzle.inner", draw.Int(s.Attempt))
+	s.Party, s.Seats = "", 0
+	s.Level += p.Param("inner-levels")
+	n, dec := p.size(s.Family, s.Level, s.Shape, s.Compact)
+	dec += p.Param("inner-decoys")
+	var l Layout
+	if s.Shape > 0 {
+		l, _ = p.layWith(s, n, dec, "puzzle.shaped", draw.Int(s.Shape), draw.Str("inner"), draw.Int(s.Attempt))
+	} else {
+		l, _ = p.layWith(s, n, dec, "puzzle.inner", draw.Int(s.Attempt))
+	}
+	return l
 }
 
+// lay is a machine at its level's size and decoys.
 func (p *Puzzles) lay(s Spec, label draw.Purpose, more ...draw.Part) Layout {
-	n, dec := p.size(s.Family, s.Level, s.Compact)
-	l := Layout{Family: s.Family, Level: s.Level, Tier: s.Tier, Size: n, Decoys: dec, Range: p.layouts[s.Family].Range}
+	n, dec := p.size(s.Family, s.Level, s.Shape, s.Compact)
+	l, _ := p.layWith(s, n, dec, label, more...)
+	return l
+}
+
+// layParts are what every layout stream of a spec is keyed on first.
+func (s Spec) layParts() []draw.Part {
+	return append(s.Where().parts(s.Family), draw.Int(s.Level), draw.Int(s.Tier))
+}
+
+// layWith runs the family's Lay for a spec at n pieces and dec decoys, on
+// the stream label keyed on the spec's parts and then more. The kit comes
+// back so a party version can go on drawing from the same stream.
+func (p *Puzzles) layWith(s Spec, n, dec int64, label draw.Purpose, more ...draw.Part) (Layout, Kit) {
+	l := Layout{Family: s.Family, Level: s.Level, Tier: s.Tier, Size: n, Decoys: dec, Range: p.layouts[s.Family].Range,
+		Shape: s.Shape, Party: s.Party, Seats: s.Seats}
+	if r := p.shapeRow(s.Family, s.Shape); r != nil && r.Range > 0 {
+		l.Range = r.Range
+	}
 	f := registry[s.Family]
 	if _, ok := f.(Timed); ok {
 		l.Step = stepMs
 	}
-	parts := append(s.Where().parts(s.Family), draw.Int(s.Level), draw.Int(s.Tier))
-	f.Lay(&l, Kit{
-		S:     p.gen.Stream(label, append(parts, more...)...),
+	k := Kit{
+		S:     p.gen.Stream(label, append(s.layParts(), more...)...),
 		Tune:  func(key string) int64 { return p.tune(s.Family, key, s.Level) },
 		Steps: p.Countdown(s.Family, s.Level, s.Tier, 0) / stepMs,
-	})
-	return l
+	}
+	f.Lay(&l, k)
+	return l, k
 }
 
 // Move is one input, in milliseconds since the first touch armed the
@@ -362,6 +451,9 @@ func (p *Puzzles) MaxPlay() int64 { return p.Param("max-play-seconds") * msPerSe
 // does not solve the machine in time, or breaks it, haywires. Walking
 // away after arming is an empty or unfinished log.
 func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
+	if s.Party != "" {
+		return p.playParty(s, log, lim)
+	}
 	var fail Result
 	limit := p.MaxPlay()
 	if !lim.Bench {
@@ -476,13 +568,15 @@ func (p *Puzzles) HaulPercent(r Result) int64 {
 }
 
 // SolveRate is the harness's model of a puzzle: a solve rate per family,
-// practice, level and tier, with help from a party, kept inside bounds.
-// Practice buys time and information in play; the model is what that is
-// worth on average.
+// practice, level, the level's decoys and tier, with help from a party,
+// kept inside bounds. Practice buys time and information in play; the
+// model is what that is worth on average.
 func (p *Puzzles) SolveRate(family string, practice, level, tier, party int64) fixed.F {
 	f := p.families[family]
+	_, decoys := p.size(family, level, 0, false)
 	pct := f.SoloRate.Add(fixed.FromInt(p.Param("solve-per-practice")*practice +
-		p.Param("solve-per-level")*(level-1) + p.Param("solve-per-tier")*(tier-1) + p.Param("party-help")*(party-1)))
+		p.Param("solve-per-level")*(level-1) + p.Param("solve-per-decoy")*decoys +
+		p.Param("solve-per-tier")*(tier-1) + p.Param("party-help")*(party-1)))
 	lo, hi := fixed.FromInt(p.Param("solve-min")), fixed.FromInt(p.Param("solve-max"))
 	return fixed.Max(lo, fixed.Min(hi, pct)).AsFraction()
 }

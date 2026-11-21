@@ -1,7 +1,8 @@
 package puzzle
 
 // Tumbler maze: tilt the bit from Start to Goal. Walls[cell] has a bit
-// set for each closed side.
+// set for each closed side. Shape 1 is a hex maze on an n by n axial
+// rhombus, six sides a cell.
 const Maze = "lock-maze"
 
 func init() { register(Maze, mazes{}) }
@@ -9,16 +10,16 @@ func init() { register(Maze, mazes{}) }
 type mazes struct{}
 
 func (mazes) Lay(l *Layout, k Kit) {
-	l.Walls = maze(l.Size, l.Decoys, k)
+	l.Walls = maze(boardOf(l.Shape), l.Size, l.Decoys, k)
 	l.Start, l.Goal = 0, l.Size*l.Size-1
 }
 
 // maze carves a perfect maze by a keyed depth-first walk, then knocks
 // out extra walls, which make loops and false leads.
-func maze(n, extra int64, k Kit) []int64 {
+func maze(b board, n, extra int64, k Kit) []int64 {
 	walls := make([]int64, n*n)
 	for i := range walls {
-		walls[i] = all
+		walls[i] = b.all()
 	}
 	seen := make([]bool, n*n)
 	stack := []int64{0}
@@ -26,8 +27,8 @@ func maze(n, extra int64, k Kit) []int64 {
 	for len(stack) > 0 {
 		c := stack[len(stack)-1]
 		var open []int64
-		for _, sd := range sideList {
-			if nb, ok := step(c, sd, n); ok && !seen[nb] {
+		for _, sd := range b.list {
+			if nb, ok := b.step(c, sd, n); ok && !seen[nb] {
 				open = append(open, sd)
 			}
 		}
@@ -36,18 +37,18 @@ func maze(n, extra int64, k Kit) []int64 {
 			continue
 		}
 		sd := open[k.below(int64(len(open)))]
-		nb, _ := step(c, sd, n)
+		nb, _ := b.step(c, sd, n)
 		walls[c] &^= sd
-		walls[nb] &^= opposite(sd)
+		walls[nb] &^= b.opposite(sd)
 		seen[nb] = true
 		stack = append(stack, nb)
 	}
 	for range extra {
 		c := k.below(n * n)
-		sd := sideList[k.below(sides)]
-		if nb, ok := step(c, sd, n); ok {
+		sd := b.list[k.below(b.sides)]
+		if nb, ok := b.step(c, sd, n); ok {
 			walls[c] &^= sd
-			walls[nb] &^= opposite(sd)
+			walls[nb] &^= b.opposite(sd)
 		}
 	}
 	return walls
@@ -56,20 +57,21 @@ func maze(n, extra int64, k Kit) []int64 {
 type mazePlay struct {
 	untimed
 	l    *Layout
+	b    board
 	cell int64 // where the bit is
 }
 
-func (mazes) Start(l *Layout) Play { return &mazePlay{l: l, cell: l.Start} }
+func (mazes) Start(l *Layout) Play { return &mazePlay{l: l, b: boardOf(l.Shape), cell: l.Start} }
 
-// Apply tilts toward side A (east, then round sideList): the bit rolls
-// one cell unless a wall stops it.
+// Apply tilts toward side A (east, then clockwise round the board's
+// sides): the bit rolls one cell unless a wall stops it.
 func (p *mazePlay) Apply(m Move) Status {
-	if !in(m.A, sides) {
+	if !in(m.A, p.b.sides) {
 		return Broke
 	}
-	sd := int64(east) << m.A
+	sd := int64(1) << m.A
 	if p.l.Walls[p.cell]&sd == 0 {
-		p.cell, _ = step(p.cell, sd, p.l.Size)
+		p.cell, _ = p.b.step(p.cell, sd, p.l.Size)
 	}
 	return until(p.cell == p.l.Goal)
 }
@@ -88,7 +90,7 @@ func (f mazes) Hints(l *Layout) []Move { return f.Solve(l).Moves }
 
 // mazePath is the shortest run of tilts from start to goal.
 func mazePath(l *Layout) []int64 {
-	n := l.Size
+	n, b := l.Size, boardOf(l.Shape)
 	prev := make([]int64, n*n)
 	how := make([]int64, n*n)
 	for i := range prev {
@@ -99,12 +101,12 @@ func mazePath(l *Layout) []int64 {
 	for len(queue) > 0 && prev[l.Goal] < 0 {
 		c := queue[0]
 		queue = queue[1:]
-		for d := range int64(sides) {
-			sd := int64(east) << d
+		for d := range b.sides {
+			sd := int64(1) << d
 			if l.Walls[c]&sd != 0 {
 				continue
 			}
-			nb, ok := step(c, sd, n)
+			nb, ok := b.step(c, sd, n)
 			if ok && prev[nb] < 0 {
 				prev[nb], how[nb] = c, d
 				queue = append(queue, nb)

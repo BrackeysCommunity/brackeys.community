@@ -60,6 +60,38 @@ func TestPressure(t *testing.T) {
 	}
 }
 
+// A ring manifold's end valves are neighbours: a turn of the first drops
+// the last needle too, and with two valves the other needle drops once.
+func TestPressureRing(t *testing.T) {
+	p := puzzles(t)
+	s := puzzle.Spec{Family: puzzle.Pressure, Level: 8, Tier: 1, Place: "tile:2,5", Beat: 3}
+	line := p.Make(s)
+	s.Shape = 1
+	ring := p.Make(s)
+	nudge, couple := ring.Par[2], ring.Par[3]
+	turn := puzzle.Log{Moves: []puzzle.Move{{A: 0, B: 1}}}
+	for _, c := range []struct {
+		l    puzzle.Layout
+		last int64 // what the last needle loses
+	}{{line, 0}, {ring, couple}} {
+		n := c.l.Size
+		_, seen := states(c.l, turn)
+		got, was := seen[0], c.l.Init
+		if n < 3 || got[0] != was[0]+nudge || got[1] != was[1]-couple || got[n-1] != was[n-1]-c.last {
+			t.Fatalf("shape %d: valve 0 turned %v into %v", c.l.Shape, was, got[:n])
+		}
+	}
+	two := ring
+	two.Size, two.Init, two.Goal = 2, slices.Clone(ring.Init[:2]), 0
+	_, seen := states(two, turn)
+	if got := seen[0]; got[0] != two.Init[0]+nudge || got[1] != two.Init[1]-couple {
+		t.Fatalf("two valves in a ring: %v into %v", two.Init, got[:2])
+	}
+	if out, _ := states(ring, p.Solve(ring)); out.Status != puzzle.Done {
+		t.Fatalf("a ring manifold's Solve: %+v", out)
+	}
+}
+
 func TestCrank(t *testing.T) {
 	p, l := machine(t, puzzle.Crank, 5)
 	var wind []puzzle.Move

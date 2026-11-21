@@ -23,14 +23,19 @@ func book(t *testing.T) *sheets.Book {
 	return b
 }
 
-// machines is every level, tier and screen a family is checked at.
+// shapes are the looks every family has a puzzles.shapes row for.
+var shapes = []int64{0, 1}
+
+// machines is every level, tier, shape and screen a family is checked at.
 func machines(fam string) []puzzle.Spec {
 	var out []puzzle.Spec
 	for level := int64(1); level <= 12; level++ {
 		for tier := int64(1); tier <= 4; tier++ {
-			for _, compact := range []bool{false, true} {
-				out = append(out, puzzle.Spec{Family: fam, Level: level, Tier: tier,
-					Place: "tile:3,-2", Beat: level*10 + tier, Compact: compact})
+			for _, shape := range shapes {
+				for _, compact := range []bool{false, true} {
+					out = append(out, puzzle.Spec{Family: fam, Level: level, Tier: tier,
+						Place: "tile:3,-2", Beat: level*10 + tier, Compact: compact, Shape: shape})
+				}
 			}
 		}
 	}
@@ -38,7 +43,7 @@ func machines(fam string) []puzzle.Spec {
 }
 
 func name(s puzzle.Spec) string {
-	return fmt.Sprintf("%s level %d tier %d compact %v attempt %d", s.Family, s.Level, s.Tier, s.Compact, s.Attempt)
+	return fmt.Sprintf("%s level %d tier %d shape %d compact %v attempt %d", s.Family, s.Level, s.Tier, s.Shape, s.Compact, s.Attempt)
 }
 
 // cutShort is the first half of a log, stopped at its last move.
@@ -80,9 +85,9 @@ func TestFourteenFamilies(t *testing.T) {
 	}
 }
 
-// Solve's log solves every family's machine at every level, tier and
-// screen inside the countdown at no practice; half of it does not; and an
-// empty or late log haywires.
+// Solve's log solves every family's machine at every level, tier, shape
+// and screen inside the countdown at no practice; half of it does not;
+// and an empty or late log haywires.
 func TestSolveSolves(t *testing.T) {
 	p := puzzles(t)
 	grace := p.Param("network-grace") * 1000
@@ -184,7 +189,7 @@ func TestPlayMatchesReplay(t *testing.T) {
 	p := puzzles(t)
 	for _, fam := range firstEight {
 		for _, s := range machines(fam) {
-			if s.Compact {
+			if s.Compact || s.Shape > 0 {
 				continue
 			}
 			l := p.Generate(fam, s.Level, s.Tier, s.Where())
@@ -209,32 +214,40 @@ func TestPlayMatchesReplay(t *testing.T) {
 func TestMaster(t *testing.T) {
 	p := puzzles(t)
 	for _, fam := range p.All() {
-		s := puzzle.Spec{Family: fam, Level: 2, Tier: 1, Place: "floor:barrow/1", Beat: 4}
-		cd := p.Countdown(fam, s.Level, s.Tier, 0)
-		l, inner := p.Make(s), p.Inner(s)
-		if inner.Level != s.Level+1 || inner.Family != fam {
-			t.Fatalf("%s: inner panel is %s level %d", fam, inner.Family, inner.Level)
+		for _, shape := range shapes {
+			master(t, p, puzzle.Spec{Family: fam, Level: 2, Tier: 1, Place: "floor:barrow/1", Beat: 4, Shape: shape})
 		}
-		if reflect.DeepEqual(inner, p.Make(puzzle.Spec{Family: fam, Level: s.Level + 1, Tier: 1, Place: s.Place, Beat: s.Beat})) {
-			t.Fatalf("%s: the inner panel is the machine one level up", fam)
-		}
-		log := masterLog(p, l, inner)
-		r := p.Play(s, log, puzzle.Limits{Countdown: cd, Elapsed: -1, Master: true})
-		if !r.Solved || !r.Master {
-			t.Fatalf("%s: both panels solved, but %+v", fam, r)
-		}
-		if p.HaulPercent(r) != p.HaulPercent(puzzle.Result{Solved: true, Clean: true}) {
-			t.Fatalf("%s: a master's solve is not paid as clean", fam)
-		}
-		plain := p.Play(s, log, puzzle.Limits{Countdown: cd, Elapsed: -1})
-		if !plain.Solved || plain.Master || plain.At != r.At {
-			t.Fatalf("%s: without mastery the same log gave %+v", fam, plain)
-		}
-		// A failed inner panel costs nothing.
-		bad := puzzle.Log{Moves: append(slices.Clone(p.Solve(l).Moves), puzzle.Move{At: r.At + 1, A: -1})}
-		if got := p.Play(s, bad, puzzle.Limits{Countdown: cd, Elapsed: -1, Master: true}); !got.Solved || got.Master || got.Clean != plain.Clean {
-			t.Fatalf("%s: a broken inner panel gave %+v", fam, got)
-		}
+	}
+}
+
+func master(t *testing.T, p *puzzle.Puzzles, s puzzle.Spec) {
+	t.Helper()
+	fam := s.Family
+	cd := p.Countdown(fam, s.Level, s.Tier, 0)
+	l, inner := p.Make(s), p.Inner(s)
+	up := puzzle.Spec{Family: fam, Level: s.Level + p.Param("inner-levels"), Tier: 1, Place: s.Place, Beat: s.Beat, Shape: s.Shape}
+	if inner.Level != up.Level || inner.Family != fam || inner.Shape != s.Shape || inner.Decoys != p.Make(up).Decoys+p.Param("inner-decoys") {
+		t.Fatalf("%s: inner panel is %s level %d shape %d with %d decoys", name(s), inner.Family, inner.Level, inner.Shape, inner.Decoys)
+	}
+	if reflect.DeepEqual(inner, p.Make(up)) {
+		t.Fatalf("%s: the inner panel is the machine at its level", name(s))
+	}
+	log := masterLog(p, l, inner)
+	r := p.Play(s, log, puzzle.Limits{Countdown: cd, Elapsed: -1, Master: true})
+	if !r.Solved || !r.Master {
+		t.Fatalf("%s: both panels solved, but %+v", name(s), r)
+	}
+	if p.HaulPercent(r) != p.HaulPercent(puzzle.Result{Solved: true, Clean: true}) {
+		t.Fatalf("%s: a master's solve is not paid as clean", name(s))
+	}
+	plain := p.Play(s, log, puzzle.Limits{Countdown: cd, Elapsed: -1})
+	if !plain.Solved || plain.Master || plain.At != r.At {
+		t.Fatalf("%s: without mastery the same log gave %+v", name(s), plain)
+	}
+	// A failed inner panel costs nothing.
+	bad := puzzle.Log{Moves: append(slices.Clone(p.Solve(l).Moves), puzzle.Move{At: r.At + 1, A: -1})}
+	if got := p.Play(s, bad, puzzle.Limits{Countdown: cd, Elapsed: -1, Master: true}); !got.Solved || got.Master || got.Clean != plain.Clean {
+		t.Fatalf("%s: a broken inner panel gave %+v", name(s), got)
 	}
 }
 
@@ -295,6 +308,16 @@ func TestLimits(t *testing.T) {
 	}
 }
 
+func wildSpecs(fam string) []puzzle.Spec {
+	var out []puzzle.Spec
+	for _, level := range []int64{1, 4, 9} {
+		for _, shape := range shapes {
+			out = append(out, puzzle.Spec{Family: fam, Level: level, Tier: 2, Place: "tile:0,0", Beat: 1, Shape: shape})
+		}
+	}
+	return out
+}
+
 // Any log at all ends in a result: wild moves break the machine, never
 // the process.
 func TestWildLogs(t *testing.T) {
@@ -302,9 +325,8 @@ func TestWildLogs(t *testing.T) {
 	rng := rand.New(rand.NewPCG(7, 11))
 	wild := []int64{-1 << 40, -2, -1, 0, 1, 2, 3, 5, 9, 60, 300, 1 << 40}
 	for _, fam := range p.All() {
-		for _, level := range []int64{1, 4, 9} {
-			s := puzzle.Spec{Family: fam, Level: level, Tier: 2, Place: "tile:0,0", Beat: 1}
-			cd := p.Countdown(fam, level, 2, 0)
+		for _, s := range wildSpecs(fam) {
+			cd := p.Countdown(fam, s.Level, 2, 0)
 			solve := p.Solve(p.Make(s)).Moves
 			for range 400 {
 				var log puzzle.Log
@@ -377,5 +399,213 @@ func TestHints(t *testing.T) {
 				t.Fatalf("%s: no hints", name(s))
 			}
 		}
+	}
+}
+
+// A shape is drawn by weight among those open at the level, the same way
+// every time; below a later shape's level, and on the frozen sheets,
+// there is only the first.
+func TestShapeDraw(t *testing.T) {
+	p, q, frozen := puzzles(t), puzzles(t), frozenPuzzles(t)
+	rows := map[string]int64{}
+	for _, r := range book(t).PuzzleShapes {
+		if r.Shape > 0 {
+			rows[r.Family] = r.MinLevel
+		}
+	}
+	for _, fam := range p.All() {
+		if got := p.Shapes(fam); !slices.Equal(got, shapes) {
+			t.Fatalf("%s has shapes %v, want %v", fam, got, shapes)
+		}
+		count := map[int64]int{}
+		for level := int64(1); level <= 12; level++ {
+			for beat := range int64(40) {
+				w := puzzle.Where{Place: fmt.Sprintf("tile:%d,%d", beat, -level), Beat: beat}
+				got := p.Shape(fam, level, w)
+				if got != q.Shape(fam, level, w) || got != p.Shape(fam, level, w) {
+					t.Fatalf("%s level %d: the shape draw moved", fam, level)
+				}
+				if frozen.Shape(fam, level, w) != 0 {
+					t.Fatalf("%s level %d: a shape past the first on the frozen sheets", fam, level)
+				}
+				if level < rows[fam] && got != 0 {
+					t.Fatalf("%s level %d: shape %d below its level %d", fam, level, got, rows[fam])
+				}
+				if level >= rows[fam] {
+					count[got]++
+				}
+			}
+		}
+		// Even weights: each shape within a third of half the draws.
+		n := count[0] + count[1]
+		if lo := n / 3; count[0] < lo || count[1] < lo {
+			t.Fatalf("%s: shapes drawn %v", fam, count)
+		}
+	}
+}
+
+// A shape past the first is its own machine: it says its shape, is drawn
+// afresh, and a second try at it is another machine again.
+func TestShapedLayouts(t *testing.T) {
+	p := puzzles(t)
+	for _, fam := range p.All() {
+		s := puzzle.Spec{Family: fam, Level: 7, Tier: 1, Place: "tile:4,4", Beat: 2}
+		first := p.Make(s)
+		s.Shape = 1
+		shaped := p.Make(s)
+		if first.Shape != 0 || shaped.Shape != 1 {
+			t.Fatalf("%s: shapes %d and %d", fam, first.Shape, shaped.Shape)
+		}
+		if shaped.Size != first.Size || shaped.Decoys != first.Decoys {
+			t.Fatalf("%s: shape 1 is size %d with %d decoys, shape 0 %d with %d", fam, shaped.Size, shaped.Decoys, first.Size, first.Decoys)
+		}
+		unshaped := shaped
+		unshaped.Shape, unshaped.Range = 0, first.Range
+		if reflect.DeepEqual(unshaped, first) {
+			t.Fatalf("%s: shape 1 was laid on shape 0's stream", fam)
+		}
+		s.Attempt = 1
+		if reflect.DeepEqual(p.Make(s), shaped) {
+			t.Fatalf("%s: a second try at shape 1 was the first again", fam)
+		}
+	}
+}
+
+// structural: a hex cell's sides, and the hex tile kinds a circuit draws.
+const (
+	hexSides = 6
+	hexKinds = 6
+)
+
+// A hex maze has six sides a cell, walls that agree from both sides, a
+// closed rim, and every cell reachable.
+func TestHexMaze(t *testing.T) {
+	p := puzzles(t)
+	diagonal := false
+	for level := int64(1); level <= 12; level++ {
+		l := p.Make(puzzle.Spec{Family: puzzle.Maze, Level: level, Tier: 1, Place: "tile:1,1", Beat: level, Shape: 1})
+		n := l.Size
+		at := func(q, r int64) int64 { return r*n + q }
+		// E, SE, SW, W, NW, NE in axial steps.
+		dq := []int64{1, 0, -1, -1, 0, 1}
+		dr := []int64{0, 1, 1, 0, -1, -1}
+		seen := map[int64]bool{0: true}
+		queue := []int64{0}
+		for len(queue) > 0 {
+			c := queue[0]
+			queue = queue[1:]
+			if l.Walls[c] < 0 || l.Walls[c] >= 1<<hexSides {
+				t.Fatalf("level %d: cell %d walls %b", level, c, l.Walls[c])
+			}
+			q, r := c%n, c/n
+			for d := range int64(hexSides) {
+				nq, nr := q+dq[d], r+dr[d]
+				open := l.Walls[c]&(1<<d) == 0
+				if nq < 0 || nr < 0 || nq >= n || nr >= n {
+					if open {
+						t.Fatalf("level %d: cell %d is open off the board to side %d", level, c, d)
+					}
+					continue
+				}
+				nb := at(nq, nr)
+				if back := l.Walls[nb]&(1<<((d+hexSides/2)%hexSides)) == 0; back != open {
+					t.Fatalf("level %d: the wall between %d and %d differs from its two sides", level, c, nb)
+				}
+				if open && !seen[nb] {
+					seen[nb] = true
+					queue = append(queue, nb)
+				}
+			}
+		}
+		if int64(len(seen)) != n*n {
+			t.Fatalf("level %d: %d of %d cells reachable", level, len(seen), n*n)
+		}
+		for _, m := range p.Solve(l).Moves {
+			diagonal = diagonal || m.A == 1 || m.A == 4 || m.A == 2 || m.A == 5
+		}
+		if status(l, 0, puzzle.Move{A: hexSides}) != puzzle.Broke || status(l, 0, puzzle.Move{A: hexSides - 1}) == puzzle.Broke {
+			t.Fatalf("level %d: a hex tilt is A in [0, 6)", level)
+		}
+	}
+	if !diagonal {
+		t.Fatal("no hex maze's solve leaves the east-west line along a hex side")
+	}
+	square := p.Make(puzzle.Spec{Family: puzzle.Maze, Level: 5, Tier: 1, Place: "tile:1,1", Beat: 5})
+	if status(square, 0, puzzle.Move{A: 4}) != puzzle.Broke {
+		t.Fatal("a square maze took a fifth side")
+	}
+}
+
+// A hex circuit is laid from hex tiles turned in sixths: power leaves the
+// source and reaches the load through ends, and six turns of a tile bring
+// it back.
+func TestHexCircuit(t *testing.T) {
+	p := puzzles(t)
+	kinds := map[int64]bool{}
+	for level := int64(1); level <= 12; level++ {
+		l := p.Make(puzzle.Spec{Family: puzzle.Circuit, Level: level, Tier: 1, Place: "tile:1,1", Beat: level, Shape: 1})
+		last := l.Size*l.Size - 1
+		for c, k := range l.Tiles {
+			if k < 0 || k >= hexKinds || l.Turn[c] < 0 || l.Turn[c] >= hexSides {
+				t.Fatalf("level %d: tile %d is kind %d at turn %d", level, c, k, l.Turn[c])
+			}
+			kinds[k] = true
+		}
+		if end := int64(hexKinds - 1); l.Tiles[0] != end || l.Tiles[last] != end {
+			t.Fatalf("level %d: the source and load are kinds %d and %d, not ends", level, l.Tiles[0], l.Tiles[last])
+		}
+		var six []puzzle.Move
+		for range hexSides {
+			six = append(six, puzzle.Move{A: 0})
+		}
+		_, seen := states(l, puzzle.Log{Moves: six})
+		if seen[0][0] != (l.Turn[0]+1)%hexSides || seen[hexSides-1][0] != l.Turn[0] {
+			t.Fatalf("level %d: six turns of the source went %d, then %d from %d", level, seen[0][0], seen[hexSides-1][0], l.Turn[0])
+		}
+	}
+	for k := range int64(hexKinds) {
+		if !kinds[k] {
+			t.Fatalf("no hex circuit holds tile kind %d: %v", k, kinds)
+		}
+	}
+}
+
+// Override's ring pad has the shape row's six symbols.
+func TestOverrideRing(t *testing.T) {
+	p := puzzles(t)
+	s := puzzle.Spec{Family: puzzle.Override, Level: 12, Tier: 1, Place: "tile:1,1", Beat: 1}
+	pad := p.Make(s)
+	s.Shape = 1
+	ring := p.Make(s)
+	if pad.Range != 4 || ring.Range != 6 || slices.Max(ring.Order) < pad.Range || slices.Max(ring.Order) >= ring.Range {
+		t.Fatalf("pad of %d, ring of %d holding %v", pad.Range, ring.Range, ring.Order)
+	}
+}
+
+// The opening Rewire's band under the Battle model, the odds band its
+// solve rate reaches, is at most one band worse than on MM7's puzzle
+// sheets, for all its look-alike port.
+func TestIntroBand(t *testing.T) {
+	bands := book(t).OddsBands
+	bandOf := func(p *puzzle.Puzzles) (int64, string) {
+		fam, level := p.IntroMachine()
+		rate := p.SolveRate(fam, 0, level, 1, 1)
+		rank := bands[0].Rank
+		for _, b := range bands {
+			if b.Chance <= rate && b.Rank > rank {
+				rank = b.Rank
+			}
+		}
+		return rank, rate.String()
+	}
+	p, mm7 := puzzles(t), frozenPuzzles(t)
+	fam, level := p.IntroMachine()
+	if l := p.Make(puzzle.Spec{Family: fam, Level: level, Tier: 1, Place: "tile:0,0"}); l.Size != p.Param("intro-wires") || l.Decoys != 1 {
+		t.Fatalf("the opening Rewire has %d wires and %d look-alike ports", l.Size, l.Decoys)
+	}
+	now, rate := bandOf(p)
+	was, old := bandOf(mm7)
+	if now < was-1 {
+		t.Fatalf("the opening machine's band fell from %d (%s) to %d (%s)", was, old, now, rate)
 	}
 }

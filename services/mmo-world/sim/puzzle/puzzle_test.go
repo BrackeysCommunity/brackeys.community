@@ -107,10 +107,11 @@ func TestCleanSolveAndHaul(t *testing.T) {
 
 func TestSolveRate(t *testing.T) {
 	p := puzzles(t)
-	// 75% less 3% a level and 8% a tier: 27% at level 9, tier 4.
+	// 75% less 3% a level, 1% a decoy and 8% a tier: 22% at level 9 (five
+	// look-alike ports), tier 4.
 	low := p.SolveRate(puzzle.Rewire, 0, 9, 4, 1)
 	high := p.SolveRate(puzzle.Rewire, 20, 1, 1, 4)
-	if low.String() != "0.27" || high.String() != "0.95" {
-		t.Fatalf("solve rate %s to %s, want 0.27 to the 0.95 ceiling", low, high)
+	if low.String() != "0.22" || high.String() != "0.95" {
+		t.Fatalf("solve rate %s to %s, want 0.22 to the 0.95 ceiling", low, high)
 	}
 }

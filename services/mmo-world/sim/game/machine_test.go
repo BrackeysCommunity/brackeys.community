@@ -768,7 +768,7 @@ func TestMastery(t *testing.T) {
 
 	testkit.MachineBeat(t, g, c, puzzle.Fuse, 2)
 	rig := b.rig(c, game.Viewer{})
-	if rig.Inner == nil || rig.Inner.Level != rig.Spec.Level+1 {
+	if rig.Inner == nil || rig.Inner.Level != rig.Spec.Level+p.Param("inner-levels") {
 		t.Fatalf("a master's rig has no inner panel: %+v", rig.Inner)
 	}
 	b.must(c, arm(game.SourceBeat))
