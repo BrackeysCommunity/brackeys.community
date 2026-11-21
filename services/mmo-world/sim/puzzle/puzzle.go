@@ -96,6 +96,11 @@ type Spec struct {
 	Beat    int64  `json:"beat"`
 	Attempt int64  `json:"attempt,omitempty"`
 	Compact bool   `json:"compact,omitempty"`
+	// Shape is the layout's shape row, 0 for the family's first; Party a
+	// puzzles.party row, with Seats the hands on it.
+	Shape int64  `json:"shape,omitempty"`
+	Party string `json:"party,omitempty"`
+	Seats int64  `json:"seats,omitempty"`
 }
 
 func (s Spec) Where() Where { return Where{Place: s.Place, Beat: s.Beat} }
@@ -222,6 +227,16 @@ type Layout struct {
 	Par   []int64 `json:"par,omitempty"`
 	Init  []int64 `json:"init,omitempty"`
 	Track []int64 `json:"track,omitempty"`
+	// A party version's own: Window is how close in ms its seats must act
+	// together, Pass the progress before the roles pass on, and Key and
+	// Code its extra arrays.
+	Shape  int64   `json:"shape,omitempty"`
+	Party  string  `json:"party,omitempty"`
+	Seats  int64   `json:"seats,omitempty"`
+	Window int64   `json:"window,omitempty"`
+	Pass   int64   `json:"pass,omitempty"`
+	Key    []int64 `json:"key,omitempty"`
+	Code   []int64 `json:"code,omitempty"`
 }
 
 // Clue says one fuse is pulled before another.
@@ -289,12 +304,14 @@ func (p *Puzzles) lay(s Spec, label draw.Purpose, more ...draw.Part) Layout {
 }
 
 // Move is one input, in milliseconds since the first touch armed the
-// countdown. A, B and C are the family's own.
+// countdown. A, B and C are the family's own; Seat is the hand that made
+// it on a party machine.
 type Move struct {
-	At int64 `json:"at"`
-	A  int64 `json:"a"`
-	B  int64 `json:"b,omitempty"`
-	C  int64 `json:"c,omitempty"`
+	At   int64 `json:"at"`
+	A    int64 `json:"a"`
+	B    int64 `json:"b,omitempty"`
+	C    int64 `json:"c,omitempty"`
+	Seat int64 `json:"seat,omitempty"`
 }
 
 // Log is a move log: inputs in order, and the millisecond the player

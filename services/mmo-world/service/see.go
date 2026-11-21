@@ -158,7 +158,9 @@ func benchView(g *game.Game, c *game.Char, b game.Bench) *api.BenchView {
 	return out
 }
 
-func apiMove(m puzzle.Move) *api.PuzzleMove { return &api.PuzzleMove{At: m.At, A: m.A, B: m.B, C: m.C} }
+func apiMove(m puzzle.Move) *api.PuzzleMove {
+	return &api.PuzzleMove{At: m.At, A: m.A, B: m.B, C: m.C, Seat: m.Seat}
+}
 
 // LogOf is a move log as a client sends it.
 func LogOf(l puzzle.Log) *api.PuzzleLog {
@@ -176,7 +178,7 @@ func simLog(l *api.PuzzleLog) *puzzle.Log {
 	}
 	out := &puzzle.Log{Moves: make([]puzzle.Move, len(l.Moves)), End: l.End}
 	for i, m := range l.Moves {
-		out.Moves[i] = puzzle.Move{At: m.At, A: m.A, B: m.B, C: m.C}
+		out.Moves[i] = puzzle.Move{At: m.At, A: m.A, B: m.B, C: m.C, Seat: m.Seat}
 	}
 	return out
 }
@@ -185,7 +187,8 @@ func simLog(l *api.PuzzleLog) *puzzle.Log {
 // tier. LayoutOf is its inverse; a field added to one is added to both.
 func apiLayout(l puzzle.Layout) api.PuzzleLayout {
 	out := api.PuzzleLayout{Family: l.Family, Size: l.Size, Decoys: l.Decoys, Target: l.Target, Glyph: l.Glyph, Order: l.Order, False: l.False,
-		Turn: l.Turn, Walls: l.Walls, Tiles: l.Tiles, Start: l.Start, Goal: l.Goal, Range: l.Range, Step: l.Step, Par: l.Par, Init: l.Init, Track: l.Track}
+		Turn: l.Turn, Walls: l.Walls, Tiles: l.Tiles, Start: l.Start, Goal: l.Goal, Range: l.Range, Step: l.Step, Par: l.Par, Init: l.Init, Track: l.Track,
+		Shape: l.Shape, Party: l.Party, Seats: l.Seats, Window: l.Window, Pass: l.Pass, Key: l.Key, Code: l.Code}
 	for _, c := range l.Clues {
 		out.Clues = append(out.Clues, api.PuzzleClue{Before: c.Before, After: c.After})
 	}
@@ -196,7 +199,8 @@ func apiLayout(l puzzle.Layout) api.PuzzleLayout {
 // on the wire, and no replay reads them.
 func LayoutOf(l api.PuzzleLayout) puzzle.Layout {
 	out := puzzle.Layout{Family: l.Family, Size: l.Size, Decoys: l.Decoys, Target: l.Target, Glyph: l.Glyph, Order: l.Order, False: l.False,
-		Turn: l.Turn, Walls: l.Walls, Tiles: l.Tiles, Start: l.Start, Goal: l.Goal, Range: l.Range, Step: l.Step, Par: l.Par, Init: l.Init, Track: l.Track}
+		Turn: l.Turn, Walls: l.Walls, Tiles: l.Tiles, Start: l.Start, Goal: l.Goal, Range: l.Range, Step: l.Step, Par: l.Par, Init: l.Init, Track: l.Track,
+		Shape: l.Shape, Party: l.Party, Seats: l.Seats, Window: l.Window, Pass: l.Pass, Key: l.Key, Code: l.Code}
 	for _, c := range l.Clues {
 		out.Clues = append(out.Clues, puzzle.Clue{Before: c.Before, After: c.After})
 	}

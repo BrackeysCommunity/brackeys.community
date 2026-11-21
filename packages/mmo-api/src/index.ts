@@ -125,25 +125,30 @@ export const CodeLockedDown = "locked-down";
  */
 export const CodeNoLesson = "no-lesson";
 /**
- * Where a machine is.
+ * Where a machine is; a party's are MachineParty, MachineFork and
+ * MachineGuardian.
  */
 export const MachineBeat = "beat";
 /**
- * Where a machine is.
+ * Where a machine is; a party's are MachineParty, MachineFork and
+ * MachineGuardian.
  */
 export const MachinePouch = "pouch";
 /**
- * Where a machine is.
+ * Where a machine is; a party's are MachineParty, MachineFork and
+ * MachineGuardian.
  */
 export const MachineBench = "bench";
 /**
- * PuzzleMove is one input, in milliseconds since the first touch.
+ * PuzzleMove is one input, in milliseconds since the first touch. Seat is
+ * the hand that made it on a party machine; the gateway stamps it.
  */
 export interface PuzzleMove {
   at: number /* int64 */;
   a: number /* int64 */;
   b?: number /* int64 */;
   c?: number /* int64 */;
+  seat?: number /* int64 */;
 }
 /**
  * PuzzleLog is what a client sends for a machine: its inputs and the
@@ -162,7 +167,8 @@ export interface PuzzleClue {
 }
 /**
  * PuzzleLayout is a machine as it is drawn. It carries no level, tier,
- * place or key.
+ * place or generation key; Key is a party version's extra array. In a
+ * seat's dealt view an element it is not shown is Unseen.
  */
 export interface PuzzleLayout {
   family: string;
@@ -183,7 +189,18 @@ export interface PuzzleLayout {
   par?: number /* int64 */[];
   init?: number /* int64 */[];
   track?: number /* int64 */[];
+  shape?: number /* int64 */;
+  party?: string;
+  seats?: number /* int64 */;
+  window?: number /* int64 */; // ms
+  pass?: number /* int64 */;
+  key?: number /* int64 */[];
+  code?: number /* int64 */[];
 }
+/**
+ * Unseen is an element of a dealt view the seat is not shown.
+ */
+export const Unseen = -1 << 31;
 /**
  * PuzzleResult is the one fact a move log became.
  */
@@ -236,11 +253,11 @@ export interface Viewer {
   pouch?: string;
 }
 /**
- * Context is the game context a seat is bound to. Solo, it is one
- * character's own.
+ * Context is the game context a seat is bound to: a Context* kind and its
+ * id, the character for solo, else the party or the hunt.
  */
 export interface Context {
-  kind: string; // "solo"
+  kind: string;
   id: string;
 }
 /**
@@ -253,6 +270,7 @@ export interface ClientMessage {
   look?: Viewer;
   intent?: Intent;
   hint?: PuzzleMove;
+  move?: PuzzleMove;
 }
 /**
  * ClientHello opens a socket: the session token, the Activity instance and the screen.
@@ -272,6 +290,8 @@ export interface Intent {
   kind: string;
   option?: string;
   machine?: MachineIntent;
+  target?: string; // a hunt-press's hunt
+  item?: string; // a deck-swap's deck
 }
 /**
  * ServerMessage is one frame from the gateway; T is a server Frame* name.
@@ -283,6 +303,8 @@ export interface ServerMessage {
   reply?: IntentReply;
   hint?: PuzzleMove;
   bye?: string; // a Bye* reason
+  move?: PuzzleMove;
+  moves?: PuzzleMove[];
 }
 /**
  * IntentReply is the world's answer to one intent.
@@ -311,6 +333,9 @@ export interface ActivityState {
   bench?: BenchView;
   pouches?: PouchView[];
   last?: MachineDone;
+  party?: PartyView;
+  floor?: FloorView;
+  hunt?: HuntView;
 }
 /**
  * ActivityHere is the tile the character stands on, and how busy it is.
@@ -354,6 +379,8 @@ export interface HaywireLine {
  * MachineView is the machine a viewer may work. Level, Countdown, Why and
  * Haywire are set at rest only for a viewer with the preview, and always
  * once armed. A bench rig carries its Level and MaxPlay and none of the rest.
+ * On a party machine Layout is the viewer's seat's dealt view, and Movers
+ * counts the seats that have moved.
  */
 export interface MachineView {
   source: string;
@@ -381,6 +408,10 @@ export interface MachineView {
   due?: number /* int64 */; // unix ms, grace included: when the server ends it
   locked?: number /* int64 */; // ticks until a lockdown lifts
   practice: PracticeLine;
+  party?: string; // a party version
+  seat?: number /* int64 */;
+  seats?: SeatView[];
+  movers?: number /* int64 */;
 }
 /**
  * PracticeLine is a family's practice: level, uses toward the next, and
@@ -440,11 +471,13 @@ export interface MachineDone {
 /**
  * ArmedMachine is a countdown the gateway must enforce. Due is unix ms
  * with the grace included; ArmedAt names the machine among a character's.
+ * Context is set on a party machine, whose merged log is kept by context.
  */
 export interface ArmedMachine {
   characterId: string;
   armedAt: number /* int64 */;
   due: number /* int64 */;
+  context?: string;
 }
 
 //////////
@@ -656,10 +689,15 @@ export interface ActionRequest {
    * Machine is what a machine action carries (GDD 7.11).
    */
   machine?: MachineIntent;
+  /**
+   * Along is the Haul goal whose shared route a travel follows.
+   */
+  along?: string;
 }
 /**
  * OperatorRequest is an operator's correction, grant or ban: recorded as
- * a fact and replayed like any action.
+ * a fact and replayed like any action. A world-level kind (OpHuntStart)
+ * names no character.
  */
 export interface OperatorRequest {
   interactionId: string;
@@ -672,6 +710,10 @@ export interface OperatorRequest {
    * Target is the goal an operator hides.
    */
   target?: string;
+  /**
+   * To is the tile a hunt opens on, or the dungeon whose name is hidden.
+   */
+  to?: Hex;
 }
 /**
  * ActionReply is what an accepted press did. Duplicate is true when the
@@ -852,7 +894,8 @@ export interface Option {
 /**
  * Fight is the beat a character faces. An ambush resolves with Default at
  * the first tick after Due if its owner has not answered. Machine is the
- * family on a Lock or Puzzle beat, which is worked in the Activity.
+ * family on a Lock or Puzzle beat, which is worked in the Activity. A shared
+ * encounter lists its party, with who has picked, never what.
  */
 export interface Fight {
   id: string;
@@ -865,6 +908,10 @@ export interface Fight {
   due?: number /* int64 */;
   options: Option[];
   machine?: string;
+  floor?: number /* int64 */;
+  shared?: boolean;
+  party?: PartyMember[];
+  hidden?: boolean;
 }
 /**
  * Options is everything a character can do now. Version is the row
@@ -1392,6 +1439,489 @@ export interface Flagged {
   characterId: string;
   flags: string[];
   streak: number /* int64 */;
+}
+
+//////////
+// source: party.go
+
+/**
+ * Paths of parties and hunts (GDD 7.5, 7.6). PathParties is the bot's
+ * alone.
+ */
+export const PathParty = "/v1/party";
+/**
+ * Paths of parties and hunts (GDD 7.5, 7.6). PathParties is the bot's
+ * alone.
+ */
+export const PathParties = "/v1/parties";
+/**
+ * Paths of parties and hunts (GDD 7.5, 7.6). PathParties is the bot's
+ * alone.
+ */
+export const PathHunts = "/v1/hunts";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActPartyInvite = "party-invite";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActPartyJoin = "party-join";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActPartyLeave = "party-leave";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActPartyPick = "party-pick";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActPartyWindow = "party-window"; // the pick-window clock's, never a player's
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActFollow = "follow";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActUnfollow = "unfollow";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActDungeonPush = "dungeon-push";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActDungeonLeave = "dungeon-leave";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActDungeonName = "dungeon-name";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActKeyMake = "key-make";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActHuntPress = "hunt-press";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActDeckSwap = "deck-swap";
+/**
+ * Action kinds of parties, dungeons and hunts.
+ */
+export const ActFollowTrack = "follow-track";
+/**
+ * OpHuntStart opens a hunt: Asset is the fights.hunts row, To the tile.
+ * It acts on the world, so it names no character.
+ */
+export const OpHuntStart = "hunt-start";
+/**
+ * OpHideName hides a dungeon's given name: To is the entrance.
+ */
+export const OpHideName = "hide-name";
+/**
+ * The ways down from a fork, as dungeon-push's Option names them.
+ */
+export const WayOpen = "way-0";
+/**
+ * The ways down from a fork, as dungeon-push's Option names them.
+ */
+export const WayMachine = "way-1";
+/**
+ * The ways down from a fork, as dungeon-push's Option names them.
+ */
+export const WayHidden = "way-2";
+/**
+ * Machine sources a party plays.
+ */
+export const MachineParty = "party";
+/**
+ * Machine sources a party plays.
+ */
+export const MachineFork = "fork";
+/**
+ * Machine sources a party plays.
+ */
+export const MachineGuardian = "guardian";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNotInParty = "not-in-party";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeInParty = "in-party";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodePartyFull = "party-full";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeOutOfReach = "out-of-reach";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoInvite = "no-invite";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodePicked = "picked";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNotDue = "not-due";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoFork = "no-fork";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoWay = "no-way";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeChose = "chose";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNamed = "named";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeBadName = "bad-name";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNotLeader = "not-leader";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoKeyMaker = "no-key-maker";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeShort = "short";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoHunt = "no-hunt";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodePressed = "pressed";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeOpenHunt = "open-hunt";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoSuchRow = "no-such-row";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoSlot = "no-slot";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeSwapped = "swapped";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoTrack = "no-track";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeRivalWon = "rival-won";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeNoRoute = "no-route";
+/**
+ * Refusal codes the party, dungeon and hunt rules give.
+ */
+export const CodeUsed = "used";
+/**
+ * CodePartyNotSeated is the gateway's own: a party machine arms only
+ * when every member present has a seat bound to the party.
+ */
+export const CodePartyNotSeated = "party-not-seated";
+/**
+ * The kinds of context a seat is bound to.
+ */
+export const ContextSolo = "solo";
+/**
+ * The kinds of context a seat is bound to.
+ */
+export const ContextParty = "party";
+/**
+ * The kinds of context a seat is bound to.
+ */
+export const ContextHunt = "hunt";
+/**
+ * The frames a party machine's moves travel in.
+ */
+export const FrameMove = "move"; // client → gateway: one move; gateway → seats: one seated move
+/**
+ * The frames a party machine's moves travel in.
+ */
+export const FrameMoves = "moves"; // gateway → a seat: the merged log so far, on return
+/**
+ * PartyView is the viewer's party, as the Activity draws it.
+ */
+export interface PartyView {
+  id: string;
+  leader: boolean; // the viewer leads
+  members: PartyMember[];
+  beat?: PartyBeat;
+}
+/**
+ * PartyMember is one member as the others see them: whether they have
+ * picked, never what.
+ */
+export interface PartyMember {
+  name: string;
+  you?: boolean;
+  here: boolean;
+  down?: boolean;
+  picked?: boolean;
+  floor?: number /* int64 */;
+  seat: number /* int64 */; // -1 when not in the shared encounter
+  follows?: boolean;
+}
+/**
+ * PartyBeat is the shared encounter's open beat and its pick window.
+ */
+export interface PartyBeat {
+  beat: number /* int64 */; // 1-based
+  beats: number /* int64 */;
+  kind: string;
+  picked: number /* int64 */;
+  present: number /* int64 */;
+  opened?: number /* int64 */; // unix ms
+  due?: number /* int64 */; // unix ms
+  cautious: string;
+  mine?: string; // the viewer's own pick
+  waiting?: boolean; // the window waits on a machine
+}
+/**
+ * FloorView is the dungeon floor the viewer stands on, and its fork.
+ */
+export interface FloorView {
+  dungeon: string; // "q,r"
+  name?: string;
+  kind: string;
+  up?: boolean;
+  floor: number /* int64 */;
+  deepest: number /* int64 */; // the viewer's; never the count
+  bottom?: boolean; // only once the viewer stands on it
+  ways?: WayView[];
+  choices?: ChoiceView[];
+  opened?: number /* int64 */; // unix ms
+  due?: number /* int64 */; // unix ms
+  pool?: Goods[]; // Hoard sense only
+  haunted?: boolean;
+  downed?: string[]; // names down on this floor
+}
+/**
+ * WayView is one way down from a fork.
+ */
+export interface WayView {
+  id: string; // a Way* id
+  name: string;
+  tags: string[];
+  open: boolean;
+  machine?: string; // the family behind it
+  next?: string[]; // Mapper: the next floor's first beat's tags
+  votes: number /* int64 */;
+}
+/**
+ * ChoiceView is one member's choice at a fork: choices are open.
+ */
+export interface ChoiceView {
+  name: string;
+  push: boolean;
+  way?: string;
+}
+/**
+ * HuntView is the live hunt within the viewer's reach.
+ */
+export interface HuntView {
+  id: string;
+  name: string;
+  creature: string;
+  health: number /* int64 */;
+  max: number /* int64 */;
+  ends: number /* int64 */; // tick
+  endsIn: number /* int64 */; // ticks
+  pressers: HuntPresser[];
+  mine: number /* int64 */;
+  share: number /* int64 */; // percent of the spoils the viewer's removal is worth now
+  spoils: Goods[]; // the row's, the most each line can roll
+  canPress: boolean;
+  options?: Option[];
+}
+/**
+ * HuntPresser is one character's part in a hunt: the health it removed.
+ */
+export interface HuntPresser {
+  name: string;
+  removed: number /* int64 */;
+  you?: boolean;
+}
+/**
+ * SeatView is one seat of a party machine.
+ */
+export interface SeatView {
+  seat: number /* int64 */;
+  name: string;
+  you?: boolean;
+  moved?: boolean;
+  here: boolean; // seated in the instance
+}
+/**
+ * OpenWindow is a pick window the clock must close: at Due the named
+ * member sends party-window.
+ */
+export interface OpenWindow {
+  shared: string;
+  character: string; // the first present member
+  opened: number /* int64 */; // unix ms
+  due: number /* int64 */; // unix ms
+}
+/**
+ * PartyState is GET /v1/party: the viewer's party, who is in reach to
+ * invite, the invitations held, and the open beat or fork in the viewer's
+ * own view.
+ */
+export interface PartyState {
+  tick: number /* int64 */;
+  characterId: string;
+  version: number /* int64 */;
+  party?: PartyView;
+  reach: Reachable[];
+  invites: PartyInvite[];
+  floor?: FloorView;
+  fight?: Fight;
+  thread?: PartyThread;
+}
+/**
+ * Reachable is a character in party reach of the viewer.
+ */
+export interface Reachable {
+  characterId: string;
+  name: string;
+  inParty?: boolean; // in a party already: no invitation reaches it
+}
+/**
+ * PartyInvite is an invitation the viewer holds.
+ */
+export interface PartyInvite {
+  party: string;
+  characterId: string; // who invited; party-join's Target
+  name: string;
+  until: number /* int64 */; // tick
+}
+/**
+ * PartyThread is what the bot needs to keep a party's thread: the
+ * members' Discord users, to add them.
+ */
+export interface PartyThread {
+  party: string;
+  members: string[]; // Discord ids, in join order
+}
+/**
+ * Parties is GET /v1/parties: every open party, and those ended since the
+ * last tick, so the bot can open and close threads.
+ */
+export interface Parties {
+  tick: number /* int64 */;
+  parties: PartyBoard[];
+}
+/**
+ * PartyBoard is one party as its thread card shows it to every member:
+ * who has picked or chosen, never what.
+ */
+export interface PartyBoard {
+  id: string;
+  members: BoardMember[];
+  beat?: PartyBeat; // Mine is never set
+  fork?: ForkBoard;
+  opened?: number /* int64 */; // unix ms
+  due?: number /* int64 */; // unix ms
+  ended?: boolean;
+}
+/**
+ * BoardMember is one member on a party's thread card.
+ */
+export interface BoardMember {
+  characterId: string;
+  discordId: string;
+  name: string;
+  picked?: boolean;
+  chose?: boolean;
+  down?: boolean;
+}
+/**
+ * ForkBoard is a party's open fork as every member may see it: the ways
+ * and their votes, with no member's own reads (Mapper, Hoard sense).
+ */
+export interface ForkBoard {
+  dungeon: string; // "q,r"
+  name?: string;
+  kind: string;
+  up?: boolean;
+  floor: number /* int64 */;
+  ways: WayView[];
+}
+/**
+ * HuntBoard is GET /v1/hunts: every live hunt, and those closed since the
+ * last tick, for the game channel's cards.
+ */
+export interface HuntBoard {
+  tick: number /* int64 */;
+  /**
+   * Every is the least ticks between two edits of one card.
+   */
+  every: number /* int64 */;
+  hunts: HuntCard[];
+}
+/**
+ * HuntCard is one hunt's card in the game channel. A closed hunt carries
+ * how it ended: slain with the roll and each presser's part, or left with
+ * the health it kept.
+ */
+export interface HuntCard {
+  id: string;
+  row: string;
+  name: string;
+  creature: string;
+  at: Hex;
+  region: string;
+  health: number /* int64 */;
+  max: number /* int64 */;
+  ends: number /* int64 */; // tick
+  pressers: HuntPresser[];
+  spoils: Goods[]; // the row's, the most each line can roll
+  closed?: boolean;
+  slain?: boolean;
+  rolled?: Goods[];
+  shares?: HuntShare[];
+}
+/**
+ * HuntShare is one presser's part of a slain hunt's roll.
+ */
+export interface HuntShare {
+  name: string;
+  removed: number /* int64 */;
+  goods: Goods[];
 }
 
 //////////

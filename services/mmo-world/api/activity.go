@@ -48,8 +48,10 @@ const (
 )
 
 // ActivityKinds are the writes the Activity may send; everything else is
-// done in chat.
-var ActivityKinds = []string{ActPress, ActMachineArm, ActMachineSolve, ActBenchSolve, ActBenchLesson}
+// done in chat. A party's picks, fork choices and hunt presses are one
+// command from either surface.
+var ActivityKinds = []string{ActPress, ActMachineArm, ActMachineSolve, ActBenchSolve, ActBenchLesson,
+	ActPartyPick, ActDungeonPush, ActDungeonLeave, ActHuntPress, ActDeckSwap}
 
 // ActivityOnly reports whether a kind is refused in chat: a countdown is
 // ended by the Activity's gateway, so it is armed and solved only there.
@@ -63,19 +65,22 @@ const (
 	CodeNoLesson     = "no-lesson"
 )
 
-// Where a machine is.
+// Where a machine is; a party's are MachineParty, MachineFork and
+// MachineGuardian.
 const (
 	MachineBeat  = "beat"
 	MachinePouch = "pouch"
 	MachineBench = "bench"
 )
 
-// PuzzleMove is one input, in milliseconds since the first touch.
+// PuzzleMove is one input, in milliseconds since the first touch. Seat is
+// the hand that made it on a party machine; the gateway stamps it.
 type PuzzleMove struct {
-	At int64 `json:"at"`
-	A  int64 `json:"a"`
-	B  int64 `json:"b,omitempty"`
-	C  int64 `json:"c,omitempty"`
+	At   int64 `json:"at"`
+	A    int64 `json:"a"`
+	B    int64 `json:"b,omitempty"`
+	C    int64 `json:"c,omitempty"`
+	Seat int64 `json:"seat,omitempty"`
 }
 
 // PuzzleLog is what a client sends for a machine: its inputs and the
@@ -92,7 +97,8 @@ type PuzzleClue struct {
 }
 
 // PuzzleLayout is a machine as it is drawn. It carries no level, tier,
-// place or key.
+// place or generation key; Key is a party version's extra array. In a
+// seat's dealt view an element it is not shown is Unseen.
 type PuzzleLayout struct {
 	Family string       `json:"family"`
 	Size   int64        `json:"size"`
@@ -112,7 +118,17 @@ type PuzzleLayout struct {
 	Par    []int64      `json:"par,omitempty"`
 	Init   []int64      `json:"init,omitempty"`
 	Track  []int64      `json:"track,omitempty"`
+	Shape  int64        `json:"shape,omitempty"`
+	Party  string       `json:"party,omitempty"`
+	Seats  int64        `json:"seats,omitempty"`
+	Window int64        `json:"window,omitempty"` // ms
+	Pass   int64        `json:"pass,omitempty"`
+	Key    []int64      `json:"key,omitempty"`
+	Code   []int64      `json:"code,omitempty"`
 }
+
+// Unseen is an element of a dealt view the seat is not shown.
+const Unseen = -1 << 31
 
 // PuzzleResult is the one fact a move log became.
 type PuzzleResult struct {
@@ -160,10 +176,10 @@ type Viewer struct {
 	Pouch   string `json:"pouch,omitempty"`
 }
 
-// Context is the game context a seat is bound to. Solo, it is one
-// character's own.
+// Context is the game context a seat is bound to: a Context* kind and its
+// id, the character for solo, else the party or the hunt.
 type Context struct {
-	Kind string `json:"kind"` // "solo"
+	Kind string `json:"kind"`
 	ID   string `json:"id"`
 }
 
@@ -175,6 +191,7 @@ type ClientMessage struct {
 	Look   *Viewer      `json:"look,omitempty"`
 	Intent *Intent      `json:"intent,omitempty"`
 	Hint   *PuzzleMove  `json:"hint,omitempty"`
+	Move   *PuzzleMove  `json:"move,omitempty"`
 }
 
 // ClientHello opens a socket: the session token, the Activity instance and the screen.
@@ -192,6 +209,8 @@ type Intent struct {
 	Kind    string         `json:"kind"`
 	Option  string         `json:"option,omitempty"`
 	Machine *MachineIntent `json:"machine,omitempty"`
+	Target  string         `json:"target,omitempty"` // a hunt-press's hunt
+	Item    string         `json:"item,omitempty"`   // a deck-swap's deck
 }
 
 // ServerMessage is one frame from the gateway; T is a server Frame* name.
@@ -202,6 +221,8 @@ type ServerMessage struct {
 	Reply *IntentReply   `json:"reply,omitempty"`
 	Hint  *PuzzleMove    `json:"hint,omitempty"`
 	Bye   string         `json:"bye,omitempty"` // a Bye* reason
+	Move  *PuzzleMove    `json:"move,omitempty"`
+	Moves []PuzzleMove   `json:"moves,omitempty"`
 }
 
 // IntentReply is the world's answer to one intent.
@@ -228,6 +249,9 @@ type ActivityState struct {
 	Bench     *BenchView   `json:"bench,omitempty"`
 	Pouches   []PouchView  `json:"pouches,omitempty"`
 	Last      *MachineDone `json:"last,omitempty"`
+	Party     *PartyView   `json:"party,omitempty"`
+	Floor     *FloorView   `json:"floor,omitempty"`
+	Hunt      *HuntView    `json:"hunt,omitempty"`
 }
 
 // ActivityHere is the tile the character stands on, and how busy it is.
@@ -265,6 +289,8 @@ type HaywireLine struct {
 // MachineView is the machine a viewer may work. Level, Countdown, Why and
 // Haywire are set at rest only for a viewer with the preview, and always
 // once armed. A bench rig carries its Level and MaxPlay and none of the rest.
+// On a party machine Layout is the viewer's seat's dealt view, and Movers
+// counts the seats that have moved.
 type MachineView struct {
 	Source    string        `json:"source"`
 	Pouch     string        `json:"pouch,omitempty"`
@@ -291,6 +317,10 @@ type MachineView struct {
 	Due       int64         `json:"due,omitempty"`      // unix ms, grace included: when the server ends it
 	Locked    int64         `json:"locked,omitempty"`   // ticks until a lockdown lifts
 	Practice  PracticeLine  `json:"practice"`
+	Party     string        `json:"party,omitempty"` // a party version
+	Seat      int64         `json:"seat,omitempty"`
+	Seats     []SeatView    `json:"seats,omitempty"`
+	Movers    int64         `json:"movers,omitempty"`
 }
 
 // PracticeLine is a family's practice: level, uses toward the next, and
@@ -345,8 +375,10 @@ type MachineDone struct {
 
 // ArmedMachine is a countdown the gateway must enforce. Due is unix ms
 // with the grace included; ArmedAt names the machine among a character's.
+// Context is set on a party machine, whose merged log is kept by context.
 type ArmedMachine struct {
 	CharacterID string `json:"characterId"`
 	ArmedAt     int64  `json:"armedAt"`
 	Due         int64  `json:"due"`
+	Context     string `json:"context,omitempty"`
 }
