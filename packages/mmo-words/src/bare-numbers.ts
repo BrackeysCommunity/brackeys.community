@@ -45,6 +45,7 @@ export const UNITS = new Set([
   "orders",
   "members",
   "officers",
+  "vote",
   "votes",
   "goals",
   "goal",
@@ -81,6 +82,15 @@ export const UNITS = new Set([
   "families",
   "character",
   "characters",
+  "seat",
+  "seats",
+  "way",
+  "ways",
+  "presser",
+  "pressers",
+  "levels",
+  "floors",
+  "score",
   "%",
 ]);
 const CONNECTORS = new Set(["to", "of", "and", "or", "–", "-", "×", "+"]);

@@ -19,6 +19,7 @@ import {
   stationLine,
   timeLeft,
 } from "./common.ts";
+import { dungeonName, floorOf } from "./dungeon.ts";
 
 /** What testers are told before they start. */
 export const TESTER_NOTE =
@@ -43,13 +44,14 @@ export function startCard(lex: Lexicon): Card {
   };
 }
 
-/** The hub shows the current activity and available actions. */
+/** The hub shows the current activity and available actions; hunt is a live hunt in reach. */
 export function hubCard(
   o: api.Options,
   here: api.Here,
   sheet: api.Sheet,
   lex: Lexicon,
   notice?: string,
+  hunt?: api.HuntCard,
 ): Card {
   const c = sheet.character;
   const doing = c.armed
@@ -73,6 +75,7 @@ export function hubCard(
     btn("Travel", "travel", "", v),
     btn("Explore / Gather", "field", "", v),
     btn("Craft", "craft", "", v),
+    btn("Party", "party", "", v),
   ];
   const second: Button[] = [
     btn("Market", "market", "orders", v),
@@ -83,7 +86,12 @@ export function hubCard(
   ];
   const urgent: Button[] = [];
   if (o.fight) urgent.push(btn("Back to the fight", "fight", "", v, { style: "danger" }));
-  if (o.fight?.machine || c.armed) urgent.push(launch("Work the machine", "hub", v));
+  if ((o.fight?.machine && !o.fight.shared) || c.armed)
+    urgent.push(launch("Work the machine", "hub", v));
+  if (!o.fight && here.floor?.ways?.length)
+    urgent.push(btn("To the fork", "dungeon", "", v, { style: "primary" }));
+  if (hunt && !o.fight)
+    urgent.push(btn(`Hunt: ${hunt.name}`, "hunt", hunt.id, v, { style: "danger" }));
   if (o.conditions.includes(api.CondDown)) urgent.push(...downButtons(o, v));
   if (o.long) urgent.push(btn("Stop", "cancel", "", v));
   return {
@@ -129,16 +137,28 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     btn(`Talk: ${p.name}${p.visit ? " (wants a word)" : ""}`, "talk", p.id, v),
   );
   const downed = here.downed.slice(0, 3);
-  // One carry at a time, and only of someone who called for help.
-  const lift = here.downed.find((d) => d.called);
+  const floor = here.floor?.floor ?? 0;
+  // One carry at a time, only of someone who called for help, and only on the rescuer's own floor.
+  const lift = here.downed.find((d) => d.called && (d.floor ?? 0) === floor);
   if (lift && !o.rescue?.carrying)
-    buttons.push(btn(`Carry ${lift.name} home`, "carry", lift.id, v, { style: "success" }));
+    buttons.push(
+      btn(
+        lift.floor
+          ? `Carry ${lift.name} up from ${floorOf(lift.floor, here.floor?.up)}`
+          : `Carry ${lift.name} home`,
+        "carry",
+        lift.id,
+        v,
+        { style: "success" },
+      ),
+    );
   const more: Button[] = [];
   for (const t of here.trails.slice(0, 1))
     more.push(btn(`Follow the trail`, "follow", target(",", t.now.q, t.now.r), v));
   if (here.search) more.push(btn("Search the cache", "search", "", v, { style: "success" }));
   if (here.place.rest) more.push(btn("Rest", "rest", "", v));
   if (here.bench) more.push(launch("Work at the bench", "where", v));
+  if (here.floor) more.push(btn("The dungeon", "dungeon", "", v));
   more.push(back(v));
   const overrun = here.place.overrun;
   const fields = [
@@ -165,14 +185,29 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   if (downed.length)
     fields.push({
       name: "Down here",
-      value: downed.map((d) => `${d.name}${d.called ? ", calling for help" : ""}`).join("\n"),
+      value: downed
+        .map(
+          (d) =>
+            `${d.name}${d.floor ? `, on ${floorOf(d.floor, here.floor?.up)}` : ""}${d.called ? ", calling for help" : ""}`,
+        )
+        .join("\n"),
     });
   if (here.trails.length)
     fields.push({
       name: "Tracks",
       value: here.trails.map((t) => `someone passed ${ticks(t.ticks)} ago`).join("\n"),
     });
-  if (here.dungeon)
+  if (here.floor) {
+    const f = here.floor;
+    const on = f.floor ? `You stand on ${floorOf(f.floor, f.up)}` : "You stand at its entrance";
+    const deepest = f.deepest
+      ? `; the deepest you have reached is ${floorOf(f.deepest, f.up)}`
+      : "";
+    fields.push({
+      name: "Dungeon",
+      value: `${dungeonName(f, lex).replace(/^./, (x) => x.toUpperCase())}. ${on}${deepest}. ${floorOf(f.floor || 1, f.up).replace(/^./, (x) => x.toUpperCase())} is ${here.dungeon === "cleared" ? "cleared; it refills in a few days" : "open"}.`,
+    });
+  } else if (here.dungeon)
     fields.push({
       name: "Dungeon",
       value:
@@ -192,7 +227,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     picture: banner(here),
     fields,
     footer: "Every heavy fact on this tile is kept in its record.",
-    rows: [...(buttons.length ? [{ buttons }] : []), { buttons: more }],
+    rows: [...(buttons.length ? [{ buttons }] : []), ...buttonRows(more)],
     colour: overrun ? COLOUR.rust : COLOUR.ash,
   };
 }

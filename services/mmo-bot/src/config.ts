@@ -17,6 +17,8 @@ export interface Config {
   marketForum?: string;
   /** The notice-board forum channel (GDD 17.2); no posts when unset. */
   goalsForum?: string;
+  /** The game channel the hunt cards are posted in (GDD 7.6); no cards when unset. */
+  gameChannel?: string;
 }
 
 function integer(name: string): number | undefined {
@@ -39,5 +41,6 @@ export function loadConfig(): Config {
     threatLine: integer("MMO_THREAT_LINE"),
     marketForum: process.env.MMO_MARKET_FORUM?.trim() || undefined,
     goalsForum: process.env.MMO_GOALS_FORUM?.trim() || undefined,
+    gameChannel: process.env.MMO_GAME_CHANNEL?.trim() || undefined,
   };
 }

@@ -4,8 +4,18 @@ import type { Card } from "./card.ts";
 import { type Action, fields, type Id, integerTarget, type Launch, launchOf } from "./ids.ts";
 import { capitalise, type Lexicon } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
+import type { PartyNote } from "./party.ts";
 import { backCards } from "./screens/back.ts";
 import { classesCard } from "./screens/classes.ts";
+import {
+  bottomCard,
+  dungeonNameModal,
+  entranceCard,
+  forkCard,
+  mayName,
+  pushLeaveCard,
+  reachedBottom,
+} from "./screens/dungeon.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
 import {
   boardCard,
@@ -28,6 +38,7 @@ import {
   placesCard,
 } from "./screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "./screens/hub.ts";
+import { hexDistance, huntCard } from "./screens/hunt.ts";
 import {
   appraisalCard,
   characterCard,
@@ -55,10 +66,17 @@ import {
   ordersCard,
   reportCard,
 } from "./screens/market.ts";
+import {
+  beatResolvedCard,
+  partyBeatCard,
+  partyCard,
+  partyMachineCard,
+  scoresOf,
+} from "./screens/party.ts";
 import { talkCard } from "./screens/talk.ts";
 import { travelCard } from "./screens/travel.ts";
 import { amount } from "./units.ts";
-import type { World } from "./world.ts";
+import type { HuntPost, PartyRead, World } from "./world.ts";
 
 /** Actions whose target is two colon-separated fields. */
 const PAIR_ACTIONS = new Set<Action>([
@@ -111,6 +129,8 @@ export interface Press {
   fields?: Record<string, string>;
   /** The player holds the server's admin permission (GDD 4.8). */
   admin?: boolean;
+  /** The channel the press was made in, or a thread's parent: where a party's thread opens. */
+  channel?: string;
 }
 
 /** The modal a press opens instead of a card, decided from its id alone so the adapter can show it at once. */
@@ -124,6 +144,8 @@ export function modalFor(id: Id): Modal | null {
       return id.target === "take"
         ? null
         : nameModal("gld-chart", id.version, "Name your settlement");
+    case "d-name":
+      return hexOf(id.target) ? dungeonNameModal(id.target, id.version) : null;
     default:
       return null;
   }
@@ -151,6 +173,8 @@ export interface Answer {
   character?: string;
   /** A long action the press queued, for the completion notice. */
   long?: boolean;
+  /** The party the press was about: its thread is opened or brought up to date. */
+  party?: PartyNote;
 }
 
 export async function answer(ctx: Ctx, press: Press): Promise<Answer> {
@@ -254,6 +278,8 @@ class Session {
         return this.goals();
       case "guild":
         return this.guild();
+      case "party":
+        return this.party();
       case "play":
       default:
         return this.open();
@@ -272,10 +298,14 @@ class Session {
 
   async hub(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
-    const sheet = await this.world.sheet(this.character);
+    const [sheet, hunts] = await Promise.all([
+      this.world.sheet(this.character),
+      this.world.hunts(),
+    ]);
     if (o.conditions.includes(api.CondDown) && !o.long && !notice)
       return this.done(downCard(o, here, this.lex));
-    return this.done(hubCard(o, here, sheet, this.lex, notice));
+    const hunt = inReach(hunts.hunts, o.at, sheet.character.floor ?? 0);
+    return this.done(hubCard(o, here, sheet, this.lex, notice, hunt));
   }
 
   async travel(notice?: string): Promise<Answer> {
@@ -304,12 +334,129 @@ class Session {
 
   async fight(last?: api.ActionReply): Promise<Answer> {
     const { o, here } = await this.load();
+    if (o.fight?.shared) return this.partyBeat(o, here);
     if (o.fight)
       return this.done(
         beatCard(o, here, this.lex, last && { pressed: last.pressed ?? [], facts: last.facts }),
       );
+    if (last && reachedBottom(last.facts))
+      return this.done(bottomCard(o, here, this.lex, last.facts, this.character));
     if (last) return this.done(resolvedCard(o, here, this.lex, last.pressed ?? [], last.facts));
     return this.hub();
+  }
+
+  /** What a party press tells the thread: its members to add, where to open it, and a card to post there. */
+  private note(st: PartyRead, here: api.Here, post?: Card): PartyNote | undefined {
+    if (!st.party) return undefined;
+    return {
+      party: st.party.id,
+      members: st.thread?.members ?? [],
+      channel: this.press.channel,
+      server: this.press.guild,
+      picture: { media: here.banner, place: here.name },
+      post,
+    };
+  }
+
+  private withParty(card: Card, st: PartyRead, here: api.Here, post?: Card): Answer {
+    return { card, character: this.character, party: this.note(st, here, post) };
+  }
+
+  /** /party and the hub's Party button: the party card, and its thread opened. */
+  async party(notice?: string): Promise<Answer> {
+    const [st, here] = await Promise.all([
+      this.world.party(this.character),
+      this.world.here(this.character),
+    ]);
+    return this.withParty(partyCard(st, here, this.lex, notice), st, here);
+  }
+
+  /** A party beat as the presser's own card. */
+  private async partyBeat(
+    o: api.Options,
+    here: api.Here,
+    notice?: string,
+    st?: PartyRead,
+  ): Promise<Answer> {
+    const read = st ?? (await this.world.party(this.character));
+    if (!o.fight) return this.party(notice);
+    return this.withParty(partyBeatCard(o, here, read, this.lex, notice), read, here);
+  }
+
+  /** The thread card pressed: the presser's own card for where the party stands. */
+  async partyHere(notice?: string): Promise<Answer> {
+    const [{ o, here }, st] = await Promise.all([this.load(), this.world.party(this.character)]);
+    if (o.fight?.shared) return this.partyBeat(o, here, notice, st);
+    if (here.floor?.ways?.length && !o.fight) return this.dungeon(notice, st);
+    return this.withParty(partyCard(st, here, this.lex, notice), st, here);
+  }
+
+  /** The dungeon here: its fork, the choice made there, or its entrance. */
+  async dungeon(notice?: string, read?: PartyRead): Promise<Answer> {
+    const [{ o, here }, st] = await Promise.all([
+      this.load(),
+      read ?? this.world.party(this.character),
+    ]);
+    const f = here.floor;
+    if (!f) return this.where(notice);
+    if (o.fight) return this.fight();
+    if (f.ways?.length) {
+      const me = st.party?.members.find((m) => m.you)?.name;
+      const mine = me ? f.choices?.find((c) => c.name === me) : undefined;
+      if (mine) {
+        const present = st.party?.members.filter((m) => m.here && !m.down).length ?? 1;
+        const waiting = Math.max(0, present - (f.choices?.length ?? 0));
+        return this.withParty(pushLeaveCard(o, here, this.lex, mine, waiting), st, here);
+      }
+      return this.withParty(forkCard(o, here, this.lex, notice), st, here);
+    }
+    return this.withParty(entranceCard(o, here, this.lex, this.character, notice), st, here);
+  }
+
+  /** A pick on a party beat: held unseen until every member present has picked, then resolved for all. */
+  private async partyPick(option: string, v: number): Promise<Answer> {
+    const before = await this.world.options(this.character);
+    const res = await this.act(api.ActPartyPick, v, { option });
+    const { o, here } = await this.load();
+    if (!res.ok) return this.partyBeat(o, here, capitalise(refusalText(res.refusal)));
+    const r = res.reply;
+    if (!scoresOf(r.facts).length)
+      return this.partyBeat(o, here, "Picked: the beat waits on the others");
+    const st = await this.world.party(this.character);
+    const party =
+      st.party?.id ?? r.facts.flatMap((f) => f.subjects).find((x) => x.kind === "party")?.id ?? "";
+    const board = (await this.world.parties()).parties.find((p) => p.id === party);
+    const names = new Map((board?.members ?? []).map((m) => [m.characterId, m.name]));
+    const ended = r.facts.some((f) => f.kind.startsWith("encounter."));
+    const carried = ended
+      ? Math.max(0, goodsOf(r.character.goods) - goodsOf(before.purse.goods))
+      : undefined;
+    const shown =
+      reachedBottom(r.facts) && mayName(here.floor, r.facts, this.character)
+        ? bottomCard(o, here, this.lex, r.facts, this.character)
+        : beatResolvedCard(o, here, this.lex, r.facts, names, "you", party, carried);
+    const post = beatResolvedCard(o, here, this.lex, r.facts, names, "thread", party);
+    return {
+      card: shown,
+      character: this.character,
+      party: this.note(st, here, post) ?? (party ? { party, members: [], post } : undefined),
+    };
+  }
+
+  /** A live hunt: the one a card names, else the one in reach. */
+  async hunt(id?: string, notice?: string): Promise<Answer> {
+    const [{ o, here }, board, st, sheet] = await Promise.all([
+      this.load(),
+      this.world.hunts(),
+      this.world.party(this.character),
+      this.world.sheet(this.character),
+    ]);
+    const h: HuntPost | undefined =
+      board.hunts.find((x) => x.id === id) ??
+      inReach(board.hunts, o.at, sheet.character.floor ?? 0);
+    if (!h) return this.retitled(await this.where(), notice ?? "That hunt is over");
+    const view = st.hunt?.id === h.id ? st.hunt : undefined;
+    return this.done(huntCard(o, here, h, view, this.lex, notice));
   }
 
   async craft(d: Draft): Promise<Answer> {
@@ -466,6 +613,15 @@ class Session {
         return this.talk(l.npc ?? "");
       case "character":
         return this.character_();
+      case "party": {
+        const [{ o, here }, st] = await Promise.all([
+          this.load(),
+          this.world.party(this.character),
+        ]);
+        return this.done(partyMachineCard(o, here, st, this.lex, o.fight ? "beat" : "fork"));
+      }
+      case "hunt":
+        return this.hunt();
       default:
         return backCards.unknown(this.character);
     }
@@ -484,13 +640,7 @@ class Session {
     then: (reply: api.ActionReply | null, refusal?: string) => Promise<Answer>,
   ): Promise<Answer> {
     const res = await this.act(kind, v, fields);
-    if (!res.ok) {
-      const why =
-        res.refusal.code === api.CodeStale
-          ? "The world moved on: here is the card as it stands."
-          : res.refusal.message;
-      return then(null, capitalise(why));
-    }
+    if (!res.ok) return then(null, capitalise(refusalText(res.refusal)));
     return then(res.reply);
   }
 
@@ -684,6 +834,7 @@ class Session {
       case "explore":
         return this.write(api.ActExplore, v, {}, async (_, why) => {
           const { o, here } = await this.load();
+          if (!why && o.fight?.shared) return this.partyBeat(o, here);
           if (!why && o.fight) return this.done(beatCard(o, here, this.lex));
           return this.retitled(
             this.done(fieldCard(o, here, this.lex)),
@@ -947,6 +1098,84 @@ class Session {
         return this.write(api.ActMarkPrey, v, { option: value }, (_, why) =>
           this.classes(id.target || undefined, why ?? `Marked for today: ${value}`),
         );
+      case "party":
+        return this.party();
+      case "p-card":
+        return this.partyHere();
+      case "p-invite":
+        if (!value) return this.party();
+        return this.write(api.ActPartyInvite, v, { target: value }, (_, why) =>
+          this.party(why ?? "Invited: they accept from their own party card"),
+        );
+      case "p-join":
+        return this.write(api.ActPartyJoin, v, { target: id.target }, (_, why) =>
+          this.party(why ?? "You joined the party"),
+        );
+      case "p-leave":
+        return this.write(api.ActPartyLeave, v, {}, (_, why) =>
+          this.party(why ?? "You left the party"),
+        );
+      case "p-follow":
+        return this.write(api.ActFollow, v, {}, (_, why) =>
+          this.party(why ?? "You follow the leader: you enter each tile when they do"),
+        );
+      case "p-unfollow":
+        return this.write(api.ActUnfollow, v, {}, (_, why) =>
+          this.party(why ?? "You no longer follow the leader"),
+        );
+      case "p-pick":
+        return this.partyPick(id.target, v);
+      case "p-machine": {
+        const [{ o, here }, st] = await Promise.all([
+          this.load(),
+          this.world.party(this.character),
+        ]);
+        return this.done(
+          partyMachineCard(o, here, st, this.lex, id.target === "fork" ? "fork" : "beat"),
+        );
+      }
+      case "dungeon":
+        return this.dungeon();
+      case "push":
+        return this.write(api.ActDungeonPush, v, { option: id.target }, async (_, why) => {
+          const o = await this.world.options(this.character);
+          if (!why && o.fight) return this.fight();
+          return this.dungeon(why);
+        });
+      case "dg-leave":
+        return this.write(api.ActDungeonLeave, v, {}, async (_, why) => {
+          if (why) return this.dungeon(why);
+          const o = await this.world.options(this.character);
+          if (o.long) return this.longAnswer("You climb out with what you carry");
+          return this.dungeon("You leave once the fork resolves");
+        });
+      case "d-name":
+        return this.dungeon();
+      case "d-named": {
+        const to = hexOf(id.target);
+        const name = (this.press.fields?.name ?? "").trim();
+        if (!to) return backCards.unknown(this.character);
+        return this.write(api.ActDungeonName, v, { note: name, to }, (_, why) =>
+          this.dungeon(why ?? `Named: ${name}`),
+        );
+      }
+      case "hunt":
+        return this.hunt(id.target || undefined);
+      case "h-press": {
+        const f = fields(id.target, ":", 2);
+        if (!f) return backCards.unknown(this.character);
+        const [hunt, option] = f as [string, string];
+        return this.write(api.ActHuntPress, v, { target: hunt, option }, async (r, why) => {
+          if (why) return this.hunt(hunt, why);
+          const p = r?.pressed?.[0];
+          return this.hunt(
+            hunt,
+            p
+              ? `${this.lex.name("fights.options", p.option)}: ${p.success ? "it worked" : "it failed"}`
+              : "Pressed",
+          );
+        });
+      }
       case "launch":
         return this.launched(launchFor(id));
       case "start":
@@ -991,6 +1220,36 @@ function nearest(at: api.Hex, markets: readonly api.Hex[]): api.Hex | undefined 
 
 function peopleOf(here: api.Here): Map<string, string> {
   return new Map(here.people.map((p) => [p.id, p.name]));
+}
+
+/** The text a refusal shows: a stale card is drawn again as it stands. */
+function refusalText(r: api.Refusal): string {
+  return r.code === api.CodeStale
+    ? "The world moved on: here is the card as it stands."
+    : r.message;
+}
+
+/** All the goods units in a purse. */
+function goodsOf(goods: readonly api.Goods[]): number {
+  return goods.reduce((n, g) => n + g.units, 0);
+}
+
+/** A dungeon's "q,r" reference as a tile. */
+function hexOf(ref: string): api.Hex | undefined {
+  const f = fields(ref, ",", 2);
+  const q = integerTarget(f?.[0] ?? "");
+  const r = integerTarget(f?.[1] ?? "");
+  return q === undefined || r === undefined ? undefined : { q, r };
+}
+
+/** The live hunt a character standing at a tile and floor could press: on it or next to it, never below ground. */
+export function inReach(
+  hunts: readonly HuntPost[],
+  at: api.Hex,
+  floor: number,
+): HuntPost | undefined {
+  if (floor) return undefined;
+  return hunts.find((h) => !h.closed && hexDistance(h.at, at) <= 1);
 }
 
 function isGuildView(s: string): s is GuildView {

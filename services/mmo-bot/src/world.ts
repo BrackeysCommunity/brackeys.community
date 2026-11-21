@@ -26,7 +26,21 @@ export interface World {
   board(): Promise<api.Board>;
   guild(characterId: string): Promise<api.Guild>;
   classes(characterId: string): Promise<api.Classes>;
+  party(characterId: string): Promise<PartyRead>;
+  /** Every open party, and those ended lately: the bot's own read, for the threads. */
+  parties(): Promise<api.Parties>;
+  hunts(): Promise<api.HuntBoard>;
 }
+
+/**
+ * A character's party read. It may also carry the live hunt in the
+ * viewer's reach, with the options a press offers; without it a hunt is
+ * pressed in the Activity.
+ */
+export type PartyRead = api.PartyState & { hunt?: api.HuntView };
+
+/** A hunt's card in the game channel; banner is its tile's picture, where the world gives one. */
+export type HuntPost = api.HuntCard & { banner?: string };
 
 export type WorldReply<T> = { ok: true; reply: T } | { ok: false; refusal: api.Refusal };
 export type Acted = WorldReply<api.ActionReply>;
@@ -99,6 +113,9 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     board: () => get(api.PathBoard),
     guild: (id) => get(api.PathGuild + q({ characterId: id })),
     classes: (id) => get(api.PathClasses + q({ characterId: id })),
+    party: (id) => get(api.PathParty + q({ characterId: id })),
+    parties: () => get(api.PathParties),
+    hunts: () => get(api.PathHunts),
     async media(key) {
       const res = await send("GET", `${api.PathMedia}${encodeURIComponent(key)}.png`);
       if (!res.ok) throw new WorldRequestError(res.status, (await res.json()) as api.Refusal);

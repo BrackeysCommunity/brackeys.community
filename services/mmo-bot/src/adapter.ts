@@ -13,6 +13,7 @@ import {
   RESTJSONErrorCodes,
   type StringSelectMenuInteraction,
   SnowflakeUtil,
+  ThreadAutoArchiveDuration,
 } from "discord.js";
 
 import { describe, toMessage, toModal } from "../../../packages/discord-kit/src/index.ts";
@@ -20,7 +21,10 @@ import { type Card, render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
 import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
 import type { ForumSink } from "./forum.ts";
+import type { ChannelSink } from "./hunts.ts";
 import { decodeId } from "./ids.ts";
+import type { PartyMode, PartyNote, ThreadSink } from "./party.ts";
+import { withThreadSoon } from "./screens/party.ts";
 import { WorldUnavailableError } from "./world.ts";
 
 /**
@@ -31,7 +35,10 @@ import { WorldUnavailableError } from "./world.ts";
  * and answers with a fresh hub (GDD 17.3). A press that asks for text
  * opens a modal instead, which cannot follow a defer; its submit is
  * answered like a press. A press that leads into the Activity is answered
- * with the launch, which like a modal must be the first response.
+ * with the launch, which like a modal must be the first response. A press
+ * on a card everyone sees, a party thread's or the game channel's, is
+ * answered with a card of the presser's own, never by editing the shared
+ * one.
  */
 
 export const STALE_LINE =
@@ -51,12 +58,14 @@ export interface AdapterOptions {
   media: (key: string) => Promise<Uint8Array>;
   /** Told when a press queued a long action, for the completion notice. */
   onLong?: (user: string, character: string) => void;
+  /** Told of a press about a party, for its thread; says whether the party plays there yet. */
+  onParty?: (note: PartyNote) => Promise<PartyMode>;
   log?: (line: string) => void;
   now?: () => number;
 }
 
 export function createHandler(opts: AdapterOptions) {
-  const { ctx, budget, media, onLong, log = console.log, now = Date.now } = opts;
+  const { ctx, budget, media, onLong, onParty, log = console.log, now = Date.now } = opts;
 
   const messageOf = (a: Answer) => cardMessage(a.card, media, log);
 
@@ -80,6 +89,13 @@ export function createHandler(opts: AdapterOptions) {
   async function run(press: Press): Promise<InteractionEditReplyOptions> {
     const a = await answer(ctx, press);
     if (a.long && a.character) onLong?.(press.user, a.character);
+    if (a.party && onParty) {
+      const mode = await onParty(a.party).catch((e: unknown) => {
+        log(`[party] ${a.party?.party}: ${describe(e)}`);
+        return "none" as const;
+      });
+      if (mode === "soon") a.card = withThreadSoon(a.card);
+    }
     return messageOf(a);
   }
 
@@ -128,6 +144,7 @@ export function createHandler(opts: AdapterOptions) {
     };
     // A modal opened from a card answers by editing that card.
     if (i.isModalSubmit() && !i.isFromMessage()) return say(i, STALE_LINE);
+    if (shared(i)) return ownCard(i, press);
     const age = now() - Number(SnowflakeUtil.timestampFrom(i.message.id));
     try {
       if (age > HUB_TTL_MS) {
@@ -150,6 +167,17 @@ export function createHandler(opts: AdapterOptions) {
     }
   }
 
+  /** A press on a card everyone sees: a card of the presser's own, with their own version, leaves the shared one as it is. */
+  async function ownCard(i: Pressed, press: Press) {
+    try {
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
+      await i.editReply(await run(press));
+    } catch (e) {
+      log(`[press] ${i.customId} failed: ${describe(e)}`);
+      await i.editReply({ content: failureText(e), embeds: [], components: [] }).catch(() => {});
+    }
+  }
+
   return async function handle(i: Interaction): Promise<void> {
     if (i.isPrimaryEntryPointCommand()) return launch(i, `/${i.commandName}`);
     if (i.isChatInputCommand()) return onCommand(i);
@@ -160,17 +188,25 @@ export function createHandler(opts: AdapterOptions) {
 type Pressed = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 type Launches = ButtonInteraction | PrimaryEntryPointCommandInteraction;
 
-/** Who an interaction is from: the player, the server, and whether they administer it. */
+/** Who an interaction is from: the player, the server, whether they administer it, and the channel a thread would open under. */
 function who(
   i: ChatInputCommandInteraction | Pressed,
-): Pick<Press, "user" | "guild" | "guildName" | "interaction" | "admin"> {
+): Pick<Press, "user" | "guild" | "guildName" | "interaction" | "admin" | "channel"> {
+  const ch = i.channel;
   return {
     user: i.user.id,
     guild: i.guildId ?? undefined,
     guildName: i.guild?.name,
     interaction: i.id,
     admin: i.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false,
+    channel: (ch?.isThread() ? ch.parentId : i.channelId) ?? undefined,
   };
+}
+
+/** Whether a press came from a message everyone in its channel sees, rather than the presser's own ephemeral card. */
+function shared(i: Pressed): boolean {
+  const flags = i.message?.flags;
+  return !!flags && !flags.has(MessageFlags.Ephemeral);
 }
 
 /** A submitted modal's text, by input id. */
@@ -280,6 +316,114 @@ export function forumSink(
           await first.edit(message);
         }
         if (title) await th.setName(title);
+      } catch (e) {
+        if (postGone(e)) return false;
+        throw e;
+      }
+      return true;
+    },
+  };
+}
+
+/** Errors that mean a private thread may not be opened here, so a public one is. */
+const NO_PRIVATE: ReadonlySet<unknown> = new Set([
+  RESTJSONErrorCodes.MissingPermissions,
+  RESTJSONErrorCodes.MissingAccess,
+  RESTJSONErrorCodes.CannotExecuteActionOnThisChannelType,
+]);
+
+/** A channel's threads as a party's sink (GDD 7.5): private where allowed, else public, with the members added. */
+export function threadSink(
+  client: Client,
+  media: (key: string) => Promise<Uint8Array>,
+  log: (line: string) => void = console.log,
+): ThreadSink {
+  const thread = async (id: string) => {
+    const th = await client.channels.fetch(id).catch((e: unknown) => {
+      if (postGone(e)) return null;
+      throw e;
+    });
+    return th?.isThread() ? th : null;
+  };
+  type Thread = NonNullable<Awaited<ReturnType<typeof thread>>>;
+  const addAll = async (th: Thread, members: string[]) => {
+    for (const m of members)
+      await th.members.add(m).catch((e: unknown) => log(`[party] adding ${m}: ${describe(e)}`));
+  };
+  /** Runs a write on a thread, opening it again first if it was archived; false when it is gone. */
+  const onThread = async (id: string, f: (th: Thread) => Promise<unknown>) => {
+    const th = await thread(id);
+    if (!th) return false;
+    try {
+      if (th.archived) await th.setArchived(false);
+      await f(th);
+    } catch (e) {
+      if (postGone(e)) return false;
+      throw e;
+    }
+    return true;
+  };
+  return {
+    async open(channel, name, card, members) {
+      const ch = await client.channels.fetch(channel);
+      if (ch?.type !== ChannelType.GuildText) throw new Error(`${channel} is not a text channel`);
+      const options = { name, autoArchiveDuration: ThreadAutoArchiveDuration.OneDay };
+      let th;
+      try {
+        th = await ch.threads.create({
+          ...options,
+          type: ChannelType.PrivateThread,
+          invitable: false,
+        });
+      } catch (e) {
+        if (!(e instanceof DiscordAPIError) || !NO_PRIVATE.has(e.code)) throw e;
+        log(`[party] a private thread was refused in ${channel}; opening a public one`);
+        th = await ch.threads.create({ ...options, type: ChannelType.PublicThread });
+      }
+      await addAll(th, members);
+      const msg = await th.send((await cardMessage(card, media, log)) as never);
+      return { thread: th.id, card: msg.id };
+    },
+    add: (id, members) => onThread(id, (th) => addAll(th, members)),
+    edit: (id, message, card) =>
+      onThread(id, async (th) => {
+        const msg = await th.messages.fetch(message);
+        await msg.edit((await cardMessage(card, media, log)) as never);
+      }),
+    post: (id, card) =>
+      onThread(id, async (th) => th.send((await cardMessage(card, media, log)) as never)),
+    async archive(id) {
+      const th = await thread(id);
+      if (th && !th.archived)
+        await th
+          .setArchived(true)
+          .catch((e: unknown) => log(`[party] archiving ${id}: ${describe(e)}`));
+    },
+  };
+}
+
+/** A text channel as the hunt poster's sink (GDD 7.6): cards posted and edited in place. */
+export function channelSink(
+  client: Client,
+  channelId: string,
+  media: (key: string) => Promise<Uint8Array>,
+  log: (line: string) => void = console.log,
+): ChannelSink {
+  const channel = async () => {
+    const ch = await client.channels.fetch(channelId);
+    if (!ch?.isSendable() || !("messages" in ch))
+      throw new Error(`${channelId} is not a channel the bot can post in`);
+    return ch;
+  };
+  return {
+    async post(card) {
+      const msg = await (await channel()).send((await cardMessage(card, media, log)) as never);
+      return msg.id;
+    },
+    async edit(message, card) {
+      try {
+        const msg = await (await channel()).messages.fetch(message);
+        await msg.edit((await cardMessage(card, media, log)) as never);
       } catch (e) {
         if (postGone(e)) return false;
         throw e;

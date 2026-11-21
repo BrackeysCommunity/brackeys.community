@@ -27,6 +27,10 @@ const ACTIONS = [
   "craft-q",
   "craft-s",
   "crawl",
+  "d-name",
+  "d-named",
+  "dg-leave",
+  "dungeon",
   "equip",
   "explore",
   "feed",
@@ -77,7 +81,9 @@ const ACTIONS = [
   "goto",
   "guild",
   "help",
+  "h-press",
   "hub",
+  "hunt",
   "item",
   "launch",
   "list",
@@ -91,8 +97,18 @@ const ACTIONS = [
   "mkt-post",
   "mkt-sell",
   "mkt-take",
+  "p-card",
+  "p-follow",
+  "p-invite",
+  "p-join",
+  "p-leave",
+  "p-machine",
+  "p-pick",
+  "p-unfollow",
+  "party",
   "pick",
   "press",
+  "push",
   "recap",
   "recipes",
   "repair",
@@ -148,7 +164,16 @@ export function fields(raw: string, separator: Separator, count: number): string
 }
 
 /** The cards that lead into the Activity (GDD 17.7). */
-const LAUNCH_CARDS = ["beat", "hub", "where", "talk", "character"] as const;
+const LAUNCH_CARDS = [
+  "beat",
+  "hub",
+  "where",
+  "talk",
+  "character",
+  "party",
+  "fork",
+  "hunt",
+] as const;
 export type LaunchCard = (typeof LAUNCH_CARDS)[number];
 
 /** A launch button's target: the card it sits on, and on a talk card the NPC spoken to. */

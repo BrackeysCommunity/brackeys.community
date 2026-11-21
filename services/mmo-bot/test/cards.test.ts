@@ -8,6 +8,7 @@ import { decodeId, type LaunchCard } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { classesCard } from "../src/screens/classes.ts";
 import { benchLine, factLine } from "../src/screens/common.ts";
+import { bottomCard, entranceCard, forkCard, pushLeaveCard } from "../src/screens/dungeon.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "../src/screens/fight.ts";
 import {
   BLANK,
@@ -22,6 +23,7 @@ import {
 } from "../src/screens/goals.ts";
 import { bankCard, guildCard, leaveCard, memberCard, placesCard } from "../src/screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
+import { huntCard, huntClosedCard, huntPostCard } from "../src/screens/hunt.ts";
 import {
   appraisalCard,
   characterCard,
@@ -42,8 +44,18 @@ import {
   ordersCard,
   reportCard,
 } from "../src/screens/market.ts";
+import {
+  beatResolvedCard,
+  partyBeatCard,
+  partyCard,
+  partyMachineCard,
+  threadCard,
+  threadEndedCard,
+  withThreadSoon,
+} from "../src/screens/party.ts";
 import { talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
+import * as mm8 from "./fixtures/mm8.ts";
 import samples from "./fixtures/world.json";
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
@@ -1109,6 +1121,143 @@ const cards: [string, () => Card][] = [
         lex,
       ),
   ],
+  ["party, none yet, an invitation held", () => partyCard(mm8.alone, here, lex)],
+  ["party, in one, on a beat", () => partyCard(mm8.party, here, lex)],
+  [
+    "party, a follower between encounters",
+    () =>
+      partyCard(
+        {
+          ...mm8.party,
+          fight: undefined,
+          party: { ...mm8.party.party!, leader: false, beat: undefined },
+        },
+        here,
+        lex,
+      ),
+  ],
+  ["party, with the thread opening soon", () => withThreadSoon(partyCard(mm8.party, here, lex))],
+  ["party beat, choosing", () => partyBeatCard(mm8.shared, mm8.inDungeon, mm8.choosing, lex)],
+  ["party beat, picked", () => partyBeatCard(mm8.shared, mm8.inDungeon, mm8.party, lex)],
+  [
+    "party beat on a machine",
+    () =>
+      partyBeatCard(
+        { ...mm8.shared, fight: { ...mm8.shared.fight!, machine: "rewire" } },
+        mm8.inDungeon,
+        mm8.choosing,
+        lex,
+      ),
+  ],
+  [
+    "party beat resolved",
+    () => beatResolvedCard(mm8.shared, mm8.inDungeon, lex, mm8.resolved, mm8.names, "you", "pt-1"),
+  ],
+  [
+    "party beat resolved, the encounter won",
+    () => beatResolvedCard(o, mm8.atFork, lex, mm8.ended, mm8.names, "you", "pt-1", 5),
+  ],
+  [
+    "party beat resolved, in the thread",
+    () => beatResolvedCard(o, mm8.atFork, lex, mm8.ended, mm8.names, "thread", "pt-1"),
+  ],
+  [
+    "party machine launch, a beat's",
+    () =>
+      partyMachineCard(
+        { ...mm8.shared, fight: { ...mm8.shared.fight!, machine: "rewire" } },
+        mm8.inDungeon,
+        mm8.choosing,
+        lex,
+        "beat",
+      ),
+  ],
+  [
+    "party machine launch, a fork's",
+    () => partyMachineCard(o, mm8.atFork, { ...mm8.party, floor: mm8.atFork.floor }, lex, "fork"),
+  ],
+  ["dungeon entrance", () => entranceCard(o, mm8.atEntrance, lex, "c-1")],
+  ["dungeon entrance, to be named", () => entranceCard(o, mm8.named, lex, "c-1")],
+  [
+    "relay tower entrance",
+    () =>
+      entranceCard(
+        o,
+        { ...mm8.atEntrance, floor: { ...mm8.atEntrance.floor!, kind: "relay-tower", up: true } },
+        lex,
+        "c-1",
+      ),
+  ],
+  ["dungeon fork", () => forkCard(o, mm8.atFork, lex)],
+  ["dungeon fork, read by a Mapper", () => forkCard(o, mm8.mapped, lex)],
+  [
+    "push or leave, pushing",
+    () => pushLeaveCard(o, mm8.atFork, lex, { name: "Ossa", push: true, way: "way-0" }, 1),
+  ],
+  [
+    "push or leave, leaving",
+    () => pushLeaveCard(o, mm8.atFork, lex, { name: "Ossa", push: false }, 0),
+  ],
+  ["the bottom, to be named", () => bottomCard(o, mm8.named, lex, mm8.slain, "c-1")],
+  ["the bottom, another's naming", () => bottomCard(o, mm8.named, lex, mm8.slain, "c-9")],
+  ["hunt, in reach", () => huntCard(o, here, mm8.hunt, mm8.huntView, lex)],
+  ["hunt, far off", () => huntCard(o, here, { ...mm8.hunt, at: { q: -20, r: 3 } }, undefined, lex)],
+  ["hunt card in the game channel", () => huntPostCard(mm8.hunt, lex)],
+  ["hunt card with no banner", () => huntPostCard({ ...mm8.hunt, banner: undefined }, lex)],
+  ["hunt closed, slain", () => huntClosedCard(mm8.huntSlain, lex)],
+  ["hunt closed, got away", () => huntClosedCard(mm8.huntLeft, lex)],
+  [
+    "thread card, a beat",
+    () => threadCard(mm8.board, lex, { media: here.banner, place: here.name }),
+  ],
+  [
+    "thread card, a fork",
+    () => threadCard(mm8.forkBoard, lex, { media: here.banner, place: here.name }),
+  ],
+  [
+    "thread card, between encounters",
+    () => threadCard(mm8.idleBoard, lex, { media: here.banner, place: here.name }),
+  ],
+  ["thread card, ended", () => threadEndedCard({ media: here.banner, place: here.name })],
+  [
+    "beat on a dungeon floor",
+    () =>
+      beatCard(
+        { ...mm8.shared, fight: { ...mm8.shared.fight!, shared: false } },
+        mm8.inDungeon,
+        lex,
+      ),
+  ],
+  ["down on a floor", () => downCard(down, mm8.inDungeon, lex)],
+  [
+    "down on a floor, having called",
+    () => downCard({ ...down, rescue: { called: true, home: "Pylon Camp" } }, mm8.inDungeon, lex),
+  ],
+  [
+    "where, someone down below",
+    () =>
+      whereCard(
+        o,
+        { ...mm8.inDungeon, downed: [{ id: "c-3", name: "Wen", called: true, floor: 2 }] },
+        lex,
+      ),
+  ],
+  ["hub at a fork, a hunt in reach", () => hubCard(o, mm8.atFork, sheet, lex, undefined, mm8.hunt)],
+  [
+    "the rescue goal, naming the floor",
+    () =>
+      goalCard(
+        o,
+        goals,
+        goalAs({
+          id: "q-31",
+          verb: "carry",
+          title: "Carry c-3 home from floor 2 of the bunker",
+          what: "carry c-3 home",
+        }),
+        lex,
+      ),
+  ],
 ];
 
 test("a goal draft survives its custom id, and a bad one is refused", () => {
@@ -1932,6 +2081,19 @@ describe("every card that leads into the Activity carries its launch", () => {
     ["the place card at a bench", "where", () => whereCard(o, benched, lex)],
     ["the tinker's card at a bench", "talk", () => talkCard(o, tinker, undefined, benched.bench)],
     ["the character card with a pouch", "character", () => characterCard(o, here, practised, lex)],
+    [
+      "a party machine's launch card",
+      "party",
+      () =>
+        partyMachineCard(
+          { ...mm8.shared, fight: { ...mm8.shared.fight!, machine: "rewire" } },
+          mm8.inDungeon,
+          mm8.choosing,
+          lex,
+          "beat",
+        ),
+    ],
+    ["a hunt in reach", "hunt", () => huntCard(o, here, mm8.hunt, mm8.huntView, lex)],
   ];
   for (const [name, from, make] of leading) {
     test(name, () => {

@@ -1,9 +1,13 @@
 import type { Button } from "../../../packages/discord-kit/src/index.ts";
-import type * as api from "./api.ts";
+import * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
-import { answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
-import { decodeId } from "./ids.ts";
+import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
+import { memoryStore } from "./forum.ts";
+import { HuntPoster } from "./hunts.ts";
+import { decodeId, type Id } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
+import { PartyPoster } from "./party.ts";
+import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
 import { LISTS } from "./screens/market.ts";
 import { httpWorld, type World } from "./world.ts";
@@ -394,7 +398,290 @@ export async function scripted(
   return run;
 }
 
-if (import.meta.main) {
+/** What the two-player party run did. */
+export interface PartyRun {
+  presses: number;
+  cards: number;
+  problems: string[];
+  /** The party formed, by id. */
+  party: string;
+  /** Cards the party's thread was given: opened, edited, posted to and closed. */
+  thread: string[];
+  /** Beats resolved together, and the encounters they made up. */
+  beats: number;
+  encounters: number;
+  /** The game channel's hunt cards, by title. */
+  hunts: string[];
+  ended: boolean;
+  log: string[];
+}
+
+/** One scripted player pressing only what the bot's cards offer. */
+class Player {
+  card!: Card;
+  id = "";
+  private seq = 0;
+
+  constructor(
+    private readonly ctx: Ctx,
+    readonly user: string,
+    private readonly run: PartyRun,
+    private readonly names: Set<string>,
+    private readonly onAnswer: (a: Answer) => Promise<void>,
+  ) {}
+
+  async send(p: Omit<Press, "user" | "interaction" | "guild" | "channel">): Promise<Card> {
+    this.run.presses++;
+    const a = await answer(this.ctx, {
+      ...p,
+      user: this.user,
+      guild: "scripted",
+      channel: "scripted-channel",
+      interaction: `scripted-${this.user}-${++this.seq}`,
+    });
+    this.run.cards++;
+    for (const x of problems(a.card, this.names)) this.run.problems.push(`${a.card.author}: ${x}`);
+    await this.onAnswer(a);
+    this.card = a.card;
+    return a.card;
+  }
+
+  command(name: string) {
+    return this.send({ command: name });
+  }
+
+  /** /play, and on past since-you-left to the hub when it shows first. */
+  async hub(): Promise<Card> {
+    await this.command("play");
+    if (this.card.author.startsWith("Chronicle")) await this.press("hub");
+    return this.card;
+  }
+
+  /** The live ids on the card whose action (and target, if given) matches. */
+  ids(action: string, target?: string): Id[] {
+    const out: Id[] = [];
+    for (const r of this.card.rows) {
+      if ("select" in r) {
+        const id = decodeId(r.select.customId);
+        if (id?.action === action) out.push(id);
+        continue;
+      }
+      for (const b of r.buttons) {
+        if (b.kind !== "page" || b.disabled) continue;
+        const id = decodeId(b.customId);
+        if (id?.action === action && (target === undefined || id.target === target)) out.push(id);
+      }
+    }
+    return out;
+  }
+
+  has(action: string, target?: string) {
+    return this.ids(action, target).length > 0;
+  }
+
+  async press(action: string, target?: string, value?: string): Promise<Card> {
+    const id = this.ids(action, target)[0];
+    if (!id)
+      throw new Error(`${this.user}: no "${action}" on "${this.card.author} / ${this.card.title}"`);
+    return this.send({ id, values: value === undefined ? undefined : [value] });
+  }
+
+  async idle(world: World) {
+    for (;;) {
+      const o = await world.options(this.id);
+      if (!o.long) return o;
+      await Bun.sleep(500);
+    }
+  }
+}
+
+/**
+ * Two scripted players through a party (GDD 7.5): one invites the other
+ * from /party, the other joins from the invitation, they go out together,
+ * explore into one shared encounter and pick on every beat from their own
+ * cards until it ends, then the party is left. The party's thread runs
+ * against a sink that keeps its cards, and with an operator token a hunt
+ * is opened beside them for the game channel's card.
+ */
+export async function partyRun(
+  ctx: Ctx,
+  opts: { operator?: { url: string; token: string }; users?: [string, string] } = {},
+): Promise<PartyRun> {
+  const world = ctx.world;
+  const names = ctx.lex.goodsNames();
+  const stamp = Date.now();
+  const run: PartyRun = {
+    presses: 0,
+    cards: 0,
+    problems: [],
+    party: "",
+    thread: [],
+    beats: 0,
+    encounters: 0,
+    hunts: [],
+    ended: false,
+    log: [],
+  };
+  const note = (s: string) => run.log.push(s);
+  const checked = (c: Card) => {
+    run.thread.push(`${c.author} / ${c.title}`);
+    for (const x of problems(c, names)) run.problems.push(`thread ${c.author}: ${x}`);
+  };
+  const threads = new PartyPoster(
+    world,
+    ctx.lex,
+    memoryStore(),
+    {
+      open: async (_ch, _name, c) => (
+        checked(c), { thread: "scripted-thread", card: "scripted-card" }
+      ),
+      add: async () => true,
+      edit: async (_t, _m, c) => (checked(c), true),
+      post: async (_t, c) => (checked(c), true),
+      archive: async () => {},
+    },
+    new ThreadBudget(),
+    { editMs: 0 },
+  );
+  const onAnswer = async (a: Answer) => {
+    if (a.party) await threads.note(a.party);
+  };
+  const [ua, ub] = opts.users ?? [`party-a-${stamp}`, `party-b-${stamp}`];
+  const a = new Player(ctx, ua, run, names, onAnswer);
+  const b = new Player(ctx, ub, run, names, onAnswer);
+  for (const p of [a, b]) {
+    await p.command("play");
+    await p.press("start", "knife");
+    p.id = await world.player(p.user);
+  }
+  note(`${a.id} and ${b.id} at ${JSON.stringify((await world.options(a.id)).at)}`);
+
+  // Forming: an invitation from /party, accepted from the other's party card.
+  await a.command("party");
+  await a.press("p-invite", undefined, b.id);
+  await b.command("party");
+  await b.press("p-join", a.id);
+  const st = await world.party(a.id);
+  run.party = st.party?.id ?? "";
+  if (!run.party) throw new Error(`no party formed: ${b.card.title}`);
+  note(`party ${run.party} of ${st.party!.members.length}`);
+
+  // Out to the suggested site together, the second following the first.
+  await b.command("party");
+  if (b.has("p-follow")) await b.press("p-follow");
+  for (let i = 0; i < 8; i++) {
+    const here = await world.here(a.id);
+    if (here.place.explore) break;
+    if (!here.suggest) throw new Error("no outing is suggested");
+    await a.command("map");
+    await a.press("step", String(here.suggest.dir));
+    await a.idle(world);
+    await b.idle(world);
+  }
+  const [at, bt] = [(await world.options(a.id)).at, (await world.options(b.id)).at];
+  if (at.q !== bt.q || at.r !== bt.r) {
+    note("the follower dropped off; walking to the leader");
+    await b.command("map");
+    await b.send({
+      id: { action: "goto", target: "", version: (await world.options(b.id)).version },
+      values: [`${at.q},${at.r}`],
+    });
+    await b.idle(world);
+  }
+
+  // Explore together: one shared encounter, each member picking on its own card.
+  for (let n = 0; n < 6 && run.encounters < 2; n++) {
+    await a.hub();
+    if (a.card.author.startsWith("Down")) break;
+    await a.press("field");
+    if (!a.has("explore")) break;
+    await a.press("explore");
+    if (!a.card.author.startsWith("Party beat")) {
+      // The other is down or busy: this one is the leader's alone, and it backs out.
+      note(`explore was not shared: ${a.card.author}`);
+      if (a.has("press", "back-out")) await a.press("press", "back-out");
+      break;
+    }
+    for (let beat = 0; beat < 12; beat++) {
+      let resolved = false;
+      for (const p of [a, b]) {
+        await p.send({ id: { action: "p-card", target: run.party, version: 0 } });
+        if (!p.has("p-pick")) continue;
+        const o = await world.options(p.id);
+        const wins = (o.fight?.options ?? []).filter((x) => x.kind === "win" && !x.puzzle);
+        const best = wins.sort((x, y) => ctx.lex.bandRank(x.band) - ctx.lex.bandRank(y.band))[0];
+        await p.press("p-pick", best?.id ?? "hold");
+        if (p.card.author.includes("resolved") || p.card.author.includes("the bottom"))
+          resolved = true;
+      }
+      if (resolved) run.beats++;
+      if (!(await world.options(a.id)).fight && !(await world.options(b.id)).fight) break;
+    }
+    run.encounters++;
+    await threads.poll();
+  }
+
+  // A hunt beside them, for the game channel's card.
+  if (opts.operator) {
+    const here = (await world.options(a.id)).at;
+    const res = await fetch(`${opts.operator.url}${api.PathOperator}`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${opts.operator.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        interactionId: `scripted-hunt-${stamp}`,
+        characterId: "",
+        kind: api.OpHuntStart,
+        asset: "dust-runner-migration",
+        to: here,
+        note: "The scripted party run.",
+      }),
+    });
+    if (!res.ok) note(`hunt-start refused: ${await res.text()}`);
+    const hunts = new HuntPoster(world, ctx.lex, memoryStore(), {
+      post: async (c) => {
+        run.hunts.push(c.title);
+        for (const x of problems(c, names)) run.problems.push(`hunt ${c.author}: ${x}`);
+        return "scripted-hunt-card";
+      },
+      edit: async () => true,
+    });
+    await hunts.poll();
+    await a.hub();
+    if (a.has("hunt")) await a.press("hunt");
+  }
+
+  // Leaving a party of two ends it, and its thread closes.
+  await a.command("party");
+  await a.press("p-leave");
+  const board = await world.parties();
+  const left = board.parties.find((p) => p.id === run.party);
+  run.ended = !left || !!left.ended;
+  await threads.poll();
+  return run;
+}
+
+if (import.meta.main && process.env.SCRIPTED === "party") {
+  const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
+  const world = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
+  const lex = new Lexicon(await world.lexicon());
+  const started = Date.now();
+  const r = await partyRun(
+    { world, lex, threatLine: lex.numbers.ambushLine },
+    { operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" } },
+  ).catch((e: unknown) => {
+    console.error(e);
+    process.exit(2);
+  });
+  console.log(
+    JSON.stringify({ ...r, seconds: Math.round((Date.now() - started) / 1000) }, null, 2),
+  );
+  process.exit(r.problems.length || !r.party || !r.beats || !r.ended || !r.thread.length ? 1 : 0);
+}
+
+if (import.meta.main && process.env.SCRIPTED !== "party") {
   const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
   const samples: Record<string, unknown> = {};
   const base: World = httpWorld(url, process.env.MMO_API_TOKEN ?? "");

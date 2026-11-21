@@ -4,7 +4,8 @@ import type { World, WorldReply } from "./world.ts";
 /**
  * A World that keeps a sample of every read it passes on, for the card
  * test's fixtures: the latest of each, and of options also the latest
- * taken in a fight, on a machine beat, on the road and down.
+ * taken in a fight, on a machine beat, on the road and down, and of the
+ * party read also the latest on a shared beat, at a fork and with none.
  */
 export function recording(world: World, samples: Record<string, unknown>): World {
   const keep = <T>(name: string, v: T): T => {
@@ -57,5 +58,28 @@ export function recording(world: World, samples: Record<string, unknown>): World
       return keep(g.id ? "guild" : "guild:none", g);
     },
     classes: async (id) => keep("classes", await world.classes(id)),
+    party: async (id) => {
+      const st = await world.party(id);
+      return keep(
+        st.fight?.shared
+          ? "party:beat"
+          : st.floor?.ways?.length
+            ? "party:fork"
+            : st.party
+              ? "party"
+              : "party:none",
+        st,
+      );
+    },
+    parties: async () => {
+      const b = await world.parties();
+      if (b.parties.length) samples.parties = b;
+      return b;
+    },
+    hunts: async () => {
+      const b = await world.hunts();
+      if (b.hunts.length) samples.hunts = b;
+      return b;
+    },
   };
 }

@@ -99,6 +99,12 @@ function setup({
     [api.PathGoals, { ...samples.goals, ...GOALS_SINCE, ...goals }],
     [api.PathGuild, { ...samples.guild, ...GUILD_SINCE, ...guild }],
     [api.PathClasses, samples.classes],
+    [api.PathHunts, { tick: 0, every: 1, hunts: [] }],
+    [api.PathParties, { tick: 0, parties: [] }],
+    [
+      api.PathParty,
+      { tick: 0, characterId: player, version: options.version, reach: [], invites: [] },
+    ],
   ]);
   const fetcher = Object.assign(
     async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -120,9 +126,11 @@ function setup({
         return Response.json(samples.appraise);
       }
       reads.push(url.pathname);
-      expect(
-        url.searchParams.get(url.pathname === api.PathPlayer ? "discordId" : "characterId"),
-      ).toBe(url.pathname === api.PathPlayer ? "someone" : "c-1");
+      // The world-wide reads name no character.
+      if (url.pathname !== api.PathHunts && url.pathname !== api.PathParties)
+        expect(
+          url.searchParams.get(url.pathname === api.PathPlayer ? "discordId" : "characterId"),
+        ).toBe(url.pathname === api.PathPlayer ? "someone" : "c-1");
       if (!routes.has(url.pathname)) throw new Error("unexpected path " + url.pathname);
       return Response.json(routes.get(url.pathname));
     },

@@ -247,6 +247,61 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
       return `Found a locked pouch (${s(f, "rarity")}): ${amount(n(f, "goods"), "goods")} behind a ${family(f, lex)}.`;
     case "pouch.opened":
       return `Opened a locked pouch${took(f)}: ${amount(n(f, "goods"), "goods")}.`;
+    case "party.formed":
+      return "A party formed.";
+    case "party.joined":
+      return `Joined a party: ${plural(n(f, "members"), "member")} now.`;
+    case "party.left":
+      return "Left a party.";
+    case "party.ended":
+      return "A party ended.";
+    case "party.dropped":
+      return "Dropped off the leader's road.";
+    case "party.beat":
+      return `A party beat: ${n(f, "won")} of ${plural(n(f, "pressed"), "member")} won it.`;
+    case "beat.won":
+      return `Won a party beat with ${lex.name("fights.options", s(f, "option")).toLowerCase()}, scoring ${amount(n(f, "score"), "pts")}.`;
+    case "beat.lost":
+      return `Lost a party beat with ${lex.name("fights.options", s(f, "option")).toLowerCase()}.`;
+    case "dungeon.entered":
+    case "dungeon.reached":
+      return `Reached floor ${n(f, "floor")} of a dungeon.`;
+    case "dungeon.left":
+      return `Climbed out of a dungeon from floor ${n(f, "floor")}.`;
+    case "dungeon.forked":
+      return "Took a way down at a fork.";
+    case "dungeon.haunted":
+      return "A dungeon turned haunted: too many have fallen in it lately.";
+    case "dungeon.calm":
+      return "A haunted dungeon grew calm again.";
+    case "dungeon.slain-first":
+      return "The first to slay a dungeon's guardian: theirs is the naming.";
+    case "dungeon.named":
+      return "A dungeon was given its name.";
+    case "guardian.slain":
+      return "A dungeon's guardian was slain.";
+    case "guardian.worn":
+      return `A dungeon's guardian was worn down to ${num(n(f, "health"))} of ${amount(n(f, "max"), "health")}.`;
+    case "guardian.whole":
+      return "A dungeon's guardian is whole again.";
+    case "hunt.opened":
+      return `A hunt opened: ${lex.name("creatures.archetypes", s(f, "archetype")).toLowerCase()}.`;
+    case "hunt.pressed":
+      return "Pressed a hunt.";
+    case "hunt.wounded":
+      return `Took ${amount(n(f, "health"), "health")} off a hunt.`;
+    case "hunt.slain":
+      return `A hunt was slain by ${plural(n(f, "hunters"), "presser")}.`;
+    case "hunt.left":
+      return `A hunt got away with ${num(n(f, "health"))} of ${amount(n(f, "max"), "health")}.`;
+    case "key.made":
+      return `Made a key to a dungeon from ${amount(n(f, "units"), mat("material"))}.`;
+    case "key.used":
+      return "Used a key: the third way opened.";
+    case "machine.lost-race":
+      return `Another party solved the ${lex.name("puzzles.families", s(f, "family"))} first: this one went haywire.`;
+    case "track.followed":
+      return "Followed a fled creature's track.";
     default:
       return capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
   }

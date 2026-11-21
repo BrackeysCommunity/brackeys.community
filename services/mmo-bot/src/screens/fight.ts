@@ -10,6 +10,7 @@ import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
 import { back, banner, btn, DIRECTIONS, downButtons, factNum, launch, PRIVATE } from "./common.ts";
+import { dungeonName, floorOf, floorWord } from "./dungeon.ts";
 
 /** A beat: the situation, every option with its band and risk, edited in place from beat to beat (GDD 7.1). */
 export function beatCard(
@@ -59,8 +60,8 @@ export function beatCard(
     context: PRIVATE,
     author: f.ambush
       ? "Ambush on the road"
-      : here.dungeon
-        ? "Down in the den · floor 1"
+      : here.dungeon || f.floor
+        ? `Down in the den · ${floorOf(f.floor || 1, here.floor?.up)}`
         : `Encounter · ${beat}`,
     title: `${beat}: ${creature}`,
     description: `${opening}${lines.join("\n")}`,
@@ -133,21 +134,33 @@ export function resolvedCard(
   };
 }
 
-/** Down: what it costs and the way out (GDD 5.5). */
+/** Down: what it costs and the way out (GDD 5.5), naming the floor when it is in a dungeon (GDD 4.9). */
 export function downCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const v = o.version;
   const n = lex.numbers;
   const r = o.rescue;
+  const f = here.floor?.floor ? here.floor : undefined;
+  const where = f ? `${floorOf(f.floor, f.up)} of ${dungeonName(f, lex)}` : here.name;
+  const crawl = f
+    ? `Crawling out takes ${ticks(n.crawlTicks)}, longer for each ${floorWord(f.up)} above you`
+    : `Crawling out takes ${ticks(n.crawlTicks)}`;
   return {
     context: PRIVATE,
-    author: "Down",
-    title: `Down at ${here.name}`,
+    author: f ? `Down in the den · ${floorOf(f.floor, f.up)}` : "Down",
+    title: f ? `Down on ${where}` : `Down at ${here.name}`,
     description: r?.carriedBy
       ? `${r.carriedBy} is carrying you home to ${r.home}. You are set down there, no longer down; crawling out leaves them.`
-      : `You cannot act. Crawling out takes ${ticks(n.crawlTicks)}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${ticks(n.woundedTicks)} longer, for a day or until you rest.`,
+      : `You cannot act. ${crawl}, runs while you are away, and leaves you wounded: odds one band worse and long actions ${ticks(n.woundedTicks)} longer, for a day or until you rest.`,
     picture: banner(here),
     fields: r?.called
-      ? [{ name: "Help", value: `Called: a Carry goal is on the board at ${r.home}` }]
+      ? [
+          {
+            name: "Help",
+            value: f
+              ? `Called: a Carry goal naming ${floorOf(f.floor, f.up)} is on the board at ${r.home}. A rescuer must reach this ${floorWord(f.up)} to carry you up.`
+              : `Called: a Carry goal is on the board at ${r.home}`,
+          },
+        ]
       : undefined,
     footer:
       "Calling for help posts a Carry goal at your home settlement and starts the crawl; whoever reaches you first carries you in.",
