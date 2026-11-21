@@ -3,9 +3,15 @@
 # hand pointing at this repo, leave Root Directory blank (the Dockerfile
 # builds from the repo root), and set "Config file path" to
 # services/mmo-world/railway.toml. Variables: the Env* names in
-# service/env.go (MMO_MASTER_SECRET is 32+ random bytes, base64);
-# MMO_DISPOSABLE=1 only on a test world that may be wiped. It serves only
-# the private network.
+# service/env.go (MMO_MASTER_SECRET is 32+ random bytes, base64) and in
+# gateway/env.go; MMO_DISPOSABLE=1 only on a test world that may be wiped.
+#
+# Two listeners. PORT is the API (/v1 and the operator paths): it stays on
+# the private network, for the bot. MMO_ACTIVITY_PORT is the Activity (its
+# page, sign-in and sockets): give the service one public domain whose
+# target port is MMO_ACTIVITY_PORT, and point the Discord application's URL
+# mapping "/" at that host. DISCORD_APP_ID and DISCORD_CLIENT_SECRET are
+# required with it. The image sets MMO_ACTIVITY_DIR.
 #
 # One replica: the world's advisory lock lets a second instance wait in
 # standby (health up, API down), which is what a rolling deploy needs.
@@ -13,7 +19,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "services/mmo-world/Dockerfile"
-watchPatterns = ["services/mmo-world/**"]
+watchPatterns = ["services/mmo-world/**", "services/mmo-activity/**", "packages/mmo-api/**"]
 
 [deploy]
 healthcheckPath = "/healthz"

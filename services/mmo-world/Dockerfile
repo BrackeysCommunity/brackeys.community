@@ -1,5 +1,6 @@
 # The world service: a static binary in a small image, built from the repo
-# root. It copies only this module; sheets and packs ship beside the binary.
+# root. It copies only this module; sheets, packs and the Activity's build
+# ship beside the binary.
 # The default target is the service; `--target replay` builds the nightly
 # replay (scripts/nightly-replay.sh): the operator CLI beside pg_dump and
 # psql.
@@ -10,6 +11,17 @@ RUN go mod download
 COPY services/mmo-world/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/world ./cmd/world \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/op ./cmd/op
+
+# The Activity's static build, which the service serves on its Activity
+# listener. It reads the API's generated types, and the pack's palette and
+# names, from where they sit in the repo.
+FROM oven/bun:1.3 AS activity
+WORKDIR /src
+COPY packages/mmo-api packages/mmo-api
+COPY services/mmo-world/packs/wasteland services/mmo-world/packs/wasteland
+COPY services/mmo-activity services/mmo-activity
+WORKDIR /src/services/mmo-activity
+RUN bun install --frozen-lockfile && bun run build
 
 # What both runtime images carry beside their binaries.
 FROM scratch AS assets
@@ -28,6 +40,8 @@ FROM gcr.io/distroless/static-debian12:nonroot AS world
 WORKDIR /app
 COPY --from=build /out/world /out/op /app/
 COPY --from=assets /app /app
+COPY --from=activity /src/services/mmo-activity/dist /app/activity
 ENV MMO_SHEETS_ROOT=/app
+ENV MMO_ACTIVITY_DIR=/app/activity
 EXPOSE 8080
 ENTRYPOINT ["/app/world"]
