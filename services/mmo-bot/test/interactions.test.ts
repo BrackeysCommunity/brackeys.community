@@ -6,6 +6,7 @@ import {
   createHandler,
   DOWN_LINE,
   HUB_TTL_MS,
+  LAUNCH_LINE,
   MOVED_LINE,
   SLOW_LINE,
   STALE_LINE,
@@ -13,8 +14,8 @@ import {
 import * as api from "../src/api.ts";
 import type { Card } from "../src/card.ts";
 import { localBudget } from "../src/cooldown.ts";
-import { answer, modalFor } from "../src/flow.ts";
-import { decodeId, encodeId, type Id } from "../src/ids.ts";
+import { answer, launchFor, modalFor } from "../src/flow.ts";
+import { decodeId, encodeId, type Id, launchTarget } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { BLANK, goalDraftId, specOf } from "../src/screens/goals.ts";
 import { httpWorld } from "../src/world.ts";
@@ -76,6 +77,9 @@ function setup({
   offline = false,
   facts = [] as api.Fact[],
   purse = {} as Partial<api.Purse>,
+  options = samples.options as api.Options,
+  here = samples.here as api.Here,
+  sheet = samples.sheet as api.Sheet,
   goals = {} as Partial<api.Goals>,
   guild = {} as Partial<api.Guild>,
 } = {}) {
@@ -84,9 +88,10 @@ function setup({
   const appraisals: api.AppraiseRequest[] = [];
   const routes = new Map<string, unknown>([
     [api.PathPlayer, { characterId: player }],
-    [api.PathOptions, { ...samples.options, purse: { ...samples.options.purse, ...purse } }],
-    [api.PathHere, samples.here],
-    [api.PathSheet, samples.sheet],
+    [api.PathOptions, { ...options, purse: { ...options.purse, ...purse } }],
+    [api.PathHere, here],
+    [api.PathSheet, sheet],
+    [api.PathNPC, samples.npc],
     [api.PathMap, samples.map],
     [api.PathRecap, samples.recap],
     [api.PathRecipes, samples.recipes],
@@ -223,6 +228,7 @@ function button(customId: string, age = 0, over: Record<string, unknown> = {}) {
     guildId: "guild",
     customId,
     showModal: mock(async (_value: unknown) => {}),
+    launchActivity: mock(async () => {}),
     message: { id: SnowflakeUtil.generate({ timestamp: now - age }).toString() },
     isPrimaryEntryPointCommand: () => false,
     isChatInputCommand: () => false,
@@ -732,4 +738,168 @@ test("pressing a combat option shows the outcome when no encounter remains", asy
     },
   ]);
   expect(result.card.author).toBe("Encounter · the beat resolved");
+});
+
+const TINKER = samples.npc.npc.id;
+/** The world as each card that leads into the Activity is drawn from it. */
+const LEADING: [string, string, Parameters<typeof setup>[0], Id][] = [
+  [
+    "a machine beat",
+    "beat",
+    { options: samples["options:machine"] as api.Options },
+    { action: "fight", target: "", version: 1 },
+  ],
+  [
+    "the hub on a machine beat",
+    "hub",
+    { options: samples["options:machine"] as api.Options },
+    { action: "hub", target: "", version: 1 },
+  ],
+  [
+    "the hub while a machine is armed",
+    "hub",
+    { sheet: { ...samples.sheet, character: { ...samples.sheet.character, armed: true } } },
+    { action: "hub", target: "", version: 1 },
+  ],
+  ["the place card at a bench", "where", {}, { action: "where", target: "", version: 1 }],
+  [
+    "the tinker's card at a bench",
+    launchTarget("talk", TINKER),
+    {},
+    { action: "talk", target: TINKER, version: 1 },
+  ],
+  [
+    "the character card with a pouch",
+    "character",
+    { sheet: { ...samples.sheet, character: { ...samples.sheet.character, pouches: 1 } } },
+    { action: "character", target: "", version: 1 },
+  ],
+];
+
+test.each(LEADING)(
+  "the launch on %s answers with the Activity at once, and never reaches the world",
+  async (_name, target, world, open) => {
+    const { ctx, press, reads, writes } = setup(world);
+    const card = (await press(open)).card;
+    const launch = card.rows
+      .flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .filter((b) => b.kind === "page" && decodeId(b.customId)?.action === "launch");
+    expect(launch).toHaveLength(1);
+    if (launch[0]?.kind !== "page") throw new Error("the launch is not a button the bot answers");
+    expect(decodeId(launch[0].customId)?.target).toBe(target);
+    reads.length = 0;
+    writes.length = 0;
+    const { interaction } = button(launch[0].customId);
+    await createHandler({ ctx, budget: localBudget(), media: async () => new Uint8Array([1]) })(
+      interaction as unknown as Interaction,
+    );
+    expect(interaction.launchActivity).toHaveBeenCalledTimes(1);
+    for (const other of [
+      "deferUpdate",
+      "editReply",
+      "reply",
+      "update",
+      "followUp",
+      "showModal",
+    ] as const)
+      expect(interaction[other]).not.toHaveBeenCalled();
+    expect(reads).toEqual([]);
+    expect(writes).toEqual([]);
+  },
+);
+
+test("a launch is held to the press budget, says so when Discord refuses it, and an unknown one is an old button", async () => {
+  const { ctx, reads, writes } = setup();
+  const said: string[] = [];
+  const handle = createHandler({
+    ctx,
+    budget: localBudget({ limit: 2, windowMs: 10000 }),
+    media: async () => new Uint8Array([1]),
+    log: (line) => said.push(line),
+  });
+  const refused = button(encodeId("launch", "where", 3), 0, {
+    launchActivity: mock(async () => {
+      throw new Error("Activities are not enabled");
+    }),
+  });
+  await handle(refused.interaction as unknown as Interaction);
+  expect(refused.interaction.reply).toHaveBeenCalledWith({
+    content: LAUNCH_LINE,
+    flags: MessageFlags.Ephemeral,
+  });
+  expect(refused.interaction.deferUpdate).not.toHaveBeenCalled();
+  expect(said.join("\n")).toContain("Activities are not enabled");
+
+  // No card it knows sits behind this target: it is answered as any old button is.
+  expect(launchFor({ action: "launch", target: "nowhere", version: 3 })).toBeNull();
+  expect(launchFor({ action: "launch", target: "talk", version: 3 })).toBeNull();
+  expect(launchFor({ action: "launch", target: "hub/someone", version: 3 })).toBeNull();
+  expect(launchFor({ action: "where", target: "", version: 3 })).toBeNull();
+  const unknown = button(encodeId("launch", "nowhere", 3));
+  await handle(unknown.interaction as unknown as Interaction);
+  expect(unknown.interaction.launchActivity).not.toHaveBeenCalled();
+  expect(unknown.interaction.deferUpdate).toHaveBeenCalledTimes(1);
+
+  const over = button(encodeId("launch", "where", 3));
+  await handle(over.interaction as unknown as Interaction);
+  expect(over.interaction.launchActivity).not.toHaveBeenCalled();
+  expect(over.interaction.reply).toHaveBeenCalledWith({
+    content: SLOW_LINE,
+    flags: MessageFlags.Ephemeral,
+  });
+  expect(writes).toEqual([]);
+  expect(reads).not.toContain(api.PathHere);
+});
+
+test("the entry point command answers with the Activity", async () => {
+  const { ctx, reads, writes } = setup();
+  const { interaction } = button("", 0, {
+    commandName: "launch",
+    isPrimaryEntryPointCommand: () => true,
+  });
+  await createHandler({ ctx, budget: localBudget(), media: async () => new Uint8Array([1]) })(
+    interaction as unknown as Interaction,
+  );
+  expect(interaction.launchActivity).toHaveBeenCalledTimes(1);
+  expect(interaction.deferUpdate).not.toHaveBeenCalled();
+  expect([...reads, ...writes]).toEqual([]);
+});
+
+test("a launch press that reaches the flow shows the card it sits on, and writes nothing", async () => {
+  const { press, writes } = setup({ options: samples["options:machine"] as api.Options });
+  const authors = async (target: string) =>
+    (await press({ action: "launch", target, version: 1 })).card.author;
+  expect(await authors("beat")).toStartWith("Encounter");
+  expect(await authors("hub")).toStartWith("Hub");
+  expect(await authors("where")).toStartWith("Where I am");
+  expect(await authors("character")).toStartWith("Character");
+  expect(await authors(launchTarget("talk", TINKER))).toStartWith("tinker");
+  expect(await authors("nowhere")).toBe("An old button");
+  expect(writes).toEqual([]);
+});
+
+test("a machine's option pressed from an old card is refused by the world and the beat is drawn again", async () => {
+  const { ctx } = setup({ options: samples["options:machine"] as api.Options });
+  const world = {
+    ...ctx.world,
+    act: async () => ({
+      ok: false as const,
+      refusal: { code: api.CodeNeedsActivity, message: "a machine is worked in the Activity" },
+    }),
+  };
+  const a = await answer(
+    { ...ctx, world },
+    {
+      id: { action: "press", target: "hack", version: 1 },
+      user: "someone",
+      guild: "guild",
+      interaction: "event",
+    },
+  );
+  expect(a.card.title).toBe("A machine is worked in the Activity");
+  const ids = a.card.rows
+    .flatMap((r) => ("buttons" in r ? r.buttons : []))
+    .map((b) => (b.kind === "page" ? decodeId(b.customId) : null));
+  expect(ids.some((id) => id?.action === "launch")).toBe(true);
+  expect(ids.some((id) => id?.action === "press" && id.target === "hack")).toBe(false);
 });

@@ -36,6 +36,11 @@ export function ticks(n: number): string {
   return `${plural(n, "tick")} (${num(n * MINUTES_PER_TICK)} min)`;
 }
 
+/** Milliseconds as whole seconds, rounded up: "12 s". */
+export function seconds(ms: number): string {
+  return amount(Math.ceil(ms / 1000), "s");
+}
+
 /** Ticks as whole hours, for a table column whose header names the unit. */
 export function hours(n: number): string {
   return num(n / TICKS_PER_HOUR);

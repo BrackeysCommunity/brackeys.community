@@ -8,11 +8,13 @@ import { amount, outOf, ticks } from "../units.ts";
 import {
   back,
   banner,
+  benchLine,
   btn,
   conditionsField,
   downButtons,
   factLine,
   gauges,
+  launch,
   PRIVATE,
   stationLine,
   timeLeft,
@@ -50,11 +52,13 @@ export function hubCard(
   notice?: string,
 ): Card {
   const c = sheet.character;
-  const doing = o.long
-    ? `${longLabel(o.long, lex)}: ${ticks(timeLeft(o))} to go`
-    : o.fight
-      ? "In an encounter"
-      : "Free to act";
+  const doing = c.armed
+    ? "Working a machine: its countdown is running"
+    : o.long
+      ? `${longLabel(o.long, lex)}: ${ticks(timeLeft(o))} to go`
+      : o.fight
+        ? "In an encounter"
+        : "Free to act";
   const fields = [
     { name: "Coin", value: amount(c.coin, "coin"), inline: true },
     { name: "Provisions", value: amount(c.provisions, "provisions"), inline: true },
@@ -79,6 +83,7 @@ export function hubCard(
   ];
   const urgent: Button[] = [];
   if (o.fight) urgent.push(btn("Back to the fight", "fight", "", v, { style: "danger" }));
+  if (o.fight?.machine || c.armed) urgent.push(launch("Work the machine", "hub", v));
   if (o.conditions.includes(api.CondDown)) urgent.push(...downButtons(o, v));
   if (o.long) urgent.push(btn("Stop", "cancel", "", v));
   return {
@@ -133,6 +138,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     more.push(btn(`Follow the trail`, "follow", target(",", t.now.q, t.now.r), v));
   if (here.search) more.push(btn("Search the cache", "search", "", v, { style: "success" }));
   if (here.place.rest) more.push(btn("Rest", "rest", "", v));
+  if (here.bench) more.push(launch("Work at the bench", "where", v));
   more.push(back(v));
   const overrun = here.place.overrun;
   const fields = [
@@ -150,6 +156,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
       value: here.stations.map((s) => stationLine(s, lex)).join(", "),
     });
   }
+  if (here.bench) fields.push({ name: "Tinker's bench", value: benchLine(here.bench) });
   if (people.length)
     fields.push({
       name: "People here",

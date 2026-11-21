@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 
 import type * as api from "../src/api.ts";
 import { bareNumbers, type Card, problems, render } from "../src/card.ts";
+import { launchFor } from "../src/flow.ts";
 import { boardPostCard, forumCard } from "../src/forum.ts";
-import { decodeId } from "../src/ids.ts";
+import { decodeId, type LaunchCard } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { classesCard } from "../src/screens/classes.ts";
+import { benchLine, factLine } from "../src/screens/common.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "../src/screens/fight.ts";
 import {
   BLANK,
@@ -187,6 +189,163 @@ const counted = [
   }),
 ];
 const down: api.Options = { ...((w["options:down"] ?? o) as api.Options) };
+/** A Puzzle beat as the world served it: the opening Rewire, its option flagged a machine's. */
+const onMachine = w["options:machine"] as api.Options;
+/** The recorded settlement's bench, with a day's use behind it and lessons left by others. */
+const benched: api.Here = { ...here, bench: { uses: 3, usesCap: 20, lessons: 2 } };
+/** The recorded tinker, met where the bench stands. */
+const tinker = w.npc as api.Conversation;
+/** A character some way into the machines: two families practised, one mastered, two pouches carried. */
+const practised: api.Sheet = {
+  ...sheet,
+  character: {
+    ...sheet.character,
+    practice: [
+      ...sheet.character.practice,
+      { id: "lock-pins", level: 16 },
+      { id: "rewire", level: 3 },
+    ],
+    titles: ["lock-pins"],
+    pouches: 2,
+  },
+};
+const armed: api.Sheet = { ...sheet, character: { ...sheet.character, armed: true } };
+const subject = [{ kind: "character", id: "c-1" }];
+const fact = (kind: string, data: api.Datum[]): api.Fact => ({
+  id: 1,
+  tick: 9,
+  kind,
+  subjects: subject,
+  data,
+  weight: 2,
+});
+/** One of every fact a machine, a bench or a pouch writes, as the world words its data. */
+const machineFacts: [api.Fact, string][] = [
+  [
+    fact("machine.armed", [
+      { k: "family", s: "lock-pins" },
+      { k: "level", n: 3 },
+      { k: "source", s: "beat" },
+    ]),
+    "Set to work on a level 3 Pin lock: its countdown started.",
+  ],
+  [
+    fact("machine.armed", [
+      { k: "family", s: "lock-maze" },
+      { k: "level", n: 2 },
+      { k: "source", s: "pouch" },
+    ]),
+    "Set to work on a level 2 Tumbler maze, the lock of a pouch: its countdown started.",
+  ],
+  [
+    fact("puzzle.solved", [
+      { k: "family", s: "rewire" },
+      { k: "level", n: 1 },
+      { k: "clean", n: 1 },
+      { k: "ms", n: 11_400 },
+      { k: "compact", n: 0 },
+      { k: "master", n: 0 },
+    ]),
+    "Solved a level 1 Rewire in 12 s, clean.",
+  ],
+  [
+    fact("puzzle.solved", [
+      { k: "family", s: "crank" },
+      { k: "level", n: 17 },
+      { k: "clean", n: 0 },
+      { k: "ms", n: 31_000 },
+      { k: "master", n: 1 },
+    ]),
+    "Solved a level 17 Crank in 31 s, and the panel behind it: a master's solve.",
+  ],
+  [
+    fact("puzzle.solved", [
+      { k: "family", s: "circuit" },
+      { k: "level", n: 4 },
+      { k: "clean", n: 0 },
+    ]),
+    "Solved a level 4 Circuit.",
+  ],
+  [
+    fact("puzzle.haywire", [
+      { k: "family", s: "circuit" },
+      { k: "haywire", s: "shock" },
+      { k: "magnitude", n: 8 },
+      { k: "late", n: 0 },
+    ]),
+    "A Circuit went haywire: shock.",
+  ],
+  [
+    fact("puzzle.haywire", [
+      { k: "family", s: "lock-pins" },
+      { k: "haywire", s: "lockdown" },
+      { k: "pouch", s: "p-c-1-1" },
+      { k: "late", n: 1 },
+      { k: "magnitude", n: 1 },
+    ]),
+    "A Pin lock on a pouch ran out its countdown and went haywire: lockdown.",
+  ],
+  [
+    fact("puzzle.mastered", [
+      { k: "family", s: "lock-pins" },
+      { k: "settlement", n: 0 },
+    ]),
+    "Mastered the Pin lock: the title Picker is held.",
+  ],
+  [
+    fact("bench.solved", [
+      { k: "family", s: "splice" },
+      { k: "level", n: 2 },
+      { k: "uses", n: 1 },
+      { k: "settlement", n: 0 },
+      { k: "taught", n: 0 },
+    ]),
+    "Solved a level 2 Splice at the tinker's bench: 1 use of practice.",
+  ],
+  [
+    fact("bench.solved", [
+      { k: "family", s: "lock-pins" },
+      { k: "level", n: 5 },
+      { k: "uses", n: 0 },
+      { k: "settlement", n: 0 },
+      { k: "taught", n: 1 },
+    ]),
+    "Solved a level 5 Pin lock at the tinker's bench: the day's bench uses are spent, and it is left as a lesson.",
+  ],
+  [
+    fact("lesson.taken", [
+      { k: "family", s: "lock-pins" },
+      { k: "uses", n: 2 },
+      { k: "settlement", n: 0 },
+      { k: "standing", n: 1 },
+      { k: "guild", s: "g-1" },
+    ]),
+    "A lesson in the Pin lock was taken at the bench: 2 uses of practice, and +1 standing to its teacher.",
+  ],
+  [
+    fact("pouch.found", [
+      { k: "pouch", s: "p-c-1-1" },
+      { k: "family", s: "lock-maze" },
+      { k: "trigger", s: "locked-pouch" },
+      { k: "rarity", s: "uncommon" },
+      { k: "goods", n: 3 },
+      { k: "q", n: 4 },
+      { k: "r", n: -2 },
+    ]),
+    "Found a locked pouch (uncommon): 3 goods behind a Tumbler maze.",
+  ],
+  [
+    fact("pouch.opened", [
+      { k: "pouch", s: "p-c-1-1" },
+      { k: "family", s: "lock-maze" },
+      { k: "level", n: 2 },
+      { k: "goods", n: 3 },
+      { k: "ms", n: 8_200 },
+      { k: "clean", n: 1 },
+    ]),
+    "Opened a locked pouch in 9 s: 3 goods.",
+  ],
+];
 
 const cards: [string, () => Card][] = [
   ["start", () => startCard(lex)],
@@ -226,6 +385,31 @@ const cards: [string, () => Card][] = [
       }),
   ],
   ["resolved", () => resolvedCard(o, here, lex, press.pressed ?? [], press.facts)],
+  ["beat on a machine", () => beatCard(onMachine, here, lex)],
+  ["why options on a machine beat", () => whyCard(onMachine, here, lex, "options")],
+  ["hub on a machine beat", () => hubCard(onMachine, here, sheet, lex)],
+  ["hub with a machine armed", () => hubCard(o, here, armed, lex)],
+  ["where with a bench in use", () => whereCard(o, benched, lex)],
+  [
+    "where with what the machines did lately",
+    () => whereCard(o, { ...benched, recent: machineFacts.slice(0, 5).map(([f]) => f) }, lex),
+  ],
+  ["the tinker at the bench", () => talkCard(o, tinker, undefined, benched.bench)],
+  [
+    "character with machine practice, a title and pouches",
+    () => characterCard(o, here, practised, lex),
+  ],
+  [
+    "since you left, with every machine fact",
+    () =>
+      recapCard(
+        o,
+        here,
+        { since: 0, tick: 9, lines: machineFacts.map(([f]) => ({ rule: 2, fact: f })), more: 0 },
+        lex,
+        new Map(),
+      ),
+  ],
   ["why options", () => whyCard(w["options:fight"] as api.Options, here, lex, "options")],
   ["why moves", () => whyCard(o, here, lex, "moves")],
   ["down", () => downCard((w["options:down"] ?? o) as api.Options, here, lex)],
@@ -1728,4 +1912,107 @@ test("the character card says which vows are kept and which are broken", () => {
   );
   expect(field?.value).toContain("No blade this season: broken");
   expect(field?.value).toContain("No plate this season: kept so far");
+});
+
+/** A card's buttons the bot answers. */
+const pressable = (c: Card) =>
+  c.rows.flatMap((r) => ("buttons" in r ? r.buttons : [])).filter((b) => b.kind === "page");
+/** The cards a card's launch buttons say they sit on. */
+const launches = (c: Card) =>
+  pressable(c).flatMap((b) => {
+    const l = launchFor(decodeId(b.customId)!);
+    return l ? [l.from] : [];
+  });
+
+describe("every card that leads into the Activity carries its launch", () => {
+  const leading: [string, LaunchCard, () => Card][] = [
+    ["a machine beat", "beat", () => beatCard(onMachine, here, lex)],
+    ["the hub on a machine beat", "hub", () => hubCard(onMachine, here, sheet, lex)],
+    ["the hub while a machine is armed", "hub", () => hubCard(o, here, armed, lex)],
+    ["the place card at a bench", "where", () => whereCard(o, benched, lex)],
+    ["the tinker's card at a bench", "talk", () => talkCard(o, tinker, undefined, benched.bench)],
+    ["the character card with a pouch", "character", () => characterCard(o, here, practised, lex)],
+  ];
+  for (const [name, from, make] of leading) {
+    test(name, () => {
+      const card = make();
+      expect(launches(card)).toEqual([from]);
+      expect(problems(card, names)).toEqual([]);
+    });
+  }
+  test("and no other card does", () => {
+    const plain = [
+      beatCard(w["options:fight"] as api.Options, here, lex),
+      hubCard(o, here, sheet, lex),
+      whereCard(o, { ...here, bench: undefined }, lex),
+      talkCard(o, tinker),
+      talkCard(o, { ...tinker, npc: { ...tinker.npc, role: "keeper" } }, undefined, benched.bench),
+      characterCard(o, here, sheet, lex),
+    ];
+    for (const card of plain) expect(launches(card)).toEqual([]);
+  });
+});
+
+test("a machine's option is never a button: the beat names its family and offers the launch", () => {
+  const f = onMachine.fight!;
+  const machine = f.options.filter((x) => x.puzzle).map((x) => x.id);
+  expect(machine.length).toBeGreaterThan(0);
+  expect(f.machine).toBeTruthy();
+  for (const card of [
+    beatCard(onMachine, here, lex),
+    hubCard(onMachine, here, sheet, lex),
+    whyCard(onMachine, here, lex, "options"),
+  ]) {
+    const pressed = pressable(card).map((b) => decodeId(b.customId)!);
+    expect(pressed.filter((id) => id.action === "press" && machine.includes(id.target))).toEqual(
+      [],
+    );
+  }
+  const card = beatCard(onMachine, here, lex);
+  const family = lex.name("puzzles.families", f.machine!);
+  expect(card.description).toContain(`the ${family}, a machine worked in the Activity`);
+  expect(pressable(card)[0]?.label).toBe(`Work the machine: ${family}`);
+  // The other options stay in chat, each with its band.
+  const others = f.options.filter((x) => !x.puzzle).map((x) => x.id);
+  expect(
+    pressable(card)
+      .map((b) => decodeId(b.customId)!)
+      .filter((id) => id.action === "press")
+      .map((id) => id.target),
+  ).toEqual(others);
+});
+
+test("the bench line gives today's uses against the cap, and the lessons waiting", () => {
+  expect(benchLine({ uses: 0, usesCap: 20, lessons: 0 })).toBe("0 of 20 uses today");
+  expect(benchLine({ uses: 3, usesCap: 20, lessons: 1 })).toBe(
+    "3 of 20 uses today · 1 lesson waiting",
+  );
+  const field = (c: Card, name: string) => c.fields?.find((f) => f.name === name)?.value;
+  expect(field(whereCard(o, benched, lex), "Tinker's bench")).toBe(
+    "3 of 20 uses today · 2 lessons waiting",
+  );
+  expect(field(whereCard(o, { ...here, bench: undefined }, lex), "Tinker's bench")).toBeUndefined();
+  expect(field(talkCard(o, tinker, undefined, benched.bench), "The bench")).toBe(
+    "3 of 20 uses today · 2 lessons waiting",
+  );
+});
+
+test("the character card lists machine practice by family name with its title, and the pouches carried", () => {
+  const card = characterCard(o, here, practised, lex);
+  const field = (name: string) => card.fields?.find((f) => f.name === name)?.value;
+  expect(field("Machines")).toBe("Pin lock: practice level 16 · Picker\nRewire: practice level 3");
+  expect(field("Practice")).not.toContain("lock-pins");
+  expect(field("Practice")).toContain("fight level");
+  expect(field("Locked pouches")).toBe("2 pouches, each opened by its lock in the Activity");
+  const none = characterCard(o, here, sheet, lex);
+  expect(none.fields?.some((f) => f.name === "Machines" || f.name === "Locked pouches")).toBe(
+    false,
+  );
+});
+
+test("every fact a machine, a bench or a pouch writes reads as a line with its units", () => {
+  for (const [f, line] of machineFacts) {
+    expect(factLine(f, lex)).toBe(line);
+    expect(bareNumbers(line, names)).toEqual([]);
+  }
 });

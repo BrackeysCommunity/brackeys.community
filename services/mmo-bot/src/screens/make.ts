@@ -3,8 +3,18 @@ import type * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
-import { amount, outOf, signed } from "../units.ts";
-import { back, banner, btn, factNum, held, priceLadder, PRIVATE, stationLine } from "./common.ts";
+import { amount, outOf, plural, signed } from "../units.ts";
+import {
+  back,
+  banner,
+  btn,
+  factNum,
+  held,
+  launch,
+  priceLadder,
+  PRIVATE,
+  stationLine,
+} from "./common.ts";
 
 /** A recipe as the craft card carries it between selects: process.method.slot.material.qty. */
 export interface Draft {
@@ -246,6 +256,12 @@ export function characterCard(
   const item = (i: api.Item) =>
     `${i.name || lex.name("mounts.kinds", i.mount ?? "")}: level ${i.level}, ${outOf(i.durability, i.max, "durability")}${i.offers?.length ? " · a milestone pick waits" : ""}`;
   const all = [...sheet.kit, ...sheet.pack];
+  const c = sheet.character;
+  // A machine family's practice is told apart by the name the setting gives it.
+  const isFamily = (p: api.Skill) => lex.names("puzzles.families", p.id);
+  const machines = c.practice.filter(isFamily);
+  const titles = new Set(c.titles ?? []);
+  const pouches = c.pouches ?? 0;
   const fields = [
     {
       name: "Kit",
@@ -255,7 +271,10 @@ export function characterCard(
     {
       name: "Practice",
       value:
-        sheet.character.practice.map((p) => `${p.id} level ${p.level}`).join(", ") || "none yet",
+        c.practice
+          .filter((p) => !isFamily(p))
+          .map((p) => `${p.id} level ${p.level}`)
+          .join(", ") || "none yet",
       inline: true,
     },
     {
@@ -275,6 +294,21 @@ export function characterCard(
       inline: true,
     },
   ];
+  if (machines.length)
+    fields.push({
+      name: "Machines",
+      value: machines
+        .map(
+          (p) =>
+            `${lex.name("puzzles.families", p.id)}: practice level ${p.level}${titles.has(p.id) ? ` · ${lex.name("puzzles.titles", p.id)}` : ""}`,
+        )
+        .join("\n"),
+    });
+  if (pouches)
+    fields.push({
+      name: "Locked pouches",
+      value: `${plural(pouches, "pouch", "pouches")}, each opened by its lock in the Activity`,
+    });
   if (sheet.vows.length)
     fields.push({
       name: "Vows",
@@ -314,7 +348,14 @@ export function characterCard(
             },
           ]
         : []),
-      { buttons: [btn("Recipes", "recipes", "", v), btn("Classes", "classes", "", v), back(v)] },
+      {
+        buttons: [
+          btn("Recipes", "recipes", "", v),
+          btn("Classes", "classes", "", v),
+          ...(pouches ? [launch("Open a pouch", "character", v)] : []),
+          back(v),
+        ],
+      },
     ],
   };
 }

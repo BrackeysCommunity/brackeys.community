@@ -79,6 +79,7 @@ const ACTIONS = [
   "help",
   "hub",
   "item",
+  "launch",
   "list",
   "market",
   "mkt-l",
@@ -144,6 +145,27 @@ export function target(separator: Separator, ...parts: (string | number)[]): str
 export function fields(raw: string, separator: Separator, count: number): string[] | null {
   const parts = raw.split(separator);
   return parts.length === count && parts.every(Boolean) ? parts : null;
+}
+
+/** The cards that lead into the Activity (GDD 17.7). */
+const LAUNCH_CARDS = ["beat", "hub", "where", "talk", "character"] as const;
+export type LaunchCard = (typeof LAUNCH_CARDS)[number];
+
+/** A launch button's target: the card it sits on, and on a talk card the NPC spoken to. */
+export interface Launch {
+  from: LaunchCard;
+  npc?: string;
+}
+
+export function launchTarget(from: LaunchCard, npc?: string): string {
+  return npc ? target("/", from, npc) : from;
+}
+
+export function launchOf(raw: string): Launch | null {
+  const [from, npc, ...rest] = raw.split("/");
+  if (rest.length || !LAUNCH_CARDS.includes(from as LaunchCard)) return null;
+  if ((from === "talk") !== !!npc) return null;
+  return npc ? { from: from as LaunchCard, npc } : { from: from as LaunchCard };
 }
 
 export function integerTarget(raw: string): number | undefined {

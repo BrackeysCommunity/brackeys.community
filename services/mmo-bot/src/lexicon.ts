@@ -8,6 +8,10 @@ export class Lexicon {
   name(sheet: string, id: string): string {
     return this.data.names[`${sheet}:${id}`] ?? readable(id);
   }
+  /** Whether the setting names a sheet's row: how a card tells a machine family from any other id. */
+  names(sheet: string, id: string): boolean {
+    return `${sheet}:${id}` in this.data.names;
+  }
   material(id: string): string {
     return id === "provisions" ? "provisions" : this.name("items.materials", id);
   }

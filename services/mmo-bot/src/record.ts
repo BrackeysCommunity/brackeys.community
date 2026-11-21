@@ -4,7 +4,7 @@ import type { World, WorldReply } from "./world.ts";
 /**
  * A World that keeps a sample of every read it passes on, for the card
  * test's fixtures: the latest of each, and of options also the latest
- * taken in a fight, on the road and down.
+ * taken in a fight, on a machine beat, on the road and down.
  */
 export function recording(world: World, samples: Record<string, unknown>): World {
   const keep = <T>(name: string, v: T): T => {
@@ -23,7 +23,8 @@ export function recording(world: World, samples: Record<string, unknown>): World
     act: async (req) => keep(`act:${req.kind}`, await world.act(req)),
     options: async (id) => {
       const o = await world.options(id);
-      if (o.fight) samples["options:fight"] = o;
+      if (o.fight?.machine) samples["options:machine"] = o;
+      else if (o.fight) samples["options:fight"] = o;
       else if (o.long?.kind === "travel") samples["options:travel"] = o;
       else if (o.conditions.includes(CondDown)) samples["options:down"] = o;
       else samples.options = o;

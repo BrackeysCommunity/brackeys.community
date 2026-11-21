@@ -1,6 +1,6 @@
 import type * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
-import { answer, type Ctx, modalFor, type Press } from "./flow.ts";
+import { answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
 import { decodeId } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
 import { recording } from "./record.ts";
@@ -28,6 +28,8 @@ export interface Run {
   posted: string;
   withdrawn: boolean;
   guild: string;
+  /** The cards whose Activity launch was pressed: a launch is Discord's to answer, so none is sent on. */
+  launches: string[];
   audit: string[];
   log: string[];
 }
@@ -52,6 +54,7 @@ export async function scripted(
     posted: "",
     withdrawn: false,
     guild: "",
+    launches: [],
     audit: [],
     log: [],
   };
@@ -98,8 +101,12 @@ export async function scripted(
         for (const b of row.buttons) {
           if (b.kind !== "page" || b.disabled) continue;
           const id = decodeId(b.customId);
-          if (id?.action === action && (target === undefined || id.target === target))
-            return send({ id });
+          if (id?.action !== action || (target !== undefined && id.target !== target)) continue;
+          const launch = launchFor(id);
+          if (!launch) return send({ id });
+          run.presses++;
+          run.launches.push(launch.from);
+          return card;
         }
       } else if (decodeId(row.select.customId)?.action === action) {
         const pick = value ?? row.select.options[0]?.value;
@@ -115,12 +122,14 @@ export async function scripted(
     card.rows
       .flatMap((r) => ("select" in r ? r.select.options : []))
       .find((x) => x.value.includes(part))?.value;
-  const has = (action: string) =>
+  const has = (action: string, target?: string) =>
     card.rows.some((r) =>
       "buttons" in r
-        ? r.buttons.some(
-            (b) => b.kind === "page" && !b.disabled && decodeId(b.customId)?.action === action,
-          )
+        ? r.buttons.some((b) => {
+            if (b.kind !== "page" || b.disabled) return false;
+            const id = decodeId(b.customId);
+            return id?.action === action && (target === undefined || id.target === target);
+          })
         : decodeId(r.select.customId)?.action === action,
     );
   /** /play, and on past since-you-left to the hub when it shows first. */
@@ -181,6 +190,8 @@ export async function scripted(
     // As a tester does: press the best winning option, and only back out
     // when no option can win.
     while (has("press")) {
+      // A machine is worked in the Activity; in chat this player holds or backs out.
+      if (has("launch")) await press("launch");
       const o = await world.options(id);
       const wins = o.fight!.options.filter((x) => x.kind === "win" && !x.puzzle);
       const best = wins.sort((a, b) => ctx.lex.bandRank(a.band) - ctx.lex.bandRank(b.band))[0];
@@ -358,6 +369,17 @@ export async function scripted(
   if (has("talk")) {
     await press("talk");
     if (has("choose")) await press("choose");
+  }
+  // The tinker's bench: its line on the place card, and the tinker's own card.
+  await openHub();
+  await press("where");
+  if (has("launch")) {
+    await press("launch");
+    const tinker = (await world.here(id)).people.find((p) => p.role === "tinker");
+    if (tinker && has("talk", tinker.id)) {
+      await press("talk", tinker.id);
+      if (has("launch")) await press("launch");
+    }
   }
 
   run.ticks = (await world.options(id)).tick - t0;

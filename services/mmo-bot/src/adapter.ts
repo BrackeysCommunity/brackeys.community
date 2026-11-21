@@ -9,6 +9,7 @@ import {
   MessageFlags,
   type ModalSubmitInteraction,
   PermissionFlagsBits,
+  type PrimaryEntryPointCommandInteraction,
   RESTJSONErrorCodes,
   type StringSelectMenuInteraction,
   SnowflakeUtil,
@@ -17,7 +18,7 @@ import {
 import { describe, toMessage, toModal } from "../../../packages/discord-kit/src/index.ts";
 import { type Card, render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
-import { answer, type Answer, type Ctx, modalFor, type Press } from "./flow.ts";
+import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
 import type { ForumSink } from "./forum.ts";
 import { decodeId } from "./ids.ts";
 import { WorldUnavailableError } from "./world.ts";
@@ -29,7 +30,8 @@ import { WorldUnavailableError } from "./world.ts";
  * 14 minutes is past what its token can edit, so the next press retires it
  * and answers with a fresh hub (GDD 17.3). A press that asks for text
  * opens a modal instead, which cannot follow a defer; its submit is
- * answered like a press.
+ * answered like a press. A press that leads into the Activity is answered
+ * with the launch, which like a modal must be the first response.
  */
 
 export const STALE_LINE =
@@ -37,6 +39,7 @@ export const STALE_LINE =
 export const MOVED_LINE = "-# This hub moved to your newest one, below.";
 export const SLOW_LINE =
   "Easy: that is more presses than the game takes in a few seconds. Try again in a moment.";
+export const LAUNCH_LINE = "The Activity would not open just now. Try again in a moment.";
 export const DOWN_LINE =
   "The world service is not answering just now. Your last action is safe; try again in a minute.";
 export const HUB_TTL_MS = 14 * 60_000;
@@ -58,10 +61,20 @@ export function createHandler(opts: AdapterOptions) {
   const messageOf = (a: Answer) => cardMessage(a.card, media, log);
 
   /** A short ephemeral reply; a failed reply is logged, never left unhandled. */
-  async function say(i: ChatInputCommandInteraction | Pressed, content: string) {
+  async function say(i: ChatInputCommandInteraction | Pressed | Launches, content: string) {
     await i
       .reply({ content, flags: MessageFlags.Ephemeral })
       .catch((e: unknown) => log(`[reply] ${describe(e)}`));
+  }
+
+  /** Answers with the Activity launch; a refused launch is said, never swapped for a card. */
+  async function launch(i: Launches, what: string) {
+    try {
+      await i.launchActivity();
+    } catch (e) {
+      log(`[launch] ${what} failed: ${describe(e)}`);
+      await say(i, LAUNCH_LINE);
+    }
   }
 
   async function run(press: Press): Promise<InteractionEditReplyOptions> {
@@ -101,6 +114,7 @@ export function createHandler(opts: AdapterOptions) {
     if (!id) return say(i, STALE_LINE);
     const gate = await budget.take(i.user.id);
     if (!gate.allowed) return say(i, SLOW_LINE);
+    if (i.isButton() && launchFor(id)) return launch(i, i.customId);
     const modal = i.isButton() ? modalFor(id) : null;
     if (modal && !i.isModalSubmit())
       return void (await i
@@ -137,14 +151,14 @@ export function createHandler(opts: AdapterOptions) {
   }
 
   return async function handle(i: Interaction): Promise<void> {
-    if (i.isPrimaryEntryPointCommand())
-      return void (await i.launchActivity().catch((e: unknown) => log(`[launch] ${describe(e)}`)));
+    if (i.isPrimaryEntryPointCommand()) return launch(i, `/${i.commandName}`);
     if (i.isChatInputCommand()) return onCommand(i);
     if (i.isButton() || i.isStringSelectMenu() || i.isModalSubmit()) return onComponent(i);
   };
 }
 
 type Pressed = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+type Launches = ButtonInteraction | PrimaryEntryPointCommandInteraction;
 
 /** Who an interaction is from: the player, the server, and whether they administer it. */
 function who(

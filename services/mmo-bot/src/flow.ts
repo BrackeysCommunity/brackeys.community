@@ -1,7 +1,7 @@
 import type { Modal } from "../../../packages/discord-kit/src/index.ts";
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
-import { type Action, fields, type Id, integerTarget } from "./ids.ts";
+import { type Action, fields, type Id, integerTarget, type Launch, launchOf } from "./ids.ts";
 import { capitalise, type Lexicon } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
 import { backCards } from "./screens/back.ts";
@@ -127,6 +127,15 @@ export function modalFor(id: Id): Modal | null {
     default:
       return null;
   }
+}
+
+/**
+ * The Activity launch a press asks for, decided from its id alone: Discord
+ * takes the launch only as the first answer to the press, so the adapter
+ * gives it before any world call.
+ */
+export function launchFor(id: Id): Launch | null {
+  return id.action === "launch" ? launchOf(id.target) : null;
 }
 
 export interface Ctx {
@@ -438,10 +447,28 @@ class Session {
   }
 
   async talk(npc: string, said?: string): Promise<Answer> {
-    const o = await this.world.options(this.character);
+    const { o, here } = await this.load();
     const conv = await this.world.npc(this.character, npc);
     if (!conv.ok) return this.where(conv.refusal.message);
-    return this.done(talkCard(o, conv.reply, said));
+    return this.done(talkCard(o, conv.reply, said, here.bench));
+  }
+
+  /** The card a launch button sits on: the adapter launches, and any other caller sees the card again. */
+  async launched(l: Launch | null): Promise<Answer> {
+    switch (l?.from) {
+      case "beat":
+        return this.fight();
+      case "hub":
+        return this.hub();
+      case "where":
+        return this.where();
+      case "talk":
+        return this.talk(l.npc ?? "");
+      case "character":
+        return this.character_();
+      default:
+        return backCards.unknown(this.character);
+    }
   }
 
   async where(notice?: string): Promise<Answer> {
@@ -920,6 +947,8 @@ class Session {
         return this.write(api.ActMarkPrey, v, { option: value }, (_, why) =>
           this.classes(id.target || undefined, why ?? `Marked for today: ${value}`),
         );
+      case "launch":
+        return this.launched(launchFor(id));
       case "start":
         return this.hub();
       default:

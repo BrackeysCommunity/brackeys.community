@@ -8,7 +8,7 @@ import { type Card, COLOUR } from "../card.ts";
 import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
-import { back, banner, btn, DIRECTIONS, downButtons, factNum, PRIVATE } from "./common.ts";
+import { back, banner, btn, DIRECTIONS, downButtons, factNum, launch, PRIVATE } from "./common.ts";
 
 const RISK_UNIT: Record<string, string> = {
   durability: "durability",
@@ -41,13 +41,16 @@ export function beatCard(
       style: x.kind === "win" ? "primary" : x.kind === "way-out" ? "secondary" : "success",
     }),
   );
-  const lines = opts.map(
-    (x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskText(x)}`,
-  );
-  for (const m of machines)
-    lines.push(
-      `**${lex.name("fights.options", m.id)}**: a machine, worked in the Activity (${band(m.band)})`,
-    );
+  // A machine is worked by hand in the Activity: its option is never a button here (GDD 7.11).
+  const family = f.machine ? lex.name("puzzles.families", f.machine) : "";
+  const lines = [
+    ...machines.map(
+      (m) =>
+        `**${lex.name("fights.options", m.id)}**: ${family ? `the ${family}, a machine` : "a machine"} worked in the Activity (${band(m.band)})`,
+    ),
+    ...opts.map((x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskText(x)}`),
+  ];
+  if (f.machine) buttons.unshift(launch(`Work the machine: ${family}`, "beat", v));
   let opening = "";
   if (last?.pressed.length) {
     const p = last.pressed[0]!;

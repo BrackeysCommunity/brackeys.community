@@ -172,6 +172,13 @@ export const UNITS = new Set([
   "facts",
   "item",
   "items",
+  "s",
+  "use",
+  "uses",
+  "lesson",
+  "lessons",
+  "pouch",
+  "pouches",
   "%",
 ]);
 const CONNECTORS = new Set(["to", "of", "and", "or", "–", "-", "×", "+"]);

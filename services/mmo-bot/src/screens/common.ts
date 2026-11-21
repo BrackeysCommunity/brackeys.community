@@ -9,9 +9,9 @@ import {
 } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import type { Picture } from "../card.ts";
-import { type Action, encodeId, target } from "../ids.ts";
+import { type Action, encodeId, type LaunchCard, launchTarget, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
-import { amount, num, ticks } from "../units.ts";
+import { amount, num, outOf, plural, seconds, signed, ticks } from "../units.ts";
 
 /** Where every hub card appears and who sees it. */
 export const PRIVATE = "Your hub · only you can see this";
@@ -29,6 +29,20 @@ export function btn(
 
 export function back(version: number): Button {
   return btn("Hub", "hub", "", version, { emoji: "↩" });
+}
+
+/**
+ * The button that opens the Activity from a card. Discord answers its press
+ * with the launch itself, so it never reaches the world.
+ */
+export function launch(label: string, from: LaunchCard, version: number, npc?: string): Button {
+  return btn(label, "launch", launchTarget(from, npc), version, { style: "primary" });
+}
+
+/** A tinker's bench as one line: today's uses against the cap, and the lessons waiting. */
+export function benchLine(b: api.BenchHere): string {
+  const lessons = b.lessons ? ` · ${plural(b.lessons, "lesson")} waiting` : "";
+  return `${outOf(b.uses, b.usesCap, "uses")} today${lessons}`;
 }
 
 /**
@@ -144,6 +158,23 @@ export function conditionsField(o: api.Options): EmbedField {
   };
 }
 
+/** The family a machine's fact names, as the setting calls it. */
+function family(f: api.Fact, lex: Lexicon): string {
+  return lex.name("puzzles.families", s(f, "family"));
+}
+
+/** "a level 3 Pin lock": the machine a fact is about. */
+function machine(f: api.Fact, lex: Lexicon): string {
+  const level = n(f, "level");
+  return `a ${level ? `level ${level} ` : ""}${family(f, lex)}`;
+}
+
+/** How long a solve took, where the fact says. */
+function took(f: api.Fact): string {
+  const ms = n(f, "ms");
+  return ms ? ` in ${seconds(ms)}` : "";
+}
+
 /** A fact as one templated line. Text is made from facts and never stored (GDD 12.1). */
 export function factLine(f: api.Fact, lex: Lexicon): string {
   const mat = (k: string) => lex.material(s(f, k));
@@ -200,6 +231,22 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
       return "A region was overrun.";
     case "kind.named":
       return "A kind was named.";
+    case "machine.armed":
+      return `Set to work on ${machine(f, lex)}${s(f, "source") === "pouch" ? ", the lock of a pouch" : ""}: its countdown started.`;
+    case "puzzle.solved":
+      return `Solved ${machine(f, lex)}${took(f)}${n(f, "master") ? ", and the panel behind it: a master's solve" : n(f, "clean") ? ", clean" : ""}.`;
+    case "puzzle.haywire":
+      return `${capitalise(machine(f, lex))}${s(f, "pouch") ? " on a pouch" : ""} ${n(f, "late") ? "ran out its countdown and went" : "went"} haywire: ${lex.name("puzzles.haywire", s(f, "haywire")).toLowerCase()}.`;
+    case "puzzle.mastered":
+      return `Mastered the ${family(f, lex)}: the title ${lex.name("puzzles.titles", s(f, "family"))} is held.`;
+    case "bench.solved":
+      return `Solved ${machine(f, lex)} at the tinker's bench: ${n(f, "uses") ? `${plural(n(f, "uses"), "use")} of practice` : "the day's bench uses are spent"}${n(f, "taught") ? ", and it is left as a lesson" : ""}.`;
+    case "lesson.taken":
+      return `A lesson in the ${family(f, lex)} was taken at the bench: ${plural(n(f, "uses"), "use")} of practice${n(f, "standing") ? `, and ${signed(n(f, "standing"), "standing")} to its teacher` : ""}.`;
+    case "pouch.found":
+      return `Found a locked pouch (${s(f, "rarity")}): ${amount(n(f, "goods"), "goods")} behind a ${family(f, lex)}.`;
+    case "pouch.opened":
+      return `Opened a locked pouch${took(f)}: ${amount(n(f, "goods"), "goods")}.`;
     default:
       return capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
   }

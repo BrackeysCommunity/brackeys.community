@@ -3,11 +3,24 @@ import type * as api from "../api.ts";
 import type { Card } from "../card.ts";
 import { target } from "../ids.ts";
 import { amount, signed } from "../units.ts";
-import { back, btn, PRIVATE } from "./common.ts";
+import { back, benchLine, btn, launch, PRIVATE } from "./common.ts";
 
-/** A conversation: the topics the NPC raises, voiced from templates, and the choices (GDD 4.18). */
-export function talkCard(o: api.Options, conv: api.Conversation, said?: string): Card {
+/** The role that keeps a settlement's bench of practice machines (GDD 7.11). */
+const BENCH_KEEPER = "tinker";
+
+/**
+ * A conversation: the topics the NPC raises, voiced from templates, and the
+ * choices (GDD 4.18). bench is the tinker's bench standing open here, which
+ * the tinker's own card leads to.
+ */
+export function talkCard(
+  o: api.Options,
+  conv: api.Conversation,
+  said?: string,
+  bench?: api.BenchHere,
+): Card {
   const v = o.version;
+  const keeps = conv.npc.role === BENCH_KEEPER ? bench : undefined;
   const rows: Card["rows"] = [];
   for (const t of conv.topics.slice(0, 3)) {
     const buttons: Button[] = t.choices
@@ -15,7 +28,13 @@ export function talkCard(o: api.Options, conv: api.Conversation, said?: string):
       .map((c) => btn(choiceLabel(c), "choose", target("/", conv.npc.id, t.id, c.id), v));
     rows.push({ buttons });
   }
-  rows.push({ buttons: [btn("Where I am", "where", "", v), back(v)] });
+  rows.push({
+    buttons: [
+      ...(keeps ? [launch("Work at the bench", "talk", v, conv.npc.id)] : []),
+      btn("Where I am", "where", "", v),
+      back(v),
+    ],
+  });
   const lines = conv.topics.slice(0, 3).map((t) => `• ${t.line}`);
   return {
     context: PRIVATE,
@@ -25,7 +44,10 @@ export function talkCard(o: api.Options, conv: api.Conversation, said?: string):
       .filter(Boolean)
       .join("\n\n"),
     picture: { media: conv.banner, alt: `Banner of where you meet ${conv.npc.name}` },
-    fields: [{ name: "Traits", value: conv.npc.traits.join(", ") || "none shown", inline: true }],
+    fields: [
+      { name: "Traits", value: conv.npc.traits.join(", ") || "none shown", inline: true },
+      ...(keeps ? [{ name: "The bench", value: benchLine(keeps), inline: true }] : []),
+    ],
     footer: "What you choose is remembered: by this NPC, and by the people it talks to.",
     rows,
   };

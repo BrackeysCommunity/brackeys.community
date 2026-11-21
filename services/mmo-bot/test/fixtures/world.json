@@ -151,13 +151,33 @@
       "npcs.traits:wary": "Wary",
       "npcs.traits:weary": "Weary",
       "puzzles.families:circuit": "Circuit",
+      "puzzles.families:crank": "Crank",
       "puzzles.families:fuse": "Fuse",
+      "puzzles.families:keycard": "Keycard",
+      "puzzles.families:leak": "Leak",
       "puzzles.families:lock-dial": "Dial lock",
       "puzzles.families:lock-maze": "Tumbler maze",
       "puzzles.families:lock-pins": "Pin lock",
       "puzzles.families:override": "Override",
+      "puzzles.families:pressure": "Pressure",
       "puzzles.families:rewire": "Rewire",
+      "puzzles.families:scrub": "Scrub",
       "puzzles.families:signal": "Signal",
+      "puzzles.families:splice": "Splice",
+      "puzzles.titles:circuit": "Sparker",
+      "puzzles.titles:crank": "Dynamo",
+      "puzzles.titles:fuse": "Breaker",
+      "puzzles.titles:keycard": "Ghost",
+      "puzzles.titles:leak": "Patcher",
+      "puzzles.titles:lock-dial": "Cracksman",
+      "puzzles.titles:lock-maze": "Tumbler",
+      "puzzles.titles:lock-pins": "Picker",
+      "puzzles.titles:override": "Overrider",
+      "puzzles.titles:pressure": "Stoker",
+      "puzzles.titles:rewire": "Router",
+      "puzzles.titles:scrub": "Glazier",
+      "puzzles.titles:signal": "Cryptographer",
+      "puzzles.titles:splice": "Splicer",
       "world.gauges:corruption": "Corruption",
       "world.gauges:prosperity": "Prosperity",
       "world.gauges:scarcity": "Scarcity",
@@ -196,8 +216,8 @@
         "id": "c-1",
         "version": 1,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
         "coin": 0,
         "provisions": 0,
@@ -282,27 +302,27 @@
   },
   "options": {
     "characterId": "c-1",
-    "version": 76,
-    "tick": 50,
+    "version": 49,
+    "tick": 13,
     "at": {
-      "q": 1,
-      "r": -28
+      "q": -28,
+      "r": 0
     },
     "conditions": ["wounded"],
     "moves": [
       {
         "dir": 0,
         "to": {
-          "q": 2,
-          "r": -28
+          "q": -27,
+          "r": 0
         },
         "open": true,
-        "ticks": 2,
+        "ticks": 1,
         "why": {
           "parts": [
             {
               "label": "terrain",
-              "value": 2,
+              "value": 1,
               "unit": "ticks"
             }
           ]
@@ -311,16 +331,16 @@
       {
         "dir": 1,
         "to": {
-          "q": 2,
-          "r": -29
+          "q": -27,
+          "r": -1
         },
         "open": true,
-        "ticks": 2,
+        "ticks": 1,
         "why": {
           "parts": [
             {
               "label": "terrain",
-              "value": 2,
+              "value": 1,
               "unit": "ticks"
             }
           ]
@@ -329,16 +349,16 @@
       {
         "dir": 2,
         "to": {
-          "q": 1,
-          "r": -29
+          "q": -28,
+          "r": -1
         },
         "open": true,
-        "ticks": 2,
+        "ticks": 1,
         "why": {
           "parts": [
             {
               "label": "terrain",
-              "value": 2,
+              "value": 1,
               "unit": "ticks"
             }
           ]
@@ -347,16 +367,16 @@
       {
         "dir": 3,
         "to": {
-          "q": 0,
-          "r": -28
+          "q": -29,
+          "r": 0
         },
         "open": true,
-        "ticks": 2,
+        "ticks": 1,
         "why": {
           "parts": [
             {
               "label": "terrain",
-              "value": 2,
+              "value": 1,
               "unit": "ticks"
             }
           ]
@@ -365,16 +385,16 @@
       {
         "dir": 4,
         "to": {
-          "q": 0,
-          "r": -27
+          "q": -29,
+          "r": 1
         },
         "open": true,
-        "ticks": 2,
+        "ticks": 1,
         "why": {
           "parts": [
             {
               "label": "terrain",
-              "value": 2,
+              "value": 1,
               "unit": "ticks"
             }
           ]
@@ -383,50 +403,50 @@
       {
         "dir": 5,
         "to": {
-          "q": 1,
-          "r": -27
+          "q": -28,
+          "r": 1
         },
         "open": true,
-        "ticks": 2,
+        "ticks": 1,
         "why": {
           "parts": [
             {
               "label": "terrain",
-              "value": 2,
+              "value": 1,
               "unit": "ticks"
             }
           ]
         }
       }
     ],
-    "materials": ["hide-scraps", "cinder-ore", "heartwood", "reedflax"],
+    "materials": ["chips", "bog-iron", "reed-ash", "cinder-ore"],
     "gatherMin": 1,
     "gatherMax": 3,
     "rest": true,
     "explore": false,
     "cancel": false,
     "purse": {
-      "coin": 17,
+      "coin": 12,
       "provisions": 0,
       "goods": [
         {
-          "material": "heartwood",
-          "units": 2
+          "material": "chips",
+          "units": 3
         }
       ],
       "load": {
-        "carried": 2,
+        "carried": 3,
         "capacity": 30
       },
       "hand": {
         "id": "start-c-1",
         "kind": "3eb569e84b5d37db323837af5ccd35d3",
-        "value": 3,
+        "value": 12,
         "repair": {
           "material": "bog-iron",
-          "units": 4
+          "units": 2
         },
-        "durability": 9,
+        "durability": 38,
         "max": 60
       },
       "market": true,
@@ -490,15 +510,15 @@
         },
         {
           "material": "heartwood",
-          "bid": 0,
-          "bidUnits": 0,
+          "bid": 23,
+          "bidUnits": 1,
           "ask": 0,
           "value": 23
         },
         {
           "material": "hide-scraps",
           "bid": 6,
-          "bidUnits": 4,
+          "bidUnits": 2,
           "ask": 0,
           "value": 6
         },
@@ -533,7 +553,7 @@
         {
           "material": "reedflax",
           "bid": 7,
-          "bidUnits": 3,
+          "bidUnits": 2,
           "ask": 0,
           "value": 7
         },
@@ -576,23 +596,11 @@
       "open": 0,
       "markets": [
         {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         }
       ],
-      "items": [
-        {
-          "id": "scripted-scripted-1795223192629-77",
-          "kind": "c1d7f643bb2770ac11077441514559b6",
-          "value": 28,
-          "repair": {
-            "material": "heartwood",
-            "units": 0
-          },
-          "durability": 108,
-          "max": 108
-        }
-      ],
+      "items": [],
       "mounted": false,
       "owed": 0,
       "mounts": [
@@ -605,13 +613,13 @@
   },
   "here": {
     "place": {
-      "tick": 50,
+      "tick": 13,
       "tile": {
         "hex": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "terrain": "hills",
+        "terrain": "plain",
         "water": "none",
         "site": "starting-settlement",
         "region": "r-0",
@@ -632,27 +640,27 @@
       "gauges": [
         {
           "id": "threat",
-          "value": 351,
+          "value": 107,
           "unit": "gauge"
         },
         {
           "id": "scarcity",
-          "value": 211,
+          "value": 265,
           "unit": "gauge"
         },
         {
           "id": "unrest",
-          "value": 420,
+          "value": 165,
           "unit": "gauge"
         },
         {
           "id": "corruption",
-          "value": 116,
+          "value": 106,
           "unit": "gauge"
         },
         {
           "id": "prosperity",
-          "value": 177,
+          "value": 281,
           "unit": "gauge"
         }
       ],
@@ -660,8 +668,8 @@
       "explore": false,
       "rest": true
     },
-    "name": "Relay Camp",
-    "banner": "banner-9be6d7b9c1eda57975567fe4",
+    "name": "Pylon Camp",
+    "banner": "banner-ad5a53c22945ffc542e48c64",
     "stations": [
       {
         "kind": "forge",
@@ -742,7 +750,7 @@
         "fee": 3
       },
       {
-        "faction": "Grey Militia",
+        "faction": "Static Militia",
         "material": "fieldstone",
         "price": 8,
         "yours": 8,
@@ -751,10 +759,18 @@
       },
       {
         "faction": "the keepers",
+        "material": "heartwood",
+        "price": 23,
+        "yours": 23,
+        "wanted": 1,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
         "material": "hide-scraps",
         "price": 6,
         "yours": 6,
-        "wanted": 4,
+        "wanted": 2,
         "fee": 3
       },
       {
@@ -774,7 +790,7 @@
         "fee": 3
       },
       {
-        "faction": "Black Raider Compact",
+        "faction": "Static Militia",
         "material": "provisions",
         "price": 2,
         "yours": 2,
@@ -794,7 +810,7 @@
         "material": "reedflax",
         "price": 7,
         "yours": 7,
-        "wanted": 3,
+        "wanted": 2,
         "fee": 3
       },
       {
@@ -830,7 +846,7 @@
         "fee": 3
       },
       {
-        "faction": "Black Raider Compact",
+        "faction": "the keepers",
         "material": "timber",
         "price": 7,
         "yours": 7,
@@ -850,56 +866,47 @@
     ],
     "people": [
       {
-        "id": "r-1,-28-settlement-keeper-0",
-        "name": "Ivo Holt",
+        "id": "r--28,0-settlement-keeper-0",
+        "name": "Mags Rask",
         "role": "keeper",
         "kind": "resident",
-        "traits": ["humble", "patient"],
-        "saved": false,
+        "traits": ["rash", "cunning"],
+        "saved": true,
         "visit": false
       },
       {
-        "id": "r-1,-28-settlement-smith-0",
-        "name": "Rook Mercer",
+        "id": "r--28,0-settlement-smith-0",
+        "name": "Rook Ashgrove",
         "role": "smith",
         "kind": "resident",
-        "traits": ["rash", "weary"],
+        "traits": ["devout", "bold"],
         "saved": false,
         "visit": false
       },
       {
-        "id": "r-1,-28-settlement-tinker-0",
-        "name": "Rook Vance",
-        "role": "tinker",
-        "kind": "resident",
-        "traits": ["cunning", "patient"],
-        "saved": false,
-        "visit": false
-      },
-      {
-        "id": "r-1,-28-settlement-trader-0",
-        "name": "Fenn Lathe",
+        "id": "r--28,0-settlement-trader-0",
+        "name": "Fenn Vance",
         "role": "trader",
         "kind": "resident",
-        "traits": ["greedy", "patient"],
+        "traits": ["devout", "bold"],
         "saved": false,
         "visit": false
       },
       {
-        "id": "r-1,-28-settlement-stablehand-0",
-        "name": "Sable Lathe",
+        "id": "r--28,0-settlement-stablehand-0",
+        "name": "Sable Novak",
         "role": "stablehand",
         "kind": "resident",
-        "traits": ["cunning", "proud"],
+        "traits": ["devout", "open"],
         "saved": false,
         "visit": false
       },
       {
-        "id": "r-1,-28-settlement-watch-0",
-        "name": "Echo Calder",
+        "id": "r--28,0-settlement-watch-0",
+        "name": "Lux Solder",
         "role": "watch captain",
         "kind": "resident",
-        "traits": ["humble", "wary"],
+        "traits": ["patient", "wary"],
         "saved": false,
         "visit": false
       }
@@ -908,7 +915,17 @@
     "search": false,
     "materials": [
       {
-        "material": "hide-scraps",
+        "material": "chips",
+        "left": 24,
+        "workedOut": false
+      },
+      {
+        "material": "bog-iron",
+        "left": 24,
+        "workedOut": false
+      },
+      {
+        "material": "reed-ash",
         "left": 24,
         "workedOut": false
       },
@@ -916,23 +933,86 @@
         "material": "cinder-ore",
         "left": 24,
         "workedOut": false
-      },
-      {
-        "material": "heartwood",
-        "left": 24,
-        "workedOut": false
-      },
-      {
-        "material": "reedflax",
-        "left": 24,
-        "workedOut": false
       }
     ],
-    "forage": 2,
+    "forage": 1,
     "recent": [
       {
-        "id": 47,
-        "tick": 50,
+        "id": 34,
+        "tick": 13,
+        "kind": "npc.met",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          },
+          {
+            "kind": "npc",
+            "id": "r--28,0-settlement-tinker-0"
+          }
+        ],
+        "data": [
+          {
+            "k": "first",
+            "n": 1
+          }
+        ],
+        "weight": 5
+      },
+      {
+        "id": 33,
+        "tick": 13,
+        "kind": "npc.chose",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          },
+          {
+            "kind": "npc",
+            "id": "r--28,0-settlement-keeper-0"
+          }
+        ],
+        "data": [
+          {
+            "k": "choice",
+            "s": "introduce"
+          },
+          {
+            "k": "topic",
+            "s": "first-meeting"
+          }
+        ],
+        "weight": 10
+      },
+      {
+        "id": 32,
+        "tick": 13,
+        "kind": "npc.met",
+        "region": "r-0",
+        "subjects": [
+          {
+            "kind": "character",
+            "id": "c-1"
+          },
+          {
+            "kind": "npc",
+            "id": "r--28,0-settlement-keeper-0"
+          }
+        ],
+        "data": [
+          {
+            "k": "first",
+            "n": 1
+          }
+        ],
+        "weight": 5
+      },
+      {
+        "id": 31,
+        "tick": 13,
         "kind": "guild.deposited",
         "region": "r-0",
         "subjects": [
@@ -962,8 +1042,8 @@
         "weight": 3
       },
       {
-        "id": 46,
-        "tick": 50,
+        "id": 30,
+        "tick": 13,
         "kind": "goal.ended",
         "region": "r-0",
         "subjects": [
@@ -983,141 +1063,37 @@
           }
         ],
         "weight": 5
-      },
-      {
-        "id": 45,
-        "tick": 50,
-        "kind": "goal.posted",
-        "region": "r-0",
-        "subjects": [
-          {
-            "kind": "character",
-            "id": "c-1"
-          },
-          {
-            "kind": "goal",
-            "id": "q-1"
-          }
-        ],
-        "data": [
-          {
-            "k": "issuer",
-            "s": "character"
-          },
-          {
-            "k": "mode",
-            "s": "first"
-          },
-          {
-            "k": "reward"
-          },
-          {
-            "k": "settlement"
-          },
-          {
-            "k": "verb",
-            "s": "deliver"
-          }
-        ],
-        "weight": 10
-      },
-      {
-        "id": 42,
-        "tick": 50,
-        "kind": "order.filled",
-        "region": "r-0",
-        "subjects": [
-          {
-            "kind": "character",
-            "id": "c-1"
-          }
-        ],
-        "data": [
-          {
-            "k": "coin",
-            "n": 23
-          },
-          {
-            "k": "faction"
-          },
-          {
-            "k": "fee",
-            "n": 1
-          },
-          {
-            "k": "material",
-            "s": "heartwood"
-          },
-          {
-            "k": "price",
-            "n": 23
-          },
-          {
-            "k": "settlement"
-          },
-          {
-            "k": "units",
-            "n": 1
-          }
-        ],
-        "weight": 3
-      },
-      {
-        "id": 41,
-        "tick": 50,
-        "kind": "order.placed",
-        "region": "r-0",
-        "subjects": [
-          {
-            "kind": "character",
-            "id": "c-1"
-          }
-        ],
-        "data": [
-          {
-            "k": "material",
-            "s": "heartwood"
-          },
-          {
-            "k": "price",
-            "n": 1
-          },
-          {
-            "k": "side",
-            "s": "ask"
-          },
-          {
-            "k": "units",
-            "n": 2
-          }
-        ],
-        "weight": 2
       }
     ],
     "suggest": {
       "at": {
-        "q": 1,
-        "r": -26
+        "q": -30,
+        "r": 1
       },
       "tiles": 2,
-      "dir": 5
+      "dir": 3
     },
-    "downed": []
+    "downed": [],
+    "bench": {
+      "uses": 0,
+      "usesCap": 20,
+      "lessons": 0
+    }
   },
   "sheet": {
     "character": {
       "id": "c-1",
-      "version": 75,
+      "version": 48,
       "at": {
-        "q": 1,
-        "r": -28
+        "q": -28,
+        "r": 0
       },
-      "coin": 17,
+      "coin": 12,
       "provisions": 0,
       "goods": [
         {
-          "material": "heartwood",
-          "units": 2
+          "material": "chips",
+          "units": 3
         }
       ],
       "conditions": ["wounded"],
@@ -1140,7 +1116,7 @@
         }
       ],
       "inFight": false,
-      "walked": 4
+      "walked": 2
     },
     "start": "knife",
     "kit": [
@@ -1151,20 +1127,20 @@
         "slot": "blade",
         "worn": "hand",
         "tier": 1,
-        "level": 6,
-        "xp": 112,
-        "toNext": 166,
-        "durability": 9,
+        "level": 5,
+        "xp": 62,
+        "toNext": 115,
+        "durability": 38,
         "max": 60,
         "axes": [
           {
             "label": "edge",
-            "value": 32,
+            "value": 31,
             "unit": "pts"
           },
           {
             "label": "weight",
-            "value": 32,
+            "value": 31,
             "unit": "pts"
           },
           {
@@ -1177,68 +1153,31 @@
         "picks": [],
         "offers": ["balanced", "keen"],
         "wearIn": ["hand", "off-hand"],
-        "sigil": "sigil-93ced3f102d9d01ea4e7ce54",
+        "sigil": "sigil-f2db1e06c2dfa540104bb84f",
         "value": 19,
-        "traderPays": 2
+        "traderPays": 7
       }
     ],
-    "pack": [
-      {
-        "id": "scripted-scripted-1795223192629-77",
-        "kind": "c1d7f643bb2770ac11077441514559b6",
-        "name": "Factory beams tool",
-        "slot": "tool",
-        "tier": 2,
-        "level": 1,
-        "xp": 0,
-        "toNext": 5,
-        "durability": 108,
-        "max": 108,
-        "axes": [
-          {
-            "label": "weight",
-            "value": 22,
-            "unit": "pts"
-          },
-          {
-            "label": "flex",
-            "value": 50,
-            "unit": "pts"
-          },
-          {
-            "label": "ward",
-            "value": 10,
-            "unit": "pts"
-          },
-          {
-            "label": "bond",
-            "value": 6,
-            "unit": "pts"
-          }
-        ],
-        "traits": [],
-        "picks": [],
-        "maker": "c-1",
-        "wearIn": ["hand", "off-hand"],
-        "sigil": "sigil-a4a72e7042a1697ad974e94b",
-        "value": 28,
-        "traderPays": 17
-      }
-    ],
+    "pack": [],
     "load": {
-      "carried": 2,
+      "carried": 3,
       "capacity": 30
     },
-    "standing": [],
+    "standing": [
+      {
+        "with": "Pylon Camp",
+        "value": 1
+      }
+    ],
     "record": [
       {
         "key": "walked",
-        "n": 4,
+        "n": 2,
         "unit": "tiles"
       },
       {
         "key": "downs",
-        "n": 6,
+        "n": 1,
         "unit": "times"
       },
       {
@@ -1248,7 +1187,7 @@
       },
       {
         "key": "encounters",
-        "n": 6,
+        "n": 3,
         "unit": "encounters"
       },
       {
@@ -1258,47 +1197,52 @@
       },
       {
         "key": "won:beat:any",
-        "n": 5,
-        "unit": "beats"
-      },
-      {
-        "key": "won:beat:burning",
-        "n": 4,
+        "n": 6,
         "unit": "beats"
       },
       {
         "key": "won:beat:creature",
-        "n": 5,
+        "n": 6,
         "unit": "beats"
       },
       {
-        "key": "won:beat:deep",
-        "n": 1,
-        "unit": "beats"
-      },
-      {
-        "key": "won:beat:nemesis",
-        "n": 1,
-        "unit": "beats"
-      },
-      {
-        "key": "won:beat:pack",
+        "key": "won:beat:fast",
         "n": 4,
         "unit": "beats"
       },
       {
-        "key": "won:beat:thick",
-        "n": 1,
+        "key": "won:beat:herd",
+        "n": 4,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:marsh-born",
+        "n": 2,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:pack",
+        "n": 2,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:small",
+        "n": 2,
+        "unit": "beats"
+      },
+      {
+        "key": "won:beat:wired",
+        "n": 2,
         "unit": "beats"
       },
       {
         "key": "earned:faction-order",
-        "n": 22,
+        "n": 17,
         "unit": "coin"
       },
       {
         "key": "earned:market",
-        "n": 22,
+        "n": 17,
         "unit": "coin"
       },
       {
@@ -1307,8 +1251,8 @@
         "unit": "goals"
       },
       {
-        "key": "nemesis:cinder-hound",
-        "n": 4,
+        "key": "nemesis:flat-runner",
+        "n": 1,
         "unit": "downs"
       }
     ],
@@ -1320,19 +1264,19 @@
     "vows": []
   },
   "map": {
-    "tick": 50,
+    "tick": 13,
     "centre": {
-      "q": 1,
-      "r": -28
+      "q": -28,
+      "r": 0
     },
     "radius": 4,
     "tiles": [
       {
         "hex": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "terrain": "hills",
+        "terrain": "plain",
         "water": "none",
         "site": "starting-settlement",
         "region": "r-0",
@@ -1352,41 +1296,30 @@
       },
       {
         "hex": {
-          "q": 1,
-          "r": -27
+          "q": -29,
+          "r": 1
         },
-        "terrain": "hills",
+        "terrain": "plain",
         "water": "none",
-        "region": "r-4",
+        "site": "dungeon",
+        "region": "r-0",
         "road": 0,
-        "found": 2
-      },
-      {
-        "hex": {
-          "q": 1,
-          "r": -26
-        },
-        "terrain": "hills",
-        "water": "none",
-        "site": "site",
-        "region": "r-4",
-        "road": 0,
-        "found": 4
+        "found": 1
       }
     ],
-    "image": "map-a34332477973a21ed51e32f8"
+    "image": "map-19bcb55ae5fa34f9d7c9ba2c"
   },
   "act:step": {
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 2,
+      "tick": 0,
       "character": {
         "id": "c-1",
-        "version": 4,
+        "version": 2,
         "at": {
-          "q": 1,
-          "r": -27
+          "q": -28,
+          "r": 0
         },
         "coin": 0,
         "provisions": 0,
@@ -1396,38 +1329,34 @@
           {
             "id": "fight",
             "level": 6
-          },
-          {
-            "id": "travel",
-            "level": 0
           }
         ],
         "long": {
           "kind": "travel",
-          "due": 4,
-          "ends": 4,
+          "due": 1,
+          "ends": 1,
           "route": [
             {
-              "q": 1,
-              "r": -26
+              "q": -29,
+              "r": 1
             }
           ]
         },
         "inFight": false,
-        "walked": 1
+        "walked": 0
       },
       "facts": []
     }
   },
   "options:travel": {
     "characterId": "c-1",
-    "version": 61,
-    "tick": 49,
+    "version": 29,
+    "tick": 12,
     "at": {
-      "q": 1,
-      "r": -27
+      "q": -29,
+      "r": 1
     },
-    "conditions": ["hungry", "wounded"],
+    "conditions": ["wounded"],
     "moves": [],
     "materials": [],
     "gatherMin": 0,
@@ -1437,12 +1366,12 @@
     "cancel": true,
     "long": {
       "kind": "travel",
-      "due": 50,
-      "ends": 50,
+      "due": 13,
+      "ends": 13,
       "route": [
         {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         }
       ]
     },
@@ -1451,23 +1380,31 @@
       "provisions": 0,
       "goods": [
         {
-          "material": "heartwood",
+          "material": "reedflax",
+          "units": 1
+        },
+        {
+          "material": "hide-scraps",
+          "units": 2
+        },
+        {
+          "material": "chips",
           "units": 4
         }
       ],
       "load": {
-        "carried": 4,
+        "carried": 7,
         "capacity": 30
       },
       "hand": {
         "id": "start-c-1",
         "kind": "3eb569e84b5d37db323837af5ccd35d3",
-        "value": 3,
+        "value": 12,
         "repair": {
           "material": "bog-iron",
-          "units": 4
+          "units": 2
         },
-        "durability": 9,
+        "durability": 38,
         "max": 60
       },
       "market": false,
@@ -1475,8 +1412,8 @@
       "open": 0,
       "markets": [
         {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         }
       ],
       "items": [],
@@ -1484,22 +1421,15 @@
       "owed": 0
     }
   },
-  "routeRisk": {
-    "to": "Relay Camp",
-    "tiles": [],
-    "expected": 0,
-    "worst": "",
-    "haul": 92
-  },
   "recap": {
-    "since": 44,
-    "tick": 50,
+    "since": 11,
+    "tick": 13,
     "lines": [
       {
         "rule": 2,
         "fact": {
-          "id": 40,
-          "tick": 50,
+          "id": 22,
+          "tick": 13,
           "kind": "travel.arrived",
           "region": "r-0",
           "subjects": [
@@ -1511,7 +1441,7 @@
           "data": [
             {
               "k": "ticks",
-              "n": 6
+              "n": 2
             }
           ],
           "weight": 2
@@ -1524,20 +1454,20 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 75,
+        "version": 48,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 17,
+        "coin": 12,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 2
+            "material": "chips",
+            "units": 3
           }
         ],
         "conditions": ["wounded"],
@@ -1560,7 +1490,7 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": []
     }
@@ -1569,17 +1499,26 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 34,
+      "tick": 1,
       "character": {
         "id": "c-1",
-        "version": 46,
+        "version": 15,
         "at": {
-          "q": 1,
-          "r": -26
+          "q": -29,
+          "r": 1
         },
         "coin": 0,
         "provisions": 0,
-        "goods": [],
+        "goods": [
+          {
+            "material": "reedflax",
+            "units": 1
+          },
+          {
+            "material": "hide-scraps",
+            "units": 2
+          }
+        ],
         "conditions": ["wounded"],
         "practice": [
           {
@@ -1592,18 +1531,46 @@
           }
         ],
         "inFight": true,
-        "walked": 2
+        "walked": 1
       },
-      "facts": []
+      "facts": [
+        {
+          "id": 13,
+          "tick": 1,
+          "kind": "dungeon.entered",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            }
+          ],
+          "data": [
+            {
+              "k": "floor",
+              "n": 1
+            },
+            {
+              "k": "q",
+              "n": -29
+            },
+            {
+              "k": "r",
+              "n": 1
+            }
+          ],
+          "weight": 20
+        }
+      ]
     }
   },
   "options:fight": {
     "characterId": "c-1",
-    "version": 48,
-    "tick": 34,
+    "version": 17,
+    "tick": 1,
     "at": {
-      "q": 1,
-      "r": -26
+      "q": -29,
+      "r": 1
     },
     "conditions": ["wounded"],
     "moves": [],
@@ -1614,18 +1581,18 @@
     "explore": false,
     "cancel": false,
     "fight": {
-      "id": "e-c-1-6",
+      "id": "e-c-1-3",
       "beat": 2,
-      "beats": 5,
+      "beats": 3,
       "kind": "clash",
-      "creature": "cinder-hound",
+      "creature": "flat-runner",
       "ambush": false,
       "options": [
         {
           "id": "strike",
           "verb": "strike",
           "kind": "win",
-          "band": "even",
+          "band": "long-shot",
           "risk": "durability",
           "riskSize": 4,
           "why": {
@@ -1637,35 +1604,25 @@
               },
               {
                 "label": "edge at level",
-                "value": 32,
+                "value": 31,
                 "unit": "pts"
               },
               {
                 "label": "practice",
                 "value": 6,
                 "unit": "pts"
-              },
-              {
-                "label": "burning-falters",
-                "value": 3,
-                "unit": "pts"
-              },
-              {
-                "label": "nemesis-known",
-                "value": 2,
-                "unit": "pts"
               }
             ],
-            "rules": ["heights-favour", "burning-falters", "wounded-falters", "nemesis-known"],
+            "rules": ["wounded-falters"],
             "bandFrom": "even",
-            "bandTo": "even"
+            "bandTo": "long-shot"
           }
         },
         {
           "id": "smash",
           "verb": "smash",
           "kind": "win",
-          "band": "even",
+          "band": "long-shot",
           "risk": "wound",
           "riskSize": 0,
           "why": {
@@ -1677,28 +1634,285 @@
               },
               {
                 "label": "weight at level",
-                "value": 32,
+                "value": 31,
                 "unit": "pts"
               },
               {
                 "label": "practice",
                 "value": 6,
                 "unit": "pts"
-              },
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "even",
+            "bandTo": "long-shot"
+          }
+        },
+        {
+          "id": "hold",
+          "verb": "hold",
+          "kind": "cautious",
+          "band": "long-shot",
+          "risk": "durability",
+          "riskSize": 2,
+          "why": {
+            "parts": [
               {
-                "label": "burning-falters",
-                "value": 3,
+                "label": "weight pts",
+                "value": 29,
                 "unit": "pts"
               },
               {
-                "label": "nemesis-known",
-                "value": 2,
+                "label": "weight at level",
+                "value": 31,
+                "unit": "pts"
+              },
+              {
+                "label": "practice",
+                "value": 6,
                 "unit": "pts"
               }
             ],
-            "rules": ["heights-favour", "burning-falters", "wounded-falters", "nemesis-known"],
+            "rules": ["wounded-falters"],
             "bandFrom": "even",
-            "bandTo": "even"
+            "bandTo": "long-shot"
+          }
+        },
+        {
+          "id": "back-out",
+          "verb": "back-out",
+          "kind": "way-out",
+          "band": "certain",
+          "risk": "none",
+          "riskSize": 0,
+          "why": {
+            "parts": [
+              {
+                "label": "practice",
+                "value": 0,
+                "unit": "pts"
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "desperate",
+            "bandTo": "certain"
+          }
+        }
+      ]
+    },
+    "purse": {
+      "coin": 0,
+      "provisions": 0,
+      "goods": [
+        {
+          "material": "reedflax",
+          "units": 1
+        },
+        {
+          "material": "hide-scraps",
+          "units": 2
+        }
+      ],
+      "load": {
+        "carried": 3,
+        "capacity": 30
+      },
+      "hand": {
+        "id": "start-c-1",
+        "kind": "3eb569e84b5d37db323837af5ccd35d3",
+        "value": 14,
+        "repair": {
+          "material": "bog-iron",
+          "units": 1
+        },
+        "durability": 45,
+        "max": 60
+      },
+      "market": false,
+      "provision": 0,
+      "open": 0,
+      "markets": [
+        {
+          "q": -28,
+          "r": 0
+        }
+      ],
+      "items": [],
+      "mounted": false,
+      "owed": 0
+    }
+  },
+  "act:press": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 1,
+      "character": {
+        "id": "c-1",
+        "version": 18,
+        "at": {
+          "q": -29,
+          "r": 1
+        },
+        "coin": 0,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "reedflax",
+            "units": 1
+          },
+          {
+            "material": "hide-scraps",
+            "units": 2
+          }
+        ],
+        "conditions": ["down", "wounded"],
+        "practice": [
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 1
+      },
+      "facts": [
+        {
+          "id": 16,
+          "tick": 1,
+          "kind": "character.down",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "archetype",
+              "id": "flat-runner"
+            }
+          ],
+          "data": [],
+          "weight": 45
+        },
+        {
+          "id": 17,
+          "tick": 1,
+          "kind": "encounter.lost",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "archetype",
+              "id": "flat-runner"
+            }
+          ],
+          "data": [
+            {
+              "k": "archetype",
+              "s": "flat-runner"
+            },
+            {
+              "k": "beats",
+              "n": 3
+            },
+            {
+              "k": "haul"
+            },
+            {
+              "k": "q",
+              "n": -29
+            },
+            {
+              "k": "r",
+              "n": 1
+            },
+            {
+              "k": "tags",
+              "s": "creature,fast,herd"
+            }
+          ],
+          "weight": 30
+        }
+      ],
+      "pressed": [
+        {
+          "option": "strike",
+          "band": "long-shot",
+          "success": false,
+          "why": {
+            "parts": [
+              {
+                "label": "edge pts",
+                "value": 29,
+                "unit": "pts"
+              },
+              {
+                "label": "edge at level",
+                "value": 31,
+                "unit": "pts"
+              },
+              {
+                "label": "practice",
+                "value": 6,
+                "unit": "pts"
+              }
+            ],
+            "rules": ["wounded-falters"],
+            "bandFrom": "even",
+            "bandTo": "long-shot"
+          }
+        }
+      ]
+    }
+  },
+  "options:machine": {
+    "characterId": "c-1",
+    "version": 6,
+    "tick": 1,
+    "at": {
+      "q": -29,
+      "r": 1
+    },
+    "conditions": [],
+    "moves": [],
+    "materials": [],
+    "gatherMin": 0,
+    "gatherMax": 0,
+    "rest": false,
+    "explore": false,
+    "cancel": false,
+    "fight": {
+      "id": "e-c-1-1",
+      "beat": 1,
+      "beats": 4,
+      "kind": "puzzle",
+      "creature": "reed-rat",
+      "ambush": false,
+      "options": [
+        {
+          "id": "hack",
+          "verb": "hack",
+          "kind": "win",
+          "band": "desperate",
+          "risk": "none",
+          "riskSize": 0,
+          "puzzle": true,
+          "why": {
+            "parts": [
+              {
+                "label": "practice",
+                "value": 0,
+                "unit": "pts"
+              }
+            ],
+            "bandFrom": "desperate",
+            "bandTo": "desperate"
           }
         },
         {
@@ -1717,26 +1931,15 @@
               },
               {
                 "label": "weight at level",
-                "value": 32,
+                "value": 30,
                 "unit": "pts"
               },
               {
                 "label": "practice",
                 "value": 6,
                 "unit": "pts"
-              },
-              {
-                "label": "burning-falters",
-                "value": 3,
-                "unit": "pts"
-              },
-              {
-                "label": "nemesis-known",
-                "value": 2,
-                "unit": "pts"
               }
             ],
-            "rules": ["heights-favour", "burning-falters", "wounded-falters", "nemesis-known"],
             "bandFrom": "even",
             "bandTo": "even"
           }
@@ -1754,19 +1957,14 @@
                 "label": "practice",
                 "value": 0,
                 "unit": "pts"
-              },
-              {
-                "label": "burning-falters",
-                "value": 3,
-                "unit": "pts"
               }
             ],
-            "rules": ["burning-falters", "wounded-falters"],
             "bandFrom": "desperate",
             "bandTo": "certain"
           }
         }
-      ]
+      ],
+      "machine": "rewire"
     },
     "purse": {
       "coin": 0,
@@ -1779,12 +1977,12 @@
       "hand": {
         "id": "start-c-1",
         "kind": "3eb569e84b5d37db323837af5ccd35d3",
-        "value": 5,
+        "value": 19,
         "repair": {
           "material": "bog-iron",
-          "units": 3
+          "units": 1
         },
-        "durability": 16,
+        "durability": 59,
         "max": 60
       },
       "market": false,
@@ -1792,8 +1990,8 @@
       "open": 0,
       "markets": [
         {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         }
       ],
       "items": [],
@@ -1801,143 +1999,13 @@
       "owed": 0
     }
   },
-  "act:press": {
-    "ok": true,
-    "reply": {
-      "duplicate": false,
-      "tick": 34,
-      "character": {
-        "id": "c-1",
-        "version": 49,
-        "at": {
-          "q": 1,
-          "r": -26
-        },
-        "coin": 0,
-        "provisions": 0,
-        "goods": [],
-        "conditions": ["down", "wounded"],
-        "practice": [
-          {
-            "id": "fight",
-            "level": 6
-          },
-          {
-            "id": "travel",
-            "level": 0
-          }
-        ],
-        "inFight": false,
-        "walked": 2
-      },
-      "facts": [
-        {
-          "id": 33,
-          "tick": 34,
-          "kind": "character.down",
-          "subjects": [
-            {
-              "kind": "character",
-              "id": "c-1"
-            },
-            {
-              "kind": "archetype",
-              "id": "cinder-hound"
-            }
-          ],
-          "data": [],
-          "weight": 45
-        },
-        {
-          "id": 34,
-          "tick": 34,
-          "kind": "encounter.lost",
-          "subjects": [
-            {
-              "kind": "character",
-              "id": "c-1"
-            },
-            {
-              "kind": "archetype",
-              "id": "cinder-hound"
-            }
-          ],
-          "data": [
-            {
-              "k": "archetype",
-              "s": "cinder-hound"
-            },
-            {
-              "k": "beats",
-              "n": 5
-            },
-            {
-              "k": "haul"
-            },
-            {
-              "k": "q",
-              "n": 1
-            },
-            {
-              "k": "r",
-              "n": -26
-            },
-            {
-              "k": "tags",
-              "s": "burning,creature,nemesis,pack"
-            }
-          ],
-          "weight": 30
-        }
-      ],
-      "pressed": [
-        {
-          "option": "strike",
-          "band": "even",
-          "success": false,
-          "why": {
-            "parts": [
-              {
-                "label": "edge pts",
-                "value": 29,
-                "unit": "pts"
-              },
-              {
-                "label": "edge at level",
-                "value": 32,
-                "unit": "pts"
-              },
-              {
-                "label": "practice",
-                "value": 6,
-                "unit": "pts"
-              },
-              {
-                "label": "burning-falters",
-                "value": 3,
-                "unit": "pts"
-              },
-              {
-                "label": "nemesis-known",
-                "value": 2,
-                "unit": "pts"
-              }
-            ],
-            "rules": ["heights-favour", "burning-falters", "wounded-falters", "nemesis-known"],
-            "bandFrom": "even",
-            "bandTo": "even"
-          }
-        }
-      ]
-    }
-  },
   "options:down": {
     "characterId": "c-1",
-    "version": 51,
-    "tick": 39,
+    "version": 20,
+    "tick": 6,
     "at": {
-      "q": 1,
-      "r": -26
+      "q": -29,
+      "r": 1
     },
     "conditions": ["down", "wounded"],
     "moves": [],
@@ -1949,26 +2017,35 @@
     "cancel": true,
     "long": {
       "kind": "crawl",
-      "due": 40,
-      "ends": 40
+      "due": 7,
+      "ends": 7
     },
     "purse": {
       "coin": 0,
       "provisions": 0,
-      "goods": [],
+      "goods": [
+        {
+          "material": "reedflax",
+          "units": 1
+        },
+        {
+          "material": "hide-scraps",
+          "units": 2
+        }
+      ],
       "load": {
-        "carried": 0,
+        "carried": 3,
         "capacity": 30
       },
       "hand": {
         "id": "start-c-1",
         "kind": "3eb569e84b5d37db323837af5ccd35d3",
-        "value": 3,
+        "value": 13,
         "repair": {
           "material": "bog-iron",
-          "units": 4
+          "units": 2
         },
-        "durability": 11,
+        "durability": 40,
         "max": 60
       },
       "market": false,
@@ -1976,8 +2053,8 @@
       "open": 0,
       "markets": [
         {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         }
       ],
       "items": [],
@@ -1989,17 +2066,26 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 34,
+      "tick": 1,
       "character": {
         "id": "c-1",
-        "version": 51,
+        "version": 20,
         "at": {
-          "q": 1,
-          "r": -26
+          "q": -29,
+          "r": 1
         },
         "coin": 0,
         "provisions": 0,
-        "goods": [],
+        "goods": [
+          {
+            "material": "reedflax",
+            "units": 1
+          },
+          {
+            "material": "hide-scraps",
+            "units": 2
+          }
+        ],
         "conditions": ["down", "wounded"],
         "practice": [
           {
@@ -2013,11 +2099,11 @@
         ],
         "long": {
           "kind": "crawl",
-          "due": 40,
-          "ends": 40
+          "due": 7,
+          "ends": 7
         },
         "inFight": false,
-        "walked": 2
+        "walked": 1
       },
       "facts": []
     }
@@ -2026,19 +2112,27 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 42,
+      "tick": 9,
       "character": {
         "id": "c-1",
-        "version": 57,
+        "version": 26,
         "at": {
-          "q": 1,
-          "r": -26
+          "q": -29,
+          "r": 1
         },
         "coin": 0,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
+            "material": "reedflax",
+            "units": 1
+          },
+          {
+            "material": "hide-scraps",
+            "units": 2
+          },
+          {
+            "material": "chips",
             "units": 2
           }
         ],
@@ -2059,34 +2153,49 @@
         ],
         "long": {
           "kind": "gather",
-          "due": 44,
-          "ends": 44,
-          "material": "heartwood",
+          "due": 11,
+          "ends": 11,
+          "material": "chips",
           "left": 1
         },
         "inFight": false,
-        "walked": 2
+        "walked": 1
       },
       "facts": []
     }
+  },
+  "routeRisk": {
+    "to": "Pylon Camp",
+    "tiles": [],
+    "expected": 0,
+    "worst": "",
+    "haul": 111
   },
   "act:travel": {
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 44,
+      "tick": 11,
       "character": {
         "id": "c-1",
-        "version": 60,
+        "version": 29,
         "at": {
-          "q": 1,
-          "r": -26
+          "q": -29,
+          "r": 1
         },
         "coin": 0,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
+            "material": "reedflax",
+            "units": 1
+          },
+          {
+            "material": "hide-scraps",
+            "units": 2
+          },
+          {
+            "material": "chips",
             "units": 4
           }
         ],
@@ -2107,34 +2216,36 @@
         ],
         "long": {
           "kind": "travel",
-          "due": 47,
-          "ends": 49,
+          "due": 13,
+          "ends": 13,
           "route": [
             {
-              "q": 1,
-              "r": -27
-            },
-            {
-              "q": 1,
-              "r": -28
+              "q": -28,
+              "r": 0
             }
           ]
         },
         "inFight": false,
-        "walked": 2
+        "walked": 1
       },
       "facts": []
     }
   },
   "market": {
     "settlement": 0,
-    "name": "Relay Camp",
-    "material": "heartwood",
+    "name": "Pylon Camp",
+    "material": "chips",
     "book": {
-      "material": "heartwood",
-      "bids": [],
+      "material": "chips",
+      "bids": [
+        {
+          "price": 23,
+          "units": 1,
+          "who": "the keepers"
+        }
+      ],
       "asks": [],
-      "last": 23,
+      "last": 0,
       "value": 23
     },
     "exchange": [
@@ -2204,19 +2315,19 @@
       },
       {
         "material": "heartwood",
-        "last": 23,
+        "last": 0,
         "change": 0,
-        "bid": 0,
+        "bid": 23,
         "ask": 0,
-        "units": 1
+        "units": 0
       },
       {
         "material": "hide-scraps",
-        "last": 0,
+        "last": 6,
         "change": 0,
         "bid": 6,
         "ask": 0,
-        "units": 0
+        "units": 2
       },
       {
         "material": "marsh-amber",
@@ -2252,11 +2363,11 @@
       },
       {
         "material": "reedflax",
-        "last": 0,
+        "last": 7,
         "change": 0,
         "bid": 7,
         "ask": 0,
-        "units": 0
+        "units": 1
       },
       {
         "material": "river-clay",
@@ -2361,7 +2472,7 @@
         "fee": 3
       },
       {
-        "faction": "Grey Militia",
+        "faction": "Static Militia",
         "material": "fieldstone",
         "price": 8,
         "yours": 8,
@@ -2370,10 +2481,18 @@
       },
       {
         "faction": "the keepers",
+        "material": "heartwood",
+        "price": 23,
+        "yours": 23,
+        "wanted": 1,
+        "fee": 3
+      },
+      {
+        "faction": "the keepers",
         "material": "hide-scraps",
         "price": 6,
         "yours": 6,
-        "wanted": 4,
+        "wanted": 2,
         "fee": 3
       },
       {
@@ -2393,7 +2512,7 @@
         "fee": 3
       },
       {
-        "faction": "Black Raider Compact",
+        "faction": "Static Militia",
         "material": "provisions",
         "price": 2,
         "yours": 2,
@@ -2413,7 +2532,7 @@
         "material": "reedflax",
         "price": 7,
         "yours": 7,
-        "wanted": 3,
+        "wanted": 2,
         "fee": 3
       },
       {
@@ -2449,7 +2568,7 @@
         "fee": 3
       },
       {
-        "faction": "Black Raider Compact",
+        "faction": "the keepers",
         "material": "timber",
         "price": 7,
         "yours": 7,
@@ -2462,56 +2581,56 @@
       "escrow": 0,
       "entries": [
         {
-          "tick": 50,
+          "tick": 13,
           "kind": "craft",
           "asset": "coin",
           "units": -4
         },
         {
-          "tick": 50,
+          "tick": 13,
           "kind": "craft",
-          "asset": "mat:heartwood",
-          "goods": "heartwood",
+          "asset": "mat:chips",
+          "goods": "chips",
           "units": -1
         },
         {
-          "tick": 50,
-          "kind": "craft",
-          "asset": "item:scripted-scripted-1795223192629-77",
-          "units": 1
-        },
-        {
-          "tick": 50,
-          "kind": "escrow-back",
-          "asset": "mat:heartwood",
-          "goods": "heartwood",
-          "units": 1
-        },
-        {
-          "tick": 50,
+          "tick": 13,
           "kind": "fill",
           "asset": "coin",
-          "units": 22
+          "units": 11
         },
         {
-          "tick": 50,
+          "tick": 13,
           "kind": "escrow",
-          "asset": "mat:heartwood",
-          "goods": "heartwood",
+          "asset": "mat:hide-scraps",
+          "goods": "hide-scraps",
           "units": -2
         },
         {
-          "tick": 44,
+          "tick": 13,
+          "kind": "fill",
+          "asset": "coin",
+          "units": 6
+        },
+        {
+          "tick": 13,
+          "kind": "escrow",
+          "asset": "mat:reedflax",
+          "goods": "reedflax",
+          "units": -1
+        },
+        {
+          "tick": 11,
           "kind": "gather",
-          "asset": "mat:heartwood",
-          "goods": "heartwood",
+          "asset": "mat:chips",
+          "goods": "chips",
           "units": 2
         },
         {
-          "tick": 42,
+          "tick": 9,
           "kind": "gather",
-          "asset": "mat:heartwood",
-          "goods": "heartwood",
+          "asset": "mat:chips",
+          "goods": "chips",
           "units": 2
         }
       ],
@@ -2523,26 +2642,26 @@
     "limit": 20,
     "days": 7,
     "perPoint": 50,
-    "banner": "banner-9be6d7b9c1eda57975567fe4"
+    "banner": "banner-ad5a53c22945ffc542e48c64"
   },
   "act:sell": {
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 67,
+        "version": 37,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 22,
+        "coin": 17,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 3
+            "material": "chips",
+            "units": 4
           }
         ],
         "conditions": ["wounded"],
@@ -2561,12 +2680,12 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": [
         {
-          "id": 41,
-          "tick": 50,
+          "id": 25,
+          "tick": 13,
           "kind": "order.placed",
           "region": "r-0",
           "subjects": [
@@ -2578,7 +2697,7 @@
           "data": [
             {
               "k": "material",
-              "s": "heartwood"
+              "s": "hide-scraps"
             },
             {
               "k": "price",
@@ -2596,8 +2715,8 @@
           "weight": 2
         },
         {
-          "id": 42,
-          "tick": 50,
+          "id": 26,
+          "tick": 13,
           "kind": "order.filled",
           "region": "r-0",
           "subjects": [
@@ -2609,10 +2728,11 @@
           "data": [
             {
               "k": "coin",
-              "n": 23
+              "n": 12
             },
             {
-              "k": "faction"
+              "k": "faction",
+              "n": -1
             },
             {
               "k": "fee",
@@ -2620,18 +2740,18 @@
             },
             {
               "k": "material",
-              "s": "heartwood"
+              "s": "hide-scraps"
             },
             {
               "k": "price",
-              "n": 23
+              "n": 6
             },
             {
               "k": "settlement"
             },
             {
               "k": "units",
-              "n": 1
+              "n": 2
             }
           ],
           "weight": 3
@@ -2681,15 +2801,15 @@
     "slots": ["blade", "plate", "tool", "hook", "focus", "charm", "tack"],
     "known": [
       {
-        "kind": "c1d7f643bb2770ac11077441514559b6",
-        "name": "Factory beams tool",
+        "kind": "e74759742fe328ec49f638852909dee7",
+        "name": "Chips tool",
         "recipe": {
           "process": "shape",
           "method": "narrow-grind",
           "slot": "tool",
           "inputs": [
             {
-              "material": "heartwood",
+              "material": "chips",
               "units": 1
             }
           ]
@@ -2715,31 +2835,26 @@
     ]
   },
   "appraise": {
-    "kind": "c1d7f643bb2770ac11077441514559b6",
-    "name": "Factory beams tool",
+    "kind": "e74759742fe328ec49f638852909dee7",
+    "name": "Chips tool",
     "tier": 2,
     "slot": "tool",
     "known": false,
     "axes": [
       {
-        "axis": "weight",
-        "lo": 18,
-        "hi": 24
+        "axis": "conduct",
+        "lo": 14,
+        "hi": 18
       },
       {
-        "axis": "flex",
-        "lo": 44,
-        "hi": 56
-      },
-      {
-        "axis": "ward",
-        "lo": 10,
-        "hi": 12
+        "axis": "reach",
+        "lo": 11,
+        "hi": 13
       },
       {
         "axis": "bond",
-        "lo": 5,
-        "hi": 7
+        "lo": 11,
+        "hi": 13
       }
     ],
     "station": {
@@ -2749,7 +2864,7 @@
     },
     "inputs": [
       {
-        "material": "heartwood",
+        "material": "chips",
         "units": 1
       }
     ]
@@ -2758,20 +2873,20 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 69,
+        "version": 39,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 18,
+        "coin": 13,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 2
+            "material": "chips",
+            "units": 3
           }
         ],
         "conditions": ["wounded"],
@@ -2794,12 +2909,12 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": [
         {
-          "id": 43,
-          "tick": 50,
+          "id": 27,
+          "tick": 13,
           "kind": "kind.discovered",
           "subjects": [
             {
@@ -2808,7 +2923,7 @@
             },
             {
               "kind": "kind",
-              "id": "c1d7f643bb2770ac11077441514559b6"
+              "id": "e74759742fe328ec49f638852909dee7"
             }
           ],
           "data": [
@@ -2818,11 +2933,10 @@
             },
             {
               "k": "q",
-              "n": 1
+              "n": -28
             },
             {
-              "k": "r",
-              "n": -28
+              "k": "r"
             },
             {
               "k": "tier",
@@ -2832,9 +2946,9 @@
           "weight": 60
         },
         {
-          "id": 44,
-          "tick": 50,
-          "kind": "craft.made",
+          "id": 28,
+          "tick": 13,
+          "kind": "craft.failed",
           "subjects": [
             {
               "kind": "character",
@@ -2842,44 +2956,38 @@
             },
             {
               "kind": "kind",
-              "id": "c1d7f643bb2770ac11077441514559b6"
+              "id": "e74759742fe328ec49f638852909dee7"
             }
           ],
           "data": [
             {
-              "k": "process",
-              "s": "shape"
-            },
-            {
               "k": "q",
-              "n": 1
-            },
-            {
-              "k": "r",
               "n": -28
             },
             {
-              "k": "tier",
-              "n": 2
+              "k": "r"
+            },
+            {
+              "k": "salvage"
             }
           ],
-          "weight": 3
+          "weight": 15
         }
       ]
     }
   },
   "history": {
-    "material": "heartwood",
-    "name": "Factory beams",
+    "material": "chips",
+    "name": "Chips",
     "days": [],
-    "chart": "history-adde0a93e797ee5f959558a1"
+    "chart": "history-dd23e627d622dc47a1a9eb64"
   },
   "act:bid": {
     "ok": false,
     "refusal": {
       "code": "bad-arguments",
-      "message": "that takes 23 coin in escrow; c-1 has 18 coin",
-      "version": 69
+      "message": "that takes 23 coin in escrow; c-1 has 13 coin",
+      "version": 39
     }
   },
   "forum": {
@@ -2887,8 +2995,8 @@
     "posts": [
       {
         "settlement": 0,
-        "name": "Relay Camp",
-        "banner": "banner-9be6d7b9c1eda57975567fe4",
+        "name": "Pylon Camp",
+        "banner": "banner-ad5a53c22945ffc542e48c64",
         "trades": [],
         "movers": []
       }
@@ -2896,7 +3004,7 @@
   },
   "goals": {
     "settlement": 0,
-    "name": "Relay Camp",
+    "name": "Pylon Camp",
     "board": [],
     "drafts": [
       {
@@ -2929,8 +3037,8 @@
     "eachCap": 50,
     "verbs": ["deliver", "make", "discover", "defeat", "reach", "haul", "hold", "back", "carry"],
     "officer": true,
-    "coin": 18,
-    "banner": "banner-9be6d7b9c1eda57975567fe4",
+    "coin": 13,
+    "banner": "banner-ad5a53c22945ffc542e48c64",
     "targets": [
       {
         "verb": "deliver",
@@ -3161,11 +3269,7 @@
         "options": [
           {
             "value": "region:r-0",
-            "label": "Saltsprawl"
-          },
-          {
-            "value": "region:r-4",
-            "label": "Radsink"
+            "label": "Junkflats"
           }
         ]
       },
@@ -3174,11 +3278,7 @@
         "options": [
           {
             "value": "region:r-0",
-            "label": "Saltsprawl"
-          },
-          {
-            "value": "region:r-4",
-            "label": "Radsink"
+            "label": "Junkflats"
           }
         ]
       }
@@ -3190,8 +3290,8 @@
     "ephemeralLeast": 6,
     "ephemeralMost": 432,
     "at": {
-      "q": 1,
-      "r": -28
+      "q": -28,
+      "r": 0
     },
     "gauges": [
       {
@@ -3311,11 +3411,7 @@
     "places": [
       {
         "value": "region:r-0",
-        "label": "Saltsprawl"
-      },
-      {
-        "value": "region:r-4",
-        "label": "Radsink"
+        "label": "Junkflats"
       }
     ],
     "fields": [
@@ -3379,20 +3475,20 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 70,
+        "version": 40,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 18,
+        "coin": 13,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 2
+            "material": "chips",
+            "units": 3
           }
         ],
         "conditions": ["wounded"],
@@ -3415,12 +3511,12 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": [
         {
-          "id": 45,
-          "tick": 50,
+          "id": 29,
+          "tick": 13,
           "kind": "goal.posted",
           "region": "r-0",
           "subjects": [
@@ -3459,13 +3555,13 @@
     }
   },
   "board": {
-    "tick": 50,
+    "tick": 13,
     "every": 6,
     "posts": [
       {
         "settlement": 0,
-        "name": "Relay Camp",
-        "banner": "banner-9be6d7b9c1eda57975567fe4",
+        "name": "Pylon Camp",
+        "banner": "banner-ad5a53c22945ffc542e48c64",
         "goal": {
           "id": "q-1",
           "title": "A scripted vow",
@@ -3474,7 +3570,7 @@
           "by": "c-1",
           "verb": "deliver",
           "what": "deliver 10 provisions",
-          "where": "Relay Camp",
+          "where": "Pylon Camp",
           "reward": 0,
           "mode": "first",
           "lifetime": "ephemeral",
@@ -3499,20 +3595,20 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 71,
+        "version": 41,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 18,
+        "coin": 13,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 2
+            "material": "chips",
+            "units": 3
           }
         ],
         "conditions": ["wounded"],
@@ -3535,12 +3631,12 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": [
         {
-          "id": 46,
-          "tick": 50,
+          "id": 30,
+          "tick": 13,
           "kind": "goal.ended",
           "region": "r-0",
           "subjects": [
@@ -3698,7 +3794,7 @@
     "settlements": [
       {
         "n": 0,
-        "name": "Relay Camp",
+        "name": "Pylon Camp",
         "treasury": 0,
         "structures": [
           {
@@ -3984,26 +4080,26 @@
       "timber": 200,
       "stone": 50
     },
-    "banner": "banner-9be6d7b9c1eda57975567fe4"
+    "banner": "banner-ad5a53c22945ffc542e48c64"
   },
   "act:guild-deposit": {
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 73,
+        "version": 43,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 17,
+        "coin": 12,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 2
+            "material": "chips",
+            "units": 3
           }
         ],
         "conditions": ["wounded"],
@@ -4026,12 +4122,12 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": [
         {
-          "id": 47,
-          "tick": 50,
+          "id": 31,
+          "tick": 13,
           "kind": "guild.deposited",
           "region": "r-0",
           "subjects": [
@@ -4376,7 +4472,7 @@
         "needs": [
           {
             "what": "deed hauled",
-            "have": 8,
+            "have": 7,
             "at": 2000
           },
           {
@@ -4472,7 +4568,7 @@
         "needs": [
           {
             "what": "deed floors",
-            "have": 0,
+            "have": 1,
             "at": 10
           },
           {
@@ -4768,20 +4864,20 @@
     "ok": true,
     "reply": {
       "duplicate": false,
-      "tick": 50,
+      "tick": 13,
       "character": {
         "id": "c-1",
-        "version": 76,
+        "version": 49,
         "at": {
-          "q": 1,
-          "r": -28
+          "q": -28,
+          "r": 0
         },
-        "coin": 17,
+        "coin": 12,
         "provisions": 0,
         "goods": [
           {
-            "material": "heartwood",
-            "units": 2
+            "material": "chips",
+            "units": 3
           }
         ],
         "conditions": ["wounded"],
@@ -4804,12 +4900,12 @@
           }
         ],
         "inFight": false,
-        "walked": 4
+        "walked": 2
       },
       "facts": [
         {
-          "id": 48,
-          "tick": 50,
+          "id": 34,
+          "tick": 13,
           "kind": "npc.met",
           "region": "r-0",
           "subjects": [
@@ -4819,7 +4915,7 @@
             },
             {
               "kind": "npc",
-              "id": "r-1,-28-settlement-keeper-0"
+              "id": "r--28,0-settlement-tinker-0"
             }
           ],
           "data": [
@@ -4835,18 +4931,18 @@
   },
   "npc": {
     "npc": {
-      "id": "r-1,-28-settlement-keeper-0",
-      "name": "Ivo Holt",
-      "role": "keeper",
+      "id": "r--28,0-settlement-tinker-0",
+      "name": "Ada Mercer",
+      "role": "tinker",
       "kind": "resident",
-      "traits": ["humble", "patient"],
+      "traits": ["secretive", "humble"],
       "saved": true,
       "visit": false
     },
     "topics": [
       {
         "id": "first-meeting",
-        "line": "Ivo Holt, keeper here. I have not seen you before.",
+        "line": "Ada Mercer, tinker here. I have not seen you before.",
         "own": false,
         "choices": [
           {
@@ -4868,8 +4964,25 @@
         ]
       },
       {
+        "id": "gossip",
+        "line": "Ada Mercer passes on the talk of Pylon Camp: Mags Rask speaks well of you.",
+        "own": false,
+        "choices": [
+          {
+            "id": "ask-more",
+            "line": "You ask what else is said.",
+            "effect": "rumour"
+          },
+          {
+            "id": "let-it-lie",
+            "line": "You let it lie.",
+            "effect": "none"
+          }
+        ]
+      },
+      {
         "id": "pattern-rumour",
-        "line": "Ivo Holt has heard of a strange shape near Relay Camp.",
+        "line": "Ada Mercer has heard of a strange shape near Pylon Camp.",
         "own": false,
         "choices": [
           {
@@ -4886,15 +4999,80 @@
       }
     ],
     "met": 1,
-    "digest": "247951d04f9ef79d8cbedb1d0707d01f7b3abb893b8afe92eb5e9f7a242daec4",
-    "banner": "banner-9be6d7b9c1eda57975567fe4"
+    "digest": "53921cae7be73a7ffe26a4e72d4a1810ecfd212d4f40fb27ef23367e11c9b282",
+    "banner": "banner-ad5a53c22945ffc542e48c64"
   },
   "act:choose": {
-    "ok": false,
-    "refusal": {
-      "code": "not-here",
-      "message": "r-1,-28-settlement-keeper-0 is not here",
-      "version": 76
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 13,
+      "character": {
+        "id": "c-1",
+        "version": 47,
+        "at": {
+          "q": -28,
+          "r": 0
+        },
+        "coin": 12,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "chips",
+            "units": 3
+          }
+        ],
+        "conditions": ["wounded"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "gather",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 2
+      },
+      "facts": [
+        {
+          "id": 33,
+          "tick": 13,
+          "kind": "npc.chose",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "npc",
+              "id": "r--28,0-settlement-keeper-0"
+            }
+          ],
+          "data": [
+            {
+              "k": "choice",
+              "s": "introduce"
+            },
+            {
+              "k": "topic",
+              "s": "first-meeting"
+            }
+          ],
+          "weight": 10
+        }
+      ]
     }
   }
 }
