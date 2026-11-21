@@ -219,6 +219,9 @@ func TestPicksHeld(t *testing.T) {
 	if len(sh.Picks) != 0 || sh.Opened != 0 {
 		t.Fatalf("the picks outlived the beat: %+v", sh.Picks)
 	}
+	if sh.Last == nil || sh.Last.Beat != 1 || len(sh.Last.Pressed) != 3 {
+		t.Fatalf("the beat's result for the members: %+v", sh.Last)
+	}
 }
 
 func machineOpt(t *testing.T, g *game.Game, c *game.Char) string {
@@ -607,10 +610,16 @@ func TestDeckSwap(t *testing.T) {
 	a.C.Classes.Active = append(a.C.Classes.Active, "kindler")
 	a.C.Classes.Abilities = append(a.C.Classes.Abilities, "second-slot")
 	first := a.C.In(char.OffHand, 0)
+	if ds := p.g.SwapDecks(a); len(ds) != 1 || ds[0] != other {
+		t.Fatalf("the decks offered to swap: %v", ds)
+	}
 	p.refused(a, game.BadArgs, game.Command{Kind: game.DeckSwap, Item: first.ID})
 	p.act(a, game.Command{Kind: game.DeckSwap, Item: other.ID})
 	if a.C.In(char.OffHand, 0) != other {
 		t.Fatal("the deck was not swapped in")
+	}
+	if ds := p.g.SwapDecks(a); ds != nil {
+		t.Fatalf("decks offered after a swap on the beat: %v", ds)
 	}
 	p.refused(a, game.Swapped, game.Command{Kind: game.DeckSwap, Item: first.ID})
 }

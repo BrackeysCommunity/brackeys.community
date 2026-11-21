@@ -324,6 +324,7 @@ type MachineView struct {
 	// Glimpse is the next seat's dealt view of a split machine, for a seat
 	// whose practice gives it.
 	Glimpse *PuzzleLayout `json:"glimpse,omitempty"`
+	Rival   *RivalView    `json:"rival,omitempty"`
 }
 
 // PracticeLine is a family's practice: level, uses toward the next, and

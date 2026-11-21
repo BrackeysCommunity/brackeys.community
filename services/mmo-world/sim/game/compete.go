@@ -48,3 +48,16 @@ func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick int64)
 	o.Machine, o.LostRace = nil, sh.ID
 	return nil
 }
+
+// RivalOf is the other context racing sh's armed fork machine, and when it
+// armed: nil while none races it.
+func (g *Game) RivalOf(sh *Shared) (*Shared, int64) {
+	if !sh.Machine.Armed() || sh.Machine.Rival == "" {
+		return nil, 0
+	}
+	o := g.SharedByID(sh.Machine.Rival)
+	if o == nil || !o.Machine.Armed() {
+		return nil, 0
+	}
+	return o, o.Machine.At
+}

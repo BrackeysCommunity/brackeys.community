@@ -194,16 +194,26 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	return nil, errors.Join(slices.Concat(errs, d.unmet())...)
 }
 
-// deepBunker is the nearest bunker of seven floors to a settlement.
+// deepBunker is the nearest bunker of seven floors to a settlement whose
+// bottom is no deeper than the tier ceiling, else the nearest of any.
 func deepBunker(g *gen.Gen, from hex.Hex) (hex.Hex, bool) {
+	var any hex.Hex
+	found := false
 	for r := int64(1); r <= delveSearch; r++ {
 		for _, h := range hex.Ring(from, r) {
-			if p, ok := g.Dungeon(h); ok && p.Kind == delveKind && p.Floors == delveFloors {
+			p, ok := g.Dungeon(h)
+			if !ok || p.Kind != delveKind || p.Floors != delveFloors {
+				continue
+			}
+			if p.SeedTier == 1 {
 				return h, true
+			}
+			if !found {
+				any, found = h, true
 			}
 		}
 	}
-	return hex.Hex{}, false
+	return any, found
 }
 
 func passableBeside(g *gen.Gen, h hex.Hex) (hex.Hex, bool) {
@@ -234,6 +244,16 @@ func (d *liveDelve) delve(ctx context.Context) error {
 			return err
 		}
 		d.party = append(d.party, m)
+	}
+	plan, _ := d.r.Gen.Dungeon(d.bunker)
+	ready := min(int64(len(d.r.Book.FightTiers)), plan.SeedTier+(plan.Floors-1)/2+1)
+	for _, m := range d.party {
+		if _, ref, err := d.w.op.Operate(ctx, api.OperatorRequest{InteractionID: d.id("ready"), CharacterID: m.char, Kind: api.OpReady, Units: ready,
+			Note: "the delve proof run"}); err != nil {
+			return err
+		} else if err := client.Refused(api.OpReady, ref, nil); err != nil {
+			return err
+		}
 	}
 	lead := d.party[0]
 	for _, m := range d.party[1:] {
@@ -630,7 +650,7 @@ func (d *liveDelve) write(b *sheets.Book, base string, took time.Duration) *line
 	pr("")
 	pr("## The bunker")
 	pr("")
-	pr("The nearest %s of %d floors to the first settlement, at %s, found from the world's own keys (floors are never shown). Four new characters form a party by invitation, follow their leader there, and go down: each beat's pick held through `/v1/actions` (`party-pick`), each fork's push the same way, and each machine armed from the first seat's socket and worked by every seat streaming its own moves of the version's merged log.", delveKind, delveFloors, d.bunker.Ref())
+	pr("The nearest %s of %d floors to the first settlement, at %s, found from the world's own keys (floors are never shown), preferring one whose bottom is no deeper than the tier ceiling. Four new characters, readied by the operator (`set-ready`) to a tier above its bottom floor's, capped at the ceiling, form a party by invitation, follow their leader there, and go down: each beat's pick held through `/v1/actions` (`party-pick`), each fork's push the same way, and each machine armed from the first seat's socket and worked by every seat streaming its own moves of the version's merged log.", delveKind, delveFloors, d.bunker.Ref())
 	pr("")
 	pr("Deepest floor reached: %d of %d. Named: %s.", d.deepest, delveFloors, either(d.named != "", "\""+d.named+"\"", "no"))
 	pr("")

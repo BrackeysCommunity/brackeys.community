@@ -457,6 +457,11 @@
       "weight": 30
     },
     {
+      "id": "character-readied",
+      "kind": "character.readied",
+      "weight": 30
+    },
+    {
       "id": "character-started",
       "kind": "character.started",
       "weight": 5,

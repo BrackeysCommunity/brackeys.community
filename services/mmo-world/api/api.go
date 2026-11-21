@@ -276,6 +276,9 @@ type Fight struct {
 	Shared   bool          `json:"shared,omitempty"`
 	Party    []PartyMember `json:"party,omitempty"`
 	Hidden   bool          `json:"hidden,omitempty"`
+	// Decks are those Second slot may swap in now: before the viewer's pick,
+	// once a beat.
+	Decks []DeckView `json:"decks,omitempty"`
 }
 
 // Options is everything a character can do now. Version is the row

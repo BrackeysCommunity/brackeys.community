@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/party"
@@ -94,6 +95,9 @@ func partyState(g *game.Game, c *game.Char) (out api.PartyState, thread []string
 	if p != nil {
 		out.Party = partyView(g, c, p)
 		thread = p.IDs()
+	}
+	if x := huntInReach(g, c); x != nil {
+		out.Hunt = huntView(g, c, x)
 	}
 	for _, o := range g.Chars {
 		if o != c && o.C.Floor == c.C.Floor && party.Within(o.C.At, c.C.At) {
@@ -300,8 +304,20 @@ func (s *Server) hunts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	defer unlock()
-	reply(w, http.StatusOK, huntBoard(s.g))
+	out := huntBoard(s.g)
+	banners := make([]render.BannerInput, len(out.Hunts))
+	for i, c := range out.Hunts {
+		banners[i] = s.bannerInput(simHex(c.At))
+	}
+	unlock()
+	for i := range out.Hunts {
+		var err error
+		if out.Hunts[i].Banner, err = s.banner(banners[i]); err != nil {
+			s.internal(w, err)
+			return
+		}
+	}
+	reply(w, http.StatusOK, out)
 }
 
 // Party is a character's party read, as GET /v1/party gives it.

@@ -36,6 +36,7 @@ const usage = `op [-id <interaction id>] <command>
   grant <id> <mount-kind> <note...>
   ban <id> <note...>  |  unban <id> <note...>
   set-machine <id> <family> <level> <note...>   stand a free character before a machine
+  set-ready <id> <tier> <note...>   raise its worn gear and practice to a tier's expected levels
   hide <goal> <note...>           take a goal off the notice board, its escrow back
   hunt-start <row> <q,r> [note...]   open a fights.hunts row's hunt on a tile
   hide-name <q,r> [note...]       hide a dungeon's given name; it shows its pack name
@@ -144,6 +145,15 @@ func run(args []string) error {
 		}
 		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: rest[0], Kind: cmd,
 			Asset: rest[1], Units: units, Note: strings.Join(rest[3:], " ")})
+	case api.OpReady:
+		if err := need(rest, 3); err != nil {
+			return err
+		}
+		tier, err := strconv.ParseInt(rest[1], 10, 64)
+		if err != nil {
+			return err
+		}
+		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: rest[0], Kind: cmd, Units: tier, Note: strings.Join(rest[2:], " ")})
 	case api.OpGrant:
 		if err := need(rest, 3); err != nil {
 			return err

@@ -157,8 +157,38 @@ func partyView(g *game.Game, c *game.Char, p *party.Party) *api.PartyView {
 	}
 	if sh != nil && slices.Contains(sh.Members, c.C.ID) {
 		out.Beat = partyBeat(g, sh, c.C.ID)
+		out.Last = lastBeat(g, sh)
 	}
 	return out
+}
+
+// lastBeat is the beat a shared encounter resolved last, every member's
+// press shown alike.
+func lastBeat(g *game.Game, sh *game.Shared) *api.PartyResult {
+	if sh.Last == nil {
+		return nil
+	}
+	out := &api.PartyResult{Beat: sh.Last.Beat, Pressed: []api.PartyPress{}}
+	for _, p := range sh.Last.Pressed {
+		out.Pressed = append(out.Pressed, api.PartyPress{Name: charName(g, p.Who), Option: p.Option.ID, Band: g.BandName(p.Option.Band),
+			Success: p.Outcome.Success})
+	}
+	return out
+}
+
+// rivalView is the context racing a party's fork machine, by its leader.
+func rivalView(g *game.Game, sh *game.Shared) *api.RivalView {
+	o, at := g.RivalOf(sh)
+	if o == nil {
+		return nil
+	}
+	lead := ""
+	if p := g.PartyByID(o.Party); p != nil {
+		lead = p.Leader
+	} else if len(o.Members) > 0 {
+		lead = o.Members[0]
+	}
+	return &api.RivalView{Name: charName(g, lead), ArmedAt: at}
 }
 
 // partyBeat is a shared encounter's open beat and its window. mine names
@@ -388,6 +418,7 @@ func partyMachineView(g *game.Game, c *game.Char, sh *game.Shared) *api.MachineV
 		gl := apiLayout(*rig.Glimpse)
 		out.Glimpse = &gl
 	}
+	out.Rival = rivalView(g, sh)
 	if spec.Party == "" && len(m.Seats) == 1 && p.Gifts(c.C.Level(spec.Family)).Mastery {
 		in := apiLayout(p.Inner(spec))
 		out.Inner = &in

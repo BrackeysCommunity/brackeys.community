@@ -3,6 +3,7 @@ package game
 import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/item"
 )
 
 // deckSwap swaps the deck in the off-hand for another the character
@@ -35,6 +36,24 @@ func (g *Game) deckSwap(c *Char, cmd Command) error {
 	c.Swapped = int64(e.At) + 1
 	_, err := g.fact(c, "item.equipped", g.Tick(), fact.S("item", in.ID), fact.S("slot", char.OffHand), fact.N("beat", int64(e.At)+1))
 	return err
+}
+
+// SwapDecks are the decks c may swap into its off hand now: none unless
+// deck-swap would take one.
+func (g *Game) SwapDecks(c *Char) []*item.Instance {
+	if c.Fight == nil || !g.holds(c, measureDecks) || notDown(c) != nil || c.Swapped == int64(c.Fight.E.At)+1 {
+		return nil
+	}
+	if sh := g.SharedByID(c.Fight.Shared); sh != nil && sh.pickOf(c.C.ID) != "" {
+		return nil
+	}
+	var out []*item.Instance
+	for _, in := range c.C.Pack {
+		if g.isDeck(in) && !c.C.Worn(in.ID) {
+			out = append(out, in)
+		}
+	}
+	return out
 }
 
 // structural: the measure Second slot adds a deck to.

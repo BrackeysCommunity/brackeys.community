@@ -389,6 +389,9 @@ func TestFilterHunt(t *testing.T) {
 	if st.Context.Kind != api.ContextParty || st.Hunt == nil || !st.Hunt.CanPress || st.Hunt.Pressers[0].You {
 		t.Fatalf("a party member in reach: %+v %+v", st.Context, st.Hunt)
 	}
+	if ps, err := s.l.Party(ctx, a.C.ID); err != nil || ps.Hunt == nil || ps.Hunt.ID != x.H.ID || len(ps.Hunt.Options) == 0 {
+		t.Fatalf("chat's party read of a hunt in reach: %+v %v", ps.Hunt, err)
+	}
 	board, err := s.l.Hunts(ctx)
 	if err != nil || len(board.Hunts) != 1 || board.Hunts[0].ID != x.H.ID || len(board.Hunts[0].Pressers) != 1 {
 		t.Fatalf("the hunts board: %+v %v", board, err)

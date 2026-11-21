@@ -206,6 +206,7 @@ func (g *Game) afterShared(sh *Shared, actor *Char, in []*Char, packs [][]*item.
 		return err
 	}
 	sh.Picks, sh.Opened = nil, 0
+	sh.Last = &LastBeat{Beat: beat, Pressed: slices.Clone(pressed)}
 	for _, c := range in {
 		if c != actor {
 			g.touchOnce(c)

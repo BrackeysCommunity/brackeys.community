@@ -200,7 +200,7 @@ func TestOperatorHunts(t *testing.T) {
 	}
 	card := hunts.Hunts[0]
 	if card.Row != row || card.Name == "" || card.Name == row || card.At != at || card.Health != card.Max || len(card.Spoils) == 0 || card.Closed ||
-		card.Pressers == nil {
+		card.Pressers == nil || card.Banner == "" {
 		t.Fatalf("the hunt's card: %+v", card)
 	}
 	if st, _ := r.cli.Party(ctx, rep.Character.ID); st.Party != nil {

@@ -107,6 +107,15 @@ type Shared struct {
 	// LostRace is the context whose solve took a fork machine this one
 	// was racing for, until it is armed again.
 	LostRace string `json:"lostRace,omitempty"`
+	// Last is the beat it resolved last, for the members' views. It is
+	// not state: a reload forgets it, and no rule reads it.
+	Last *LastBeat `json:"-"`
+}
+
+// LastBeat is a shared beat as it resolved: every member's press.
+type LastBeat struct {
+	Beat    int64 // 1-based
+	Pressed []fight.Pressed
 }
 
 // HeldPick is a member's held choice on a beat, unseen by the others until

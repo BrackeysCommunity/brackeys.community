@@ -95,7 +95,7 @@ type Stop struct {
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
 	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine ||
-		kind == HuntStart || kind == HideName
+		kind == HuntStart || kind == HideName || kind == SetReady
 }
 
 // passive reports whether a kind is sent for a character rather than by
@@ -295,6 +295,8 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.ban(c, cmd.Kind == Ban, cmd.Note)
 	case SetMachine:
 		return nil, g.setMachine(c, cmd)
+	case SetReady:
+		return nil, g.setReady(c, cmd)
 	case Sell:
 		return nil, g.sell(c, cmd)
 	case Bid:

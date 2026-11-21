@@ -186,6 +186,9 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 	}
 	e := c.Fight.E
 	v.Floor, v.Hidden = e.Floor, int64(e.At) < e.Hidden
+	for _, in := range g.SwapDecks(c) {
+		v.Decks = append(v.Decks, api.DeckView{ID: in.ID, Name: g.KindName(in.Kind)})
+	}
 	if sh := g.SharedByID(f.Shared); sh != nil {
 		v.Shared, v.Party = true, fightParty(g, c, sh)
 		if family, _, ok := g.Rules().Fight.Machine(e); ok && v.Machine != "" {

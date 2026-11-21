@@ -417,6 +417,7 @@ export interface MachineView {
    * whose practice gives it.
    */
   glimpse?: PuzzleLayout;
+  rival?: RivalView;
 }
 /**
  * PracticeLine is a family's practice: level, uses toward the next, and
@@ -921,6 +922,11 @@ export interface Fight {
   shared?: boolean;
   party?: PartyMember[];
   hidden?: boolean;
+  /**
+   * Decks are those Second slot may swap in now: before the viewer's pick,
+   * once a beat.
+   */
+  decks?: DeckView[];
 }
 /**
  * Options is everything a character can do now. Version is the row
@@ -1534,6 +1540,11 @@ export const OpHuntStart = "hunt-start";
  */
 export const OpHideName = "hide-name";
 /**
+ * OpReady brings a character's gear and practice to a tier's expected
+ * levels: Units is the tier.
+ */
+export const OpReady = "set-ready";
+/**
  * The ways down from a fork, as dungeon-push's Option names them.
  */
 export const WayOpen = "way-0";
@@ -1690,6 +1701,7 @@ export interface PartyView {
   leader: boolean; // the viewer leads
   members: PartyMember[];
   beat?: PartyBeat;
+  last?: PartyResult;
 }
 /**
  * PartyMember is one member as the others see them: whether they have
@@ -1719,6 +1731,39 @@ export interface PartyBeat {
   cautious: string;
   mine?: string; // the viewer's own pick
   waiting?: boolean; // the window waits on a machine
+}
+/**
+ * PartyResult is the last beat the viewer's shared encounter resolved,
+ * every member's press the same for each of them.
+ */
+export interface PartyResult {
+  beat: number /* int64 */; // 1-based
+  pressed: PartyPress[];
+}
+/**
+ * PartyPress is one member's press on a resolved beat.
+ */
+export interface PartyPress {
+  name: string;
+  option: string;
+  band: string;
+  success: boolean;
+}
+/**
+ * RivalView is another context working the same fork machine: the first
+ * solve to land takes it.
+ */
+export interface RivalView {
+  name: string; // the rival party's leader
+  armedAt: number /* int64 */; // unix ms
+  moves?: number /* int64 */; // from the gateway's merged log
+}
+/**
+ * DeckView is a deck carried in the pack that Second slot may swap in.
+ */
+export interface DeckView {
+  id: string;
+  name: string;
 }
 /**
  * FloorView is the dungeon floor the viewer stands on, and its fork.
@@ -1820,6 +1865,7 @@ export interface PartyState {
   floor?: FloorView;
   fight?: Fight;
   thread?: PartyThread;
+  hunt?: HuntView; // a live hunt in reach, as chat presses it
 }
 /**
  * Reachable is a character in party reach of the viewer.
@@ -1914,6 +1960,7 @@ export interface HuntCard {
   creature: string;
   at: Hex;
   region: string;
+  banner?: string; // the hunt tile's, a media key
   health: number /* int64 */;
   max: number /* int64 */;
   ends: number /* int64 */; // tick

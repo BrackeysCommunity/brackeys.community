@@ -29,6 +29,9 @@ const (
 	OpHuntStart = "hunt-start"
 	// OpHideName hides a dungeon's given name: To is the entrance.
 	OpHideName = "hide-name"
+	// OpReady brings a character's gear and practice to a tier's expected
+	// levels: Units is the tier.
+	OpReady = "set-ready"
 )
 
 // The ways down from a fork, as dungeon-push's Option names them.
@@ -97,6 +100,7 @@ type PartyView struct {
 	Leader  bool          `json:"leader"` // the viewer leads
 	Members []PartyMember `json:"members"`
 	Beat    *PartyBeat    `json:"beat,omitempty"`
+	Last    *PartyResult  `json:"last,omitempty"`
 }
 
 // PartyMember is one member as the others see them: whether they have
@@ -124,6 +128,35 @@ type PartyBeat struct {
 	Cautious string `json:"cautious"`
 	Mine     string `json:"mine,omitempty"`    // the viewer's own pick
 	Waiting  bool   `json:"waiting,omitempty"` // the window waits on a machine
+}
+
+// PartyResult is the last beat the viewer's shared encounter resolved,
+// every member's press the same for each of them.
+type PartyResult struct {
+	Beat    int64        `json:"beat"` // 1-based
+	Pressed []PartyPress `json:"pressed"`
+}
+
+// PartyPress is one member's press on a resolved beat.
+type PartyPress struct {
+	Name    string `json:"name"`
+	Option  string `json:"option"`
+	Band    string `json:"band"`
+	Success bool   `json:"success"`
+}
+
+// RivalView is another context working the same fork machine: the first
+// solve to land takes it.
+type RivalView struct {
+	Name    string `json:"name"`            // the rival party's leader
+	ArmedAt int64  `json:"armedAt"`         // unix ms
+	Moves   int64  `json:"moves,omitempty"` // from the gateway's merged log
+}
+
+// DeckView is a deck carried in the pack that Second slot may swap in.
+type DeckView struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // FloorView is the dungeon floor the viewer stands on, and its fork.
@@ -217,6 +250,7 @@ type PartyState struct {
 	Floor       *FloorView    `json:"floor,omitempty"`
 	Fight       *Fight        `json:"fight,omitempty"`
 	Thread      *PartyThread  `json:"thread,omitempty"`
+	Hunt        *HuntView     `json:"hunt,omitempty"` // a live hunt in reach, as chat presses it
 }
 
 // Reachable is a character in party reach of the viewer.
@@ -300,6 +334,7 @@ type HuntCard struct {
 	Creature string        `json:"creature"`
 	At       Hex           `json:"at"`
 	Region   string        `json:"region"`
+	Banner   string        `json:"banner,omitempty"` // the hunt tile's, a media key
 	Health   int64         `json:"health"`
 	Max      int64         `json:"max"`
 	Ends     int64         `json:"ends"` // tick
