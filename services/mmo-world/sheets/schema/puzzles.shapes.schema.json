@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.shapes",
+  "title": "puzzles.shapes",
+  "description": "The looks each family's machine can take, and from which level (GDD 7.11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.shapes"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "shape",
+          "weight",
+          "minLevel"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "family": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "puzzles.families"
+          },
+          "shape": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "weight",
+            "description": "Against the family's other shapes at the level, drawn under puzzle.shape."
+          },
+          "minLevel": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "level",
+            "description": "The lowest level it is drawn at."
+          },
+          "range": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "0: the family's."
+          },
+          "phoneMax": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "0: the family's."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

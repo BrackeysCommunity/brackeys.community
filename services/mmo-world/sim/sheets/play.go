@@ -46,15 +46,16 @@ type MarginBand struct {
 }
 
 type FightTier struct {
-	ID               string `json:"id" unit:"id"`
-	Tier             int64  `json:"tier" unit:"tier" min:"1"`
-	BaseDifficulty   int64  `json:"baseDifficulty" unit:"pts" min:"0"`
-	BeatsMin         int64  `json:"beatsMin" unit:"count" min:"1"`
-	BeatsMax         int64  `json:"beatsMax" unit:"count" min:"1"`
-	HuntHealth       int64  `json:"huntHealth" unit:"health" min:"1" doc:"A hunt's pool for one creature of this tier, before the hunt's own ratio."`
-	ExpectedLevel    int64  `json:"expectedLevel" unit:"level" min:"1" doc:"The level of the gear a character fighting at this tier is expected to carry."`
-	ExpectedPractice int64  `json:"expectedPractice" unit:"level" min:"0" doc:"The practice a character fighting at this tier is expected to have."`
-	Note             string `json:"note,omitempty" unit:"text"`
+	ID               string   `json:"id" unit:"id"`
+	Tier             int64    `json:"tier" unit:"tier" min:"1"`
+	BaseDifficulty   int64    `json:"baseDifficulty" unit:"pts" min:"0"`
+	BeatsMin         int64    `json:"beatsMin" unit:"count" min:"1"`
+	BeatsMax         int64    `json:"beatsMax" unit:"count" min:"1"`
+	HuntHealth       int64    `json:"huntHealth" unit:"health" min:"1" doc:"A hunt's pool for one creature of this tier, before the hunt's own ratio."`
+	ExpectedLevel    int64    `json:"expectedLevel" unit:"level" min:"1" doc:"The level of the gear a character fighting at this tier is expected to carry."`
+	ExpectedPractice int64    `json:"expectedPractice" unit:"level" min:"0" doc:"The practice a character fighting at this tier is expected to have."`
+	Haul             []string `json:"haul,omitempty" unit:"refs" ref:"items.materials" doc:"The tier's own materials, first first: what a half step's haul line may take from the tier above, and what a key is paid in."`
+	Note             string   `json:"note,omitempty" unit:"text"`
 }
 
 // BeatKind is one of the nine kinds of beat (GDD 7.9).
@@ -120,13 +121,19 @@ type TraitEffect struct {
 	Risk      string `json:"risk,omitempty" unit:"enum" enum:"durability|wound|haul|first-strike|escape|coin|standing|ticks|none"`
 }
 
-// Hunt is a creature with a pool many characters wear down (GDD 7.6).
+// Hunt is a creature with a pool many characters wear down (GDD 7.6): a
+// hunt in the world, or a dungeon's guardian.
 type Hunt struct {
 	ID          string  `json:"id" unit:"id"`
 	Creature    string  `json:"creature" unit:"ref" ref:"creatures.archetypes"`
 	HealthRatio fixed.F `json:"healthRatio" unit:"ratio" min:"0" doc:"Times the tier's hunt health."`
-	WindowDays  int64   `json:"windowDays" unit:"days" min:"1"`
-	Spoils      []Spoil `json:"spoils" unit:"goods"`
+	WindowDays  int64   `json:"windowDays" unit:"days" min:"1" doc:"A guardian's window opens at the first press."`
+	Spoils      []Spoil `json:"spoils" unit:"goods" doc:"The most each line rolls at the kill; it rolls half to all."`
+	Kind        string  `json:"kind,omitempty" unit:"ref" ref:"map.dungeons" doc:"A guardian: the dungeon kind whose bottom it guards, on that kind's tags. Empty: a hunt in the world."`
+	SpawnChance int64   `json:"spawnChance,omitempty" unit:"percent" min:"0" max:"100" doc:"The chance, each world day, that it opens in an awake region where its creature stands at spawnLine; 0 opens only when called."`
+	SpawnLine   int64   `json:"spawnLine,omitempty" unit:"percent" min:"0" max:"100" doc:"The creature's population there, as a share of capacity."`
+	Marks       []int64 `json:"marks,omitempty" unit:"percent" doc:"Shares of the pool, falling: the first time it falls to or below each, a machine stands on the beat."`
+	Family      string  `json:"family,omitempty" unit:"ref" ref:"puzzles.families" doc:"The family a mark's machine is, played as its party version."`
 }
 
 type Spoil struct {

@@ -40,7 +40,9 @@
               "arrive",
               "explore",
               "gather",
-              "meet"
+              "meet",
+              "party",
+              "fork"
             ],
             "x-unit": "enum"
           },
@@ -83,7 +85,8 @@
               "band-steps",
               "beat",
               "seconds",
-              "degrees"
+              "degrees",
+              "ms"
             ],
             "x-unit": "enum"
           },

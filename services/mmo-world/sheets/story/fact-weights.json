@@ -845,6 +845,121 @@
       "id": "rescue-carried",
       "kind": "rescue.carried",
       "weight": 40
+    },
+    {
+      "id": "party-formed",
+      "kind": "party.formed",
+      "weight": 20
+    },
+    {
+      "id": "party-joined",
+      "kind": "party.joined",
+      "weight": 10
+    },
+    {
+      "id": "party-left",
+      "kind": "party.left",
+      "weight": 10
+    },
+    {
+      "id": "party-ended",
+      "kind": "party.ended",
+      "weight": 10
+    },
+    {
+      "id": "party-dropped",
+      "kind": "party.dropped",
+      "weight": 10
+    },
+    {
+      "id": "party-beat",
+      "kind": "party.beat",
+      "weight": 15
+    },
+    {
+      "id": "dungeon-reached",
+      "kind": "dungeon.reached",
+      "weight": 20
+    },
+    {
+      "id": "dungeon-left",
+      "kind": "dungeon.left",
+      "weight": 10
+    },
+    {
+      "id": "dungeon-forked",
+      "kind": "dungeon.forked",
+      "weight": 15
+    },
+    {
+      "id": "dungeon-haunted",
+      "kind": "dungeon.haunted",
+      "weight": 40
+    },
+    {
+      "id": "dungeon-calm",
+      "kind": "dungeon.calm",
+      "weight": 20
+    },
+    {
+      "id": "dungeon-slain-first",
+      "kind": "dungeon.slain-first",
+      "weight": 60
+    },
+    {
+      "id": "dungeon-named",
+      "kind": "dungeon.named",
+      "weight": 60
+    },
+    {
+      "id": "guardian-slain",
+      "kind": "guardian.slain",
+      "weight": 80
+    },
+    {
+      "id": "guardian-worn",
+      "kind": "guardian.worn",
+      "weight": 30
+    },
+    {
+      "id": "guardian-whole",
+      "kind": "guardian.whole",
+      "weight": 10
+    },
+    {
+      "id": "hunt-opened",
+      "kind": "hunt.opened",
+      "weight": 40
+    },
+    {
+      "id": "hunt-pressed",
+      "kind": "hunt.pressed",
+      "weight": 5
+    },
+    {
+      "id": "hunt-left",
+      "kind": "hunt.left",
+      "weight": 30
+    },
+    {
+      "id": "machine-lost-race",
+      "kind": "machine.lost-race",
+      "weight": 20
+    },
+    {
+      "id": "key-made",
+      "kind": "key.made",
+      "weight": 20
+    },
+    {
+      "id": "key-used",
+      "kind": "key.used",
+      "weight": 20
+    },
+    {
+      "id": "track-followed",
+      "kind": "track.followed",
+      "weight": 10
     }
   ]
 }

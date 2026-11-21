@@ -1,0 +1,190 @@
+{
+  "$schema": "../schema/puzzles.party.schema.json",
+  "sheet": "puzzles.party",
+  "rows": [
+    {
+      "id": "big-rewire",
+      "family": "rewire",
+      "sizeBy": "fixed",
+      "size": 12,
+      "countdown": 150,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "size is big-rewire-wires; provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "split-panel",
+      "family": "rewire",
+      "sizeBy": "family",
+      "extra": 1,
+      "countdown": 120,
+      "weight": 1,
+      "deals": "split",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "two-hand-lock",
+      "family": "lock-dial",
+      "sizeBy": "family",
+      "extra": 1,
+      "window": 1000,
+      "countdown": 100,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "window is two-hand-window; provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "relay-chain",
+      "family": "signal",
+      "sizeBy": "seats",
+      "window": 1000,
+      "countdown": 100,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "window is relay-chain-window; provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "boiler-room",
+      "family": "pressure",
+      "sizeBy": "family",
+      "extra": 1,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "pipe-crew",
+      "family": "leak",
+      "sizeBy": "family",
+      "extra": 2,
+      "decoys": 2,
+      "countdown": 100,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "competing",
+      "sizeBy": "family",
+      "countdown": 100,
+      "weight": 0,
+      "deals": "whole",
+      "rate": 0,
+      "note": "Two contexts on one fork machine, each its own version; never drawn"
+    },
+    {
+      "id": "tension-and-pick",
+      "family": "lock-pins",
+      "sizeBy": "family",
+      "extra": 1,
+      "window": 3000,
+      "pass": 1,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "two-axis-tilt",
+      "family": "lock-maze",
+      "sizeBy": "family",
+      "extra": 1,
+      "pass": 4,
+      "countdown": 100,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "split-grid",
+      "family": "circuit",
+      "sizeBy": "family",
+      "extra": 1,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "bomb-squad",
+      "family": "fuse",
+      "sizeBy": "family",
+      "decoys": 1,
+      "pass": 2,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "split",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "call-and-answer",
+      "family": "override",
+      "sizeBy": "family",
+      "extra": 1,
+      "pass": 1,
+      "countdown": 120,
+      "weight": 1,
+      "deals": "split",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "tandem-winch",
+      "family": "crank",
+      "sizeBy": "family",
+      "pass": 5000,
+      "countdown": 100,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "pass is in milliseconds: the cranks change hands on the clock; provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "double-swipe",
+      "family": "keycard",
+      "sizeBy": "family",
+      "window": 1000,
+      "pass": 1,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "panel-array",
+      "family": "scrub",
+      "sizeBy": "family",
+      "extra": 1,
+      "pass": 3,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    },
+    {
+      "id": "relay-solder",
+      "family": "splice",
+      "sizeBy": "family",
+      "extra": 2,
+      "pass": 4,
+      "countdown": 110,
+      "weight": 1,
+      "deals": "whole",
+      "rate": 8,
+      "note": "provisional: the measured help, set from the Battle run's merged solves"
+    }
+  ]
+}

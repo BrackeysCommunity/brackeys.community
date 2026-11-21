@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "puzzles.party",
+  "title": "puzzles.party",
+  "description": "Families played by several hands on one machine: how big, what each seat is dealt, its window (GDD 7.11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "puzzles.party"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sizeBy",
+          "countdown",
+          "weight",
+          "deals",
+          "rate"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "family": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "puzzles.families",
+            "description": "Empty: any family (two contexts racing for one machine)."
+          },
+          "sizeBy": {
+            "type": "string",
+            "enum": [
+              "family",
+              "fixed",
+              "seats"
+            ],
+            "x-unit": "enum",
+            "description": "family: the family's size at the level; fixed: size; seats: the family's size times the seats."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "fixed: the machine's size."
+          },
+          "extra": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Size added per seat past two."
+          },
+          "decoys": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Decoys added per seat past two."
+          },
+          "window": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "ms",
+            "description": "How close together moves of different seats must land."
+          },
+          "pass": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Progress, in the version's own steps, before the roles pass on; a version on the clock counts milliseconds. 0: the roles never pass."
+          },
+          "countdown": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "percent",
+            "description": "Of the family's solo countdown."
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "weight",
+            "description": "Against the family's other versions, drawn under puzzle.party-version; 0 is never drawn."
+          },
+          "deals": {
+            "type": "string",
+            "enum": [
+              "whole",
+              "split"
+            ],
+            "x-unit": "enum",
+            "description": "whole: every seat sees the machine; split: each seat is dealt its part."
+          },
+          "rate": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "percent",
+            "description": "Solve rate a seat past the first adds, from the version's own solver."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."
+          }
+        }
+      }
+    }
+  }
+}

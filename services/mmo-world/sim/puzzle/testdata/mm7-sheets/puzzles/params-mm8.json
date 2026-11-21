@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../../../sheets/schema/puzzles.params.schema.json",
+  "sheet": "puzzles.params",
+  "rows": [
+    {
+      "id": "inner-levels",
+      "value": 1,
+      "unit": "level",
+      "doc": "Levels a master's inner panel stands above its machine."
+    },
+    {
+      "id": "inner-decoys",
+      "value": 0,
+      "unit": "count",
+      "doc": "Decoys a master's inner panel holds beyond its level's."
+    },
+    {
+      "id": "solve-per-decoy",
+      "value": 0,
+      "unit": "percent",
+      "doc": "Harness: solve rate per decoy a machine holds at its level."
+    },
+    {
+      "id": "relay-chain-window",
+      "value": 1,
+      "unit": "seconds",
+      "doc": "Every panel of a relay chain must lock within this."
+    }
+  ]
+}

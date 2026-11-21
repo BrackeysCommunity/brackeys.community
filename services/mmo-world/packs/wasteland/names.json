@@ -969,6 +969,346 @@
       "id": "offers-bonded",
       "ref": "mounts.offers:bonded",
       "name": "Bonded"
+    },
+    {
+      "id": "dungeons-bunker",
+      "ref": "map.dungeons:bunker",
+      "name": "Bunker"
+    },
+    {
+      "id": "dungeons-server-vault",
+      "ref": "map.dungeons:server-vault",
+      "name": "Server vault"
+    },
+    {
+      "id": "dungeons-sunk-data-centre",
+      "ref": "map.dungeons:sunk-data-centre",
+      "name": "Sunk data-centre"
+    },
+    {
+      "id": "dungeons-relay-tower",
+      "ref": "map.dungeons:relay-tower",
+      "name": "Relay tower"
+    },
+    {
+      "id": "forks-flooded-stair",
+      "ref": "map.forks:flooded-stair",
+      "name": "Flooded stair"
+    },
+    {
+      "id": "forks-blast-door",
+      "ref": "map.forks:blast-door",
+      "name": "Blast door"
+    },
+    {
+      "id": "forks-cable-run",
+      "ref": "map.forks:cable-run",
+      "name": "Cable run"
+    },
+    {
+      "id": "forks-burnt-corridor",
+      "ref": "map.forks:burnt-corridor",
+      "name": "Burnt corridor"
+    },
+    {
+      "id": "forks-cold-aisle",
+      "ref": "map.forks:cold-aisle",
+      "name": "Cold aisle"
+    },
+    {
+      "id": "forks-fallen-racks",
+      "ref": "map.forks:fallen-racks",
+      "name": "Fallen racks"
+    },
+    {
+      "id": "forks-locked-cage",
+      "ref": "map.forks:locked-cage",
+      "name": "Locked cage"
+    },
+    {
+      "id": "forks-bilge-hatch",
+      "ref": "map.forks:bilge-hatch",
+      "name": "Bilge hatch"
+    },
+    {
+      "id": "forks-dead-terminals",
+      "ref": "map.forks:dead-terminals",
+      "name": "Dead terminals"
+    },
+    {
+      "id": "forks-steam-tunnel",
+      "ref": "map.forks:steam-tunnel",
+      "name": "Steam tunnel"
+    },
+    {
+      "id": "forks-service-ladder",
+      "ref": "map.forks:service-ladder",
+      "name": "Service ladder"
+    },
+    {
+      "id": "forks-antenna-walk",
+      "ref": "map.forks:antenna-walk",
+      "name": "Antenna walk"
+    },
+    {
+      "id": "forks-dish-gantry",
+      "ref": "map.forks:dish-gantry",
+      "name": "Dish gantry"
+    },
+    {
+      "id": "forks-collapsed-shaft",
+      "ref": "map.forks:collapsed-shaft",
+      "name": "Collapsed shaft"
+    },
+    {
+      "id": "party-big-rewire",
+      "ref": "puzzles.party:big-rewire",
+      "name": "Big rewire"
+    },
+    {
+      "id": "party-split-panel",
+      "ref": "puzzles.party:split-panel",
+      "name": "Split panel"
+    },
+    {
+      "id": "party-two-hand-lock",
+      "ref": "puzzles.party:two-hand-lock",
+      "name": "Two-hand lock"
+    },
+    {
+      "id": "party-relay-chain",
+      "ref": "puzzles.party:relay-chain",
+      "name": "Relay chain"
+    },
+    {
+      "id": "party-boiler-room",
+      "ref": "puzzles.party:boiler-room",
+      "name": "Boiler room"
+    },
+    {
+      "id": "party-pipe-crew",
+      "ref": "puzzles.party:pipe-crew",
+      "name": "Pipe crew"
+    },
+    {
+      "id": "party-competing",
+      "ref": "puzzles.party:competing",
+      "name": "Rival crews"
+    },
+    {
+      "id": "party-tension-and-pick",
+      "ref": "puzzles.party:tension-and-pick",
+      "name": "Tension-and-pick lock"
+    },
+    {
+      "id": "party-two-axis-tilt",
+      "ref": "puzzles.party:two-axis-tilt",
+      "name": "Two-axis tilt"
+    },
+    {
+      "id": "party-split-grid",
+      "ref": "puzzles.party:split-grid",
+      "name": "Split grid"
+    },
+    {
+      "id": "party-bomb-squad",
+      "ref": "puzzles.party:bomb-squad",
+      "name": "Bomb squad"
+    },
+    {
+      "id": "party-call-and-answer",
+      "ref": "puzzles.party:call-and-answer",
+      "name": "Call-and-answer override"
+    },
+    {
+      "id": "party-tandem-winch",
+      "ref": "puzzles.party:tandem-winch",
+      "name": "Tandem winch"
+    },
+    {
+      "id": "party-double-swipe",
+      "ref": "puzzles.party:double-swipe",
+      "name": "Double swipe"
+    },
+    {
+      "id": "party-panel-array",
+      "ref": "puzzles.party:panel-array",
+      "name": "Panel array"
+    },
+    {
+      "id": "party-relay-solder",
+      "ref": "puzzles.party:relay-solder",
+      "name": "Relay solder"
+    },
+    {
+      "id": "shapes-rewire-box",
+      "ref": "puzzles.shapes:rewire-box",
+      "name": "Straight box"
+    },
+    {
+      "id": "shapes-rewire-ring",
+      "ref": "puzzles.shapes:rewire-ring",
+      "name": "Ring panel"
+    },
+    {
+      "id": "shapes-lock-pins-row",
+      "ref": "puzzles.shapes:lock-pins-row",
+      "name": "Row"
+    },
+    {
+      "id": "shapes-lock-pins-wheel",
+      "ref": "puzzles.shapes:lock-pins-wheel",
+      "name": "Pin wheel"
+    },
+    {
+      "id": "shapes-lock-dial-row",
+      "ref": "puzzles.shapes:lock-dial-row",
+      "name": "Row"
+    },
+    {
+      "id": "shapes-lock-dial-rings",
+      "ref": "puzzles.shapes:lock-dial-rings",
+      "name": "Concentric rings"
+    },
+    {
+      "id": "shapes-lock-maze-square",
+      "ref": "puzzles.shapes:lock-maze-square",
+      "name": "Square maze"
+    },
+    {
+      "id": "shapes-lock-maze-hex",
+      "ref": "puzzles.shapes:lock-maze-hex",
+      "name": "Hex maze"
+    },
+    {
+      "id": "shapes-circuit-square",
+      "ref": "puzzles.shapes:circuit-square",
+      "name": "Square grid"
+    },
+    {
+      "id": "shapes-circuit-hex",
+      "ref": "puzzles.shapes:circuit-hex",
+      "name": "Hex grid"
+    },
+    {
+      "id": "shapes-signal-knobs",
+      "ref": "puzzles.shapes:signal-knobs",
+      "name": "Knobs"
+    },
+    {
+      "id": "shapes-signal-scope",
+      "ref": "puzzles.shapes:signal-scope",
+      "name": "Scope sliders"
+    },
+    {
+      "id": "shapes-fuse-list",
+      "ref": "puzzles.shapes:fuse-list",
+      "name": "Clue list"
+    },
+    {
+      "id": "shapes-fuse-diagram",
+      "ref": "puzzles.shapes:fuse-diagram",
+      "name": "Wiring diagram"
+    },
+    {
+      "id": "shapes-override-pad",
+      "ref": "puzzles.shapes:override-pad",
+      "name": "Four-key pad"
+    },
+    {
+      "id": "shapes-override-ring",
+      "ref": "puzzles.shapes:override-ring",
+      "name": "Ring pad"
+    },
+    {
+      "id": "shapes-pressure-line",
+      "ref": "puzzles.shapes:pressure-line",
+      "name": "Valve line"
+    },
+    {
+      "id": "shapes-pressure-ring",
+      "ref": "puzzles.shapes:pressure-ring",
+      "name": "Ring manifold"
+    },
+    {
+      "id": "shapes-crank-handle",
+      "ref": "puzzles.shapes:crank-handle",
+      "name": "Crank handle"
+    },
+    {
+      "id": "shapes-crank-lever",
+      "ref": "puzzles.shapes:crank-lever",
+      "name": "Pump lever"
+    },
+    {
+      "id": "shapes-leak-straight",
+      "ref": "puzzles.shapes:leak-straight",
+      "name": "Straight pipe"
+    },
+    {
+      "id": "shapes-leak-branching",
+      "ref": "puzzles.shapes:leak-branching",
+      "name": "Branching pipe"
+    },
+    {
+      "id": "shapes-keycard-swipe",
+      "ref": "puzzles.shapes:keycard-swipe",
+      "name": "Swipe reader"
+    },
+    {
+      "id": "shapes-keycard-insert",
+      "ref": "puzzles.shapes:keycard-insert",
+      "name": "Insert reader"
+    },
+    {
+      "id": "shapes-scrub-square",
+      "ref": "puzzles.shapes:scrub-square",
+      "name": "Square plate"
+    },
+    {
+      "id": "shapes-scrub-hex",
+      "ref": "puzzles.shapes:scrub-hex",
+      "name": "Hex plate"
+    },
+    {
+      "id": "shapes-splice-flat",
+      "ref": "puzzles.shapes:splice-flat",
+      "name": "Flat board"
+    },
+    {
+      "id": "shapes-splice-round",
+      "ref": "puzzles.shapes:splice-round",
+      "name": "Round board"
+    },
+    {
+      "id": "hunts-walking-factory",
+      "ref": "fights.hunts:walking-factory",
+      "name": "The walking factory"
+    },
+    {
+      "id": "hunts-dust-runner-migration",
+      "ref": "fights.hunts:dust-runner-migration",
+      "name": "Dust-runner migration"
+    },
+    {
+      "id": "hunts-bunker-guardian",
+      "ref": "fights.hunts:bunker-guardian",
+      "name": "Bunker warden"
+    },
+    {
+      "id": "hunts-vault-guardian",
+      "ref": "fights.hunts:vault-guardian",
+      "name": "Vault keeper"
+    },
+    {
+      "id": "hunts-data-centre-guardian",
+      "ref": "fights.hunts:data-centre-guardian",
+      "name": "Drowned custodian"
+    },
+    {
+      "id": "hunts-tower-guardian",
+      "ref": "fights.hunts:tower-guardian",
+      "name": "Mast warden"
     }
   ]
 }

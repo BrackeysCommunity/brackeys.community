@@ -100,6 +100,22 @@
       "magnitude": 1,
       "unit": "count",
       "doc": "The share of Uncommon spoils that come as a locked pouch, for a character who has worked a machine; the pouch holds the same goods."
+    },
+    {
+      "id": "old-friends",
+      "on": "party",
+      "chance": 1,
+      "magnitude": 1,
+      "unit": "band-steps",
+      "doc": "A party of two, either of whom rescued the other: holding is this much better."
+    },
+    {
+      "id": "the-key",
+      "on": "fork",
+      "chance": 1,
+      "magnitude": 1,
+      "unit": "count",
+      "doc": "A key held for this dungeon opens the third way, and this many are used up."
     }
   ]
 }

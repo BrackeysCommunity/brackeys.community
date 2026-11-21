@@ -1,0 +1,168 @@
+{
+  "$schema": "../schema/map.forks.schema.json",
+  "sheet": "map.forks",
+  "rows": [
+    {
+      "id": "flooded-stair",
+      "kinds": [
+        "bunker",
+        "sunk-data-centre"
+      ],
+      "tags": [
+        "wet",
+        "deep"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "blast-door",
+      "kinds": [
+        "bunker"
+      ],
+      "tags": [
+        "hoarding",
+        "plated"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "cable-run",
+      "kinds": [
+        "bunker",
+        "server-vault",
+        "relay-tower"
+      ],
+      "tags": [
+        "wired",
+        "conductive"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "burnt-corridor",
+      "kinds": [
+        "bunker",
+        "relay-tower"
+      ],
+      "tags": [
+        "burning",
+        "brittle"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "cold-aisle",
+      "kinds": [
+        "server-vault"
+      ],
+      "tags": [
+        "cold",
+        "powered"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "fallen-racks",
+      "kinds": [
+        "server-vault"
+      ],
+      "tags": [
+        "brittle",
+        "corrupted"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "locked-cage",
+      "kinds": [
+        "server-vault",
+        "bunker"
+      ],
+      "tags": [
+        "hoarding",
+        "wired"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "bilge-hatch",
+      "kinds": [
+        "sunk-data-centre"
+      ],
+      "tags": [
+        "wet",
+        "brittle"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "dead-terminals",
+      "kinds": [
+        "sunk-data-centre",
+        "server-vault"
+      ],
+      "tags": [
+        "corrupted",
+        "wired"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "steam-tunnel",
+      "kinds": [
+        "sunk-data-centre"
+      ],
+      "tags": [
+        "warm",
+        "wet"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "service-ladder",
+      "kinds": [
+        "relay-tower"
+      ],
+      "tags": [
+        "heights",
+        "high"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "antenna-walk",
+      "kinds": [
+        "relay-tower"
+      ],
+      "tags": [
+        "exposed",
+        "charged",
+        "wired"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "dish-gantry",
+      "kinds": [
+        "relay-tower"
+      ],
+      "tags": [
+        "high",
+        "cold"
+      ],
+      "weight": 1
+    },
+    {
+      "id": "collapsed-shaft",
+      "kinds": [
+        "bunker",
+        "sunk-data-centre"
+      ],
+      "tags": [
+        "deep",
+        "dry"
+      ],
+      "weight": 1
+    }
+  ]
+}

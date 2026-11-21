@@ -26,7 +26,7 @@ var QuantityUnits = []string{
 	"coin", "goods", "pts", "durability", "xp", "level", "tier", "load",
 	"health", "defence", "gauge", "standing", "event-points", "ticks",
 	"days", "percent", "ratio", "count", "tiles", "weight", "chance",
-	"band-steps", "beat", "seconds", "degrees",
+	"band-steps", "beat", "seconds", "degrees", "ms",
 }
 
 // ShapeUnits describe a column that is not a quantity.

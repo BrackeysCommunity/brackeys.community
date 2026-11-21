@@ -1,0 +1,231 @@
+{
+  "$schema": "../schema/puzzles.params.schema.json",
+  "sheet": "puzzles.params",
+  "rows": [
+    {
+      "id": "countdown-per-tier",
+      "value": -15,
+      "unit": "percent",
+      "doc": "Countdown change per tier above 1."
+    },
+    {
+      "id": "network-grace",
+      "value": 2,
+      "unit": "seconds",
+      "doc": "Added on the server before a move log is late."
+    },
+    {
+      "id": "level-at-tier-1",
+      "value": 1,
+      "unit": "level",
+      "doc": "Lowest family level at tier 1."
+    },
+    {
+      "id": "level-step-per-tier",
+      "value": 2,
+      "unit": "level",
+      "doc": "Lowest family level rises this much per tier."
+    },
+    {
+      "id": "level-span",
+      "value": 2,
+      "unit": "level",
+      "doc": "Levels above the lowest a machine of one tier may roll."
+    },
+    {
+      "id": "floors-per-level",
+      "value": 2,
+      "unit": "count",
+      "doc": "Dungeon floors per extra family level."
+    },
+    {
+      "id": "rewire-base-wires",
+      "value": 2,
+      "unit": "count",
+      "doc": "Rewire wires are this plus the level."
+    },
+    {
+      "id": "intro-wires",
+      "value": 3,
+      "unit": "count",
+      "doc": "The first Rewire on the opening dungeon's main path."
+    },
+    {
+      "id": "big-rewire-wires",
+      "value": 12,
+      "unit": "count",
+      "doc": "Wires in a party's big rewire."
+    },
+    {
+      "id": "two-hand-window",
+      "value": 1,
+      "unit": "seconds",
+      "doc": "Both dials of a two-hand lock must click within this."
+    },
+    {
+      "id": "live-solve-uses",
+      "value": 4,
+      "unit": "count",
+      "doc": "Practice uses from a live solve."
+    },
+    {
+      "id": "bench-solve-uses",
+      "value": 1,
+      "unit": "count",
+      "doc": "Practice uses from a solve at the tinker's bench."
+    },
+    {
+      "id": "bench-uses-per-day",
+      "value": 20,
+      "unit": "count",
+      "doc": "Most practice uses the bench gives a character in a world day."
+    },
+    {
+      "id": "haywire-uses",
+      "value": 1,
+      "unit": "count",
+      "doc": "Practice uses from a haywire."
+    },
+    {
+      "id": "lesson-uses",
+      "value": 2,
+      "unit": "count",
+      "doc": "Practice uses a learner gains from a master's lesson."
+    },
+    {
+      "id": "lesson-standing",
+      "value": 1,
+      "unit": "standing",
+      "doc": "Standing a teacher gains with the settlement's guild per lesson."
+    },
+    {
+      "id": "clean-solve-left",
+      "value": 50,
+      "unit": "percent",
+      "doc": "Countdown left for a solve to count as clean."
+    },
+    {
+      "id": "clean-solve-haul",
+      "value": 25,
+      "unit": "percent",
+      "doc": "Extra haul for a clean solve."
+    },
+    {
+      "id": "solve-per-practice",
+      "value": 2,
+      "unit": "percent",
+      "doc": "provisional: harness solve rate gained per practice level."
+    },
+    {
+      "id": "solve-per-level",
+      "value": -3,
+      "unit": "percent",
+      "doc": "provisional: harness solve rate per family level above 1."
+    },
+    {
+      "id": "solve-per-tier",
+      "value": -8,
+      "unit": "percent",
+      "doc": "provisional: harness solve rate per tier above 1."
+    },
+    {
+      "id": "level-per-tier",
+      "value": 2,
+      "unit": "level",
+      "doc": "A family's lowest level at a tier is this times the tier, less one (GDD 7.11)."
+    },
+    {
+      "id": "solve-min",
+      "value": 5,
+      "unit": "percent",
+      "doc": "Harness: the solve rate never falls under this."
+    },
+    {
+      "id": "solve-max",
+      "value": 95,
+      "unit": "percent"
+    },
+    {
+      "id": "party-help",
+      "value": 8,
+      "unit": "percent",
+      "doc": "provisional: harness solve rate gained per party member past the first."
+    },
+    {
+      "id": "expected-practice-per-tier",
+      "value": 3,
+      "unit": "level",
+      "doc": "Harness: the practice a party is expected to have in a family, per tier."
+    },
+    {
+      "id": "expected-practice-base",
+      "value": 2,
+      "unit": "level",
+      "doc": "Harness: and at tier 1, this."
+    },
+    {
+      "id": "floors",
+      "value": 7,
+      "unit": "count",
+      "doc": "Harness: floors of a dungeon the puzzle target samples."
+    },
+    {
+      "id": "solve-target-min",
+      "value": 60,
+      "unit": "percent"
+    },
+    {
+      "id": "solve-target-max",
+      "value": 80,
+      "unit": "percent"
+    },
+    {
+      "id": "max-moves",
+      "value": 1200,
+      "unit": "count",
+      "doc": "Moves a log may hold; a longer one is a haywire."
+    },
+    {
+      "id": "max-play-seconds",
+      "value": 600,
+      "unit": "seconds",
+      "doc": "The longest a machine with no countdown can be played."
+    },
+    {
+      "id": "master-solve-uses",
+      "value": 2,
+      "unit": "count",
+      "doc": "Extra practice uses from a master's inner panel."
+    },
+    {
+      "id": "bench-base-levels",
+      "value": 3,
+      "unit": "level",
+      "doc": "Levels the bench offers a family at no practice."
+    },
+    {
+      "id": "bench-practice-per-level",
+      "value": 2,
+      "unit": "level",
+      "doc": "Practice levels per further level the bench offers."
+    },
+    {
+      "id": "lesson-give-per-day",
+      "value": 5,
+      "unit": "count",
+      "doc": "Lessons a master may leave in a world day."
+    },
+    {
+      "id": "lesson-take-per-day",
+      "value": 3,
+      "unit": "count",
+      "doc": "Lessons a learner may take in a world day."
+    },
+    {
+      "id": "lessons-kept",
+      "value": 5,
+      "unit": "count",
+      "doc": "Lessons a bench keeps per family; the oldest goes first."
+    }
+  ]
+}

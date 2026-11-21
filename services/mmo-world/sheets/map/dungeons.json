@@ -1,0 +1,112 @@
+{
+  "$schema": "../schema/map.dungeons.schema.json",
+  "sheet": "map.dungeons",
+  "rows": [
+    {
+      "id": "bunker",
+      "place": "dungeon",
+      "share": 40,
+      "floorsMin": 3,
+      "floorsMax": 7,
+      "tags": [
+        "deep",
+        "hoarding"
+      ],
+      "creatures": [
+        "reed-rat",
+        "seam-crawler",
+        "cinder-hound",
+        "glass-heron",
+        "old-growth"
+      ],
+      "families": [
+        "lock-pins",
+        "lock-dial",
+        "lock-maze",
+        "fuse",
+        "crank"
+      ],
+      "note": "Blast doors and strongrooms: locks and fuses. A creature at every tier, so no floor falls back to the tier's archetypes."
+    },
+    {
+      "id": "server-vault",
+      "place": "dungeon",
+      "share": 35,
+      "floorsMin": 3,
+      "floorsMax": 6,
+      "tags": [
+        "wired",
+        "powered",
+        "cold"
+      ],
+      "creatures": [
+        "reed-rat",
+        "seam-crawler",
+        "glass-heron",
+        "old-growth"
+      ],
+      "families": [
+        "rewire",
+        "circuit",
+        "signal",
+        "splice",
+        "keycard",
+        "crank"
+      ],
+      "note": "Racks still drawing power: wiring and access machines."
+    },
+    {
+      "id": "sunk-data-centre",
+      "place": "dungeon",
+      "share": 25,
+      "floorsMin": 4,
+      "floorsMax": 7,
+      "tags": [
+        "wet",
+        "wired",
+        "corrupted"
+      ],
+      "creatures": [
+        "reed-rat",
+        "mire-stalker",
+        "glass-heron",
+        "old-growth"
+      ],
+      "families": [
+        "leak",
+        "pressure",
+        "scrub",
+        "override",
+        "keycard"
+      ],
+      "note": "Flooded halls: leaks, pressure and corrupted terminals."
+    },
+    {
+      "id": "relay-tower",
+      "place": "relay",
+      "share": 100,
+      "floorsMin": 3,
+      "floorsMax": 6,
+      "up": true,
+      "tags": [
+        "high",
+        "wired",
+        "heights"
+      ],
+      "creatures": [
+        "flat-runner",
+        "cinder-hound",
+        "glass-heron",
+        "old-growth"
+      ],
+      "families": [
+        "signal",
+        "rewire",
+        "circuit",
+        "splice",
+        "override"
+      ],
+      "note": "Every relay place is one; its levels climb. Its guardian ends in the relay chain."
+    }
+  ]
+}

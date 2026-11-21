@@ -51,7 +51,7 @@ type Book struct {
 	States       []StateRow    `sheet:"fights.states" doc:"The states that last for beats."`
 	TraitEffects []TraitEffect `sheet:"fights.trait-effects" doc:"What a trait does that a band or score rule cannot say."`
 	Hunts        []Hunt        `sheet:"fights.hunts" doc:"Hunts: a creature's health pool, window and spoils."`
-	FightParams  []Param       `sheet:"fights.params" doc:"Loose cells for encounters."`
+	FightParams  []Param       `sheet:"fights.params" doc:"Loose cells for encounters, parties and delves."`
 
 	Durability []Durability `sheet:"wear.durability" doc:"Durability by slot and tier."`
 	WearParams []Param      `sheet:"wear.params" doc:"Repair and salvage rates."`
@@ -104,6 +104,9 @@ type Book struct {
 	Shapes        []Shape        `sheet:"map.shapes" doc:"The shapes patterns are laid in."`
 	Patterns      []PatternRule  `sheet:"map.patterns" doc:"Patterns: shapes laid on the map before noise, with things on their points."`
 	MapParams     []Param        `sheet:"map.params" doc:"Loose cells for generation."`
+	Dungeons      []DungeonKind  `sheet:"map.dungeons" doc:"Dungeon kinds: where each stands, how deep it runs, what lives and what machines stand in it (GDD 4.9)."`
+	Forks         []Fork         `sheet:"map.forks" doc:"The ways down from a fork, and the tags each adds to the floor below (GDD 4.9)."`
+	Depths        []Depth        `sheet:"map.depths" doc:"How many floors a dungeon runs to, by its entrance's seed tier."`
 
 	TileCounters []TileCounter `sheet:"tiles.counters" doc:"Decay per tile counter."`
 	FindRarities []FindRarity  `sheet:"tiles.find-rarities" doc:"Rarity of a trigger's find."`
@@ -134,6 +137,8 @@ type Book struct {
 	PuzzleParams   []Param        `sheet:"puzzles.params" doc:"Countdown scaling, practice gains, mastery, rewards, the solve model."`
 	PuzzleTuning   []PuzzleTuning `sheet:"puzzles.tuning" doc:"The numbers each family's generator and model read, by level."`
 	PuzzleTitles   []PuzzleTitle  `sheet:"puzzles.titles" doc:"The title each family's masters hold."`
+	PartyVersions  []PartyVersion `sheet:"puzzles.party" doc:"Families played by several hands on one machine: how big, what each seat is dealt, its window (GDD 7.11)."`
+	PuzzleShapes   []PuzzleShape  `sheet:"puzzles.shapes" doc:"The looks each family's machine can take, and from which level (GDD 7.11)."`
 
 	Names        []Name        `sheet:"pack.names" doc:"What the setting calls each thing."`
 	NameParts    []NamePart    `sheet:"pack.name-parts" doc:"Pieces generated names are built from."`
@@ -280,6 +285,9 @@ func (b *Book) Validate() error {
 			where := d.Name + " " + row.FieldByName("ID").String()
 			errs = append(errs, checkValue(row, where, has)...)
 		}
+	}
+	for _, p := range b.delveProblems() {
+		errs = append(errs, errors.New(p))
 	}
 	return errors.Join(errs...)
 }

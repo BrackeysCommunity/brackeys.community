@@ -1,0 +1,149 @@
+{
+  "$schema": "../schema/puzzles.families.schema.json",
+  "sheet": "puzzles.families",
+  "rows": [
+    {
+      "id": "rewire",
+      "appearsOn": ["charged", "conductive", "wired"],
+      "countdown": 40,
+      "perLevel": 4,
+      "scaleNote": "Wires: 2 plus the level (3 to 9); longer runs; look-alike ports",
+      "haywires": ["shock", "short", "alarm"],
+      "soloRate": 75,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "lock-pins",
+      "lockpick": true,
+      "appearsOn": ["hoarding", "deep"],
+      "countdown": 35,
+      "perLevel": 4,
+      "scaleNote": "Pins, a narrower shear line, false pins",
+      "haywires": ["alarm", "lockdown"],
+      "soloRate": 70,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "lock-dial",
+      "lockpick": true,
+      "appearsOn": ["hoarding"],
+      "countdown": 45,
+      "perLevel": 4,
+      "scaleNote": "Dials, a fainter click, reversals",
+      "haywires": ["alarm", "lockdown"],
+      "soloRate": 65,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "lock-maze",
+      "lockpick": true,
+      "appearsOn": ["hoarding"],
+      "countdown": 50,
+      "perLevel": 4,
+      "scaleNote": "A bigger maze, dead ends, moving walls",
+      "haywires": ["lockdown"],
+      "soloRate": 70,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "circuit",
+      "appearsOn": ["charged", "conductive", "wired"],
+      "countdown": 60,
+      "perLevel": 4,
+      "scaleNote": "A bigger grid, branches, decoys",
+      "haywires": ["shock", "short"],
+      "soloRate": 65,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "signal",
+      "appearsOn": ["high", "wired"],
+      "countdown": 45,
+      "perLevel": 4,
+      "scaleNote": "Knobs, noise, drift",
+      "haywires": ["alarm", "short"],
+      "soloRate": 65,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "fuse",
+      "appearsOn": ["burning"],
+      "countdown": 30,
+      "perLevel": 4,
+      "scaleNote": "Fuses, deeper clues",
+      "haywires": ["shock", "alarm"],
+      "soloRate": 60,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "override",
+      "appearsOn": ["corrupted"],
+      "countdown": 30,
+      "perLevel": 4,
+      "scaleNote": "A longer sequence, faster",
+      "haywires": ["alarm", "lockdown"],
+      "soloRate": 70,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "pressure",
+      "appearsOn": ["warm", "burning", "wet"],
+      "countdown": 45,
+      "perLevel": 4,
+      "scaleNote": "Valves, a narrower band, stiffer coupling, a leak",
+      "haywires": ["alarm"],
+      "soloRate": 65,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "crank",
+      "appearsOn": ["cold"],
+      "countdown": 35,
+      "perLevel": 4,
+      "scaleNote": "Load spikes, a narrower band, more drag, a longer charge",
+      "haywires": ["short"],
+      "soloRate": 65,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "leak",
+      "appearsOn": ["wet", "brittle"],
+      "countdown": 30,
+      "perLevel": 4,
+      "scaleNote": "Leaks, closer together, more taps each, a faster drain",
+      "haywires": ["lockdown"],
+      "soloRate": 60,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "keycard",
+      "appearsOn": ["corrupted"],
+      "countdown": 25,
+      "perLevel": 4,
+      "scaleNote": "Passes, a narrower window, a speed that drifts",
+      "haywires": ["alarm"],
+      "soloRate": 70,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "scrub",
+      "appearsOn": ["dry", "wet"],
+      "countdown": 30,
+      "perLevel": 4,
+      "scaleNote": "A bigger plate, more of it to read, cracks, grit that creeps back",
+      "haywires": ["shock"],
+      "soloRate": 70,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    },
+    {
+      "id": "splice",
+      "appearsOn": ["wired", "brittle"],
+      "countdown": 40,
+      "perLevel": 4,
+      "scaleNote": "A longer trace, sharper bends, gaps, twitches",
+      "haywires": ["short"],
+      "soloRate": 60,
+      "note": "provisional: the harness solve rate is a guess until a closed test records solve times"
+    }
+  ]
+}

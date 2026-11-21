@@ -1,0 +1,86 @@
+{
+  "$schema": "../schema/map.depths.schema.json",
+  "sheet": "map.depths",
+  "rows": [
+    {
+      "id": "tier-1",
+      "tier": 1,
+      "weights": [
+        {
+          "floors": 3,
+          "weight": 35
+        },
+        {
+          "floors": 4,
+          "weight": 35
+        },
+        {
+          "floors": 5,
+          "weight": 15
+        },
+        {
+          "floors": 6,
+          "weight": 10
+        },
+        {
+          "floors": 7,
+          "weight": 5
+        }
+      ],
+      "note": "Leans to 3 or 4 floors."
+    },
+    {
+      "id": "tier-2",
+      "tier": 2,
+      "weights": [
+        {
+          "floors": 3,
+          "weight": 15
+        },
+        {
+          "floors": 4,
+          "weight": 25
+        },
+        {
+          "floors": 5,
+          "weight": 25
+        },
+        {
+          "floors": 6,
+          "weight": 20
+        },
+        {
+          "floors": 7,
+          "weight": 15
+        }
+      ]
+    },
+    {
+      "id": "tier-3",
+      "tier": 3,
+      "weights": [
+        {
+          "floors": 3,
+          "weight": 5
+        },
+        {
+          "floors": 4,
+          "weight": 10
+        },
+        {
+          "floors": 5,
+          "weight": 30
+        },
+        {
+          "floors": 6,
+          "weight": 30
+        },
+        {
+          "floors": 7,
+          "weight": 25
+        }
+      ],
+      "note": "Tier 3 and up leans to 5 to 7 floors."
+    }
+  ]
+}

@@ -116,7 +116,8 @@
               "band-steps",
               "beat",
               "seconds",
-              "degrees"
+              "degrees",
+              "ms"
             ],
             "x-unit": "enum"
           },

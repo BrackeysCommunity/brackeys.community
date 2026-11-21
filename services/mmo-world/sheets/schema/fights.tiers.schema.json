@@ -75,6 +75,16 @@
             "x-unit": "level",
             "description": "The practice a character fighting at this tier is expected to have."
           },
+          "haul": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "items.materials",
+            "description": "The tier's own materials, first first: what a half step's haul line may take from the tier above, and what a key is paid in."
+          },
           "note": {
             "type": "string",
             "x-unit": "text"

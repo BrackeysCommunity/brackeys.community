@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.dungeons",
+  "title": "map.dungeons",
+  "description": "Dungeon kinds: where each stands, how deep it runs, what lives and what machines stand in it (GDD 4.9).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.dungeons"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "place",
+          "share",
+          "floorsMin",
+          "floorsMax",
+          "tags",
+          "creatures",
+          "families"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "dungeon",
+              "relay"
+            ],
+            "x-unit": "enum",
+            "description": "The pattern place that stands one."
+          },
+          "share": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "Its share of the dungeons that place stands, drawn under dungeon.kind."
+          },
+          "floorsMin": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count",
+            "description": "map.depths' draw is held to this and floorsMax."
+          },
+          "floorsMax": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "up": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Its floors go up: a card says level, not floor; the rules are the same."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Site tags on every floor."
+          },
+          "creatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "creatures.archetypes",
+            "description": "What its floors draw from at the stepped tier; a tier with none here draws from the tier's archetypes."
+          },
+          "families": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "puzzles.families",
+            "description": "What a fork machine is drawn from."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

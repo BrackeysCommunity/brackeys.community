@@ -11,6 +11,10 @@
       "huntHealth": 150,
       "expectedLevel": 5,
       "expectedPractice": 6,
+      "haul": [
+        "bog-iron",
+        "hide-scraps"
+      ],
       "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     },
     {
@@ -22,6 +26,10 @@
       "huntHealth": 400,
       "expectedLevel": 8,
       "expectedPractice": 4,
+      "haul": [
+        "cinder-ore",
+        "saltglass"
+      ],
       "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     },
     {
@@ -33,6 +41,10 @@
       "huntHealth": 1000,
       "expectedLevel": 15,
       "expectedPractice": 14,
+      "haul": [
+        "deep-core",
+        "vault-plate"
+      ],
       "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     },
     {
@@ -44,6 +56,10 @@
       "huntHealth": 2500,
       "expectedLevel": 26,
       "expectedPractice": 17,
+      "haul": [
+        "stormglass",
+        "old-silk"
+      ],
       "note": "Expected practice tuned so the Battle run's even fight is won about half the time."
     }
   ]

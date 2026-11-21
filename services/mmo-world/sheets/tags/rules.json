@@ -1370,6 +1370,38 @@
           "count": -1
         }
       ]
+    },
+    {
+      "id": "haunted-shaken",
+      "subject": [
+        "shaken"
+      ],
+      "place": [
+        "haunted"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "state-beats",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "haunted-finds",
+      "subject": [
+        "character"
+      ],
+      "place": [
+        "haunted"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "floor-find",
+          "percent": 100
+        }
+      ]
     }
   ]
 }

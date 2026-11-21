@@ -118,6 +118,118 @@
       "value": 3,
       "unit": "level",
       "doc": "Harness: the even fight averages characters this far either side of the expected practice."
+    },
+    {
+      "id": "party-size-max",
+      "value": 4,
+      "unit": "count",
+      "doc": "The most characters a party holds (GDD 4.9)."
+    },
+    {
+      "id": "party-invite-ticks",
+      "value": 6,
+      "unit": "ticks",
+      "doc": "An invitation to a party lasts this."
+    },
+    {
+      "id": "leave-ticks",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Climbing out after leaving a delve between floors takes this."
+    },
+    {
+      "id": "crawl-per-floor",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "Crawling out of a dungeon takes this more a floor below the entrance."
+    },
+    {
+      "id": "carry-up-beats",
+      "value": 1,
+      "unit": "beat",
+      "doc": "Hazard beats a floor climbed while carrying someone up."
+    },
+    {
+      "id": "fork-default",
+      "value": 0,
+      "unit": "count",
+      "choices": [
+        "leave",
+        "push"
+      ],
+      "doc": "What a member who chooses nothing at a fork does when the window closes."
+    },
+    {
+      "id": "guardian-solve-bonus",
+      "value": 50,
+      "unit": "percent",
+      "doc": "Health a guardian loses beyond a press's, after its mark's machine is solved."
+    },
+    {
+      "id": "guardian-solve-beats",
+      "value": 0,
+      "unit": "beat",
+      "doc": "Beats the bonus lasts; 0 is the rest of the encounter."
+    },
+    {
+      "id": "name-window-days",
+      "value": 1,
+      "unit": "days",
+      "doc": "How long the first slayers have to name a dungeon before the pack names it."
+    },
+    {
+      "id": "key-cost",
+      "value": 3,
+      "unit": "goods",
+      "doc": "Units of the bottom tier's first material a key costs."
+    },
+    {
+      "id": "deep-breath-floor",
+      "value": 4,
+      "unit": "count",
+      "doc": "Deep breath holds from this floor down."
+    },
+    {
+      "id": "read-the-ground-ticks",
+      "value": 12,
+      "unit": "ticks",
+      "doc": "How far back Read the ground lets a party follow a trail."
+    },
+    {
+      "id": "route-kept",
+      "value": 32,
+      "unit": "tiles",
+      "doc": "The most of a trail a Haul goal's route keeps."
+    },
+    {
+      "id": "beyond-ceiling-difficulty",
+      "value": 25,
+      "unit": "pts",
+      "doc": "Difficulty a floor adds for each step past the tier ceiling."
+    },
+    {
+      "id": "beyond-ceiling-haul",
+      "value": 25,
+      "unit": "percent",
+      "doc": "Haul quantity a floor adds for each step past the tier ceiling."
+    },
+    {
+      "id": "half-step-material",
+      "value": 50,
+      "unit": "percent",
+      "doc": "On a half step, the chance a haul line takes the higher tier's material."
+    },
+    {
+      "id": "third-way-beats",
+      "value": 1,
+      "unit": "beat",
+      "doc": "Beats fewer on a floor reached by the third way."
+    },
+    {
+      "id": "third-way-hidden",
+      "value": 1,
+      "unit": "beat",
+      "doc": "Beats the party starts hidden on a floor reached by the third way."
     }
   ]
 }

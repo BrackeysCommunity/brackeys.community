@@ -233,6 +233,10 @@
     {
       "id": "works-stock",
       "unit": "count"
+    },
+    {
+      "id": "floor-find",
+      "unit": "percent"
     }
   ]
 }

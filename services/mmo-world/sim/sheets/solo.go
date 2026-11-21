@@ -61,10 +61,11 @@ type StartInput struct {
 // ---- Tiles ----
 
 // Trigger is a rule that reads tile or character data when a character
-// arrives, explores, gathers or meets someone (GDD 8.6).
+// arrives, explores, gathers or meets someone, when a party's encounter
+// starts, or at a dungeon's fork (GDD 8.6).
 type Trigger struct {
 	ID        string  `json:"id" unit:"id"`
-	On        string  `json:"on" unit:"enum" enum:"arrive|explore|gather|meet"`
+	On        string  `json:"on" unit:"enum" enum:"arrive|explore|gather|meet|party|fork"`
 	Chance    fixed.F `json:"chance" unit:"chance" min:"0" max:"1"`
 	Magnitude int64   `json:"magnitude" unit:"row" doc:"In the unit named by the unit column."`
 	Unit      string  `json:"unit" unit:"enum" enum:"quantity"`

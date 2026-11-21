@@ -1,0 +1,231 @@
+{
+  "$schema": "../schema/puzzles.shapes.schema.json",
+  "sheet": "puzzles.shapes",
+  "rows": [
+    {
+      "id": "rewire-box",
+      "family": "rewire",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "rewire-ring",
+      "family": "rewire",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "Wires on an inner ring, ports on the outer; the model is the same"
+    },
+    {
+      "id": "lock-pins-row",
+      "family": "lock-pins",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "lock-pins-wheel",
+      "family": "lock-pins",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "Pins set radially; the model is the same"
+    },
+    {
+      "id": "lock-dial-row",
+      "family": "lock-dial",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "lock-dial-rings",
+      "family": "lock-dial",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "Concentric rings; the model is the same"
+    },
+    {
+      "id": "lock-maze-square",
+      "family": "lock-maze",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "lock-maze-hex",
+      "family": "lock-maze",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "A hex maze on an axial rhombus, six sides a cell"
+    },
+    {
+      "id": "circuit-square",
+      "family": "circuit",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "circuit-hex",
+      "family": "circuit",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "A hex grid on an axial rhombus; turns are sixths"
+    },
+    {
+      "id": "signal-knobs",
+      "family": "signal",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "signal-scope",
+      "family": "signal",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "Sliders on a scope; the model is the same"
+    },
+    {
+      "id": "fuse-list",
+      "family": "fuse",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "fuse-diagram",
+      "family": "fuse",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "The clues as a wiring diagram; the model is the same"
+    },
+    {
+      "id": "override-pad",
+      "family": "override",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "override-ring",
+      "family": "override",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "range": 6,
+      "note": "A ring pad of six symbols"
+    },
+    {
+      "id": "pressure-line",
+      "family": "pressure",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "pressure-ring",
+      "family": "pressure",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "A ring manifold: each valve couples to its two neighbours"
+    },
+    {
+      "id": "crank-handle",
+      "family": "crank",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "crank-lever",
+      "family": "crank",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "A pump lever, a quarter turn a stroke; the model is the same"
+    },
+    {
+      "id": "leak-straight",
+      "family": "leak",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "leak-branching",
+      "family": "leak",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "A branching pipe; the model is the same"
+    },
+    {
+      "id": "keycard-swipe",
+      "family": "keycard",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "keycard-insert",
+      "family": "keycard",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "An insert reader, pulled out at speed; the model is the same"
+    },
+    {
+      "id": "scrub-square",
+      "family": "scrub",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "scrub-hex",
+      "family": "scrub",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "Hex cells on the rhombus; the model is the same"
+    },
+    {
+      "id": "splice-flat",
+      "family": "splice",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "splice-round",
+      "family": "splice",
+      "shape": 1,
+      "weight": 1,
+      "minLevel": 3,
+      "note": "Columns as angles, rows as rings; the model is the same"
+    }
+  ]
+}

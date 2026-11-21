@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "fights.params",
   "title": "fights.params",
-  "description": "Loose cells for encounters.",
+  "description": "Loose cells for encounters, parties and delves.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -65,10 +65,20 @@
               "band-steps",
               "beat",
               "seconds",
-              "degrees"
+              "degrees",
+              "ms"
             ],
             "x-unit": "enum",
             "description": "One of the quantity units."
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "text",
+            "description": "A choice cell's choices; the value is the index of the one taken."
           },
           "doc": {
             "type": "string",

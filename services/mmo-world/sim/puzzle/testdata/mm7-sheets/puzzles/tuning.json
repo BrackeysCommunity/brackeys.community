@@ -1,0 +1,324 @@
+{
+  "$schema": "../schema/puzzles.tuning.schema.json",
+  "sheet": "puzzles.tuning",
+  "rows": [
+    {
+      "id": "pressure-band",
+      "family": "pressure",
+      "key": "band",
+      "base": 24,
+      "perLevel": -2,
+      "min": 12,
+      "unit": "count",
+      "doc": "Width of the band every needle must sit in."
+    },
+    {
+      "id": "pressure-nudge",
+      "family": "pressure",
+      "key": "nudge",
+      "base": 8,
+      "unit": "count",
+      "doc": "What one turn of a valve adds to its own needle."
+    },
+    {
+      "id": "pressure-couple",
+      "family": "pressure",
+      "key": "couple",
+      "base": 2,
+      "perLevel": 0.5,
+      "max": 6,
+      "unit": "count",
+      "doc": "What one turn takes from each neighbouring needle."
+    },
+    {
+      "id": "pressure-hold",
+      "family": "pressure",
+      "key": "hold",
+      "base": 3,
+      "unit": "seconds",
+      "doc": "How long every needle must stay in the band."
+    },
+    {
+      "id": "pressure-leak",
+      "family": "pressure",
+      "key": "leak",
+      "base": 0,
+      "perLevel": 0.34,
+      "max": 2,
+      "unit": "percent",
+      "doc": "Hundredths of a unit the leaking needle loses each model step."
+    },
+    {
+      "id": "crank-band",
+      "family": "crank",
+      "key": "band",
+      "base": 110,
+      "perLevel": -8,
+      "min": 50,
+      "unit": "count",
+      "doc": "Half the width of the charging band, round the middle of the dial."
+    },
+    {
+      "id": "crank-blow",
+      "family": "crank",
+      "key": "blow",
+      "base": 220,
+      "perLevel": -10,
+      "min": 120,
+      "unit": "count",
+      "doc": "How far past the band's top the dynamo blows."
+    },
+    {
+      "id": "crank-kick",
+      "family": "crank",
+      "key": "kick",
+      "base": 30,
+      "unit": "count",
+      "doc": "Speed one quarter turn adds."
+    },
+    {
+      "id": "crank-drag",
+      "family": "crank",
+      "key": "drag",
+      "base": 6,
+      "perLevel": 0.5,
+      "max": 10,
+      "unit": "count",
+      "doc": "Speed lost each model step."
+    },
+    {
+      "id": "crank-spike-drag",
+      "family": "crank",
+      "key": "spike-drag",
+      "base": 4,
+      "perLevel": 0.75,
+      "max": 10,
+      "unit": "count",
+      "doc": "Further speed lost each model step inside a load spike."
+    },
+    {
+      "id": "crank-spike-steps",
+      "family": "crank",
+      "key": "spike-steps",
+      "base": 20,
+      "perLevel": 2,
+      "max": 50,
+      "unit": "count",
+      "doc": "Model steps a load spike lasts."
+    },
+    {
+      "id": "crank-need",
+      "family": "crank",
+      "key": "need",
+      "base": 6,
+      "perLevel": 0.5,
+      "max": 12,
+      "unit": "seconds",
+      "doc": "Time in the band that charges the machine."
+    },
+    {
+      "id": "crank-wind",
+      "family": "crank",
+      "key": "wind",
+      "base": 40,
+      "unit": "count",
+      "doc": "Model steps before the first spike may fall."
+    },
+    {
+      "id": "crank-window",
+      "family": "crank",
+      "key": "window",
+      "base": 60,
+      "unit": "percent",
+      "doc": "Share of the countdown, at no practice, that spikes fall in."
+    },
+    {
+      "id": "leak-gauge",
+      "family": "leak",
+      "key": "gauge",
+      "base": 1000,
+      "perLevel": -10,
+      "min": 850,
+      "unit": "count",
+      "doc": "The gauge when full."
+    },
+    {
+      "id": "leak-drain",
+      "family": "leak",
+      "key": "drain",
+      "base": 2,
+      "unit": "count",
+      "doc": "What each open leak drains a model step."
+    },
+    {
+      "id": "leak-miss",
+      "family": "leak",
+      "key": "miss",
+      "base": 20,
+      "unit": "count",
+      "doc": "What a tap on a dry slot costs the gauge."
+    },
+    {
+      "id": "leak-gap",
+      "family": "leak",
+      "key": "gap",
+      "base": 40,
+      "perLevel": -3,
+      "min": 14,
+      "unit": "count",
+      "doc": "Model steps between leaks: from half this to one and a half times it."
+    },
+    {
+      "id": "leak-taps",
+      "family": "leak",
+      "key": "taps",
+      "base": 1,
+      "perLevel": 0.34,
+      "max": 3,
+      "unit": "count",
+      "doc": "Most taps a leak can need."
+    },
+    {
+      "id": "leak-slip",
+      "family": "leak",
+      "key": "slip",
+      "base": 40,
+      "perLevel": -2,
+      "min": 20,
+      "unit": "count",
+      "doc": "Model steps a clamp holds before the leak slips open again."
+    },
+    {
+      "id": "leak-rest",
+      "family": "leak",
+      "key": "rest",
+      "base": 40,
+      "unit": "count",
+      "doc": "Model steps a slot is left alone, per tap, on top of the clamp, before it can leak again."
+    },
+    {
+      "id": "leak-window",
+      "family": "leak",
+      "key": "window",
+      "base": 40,
+      "unit": "percent",
+      "doc": "Share of the countdown, at no practice, that leaks spring in."
+    },
+    {
+      "id": "keycard-width",
+      "family": "keycard",
+      "key": "width",
+      "base": 110,
+      "perLevel": -8,
+      "min": 40,
+      "unit": "count",
+      "doc": "Milliseconds a swipe may be off the pass's speed."
+    },
+    {
+      "id": "keycard-strikes",
+      "family": "keycard",
+      "key": "strikes",
+      "base": 4,
+      "perLevel": -0.34,
+      "min": 2,
+      "unit": "count",
+      "doc": "Bad swipes the reader forgives."
+    },
+    {
+      "id": "keycard-drift",
+      "family": "keycard",
+      "key": "drift",
+      "base": 0,
+      "perLevel": 15,
+      "max": 120,
+      "unit": "count",
+      "doc": "Milliseconds the wanted speed may move from one pass to the next."
+    },
+    {
+      "id": "keycard-fastest",
+      "family": "keycard",
+      "key": "fastest",
+      "base": 250,
+      "unit": "count",
+      "doc": "The fastest swipe the reader can time, in milliseconds."
+    },
+    {
+      "id": "scrub-layers",
+      "family": "scrub",
+      "key": "layers",
+      "base": 2,
+      "perLevel": 0.25,
+      "max": 3,
+      "unit": "count",
+      "doc": "Most layers of grit on a cell."
+    },
+    {
+      "id": "scrub-coverage",
+      "family": "scrub",
+      "key": "coverage",
+      "base": 50,
+      "perLevel": 4,
+      "max": 85,
+      "unit": "percent",
+      "doc": "Share of the sound cells that hold the reading."
+    },
+    {
+      "id": "scrub-creep",
+      "family": "scrub",
+      "key": "creep",
+      "base": 0,
+      "perLevel": 1,
+      "max": 10,
+      "unit": "count",
+      "doc": "Patches of grit that creep back."
+    },
+    {
+      "id": "scrub-creep-gap",
+      "family": "scrub",
+      "key": "creep-gap",
+      "base": 60,
+      "perLevel": -3,
+      "min": 30,
+      "unit": "count",
+      "doc": "Model steps between patches creeping back."
+    },
+    {
+      "id": "splice-bend",
+      "family": "splice",
+      "key": "bend",
+      "base": 1,
+      "perLevel": 0.25,
+      "max": 3,
+      "unit": "count",
+      "doc": "Most cells the trace climbs or drops at a bend."
+    },
+    {
+      "id": "splice-jitters",
+      "family": "splice",
+      "key": "jitters",
+      "base": 0,
+      "perLevel": 0.75,
+      "max": 8,
+      "unit": "count",
+      "doc": "Times the loose end twitches a row."
+    },
+    {
+      "id": "splice-jitter-gap",
+      "family": "splice",
+      "key": "jitter-gap",
+      "base": 80,
+      "perLevel": -4,
+      "min": 40,
+      "unit": "count",
+      "doc": "Model steps between twitches."
+    },
+    {
+      "id": "splice-warn",
+      "family": "splice",
+      "key": "warn",
+      "base": 12,
+      "unit": "count",
+      "doc": "Model steps of warning before a twitch."
+    }
+  ]
+}

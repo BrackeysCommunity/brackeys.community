@@ -10,6 +10,7 @@ import (
 	"slices"
 	"testing"
 
+	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/puzzle"
 )
 
@@ -158,12 +159,14 @@ func goldenBytes(t *testing.T, f goldenFile) []byte {
 }
 
 // TestGolden holds this package to the vectors the clients are tested
-// against. Run it with -update to rewrite them after a rule changes.
+// against, on the puzzle sheets they were made from. Run it with -update
+// to rewrite them after a rule changes.
 func TestGolden(t *testing.T) {
-	p := puzzles(t)
+	b := frozenBook(t)
+	p := puzzle.New(b, keys.Throwaway("puzzle-test").Generation)
 	dir := filepath.Join("testdata", "golden")
 	caps := map[string]int64{}
-	for _, l := range book(t).PuzzleLayouts {
+	for _, l := range b.PuzzleLayouts {
 		caps[l.Family] = l.PhoneMax
 	}
 	for _, fam := range p.All() {

@@ -187,6 +187,150 @@
       "text": "NPCs pass on a neighbour's news one hop deep, bring up crowding at 10 structures built in their region within 14 world days, some move home, and every route is relaid at the first meeting after a week",
       "runs": "social",
       "holdsFrom": "MM6"
+    },
+    {
+      "id": "even-fight-party-2",
+      "text": "A party of 2 at equal tier wins within 5 points of a lone character's rate at that tier",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "even-fight-party-3",
+      "text": "A party of 3 at equal tier wins within 5 points of a lone character's rate at that tier",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "even-fight-party-4",
+      "text": "A party of 4 at equal tier wins within 5 points of a lone character's rate at that tier",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-big-rewire",
+      "text": "A party at the expected practice solves a big rewire within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-split-panel",
+      "text": "A party at the expected practice solves a split panel within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-two-hand-lock",
+      "text": "A party at the expected practice solves a two-hand lock within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-relay-chain",
+      "text": "A party at the expected practice solves a relay chain within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-boiler-room",
+      "text": "A party at the expected practice solves a boiler room within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-pipe-crew",
+      "text": "A party at the expected practice solves a pipe crew within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-tension-and-pick",
+      "text": "A party at the expected practice solves a tension-and-pick lock within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-two-axis-tilt",
+      "text": "A party at the expected practice solves a two-axis tilt within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-split-grid",
+      "text": "A party at the expected practice solves a split grid within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-bomb-squad",
+      "text": "A party at the expected practice solves a bomb squad within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-call-and-answer",
+      "text": "A party at the expected practice solves a call-and-answer override within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-tandem-winch",
+      "text": "A party at the expected practice solves a tandem winch within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-double-swipe",
+      "text": "A party at the expected practice solves a double swipe within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-panel-array",
+      "text": "A party at the expected practice solves a panel array within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-solve-rate-relay-solder",
+      "text": "A party at the expected practice solves a relay solder within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "runs": "battle",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "dungeon-floors",
+      "text": "Over 1,000 seeds every dungeon runs 3 to 7 floors, deeper with its entrance's tier, and has a guardian",
+      "runs": "world",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "dungeon-forks",
+      "text": "Every floor above a dungeon's bottom forks into two ways and a hidden third, each of one to three tags",
+      "runs": "world",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "floor-pools-conserved",
+      "text": "In 90 unattended world days, what is lost on a floor is only ever found there: floor pools add no goods",
+      "runs": "world",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "hunt-spoils-conserved",
+      "text": "A hunt's spoils roll once within its row, and the parts paid to its pressers sum to the roll",
+      "runs": "world",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "haunted-comes-and-goes",
+      "text": "A dungeon turns haunted at 5 falls inside 14 world days and calms once a window passes with fewer",
+      "runs": "world",
+      "holdsFrom": "MM8"
+    },
+    {
+      "id": "party-help-measured",
+      "text": "party-help and every party version's rate are what the versions' own solvers measure, not a guess",
+      "runs": "battle",
+      "holdsFrom": "MM8"
     }
   ]
 }

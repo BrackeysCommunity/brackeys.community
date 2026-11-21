@@ -1,0 +1,158 @@
+{
+  "$schema": "../schema/puzzles.layouts.schema.json",
+  "sheet": "puzzles.layouts",
+  "rows": [
+    {
+      "id": "rewire",
+      "family": "rewire",
+      "base": 3,
+      "perLevel": 1,
+      "max": 9,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "phoneMax": 6,
+      "note": "Wires; look-alike ports"
+    },
+    {
+      "id": "lock-pins",
+      "family": "lock-pins",
+      "base": 3,
+      "perLevel": 0.5,
+      "max": 8,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.34,
+      "phoneMax": 6,
+      "note": "Pins; false pins"
+    },
+    {
+      "id": "lock-dial",
+      "family": "lock-dial",
+      "base": 1,
+      "perLevel": 0.34,
+      "max": 4,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "range": 40,
+      "phoneMax": 3,
+      "note": "Dials; reversals"
+    },
+    {
+      "id": "lock-maze",
+      "family": "lock-maze",
+      "base": 4,
+      "perLevel": 0.5,
+      "max": 9,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "phoneMax": 4,
+      "note": "Side of the maze; extra openings that make dead ends"
+    },
+    {
+      "id": "circuit",
+      "family": "circuit",
+      "base": 3,
+      "perLevel": 0.5,
+      "max": 7,
+      "decoyBase": 1,
+      "decoyPerLevel": 0.5,
+      "phoneMax": 5,
+      "note": "Grid side; decoy tiles"
+    },
+    {
+      "id": "signal",
+      "family": "signal",
+      "base": 1,
+      "perLevel": 0.34,
+      "max": 4,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "range": 24,
+      "phoneMax": 3,
+      "note": "Knobs; noise"
+    },
+    {
+      "id": "fuse",
+      "family": "fuse",
+      "base": 3,
+      "perLevel": 0.5,
+      "max": 8,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.5,
+      "phoneMax": 6,
+      "note": "Fuses; redundant clues"
+    },
+    {
+      "id": "override",
+      "family": "override",
+      "base": 3,
+      "perLevel": 1,
+      "max": 12,
+      "range": 4,
+      "note": "Sequence length; symbols"
+    },
+    {
+      "id": "pressure",
+      "family": "pressure",
+      "base": 3,
+      "perLevel": 0.34,
+      "max": 5,
+      "decoyBase": 3,
+      "decoyPerLevel": 1,
+      "range": 100,
+      "phoneMax": 4,
+      "note": "Valves; turns the machine starts out from"
+    },
+    {
+      "id": "crank",
+      "family": "crank",
+      "base": 2,
+      "perLevel": 0.5,
+      "max": 8,
+      "range": 1000,
+      "note": "Load spikes; the range is the dial's top speed"
+    },
+    {
+      "id": "leak",
+      "family": "leak",
+      "base": 4,
+      "perLevel": 0.34,
+      "max": 7,
+      "decoyBase": 4,
+      "decoyPerLevel": 0.75,
+      "phoneMax": 5,
+      "note": "Slots along the pipe; leaks in a run"
+    },
+    {
+      "id": "keycard",
+      "family": "keycard",
+      "base": 2,
+      "perLevel": 0.5,
+      "max": 6,
+      "range": 1200,
+      "note": "Passes; the range is the slowest swipe the reader times, in milliseconds"
+    },
+    {
+      "id": "scrub",
+      "family": "scrub",
+      "base": 4,
+      "perLevel": 0.34,
+      "max": 7,
+      "decoyBase": 1,
+      "decoyPerLevel": 0.5,
+      "phoneMax": 6,
+      "note": "Side of the plate; cracked cells"
+    },
+    {
+      "id": "splice",
+      "family": "splice",
+      "base": 10,
+      "perLevel": 1,
+      "max": 18,
+      "decoyBase": 0,
+      "decoyPerLevel": 0.34,
+      "range": 8,
+      "phoneMax": 12,
+      "note": "Columns of the board; gaps in the trace; the range is its rows"
+    }
+  ]
+}

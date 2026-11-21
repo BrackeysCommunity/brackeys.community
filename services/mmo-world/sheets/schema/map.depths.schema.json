@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.depths",
+  "title": "map.depths",
+  "description": "How many floors a dungeon runs to, by its entrance's seed tier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.depths"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tier",
+          "weights"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tier"
+          },
+          "weights": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "floors",
+                "weight"
+              ],
+              "properties": {
+                "floors": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "x-unit": "count"
+                },
+                "weight": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "x-unit": "weight"
+                }
+              }
+            },
+            "x-unit": "parts",
+            "description": "Each floor count's weight, drawn under dungeon.floors."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

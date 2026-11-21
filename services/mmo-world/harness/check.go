@@ -285,7 +285,8 @@ var namedSheets = []string{
 	"map.terrain", "items.traits", "items.slots", "world.weather", "world.gauges",
 	"puzzles.families", "puzzles.titles", "npcs.traits", "world.seasons", "map.landmarks",
 	"mounts.kinds", "fights.beats", "fights.options", "fights.states", "items.pairings",
-	"growth.exploit-offers", "mounts.offers",
+	"growth.exploit-offers", "mounts.offers", "map.dungeons", "map.forks", "puzzles.party",
+	"puzzles.shapes", "fights.hunts",
 }
 
 func packProblems(b *sheets.Book) []string {

@@ -49,7 +49,8 @@
           "windowDays": {
             "type": "integer",
             "minimum": 1,
-            "x-unit": "days"
+            "x-unit": "days",
+            "description": "A guardian's window opens at the first press."
           },
           "spoils": {
             "type": "array",
@@ -73,7 +74,42 @@
                 }
               }
             },
-            "x-unit": "goods"
+            "x-unit": "goods",
+            "description": "The most each line rolls at the kill; it rolls half to all."
+          },
+          "kind": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.dungeons",
+            "description": "A guardian: the dungeon kind whose bottom it guards, on that kind's tags. Empty: a hunt in the world."
+          },
+          "spawnChance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "The chance, each world day, that it opens in an awake region where its creature stands at spawnLine; 0 opens only when called."
+          },
+          "spawnLine": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "The creature's population there, as a share of capacity."
+          },
+          "marks": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "x-unit": "percent",
+            "description": "Shares of the pool, falling: the first time it falls to or below each, a machine stands on the beat."
+          },
+          "family": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "puzzles.families",
+            "description": "The family a mark's machine is, played as its party version."
           }
         }
       }

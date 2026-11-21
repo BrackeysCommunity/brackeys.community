@@ -226,6 +226,30 @@
       "value": 5,
       "unit": "count",
       "doc": "Lessons a bench keeps per family; the oldest goes first."
+    },
+    {
+      "id": "inner-levels",
+      "value": 2,
+      "unit": "level",
+      "doc": "Levels a master's inner panel stands above its machine."
+    },
+    {
+      "id": "inner-decoys",
+      "value": 1,
+      "unit": "count",
+      "doc": "Decoys a master's inner panel holds beyond its level's."
+    },
+    {
+      "id": "solve-per-decoy",
+      "value": -1,
+      "unit": "percent",
+      "doc": "Harness: solve rate per decoy a machine holds at its level."
+    },
+    {
+      "id": "relay-chain-window",
+      "value": 1,
+      "unit": "seconds",
+      "doc": "Every panel of a relay chain must lock within this."
     }
   ]
 }

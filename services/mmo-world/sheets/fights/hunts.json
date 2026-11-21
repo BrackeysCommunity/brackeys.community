@@ -16,7 +16,9 @@
           "material": "deep-core",
           "quantity": 4
         }
-      ]
+      ],
+      "spawnChance": 10,
+      "spawnLine": 60
     },
     {
       "id": "dust-runner-migration",
@@ -28,7 +30,78 @@
           "material": "hide-scraps",
           "quantity": 20
         }
-      ]
+      ],
+      "spawnChance": 15,
+      "spawnLine": 60
+    },
+    {
+      "id": "bunker-guardian",
+      "creature": "barrow-warden",
+      "healthRatio": 1,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "vault-plate",
+          "quantity": 6
+        },
+        {
+          "material": "deep-core",
+          "quantity": 3
+        }
+      ],
+      "kind": "bunker",
+      "marks": [
+        75,
+        50,
+        25
+      ],
+      "family": "lock-dial"
+    },
+    {
+      "id": "vault-guardian",
+      "creature": "barrow-warden",
+      "healthRatio": 1.25,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "stormglass",
+          "quantity": 5
+        },
+        {
+          "material": "chips",
+          "quantity": 12
+        }
+      ],
+      "kind": "server-vault",
+      "marks": [
+        75,
+        50,
+        25
+      ],
+      "family": "rewire"
+    },
+    {
+      "id": "data-centre-guardian",
+      "creature": "barrow-warden",
+      "healthRatio": 1.25,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "old-silk",
+          "quantity": 4
+        },
+        {
+          "material": "saltglass",
+          "quantity": 10
+        }
+      ],
+      "kind": "sunk-data-centre",
+      "marks": [
+        75,
+        50,
+        25
+      ],
+      "family": "pressure"
     },
     {
       "id": "tower-guardian",
@@ -44,7 +117,14 @@
           "material": "stormglass",
           "quantity": 4
         }
-      ]
+      ],
+      "kind": "relay-tower",
+      "marks": [
+        75,
+        50,
+        25
+      ],
+      "family": "signal"
     }
   ]
 }

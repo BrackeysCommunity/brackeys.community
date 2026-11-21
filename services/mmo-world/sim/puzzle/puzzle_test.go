@@ -72,11 +72,11 @@ func TestReplayRejectsWildMoves(t *testing.T) {
 
 func TestCountdownAndRewireWires(t *testing.T) {
 	p := puzzles(t)
-	// GDD 7.11: Rewire 40 s at level 1; +4 s a level; -15% a tier above 1.
+	// GDD 7.11: Rewire 40 s at level 1; +3 s a level; -15% a tier above 1.
 	if got := p.Countdown(puzzle.Rewire, 1, 1, 0); got != 40000 {
 		t.Fatalf("rewire level 1 tier 1: %d ms", got)
 	}
-	if got := p.Countdown(puzzle.Rewire, 3, 2, 0); got != 40800 {
+	if got := p.Countdown(puzzle.Rewire, 3, 2, 0); got != 39100 {
 		t.Fatalf("rewire level 3 tier 2: %d ms", got)
 	}
 	if got := p.Countdown(puzzle.Rewire, 1, 1, 10); got != 52000 {

@@ -1,0 +1,62 @@
+{
+  "$schema": "../schema/puzzles.titles.schema.json",
+  "sheet": "puzzles.titles",
+  "rows": [
+    {
+      "id": "rewire",
+      "family": "rewire"
+    },
+    {
+      "id": "lock-pins",
+      "family": "lock-pins"
+    },
+    {
+      "id": "lock-dial",
+      "family": "lock-dial"
+    },
+    {
+      "id": "lock-maze",
+      "family": "lock-maze"
+    },
+    {
+      "id": "circuit",
+      "family": "circuit"
+    },
+    {
+      "id": "signal",
+      "family": "signal"
+    },
+    {
+      "id": "fuse",
+      "family": "fuse"
+    },
+    {
+      "id": "override",
+      "family": "override"
+    },
+    {
+      "id": "pressure",
+      "family": "pressure"
+    },
+    {
+      "id": "crank",
+      "family": "crank"
+    },
+    {
+      "id": "leak",
+      "family": "leak"
+    },
+    {
+      "id": "keycard",
+      "family": "keycard"
+    },
+    {
+      "id": "scrub",
+      "family": "scrub"
+    },
+    {
+      "id": "splice",
+      "family": "splice"
+    }
+  ]
+}

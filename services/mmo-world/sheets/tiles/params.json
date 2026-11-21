@@ -31,6 +31,24 @@
       "value": 3,
       "unit": "count",
       "doc": "Locked pouches a character may carry; with this many, a find comes loose as it always did."
+    },
+    {
+      "id": "haunted-falls",
+      "value": 5,
+      "unit": "count",
+      "doc": "Falls across a dungeon's floors inside haunted-days that make it haunted."
+    },
+    {
+      "id": "haunted-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "How far back the falls that haunt a dungeon are counted."
+    },
+    {
+      "id": "floor-find-chance",
+      "value": 40,
+      "unit": "percent",
+      "doc": "The chance a floor gives back something lost on it."
     }
   ]
 }

@@ -1,0 +1,118 @@
+{
+  "$schema": "../../../../../sheets/schema/puzzles.shapes.schema.json",
+  "sheet": "puzzles.shapes",
+  "rows": [
+    {
+      "id": "rewire-box",
+      "family": "rewire",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "lock-pins-row",
+      "family": "lock-pins",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "lock-dial-row",
+      "family": "lock-dial",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "lock-maze-square",
+      "family": "lock-maze",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "circuit-square",
+      "family": "circuit",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "signal-knobs",
+      "family": "signal",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "fuse-list",
+      "family": "fuse",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "override-pad",
+      "family": "override",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "pressure-line",
+      "family": "pressure",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "crank-handle",
+      "family": "crank",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "leak-straight",
+      "family": "leak",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "keycard-swipe",
+      "family": "keycard",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "scrub-square",
+      "family": "scrub",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    },
+    {
+      "id": "splice-flat",
+      "family": "splice",
+      "shape": 0,
+      "weight": 1,
+      "minLevel": 1,
+      "note": "The family's first look"
+    }
+  ]
+}

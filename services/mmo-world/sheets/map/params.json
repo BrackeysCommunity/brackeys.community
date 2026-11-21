@@ -329,6 +329,30 @@
       "value": 30,
       "unit": "percent",
       "doc": "Share of land regions with a landmark of their own, on their highest free tile."
+    },
+    {
+      "id": "floor-beats-min",
+      "value": 3,
+      "unit": "count",
+      "doc": "Beats on a dungeon floor, at the fewest."
+    },
+    {
+      "id": "floor-beats-max",
+      "value": 6,
+      "unit": "count",
+      "doc": "And at the most."
+    },
+    {
+      "id": "fork-machine-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "Forks whose second way stands behind a machine."
+    },
+    {
+      "id": "fork-machine-haul",
+      "value": 25,
+      "unit": "percent",
+      "doc": "Haul a floor reached through a solved fork machine adds."
     }
   ]
 }

@@ -17,7 +17,9 @@ type Param struct {
 	ID    string  `json:"id" unit:"id"`
 	Value fixed.F `json:"value" unit:"row" doc:"In the unit named by the unit column."`
 	Unit  string  `json:"unit" unit:"enum" enum:"quantity" doc:"One of the quantity units."`
-	Doc   string  `json:"doc,omitempty" unit:"text"`
+	// Choices make a choice cell: its value, a count, indexes them.
+	Choices []string `json:"choices,omitempty" unit:"text" doc:"A choice cell's choices; the value is the index of the one taken."`
+	Doc     string   `json:"doc,omitempty" unit:"text"`
 }
 
 // Target is a sentence a designer would say, as a row the Report run reads.
