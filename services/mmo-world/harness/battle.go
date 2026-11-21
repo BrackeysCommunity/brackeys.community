@@ -543,12 +543,13 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	rate, rows := bt.puzzleRate()
 	pr("## Puzzles")
 	pr("")
-	pr("The solve-rate model for a party of 2 to 4 at the expected practice, over every family, tier and dungeon floor 1 to %d.", bt.p.Puzzles.Param("floors"))
+	pr("The solve-rate model for a party of 2 to 4, over all %d families, every tier and dungeon floor 1 to %d, at the tier's expected practice and at practice 0 to %d in steps of %d. The target reads the expected rows.",
+		len(b.PuzzleFamilies), bt.p.Puzzles.Param("floors"), sheets.IntParam(b.GrowthParams, "practice-max"), puzzlePracticeStep)
 	pr("")
-	pr("| Tier | Expected practice | Mean solve rate |")
+	pr("| Tier | Practice | Mean solve rate |")
 	pr("| --- | --- | --- |")
 	for _, r := range rows {
-		pr("| tier %d | %d | %.1f%% |", r.tier, r.practice, 100*r.rate)
+		pr("| tier %d | %d%s | %.1f%% |", r.tier, r.practice, either(r.expected, ", expected", ""), 100*r.rate)
 	}
 	pr("")
 	pz := bt.p.Puzzles
@@ -633,34 +634,58 @@ func (b *battle) tierTwoDays() ([]int64, error) {
 
 type puzzleRow struct {
 	tier, practice int64
+	expected       bool
 	rate           float64
 }
 
+// puzzlePracticeStep is how far apart the puzzle table's practice levels
+// are.
+const puzzlePracticeStep = 4
+
 // puzzleRate is the mean party solve rate at the expected practice over
-// every family, tier, floor and party size of 2 to 4.
+// every family, tier, floor and party size of 2 to 4, and the table's
+// rows: per tier, that practice and every step of practice up to the cap.
 func (b *battle) puzzleRate() (float64, []puzzleRow) {
-	pz := b.p.Puzzles
+	top := sheets.IntParam(b.p.Book.GrowthParams, "practice-max")
 	var sum float64
 	var n int
 	var rows []puzzleRow
 	for _, ft := range b.p.Book.FightTiers {
-		var ts float64
-		var tn int
-		for _, f := range b.p.Book.PuzzleFamilies {
-			for floor := int64(1); floor <= pz.Param("floors"); floor++ {
-				w := puzzle.Where{Place: fmt.Sprintf("floor:battle/%d", floor), Beat: ft.Tier}
-				lvl := pz.Level(f.ID, ft.Tier, floor, w)
-				for party := int64(2); party <= 4; party++ {
-					r := pz.SolveRate(f.ID, b.puzzlePractice(ft.Tier), lvl, ft.Tier, party)
-					v := float64(r) / float64(fixed.Scale)
-					ts += v
-					tn++
-				}
+		want := b.puzzlePractice(ft.Tier)
+		levels := []int64{want}
+		for pr := int64(0); pr <= top; pr += puzzlePracticeStep {
+			if pr != want {
+				levels = append(levels, pr)
 			}
 		}
-		rows = append(rows, puzzleRow{tier: ft.Tier, practice: b.puzzlePractice(ft.Tier), rate: ts / float64(tn)})
-		sum += ts
-		n += tn
+		slices.Sort(levels)
+		for _, pr := range levels {
+			ts, tn := b.puzzleCells(ft.Tier, pr)
+			rows = append(rows, puzzleRow{tier: ft.Tier, practice: pr, expected: pr == want, rate: ts / float64(tn)})
+			if pr == want {
+				sum += ts
+				n += tn
+			}
+		}
 	}
 	return sum / float64(n), rows
+}
+
+// puzzleCells sums the model's solve rate over a tier's cells at one
+// practice, and counts them.
+func (b *battle) puzzleCells(tier, practice int64) (float64, int) {
+	pz := b.p.Puzzles
+	var sum float64
+	var n int
+	for _, f := range b.p.Book.PuzzleFamilies {
+		for floor := int64(1); floor <= pz.Param("floors"); floor++ {
+			w := puzzle.Where{Place: fmt.Sprintf("floor:battle/%d", floor), Beat: tier}
+			lvl := pz.Level(f.ID, tier, floor, w)
+			for party := int64(2); party <= 4; party++ {
+				sum += float64(pz.SolveRate(f.ID, practice, lvl, tier, party)) / float64(fixed.Scale)
+				n++
+			}
+		}
+	}
+	return sum, n
 }

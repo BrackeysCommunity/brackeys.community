@@ -16,6 +16,8 @@ import (
 
 	"jams.team/mmo-world/lint"
 	"jams.team/mmo-world/sheetfs"
+	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 )
@@ -281,7 +283,7 @@ func ruleProblems(b *sheets.Book) []string {
 var namedSheets = []string{
 	"items.materials", "items.processes", "creatures.archetypes", "factions.archetypes",
 	"map.terrain", "items.traits", "items.slots", "world.weather", "world.gauges",
-	"puzzles.families", "npcs.traits", "world.seasons", "map.landmarks",
+	"puzzles.families", "puzzles.titles", "npcs.traits", "world.seasons", "map.landmarks",
 	"mounts.kinds", "fights.beats", "fights.options", "fights.states", "items.pairings",
 	"growth.exploit-offers", "mounts.offers",
 }
@@ -400,9 +402,31 @@ func playProblems(b *sheets.Book) []string {
 	for _, l := range b.PuzzleLayouts {
 		fams[l.Family] = true
 	}
+	kit := puzzle.New(b, draw.Key{})
+	titled, tuned := map[string]bool{}, map[string]bool{}
+	for _, t := range b.PuzzleTitles {
+		titled[t.Family] = true
+		if t.ID != t.Family {
+			p = append(p, "puzzles.titles "+t.ID+": a title's id is its family's")
+		}
+	}
+	for _, t := range b.PuzzleTuning {
+		tuned[t.Family+"/"+t.Key] = true
+	}
 	for _, f := range b.PuzzleFamilies {
 		if !fams[f.ID] {
 			p = append(p, "puzzles.layouts: no layout for "+f.ID)
+		}
+		if fams[f.ID] && !kit.Known(f.ID) {
+			p = append(p, "puzzles.families: "+f.ID+" has no model in sim/puzzle")
+		}
+		if !titled[f.ID] {
+			p = append(p, "puzzles.titles: no title for "+f.ID)
+		}
+		for _, key := range puzzle.Keys(f.ID) {
+			if !tuned[f.ID+"/"+key] {
+				p = append(p, fmt.Sprintf("puzzles.tuning: %s reads %q, which has no row", f.ID, key))
+			}
 		}
 	}
 	for _, o := range b.Options {

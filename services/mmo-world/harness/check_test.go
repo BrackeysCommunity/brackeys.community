@@ -97,6 +97,12 @@ func TestCheckFailsOnPlantedFaults(t *testing.T) {
 		{"unnamed material", func(t *testing.T, r string) {
 			edit(t, r, "packs/wasteland/names.json", `"ref": "items.materials:timber"`, `"ref": "items.materials:reedflax"`)
 		}, "pack names everything shown", "items.materials:timber"},
+		{"family with no title", func(t *testing.T, r string) {
+			edit(t, r, "sheets/puzzles/titles.json", `"family": "splice"`, `"family": "scrub"`)
+		}, "play sheets", "no title for splice"},
+		{"tuning cell with no row", func(t *testing.T, r string) {
+			edit(t, r, "sheets/puzzles/tuning.json", `"key": "band"`, `"key": "width"`)
+		}, "play sheets", `pressure reads "band"`},
 		{"bad rule", func(t *testing.T, r string) {
 			edit(t, r, "sheets/tags/rules.json", `"steps": 1`, `"steps": 0`)
 		}, "rules compile", "band needs steps"},

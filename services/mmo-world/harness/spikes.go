@@ -10,14 +10,16 @@ type Run func(b *sheets.Book, out string, n int) ([]Measured, error)
 
 // Runs are the harness runs and spikes by name.
 var Runs = map[string]Run{
-	"world":   WorldRun,
-	"craft":   CraftRun,
-	"battle":  BattleRun,
-	"social":  SocialRun,
-	"economy": EconomyRun,
-	"spike-a": spike(spikeA),
-	"spike-b": spike(spikeB),
-	"spike-e": spike(spikeE),
+	"world":    WorldRun,
+	"craft":    CraftRun,
+	"battle":   BattleRun,
+	"social":   SocialRun,
+	"economy":  EconomyRun,
+	"puzzles":  PuzzlesRun,
+	"activity": ActivityRun,
+	"spike-a":  spike(spikeA),
+	"spike-b":  spike(spikeB),
+	"spike-e":  spike(spikeE),
 }
 
 func spike(f func(*sheets.Book, string, int) error) Run {

@@ -7,6 +7,7 @@
 //	harness craft -out DIR   the Craft run: sampled kinds against budgets and a search
 //	harness battle -out DIR  the Battle run: the matchup matrix, classes, growth and puzzles
 //	harness economy -out DIR the Economy run: scripted players, their guild and its works, a founding (-n for one size)
+//	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench, replayed to the same facts
 //	harness spike-a|b|e -out DIR
 package main
 
