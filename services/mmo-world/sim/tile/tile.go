@@ -82,13 +82,6 @@ type Rumour struct {
 	Expires int64   `json:"expires"` // tick
 }
 
-type Dungeon struct {
-	FloorsCleared  int64      `json:"floorsCleared"`
-	ClearedAt      int64      `json:"clearedAt,omitempty"` // tick the deepest cleared floor was cleared
-	Fell           []fact.Ref `json:"fell,omitempty"`
-	GuardianHealth int64      `json:"guardianHealth"`
-}
-
 // Counter names, as rows of tiles.counters.
 const (
 	CounterVisits      = "visits"
@@ -101,16 +94,19 @@ const (
 // Params are the tile cells the sim reads.
 type Params struct {
 	EventRing, TracksKept, HeavyFact int64
+	HauntedFalls, HauntedDays        int64
 	decay                            map[string]int64
 }
 
 // NewParams reads tiles.counters and tiles.params.
 func NewParams(b *sheets.Book) Params {
 	p := Params{
-		EventRing:  sheets.IntParam(b.TileParams, "event-ring"),
-		TracksKept: sheets.IntParam(b.TileParams, "tracks-kept"),
-		HeavyFact:  sheets.IntParam(b.TileParams, "heavy-fact-weight"),
-		decay:      map[string]int64{},
+		EventRing:    sheets.IntParam(b.TileParams, "event-ring"),
+		TracksKept:   sheets.IntParam(b.TileParams, "tracks-kept"),
+		HeavyFact:    sheets.IntParam(b.TileParams, "heavy-fact-weight"),
+		HauntedFalls: sheets.IntParam(b.TileParams, "haunted-falls"),
+		HauntedDays:  sheets.IntParam(b.TileParams, "haunted-days"),
+		decay:        map[string]int64{},
 	}
 	for _, c := range b.TileCounters {
 		p.decay[c.ID] = c.DecayPercent

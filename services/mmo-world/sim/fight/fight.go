@@ -199,6 +199,11 @@ type Situation struct {
 	Troubled bool
 	Puzzle   string // the machine's family on a Lock or Puzzle beat
 	Level    int64  // the machine's level
+	// A dungeon floor half way to the next tier, and the whole tiers it
+	// lies past the ceiling.
+	Half   bool
+	Beyond int64
+	Joined *Creature // a second creature, for the beats it stays
 }
 
 // Part is one line of a score's why.
@@ -240,13 +245,23 @@ type Option struct {
 }
 
 // Difficulty is the creature tier's base plus the beat's modifier, more
-// per party member past the first.
+// on a dungeon's deeper floors, more per party member past the first.
 func (r *Rules) Difficulty(s Situation) int64 {
+	d, _ := r.difficulty(s)
+	return d
+}
+
+// difficulty is Difficulty with the why lines of what it added: half a
+// tier, the tiers past the ceiling, and the party.
+func (r *Rules) difficulty(s Situation) (int64, []Part) {
 	base := r.tiers[s.Creature.Tier].BaseDifficulty + r.beats[s.Kind].Modifier
+	parts := r.deeper(s, &base)
 	if s.Party > 1 {
-		base = fixed.PercentPlus(base, r.Param("party-difficulty-step")*(s.Party-1))
+		with := fixed.PercentPlus(base, r.Param("party-difficulty-step")*(s.Party-1))
+		parts = append(parts, Part{Label: WhyParty, Value: with - base})
+		base = with
 	}
-	return base
+	return base, parts
 }
 
 // BandOf is the band a margin falls in, as a rank.
@@ -434,7 +449,9 @@ func (r *Rules) option(s Situation, k Kit, row sheets.OptionRow, g *Gear, axis s
 		}
 	}
 	o.Tags = subject.Tags()
-	o.Difficulty = r.Difficulty(s)
+	var lines []Part
+	o.Difficulty, lines = r.difficulty(s)
+	why.Parts = append(why.Parts, lines...)
 	o.Margin = o.Score - o.Difficulty
 	why.BandFrom = r.BandOf(o.Margin)
 	o.Band = why.BandFrom + steps

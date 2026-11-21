@@ -1,6 +1,8 @@
 package char_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"jams.team/mmo-world/sheetfs"
@@ -59,5 +61,28 @@ func TestRingsAndChecks(t *testing.T) {
 	c.AdjustStanding("f", 500, -100, 100)
 	if c.Standing.Get("f") != 100 {
 		t.Fatal("standing bound")
+	}
+}
+
+// A character outside a dungeon writes no floor, so a save from before
+// floors digests as it did; partied is company like any other.
+func TestFloorAndPartied(t *testing.T) {
+	c := char.New("c", hex.Hex{})
+	raw, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"floor"`) {
+		t.Fatalf("an outside character writes a floor: %s", raw)
+	}
+	c.Floor = 3
+	raw, _ = json.Marshal(c)
+	var back char.Character
+	if err := json.Unmarshal(raw, &back); err != nil || back.Floor != 3 {
+		t.Fatalf("floor %d back, %v", back.Floor, err)
+	}
+	c.Meet(char.Met{Who: "d", How: char.MetPartied, Tick: 4}, char.Limits{Company: 10})
+	if len(c.Company) != 1 || c.Company[0].How != "partied" {
+		t.Fatalf("company %+v", c.Company)
 	}
 }

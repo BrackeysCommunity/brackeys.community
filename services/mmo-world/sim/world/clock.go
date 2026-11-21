@@ -5,7 +5,6 @@ import (
 
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
-	"jams.team/mmo-world/sim/tile"
 )
 
 // Action is something a player (or the harness acting as one) does to the
@@ -22,6 +21,10 @@ type Action struct {
 	Dir      *int     `json:"dir,omitempty"` // nil: no direction
 	// Quiet is a visit that lays no track.
 	Quiet bool `json:"quiet,omitempty"`
+	// Floor is a dungeon floor, from 1; Way the way taken down from it,
+	// +1 (0: none).
+	Floor int64 `json:"floor,omitempty"`
+	Way   int64 `json:"way,omitempty"`
 }
 
 // Action kinds.
@@ -33,7 +36,7 @@ const (
 	ActWinBeat        = "win-beat"    // a beat won on Hex against a creature carrying Tag
 	ActSlay           = "slay"        // one of Species slain on Hex
 	ActFall           = "fall"        // a character went down on Hex
-	ActClearFloor     = "clear-floor" // floor Units of the dungeon on Hex cleared
+	ActClearFloor     = "clear-floor" // floor Units of the dungeon on Hex cleared; kept for recorded actions
 	ActEase           = "ease"        // Units of threat taken off the region holding Hex
 	ActAlarm          = "alarm"       // Units of threat a machine's alarm adds to the region holding Hex
 )
@@ -117,14 +120,8 @@ var actions = map[string]struct {
 			return fmt.Errorf("world: clear of floor %d", a.Units)
 		}
 		return nil
-	}, func(s *State, _ fact.Log, a Action) error {
-		t := s.touch(a.Hex)
-		if t.Dungeon == nil {
-			t.Dungeon = &tile.Dungeon{}
-		}
-		t.Dungeon.FloorsCleared = max(t.Dungeon.FloorsCleared, a.Units)
-		t.Dungeon.ClearedAt = s.Tick
-		return nil
+	}, func(s *State, log fact.Log, a Action) error {
+		return floorCleared(s, log, Action{Kind: ActFloorCleared, Hex: a.Hex, By: a.By, Floor: a.Units})
 	}},
 }
 

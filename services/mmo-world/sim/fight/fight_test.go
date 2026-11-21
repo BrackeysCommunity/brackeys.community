@@ -312,12 +312,12 @@ func TestHuntKeepsSalvage(t *testing.T) {
 
 func TestSplitIsExact(t *testing.T) {
 	share := tally.Tally{{Key: "a", N: 1}, {Key: "b", N: 1}, {Key: "c", N: 1}}
-	got := fight.Split([]item.Spoil{{Material: "x", Qty: 10}}, share)
+	got := fight.Split([]item.Spoil{{Material: "x", Qty: 10}}, share, nil)
 	var n int64
 	for _, ss := range got {
 		n += ss[0].Qty
 	}
-	if n != 10 {
+	if n != 10 || got["a"][0].Qty != 4 {
 		t.Fatalf("split %v", got)
 	}
 }

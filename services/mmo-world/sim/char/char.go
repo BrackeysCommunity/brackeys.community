@@ -91,9 +91,18 @@ func (f Fights) Nemesis() string {
 // Met is someone the character met, and how.
 type Met struct {
 	Who  string `json:"who"`
-	How  string `json:"how"` // met, traded, partied, rescued, rescued-by
+	How  string `json:"how"` // one of the Met kinds
 	Tick int64  `json:"tick"`
 }
+
+// Met kinds: how company was kept.
+const (
+	MetMet       = "met"
+	MetTraded    = "traded"
+	MetPartied   = "partied" // won an encounter in one party
+	MetRescued   = "rescued"
+	MetRescuedBy = "rescued-by"
+)
 
 // Disposition is a notable's leaning toward the character.
 type Disposition struct {
@@ -108,6 +117,7 @@ type Character struct {
 
 	// Where
 	At     hex.Hex   `json:"at"`
+	Floor  int64     `json:"floor,omitempty"` // the dungeon floor stood on at At; 0 is outside
 	Facing int       `json:"facing"`
 	Route  []hex.Hex `json:"route"`
 	Trail  []hex.Hex `json:"trail"` // last tiles walked, newest last

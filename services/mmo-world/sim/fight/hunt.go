@@ -96,8 +96,9 @@ func (r *Rules) HuntBeat(h *Hunt, m *Member, tick int64) (Pressed, []fact.Fact, 
 	return Pressed{Who: m.Ch.ID, Option: o, Outcome: oc, Why: why}, facts, nil
 }
 
-// Spoils rolls the hunt's sheet row and splits it by health removed.
-// Each spoil line's quantity is drawn from half to all of the row's.
+// Spoils rolls the hunt's sheet row and splits it by health removed,
+// ties drawn for the hunt. Each spoil line's quantity is drawn from half
+// to all of the row's.
 func (r *Rules) Spoils(h *Hunt) map[string][]item.Spoil {
 	if !h.Slain {
 		return map[string][]item.Spoil{}
@@ -108,5 +109,5 @@ func (r *Rules) Spoils(h *Hunt) map[string][]item.Spoil {
 		n := r.roll.Between(lo, s.Quantity, "hunt.spoils", draw.Str(h.ID), draw.Int(int64(i)))
 		haul = append(haul, item.Spoil{Material: s.Material, Qty: n})
 	}
-	return Split(haul, h.Removed)
+	return Split(haul, h.Removed, r.SplitTie(h.ID))
 }

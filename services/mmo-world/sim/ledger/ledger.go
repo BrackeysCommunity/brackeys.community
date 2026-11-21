@@ -43,6 +43,7 @@ const (
 	FromCraft    = Source + "craft"
 	FromForage   = Source + "forage"
 	FromStart    = Source + "start"
+	FromHunt     = Source + "hunt" // a hunt's spoils, rolled once at the kill
 	ToProvisions = Sink + "provisions"
 	ToLost       = Sink + "lost"
 	ToOperator   = Sink + "operator"
@@ -65,6 +66,30 @@ func Char(id string) string     { return Holder + id }
 // TilePool is the spoils pool of a tile, by its ref; NPCPool an NPC's purse.
 func TilePool(ref string) string { return Pool + "tile:" + ref }
 func NPCPool(id string) string   { return Pool + npcPrefix + id }
+
+// FloorPool holds what fell on a dungeon's floor, by the entrance's ref
+// and the floor; HuntPool a hunt's rolled spoils until they are split.
+func FloorPool(ref string, floor int64) string {
+	return Pool + "floor:" + ref + "/" + strconv.FormatInt(floor, decimal)
+}
+func HuntPool(id string) string { return Pool + "hunt:" + id }
+
+// FloorOf reads a floor pool back: the entrance's ref and the floor.
+func FloorOf(acc string) (string, int64, bool) {
+	rest, ok := strings.CutPrefix(acc, Pool+"floor:")
+	if !ok {
+		return "", 0, false
+	}
+	i := strings.LastIndex(rest, "/")
+	if i < 0 {
+		return "", 0, false
+	}
+	n, err := strconv.ParseInt(rest[i+1:], decimal, floorBits)
+	if err != nil {
+		return "", 0, false
+	}
+	return rest[:i], n, true
+}
 
 // GuildPool is a guild's treasury and bank; TreasuryPool the treasury of
 // an open settlement, by its index.
@@ -91,10 +116,13 @@ func IsEscrow(acc string) bool { return strings.HasPrefix(acc, Pool+escrowPrefix
 // CharOf is the character whose account acc is, or false.
 func CharOf(acc string) (string, bool) { return strings.CutPrefix(acc, Holder) }
 
-// structural: the prefixes of an NPC's pool account and an escrow pool.
+// structural: the prefixes of an NPC's pool account and an escrow pool;
+// a floor is written in decimal and read back as an int64.
 const (
 	npcPrefix    = "npc:"
 	escrowPrefix = "escrow:"
+	decimal      = 10
+	floorBits    = 64
 )
 
 // Goods is the asset a material trades as; provisions are their own.
