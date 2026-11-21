@@ -32,7 +32,20 @@ func Marshal(v any) ([]byte, error) { return new(Encoder).Marshal(v) }
 // Encoder is Marshal for a caller that encodes the same types again and
 // again: it reads a struct type's fields once. The zero value is ready.
 type Encoder struct {
-	fields map[reflect.Type][]field
+	layouts map[reflect.Type]*layout
+}
+
+// Canonical is a value that is encoded as another: a type whose exported
+// fields are not its state.
+type Canonical interface{ Canonical() any }
+
+var canonicalType = reflect.TypeFor[Canonical]()
+
+// layout is how a struct type is encoded: by its fields, or as what its
+// Canonical method returns.
+type layout struct {
+	fields    []field
+	canonical bool
 }
 
 // field is a struct field as members reads it.
@@ -167,6 +180,16 @@ func (e *Encoder) encodeMap(b []byte, v reflect.Value) ([]byte, error) {
 }
 
 func (e *Encoder) encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
+	l, err := e.layoutOf(v.Type())
+	if err != nil {
+		return nil, err
+	}
+	if l.canonical {
+		if !v.CanInterface() {
+			return nil, fmt.Errorf("canon: %s is unexported", v.Type())
+		}
+		return e.encode(b, reflect.ValueOf(v.Interface().(Canonical).Canonical()))
+	}
 	ms, err := e.members(v)
 	if err != nil {
 		return nil, err
@@ -178,10 +201,11 @@ func (e *Encoder) encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
 // struct's fields are promoted as encoding/json promotes them, so a digest
 // survives a JSON round trip; a field of the outer struct wins a clash.
 func (e *Encoder) members(v reflect.Value) ([]member, error) {
-	fs, err := e.fieldsOf(v.Type())
+	l, err := e.layoutOf(v.Type())
 	if err != nil {
 		return nil, err
 	}
+	fs := l.fields
 	ms := make([]member, 0, len(fs))
 	var promoted []member
 	for _, f := range fs {
@@ -207,11 +231,14 @@ func (e *Encoder) members(v reflect.Value) ([]member, error) {
 	return ms, nil
 }
 
-// fieldsOf are the fields of a struct type that members encodes, in
-// declaration order.
-func (e *Encoder) fieldsOf(t reflect.Type) ([]field, error) {
-	if fs, ok := e.fields[t]; ok {
-		return fs, nil
+// layoutOf is how a struct type encodes: its Canonical method, or the
+// fields members encodes, in declaration order.
+func (e *Encoder) layoutOf(t reflect.Type) (*layout, error) {
+	if l, ok := e.layouts[t]; ok {
+		return l, nil
+	}
+	if t.Implements(canonicalType) {
+		return e.keep(t, &layout{canonical: true}), nil
 	}
 	fs := make([]field, 0, t.NumField())
 	for i := range t.NumField() {
@@ -235,11 +262,15 @@ func (e *Encoder) fieldsOf(t reflect.Type) ([]field, error) {
 		}
 		fs = append(fs, field{index: i, name: name, omit: hasOpt(opts, "omitempty")})
 	}
-	if e.fields == nil {
-		e.fields = map[reflect.Type][]field{}
+	return e.keep(t, &layout{fields: fs}), nil
+}
+
+func (e *Encoder) keep(t reflect.Type, l *layout) *layout {
+	if e.layouts == nil {
+		e.layouts = map[reflect.Type]*layout{}
 	}
-	e.fields[t] = fs
-	return fs, nil
+	e.layouts[t] = l
+	return l
 }
 
 // empty is omitempty's test. Like encoding/json it drops a non-nil

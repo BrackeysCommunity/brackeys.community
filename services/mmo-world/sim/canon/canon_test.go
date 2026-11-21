@@ -140,3 +140,14 @@ func TestEmbeddedPromoted(t *testing.T) {
 		t.Fatalf("%s %v", got, err)
 	}
 }
+
+type secret struct{ n int64 }
+
+func (s secret) Canonical() any { return struct{ N int64 }{s.n} }
+
+func TestCanonicalEncodesAsAnother(t *testing.T) {
+	got, err := Marshal(struct{ S secret }{secret{7}})
+	if err != nil || string(got) != `{"S":{"N":7}}` {
+		t.Fatalf("got %s, %v", got, err)
+	}
+}

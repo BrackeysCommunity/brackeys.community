@@ -358,7 +358,7 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 		res.actions += p.Actions
 		res.refused += p.Refused
 	}
-	res.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+	res.audit = ledger.Audit(g.Ledger.Balances(), g.Holdings())
 	if g.Market != nil {
 		res.reports = g.Market.Reports
 	}

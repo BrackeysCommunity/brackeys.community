@@ -177,7 +177,7 @@ func TestSoloLoop(t *testing.T) {
 			t.Fatalf("a discovery between ticks is not in the news: %+v", g.News)
 		}
 	}
-	if problems := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
 	if _, err := g.Digest(); err != nil {
