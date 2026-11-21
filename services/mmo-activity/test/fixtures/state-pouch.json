@@ -1,0 +1,78 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "lock-pins",
+        "level": 2
+      }
+    ],
+    "inFight": false,
+    "walked": 14,
+    "pouches": 2
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "Copperline",
+    "busy": 2
+  },
+  "pouches": [
+    {
+      "id": "p-c-mock-1",
+      "family": "lock-pins",
+      "name": "Pin lock",
+      "goods": [
+        {
+          "material": "copper-ore",
+          "units": 3
+        },
+        {
+          "material": "bog-iron",
+          "units": 2
+        }
+      ]
+    },
+    {
+      "id": "p-c-mock-2",
+      "family": "lock-maze",
+      "name": "Tumbler maze",
+      "goods": [
+        {
+          "material": "saltglass",
+          "units": 1
+        }
+      ],
+      "locked": 96
+    }
+  ]
+}

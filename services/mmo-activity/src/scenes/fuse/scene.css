@@ -1,0 +1,120 @@
+/* The fuse box and its clue cards. */
+.fuse .key {
+  fill: var(--concrete);
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.fuse .card rect {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.fuse .badge circle {
+  fill: var(--tar);
+  stroke-width: 2;
+}
+
+.fuse .tag {
+  fill: var(--ash);
+  font-weight: 700;
+  dominant-baseline: central;
+}
+
+.fuse .plug .tag {
+  text-anchor: middle;
+}
+
+.fuse .then {
+  fill: none;
+  stroke: var(--ash);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A spent card is struck through and dimmed. */
+.fuse .card.spent {
+  opacity: 0.35;
+}
+
+.fuse .card.spent rect {
+  stroke-dasharray: 3 5;
+}
+
+.fuse .socket {
+  fill: var(--tar);
+  stroke: var(--line);
+  stroke-width: 3;
+}
+
+.fuse .body {
+  fill: var(--panel);
+  stroke-width: 4;
+}
+
+.fuse .caps {
+  fill: none;
+  stroke-width: 3;
+}
+
+.fuse .tick,
+.fuse .ring {
+  display: none;
+  fill: none;
+  pointer-events: none;
+}
+
+.fuse .plug.pressed .body {
+  fill: var(--tar);
+  stroke-dasharray: 6 4;
+}
+
+/* A pulled fuse leaves an empty, dashed socket with a tick in it. */
+.fuse .plug.out .body,
+.fuse .plug.out .caps,
+.fuse .plug.out > path[aria-label] {
+  display: none;
+}
+
+.fuse .plug.out .socket {
+  stroke-dasharray: 5 5;
+}
+
+.fuse .plug.out .tick {
+  display: inline;
+  stroke: var(--signal);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fuse .plug.guided .ring {
+  display: inline;
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 9;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.fuse .plug.hinted .ring {
+  display: inline;
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-dasharray: 10 8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fuse .plug.hinted .ring {
+    animation: fuse-march 0.6s linear infinite;
+  }
+}
+
+@keyframes fuse-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}

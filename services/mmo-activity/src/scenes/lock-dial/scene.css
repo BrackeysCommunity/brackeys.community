@@ -1,0 +1,145 @@
+/* Safe dials: a fixed ring of ticks, a knob with a needle, a lamp in the hub. */
+.lock-dial .rim {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 3;
+}
+
+.lock-dial .ticks {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lock-dial .zero {
+  fill: var(--ash);
+}
+
+.lock-dial .knob circle {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 3;
+}
+
+.lock-dial .needle {
+  fill: none;
+  stroke: var(--ash);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.lock-dial .point {
+  fill: var(--ash);
+}
+
+.lock-dial .way {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.lock-dial .lamp {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 3;
+}
+
+.lock-dial .tag,
+.lock-dial .said {
+  fill: var(--ash);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.lock-dial .said {
+  fill: var(--hazard);
+}
+
+.lock-dial .tick {
+  display: none;
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lock-dial .pulse {
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 4;
+  pointer-events: none;
+}
+
+.lock-dial .hint {
+  fill: var(--hazard);
+}
+
+.lock-dial .guide {
+  fill: var(--concrete);
+}
+
+/* The dial in turn carries a heavier ring and a brighter arrow. */
+.lock-dial .dial.next .rim {
+  stroke: var(--ash);
+  stroke-width: 5;
+}
+
+.lock-dial .dial.next .way {
+  stroke: var(--hazard);
+}
+
+.lock-dial .dial.held .knob circle {
+  fill: var(--panel);
+  stroke: var(--ash);
+}
+
+/* On the click the lamp fills, the needle thickens and the word shows. */
+.lock-dial .dial.caught .lamp {
+  fill: var(--hazard);
+  stroke: var(--hazard);
+}
+
+.lock-dial .dial.caught .needle {
+  stroke: var(--hazard);
+  stroke-width: 7;
+}
+
+.lock-dial .dial.caught .point {
+  fill: var(--hazard);
+}
+
+.lock-dial .dial.open .rim {
+  stroke: var(--signal);
+  stroke-dasharray: none;
+}
+
+.lock-dial .dial.open .tick {
+  display: inline;
+}
+
+.lock-dial .dial.open .tag,
+.lock-dial .dial.open .way {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lock-dial.slip {
+    animation: lock-dial-slip 0.35s ease-out;
+  }
+}
+
+@keyframes lock-dial-slip {
+  25% {
+    translate: 6px 0;
+  }
+
+  65% {
+    translate: -4px 0;
+  }
+}

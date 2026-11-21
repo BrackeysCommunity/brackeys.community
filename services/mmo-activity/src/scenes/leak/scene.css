@@ -1,0 +1,175 @@
+/* The pipe: a pressure gauge, and joints that leak, hold and seal. */
+.leak text {
+  fill: var(--ash);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.leak .label.low {
+  fill: var(--hazard);
+  font-weight: 800;
+}
+
+.leak .label.small,
+.leak .legend {
+  fill: var(--concrete);
+  font-size: 12px;
+}
+
+.leak .legend,
+.leak .word,
+.leak .tag {
+  text-anchor: middle;
+}
+
+.leak .track {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.leak .fill {
+  fill: var(--signal);
+}
+
+.leak .fill.low {
+  fill: var(--hazard);
+}
+
+.leak .count {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.leak .count.on {
+  fill: var(--ash);
+  stroke: var(--ash);
+}
+
+.leak .pipe {
+  fill: none;
+  stroke: var(--line);
+  stroke-linejoin: round;
+}
+
+.leak .collar {
+  fill: var(--panel);
+  stroke: var(--concrete);
+  stroke-width: 4;
+}
+
+.leak .tag {
+  font-weight: 700;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.leak .spray,
+.leak .clamp,
+.leak .slip,
+.leak .patch,
+.leak .ring {
+  display: none;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.leak .joint.leak .collar {
+  stroke: var(--hazard);
+  stroke-width: 6;
+}
+
+.leak .joint.leak .spray {
+  display: inline;
+  stroke: var(--hazard);
+  stroke-width: 5;
+}
+
+.leak .joint.held .clamp {
+  display: inline;
+  stroke: var(--ash);
+  stroke-width: 6;
+}
+
+.leak .joint.held .slip {
+  display: inline;
+  stroke: var(--ash);
+  stroke-width: 4;
+  transform: rotate(-90deg);
+}
+
+.leak .joint.sealed .collar {
+  stroke: var(--signal);
+}
+
+.leak .joint.sealed .patch {
+  display: inline;
+  stroke: var(--signal);
+  stroke-width: 7;
+  opacity: 0.55;
+}
+
+.leak .joint.knocked .collar {
+  stroke: var(--rust);
+  stroke-dasharray: 5 5;
+}
+
+.leak .joint.hinted .ring,
+.leak .joint.guided .ring {
+  display: inline;
+}
+
+.leak .joint.hinted .ring {
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-dasharray: 10 8;
+}
+
+.leak .joint.guided .ring {
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 10;
+  opacity: 0.7;
+}
+
+.leak .pip {
+  display: none;
+  fill: var(--hazard);
+}
+
+.leak .pip.on {
+  display: inline;
+}
+
+.leak .joint.leak .word {
+  fill: var(--hazard);
+  font-weight: 800;
+}
+
+.leak .joint.sealed .word {
+  fill: var(--signal);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .leak .joint.leak .spray {
+    animation: leak-spurt 0.3s ease-in-out infinite alternate;
+  }
+
+  .leak .joint.hinted .ring {
+    animation: leak-march 0.6s linear infinite;
+  }
+}
+
+@keyframes leak-spurt {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@keyframes leak-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}

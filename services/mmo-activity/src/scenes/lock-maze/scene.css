@@ -1,0 +1,88 @@
+/* The tumbler maze from above: a floor, walls, the bit and its home. */
+.lock-maze {
+  transition: transform 0.12s ease-out;
+}
+
+/* The box tips the way it was swiped. */
+.lock-maze[data-tilt="0"] {
+  transform: perspective(700px) rotateY(7deg);
+}
+
+.lock-maze[data-tilt="1"] {
+  transform: perspective(700px) rotateX(-7deg);
+}
+
+.lock-maze[data-tilt="2"] {
+  transform: perspective(700px) rotateY(-7deg);
+}
+
+.lock-maze[data-tilt="3"] {
+  transform: perspective(700px) rotateX(7deg);
+}
+
+.lock-maze .floor {
+  fill: var(--panel);
+}
+
+.lock-maze .walls {
+  fill: none;
+  stroke: var(--ash);
+  stroke-linecap: round;
+}
+
+.lock-maze .home {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 3;
+  stroke-dasharray: 6 5;
+}
+
+.lock-maze .bit circle {
+  fill: var(--hazard);
+  stroke: var(--tar);
+  stroke-width: 3;
+}
+
+.lock-maze .bit .shine {
+  fill: var(--ash);
+  stroke: none;
+}
+
+.lock-maze .guide,
+.lock-maze .hint {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.lock-maze .guide {
+  stroke: var(--concrete);
+  stroke-width: 4;
+  stroke-dasharray: 2 9;
+  opacity: 0.7;
+}
+
+.lock-maze .hint {
+  stroke: var(--hazard);
+  stroke-width: 6;
+  stroke-dasharray: 10 8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lock-maze .hint {
+    animation: lock-maze-march 0.6s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lock-maze[data-tilt] {
+    transform: none;
+  }
+}
+
+@keyframes lock-maze-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}

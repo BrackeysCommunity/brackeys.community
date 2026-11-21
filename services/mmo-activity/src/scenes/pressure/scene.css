@@ -1,0 +1,142 @@
+/* The boiler: gauges with their bands, and a wheel under each. */
+.pressure text {
+  fill: var(--ash);
+  text-anchor: middle;
+  font-weight: 600;
+}
+
+.pressure .status {
+  font-size: 14px;
+}
+
+.pressure .legend {
+  fill: var(--concrete);
+  font-size: 12px;
+}
+
+.pressure .hold-track {
+  fill: var(--panel);
+}
+
+.pressure .hold {
+  fill: var(--signal);
+}
+
+.pressure .tube {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.pressure .burst {
+  fill: none;
+  stroke: var(--rust);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.pressure .band {
+  fill: color-mix(in srgb, var(--signal) 18%, transparent);
+  stroke: var(--signal);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.pressure .drip {
+  fill: var(--hazard);
+}
+
+.pressure .needle {
+  fill: var(--ash);
+  stroke: var(--ash);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.pressure .state {
+  font-size: 13px;
+}
+
+.pressure .state.low,
+.pressure .state.high {
+  fill: var(--hazard);
+}
+
+.pressure .state.bursting {
+  fill: var(--rust);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.pressure .state.ok {
+  fill: var(--signal);
+}
+
+.pressure .wheel circle {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 4;
+}
+
+.pressure .wheel .spokes {
+  stroke: var(--concrete);
+  stroke-width: 4;
+}
+
+.pressure .wheel .hub {
+  fill: var(--panel);
+  stroke-width: 3;
+}
+
+.pressure .wheel.held circle {
+  stroke: var(--hazard);
+}
+
+.pressure .tag {
+  font-weight: 700;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.pressure .way,
+.pressure .pull,
+.pressure .guide,
+.pressure .hint {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pressure .way {
+  stroke: var(--line);
+  stroke-width: 3;
+}
+
+.pressure .pull {
+  stroke: var(--hazard);
+  stroke-width: 4;
+}
+
+.pressure .guide {
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 8;
+  opacity: 0.7;
+}
+
+.pressure .hint {
+  stroke: var(--hazard);
+  stroke-width: 5;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pressure .hint {
+    animation: pressure-pulse 0.6s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes pressure-pulse {
+  to {
+    opacity: 0.35;
+  }
+}

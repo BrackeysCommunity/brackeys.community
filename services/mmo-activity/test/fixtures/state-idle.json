@@ -1,0 +1,57 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "strike",
+        "level": 3
+      },
+      {
+        "id": "rewire",
+        "level": 4
+      },
+      {
+        "id": "lock-pins",
+        "level": 16
+      }
+    ],
+    "inFight": false,
+    "walked": 14,
+    "titles": ["lock-pins"]
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "Copperline",
+    "busy": 2
+  }
+}

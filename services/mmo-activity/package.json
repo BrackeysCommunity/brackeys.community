@@ -1,0 +1,31 @@
+{
+  "name": "@jams/mmo-activity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Discord MMO's Activity: the embedded web app that draws a character's context and every machine. A client of the world service's Activity listener and nothing more: it holds no rule that decides an outcome, no seed and no key.",
+  "type": "module",
+  "scripts": {
+    "build": "vp build",
+    "check": "vp check",
+    "dev": "vp dev",
+    "test": "vp test run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@discord/embedded-app-sdk": "^2.4.0",
+    "@fontsource-variable/rubik": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "happy-dom": "^20.0.0",
+    "typescript": "^6.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.15",
+    "vite-plus": "0.1.15",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.15"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.15",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.15"
+  },
+  "packageManager": "bun@1.3.14"
+}

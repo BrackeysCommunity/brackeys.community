@@ -1,0 +1,113 @@
+/* The relay's scope and its bank of knobs. */
+.signal .screen {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.signal .axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* The two traces differ in line as well as colour: dashed is wanted,
+   solid is yours. */
+.signal .wanted,
+.signal .yours {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.signal .wanted {
+  stroke: var(--ash);
+  stroke-width: 3;
+  stroke-dasharray: 7 6;
+}
+
+.signal .yours {
+  stroke: var(--signal);
+  stroke-width: 4;
+}
+
+.signal .key,
+.signal .label,
+.signal .note {
+  fill: var(--ash);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.signal .key {
+  dominant-baseline: central;
+}
+
+.signal .note {
+  fill: var(--hazard);
+  text-anchor: middle;
+}
+
+.signal .pip {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.signal .pip.on {
+  fill: var(--signal);
+  stroke: var(--signal);
+}
+
+.signal .scale {
+  stroke: var(--line);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.signal .ticks {
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.signal .needle circle {
+  fill: var(--tar);
+  stroke-width: 4;
+}
+
+.signal .ridges {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.signal .knob.held .needle circle {
+  fill: var(--panel);
+  stroke-dasharray: 6 4;
+}
+
+.signal .knob.held .ridges {
+  stroke: var(--ash);
+}
+
+.signal .guide {
+  fill: var(--concrete);
+  opacity: 0.6;
+}
+
+.signal .hint {
+  fill: var(--hazard);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .signal .hint {
+    animation: signal-blink 0.6s steps(2, jump-none) infinite;
+  }
+}
+
+@keyframes signal-blink {
+  to {
+    opacity: 0.4;
+  }
+}

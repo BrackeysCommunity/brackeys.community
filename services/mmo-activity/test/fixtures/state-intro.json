@@ -1,0 +1,141 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [],
+    "inFight": true,
+    "walked": 14
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "Copperline",
+    "busy": 2
+  },
+  "fight": {
+    "id": "e-41",
+    "beat": 0,
+    "beats": 2,
+    "kind": "puzzle",
+    "creature": "glass-heron",
+    "ambush": false,
+    "machine": "rewire",
+    "options": [
+      {
+        "id": "hack",
+        "verb": "hack",
+        "kind": "win",
+        "band": "likely",
+        "risk": "none",
+        "riskSize": 0,
+        "puzzle": true,
+        "why": {
+          "parts": [
+            {
+              "label": "practice",
+              "value": 4,
+              "unit": "pts"
+            }
+          ],
+          "bandFrom": "likely",
+          "bandTo": "likely"
+        }
+      },
+      {
+        "id": "smash",
+        "verb": "smash",
+        "kind": "win",
+        "band": "long-shot",
+        "risk": "durability",
+        "riskSize": 6,
+        "why": {
+          "parts": [
+            {
+              "label": "force pts",
+              "value": 22,
+              "unit": "pts"
+            },
+            {
+              "label": "force at level",
+              "value": 30,
+              "unit": "pts"
+            },
+            {
+              "label": "practice",
+              "value": 2,
+              "unit": "pts"
+            }
+          ],
+          "rules": ["brittle-shatters"],
+          "bandFrom": "even",
+          "bandTo": "long-shot",
+          "notes": ["The casing is armoured."]
+        }
+      },
+      {
+        "id": "back-out",
+        "verb": "back out",
+        "kind": "way-out",
+        "band": "certain",
+        "risk": "haul",
+        "riskSize": 2,
+        "why": {
+          "parts": [],
+          "bandFrom": "certain",
+          "bandTo": "certain"
+        }
+      }
+    ]
+  },
+  "machine": {
+    "source": "beat",
+    "family": "rewire",
+    "name": "Rewire",
+    "layout": {
+      "family": "rewire",
+      "size": 3,
+      "decoys": 0,
+      "target": [1, 2, 0],
+      "glyph": [0, 1, 2],
+      "start": 0,
+      "goal": 0
+    },
+    "compact": false,
+    "preview": false,
+    "armed": false,
+    "practice": {
+      "level": 0,
+      "uses": 12,
+      "need": 20
+    },
+    "intro": true
+  }
+}

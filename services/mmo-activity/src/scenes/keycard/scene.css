@@ -1,0 +1,171 @@
+/* The reader: a speed gauge, the slot with its two gates, and the card. */
+.keycard text {
+  fill: var(--ash);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.keycard .status {
+  text-anchor: middle;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.keycard .status.bad {
+  fill: var(--hazard);
+}
+
+.keycard .label {
+  fill: var(--concrete);
+  font-size: 12px;
+}
+
+.keycard .label.end {
+  text-anchor: end;
+}
+
+.keycard .lamp circle {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.keycard .lamp .read {
+  display: none;
+  fill: none;
+  stroke: var(--tar);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.keycard .lamp.next circle {
+  stroke: var(--ash);
+  stroke-width: 3;
+  stroke-dasharray: 4 3;
+}
+
+.keycard .lamp.read circle {
+  fill: var(--signal);
+  stroke: var(--signal);
+}
+
+.keycard .lamp.read .read {
+  display: inline;
+}
+
+.keycard .strike circle {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.keycard .strike path {
+  display: none;
+  fill: none;
+  stroke: var(--rust);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.keycard .strike.on circle {
+  display: none;
+}
+
+.keycard .strike.on path {
+  display: inline;
+}
+
+.keycard .track {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.keycard .tick,
+.keycard .guide,
+.keycard .hint,
+.keycard .gate,
+.keycard .way {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.keycard .tick {
+  stroke: var(--hazard);
+  stroke-width: 3;
+}
+
+.keycard .tick.good {
+  stroke: var(--signal);
+  stroke-width: 4;
+}
+
+.keycard .pace {
+  fill: var(--ash);
+}
+
+.keycard .guide {
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 8;
+  opacity: 0.7;
+}
+
+.keycard .hint {
+  stroke: var(--hazard);
+  stroke-width: 4;
+}
+
+.keycard .slot {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.keycard .gate {
+  stroke: var(--ash);
+  stroke-width: 4;
+  stroke-dasharray: 8 6;
+}
+
+.keycard .way {
+  stroke: var(--line);
+  stroke-width: 3;
+}
+
+.keycard .card rect {
+  fill: var(--concrete);
+  stroke: var(--ash);
+  stroke-width: 3;
+}
+
+.keycard .card .stripe {
+  fill: var(--tar);
+  stroke: none;
+}
+
+.keycard .card .grip {
+  fill: none;
+  stroke: var(--tar);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.keycard .card.held rect:first-child {
+  stroke: var(--hazard);
+  stroke-dasharray: 6 4;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .keycard .hint {
+    animation: keycard-pulse 0.6s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes keycard-pulse {
+  to {
+    opacity: 0.35;
+  }
+}

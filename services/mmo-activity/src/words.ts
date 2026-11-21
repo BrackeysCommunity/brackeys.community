@@ -1,0 +1,148 @@
+import { names } from "virtual:pack";
+
+import type { Fact, Goods, HaywireLine, Option, PuzzleResult, Reason, Refusal } from "./api.ts";
+import { adds, amount, plural, quantity, seconds, signed, stopwatch } from "./units.ts";
+
+/** What the pack calls a row; an id it does not name is shown as written. */
+export function name(sheet: string, id: string): string {
+  return names[`${sheet}:${id}`] ?? sentence(id.replace(/-/g, " "));
+}
+
+/** Whether the pack names a row of a sheet. */
+export function named(sheet: string, id: string): boolean {
+  return `${sheet}:${id}` in names;
+}
+
+function sentence(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Every good's name in lower case, for the bare-number rule. */
+export function goodsNames(): Set<string> {
+  const out = new Set<string>();
+  for (const [ref, n] of Object.entries(names))
+    if (ref.startsWith("items.materials:")) out.add(n.toLowerCase());
+  return out;
+}
+
+export function goodsLine(goods: Goods[]): string {
+  if (goods.length === 0) return "nothing";
+  return goods
+    .map((g) => amount(g.units, name("items.materials", g.material).toLowerCase()))
+    .join(", ");
+}
+
+/** What a machine does when it fails, in one line. */
+export function haywireLine(h: HaywireLine): string {
+  const title = sentence(h.name);
+  switch (h.unit) {
+    case "durability":
+      return `${title}: ${amount(h.magnitude, "durability")} off the item in your hand`;
+    case "gauge":
+      return `${title}: ${adds(h.magnitude, "threat")} in the region`;
+    case "days":
+      return `${title}: shut to you for ${plural(h.magnitude, "world day")}`;
+    default: {
+      const state = h.tag ? name("fights.states", h.tag) : title;
+      // A haywire named for its effect lasts the encounter; any other counts beats.
+      return h.id === "short"
+        ? `${title}: you are ${state.toLowerCase()} for the rest of the encounter`
+        : `${title}: you are ${state.toLowerCase()} for ${plural(h.magnitude, "beat")}`;
+    }
+  }
+}
+
+const REASONS: Record<string, string> = {
+  family: "This kind of machine",
+  level: "Its level",
+  tier: "The creature's tier",
+  practice: "Your practice",
+};
+
+/** One line of a machine's why: what it is, and what it adds to the countdown. */
+export function reasonLine(r: Reason, first: boolean): string {
+  const label = REASONS[r.label] ?? sentence(r.label.replace(/-/g, " "));
+  return `${label}: ${first ? quantity(r.value, r.unit) : adds(r.value, r.unit)}`;
+}
+
+const RISK_UNIT: Record<string, string> = { durability: "durability", haul: "goods", coin: "coin" };
+
+/** What an option risks when it fails (GDD 7.3). */
+export function riskLine(o: Option): string {
+  if (!o.risk || o.risk === "none" || o.riskSize === 0) return "risks nothing";
+  if (o.risk === "wound") return "risks a wound";
+  if (o.risk === "first-strike") return "risks the first strike";
+  return `risks ${amount(o.riskSize, RISK_UNIT[o.risk] ?? o.risk.replace(/-/g, " "))}`;
+}
+
+const REFUSALS: Record<string, string> = {
+  "no-machine": "There is no machine here to work any more.",
+  "machine-armed": "A machine's countdown is running. Finish it first.",
+  "locked-down": "This machine has locked you out for now.",
+  "no-lesson": "There is no lesson to take here today.",
+  "needs-activity": "That one is a machine. Open it here to work it.",
+  stale: "The world moved on. This is how things stand now.",
+  busy: "Too many presses at once. Try again in a moment.",
+  down: "You are down and cannot act.",
+};
+
+/** Why the world turned a press down. Its own message says the rule when the code is not one of ours. */
+export function refusalLine(r: Refusal): string {
+  return REFUSALS[r.code] ?? r.message;
+}
+
+function datum(f: Fact, key: string): number | string | undefined {
+  const d = f.data.find((x) => x.k === key);
+  return d?.s ?? d?.n;
+}
+
+/**
+ * A fact as one line, for the kinds a machine writes. Any other kind is
+ * named without its numbers, since their units are not known here.
+ */
+export function factLine(f: Fact): string {
+  const family = datum(f, "family");
+  const machine = typeof family === "string" ? name("puzzles.families", family) : "The machine";
+  const n = (key: string) => Number(datum(f, key) ?? 0);
+  switch (f.kind) {
+    case "machine.armed":
+      return `${machine} armed.`;
+    case "puzzle.solved":
+      return `${machine} solved in ${stopwatch(n("ms"))}.`;
+    case "puzzle.haywire":
+      return n("late")
+        ? `${machine} went haywire: the countdown ran out.`
+        : `${machine} went haywire.`;
+    case "puzzle.mastered":
+      return `${machine} mastered.`;
+    case "practice.levelled":
+      return `Practice rose to ${quantity(n("level"), "level")}.`;
+    case "bench.solved":
+      return n("uses") > 0
+        ? `Bench solve: ${signed(n("uses"), n("uses") === 1 ? "use" : "uses")} of practice.`
+        : "Bench solve: today's bench practice is used up.";
+    case "lesson.taken":
+      return `Lesson taken in ${machine}.`;
+    case "pouch.opened":
+      return `Pouch opened: ${amount(n("goods"), "goods")}.`;
+    case "pouch.found":
+      return "A locked pouch found.";
+    default:
+      return `${sentence(f.kind.replace(/[.-]/g, " "))}.`;
+  }
+}
+
+/** What a move log became, as the server answered it. */
+export function resultLine(r: PuzzleResult, bench: boolean): string {
+  if (r.master) return `Solved, and the hidden panel with it, in ${stopwatch(r.at)}.`;
+  if (r.clean) return `A clean solve, in ${stopwatch(r.at)}.`;
+  if (r.solved) return `Solved in ${stopwatch(r.at)}.`;
+  if (bench) return "Not solved. The bench sets up another.";
+  if (r.late) return "The countdown ran out.";
+  return "The machine went haywire.";
+}
+
+/** A countdown as its ruler reads: "34 s left". */
+export function leftLine(ms: number): string {
+  return `${seconds(ms)} left`;
+}

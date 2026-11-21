@@ -1,0 +1,313 @@
+/* The wasteland look (GDD 16.5): ash and rust, one signal colour, flat
+   panels, pieces a thumb can drag. The colours are the pack's, set on the
+   root by theme.ts; the fallbacks only keep the page readable before that. */
+:root {
+  --ash: #c9c4b8;
+  --concrete: #8d8a82;
+  --rust: #a4482a;
+  --hazard: #e0b424;
+  --signal: #4fbf6a;
+  --tar: #1d1c1a;
+  --corruption: #b8358c;
+  --panel: color-mix(in srgb, var(--tar) 86%, var(--ash));
+  --line: color-mix(in srgb, var(--tar) 55%, var(--concrete));
+  --touch: 44px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+  background: var(--tar);
+  color: var(--ash);
+  font:
+    16px/1.4 "Rubik Variable",
+    system-ui,
+    sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  gap: 8px;
+}
+
+h2,
+h3 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+h2 {
+  font-size: 17px;
+}
+
+h3 {
+  font-size: 15px;
+}
+
+p {
+  margin: 0;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boot,
+.muted,
+.sub {
+  color: var(--concrete);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--line);
+}
+
+.bar .link {
+  margin-left: auto;
+  color: var(--hazard);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tabs:empty {
+  display: none;
+}
+
+main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.panel,
+.machine {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 2px solid var(--line);
+}
+
+.btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 8px 14px;
+  background: var(--tar);
+  color: var(--ash);
+  border: 2px solid var(--concrete);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.btn-main {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--tar);
+}
+
+.btn[aria-current="page"] {
+  border-color: var(--signal);
+  box-shadow: inset 0 -4px 0 var(--signal);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--hazard);
+  outline-offset: 2px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions:empty {
+  display: none;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 2px solid var(--line);
+  background: var(--tar);
+}
+
+.why {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.why li {
+  padding-left: 12px;
+  border-left: 4px solid var(--rust);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch);
+}
+
+.check input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--signal);
+}
+
+/* The machine fills what is left of the screen; its surface is the scene's. */
+.machine {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Two lines are kept for the note, so it can change without moving the
+   pieces under a finger. */
+.machine-status {
+  min-height: 2.8em;
+}
+
+.machine[data-phase="done"] .machine-status,
+.machine[data-phase="done"] .countdown,
+.result:empty {
+  display: none;
+}
+
+.countdown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-text {
+  min-width: 6.5em;
+}
+
+.countdown-bar {
+  flex: 1;
+  height: 12px;
+  border: 2px solid var(--concrete);
+}
+
+.countdown-fill {
+  height: 100%;
+  background: var(--signal);
+}
+
+/* Low time is said twice: the bar turns and the text is marked. */
+.countdown.low .countdown-fill {
+  background: var(--hazard);
+}
+
+.countdown.low .countdown-text::before {
+  content: "! ";
+}
+
+.surface {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  overflow: hidden;
+  background: var(--tar);
+  border: 2px solid var(--line);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.machine[data-phase="play"] .surface {
+  border-color: var(--hazard);
+}
+
+.machine[data-phase="sending"] .surface,
+.machine[data-phase="done"] .surface {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.machine[data-panel="1"] .surface {
+  border-color: var(--corruption);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 2px solid var(--signal);
+}
+
+.board {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.compact h2 {
+  font-size: 15px;
+}
+
+.compact .panel,
+.compact .machine {
+  padding: 8px;
+}

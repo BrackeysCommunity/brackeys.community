@@ -1,0 +1,109 @@
+/* The terminal: a screen that shows the sequence, and the pads it is
+   pressed back on. */
+.override .screen {
+  fill: var(--panel);
+  stroke: var(--corruption);
+  stroke-width: 2;
+}
+
+.override .said {
+  fill: var(--ash);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.override .lamp {
+  display: none;
+}
+
+.override .lamp.on {
+  display: inline;
+}
+
+/* Rounds done are filled, the round in play is ringed twice as thick,
+   rounds to come are hollow. */
+.override .pip {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.override .pip.now {
+  stroke: var(--ash);
+  stroke-width: 4;
+}
+
+.override .pip.done {
+  fill: var(--signal);
+  stroke: var(--signal);
+}
+
+.override .entered {
+  fill: var(--line);
+}
+
+.override .entered.on {
+  fill: var(--ash);
+}
+
+.override .pad > rect:first-child {
+  fill: var(--panel);
+  stroke-width: 3;
+}
+
+.override .tag {
+  fill: var(--ash);
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.override .ring {
+  display: none;
+  fill: none;
+  pointer-events: none;
+}
+
+/* A pad on show swells its border and inverts; a pressed one sinks. */
+.override .pad.shown > rect:first-child {
+  fill: var(--ash);
+  stroke-width: 8;
+}
+
+.override .pad.shown .tag {
+  fill: var(--tar);
+}
+
+.override .pad.pressed > rect:first-child {
+  fill: var(--tar);
+  stroke-dasharray: 8 5;
+}
+
+.override .pad.guided .ring {
+  display: inline;
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 9;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.override .pad.hinted .ring {
+  display: inline;
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-dasharray: 10 8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .override .pad.hinted .ring {
+    animation: override-march 0.6s linear infinite;
+  }
+}
+
+@keyframes override-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}

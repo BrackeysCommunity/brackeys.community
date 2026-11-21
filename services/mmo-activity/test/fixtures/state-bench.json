@@ -1,0 +1,228 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "rewire",
+        "level": 16
+      },
+      {
+        "id": "lock-pins",
+        "level": 6
+      },
+      {
+        "id": "circuit",
+        "level": 2
+      },
+      {
+        "id": "crank",
+        "level": 1
+      }
+    ],
+    "inFight": false,
+    "walked": 14,
+    "titles": ["rewire"]
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "Copperline",
+    "busy": 3
+  },
+  "bench": {
+    "settlement": "Copperline",
+    "families": [
+      {
+        "family": "rewire",
+        "name": "Rewire",
+        "practice": {
+          "level": 16,
+          "uses": 40,
+          "need": 340,
+          "title": "Router"
+        },
+        "maxLevel": 11,
+        "lessons": 0,
+        "master": true
+      },
+      {
+        "family": "lock-pins",
+        "name": "Pin lock",
+        "practice": {
+          "level": 6,
+          "uses": 3,
+          "need": 140
+        },
+        "maxLevel": 6,
+        "lessons": 2
+      },
+      {
+        "family": "lock-dial",
+        "name": "Dial lock",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "lock-maze",
+        "name": "Tumbler maze",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "circuit",
+        "name": "Circuit",
+        "practice": {
+          "level": 2,
+          "uses": 10,
+          "need": 60
+        },
+        "maxLevel": 4,
+        "lessons": 0
+      },
+      {
+        "family": "signal",
+        "name": "Signal",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "fuse",
+        "name": "Fuse",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "override",
+        "name": "Override",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "pressure",
+        "name": "Pressure",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 2
+      },
+      {
+        "family": "crank",
+        "name": "Crank",
+        "practice": {
+          "level": 1,
+          "uses": 5,
+          "need": 40
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "leak",
+        "name": "Leak",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "keycard",
+        "name": "Keycard",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "scrub",
+        "name": "Scrub",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      },
+      {
+        "family": "splice",
+        "name": "Splice",
+        "practice": {
+          "level": 0,
+          "uses": 0,
+          "need": 20
+        },
+        "maxLevel": 3,
+        "lessons": 0
+      }
+    ],
+    "uses": 3,
+    "usesCap": 20,
+    "taken": 1,
+    "takenCap": 3,
+    "given": 0,
+    "givenCap": 5
+  }
+}

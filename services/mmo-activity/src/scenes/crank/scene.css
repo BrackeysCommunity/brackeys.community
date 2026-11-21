@@ -1,0 +1,146 @@
+/* The dynamo: a speed gauge with its band and blow mark, and the crank. */
+.crank text {
+  fill: var(--ash);
+  text-anchor: middle;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.crank .status {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.crank .status.fast {
+  fill: var(--hazard);
+}
+
+.crank .status.spike {
+  text-decoration: underline;
+}
+
+.crank .mark {
+  fill: var(--concrete);
+  font-size: 12px;
+}
+
+.crank .mark.end {
+  text-anchor: end;
+}
+
+.crank .warn {
+  fill: var(--hazard);
+}
+
+.crank .track {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.crank .band {
+  fill: color-mix(in srgb, var(--signal) 22%, transparent);
+  stroke: var(--signal);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.crank .blow {
+  fill: color-mix(in srgb, var(--rust) 45%, transparent);
+}
+
+.crank .hatch {
+  fill: none;
+  stroke: var(--rust);
+  stroke-width: 2;
+}
+
+.crank .needle {
+  fill: var(--ash);
+  stroke: var(--ash);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.crank .charge {
+  fill: var(--signal);
+}
+
+.crank .wheel .rim {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 6;
+}
+
+.crank .wheel.loaded .rim {
+  stroke: var(--hazard);
+  stroke-dasharray: 14 8;
+}
+
+.crank .wheel .spokes {
+  stroke: var(--line);
+  stroke-width: 5;
+}
+
+.crank .wheel .hub {
+  fill: var(--concrete);
+}
+
+.crank .wheel .knob {
+  fill: var(--panel);
+  stroke: var(--ash);
+  stroke-width: 4;
+}
+
+.crank .wheel.held .knob {
+  stroke: var(--hazard);
+  stroke-dasharray: 6 4;
+}
+
+.crank .wheel .grip {
+  fill: var(--ash);
+}
+
+.crank .way,
+.crank .guide,
+.crank .hint {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.crank .way {
+  stroke: var(--concrete);
+  stroke-width: 4;
+  opacity: 0.8;
+}
+
+.crank .guide {
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 10;
+  opacity: 0.7;
+}
+
+.crank .hint {
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-dasharray: 10 8;
+}
+
+.crank .off {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .crank .hint {
+    animation: crank-march 0.6s linear infinite;
+  }
+}
+
+@keyframes crank-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}

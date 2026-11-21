@@ -1,0 +1,143 @@
+/* The fouled panel: glass cells under layers of grit. */
+.scrub text {
+  fill: var(--ash);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.scrub .legend {
+  fill: var(--concrete);
+  font-size: 12px;
+  text-anchor: middle;
+}
+
+.scrub .track {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.scrub .fill {
+  fill: var(--signal);
+}
+
+.scrub .glass {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.scrub .what,
+.scrub .haze,
+.scrub .tick,
+.scrub .warn,
+.scrub .ring,
+.scrub .dot {
+  display: none;
+  pointer-events: none;
+}
+
+.scrub .cell.hazy .what,
+.scrub .cell.clean .what {
+  display: inline;
+}
+
+.scrub .cell.reading .what {
+  fill: var(--signal);
+}
+
+.scrub .cell.crack .what {
+  fill: none;
+  stroke: var(--rust);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.scrub .cell.crack .glass {
+  stroke: var(--rust);
+  stroke-dasharray: 6 4;
+}
+
+.scrub .grit {
+  fill: var(--concrete);
+}
+
+.scrub .cell.hazy .grit {
+  opacity: 0.4;
+}
+
+.scrub .cell.clean .grit {
+  display: none;
+}
+
+.scrub .cell.hazy .haze {
+  display: inline;
+  fill: none;
+  stroke: var(--ash);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.scrub .dot.on {
+  display: inline;
+  fill: var(--tar);
+}
+
+.scrub .cell.clean.reading .tick {
+  display: inline;
+  fill: none;
+  stroke: var(--ash);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.scrub .cell.warned .warn {
+  display: inline;
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.scrub .cell.hinted .ring,
+.scrub .cell.guided .ring {
+  display: inline;
+  fill: none;
+}
+
+.scrub .cell.hinted .ring {
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-dasharray: 10 8;
+}
+
+.scrub .cell.guided .ring {
+  stroke: var(--tar);
+  stroke-width: 3;
+  stroke-dasharray: 2 8;
+  opacity: 0.8;
+}
+
+.scrub .wipe {
+  fill: none;
+  stroke: var(--ash);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scrub .cell.hinted .ring {
+    animation: scrub-march 0.6s linear infinite;
+  }
+}
+
+@keyframes scrub-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}

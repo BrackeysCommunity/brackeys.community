@@ -1,0 +1,173 @@
+/* The pin lock from the side: chambers, springs, drivers over key pins,
+   and the line every cut has to meet. */
+.lock-pins .chamber {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.lock-pins .line {
+  stroke: var(--ash);
+  stroke-width: 2;
+  stroke-dasharray: 8 5;
+  pointer-events: none;
+}
+
+.lock-pins .spring {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.lock-pins .driver {
+  fill: var(--concrete);
+  stroke: var(--tar);
+  stroke-width: 2;
+}
+
+.lock-pins .key {
+  fill: var(--rust);
+  stroke: var(--tar);
+  stroke-width: 2;
+}
+
+.lock-pins .cut {
+  fill: var(--ash);
+}
+
+.lock-pins .stem {
+  fill: var(--line);
+}
+
+.lock-pins .grip circle {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 3;
+}
+
+.lock-pins .tag,
+.lock-pins .tell {
+  fill: var(--ash);
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.lock-pins .tag {
+  dominant-baseline: central;
+}
+
+.lock-pins .tell {
+  font-size: 14px;
+}
+
+.lock-pins .glow,
+.lock-pins .tick,
+.lock-pins .lead {
+  display: none;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The cut is on the line: let go here. */
+.lock-pins .pin.level .glow {
+  display: inline;
+  stroke: var(--hazard);
+  stroke-width: 6;
+}
+
+.lock-pins .pin.set .glow {
+  display: inline;
+  stroke: var(--signal);
+  stroke-width: 6;
+}
+
+.lock-pins .pin.set .tick {
+  display: inline;
+  stroke: var(--signal);
+  stroke-width: 4;
+}
+
+.lock-pins .pin.set .tag {
+  display: none;
+}
+
+.lock-pins .pin.set .grip circle {
+  stroke: var(--signal);
+}
+
+.lock-pins .pin.held .grip circle {
+  fill: var(--panel);
+  stroke: var(--ash);
+}
+
+/* A binding pin is stiff under the pick: a taut spring and a solid ring.
+   A loose one rattles. */
+.lock-pins .pin.binds .spring {
+  stroke: var(--hazard);
+  stroke-width: 4;
+}
+
+.lock-pins .pin.binds .grip circle {
+  stroke: var(--hazard);
+  stroke-width: 5;
+}
+
+.lock-pins .pin.loose .grip circle {
+  stroke-dasharray: 4 5;
+}
+
+.lock-pins .pin.guided .lead {
+  display: inline;
+  stroke: var(--concrete);
+  stroke-width: 3;
+  opacity: 0.6;
+}
+
+.lock-pins .pin.hinted .lead {
+  display: inline;
+  stroke: var(--hazard);
+  stroke-width: 5;
+}
+
+.lock-pins .pin.hinted .chamber {
+  stroke: var(--hazard);
+  stroke-dasharray: 10 8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lock-pins .pin.loose .grip {
+    animation: lock-pins-rattle 0.12s linear infinite;
+  }
+
+  .lock-pins .pin.hinted .chamber {
+    animation: lock-pins-march 0.6s linear infinite;
+  }
+
+  .lock-pins.slip {
+    animation: lock-pins-slip 0.35s ease-out;
+  }
+}
+
+@keyframes lock-pins-rattle {
+  50% {
+    translate: 2px 0;
+  }
+}
+
+@keyframes lock-pins-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+@keyframes lock-pins-slip {
+  20% {
+    translate: 0 5px;
+  }
+
+  60% {
+    translate: 0 -2px;
+  }
+}

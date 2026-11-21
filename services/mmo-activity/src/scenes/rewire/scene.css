@@ -1,0 +1,84 @@
+/* The junction box: ports, seats, cables and plugs. */
+.rewire .port,
+.rewire .source {
+  fill: var(--panel);
+  stroke-width: 3;
+}
+
+.rewire .seat {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3;
+  stroke-dasharray: 5 5;
+}
+
+.rewire .seat.live {
+  stroke: var(--signal);
+  stroke-dasharray: none;
+}
+
+.rewire .cable {
+  fill: none;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.rewire .plug circle {
+  fill: var(--tar);
+  stroke-width: 4;
+}
+
+.rewire .plug .tick {
+  display: none;
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rewire .plug.seated .tick {
+  display: inline;
+}
+
+.rewire .plug.held circle,
+.rewire .plug.chosen circle {
+  fill: var(--panel);
+  stroke-dasharray: 6 4;
+}
+
+.rewire .tag {
+  fill: var(--ash);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.rewire .guide {
+  fill: none;
+  stroke: var(--concrete);
+  stroke-width: 3;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+.rewire .hint {
+  fill: none;
+  stroke: var(--hazard);
+  stroke-width: 5;
+  stroke-dasharray: 10 8;
+  stroke-linecap: round;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rewire .hint {
+    animation: rewire-march 0.6s linear infinite;
+  }
+}
+
+@keyframes rewire-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
