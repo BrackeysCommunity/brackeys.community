@@ -82,6 +82,7 @@ type economyResult struct {
 	reports []game.Report
 	guild   guildResult
 	classes classResult
+	digest  string // the world at the soak's end, to tell two builds apart
 }
 
 // EconomyRun soaks the economy (GDD 10) at each of economySizes, or n
@@ -109,13 +110,13 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 			return nil, fmt.Errorf("economy run at %d: %w", size, err)
 		}
 		results = append(results, r)
-		fmt.Fprintf(os.Stderr, "economy %d: %s, %d actions, %d refused\n", size, r.elapsed.Round(time.Second), r.actions, r.refused)
+		fmt.Fprintf(os.Stderr, "economy %d: %s, %d actions, %d refused, digest %s\n", size, r.elapsed.Round(time.Second), r.actions, r.refused, r.digest)
 	}
 	fr, err := soak(b, founders(b), foundersDays)
 	if err != nil {
 		return nil, fmt.Errorf("economy run, the founding world: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "economy founding: %s, %d actions, %d refused\n", fr.elapsed.Round(time.Second), fr.actions, fr.refused)
+	fmt.Fprintf(os.Stderr, "economy founding: %s, %d actions, %d refused, digest %s\n", fr.elapsed.Round(time.Second), fr.actions, fr.refused, fr.digest)
 	fp := faucet.ParamsOf(b.EconomyParams)
 	lo, hi := fp.Low, fp.High
 	allHold, allDrift, clean := true, true, true
@@ -363,6 +364,11 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	}
 	res.guild.close(g, stocked)
 	res.classes = classesOf(g, players)
+	sum, err := g.Digest()
+	if err != nil {
+		return res, err
+	}
+	res.digest = sum.String()
 	res.elapsed = time.Since(start)
 	return res, nil
 }

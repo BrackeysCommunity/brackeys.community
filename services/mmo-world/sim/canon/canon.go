@@ -27,9 +27,25 @@ const (
 var ErrFloat = errors.New("canon: floats have no canonical form; use fixed.F")
 
 // Marshal returns the canonical encoding of v.
-func Marshal(v any) ([]byte, error) {
-	var b []byte
-	b, err := encode(b, reflect.ValueOf(v))
+func Marshal(v any) ([]byte, error) { return new(Encoder).Marshal(v) }
+
+// Encoder is Marshal for a caller that encodes the same types again and
+// again: it reads a struct type's fields once. The zero value is ready.
+type Encoder struct {
+	fields map[reflect.Type][]field
+}
+
+// field is a struct field as members reads it.
+type field struct {
+	index    int
+	name     string
+	omit     bool // omitempty
+	embedded bool // an untagged embedded struct, whose fields are promoted
+}
+
+// Marshal returns the canonical encoding of v.
+func (e *Encoder) Marshal(v any) ([]byte, error) {
+	b, err := e.encode(nil, reflect.ValueOf(v))
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +66,7 @@ func Digest(v any) (Sum, error) {
 	return sha256.Sum256(b), nil
 }
 
-func encode(b []byte, v reflect.Value) ([]byte, error) {
+func (e *Encoder) encode(b []byte, v reflect.Value) ([]byte, error) {
 	if !v.IsValid() {
 		return append(b, "null"...), nil
 	}
@@ -59,7 +75,7 @@ func encode(b []byte, v reflect.Value) ([]byte, error) {
 		if v.IsNil() {
 			return append(b, "null"...), nil
 		}
-		return encode(b, v.Elem())
+		return e.encode(b, v.Elem())
 	case reflect.Bool:
 		return strconv.AppendBool(b, v.Bool()), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -74,29 +90,29 @@ func encode(b []byte, v reflect.Value) ([]byte, error) {
 		if v.IsNil() {
 			return append(b, "null"...), nil
 		}
-		return encodeList(b, v)
+		return e.encodeList(b, v)
 	case reflect.Array:
-		return encodeList(b, v)
+		return e.encodeList(b, v)
 	case reflect.Map:
 		if v.IsNil() {
 			return append(b, "null"...), nil
 		}
-		return encodeMap(b, v)
+		return e.encodeMap(b, v)
 	case reflect.Struct:
-		return encodeStruct(b, v)
+		return e.encodeStruct(b, v)
 	default:
 		return nil, fmt.Errorf("canon: cannot encode %s", v.Type())
 	}
 }
 
-func encodeList(b []byte, v reflect.Value) ([]byte, error) {
+func (e *Encoder) encodeList(b []byte, v reflect.Value) ([]byte, error) {
 	b = append(b, '[')
 	for i := range v.Len() {
 		if i > 0 {
 			b = append(b, ',')
 		}
 		var err error
-		if b, err = encode(b, v.Index(i)); err != nil {
+		if b, err = e.encode(b, v.Index(i)); err != nil {
 			return nil, err
 		}
 	}
@@ -108,7 +124,7 @@ type member struct {
 	val  reflect.Value
 }
 
-func encodeMembers(b []byte, ms []member) ([]byte, error) {
+func (e *Encoder) encodeMembers(b []byte, ms []member) ([]byte, error) {
 	slices.SortFunc(ms, func(x, y member) int { return strings.Compare(x.name, y.name) })
 	b = append(b, '{')
 	for i, m := range ms {
@@ -123,14 +139,14 @@ func encodeMembers(b []byte, ms []member) ([]byte, error) {
 			return nil, err
 		}
 		b = append(b, ':')
-		if b, err = encode(b, m.val); err != nil {
+		if b, err = e.encode(b, m.val); err != nil {
 			return nil, err
 		}
 	}
 	return append(b, '}'), nil
 }
 
-func encodeMap(b []byte, v reflect.Value) ([]byte, error) {
+func (e *Encoder) encodeMap(b []byte, v reflect.Value) ([]byte, error) {
 	keys := v.MapKeys()
 	ms := make([]member, 0, len(keys))
 	for _, k := range keys {
@@ -147,35 +163,64 @@ func encodeMap(b []byte, v reflect.Value) ([]byte, error) {
 		}
 		ms = append(ms, member{name, v.MapIndex(k)})
 	}
-	return encodeMembers(b, ms)
+	return e.encodeMembers(b, ms)
 }
 
-func encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
-	ms, err := members(v)
+func (e *Encoder) encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
+	ms, err := e.members(v)
 	if err != nil {
 		return nil, err
 	}
-	return encodeMembers(b, ms)
+	return e.encodeMembers(b, ms)
 }
 
 // members are a struct's fields as JSON names them. An untagged embedded
 // struct's fields are promoted as encoding/json promotes them, so a digest
 // survives a JSON round trip; a field of the outer struct wins a clash.
-func members(v reflect.Value) ([]member, error) {
-	t := v.Type()
-	ms := make([]member, 0, t.NumField())
+func (e *Encoder) members(v reflect.Value) ([]member, error) {
+	fs, err := e.fieldsOf(v.Type())
+	if err != nil {
+		return nil, err
+	}
+	ms := make([]member, 0, len(fs))
 	var promoted []member
+	for _, f := range fs {
+		fv := v.Field(f.index)
+		if f.embedded {
+			inner, err := e.members(fv)
+			if err != nil {
+				return nil, err
+			}
+			promoted = append(promoted, inner...)
+			continue
+		}
+		if f.omit && empty(fv) {
+			continue
+		}
+		ms = append(ms, member{f.name, fv})
+	}
+	for _, p := range promoted {
+		if !slices.ContainsFunc(ms, func(m member) bool { return m.name == p.name }) {
+			ms = append(ms, p)
+		}
+	}
+	return ms, nil
+}
+
+// fieldsOf are the fields of a struct type that members encodes, in
+// declaration order.
+func (e *Encoder) fieldsOf(t reflect.Type) ([]field, error) {
+	if fs, ok := e.fields[t]; ok {
+		return fs, nil
+	}
+	fs := make([]field, 0, t.NumField())
 	for i := range t.NumField() {
 		f := t.Field(i)
 		if f.Anonymous && f.Tag.Get("json") == "" {
 			if f.Type.Kind() != reflect.Struct {
 				return nil, fmt.Errorf("canon: embedded field %s in %s", f.Name, t)
 			}
-			inner, err := members(v.Field(i))
-			if err != nil {
-				return nil, err
-			}
-			promoted = append(promoted, inner...)
+			fs = append(fs, field{index: i, embedded: true})
 			continue
 		}
 		if !f.IsExported() {
@@ -188,18 +233,13 @@ func members(v reflect.Value) ([]member, error) {
 		if name == "" {
 			name = f.Name
 		}
-		fv := v.Field(i)
-		if hasOpt(opts, "omitempty") && empty(fv) {
-			continue
-		}
-		ms = append(ms, member{name, fv})
+		fs = append(fs, field{index: i, name: name, omit: hasOpt(opts, "omitempty")})
 	}
-	for _, p := range promoted {
-		if !slices.ContainsFunc(ms, func(m member) bool { return m.name == p.name }) {
-			ms = append(ms, p)
-		}
+	if e.fields == nil {
+		e.fields = map[reflect.Type][]field{}
 	}
-	return ms, nil
+	e.fields[t] = fs
+	return fs, nil
 }
 
 // empty is omitempty's test. Like encoding/json it drops a non-nil

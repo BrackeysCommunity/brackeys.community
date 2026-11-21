@@ -52,6 +52,60 @@ type Market struct {
 	Notable   []Trade `json:"notable"`
 	Yesterday []Trade `json:"yesterday"`
 	Held      []Held  `json:"held"`
+	open      openIndex
+}
+
+// openIndex is how many open orders, listings and gear orders each account
+// holds, so that asking does not walk every book. It is kept in step where
+// they come and go, and counted afresh whenever the market's sequence
+// number or size is not as it last saw them: every new one takes a
+// sequence number, so with neither changed none came or went unseen.
+type openIndex struct {
+	by        map[string]int64
+	seq, size int64
+}
+
+// size is how many orders, listings and gear orders are open.
+func (m *Market) size() int64 {
+	n := len(m.Listings) + len(m.Wants)
+	for _, b := range m.Books {
+		n += len(b.Bids) + len(b.Asks)
+	}
+	return int64(n)
+}
+
+// openOf is how many open orders, listings and gear orders an account holds.
+func (m *Market) openOf(acc string) int64 {
+	x := &m.open
+	if size := m.size(); x.by == nil || x.seq != m.Seq || x.size != size {
+		x.by, x.seq, x.size = map[string]int64{}, m.Seq, size
+		for _, b := range m.Books {
+			for o := range b.Orders() {
+				x.by[o.Owner]++
+			}
+		}
+		for _, l := range m.Listings {
+			x.by[l.Seller]++
+		}
+		for _, w := range m.Wants {
+			x.by[w.Buyer]++
+		}
+	}
+	return x.by[acc]
+}
+
+// opened notes that an account holds n more open orders, or -n fewer.
+func (m *Market) opened(acc string, n int64) {
+	x := &m.open
+	if x.by == nil {
+		return
+	}
+	x.by[acc] += n
+	if x.by[acc] == 0 {
+		delete(x.by, acc)
+	}
+	x.size += n
+	x.seq = m.Seq
 }
 
 // Trade is one fill as the forum and the lists show it.
@@ -254,7 +308,12 @@ func (g *Game) opens(acc string, escrow bool) iter.Seq[Open] {
 }
 
 // OpenOrders counts a character's open orders, listings and gear orders.
-func (g *Game) OpenOrders(c *Char) int64 { return count(g.opens(ledger.Char(c.C.ID), false)) }
+func (g *Game) OpenOrders(c *Char) int64 {
+	if g.Market == nil {
+		return 0
+	}
+	return g.Market.openOf(ledger.Char(c.C.ID))
+}
 
 func count[T any](seq iter.Seq[T]) int64 {
 	var n int64
@@ -315,6 +374,7 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 		return err
 	}
 	b.Add(o)
+	g.Market.opened(acc, 1)
 	if _, err := g.fact(c, "order.placed", g.Tick(), fact.S("material", cmd.Material), fact.S("side", string(side)), fact.N("units", o.Qty), fact.N("price", o.Price)); err != nil {
 		return err
 	}
@@ -323,6 +383,7 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 	}
 	if !keep {
 		if _, ok := b.Remove(id); ok {
+			g.Market.opened(acc, -1)
 			return g.unescrow(id, acc, ledger.SubKey(cmd.Key, "rest"))
 		}
 	}
@@ -430,6 +491,15 @@ func (g *Game) charOf(acc string) *Char {
 // match fills a book and settles each fill.
 func (g *Game) match(b *market.Book, key string) error {
 	fills := market.Match(b, g.Tick(), func(bid, ask market.Order) bool { return g.mayNotTrade(b, bid, ask) })
+	for _, f := range fills {
+		for _, id := range f.Closed {
+			owner := f.Ask.Owner
+			if id == f.Bid.ID {
+				owner = f.Bid.Owner
+			}
+			g.Market.opened(owner, -1)
+		}
+	}
 	for i, f := range fills {
 		if err := g.settle(b, f, ledger.SubKey(key, "fill", strconv.Itoa(i))); err != nil {
 			return err
@@ -639,7 +709,9 @@ func (g *Game) closeOrder(o Open, key string) error {
 		m.takeWant(o.ID)
 	default:
 		if b := g.BookOf(o.Settlement, o.Material); b != nil {
-			b.Remove(o.ID)
+			if _, ok := b.Remove(o.ID); ok {
+				m.opened(o.Owner, -1)
+			}
 		}
 	}
 	return g.unescrow(o.ID, o.Owner, key)
@@ -653,6 +725,7 @@ func (m *Market) takeListing(id string) (market.Listing, bool) {
 	}
 	l := m.Listings[i]
 	m.Listings = slices.Delete(m.Listings, i, i+1)
+	m.opened(l.Seller, -1)
 	return l, true
 }
 
@@ -664,6 +737,7 @@ func (m *Market) takeWant(id string) (market.Want, bool) {
 	}
 	w := m.Wants[i]
 	m.Wants = slices.Delete(m.Wants, i, i+1)
+	m.opened(w.Buyer, -1)
 	return w, true
 }
 
@@ -714,7 +788,12 @@ func (g *Game) buyers() []econ.Buyer {
 func (g *Game) postFactionOrders(t int64) error {
 	m := g.Market
 	for _, b := range m.Books {
-		b.Bids = slices.DeleteFunc(b.Bids, func(o market.Order) bool { return o.Faction != nil })
+		b.Bids = slices.DeleteFunc(b.Bids, func(o market.Order) bool {
+			if o.Faction != nil {
+				m.opened(o.Owner, -1)
+			}
+			return o.Faction != nil
+		})
 	}
 	budgets := g.Budgets()
 	wants := g.r.Values.Wants(g.buyers())
@@ -743,6 +822,7 @@ func (g *Game) postFactionOrders(t int64) error {
 			id, seq := g.nextID("f-")
 			b := g.Book(n, w.Material)
 			b.Add(market.Order{ID: id, Owner: owner, Side: market.Bid, Price: w.Price, Qty: qty[i], Placed: t, Expires: t + sheets.TicksPerDay, Seq: seq, Faction: &fi})
+			m.opened(owner, 1)
 			if err := g.match(b, ledger.SubKey("day", strconv.FormatInt(t/sheets.TicksPerDay, decimal), strconv.Itoa(n), w.Material)); err != nil {
 				return err
 			}

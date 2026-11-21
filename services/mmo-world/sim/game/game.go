@@ -60,6 +60,8 @@ type Rules struct {
 	roll            draw.Key
 	weights         fact.Weights
 	limits          char.Limits
+	// shifts are the measures' shifts by classes held (see shiftsOf).
+	shifts map[string]map[string]tags.Shift
 }
 
 // NewRules wires the systems under a world's keys.
@@ -80,7 +82,7 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 		Values: econ.New(b), Faucet: faucet.ParamsOf(b.EconomyParams), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
 		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params()),
 		Settle: settle.ParamsOf(b.SettlementParams), Guild: guild.ParamsOf(b.SettlementParams), Class: class.ParamsOf(b.ClassParams),
-		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}}
+		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}, shifts: map[string]map[string]tags.Shift{}}
 	for i := range b.Structures {
 		r.structures[b.Structures[i].ID] = &b.Structures[i]
 	}

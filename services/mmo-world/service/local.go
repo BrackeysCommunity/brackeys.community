@@ -59,8 +59,11 @@ func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply
 	if out.ref != nil {
 		return api.ActionReply{}, out.ref, nil
 	}
-	rep, err := decodeReply(out.body, out.dup)
-	return rep, nil, err
+	if out.dup {
+		rep, err := storedReply(out.body)
+		return rep, nil, err
+	}
+	return out.reply, nil, nil
 }
 
 func (l *Local) Options(_ context.Context, id string) (api.Options, error) {

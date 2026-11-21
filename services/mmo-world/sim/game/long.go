@@ -69,32 +69,45 @@ const (
 // EnterCost is what stepping from one tile onto the next costs a character
 // now, and why: terrain, a suited mount, hunger.
 func (g *Game) EnterCost(c *Char, from, to hex.Hex, tick int64) (int64, []Part, bool) {
+	var why []Part
+	cost, ok := g.enterCost(c, from, to, tick, g.Laden(c), &why)
+	return cost, why, ok
+}
+
+// enterCost is EnterCost for a character whose load is already weighed,
+// so a search over many tiles weighs it once; a nil why keeps no parts.
+func (g *Game) enterCost(c *Char, from, to hex.Hex, tick int64, laden bool, why *[]Part) (int64, bool) {
 	cost, ok := g.World.EnterTicks(from, to)
 	if !ok {
-		return 0, nil, false
+		return 0, false
 	}
-	why := []Part{{"terrain", cost, unitTicks}}
+	part := func(what string, n int64) {
+		if why != nil {
+			*why = append(*why, Part{what, n, unitTicks})
+		}
+	}
+	part("terrain", cost)
 	if low, ok := g.lowWater(to, cost); ok {
-		why = append(why, Part{TrigLowWater, low - cost, unitTicks})
+		part(TrigLowWater, low-cost)
 		cost = low
 	}
 	if m := c.C.In(char.Mount, 0); m != nil {
 		if r := g.r.Mounts.EnterTicks(m, cost, g.ground(to), c.Fed()); r != cost {
-			why = append(why, Part{"mount", r - cost, unitTicks})
+			part("mount", r-cost)
 			cost = r
 		}
 	}
 	if c.C.Has(char.Hungry, tick) {
 		n := g.r.wp("hungry-enter-ticks")
-		why = append(why, Part{char.Hungry, n, unitTicks})
+		part(char.Hungry, n)
 		cost += n
 	}
-	if g.Laden(c) {
+	if laden {
 		n := g.r.wp("laden-enter-ticks")
-		why = append(why, Part{"laden", n, unitTicks})
+		part("laden", n)
 		cost += n
 	}
-	return cost, why, true
+	return cost, true
 }
 
 // ground is what a mount reads of a tile.
@@ -110,13 +123,12 @@ func (g *Game) ground(h hex.Hex) item.Ground {
 // Route is the quickest known way to a tile: only tiles someone has
 // entered, the destination too.
 func (g *Game) Route(c *Char, to hex.Hex) ([]hex.Hex, int64, bool) {
-	tick := g.Tick()
+	tick, laden := g.Tick(), g.Laden(c)
 	step := func(from, n hex.Hex) (int64, bool) {
 		if t := g.World.Tile(n); t == nil || t.Discovered == nil {
 			return 0, false
 		}
-		cost, _, ok := g.EnterCost(c, from, n, tick)
-		return cost, ok
+		return g.enterCost(c, from, n, tick, laden, nil)
 	}
 	path, cost, ok := hex.Path(c.C.At, to, step, 1, 0)
 	if !ok || len(path) <= 1 {

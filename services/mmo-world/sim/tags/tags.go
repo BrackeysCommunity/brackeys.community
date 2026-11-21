@@ -529,23 +529,35 @@ func Of(ss []string) []Tag {
 	return out
 }
 
+// Shift is what a set of effects does to a measure: its Scale percents
+// summed, and its Adds.
+type Shift struct{ Percent, Count int64 }
+
+// On is base after the shift.
+func (s Shift) On(base int64) int64 { return base + base*s.Percent/fixed.Hundredths + s.Count }
+
+// Shifts are the shifts effects make, by measure.
+func Shifts(effects []Effect) map[string]Shift {
+	out := map[string]Shift{}
+	for _, e := range effects {
+		switch e := e.(type) {
+		case Scale:
+			s := out[e.Measure]
+			s.Percent += e.Percent
+			out[e.Measure] = s
+		case Add:
+			s := out[e.Measure]
+			s.Count += e.Count
+			out[e.Measure] = s
+		case AddTag, RemoveTag, Band, Join, End, Score:
+		}
+	}
+	return out
+}
+
 // Adjust is a measure after every rule the subject fires: base scaled by
 // the sum of the Scale percents on it, plus the Adds to it.
 func Adjust(rules []Rule, subject TagSet, ctx Context, measure string, base int64) int64 {
 	effects, _ := Apply(rules, subject, ctx)
-	var pct, add int64
-	for _, e := range effects {
-		switch e := e.(type) {
-		case Scale:
-			if e.Measure == measure {
-				pct += e.Percent
-			}
-		case Add:
-			if e.Measure == measure {
-				add += e.Count
-			}
-		case AddTag, RemoveTag, Band, Join, End, Score:
-		}
-	}
-	return base + base*pct/fixed.Hundredths + add
+	return Shifts(effects)[measure].On(base)
 }

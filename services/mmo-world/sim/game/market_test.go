@@ -39,6 +39,8 @@ func newTraders(t *testing.T, n int) (*game.Game, []*trader) {
 		}
 		out = append(out, &trader{t: t, g: g, c: res.Char})
 	}
+	// Asking once starts the kept count, which audit then checks.
+	g.OpenOrders(out[0].c)
 	return g, out
 }
 
@@ -70,6 +72,9 @@ func audit(t *testing.T, g *game.Game) {
 	t.Helper()
 	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
 		t.Fatalf("audit: %v", bad)
+	}
+	if fault := g.OpenIndexFault(); fault != "" {
+		t.Fatalf("open orders: %s", fault)
 	}
 }
 
