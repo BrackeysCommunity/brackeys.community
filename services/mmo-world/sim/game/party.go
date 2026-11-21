@@ -149,10 +149,11 @@ func (g *Game) quitParty(c *Char, tick int64) error {
 }
 
 // waitsOnMachine reports whether a kind waits while its character's party
-// has a machine armed: nothing may resolve the beat or the fork first.
+// has a machine armed: nothing may resolve the beat or the fork first, and
+// no seat may walk off it (a carry up leaves the fork).
 func waitsOnMachine(kind string) bool {
 	switch kind {
-	case Press, PartyPick, PartyWindow, PartyLeave, DungeonPush, DungeonLeave, DeckSwap:
+	case Press, PartyPick, PartyWindow, PartyLeave, DungeonPush, DungeonLeave, DeckSwap, CarryHome:
 		return true
 	}
 	return false

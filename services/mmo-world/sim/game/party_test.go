@@ -498,6 +498,7 @@ func TestPartyRefusalsChangeNothing(t *testing.T) {
 	p.act(cs[0], game.Command{Kind: game.MachineArm, Machine: &game.MachineCmd{Source: game.SourceParty}, Now: 10})
 	p.refused(cs[1], game.MachineArmed, game.Command{Kind: game.PartyWindow, Target: sh.ID, Now: 1 << 40})
 	p.refused(cs[1], game.MachineArmed, game.Command{Kind: game.Press, Option: "hold"})
+	p.refused(cs[1], game.MachineArmed, game.Command{Kind: game.CarryHome, Target: cs[0].C.ID})
 	p.refused(nil, game.BadArgs, game.Command{Kind: game.HuntStart})
 }
 
