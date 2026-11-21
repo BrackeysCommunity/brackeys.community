@@ -219,6 +219,10 @@ func (s *seat) intent(ctx context.Context, id, kind string, m *api.MachineIntent
 		return api.IntentReply{}, err
 	}
 	msg, err := s.frame("the reply to "+kind, api.FrameReply, activityWait)
+	// A refused move streamed earlier is answered under its own lower seq.
+	for err == nil && msg.Seq < s.seq {
+		msg, err = s.frame("the reply to "+kind, api.FrameReply, activityWait)
+	}
 	if err != nil {
 		return api.IntentReply{}, err
 	}

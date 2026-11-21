@@ -51,6 +51,8 @@ const (
 	delveWait = 45 * time.Minute
 	// turnGap is the pause between two rounds of turns.
 	turnGap = 700 * time.Millisecond
+	// staleTries is how often an arming refused stale is sent again.
+	staleTries = 3
 	// localMaster is where a world started by the bot's local-world script
 	// keeps its master secret, under the repository's root.
 	localMaster = "services/mmo-bot/out/local/master"
@@ -407,6 +409,12 @@ func (d *liveDelve) machineAtRest(ctx context.Context) (*member, string, bool) {
 func (d *liveDelve) work(ctx context.Context, by *member, src string) error {
 	first := by.seat
 	rep, err := first.intent(ctx, d.id("arm"), api.ActMachineArm, &api.MachineIntent{Source: src})
+	// The seat's version moves with every other member's pick.
+	for try := 0; err == nil && !rep.OK && rep.Refusal != nil && rep.Refusal.Code == api.CodeStale && try < staleTries; try++ {
+		if _, err = first.look(ctx, api.Viewer{}); err == nil {
+			rep, err = first.intent(ctx, d.id("arm"), api.ActMachineArm, &api.MachineIntent{Source: src})
+		}
+	}
 	if err != nil {
 		return err
 	}
