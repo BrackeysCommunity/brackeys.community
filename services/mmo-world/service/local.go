@@ -14,9 +14,13 @@ import (
 // store: a policy sees the same options, replies and refusals as over
 // HTTP. A failure that is not a refusal breaks it for good.
 type Local struct {
-	G      *game.Game
+	G *game.Game
+	// Now is the clock a countdown is read on; nil stamps no command, and
+	// a machine's log is then held to its own stamps.
+	Now    func() time.Time
 	mem    memory
 	broken error
+	subs   listeners
 }
 
 // NewLocal plays g in process.
@@ -44,6 +48,10 @@ func (l *Local) check() error {
 }
 
 func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+	return l.act(ctx, req, true)
+}
+
+func (l *Local) act(ctx context.Context, req api.ActionRequest, checkVersion bool) (api.ActionReply, *api.Refusal, error) {
 	if err := l.check(); err != nil {
 		return api.ActionReply{}, nil, err
 	}
@@ -51,7 +59,8 @@ func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply
 	if ref != nil {
 		return api.ActionReply{}, ref, nil
 	}
-	out, err := applyCommand(ctx, l.G, l.mem, cmd, req.DiscordID, req.Version, true, time.Time{})
+	before := l.subs.versions(l.G)
+	out, err := applyCommand(ctx, l.G, l.mem, cmd, req.DiscordID, req.Version, checkVersion, l.now())
 	if err != nil {
 		l.broken = err
 		return api.ActionReply{}, nil, err
@@ -59,8 +68,31 @@ func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply
 	if out.ref != nil {
 		return api.ActionReply{}, out.ref, nil
 	}
+	if !out.dup {
+		l.subs.tell(moved(l.G, before, out.res.Char))
+	}
 	rep, err := decodeReply(out.body, out.dup)
 	return rep, nil, err
+}
+
+func (l *Local) now() time.Time {
+	if l.Now == nil {
+		return time.Time{}
+	}
+	return l.Now()
+}
+
+// Advance runs the next tick and tells whoever watches the game.
+func (l *Local) Advance() error {
+	if err := l.check(); err != nil {
+		return err
+	}
+	if _, err := l.G.Advance(); err != nil {
+		l.broken = err
+		return err
+	}
+	l.subs.tell(nil)
+	return nil
 }
 
 func (l *Local) Options(_ context.Context, id string) (api.Options, error) {

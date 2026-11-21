@@ -149,11 +149,14 @@ func TestAPIMatchesRules(t *testing.T) {
 	for _, pair := range [][2]string{
 		{api.ActCreate, game.Create}, {api.ActStep, game.Step}, {api.ActTravel, game.Travel}, {api.ActGather, game.Gather},
 		{api.ActRest, game.Rest}, {api.ActCancel, game.Cancel}, {api.ActExplore, game.Explore}, {api.ActPress, game.Press},
-		{api.OpCorrect, game.Correct}, {api.OpGrant, game.Grant}, {api.OpBan, game.Ban}, {api.OpUnban, game.Unban},
+		{api.OpCorrect, game.Correct}, {api.OpGrant, game.Grant}, {api.OpBan, game.Ban}, {api.OpUnban, game.Unban}, {api.OpMachine, game.SetMachine},
 		{api.CodeNoSuchCharacter, game.NoSuchChar}, {api.CodeBusy, game.Busy}, {api.CodeBadArgs, game.BadArgs},
 		{api.CodeNotHere, game.NotHere}, {api.CodeBanned, game.BannedCode}, {api.CodeNoEncounter, game.NoFight},
 		{api.CodeNeedsActivity, game.InActivity}, {api.CodeDown, game.DownCode},
 		{api.CondDown, char.Down}, {api.CondWounded, char.Wounded}, {api.CondHungry, char.Hungry},
+		{api.ActMachineArm, game.MachineArm}, {api.ActMachineSolve, game.MachineSolve}, {api.ActBenchSolve, game.BenchSolve}, {api.ActBenchLesson, game.BenchLesson},
+		{api.CodeNoMachine, game.NoMachine}, {api.CodeMachineArmed, game.MachineArmed}, {api.CodeLockedDown, game.LockedDown}, {api.CodeNoLesson, game.NoLesson},
+		{api.MachineBeat, game.SourceBeat}, {api.MachinePouch, game.SourcePouch}, {api.MachineBench, game.SourceBench},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("the API says %q where the rules say %q", pair[0], pair[1])

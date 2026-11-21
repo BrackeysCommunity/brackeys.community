@@ -106,6 +106,7 @@ func apiCharacter(g *game.Game, c *game.Char) api.Character {
 	if m := ch.In(char.Mount, 0); m != nil {
 		out.Mount = &api.Mount{ID: m.ID, Kind: m.Mount, Level: m.Level}
 	}
+	out.Titles, out.Pouches, out.Armed = g.Titles(c), int64(len(c.Pouches)), c.Armed != nil
 	return out
 }
 
@@ -167,16 +168,23 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 	for _, m := range ch.Moves {
 		out.Moves = append(out.Moves, api.Move{Dir: m.Dir, To: apiHex(m.To), Open: m.Open, Ticks: m.Ticks, Why: apiParts(m.Why)})
 	}
-	if f := ch.Fight; f != nil {
-		v := &api.Fight{ID: f.ID, Beat: f.Beat, Beats: f.Beats, Kind: f.Kind, Creature: f.Creature, Ambush: f.Ambush,
-			Default: f.Default, Due: f.Due, Options: []api.Option{}}
-		for _, o := range f.Options {
-			v.Options = append(v.Options, apiOption(g, o))
-		}
-		out.Fight = v
-	}
+	out.Fight = apiFight(g, c, ch.Fight)
 	out.Purse = apiPurse(g, c)
 	return out
+}
+
+// apiFight is the beat a character faces, with the family of its machine
+// where it has one.
+func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
+	if f == nil {
+		return nil
+	}
+	v := &api.Fight{ID: f.ID, Beat: f.Beat, Beats: f.Beats, Kind: f.Kind, Creature: f.Creature, Ambush: f.Ambush,
+		Default: f.Default, Due: f.Due, Options: []api.Option{}, Machine: g.MachineOn(c)}
+	for _, o := range f.Options {
+		v.Options = append(v.Options, apiOption(g, o))
+	}
+	return v
 }
 
 func apiPurse(g *game.Game, c *game.Char) api.Purse {

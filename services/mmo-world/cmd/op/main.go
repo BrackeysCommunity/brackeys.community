@@ -34,6 +34,7 @@ const usage = `op [-id <interaction id>] <command>
   correct <id> <asset> <units> <note...>   coin, provisions or mat:<id>; negative takes
   grant <id> <mount-kind> <note...>
   ban <id> <note...>  |  unban <id> <note...>
+  set-machine <id> <family> <level> <note...>   stand a free character before a machine
   hide <goal> <note...>           take a goal off the notice board, its escrow back
   audit                           the conservation check
   economy                         the faucet, and characters flagged for review
@@ -130,7 +131,7 @@ func run(args []string) error {
 			return shown(cli().Tile(ctx, q, r))
 		}
 		return errors.New(usage)
-	case api.OpCorrect:
+	case api.OpCorrect, api.OpMachine:
 		if err := need(rest, 4); err != nil {
 			return err
 		}

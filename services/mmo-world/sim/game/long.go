@@ -248,7 +248,8 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	g.Pending = []world.Action{}
 	var gathered map[gatherNode]int64
 	for _, c := range g.Chars {
-		if c.Fight != nil && c.Fight.Ambush && c.Fight.Due < t {
+		// An ambush's default waits for an armed machine's own end.
+		if c.Fight != nil && c.Fight.Ambush && c.Fight.Due < t && c.Armed == nil {
 			if err := g.defaulted(c, t); err != nil {
 				return nil, err
 			}
@@ -314,7 +315,7 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 // nothing won or lost: a refusal here would stop the world.
 func (g *Game) defaulted(c *Char, t int64) error {
 	key := ledger.SubKey("tick", strconv.FormatInt(t, decimal), c.C.ID, "ambush")
-	_, err := g.pressOption(c, key, wayOut, t)
+	_, err := g.pressOption(c, key, wayOut, t, nil)
 	var ref *Refused
 	if errors.As(err, &ref) {
 		c.Fight = nil

@@ -323,6 +323,16 @@ func (c *Character) Level(skill string) int64 {
 	return 0
 }
 
+// PracticeOf is a practice skill with its uses toward the next level.
+func (c *Character) PracticeOf(skill string) Skill {
+	for _, s := range c.Practice {
+		if s.ID == skill {
+			return s
+		}
+	}
+	return Skill{ID: skill}
+}
+
 // Practise counts successful uses and raises the level when they reach
 // the sheet's uses times the next level (GDD 5.3). It returns the levels
 // gained.

@@ -25,6 +25,12 @@
       "value": 24,
       "unit": "goods",
       "doc": "Units of each material a tile's node holds before it is worked out; what is gathered decays back by the gathered counter."
+    },
+    {
+      "id": "pouch-carry",
+      "value": 3,
+      "unit": "count",
+      "doc": "Locked pouches a character may carry; with this many, a find comes loose as it always did."
     }
   ]
 }

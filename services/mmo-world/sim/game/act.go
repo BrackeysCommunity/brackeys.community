@@ -16,6 +16,7 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/market"
+	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
@@ -73,6 +74,11 @@ type Command struct {
 	// Admin marks a command from one of Server's admins, who are officers
 	// of the server's own guild (GDD 4.8).
 	Admin bool `json:"admin,omitempty"`
+	// Machine is what a machine command carries (GDD 7.11).
+	Machine *MachineCmd `json:"machine,omitempty"`
+	// Now is the service's clock, unix ms, on a command whose rule
+	// measures real time. The sim never reads a clock of its own.
+	Now int64 `json:"now,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -86,7 +92,7 @@ type Stop struct {
 
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
-	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal
+	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine
 }
 
 // Refused is a command the rules turn down. Nothing changed.
@@ -118,6 +124,8 @@ type Result struct {
 	Char    *Char           `json:"char"`
 	Facts   []fact.Fact     `json:"facts"`
 	Pressed []fight.Pressed `json:"pressed,omitempty"`
+	// Machine is the one fact a machine's move log became.
+	Machine *puzzle.Result `json:"machine,omitempty"`
 }
 
 // Act applies a command at the current tick. A refused command changes
@@ -140,6 +148,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	var c *Char
 	var err error
 	var pressed []fight.Pressed
+	var machine *puzzle.Result
 	if cmd.Kind == Create {
 		if cmd.Option != "" {
 			if _, err := g.startRow(cmd.Option); err != nil {
@@ -157,8 +166,13 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		if c.Banned && !Operator(cmd.Kind) {
 			return Result{}, refuse(BannedCode, "character %s is banned", c.C.ID)
 		}
+		// Walking away from a countdown is the haywire: nothing else may
+		// resolve the beat first.
+		if c.Armed != nil && cmd.Kind != MachineSolve && !Operator(cmd.Kind) {
+			return Result{}, refuse(MachineArmed, "%s has a machine armed and its countdown is running", c.C.ID)
+		}
 		undo := g.admit(c, cmd)
-		if pressed, err = g.act(c, cmd); err != nil {
+		if pressed, machine, err = g.dispatch(c, cmd); err != nil {
 			undo()
 		}
 	}
@@ -193,7 +207,25 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
-	return Result{Char: c, Facts: facts, Pressed: pressed}, nil
+	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine}, nil
+}
+
+// dispatch runs a command; a machine command also hands back the result
+// its move log became.
+func (g *Game) dispatch(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result, error) {
+	switch cmd.Kind {
+	case MachineArm:
+		return nil, nil, g.machineArm(c, cmd)
+	case MachineSolve:
+		return g.machineSolve(c, cmd)
+	case BenchSolve:
+		res, err := g.benchSolve(c, cmd)
+		return nil, res, err
+	case BenchLesson:
+		return nil, nil, g.benchLesson(c, cmd)
+	}
+	pressed, err := g.act(c, cmd)
+	return pressed, nil, err
 }
 
 func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
@@ -216,6 +248,8 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.grant(c, cmd)
 	case Ban, Unban:
 		return nil, g.ban(c, cmd.Kind == Ban, cmd.Note)
+	case SetMachine:
+		return nil, g.setMachine(c, cmd)
 	case Sell:
 		return nil, g.sell(c, cmd)
 	case Bid:
@@ -371,9 +405,9 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	place := append(g.World.Place(h).Tags(), high...)
 	ms := g.measures(h)
 	cr := g.r.Fight.Spawn(arch, extra, place, ms)
-	site := fight.Site{ID: id, Place: "tile:" + h.Ref(), Tags: place, Measures: ms, Party: 1}
+	site := fight.Site{ID: id, Place: machinePlace(h, 0), Tags: place, Measures: ms, Party: 1}
 	if !ambush && g.IsDungeon(h) {
-		site.Floor, site.Place = firstFloor, "floor:"+h.Ref()+"/"+strconv.Itoa(firstFloor)
+		site.Floor, site.Place = firstFloor, machinePlace(h, firstFloor)
 	}
 	e := g.r.Fight.Assemble(site, cr)
 	c.Fight = &Fight{E: e, Measures: ms, Ambush: ambush, Due: due}
@@ -384,16 +418,27 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	return nil
 }
 
+// machinePlace is where an encounter's machines stand: the tile, or a
+// dungeon's floor.
+func machinePlace(h hex.Hex, floor int64) string {
+	if floor > 0 {
+		return "floor:" + h.Ref() + "/" + strconv.FormatInt(floor, decimal)
+	}
+	return "tile:" + h.Ref()
+}
+
 // press resolves the current beat with the picked option; an encounter
 // that ends pays out its haul and leaves its mark on the tile.
 func (g *Game) press(c *Char, cmd Command) ([]fight.Pressed, error) {
 	if c.Fight == nil {
 		return nil, refuse(NoFight, "%s is in no encounter", c.C.ID)
 	}
-	return g.pressOption(c, cmd.Key, cmd.Option, g.Tick())
+	return g.pressOption(c, cmd.Key, cmd.Option, g.Tick(), nil)
 }
 
-func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Pressed, error) {
+// pressOption presses an option on the current beat. A machine's option
+// takes the result its move log was replayed into.
+func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]fight.Pressed, error) {
 	f := g.r.Fight
 	e := c.Fight.E
 	kit, opts := g.beat(c, tick)
@@ -401,17 +446,24 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64) ([]fight.Press
 	if !ok {
 		return nil, refuse(BadArgs, "no option %q on this beat", pick)
 	}
+	m := &fight.Member{Ch: c.C, Kit: kit, Pick: pick}
 	if o.Puzzle {
-		return nil, refuse(InActivity, "a machine is worked in the Activity")
+		if w == nil {
+			return nil, refuse(InActivity, "a machine is worked in the Activity")
+		}
+		m.Puzzle = &w.res
 	}
 	pack := slices.Clone(c.C.Pack)
-	pressed, facts, err := f.Press(e, []*fight.Member{{Ch: c.C, Kit: kit, Pick: pick}}, tick)
+	pressed, facts, err := f.Press(e, []*fight.Member{m}, tick)
 	if err != nil {
 		return nil, err
 	}
 	for _, x := range facts {
 		if strings.HasPrefix(x.Kind, "encounter.") {
 			x.Data = append(x.Data, append(fact.At(c.C.At), fact.S("archetype", e.Creature.Archetype), fact.S("tags", joinTags(e.Creature.Tags)))...)
+		}
+		if w != nil {
+			x.Data = append(x.Data, w.data(x.Kind)...)
 		}
 		if _, err := g.Log.Append(x); err != nil {
 			return nil, err
@@ -597,6 +649,7 @@ func (g *Game) ban(c *Char, on bool, note string) error {
 	}
 	endJourney(c)
 	c.Fight = nil
+	c.Armed = nil
 	_, err := g.fact(c, "character.banned", g.Tick(), data...)
 	return err
 }

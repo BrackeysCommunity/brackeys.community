@@ -77,6 +77,10 @@ func NPCOf(acc string) (string, bool) { return strings.CutPrefix(acc, Pool+npcPr
 // EscrowPool is the pool an order, listing or gear order holds its escrow in.
 func EscrowPool(id string) string { return Pool + escrowPrefix + id }
 
+// PouchPool holds what a locked pouch contains until it is opened
+// (GDD 7.11).
+func PouchPool(id string) string { return Pool + "pouch:" + id }
+
 // WaitPool is the goods on a tile, by its ref, that wait for one character
 // to come for them.
 func WaitPool(ref, char string) string { return Pool + "wait:" + ref + ":" + char }

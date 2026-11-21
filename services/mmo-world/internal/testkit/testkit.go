@@ -118,3 +118,31 @@ func Ticks(t testing.TB, ctx context.Context, st *store.Store, g *game.Game, n i
 		}
 	}
 }
+
+// MachineBeat puts a character in an encounter of one beat, a machine of
+// a family and level against the sheets' first creature: a lock for a
+// family that is picked, a puzzle for any other. A solve wins the
+// encounter; a haywire leaves it for another try. The character counts
+// as having worked a machine before, or its first Puzzle beat would be
+// the opening Rewire whatever was asked for: set Worked to 0 for that.
+func MachineBeat(t testing.TB, g *game.Game, c *game.Char, family string, level int64) {
+	t.Helper()
+	if g.Rules().Fight.P.Family(family) == nil {
+		t.Fatalf("no machine family %q", family)
+	}
+	g.FaceMachine(c, family, level)
+	c.Worked = max(c.Worked, 1)
+	if g.MachineOn(c) != family {
+		t.Fatalf("%s cannot reach the %s on its beat", c.C.ID, family)
+	}
+}
+
+// AtBench stands a character, free to act, at the first settlement's
+// tinker's bench.
+func AtBench(t testing.TB, g *game.Game, c *game.Char) {
+	t.Helper()
+	c.C.At, c.Long, c.Fight = g.SettlementHex(0), nil, nil
+	if _, ok := g.BenchAt(c); !ok {
+		t.Fatalf("no tinker's bench stands open at %v", c.C.At)
+	}
+}

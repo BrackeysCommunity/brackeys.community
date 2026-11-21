@@ -159,6 +159,27 @@ type Char struct {
 	// bit the day before (GDD 4.8).
 	Days    uint64 `json:"days,omitempty"`
 	DaysDay int64  `json:"daysDay,omitempty"`
+	// Armed is the machine whose countdown is running; Worked the machines
+	// it has armed, ever; LastMachine the one it last finished, kept until
+	// the next is armed (GDD 7.11).
+	Armed       *Armed       `json:"armed,omitempty"`
+	Worked      int64        `json:"worked,omitempty"`
+	LastMachine *MachineDone `json:"lastMachine,omitempty"`
+	// Lockdowns are the places whose machines it may not arm yet; Pouches
+	// the locked pouches it carries, and PouchN how many it has found.
+	Lockdowns []Lockdown `json:"lockdowns,omitempty"`
+	Pouches   []Pouch    `json:"pouches,omitempty"`
+	PouchN    int64      `json:"pouchN,omitempty"`
+	// BenchRuns counts bench machines tried: the next one's attempt. Bench
+	// is the bench uses of world day BenchDay; Taught the lessons left and
+	// Learned the lessons taken on theirs.
+	BenchRuns  int64 `json:"benchRuns,omitempty"`
+	Bench      int64 `json:"bench,omitempty"`
+	BenchDay   int64 `json:"benchDay,omitempty"`
+	Taught     int64 `json:"taught,omitempty"`
+	TaughtDay  int64 `json:"taughtDay,omitempty"`
+	Learned    int64 `json:"learned,omitempty"`
+	LearnedDay int64 `json:"learnedDay,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -208,6 +229,9 @@ type Society struct {
 	// has just left crowded, until crowdTurn settles them (GDD 4.18).
 	Built   []Built `json:"built,omitempty"`
 	Crowded []int   `json:"crowded,omitempty"`
+	// Lessons are the bench solves masters left for others, oldest first
+	// (GDD 7.11).
+	Lessons []Lesson `json:"lessons,omitempty"`
 }
 
 // New founds a world with nobody in it.

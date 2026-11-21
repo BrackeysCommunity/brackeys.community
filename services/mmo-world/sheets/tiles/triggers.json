@@ -92,6 +92,14 @@
       "unit": "percent",
       "doc": "A node gathered past its stock tags worked-out until it recovers.",
       "tag": "worked-out"
+    },
+    {
+      "id": "locked-pouch",
+      "on": "arrive",
+      "chance": 0.5,
+      "magnitude": 1,
+      "unit": "count",
+      "doc": "The share of Uncommon spoils that come as a locked pouch, for a character who has worked a machine; the pouch holds the same goods."
     }
   ]
 }

@@ -150,13 +150,13 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 	for i, b := range e.Beats {
 		fam, lvl := "", int64(0)
 		if r.beats[b].Puzzle {
-			fams := r.P.Families(all, b == "lock")
+			fams := r.P.Families(all, b == BeatLock)
 			if len(fams) == 0 {
 				fallback := puzzle.Rewire
-				if b == "lock" {
+				if b == BeatLock {
 					fallback = puzzle.Pins
 				}
-				fams = r.P.Families(tags.Of(r.P.Family(fallback).AppearsOn), b == "lock")
+				fams = r.P.Families(tags.Of(r.P.Family(fallback).AppearsOn), b == BeatLock)
 			}
 			place := site.Place
 			if place == "" {
@@ -174,6 +174,19 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 
 func (r *Rules) mixes(beat string) bool {
 	return beat == "hazard" || r.beats[beat].Puzzle
+}
+
+// BeatLock is the beat whose machine is a lock; any other machine beat
+// is a puzzle.
+const BeatLock = "lock"
+
+// Machine is the family on the encounter's current beat and whether it is
+// a lock; ok is false on a beat with no machine.
+func (r *Rules) Machine(e *Encounter) (family string, lock, ok bool) {
+	if e.Over || !r.beats[e.Beats[e.At]].Puzzle {
+		return "", false, false
+	}
+	return e.Machines[e.At], e.Beats[e.At] == BeatLock, true
 }
 
 // Final reports whether the encounter is on its last beat.
@@ -464,7 +477,13 @@ func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick i
 			facts = append(facts, r.wear(e, m, m.Kit.Hand, hw.Magnitude, tick)...)
 		}
 	case "short":
-		r.put(e, m, State{Tag: tags.Tag(hw.Tag), On: OnSelf, Who: m.Ch.ID}, tick)
+		st := State{Tag: tags.Tag(hw.Tag), On: OnSelf, Who: m.Ch.ID}
+		// A state that counts beats is put on for the row's beats after
+		// this one, which ends as the machine does.
+		if row := r.states[st.Tag]; row != nil && row.Beats > 0 {
+			st.Left = hw.Magnitude + 1
+		}
+		r.put(e, m, st, tick)
 	case "alarm", "lockdown":
 	}
 	return append(facts, r.fact(tick, "puzzle.haywire", []fact.Ref{who}, fact.S("family", s.Puzzle), fact.S("haywire", hw.ID), fact.N("magnitude", hw.Magnitude)))

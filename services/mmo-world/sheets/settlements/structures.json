@@ -133,7 +133,7 @@
           "quantity": 50
         }
       ],
-      "waits": "MM7 (puzzles)"
+      "standing": true
     },
     {
       "id": "storehouse",

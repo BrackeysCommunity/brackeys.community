@@ -459,6 +459,7 @@ var uses = map[string][]string{
 	Rest:     {structureGranary},
 	PostGoal: {structureBoard}, Pledge: {structureBoard}, DeliverGoal: {structureBoard}, TakeHaul: {structureBoard}, Raise: {structureBoard},
 	Deposit: {structureStorehouse}, Draw: {structureStorehouse}, Work: {structureStorehouse},
+	BenchSolve: {structureTinker}, BenchLesson: {structureTinker},
 }
 
 // walled reports whether a tile is a settlement with a wall standing, for
@@ -471,6 +472,7 @@ const (
 	structureGranary    = "granary"
 	structureBoard      = "notice-board"
 	structureStorehouse = "storehouse"
+	structureTinker     = "tinker-bench"
 )
 
 // CharterView is whether a character's tile can be chartered for its guild

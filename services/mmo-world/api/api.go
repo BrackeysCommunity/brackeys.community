@@ -45,6 +45,9 @@ const (
 	OpGrant    = "grant"
 	OpBan      = "ban"
 	OpUnban    = "unban"
+	// OpMachine stands a character before a machine: Asset is the family,
+	// Units the level.
+	OpMachine = "set-machine"
 )
 
 // Hex is an axial tile coordinate.
@@ -106,6 +109,8 @@ type ActionRequest struct {
 	Note  string    `json:"note,omitempty"`
 	Goal  *GoalSpec `json:"goal,omitempty"`
 	Admin bool      `json:"admin,omitempty"`
+	// Machine is what a machine action carries (GDD 7.11).
+	Machine *MachineIntent `json:"machine,omitempty"`
 }
 
 // OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -129,6 +134,8 @@ type ActionReply struct {
 	Character Character `json:"character"`
 	Facts     []Fact    `json:"facts"`
 	Pressed   []Pressed `json:"pressed,omitempty"`
+	// Machine is the fact a move log became, on a machine action.
+	Machine *PuzzleResult `json:"machine,omitempty"`
 }
 
 // Refusal is a press the rules turned down; nothing changed. Version is
@@ -213,6 +220,11 @@ type Character struct {
 	InFight    bool     `json:"inFight"`
 	Walked     int64    `json:"walked"`
 	Banned     bool     `json:"banned,omitempty"`
+	// Titles are the machine families it has mastered; Pouches the locked
+	// pouches it carries; Armed whether a machine's countdown is running.
+	Titles  []string `json:"titles,omitempty"`
+	Pouches int64    `json:"pouches,omitempty"`
+	Armed   bool     `json:"armed,omitempty"`
 }
 
 // Move is a step in one of six directions: open or not, and what it
@@ -239,7 +251,8 @@ type Option struct {
 }
 
 // Fight is the beat a character faces. An ambush resolves with Default at
-// the first tick after Due if its owner has not answered.
+// the first tick after Due if its owner has not answered. Machine is the
+// family on a Lock or Puzzle beat, which is worked in the Activity.
 type Fight struct {
 	ID       string   `json:"id"`
 	Beat     int      `json:"beat"`
@@ -250,6 +263,7 @@ type Fight struct {
 	Default  string   `json:"default,omitempty"`
 	Due      int64    `json:"due,omitempty"`
 	Options  []Option `json:"options"`
+	Machine  string   `json:"machine,omitempty"`
 }
 
 // Options is everything a character can do now. Version is the row

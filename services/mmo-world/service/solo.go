@@ -343,6 +343,9 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 	if sg, ok := g.Suggest(h); ok {
 		out.Suggest = &api.Suggest{At: apiHex(sg.At), Tiles: sg.Tiles, Dir: sg.Dir}
 	}
+	if b, ok := g.BenchAt(c); ok {
+		out.Bench = &api.BenchHere{Uses: b.Uses, UsesCap: b.UsesCap, Lessons: b.Lessons}
+	}
 	return out
 }
 
@@ -542,9 +545,10 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 			crop.Route = slices.Clone(c.Long.Route)
 		}
 		for _, h := range hex.DiscAt(c.C.At, radius) {
-			t, known := apiTile(g, h)
+			known := Sees(g, c, h)
 			mt := render.MapTile{Hex: h, Known: known}
 			if known {
+				t := tileView(g, h)
 				out.Tiles = append(out.Tiles, t)
 				b := g.Rules().Gen.Baseline(h)
 				mt.Terrain, mt.River, mt.Road, mt.Site, mt.Weather, mt.Region = t.Terrain, b.River, t.Road, t.Site, t.Weather, t.Region

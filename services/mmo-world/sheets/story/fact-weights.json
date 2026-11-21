@@ -352,6 +352,36 @@
       "weight": 25
     },
     {
+      "id": "machine-armed",
+      "kind": "machine.armed",
+      "weight": 5
+    },
+    {
+      "id": "puzzle-mastered",
+      "kind": "puzzle.mastered",
+      "weight": 45
+    },
+    {
+      "id": "bench-solved",
+      "kind": "bench.solved",
+      "weight": 5
+    },
+    {
+      "id": "lesson-taken",
+      "kind": "lesson.taken",
+      "weight": 10
+    },
+    {
+      "id": "pouch-found",
+      "kind": "pouch.found",
+      "weight": 15
+    },
+    {
+      "id": "pouch-opened",
+      "kind": "pouch.opened",
+      "weight": 15
+    },
+    {
       "id": "mount-levelled",
       "kind": "mount.levelled",
       "weight": 8
@@ -414,6 +444,11 @@
     {
       "id": "item-granted",
       "kind": "item.granted",
+      "weight": 30
+    },
+    {
+      "id": "machine-set",
+      "kind": "machine.set",
       "weight": 30
     },
     {

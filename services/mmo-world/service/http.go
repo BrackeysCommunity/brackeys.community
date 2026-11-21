@@ -173,18 +173,38 @@ func writeContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), writeTimeout)
 }
 
-// apply runs one command against the held world. A failure after the game
-// was touched restores the world from the store; a write that lost a race
-// with the same interaction id gets the stored reply.
+// apply runs one command against the held world and writes its answer.
 func (s *Server) apply(w http.ResponseWriter, ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) {
-	start := time.Now()
 	ctx, cancel := writeContext(ctx)
 	defer cancel()
-	unlock, ok := s.hold(ctx, w, true)
-	if !ok {
-		return
+	out, err := s.do(ctx, cmd, discord, version, checkVersion)
+	switch {
+	case errors.Is(err, errClosed) || errors.Is(err, errStale):
+		refuseUnusable(w, err)
+	case err != nil:
+		s.internal(w, err)
+	case out.ref != nil:
+		refuse(w, out.status, *out.ref)
+	case out.dup:
+		s.duplicate(w, out.body)
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(out.body)
+	}
+}
+
+// do runs one command against the held world, for the HTTP API and for
+// the Activity alike. A failure after the game was touched restores the
+// world from the store; a write that lost a race with the same
+// interaction id gets the stored reply.
+func (s *Server) do(ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) (applied, error) {
+	start := time.Now()
+	unlock, err := s.take(ctx, true)
+	if err != nil {
+		return applied{}, err
 	}
 	defer unlock()
+	before := s.subs.versions(s.g)
 	out, err := applyCommand(ctx, s.g, s.st, cmd, discord, version, checkVersion, s.cfg.Now())
 	if err != nil {
 		if !errors.As(err, new(untouched)) {
@@ -192,28 +212,22 @@ func (s *Server) apply(w http.ResponseWriter, ctx context.Context, cmd game.Comm
 		}
 		if uniqueViolation(err) {
 			if stored, e := s.st.Reply(ctx, cmd.Key); e == nil && stored != nil {
-				s.duplicate(w, stored)
-				return
+				return applied{dup: true, body: stored}, nil
 			}
 		}
-		s.internal(w, err)
-		return
+		return applied{}, err
 	}
-	switch {
-	case out.ref != nil:
-		refuse(w, out.status, *out.ref)
-	case out.dup:
-		s.duplicate(w, out.body)
-	default:
+	if out.ref == nil && !out.dup {
 		s.capture("mmo_action", out.res.Char.C.ID, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
 			"ms": time.Since(start).Milliseconds(), "facts": len(out.res.Facts)})
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(out.body)
+		s.subs.tell(moved(s.g, before, out.res.Char))
 	}
+	return out, nil
 }
 
 func actionReply(g *game.Game, res game.Result) api.ActionReply {
-	return api.ActionReply{Tick: g.Tick(), Character: apiCharacter(g, res.Char), Facts: apiFacts(res.Facts), Pressed: apiPressed(g, res.Pressed)}
+	return api.ActionReply{Tick: g.Tick(), Character: apiCharacter(g, res.Char), Facts: apiFacts(res.Facts), Pressed: apiPressed(g, res.Pressed),
+		Machine: apiResult(res.Machine)}
 }
 
 func uniqueViolation(err error) bool {

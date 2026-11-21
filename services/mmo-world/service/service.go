@@ -68,6 +68,7 @@ type Server struct {
 	ready   atomic.Bool
 	audit   time.Time
 	media   media
+	subs    listeners
 }
 
 // Open takes the world's lock (waiting while another service holds it),
@@ -327,6 +328,7 @@ func (s *Server) step(ctx context.Context) error {
 	}
 	t := s.g.Tick()
 	s.tick.Store(t)
+	s.subs.tell(nil)
 	s.cfg.Log.Debug("tick", "world", s.cfg.World, "tick", t, "facts", len(facts), "ms", ms)
 	s.capture("mmo_tick", s.cfg.World, map[string]any{"tick": t, "facts": saved.Facts, "ms": ms, "behind": s.Due() - t})
 	return nil
@@ -397,6 +399,7 @@ func (s *Server) restore(g *game.Game) {
 	s.g = g
 	s.tick.Store(g.Tick())
 	s.stale.Store(false)
+	s.subs.tell(nil)
 }
 
 // structural: the conservation check runs once a day of wall time.

@@ -175,7 +175,11 @@ func (g *Game) spoils(c *Char, h hex.Hex, key string, t int64) error {
 		r := g.r.Book.FindRarities[i]
 		if f, ok := g.fromPool(c, h, r.ID, tr.Magnitude); ok {
 			f.Trigger, f.Chance = TrigSpoils, r.Chance
-			return g.found(c, h, ledger.SubKey(key, "spoils", h.Ref()), f, t)
+			k := ledger.SubKey(key, "spoils", h.Ref())
+			if r.ID == rarityUncommon && g.pouchable(c) && g.r.draw.Roll(g.trigger(TrigPouch).Chance, "game.pouch", draw.Str(c.C.ID), draw.Int(t)) {
+				return g.pouched(c, h, k, f, g.tierAt(h), t)
+			}
+			return g.found(c, h, k, f, t)
 		}
 	}
 	return nil
@@ -185,10 +189,7 @@ func (g *Game) spoils(c *Char, h hex.Hex, key string, t int64) error {
 // tile's tier, or one tier up, or an item lying there, or one whose
 // record names whoever lost it.
 func (g *Game) fromPool(c *Char, h hex.Hex, rarity string, most int64) (Find, bool) {
-	tier := int64(1)
-	if r := g.World.RegionAt(h); r >= 0 {
-		tier = max(1, g.World.Regions[r].Tier)
-	}
+	tier := g.tierAt(h)
 	switch rarity {
 	case rarityCommon, rarityUncommon:
 		want := tier
@@ -213,6 +214,14 @@ func (g *Game) fromPool(c *Char, h hex.Hex, rarity string, most int64) (Find, bo
 		}
 	}
 	return Find{}, false
+}
+
+// tierAt is the tier of the region a tile lies in, at least the first.
+func (g *Game) tierAt(h hex.Hex) int64 {
+	if r := g.World.RegionAt(h); r >= 0 {
+		return max(1, g.World.Regions[r].Tier)
+	}
+	return 1
 }
 
 // found moves a find out of the tile's pool to the character, as a fact

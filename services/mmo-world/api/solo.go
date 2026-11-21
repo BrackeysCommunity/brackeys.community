@@ -215,6 +215,16 @@ type Here struct {
 	// Downed are characters down on this tile; the viewer could carry home
 	// one who has called for help (GDD 11.6).
 	Downed []Downed `json:"downed"`
+	// Bench is set where a tinker's bench stands open (GDD 7.11).
+	Bench *BenchHere `json:"bench,omitempty"`
+}
+
+// BenchHere is a tinker's bench as the place card states it: the
+// character's bench uses today against the cap, and the lessons waiting.
+type BenchHere struct {
+	Uses    int64 `json:"uses"`
+	UsesCap int64 `json:"usesCap"`
+	Lessons int64 `json:"lessons"`
 }
 
 // Downed is a downed character: who, and whether it has called for help.
