@@ -461,9 +461,13 @@ func (d *liveDelve) work(ctx context.Context, by *member, src string) error {
 	views := map[int64]*seat{}
 	var armed api.ActivityState
 	for _, m := range d.party {
+		// A member down has no seat at it, and waiting on its screen would
+		// spend the countdown.
+		if st, err := m.seat.look(ctx, api.Viewer{}); err != nil || slices.Contains(st.Character.Conditions, api.CondDown) {
+			continue
+		}
 		st, err := m.seat.until("the armed party machine", func(st api.ActivityState) bool { return st.Machine != nil && st.Machine.Armed })
 		if err != nil {
-			// A member down or gone has no seat at it.
 			continue
 		}
 		views[st.Machine.Seat] = m.seat
