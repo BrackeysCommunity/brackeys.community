@@ -31,7 +31,7 @@
         {
           "kind": "practice",
           "id": "travel",
-          "at": 5
+          "at": 4
         }
       ],
       "skill": "fight",
@@ -67,12 +67,12 @@
         {
           "kind": "deed",
           "id": "hauled",
-          "at": 2000
+          "at": 1000
         },
         {
           "kind": "practice",
           "id": "travel",
-          "at": 5
+          "at": 4
         }
       ],
       "skill": "travel",
