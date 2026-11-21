@@ -25,6 +25,11 @@ type fakeHost struct {
 	states  map[string]api.ActivityState
 	subs    []func([]string)
 	acts    []api.ActionRequest
+	// A party's machine: its countdown by character, who sits at it, and
+	// what the Judge says of a log.
+	armed map[string]api.ArmedMachine
+	seats map[string][]string
+	judge func(api.PuzzleLog) string
 }
 
 func (h *fakeHost) CharacterOf(_ context.Context, discord string) (string, error) {
@@ -57,7 +62,34 @@ func (h *fakeHost) Act(_ context.Context, req api.ActionRequest, _ bool) (api.Ac
 func (h *fakeHost) Armed(context.Context) ([]api.ArmedMachine, error) { return nil, nil }
 
 func (h *fakeHost) Countdown(_ context.Context, id string) (api.ArmedMachine, bool, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if m, ok := h.armed[id]; ok {
+		return m, true, nil
+	}
 	return api.ArmedMachine{CharacterID: id}, true, nil
+}
+
+func (h *fakeHost) Windows(context.Context) ([]api.OpenWindow, error) { return nil, nil }
+
+func (h *fakeHost) Window(context.Context, string) (api.OpenWindow, bool, error) {
+	return api.OpenWindow{}, false, nil
+}
+
+func (h *fakeHost) Judge(_ context.Context, _ string, log api.PuzzleLog) (string, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.judge == nil {
+		return "", nil
+	}
+	return h.judge(log), nil
+}
+
+func (h *fakeHost) Seats(_ context.Context, id string) (string, []string, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	st := h.states[id]
+	return st.Context.Kind + ":" + st.Context.ID, h.seats[id], nil
 }
 
 func (h *fakeHost) Subscribe(f func([]string)) {

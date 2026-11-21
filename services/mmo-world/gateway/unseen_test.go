@@ -25,14 +25,21 @@ func asJSON(v any) string {
 	return string(body)
 }
 
-// TestNothingUnseen drives two viewers with different sight through real
+// TestNothingUnseen reads every byte each socket is sent, alone and in a
+// party, and expects nobody to have been sent what is not theirs to see.
+func TestNothingUnseen(t *testing.T) {
+	t.Run("solo", nothingUnseenSolo)
+	t.Run("party", nothingUnseenParty)
+}
+
+// nothingUnseenSolo drives two viewers with different sight through real
 // sockets in one instance: a master on an armed machine out on a tile,
 // with a pouch, and a novice at a settlement's bench. It reads every
 // byte each socket is sent across arming, a tick, bench work, a lesson
 // from a third character, a solve, a reconnect and forged frames, and
 // expects neither to have been sent anything of the other's, of the
 // third's, a key, or anything a machine is drawn from.
-func TestNothingUnseen(t *testing.T) {
+func nothingUnseenSolo(t *testing.T) {
 	w := newWorld(t)
 	g := w.g
 	master, novice, teacher := w.create("u-master"), w.create("u-novice"), w.create("u-teacher")
@@ -225,6 +232,156 @@ func TestNothingUnseen(t *testing.T) {
 		for _, s := range []string{`"tile:`, `"floor:`, `"bench:`, `"pouch:`, `"spec"`, `"attempt"`, `"tries"`, `"benchRuns"`} {
 			if strings.Contains(view.tape, s) {
 				t.Errorf("%s was sent %s, which a machine is drawn from", view.who, s)
+			}
+		}
+	}
+}
+
+// nothingUnseenParty seats a party of three and a watcher on their tile in
+// one instance. One member picks, another arms a split machine, and the
+// seats solve it move by move; one drops and comes back. Each member is
+// sent its own dealt part and nobody's pick but its own; the watcher, who
+// is not in the party, is sent nothing of it at all.
+func nothingUnseenParty(t *testing.T) {
+	w := newWorld(t)
+	users := []string{"u-one", "u-two", "u-three"}
+	cs := w.party(users...)
+	watcher := w.create("u-watcher")
+	w.do(func() { watcher.C.At = cs[0].C.At })
+	sh := w.facing(cs, puzzle.Fuse, 4)
+	w.serve(nil)
+	vs, sts := w.seatAll("i-party", users...)
+	wv := w.join("u-watcher", "i-party", api.Viewer{}, nil)
+	watching := wv.state()
+	for i, st := range sts {
+		if st.Context.Kind != api.ContextParty || st.Context != sts[0].Context || st.Party == nil || st.Fight == nil {
+			t.Fatalf("member %d's first state: context %+v, party %+v", i, st.Context, st.Party)
+		}
+	}
+	if watching.Context.Kind != api.ContextSolo || watching.Context.ID != watcher.C.ID || watching.Party != nil || watching.Fight != nil {
+		t.Fatalf("the watcher's first state: %+v", watching)
+	}
+
+	// The first member picks; the others see that it has, never what.
+	pick := w.holdOption(cs[0])
+	rep, mine := vs[0].intent(api.Intent{ID: "member-pick-1", Version: sts[0].Character.Version, Kind: api.ActPartyPick, Option: pick})
+	if !rep.OK || mine.Party == nil || mine.Party.Beat == nil || mine.Party.Beat.Mine != pick {
+		t.Fatalf("the pick over the socket: %+v, %+v", rep, mine.Party)
+	}
+	for i := 1; i < len(vs); i++ {
+		sts[i] = vs[i].state()
+		if b := sts[i].Party.Beat; b == nil || b.Mine != "" || b.Picked != 1 {
+			t.Fatalf("member %d after another's pick: %+v", i, b)
+		}
+	}
+	sts[0] = mine
+	wv.quiet()
+
+	// The second arms; each seat holds its own part.
+	armedSts := armOver(t, vs, sts, 1)
+	m := w.armed(sh)
+	var parts []puzzle.Layout
+	var whole puzzle.Layout
+	w.do(func() {
+		parts = w.g.Puzzles().Deal(m.Spec)
+		whole = w.g.Puzzles().Make(m.Spec)
+	})
+	log := w.solution(m)
+	half := len(log.Moves) / 2
+	w.playAt(t, vs, m.At, log.Moves[:half])
+	vs[2].drop()
+	vs[2] = w.join(users[2], "i-party", api.Viewer{}, vs[2].tape)
+	vs[2].state()
+	if msg := vs[2].next(); msg.T != api.FrameMoves || len(msg.Moves) != half {
+		t.Fatalf("a member back was sent %+v", msg)
+	}
+	for _, v := range vs[:2] {
+		v.caughtUp(api.ActivityState{})
+	}
+	w.playAt(t, vs, m.At, log.Moves[half:])
+	for _, v := range vs {
+		if st := v.state(); st.Last == nil || !st.Last.Result.Solved {
+			t.Fatalf("a member after the merged solve: %+v", st.Last)
+		}
+	}
+	wv.quiet()
+	w.stop()
+	for _, v := range append(vs, wv) {
+		v.ended()
+	}
+
+	ids := []string{`"` + watcher.C.ID + `"`}
+	for _, c := range cs {
+		ids = append(ids, `"`+c.C.ID+`"`)
+	}
+	fields := func(l puzzle.Layout) map[string]string {
+		out := map[string]string{}
+		for name, v := range map[string]any{"target": l.Target, "glyph": l.Glyph, "order": l.Order, "false": l.False, "turn": l.Turn,
+			"walls": l.Walls, "tiles": l.Tiles, "clues": l.Clues, "par": l.Par, "init": l.Init, "track": l.Track, "key": l.Key, "code": l.Code} {
+			if body := asJSON(v); body != "null" && body != "[]" {
+				out[name] = `"` + name + `":` + body
+			}
+		}
+		return out
+	}
+	full := fields(whole)
+	for i, v := range vs {
+		tape := v.tape.all()
+		own := fields(parts[i])
+		for name, s := range full {
+			if own[name] != s && strings.Contains(tape, s) {
+				t.Errorf("member %d was sent the whole machine's %s, which it is not dealt", i, name)
+			}
+		}
+		for j, p := range parts {
+			for name, s := range fields(p) {
+				if j != i && own[name] != s && strings.Contains(tape, s) {
+					t.Errorf("member %d was sent member %d's part of %s", i, j, name)
+				}
+			}
+		}
+		for _, id := range characterID.FindAllString(tape, -1) {
+			if id == ids[0] || !slices.Contains(ids, id) {
+				t.Errorf("member %d was sent the character id %s", i, id)
+				break
+			}
+		}
+		if i > 0 && strings.Contains(tape, `"mine":`) {
+			t.Errorf("member %d was sent a pick of another's", i)
+		}
+		if !strings.Contains(tape, `"t":"move"`) || !strings.Contains(tape, `"`+armedSts[i].Context.ID+`"`) {
+			t.Errorf("member %d's tape is not what was sent: %d bytes", i, len(tape))
+		}
+	}
+	tape := wv.tape.all()
+	for _, s := range []string{`"t":"move"`, `"t":"moves"`, `"` + sts[0].Context.ID + `"`, `"` + sh.ID + `"`, `"party"`, `"mine"`, "u-one", "u-two", "u-three"} {
+		if strings.Contains(tape, s) {
+			t.Errorf("the watcher was sent %s", s)
+		}
+	}
+	for _, id := range characterID.FindAllString(tape, -1) {
+		if id != ids[0] {
+			t.Errorf("the watcher was sent the character id %s", id)
+			break
+		}
+	}
+	for _, p := range append(parts, whole) {
+		for name, s := range fields(p) {
+			if strings.Contains(tape, s) {
+				t.Errorf("the watcher was sent the party machine's %s", name)
+			}
+		}
+	}
+	for _, v := range append(vs, wv) {
+		tape := v.tape.all()
+		for _, needle := range w.needles {
+			if strings.Contains(tape, needle) {
+				t.Error("a seat was sent a key")
+			}
+		}
+		for _, s := range []string{`"tile:`, `"floor:`, `"spec"`, `"attempt"`, `"picks"`} {
+			if strings.Contains(tape, s) {
+				t.Errorf("a seat was sent %s", s)
 			}
 		}
 	}

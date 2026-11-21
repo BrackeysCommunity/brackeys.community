@@ -24,7 +24,8 @@ import (
 )
 
 // Host is what the gateway needs of the world: who plays whom, one
-// viewer's filtered state, the action path, and the countdowns running.
+// viewer's filtered state, the action path, the countdowns running, and a
+// party's seats, windows and merged log.
 type Host interface {
 	CharacterOf(ctx context.Context, discordID string) (string, error)
 	// View is one character's state, filtered for them; passed is the
@@ -42,7 +43,25 @@ type Host interface {
 	// Subscribe is told which characters a command or a tick changed
 	// (nil: any). f must not block: it is called with the world held.
 	Subscribe(f func(characterIDs []string))
+	// Windows are the pick windows open, and Window one of them; ok is
+	// false when it is not open, or waits on an armed machine.
+	Windows(ctx context.Context) ([]api.OpenWindow, error)
+	Window(ctx context.Context, shared string) (w api.OpenWindow, ok bool, err error)
+	// Judge replays a merged log against the armed machine of a
+	// character's party, with no write: JudgeGoing, JudgeDone or
+	// JudgeBroke, or "" when none is armed.
+	Judge(ctx context.Context, characterID string, log api.PuzzleLog) (status string, err error)
+	// Seats is the context a character is bound to and who must hold a
+	// seat in it before its party's machine arms, in seat order.
+	Seats(ctx context.Context, characterID string) (context string, members []string, err error)
 }
+
+// What Judge says of a merged log so far.
+const (
+	JudgeGoing = "going"
+	JudgeDone  = "done"
+	JudgeBroke = "broke"
+)
 
 // Clock is the wall clock and its timers, so a test can move time.
 type Clock interface {
@@ -89,6 +108,7 @@ const (
 	maxBody     = 4 << 10         // a token or beacon body, in bytes
 	maxBehind   = 8               // frames a socket may fall behind
 	maxIntents  = 10              // intents a character's seats may send in a second
+	maxMoves    = 40              // party machine moves a character's seats may send in a second
 	maxLooks    = 5               // looks a character's seats may send in a second
 	maxUnseated = 256             // sockets that may be open with no hello answered yet
 	maxSockets  = 4               // sockets one Discord user may hold open
@@ -116,8 +136,8 @@ type Session struct {
 	unreap   func()           // stops the timer that would forget it
 }
 
-// Seat is one signed-in viewer in a session. Context and conn are read
-// under the gateway's lock; the rest under its character's.
+// Seat is one signed-in viewer in a session. Context, conn and synced are
+// read under the gateway's lock; the rest under its character's.
 type Seat struct {
 	Discord string
 	Char    string
@@ -133,6 +153,11 @@ type Seat struct {
 	pass    *api.PuzzleMove
 	armedAt int64
 	sat     int64 // the arrival it was last sat in, which orders its socket; under the gateway's lock
+	// The party machine the state last sent shows armed, if any.
+	party *partySeat
+	// synced is the socket that has the merged log so far: relayed moves
+	// go only to it, so none arrives before the log it follows.
+	synced *conn
 }
 
 // player is one character the gateway serves. Its lock puts that
@@ -146,6 +171,7 @@ type player struct {
 	// window.
 	recent window // intents in the last second
 	looks  window // looks in the last second
+	moves  window // party machine moves in the last second
 }
 
 // countdown is the timer that ends one armed machine.
@@ -181,6 +207,11 @@ type Gateway struct {
 	beacons   window // beacons in the last second
 	exchanges window // codes traded with Discord in the last second
 
+	// The merged logs of party machines, by context; taken after a
+	// character's lock and before a log's own.
+	cmu      sync.Mutex
+	contexts map[string]*mergedLog
+
 	// The notices not yet acted on.
 	nmu     sync.Mutex
 	settled *sync.Cond
@@ -200,7 +231,7 @@ type Gateway struct {
 func New(cfg Config) *Gateway {
 	g := &Gateway{cfg: cfg, clock: cfg.Clock, log: cfg.Log, discord: strings.TrimRight(cfg.DiscordAPI, "/"),
 		key: make([]byte, sha256.Size), sessions: map[string]*Session{}, conns: map[*conn]struct{}{}, players: map[string]*player{},
-		dirty: map[string]bool{}, wake: make(chan struct{}, 1), idle: make(chan struct{}), helloWait: helloWait, pingEvery: pingEvery}
+		contexts: map[string]*mergedLog{}, dirty: map[string]bool{}, wake: make(chan struct{}, 1), idle: make(chan struct{}), helloWait: helloWait, pingEvery: pingEvery}
 	if g.clock == nil {
 		g.clock = wall{}
 	}
@@ -262,6 +293,7 @@ func (g *Gateway) Close() {
 		g.forget(s)
 	}
 	g.mu.Unlock()
+	g.endParties()
 	// A socket closed with no bye dials again, and finds the next service.
 	for _, c := range conns {
 		go c.shut(websocket.StatusGoingAway, "the world is closing")
@@ -337,11 +369,21 @@ func (g *Gateway) settle() {
 // names, never to the whole world's, and keeps the countdowns in step.
 func (g *Gateway) refresh(all bool, ids map[string]bool) {
 	g.mu.Lock()
+	// A party's seats are rebuilt together: a notice names whose row
+	// changed, and every seat bound to that party may see it.
+	parties := map[string]bool{}
+	for _, s := range g.sessions {
+		for _, seat := range s.seats {
+			if ids[seat.Char] && seat.Context.Kind != "" && seat.Context.Kind != api.ContextSolo {
+				parties[contextKey(seat.Context)] = true
+			}
+		}
+	}
 	var seats []*Seat
 	shown := map[string]bool{}
 	for _, s := range g.sessions {
 		for _, seat := range s.seats {
-			if seat.conn != nil && (all || ids[seat.Char]) {
+			if seat.conn != nil && (all || ids[seat.Char] || parties[contextKey(seat.Context)]) {
 				seats = append(seats, seat)
 				shown[seat.Char] = true
 			}
@@ -407,16 +449,28 @@ func (g *Gateway) check(ctx context.Context, id string) {
 	p := g.players[id]
 	g.mu.Unlock()
 	if p == nil {
-		if m, ok := g.countdown(ctx, id); !ok || m.Due == 0 {
+		m, ok := g.countdown(ctx, id)
+		if !ok || m.Due == 0 {
+			return
+		}
+		if m.Context != "" {
+			g.keepParty(m, "")
 			return
 		}
 		p = g.player(id)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if m, ok := g.countdown(ctx, id); ok {
-		g.keep(p, id, m.Due)
+	m, ok := g.countdown(ctx, id)
+	if !ok {
+		return
 	}
+	if m.Context != "" {
+		g.keep(p, id, 0)
+		g.keepParty(m, "")
+		return
+	}
+	g.keep(p, id, m.Due)
 }
 
 // countdown is a character's countdown as the host reads it; ok is false
@@ -430,9 +484,10 @@ func (g *Gateway) countdown(ctx context.Context, id string) (api.ArmedMachine, b
 	return m, true
 }
 
-// due is when the server ends a machine in a state, or 0.
+// due is when the server ends a character's own machine in a state, or
+// 0. A party's machine is ended by its context's countdown instead.
 func due(m *api.MachineView) int64 {
-	if m == nil || !m.Armed {
+	if m == nil || !m.Armed || partySource(m.Source) {
 		return 0
 	}
 	return m.Due
@@ -496,6 +551,10 @@ func (g *Gateway) expire(id string, t *countdown) {
 		return
 	}
 	if !ok {
+		return
+	}
+	if m.Context != "" {
+		g.keepParty(m, "")
 		return
 	}
 	if m.Due == 0 || g.clock.Now().UnixMilli() < m.Due {

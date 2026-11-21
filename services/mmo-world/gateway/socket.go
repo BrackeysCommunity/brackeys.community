@@ -249,6 +249,10 @@ func (g *Gateway) greet(c *conn, late *time.Timer) *Seat {
 	}
 	seat.Discord, seat.epoch, seat.Viewer = discord, epoch, msg.Hello.Viewer
 	g.show(ctx, seat, true)
+	g.sync(seat, c)
+	g.mu.Lock()
+	g.nudge(seat)
+	g.mu.Unlock()
 	return seat
 }
 
@@ -365,6 +369,7 @@ func (g *Gateway) leave(c *conn) {
 	}
 	if s.conn == c {
 		s.conn = nil
+		g.nudge(s)
 	}
 	sess := s.session
 	for _, other := range sess.seats {
@@ -468,6 +473,8 @@ func (g *Gateway) handle(s *Seat, c *conn, data []byte) {
 		g.intent(ctx, s, c, msg)
 	case api.FramePassHint:
 		g.passHint(ctx, s, c, msg)
+	case api.FrameMove:
+		g.move(ctx, s, c, msg)
 	default:
 		c.send(refusal(msg.Seq, "", api.CodeBadJSON, "no such frame"))
 	}
@@ -500,8 +507,21 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		g.dismiss(s)
 		return
 	}
+	if in.Kind == api.ActMachineArm && in.Machine != nil && partySource(in.Machine.Source) {
+		seated, err := g.allSeated(ctx, s)
+		if err != nil {
+			g.log.Error("activity: reading a party's seats", "character", s.Char, "err", err.Error())
+			c.send(refusal(msg.Seq, in.ID, api.CodeInternal, "the world could not take that"))
+			return
+		}
+		if !seated {
+			c.send(refusal(msg.Seq, in.ID, api.CodePartyNotSeated, "everyone at the machine must be seated here first"))
+			g.show(ctx, s, true)
+			return
+		}
+	}
 	req := api.ActionRequest{InteractionID: "act-" + in.ID, CharacterID: s.Char, DiscordID: s.Discord, Version: in.Version,
-		Kind: in.Kind, Option: in.Option, Machine: in.Machine}
+		Kind: in.Kind, Option: in.Option, Machine: in.Machine, Target: in.Target, Item: in.Item}
 	rep, ref, err := g.cfg.Host.Act(ctx, req, true)
 	switch {
 	case err != nil:
@@ -604,14 +624,25 @@ func (g *Gateway) show(ctx context.Context, s *Seat, force bool) {
 			return
 		}
 		g.keep(s.who, s.Char, due(st.Machine))
-		s.pass, s.armedAt = nil, 0
+		s.pass, s.armedAt, s.party = nil, 0, nil
 		if m := st.Machine; m != nil && m.Armed && m.CanPass && m.Pass != nil {
 			move := *m.Pass
 			s.pass, s.armedAt = &move, m.ArmedAt
 		}
+		if m := st.Machine; m != nil && m.Armed && partySource(m.Source) {
+			s.party = &partySeat{key: contextKey(st.Context), armedAt: m.ArmedAt, seat: m.Seat, source: m.Source}
+			g.partyShown(ctx, s.Char, *s.party, m.Due)
+		}
+		var sat []string
+		if m := st.Machine; m != nil && len(m.Seats) > 0 {
+			if _, sat, err = g.cfg.Host.Seats(ctx, s.Char); err != nil {
+				g.log.Error("activity: reading a party's seats", "character", s.Char, "err", err.Error())
+			}
+		}
 		g.mu.Lock()
 		s.Context = st.Context
 		c := s.conn
+		g.here(s, st.Machine, sat)
 		g.mu.Unlock()
 		if c == nil {
 			return

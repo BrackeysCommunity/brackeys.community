@@ -1,6 +1,11 @@
 package gateway
 
-import "time"
+import (
+	"slices"
+	"time"
+
+	"jams.team/mmo-world/api"
+)
 
 // MaxUnseated is how many sockets may wait to say hello.
 const MaxUnseated = maxUnseated
@@ -24,17 +29,53 @@ func (g *Gateway) Sockets() int {
 	return len(g.conns)
 }
 
-// Countdowns counts the timers set.
+// Countdowns counts the timers set: characters' own, and parties'.
 func (g *Gateway) Countdowns() int {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	n := 0
 	for _, p := range g.players {
 		if p.timer != nil {
 			n++
 		}
 	}
+	g.mu.Unlock()
+	g.cmu.Lock()
+	defer g.cmu.Unlock()
+	for _, ml := range g.contexts {
+		ml.mu.Lock()
+		if ml.stop != nil {
+			n++
+		}
+		ml.mu.Unlock()
+	}
 	return n
+}
+
+// Merged is the merged log a gateway keeps for a context, and whether it
+// keeps one.
+func (g *Gateway) Merged(context string) ([]api.PuzzleMove, bool) {
+	g.cmu.Lock()
+	defer g.cmu.Unlock()
+	ml := g.contexts[context]
+	if ml == nil {
+		return nil, false
+	}
+	ml.mu.Lock()
+	defer ml.mu.Unlock()
+	return slices.Clone(ml.moves), true
+}
+
+// MaxMoves is how many moves a character's seats may send in a second.
+const MaxMoves = maxMoves
+
+// Settle waits until every notice from the host has been acted on.
+func (t *Timers) Settle() { t.settle() }
+
+// Pending counts the windows the timers will end.
+func (t *Timers) Pending() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.windows)
 }
 
 // Players counts the characters the gateway keeps a record of.

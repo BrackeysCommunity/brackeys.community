@@ -189,6 +189,10 @@ func TestKilledServiceCatchesUp(t *testing.T) {
 		if !strings.Contains(p.logs.String(), "key check holds") {
 			t.Fatalf("no key check in the logs:\n%s", p.logs)
 		}
+		// With no Activity listener, the pick windows are still kept.
+		if !strings.Contains(p.logs.String(), "the pick-window clock runs") {
+			t.Fatalf("no pick-window clock in the logs:\n%s", p.logs)
+		}
 		if strings.Contains(p.logs.String(), "[redacted]") {
 			t.Fatal("a key reached the log guard")
 		}

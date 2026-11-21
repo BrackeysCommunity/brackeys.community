@@ -101,6 +101,9 @@ type world struct {
 	needles []string
 	acts    []api.ActionRequest
 	views   map[string]int // states built, by character
+	// hook sees each write once the world has taken it, before its writer
+	// hears back, with the world not held.
+	hook func(api.ActionRequest)
 
 	gw   *gateway.Gateway
 	srv  *httptest.Server
@@ -146,9 +149,14 @@ func (w *world) viewed(id string) int {
 
 func (w *world) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
 	w.mu.Lock()
-	defer w.mu.Unlock()
 	w.acts = append(w.acts, req)
-	return w.host.Act(ctx, req, check)
+	rep, ref, err := w.host.Act(ctx, req, check)
+	hook := w.hook
+	w.mu.Unlock()
+	if hook != nil {
+		hook(req)
+	}
+	return rep, ref, err
 }
 
 func (w *world) Countdown(ctx context.Context, id string) (api.ArmedMachine, bool, error) {
@@ -162,6 +170,30 @@ func (w *world) Armed(ctx context.Context) ([]api.ArmedMachine, error) {
 }
 
 func (w *world) Subscribe(f func([]string)) { w.host.Subscribe(f) }
+
+func (w *world) Windows(ctx context.Context) ([]api.OpenWindow, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.Windows(ctx)
+}
+
+func (w *world) Window(ctx context.Context, shared string) (api.OpenWindow, bool, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.Window(ctx, shared)
+}
+
+func (w *world) Judge(ctx context.Context, id string, log api.PuzzleLog) (string, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.Judge(ctx, id, log)
+}
+
+func (w *world) Seats(ctx context.Context, id string) (string, []string, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.Seats(ctx, id)
+}
 
 // do sets a scene in the game, with the game held.
 func (w *world) do(f func()) {

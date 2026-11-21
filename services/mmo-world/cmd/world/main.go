@@ -1,9 +1,10 @@
 // Command world is the world service: the only writer of game state and
 // the only holder of the keys. It derives the keys from the master secret
 // in its environment, checks that no key is in the database or can reach
-// its logs, holds its world, runs the tick loop and serves the API. With
-// an Activity port set it also serves the Activity, on a listener of its
-// own: that one is public, and carries none of the API's paths.
+// its logs, holds its world, runs the tick loop and serves the API, and
+// keeps the clock that ends a party's pick windows. With an Activity port
+// set it also serves the Activity, on a listener of its own: that one is
+// public, and carries none of the API's paths.
 package main
 
 import (
@@ -119,11 +120,21 @@ func run(guard *service.Guard, log *slog.Logger) error {
 		return err
 	}
 	served := srv.Handler()
+	// Parties that play only in chat need their windows ended too, so the
+	// clock runs with or without the Activity.
+	timers, err := gateway.StartTimers(ctx, srv, nil, log)
+	if err != nil {
+		shutdown()
+		srv.Close(context.Background())
+		return err
+	}
+	log.Info("the pick-window clock runs", "world", sec.World)
 	var gw *gateway.Gateway
 	if activityPort != "" {
 		activity.Host, activity.Health, activity.Events = srv, served, events
 		gw = gateway.New(activity)
 		if err := gw.Start(ctx); err != nil {
+			timers.Close()
 			shutdown()
 			srv.Close(context.Background())
 			return err
@@ -143,6 +154,7 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	if gw != nil {
 		gw.Close()
 	}
+	timers.Close()
 	shutdown()
 	srv.Close(context.Background())
 	return err
