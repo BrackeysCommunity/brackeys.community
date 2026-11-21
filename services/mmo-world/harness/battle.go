@@ -404,6 +404,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	pr("")
 
+	solo := map[int64]float64{}
 	if only != "matrix" {
 		// Even fights at equal tier, every policy.
 		pr("## Even fights at equal tier")
@@ -442,6 +443,7 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 				if pol.Name == "best" {
 					rate := pct(all.won, all.n)
 					evenNotes = append(evenNotes, fmt.Sprintf("tier %d %.1f%%", ft.Tier, rate))
+					solo[ft.Tier] = rate
 					if rate < float64(target-tol) || rate > float64(target+tol) {
 						evenOK = false
 					}
@@ -451,6 +453,14 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		pr("")
 		readings = append(readings, Measured{Target: "even-fight", Value: strings.Join(evenNotes, ", ") + " (best policy)", Holds: evenOK})
 		if only == "even" {
+			return readings, doc.save(out, "battle.md")
+		}
+		parties, err := bt.partySections(pr, b, byTier, solo, n)
+		if err != nil {
+			return nil, err
+		}
+		readings = append(readings, parties...)
+		if only == "party" {
 			return readings, doc.save(out, "battle.md")
 		}
 

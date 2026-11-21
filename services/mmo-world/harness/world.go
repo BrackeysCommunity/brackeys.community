@@ -405,6 +405,11 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		{"factions-keep-holdings", fmt.Sprintf("%d fell in %d worlds", fallen, n), fallen == 0},
 		{"cost-follows-discovery", fmt.Sprintf("%s per 1,000 stored tiles a day; far chunks leave it %s", tickCost.Round(time.Microsecond), either(flat, "flat", "rising")), flat},
 	}
+	dungeons, err := dungeonSections(b, p)
+	if err != nil {
+		return nil, err
+	}
+	readings = append(readings, dungeons...)
 	if err := doc.save(out, "world.md"); err != nil {
 		return nil, err
 	}

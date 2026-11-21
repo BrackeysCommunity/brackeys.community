@@ -3,12 +3,14 @@
 //	harness check [-skip-lint] schemas, units, references, budgets, the pack, the rules, the sim lints
 //	harness report           every target and its last reading
 //	harness schema           regenerate sheets/schema from the row types
-//	harness world -out DIR   the World run: 90 unattended days, and what a day costs
+//	harness world -out DIR   the World run: 90 unattended days, what a day costs, and dungeons over a thousand seeds and played
 //	harness craft -out DIR   the Craft run: sampled kinds against budgets and a search
-//	harness battle -out DIR  the Battle run: the matchup matrix, classes, growth and puzzles
+//	harness battle -out DIR  the Battle run: the matchup matrix, classes, parties, growth and puzzles
 //	harness economy -out DIR the Economy run: scripted players, their guild and its works, a founding (-n for one size)
-//	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench, replayed to the same facts
+//	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench and every party version's merged logs, replayed to the same facts
 //	harness activity -out DIR the Activity run: every family through a live world's Activity listener (MMO_URL, MMO_ACTIVITY_URL)
+//	harness delve -out DIR   the delve run: a party of four through a seven-floor bunker and ten at a hunt, on a live disposable world
+//	                         (MMO_URL, MMO_ACTIVITY_URL, MMO_OPERATOR_TOKEN; the world's keys from MMO_MASTER_SECRET or the local world's)
 //	harness spike-a|b|e -out DIR
 //
 // -cpuprofile FILE writes a CPU profile of any of them.

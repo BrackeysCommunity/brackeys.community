@@ -12,14 +12,17 @@ import (
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
+	"jams.team/mmo-world/sim/party"
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 )
 
 // The Puzzles run: every family's move logs played at a tinker's bench,
-// and the requests that carried them given to a second game, which must
-// turn each log into the same fact (GDD 7.11, 18.4).
+// and every party version's merged logs played by a party, and the
+// requests that carried them given to a second game, which must turn each
+// log into the same fact (GDD 7.11, 18.4).
 
 // machineClock is the service's clock when a machine game starts, unix
 // ms. Any moment does; a countdown only ever reads the time between two.
@@ -271,8 +274,132 @@ func benchReplay(b *sheets.Book, family string) (benchPlay, error) {
 	return out, err
 }
 
+// partyLevel is the level a party machine is played at, and partyTries
+// how many tiles a family's party is stood on to meet each of its
+// versions, which the arming draws by place.
+const (
+	partyLevel = 3
+	partyTries = 12
+)
+
+// partyPlay is one family's party machines at every party size, in a
+// first game and its replay.
+type partyPlay struct {
+	family        string
+	logs          []partyLog
+	first, second *machines
+	digest        canon.Sum
+}
+
+// partyLog is one merged log a party sent: the version and seats it was
+// armed for.
+type partyLog struct {
+	benchLog
+	version string
+	seats   int64
+}
+
+// partyReplay plays a family's party machine through the service's own
+// action path: for two to four seats, a party of characters standing
+// together faces the family's machine, the first seat arms it, and the
+// version's own merged log, every move seated, is sent as one solve. It
+// stands the party on more tiles until it has met every version of the
+// family, then sends half of a solve. It then replays the game and fails unless the
+// replay is the same.
+func partyReplay(b *sheets.Book, family string) (partyPlay, error) {
+	out := partyPlay{family: family}
+	m, err := newMachines(b, "puzzles-party-"+family)
+	if err != nil {
+		return out, err
+	}
+	most := sheets.IntParam(b.FightParams, "party-size-max")
+	var cs []string
+	for range most {
+		c, err := m.create()
+		if err != nil {
+			return out, err
+		}
+		cs = append(cs, c.C.ID)
+	}
+	at := m.g.Char(cs[0]).C.At
+	versions := puzzle.PartyVersions(family)
+	met := map[string]bool{}
+	play := func(seats int64, try int, cut bool) error {
+		ids, here := cs[:seats], at
+		if err := m.plant(func(m *machines) error {
+			var party []*game.Char
+			for _, id := range ids {
+				c := m.g.Char(id)
+				c.C.At, c.Worked, c.Long, c.Fight = here, max(c.Worked, 1), nil, nil
+				party = append(party, c)
+			}
+			m.g.FacePartyMachine(party, family, partyLevel)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if _, err := m.send(api.ActionRequest{Kind: api.ActMachineArm, CharacterID: ids[0], Machine: &api.MachineIntent{Source: api.MachineParty}}); err != nil {
+			return fmt.Errorf("%d seats on tile %d: %w", seats, try, err)
+		}
+		rig, ok := m.g.PartyRigOf(m.g.Char(ids[0]))
+		if !ok || rig.Machine.Spec.Party == "" {
+			return fmt.Errorf("%s: %d seats armed no party version: %+v", m.label, seats, rig.Machine)
+		}
+		version := rig.Machine.Spec.Party
+		met[version] = true
+		p := m.g.Puzzles()
+		log := p.PartySolve(p.Make(rig.Machine.Spec))
+		name := "the version's solve"
+		if cut {
+			log = puzzle.Log{Moves: log.Moves[:len(log.Moves)/halfLog]}
+			name = "half a solve"
+		}
+		if try > 0 {
+			name += fmt.Sprintf(" (tile %d)", try)
+		}
+		m.clock = rig.Machine.At + log.Stop()
+		rep, err := m.send(api.ActionRequest{Kind: api.ActMachineSolve, CharacterID: ids[0], Machine: &api.MachineIntent{Source: api.MachineParty, Log: service.LogOf(log)}})
+		if err != nil {
+			return err
+		}
+		if rep.Machine == nil || rep.Machine.Solved == cut {
+			return fmt.Errorf("%s: %s: the machine made %+v of it", m.label, name, rep.Machine)
+		}
+		out.logs = append(out.logs, partyLog{benchLog: benchLog{name: name, step: len(m.steps) - 1, log: log}, version: version, seats: seats})
+		m.clock++
+		return nil
+	}
+	for seats := int64(party.MinSize); seats <= most; seats++ {
+		if err := play(seats, 0, false); err != nil {
+			return out, err
+		}
+	}
+	for try := 1; len(met) < len(versions) && try <= partyTries; try++ {
+		at = at.Neighbour(try % hex.Directions)
+		if err := play(party.MinSize, try, false); err != nil {
+			return out, err
+		}
+	}
+	if len(met) < len(versions) {
+		return out, fmt.Errorf("%s: met %d of the family's %d versions on %d tiles", m.label, len(met), len(versions), partyTries+1)
+	}
+	if err := play(most, 0, true); err != nil {
+		return out, err
+	}
+	if err := m.tick(); err != nil {
+		return out, err
+	}
+	again, err := m.again()
+	if err != nil {
+		return out, err
+	}
+	out.first, out.second = m, again
+	out.digest, err = m.same(again)
+	return out, err
+}
+
 // PuzzlesRun is the Puzzles run: a move log replayed gives the same fact
-// twice, for every family.
+// twice, for every family, played alone at the bench and by a party.
 func PuzzlesRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 	p := puzzleKit(b)
 	families := p.All()
@@ -280,6 +407,20 @@ func PuzzlesRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 	if err := runParallel(len(families), func(i int) error {
 		var err error
 		plays[i], err = benchReplay(b, families[i])
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	var withParty []string
+	for _, f := range families {
+		if len(puzzle.PartyVersions(f)) > 0 {
+			withParty = append(withParty, f)
+		}
+	}
+	parties := make([]partyPlay, len(withParty))
+	if err := runParallel(len(withParty), func(i int) error {
+		var err error
+		parties[i], err = partyReplay(b, withParty[i])
 		return err
 	}); err != nil {
 		return nil, err
@@ -298,12 +439,36 @@ func PuzzlesRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 		}
 		pr("| %s | the game's digest, a tick later | – | `%s` | `%s` |", play.family, play.digest, play.digest)
 	}
+	pr("")
+	pr("## Party machines, merged logs")
+	pr("")
+	pr("Each of the %d families with a party version gets a fresh game under the throwaway key `puzzles-party-<family>`. Characters standing together face the family's machine at level %d, at %d to %d seats; the first seat arms it through the service's action path, which fixes the version, seats and shape, and sends the version's own merged log, every move naming its seat, as one solve; then half of one. The party is stood on more tiles until the arming has drawn every version of the family. The requests are given again, in order and on the same clock, to a second fresh game, which must give every reply and the digest again.",
+		len(withParty), partyLevel, party.MinSize, sheets.IntParam(b.FightParams, "party-size-max"))
+	pr("")
+	pr("| Family | Version and seats | Log | Sent | First game | Second game |")
+	pr("| --- | --- | --- | --- | --- | --- |")
+	for _, play := range parties {
+		for _, l := range play.logs {
+			pr("| %s | %s, %d seats | %s | %s from %d seats | %s | %s |", play.family, l.version, l.seats, l.name, logLine(l.log), seatsMoved(l.log),
+				became(play.first.steps[l.step].reply), became(play.second.steps[l.step].reply))
+		}
+		pr("| %s | – | the game's digest, a tick later | – | `%s` | `%s` |", play.family, play.digest, play.digest)
+	}
 	return nil, doc.save(out, "puzzles.md")
 }
 
 // puzzleKit is the puzzle sheets alone, for a run that only lists them.
 func puzzleKit(b *sheets.Book) *puzzle.Puzzles {
 	return puzzle.New(b, keys.Throwaway("puzzles").Generation)
+}
+
+// seatsMoved is how many seats a merged log has moves from.
+func seatsMoved(l puzzle.Log) int {
+	seats := map[int64]bool{}
+	for _, mv := range l.Moves {
+		seats[mv.Seat] = true
+	}
+	return len(seats)
 }
 
 func logLine(l puzzle.Log) string {
