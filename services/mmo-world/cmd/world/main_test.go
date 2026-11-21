@@ -3,7 +3,11 @@ package main_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,8 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/api/client"
+	"jams.team/mmo-world/gateway"
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/service"
@@ -57,7 +64,7 @@ type proc struct {
 
 func env(name string, value any) string { return fmt.Sprintf("%s=%v", name, value) }
 
-func launch(t *testing.T, bin, dbURL string) *proc {
+func launch(t *testing.T, bin, dbURL string, more ...string) *proc {
 	t.Helper()
 	port, err := pgtest.FreePort()
 	if err != nil {
@@ -65,9 +72,9 @@ func launch(t *testing.T, bin, dbURL string) *proc {
 	}
 	_, secrets := testkit.Secrets(t, "mmo/kill-test-master", "w-kill")
 	cmd := exec.Command(bin)
-	cmd.Env = append(append(os.Environ(), secrets...),
+	cmd.Env = append(append(append(os.Environ(), secrets...),
 		env(service.EnvDatabase, dbURL), env(service.EnvPort, port), env(service.EnvOperatorToken, opToken),
-		env(service.EnvManualClock, 1), env(service.EnvPollMS, 2), env(service.EnvLogLevel, "info"))
+		env(service.EnvManualClock, 1), env(service.EnvPollMS, 2), env(service.EnvLogLevel, "info")), more...)
 	logs := &logBuffer{}
 	cmd.Stdout, cmd.Stderr = logs, logs
 	if err := cmd.Start(); err != nil {
@@ -185,5 +192,143 @@ func TestKilledServiceCatchesUp(t *testing.T) {
 		if strings.Contains(p.logs.String(), "[redacted]") {
 			t.Fatal("a key reached the log guard")
 		}
+	}
+}
+
+// TestActivityListener runs the service with an Activity port: a second
+// listener that signs a player in, opens their socket and shows them
+// their state, carries none of the API's paths, and closes its sockets
+// when the service stops. The client secret never reaches the log.
+func TestActivityListener(t *testing.T) {
+	bin := testkit.BuildCmd(t, "world")
+	port, err := pgtest.FreePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const secret = "the-application's-client-secret"
+	p := launch(t, bin, pgtest.DB(t), env(gateway.EnvPort, port), env(gateway.EnvDev, 1), env(service.EnvDisposable, 1),
+		env(gateway.EnvAppID, "1234567890"), env(gateway.EnvClientSecret, secret))
+	ctx, cancel := context.WithTimeout(context.Background(), upWait)
+	defer cancel()
+	rep, ref, err := p.cli.Act(ctx, api.ActionRequest{InteractionID: "start", DiscordID: "u-activity", Kind: api.ActCreate, Option: api.StartKnife})
+	if err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	base := fmt.Sprintf("127.0.0.1:%d", port)
+	call := func(method, path, body string) (int, string) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, method, "http://"+base+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%v:\n%s", err, p.logs)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		out, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(out)
+	}
+	if status, body := call("GET", api.PathHealth, ""); status != http.StatusOK || !strings.Contains(body, `"w-kill"`) {
+		t.Fatalf("health on the Activity listener: %d %s", status, body)
+	}
+	// The API's paths are not on the public listener.
+	for _, path := range []string{api.PathActions, api.PathOperator, api.PathOperatorDigest, api.PathMap} {
+		if status, body := call("POST", path, `{"interactionId":"x","discordId":"u-2","kind":"create"}`); status == http.StatusOK || strings.Contains(body, "character") {
+			t.Fatalf("POST %s on the Activity listener: %d %s", path, status, body)
+		}
+		if status, body := call("GET", path, ""); status != http.StatusNotFound {
+			t.Fatalf("GET %s on the Activity listener: %d %s", path, status, body)
+		}
+	}
+	status, body := call("POST", "/.proxy"+api.PathActivityToken, `{"dev":"u-activity"}`)
+	var signed api.TokenReply
+	if err := json.Unmarshal([]byte(body), &signed); err != nil || status != http.StatusOK || signed.CharacterID != rep.Character.ID {
+		t.Fatalf("signing in: %d %s", status, body)
+	}
+	ws, resp, err := websocket.Dial(ctx, "ws://"+base+api.PathActivitySocket, nil)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ws.CloseNow() }()
+	ws.SetReadLimit(1 << 22)
+	hello, _ := json.Marshal(api.ClientMessage{T: "hello", Hello: &api.ClientHello{Session: signed.Session, Instance: "i-1"}})
+	if err := ws.Write(ctx, websocket.MessageText, hello); err != nil {
+		t.Fatal(err)
+	}
+	read := func() api.ServerMessage {
+		t.Helper()
+		_, data, err := ws.Read(ctx)
+		if err != nil {
+			t.Fatalf("%v:\n%s", err, p.logs)
+		}
+		var msg api.ServerMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			t.Fatal(err)
+		}
+		return msg
+	}
+	first := read()
+	if first.State == nil || first.State.Character.ID != rep.Character.ID || first.State.Bench == nil || first.State.Now == 0 {
+		t.Fatalf("the first frame: %+v", first)
+	}
+	// A tick reaches the open socket as a new state.
+	p.advance(t, 1)
+	if next := read(); next.State == nil || next.State.Tick != 1 {
+		t.Fatalf("the frame after a tick: %+v", next)
+	}
+	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = ws.Read(ctx)
+	var ce websocket.CloseError
+	if !errors.As(err, &ce) || ce.Code != websocket.StatusGoingAway {
+		t.Fatalf("the socket at shutdown ended with %v", err)
+	}
+	if err := p.cmd.Wait(); err != nil {
+		t.Fatalf("the service stopped with %v:\n%s", err, p.logs)
+	}
+	logs := p.logs.String()
+	if strings.Contains(logs, secret) || strings.Contains(logs, "[redacted]") || !strings.Contains(logs, "the Activity is served") {
+		t.Fatalf("the service's log:\n%s", logs)
+	}
+}
+
+// TestActivityNeedsDiscord refuses to start a world players keep with an
+// Activity port and no Discord application, and ignores dev sign-in
+// there.
+func TestActivityNeedsDiscord(t *testing.T) {
+	bin := testkit.BuildCmd(t, "world")
+	_, secrets := testkit.Secrets(t, "mmo/kill-test-master", "w-kept")
+	run := func(more ...string) string {
+		t.Helper()
+		cmd := exec.Command(bin)
+		cmd.Env = append(append(append(os.Environ(), secrets...), env(service.EnvAPIToken, "api-token"), env(service.EnvDatabase, "postgres://127.0.0.1:1/none?connect_timeout=1"),
+			env(gateway.EnvPort, 18999), env(gateway.EnvDev, 1)), more...)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("the service ran:\n%s", out)
+		}
+		return string(out)
+	}
+	if out := run(); !strings.Contains(out, gateway.EnvAppID) || !strings.Contains(out, "world players keep") {
+		t.Fatalf("no Discord application:\n%s", out)
+	}
+	if out := run(env(gateway.EnvAppID, "1234567890")); !strings.Contains(out, gateway.EnvClientSecret) {
+		t.Fatalf("no client secret:\n%s", out)
+	}
+	if out := run(env(gateway.EnvPort, "eighty")); !strings.Contains(out, gateway.EnvPort) {
+		t.Fatalf("a port that is no number:\n%s", out)
+	}
+	if out := run(env(gateway.EnvPort, 8080)); !strings.Contains(out, "must not be the API's") {
+		t.Fatalf("the API's own port:\n%s", out)
+	}
+	// With both, it gets as far as the database, having set dev aside.
+	out := run(env(gateway.EnvAppID, "1234567890"), env(gateway.EnvClientSecret, "a-secret"))
+	if !strings.Contains(out, gateway.EnvDev+" is ignored") || strings.Contains(out, "a-secret") || strings.Contains(out, "world players keep") {
+		t.Fatalf("a kept world with a Discord application:\n%s", out)
 	}
 }

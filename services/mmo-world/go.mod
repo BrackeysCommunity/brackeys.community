@@ -6,6 +6,7 @@ toolchain go1.27.2
 
 require (
 	github.com/alecthomas/go-check-sumtype v0.5.0
+	github.com/coder/websocket v1.8.15
 	github.com/nishanths/exhaustive v0.17.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	golang.org/x/tools v0.52.0
